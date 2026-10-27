@@ -70,8 +70,10 @@ The payment/fulfillment backend runs on Firebase. Before taking real orders:
    - `SHIPPO_API_TOKEN` (address verification + labels; without it addresses are flagged unverified and label generation refuses to run)
 2. **GitHub secret `FIREBASE_SERVICE_ACCOUNT`** — JSON service-account key so the
    `Deploy Firebase` workflow can ship Firestore rules, indexes, Storage rules
-   and Cloud Functions automatically. Until it is set, deploy manually with
-   `npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage,functions`.
+   and Cloud Functions automatically (it also needs the repository variable
+   `SHOP_OWNER_EMAIL`, the owner's sign-in address). Until it is set, deploy manually with
+   `SHOP_OWNER_EMAIL=you@example.com node scripts/deployConfig.mjs --project <project id>` then
+   `npx firebase-tools deploy --config firebase.deploy.json --project <project id> --only firestore:rules,firestore:indexes,storage,functions`.
 3. **Stripe webhook** — in the Stripe dashboard add an endpoint for
    these events: `checkout.session.completed`,
    `checkout.session.async_payment_succeeded`,

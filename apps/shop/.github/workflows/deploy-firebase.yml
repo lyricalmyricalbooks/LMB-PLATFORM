@@ -84,6 +84,16 @@ jobs:
           echo "SHOP_URL=$url" >> "$GITHUB_ENV"
           echo "Email links will open $url"
 
+      # The rules hold a slot for the owner's sign-in address (plan 1.14b). Fill it, and give the Cloud Functions the same
+      # address, from the repository variable SHOP_OWNER_EMAIL. Without it nothing deploys (scripts/deployConfig.mjs).
+      - name: Shop owner and deploy files
+        env:
+          SHOP_OWNER_EMAIL: ${{ vars.SHOP_OWNER_EMAIL }}
+        run: |
+          set -euo pipefail
+          node scripts/deployConfig.mjs --project lmb-test-shop
+          printf 'SHOP_OWNER_EMAIL=%s\n' "$SHOP_OWNER_EMAIL" >> functions/.env.lmb-test-shop
+
       # Never send customers to an address that isn't serving the shop (e.g. this change merged before Firebase Hosting
       # was set up): the live site must answer with its published-content marker.
       - name: Check the shop's address answers
@@ -124,6 +134,7 @@ jobs:
           # repo. Without it the CLI keeps them and says what it left (delete deliberately with
           # `firebase functions:delete` / by editing firestore.indexes.json).
           npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy \
+            --config firebase.deploy.json \
             --only firestore:rules,firestore:indexes,storage,functions \
             --project lmb-test-shop \
             --non-interactive

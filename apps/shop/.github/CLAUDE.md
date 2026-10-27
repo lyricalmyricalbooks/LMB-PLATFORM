@@ -31,9 +31,13 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
   live check succeeded. Never point `SITE_URL` back at github.io.
 - **Firebase** (Firestore rules/indexes, Storage rules, Functions) →
   `.github/workflows/deploy-firebase.yml` (needs `FIREBASE_SERVICE_ACCOUNT`
-  secret), or manually: `npx firebase-tools deploy --only
-  firestore:rules,firestore:indexes,storage,functions`. It never deploys Hosting. It appends `SITE_URL` (repository variable,
-  validated) to `functions/.env.lmb-test-shop` and, before deploying, checks that the email-link address answers with its
+  secret and `SHOP_OWNER_EMAIL` variable), or manually: `SHOP_OWNER_EMAIL=… node scripts/deployConfig.mjs --project <id>`
+  then `npx firebase-tools deploy --config firebase.deploy.json --project <id> --only
+  firestore:rules,firestore:indexes,storage,functions`. Never deploy the rules straight from `firebase.json`: the rules
+  hold the slot `"__SHOP_OWNER_EMAIL__"` (plan 1.14b), which `deployConfig.mjs` fills with the owner's address into
+  `.deploy/` (git-ignored); unfilled, the owner address is locked out and only the Team owner role gets in. It never
+  deploys Hosting. It appends `SITE_URL` (repository variable,
+  validated) and `SHOP_OWNER_EMAIL` to `functions/.env.lmb-test-shop` and, before deploying, checks that the email-link address answers with its
   64-hex `seo-published-fingerprint.txt` (so emails never point at a dead address; manual runs can pass `skip_site_check`
   during a hosting outage).
 - **Firebase Hosting config** (`firebase.json` `hosting`): `cleanUrls` (prerendered `books/<slug>.html` answers at `/books/<slug>`),
