@@ -3,23 +3,45 @@
 //
 // Registry: `readSteps(shopId)` returns every step entry recorded for the shop, oldest first; `recordStep(shopId, entry)`
 // adds one; `getShop`/`createShop` keep the shop row (create refuses a row that exists); `getProfile`/`saveProfile` keep
-// the shop's public profile. Audit log: `ready(shopId)` says whether the shop's database exists yet; `write(shopId, id, entry)` stores
+// the shop's public profile; `updateShop(shopId, fields)` merges fields into the row (status, payments). Locks:
+// `readLock(shopId)` -> { runId, takenAt, expiresAt } | null; `takeLock(shopId, lock)` takes the lock when it is free,
+// lapsed (expiresAt passed) or already this run's, and returns { taken: true } or { taken: false, runId, expiresAt }
+// (the real one does this in one Firestore transaction); `releaseLock(shopId, runId)` frees it only for the run that
+// holds it. Audit log: `ready(shopId)` says whether the shop's database exists yet; `write(shopId, id, entry)` stores
 // the entry under `id`, replacing any entry with that id.
 
 export function fakeRegistry(seed = {}) {
   const steps = new Map(Object.entries(seed).map(([shopId, list]) => [shopId, [...list]]));
   const shops = new Map();
   const profiles = new Map();
+  const locks = new Map();
   return {
     steps,
     shops,
     profiles,
+    locks,
     async getShop(shopId) {
       return shops.has(shopId) ? structuredClone(shops.get(shopId)) : null;
     },
     async createShop(shopId, row) {
       if (shops.has(shopId)) throw new Error(`the registry already has ${shopId}`);
       shops.set(shopId, structuredClone(row));
+    },
+    async updateShop(shopId, fields) {
+      if (!shops.has(shopId)) throw new Error(`the registry has no ${shopId}`);
+      shops.set(shopId, { ...shops.get(shopId), ...structuredClone(fields) });
+    },
+    async readLock(shopId) {
+      return locks.has(shopId) ? { ...locks.get(shopId) } : null;
+    },
+    async takeLock(shopId, lock) {
+      const held = locks.get(shopId);
+      if (held && held.runId !== lock.runId && held.expiresAt > lock.takenAt) return { taken: false, runId: held.runId, expiresAt: held.expiresAt };
+      locks.set(shopId, { ...lock });
+      return { taken: true };
+    },
+    async releaseLock(shopId, runId) {
+      if (locks.get(shopId)?.runId === runId) locks.delete(shopId);
     },
     async getProfile(shopId) {
       return profiles.has(shopId) ? structuredClone(profiles.get(shopId)) : null;
@@ -68,7 +90,12 @@ export function fakeProfileFiles() {
  * that throw the first time, as Google sometimes does.
  */
 export function fakeGoogle({ failOnce = [] } = {}) {
-  const world = { projects: new Map(), billing: new Map(), firebase: new Set(), apps: new Map(), services: new Map(), databases: new Map(), buckets: new Map() };
+  const world = {
+    projects: new Map(), billing: new Map(), firebase: new Set(), apps: new Map(), services: new Map(), databases: new Map(), buckets: new Map(),
+    backupPermission: new Set(), backups: new Map(), testFiles: new Set(),
+    // What an unsigned read of the storage test file gets; 403 is private, as the shop's storage rules make it.
+    unsignedReadStatus: 403,
+  };
   const calls = [];
   const failures = [...failOnce];
   const change = (name, ...args) => {
@@ -154,6 +181,112 @@ export function fakeGoogle({ failOnce = [] } = {}) {
         needProject(projectId);
         world.buckets.set(projectId, { name: `${projectId}.firebasestorage.app`, location: location.toUpperCase() });
       },
+    },
+    backups: {
+      hasPermission: async (projectId) => world.backupPermission.has(projectId),
+      async grantPermission(projectId) {
+        change("backups.grantPermission", projectId);
+        needProject(projectId);
+        world.backupPermission.add(projectId);
+      },
+      latest: async (projectId) => world.backups.get(projectId)?.at(-1) ?? null,
+      async run(projectId) {
+        change("backups.run", projectId);
+        if (!world.backupPermission.has(projectId)) throw new Error(`the backup has no permission on ${projectId}`);
+        const list = world.backups.get(projectId) ?? [];
+        const backup = { name: `backups/${projectId}/${list.length + 1}` };
+        world.backups.set(projectId, [...list, backup]);
+        return backup;
+      },
+    },
+    storageProbe: {
+      hasTestFile: async (projectId) => world.testFiles.has(projectId),
+      async writeTestFile(projectId) {
+        change("storageProbe.writeTestFile", projectId);
+        if (!world.buckets.has(projectId)) throw new Error(`no storage bucket on ${projectId}`);
+        world.testFiles.add(projectId);
+      },
+      readUnsigned: async (projectId) => ({ status: world.testFiles.has(projectId) ? world.unsignedReadStatus : 404 }),
+    },
+  };
+}
+
+/**
+ * The rest of the world steps 7–15 reach, in memory: deploys, the per-shop env file, the shop's database, the payment
+ * providers (through the payment service), the email service and the page checker. Like fakeGoogle, `calls` lists
+ * every change asked for and `failOnce` names calls that throw the first time.
+ */
+export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
+  const world = { deployed: new Map(), envFiles: new Map(), docs: new Map(), accounts: { stripe: new Map() }, sent: new Map(), pageStatus };
+  const calls = [];
+  const failures = [...failOnce];
+  const change = (name, ...args) => {
+    calls.push([name, ...args]);
+    const at = failures.indexOf(name);
+    if (at >= 0) {
+      failures.splice(at, 1);
+      throw new Error(`${name} failed (pretend error)`);
+    }
+  };
+  const key = (projectId, part) => `${projectId} ${part}`;
+  const siteUrl = (projectId, app) => (app === "shop" ? `https://${projectId}.web.app` : `https://${projectId}-${app}.web.app`);
+
+  return {
+    world,
+    calls,
+    deploy: {
+      deployed: async (projectId, part) => structuredClone(world.deployed.get(key(projectId, part)) ?? null),
+      async rules(projectId, { version, apps }) {
+        change("deploy.rules", projectId, version);
+        world.deployed.set(key(projectId, "rules"), { version, apps: [...apps] });
+      },
+      async functions(projectId, { version, region, envFile }) {
+        change("deploy.functions", projectId, version, region);
+        if (!envFile) throw new Error("no env file");
+        world.deployed.set(key(projectId, "functions"), { version, region });
+      },
+      async pages(projectId, { version, app }) {
+        change("deploy.pages", projectId, version, app);
+        const url = siteUrl(projectId, app);
+        world.deployed.set(key(projectId, `pages:${app}`), { version, url });
+        return { url };
+      },
+    },
+    envFiles: {
+      read: async (projectId) => world.envFiles.get(projectId) ?? null,
+      async write(projectId, text) {
+        change("envFiles.write", projectId);
+        world.envFiles.set(projectId, text);
+      },
+    },
+    shopData: {
+      get: async (projectId, path) => structuredClone(world.docs.get(key(projectId, path)) ?? null),
+      async create(projectId, path, data) {
+        change("shopData.create", projectId, path);
+        if (world.docs.has(key(projectId, path))) throw new Error(`${path} already exists`);
+        world.docs.set(key(projectId, path), structuredClone(data));
+      },
+    },
+    providers: {
+      stripe: {
+        findAccount: async (shopId) => (world.accounts.stripe.has(shopId) ? { accountId: world.accounts.stripe.get(shopId) } : null),
+        async createAccount(shopId, details) {
+          change("stripe.createAccount", shopId, details.testMode);
+          // Like the real service, the shop id is the idempotency key: asking twice gives the same account.
+          if (!world.accounts.stripe.has(shopId)) world.accounts.stripe.set(shopId, `acct_fake${String(world.accounts.stripe.size + 1).padStart(10, "0")}`);
+          return { accountId: world.accounts.stripe.get(shopId) };
+        },
+      },
+    },
+    email: {
+      wasSent: async (shopId, kind) => world.sent.has(`${shopId} ${kind}`),
+      async send(shopId, message) {
+        change("email.send", shopId, message.kind);
+        world.sent.set(`${shopId} ${message.kind}`, structuredClone(message));
+      },
+    },
+    siteCheck: {
+      get: async (url) => ({ status: world.pageStatus(url), problems: [] }),
     },
   };
 }

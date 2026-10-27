@@ -195,3 +195,87 @@ test("the runner has no way to delete anything", async () => {
   const code = await readFile(new URL("./runner.js", import.meta.url), "utf8");
   assert.doesNotMatch(code.replace(/^\s*\/\/.*$/gm, ""), /delete|remove/i);
 });
+
+// One run per shop at a time.
+
+test("a second run on the same shop is turned away while the first is working, and changes nothing", async () => {
+  const world = newWorld();
+  const registry = fakeRegistry();
+  const auditLog = fakeAuditLog();
+  const steps = fakeSteps(world);
+  let letGo;
+  const held = new Promise((resolve) => (letGo = resolve));
+  steps[1].act = async () => {
+    await held;
+    world.done.project = true;
+  };
+  const first = runSteps({ shop, steps, registry, auditLog, runId: "run-a" });
+  while (!world.checks.includes("project")) await new Promise((resolve) => setImmediate(resolve));
+  const recorded = (await registry.readSteps(shop.shopId)).length;
+  const lines = [];
+  const second = await runSteps({ shop, steps, registry, auditLog, runId: "run-b", print: (line) => lines.push(line) });
+  assert.equal(second.ok, false);
+  assert.equal(second.locked, true);
+  assert.deepEqual(second.ran, []);
+  assert.match(second.error, /another run is working on lmb-test-shop/);
+  assert.match(lines[0], /^Stopped: another run/);
+  assert.equal((await registry.readSteps(shop.shopId)).length, recorded, "the turned-away run recorded nothing");
+  assert.equal((await registry.readLock(shop.shopId)).runId, "run-a", "and left the first run's lock alone");
+  letGo();
+  assert.equal((await first).ok, true);
+  assert.equal(registry.locks.size, 0);
+  assert.equal(world.acts.filter((name) => name === "reserve").length, 1);
+});
+
+test("a lock left by a crashed run lapses and the next run takes it over", async () => {
+  const world = newWorld();
+  const registry = fakeRegistry();
+  await registry.takeLock(shop.shopId, { runId: "crashed", takenAt: "2026-10-27T09:00:00.000Z", expiresAt: "2026-10-27T10:00:00.000Z" });
+  const result = await runSteps({ shop, steps: fakeSteps(world), registry, auditLog: fakeAuditLog(), now: clock });
+  assert.equal(result.ok, true);
+  assert.equal(registry.locks.size, 0);
+});
+
+test("a run whose lock was taken over stops before its next step", async () => {
+  const world = newWorld();
+  const registry = fakeRegistry();
+  const steps = fakeSteps(world);
+  // Step 2 runs so long its lock lapses, and another run takes the shop meanwhile.
+  steps[1].act = async () => {
+    world.done.project = true;
+    await registry.takeLock(shop.shopId, { runId: "other", takenAt: "2099-01-01T00:00:00.000Z", expiresAt: "2099-01-01T01:00:00.000Z" });
+  };
+  const result = await runSteps({ shop, steps, registry, auditLog: fakeAuditLog(), now: clock, runId: "slow" });
+  assert.equal(result.ok, false);
+  assert.equal(result.locked, true);
+  assert.match(result.error, /took over lmb-test-shop before step 3/);
+  assert.deepEqual(world.acts, ["reserve"]);
+  assert.equal((await registry.readLock(shop.shopId)).runId, "other", "the other run keeps its lock");
+});
+
+test("the lock is given back after a failure, so the retry can run", async () => {
+  const world = newWorld();
+  const registry = fakeRegistry();
+  const steps = fakeSteps(world, { failOn: ["firebase"] });
+  assert.equal((await runSteps({ shop, steps, registry, auditLog: fakeAuditLog(), now: clock })).failedStep, 3);
+  assert.equal(registry.locks.size, 0);
+  assert.equal((await runSteps({ shop, steps, registry, auditLog: fakeAuditLog(), now: clock })).ok, true);
+});
+
+test("a lock on one shop doesn't hold up another", async () => {
+  const registry = fakeRegistry();
+  await registry.takeLock("other-shop", { runId: "x", takenAt: "2026-10-27T12:00:00.000Z", expiresAt: "2999-01-01T00:00:00.000Z" });
+  const result = await runSteps({ shop, steps: fakeSteps(newWorld()), registry, auditLog: fakeAuditLog(), now: clock });
+  assert.equal(result.ok, true);
+  assert.equal((await registry.readLock("other-shop")).runId, "x");
+});
+
+test("a dry run takes no lock, and says when a real run would be turned away", async () => {
+  const registry = fakeRegistry();
+  await registry.takeLock(shop.shopId, { runId: "busy", takenAt: "2026-10-27T12:00:00.000Z", expiresAt: "2999-01-01T00:00:00.000Z" });
+  const lines = [];
+  const result = await runSteps({ shop, steps: fakeSteps(newWorld()), registry, auditLog: fakeAuditLog(), dryRun: true, print: (l) => lines.push(l) });
+  assert.equal(result.ok, true);
+  assert.match(lines[0], /Another run is working on lmb-test-shop until 2999-01-01T00:00:00.000Z; a real run would be turned away/);
+  assert.equal((await registry.readLock(shop.shopId)).runId, "busy");
+});

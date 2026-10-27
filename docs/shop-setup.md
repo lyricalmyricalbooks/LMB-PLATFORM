@@ -11,6 +11,8 @@ the first presses; Phase 2 runs the same code from sign-up. Write the code once,
   platform project and, once the shop's database exists, to that shop's `audit-log` collection.
 - **Never deletes a project to start over.** Deleted Google Cloud projects linger 30 days and their ID can't be reused.
   A broken setup is resumed or retried, or the project is marked `abandoned` in the registry and left for cleanup.
+- **One run per shop at a time.** A run holds the shop's lock in the registry; a second run on the same shop stops
+  without changing anything. A crashed run's lock lapses after an hour.
 - **No platform keys in the shop.** The Stripe platform key and the email sender key stay in the platform's services
   (see `payments.md`). The shop project only gets keys that belong to that press.
 
@@ -23,6 +25,7 @@ the first presses; Phase 2 runs the same code from sign-up. Write the code once,
 | Owner email | owner@example.com | sign-up |
 | Plan | shop, stockroom or both | sign-up |
 | Country and currency | CA, CAD | sign-up |
+| Payment provider | stripe (square later) | sign-up; Stripe when not chosen |
 
 ## The steps
 
@@ -40,7 +43,7 @@ the first presses; Phase 2 runs the same code from sign-up. Write the code once,
 | 10 | Grant the nightly backup its permission and run one backup | backup permission present | a backup file exists |
 | 11 | Check storage is private: an unsigned read of a test file is refused | a recent pass recorded | refused as expected |
 | 12 | Write starter content and settings (theme, currency, shipping zone, owner as admin member) | settings doc exists | admin opens with the setup checklist |
-| 13 | Create the press's Stripe connected account and save its account ID (via the payments service) | account ID saved | onboarding link ready |
+| 13 | Connect payments with the provider the press chose (Stripe now; Square planned, 2.2b): create the press's account through the payments service and save the provider and account ID | account ID saved and found at the provider | the press finishes sign-up from the admin's Connect button |
 | 14 | Email the owner their sign-in link (via the email service) | email logged as sent | email sent |
 | 15 | Run the shop check: home page, a book page, admin sign-in | — | all pass; registry `status: live` |
 
