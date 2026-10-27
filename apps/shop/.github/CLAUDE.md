@@ -22,7 +22,8 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
   true; it is the emergency stop). Vite `base` defaults to `/` and `SPA_FALLBACK` to `shell`; every `SITE_URL` default (build
   scripts, `vite.config.ts`, `build-pages-redirect.mjs`, `functions/index.js` email links), the workflow fallback and
   `index.html`'s address must agree (`scripts/siteAddress.test.ts`). Still use `import.meta.env.BASE_URL` for links.
-- **The old address forwards.** GitHub Pages (`…github.io/shop/…`) serves only forwarding pages
+- **The old address forwards** only for a shop whose profile turns `switches.githubPagesForwarding` on (plan 1.17; off
+  for every new shop, so `redirect-old-address` is skipped and the shop ignores `#lm-move=`). GitHub Pages (`…github.io/shop/…`) serves only forwarding pages
   (`scripts/pagesRedirect.mjs`, inlined with `toString()`): `index.html`, `404.html` and one page per prerendered route (200 +
   canonical to the new page, `<noscript>` refresh, `no-referrer`). `movedUrl` keeps path, query and `#hash` (emails already sent:
   `/track?orderId&key`, unsubscribe, `/checkout?cartId=`, `/admin#orders/<id>`) and decodes the old `?/…~and~` form. It also

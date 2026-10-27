@@ -74,8 +74,17 @@ export function projectDisplayName(shop) {
   return name.length >= 4 ? name : shop.shopId;
 }
 
-/** The public shop profile for this shop, from its web app's settings. */
-export function shopProfile(shop, webAppConfig, region = REGION) {
+// Features one press needed once (profile/shop-profile.schema.json `switches`). A new shop gets every one written down
+// as off; a value already in the shop's saved profile is kept, so re-running setup never turns one back off.
+export const SWITCHES = Object.freeze(["legacyStockroomSignIn", "githubPagesForwarding", "gmailReceiptFinder"]);
+
+/** All the switches, off unless `saved` (the switches in the shop's saved profile) has them as true or false. */
+export function shopSwitches(saved) {
+  return Object.fromEntries(SWITCHES.map((name) => [name, typeof saved?.[name] === "boolean" ? saved[name] : false]));
+}
+
+/** The public shop profile for this shop, from its web app's settings and the switches it already has. */
+export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches = undefined) {
   const { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId } = webAppConfig;
   return {
     version: 1,
@@ -84,6 +93,7 @@ export function shopProfile(shop, webAppConfig, region = REGION) {
     functionsRegion: region,
     siteUrl: `https://${projectId}.web.app`,
     apps: { ...PLANS[shop.plan] },
+    switches: shopSwitches(savedSwitches),
   };
 }
 
@@ -190,8 +200,9 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
       async check({ shop }) {
         const settings = await webAppConfig(shop.shopId);
         if (!settings) return false;
-        const profile = shopProfile(shop, settings, region);
-        return isDeepStrictEqual(await registry.getProfile(shop.shopId), profile) && (await profileFiles.read(shop.shopId)) === profileScript(profile);
+        const saved = await registry.getProfile(shop.shopId);
+        const profile = shopProfile(shop, settings, region, saved?.switches);
+        return isDeepStrictEqual(saved, profile) && (await profileFiles.read(shop.shopId)) === profileScript(profile);
       },
       async act({ shop }) {
         let settings = await webAppConfig(shop.shopId);
@@ -199,11 +210,14 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
           const { appId } = await google.firebase.createWebApp(shop.shopId, WEB_APP_NAME);
           settings = await google.firebase.getWebAppConfig(shop.shopId, appId);
         }
-        const profile = shopProfile(shop, settings, region);
+        const saved = await registry.getProfile(shop.shopId);
+        const profile = shopProfile(shop, settings, region, saved?.switches);
         const problems = profileProblems(profile);
         if (problems.length) throw new Error(`the shop profile has problems: ${problems.join("; ")}`);
         await registry.saveProfile(shop.shopId, profile);
         await profileFiles.write(shop.shopId, profileScript(profile));
+        // Kept in the registry and the shop's audit log with this step's entry (runner.js).
+        return { detail: { switches: profile.switches } };
       },
     },
   ];

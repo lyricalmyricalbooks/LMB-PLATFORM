@@ -44,7 +44,9 @@ and dry runs; Google is never called from tests.
 5. Create the Firestore database (delete protection on) and the storage bucket in `northamerica-northeast1`. One in
    another region stops the run, since neither can be moved.
 6. Create the web app ("Shop"), build the public profile from its settings, check it with `profile/profile.js`, and
-   save it to the registry and to the per-shop `/shop-profile.js` file (`profileFiles`).
+   save it to the registry and to the per-shop `/shop-profile.js` file (`profileFiles`). Every switch is written down,
+   as `false` for a new shop; a re-run keeps a switch the saved profile already has. The step's audit entry carries
+   the switches it wrote (`detail`; a step's `act` may return `{ detail }` and the runner records it).
 
 Google is reached only through the injected `google` clients (shape at the top of `steps.js`). There is no real client
 in this folder yet, so nothing here can create a real project. `fakes.js` has a pretend Google; `test-shop.js` holds the

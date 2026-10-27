@@ -36,7 +36,11 @@ originally generated from a Figma design ("Artsy Website for Publisher").
   `src/lib/firestoreLite.ts` shopper Firestore Lite — see *Storefront bundle* below, project
   `lmb-test-shop`). The inventory app's project (`lmb-test-stockroom`) is reached only by
   Cloud Functions for the inventory app link (see *Inventory app link* below); `src/lib/legacyFirebase.ts`
-  is a leftover admin sign-in to it, no longer used for stock.
+  is a leftover admin sign-in to it, no longer used for stock, and runs only when the shop profile's
+  `switches.legacyStockroomSignIn` is `true` (`admin/legacySignIn.ts`). **Shop switches (plan 1.17):** one press's
+  one-offs are off unless the profile turns them on: `legacyStockroomSignIn`, `githubPagesForwarding` (the old-address
+  forwarding pages and `movedState.ts`) and `gmailReceiptFinder` (the stockroom). `switchOn()` in `src/lib/shopProfile.ts`;
+  the deploy reads them with `node scripts/shopProfile.mjs switch <name>` (`src/lib/shopSwitches.test.ts`).
 - **Stripe** for checkout, **Resend** for transactional email, **Shippo** for
   address verification / shipping labels — all wired through Cloud Functions.
 - **Vitest** for tests.

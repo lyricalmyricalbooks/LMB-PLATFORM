@@ -39,6 +39,28 @@ test("bad shapes are refused", () => {
   assert.deepEqual(profileProblems(null), ["the profile is not an object"]);
 });
 
+test("switches are optional true/false values, and only the three known ones", () => {
+  const all = { legacyStockroomSignIn: false, githubPagesForwarding: true, gmailReceiptFinder: false };
+  assert.deepEqual(profileProblems({ ...example, switches: all }), []);
+  assert.deepEqual(profileProblems({ ...example, switches: {} }), []);
+  assert.deepEqual(profileProblems({ ...example, switches: { gmailReceiptFinder: true } }), []);
+  assert.ok(profileProblems({ ...example, switches: { gmailReceiptFinder: "yes" } }).includes("profile.switches.gmailReceiptFinder must be true or false"));
+  assert.ok(profileProblems({ ...example, switches: { somethingElse: true } }).includes("profile.switches.somethingElse is not part of the profile"));
+  assert.ok(profileProblems({ ...example, switches: true }).includes("profile.switches must be an object"));
+  assert.ok(profileProblems({ ...example, switches: [] }).includes("profile.switches must be an object"));
+  assert.deepEqual(Object.keys(schema.properties.switches.properties), Object.keys(all));
+  assert.equal(schema.required.includes("switches"), false);
+});
+
+test("the shop and the stockroom know the same switches as the format", async () => {
+  const names = Object.keys(schema.properties.switches.properties);
+  const { SHOP_SWITCHES: stockroom } = await import("../apps/stockroom/src/lib/shop-profile.js");
+  assert.deepEqual([...stockroom], names);
+  const shopSource = readFileSync(new URL("../apps/shop/src/lib/shopProfile.ts", import.meta.url), "utf8");
+  const shop = shopSource.match(/SHOP_SWITCHES = \[([^\]]+)\]/)[1].match(/"(\w+)"/g).map((name) => name.slice(1, -1));
+  assert.deepEqual(shop, names);
+});
+
 test("the served file sets the profile before the app starts", () => {
   const window = {};
   vm.runInNewContext(profileScript(example), { window });

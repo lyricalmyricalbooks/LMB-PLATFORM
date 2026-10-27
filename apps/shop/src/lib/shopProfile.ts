@@ -21,7 +21,23 @@ export type ShopProfile = {
   siteUrl: string;
   appCheckSiteKey?: string;
   apps: { shop: boolean; stockroom: boolean };
+  switches?: Partial<Record<ShopSwitch, boolean>>;
 };
+
+/**
+ * Things one press needed once that a new shop doesn't (plan 1.17). Each is off unless the profile's `switches` turns it
+ * on with `true`; the test shop's profile names none, so all are off.
+ *   legacyStockroomSignIn   the admin sign-in also signs into a separate stockroom project (src/lib/legacyFirebase.ts)
+ *   githubPagesForwarding   an old GitHub Pages address forwards to the shop and hands over the bag (movedState.ts)
+ *   gmailReceiptFinder      the stockroom's Gmail receipt finder (read by the stockroom; listed here so both agree)
+ */
+export const SHOP_SWITCHES = ["legacyStockroomSignIn", "githubPagesForwarding", "gmailReceiptFinder"] as const;
+export type ShopSwitch = (typeof SHOP_SWITCHES)[number];
+
+/** Whether the profile turns this one-off on. Anything but `true` is off. */
+export function switchOn(name: ShopSwitch, profile: ShopProfile = shopProfile): boolean {
+  return profile.switches?.[name] === true;
+}
 
 declare global {
   interface Window { __SHOP_PROFILE__?: unknown }
@@ -60,6 +76,8 @@ export function parseShopProfile(value: unknown): ShopProfile | null {
   if (profile.appCheckSiteKey !== undefined && typeof profile.appCheckSiteKey !== "string") return null;
   const apps = profile.apps;
   if (!apps || typeof apps.shop !== "boolean" || typeof apps.stockroom !== "boolean") return null;
+  // Only the switches turned on are kept; an unknown name or a non-true value is simply off.
+  const on = SHOP_SWITCHES.filter(name => profile.switches && typeof profile.switches === "object" && profile.switches[name] === true);
   return {
     version: 1,
     shopId: profile.shopId,
@@ -68,6 +86,7 @@ export function parseShopProfile(value: unknown): ShopProfile | null {
     siteUrl: profile.siteUrl,
     ...(profile.appCheckSiteKey ? { appCheckSiteKey: profile.appCheckSiteKey } : {}),
     apps: { shop: apps.shop, stockroom: apps.stockroom },
+    ...(on.length ? { switches: Object.fromEntries(on.map(name => [name, true])) } : {}),
   };
 }
 
