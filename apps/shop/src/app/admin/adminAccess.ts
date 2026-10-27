@@ -5,6 +5,9 @@ import { SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
 
 export type AdminRole = "owner" | "staff";
 export const ADMIN_ROLES: readonly AdminRole[] = ["owner", "staff"];
+// Every role the Team can give. "author" is for the stockroom only and never opens this admin (adminRoleOf ignores it).
+export type TeamRole = AdminRole | "author";
+export const TEAM_ROLES: readonly TeamRole[] = ["owner", "staff", "author"];
 
 export function adminRoleOf(email: string | null | undefined, emailVerified: boolean, claims: Record<string, unknown> = {}): AdminRole | null {
   if (!emailVerified) return null;

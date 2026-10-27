@@ -150,3 +150,21 @@ describe("firestore.rules round-2 security (#18, #111, #112)", () => {
       && i.fields[0].fieldPath === "status" && i.fields[1].fieldPath === "createdAt" && i.fields[1].order === "DESCENDING")).toBe(true);
   });
 });
+
+// Team roles (functions/roles.js). "author" is a Team role for the stockroom only; the shop's admin checks name owner
+// and staff alone, so an author on the Team opens nothing here. scripts/firestore-rules-emulator.mjs checks the same.
+describe("Team roles", () => {
+  const fn = (text: string, name: string) => text.match(new RegExp(`function ${name}\\(\\)\\s*\\{([\\s\\S]*?)\\n\\s*\\}`))?.[1] ?? "";
+  it("the Team accepts owner, staff and author", () => {
+    expect(block("members/{email}")).toContain('request.resource.data.role in ["owner", "staff", "author"]');
+  });
+  it("an author never counts as an admin, in Firestore or Storage", () => {
+    const firestoreAdmin = fn(rules, "isOwner") + fn(rules, "isAdmin");
+    const storageAdmin = fn(read("storage.rules"), "isAdmin");
+    for (const body of [firestoreAdmin, storageAdmin]) {
+      expect(body).toMatch(/"staff"/);
+      expect(body).not.toMatch(/author/);
+    }
+    expect(read("functions/roles.js")).toMatch(/const ADMIN_ROLES = \["owner", "staff"\];/);
+  });
+});

@@ -5,6 +5,7 @@ import { SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
 describe("Team entries", () => {
   it("accepts a new person with a role, whatever the capitals", () => {
     expect(teamMemberProblem(" Sam@Press.test ", "staff")).toBeNull();
+    expect(teamMemberProblem("ana@press.test", "author")).toBeNull();
   });
   it("refuses a bad address, the owner, a missing role and a repeat", () => {
     expect(teamMemberProblem("sam", "staff")).toMatch(/email/);

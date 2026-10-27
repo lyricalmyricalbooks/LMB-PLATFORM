@@ -18,6 +18,7 @@ describe('publisher access', () => {
   it('keeps staff, authors and other accounts out', async () => {
     expect(await isPublisherUser(user('staff@example.com', true, { role: 'staff' }))).toBe(false);
     expect(await isPublisherUser(user('author@example.com'))).toBe(false);
+    expect(await isPublisherUser(user('author@example.com', true, { role: 'author' }))).toBe(false);
     expect(await isPublisherUser(null)).toBe(false);
   });
 

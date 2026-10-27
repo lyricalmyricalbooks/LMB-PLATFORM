@@ -285,6 +285,17 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("staff can't read keys", assertFails(getDoc(doc(staff, "adminSecrets/stripe"))));
   await check("staff reads webhook status", assertSucceeds(getDoc(doc(staff, "adminSecrets/stripeWebhookStatus"))));
   await check("owner writes keys", assertSucceeds(setDoc(doc(owner, "adminSecrets/stripe"), { secretKey: "x" })));
+  // The author role is for the stockroom only: the owner may give it, but it opens nothing in the shop's admin.
+  const author = env.authenticatedContext("a1", { email: "ana@press.test", email_verified: true, role: "author" }).firestore();
+  await check("owner adds an author", assertSucceeds(setDoc(doc(owner, "members/ana@press.test"), { role: "author" })));
+  await check("staff can't add an author", assertFails(setDoc(doc(staff, "members/new@press.test"), { role: "author" })));
+  await check("author can't read a draft book", assertFails(getDoc(doc(author, "books/draft"))));
+  await check("author can't write a book", assertFails(setDoc(doc(author, "books/pub"), { status: "published", title: "Changed" })));
+  await check("author can't read private book fields", assertFails(getDoc(doc(author, "books/pub/private/admin"))));
+  await check("author can't read the Team", assertFails(getDocs(collection(author, "members"))));
+  await check("author can't promote themselves", assertFails(setDoc(doc(author, "members/ana@press.test"), { role: "owner" })));
+  await check("author can't read webhook status", assertFails(getDoc(doc(author, "adminSecrets/stripeWebhookStatus"))));
+  await check("author can't change settings", assertFails(setDoc(doc(author, "settings/website"), { x: 1 })));
 }
 
 await env.cleanup();

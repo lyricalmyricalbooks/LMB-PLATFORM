@@ -3,22 +3,24 @@ import toast from "react-hot-toast";
 import { DataTable, DestructiveButton, EmptyState, PrimaryButton, SectionCard, SelectField, StatusBadge, TextField, useConfirm, type Column } from "./riso/components";
 import { auth } from "../../lib/firebase";
 import { SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
-import { currentAdminRole, type AdminRole } from "./adminAccess";
+import { currentAdminRole, type AdminRole, type TeamRole } from "./adminAccess";
 import { teamApi, teamEmail, teamMemberProblem, type TeamMember } from "./teamApi";
 
-const ROLE_WORDS: Record<AdminRole, { label: string; detail: string }> = {
-  staff: { label: "Staff", detail: "Can do everything in the admin except change the Team or the payment and email keys." },
-  owner: { label: "Owner", detail: "Everything, including the Team and the payment and email keys." },
+// Admin-only words (the Studio rule covers shopper-facing words).
+const ROLE_WORDS: Record<TeamRole, { label: string; detail: string; added: string }> = {
+  staff: { label: "Staff", detail: "Can do everything in the admin except change the Team or the payment and email keys.", added: "can open the admin" },
+  owner: { label: "Owner", detail: "Everything, including the Team, the payment and email keys, and the stockroom.", added: "can open the admin" },
+  author: { label: "Author", detail: "Can't open this admin. In the stockroom, they see and update only the books that name them as the author.", added: "can open their books in the stockroom" },
 };
 
-// Settings › Team. The owner adds people by their Google email; they sign in to the admin with that account.
+// Settings › Team. The owner adds people by their Google email; they sign in with that account.
 export function TeamSettings() {
   const [ask, confirmNode] = useConfirm();
   const [myRole, setMyRole] = useState<AdminRole | null | undefined>(undefined);
   const [members, setMembers] = useState<TeamMember[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<AdminRole>("staff");
+  const [role, setRole] = useState<TeamRole>("staff");
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState("");
 
@@ -33,7 +35,7 @@ export function TeamSettings() {
   if (myRole === undefined) return null;
   if (myRole !== "owner") {
     return (
-      <SectionCard title="Team" description="People who can open this admin.">
+      <SectionCard title="Team" description="People who can open this admin or the stockroom.">
         <EmptyState inline title="Only the owner can change the Team" description="Ask the shop's owner to add, change or remove people." />
       </SectionCard>
     );
@@ -46,7 +48,7 @@ export function TeamSettings() {
     setBusy("add");
     try {
       await teamApi.save(email, role);
-      toast.success(`${teamEmail(email)} can open the admin the next time they sign in.`);
+      toast.success(`${teamEmail(email)} ${ROLE_WORDS[role].added} the next time they sign in.`);
       setEmail(""); setTried(false);
       await load();
     } catch {
@@ -54,7 +56,10 @@ export function TeamSettings() {
     } finally { setBusy(""); }
   };
   const remove = async (member: TeamMember) => {
-    if (!await ask({ title: "Remove from the Team?", message: `${member.email} will be signed out of the admin and can't open it again until you add them back.`, confirmLabel: "Remove" })) return;
+    const message = member.role === "author"
+      ? `${member.email} will be signed out. A book that still names them as its author stays open to them in the stockroom until you change that book's author.`
+      : `${member.email} will be signed out of the admin and can't open it again until you add them back.`;
+    if (!await ask({ title: "Remove from the Team?", message, confirmLabel: "Remove" })) return;
     setBusy(member.email);
     try {
       await teamApi.remove(member.email);
@@ -76,7 +81,7 @@ export function TeamSettings() {
 
   return (
     <>
-      <SectionCard title="Team" description="People who can open this admin. Each person signs in with Google using the email you add here.">
+      <SectionCard title="Team" description="People who can open this admin or the stockroom. Each person signs in with Google using the email you add here.">
         {loadError
           ? <EmptyState inline title="Team not loaded" description={loadError} />
           : <DataTable caption="Team" columns={columns} rows={members ? rows : []} rowKey={m => m.email} stackOnPhone
@@ -86,9 +91,10 @@ export function TeamSettings() {
         <form className="grid gap-4 sm:grid-cols-[2fr_1fr_auto] sm:items-end" onSubmit={e => { e.preventDefault(); void add(); }}>
           <TextField label="Google email" type="email" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)}
             error={tried ? problem || undefined : undefined} placeholder="name@example.com" />
-          <SelectField label="Role" value={role} onChange={e => setRole(e.target.value as AdminRole)}>
+          <SelectField label="Role" value={role} onChange={e => setRole(e.target.value as TeamRole)}>
             <option value="staff">{ROLE_WORDS.staff.label}</option>
             <option value="owner">{ROLE_WORDS.owner.label}</option>
+            <option value="author">{ROLE_WORDS.author.label}</option>
           </SelectField>
           <PrimaryButton type="submit" disabled={busy === "add"}>{busy === "add" ? "Adding…" : "Add to Team"}</PrimaryButton>
         </form>
