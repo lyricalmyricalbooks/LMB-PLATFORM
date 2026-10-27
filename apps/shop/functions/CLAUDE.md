@@ -229,7 +229,9 @@ ignored. Dismiss hides one for the browser session until a new order joins it.
   discount use, gift cards and revenue stay untouched (`functions/sandboxPayment.test.js`, plan 1.31b). Its sandbox
   payments (Stripe and PayPal) also get the at-payment stock check (`reserveForConfirmedPayment` and its Stripe/PayPal
   call sites): one whose hold lapsed while the book sold out is not marked paid and records `inventoryConflict`, like a
-  live one. Other shops' sandbox payments still skip it.
+  live one. Other shops' sandbox payments still skip it. The stockroom link sends its paid sandbox orders as real
+  orders (`pushKind({ testShop })`, `deps.testShop` in the jobs), so the stockroom counts them and their refunds; other
+  shops send them only as rehearsals (`web.test`), which it never counts.
 - **Stripe keys:** `SecretField` passes every edit up (clearing cancels), refuses wrong-slot keys
   (`stripeSecretKeyProblem`), and offers **Remove stored key** (`adminApi.removeStripeSecretKey`). Saves return
   true/false (`Dashboard.saveSection`), and saved secrets are scrubbed from screen state (`scrubSavedSecrets`).

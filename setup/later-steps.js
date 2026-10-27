@@ -1,5 +1,5 @@
-// Steps 7–15 of the shop maker (docs/shop-setup.md): rules, server code, pages, backup, private storage check, starter
-// content, payments, the owner's email and the shop check. As in steps.js, `check` only looks and `act` only changes;
+// Steps 7–16 of the shop maker (docs/shop-setup.md): rules, server code, pages, backup, private storage check, starter
+// content, payments, the owner's email, the shop check and (test shop only) the stockroom link. As in steps.js, `check` only looks and `act` only changes;
 // runner.js runs them. Each step stops for a person when what it finds is neither "done" nor "not started".
 //
 // Everything is reached through clients passed in. There is no real client in this folder yet, so nothing here can
@@ -19,6 +19,9 @@
 //   providers   payment providers by name (payments.js)
 //   email       wasSent(shopId, kind) -> boolean; send(shopId, { kind, to, pressName, links, idempotencyKey })
 //   siteCheck   get(url) -> { status, problems: [text] }
+//   inventoryLink  the shop's link to its stockroom, through the shop's own admin calls (functions/inventoryLinkAdmin.js):
+//                  state(projectId) -> { startDay?, connection? } | null; check(projectId) -> { ok, problem? } (op "check");
+//                  startSales(projectId, { startDay }) (op "startSales")
 //
 // `config.release` is the release being set up: `{ version, starterContent(shop) -> [{ path, data }] }`. The starter
 // documents come from the release because the shop copy owns their shape. `config.senderEmail` is the platform address
@@ -56,8 +59,16 @@ export function envFileText(shop, { senderEmail, region = REGION }) {
   ].join("\n");
 }
 
-/** Steps 7–15. */
-export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, registry, config, now = () => new Date() }) {
+/** Toronto's calendar day (YYYY-MM-DD), the day the shop's link counts sales by. */
+export function torontoDay(date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+/** Only the platform's test shop with both apps turns its stockroom link on during setup (docs/test-shop.md check 4). */
+export const needsStockroomLink = (shop) => shop.testShop === true && appsOf(shop).includes("shop") && appsOf(shop).includes("stockroom");
+
+/** Steps 7–16. */
+export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, registry, config, now = () => new Date() }) {
   const release = config?.release;
   if (typeof release?.version !== "string" || !release.version) throw new Error("config.release.version must name the release being set up");
   if (typeof release.starterContent !== "function") throw new Error("config.release.starterContent must list the starter documents");
@@ -193,6 +204,24 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         await registry.updateShop(shop.shopId, { status: "live", liveAt: now().toISOString() });
       },
     },
+    {
+      number: 16,
+      name: "Turn on the test shop's stockroom link",
+      // Every other shop: nothing to do (the owner turns the link on in the admin when they want it).
+      async check({ shop }) {
+        if (!needsStockroomLink(shop)) return true;
+        const startDay = (await inventoryLink.state(shop.shopId))?.startDay;
+        return typeof startDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(startDay);
+      },
+      async act({ shop }) {
+        if (!needsStockroomLink(shop)) return;
+        // The shop refuses to start sending sales before its own check reaches the stockroom.
+        const { ok, problem } = await inventoryLink.check(shop.shopId);
+        if (!ok) throw new Error(`the shop can't reach its stockroom${problem ? ` (${problem})` : ""}; a person checks the link`);
+        // Sales count from today (Toronto), so the test purchases after setup are sent and earlier days are not.
+        await inventoryLink.startSales(shop.shopId, { startDay: torontoDay(now()) });
+      },
+    },
   ];
 }
 
@@ -205,7 +234,7 @@ function shopOnly(step) {
   };
 }
 
-/** All fifteen steps, in order. One `config` holds the platform settings both halves read (see each for its keys). */
+/** All sixteen steps, in order. One `config` holds the platform settings both halves read (see each for its keys). */
 export function shopSteps({ config, ...clients }) {
   return [...firstSteps({ ...clients, config }), ...laterSteps({ ...clients, config })];
 }

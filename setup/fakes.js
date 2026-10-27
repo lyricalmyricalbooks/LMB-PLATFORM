@@ -217,7 +217,7 @@ export function fakeGoogle({ failOnce = [] } = {}) {
  * every change asked for and `failOnce` names calls that throw the first time.
  */
 export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
-  const world = { deployed: new Map(), envFiles: new Map(), docs: new Map(), accounts: { stripe: new Map() }, sent: new Map(), pageStatus };
+  const world = { deployed: new Map(), envFiles: new Map(), docs: new Map(), accounts: { stripe: new Map() }, sent: new Map(), pageStatus, links: new Map(), stockroomReachable: true };
   const calls = [];
   const failures = [...failOnce];
   const change = (name, ...args) => {
@@ -287,6 +287,23 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
     },
     siteCheck: {
       get: async (url) => ({ status: world.pageStatus(url), problems: [] }),
+    },
+    // Like the shop's link admin: no start day until the connection check passes; a start day is never moved later.
+    inventoryLink: {
+      state: async (projectId) => structuredClone(world.links.get(projectId) ?? null),
+      async check(projectId) {
+        change("inventoryLink.check", projectId);
+        const ok = world.stockroomReachable;
+        world.links.set(projectId, { ...(world.links.get(projectId) ?? {}), connection: { ok } });
+        return ok ? { ok } : { ok, problem: "permission-denied" };
+      },
+      async startSales(projectId, { startDay }) {
+        change("inventoryLink.startSales", projectId, startDay);
+        const link = world.links.get(projectId) ?? {};
+        if (link.connection?.ok !== true) throw new Error("Check the connection to the inventory app first.");
+        if (link.startDay) throw new Error(`Website sales are already being sent from ${link.startDay}.`);
+        world.links.set(projectId, { ...link, startDay });
+      },
     },
   };
 }

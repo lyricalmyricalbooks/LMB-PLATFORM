@@ -4,6 +4,7 @@
 //   deps.store  — the inventory project's link documents (inventoryLinkStore.js)
 //   deps.now()  — the clock
 //   deps.sumNet(invId) — website copies counted for an inventory book (Firestore sum() by default)
+//   deps.testShop — the platform test shop's mark (shopConfig.testShop by default; tests set it)
 //
 // Order of trust: the website changes a linked book's stock only to the number the inventory app's
 // own count gives (stockPlanFor). It never marks an order paid, refunds it, or touches a provider.
@@ -85,7 +86,7 @@ async function pushOrder(deps, orderId, state) {
   if (!orderSnap.exists) return { status: "missing" };
   const order = orderSnap.data();
   const record = recordSnap.exists ? recordSnap.data() : null;
-  const kind = pushKind(order, { startDay: state.startDay, rehearsal: rehearsalOn(state, now), record });
+  const kind = pushKind(order, { startDay: state.startDay, rehearsal: rehearsalOn(state, now), record, testShop: (deps.testShop ?? shopConfig.testShop) === true });
   if (!kind) return { status: "skipped" };
   const parts = await partInfo(db, order);
   const built = websiteOrder(order, {

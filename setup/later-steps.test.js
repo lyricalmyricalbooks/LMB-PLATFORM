@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { latestByStep, runSteps, stepProblems } from "./runner.js";
 import { REGION, shopProblems } from "./steps.js";
-import { OWNER_WELCOME, appsOf, envFileText, laterSteps, shopSteps } from "./later-steps.js";
+import { OWNER_WELCOME, appsOf, envFileText, laterSteps, needsStockroomLink, shopSteps, torontoDay } from "./later-steps.js";
 import { PAYMENT_PROVIDERS, paymentProblems } from "./payments.js";
 import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "./fakes.js";
 import { TEST_CONFIG, TEST_SHOP } from "./test-shop.js";
@@ -24,10 +24,10 @@ function setup({ failOnce = [], googleFailOnce = [], shop = TEST_SHOP, config = 
 
 const called = (services, name) => services.calls.filter(([n]) => n === name);
 
-test("all fifteen steps are numbered and complete", () => {
+test("all sixteen steps are numbered and complete", () => {
   const { steps } = setup();
   assert.deepEqual(stepProblems(steps), []);
-  assert.equal(steps.length, 15);
+  assert.equal(steps.length, 16);
 });
 
 test("a full run makes the test shop live: rules, server code in Montréal, pages, backup, private files, starter content, Stripe, email", async () => {
@@ -58,7 +58,7 @@ test("a full run makes the test shop live: rules, server code in Montréal, page
   assert.equal(welcome.idempotencyKey, `${ID}-${OWNER_WELCOME}`);
 
   assert.equal(row.status, "live");
-  assert.deepEqual([...auditLog.entries.get(ID).values()].map((e) => e.step).sort((a, b) => a - b), Array.from({ length: 15 }, (_, i) => i + 1));
+  assert.deepEqual([...auditLog.entries.get(ID).values()].map((e) => e.step).sort((a, b) => a - b), Array.from({ length: 16 }, (_, i) => i + 1));
   assert.equal(registry.locks.size, 0, "the lock is given back");
 });
 
@@ -69,7 +69,7 @@ test("running again changes nothing anywhere", async () => {
   const forgetful = { ...registry, readSteps: async () => [], recordStep: async () => {} };
   const second = await runSteps({ shop: TEST_SHOP, steps, registry: forgetful, auditLog });
   assert.equal(second.ok, true, second.error);
-  assert.deepEqual(second.ran.map((r) => r.status), Array(15).fill("already-done"));
+  assert.deepEqual(second.ran.map((r) => r.status), Array(16).fill("already-done"));
   assert.equal(changes(), before);
 });
 
@@ -180,8 +180,50 @@ test("a failed shop check leaves the shop not live, and the retry marks it live"
   broken = false;
   const second = await run();
   assert.equal(second.ok, true, second.error);
-  assert.deepEqual(second.ran.map((r) => r.status), [...Array(14).fill("done-before"), "done"]);
+  assert.deepEqual(second.ran.map((r) => r.status), [...Array(14).fill("done-before"), "done", "done"]);
   assert.equal((await registry.getShop(ID)).status, "live");
+});
+
+// Step 16: the test shop's stockroom link (docs/test-shop.md check 4).
+
+test("the test shop's link is turned on from today, after the shop's own connection check", async () => {
+  const { services, auditLog, run } = setup();
+  const result = await run();
+  assert.equal(result.ok, true, result.error);
+  assert.deepEqual(called(services, "inventoryLink.check"), [["inventoryLink.check", ID]]);
+  const [[, , startDay]] = called(services, "inventoryLink.startSales");
+  assert.match(startDay, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(services.world.links.get(ID).startDay, startDay);
+  assert.ok([...auditLog.entries.get(ID).values()].some((e) => e.step === 16 && e.status === "done"), "logged in the shop's audit log");
+});
+
+test("an unreachable stockroom stops at step 16 for a person, and the retry turns the link on once", async () => {
+  const { services, run } = setup();
+  services.world.stockroomReachable = false;
+  const first = await run();
+  assert.equal(first.failedStep, 16);
+  assert.match(first.error, /can't reach its stockroom \(permission-denied\)/);
+  assert.equal(services.world.links.get(ID).startDay, undefined);
+  services.world.stockroomReachable = true;
+  const second = await run();
+  assert.equal(second.ok, true, second.error);
+  assert.equal(called(services, "inventoryLink.startSales").length, 1);
+});
+
+test("Toronto's day is the link's day, not UTC's", () => {
+  assert.equal(torontoDay(new Date("2026-10-28T02:30:00Z")), "2026-10-27");
+  assert.equal(torontoDay(new Date("2026-10-28T05:00:00Z")), "2026-10-28");
+});
+
+test("only the test shop with both apps gets its link turned on; every other shop is left alone", async () => {
+  const { testShop: _, ...press } = TEST_SHOP;
+  assert.equal(needsStockroomLink(TEST_SHOP), true);
+  assert.equal(needsStockroomLink(press), false);
+  assert.equal(needsStockroomLink({ ...TEST_SHOP, plan: "shop" }), false);
+  const { services, run } = setup({ shop: press });
+  const result = await run();
+  assert.equal(result.ok, true, result.error);
+  assert.equal(called(services, "inventoryLink.check").length + called(services, "inventoryLink.startSales").length, 0);
 });
 
 test("a shop marked abandoned is never made live", async () => {
@@ -211,12 +253,12 @@ test("a deploy that failed is retried at its step without redoing earlier work",
   assert.equal(google.calls.filter(([n]) => n === "projects.create").length, 1);
 });
 
-test("the dry run prints all fifteen steps and changes nothing", async () => {
+test("the dry run prints all sixteen steps and changes nothing", async () => {
   const { registry, run, changes } = setup();
   const lines = [];
   const result = await run({ dryRun: true, print: (line) => lines.push(line) });
   assert.equal(result.ok, true);
-  assert.equal(lines.length, 16);
+  assert.equal(lines.length, 17);
   assert.equal(lines[13], "13. Connect the press's payments: would run");
   assert.equal(changes(), 0);
   assert.equal(registry.shops.size + registry.locks.size, 0);

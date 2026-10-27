@@ -34,8 +34,19 @@ Runs automatically after each update reaches the test shop. Any failure stops th
 
 Checks 4 and 7 rely on the shop's test-shop mark (`SHOP_TEST_SHOP="true"`, written by setup step 8 for this shop only,
 plan 1.31): here a sandbox checkout holds stock, a sandbox payment takes it and a refund puts it back, like a live
-sale. Every other shop's sandbox payments still leave stock alone. The stockroom count in check 4 comes from the
-inventory app link, which pushes sandbox orders only while its rehearsal setting is on.
+sale. Every other shop's sandbox payments still leave stock alone.
+
+The stockroom count in check 4 comes from the stockroom link. On this shop only, paid sandbox orders go over the link
+as real orders (other shops send them only as rehearsals, which the stockroom never counts), and setup step 16 turns
+the link on with sales sent from the day it runs. What the release check must still do for check 4:
+
+- **Open the stockroom.** The stockroom brings website orders in by itself, but only while the stockroom app is open,
+  online and signed in (`runWebsiteImport` in `apps/stockroom/src/features/website-link.js`). There is no button to
+  press, and nothing is brought in while no one has it open. So the check signs in to the stockroom page as the test
+  owner and waits for the order to come in before reading the count.
+- **Linked books.** Only books linked to a stockroom book are counted. The starter catalogue (plan 1.32) must link
+  its three stocked books, or the check links them once through the shop's admin.
+- **Shipping** a test order from the stockroom stays a dry run: the shop reports what it would do and changes nothing.
 
 ## Where it runs
 
