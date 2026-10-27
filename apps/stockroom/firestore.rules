@@ -5,15 +5,22 @@ service cloud.firestore {
 
     // Publisher account — full read/write everywhere.
     //
-    // email_verified as well as the address: the address alone only proves
-    // what the sign-in provider was TOLD, and a provider that doesn't verify
-    // addresses (were one ever enabled on this project) would let anyone claim
-    // this one. Google sign-in always verifies a Gmail address, so the
-    // publisher's own sign-in is unaffected.
+    // The owner address, or the "owner" role the shop's server copies onto the
+    // sign-in pass from the owner's Team list (the shop's functions/roles.js;
+    // the shop's own rules use the same claim). Staff are not publishers here:
+    // stockroom settings hold secret keys and the books' money, which the shop
+    // keeps from staff too.
+    //
+    // email_verified as well: the address alone only proves what the sign-in
+    // provider was TOLD, and a provider that doesn't verify addresses (were one
+    // ever enabled on this project) would let anyone claim this one. Google
+    // sign-in always verifies a Gmail address, so the publisher's own sign-in
+    // is unaffected.
     function isPublisher() {
       return request.auth != null
-        && request.auth.token.email == 'owner@example.com'
-        && request.auth.token.email_verified == true;
+        && request.auth.token.email_verified == true
+        && (request.auth.token.email == 'owner@example.com'
+            || request.auth.token.get('role', '') == 'owner');
     }
 
     // Author→book ownership comes from the rules-readable map at

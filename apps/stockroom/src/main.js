@@ -11,6 +11,7 @@ import './styles/phone.css';
 // The Riso phone redesign sits on top of the phone layer above.
 import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
+import { isPublisherUser } from './lib/publisher-access.js';
 import { foldFooterActions, initPhoneLayouts } from './lib/phone-layout.js';
 import { createPhonePageMemory, initPhoneWorkspace, observeSidebarBadges } from './lib/phone-workspace.js';
 const phonePages = createPhonePageMemory(window);
@@ -19216,11 +19217,8 @@ window.showWhatsNew = showWhatsNew;
 
 // ── STARTUP ROUTING
 async function initStartup() {
-  // Master Publisher Email
-  // Must match the address the Firestore/Storage/Database rules and the Apps
-  // Script trust, or the publisher UI would open for an account the backend
-  // then refuses.
-  const publisherEmail = 'owner@example.com';
+  // Who is the publisher: lib/publisher-access.js, which matches the
+  // Firestore/Storage/Database rules (the owner address or the owner role).
 
   window._fbOnAuthStateChanged(async user => {
     const dismissSplash = () => {
@@ -19267,7 +19265,7 @@ async function initStartup() {
       const cachedGlobal = startupCachedGlobalMode();
       // On a device that has opened the app before: show the copy this device
       // already holds while the server is asked.
-      const publisherAccount = (user.email || '').toLowerCase().trim() === publisherEmail && user.emailVerified === true;
+      const publisherAccount = await isPublisherUser(user);
       if (cachedGlobal === true) {
         showStartupPreview(user, publisherAccount)
           .then(shown => { if (shown) dismissSplash(); })
@@ -19307,8 +19305,8 @@ async function initStartup() {
 
       // Check access
       _pendingGateMsg = null;
-      const uEmail = user.email.toLowerCase().trim();
-      if (uEmail === publisherEmail && user.emailVerified === true) {
+      const uEmail = (user.email || '').toLowerCase().trim();
+      if (publisherAccount) {
         window.IS_PUBLISHER = true;
         IS_AUTHOR_MODE = false;
         // Seed/refresh the rules-readable ownership map now we're authenticated as
