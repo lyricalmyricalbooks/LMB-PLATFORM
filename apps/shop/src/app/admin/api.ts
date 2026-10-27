@@ -60,16 +60,13 @@ import {
   signOut, 
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithCredential,
 } from "firebase/auth";
 import { db, auth, googleProvider } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { currentAdminRole, ensureShopOwnerKnown, refreshAdminRole } from "./adminAccess";
 import { publicApi } from "../lib/publicApi";
 import { defaultSettings } from "./defaultSettings";
-// Storage + the legacy Realtime Database are admin-only and heavy; they are
-// imported on demand so the public storefront bundle never downloads them.
-const loadLegacy = () => import("../../lib/legacyFirebase");
+import { signIntoLegacyStockroom } from "./legacySignIn";
 import { CATEGORIES } from "../features/site/constants";
 import { appendCategory, categoryBookPatch, directlyAssigned, type CategoryAction } from "./studio/categoryManager";
 import { normalizeCategories } from "../features/site/navItems";
@@ -125,18 +122,9 @@ export const adminApi = {
         throw new Error("Unauthorized: this account is not on the shop's Team list");
       }
 
-      // Also sign into legacy inventory project using the same Google credential
-      // so inventory sync can access the RTDB without a second login popup.
-      try {
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential) {
-          const { legacyAuth } = await loadLegacy();
-          await signInWithCredential(legacyAuth, credential);
-        }
-      } catch (legacyErr) {
-        console.warn("Could not auto-sign into legacy project:", legacyErr);
-      }
-      
+      // Only for a shop whose profile turns it on: also sign into a separate stockroom project (legacySignIn.ts).
+      await signIntoLegacyStockroom(GoogleAuthProvider.credentialFromResult(result));
+
       return { token: await user.getIdToken(), user };
     } catch (err: any) {
       console.error("Login Error:", err);

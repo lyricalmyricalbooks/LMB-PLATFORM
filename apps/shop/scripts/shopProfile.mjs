@@ -37,10 +37,20 @@ export function profileValue(name, profile = readShopProfileSync()) {
   return name === 'siteUrl' ? value.trim().replace(/\/+$/, '') : value.trim();
 }
 
-// `node scripts/shopProfile.mjs <siteUrl|projectId|functionsRegion>` prints that value (deploy workflows).
+// The one-off switches (src/lib/shopProfile.ts SHOP_SWITCHES): on only when the profile says `true`.
+export const SHOP_SWITCHES = ['legacyStockroomSignIn', 'githubPagesForwarding', 'gmailReceiptFinder'];
+
+/** "true" or "false" for one switch, for the deploy workflows. An unknown switch name throws. */
+export function switchValue(name, profile = readShopProfileSync()) {
+  if (!SHOP_SWITCHES.includes(name)) throw new Error(`"${name}" is not a shop switch (${SHOP_SWITCHES.join(', ')})`);
+  return String(profile?.switches?.[name] === true);
+}
+
+// `node scripts/shopProfile.mjs <siteUrl|projectId|functionsRegion>` prints that value, and
+// `node scripts/shopProfile.mjs switch <name>` prints true or false (deploy workflows).
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   try {
-    process.stdout.write(profileValue(process.argv[2]));
+    process.stdout.write(process.argv[2] === 'switch' ? switchValue(process.argv[3]) : profileValue(process.argv[2]));
   } catch (err) {
     console.error(err.message);
     process.exit(1);

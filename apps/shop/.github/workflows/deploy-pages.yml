@@ -134,6 +134,7 @@ jobs:
     outputs:
       built: ${{ steps.result.outputs.built }}
       site-url: ${{ steps.address.outputs.url }}
+      forward-old-address: ${{ steps.address.outputs.forward-old-address }}
     steps:
       - uses: actions/checkout@v4
 
@@ -158,6 +159,10 @@ jobs:
           echo "SITE_BASE=/" >> "$GITHUB_ENV"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Building for $url"
+          # Only a shop with an old GitHub Pages address forwards it here (the profile's githubPagesForwarding switch).
+          forward="$(node scripts/shopProfile.mjs switch githubPagesForwarding)"
+          echo "forward-old-address=$forward" >> "$GITHUB_OUTPUT"
+          echo "Old address forwarding: $forward"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -319,10 +324,11 @@ jobs:
         run: node scripts/seo-url-check.mjs --base "$SITE_URL"
 
   # The old address forwards to the shop. Replaced only after the shop itself deployed and passed its live check,
-  # so GitHub Pages never forwards to an address that isn't serving. Schedules don't touch it.
+  # so GitHub Pages never forwards to an address that isn't serving. Schedules don't touch it. A shop with no old
+  # address (the profile's githubPagesForwarding switch is off, as for every new shop) never publishes to GitHub Pages.
   redirect-old-address:
     needs: [build-hosting, deploy-hosting]
-    if: github.event_name != 'schedule' && needs.deploy-hosting.outputs.deployed == 'true'
+    if: github.event_name != 'schedule' && needs.deploy-hosting.outputs.deployed == 'true' && needs.build-hosting.outputs.forward-old-address == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
