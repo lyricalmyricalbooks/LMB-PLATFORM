@@ -4,7 +4,7 @@ import {
   pageSpeedSummary, reminderResults, titleFlag, titleFlags, MAX_TITLE_FLAGS, wantedButUnavailable,
 } from "./overviewSignals";
 import { titlePerformance, titlesCsv } from "./overviewProfit";
-import { applyOwnerDeviceLink, isOwnOrder, isOwnerDevice, looksAutomated, markOwnerDeviceOnSignIn, ownerDeviceChoice, setOwnerDevice } from "../../lib/ownerDevice";
+import { applyOwnerDeviceLink, isOwnOrder, isOwnerDevice, looksAutomated, markOwnerDeviceOnSignIn, ownerDeviceChoice, rememberShopOwner, setOwnerDevice, shopOwnerEmail } from "../../lib/ownerDevice";
 import { grade, parseSpeedKey, speedKey } from "../../lib/pageSpeed";
 
 const memory = () => {
@@ -15,7 +15,21 @@ const paid = (id: string, extra: Record<string, any> = {}) => ({
   id, paymentStatus: "paid", total: 40, createdAt: "2026-10-14T15:00:00Z", customer: { email: `${id}@example.com` }, items: [], ...extra,
 });
 
+// The server named this shop's owner after sign-in (functions/index.js refreshMyRole).
+rememberShopOwner("owner@example.com", "staff@example.com", null);
+
 describe("your own visits", () => {
+  it("keeps the owner's address only in the owner's own browser", () => {
+    const owners = memory(), staffs = memory();
+    rememberShopOwner(" Owner@Example.com ", "owner@example.com", owners);
+    rememberShopOwner("owner@example.com", "staff@example.com", staffs);
+    expect(owners.getItem("lm:owner-email")).toBe("owner@example.com");
+    expect(staffs.getItem("lm:owner-email")).toBeNull();
+    expect(shopOwnerEmail()).toBe("owner@example.com");
+    rememberShopOwner("not an address", "x", owners);
+    expect(shopOwnerEmail()).toBe("owner@example.com");
+  });
+
   it("is left out once marked, and a sign-in marks it unless the owner chose to count it", () => {
     const s = memory();
     expect(isOwnerDevice(s)).toBe(false);

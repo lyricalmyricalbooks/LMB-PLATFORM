@@ -11,10 +11,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { shopSiteUrl } from './shopProfile.mjs';
 
 const args = process.argv.slice(2);
 const option = name => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
-const base = (option('--base') || process.env.SITE_URL || 'https://yourpress.example').replace(/\/+$/, '');
+const base = (option('--base') || await shopSiteUrl()).replace(/\/+$/, ''); // SITE_URL, else the shop profile's siteUrl
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const redirects = JSON.parse(readFileSync(resolve(root, 'firebase.json'), 'utf8')).hosting.redirects || [];
 

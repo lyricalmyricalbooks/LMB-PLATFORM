@@ -1,7 +1,7 @@
 import { consentAllows } from "./consent";
 import { restoredUser } from "../../lib/authSession";
 import { inThemePreview } from "../features/site/themePreview";
-import { isOwnerDevice, looksAutomated, SHOP_OWNER_EMAIL } from "./ownerDevice";
+import { isOwnerDevice, isShopOwner, looksAutomated } from "./ownerDevice";
 
 /** The Studio preview iframe / new-tab preview runs the real storefront; it must not count as shopper traffic. */
 export const inEditorPreview = () =>
@@ -33,7 +33,6 @@ export async function trackingAllowed(): Promise<boolean> {
   return true;
 }
 
-export { SHOP_OWNER_EMAIL };
 
 /**
  * Google Analytics' rule: the same preview and consent checks, but only the shop owner is left out — customers
@@ -43,7 +42,8 @@ export async function googleTrackingAllowed(): Promise<boolean> {
   if (neverCounted()) return false;
   try {
     const user = await restoredUser(1500);
-    if (user && String(user.email || "").toLowerCase() === SHOP_OWNER_EMAIL) return false;
+    // The owner, in the browser where they signed in to the admin (lib/ownerDevice.ts keeps the address there only).
+    if (user && isShopOwner(user.email)) return false;
   } catch {
     // Auth unavailable: count the visit rather than lose it.
   }

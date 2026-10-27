@@ -64,8 +64,18 @@ jobs:
           case "$APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
           printf 'APP_CHECK_MODE=%s\n' "$APP_CHECK_MODE" > functions/.env.lmb-test-shop
 
+      # The functions run where the shop profile says (functionsRegion in public/shop-profile.js, which the shop's pages
+      # also call): functions/shopConfig.js reads SHOP_FUNCTIONS_REGION for every function and for the links to them.
+      - name: Functions region from the shop profile
+        run: |
+          set -euo pipefail
+          region="$(node scripts/shopProfile.mjs functionsRegion)"
+          printf 'SHOP_FUNCTIONS_REGION=%s\n' "$region" >> functions/.env.lmb-test-shop
+          echo "FUNCTIONS_REGION=$region" >> "$GITHUB_ENV"
+          echo "Functions run in $region"
+
       # Links in emails (order tracking, unsubscribe, admin order links…) use SITE_URL: the repository variable once the
-      # shop has its own domain, else the project's own Firebase Hosting address (functions/shopConfig.js).
+      # shop has its own domain, else the shop profile's siteUrl (functions/shopConfig.js).
       - name: Shop address for email links
         env:
           CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
@@ -74,13 +84,12 @@ jobs:
           # Hosts are case-insensitive; "Yourpress.example" means yourpress.example.
           CUSTOM_SITE_URL="$(printf '%s' "$CUSTOM_SITE_URL" | tr '[:upper:]' '[:lower:]')"
           url="${CUSTOM_SITE_URL%/}"
-          if [ -n "$url" ]; then
-            # Format, never GitHub Pages, and allowed by the Cloud Functions (scripts/siteAddressCheck.mjs).
-            node scripts/siteAddressCheck.mjs "$url"
-            printf 'SITE_URL=%s\n' "$url" >> functions/.env.lmb-test-shop
-          else
-            url=$(GCLOUD_PROJECT=lmb-test-shop node -e 'process.stdout.write(require("./functions/shopConfig.js").readShopConfig(process.env).siteUrl)')
-          fi
+          if [ -z "$url" ]; then url="$(node scripts/shopProfile.mjs siteUrl)"; fi
+          # Format, never GitHub Pages, and allowed by the Cloud Functions (scripts/siteAddressCheck.mjs).
+          node scripts/siteAddressCheck.mjs "$url"
+          printf 'SITE_URL=%s\n' "$url" >> functions/.env.lmb-test-shop
+          # The address the Cloud Functions will put in emails, read the way they read it.
+          url=$(GCLOUD_PROJECT=lmb-test-shop SITE_URL="$url" node -e 'process.stdout.write(require("./functions/shopConfig.js").readShopConfig(process.env).siteUrl)')
           echo "SHOP_URL=$url" >> "$GITHUB_ENV"
           echo "Email links will open $url"
 
@@ -118,7 +127,7 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
           npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" functions:artifacts:setpolicy \
-            --project lmb-test-shop --location us-central1 --days 3 --force --non-interactive
+            --project lmb-test-shop --location "$FUNCTIONS_REGION" --days 3 --force --non-interactive
 
       - name: Deploy to Firebase
         env:

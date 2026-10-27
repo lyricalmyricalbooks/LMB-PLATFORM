@@ -64,7 +64,7 @@ import {
 } from "firebase/auth";
 import { db, auth, googleProvider } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import { currentAdminRole, refreshAdminRole } from "./adminAccess";
+import { currentAdminRole, ensureShopOwnerKnown, refreshAdminRole } from "./adminAccess";
 import { publicApi } from "../lib/publicApi";
 import { defaultSettings } from "./defaultSettings";
 // Storage + the legacy Realtime Database are admin-only and heavy; they are
@@ -102,7 +102,16 @@ function assertDiscountShape(result: { ok: true } | { ok: false; error: { path: 
   if (!result.ok) throw new Error(`The ${result.error.path || "discount"} field has the wrong kind of value, so nothing was saved`);
 }
 
+// Brings the signed-in person's pass up to date with the Team list; its answer also names the shop owner's address,
+// for the owner and staff only (functions/index.js refreshMyRole).
+const refreshMyRole = (token: string) => functionFetch("refreshMyRole", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+
 export const adminApi = {
+  /** The signed-in person's admin role; a restored session learns the owner's address first (one server call). */
+  myRole: () => currentAdminRole(auth.currentUser, refreshMyRole),
+  /** Learns the owner's address for a restored session, so the owner's own orders stay out of the figures. */
+  learnShopOwner: () => ensureShopOwnerKnown(auth.currentUser, refreshMyRole),
+
   // Authentication
   login: async () => {
     try {
@@ -110,7 +119,7 @@ export const adminApi = {
       const user = result.user;
       
       // Only the owner and the people on the owner's Team list (adminAccess.ts) may open the admin.
-      const role = await refreshAdminRole(user, token => functionFetch("refreshMyRole", { method: "POST", headers: { Authorization: `Bearer ${token}` } }));
+      const role = await refreshAdminRole(user, refreshMyRole);
       if (!role) {
         await signOut(auth);
         throw new Error("Unauthorized: this account is not on the shop's Team list");
@@ -161,7 +170,7 @@ export const adminApi = {
   },
 
   updateCategoryBooks: async (ids: string[], source: any, action: CategoryAction, target?: any) => {
-    if (!await currentAdminRole(auth.currentUser)) throw new Error("Admin sign-in is required.");
+    if (!await currentAdminRole(auth.currentUser, refreshMyRole)) throw new Error("Admin sign-in is required.");
     const unique = [...new Set(ids)];
     if (unique.length > 400) throw new Error("More than 400 books are assigned here. Use Edit → Assigned here to move or remove up to 400 at a time, then retry deletion. No books were changed.");
     if (!source?.name || (action === "move" && (!target?.name || target.id === source.id))) throw new Error("Choose a different destination category.");
@@ -704,7 +713,7 @@ export const adminApi = {
   },
 
   updateLocalFulfillment: async (config: LocalFulfillmentConfig) => {
-    if (!await currentAdminRole(auth.currentUser)) throw new Error("Unauthorized local fulfillment update.");
+    if (!await currentAdminRole(auth.currentUser, refreshMyRole)) throw new Error("Unauthorized local fulfillment update.");
     const errors = validateLocalFulfillment(config);
     if (errors.length) throw new Error(errors.join(" "));
     await setDoc(doc(db, "settings", "website"), { localFulfillment: JSON.parse(JSON.stringify(config)) }, { mergeFields: ["localFulfillment"] });

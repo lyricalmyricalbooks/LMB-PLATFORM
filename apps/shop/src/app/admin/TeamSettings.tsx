@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { DataTable, DestructiveButton, EmptyState, PrimaryButton, SectionCard, SelectField, StatusBadge, TextField, useConfirm, type Column } from "./riso/components";
-import { auth } from "../../lib/firebase";
-import { SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
-import { currentAdminRole, type AdminRole, type TeamRole } from "./adminAccess";
+import { shopOwnerEmail } from "../lib/ownerDevice";
+import { adminApi } from "./api";
+import { type AdminRole, type TeamRole } from "./adminAccess";
 import { teamApi, teamEmail, teamMemberProblem, type TeamMember } from "./teamApi";
 
 // Admin-only words (the Studio rule covers shopper-facing words).
@@ -26,7 +26,7 @@ export function TeamSettings() {
 
   const load = () => teamApi.list().then(setMembers, () => setLoadError("Couldn't load the Team. Check your connection, then open this page again."));
   useEffect(() => {
-    void currentAdminRole(auth.currentUser).then(r => {
+    void adminApi.myRole().then(r => {
       setMyRole(r);
       if (r === "owner") void load();
     });
@@ -73,11 +73,12 @@ export function TeamSettings() {
   const columns: Column<TeamMember>[] = [
     { key: "email", header: "Email", lead: true, render: m => m.email },
     { key: "role", header: "Role", render: m => <StatusBadge tone={m.role === "owner" ? "info" : "neutral"} glyph={false}>{ROLE_WORDS[m.role].label}</StatusBadge> },
-    { key: "actions", header: "", render: m => m.email === SHOP_OWNER_EMAIL ? null : (
+    { key: "actions", header: "", render: m => m.email === shopOwnerEmail() ? null : (
       <DestructiveButton size="sm" disabled={!!busy} onClick={() => void remove(m)} aria-label={`Remove ${m.email}`}>{busy === m.email ? "Removing…" : "Remove"}</DestructiveButton>
     ) },
   ];
-  const rows: TeamMember[] = [{ email: SHOP_OWNER_EMAIL, role: "owner" }, ...(members || [])];
+  const owner = shopOwnerEmail();
+  const rows: TeamMember[] = [...(owner ? [{ email: owner, role: "owner" as const }] : []), ...(members || [])];
 
   return (
     <>

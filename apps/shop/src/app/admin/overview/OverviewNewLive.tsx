@@ -5,7 +5,7 @@ import type { Book, Order } from "./overviewInsights";
 import type { Range } from "./overviewRange";
 import { adminApi } from "../api";
 import { abandonedCartApi } from "../../lib/commerce";
-import { SHOP_OWNER_EMAIL } from "../../lib/ownerDevice";
+import { isShopOwner } from "../../lib/ownerDevice";
 import { shopDayKey } from "../../lib/shopDay";
 import { formatReleaseDate } from "../../features/site/preorder";
 import { sharedLoad } from "./overviewShared";
@@ -70,7 +70,7 @@ function LiveNow({ allOrders, activeNow }: { allOrders: Order[]; activeNow: numb
   useEffect(() => {
     // The same shared read as the Abandoned carts widget, so this adds no read of its own.
     sharedLoad("carts", () => abandonedCartApi.list(500))
-      .then(rows => setCarts({ rows: rows.filter((c: any) => String(c?.email || "").toLowerCase() !== SHOP_OWNER_EMAIL), error: false }))
+      .then(rows => setCarts({ rows: rows.filter((c: any) => !isShopOwner(c?.email)), error: false }))
       .catch(() => setCarts({ rows: null, error: true }));
     // Re-counts the windows each minute from what is already loaded; the board re-reads orders every 5 minutes.
     const t = window.setInterval(() => setNow(Date.now()), 60_000);

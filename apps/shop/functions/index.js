@@ -85,7 +85,8 @@ const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, clea
 
 // Cost ceiling for every function (#147): an anonymous flood can scale a public endpoint or a
 // Firestore trigger only this far. A function that sets its own maxInstances overrides it.
-setGlobalOptions({ maxInstances: 10 });
+// Every function runs in the shop's own region (shopConfig.js SHOP_FUNCTIONS_REGION; us-central1 when unset).
+setGlobalOptions({ maxInstances: 10, region: require("./shopConfig").shopConfig.region });
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -98,7 +99,7 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
 const { adminRole, syncMemberRole } = require("./roles");
-const { shopConfig } = require("./shopConfig");
+const { shopConfig, functionLink } = require("./shopConfig");
 
 // Who may call the functions from a browser: local dev, this shop's Hosting address and its own domain (shopConfig.js).
 const ALLOWED_ORIGINS = shopConfig.allowedOrigins;
@@ -189,7 +190,11 @@ exports.refreshMyRole = onBrowserRequest(async (req, res) => {
     return;
   }
   const result = await syncMemberRole({ auth: admin.auth(), db, email: decoded.email });
-  res.json({ role: adminRole(decoded) === "owner" ? "owner" : result.role ?? null, changed: result.status === "updated" });
+  const role = adminRole(decoded) === "owner" ? "owner" : result.role ?? null;
+  // The admin learns the owner's address here (shopConfig.js SHOP_OWNER_EMAIL) instead of from a public file: only
+  // people who can open the admin get it, to leave the owner's own orders and visits out of the figures.
+  const opensAdmin = role === "owner" || role === "staff";
+  res.json({ role, changed: result.status === "updated", ...(opensAdmin ? { ownerEmail: shopConfig.ownerEmail } : {}) });
 });
 
 exports.deleteTestOrders = onBrowserRequest(async (req, res) => {
@@ -223,7 +228,7 @@ exports.deleteTestOrders = onBrowserRequest(async (req, res) => {
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
-const STRIPE_WEBHOOK_URL = "https://us-central1-lmb-test-shop.cloudfunctions.net/stripeWebhook";
+const STRIPE_WEBHOOK_URL = functionLink(shopConfig, "stripeWebhook");
 const PAYPAL_CLIENT_ID = defineSecret("PAYPAL_CLIENT_ID");
 const PAYPAL_CLIENT_SECRET = defineSecret("PAYPAL_CLIENT_SECRET");
 const PAYPAL_WEBHOOK_ID = defineSecret("PAYPAL_WEBHOOK_ID");
@@ -3064,7 +3069,7 @@ async function handleOrderUpdated(event) {
 
       let downloadSection = "";
       if (digitalItems.length > 0) {
-        const linkFor = item => `https://us-central1-lmb-test-shop.cloudfunctions.net/downloadDigitalAsset?orderId=${encodeURIComponent(orderId)}&itemId=${encodeURIComponent(item.itemId)}${item.variantId ? `&variantId=${encodeURIComponent(item.variantId)}` : ""}&token=${encodeURIComponent(order.downloadToken || "")}`;
+        const linkFor = item => `${functionLink(shopConfig, "downloadDigitalAsset")}?orderId=${encodeURIComponent(orderId)}&itemId=${encodeURIComponent(item.itemId)}${item.variantId ? `&variantId=${encodeURIComponent(item.variantId)}` : ""}&token=${encodeURIComponent(order.downloadToken || "")}`;
         const note = String(notificationSettings.order_confirmation?.downloadNote || digitalDelivery.DEFAULT_DOWNLOAD_NOTE);
         downloadSection = `
           <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">

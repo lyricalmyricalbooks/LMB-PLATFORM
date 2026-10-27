@@ -10,39 +10,43 @@ import { describe, expect, it } from 'vitest';
 // address; the repository variable SITE_URL (its own domain, later) overrides all of them at deploy time.
 const root = join(__dirname, '..');
 const read = (file: string) => readFileSync(join(root, file), 'utf8');
-const defaultUrl = (file: string) => {
-  const match = read(file).match(/SITE_URL \|\| ["'](https:\/\/[^"']+)["']/);
-  if (!match) throw new Error(`No SITE_URL default in ${file}`);
-  return match[1].replace(/\/+$/, '');
-};
 const folder = (url: string) => new URL(url).pathname.replace(/\/+$/, '') + '/';
+const address = read('public/shop-profile.js').match(/"siteUrl": "(https:\/\/[^"]+)"/)![1];
 
 describe('one site address everywhere', () => {
   const viteBase = read('vite.config.ts').match(/SITE_BASE \?\? '([^']+)'/)?.[1];
-  const files = ['vite.config.ts', 'scripts/carry-previous-assets.mjs', 'scripts/build-pages-redirect.mjs'];
-  // These read the address from the shop profile (scripts/shopProfile.mjs) instead of a default of their own.
-  const profileReaders = ['scripts/generate-sitemap.mjs', 'scripts/prerender-storefront.mjs', 'scripts/check-published-change.mjs'];
-  const address = defaultUrl('vite.config.ts');
+  // Every build script reads the address from the shop profile (scripts/shopProfile.mjs; SITE_URL still wins), and
+  // none has an address of its own (plan 1.15).
+  const profileReaders = {
+    'scripts/generate-sitemap.mjs': 'await shopSiteUrl()',
+    'scripts/prerender-storefront.mjs': 'await shopSiteUrl()',
+    'scripts/check-published-change.mjs': 'await shopSiteUrl()',
+    'scripts/carry-previous-assets.mjs': 'await shopSiteUrl()',
+    'scripts/build-pages-redirect.mjs': 'await shopSiteUrl()',
+    'scripts/seo-url-check.mjs': 'await shopSiteUrl()',
+    'vite.config.ts': 'shopSiteUrlSync()',
+  };
 
-  it('every SITE_URL default matches the Vite base', () => {
-    expect(viteBase).toMatch(/^\/(?:[^/]+\/)*$/);
-    for (const file of files) expect(folder(defaultUrl(file)), file).toBe(viteBase);
+  it('the shop profile\'s address is at the root of its host, like the Vite base', () => {
+    expect(viteBase).toBe('/');
+    expect(folder(address)).toBe(viteBase);
   });
 
-  it('every SITE_URL default is the same address', () => {
-    expect(new Set(files.map(defaultUrl)).size).toBe(1);
-  });
-
-  it('the shop profile holds that address, and the build scripts read it from there', () => {
-    expect(read('public/shop-profile.js')).toContain(`"siteUrl": "${address}"`);
-    for (const file of profileReaders) expect(read(file), file).toContain('await shopSiteUrl()');
+  it('the build scripts read the address from the profile and write none of their own', () => {
+    for (const [file, call] of Object.entries(profileReaders)) {
+      const source = read(file);
+      expect(source, file).toContain(call);
+      expect(source, file).not.toMatch(/SITE_URL \|\| ["']https:/);
+      expect(source.replace(/^\s*\/\/.*$/gm, ''), file).not.toContain('lmb-test-shop');
+    }
   });
 
   it('the deploy workflows build for that address when no SITE_URL variable is set', () => {
-    const fallback = read('.github/workflows/deploy-pages.yml').match(/\$\{CUSTOM_SITE_URL:-(https:\/\/[^}]+)\}/)?.[1];
-    expect(fallback).toBe(address);
-    // deploy-firebase.yml reads the email-link default from the Cloud Functions' own settings.
-    expect(read('.github/workflows/deploy-firebase.yml')).toContain('functions/shopConfig.js');
+    expect(read('.github/workflows/deploy-pages.yml')).toContain('url="${CUSTOM_SITE_URL:-$(node scripts/shopProfile.mjs siteUrl)}"');
+    // deploy-firebase.yml gives the email links the same address, read the way the Cloud Functions read it.
+    const firebase = read('.github/workflows/deploy-firebase.yml');
+    expect(firebase).toContain('url="$(node scripts/shopProfile.mjs siteUrl)"');
+    expect(firebase).toContain('functions/shopConfig.js');
   });
 
   it('the app shell links to that address', () => {
@@ -57,5 +61,17 @@ describe('one site address everywhere', () => {
     expect(siteUrl).toBe(address);
     expect(allowedOrigins).toContain(new URL(address).origin);
     expect(allowedOrigins).toContain('https://yourpress.github.io');
+  });
+
+  it('the Cloud Functions run where the pages call them: the profile\'s region, written into their settings at deploy', () => {
+    const { readShopConfig, functionLink } = createRequire(import.meta.url)('../functions/shopConfig.js');
+    const region = read('public/shop-profile.js').match(/"functionsRegion": "([^"]+)"/)![1];
+    expect(readShopConfig({}).region).toBe(region);
+    const moved = readShopConfig({ SHOP_FUNCTIONS_REGION: 'northamerica-northeast1', GCLOUD_PROJECT: 'press-two-shop' });
+    // Same form as the pages' own calls (src/app/lib/functionsBase.ts functionUrl).
+    expect(functionLink(moved, 'stripeWebhook')).toBe('https://northamerica-northeast1-press-two-shop.cloudfunctions.net/stripeWebhook');
+    expect(read('src/app/lib/functionsBase.ts')).toContain('return `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/${name}`;');
+    expect(read('.github/workflows/deploy-firebase.yml')).toContain('region="$(node scripts/shopProfile.mjs functionsRegion)"');
+    expect(read('.github/workflows/deploy-firebase.yml')).toContain("printf 'SHOP_FUNCTIONS_REGION=%s\\n' \"$region\"");
   });
 });
