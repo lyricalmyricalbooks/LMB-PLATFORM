@@ -8,6 +8,10 @@ import { join, relative } from "node:path";
 // admin/studio/themeLibrary.test.ts (theme presets).
 
 
+// The Studio section list is a large module tree (about 2 s to load cold, the check itself takes under 1 ms). Loaded
+// once with the file, so that cost is not counted against the 5 s limit of the one check that reads it.
+const { SECTION_REGISTRY, getSectionFields } = await import("../../admin/ThemeEditorExtensions");
+
 const APP = join(__dirname, "..", "..");
 // Files whose job is to *define* default token values (every one is a Studio › Style control).
 const TOKEN_SOURCES = new Set(["features/site/risoNoir.ts", "features/site/colorSchemes.ts"]);
@@ -72,8 +76,7 @@ describe("the public website is fully editable in Studio", () => {
     expect(unmapped, "teach colorUtilityCss (themeTokens.ts) a token for these, or use a token class (fm-muted, fm-accent-text …)").toEqual([]);
   });
 
-  it("gives every section default a Content field (lists are edited as blocks)", async () => {
-    const { SECTION_REGISTRY, getSectionFields } = await import("../../admin/ThemeEditorExtensions");
+  it("gives every section default a Content field (lists are edited as blocks)", () => {
     const missing: string[] = [];
     for (const meta of SECTION_REGISTRY as any[]) {
       const fields = new Set(getSectionFields(meta.type).map((f: any) => f.key));
