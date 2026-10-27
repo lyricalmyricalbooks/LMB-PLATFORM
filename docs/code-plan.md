@@ -53,7 +53,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | --- | --- | --- | --- | --- |
 | 1.11 | shop | `functions/payments/`: one module that makes Stripe clients and does refunds, payment lookups and reversal checks with the shop's own key; callers move to it one file at a time | payment tests with a fake Stripe (`functions/payments/payments.test.js`); index.js and orderRequests.js moved | done |
 | 1.12 | shop | Checkout (`checkoutPayment.js`) and webhook setup (`checkoutAdmin.js`) go through the module | checkout tests; `functions/payments/payments.test.js` (checkout and admin calls with a fake Stripe, and no file but the module makes a Stripe client) | done |
-| 1.13 | shop | `functions/email/`: one module for every send, same pattern | email tests | |
+| 1.13 | shop | `functions/email/`: one module for every send, same pattern | email tests (`functions/email/email.test.js` with a fake Gmail and Resend; existing send, outbox and Gmail-check handler tests) | done |
 
 ### 1D. Your shop becomes a folder
 
