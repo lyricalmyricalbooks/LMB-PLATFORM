@@ -1230,7 +1230,10 @@ async function reserveForConfirmedPayment(orderId, provider, paymentId) {
   const snap = await ref.get();
   if (!snap.exists) return true;
   const order = snap.data();
-  if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || order.paypalMode === "test" || order.stripeMode === "test") return true;
+  // A sandbox payment takes no stock, so it needs none, except on the platform's test shop (shopConfig.testShop), where
+  // it takes stock like a live one and so is checked like one: sold out after its hold lapsed = not marked paid.
+  const sandbox = order.paypalMode === "test" || order.stripeMode === "test";
+  if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || (sandbox && !shopConfig.testShop)) return true;
   try {
     await reserveStock(db, orderId, order.items || [], Date.now(), holdOwner(order));
     return true;
@@ -1248,7 +1251,7 @@ async function reserveForConfirmedPayment(orderId, provider, paymentId) {
 
 async function markOrderPaidFromPayPal(orderId, paypalData) {
   const initialOrder = await db.collection("orders").doc(orderId).get();
-  if (initialOrder.exists && initialOrder.data().paypalMode !== "test"
+  if (initialOrder.exists && (initialOrder.data().paypalMode !== "test" || shopConfig.testShop)
       && !await reserveForConfirmedPayment(orderId, "PayPal", paypalData.captureId)) return false;
   const result = await settlePayment(orderId, {
     provider: "PayPal",
@@ -1595,7 +1598,8 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
     if (initialOrder.exists) {
       const initial = initialOrder.data();
       const amountCheck = paidAmountCheck(initial, session.amount_total, session.currency);
-      if (amountCheck.ok && session.livemode !== false && initial.stripeMode !== "test"
+      // Sandbox payments skip the stock check, except on the test shop (see reserveForConfirmedPayment).
+      if (amountCheck.ok && ((session.livemode !== false && initial.stripeMode !== "test") || shopConfig.testShop)
           && initial.paymentStatus !== "paid" && initial.status !== "cancelled"
           && !await reserveForConfirmedPayment(orderId, "Stripe", typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id)) return false;
     }

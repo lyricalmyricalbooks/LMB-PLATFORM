@@ -48,7 +48,7 @@ function harness(order, { testShop = false } = {}) {
   };
   const module = { exports: {} };
   // Expose the internal helpers under test.
-  const exposed = `${source}\nmodule.exports.__test = { markStripeOrderPaid: (id, session, options) => markStripeOrderPaid(id, session, { ...options, authority: STRIPE_WEBHOOK_AUTHORITY }), syncStripeReversal, applyPartialRefund, restockRefunded: (id) => restockRefundedOrder(db, id, { testShop: shopConfig.testShop }) };`;
+  const exposed = `${source}\nmodule.exports.__test = { markStripeOrderPaid: (id, session, options) => markStripeOrderPaid(id, session, { ...options, authority: STRIPE_WEBHOOK_AUTHORITY }), syncStripeReversal, applyPartialRefund, markOrderPaidFromPayPal, restockRefunded: (id) => restockRefundedOrder(db, id, { testShop: shopConfig.testShop }) };`;
   vm.runInNewContext(exposed, { module, exports: module.exports, require: mockRequire, process, Buffer, console, setTimeout, clearTimeout, URL, AbortController, fetch: async () => { throw new Error('no network'); } }, { filename: 'index.js' });
   return { docs, analyticsWrites, ...module.exports.__test };
 }
@@ -151,4 +151,49 @@ test('a sandbox order paid before the test-shop mark (no stock stamp) is not res
   const app = harness({ ...baseOrder(), paymentStatus: 'paid', sandboxPayment: true, isTest: true }, { testShop: true });
   await app.syncStripeReversal('o1', fullRefund);
   expect(app.docs.books.book.stockLevel).toBe(5);
+});
+
+// A payment that arrives after its 30-minute hold lapsed, for a book that sold out meanwhile: a live payment is not
+// marked paid and the order records the conflict for the owner (reserveForConfirmedPayment). On the test shop a sandbox
+// payment takes stock, so it gets the same check; every other shop's sandbox payments still skip it.
+const soldOut = (app) => { app.docs.books.book.stockLevel = 0; return app; };
+
+test('test shop: a sandbox Stripe payment for a book that sold out after its hold lapsed is refused like a live one', async () => {
+  const app = soldOut(harness({ ...baseOrder(), stripeMode: 'test' }, { testShop: true }));
+  expect(await app.markStripeOrderPaid('o1', session(false), { message: 'paid' })).toBe(false);
+  expect(app.docs.orders.o1.paymentStatus).toBe('unpaid');
+  expect(app.docs.orders.o1.oversold).toBeUndefined();
+  expect(app.docs.orders.o1.inventoryConflict).toMatchObject({ provider: 'Stripe', paymentId: 'pi_1' });
+  expect(app.docs.books.book.stockLevel).toBe(0);
+});
+
+test('test shop: a sandbox PayPal capture for a sold-out book is refused like a live one', async () => {
+  const app = soldOut(harness({ ...baseOrder(), paypalMode: 'test' }, { testShop: true }));
+  expect(await app.markOrderPaidFromPayPal('o1', { captureId: 'cap_1' })).toBe(false);
+  expect(app.docs.orders.o1.paymentStatus).toBe('unpaid');
+  expect(app.docs.orders.o1.inventoryConflict).toMatchObject({ provider: 'PayPal', paymentId: 'cap_1' });
+});
+
+test('test shop: a sandbox payment with stock left still goes through and takes it', async () => {
+  const app = harness({ ...baseOrder(), stripeMode: 'test' }, { testShop: true });
+  expect(await app.markStripeOrderPaid('o1', session(false), { message: 'paid' })).toBe(true);
+  expect(app.docs.orders.o1.inventoryConflict).toBeUndefined();
+  expect(app.docs.books.book.stockLevel).toBe(3);
+});
+
+test('every other shop: a sandbox payment for a sold-out book is still a paid test order that touches no stock', async () => {
+  const app = soldOut(harness({ ...baseOrder(), stripeMode: 'test' }, { testShop: false }));
+  expect(await app.markStripeOrderPaid('o1', session(false), { message: 'paid' })).toBe(true);
+  expect(app.docs.orders.o1).toMatchObject({ paymentStatus: 'paid', isTest: true, sandboxPayment: true });
+  expect(app.docs.orders.o1.inventoryConflict).toBeUndefined();
+  expect(app.docs.books.book.stockLevel).toBe(0);
+});
+
+test('live path unchanged: a live payment for a sold-out book is refused on any shop', async () => {
+  for (const testShop of [false, true]) {
+    const app = soldOut(harness({ ...baseOrder(), stripeMode: 'live' }, { testShop }));
+    expect(await app.markStripeOrderPaid('o1', session(true), { message: 'paid' })).toBe(false);
+    expect(app.docs.orders.o1.paymentStatus).toBe('unpaid');
+    expect(app.docs.orders.o1.inventoryConflict).toMatchObject({ provider: 'Stripe' });
+  }
 });
