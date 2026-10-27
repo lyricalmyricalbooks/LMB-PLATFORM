@@ -2,10 +2,11 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     // Same admin check as firestore.rules (functions/roles.js): the owner address or a Team role on the pass.
+    // The owner address is filled in at deploy by scripts/deployConfig.mjs (see firestore.rules).
     function isAdmin() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && (request.auth.token.email == "owner@example.com"
+        && (request.auth.token.email == "__SHOP_OWNER_EMAIL__"
           || request.auth.token.get("role", "") in ["owner", "staff"]);
     }
     match /products/{allPaths=**} {

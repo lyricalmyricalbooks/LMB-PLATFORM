@@ -5,10 +5,12 @@ service cloud.firestore {
     // Admin access (functions/roles.js): the owner address, or a role the server copied onto the sign-in pass from
     // the owner's Team list (members/{email}). Staff can do everything in the admin except the Team and secret keys.
     // The Team's author role opens nothing here (it is for the stockroom).
+    // The owner address below is a template slot: scripts/deployConfig.mjs fills in each shop's address at deploy.
+    // Deployed unfilled, it matches no verified address, so only the owner role gets in (fails closed).
     function isOwner() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && (request.auth.token.email == "owner@example.com" || request.auth.token.get("role", "") == "owner");
+        && (request.auth.token.email == "__SHOP_OWNER_EMAIL__" || request.auth.token.get("role", "") == "owner");
     }
     function isAdmin() {
       return isOwner()
@@ -116,7 +118,7 @@ service cloud.firestore {
       allow delete: if isOwner();
       allow create, update: if isOwner()
         && email == email.lower()
-        && email != "owner@example.com"
+        && email != "__SHOP_OWNER_EMAIL__"
         && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy"])
         && request.resource.data.role in ["owner", "staff", "author"];
     }

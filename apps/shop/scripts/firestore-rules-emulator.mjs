@@ -11,7 +11,10 @@ import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, collectionGroup, q
 
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080").split(":");
 const rulesPath = process.env.RULES_FILE || new URL("../firestore.rules", import.meta.url);
-const env = await initializeTestEnvironment({ projectId: "demo-rules", firestore: { rules: readFileSync(rulesPath, "utf8"), host, port: Number(port) } });
+// The rules name the owner as a template slot that scripts/deployConfig.mjs fills in at deploy (OWNER_PLACEHOLDER there);
+// these checks fill it with the test owner, as a deploy would. This file is copied on its own in CI, so it can't import it.
+const rules = readFileSync(rulesPath, "utf8").replaceAll("__SHOP_OWNER_EMAIL__", "owner@example.com");
+const env = await initializeTestEnvironment({ projectId: "demo-rules", firestore: { rules, host, port: Number(port) } });
 let failures = 0;
 async function check(name, p) { try { await p; console.log("ok  ", name); } catch (e) { failures++; console.log("FAIL", name, e.message); } }
 

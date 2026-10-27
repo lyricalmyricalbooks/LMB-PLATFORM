@@ -12,3 +12,6 @@ backend/uploads/*
 !backend/uploads/.gitkeep
 studio-shots/
 .firebase/
+# One shop's deploy files, written by scripts/deployConfig.mjs at deploy
+.deploy/
+firebase.deploy.json
