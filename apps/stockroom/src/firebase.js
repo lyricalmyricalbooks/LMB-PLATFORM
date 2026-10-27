@@ -9,16 +9,10 @@ import { readOldCopyCached, oldCopyCache } from './lib/old-copy-cache.js';
 import { planWebsitePublish } from './lib/website-link.js';
 import { adoptDecision, compareCopies, movedElsewhere } from './lib/storage-mode.js';
 import { isTestProfileActive, installSandboxBackend } from './lib/test-profile.js';
+import { DATA_ROOT, shopProfile } from './lib/shop-profile.js';
 
-const firebaseConfig = {
-  apiKey:"AIzaTestStockroomKeyNotReal000000000000",
-  authDomain:"lmb-test-stockroom.firebaseapp.com",
-  databaseURL:"https://lmb-test-stockroom-default-rtdb.firebaseio.com",
-  projectId:"lmb-test-stockroom",
-  storageBucket:"lmb-test-stockroom.firebasestorage.app",
-  messagingSenderId:"100000000002",
-  appId:"1:100000000002:web:0000000000000000000002"
-};
+// This shop's Firebase project comes from /shop-profile.js (src/lib/shop-profile.js).
+const firebaseConfig = { ...shopProfile.firebase };
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
@@ -152,7 +146,7 @@ window._fbAdoptBook = async (bookId) => {
   const partRefs = ALL_PARTS.map(p => doc(fs, 'books', bookId, 'data', p));
   let wrote = false;
   try {
-    const old = await get(ref(db, `lyrical/books/${bookId}`));
+    const old = await get(ref(db, `${DATA_ROOT}/books/${bookId}`));
     const oldJson = old.exists() ? (old.val() || {}).data : null;
     if (!oldJson) {
       // A new book with nothing saved anywhere yet: its first save goes to Firestore.
@@ -188,7 +182,7 @@ window._fbAdoptBook = async (bookId) => {
     // in the Storage check.
     let late = [];
     try {
-      const again = await get(ref(db, `lyrical/books/${bookId}`));
+      const again = await get(ref(db, `${DATA_ROOT}/books/${bookId}`));
       const againJson = again.exists() ? (again.val() || {}).data : null;
       if (againJson && againJson !== oldJson) late = compareCopies(JSON.parse(againJson), copy).onlyInOld;
     } catch (e) { console.warn(`[FB] could not re-read the old storage for ${bookId}; the Storage check will compare it`, e); }
@@ -240,7 +234,7 @@ window._fbMarkLinkSwitchedOn = async (at) => {
 // With { withStamp: true } it returns { state, ts }: `ts` is when the old copy
 // was last written, which says whether it has changed since the owner looked.
 window._fbReadOldBookCopy = async (bookId, { withStamp = false } = {}) => {
-  const path = `lyrical/books/${bookId}`;
+  const path = `${DATA_ROOT}/books/${bookId}`;
   let stamp = null;
   const json = await readOldCopyCached(bookId, {
     readTs: async () => {
@@ -507,7 +501,7 @@ window._fbSave = async (bookId, json, opts = {}) => {
         return { ok: false, merged: false, reason: 'moved' };
       }
     }
-    await set(ref(db, `lyrical/books/${bookId}`), { data: json, ts: Date.now() });
+    await set(ref(db, `${DATA_ROOT}/books/${bookId}`), { data: json, ts: Date.now() });
     return { ok: true, merged: false };
   } catch (e) {
     console.error("fbSave failed", e);
@@ -553,7 +547,7 @@ window._fbLoad = async (bookId) => {
         // and could overwrite the real data on the next save. So read the RTDB
         // copy instead — mirroring the settings/catalog fallback.
         console.warn(`[FB] book ${bookId} has no Firestore data, reading from RTDB`);
-        const rt = await get(ref(db, `lyrical/books/${bookId}`));
+        const rt = await get(ref(db, `${DATA_ROOT}/books/${bookId}`));
         if (!rt.exists()) return null; // genuinely empty book — let caller seed defaults
         const rtData = rt.val().data;
         // Self-heal: copy the RTDB state into Firestore NOW. Without this the
@@ -569,7 +563,7 @@ window._fbLoad = async (bookId) => {
 
       return JSON.stringify(stitchState(parts));
     }
-    const s = await get(ref(db, `lyrical/books/${bookId}`));
+    const s = await get(ref(db, `${DATA_ROOT}/books/${bookId}`));
     return s.exists() ? s.val().data : null;
   } catch (e) {
     // Rethrow: a failed read is not an empty book. Returning null made callers
@@ -645,7 +639,7 @@ window._fbWatch = (bookId, cb) => {
       _fsWatchUnsubs[bookId].push(unsub);
       return;
     }
-    onValue(ref(db, `lyrical/books/${bookId}`), s => { if (s.exists()) cb(s.val().data); },
+    onValue(ref(db, `${DATA_ROOT}/books/${bookId}`), s => { if (s.exists()) cb(s.val().data); },
       err => _reportWatchError('RTDB watch', err));
   } catch (e) { console.error("fbWatch setup failed", e); }
 };
@@ -694,7 +688,7 @@ window._fbSubmitActivity = async (bookId, type, data) => {
       await setDoc(doc(collRef), { data: JSON.stringify(data), ts: Date.now() });
       return;
     }
-    const newRef = push(ref(db, `lyrical/submissions/${bookId}/${type}`));
+    const newRef = push(ref(db, `${DATA_ROOT}/submissions/${bookId}/${type}`));
     await set(newRef, { data: JSON.stringify(data), ts: Date.now() });
   } catch (e) {
     console.error("fbSubmit failed", e);
@@ -731,7 +725,7 @@ window._fbWatchSubmissions = (bookId, cb) => {
       });
       return;
     }
-    onValue(ref(db, `lyrical/submissions/${bookId}`), s => cb(s.exists() ? s.val() : null),
+    onValue(ref(db, `${DATA_ROOT}/submissions/${bookId}`), s => cb(s.exists() ? s.val() : null),
       err => _reportWatchError('RTDB sub watch', err));
   } catch (e) { console.error("fbWatchSub failed", e); }
 };
@@ -772,8 +766,8 @@ window._fbDeleteBook = async (bookId) => {
       }
     }
     // Always wipe RTDB copies too — books may have lived there before migration.
-    await remove(ref(db, `lyrical/books/${bookId}`)).catch(() => {});
-    await remove(ref(db, `lyrical/submissions/${bookId}`)).catch(() => {});
+    await remove(ref(db, `${DATA_ROOT}/books/${bookId}`)).catch(() => {});
+    await remove(ref(db, `${DATA_ROOT}/submissions/${bookId}`)).catch(() => {});
   } catch (e) {
     console.error('fbDeleteBook failed', e);
   }
@@ -785,7 +779,7 @@ window._fbDeleteSubmission = async (bookId, type, subId) => {
       await deleteDoc(doc(fs, 'submissions', bookId, type, subId));
       return true;
     }
-    await remove(ref(db, `lyrical/submissions/${bookId}/${type}/${subId}`));
+    await remove(ref(db, `${DATA_ROOT}/submissions/${bookId}/${type}/${subId}`));
     return true;
   } catch (e) { console.error("fbDeleteSub failed", e); return false; }
 };
@@ -858,7 +852,7 @@ window._fbSaveSettings = async (key, data) => {
       await setDoc(doc(fs, 'settings', key), { data: JSON.stringify(data), ts: Date.now() });
       return true;
     }
-    await set(ref(db, `lyrical/settings/${key}`), { data: JSON.stringify(data), ts: Date.now() });
+    await set(ref(db, `${DATA_ROOT}/settings/${key}`), { data: JSON.stringify(data), ts: Date.now() });
     return true;
   } catch (e) {
     console.error("fbSaveSettings failed", e);
@@ -880,10 +874,10 @@ window._fbLoadSettings = async (key, opts) => {
       if (s.exists()) { noteSettingsBase(key, s.data().data); return safeParse(s.data().data); }
       // Transparent fallback: Firestore doc missing — read from RTDB
       console.warn(`[FB] settings/${key} not in Firestore, reading from RTDB`);
-      const rtSnap = await get(ref(db, `lyrical/settings/${key}`));
+      const rtSnap = await get(ref(db, `${DATA_ROOT}/settings/${key}`));
       return rtSnap.exists() ? safeParse(rtSnap.val().data) : null;
     }
-    const s = await get(ref(db, `lyrical/settings/${key}`));
+    const s = await get(ref(db, `${DATA_ROOT}/settings/${key}`));
     return s.exists() ? safeParse(s.val().data) : null;
   } catch (e) { console.error("fbLoadSettings failed", e); return null; }
 };
@@ -1085,7 +1079,7 @@ window._fbSaveCatalog = async (catalog) => {
       await writeMergedSetting('catalog', catalog);
       return true;
     }
-    await set(ref(db, `lyrical/settings/catalog`), { data: JSON.stringify(catalog), ts: Date.now() });
+    await set(ref(db, `${DATA_ROOT}/settings/catalog`), { data: JSON.stringify(catalog), ts: Date.now() });
     return true;
   } catch (e) {
     console.error("fbSaveCatalog failed", e);
@@ -1112,7 +1106,7 @@ window._fbSaveBookOwners = async (owners) => {
   const authorEmails = {};
   Object.keys(clean).forEach(id => { authorEmails[clean[id].replace(/\./g, ',')] = true; });
   if (Object.keys(authorEmails).length) clean.authorEmails = authorEmails;
-  try { await set(ref(db, 'lyrical/settings/bookOwners'), clean); }
+  try { await set(ref(db, `${DATA_ROOT}/settings/bookOwners`), clean); }
   catch (e) { console.error('fbSaveBookOwners (RTDB) failed', e); }
   // Sent on every publisher sign-in and every catalog save, but the owners
   // rarely change: check the server's copy and only write when it differs. A
@@ -1142,7 +1136,7 @@ window._fbSaveBackupSnapshot = async (id, snapshot) => {
   if (window._useFirestoreGlobal()) {
     await setDoc(doc(fs, 'backups', id), payload);
   } else {
-    await set(ref(db, `lyrical/backups/${id}`), payload);
+    await set(ref(db, `${DATA_ROOT}/backups/${id}`), payload);
   }
 };
 
@@ -1152,10 +1146,10 @@ window._fbLoadBackupSnapshot = async (id) => {
       const s = await getDoc(doc(fs, 'backups', id));
       if (s.exists()) return safeParse(s.data().data);
       // Fallback in case the snapshot predates a Firestore mode switch.
-      const rt = await get(ref(db, `lyrical/backups/${id}`));
+      const rt = await get(ref(db, `${DATA_ROOT}/backups/${id}`));
       return rt.exists() ? safeParse(rt.val().data) : null;
     }
-    const s = await get(ref(db, `lyrical/backups/${id}`));
+    const s = await get(ref(db, `${DATA_ROOT}/backups/${id}`));
     return s.exists() ? safeParse(s.val().data) : null;
   } catch (e) { console.error('fbLoadBackupSnapshot failed', e); return null; }
 };
@@ -1163,7 +1157,7 @@ window._fbLoadBackupSnapshot = async (id) => {
 window._fbDeleteBackupSnapshot = async (id) => {
   // Best-effort delete from both stores so a pruned/old snapshot never orphans.
   try { await deleteDoc(doc(fs, 'backups', id)); } catch (e) { /* missing / RTDB-only */ }
-  try { await remove(ref(db, `lyrical/backups/${id}`)); } catch (e) { /* ignore */ }
+  try { await remove(ref(db, `${DATA_ROOT}/backups/${id}`)); } catch (e) { /* ignore */ }
 };
 
 window._fbLoadCatalog = async (opts) => {
@@ -1173,10 +1167,10 @@ window._fbLoadCatalog = async (opts) => {
       if (s.exists()) { noteSettingsBase('catalog', s.data().data); return safeParse(s.data().data); }
       // Transparent fallback: Firestore doc missing — read from RTDB
       console.warn('[FB] catalog not in Firestore, reading from RTDB');
-      const rtSnap = await get(ref(db, `lyrical/settings/catalog`));
+      const rtSnap = await get(ref(db, `${DATA_ROOT}/settings/catalog`));
       return rtSnap.exists() ? safeParse(rtSnap.val().data) : null;
     }
-    const s = await get(ref(db, `lyrical/settings/catalog`));
+    const s = await get(ref(db, `${DATA_ROOT}/settings/catalog`));
     return s.exists() ? safeParse(s.val().data) : null;
   } catch (e) {
     // Rethrow: null means "no catalog exists"; a failed read must stay distinct
@@ -1224,7 +1218,7 @@ window._fbMassMigrate = async (BOOKS) => {
   // ⚡ Bolt Optimization: Parallelize Asynchronous I/O
   // Replaced sequential `for...of` loops with `Promise.all` to fetch book data concurrently.
   await Promise.all(Object.keys(BOOKS).map(async bookId => {
-    const snap = await get(ref(db, `lyrical/books/${bookId}`));
+    const snap = await get(ref(db, `${DATA_ROOT}/books/${bookId}`));
     if (snap.exists()) {
       const bookObj = snap.val();
       if (bookObj && bookObj.data) {
@@ -1252,7 +1246,7 @@ window._fbMassMigrate = async (BOOKS) => {
   // Replaced sequential `for...of` loops with `Promise.all` to fetch submission data concurrently.
   await Promise.all(Object.keys(BOOKS).map(async bookId => {
     await Promise.all(['expenses', 'sales'].map(async type => {
-      const typeSnap = await get(ref(db, `lyrical/submissions/${bookId}/${type}`));
+      const typeSnap = await get(ref(db, `${DATA_ROOT}/submissions/${bookId}/${type}`));
       if (typeSnap.exists()) {
         const subData = typeSnap.val();
         Object.keys(subData).forEach(subId => {
@@ -1269,7 +1263,7 @@ window._fbMassMigrate = async (BOOKS) => {
   // Replaced sequential `for...of` loops with `Promise.all` to fetch settings concurrently.
   const settingsKeys = ['catalog', 'taxCenter', 'productionCosts', 'paymentLinks', 'systemBackups'];
   await Promise.all(settingsKeys.map(async key => {
-    const setSnap = await get(ref(db, `lyrical/settings/${key}`));
+    const setSnap = await get(ref(db, `${DATA_ROOT}/settings/${key}`));
     if (setSnap.exists()) {
        const settingObj = setSnap.val();
        const dRef = doc(fs, 'settings', key);
