@@ -79,7 +79,7 @@ test("the env file is what the shop's server code reads", () => {
     const [, key, value] = line.match(/^([A-Z_]+)="(.*)"$/);
     return [key, value];
   }));
-  assert.deepEqual(Object.keys(env), ["SHOP_OWNER_EMAIL", "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER", "SHOP_FUNCTIONS_REGION"]);
+  assert.deepEqual(Object.keys(env), ["SHOP_OWNER_EMAIL", "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER", "SHOP_FUNCTIONS_REGION", "SHOP_TEST_SHOP"]);
   const config = readShopConfig({ ...env, GCLOUD_PROJECT: ID });
   assert.equal(config.ownerEmail, "owner@example.com");
   assert.equal(config.senderName, "Moth Night Press and Co");
@@ -220,6 +220,26 @@ test("the dry run prints all fifteen steps and changes nothing", async () => {
   assert.equal(lines[13], "13. Connect the press's payments: would run");
   assert.equal(changes(), 0);
   assert.equal(registry.shops.size + registry.locks.size, 0);
+});
+
+test("only the test shop is marked as the test shop in its env file", async () => {
+  assert.equal(envOf(envFileText(TEST_SHOP, TEST_CONFIG)).SHOP_TEST_SHOP, "true");
+  const { testShop: _, ...press } = TEST_SHOP;
+  assert.equal(envOf(envFileText(press, TEST_CONFIG)).SHOP_TEST_SHOP, "false", "a press without the mark");
+  assert.equal(envOf(envFileText({ ...TEST_SHOP, testShop: false }, TEST_CONFIG)).SHOP_TEST_SHOP, "false");
+  assert.equal(envOf(envFileText({ ...TEST_SHOP, testShop: "true" }, TEST_CONFIG)).SHOP_TEST_SHOP, "false", "only a real true counts");
+  const { services, run } = setup();
+  const result = await run();
+  assert.equal(result.ok, true, result.error);
+  assert.equal(envOf(services.world.envFiles.get(ID)).SHOP_TEST_SHOP, "true");
+});
+
+test("the test shop mark must be true or false, and the test shop must be in test mode", () => {
+  assert.deepEqual(shopProblems(TEST_SHOP), []);
+  assert.match(shopProblems({ ...TEST_SHOP, testShop: "yes" })[0], /test shop mark/);
+  assert.match(shopProblems({ ...TEST_SHOP, testMode: false })[0], /test shop must take payments in test mode/);
+  const { testShop: _, ...press } = TEST_SHOP;
+  assert.deepEqual(shopProblems({ ...press, testMode: false }), [], "a live press is fine");
 });
 
 // Payments: a provider choice, Stripe first.
