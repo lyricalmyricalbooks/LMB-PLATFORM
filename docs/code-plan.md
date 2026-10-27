@@ -18,7 +18,7 @@ Status: `done`, `open` (pull request up), `next`, or blank (not started).
 | --- | --- | --- | --- | --- |
 | 0.1 | platform | Waitlist page (`waitlist/index.html`) | no rival named (test) | done |
 | 0.2 | platform | Waitlist sign-up handler: checks the form, ignores bots, stores each email once (`waitlist/signup.js`) | handler tests with a fake store | done |
-| 0.3 | platform | Waitlist storage adapter and hosting, once Julian picks where sign-ups live | a test sign-up lands in the store | |
+| 0.3 | platform | Waitlist storage adapter and hosting: sign-ups go straight from the page to Firestore in the platform project `lmb-platform-prod` (Montréal), add-only rules (`waitlist/firestoreStore.js`, `firestore.rules`, `firebase.json`) | a test sign-up lands in the emulator; rules refuse reads, edits and doctored records (`waitlist-rules` job) | done |
 | 0.4 | platform | Product name in the page, domain checked | name test | |
 
 ## Phase 1: make it anyone's shop
@@ -148,7 +148,6 @@ Gate: a month where every update reaches every shop with no checkout outage.
 
 ## Open decisions
 
-- Where waitlist sign-ups are stored (blocks 0.3).
 - The product name ("Colophon" is a working name; blocks 0.4 and the repo renames).
 - Stockroom data in the shop project: its own named database, or rules merged with the shop's (before 1.20).
 - Move your stockroom ledger into the shop project now, or keep the link to the old project until Phase 4 (before 1.21).

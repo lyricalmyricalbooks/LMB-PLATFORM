@@ -66,20 +66,22 @@
 
   <footer>Colophon is a working name. We'll only email you about the launch.</footer>
 </main>
-<script>
-  // Where sign-ups go. Set this to the platform's waitlist endpoint before publishing.
-  const WAITLIST_ENDPOINT = "";
+<script type="module">
+  import { handleSignup } from "./signup.js";
+  import { firestoreStore } from "./firestoreStore.js";
+  import { WAITLIST_FIREBASE } from "./config.js";
 
+  const store = WAITLIST_FIREBASE.projectId ? firestoreStore(WAITLIST_FIREBASE) : null;
   const form = document.getElementById("waitlist");
   const status = document.getElementById("status");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form));
-    if (!data.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email || "")) {
+    if (!data.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((data.email || "").trim())) {
       status.textContent = "Please add your name and a working email.";
       return;
     }
-    if (!WAITLIST_ENDPOINT) {
+    if (!store) {
       status.textContent = "The waitlist opens soon. Please check back in a few days.";
       return;
     }
@@ -87,12 +89,11 @@
     button.disabled = true;
     status.textContent = "Adding you…";
     try {
-      const response = await fetch(WAITLIST_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, source: location.search.slice(1) || "direct" }),
-      });
-      if (!response.ok) throw new Error(String(response.status));
+      const result = await handleSignup({ ...data, source: location.search.slice(1) || "direct" }, { store });
+      if (result.status !== 200) {
+        status.textContent = result.body.message;
+        return;
+      }
       form.reset();
       status.textContent = "You're on the list. We'll be in touch.";
     } catch {
