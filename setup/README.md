@@ -26,4 +26,27 @@ first failure.
 The registry and audit log are passed in. `fakes.js` holds in-memory ones with the same shape as the real ones, for tests
 and dry runs; Google is never called from tests.
 
-Not yet: the steps themselves (plan items 1.29 and 1.30) and a command to run them.
+## Steps 1–6 (`steps.js`)
+
+`firstSteps({ google, registry, profileFiles, config })` returns steps 1–6 of `docs/shop-setup.md`:
+
+1. Reserve the shop id in the registry (refused if the id belongs to another owner).
+2. Create the Google Cloud project in the shops folder (`config.folder`) and link the platform billing account
+   (`config.billingAccount`). The project id is the shop id. A project outside the folder, or marked for deletion, stops
+   the run for a person to decide; it is never deleted or replaced.
+3. Add Firebase to the project.
+4. Turn on the services in `SERVICES` (only the missing ones).
+5. Create the Firestore database (delete protection on) and the storage bucket in `northamerica-northeast1`. One in
+   another region stops the run, since neither can be moved.
+6. Create the web app ("Shop"), build the public profile from its settings, check it with `profile/profile.js`, and
+   save it to the registry and to the per-shop `/shop-profile.js` file (`profileFiles`).
+
+Google is reached only through the injected `google` clients (shape at the top of `steps.js`). There is no real client
+in this folder yet, so nothing here can create a real project. `fakes.js` has a pretend Google; `test-shop.js` holds the
+made-up test shop (`lmb-test-shop`) and made-up folder and billing ids.
+
+Dry run for the test shop: `node setup/dry-run.js` (pretend Google, changes nothing).
+
+Not yet: steps 7–15 (plan item 1.30); the real Google clients, registry and audit log, and a command that runs against
+them; a lock so two runs on the same shop can't overlap; the bot-check key in the profile (left out, so the app's build
+setting is used).

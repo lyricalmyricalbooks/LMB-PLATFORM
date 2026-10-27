@@ -1,0 +1,204 @@
+// Steps 1–6 of the shop maker (docs/shop-setup.md): registry, project, Firebase, services, database and storage, web app
+// and profile. Each step only looks in `check` and only changes things in `act`; runner.js runs them.
+//
+// Google is reached only through the `google` clients passed in (shape below, in-memory copy in fakes.js). There is no
+// real client in this folder yet, so nothing here can create a real project. Every "create" call resolves once Google's
+// operation has finished.
+//
+//   google.projects     get(projectId) -> { projectId, state, parent } | null     create({ projectId, displayName, parent, labels })
+//   google.billing      get(projectId) -> { billingEnabled, billingAccountName }   link(projectId, billingAccountName)
+//   google.firebase     getProject(projectId) -> object | null                     addFirebase(projectId)
+//                       listWebApps(projectId) -> [{ appId, displayName }]         createWebApp(projectId, displayName) -> { appId }
+//                       getWebAppConfig(projectId, appId) -> { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId }
+//   google.services     listEnabled(projectId) -> [name]                           enable(projectId, [name])
+//   google.firestore    getDatabase(projectId) -> { locationId } | null            createDatabase(projectId, { locationId, type, deleteProtection })
+//   google.storage      getDefaultBucket(projectId) -> { name, location } | null   createDefaultBucket(projectId, { location })
+//
+// The registry (fakes.js has the shape) keeps the shop row and its profile; `profileFiles` keeps the per-shop
+// /shop-profile.js that Hosting serves (read(shopId) -> text | null, write(shopId, text)).
+import { isDeepStrictEqual } from "node:util";
+import { profileProblems, profileScript } from "../profile/profile.js";
+
+export const REGION = "northamerica-northeast1";
+export const WEB_APP_NAME = "Shop";
+
+/**
+ * The Google services a shop needs. The first twelve are the list in docs/shop-setup.md; the last four are what the
+ * shop's server code (2nd-generation functions) and the rules deploy need as well.
+ */
+export const SERVICES = [
+  "firestore.googleapis.com",
+  "storage.googleapis.com",
+  "firebasestorage.googleapis.com",
+  "identitytoolkit.googleapis.com",
+  "cloudfunctions.googleapis.com",
+  "firebasehosting.googleapis.com",
+  "cloudbuild.googleapis.com",
+  "artifactregistry.googleapis.com",
+  "eventarc.googleapis.com",
+  "cloudscheduler.googleapis.com",
+  "secretmanager.googleapis.com",
+  "firebaseappcheck.googleapis.com",
+  "iam.googleapis.com",
+  "run.googleapis.com",
+  "pubsub.googleapis.com",
+  "firebaserules.googleapis.com",
+];
+
+const PLANS = { shop: { shop: true, stockroom: false }, stockroom: { shop: false, stockroom: true }, both: { shop: true, stockroom: true } };
+
+/** Problems with the sign-up details, in plain words. The shop id is also its Google Cloud project id. */
+export function shopProblems(shop) {
+  const problems = [];
+  if (!shop || typeof shop !== "object") return ["the shop details are missing"];
+  if (typeof shop.shopId !== "string" || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(shop.shopId)) {
+    problems.push("the shop id must be 6 to 30 lowercase letters, digits or hyphens, start with a letter and not end with a hyphen");
+  }
+  if (typeof shop.pressName !== "string" || !shop.pressName.trim()) problems.push("the press name is missing");
+  if (typeof shop.ownerEmail !== "string" || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(shop.ownerEmail)) problems.push("the owner email is not an email address");
+  if (!(shop.plan in PLANS)) problems.push("the plan must be shop, stockroom or both");
+  if (typeof shop.country !== "string" || !/^[A-Z]{2}$/.test(shop.country)) problems.push("the country must be a two-letter code like CA");
+  if (typeof shop.currency !== "string" || !/^[A-Z]{3}$/.test(shop.currency)) problems.push("the currency must be a three-letter code like CAD");
+  return problems;
+}
+
+/** Google allows 4–30 letters, digits, spaces, hyphens, quotes and exclamation marks in a project's display name. */
+export function projectDisplayName(shop) {
+  const name = shop.pressName.replace(/[^A-Za-z0-9 '"!-]/g, "").replace(/\s+/g, " ").trim().slice(0, 30).trim();
+  return name.length >= 4 ? name : shop.shopId;
+}
+
+/** The public shop profile for this shop, from its web app's settings. */
+export function shopProfile(shop, webAppConfig, region = REGION) {
+  const { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId } = webAppConfig;
+  return {
+    version: 1,
+    shopId: shop.shopId,
+    firebase: { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId },
+    functionsRegion: region,
+    siteUrl: `https://${projectId}.web.app`,
+    apps: { ...PLANS[shop.plan] },
+  };
+}
+
+/**
+ * Steps 1–6. `config.folder` is the `shops` folder (`folders/…`) and `config.billingAccount` the platform's billing
+ * account (`billingAccounts/…`); both are passed in, never written here.
+ */
+export function firstSteps({ google, registry, profileFiles, config, now = () => new Date() }) {
+  if (!config?.folder?.startsWith("folders/")) throw new Error("config.folder must be the shops folder, like folders/123");
+  if (!config?.billingAccount?.startsWith("billingAccounts/")) throw new Error("config.billingAccount must be like billingAccounts/…");
+  const region = config.region ?? REGION;
+  const valid = (shop) => {
+    const problems = shopProblems(shop);
+    if (problems.length) throw new Error(`The shop details have problems: ${problems.join("; ")}`);
+    return shop;
+  };
+
+  // The web app's settings, or null when the web app isn't there yet.
+  const webAppConfig = async (projectId) => {
+    const app = (await google.firebase.listWebApps(projectId)).find((a) => a.displayName === WEB_APP_NAME);
+    return app ? google.firebase.getWebAppConfig(projectId, app.appId) : null;
+  };
+
+  return [
+    {
+      number: 1,
+      name: "Reserve the shop id in the registry",
+      async check({ shop }) {
+        const row = await registry.getShop(valid(shop).shopId);
+        if (!row) return false;
+        if (row.ownerEmail !== shop.ownerEmail) throw new Error(`the shop id ${shop.shopId} already belongs to another press`);
+        return true;
+      },
+      async act({ shop }) {
+        const { shopId, pressName, ownerEmail, plan, country, currency } = shop;
+        await registry.createShop(shopId, { shopId, projectId: shopId, pressName, ownerEmail, plan, country, currency, region, status: "creating", createdAt: now().toISOString() });
+      },
+    },
+    {
+      number: 2,
+      name: "Create the Google Cloud project in the shops folder and link billing",
+      async check({ shop }) {
+        const project = await google.projects.get(shop.shopId);
+        if (!project) return false;
+        if (project.parent !== config.folder) throw new Error(`a project called ${shop.shopId} exists outside the shops folder; choose another shop id`);
+        if (project.state === "DELETE_REQUESTED") {
+          throw new Error(`the project ${shop.shopId} is marked for deletion; restore it in the Google Cloud console, or mark the shop abandoned and use another id`);
+        }
+        if (project.state !== "ACTIVE") return false;
+        const billing = await google.billing.get(shop.shopId);
+        return Boolean(billing?.billingEnabled && billing.billingAccountName === config.billingAccount);
+      },
+      async act({ shop }) {
+        if (!(await google.projects.get(shop.shopId))) {
+          await google.projects.create({ projectId: shop.shopId, displayName: projectDisplayName(shop), parent: config.folder, labels: { "lmb-shop": shop.shopId } });
+        }
+        const billing = await google.billing.get(shop.shopId);
+        if (!(billing?.billingEnabled && billing.billingAccountName === config.billingAccount)) {
+          await google.billing.link(shop.shopId, config.billingAccount);
+        }
+      },
+    },
+    {
+      number: 3,
+      name: "Add Firebase to the project",
+      check: async ({ shop }) => Boolean(await google.firebase.getProject(shop.shopId)),
+      act: ({ shop }) => google.firebase.addFirebase(shop.shopId),
+    },
+    {
+      number: 4,
+      name: "Turn on the services",
+      async check({ shop }) {
+        const enabled = new Set(await google.services.listEnabled(shop.shopId));
+        return SERVICES.every((name) => enabled.has(name));
+      },
+      async act({ shop }) {
+        const enabled = new Set(await google.services.listEnabled(shop.shopId));
+        await google.services.enable(shop.shopId, SERVICES.filter((name) => !enabled.has(name)));
+      },
+    },
+    {
+      number: 5,
+      name: `Create the database and the storage bucket in ${region}`,
+      async check({ shop }) {
+        const database = await google.firestore.getDatabase(shop.shopId);
+        const bucket = await google.storage.getDefaultBucket(shop.shopId);
+        // A database or bucket can't be moved, so one in the wrong place needs a person, not a retry.
+        if (database && database.locationId !== region) throw new Error(`the database is in ${database.locationId}, not ${region}`);
+        if (bucket && bucket.location?.toLowerCase() !== region) throw new Error(`the storage bucket is in ${bucket.location}, not ${region}`);
+        return Boolean(database && bucket);
+      },
+      async act({ shop }) {
+        if (!(await google.firestore.getDatabase(shop.shopId))) {
+          await google.firestore.createDatabase(shop.shopId, { locationId: region, type: "FIRESTORE_NATIVE", deleteProtection: true });
+        }
+        if (!(await google.storage.getDefaultBucket(shop.shopId))) {
+          await google.storage.createDefaultBucket(shop.shopId, { location: region });
+        }
+      },
+    },
+    {
+      number: 6,
+      name: "Create the web app and write the shop profile",
+      async check({ shop }) {
+        const settings = await webAppConfig(shop.shopId);
+        if (!settings) return false;
+        const profile = shopProfile(shop, settings, region);
+        return isDeepStrictEqual(await registry.getProfile(shop.shopId), profile) && (await profileFiles.read(shop.shopId)) === profileScript(profile);
+      },
+      async act({ shop }) {
+        let settings = await webAppConfig(shop.shopId);
+        if (!settings) {
+          const { appId } = await google.firebase.createWebApp(shop.shopId, WEB_APP_NAME);
+          settings = await google.firebase.getWebAppConfig(shop.shopId, appId);
+        }
+        const profile = shopProfile(shop, settings, region);
+        const problems = profileProblems(profile);
+        if (problems.length) throw new Error(`the shop profile has problems: ${problems.join("; ")}`);
+        await registry.saveProfile(shop.shopId, profile);
+        await profileFiles.write(shop.shopId, profileScript(profile));
+      },
+    },
+  ];
+}
