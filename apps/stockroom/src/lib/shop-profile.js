@@ -27,6 +27,16 @@ export const DEFAULT_SHOP_PROFILE = Object.freeze({
   apps: Object.freeze({ shop: false, stockroom: true }),
 });
 
+/**
+ * Things one press needed once that a new shop doesn't (plan 1.17). Each is off unless the profile's `switches` turns it
+ * on with `true`; the test shop's profile names none, so all are off. The shop reads the same list
+ * (apps/shop/src/lib/shopProfile.ts SHOP_SWITCHES).
+ *   gmailReceiptFinder      Tax Centre › Email Receipt Import's Gmail Finder and Gmail Import tabs (src/features/receipts.js)
+ *   legacyStockroomSignIn   the shop's admin also signs into a separate stockroom project (read by the shop)
+ *   githubPagesForwarding   an old GitHub Pages address forwards to the shop (read by the shop)
+ */
+export const SHOP_SWITCHES = Object.freeze(['legacyStockroomSignIn', 'githubPagesForwarding', 'gmailReceiptFinder']);
+
 const FIREBASE_KEYS = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
 const text = (value) => typeof value === 'string' && value.trim() !== '';
 
@@ -43,6 +53,9 @@ export function parseShopProfile(value) {
   if (firebase.databaseURL !== undefined && !/^https:\/\/[^/\s]+\/?$/.test(firebase.databaseURL)) return null;
   const apps = value.apps;
   if (!apps || typeof apps.shop !== 'boolean' || typeof apps.stockroom !== 'boolean') return null;
+  // Only the switches turned on are kept; an unknown name or a non-true value is simply off.
+  const switches = value.switches && typeof value.switches === 'object' ? value.switches : {};
+  const on = SHOP_SWITCHES.filter((name) => switches[name] === true);
   return {
     version: 1,
     shopId: value.shopId,
@@ -53,7 +66,13 @@ export function parseShopProfile(value) {
     functionsRegion: value.functionsRegion,
     siteUrl: value.siteUrl,
     apps: { shop: apps.shop, stockroom: apps.stockroom },
+    ...(on.length ? { switches: Object.fromEntries(on.map((name) => [name, true])) } : {}),
   };
+}
+
+/** Whether the profile turns this one-off on. Anything but `true` is off. */
+export function switchOn(name, profile = shopProfile) {
+  return profile?.switches?.[name] === true;
 }
 
 /** The profile the page opened with, or the test project when there is none. */

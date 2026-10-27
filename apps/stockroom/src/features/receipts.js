@@ -151,6 +151,30 @@ import { isExpiringLabelUrl, isLabelUrlExpired, shippoTxIdFromRef } from '../lib
 import { mountReceiptFinder, startReceiptFinder, stopReceiptFinder } from './receipt-finder.js';
 import { receiptTextForAi } from '../lib/receipt-finder-client.js';
 import { RECEIPT_QUERY, RECEIPT_NOISE, receiptWorthReading } from '../lib/receipt-finder.js';
+import { readShopProfile, switchOn } from '../lib/shop-profile.js';
+
+// The Gmail receipt finder (Gmail Finder and Gmail Import tabs, the outbox it restores at sign-in) is one press's
+// one-off: off unless the shop profile's gmailReceiptFinder switch is on (plan 1.17). Paste & Upload and Review stay.
+const GMAIL_TABS = new Set(['gmail', 'direct']);
+function gmailReceiptFinderOn() {
+  // Read from the page's profile each time (cheap), so the answer is never a stale copy.
+  return switchOn('gmailReceiptFinder', readShopProfile());
+}
+
+/** Shows or hides everything in the receipt import that reads the publisher's Gmail. */
+function applyGmailReceiptSwitch(on = gmailReceiptFinderOn()) {
+  for (const id of ['email-tab-gmail', 'email-tab-direct', 'email-account-pill']) {
+    const el = $(id);
+    if (el) el.hidden = !on;
+  }
+  if (!on) {
+    for (const id of ['email-panel-gmail', 'email-panel-direct']) {
+      const el = $(id);
+      if (el) el.style.display = 'none';
+    }
+  }
+  return on;
+}
 
 function receiptFinderDependencies() {
   return {
@@ -2510,7 +2534,8 @@ function openEmailReceiptImportModal({ review = false } = {}) {
 
     renderEmailReceiptDrafts(_emailReceiptDrafts);
     writePersistedEmailReceiptDrafts(_emailReceiptDrafts);
-  _activeEmailImportTab = 'gmail';
+  const gmailOn = applyGmailReceiptSwitch();
+  _activeEmailImportTab = gmailOn ? 'gmail' : 'manual';
   _gmailSelectedIds = new Set();
   _directGmailSelectedIds = new Set();
   _directGmailEmailsFetched = [];
@@ -2525,7 +2550,7 @@ function openEmailReceiptImportModal({ review = false } = {}) {
   // back of it was simply wrong. Start neutral; the finder sets the real state
   // from the live Gmail token as soon as it mounts, a few lines below.
   const pill = $('email-account-pill');
-  if (pill) {
+  if (pill && gmailOn) {
     pill.textContent = '○ Checking Gmail…';
     pill.className = 'pill gray email-connected-pill';
   }
@@ -2536,7 +2561,8 @@ function openEmailReceiptImportModal({ review = false } = {}) {
 
   // A notification opens the actual review rows; ordinary entry opens them
   // whenever saved drafts are waiting, so they do not hide behind Gmail Finder.
-  switchEmailImportTab(review || _emailReceiptDrafts.length ? 'review' : 'gmail');
+  // Without the Gmail finder, Paste & Upload is where receipts come in.
+  switchEmailImportTab(review || _emailReceiptDrafts.length ? 'review' : gmailOn ? 'gmail' : 'manual');
 
   // The preset chips, the default query and the results list all render into
   // #email-panel-gmail, which mountReceiptFinder() replaces wholesale a few
@@ -2549,11 +2575,13 @@ function openEmailReceiptImportModal({ review = false } = {}) {
   _updateEmailExtractButtonLabel();
 
   // Surface anything the Gmail add-on has pushed in as ready-to-edit drafts.
-    loadGmailInboxDrafts();
-    mountReceiptFinder($('email-panel-gmail'), receiptFinderDependencies()).catch(error => {
-      console.error('[receipt-finder] Could not open', error);
-      showToast('Could not open saved receipts: ' + error.message, 'err');
-    });
+    if (gmailOn) {
+      loadGmailInboxDrafts();
+      mountReceiptFinder($('email-panel-gmail'), receiptFinderDependencies()).catch(error => {
+        console.error('[receipt-finder] Could not open', error);
+        showToast('Could not open saved receipts: ' + error.message, 'err');
+      });
+    }
   } finally {
     _inOpenEmailReceiptModal = false;
   }
@@ -2686,7 +2714,7 @@ function closeEmailReceiptImportModal() {
 // The add-on writes draft expenses to Firestore `emailReceiptInbox`; we watch
 // that collection live and feed items into the existing review/import flow.
 function startEmailInboxWatcher() {
-  if (window.IS_PUBLISHER && !isAuthor()) {
+  if (window.IS_PUBLISHER && !isAuthor() && gmailReceiptFinderOn()) {
     startReceiptFinder(receiptFinderDependencies()).catch(error => console.error('[receipt-finder] Could not restore outbox', error));
   }
   if (isAuthor() || typeof window._fbWatchEmailInbox !== 'function') return;
@@ -2973,6 +3001,7 @@ async function localizeInboxReceiptFiles(item) {
 }
 
 function switchEmailImportTab(tab) {
+  if (GMAIL_TABS.has(tab) && !gmailReceiptFinderOn()) tab = 'manual';
   _activeEmailImportTab = tab;
   const tabReview = $('email-tab-review');
   const tabGmail = $('email-tab-gmail');

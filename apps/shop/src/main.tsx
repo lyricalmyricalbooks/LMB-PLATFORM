@@ -5,6 +5,7 @@
   import { rememberPreviewSnapshot, startPreviewTab } from "./app/features/site/previewTab";
   import { captureSharedDiscount } from "./app/features/site/sharedDiscount";
   import { takeMovedState } from "./app/features/site/movedState";
+  import { switchOn } from "./lib/shopProfile";
   import { installTranslateSafeDom } from "./app/lib/translateSafeDom";
   import { arrivedPrerendered, keepPrerenderedPage } from "./app/lib/prerenderedPage";
   import { preloadSiteData } from "./app/features/site/useSiteData";
@@ -19,8 +20,9 @@
   // Shoppers may translate the page with Google Translate: keep React from crashing on the translated text.
   installTranslateSafeDom();
 
-  // Arriving from the old GitHub Pages address: take the bag/wishlist/order key it handed over, tidy the address.
-  takeMovedState();
+  // Arriving from the old GitHub Pages address: take the bag/wishlist/order key it handed over, tidy the address. Only
+  // for a shop that has an old address forwarding to it (the profile's githubPagesForwarding switch, plan 1.17).
+  if (switchOn("githubPagesForwarding")) takeMovedState();
   // Studio preview: keep the newest unsaved snapshot for pages that mount later (no-op for shoppers).
   rememberPreviewSnapshot();
   // Studio › "Preview in new tab": receive the unsaved draft (no-op for shoppers).
