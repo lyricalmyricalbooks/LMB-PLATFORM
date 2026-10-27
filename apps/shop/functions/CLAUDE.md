@@ -757,3 +757,16 @@ order-confirmation email both use them. Emailed download links stay outside brow
 - **File:** signed URL has `responseDisposition: attachment; filename="<title>.<ext>"` (the upload's epoch prefix dropped) and
   `responseType` from the extension (pdf, epub, mp3, m4a, zip).
 - Deploy Functions with the frontend. No rule or index change (`downloadCounts` is written by Functions and by the admin).
+
+## Payments module (27 October 2026, code plan 1.11)
+
+`functions/payments/index.js` (`createPayments`) is the one door to Stripe with the shop's own key: which key a mode
+uses (`withPrivateStripeKeys`, `getStripeClientForMode`, `stripeSecretFor`, `shopTestMode`, `readStripeKeys`), the
+order-account loop (`inOrderAccounts`: the order's own mode first, skips an account that doesn't know the id),
+`retrieveOrderPayment`, the refund/dispute read (`checkReversal`: it hands the charge, the dispute and a lazy
+`listRefunds` to the caller's `apply`), `refundPayment` (`onCalling` fires just before Stripe is asked) and the webhook's
+client and signature check (`webhookClient`, `verifyWebhookEvent`). index.js builds it once (`payments`) and passes in
+its lazy `Stripe`, so the vm handler tests' fake Stripe still applies; the module never requires `stripe` itself. Order
+bookkeeping (what a refund or a reversal means for an order) stays with the callers. `index.js` and `orderRequests.js`
+use it. `payments/payments.test.js` (fake Firestore and Stripe) pins its behaviour, and fails when another file makes a
+Stripe client, refunds or verifies a webhook itself (`checkoutAdmin.js` and `checkoutPayment.js` move in plan 1.12).
