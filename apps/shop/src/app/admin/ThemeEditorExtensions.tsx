@@ -1591,6 +1591,12 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "secondaryCtaUrl", label: "Secondary CTA link (shoppers see the button only once it has a link)", kind: "link" },
     { key: "metaText", label: "Meta text next to CTA (e.g. format · pages)", kind: "text" },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    // The hero always read a height; it had no control until the theme check (plan 1.24) found the Punk home layout setting one.
+    { key: "height", label: "Height", kind: "select", options: [
+      { value: "", label: "Full screen (default)" },
+      { value: "medium", label: "Medium (most of the screen)" },
+      { value: "small", label: "Small (half the screen)" },
+    ] },
   ],
   ImageBannerSection: [
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
