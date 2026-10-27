@@ -129,6 +129,7 @@ const MADE_UP_PROJECTS = new Set([
 ]);
 function projectAllowed(id) {
   if (!id || /[${}<>]/.test(id) || id.startsWith("demo-")) return true; // empty, or a template slot such as ${projectId}
+  if (!/^[a-z0-9-]+$/.test(id)) return true; // not a project id at all (a pattern in code, such as "([^"]+)")
   return PROJECTS.has(id) || MADE_UP_PROJECTS.has(id);
 }
 
