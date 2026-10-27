@@ -18,5 +18,7 @@ test("Books not back in stock shows only for a refund that left printed books ou
   expect(booksLeftOutAfterRefund({ ...order, inventoryRestockedAt: "x" })).toBe(false);
   expect(booksLeftOutAfterRefund({ ...order, paymentStatus: "paid" })).toBe(false);
   expect(booksLeftOutAfterRefund({ ...order, sandboxPayment: true })).toBe(false);
+  // The platform test shop's sandbox payments take stock (stamped), so their books can go back.
+  expect(booksLeftOutAfterRefund({ ...order, sandboxPayment: true, inventoryDecrementedAt: "x" })).toBe(true);
   expect(booksLeftOutAfterRefund({ ...order, items: [{ id: "e", quantity: 1, format: "ebook" }] })).toBe(false);
 });

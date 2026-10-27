@@ -274,7 +274,7 @@ function shopEmails({
           shipping_method: "Canada Post Expedited Parcel",
           delivery_estimate: "2-4 business days after dispatch",
           order_url: siteLink("/track"),
-          email: "julianne.smith@gmail.com",
+          email: "julianne@reader.example",
           status: "out for delivery",
           subject: "Stocking your books",
           message: "Hello! Do you sell wholesale to independent bookshops?",

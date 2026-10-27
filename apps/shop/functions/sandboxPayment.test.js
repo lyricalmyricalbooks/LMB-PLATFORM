@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const realRequire = createRequire(import.meta.url);
 const source = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.js'), 'utf8');
 
-function harness(order) {
+function harness(order, { testShop = false } = {}) {
   const docs = {
     orders: { o1: order },
     books: { book: { status: 'published', stockLevel: 5, trackInventory: true } },
@@ -42,11 +42,13 @@ function harness(order) {
     if (name === 'resend') return { Resend: class {} };
     if (name.startsWith('firebase-functions/v2/')) return new Proxy({}, { get: () => wrap });
     if (name === 'firebase-functions/params') return { defineSecret: () => ({ value: () => 'fake' }) };
+    // The platform's test-shop mark (SHOP_TEST_SHOP, shopConfig.testShop), off unless a test turns it on.
+    if (name === './shopConfig') { const real = realRequire(name); return { ...real, shopConfig: { ...real.shopConfig, testShop } }; }
     return realRequire(name);
   };
   const module = { exports: {} };
   // Expose the internal helpers under test.
-  const exposed = `${source}\nmodule.exports.__test = { markStripeOrderPaid: (id, session, options) => markStripeOrderPaid(id, session, { ...options, authority: STRIPE_WEBHOOK_AUTHORITY }), syncStripeReversal };`;
+  const exposed = `${source}\nmodule.exports.__test = { markStripeOrderPaid: (id, session, options) => markStripeOrderPaid(id, session, { ...options, authority: STRIPE_WEBHOOK_AUTHORITY }), syncStripeReversal, applyPartialRefund, restockRefunded: (id) => restockRefundedOrder(db, id, { testShop: shopConfig.testShop }) };`;
   vm.runInNewContext(exposed, { module, exports: module.exports, require: mockRequire, process, Buffer, console, setTimeout, clearTimeout, URL, AbortController, fetch: async () => { throw new Error('no network'); } }, { filename: 'index.js' });
   return { docs, analyticsWrites, ...module.exports.__test };
 }
@@ -86,4 +88,67 @@ test('refunding a sandbox order neither restocks nor reverses revenue; an older 
   await older.syncStripeReversal('o1', { charge: { amount: 1520, amount_refunded: 1520, refunded: true, currency: 'cad' }, source: 'test' });
   expect(older.docs.books.book.stockLevel).toBe(7);
   expect(older.analyticsWrites.length).toBe(1);
+});
+
+// Plan 1.31b: on the platform's test shop (SHOP_TEST_SHOP="true") a sandbox payment takes stock and its refund puts it
+// back, exactly as a live one, so the release check (docs/test-shop.md checks 4 and 7) can prove both. Discount use and
+// revenue stay untouched there too. Every other shop keeps the rehearsal above.
+const fullRefund = { charge: { amount: 1520, amount_refunded: 1520, refunded: true, currency: 'cad' }, source: 'test' };
+
+test('on the test shop a sandbox payment takes stock, and its refund puts it back', async () => {
+  const app = harness({ ...baseOrder(), stripeMode: 'test' }, { testShop: true });
+  expect(await app.markStripeOrderPaid('o1', session(false), { message: 'paid' })).toBe(true);
+  expect(app.docs.orders.o1).toMatchObject({ paymentStatus: 'paid', isTest: true, sandboxPayment: true });
+  expect(app.docs.orders.o1.inventoryDecrementedAt).toEqual(expect.any(String));
+  expect(app.docs.books.book.stockLevel).toBe(3);
+  expect(app.docs.discounts.d1.usageCount).toBe(0);
+  expect(app.analyticsWrites).toEqual([]);
+
+  await app.syncStripeReversal('o1', fullRefund);
+  expect(app.docs.orders.o1.paymentStatus).toBe('refunded');
+  expect(app.docs.orders.o1.inventoryRestockedAt).toEqual(expect.any(String));
+  expect(app.docs.books.book.stockLevel).toBe(5);
+  expect(app.analyticsWrites).toEqual([]);
+});
+
+test('a repeated sandbox payment event on the test shop takes the stock only once', async () => {
+  const app = harness({ ...baseOrder(), stripeMode: 'test' }, { testShop: true });
+  await app.markStripeOrderPaid('o1', session(false), { message: 'paid' });
+  await app.markStripeOrderPaid('o1', session(false), { message: 'paid' });
+  expect(app.docs.books.book.stockLevel).toBe(3);
+});
+
+test('on the test shop a sandbox partial refund puts the ticked copies back', async () => {
+  const app = harness({ ...baseOrder(), stripeMode: 'test' }, { testShop: true });
+  await app.markStripeOrderPaid('o1', session(false), { message: 'paid' });
+  await app.applyPartialRefund('o1', { provider: 'stripe', refundId: 're_1', amountMinor: 300, restockLines: [{ index: 0, id: 'book', quantity: 1 }] });
+  expect(app.docs.books.book.stockLevel).toBe(4);
+});
+
+test('on the test shop a sandbox refund that left the books out can put them back later', async () => {
+  const app = harness({ ...baseOrder(), stripeMode: 'test' }, { testShop: true });
+  await app.markStripeOrderPaid('o1', session(false), { message: 'paid' });
+  app.docs.orders.o1.fulfillmentStatus = 'shipped'; // books that left the shop aren't restocked by default
+  await app.syncStripeReversal('o1', fullRefund);
+  expect(app.docs.books.book.stockLevel).toBe(3);
+  await app.restockRefunded('o1');
+  expect(app.docs.books.book.stockLevel).toBe(5);
+});
+
+test('every other shop: a sandbox payment, refund and partial refund never touch stock', async () => {
+  const app = harness({ ...baseOrder(), stripeMode: 'test' }, { testShop: false });
+  await app.markStripeOrderPaid('o1', session(false), { message: 'paid' });
+  expect(app.docs.orders.o1.inventoryDecrementedAt).toBeUndefined();
+  await app.applyPartialRefund('o1', { provider: 'stripe', refundId: 're_1', amountMinor: 300, restockLines: [{ index: 0, id: 'book', quantity: 1 }] });
+  await app.syncStripeReversal('o1', fullRefund);
+  expect(app.docs.orders.o1.paymentStatus).toBe('refunded');
+  expect(app.docs.books.book.stockLevel).toBe(5);
+  await expect(app.restockRefunded('o1')).rejects.toThrow(/test payment never took the books/);
+  expect(app.docs.books.book.stockLevel).toBe(5);
+});
+
+test('a sandbox order paid before the test-shop mark (no stock stamp) is not restocked on the test shop', async () => {
+  const app = harness({ ...baseOrder(), paymentStatus: 'paid', sandboxPayment: true, isTest: true }, { testShop: true });
+  await app.syncStripeReversal('o1', fullRefund);
+  expect(app.docs.books.book.stockLevel).toBe(5);
 });

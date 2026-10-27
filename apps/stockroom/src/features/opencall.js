@@ -1108,7 +1108,7 @@ function ocAddPanelHtml_() {
           </div>
           ${ocImportOpen ? `
           <label class="oc-field"><span>Paste rows from a spreadsheet</span>
-            <textarea id="oc-import-text" rows="4" placeholder="Jeremy Ackman, ackmanj@gmail.com, Jeremy_ackman_5.jpg, Jeremy Ackman, Selected" style="font-family:var(--font-mono);"></textarea>
+            <textarea id="oc-import-text" rows="4" placeholder="Robin Vale, robin@contributor.example, Robin_vale_5.jpg, Robin Vale, Selected" style="font-family:var(--font-mono);"></textarea>
           </label>
           <div class="oc-inline-actions">
             <button type="button" class="btn gold sm" onclick="ocRunImport()">Import pasted rows</button>

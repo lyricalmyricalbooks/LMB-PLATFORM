@@ -373,7 +373,7 @@ describe('collectUniqueConsignmentStores', () => {
       },
       b2: {
         stores: [
-          { name: 'art metropole', city: 'Toronto', email: 'orders@artmetropole.com', address: '890 Dundas St W', rate: 40, sent: 6, sold: 2, returned: 0, outstanding: 4, amountOwed: 30 },
+          { name: 'art metropole', city: 'Toronto', email: 'orders@gallery.example', address: '890 Dundas St W', rate: 40, sent: 6, sold: 2, returned: 0, outstanding: 4, amountOwed: 30 },
           { name: 'Artphelien', city: 'Geneva', country: 'Switzerland', rate: 35, sent: 3, sold: 1, returned: 0, outstanding: 2, amountOwed: 15 },
         ],
       },
@@ -390,7 +390,7 @@ describe('collectUniqueConsignmentStores', () => {
     // Art Metropole merged details
     const am = result[0];
     expect(am.contact).toBe('Sam');
-    expect(am.email).toBe('orders@artmetropole.com');
+    expect(am.email).toBe('orders@gallery.example');
     expect(am.address).toBe('890 Dundas St W');
     expect(am.city).toBe('Toronto');
     expect(am.books).toEqual(['The Hound', 'The Bell']);

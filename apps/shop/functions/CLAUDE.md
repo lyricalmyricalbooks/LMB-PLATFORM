@@ -223,8 +223,12 @@ ignored. Dismiss hides one for the browser session until a new order joins it.
   (`functions/sandboxPayment.test.js`). `onOrderUpdated` still emails sandbox orders so the rehearsal covers email.
   A sandbox checkout holds no stock, except on the platform's test shop (`SHOP_TEST_SHOP="true"` →
   `shopConfig.testShop`, plan 1.31, `docs/test-shop.md` in the platform repo): there it holds stock like a live
-  checkout (same limits and sold-out answer), still without gift-card holds, and payment still takes no stock
-  (`functions/testShopHolds.test.js`).
+  checkout (same limits and sold-out answer), still without gift-card holds (`functions/testShopHolds.test.js`). Its
+  sandbox payments also take stock (`createSettlement({ testShop })`, stamped `inventoryDecrementedAt`), and full,
+  partial and later "put the books back" refunds return it, only when that stamp is there (`sandboxStockTaken`);
+  discount use, gift cards and revenue stay untouched (`functions/sandboxPayment.test.js`, plan 1.31b). Not covered:
+  a test-shop sandbox payment whose 30-minute hold expired skips the at-payment stock check (`reserveForConfirmedPayment`),
+  so it can oversell instead of being refused.
 - **Stripe keys:** `SecretField` passes every edit up (clearing cancels), refuses wrong-slot keys
   (`stripeSecretKeyProblem`), and offers **Remove stored key** (`adminApi.removeStripeSecretKey`). Saves return
   true/false (`Dashboard.saveSection`), and saved secrets are scrubbed from screen state (`scrubSavedSecrets`).

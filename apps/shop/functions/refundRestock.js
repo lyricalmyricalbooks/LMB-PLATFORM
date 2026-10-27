@@ -10,6 +10,7 @@
 // (orderFootprint subtracts restockedItems) all see it the same way.
 const { readBooks, writeStock } = require("./inventory");
 const { returnRestockItems } = require("./returns");
+const { sandboxStockTaken } = require("./settlePayment");
 const { withoutRestocked } = require("./partialRefund");
 const { isPhysicalItem } = require("./shared/localFulfillment");
 
@@ -26,11 +27,12 @@ function restockableItems(order = {}, returnCase = null) {
 }
 
 /** Why the books of this order can't be put back now, or "" when they can. */
-function restockRefundedProblem(order, returnCase = null) {
+// testShop: the platform's test shop, where a sandbox payment did take stock (settlePayment.js sandboxStockTaken).
+function restockRefundedProblem(order, returnCase = null, { testShop = false } = {}) {
   if (!order) return "Order not found.";
   if (!["refunded", "refund_pending"].includes(order.paymentStatus)) return "Only a refunded order's books can be put back this way.";
   if (order.inventoryRestockedAt != null) return "This order's books are already back in stock.";
-  if (order.sandboxPayment === true) return "A test payment never took the books out of stock.";
+  if (order.sandboxPayment === true && !sandboxStockTaken(order, testShop)) return "A test payment never took the books out of stock.";
   if (!restockableItems(order, returnCase).length) return "This order has no printed books to put back.";
   return "";
 }
@@ -47,14 +49,14 @@ function recordOf(items) {
 }
 
 /** One transaction: refuse, or put the books back and record it on the order. */
-async function restockRefundedOrder(db, orderId, { actor = "admin", now = new Date().toISOString() } = {}) {
+async function restockRefundedOrder(db, orderId, { actor = "admin", now = new Date().toISOString(), testShop = false } = {}) {
   const orderRef = db.collection("orders").doc(orderId);
   return db.runTransaction(async transaction => {
     const snap = await transaction.get(orderRef);
     const order = snap.exists ? snap.data() : null;
     const ops = order?.returnProgress ? await transaction.get(db.collection("order-operations").doc(orderId)) : null;
     const returnCase = ops?.exists ? (ops.data() || {}).returnCase : null;
-    const problem = restockRefundedProblem(order, returnCase);
+    const problem = restockRefundedProblem(order, returnCase, { testShop });
     if (problem) { const error = new Error(problem); error.status = order ? 409 : 404; throw error; }
     const items = restockableItems(order, returnCase);
     const books = await readBooks(transaction, db, items);

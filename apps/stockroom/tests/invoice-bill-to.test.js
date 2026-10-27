@@ -58,7 +58,7 @@ describe('normalizeBillToPerson', () => {
 
 describe('billToPayload', () => {
   const store = {
-    id: 12, name: 'Casa Bosques', email: 'hola@casabosques.com', city: 'Mexico City',
+    id: 12, name: 'Casa Bosques', email: 'hola@bookshop.example', city: 'Mexico City',
     contact: 'Ana', phone: '+52 55 1234', address: 'Calle 1', region: 'CDMX',
     postal: '06700', country: 'Mexico', rate: 40,
   };
@@ -165,7 +165,7 @@ describe('the bill-to switch in the invoice editor', () => {
     sel.innerHTML = '<option value="">— Select store —</option><option value="12">Casa Bosques</option>';
     sel.value = '12';
     const preview = document.getElementById('inv-store-preview');
-    preview.innerHTML = '<strong>Email:</strong> hola@casabosques.com';
+    preview.innerHTML = '<strong>Email:</strong> hola@bookshop.example';
     preview.style.display = 'block';
 
     api.setInvoiceBillToMode(BILL_TO_PERSON);
