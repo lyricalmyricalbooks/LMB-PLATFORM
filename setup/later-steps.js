@@ -24,7 +24,7 @@
 // documents come from the release because the shop copy owns their shape. `config.senderEmail` is the platform address
 // shop email is sent from (the email service adds the press's name and reply-to).
 import { PLANS, REGION, firstSteps } from "./steps.js";
-import { connectPaymentsStep } from "./payments.js";
+import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
 
 export const OWNER_WELCOME = "owner-welcome";
 
@@ -34,7 +34,7 @@ export function appsOf(shop) {
 }
 
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
-export function envFileText(shop, { senderEmail }) {
+export function envFileText(shop, { senderEmail, region = REGION }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
   const quote = (value) => `"${String(value).replace(/[\r\n"\\<>]+/g, " ").replace(/\s+/g, " ").trim()}"`;
   return [
@@ -44,6 +44,11 @@ export function envFileText(shop, { senderEmail }) {
     `SHOP_SITE_URL=${quote(`https://${shop.shopId}.web.app`)}`,
     // Set even when empty: unset keeps the shop copy's placeholder addresses.
     `SHOP_EXTRA_ORIGINS=""`,
+    // The provider the press chose (payments.js). The shop's server refuses to start on a name it hasn't built, so a
+    // provider step 1 let through but the release can't use stops at deploy instead of at a shopper's checkout.
+    `SHOP_PAYMENT_PROVIDER=${quote(paymentProviderOf(shop))}`,
+    // Where the server code runs (step 8 deploys it there); the shop reads it for its function addresses.
+    `SHOP_FUNCTIONS_REGION=${quote(region)}`,
     "",
   ].join("\n");
 }
@@ -90,10 +95,10 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         const deployed = await deploy.deployed(shop.shopId, "functions");
         // Functions in the wrong region can't be moved, and removing them is a person's call.
         if (deployed && deployed.region !== region) throw new Error(`the server code is in ${deployed.region}, not ${region}; a person decides how to move it`);
-        return isCurrent(deployed, "The server code") && (await envFiles.read(shop.shopId)) === envFileText(shop, config);
+        return isCurrent(deployed, "The server code") && (await envFiles.read(shop.shopId)) === envFileText(shop, { ...config, region });
       },
       async act({ shop }) {
-        const envFile = envFileText(shop, config);
+        const envFile = envFileText(shop, { ...config, region });
         if ((await envFiles.read(shop.shopId)) !== envFile) await envFiles.write(shop.shopId, envFile);
         await deploy.functions(shop.shopId, { version, region, envFile });
       },
