@@ -29,6 +29,9 @@ const SALE = { num: 'S-1', chan: 'Website', qty: 1, price: 40, date: '2026-03-01
 const idb = createFakeIndexedDB();
 const overflow = () => idb.dbs.get('lm-sync-overflow')?.get('queues') || new Map();
 let app;
+// The whole app loads under jsdom here, and CI runs several such files at once: the default 1 s wait was too short
+// there (the online-failure check below timed out on CI three times, never locally). Same allowance as storage-move.test.js.
+const waitFor = (fn) => vi.waitFor(fn, { timeout: 4000, interval: 10 });
 let realSetItem;
 
 beforeAll(async () => {
@@ -58,7 +61,7 @@ describe('a full phone', () => {
     app.setOnline(false);
     app.main.states[A].hist.unshift({ ...SALE });
     await app.main.saveState(A);
-    await vi.waitFor(() => expect(overflow().size).toBe(1));
+    await waitFor(() => expect(overflow().size).toBe(1));
     const [queue] = [...overflow().values()];
     expect(queue[0].state.hist[0].num).toBe('S-1');
     expect(app.toast()).not.toMatch(/could be lost/);
@@ -66,8 +69,8 @@ describe('a full phone', () => {
 
     Storage.prototype.setItem = realSetItem;
     app.setOnline(true);
-    await vi.waitFor(() => expect(app.cloud.savesFor(A).length).toBeGreaterThan(0));
-    await vi.waitFor(() => expect(overflow().size).toBe(0));
+    await waitFor(() => expect(app.cloud.savesFor(A).length).toBeGreaterThan(0));
+    await waitFor(() => expect(overflow().size).toBe(0));
     expect(app.cloud.lastSave(A).state.hist[0].num).toBe('S-1');
   });
 
@@ -78,13 +81,13 @@ describe('a full phone', () => {
     app.cloud.saveImpl = (...args) => (++calls === 1 ? { ok: false } : ok(...args));
     app.main.states[A].hist.unshift({ ...SALE, num: 'S-ONLINE' });
     await app.main.saveState(A);
-    await vi.waitFor(() => expect(overflow().size).toBe(1));
+    await waitFor(() => expect(overflow().size).toBe(1));
     expect(app.toast()).not.toMatch(/could be lost/);
 
     Storage.prototype.setItem = realSetItem;
     app.setOnline(false);
     app.setOnline(true);
-    await vi.waitFor(() => expect(overflow().size).toBe(0));
+    await waitFor(() => expect(overflow().size).toBe(0));
     expect(app.cloud.lastSave(A).state.hist[0].num).toBe('S-ONLINE');
     app.cloud.saveImpl = ok;
   });
@@ -94,7 +97,7 @@ describe('a full phone', () => {
     overflow().set('lm-sync-queue:gone', [leftover]);
     localStorage.setItem(SYNC_TAB_PREFIX + 'gone', String(Date.now() - 10 * 60_000));
     await app.main.adoptOverflowSyncChanges();
-    await vi.waitFor(() => expect(app.queued()).toHaveLength(0));
+    await waitFor(() => expect(app.queued()).toHaveLength(0));
     expect(overflow().has('lm-sync-queue:gone')).toBe(false);
     expect(app.cloud.savesFor(A).map(s => s.state.hist[0].num)).toEqual(['FROM-FULL-PHONE']);
     await app.main.adoptOverflowSyncChanges();
@@ -119,11 +122,11 @@ describe('a full phone', () => {
     app.setOnline(false);
     app.main.states[A].hist.unshift({ ...SALE, num: 'S-2' });
     await app.main.saveState(A);
-    await vi.waitFor(() => expect(app.toast()).toMatch(/could be lost/));
+    await waitFor(() => expect(app.toast()).toMatch(/could be lost/));
     expect(app.main._syncQueueHeldInMemory).toBe(true);
     idb.failWrites = false;
     Storage.prototype.setItem = realSetItem;
     app.setOnline(true);
-    await vi.waitFor(() => expect(app.cloud.savesFor(A).length).toBeGreaterThan(0));
+    await waitFor(() => expect(app.cloud.savesFor(A).length).toBeGreaterThan(0));
   });
 });
