@@ -1,0 +1,2998 @@
+[
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPdpEditionDetails",
+  "label": "Show edition details",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPdpArtistLinks",
+  "label": "Show artist website links in Details (Books › edit › Search (SEO) › Artist links)",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "lowStockProductThreshold",
+  "label": "Show “only N left” on the product page at or below",
+  "kind": "number",
+  "min": 1,
+  "max": 100,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "recentlyViewedCount",
+  "label": "Recently viewed: how many books",
+  "kind": "number",
+  "min": 1,
+  "max": 12,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productImageLayout",
+  "label": "Image layout",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "slider",
+  "status": "visible",
+  "value": "grid",
+  "changed": 11,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productContentPosition",
+  "label": "Details side",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "right",
+  "status": "visible",
+  "value": "left",
+  "changed": 130,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,1812|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1324|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productAlignment",
+  "label": "Text alignment",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "left",
+  "status": "visible",
+  "value": "center",
+  "changed": 21,
+  "samples": [
+   [
+    "SPAN:668,321,147,24|flex|visible|1|rgb(255, 38, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p",
+    "SPAN:668,321,147,24|flex|visible|1|rgb(255, 38, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p"
+   ],
+   [
+    "svg:680,328,10,10|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p",
+    "svg:680,328,10,10|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productTitleSize",
+  "label": "Title size",
+  "kind": "select",
+  "defaultValue": "large",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "large",
+  "status": "visible",
+  "value": "medium",
+  "changed": 108,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,1828|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1340|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productSubtitleWeight",
+  "label": "Subtitle weight",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productImageMaxWidth",
+  "label": "Photo size (max width)",
+  "kind": "range",
+  "min": 320,
+  "max": 900,
+  "step": 10,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": 510,
+  "status": "visible",
+  "value": 320,
+  "changed": 9,
+  "samples": [
+   [
+    "DIV:93,295,509,545|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0",
+    "DIV:282,295,320,356|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|"
+   ],
+   [
+    "DIV:93,295,509,545|grid|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p",
+    "DIV:282,295,320,356|grid|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productImageAspect",
+  "label": "Photo shape (proportions)",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "1:1",
+  "status": "visible",
+  "value": "12:5",
+  "changed": 78,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,1733|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1245|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productImageFrameMode",
+  "label": "Frame size (adapt to each photo)",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productImageAspectLandscape",
+  "label": "Shape for landscape photos (smart frames)",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productPhotoOutline",
+  "label": "Photo outline (arch, circle, hexagon…)",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "grid",
+  "status": "visible",
+  "value": "diamond",
+  "changed": 1,
+  "samples": [
+   [
+    "DIV:93,295,509,509|block|visible|1|rgb(13, 13, 13)|none|rgb(255, 255, 255)|1px|solid|rgb(255, 255, 255)|1px|1px|1px|0px|rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0",
+    "DIV:93,295,509,509|block|visible|1|rgb(13, 13, 13)|none|rgb(255, 255, 255)|1px|solid|rgb(255, 255, 255)|1px|1px|1px|0px|rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productImageFit",
+  "label": "Photo fit",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "cover",
+  "status": "visible",
+  "value": "contain",
+  "changed": 2,
+  "samples": [
+   [
+    "IMG:94,296,507,507|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0",
+    "IMG:94,296,507,507|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0"
+   ],
+   [
+    "IMG:94,1167,227,227|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|",
+    "IMG:94,1167,227,227|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productImageShadow",
+  "label": "Image shadow",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "none",
+  "status": "visible",
+  "value": "md",
+  "changed": 1,
+  "samples": [
+   [
+    "DIV:93,295,509,509|block|visible|1|rgb(13, 13, 13)|none|rgb(255, 255, 255)|1px|solid|rgb(255, 255, 255)|1px|1px|1px|0px|rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0",
+    "DIV:93,295,509,509|block|visible|1|rgb(13, 13, 13)|none|rgb(255, 255, 255)|1px|solid|rgb(255, 255, 255)|1px|1px|1px|0px|rgba(232, 64, 42, 0.9) 3px 3px 0px 0px|n"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productImageHoverScale",
+  "label": "Image hover zoom",
+  "kind": "range",
+  "min": 1,
+  "max": 1.3,
+  "step": 0.01,
+  "defaultValue": 1.05,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": 1,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showAmbientGlow",
+  "label": "Ambient glow behind image",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": false,
+  "status": "visible",
+  "value": true,
+  "changed": 1,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "glowIntensity",
+  "label": "Glow strength",
+  "kind": "range",
+  "min": 0,
+  "max": 60,
+  "step": 1,
+  "defaultValue": 18,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productImageGlowColor",
+  "label": "Glow color",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productDetailsLayout",
+  "label": "Details layout",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "accordions",
+  "status": "visible",
+  "value": "sections",
+  "changed": 8,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productCtaWidth",
+  "label": "Add-to-bag width",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "auto",
+  "status": "visible",
+  "value": "full",
+  "changed": 15,
+  "samples": [
+   [
+    "BUTTON:668,659,163,52|flex|visible|1|rgb(183, 180, 180)|none|rgb(16, 15, 13)|0px|none|rgb(16, 15, 13)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|",
+    "BUTTON:668,659,287,52|flex|visible|1|rgb(183, 180, 180)|none|rgb(16, 15, 13)|0px|none|rgb(16, 15, 13)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|"
+   ],
+   [
+    "svg:700,678,14,14|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p",
+    "svg:762,678,14,14|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productCtaSize",
+  "label": "Add-to-bag size",
+  "kind": "select",
+  "defaultValue": "large",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "medium",
+  "status": "dom-only",
+  "value": "large",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productCtaAnimation",
+  "label": "Add-to-bag animation",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "pulse",
+  "status": "visible",
+  "value": "glow",
+  "changed": 1,
+  "samples": [
+   [
+    "BUTTON:668,659,163,52|flex|visible|1|rgb(183, 180, 180)|none|rgb(16, 15, 13)|0px|none|rgb(16, 15, 13)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|",
+    "BUTTON:668,659,163,52|flex|visible|1|rgb(183, 180, 180)|none|rgb(16, 15, 13)|0px|none|rgb(16, 15, 13)|0px|0px|0px|0px|rgba(183, 180, 180, 0.09) 0px 0px 5.82485p"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "addToBagLabel",
+  "label": "Add-to-bag text",
+  "kind": "text",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "Audit 123",
+  "changed": 11,
+  "samples": [
+   [
+    "BUTTON:668,659,163,52|flex|visible|1|rgb(183, 180, 180)|none|rgb(16, 15, 13)|0px|none|rgb(16, 15, 13)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|",
+    "BUTTON:668,659,151,52|flex|visible|1|rgb(183, 180, 180)|none|rgb(16, 15, 13)|0px|none|rgb(16, 15, 13)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|"
+   ],
+   [
+    "BUTTON:841,659,52,52|grid|visible|1|rgba(0, 0, 0, 0)|none|rgba(255, 255, 255, 0.6)|2px|solid|rgba(255, 255, 255, 0.6)|2px|2px|2px|0px|none|none|none|oklab(0.708",
+    "BUTTON:830,659,52,52|grid|visible|1|rgba(0, 0, 0, 0)|none|rgba(255, 255, 255, 0.6)|2px|solid|rgba(255, 255, 255, 0.6)|2px|2px|2px|0px|none|none|none|oklab(0.708"
+   ]
+  ]
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showBundleWidget",
+  "label": "“Frequently bought together”",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "productBundleLayout",
+  "label": "Bundle style",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "glassmorphic",
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showRelatedProducts",
+  "label": "“From the Catalogue” row (related books)",
+  "kind": "toggle",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "visible",
+  "value": false,
+  "changed": 13,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showSpecs",
+  "label": "Specifications",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showSocialShare",
+  "label": "Share button",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "visible",
+  "value": false,
+  "changed": 7,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPdpWishlist",
+  "label": "Heart (save to wishlist) button next to Add to bag",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": false,
+  "changed": 3,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showBackInStock",
+  "label": "“Notify me when back in stock” box (sold-out items)",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showComingSoonSignup",
+  "label": "“Email me when it's out” box (Coming soon books — the Coming soon button opens it)",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPdpArtistBio",
+  "label": "Artist bio tab next to Description and Details (appears on books that have an Artist bio written in Books › edit › Details; tabs or accordions layout; words: Text & labels › Product page)",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPdpPolicyTab",
+  "label": "Shipping & returns tab next to Description and Details (shows your Shipping and Returns policies from Settings › General › Store policies; tabs or accordions layout; words: Text & labels › Product page)",
+  "kind": "toggle",
+  "defaultValue": false,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": true,
+  "changed": 5,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPdpSaleCountdown",
+  "label": "Sale countdown under the price (“Sale ends in 5h 12m” in a dated sale's last hours instead of “Sale ends …”; needs Books › edit › Pricing › Sale ends; words: Text & labels › Product page)",
+  "kind": "toggle",
+  "defaultValue": false,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "pdpSaleCountdownWithin",
+  "label": "Sale countdown: start counting this many hours before the sale ends",
+  "kind": "number",
+  "min": 1,
+  "max": 336,
+  "step": 1,
+  "defaultValue": 72,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPdpFreeShipping",
+  "label": "Free-shipping line under the buy buttons (“Free shipping on orders over …”, needs a free-shipping amount in Settings › Shipping; words: Text & labels › Product page)",
+  "kind": "toggle",
+  "defaultValue": false,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPdpShipBy",
+  "label": "Ships-by line under the buy buttons (“Order now — ships by Monday, Oct 26”, printed books in stock only; words: Text & labels › Product page)",
+  "kind": "toggle",
+  "defaultValue": false,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": true,
+  "changed": 8,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "pdpShipByDays",
+  "label": "Ships-by line: working days you need to send an order (0 = the same day)",
+  "kind": "number",
+  "min": 0,
+  "max": 30,
+  "step": 1,
+  "defaultValue": 2,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "pdpShipByCutoff",
+  "label": "Ships-by line: orders after this hour (24-hour clock, Toronto time) count from the next working day",
+  "kind": "number",
+  "min": 0,
+  "max": 24,
+  "step": 1,
+  "defaultValue": 14,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "pdpShipByCountdownHours",
+  "label": "Ships-by line: show “Order within 2h 15m” this many hours before the cut-off (0 = never)",
+  "kind": "number",
+  "min": 0,
+  "max": 24,
+  "step": 1,
+  "defaultValue": 4,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "pdpShipByClosedDays",
+  "label": "Ships-by line: days you don't send orders besides weekends (holidays, time away), as dates like 2026-12-25, 2026-12-26",
+  "kind": "text",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPdpPickup",
+  "label": "Pickup availability under the buy buttons (“Pickup available at …”, needs Local pickup on in Settings › Shipping; words: Text & labels › Product page)",
+  "kind": "toggle",
+  "defaultValue": false,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": true,
+  "changed": 15,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPdpAskQuestion",
+  "label": "“Ask a question about this book” under the buy buttons (a small form; questions arrive in Admin › Messages; words: Text & labels › Product page)",
+  "kind": "toggle",
+  "defaultValue": false,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": true,
+  "changed": 14,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showZoom",
+  "label": "Image zoom",
+  "kind": "toggle",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showPhotoLightbox",
+  "label": "Click photo to enlarge (full-screen viewer)",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "visible",
+  "value": false,
+  "changed": 6,
+  "samples": []
+ },
+ {
+  "group": "productPage",
+  "groupTitle": "Book page · photos & layout",
+  "key": "showProductVideos",
+  "label": "Show book videos (added in Books › edit › Images) among the photos",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpShowBackLink",
+  "label": "Show “Back” link above the breadcrumb",
+  "kind": "toggle",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "visible",
+  "value": false,
+  "changed": 4,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpShowBackArrow",
+  "label": "Show the arrow before the “Back” link",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "visible",
+  "value": false,
+  "changed": 3,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpShowBreadcrumb",
+  "label": "Show breadcrumb (Shop / category / title)",
+  "kind": "toggle",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "visible",
+  "value": false,
+  "changed": 4,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpCardBg",
+  "label": "Card background",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "#000000",
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 1,
+  "samples": [
+   [
+    "DIV:642,295,463,443|block|visible|1|rgb(0, 0, 0)|none|rgb(255, 255, 255)|2px|solid|rgb(255, 255, 255)|2px|2px|2px|0px|rgb(159, 160, 163) 8px 8px 0px 0px|none|no",
+    "DIV:642,295,463,443|block|visible|1|rgb(19, 163, 127)|none|rgb(255, 255, 255)|2px|solid|rgb(255, 255, 255)|2px|2px|2px|0px|rgb(159, 160, 163) 8px 8px 0px 0px|no"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpCardBorderColor",
+  "label": "Card border colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 1,
+  "samples": [
+   [
+    "DIV:642,295,463,443|block|visible|1|rgb(0, 0, 0)|none|rgb(255, 255, 255)|2px|solid|rgb(255, 255, 255)|2px|2px|2px|0px|rgb(159, 160, 163) 8px 8px 0px 0px|none|no",
+    "DIV:642,295,463,443|block|visible|1|rgb(0, 0, 0)|none|rgb(19, 163, 127)|2px|solid|rgb(19, 163, 127)|2px|2px|2px|0px|rgb(159, 160, 163) 8px 8px 0px 0px|none|none"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpCardBorderWidth",
+  "label": "Card & panel border width",
+  "kind": "range",
+  "min": 0,
+  "max": 6,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": 6,
+  "changed": 115,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,1882|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1394|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpCardShadowColor",
+  "label": "Card offset shadow colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 1,
+  "samples": [
+   [
+    "DIV:642,295,463,443|block|visible|1|rgb(0, 0, 0)|none|rgb(255, 255, 255)|2px|solid|rgb(255, 255, 255)|2px|2px|2px|0px|rgb(159, 160, 163) 8px 8px 0px 0px|none|no",
+    "DIV:642,295,463,443|block|visible|1|rgb(0, 0, 0)|none|rgb(255, 255, 255)|2px|solid|rgb(255, 255, 255)|2px|2px|2px|0px|rgb(19, 163, 127) 8px 8px 0px 0px|none|non"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpCardShadowOffset",
+  "label": "Card offset shadow distance (0 = none)",
+  "kind": "range",
+  "min": 0,
+  "max": 16,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": 8,
+  "status": "visible",
+  "value": 16,
+  "changed": 1,
+  "samples": [
+   [
+    "DIV:642,295,463,443|block|visible|1|rgb(0, 0, 0)|none|rgb(255, 255, 255)|2px|solid|rgb(255, 255, 255)|2px|2px|2px|0px|rgb(159, 160, 163) 8px 8px 0px 0px|none|no",
+    "DIV:642,295,463,443|block|visible|1|rgb(0, 0, 0)|none|rgb(255, 255, 255)|2px|solid|rgb(255, 255, 255)|2px|2px|2px|0px|rgb(159, 160, 163) 16px 16px 0px 0px|none|"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpCardPadding",
+  "label": "Card inner spacing",
+  "kind": "range",
+  "min": 8,
+  "max": 48,
+  "step": 2,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": 24,
+  "status": "visible",
+  "value": 48,
+  "changed": 115,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,2058|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1570|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpCardDividerColor",
+  "label": "Lines inside the card",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 4,
+  "samples": [
+   [
+    "NAV:93,209,1012,46|flex|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(255, 255, 255, 0.45)|1px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / ",
+    "NAV:93,209,1012,46|flex|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgb(19, 163, 127)|1px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px"
+   ],
+   [
+    "DIV:644,369,459,157|flex|visible|1|rgba(0, 0, 0, 0)|none|rgba(255, 255, 255, 0.45)|1px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 /",
+    "DIV:644,369,459,157|flex|visible|1|rgba(0, 0, 0, 0)|none|rgb(19, 163, 127)|1px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpAlertBg",
+  "label": "“Notify me” signup box: background",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpAlertBorderColor",
+  "label": "“Notify me” signup box: border colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpAlertBorderWidth",
+  "label": "“Notify me” signup box: border width",
+  "kind": "range",
+  "min": 0,
+  "max": 6,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 6,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpAlertRadius",
+  "label": "“Notify me” signup box: corners",
+  "kind": "range",
+  "min": 0,
+  "max": 32,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 32,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpAlertPadding",
+  "label": "“Notify me” signup box: inner spacing",
+  "kind": "range",
+  "min": 8,
+  "max": 48,
+  "step": 2,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 48,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpAlertHeadingColor",
+  "label": "“Notify me” signup box: heading colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpAlertFieldBorderColor",
+  "label": "“Notify me” signup box: email field border colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpAlertButtonBg",
+  "label": "“Notify me” signup box: button background",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpAlertButtonText",
+  "label": "“Notify me” signup box: button text colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpAlertButtonBorderColor",
+  "label": "“Notify me” signup box: button border colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpFieldBg",
+  "label": "Extras & gift card fields: background",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpFieldText",
+  "label": "Extras & gift card fields: text colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpFieldBorderColor",
+  "label": "Extras & gift card fields: border colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpFieldBorderWidth",
+  "label": "Extras & gift card fields: border width",
+  "kind": "range",
+  "min": 0,
+  "max": 6,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 6,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpFieldRadius",
+  "label": "Extras & gift card fields: corners",
+  "kind": "range",
+  "min": 0,
+  "max": 24,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 24,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpFieldFocusColor",
+  "label": "Extras & gift card fields: border while typing",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpViewerButtonBg",
+  "label": "Enlarged photo viewer: button background (enlarge, close, arrows)",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 1,
+  "samples": [
+   [
+    "BUTTON:545,312,40,40|flex|visible|1|rgba(0, 0, 0, 0.5)|none|rgba(255, 255, 255, 0.1)|1px|solid|rgba(255, 255, 255, 0.1)|1px|1px|1px|0px|none|none|blur(12px)|okl",
+    "BUTTON:545,312,40,40|flex|visible|1|rgb(19, 163, 127)|none|rgba(255, 255, 255, 0.1)|1px|solid|rgba(255, 255, 255, 0.1)|1px|1px|1px|0px|none|none|blur(12px)|okla"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpViewerButtonIcon",
+  "label": "Enlarged photo viewer: button icon colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 6,
+  "samples": [
+   [
+    "BUTTON:545,312,40,40|flex|visible|1|rgba(0, 0, 0, 0.5)|none|rgba(255, 255, 255, 0.1)|1px|solid|rgba(255, 255, 255, 0.1)|1px|1px|1px|0px|none|none|blur(12px)|okl",
+    "BUTTON:545,312,40,40|flex|visible|1|rgba(0, 0, 0, 0.5)|none|rgba(255, 255, 255, 0.1)|1px|solid|rgba(255, 255, 255, 0.1)|1px|1px|1px|0px|none|none|blur(12px)|okl"
+   ],
+   [
+    "svg:558,324,15,15|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p",
+    "svg:558,324,15,15|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpViewerButtonBorderColor",
+  "label": "Enlarged photo viewer: button outline colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 1,
+  "samples": [
+   [
+    "BUTTON:545,312,40,40|flex|visible|1|rgba(0, 0, 0, 0.5)|none|rgba(255, 255, 255, 0.1)|1px|solid|rgba(255, 255, 255, 0.1)|1px|1px|1px|0px|none|none|blur(12px)|okl",
+    "BUTTON:545,312,40,40|flex|visible|1|rgba(0, 0, 0, 0.5)|none|rgb(19, 163, 127)|1px|solid|rgb(19, 163, 127)|1px|1px|1px|0px|none|none|blur(12px)|oklab(0.708 0 0 /"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpViewerButtonShape",
+  "label": "Enlarged photo viewer: button shape",
+  "kind": "select",
+  "defaultValue": "",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "soft",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpViewerShade",
+  "label": "Enlarged photo viewer: background behind the photo",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpViewerShowCount",
+  "label": "Enlarged photo viewer: show the photo count (“2 of 5”)",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpViewerCountColor",
+  "label": "Enlarged photo viewer: photo count colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpEditionPicker",
+  "label": "Edition picker (signed / unsigned…)",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpChipShowPrice",
+  "label": "Edition choices: show each edition's price",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpChipTextSize",
+  "label": "Edition buttons: text size",
+  "kind": "range",
+  "min": 9,
+  "max": 18,
+  "step": 1,
+  "defaultValue": 11,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 18,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpChipCase",
+  "label": "Edition buttons: letter case",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "none",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpChipTextColor",
+  "label": "Edition buttons: text colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpChipBorderColor",
+  "label": "Edition buttons: outline colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpChipBorderWidth",
+  "label": "Edition buttons: outline width",
+  "kind": "range",
+  "min": 0,
+  "max": 6,
+  "step": 1,
+  "defaultValue": 2,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 6,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpChipRadius",
+  "label": "Edition buttons: corners",
+  "kind": "range",
+  "min": 0,
+  "max": 32,
+  "step": 1,
+  "defaultValue": 0,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 32,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpChipActiveBg",
+  "label": "Edition buttons: picked edition background",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpChipActiveText",
+  "label": "Edition buttons: picked edition text colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpChipSoldOutStrike",
+  "label": "Edition buttons: strike through sold-out editions",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": false,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpStickyBar",
+  "label": "Sticky “Add to bag” bar (follows the shopper once the main button scrolls away)",
+  "kind": "toggle",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpShowBuyNow",
+  "label": "“Buy it now” button under Add to bag (adds the book and opens checkout)",
+  "kind": "toggle",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": true,
+  "changed": 1,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpStickyPhoneOnly",
+  "label": "Sticky bar on phones only (off = every screen size)",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "mobile",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpRuledRows",
+  "label": "Ruled rows: tag & stock, title, price and buttons each on their own line",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": false,
+  "changed": 2,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpShowTag",
+  "label": "Show category tag",
+  "kind": "toggle",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "visible",
+  "value": false,
+  "changed": 6,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpTagStyle",
+  "label": "Category tag style",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "filled",
+  "status": "visible",
+  "value": "outline",
+  "changed": 115,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,1870|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1382|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpTitleFont",
+  "label": "Title font",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "Cormorant Garamond",
+  "changed": 1,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpTitleSize",
+  "label": "Title size · desktop (0 = automatic)",
+  "kind": "range",
+  "min": 0,
+  "max": 120,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": 120,
+  "changed": 108,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,2229|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1741|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpTitleSizeMobile",
+  "label": "Title size · phone (0 = automatic, smaller than desktop)",
+  "kind": "range",
+  "min": 0,
+  "max": 96,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "mobile",
+  "current": null,
+  "status": "visible",
+  "value": 96,
+  "changed": 108,
+  "samples": [
+   [
+    "DIV:0,0,388,2334|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|non",
+    "DIV:0,0,388,2677|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|non"
+   ],
+   [
+    "MAIN:0,128,388,1600|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|",
+    "MAIN:0,128,388,1943|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpTitleColor",
+  "label": "Title colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 1,
+  "samples": [
+   [
+    "H1:668,394,411,108|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0",
+    "H1:668,394,411,108|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpTitleCase",
+  "label": "Title letter case",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "none",
+  "changed": 108,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,1828|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1340|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpPriceFont",
+  "label": "Price font",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "Cormorant Garamond",
+  "changed": 1,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpPriceSize",
+  "label": "Price size · desktop (0 = automatic)",
+  "kind": "range",
+  "min": 0,
+  "max": 96,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": 96,
+  "changed": 105,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,1998|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1510|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpPriceSizeMobile",
+  "label": "Price size · phone (0 = automatic, smaller than desktop)",
+  "kind": "range",
+  "min": 0,
+  "max": 80,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "mobile",
+  "current": null,
+  "status": "visible",
+  "value": 80,
+  "changed": 105,
+  "samples": [
+   [
+    "DIV:0,0,388,2334|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|non",
+    "DIV:0,0,388,2460|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|non"
+   ],
+   [
+    "MAIN:0,128,388,1600|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|",
+    "MAIN:0,128,388,1726|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpPriceColor",
+  "label": "Price colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 1,
+  "samples": [
+   [
+    "SPAN:668,551,338,60|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|",
+    "SPAN:668,551,338,60|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpShowStock",
+  "label": "Show stock line under the price",
+  "kind": "toggle",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "visible",
+  "value": false,
+  "changed": 1,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpStockColor",
+  "label": "Stock line dot colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 1,
+  "samples": [
+   [
+    "SPAN:996,324,83,17|flex|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p",
+    "SPAN:996,324,83,17|flex|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpMetaFont",
+  "label": "Small label font (breadcrumb, caption, stock, specs)",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "Cormorant Garamond",
+  "changed": 1,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpMetaSize",
+  "label": "Small label size",
+  "kind": "range",
+  "min": 8,
+  "max": 16,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": 11,
+  "status": "visible",
+  "value": 16,
+  "changed": 138,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,1881|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1393|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpMetaColor",
+  "label": "Small label colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 9,
+  "samples": [
+   [
+    "BUTTON:93,185,54,17|inline-flex|visible|0.7|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0",
+    "BUTTON:93,185,54,17|inline-flex|visible|0.7|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0"
+   ],
+   [
+    "svg:93,186,13,13|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px",
+    "svg:93,186,13,13|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpThumbPosition",
+  "label": "Photo thumbnails",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "side",
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpThumbWrap",
+  "label": "Thumbnails on several rows (instead of one line you scroll sideways) — under the photo, and on phones",
+  "kind": "toggle",
+  "defaultValue": false,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": true,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpThumbsPhone",
+  "label": "Thumbnails on phones",
+  "kind": "select",
+  "defaultValue": "",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "mobile",
+  "current": null,
+  "status": "css-only",
+  "value": "row",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpThumbFill",
+  "label": "Stretch thumbnails to fill the width (no empty space at the right edge)",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpThumbPerRow",
+  "label": "Thumbnails per row (0 = automatic, from Thumbnail size)",
+  "kind": "range",
+  "min": 0,
+  "max": 12,
+  "step": 1,
+  "defaultValue": 0,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpThumbLastRow",
+  "label": "Short last row of thumbnails",
+  "kind": "select",
+  "defaultValue": "stretch",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpThumbSize",
+  "label": "Thumbnail size (smallest size when stretching)",
+  "kind": "range",
+  "min": 40,
+  "max": 160,
+  "step": 4,
+  "defaultValue": 64,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 160,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpThumbGap",
+  "label": "Gap between thumbnails",
+  "kind": "range",
+  "min": 0,
+  "max": 24,
+  "step": 1,
+  "defaultValue": 10,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 24,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpThumbShape",
+  "label": "Thumbnail shape",
+  "kind": "select",
+  "defaultValue": "",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpThumbActiveColor",
+  "label": "Selected thumbnail border",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpPhotoBorderColor",
+  "label": "Photo frame & caption border colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 2,
+  "samples": [
+   [
+    "DIV:93,295,509,509|block|visible|1|rgb(13, 13, 13)|none|rgb(255, 255, 255)|1px|solid|rgb(255, 255, 255)|1px|1px|1px|0px|rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0",
+    "DIV:93,295,509,509|block|visible|1|rgb(13, 13, 13)|none|rgb(19, 163, 127)|1px|solid|rgb(19, 163, 127)|1px|1px|1px|0px|rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, "
+   ],
+   [
+    "FIGCAPTION:93,804,509,36|flex|visible|1|rgba(0, 0, 0, 0)|none|rgba(255, 255, 255, 0.64)|0px|none|rgb(255, 255, 255)|1px|1px|1px|0px|none|none|none|oklab(0.708 0",
+    "FIGCAPTION:93,804,509,36|flex|visible|1|rgba(0, 0, 0, 0)|none|rgba(255, 255, 255, 0.64)|0px|none|rgb(19, 163, 127)|1px|1px|1px|0px|none|none|none|oklab(0.708 0 "
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpPhotoBorderWidth",
+  "label": "Photo frame border width (0 = none)",
+  "kind": "range",
+  "min": 0,
+  "max": 6,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": 1,
+  "status": "visible",
+  "value": 6,
+  "changed": 15,
+  "samples": [
+   [
+    "DIV:93,295,509,545|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0",
+    "DIV:93,295,509,550|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0"
+   ],
+   [
+    "DIV:93,295,509,545|grid|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p",
+    "DIV:93,295,509,550|grid|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpShowCaption",
+  "label": "Show caption bar under the photo",
+  "kind": "toggle",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": true,
+  "status": "visible",
+  "value": false,
+  "changed": 2,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpPhotoDots",
+  "label": "Dots under the photo (one per photo, like a social media carousel)",
+  "kind": "select",
+  "defaultValue": "",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDetailsPlacement",
+  "label": "Details tabs position",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "column",
+  "status": "visible",
+  "value": "below",
+  "changed": 1,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpSpecsStyle",
+  "label": "Details (specs) style",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": "record",
+  "status": "none",
+  "value": null
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpTabActiveBg",
+  "label": "Selected tab background",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpTabActiveText",
+  "label": "Selected tab text",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpPanelBorderColor",
+  "label": "Tab panel border colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "#13a37f",
+  "changed": 1,
+  "samples": [
+   [
+    "DIV:642,769,463,108|block|visible|1|rgba(0, 0, 0, 0)|none|rgb(255, 255, 255)|2px|solid|rgb(255, 255, 255)|2px|2px|2px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|",
+    "DIV:642,769,463,108|block|visible|1|rgba(0, 0, 0, 0)|none|rgb(19, 163, 127)|2px|solid|rgb(19, 163, 127)|2px|2px|2px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0p"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpPanelTextWidth",
+  "label": "Description text width (0 = fill the box)",
+  "kind": "range",
+  "min": 0,
+  "max": 160,
+  "step": 5,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 160,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescFont",
+  "label": "Description font",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "Cormorant Garamond",
+  "changed": 1,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescSize",
+  "label": "Description text size (0 = default)",
+  "kind": "range",
+  "min": 0,
+  "max": 24,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": 24,
+  "changed": 79,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,1882|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1394|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescSizeMobile",
+  "label": "Description text size on phones (0 = same as desktop)",
+  "kind": "range",
+  "min": 0,
+  "max": 24,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "mobile",
+  "current": null,
+  "status": "visible",
+  "value": 24,
+  "changed": 79,
+  "samples": [
+   [
+    "DIV:0,0,388,2334|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|non",
+    "DIV:0,0,388,2392|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|non"
+   ],
+   [
+    "MAIN:0,128,388,1600|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|",
+    "MAIN:0,128,388,1658|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescLineHeight",
+  "label": "Description line spacing (0 = default)",
+  "kind": "range",
+  "min": 0,
+  "max": 2.6,
+  "step": 0.05,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": 2.6,
+  "changed": 79,
+  "samples": [
+   [
+    "DIV:0,0,1198,1866|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no",
+    "DIV:0,0,1198,1879|block|visible|1|rgb(0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)|0px|no"
+   ],
+   [
+    "MAIN:0,161,1198,1378|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)",
+    "MAIN:0,161,1198,1391|block|visible|1|rgba(0, 0, 0, 0)|none|rgba(0, 0, 0, 0.1)|0px|solid|rgba(0, 0, 0, 0.1)|0px|0px|0px|0px|none|none|none|oklab(0.708 0 0 / 0.5)"
+   ]
+  ]
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescColor",
+  "label": "Description text colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescAlign",
+  "label": "Description alignment",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "center",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescLinkColor",
+  "label": "Description link colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescLinkUnderline",
+  "label": "Underline description links",
+  "kind": "toggle",
+  "defaultValue": true,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": false,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpRuledText",
+  "label": "Ruled lines between paragraphs in Description, Artist bio and Shipping & returns (the same hairlines as the Details table)",
+  "kind": "toggle",
+  "defaultValue": false,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": true,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescHeadingFont",
+  "label": "Description heading font",
+  "kind": "select",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "visible",
+  "value": "Cormorant Garamond",
+  "changed": 1,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescHeadingSize",
+  "label": "Description heading size (0 = default)",
+  "kind": "range",
+  "min": 0,
+  "max": 40,
+  "step": 1,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 40,
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescHeadingColor",
+  "label": "Description heading colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescQuoteColor",
+  "label": "Description quote bar colour",
+  "kind": "color",
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": "#13a37f",
+  "changed": 0,
+  "samples": []
+ },
+ {
+  "group": "productCard",
+  "groupTitle": "Book page · buy box & details",
+  "key": "pdpDescBlockGap",
+  "label": "Space around headings, lists & quotes",
+  "kind": "range",
+  "min": 0,
+  "max": 40,
+  "step": 2,
+  "where": {
+   "template": "productPage"
+  },
+  "route": "/books/night-pages",
+  "overlay": null,
+  "device": "desktop",
+  "current": null,
+  "status": "css-only",
+  "value": 40,
+  "changed": 0,
+  "samples": []
+ }
+]

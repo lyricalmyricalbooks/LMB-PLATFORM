@@ -1,0 +1,853 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { buildHarness } from './helpers/extract-decl.js';
+
+import { escapeHtml } from '../src/lib/html.js';
+import { fmt, fmtD, getSym, normalizeCurrencyCode, paymentSummary } from '../src/lib/money.js';
+import { bookCurrencyCode, detectCurrencyMismatch } from '../src/lib/currency-migration.js';
+import { buildOrderTimeline, inventoryBreakdown, isVoidStale } from '../src/lib/inventory.js';
+import { reconcileConsignmentMirrors } from '../src/lib/consignment.js';
+import { linkedShippingSummary } from '../src/lib/shipping-reconciliation.js';
+import { filterHistoryRows, historySearchIsActive, describeHistorySearch } from '../src/lib/order-history-search.js';
+import { isWebsiteFulfilled } from '../src/lib/website-link.js';
+import { IN_PERSON_CHANNELS } from '../src/lib/channel-mix.js';
+
+// Order History is where a mis-rendered row reads as a sale that didn't happen
+// or stock the publisher doesn't have, so this covers what it actually puts on
+// screen rather than what src/main.js says.
+//
+// The aggregation underneath (buildOrderTimeline, inventoryBreakdown,
+// reconcileConsignmentMirrors, the money formatters) is imported for real
+// — only the handful of main.js-local collaborators are supplied by the
+// harness, and even those are the genuine extracted source. What's stubbed is
+// just the ambient state renderHist reads: the book, the state, and the DOM
+// lookup.
+
+const BOOK = { id: 'book-1', title: 'Test Book', currency: 'CA$', maxPrint: 100, accent: '#c8693a' };
+
+function mountDom() {
+  document.body.innerHTML = `
+    <div id="hist-filter-bar"></div>
+    <div id="hist-search-bar" hidden>
+      <input type="search" id="hist-search">
+      <button type="button" id="hist-search-clear" hidden></button>
+      <p id="hist-search-status" aria-live="polite"></p>
+    </div>
+    <div id="hist-recon"></div>
+    <table><tbody id="hist-body"></tbody></table>
+  `;
+}
+
+function makeHarness({ state, book = BOOK, isPublisher = true, submissions = {} } = {}) {
+  return buildHarness({
+    names: [
+      'CHANNEL_COLORS', 'CHAN_OTHER', 'HIST_PAGE', 'HIST_SEARCH_MIN',
+      'channelColor', 'chanLabel', 'visibleTabName',
+      'renderConsignHistRow', 'deliveryPhrase', 'renderOrderShippingSummary',
+      'renderHistSearchBar', 'histNoSearchMatchHtml',
+      'histEmptyStateHtml', 'renderHistFilterBar',
+      'renderHistReconciliationPanel', 'scheduleHistVoidSweep',
+      'renderHistRowHtml', 'renderHist',
+    ],
+    deps: {
+      // Ambient state renderHist reads out of module scope.
+      getState: () => state,
+      getBook: () => book,
+      activeBook: book.id,
+      $: (id) => document.getElementById(id),
+      window: { authorSubmissions: submissions, IS_PUBLISHER: isPublisher },
+      TAX_CENTER: { businessExpenses: [] },
+      // The real implementations — this is the logic worth exercising.
+      escapeHtml, fmt, fmtD, getSym, normalizeCurrencyCode, paymentSummary,
+      bookCurrencyCode, detectCurrencyMismatch,
+      buildOrderTimeline, inventoryBreakdown, isVoidStale,
+      reconcileConsignmentMirrors, linkedShippingSummary,
+      filterHistoryRows, historySearchIsActive, describeHistorySearch,
+      isWebsiteFulfilled, IN_PERSON_CHANNELS,
+      // The website link's parcel line reads every book; none here is from the website.
+      websiteShipmentNote: () => null,
+      renderImportNotice: () => {},
+    },
+    moduleState: `
+      let histChanFilter = null;
+      let _histLimit = HIST_PAGE;
+      let _histPageSig = null;
+      let _histSearch = '';
+      let _histSearchBook = null;
+      let _histVoidSweepTimer = null;
+    `,
+    returns: `{
+      renderHist,
+      setChanFilter: (v) => { histChanFilter = v; },
+      setLimit: (v) => { _histLimit = v; },
+      // Mirrors what histSearchInput() does: the query is stamped with the book
+      // it was typed on, so renderHist can drop it on a book switch.
+      setSearch: (v) => { _histSearch = v; _histSearchBook = activeBook; },
+      setSearchFromOtherBook: (v) => { _histSearch = v; _histSearchBook = 'some-other-book'; },
+      readSearch: () => _histSearch,
+      HIST_PAGE,
+      HIST_SEARCH_MIN,
+    }`,
+  });
+}
+
+const rows = () => [...document.querySelectorAll('#hist-body tr.hist-row')];
+const cells = (tr) => [...tr.querySelectorAll('td')].map(td => td.textContent.trim());
+
+beforeEach(mountDom);
+
+describe('renderHist — order rows', () => {
+  it('renders one row per history entry with quantity, price and line total', () => {
+    const h = makeHarness({
+      state: {
+        stock: 98, hist: [
+          { num: '1002', chan: 'Direct', qty: 1, price: 20, date: '2026-07-20', notes: '' },
+          { num: '1001', chan: 'Website', qty: 2, price: 15, date: '2026-07-19', notes: '' },
+        ], ledger: [], stores: [],
+      },
+    });
+    h.renderHist();
+
+    const r = rows();
+    expect(r).toHaveLength(2);
+    expect(cells(r[0])[0]).toContain('1002');
+    expect(cells(r[0])[2]).toBe('-1');
+    expect(cells(r[0])[4]).toContain('20');   // 1 × 20
+    expect(cells(r[1])[2]).toBe('-2');
+    expect(cells(r[1])[4]).toContain('30');   // 2 × 15
+  });
+
+  it('shows a running stock-after column counting down from the print run', () => {
+    // The column publishers read to sanity-check inventory: 100 printed, then
+    // 1 and 2 sold, so the newest row must land on 97 and the older on 98.
+    const h = makeHarness({
+      state: {
+        stock: 97, hist: [
+          { num: '1002', chan: 'Direct', qty: 1, price: 20, date: '2026-07-20' },
+          { num: '1001', chan: 'Direct', qty: 2, price: 20, date: '2026-07-19' },
+        ], ledger: [], stores: [],
+      },
+    });
+    h.renderHist();
+
+    const after = rows().map(tr => cells(tr)[5]);
+    expect(after).toEqual(['97', '98']);
+  });
+
+  it('interleaves consignment ledger movements with direct sales by date', () => {
+    const h = makeHarness({
+      state: {
+        stock: 80, hist: [{ num: '1001', chan: 'Direct', qty: 1, price: 20, date: '2026-07-20' }],
+        ledger: [
+          { id: 1, type: 'Shipment', storeName: 'Bookshop A', qty: 10, date: '2026-07-15', notes: '' },
+        ],
+        stores: [],
+      },
+    });
+    h.renderHist();
+
+    const r = rows();
+    expect(r).toHaveLength(2);
+    expect(r[0].textContent).toContain('1001');
+    expect(r[1].textContent).toContain('Bookshop A');
+    expect(r[1].textContent).toContain('SENT');
+    expect(cells(r[1])[2]).toBe('-10');   // left on-hand for the store
+  });
+
+  it('marks a freshly voided row and drops its negative sign', () => {
+    const h = makeHarness({
+      state: {
+        stock: 100,
+        hist: [{ num: '1001', chan: 'Direct', qty: 3, price: 20, date: '2026-07-20', voided: true, voidedAt: Date.now() }],
+        ledger: [], stores: [],
+      },
+    });
+    h.renderHist();
+
+    const r = rows()[0];
+    expect(r.className).toContain('voided');
+    expect(r.textContent).toContain('Void');
+    expect(cells(r)[2]).toBe('3');   // not '-3' — a void didn't move stock
+  });
+
+  it('drops a voided row from the default list once it is stale', () => {
+    // No voidedAt at all reads as "voided before this feature existed" —
+    // treated as stale immediately rather than lingering forever.
+    const legacyVoid = { num: '1001', chan: 'Direct', qty: 3, price: 20, date: '2026-07-20', voided: true };
+    const staleVoid = { num: '1002', chan: 'Direct', qty: 1, price: 20, date: '2026-07-21', voided: true, voidedAt: Date.now() - 90 * 60 * 1000 };
+    const liveSale = { num: '1003', chan: 'Direct', qty: 1, price: 20, date: '2026-07-22' };
+    const h = makeHarness({
+      state: { stock: 100, hist: [legacyVoid, staleVoid, liveSale], ledger: [], stores: [] },
+    });
+    h.renderHist();
+
+    const r = rows();
+    expect(r).toHaveLength(1);
+    expect(r[0].textContent).toContain('1003');
+  });
+
+  it('still shows a voided row that has not aged past the grace period yet', () => {
+    const recentVoid = { num: '1001', chan: 'Direct', qty: 3, price: 20, date: '2026-07-20', voided: true, voidedAt: Date.now() - 5 * 60 * 1000 };
+    const h = makeHarness({ state: { stock: 100, hist: [recentVoid], ledger: [], stores: [] } });
+    h.renderHist();
+
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0].className).toContain('voided');
+  });
+
+  it('still finds a stale voided row when actively searched for', () => {
+    const legacyVoid = { num: 'MAN-9001', chan: 'Direct', qty: 3, price: 20, date: '2026-07-20', voided: true };
+    const liveSale = { num: 'MAN-9002', chan: 'Direct', qty: 1, price: 20, date: '2026-07-22' };
+    const h = makeHarness({ state: { stock: 100, hist: [legacyVoid, liveSale], ledger: [], stores: [] } });
+    h.setSearch('9001');
+    h.renderHist();
+
+    const r = rows();
+    expect(r).toHaveLength(1);
+    expect(r[0].textContent).toContain('9001');
+    expect(r[0].className).toContain('voided');
+  });
+
+  it('shows an empty state rather than a blank table when there are no orders', () => {
+    const h = makeHarness({ state: { stock: 100, hist: [], ledger: [], stores: [] } });
+    h.renderHist();
+
+    expect(rows()).toHaveLength(0);
+    expect(document.getElementById('hist-body').textContent).toContain('No orders recorded for this book yet');
+  });
+
+  // The Total column is the row's headline figure, so it has to use the
+  // house `.money-cell` weight rather than a hand-picked one — DM Mono is
+  // only loaded at 400/500, so a 600 request gets synthesised and the
+  // faux-bold smears the very digits the column exists to lead with. See
+  // UX_PATTERNS.md "Column roles on a wide table".
+  it('gives the Total column the money-cell weight, not a synthesised bold', () => {
+    const h = makeHarness({
+      state: {
+        stock: 99,
+        hist: [{ num: '1001', chan: 'Direct', qty: 1, price: 20, date: '2026-07-20' }],
+        ledger: [], stores: [],
+      },
+    });
+    h.renderHist();
+
+    const totalCell = rows()[0].querySelectorAll('td')[4];
+    expect(totalCell.classList.contains('money-cell')).toBe(true);
+    expect(totalCell.getAttribute('style') || '').not.toContain('font-weight:600');
+  });
+});
+
+// Order History is a whole tab, so an empty one is a primary destination and
+// has to offer a way forward rather than a dead sentence — UX_PATTERNS.md
+// § Empty states. What matters is that the exit offered actually matches the
+// dead end the publisher hit.
+describe('renderHist — empty states', () => {
+  const emptyPanel = () => document.querySelector('#hist-body .empty-state.sys-empty');
+  const actions = () => [...document.querySelectorAll('#hist-body .sys-empty-actions .btn')]
+    .map(b => b.getAttribute('onclick'));
+
+  it('offers ways to record a first sale when the book has no orders at all', () => {
+    const h = makeHarness({ state: { stock: 100, hist: [], ledger: [], stores: [] } });
+    h.renderHist();
+
+    const panel = emptyPanel();
+    expect(panel).not.toBeNull();
+    expect(panel.querySelector('.e-icon')).not.toBeNull();
+    expect(actions()).toContain("switchTab('manual')");
+    expect(actions()).toContain("switchTab('pos')");
+  });
+
+  it('only offers the spreadsheet import to a publisher', () => {
+    const asAuthor = makeHarness({
+      state: { stock: 100, hist: [], ledger: [], stores: [] }, isPublisher: false,
+    });
+    asAuthor.renderHist();
+    // Authors cannot see #import-btn anywhere else, so pointing them at the
+    // hidden file input would dead-end them on a control they do not have.
+    expect(actions().some(a => a.includes('import-file-input'))).toBe(false);
+
+    mountDom();
+    const asPublisher = makeHarness({
+      state: { stock: 100, hist: [], ledger: [], stores: [] }, isPublisher: true,
+    });
+    asPublisher.renderHist();
+    expect(actions().some(a => a.includes('import-file-input'))).toBe(true);
+  });
+
+  it('offers to clear the filter — not to record a sale — when a filter matched nothing', () => {
+    const h = makeHarness({
+      state: {
+        stock: 100,
+        hist: [{ num: '1001', chan: 'Direct', qty: 1, price: 20, date: '2026-07-20' }],
+        ledger: [], stores: [],
+      },
+    });
+    h.setChanFilter({ bookId: 'book-1', chan: 'Website' });
+    h.renderHist();
+
+    expect(rows()).toHaveLength(0);
+    expect(actions()).toEqual(['clearHistChanFilter()']);
+    expect(emptyPanel().textContent).toContain('Website');
+  });
+
+  it('tells the publisher how many orders the filter is hiding', () => {
+    // "Nothing sold" and "nothing sold HERE" are different situations, and the
+    // count is what separates them.
+    const h = makeHarness({
+      state: {
+        stock: 100,
+        hist: [
+          { num: '1002', chan: 'Direct', qty: 1, price: 20, date: '2026-07-20' },
+          { num: '1001', chan: 'Direct', qty: 1, price: 20, date: '2026-07-19' },
+        ],
+        ledger: [], stores: [],
+      },
+    });
+    h.setChanFilter({ bookId: 'book-1', chan: 'Website' });
+    h.renderHist();
+
+    const text = emptyPanel().textContent;
+    expect(text).toContain('2 orders');
+    // Tabular figures on the count, per the financial-data invariant.
+    expect(emptyPanel().querySelector('.mono-num').textContent).toBe('2');
+  });
+
+  it('drops the count sentence when the filter is the only thing on record', () => {
+    const h = makeHarness({ state: { stock: 100, hist: [], ledger: [], stores: [] } });
+    h.setChanFilter({ bookId: 'book-1', chan: 'Website' });
+    h.renderHist();
+
+    expect(emptyPanel().textContent).toContain('Nothing has been recorded through Website');
+    expect(emptyPanel().querySelector('.mono-num')).toBeNull();
+  });
+
+  it('escapes a channel name instead of injecting markup into the empty state', () => {
+    const h = makeHarness({ state: { stock: 100, hist: [], ledger: [], stores: [] } });
+    h.setChanFilter({ bookId: 'book-1', chan: '<img src=x onerror=alert(1)>' });
+    h.renderHist();
+
+    const body = document.getElementById('hist-body');
+    expect(body.querySelector('img')).toBeNull();
+    expect(body.textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+});
+
+describe('renderHist — escaping', () => {
+  it('escapes order numbers and notes instead of injecting markup', () => {
+    const h = makeHarness({
+      state: {
+        stock: 100,
+        hist: [{
+          num: '<img src=x onerror=alert(1)>',
+          chan: 'Direct', qty: 1, price: 20, date: '2026-07-20',
+          notes: '<script>alert(2)</script>',
+        }],
+        ledger: [], stores: [],
+      },
+    });
+    h.renderHist();
+
+    const body = document.getElementById('hist-body');
+    expect(body.querySelector('img')).toBeNull();
+    expect(body.querySelector('script')).toBeNull();
+    // Present as text, so the data is still shown — just inert.
+    expect(body.textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+});
+
+describe('renderHist — channel filter', () => {
+  const filtered = () => makeHarness({
+    state: {
+      stock: 100, hist: [
+        { num: '1003', chan: 'Website', qty: 1, price: 20, date: '2026-07-20' },
+        { num: '1002', chan: 'Direct', qty: 1, price: 20, date: '2026-07-19' },
+        { num: '1001', chan: 'Website', qty: 1, price: 20, date: '2026-07-18' },
+      ], ledger: [], stores: [],
+    },
+  });
+
+  it('narrows the table to the selected channel', () => {
+    const h = filtered();
+    h.setChanFilter({ bookId: 'book-1', chan: 'Website' });
+    h.renderHist();
+
+    const r = rows();
+    expect(r).toHaveLength(2);
+    // The number cell also carries the inline edit affordance.
+    expect(r.map(tr => cells(tr)[0].replace('✎', ''))).toEqual(['1003', '1001']);
+  });
+
+  it('shows a clearable chip with the match count while filtered', () => {
+    const h = filtered();
+    h.setChanFilter({ bookId: 'book-1', chan: 'Website' });
+    h.renderHist();
+
+    const bar = document.getElementById('hist-filter-bar');
+    expect(bar.style.display).not.toBe('none');
+    expect(bar.textContent).toContain('2 found');
+    expect(bar.querySelector('button').getAttribute('onclick')).toBe('clearHistChanFilter()');
+  });
+
+  it('counts pending submissions in the filtered total, and shows them', () => {
+    // The chip is a "did my filter find everything" check, so an awaiting-
+    // approval sale on that channel has to be part of the count as well as the
+    // table — otherwise the number disagrees with the rows underneath it.
+    const h = makeHarness({
+      state: {
+        stock: 100, hist: [
+          { num: '1003', chan: 'Website', qty: 1, price: 20, date: '2026-07-20' },
+          { num: '1002', chan: 'Direct', qty: 1, price: 20, date: '2026-07-19' },
+        ], ledger: [], stores: [],
+      },
+      submissions: {
+        'book-1': {
+          sales: {
+            sub1: { data: JSON.stringify({ num: '9001', chan: 'Website', qty: 1, price: 20, date: '2026-07-21' }) },
+          },
+        },
+      },
+    });
+    h.setChanFilter({ bookId: 'book-1', chan: 'Website' });
+    h.renderHist();
+
+    expect(rows()).toHaveLength(2);   // one settled + one pending
+    expect(document.getElementById('hist-filter-bar').textContent).toContain('2 found');
+  });
+
+  it('excludes pending submissions on other channels from the filter', () => {
+    const h = makeHarness({
+      state: {
+        stock: 100,
+        hist: [{ num: '1003', chan: 'Website', qty: 1, price: 20, date: '2026-07-20' }],
+        ledger: [], stores: [],
+      },
+      submissions: {
+        'book-1': {
+          sales: {
+            sub1: { data: JSON.stringify({ num: '9001', chan: 'Direct', qty: 1, price: 20, date: '2026-07-21' }) },
+          },
+        },
+      },
+    });
+    h.setChanFilter({ bookId: 'book-1', chan: 'Website' });
+    h.renderHist();
+
+    expect(rows()).toHaveLength(1);
+    expect(document.getElementById('hist-filter-bar').textContent).toContain('1 found');
+  });
+
+  it('hides the chip and the reconciliation panel appropriately', () => {
+    const h = filtered();
+    h.renderHist();   // unfiltered
+    expect(document.getElementById('hist-filter-bar').style.display).toBe('none');
+    expect(document.getElementById('hist-recon').style.display).not.toBe('none');
+
+    h.setChanFilter({ bookId: 'book-1', chan: 'Website' });
+    h.renderHist();
+    // Reconciliation totals describe the whole book, so they'd be misleading
+    // next to a filtered subset.
+    expect(document.getElementById('hist-recon').style.display).toBe('none');
+  });
+
+  it('drops a filter belonging to a different book', () => {
+    const h = filtered();
+    h.setChanFilter({ bookId: 'some-other-book', chan: 'Website' });
+    h.renderHist();
+    expect(rows()).toHaveLength(3);
+    expect(document.getElementById('hist-filter-bar').style.display).toBe('none');
+  });
+
+  it('reports no matches for a channel with no orders', () => {
+    const h = filtered();
+    h.setChanFilter({ bookId: 'book-1', chan: 'Consignment' });
+    h.renderHist();
+    expect(rows()).toHaveLength(0);
+    expect(document.getElementById('hist-body').textContent).toContain('No Consignment orders');
+  });
+});
+
+describe('renderHist — reconciliation panel', () => {
+  it('reports printed, on-hand and sell-through', () => {
+    const h = makeHarness({
+      state: {
+        stock: 75,
+        hist: [{ num: '1001', chan: 'Direct', qty: 25, price: 20, date: '2026-07-20' }],
+        ledger: [], stores: [],
+      },
+    });
+    h.renderHist();
+
+    const recon = document.getElementById('hist-recon');
+    expect(recon.textContent).toContain('Total Printed');
+    expect(recon.querySelector('.hist-kpi-val').textContent).toBe('100');
+    expect(recon.textContent).toContain('25.0% sell-through rate');
+  });
+
+  it('renders the progress bar within 0-100% even if figures disagree', () => {
+    // Guards a real hazard: sell-through is derived from two counts that can
+    // drift apart, and an out-of-range width would paint outside the track.
+    const h = makeHarness({
+      state: {
+        stock: 5,
+        hist: [{ num: '1001', chan: 'Direct', qty: 500, price: 20, date: '2026-07-20' }],
+        ledger: [], stores: [],
+      },
+    });
+    h.renderHist();
+
+    const fill = document.querySelector('.hist-progress-bar-fill');
+    const width = parseFloat(fill.style.width);
+    expect(width).toBeGreaterThanOrEqual(0);
+    expect(width).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('renderHist — pending author submissions', () => {
+  const submissions = {
+    'book-1': {
+      sales: {
+        sub1: {
+          data: JSON.stringify({ num: '9001', chan: 'Direct', qty: 1, price: 20, date: '2026-07-21', notes: 'from author' }),
+        },
+      },
+    },
+  };
+
+  it('offers approve and reject to the publisher', () => {
+    const h = makeHarness({
+      state: { stock: 100, hist: [], ledger: [], stores: [] },
+      submissions, isPublisher: true,
+    });
+    h.renderHist();
+
+    const body = document.getElementById('hist-body');
+    expect(body.textContent).toContain('Submitted');
+    expect(body.querySelector('.appr-btn.approve').getAttribute('onclick'))
+      .toBe("approveSubmission('sales', 'sub1')");
+    expect(body.querySelector('.appr-btn.reject')).not.toBeNull();
+  });
+
+  it('shows an author only that it is awaiting the publisher', () => {
+    const h = makeHarness({
+      state: { stock: 100, hist: [], ledger: [], stores: [] },
+      submissions, isPublisher: false,
+    });
+    h.renderHist();
+
+    const body = document.getElementById('hist-body');
+    expect(body.textContent).toContain('Awaiting Publisher');
+    expect(body.querySelector('.appr-btn')).toBeNull();
+  });
+
+  it('leaves the stock-after column unknown for an unapproved sale', () => {
+    const h = makeHarness({
+      state: { stock: 100, hist: [], ledger: [], stores: [] },
+      submissions, isPublisher: true,
+    });
+    h.renderHist();
+    // It hasn't moved stock yet, so showing a number would be a lie.
+    expect(cells(rows()[0])[5]).toBe('?');
+  });
+
+  it('gives a pending submission\'s Total column the same money-cell weight as a settled row', () => {
+    const h = makeHarness({
+      state: { stock: 100, hist: [], ledger: [], stores: [] },
+      submissions, isPublisher: true,
+    });
+    h.renderHist();
+
+    const totalCell = rows()[0].querySelectorAll('td')[4];
+    expect(totalCell.classList.contains('money-cell')).toBe(true);
+    expect(totalCell.getAttribute('style') || '').not.toContain('font-weight:600');
+  });
+});
+
+describe('renderHist — pagination', () => {
+  const many = (n) => ({
+    stock: 100 - n,
+    hist: Array.from({ length: n }, (_, i) => ({
+      num: String(2000 + i), chan: 'Direct', qty: 1, price: 10,
+      date: `2026-07-${String(1 + (i % 28)).padStart(2, '0')}`,
+    })),
+    ledger: [], stores: [],
+  });
+
+  it('caps the first page and offers to show more', () => {
+    const h = makeHarness({ state: many(120) });
+    h.renderHist();
+
+    expect(rows()).toHaveLength(h.HIST_PAGE);
+    const more = document.querySelector('.hist-more-row');
+    expect(more).not.toBeNull();
+    expect(more.textContent).toContain(`showing ${h.HIST_PAGE} of 120`);
+    expect(more.textContent).toContain('Show all 120');
+  });
+
+  it('renders everything once the limit is raised', () => {
+    // Mirrors how "Show all" actually works: the first render establishes the
+    // page signature, the button raises the limit, and the re-render honours
+    // it. Raising the limit before any render would be undone — renderHist
+    // resets it whenever the book or channel filter changes, which is the
+    // point of the signature.
+    const h = makeHarness({ state: many(120) });
+    h.renderHist();
+    h.setLimit(Number.MAX_SAFE_INTEGER);
+    h.renderHist();
+
+    expect(rows()).toHaveLength(120);
+    expect(document.querySelector('.hist-more-row')).toBeNull();
+  });
+
+  it('resets to the first page when the channel filter changes', () => {
+    const h = makeHarness({ state: many(120) });
+    h.renderHist();
+    h.setLimit(Number.MAX_SAFE_INTEGER);
+    h.renderHist();
+    expect(rows()).toHaveLength(120);
+
+    // Switching filters is a new page signature, so paging starts over rather
+    // than dumping every row of the newly filtered set.
+    h.setChanFilter({ bookId: 'book-1', chan: 'Direct' });
+    h.renderHist();
+    expect(rows()).toHaveLength(h.HIST_PAGE);
+  });
+
+  it('does not offer more when everything already fits', () => {
+    const h = makeHarness({ state: many(3) });
+    h.renderHist();
+    expect(rows()).toHaveLength(3);
+    expect(document.querySelector('.hist-more-row')).toBeNull();
+  });
+});
+
+// The bug that prompted this: the book's currency was switched from € to CA$
+// mid-life, so every euro-era sale started rendering with a CA$ symbol against
+// its unchanged euro number. History is where a publisher reads those figures,
+// so this covers what the table actually puts on screen for a stranded row.
+describe('renderHist — currency drift', () => {
+  const eurSale = (over = {}) => ({
+    num: 'MAN-1', chan: 'Direct', qty: 1, price: 32, date: '2026-05-23', notes: '',
+    payment: { currency: 'EUR', amount: 32, rate: null, convertedTotal: 32 },
+    ...over,
+  });
+
+  it('renders a euro-era row in euros, not in the book\'s new currency', () => {
+    const h = makeHarness({
+      state: { stock: 99, hist: [eurSale({ cur: 'EUR' })], ledger: [], stores: [] },
+    });
+    h.renderHist();
+
+    const c = cells(rows()[0]);
+    expect(c[3]).toContain('€32.00');
+    expect(c[3]).not.toContain('CA$');
+    expect(c[4]).toContain('€32.00');
+  });
+
+  // The price cell carries the badge; every row also has an unrelated
+  // "entered by" pill, so scope the lookup to the price column.
+  const priceBadge = (tr) => tr.querySelectorAll('td')[3].querySelector('.chip-status');
+
+  it('badges the stranded row with the currency it was recorded in', () => {
+    const h = makeHarness({
+      state: { stock: 99, hist: [eurSale({ cur: 'EUR' })], ledger: [], stores: [] },
+    });
+    h.renderHist();
+    expect(priceBadge(rows()[0]).textContent).toBe('EUR');
+  });
+
+  it('leaves rows in the book\'s own currency unbadged', () => {
+    const h = makeHarness({
+      state: {
+        stock: 99,
+        hist: [{ num: 'MAN-2', chan: 'Direct', qty: 1, price: 40, date: '2026-07-01', cur: 'CAD' }],
+        ledger: [], stores: [],
+      },
+    });
+    h.renderHist();
+
+    const r = rows()[0];
+    expect(cells(r)[3]).toContain('CA$40.00');
+    expect(priceBadge(r)).toBeNull();
+  });
+
+  it('stops the payment note claiming a euro payment converted to the same CA$ figure', () => {
+    const h = makeHarness({
+      state: { stock: 99, hist: [eurSale({ cur: 'EUR' })], ledger: [], stores: [] },
+    });
+    h.renderHist();
+    // Paid in the row's own currency, so there is nothing to convert and no
+    // arrow at all — not "Paid EUR 32.00 → CA$32.00".
+    expect(rows()[0].textContent).toContain('Paid EUR 32.00');
+    expect(rows()[0].textContent).not.toContain('→ CA$32.00');
+  });
+
+  it('warns in the reconciliation strip and offers the restatement', () => {
+    const h = makeHarness({
+      state: { stock: 99, hist: [eurSale({ cur: 'EUR' })], ledger: [], stores: [] },
+    });
+    h.renderHist();
+
+    const warn = document.querySelector('#hist-recon .hist-currency-warn');
+    expect(warn).not.toBeNull();
+    expect(warn.textContent).toContain('EUR');
+    expect(warn.textContent).toContain('CAD');
+    expect(warn.querySelector('button').getAttribute('onclick')).toBe('restateBookCurrency()');
+  });
+
+  // The state this app is really in for a book switched before stamping
+  // existed: no `cur` anywhere, but the payment metadata still remembers.
+  it('spots the drift from legacy payment metadata alone, with no stamps', () => {
+    const h = makeHarness({
+      state: { stock: 99, hist: [eurSale(), eurSale({ num: 'MAN-2' })], ledger: [], stores: [] },
+    });
+    h.renderHist();
+
+    const warn = document.querySelector('#hist-recon .hist-currency-warn');
+    expect(warn).not.toBeNull();
+    expect(warn.textContent).toContain('2 sales');
+  });
+
+  it('stays quiet on a book whose history matches its currency', () => {
+    const h = makeHarness({
+      state: {
+        stock: 99,
+        hist: [{
+          num: 'MAN-3', chan: 'Direct', qty: 1, price: 40, date: '2026-07-01',
+          payment: { currency: 'CAD', amount: 40, rate: null, convertedTotal: 40 },
+        }],
+        ledger: [], stores: [],
+      },
+    });
+    h.renderHist();
+    expect(document.querySelector('#hist-recon .hist-currency-warn')).toBeNull();
+  });
+});
+
+describe('renderHist — search', () => {
+  // Twelve orders, above HIST_SEARCH_MIN, so the box is offered.
+  const manyOrders = () => ({
+    stock: 88,
+    hist: Array.from({ length: 12 }, (_, k) => ({
+      num: `10${String(k).padStart(2, '0')}`,
+      chan: k % 2 ? 'Website' : 'POS',
+      qty: 1, price: 40, date: `2026-07-${String(k + 1).padStart(2, '0')}`,
+      notes: k === 3 ? 'Vancouver zine fair' : '',
+    })),
+    ledger: [], stores: [],
+  });
+
+  it('offers the box only once the table is long enough to need it', () => {
+    const few = makeHarness({
+      state: { stock: 99, hist: [{ num: '1001', chan: 'Direct', qty: 1, price: 20, date: '2026-07-01', notes: '' }], ledger: [], stores: [] },
+    });
+    few.renderHist();
+    expect(document.getElementById('hist-search-bar').hidden).toBe(true);
+
+    mountDom();
+    const many = makeHarness({ state: manyOrders() });
+    many.renderHist();
+    expect(document.getElementById('hist-search-bar').hidden).toBe(false);
+  });
+
+  it('narrows the table to the rows that match, and says so', () => {
+    const h = makeHarness({ state: manyOrders() });
+    h.setSearch('zine');
+    h.renderHist();
+
+    expect(rows()).toHaveLength(1);
+    expect(cells(rows()[0])[6]).toContain('Vancouver zine fair');
+    expect(document.getElementById('hist-search-status').textContent)
+      .toContain('Showing 1 of 12 orders');
+  });
+
+  it('keeps the Edit button pointed at the right order after narrowing', () => {
+    // The regression that would cost real money: filtering re-indexes the rows
+    // on screen but openEditHist() is keyed on the position in the record.
+    const h = makeHarness({ state: manyOrders() });
+    h.setSearch('zine');
+    h.renderHist();
+    expect(rows()[0].querySelector('.edit-btn').getAttribute('onclick')).toBe('openEditHist(3)');
+  });
+
+  it('says the other orders are hidden rather than showing the never-sold panel', () => {
+    const h = makeHarness({ state: manyOrders() });
+    h.setSearch('nothing-like-this');
+    h.renderHist();
+
+    const body = document.getElementById('hist-body').textContent;
+    expect(body).toContain('No orders match your search');
+    expect(body).toContain('hidden by this search');
+    expect(body).not.toContain('No orders recorded for this book yet');
+    expect(document.querySelector('#hist-body button').getAttribute('onclick')).toBe('clearHistSearch()');
+  });
+
+  it('leaves the reconciliation strip alone when a search matches nothing', () => {
+    // Print run and on-hand are facts about the book, not about the search.
+    const h = makeHarness({ state: manyOrders() });
+    h.setSearch('nothing-like-this');
+    h.renderHist();
+    expect(document.getElementById('hist-recon').style.display).not.toBe('none');
+    expect(document.getElementById('hist-recon').textContent).toContain('Stock On Hand');
+  });
+
+  it('composes with the channel filter and names it in the count', () => {
+    const h = makeHarness({ state: manyOrders() });
+    h.setChanFilter({ bookId: BOOK.id, chan: 'Website' });
+    h.setSearch('10');
+    h.renderHist();
+
+    expect(rows().every(tr => tr.textContent.includes('Website'))).toBe(true);
+    expect(document.getElementById('hist-search-status').textContent)
+      .toContain('of 6 Website orders');
+  });
+
+  it('drops a query typed on another book instead of carrying it across', () => {
+    const h = makeHarness({ state: manyOrders() });
+    h.setSearchFromOtherBook('zine');
+    h.renderHist();
+
+    expect(h.readSearch()).toBe('');
+    expect(rows()).toHaveLength(12);
+    expect(document.getElementById('hist-search').value).toBe('');
+  });
+
+  it('shows the clear button only while a search is running', () => {
+    const h = makeHarness({ state: manyOrders() });
+    h.renderHist();
+    expect(document.getElementById('hist-search-clear').hidden).toBe(true);
+
+    h.setSearch('zine');
+    h.renderHist();
+    expect(document.getElementById('hist-search-clear').hidden).toBe(false);
+  });
+
+  it('keeps the box on screen when a search hides every row', () => {
+    // Hiding the only way to clear the search would strand the publisher on a
+    // table they cannot widen again.
+    const h = makeHarness({ state: manyOrders() });
+    h.setSearch('nothing-like-this');
+    h.renderHist();
+    expect(document.getElementById('hist-search-bar').hidden).toBe(false);
+  });
+
+  it('does not fight the publisher for the field they are typing in', () => {
+    const h = makeHarness({ state: manyOrders() });
+    h.setSearch('zine');
+    h.renderHist();
+    const input = document.getElementById('hist-search');
+    expect(input.value).toBe('zine');
+    // A render while the field already agrees must not rewrite it — that is
+    // what moves the caret to the end mid-word.
+    input.setAttribute('data-untouched', 'yes');
+    h.renderHist();
+    expect(input.value).toBe('zine');
+  });
+
+  it('escapes a query before putting it back on the page', () => {
+    const h = makeHarness({ state: manyOrders() });
+    h.setSearch('<img src=x onerror=alert(1)>');
+    h.renderHist();
+    const status = document.getElementById('hist-search-status');
+    expect(status.querySelector('img')).toBeNull();
+    expect(status.textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+});

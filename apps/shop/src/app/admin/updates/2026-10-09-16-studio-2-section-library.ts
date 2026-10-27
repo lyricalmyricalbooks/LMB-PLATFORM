@@ -1,0 +1,7 @@
+import type { AppUpdate } from "../appUpdates";
+
+export default {
+  id: "studio-2-section-library", date: "2026-10-09", title: "Try sections on the page before adding them, plus seven new sections",
+  summary: "Add section in the Design studio now opens beside the preview instead of covering it. Point at any section and it appears on your page, right where it would go (marked \"Preview · not added yet\"); click to add it. Each section has a small picture of its layout. Select a section in the preview to get + Section above and + Section below. Saved sections can be renamed or deleted (with Undo), and a new Shared blocks list shows where each one is used; deleting one keeps a copy wherever it was placed. Seven new sections: Featured collection (books from one category with a View all link), Book spotlight (one book, large, with a line of praise — on a book page it can show that book), Praise & press quotes, Image collage, Promo strip (made for under the header — \"Add it there instead\" puts it there), Newsletter sign-up for the pop-up, and a Sticky add-to-bag bar for book pages. The Newsletter sections now really add people to your newsletter list (the same list as the footer sign-up); before, the Newsletter section's button did nothing. Sign-ups made in the studio preview are never saved. Tested with local checks only.",
+  links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],
+} satisfies AppUpdate;

@@ -1,0 +1,83 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+describe('Email Receipt Import — inline Tax Centre sub-page', () => {
+  const htmlPath = path.resolve(__dirname, '../index.html');
+  const cssPath = path.resolve(__dirname, '../src/style.css');
+  const receiptsJsPath = path.resolve(__dirname, '../src/features/receipts.js');
+  const modalJsPath = path.resolve(__dirname, '../src/lib/modal.js');
+
+  const html = readFileSync(htmlPath, 'utf8');
+  const css = readFileSync(cssPath, 'utf8');
+  const receiptsJs = readFileSync(receiptsJsPath, 'utf8');
+  const modalJs = readFileSync(modalJsPath, 'utf8');
+
+  it('renders as a card in its own sub-tab, not a floating dialog', () => {
+    expect(html).toContain('class="card tc-integrations-card email-import-workspace" id="m-email-receipt-import-modal"');
+    expect(html).not.toContain('class="modal email-import-modal"');
+    expect(html).not.toContain('class="overlay" id="m-email-receipt-import-modal"');
+    // The header reuses the same badge/title/subtitle chrome as the
+    // Integrations page, so the two sub-pages read as one design language.
+    expect(html).toContain('tc-integrations-icon-badge');
+    expect(html).toContain('id="email-account-pill"');
+  });
+
+  it('stays put instead of hiding when the owner navigates away', () => {
+    // closeM returns early for inline workspaces, before the hide; the list of
+    // what counts as one lives in isInlineWorkspace().
+    const helper = modalJs.match(/function isInlineWorkspace\(el\) \{[\s\S]*?\n\}/)?.[0] || '';
+    expect(helper).toContain("el.classList.contains('email-import-workspace')");
+    const close = modalJs.slice(modalJs.indexOf('export function closeM'));
+    expect(close.indexOf('if (isInlineWorkspace(el)) return;')).toBeGreaterThan(-1);
+    expect(close.indexOf('if (isInlineWorkspace(el)) return;')).toBeLessThan(close.indexOf("el.style.display = 'none'"));
+  });
+
+  it('provides Apple/Linear style segmented control tabs', () => {
+    expect(html).toContain('modal-tabs segmented-control');
+    expect(html).toContain('id="email-tab-gmail"');
+    expect(html).toContain('id="email-tab-manual"');
+    expect(css).toContain('.modal-tabs.segmented-control');
+    expect(css).toContain('.segmented-control .modal-tab-btn.active');
+  });
+
+  it('says what each way in does, and lets pasted files be added and removed one by one', () => {
+    // The Gmail Finder panel is drawn by src/features/receipt-finder.js; the
+    // static copy of an older finder that used to sit here was never shown.
+    expect(html).not.toContain('id="email-gmail-search-query"');
+    expect(html).toContain('class="email-tab-sub"');
+    expect(html).toContain('id="email-receipt-files-list" class="email-file-chips"');
+    expect(html).toMatch(/id="email-receipt-dropzone" role="button" tabindex="0"/);
+    expect(receiptsJs).toContain('data-remove-file');
+    expect(receiptsJs).toContain('sourceInput.onpaste');
+    expect(css).toContain('.email-dropzone.is-dragover');
+  });
+
+  it('includes micro-icons for all Gmail search preset chips', () => {
+    expect(receiptsJs).toContain("icon: '🕒'");
+    expect(receiptsJs).toContain("icon: '📅'");
+    expect(receiptsJs).toContain("icon: '📎'");
+    expect(receiptsJs).toContain("icon: '🧾'");
+    expect(receiptsJs).toContain("icon: '📦'");
+  });
+
+  it('implements progressive disclosure for bulk category strip', () => {
+    expect(html).toContain('id="email-bulk-category-bar"');
+    expect(html).toContain('style="display:none;"');
+    expect(receiptsJs).toContain("bulkCatBar.style.display = 'none'");
+    expect(receiptsJs).toContain("bulkCatBar.style.display = 'flex'");
+  });
+
+  it('enforces tabular figures and monospace numbers in draft review rows', () => {
+    expect(receiptsJs).toContain("font-family:var(--font-mono);font-feature-settings:'tnum' 1;");
+  });
+
+  it('still aborts an in-flight extraction when the owner navigates to another sub-tab', () => {
+    expect(receiptsJs).toContain('function closeEmailReceiptImportModal()');
+    expect(receiptsJs).toContain('if (_emailExtractAbort) _emailExtractAbort.abort();');
+  });
+});

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Studio fixture (development only)</title>
+  </head>
+  <body>
+    <!-- Local test harness: mounts the Design studio with in-memory data (no sign-in, no Firestore
+         writes). Served by `vite` in development only; production builds use index.html alone. -->
+    <div id="root"></div>
+    <script type="module" src="/src/app/admin/studio/fixture/main.tsx"></script>
+  </body>
+</html>

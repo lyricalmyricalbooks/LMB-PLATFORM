@@ -1,0 +1,767 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LYRICAL DESIGN SYSTEM — FOUNDATION LAYER
+   ───────────────────────────────────────────────────────────────────────────
+   Phase 1 of the UX system described in .agents/UX_PATTERNS.md.
+
+   This file is ADDITIVE and imported BEFORE style.css. It introduces the
+   token vocabulary and the interaction baseline; it deliberately does not
+   restyle existing components. Legacy rules in style.css keep winning on
+   conflicts, so adopting this is incremental and non-breaking:
+
+     - New code MUST use these tokens.
+     - Existing rules migrate opportunistically, when you're already editing
+       them. Never do a big-bang rewrite of style.css.
+
+   Baseline it replaces (measured on the pre-system codebase):
+     47 distinct font sizes · 105 distinct raw hex colours · 139 ad-hoc
+     box-shadows · 8 easing curves across 157 transitions · 15 z-index values.
+
+   SCREEN SIZES. A custom property can't sit inside a media query, so the
+   names are written here and enforced by scripts/check-tokens.mjs:
+     phone           @media (max-width: 768px)
+                     @media (min-width: 769px) for anything wider
+     small phone     @media (max-width: 480px)
+     narrow desktop  @media (max-width: 1100px)
+   Any other width counts as drift. The 42 older ones are accepted in
+   scripts/token-baseline.json; move one onto a named size when you are
+   already editing it, and check the screen at that width.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── TYPE SCALE ──────────────────────────────────────────────────────────
+     Replaces 47 ad-hoc px sizes. --text-3xs..2xs are the uppercase Archivo
+     micro-labels this app leans on; body sits at --text-sm/--text-base. */
+  --text-3xs: 9px;
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 26px;
+  --text-3xl: clamp(28px, 1.4rem + 1.6vw, 40px);
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.45;
+  --leading-normal: 1.6;
+
+  /* Tracking — uppercase micro-labels need generous tracking to stay legible */
+  --tracking-label: 0.16em;
+  --tracking-caps: 0.09em;
+  --tracking-tight: -0.01em;
+
+  /* ── ELEVATION ───────────────────────────────────────────────────────────
+     Replaces 139 ad-hoc box-shadows. Multi-layered per AGENTS.md §1 —
+     a tight contact shadow plus a soft ambient one. */
+  /* Riso Press has no blur. Depth is a flat block of ink offset down-right,
+     the way a second pass through the press lands slightly off-register.
+     The scale is by OFFSET and OPACITY, not by softness — .18 for a resting
+     row, full ink for anything that floats above the page.
+     These six values are what re-shape 103 call sites at once, which is why
+     no rule should ever write its own box-shadow. */
+  --elev-0: none;
+  --elev-1: 2px 2px 0 rgba(16, 15, 13, .18);
+  --elev-2: 3px 3px 0 rgba(16, 15, 13, .30);
+  --elev-3: 4px 4px 0 var(--rule-ink);
+  --elev-4: 6px 6px 0 var(--rule-ink);
+  /* Lift applied on hover — pair with --elev-2/3, never with a raw shadow.
+     The shadow GROWS on hover while the element lifts, so the two read as
+     one movement rather than the element sliding out from under its ink. */
+  --elev-hover: 5px 5px 0 var(--rule-ink);
+
+  /* ── MOTION ──────────────────────────────────────────────────────────────
+     Replaces 8 bespoke curves. Any transition written with these tokens
+     automatically collapses under prefers-reduced-motion (see below) — that
+     is the whole reason to use them instead of literal durations. */
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
+
+  --ease-standard: cubic-bezier(.4, 0, .2, 1);   /* default for state changes */
+  --ease-entrance: cubic-bezier(.16, 1, .3, 1);  /* things arriving — decelerate */
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);        /* things leaving — accelerate */
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);/* playful overshoot, use sparingly */
+
+  /* ── LAYERING ────────────────────────────────────────────────────────────
+     Replaces 15 magic z-index values (including a 9999). Never write a raw
+     z-index again — if a new stacking context is needed, add a token here. */
+  --z-base: 1;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-dropdown: 300;
+  --z-overlay: 900;
+  --z-modal: 1000;
+  --z-toast: 1100;
+  --z-tooltip: 1200;
+
+  /* ── FOCUS ───────────────────────────────────────────────────────────────
+     One ring for the whole app. AGENTS.md §2 requires a designed focus state
+     on every interactive element; this is it. */
+  --focus-ring-width: 2px;
+  --focus-ring-color: var(--gold);
+  --focus-ring-offset: 2px;
+  --focus-ring-halo: 0 0 0 4px rgba(232, 64, 42, .22);
+
+  /* ── SEMANTIC SURFACES & CONTENT ─────────────────────────────────────────
+     Aliases over the existing palette. These exist so components stop
+     referencing raw --cream/--ink names: a surface is named for its ROLE,
+     not its colour, which is the prerequisite for ever shipping a dark
+     theme (see "Dark mode" note at the foot of this file). */
+  --surface-page: var(--cream);
+  --surface-sunken: var(--cream2);
+  --surface-raised: var(--surface-card);
+  --surface-inset: var(--cream3);
+  --surface-inverse: var(--ink);
+  /* The scrim behind a popover or dialog. Referenced by name since the
+     consignment balances popover shipped, but never actually declared —
+     so that popover has been opening over a fully transparent backdrop. */
+  --surface-overlay: rgba(16, 15, 13, .34);
+  --surface-inverse-raised: var(--ink2);
+
+  --content-primary: var(--text);
+  --content-secondary: var(--text2);
+  --content-muted: var(--text3);
+  --content-faint: var(--text4);
+  /* NOT var(--cream): --cream is a surface and the dark theme flips it, which
+     would turn every "light text on an ink panel" into dark-on-dark. */
+  --content-on-inverse: var(--on-inverse);
+
+  /* Two weights, and the difference is the whole "bold chrome, calm data"
+     split. --border-subtle/--border-default are hairlines for table rows,
+     form fields and dividers. --border-strong is the 2px ink outline that
+     makes a card, button or KPI tile look printed. Never reach for
+     --border-strong inside a long list. */
+  --border-subtle: var(--border2);
+  --border-default: var(--border);
+  --border-strong: var(--rule-ink);
+
+  /* Status roles — always reach for these over the raw colour tokens so the
+     amber=active / green=settled / red=error convention stays enforceable. */
+  --status-active: var(--amber);
+  --status-active-bg: var(--amber-bg);
+  --status-positive: var(--green);
+  --status-positive-bg: var(--green-bg);
+  --status-critical: var(--red);
+  --status-critical-bg: var(--red-bg);
+  --status-info: var(--blue);
+  --status-info-bg: var(--blue-bg);
+  --status-neutral: var(--text3);
+  --status-neutral-bg: var(--cream3);
+
+  /* ── TOUCH TARGETS (Fitts's Law, AGENTS.md §3) ──────────────────────────── */
+  --target-min: 44px;
+  --target-compact: 32px;
+}
+
+/* Motion tokens collapse for users who ask for reduced motion. Every
+   transition/animation authored with the tokens above becomes effectively
+   instant, with no per-rule opt-out needed. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 1ms;
+    --dur-fast: 1ms;
+    --dur-base: 1ms;
+    --dur-slow: 1ms;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INTERACTION BASELINE
+   Placed in a cascade layer so unlayered legacy rules in style.css always
+   win a conflict. This can only add behaviour, never silently restyle.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@layer system {
+
+  /* ── Focus: one visible, designed ring everywhere ──────────────────────
+     Replaces the browser default outline. Applied to every natively
+     focusable control plus anything given an explicit role/tabindex. */
+  :where(a[href], button, input, select, textarea, summary,
+         [tabindex]:not([tabindex="-1"]), [role="button"],
+         [role="tab"], [role="menuitem"], [role="switch"]):focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+    border-radius: var(--r);
+  }
+
+  /* Never suppress focus without a replacement — this keeps a mouse click
+     from leaving a ring while keyboard focus stays obvious. */
+  :where(button, [role="button"]):focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* ── Typography polish ─────────────────────────────────────────────────
+     One-liners with outsized payoff: no orphaned words in headings, no
+     single-word final lines in body copy. */
+  :where(h1, h2, h3, h4, .sect, .audience-summary-copy h3) {
+    text-wrap: balance;
+  }
+
+  :where(p, .section-subcopy, .field-note, .lead-note, .empty-state) {
+    text-wrap: pretty;
+  }
+
+  /* ── Layout stability ──────────────────────────────────────────────────
+     Reserves the scrollbar so content doesn't shift horizontally the moment
+     a list grows past the viewport. */
+  html {
+    scrollbar-gutter: stable;
+  }
+
+  /* Textareas grow with their content — removes the need for JS autosize. */
+  :where(textarea) {
+    field-sizing: content;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SYSTEM UTILITIES
+   Opt-in classes. Deliberately few — this is not a utility framework.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Long-list performance without a virtualization dependency. Apply to rows of
+   tables that can reach hundreds of entries (order history, tax ledger,
+   reconciliation). The browser skips rendering off-screen rows entirely.
+   `contain-intrinsic-size` must approximate real row height or the scrollbar
+   will jump — measure before changing it. */
+.sys-long-list > tr,
+tbody.sys-long-list > tr {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 44px;
+}
+
+/* Marks a panel as a container-query root so its children can respond to the
+   PANEL's width rather than the viewport's — the correct signal for cards and
+   tables that render at different widths depending on where they're mounted. */
+.sys-container {
+  container-type: inline-size;
+}
+
+/* Standard hover lift for cards. Uses motion + elevation tokens, so it is
+   automatically reduced-motion safe. */
+.sys-lift {
+  transition:
+    transform var(--dur-base) var(--ease-entrance),
+    box-shadow var(--dur-base) var(--ease-entrance);
+}
+.sys-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-hover);
+}
+
+/* Guarantees a Fitts's-Law-compliant tap target on controls that would
+   otherwise be visually small (icon buttons, inline row actions). */
+.sys-target {
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Optimistic / offline sync states ──────────────────────────────────────
+   The visual vocabulary for an offline-first mutation, per UX_PATTERNS.md §7.
+   A queued write renders IMMEDIATELY in its final position wearing .sys-pending,
+   then either clears or escalates to .sys-failed / .sys-conflict. */
+.sys-pending {
+  opacity: .7;
+  transition: opacity var(--dur-base) var(--ease-standard);
+}
+.sys-pending .pill,
+.pill.sys-pending {
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral);
+}
+.sys-failed {
+  box-shadow: inset 3px 0 0 var(--status-critical);
+}
+.sys-conflict {
+  box-shadow: inset 3px 0 0 var(--status-active);
+}
+
+/* ── Persistent sync chip ──────────────────────────────────────────────────
+   The app-level half of the same vocabulary: the row-level classes above say
+   "this write is queued", and this says "the connection is the reason". It is
+   fixed to the bottom-LEFT because `.toast` owns the bottom-right, and fixed
+   rather than sticky so it can never disturb `--sticky-top` (the offset the
+   ledger headers pin against) or push the page down when it appears.
+
+   Painted only when there is something the publisher could not otherwise
+   know — see describeSyncStatus() in src/lib/sync-status.js. */
+.sync-chip {
+  position: fixed;
+  left: var(--space-4);
+  bottom: var(--space-4);
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: min(360px, calc(100vw - var(--space-6)));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-left-width: 3px;
+  border-left-color: var(--status-neutral);
+  border-radius: var(--r2);
+  background: var(--surface-raised);
+  box-shadow: var(--elev-3);
+  animation: sync-chip-in var(--dur-base) var(--ease-entrance) both;
+}
+/* `hidden` must beat the `display:flex` above, or the chip is always painted. */
+.sync-chip[hidden] { display: none; }
+
+.sync-chip-ico {
+  flex-shrink: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-tight);
+  color: var(--status-neutral);
+}
+.sync-chip-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.sync-chip-title {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--content-primary);
+}
+.sync-chip-detail {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--content-secondary);
+  text-wrap: pretty;
+}
+/* "Last upload 14 min ago" — a figure, so it gets the app's mono/tabular
+   treatment rather than sitting in proportional type next to the prose. */
+.sync-chip-meta {
+  font-family: 'DM Mono', monospace;
+  font-feature-settings: "tnum" 1, "zero" 1;
+  font-size: var(--text-2xs);
+  color: var(--content-muted);
+}
+.sync-chip-meta:empty { display: none; }
+
+/* Full Fitts's-Law target: this is a recovery action pressed on a phone with a
+   flaky connection, which is exactly when a 30px button is the wrong call. */
+.sync-chip-action {
+  flex-shrink: 0;
+  align-self: center;
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--status-critical);
+  border-radius: var(--r2);
+  background: var(--status-critical-bg);
+  color: var(--status-critical);
+  font-family: var(--font-ui);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard);
+}
+.sync-chip-action[hidden] { display: none; }
+.sync-chip-action:hover { transform: translateY(-2px); }
+.sync-chip-action:active { transform: scale(.975); }
+
+/* Tone drives the accent bar and the glyph; the copy is set in JS. */
+.sync-chip.is-offline { border-left-color: var(--status-active); }
+.sync-chip.is-offline .sync-chip-ico { color: var(--status-active); }
+.sync-chip.is-failed { border-left-color: var(--status-critical); }
+.sync-chip.is-failed .sync-chip-ico { color: var(--status-critical); }
+.sync-chip.is-pending { border-left-color: var(--status-info); }
+/* `linear` is deliberate and the one exception to the spring-curve rule: an
+   eased curve on a continuous rotation visibly stutters once per revolution.
+   It stops entirely under reduced motion below. */
+.sync-chip.is-pending .sync-chip-ico {
+  color: var(--status-info);
+  animation: sync-chip-spin 1.4s linear infinite;
+  display: inline-block;
+}
+
+/* ── New-order notification ────────────────────────────────────────────────
+   Sibling of the sync chip and built from the same vocabulary, but it answers a
+   different question: the chip says why the connection is the problem, this says
+   a sale just happened. Top-right, the one corner not already claimed — the
+   toast has bottom-right, the chip has bottom-left — and fixed rather than
+   sticky for the same reason as the chip: it must never disturb --sticky-top or
+   push the page down when it appears.
+
+   Positive rather than warning-toned: a sale is good news, and the amber
+   vocabulary in this app already means "something needs your attention". */
+/* The corner itself. Fixed here rather than on each card so several can stack
+   instead of landing on top of one another — the storefront watch and the label
+   watch both report into it. `pointer-events: none` on the region and `auto` on
+   the cards, or an empty corner would silently eat clicks on whatever is under
+   it. */
+.app-alert-region {
+  position: fixed;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+#app-alert-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+#app-alert-stack[hidden] { display: none; }
+
+.app-alert,
+.new-order-alert {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: min(360px, calc(100vw - var(--space-6)));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-left-width: 3px;
+  border-left-color: var(--status-positive);
+  border-radius: var(--r2);
+  background: var(--surface-raised);
+  box-shadow: var(--elev-3);
+  animation: new-order-alert-in var(--dur-base) var(--ease-entrance) both;
+}
+/* `hidden` must beat the `display:flex` above, or it is always painted. */
+.new-order-alert[hidden] { display: none; }
+/* An order that arrived but is still waiting for the publisher reads as a
+   caution, not as done — the stripe is the first thing the eye lands on. */
+.new-order-alert[data-tone="warn"] { border-left-color: var(--status-active); }
+
+.app-alert-ico,
+.new-order-alert-ico {
+  flex-shrink: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-tight);
+}
+.app-alert-body,
+.new-order-alert-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.app-alert-title,
+.new-order-alert-title {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--content-primary);
+}
+.app-alert-detail,
+.new-order-alert-detail {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--content-secondary);
+  text-wrap: pretty;
+}
+.app-alert-actions,
+.new-order-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.app-alert-actions .btn,
+.new-order-alert-actions .btn { margin: 0; }
+.app-alert-actions [hidden],
+.new-order-alert-actions [hidden] { display: none !important; }
+
+/* Full target: this is pressed to clear a card that is sitting over the page,
+   often on a phone, and a 20px × is the classic mis-tap. */
+.app-alert-close,
+.new-order-alert-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--content-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+.app-alert-close::after,
+.new-order-alert-close::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+}
+.app-alert-close:hover,
+.new-order-alert-close:hover {
+  background: var(--surface-sunken);
+  border-color: var(--border-default);
+  color: var(--content-primary);
+}
+.app-alert-close:active,
+.new-order-alert-close:active { transform: scale(.975); }
+
+@keyframes new-order-alert-in {
+  from { opacity: 0; transform: translateY(calc(var(--space-2) * -1)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* A fault reads differently from good news. Without this the corner is uniformly
+   positive and the one entry that needs acting on gets skimmed past with the
+   rest. Tones follow sync-status.js: rose for a refused credential, which needs
+   a look; amber for a service that is merely unreachable, which is attention
+   rather than alarm. */
+.app-alert-failed { border-left-color: var(--status-critical); }
+.app-alert-failed .app-alert-ico { color: var(--status-critical); }
+.app-alert-offline { border-left-color: var(--status-active); }
+.app-alert-offline .app-alert-ico { color: var(--status-active); }
+.app-alert-pending { border-left-color: var(--status-info); }
+.app-alert-pending .app-alert-ico { color: var(--status-info); }
+
+/* On a phone the card spans the width rather than floating in a corner it would
+   otherwise cover half of. */
+@media (max-width: 640px) {
+  .app-alert-region {
+    left: var(--space-3);
+    right: var(--space-3);
+    top: max(var(--space-3), env(safe-area-inset-top));
+    align-items: stretch;
+  }
+  #app-alert-stack { align-items: stretch; }
+  .app-alert,
+  .new-order-alert { max-width: none; }
+}
+
+@keyframes sync-chip-in {
+  from { opacity: 0; transform: translateY(var(--space-2)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes sync-chip-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* A status indicator must never be the thing that makes someone motion-sick:
+   the entrance and the spinner both stop, the message itself does not. */
+@media (prefers-reduced-motion: reduce) {
+  .app-alert,
+  .new-order-alert { animation: none; }
+  .app-alert-close:active,
+  .new-order-alert-close:active { transform: none; }
+  .sync-chip { animation: none; }
+  .sync-chip.is-pending .sync-chip-ico { animation: none; }
+  .sync-chip-action:hover,
+  .sync-chip-action:active { transform: none; }
+}
+
+/* Narrow phones: the chip spans the width rather than crowding one corner, and
+   the retry button drops onto its own full-width row instead of squeezing the
+   message into a two-word column. */
+@media (max-width: 480px) {
+  .sync-chip {
+    left: var(--space-2);
+    right: var(--space-2);
+    bottom: var(--space-2);
+    max-width: none;
+    flex-wrap: wrap;
+  }
+  .sync-chip-action { width: 100%; }
+}
+
+/* ── Sticky ledger headers ─────────────────────────────────────────────────
+   Opt-in on a `.tbl-wrap` whose table can outrun a screenful: the column
+   labels stay pinned under the app header instead of scrolling away, so the
+   twentieth row of figures is still readable as Qty / Unit price / Total /
+   Stock after rather than four anonymous mono columns.
+
+   Deliberately opt-in, not applied to `.tbl` globally, because several
+   `.tbl-wrap`s are already their own scroll container (an inline max-height
+   with overflow:auto) or live inside a scrolling modal body — there `top` would
+   resolve against the wrong box and push the header down inside the panel.
+   Apply it only to a table that scrolls with the PAGE.
+
+   `--sticky-top` is published by src/lib/sticky-header.js and tracks the real
+   height of the sticky app header. Absent that (no JS yet, no observer, no
+   sticky chrome) it falls back to 0px, which is still correct — the header just
+   pins to the top of the viewport. */
+.tbl-wrap.sys-sticky-head {
+  /* `clip` trims the rounded corners exactly like the base rule's `hidden`,
+     but — unlike `hidden` — does NOT make this a scroll container. That is the
+     whole trick: the header cells below can then resolve their sticky position
+     against the page instead of against a box that never scrolls. Engines
+     without `overflow: clip` drop this line, keep `hidden`, and simply render
+     today's non-sticky header. */
+  overflow: clip;
+}
+/* Below the table breakpoint the wrapper goes back to scrolling sideways —
+   reaching the last column matters more on a phone than pinning the labels —
+   so restore that here rather than let this higher-specificity rule win. */
+@media (max-width: 768px) {
+  .tbl-wrap.sys-sticky-head {
+    overflow-x: auto;
+    overflow-y: clip;
+  }
+}
+.tbl-wrap.sys-sticky-head .tbl thead th {
+  position: sticky;
+  top: var(--sticky-top, 0px);
+  /* Above rows, below the app header (--z-sticky) it tucks under. */
+  z-index: var(--z-raised);
+  /* The base fill lives on `thead`, which a sticky `th` scrolls out from
+     under — without its own background the rows would show straight through. */
+  background: var(--surface-inverse);
+  box-shadow: var(--elev-2);
+}
+
+/* ── Rich empty states ─────────────────────────────────────────────────────
+   The second tier described in UX_PATTERNS.md § Empty states: the treatment a
+   whole tab or panel gets when it has nothing to show, as opposed to the plain
+   one-liner that suits a small nested table body.
+
+   A modifier on .empty-state rather than a parallel class, so the base padding,
+   centring and `text-wrap: pretty` still apply and only the framing is added.
+   Every value here is a token, which is what makes this themeable for free —
+   the earlier .web-empty variant baked light-mode gradients and needed a
+   hand-written dark override to follow.
+
+   Unlayered on purpose: .empty-state in style.css is unlayered, and a rule
+   inside @layer system would lose to it no matter how specific. */
+.empty-state.sys-empty {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  padding: 2.75rem 1.25rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r3);
+  background: var(--surface-sunken);
+}
+.empty-state.sys-empty .e-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 0 .35rem;
+  border-radius: var(--r3);
+  background: var(--gold-bg);
+  box-shadow: inset 0 0 0 1px var(--gold-line);
+  font-size: var(--text-2xl);
+  /* The base .e-icon fades to .35 — legible as a bare glyph, muddy once it
+     sits on a tinted plate. */
+  opacity: 1;
+}
+.empty-state.sys-empty > strong {
+  font-family: var(--font-ui);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  color: var(--content-primary);
+}
+.empty-state.sys-empty > span {
+  max-width: 52ch;
+  font-size: var(--text-base);
+  line-height: var(--leading-snug);
+  color: var(--content-muted);
+}
+.sys-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: .7rem;
+}
+/* Panel-width, not viewport-width: this block renders inside a full tab and
+   inside a narrow card, and only its own width decides whether the buttons
+   still fit side by side. */
+@container (max-width: 460px) {
+  .sys-empty-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: min(100%, 280px);
+  }
+  .sys-empty-actions .btn {
+    justify-content: center;
+  }
+}
+.sys-empty-actions .btn {
+  transition:
+    transform var(--dur-base) var(--ease-entrance),
+    box-shadow var(--dur-base) var(--ease-entrance),
+    background-color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard);
+}
+.sys-empty-actions .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-hover);
+}
+.sys-empty-actions .btn:active {
+  transform: scale(.975);
+}
+/* The motion tokens already collapse to 1ms here; the transforms themselves
+   still need standing down. */
+@media (prefers-reduced-motion: reduce) {
+  .sys-empty-actions .btn:hover,
+  .sys-empty-actions .btn:active {
+    transform: none;
+  }
+}
+
+/* ── View Transitions ──────────────────────────────────────────────────────
+   Applies to re-renders wrapped in withViewTransition() (src/lib/motion.js).
+   Kept short and non-bouncy: this is a dense financial tool, so transitions
+   should reassure that content changed, not perform. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: var(--dur-base);
+    animation-timing-function: var(--ease-standard);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK MODE — shipped, and it lives in src/styles/theme-dark.css.
+   ───────────────────────────────────────────────────────────────────────────
+   The plan recorded here was to migrate every component onto --surface-* /
+   --content-* first and only then add a theme block. What actually shipped
+   re-points the PRIMITIVES (--cream*, --ink*, --text*, --gold*, the status
+   families) instead, because the aliases above are defined in terms of those
+   primitives — so flipping the primitives carries the semantic layer with it
+   and the migration stops being a prerequisite.
+
+   The one thing that migration WAS load-bearing for is the dual role --cream
+   played: page surface *and* light-text-on-ink. Those two meanings cannot
+   flip together. So --on-inverse / --on-accent were added to style.css's
+   :root, every `color:var(--cream)` was moved onto them, and
+   tests/theme.test.js fails the build if one comes back.
+
+   Adding a new component? Use the semantic surface/content aliases (or the
+   primitives) and it themes itself. Only reach into theme-dark.css when a
+   value cannot be a token — a baked gradient stop, or a fill with no dark
+   equivalent.
+   ═══════════════════════════════════════════════════════════════════════════ */

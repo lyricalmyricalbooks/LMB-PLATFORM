@@ -1,0 +1,5200 @@
+// Tax Centre — the ledger view, the trips panel, category breakdowns,
+// recurring expenses, and the tax-season exports.
+//
+// The fourth feature lifted out of src/main.js. It is deliberately a narrower
+// cut than Open Call, Shipping or Big Cartel, and the reason is worth stating:
+// TAX_CENTER is not this feature's state. Thirty-odd functions across main.js
+// read it, so does src/features/shipping.js, and applyBackupData — which has
+// nothing to do with this screen — reassigns it wholesale when a backup is
+// restored. An imported binding cannot be assigned, so moving it here would
+// turn that restore into a runtime TypeError, and no lint rule in this repo
+// catches that.
+//
+// So TAX_CENTER stays in main.js and this module imports it. Mutating its
+// properties is fine and is what every function here does; only rebinding is
+// illegal, and the one Tax Centre function that rebinds it — loadTaxCenter —
+// stays behind with it. TC_CATEGORIES stays too, because the expense editor
+// shares it.
+//
+// What moves is the screen: rendering, filtering, paging, the trips panel and
+// the exports. That is the part nothing else in the app reaches into.
+import {
+  $,
+  TAX_CENTER,
+  _fxRateCache,
+  calculateFinancials,
+  isAuthor,
+  isTestBook,
+  isTestBookId,
+  loadTaxCenter,
+  saveState,
+  showToast,
+  today,
+} from '../main.js';
+import { BOOKS, BOOK_LIST, states, defaultState } from '../core/store.js';
+import { ensurePdfJs } from './invoices.js';
+import { dropFilesIntoInput, setDropzoneDrag } from '../lib/dropzone.js';
+import { TC_CATEGORIES, _tcOpenTripName, openArtistPayoutEditor } from './tax-entries.js';
+import {
+  _localReceiptCell,
+  clearReceiptScanReview,
+  getPendingWebcamReceipt,
+  loadReceiptFolderHandle,
+  resolveLocalReceiptFile,
+  saveReceiptBestEffort,
+  setPendingWebcamReceipt,
+  warmReceiptScan,
+  _warmGeminiModelCache,
+} from './receipts.js';
+import { openM, closeM, confirmDialog } from '../lib/modal.js';
+import { renderShippingReconciliationWorklist } from './shipping.js';
+import { openReviewInbox } from './review-inbox.js';
+import { renderStripeFeesReport } from './stripe-fees.js';
+import { doubleKey } from '../lib/review-queue.js';
+import {
+  findSubscriptionDoubles,
+  hasReceiptProof,
+  ordinalDay,
+  receiptDayHint,
+  subscriptionLines,
+} from '../lib/subscription-receipts.js';
+import { escapeHtml } from '../lib/html.js';
+import { localDayPlus } from '../lib/calendar-day.js';
+import { csvRow, toCsv } from '../lib/csv.js';
+import { downloadCsv } from '../lib/download.js';
+import { fmt, getSym, getBookCurrencyCode, roundCents, setSelectCurrency } from '../lib/money.js';
+import { sumMoney } from '../lib/cents.js';
+import { payoutNetted, payoutDebtCollected } from '../lib/earnings.js';
+import { reconcileConsignmentMirrors } from '../lib/consignment.js';
+import { buildCashFlowBuckets, cashFlowDelta, computeCashFlowMetrics } from '../lib/cashflow.js';
+import { saleCadAmounts, datedCadRate } from '../lib/sale-fx.js';
+import {
+  DEFAULT_SNOOZE_DAYS,
+  findDeductionGaps,
+  gapNoteState,
+  snoozeUntil,
+} from '../lib/deduction-gaps.js';
+import { findCategoryMismatches } from '../lib/category-fit.js';
+import { canonicalExpenseCategory } from '../lib/expense-categories.js';
+import { deductibleAmount, deductibleRate } from '../lib/deductibility.js';
+import { receiptOwners, summarizeReceiptStorage, isReceiptExemptExpense, receiptRefsOf, isWebReceiptLink, hasOnlyShippingLabels } from '../lib/receipt-storage.js';
+import { testZonosConnection } from '../lib/zonos.js';
+import { friendlyOpenRouterError, openRouterAllowanceNote, testOpenRouterConnection } from '../lib/openrouter-chat.js';
+import { _geminiClearRest } from '../lib/gemini-quota.js';
+import { testCanadaPostConnection, validateCanadaPostAccount, isValidCustomerNumber, getSavedSheetsUrl, diagnoseCanadaPostConnection, inspectCanadaPostCredentials, resolveCanadaPostCredentials, migrateCanadaPostCredentials, readCanadaPostCredentialSet, credentialSetIsConfigured, CANADAPOST_CREDENTIAL_FIELDS } from '../lib/carriers/canadapost.js';
+import {
+  RECURRING_FREQUENCIES,
+  amountOnDate,
+  currentAmount,
+  firstUnpostedCharge,
+  frequencyLabel,
+  frequencyMonths,
+  frequencySuffix,
+  lastPostedChargeDate,
+  localYmd,
+  monthlyEquivalent,
+  monthlyEquivalentOn,
+  newRecurringId,
+  nextRateChange,
+  nextRecurringDate,
+  normalizeRecurring,
+  rateSchedule,
+  recurringDueCharges,
+  recurringStatus,
+  relativeDayLabel,
+  summarizeRecurring,
+  upcomingCharges,
+} from '../lib/recurring.js';
+
+async function saveTaxCenter({ rethrow = false } = {}) {
+  if (isAuthor()) return;
+  try {
+    await window._fbSaveSettings('taxCenter', TAX_CENTER);
+    return true;
+  } catch (e) {
+    console.error(e);
+    if (rethrow) throw e;
+    return false;
+  }
+}
+
+/**
+ * Give every subscription a stable id, in place, so the editor and the row
+ * actions can address one by identity instead of by array index. Index-based
+ * addressing was the source of the fuzzy desc+amount+date re-lookup in
+ * removeRecurring: two tabs open, one add, and the index you clicked no longer
+ * points at the row you saw. Returns true when something was assigned, so the
+ * caller can persist the migration once.
+ */
+function _tcEnsureRecurringIds() {
+  let changed = false;
+  (TAX_CENTER.recurring || []).forEach(sub => {
+    if (!sub.id) { sub.id = newRecurringId(); changed = true; }
+  });
+  return changed;
+}
+
+/** Look a subscription up by its stable id. */
+function _tcFindRecurring(id) {
+  return (TAX_CENTER.recurring || []).find(s => String(s.id) === String(id)) || null;
+}
+
+/**
+ * The ledger line for one subscription charge. `recurringPeriod` names the
+ * billing period it pays for, so a receipt can find it even when the line's
+ * date isn't the schedule's (a charge counted early, on its receipt's date).
+ */
+function _tcRecurringLine(sub, charge) {
+  const origCur = sub.currency || 'CAD';
+  // The charge's own date's rate, else today's. With neither, the charge is
+  // flagged and healExpenseRates fills it in online — not booked 1:1.
+  let fxRate = datedCadRate(origCur, charge.date, _fxRateCache);
+  // Today's rate is a fair stand-in only for a charge dated today. A back-
+  // charge (a subscription that began months ago, or the app was closed for
+  // a while) valued at today's rate would be permanent — the rate healer
+  // only revisits expenses flagged as missing one — so a past charge
+  // without its own date's rate is flagged and healed with the historical
+  // rate once online, exactly like an expense logged offline.
+  if (fxRate.estimated && !fxRate.missing && String(charge.date || '') < today()) {
+    fxRate = { rate: 1, estimated: true, missing: true };
+  }
+  const chargeAmount = Number(charge.amount) || 0;
+  const baseAmount = fxRate.missing ? null : roundCents(chargeAmount * fxRate.rate);
+
+  return {
+    id: Date.now() + Math.random(),
+    desc: sub.desc + ' (Recurring)',
+    cat: sub.cat,
+    currency: origCur,
+    amount: chargeAmount,
+    fxRate: fxRate.missing ? null : fxRate.rate,
+    baseAmount: baseAmount,
+    ...(fxRate.missing ? { fxMissing: true } : {}),
+    date: charge.date,
+    ref: 'Auto-Injected',
+    recurringId: sub.id || '',
+    recurringPeriod: charge.monthKey || '',
+    receipt: ''
+  };
+}
+
+function processRecurringExpenses() {
+  if (isAuthor() || !TAX_CENTER.recurring || TAX_CENTER.recurring.length === 0) return;
+  const now = new Date();
+
+  let modified = _tcEnsureRecurringIds();
+  TAX_CENTER.recurring.forEach(sub => {
+    // recurringDueCharges honours cadence, the end date and the paused flag,
+    // and refuses to log a charge whose date hasn't arrived yet. Each charge
+    // carries the price in force on its own date, so a backfill that straddles
+    // a rent increase posts the old rate for the old months.
+    recurringDueCharges(sub, now).forEach(charge => {
+      if (!TAX_CENTER.businessExpenses) TAX_CENTER.businessExpenses = [];
+      TAX_CENTER.businessExpenses.unshift(_tcRecurringLine(sub, charge));
+      sub.lastInjected = charge.monthKey;
+      modified = true;
+    });
+  });
+
+  if (modified) {
+    saveTaxCenter();
+    renderTaxCenter();
+  }
+}
+
+/**
+ * Post the subscription charges that are due on a fresh copy of the books.
+ * Reloading first matters when another device has posted (or counted early) a
+ * charge since this one last loaded: the auto-poster run on the stale copy
+ * would post that period a second time, and the save merge keeps both lines.
+ * Offline, the load keeps what is held and the posting still runs.
+ */
+async function refreshRecurringCharges() {
+  await loadTaxCenter();
+  processRecurringExpenses();
+}
+
+/**
+ * Count a subscription's next charge now, because its bill arrived before the
+ * day it is due — the phone bill emailed a week early. The line is priced at
+ * `amount` and dated on the charge's own due date, not the bill's: a January
+ * renewal invoiced in December belongs to January, and to January's tax year.
+ * The period is marked posted so the subscription doesn't add it again.
+ *
+ * Only the very next charge: counting a later one would mark the one before it
+ * posted without ever posting it. Returns the new line, or null. The caller
+ * saves.
+ */
+function postSubscriptionChargeEarly(subId, monthKey, { amount }) {
+  const sub = _tcFindRecurring(subId);
+  if (!sub || sub.paused) return null;
+  const next = firstUnpostedCharge(sub);
+  if (!next || next.monthKey !== monthKey) return null;
+  if (!TAX_CENTER.businessExpenses) TAX_CENTER.businessExpenses = [];
+  const line = _tcRecurringLine(sub, { ...next, amount: Number(amount) || next.amount });
+  TAX_CENTER.businessExpenses.unshift(line);
+  sub.lastInjected = next.monthKey;
+  return line;
+}
+
+function tcExpenseRowDragOver(e, row) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (row) {
+    row.style.outline = '2px dashed var(--gold)';
+    row.style.background = 'rgba(232,  64,  42, 0.12)';
+  }
+}
+
+function tcExpenseRowDragLeave(e, row) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (row) {
+    row.style.outline = '';
+    row.style.background = '';
+  }
+}
+
+async function tcExpenseRowDrop(e, row, sourceType, sourceId, itemId) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (row) {
+    row.style.outline = '';
+    row.style.background = '';
+  }
+
+  const files = e.dataTransfer?.files;
+  if (!files || !files.length) return;
+
+  const file = files[0];
+  let exp = null;
+  let subfolder = 'General';
+
+  if (sourceType === 'businessExpense') {
+    exp = (TAX_CENTER.businessExpenses || []).find(x => String(x.id) === String(itemId));
+  } else if (sourceType === 'bookExpense') {
+    const s = states[sourceId];
+    if (s && s.expenses) {
+      exp = s.expenses.find(x => String(x.id) === String(itemId));
+      if (BOOKS[sourceId]) subfolder = BOOKS[sourceId].title.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    }
+  }
+
+  if (!exp) {
+    showToast('⚠ Expense entry not found', 'err');
+    return;
+  }
+
+  // Folder first, cloud second. The old fallback here invented a
+  // `local://<name>` reference for a file that had never been written, so the
+  // ledger showed a "View Local" link that could only ever fail to open.
+  const saved = await saveReceiptBestEffort(file, subfolder);
+  if (saved.storage === 'none') {
+    showToast(`⚠ Could not save "${file.name}" — nothing was attached`, 'err', 5000);
+    return;
+  }
+
+  if (!Array.isArray(exp.receiptFiles)) exp.receiptFiles = exp.receipt ? [exp.receipt] : [];
+  exp.receiptFiles.push(saved.ref);
+  exp.receipt = exp.receiptFiles[0] || '';
+  if (saved.storage === 'cloud' && !exp.receiptCloudAt) exp.receiptCloudAt = new Date().toISOString();
+
+  if (sourceType === 'businessExpense') {
+    await saveTaxCenter();
+  } else if (sourceType === 'bookExpense') {
+    await saveState(sourceId);
+  }
+
+  renderTaxCenter();
+  showToast(
+    saved.storage === 'cloud'
+      ? `✓ Attached "${file.name}" — saved to the cloud until your folder is available`
+      : `✓ Attached receipt "${file.name}" to "${exp.desc || 'Expense'}"`,
+    'ok',
+    saved.storage === 'cloud' ? 5000 : undefined
+  );
+}
+
+function downloadTaxReport() {
+  const year = $('fin-year-selector').value;
+  const fin = calculateFinancials(parseInt(year));
+  const yearStr = String(year);
+
+  let csv = 'Date,Type,Book/Source,Category,Description,Receipt URL,Revenue,COGS,Expense,Artist Payout,Net\n';
+
+  BOOK_LIST.forEach(book => {
+    if (isTestBook(book) || isTestBookId(book.id)) return;
+    const s = states[book.id] || defaultState(book);
+    // The sale rows below are read off the History mirrors, so re-derive them
+    // from the consignment ledger first — otherwise a sale whose commission or
+    // price was corrected exports at its original amount.
+    reconcileConsignmentMirrors(s);
+
+    // ⚡ Bolt Optimization: Use imperative loop to avoid array allocation from .filter()
+    if (s.hist && s.hist.length > 0) {
+      for (const h of s.hist) {
+        if (h.voided || h.gratuity) continue;
+
+        // ⚡ Bolt Optimization: Use string prefix matching for "YYYY-MM-DD" formatted dates to avoid expensive Date parsing inside loops
+        if (h.date && h.date.startsWith(yearStr)) {
+          const gross = (h.qty * h.price).toFixed(2);
+          csv += csvRow([h.date, 'Order', book.title, 'Sale',
+            `${h.chan} Order #${h.num}`, '', gross, 0, 0, 0, gross]) + '\n';
+        }
+      }
+    }
+
+    (s.expenses || []).forEach(e => {
+      // ⚡ Bolt Optimization: Use string prefix matching for "YYYY-MM-DD" formatted dates to avoid expensive Date parsing inside loops
+      if (e.date && e.date.startsWith(yearStr)) {
+        csv += csvRow([e.date, 'Expense', book.title, e.cat, e.desc, e.receipt || '',
+          0, 0, e.amount.toFixed(2), 0, -e.amount.toFixed(2)]) + '\n';
+      }
+    });
+  });
+
+  // Summary lines for COGS and Shares
+  csv += `\nSUMMARY FOR ${year},,,,,,,,,\n`;
+  fin.bookStats.forEach(bs => {
+    csv += csvRow([`${year}-12-31`, 'COGS Summary', bs.title, 'COGS', 'Inventory Recovery', '',
+      0, bs.cogs.toFixed(2), 0, 0, -bs.cogs.toFixed(2)]) + '\n';
+    csv += csvRow([`${year}-12-31`, 'Artist Share', bs.title, 'Royalty', 'Tiered Payout', '',
+      0, 0, 0, bs.shares.toFixed(2), -bs.shares.toFixed(2)]) + '\n';
+  });
+
+  const waiting = fin.fxWaitingCount || 0;
+  if (waiting) {
+    const note = `${waiting} expense${waiting === 1 ? ' is' : 's are'} still waiting for an exchange rate \u2014 counted as 0 in the CAD totals, so they are not final.`;
+    csv += csvRow([`${year}-12-31`, 'WARNING', '', '', note, '', 0, 0, 0, 0, 0]) + '\n';
+    showToast(`\u26a0 ${note}`, 'warn', 7000);
+  }
+
+  downloadCsv(csv, `Lyrical_Tax_Report_${year}.csv`);
+}
+
+const TC_LEDGER_PAGE_SIZE = 25;
+let _tcLedgerPage = 0;
+let _tcLedgerSearch = '';
+let _tcLedgerType = 'all'; // 'all' | 'sales' | 'expenses'
+let _tcLedgerSearchTimer = null;
+
+const TC_LEDGER_PREFS_KEY = 'lm-tc-ledger-prefs';
+let _tcPrefsRestored = false;
+
+function _tcSaveLedgerPrefs() {
+  const yearEl = $('tc-year');
+  try {
+    localStorage.setItem(TC_LEDGER_PREFS_KEY, JSON.stringify({
+      search: _tcLedgerSearch,
+      type: _tcLedgerType,
+      year: yearEl ? yearEl.value : 'all',
+    }));
+  } catch (e) { /* ignore quota / private-mode errors */ }
+}
+
+// Offer the coming year even before its first entry. Record years outside the
+// standard range remain accessible, including records synchronized offline.
+function _tcRefreshYearOptions(currentYear = new Date().getFullYear()) {
+  const selects = [$('tc-year'), $('tc-year-ledger')].filter(Boolean);
+  if (!selects.length) return;
+  const selected = selects[0].value || 'all';
+  const years = new Set();
+  for (let year = currentYear + 1; year >= 2023; year--) years.add(year);
+  const addYear = value => {
+    if (/^[1-9]\d{3}$/.test(value)) years.add(Number(value));
+  };
+  addYear(selected);
+  for (const row of _tcBuildLedger('all').allLedger) {
+    addYear(String(row.date || '').slice(0, 4));
+  }
+  const options = '<option value="all">All Time</option>' +
+    [...years].sort((a, b) => b - a).map(year => `<option value="${year}">${year}</option>`).join('');
+  for (const select of selects) {
+    if (select.innerHTML !== options) select.innerHTML = options;
+    select.value = selected;
+  }
+}
+
+function _tcRestoreLedgerPrefs() {
+  if (_tcPrefsRestored) return;
+  _tcPrefsRestored = true;
+  let p = {};
+  try { p = JSON.parse(localStorage.getItem(TC_LEDGER_PREFS_KEY) || '{}') || {}; } catch (e) { p = {}; }
+  if (typeof p.search === 'string') {
+    _tcLedgerSearch = p.search;
+    const el = $('tc-ledger-search'); if (el) el.value = p.search;
+  }
+  if (p.type === 'sales' || p.type === 'expenses' || p.type === 'all') {
+    _tcLedgerType = p.type;
+    const el = $('tc-ledger-type'); if (el) el.value = p.type;
+  }
+  if (typeof p.year === 'string') {
+    // Apply to BOTH year selects (Cash Flow Summary + Master Ledger) so they
+    // agree on the restored period. Only restore a year the dropdown offers.
+    [$('tc-year'), $('tc-year-ledger')].forEach(el => {
+      if (el && Array.from(el.options).some(o => o.value === p.year)) el.value = p.year;
+    });
+  }
+}
+
+function setTcLedgerPage(n) {
+  _tcLedgerPage = n;
+  renderTaxCenter();
+}
+
+function tcLedgerSearchInput(v) {
+  _tcLedgerSearch = v || '';
+  clearTimeout(_tcLedgerSearchTimer);
+  _tcLedgerSearchTimer = setTimeout(() => { _tcLedgerPage = 0; _tcSaveLedgerPrefs(); renderTaxCenter(); }, 200);
+}
+
+function tcLedgerTypeFilter(v) {
+  _tcLedgerType = (v === 'sales' || v === 'expenses') ? v : 'all';
+  _tcLedgerPage = 0;
+  _tcSaveLedgerPrefs();
+  renderTaxCenter();
+}
+
+function tcYearChange(value) {
+  const v = typeof value === 'string' ? value : 'all';
+  [$('tc-year'), $('tc-year-ledger')].forEach(el => {
+    if (el && Array.from(el.options).some(o => o.value === v)) el.value = v;
+  });
+  _tcLedgerPage = 0;
+  _tcSaveLedgerPrefs();
+  renderTaxCenter();
+}
+
+function tcLedgerYearChange() {
+  const el = $('tc-year') || $('tc-year-ledger');
+  tcYearChange(el ? el.value : 'all');
+}
+
+let _tcLedgerSpecialFilter = ''; // '' | 'missing' | 'cloud' | 'local' | 'linked' | 'label'
+
+function tcClearLedgerFilters() {
+  _tcLedgerSearch = '';
+  _tcLedgerType = 'all';
+  _tcLedgerSpecialFilter = '';
+  _tcLedgerPage = 0;
+  const sEl = $('tc-ledger-search'); if (sEl) sEl.value = '';
+  const tEl = $('tc-ledger-type'); if (tEl) tEl.value = 'all';
+  _tcSaveLedgerPrefs();
+  renderTaxCenter();
+}
+
+function tcFilterLedgerByReceiptStorage(storageType) {
+  _tcLedgerSpecialFilter = (_tcLedgerSpecialFilter === storageType) ? '' : storageType;
+  _tcLedgerPage = 0;
+  switchTaxCenterSubTab('ledger');
+  renderTaxCenter();
+  const target = $('tc-ledger-search') || $('tc-sec-ledger');
+  if (target && _tcLedgerSpecialFilter) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('tc-flash-target');
+    setTimeout(() => target.classList.remove('tc-flash-target'), 1500);
+  }
+}
+
+function _tcApplyLedgerFilter(rows) {
+  // ⚡ Bolt Optimization: Replace chained .filter().some() passes with a single imperative loop
+  // This avoids allocating multiple intermediate arrays and O(N) internal GC allocations on every ledger re-render
+  const out = [];
+  const q = _tcLedgerSearch.trim().toLowerCase();
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+
+    // Type filter
+    if (_tcLedgerType === 'sales' && !r.isIncome) continue;
+    if (_tcLedgerType === 'expenses' && r.isIncome) continue;
+
+    // Special filter (all special filters apply to expenses only)
+    if (_tcLedgerSpecialFilter) {
+      if (r.isIncome) continue;
+
+      let matchedSpecial = false;
+      if (_tcLedgerSpecialFilter === 'missing') {
+        matchedSpecial = !isReceiptExemptExpense(r) && !r.receipt && (!r.receiptFiles || !r.receiptFiles.length) && !(typeof r.ref === 'string' && (r.ref.includes('local://') || /^https?:\/\//i.test(r.ref)));
+      } else if (_tcLedgerSpecialFilter === 'cloud') {
+        if (r.receiptCloudAt) matchedSpecial = true;
+        else if (typeof r.receipt === 'string' && r.receipt.startsWith('cloud://')) matchedSpecial = true;
+        else if (Array.isArray(r.receiptFiles)) {
+          for (let k = 0; k < r.receiptFiles.length; k++) {
+            if (r.receiptFiles[k] && r.receiptFiles[k].startsWith('cloud://')) { matchedSpecial = true; break; }
+          }
+        }
+      } else if (_tcLedgerSpecialFilter === 'local') {
+        if (typeof r.receipt === 'string' && r.receipt.startsWith('local://')) matchedSpecial = true;
+        else if (typeof r.ref === 'string' && r.ref.includes('local://')) matchedSpecial = true;
+        else if (Array.isArray(r.receiptFiles)) {
+          for (let k = 0; k < r.receiptFiles.length; k++) {
+            if (r.receiptFiles[k] && r.receiptFiles[k].startsWith('local://')) { matchedSpecial = true; break; }
+          }
+        }
+      } else if (_tcLedgerSpecialFilter === 'linked') {
+        matchedSpecial = receiptRefsOf(r).some(isWebReceiptLink);
+      } else if (_tcLedgerSpecialFilter === 'label') {
+        matchedSpecial = hasOnlyShippingLabels(r);
+      }
+
+      if (!matchedSpecial) continue;
+    }
+
+    // Search text filter
+    if (q) {
+      const hay = `${r.date || ''} ${r.type || ''} ${r.desc || ''} ${r.cat || ''} ${r.ref || ''} ${r.origCurrency || ''}`.toLowerCase();
+      if (!hay.includes(q)) continue;
+    }
+
+    out.push(r);
+  }
+
+  return out;
+}
+
+// ── Recurring subscriptions ─────────────────────────────────────────────────
+// The panel is a small ledger of its own: each row is a standing commitment,
+// and the numbers people actually want off this screen are "what do these cost
+// me a month" and "what lands next". Both were previously absent — the table
+// listed a raw amount and the YYYY-MM of the last injection and stopped there.
+
+/** Which lifecycle bucket the table is filtered to. */
+let _tcRecurringFilter = 'all';
+
+const REC_STATUS_META = {
+  active: { cls: 'green', glyph: '●', label: 'Active' },
+  scheduled: { cls: 'blue', glyph: '◷', label: 'Scheduled' },
+  paused: { cls: 'gray', glyph: '❚❚', label: 'Paused' },
+  ended: { cls: 'gray', glyph: '✓', label: 'Ended' },
+  invalid: { cls: 'red', glyph: '⚠', label: 'Needs a date' },
+};
+
+function tcSetRecurringFilter(f) {
+  _tcRecurringFilter = ['active', 'paused', 'ended'].includes(f) ? f : 'all';
+  _tcRenderRecurringSubscriptions();
+}
+
+/** How many ledger expenses this subscription has posted so far. */
+function _tcRecurringChargeCount(sub) {
+  const legacyDesc = `${sub.desc} (Recurring)`;
+  return (TAX_CENTER.businessExpenses || []).filter(e =>
+    (sub.id && e.recurringId === sub.id) || (!e.recurringId && e.desc === legacyDesc)
+  ).length;
+}
+
+/**
+ * Jump the ledger below to just this subscription's posted charges. The whole
+ * point of the "12 charges" link — the injected expenses are the evidence, and
+ * they were previously three scrolls and a guessed search term away.
+ */
+function tcShowRecurringCharges(id) {
+  const sub = _tcFindRecurring(id);
+  if (!sub) return;
+  const yearSel = $('tc-year-ledger') || $('tc-year');
+  if (yearSel && Array.from(yearSel.options).some(o => o.value === 'all')) tcYearChange('all');
+  const typeSel = $('tc-ledger-type');
+  if (typeSel) typeSel.value = 'expenses';
+  tcLedgerTypeFilter('expenses');
+  const searchEl = $('tc-ledger-search');
+  if (searchEl) searchEl.value = sub.desc;
+  tcLedgerSearchInput(sub.desc);
+  $('tc-ledger-search')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function _tcRecurringRowHtml(raw, now, baseCurrency) {
+  const s = normalizeRecurring(raw);
+  const status = recurringStatus(s, now);
+  const meta = REC_STATUS_META[status] || REC_STATUS_META.active;
+  const cur = s.currency || baseCurrency;
+  const rate = cur === baseCurrency ? 1 : Number(_fxRateCache[`${cur}_${baseCurrency}`]) || 0;
+  const perMonth = monthlyEquivalent(s, now);
+  const inactive = status === 'paused' || status === 'ended';
+  const liveAmount = currentAmount(s, now);
+
+  // The amount column carries the price story: what it costs today, what it
+  // becomes if a rise is already scheduled, and a way in to schedule one. An
+  // increase used to mean overwriting the amount and hoping no backfill ran.
+  const change = nextRateChange(s, now);
+  const priceNote = status === 'ended'
+    ? ''
+    : change
+      ? `<button type="button" class="rec-rate-chip${change.delta < 0 ? ' is-down' : ''}"
+           onclick="openRecurringEditor('${escapeHtml(s.id)}', 'rates')"
+           title="Scheduled price change — charges before ${escapeHtml(change.effectiveFrom)} keep ${escapeHtml(fmt(change.from, cur))}">
+           ${change.delta < 0 ? '↓' : '↑'} ${escapeHtml(fmt(change.to, cur))} from ${escapeHtml(change.effectiveFrom)}
+         </button>`
+      : `<button type="button" class="rec-charge-link"
+           onclick="openRecurringEditor('${escapeHtml(s.id)}', 'rates')"
+           title="Record a new price from a date you choose — charges already posted keep the old one">Adjust price →</button>`;
+  const priorChanges = s.rateChanges.filter(r => r.effectiveFrom <= localYmd(now)).length;
+  const priceHistory = priorChanges
+    ? `<div class="rec-meta rec-dim" title="${escapeHtml(rateSchedule(s).map(r => `${r.effectiveFrom || '—'}: ${fmt(r.amount, cur)}`).join(' · '))}">${priorChanges} past change${priorChanges === 1 ? '' : 's'}</div>`
+    : '';
+
+  // Per-month column: converted where a rate is known, flagged with ≈ where it
+  // isn't, rather than silently reporting a USD figure as if it were CAD. A
+  // scheduled change carries the monthly figure with it — the number under this
+  // heading is what the month costs, so it has to move when the price does.
+  const perMonthAfter = change ? monthlyEquivalentOn(s, change.effectiveFrom) : 0;
+  const perMonthNote = change
+    ? `<div class="rec-rate-after${change.delta < 0 ? ' is-down' : ''}"
+         title="From ${escapeHtml(change.effectiveFrom)} this subscription costs ${escapeHtml(rate ? fmt(perMonthAfter * rate, baseCurrency) : fmt(perMonthAfter, cur))} a month.">${change.delta < 0 ? '↓' : '↑'} ${escapeHtml(rate ? fmt(perMonthAfter * rate, baseCurrency) : `≈ ${fmt(perMonthAfter, cur)}`)}<br>from ${escapeHtml(change.effectiveFrom)}</div>`
+    : '';
+  const perMonthCell = inactive
+    ? '<span class="rec-dim">—</span>'
+    : (rate
+      ? `${fmt(perMonth * rate, baseCurrency)}`
+      : `<span class="rec-approx" title="No ${cur}→${baseCurrency} rate cached yet — shown unconverted.">≈ ${fmt(perMonth, cur)}</span>`) + perMonthNote;
+
+  // The next charge is priced by its own date, which is the whole point of a
+  // scheduled change: if the rise lands on or before that date, the money that
+  // actually leaves the account is the new figure, not the one in the amount
+  // column. Saying "2026-09-01" without the amount was the half of it that
+  // mattered least.
+  const next = nextRecurringDate(s, now);
+  const nextAmount = next ? amountOnDate(s, next) : 0;
+  const nextIsNewPrice = next && Math.abs(nextAmount - liveAmount) >= 0.005;
+  const nextCell = next
+    ? `<div class="rec-next-date">${escapeHtml(next)}</div>
+       <div class="rec-next-rel">${escapeHtml(relativeDayLabel(next, now))}</div>
+       <div class="rec-next-amt${nextIsNewPrice ? ' is-new' : ''}"${nextIsNewPrice
+        ? ` title="First charge at the new price — everything up to ${escapeHtml(next)} bills at ${escapeHtml(fmt(liveAmount, cur))}"`
+        : ''}>${nextIsNewPrice ? `${nextAmount > liveAmount ? '↑' : '↓'} ` : ''}${escapeHtml(fmt(nextAmount, cur))}</div>`
+    : status === 'paused'
+      ? '<span class="rec-dim">Held</span>'
+      : status === 'ended'
+        ? `<span class="rec-dim">Ended ${escapeHtml(s.endDate || '')}</span>`
+        : '<span class="rec-dim">—</span>';
+
+  const lines = subscriptionLines(s, TAX_CENTER.businessExpenses || []);
+  const charges = lines.length;
+  // How many of those charges have their receipt — the proof the tax return
+  // leans on. Receipts the vendor emails are kept on the charge they pay for.
+  const proven = lines.filter(hasReceiptProof).length;
+  let proofWords = proven === charges ? `all ${charges} with receipts` : proven === 1 ? '1 with a receipt' : `${proven || 'none'} with receipts`;
+  if (charges === 1) proofWords = proven ? 'has its receipt' : 'no receipt yet';
+  const proofNote = charges
+    ? `<span class="rec-dim" title="Receipts kept with this subscription’s charges">· ${proofWords}</span>`
+    : '';
+  const chargeLink = charges
+    ? `<button type="button" class="rec-charge-link" onclick="tcShowRecurringCharges('${escapeHtml(s.id)}')" title="Show these ${charges} posted charges in the ledger below">${charges} charge${charges === 1 ? '' : 's'} logged →</button> ${proofNote}`
+    : '<span class="rec-dim">Nothing posted yet</span>';
+
+  // When the vendor's receipts keep landing later in the month than the
+  // subscription posts, offer to move the charge day to match.
+  const dayHint = receiptDayHint(s, TAX_CENTER.businessExpenses || []);
+  const dayHintHtml = dayHint
+    ? `<div class="rec-meta">Its last two receipts are dated ${escapeHtml(ordinalDay(dayHint.day))}.
+<button type="button" class="rec-charge-link" onclick="tcMoveRecurringDay('${escapeHtml(s.id)}', ${dayHint.day})"
+           title="From ${escapeHtml(dayHint.nextDate)} on. Charges already posted keep their dates.">Charge on ${escapeHtml(ordinalDay(dayHint.day))} →</button> · <button type="button" class="rec-charge-link" onclick="tcKeepRecurringDay('${escapeHtml(s.id)}', ${dayHint.day})">Keep as is</button>
+       </div>`
+    : '';
+
+  const subline = [s.vendor, s.cat].filter(Boolean).map(escapeHtml).join(' · ');
+
+  return `
+    <tr class="rec-row${inactive ? ' is-inactive' : ''}">
+      <td>
+        <div class="rec-name">${escapeHtml(s.desc || 'Untitled')}</div>
+        <div class="rec-meta">${subline}</div>
+        <div class="rec-meta">${chargeLink}</div>
+        ${dayHintHtml}
+        ${s.notes ? `<div class="rec-note">${escapeHtml(s.notes)}</div>` : ''}
+      </td>
+      <td><span class="pill gray">${escapeHtml(frequencyLabel(s.frequency))}</span>
+        <div class="rec-meta">from ${escapeHtml(s.startDate || '—')}${s.endDate ? ` → ${escapeHtml(s.endDate)}` : ''}</div>
+      </td>
+      <td class="r rec-amount-cell">${fmt(liveAmount, cur)}<span class="rec-per">${escapeHtml(frequencySuffix(s.frequency))}</span>
+        ${priceNote ? `<div class="rec-rate-line">${priceNote}</div>` : ''}
+        ${priceHistory}
+      </td>
+      <td class="r rec-amount-cell">${perMonthCell}</td>
+      <td>${nextCell}</td>
+      <td><span class="pill ${meta.cls}">${meta.glyph} ${meta.label}</span></td>
+      <td class="r">
+        <div class="rec-actions">
+          <button class="btn sm" onclick="openRecurringEditor('${escapeHtml(s.id)}')" title="Edit this subscription">Edit</button>
+          ${status === 'ended' ? '' : `<button class="btn sm" onclick="toggleRecurringPause('${escapeHtml(s.id)}')" title="${s.paused ? 'Resume billing from this month' : 'Stop posting charges without deleting the record'}">${s.paused ? 'Resume' : 'Pause'}</button>`}
+          <button class="btn sm danger-btn" onclick="removeRecurring('${escapeHtml(s.id)}')" title="Delete this subscription">Remove</button>
+        </div>
+      </td>
+    </tr>`;
+}
+
+function _tcRenderRecurringSummary(subs, summary, baseCurrency) {
+  const el = $('tc-recurring-summary');
+  if (!el) return;
+  if (!subs.length) { el.innerHTML = ''; return; }
+
+  const approx = summary.unconverted.length
+    ? `<div class="rec-stat-note" title="No cached rate for ${summary.unconverted.join(', ')} — those lines are counted at 1:1 until a rate is fetched.">≈ excludes ${escapeHtml(summary.unconverted.join(', '))} conversion</div>`
+    : '';
+  // The soonest charge names its amount, and flags it when that amount is a
+  // price change taking effect — the tile is read as "what's about to be paid".
+  const upNext = summary.nextUp;
+  const upNextCur = upNext ? (upNext.sub.currency || baseCurrency) : baseCurrency;
+  const upNextDelta = upNext ? upNext.amount - currentAmount(upNext.sub) : 0;
+  const upNextIsNew = Math.abs(upNextDelta) >= 0.005;
+  const nextUp = upNext
+    ? `<div class="rec-stat-val">${escapeHtml(relativeDayLabel(upNext.date))}</div>
+       <div class="rec-stat-lbl">Next charge · ${escapeHtml(fmt(upNext.amount, upNextCur))} · ${escapeHtml(upNext.sub.desc || '')}</div>
+       ${upNextIsNew ? `<div class="rec-stat-note rec-stat-change" title="This is the first charge at the new price.">${upNextDelta < 0 ? '↓' : '↑'} new price starts with this charge</div>` : ''}`
+    : `<div class="rec-stat-val">—</div><div class="rec-stat-lbl">Next charge</div>`;
+
+  // A scheduled rise changes the number this card exists to report, so say so
+  // here rather than letting it appear unannounced on the day it takes effect.
+  const change = summary.upcomingChange;
+  const changeNote = change
+    ? `<div class="rec-stat-note rec-stat-change" title="${escapeHtml(change.sub.desc || '')} goes from ${escapeHtml(fmt(change.from, change.sub.currency || baseCurrency))} to ${escapeHtml(fmt(change.to, change.sub.currency || baseCurrency))} on ${escapeHtml(change.date)}">${change.delta < 0 ? '↓' : '↑'} ${escapeHtml(fmt(summary.monthlyBaseAfterChange, baseCurrency))} from ${escapeHtml(change.date)} · ${escapeHtml(change.sub.desc || 'a subscription')}</div>`
+    : '';
+
+  el.innerHTML = `
+    <div class="rec-stat is-lead">
+      <div class="rec-stat-val">${fmt(summary.monthlyBase, baseCurrency)}</div>
+      <div class="rec-stat-lbl">Committed per month</div>
+      ${approx}
+      ${changeNote}
+    </div>
+    <div class="rec-stat">
+      <div class="rec-stat-val">${fmt(summary.annualBase, baseCurrency)}</div>
+      <div class="rec-stat-lbl">Annualised run rate</div>
+      ${change ? `<div class="rec-stat-note rec-stat-change" title="Twelve months at the committed total once ${escapeHtml(change.sub.desc || 'that change')} takes effect on ${escapeHtml(change.date)}.">${change.delta < 0 ? '↓' : '↑'} ${escapeHtml(fmt(summary.monthlyBaseAfterChange * 12, baseCurrency))} from ${escapeHtml(change.date)}</div>` : ''}
+    </div>
+    <div class="rec-stat">${nextUp}</div>
+    <div class="rec-stat">
+      <div class="rec-stat-val">${summary.activeCount + summary.scheduledCount}</div>
+      <div class="rec-stat-lbl">Live${summary.pausedCount ? ` · ${summary.pausedCount} paused` : ''}${summary.endedCount ? ` · ${summary.endedCount} ended` : ''}</div>
+    </div>`;
+}
+
+let _tcDoublesNoteClosed = false;
+
+/**
+ * A note above the subscriptions when a receipt was filed on its own for a
+ * charge a subscription already counts, so that cost is in the books twice.
+ * The pairs themselves are settled one at a time in the Review inbox.
+ */
+function _tcRenderSubscriptionDoublesNote(subs) {
+  const el = $('tc-recurring-doubles');
+  if (!el) return;
+  const doubles = subs.length && !_tcDoublesNoteClosed ? findSubscriptionDoubles(subs, TAX_CENTER.businessExpenses || []) : [];
+  if (!doubles.length) { el.hidden = true; el.innerHTML = ''; return; }
+  const n = doubles.length;
+  el.innerHTML = `<div class="rec-alert-inner">
+      <span class="rec-alert-icon" aria-hidden="true">📑</span>
+      <div class="rec-alert-text"><strong>${n === 1 ? 'One cost looks' : `${n} costs look`} counted twice.</strong>
+        A receipt was filed as its own expense for a charge a subscription already counts.</div>
+      <button type="button" class="btn sm gold" onclick="tcReviewSubscriptionDoubles()">Review ${n === 1 ? 'it' : 'them'}</button>
+      <button class="card-x" type="button" onclick="tcCloseSubscriptionDoublesNote()" aria-label="Close this note"
+        title="Close for now — ${n === 1 ? 'it stays' : 'they stay'} in the Review inbox, and this note comes back next time the app opens">✕</button>
+    </div>`;
+  el.hidden = false;
+}
+
+/** Open the Review inbox on the first of those pairs. */
+function tcReviewSubscriptionDoubles() {
+  const first = findSubscriptionDoubles(TAX_CENTER.recurring || [], TAX_CENTER.businessExpenses || [])[0];
+  openReviewInbox({ filter: 'receipt', key: first ? doubleKey(first.expense) : '' });
+}
+
+function tcCloseSubscriptionDoublesNote() {
+  _tcDoublesNoteClosed = true;
+  _tcRenderSubscriptionDoublesNote(TAX_CENTER.recurring || []);
+}
+
+/**
+ * Move a subscription's charge day to the one its receipts show, from the next
+ * charge on. Posted charges keep their dates; the move is recorded as a dated
+ * change, the same as one made in the editor.
+ */
+async function tcMoveRecurringDay(id, day) {
+  await loadTaxCenter();
+  const sub = _tcFindRecurring(id);
+  const hint = sub ? receiptDayHint(sub, TAX_CENTER.businessExpenses || []) : null;
+  if (!hint || hint.day !== Number(day)) { showToast('That suggestion no longer applies.', 'warn'); renderTaxCenter(); return; }
+  const previous = sub.rateChanges;
+  sub.rateChanges = hint.rateChanges;
+  if ((await saveTaxCenter()) === false) {
+    sub.rateChanges = previous;
+    showToast('⚠ Could not save the new charge day', 'err');
+    return;
+  }
+  renderTaxCenter();
+  showToast(`✓ ${sub.desc} now charges on ${ordinalDay(hint.day)}, from ${hint.nextDate}`);
+}
+
+/** Leave the charge day where it is; the suggestion for this day stops showing. */
+async function tcKeepRecurringDay(id, day) {
+  await loadTaxCenter();
+  const sub = _tcFindRecurring(id);
+  if (!sub) return;
+  const previous = sub.dayHintDismissed;
+  sub.dayHintDismissed = Number(day);
+  if ((await saveTaxCenter()) === false) {
+    sub.dayHintDismissed = previous;
+    showToast('⚠ Could not save that', 'err');
+    return;
+  }
+  renderTaxCenter();
+}
+
+function _tcRenderRecurringFilters(counts) {
+  const el = $('tc-recurring-filters');
+  if (!el) return;
+  const total = counts.all;
+  if (!total) { el.innerHTML = ''; return; }
+  const tabs = [
+    ['all', 'All', counts.all],
+    ['active', 'Active', counts.active],
+    ['paused', 'Paused', counts.paused],
+    ['ended', 'Ended', counts.ended],
+  ].filter(([id, , n]) => id === 'all' || n > 0);
+  el.innerHTML = tabs.map(([id, label, n]) => `
+    <button type="button" class="rec-filter${_tcRecurringFilter === id ? ' is-on' : ''}"
+      aria-pressed="${_tcRecurringFilter === id}" onclick="tcSetRecurringFilter('${id}')">
+      ${label}<span class="rec-filter-count">${n}</span>
+    </button>`).join('');
+}
+
+function _tcRenderRecurringSubscriptions() {
+  const recBody = $('tc-recurring-body');
+  if (!recBody) return;
+
+  const now = new Date();
+  const baseCurrency = TAX_CENTER.settings?.baseCurrency || 'CAD';
+  const subs = TAX_CENTER.recurring || [];
+
+  const summary = summarizeRecurring(subs, _fxRateCache, baseCurrency, now);
+  _tcRenderRecurringSummary(subs, summary, baseCurrency);
+  _tcRenderSubscriptionDoublesNote(subs);
+  _tcRenderRecurringFilters({
+    all: subs.length,
+    active: summary.activeCount + summary.scheduledCount,
+    paused: summary.pausedCount,
+    ended: summary.endedCount,
+  });
+
+  // Soonest charge first so the panel reads as a calendar; paused and ended
+  // rows sink to the bottom where they don't compete with live commitments.
+  const rows = subs
+    .map(s => ({ s, status: recurringStatus(s, now), next: nextRecurringDate(s, now) }))
+    .filter(r => {
+      if (_tcRecurringFilter === 'all') return true;
+      if (_tcRecurringFilter === 'active') return r.status === 'active' || r.status === 'scheduled' || r.status === 'invalid';
+      return r.status === _tcRecurringFilter;
+    })
+    .sort((a, b) => {
+      const rank = (r) => (r.status === 'paused' ? 1 : r.status === 'ended' ? 2 : 0);
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      // ⚡ Bolt: Replace localeCompare with operators for much faster date sorting
+      const aNext = a.next || '9999'; const bNext = b.next || '9999'; return aNext < bNext ? -1 : (aNext > bNext ? 1 : 0);
+    });
+
+  const wrap = $('tc-recurring-tbl-wrap');
+  const empty = $('tc-recurring-empty');
+  if (!subs.length) {
+    if (wrap) wrap.style.display = 'none';
+    if (empty) {
+      empty.style.display = '';
+      empty.innerHTML = `
+        <div class="empty-state">
+          <div class="e-icon">🔁</div>
+          <span class="tc-empty-desk">No recurring costs tracked yet. Add hosting, software or rent once and it
+          posts itself to the ledger every period.</span>
+          <span class="tc-empty-phone">No subscriptions yet.</span>
+          <div class="tc-empty-action">
+            <button class="btn gold" onclick="openRecurringEditor()">+ Add subscription</button>
+          </div>
+        </div>`;
+    }
+    recBody.innerHTML = '';
+    return;
+  }
+  if (wrap) wrap.style.display = '';
+  if (empty) { empty.style.display = 'none'; empty.innerHTML = ''; }
+
+  recBody.innerHTML = rows.map(r => _tcRecurringRowHtml(r.s, now, baseCurrency)).join('')
+    || `<tr><td colspan="7"><div class="empty-state" style="padding:1rem;">Nothing in this view. <button type="button" class="rec-charge-link" onclick="tcSetRecurringFilter('all')">Show all →</button></div></td></tr>`;
+}
+
+function _tcRenderLedgerPagination(filteredLedger, pageStart, totalPages) {
+  const pgWrap = $('tc-ledger-pagination');
+  if (pgWrap) {
+    if (totalPages <= 1) {
+      pgWrap.innerHTML = '';
+    } else {
+      const from = filteredLedger.length ? pageStart + 1 : 0;
+      const to = Math.min(pageStart + TC_LEDGER_PAGE_SIZE, filteredLedger.length);
+      const btnStyle = 'padding:4px 12px;border-radius:var(--r);font-size:12px;cursor:pointer;border:var(--stroke-hair) solid var(--border);background:var(--cream2);color:var(--text);';
+      const activeBtnStyle = 'padding:4px 12px;border-radius:var(--r);font-size:12px;cursor:pointer;border:var(--stroke-hair) solid var(--gold);background:var(--gold);color:var(--ink);font-weight:600;';
+      // Show at most 7 page buttons around current page
+      const maxBtns = 7;
+      let startBtn = Math.max(0, _tcLedgerPage - Math.floor(maxBtns / 2));
+      let endBtn = Math.min(totalPages - 1, startBtn + maxBtns - 1);
+      if (endBtn - startBtn < maxBtns - 1) startBtn = Math.max(0, endBtn - maxBtns + 1);
+      let btns = '';
+      if (startBtn > 0) btns += `<button style="${btnStyle}" onclick="setTcLedgerPage(0)">1</button><span style="color:var(--text3);padding:0 4px;">…</span>`;
+      for (let p = startBtn; p <= endBtn; p++) {
+        btns += `<button style="${p === _tcLedgerPage ? activeBtnStyle : btnStyle}" onclick="setTcLedgerPage(${p})">${p + 1}</button>`;
+      }
+      if (endBtn < totalPages - 1) btns += `<span style="color:var(--text3);padding:0 4px;">…</span><button style="${btnStyle}" onclick="setTcLedgerPage(${totalPages - 1})">${totalPages}</button>`;
+      pgWrap.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px;">
+          <span style="font-size:var(--text-sm);color:var(--text3);">Showing ${from}–${to} of ${filteredLedger.length} entries</span>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <button style="${btnStyle}" onclick="setTcLedgerPage(${_tcLedgerPage - 1})" ${_tcLedgerPage === 0 ? 'disabled' : ''}>‹ Prev</button>
+            ${btns}
+            <button style="${btnStyle}" onclick="setTcLedgerPage(${_tcLedgerPage + 1})" ${_tcLedgerPage === totalPages - 1 ? 'disabled' : ''}>Next ›</button>
+          </div>
+        </div>`;
+    }
+  }
+}
+
+function _tcRenderLedgerFilterChip() {
+  const filterChip = $('tc-ledger-filter-chip');
+  if (filterChip) {
+    const parts = [];
+    if (_tcLedgerType === 'sales') parts.push('Sales only');
+    else if (_tcLedgerType === 'expenses') parts.push('Expenses only');
+    if (_tcLedgerSpecialFilter === 'missing') parts.push('⚠️ Missing receipts only');
+    else if (_tcLedgerSpecialFilter === 'cloud') parts.push('☁️ Cloud storage receipts');
+    else if (_tcLedgerSpecialFilter === 'local') parts.push('📁 Local folder receipts');
+    else if (_tcLedgerSpecialFilter === 'linked') parts.push('🔗 Web-link receipts');
+    else if (_tcLedgerSpecialFilter === 'label') parts.push('🏷️ Shipping labels only');
+    const q = _tcLedgerSearch.trim();
+    if (q) parts.push(`“${escapeHtml(q)}”`);
+    filterChip.innerHTML = parts.length
+      ? `<span style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);background:var(--gold-bg);color:var(--gold);border:var(--stroke-hair) solid var(--gold-line);border-radius:var(--r);padding:3px 6px 3px 12px;">Filtered: ${parts.join(' · ')}<button onclick="tcClearLedgerFilters()" title="Clear filters" aria-label="Clear filters" style="border:none;background:transparent;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0 4px;">✕</button></span>`
+      : '';
+  }
+}
+
+function _tcRenderLedgerFoot(filteredLedger, baseCurrency) {
+  const footEl = $('tc-ledger-foot');
+  if (footEl) {
+    if (!filteredLedger.length) {
+      footEl.innerHTML = '';
+    } else {
+      let fIncome = 0, fExpense = 0;
+      for (const r of filteredLedger) {
+        if (r.isIncome) fIncome += r.baseAmount || 0;
+        else fExpense += r.baseAmount || 0;
+      }
+      const fNet = fIncome - fExpense;
+      const netColor = fNet >= 0 ? 'var(--green)' : 'var(--red)';
+      footEl.innerHTML = `
+        <tr>
+          <td colspan="8" style="padding:10px 12px;background:var(--cream2);border-top:var(--stroke) solid var(--gold-line);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;font-size:var(--text-base);">
+              <span style="color:var(--text3);">${filteredLedger.length} ${filteredLedger.length === 1 ? 'entry' : 'entries'}${(_tcLedgerSearch.trim() || _tcLedgerType !== 'all') ? ' (filtered)' : ''}</span>
+              <div style="display:flex;gap:18px;flex-wrap:wrap;" class="num">
+                <span>Income <strong style="color:var(--green);">+${fmt(fIncome, baseCurrency)}</strong></span>
+                <span>Expenses <strong style="color:var(--red);">-${fmt(fExpense, baseCurrency)}</strong></span>
+                <span>Net <strong style="color:${netColor};">${fmt(fNet, baseCurrency)}</strong></span>
+              </div>
+            </div>
+          </td>
+        </tr>`;
+    }
+  }
+}
+
+function _tcRenderLedgerTable(pageLedger, baseCurrency) {
+  const ledTbody = $('tc-ledger-body');
+  if (ledTbody) {
+    ledTbody.innerHTML = pageLedger.map(item => {
+      // Build receipt/ref cell — receipt links AND the reference number
+      // together; a ref must never hide the saved receipt files.
+      let displayRef = item.ref != null ? String(item.ref) : '';
+      let legacyReceipt = '';
+      // Legacy cleanup: if ref contains a local link, extract it
+      if (displayRef && displayRef.includes('local://')) {
+        const match = displayRef.match(/href="([^"]+)"/);
+        if (match) legacyReceipt = match[1];
+        displayRef = '';
+      }
+      const links = _localReceiptCell(item) || (legacyReceipt ? _localReceiptCell({ receipt: legacyReceipt }) : '');
+      const refCell = [
+        links,
+        displayRef ? `<span style="font-size:var(--text-xs);color:var(--text3);">${displayRef}</span>` : '',
+        item.invoiceNum ? `<span style="font-size:var(--text-xs);color:var(--gold);">🧾 ${escapeHtml(item.invoiceNum)}</span>` : ''
+      ].filter(Boolean).join('<br>');
+
+      // Show original amount in its native currency; show CAD equivalent separately
+      const origSym = getSym(item.origCurrency || 'CAD');
+      const origDisplay = `${origSym}${Number(item.origAmount || 0).toFixed(2)}`;
+      const cadDisplay = `${item.isIncome ? '+' : '-'}${fmt(item.baseAmount, baseCurrency)}`;
+
+      const catCell = item.sourceType === 'businessExpense'
+        ? `<select class="tc-ledger-cat-select" onchange="changeExpenseCategory('${item.itemId}', this.value)" title="Change category">
+              ${TC_CATEGORIES.map(c => `<option value="${escapeHtml(c)}"${c === item.cat ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+              ${TC_CATEGORIES.includes(item.cat) ? '' : `<option value="${escapeHtml(item.cat)}" selected>${escapeHtml(item.cat)}</option>`}
+            </select>`
+        : escapeHtml(item.cat);
+
+      let descCell = escapeHtml(item.desc);
+      if (item.sourceType === 'businessExpense') {
+        const tripPill = item.trip
+          ? `<span class="tc-ledger-trip-chip is-set" onclick="event.stopPropagation();openEditTrip('${item.itemId}')" title="Edit trip">✈ ${escapeHtml(item.trip)}</span>`
+          : `<span class="tc-ledger-trip-chip is-unset" onclick="event.stopPropagation();openEditTrip('${item.itemId}')" title="Assign to a trip">+ trip</span>`;
+        descCell = `<div>${escapeHtml(item.desc)}</div>${tripPill}`;
+      }
+
+      return `
+        <tr class="tc-ledger-row" ondragover="tcExpenseRowDragOver(event, this)" ondragleave="tcExpenseRowDragLeave(event, this)" ondrop="tcExpenseRowDrop(event, this, '${item.sourceType || ''}', '${item.sourceId || ''}', '${item.itemId || ''}')">
+            <td style="font-size:var(--text-sm);">${item.date || '—'}</td>
+            <td><span class="tag ${item.isIncome ? 'green' : 'amber'}">${escapeHtml(item.type)}</span></td>
+            <td style="font-size:var(--text-sm);">${descCell}</td>
+            <td style="font-size:var(--text-sm);">${catCell}</td>
+            <td style="font-size:var(--text-sm);">${refCell}</td>
+            <td class="r" style="font-size:var(--text-sm);color:var(--text3);">${origDisplay}</td>
+            <td class="r tc-ledger-amt ${item.isIncome ? 'in' : 'out'}">${cadDisplay}</td>
+            <td class="r">
+              ${(item.sourceType === 'businessExpense' || item.sourceType === 'bookExpense')
+          ? `<button class="edit-btn" aria-label="Edit entry" onclick="openEditExpense('${item.sourceType}', '${item.sourceId || ''}', '${item.itemId}')" title="Edit entry">✎</button>`
+          : (item.sourceType === 'sale'
+            ? `<button class="edit-btn" aria-label="Edit entry" onclick="openEditSale('${item.sourceId || ''}', '${item.itemId}')" title="Edit entry">✎</button>`
+            : (item.sourceType === 'artistPayout' || item.sourceType === 'artistDebtRecovery'
+              ? `<button class="edit-btn" aria-label="Edit entry" onclick="openEditArtistPayout('${item.sourceId || ''}', '${item.itemId}')" title="Edit entry">✎</button>`
+              : ''
+            )
+          )
+        }
+              ${item.itemId ? `<button class="edit-btn" aria-label="Delete entry" onclick="removeLedgerEntry('${item.sourceType}', '${item.sourceId || ''}', '${item.itemId}')" title="Delete entry" style="opacity:1;color:var(--red);">✕</button>` : ''}
+            </td>
+        </tr>`;
+    }).join('') || `<tr><td colspan="8"><div class="empty-state" style="padding:1rem;">${(_tcLedgerSearch.trim() || _tcLedgerType !== 'all') ? 'No entries match your filter' : 'No data for selected period'}</div></td></tr>`;
+  }
+}
+
+// Rank-based dot colors for the category breakdown — the same colour-vision-
+// safe Okabe-Ito set as the sales-channel chart (CHANNEL_COLORS in main.js)
+// and the trip category bars below, so every "which bucket is this" mark in
+// the app speaks one validated language. These were pre-Riso Tailwind hues
+// (rose/indigo/teal) led by the pale flare --gold3, which sat at 1.6:1 on a
+// white card. Only the top few ranks get a distinct hue; the long tail shares
+// a single muted dot, and every row is named in text beside its dot.
+const TC_CATEGORY_RANK_DOTS = ['#0072B2', '#D55E00', '#CC79A7', '#009E73'];
+
+function _tcRenderCategoryPanel(allLedger, baseCurrency) {
+  const catBody = $('tc-category-body');
+  const catFoot = $('tc-category-foot');
+  if (catBody) {
+    // ⚡ Bolt: Loop Fusion. Combined filter, foreach and reduce into a single pass to eliminate intermediate arrays
+    const catSummary = {};
+    let grandTotal = 0;
+    let totalTxns = 0;
+    for (let i = 0; i < allLedger.length; i++) {
+      const ex = allLedger[i];
+      if (!ex.isIncome) {
+        const c = ex.cat || 'Uncategorized';
+        if (!catSummary[c]) catSummary[c] = { total: 0, spent: 0, rate: deductibleRate(c), count: 0, items: [] };
+        // `total` is what the CRA lets us deduct (Meals & Entertainment is
+        // capped at 50%); `spent` is what actually left the bank account.
+        const deductible = deductibleAmount(c, ex.baseAmount);
+        catSummary[c].total += deductible;
+        catSummary[c].spent += ex.baseAmount;
+        catSummary[c].count++;
+        catSummary[c].items.push(ex);
+        grandTotal += deductible;
+        totalTxns++;
+      }
+    }
+    const catList = Object.keys(catSummary).map(c => ({ name: c, ...catSummary[c] })).sort((a, b) => b.total - a.total);
+
+    // Stash by index so the detail modal can read transactions without escaping issues.
+    window._tcCategoryDetail = {
+      baseCurrency,
+      byName: catSummary
+    };
+
+    catBody.innerHTML = catList.map((c, i) => {
+      const pct = grandTotal > 0 ? (c.total / grandTotal) * 100 : 0;
+      // Clamp so a real-but-tiny share (e.g. 0.04%) still renders a sliver instead of vanishing.
+      const barWidth = pct > 0 ? Math.max(pct, 1.5) : 0;
+      // A category worth $11 out of $31k rounds to "0.0%", which reads as an
+      // error rather than a rounding artifact — say "<0.1%" instead.
+      const pctLabel = pct >= 10 ? `${pct.toFixed(0)}%` : (pct > 0 && pct < 0.1 ? '&lt;0.1%' : `${pct.toFixed(1)}%`);
+      const dotColor = TC_CATEGORY_RANK_DOTS[i] || 'var(--text4)';
+      const txnLabel = `${c.count} transaction${c.count === 1 ? '' : 's'}`;
+      // The row carries the click for a fat mouse/touch target, but the
+      // keyboard path and the accessible name live on a real <button> in the
+      // first cell — putting role="button" on the <tr> would strip the row out
+      // of the table semantics screen readers rely on to read the other cells.
+      return `
+          <tr onclick="showCategoryDetail(this.dataset.cat)" data-cat="${escapeHtml(c.name)}" style="cursor:pointer;" title="${escapeHtml(c.name)} — ${txnLabel}, ${pctLabel} of total deductible spend">
+            <td><span class="tc-cat-name"><span class="con-group-dot" style="background:${dotColor};"></span><button type="button" class="tc-cat-link" onclick="event.stopPropagation();showCategoryDetail('${escapeHtml(c.name).replace(/'/g, '&#39;')}')">${escapeHtml(c.name)}</button></span></td>
+            <td class="r">${c.count}</td>
+            <td class="r">
+              <span class="tc-cat-pct" role="img" aria-label="${pctLabel} of total">
+                <span class="con-row-progress"><span class="con-row-progress-bar" style="width:${barWidth}%;"></span></span>
+                <span class="tc-cat-pct-label" aria-hidden="true">${pctLabel}</span>
+              </span>
+            </td>
+            <td class="r" style="font-weight:bold;color:var(--red);">- ${fmt(c.total, baseCurrency)}<span class="tc-cat-chevron" aria-hidden="true">›</span>${c.rate < 1 ? `<span class="tc-cat-limit">${Math.round(c.rate * 100)}% of ${fmt(c.spent, baseCurrency)} spent (CRA limit)</span>` : ''}</td>
+          </tr>
+      `;
+    }).join('') || `<tr><td colspan="4"><div class="empty-state" style="padding:1rem;">No deductible expenses recorded</div></td></tr>`;
+
+    if (catFoot) {
+      catFoot.innerHTML = catList.length ? `
+        <tr class="tc-cat-foot-row">
+          <td>${catList.length} categor${catList.length === 1 ? 'y' : 'ies'}</td>
+          <td class="r">${totalTxns}</td>
+          <td class="r tc-cat-foot-pct">100%</td>
+          <td class="r" style="color:var(--red);">- ${fmt(grandTotal, baseCurrency)}</td>
+        </tr>
+      ` : '';
+    }
+  }
+}
+
+let _tcTripsViewMode = localStorage.getItem('tc_trips_view_mode') || 'cards';
+
+function tcSetTripsView(mode) {
+  _tcTripsViewMode = mode === 'table' ? 'table' : 'cards';
+  try { localStorage.setItem('tc_trips_view_mode', _tcTripsViewMode); } catch (e) {}
+  const cardsBtn = $('tc-trips-btn-cards');
+  const tableBtn = $('tc-trips-btn-table');
+  const cardsView = $('tc-trip-cards-view');
+  const tableView = $('tc-trip-table-view');
+
+  if (cardsBtn && tableBtn && cardsView && tableView) {
+    if (_tcTripsViewMode === 'cards') {
+      cardsBtn.classList.add('active');
+      tableBtn.classList.remove('active');
+      cardsView.style.display = 'block';
+      tableView.style.display = 'none';
+    } else {
+      tableBtn.classList.add('active');
+      cardsBtn.classList.remove('active');
+      tableView.style.display = 'block';
+      cardsView.style.display = 'none';
+    }
+  }
+}
+
+// Okabe-Ito, in a fixed order, with the channel chart's neutral for "Other"
+// (see TC_CATEGORY_RANK_DOTS above). Each segment carries its category in its
+// title, and the trip card lists the categories in text.
+const TC_TRIP_CAT_COLORS = {
+  'Travel & Transit': '#0072B2',
+  'Lodging & Hotel': '#D55E00',
+  'Meals & Entertainment': '#CC79A7',
+  'Booths & Fairs': '#009E73',
+  'Supplies & Printing': '#E69F00',
+  'Other': '#6B655B'
+};
+
+// ── DECLARED TRIPS ────────────────────────────────────────────────────────
+// A trip used to exist only as a side effect of typing a name onto an expense,
+// so there was no way to create one up front. TAX_CENTER.trips holds the
+// declared records (name + destination + dates + purpose + notes); expenses
+// still carry the trip *name*, so the two stay joinable by name and every
+// pre-existing trip keeps working with no migration.
+function _tcTripRecords() {
+  if (!Array.isArray(TAX_CENTER.trips)) TAX_CENTER.trips = [];
+  return TAX_CENTER.trips;
+}
+
+function _tcFindTripRecord(name) {
+  const key = (name || '').trim().toLowerCase();
+  if (!key) return null;
+  return _tcTripRecords().find(t => (t.name || '').trim().toLowerCase() === key) || null;
+}
+
+// Meta line for a trip card / detail header: destination and planned dates.
+function _tcTripRecordMeta(rec) {
+  if (!rec) return '';
+  const bits = [];
+  if (rec.destination) bits.push(`📍 ${escapeHtml(rec.destination)}`);
+  if (rec.startDate || rec.endDate) {
+    const span = rec.startDate && rec.endDate && rec.startDate !== rec.endDate
+      ? `${rec.startDate} → ${rec.endDate}`
+      : (rec.startDate || rec.endDate);
+    bits.push(`🗓 ${escapeHtml(span)}`);
+  }
+  if (rec.purpose) bits.push(`🎯 ${escapeHtml(rec.purpose)}`);
+  return bits.join(' &nbsp;·&nbsp; ');
+}
+
+function _tcEmptyTripBucket(rec) {
+  return {
+    total: 0,
+    count: 0,
+    latestDate: (rec && (rec.endDate || rec.startDate)) || '',
+    minDate: (rec && rec.startDate) || '',
+    maxDate: (rec && rec.endDate) || '',
+    items: [],
+    categories: {},
+    record: rec || null,
+  };
+}
+
+/**
+ * An expense's value in the book currency, valued exactly as the ledger does:
+ * the stored baseAmount, else a rate known for the expense's own date, else 0
+ * (the ledger flags those until healExpenseRates fills them in) — never today's
+ * rate or a silent 1:1.
+ */
+function _tcExpenseBaseAmount(e) {
+  if (e.baseAmount != null) return e.baseAmount;
+  const eFx = datedCadRate(e.currency || 'CAD', e.date, _fxRateCache);
+  return (e.fxMissing && eFx.estimated) || eFx.missing
+    ? 0
+    : roundCents((e.amount || 0) * eFx.rate);
+}
+
+function _tcGetTripsSummaryAll() {
+  const tripSummary = {};
+  _tcTripRecords().forEach(rec => {
+    const name = (rec.name || '').trim();
+    if (!name) return;
+    tripSummary[name] = _tcEmptyTripBucket(rec);
+  });
+  (TAX_CENTER.businessExpenses || []).forEach(e => {
+    const t = (e.trip || '').trim();
+    if (!t) return;
+    const eCur = e.currency || 'CAD';
+    const eBase = _tcExpenseBaseAmount(e);
+    const cat = canonicalExpenseCategory(e.cat, 'Other');
+    if (!tripSummary[t]) {
+      tripSummary[t] = { total: 0, count: 0, latestDate: '', items: [], categories: {} };
+    }
+    tripSummary[t].total += eBase;
+    tripSummary[t].count++;
+    if (!tripSummary[t].categories[cat]) tripSummary[t].categories[cat] = 0;
+    tripSummary[t].categories[cat] += eBase;
+    if (e.date && (!tripSummary[t].latestDate || e.date > tripSummary[t].latestDate)) {
+      tripSummary[t].latestDate = e.date;
+    }
+    tripSummary[t].items.push({ ...e, baseAmount: eBase, origCurrency: eCur, origAmount: e.amount || 0 });
+  });
+  return tripSummary;
+}
+
+function tcRenderQuickTripChips() {
+  const chipsContainer = $('tc-trip-quick-chips');
+  if (!chipsContainer) return;
+
+  const tripSummary = _tcGetTripsSummaryAll();
+  const sortedTrips = Object.keys(tripSummary)
+    .map(name => ({ name, ...tripSummary[name] }))
+    .sort((a, b) => {
+      // ⚡ Bolt Optimization: Replace slow localeCompare with string inequality for ISO dates
+      const dA = a.latestDate || '';
+      const dB = b.latestDate || '';
+      return dA > dB ? -1 : (dA < dB ? 1 : 0);
+    })
+    .slice(0, 5);
+
+  if (sortedTrips.length === 0) {
+    chipsContainer.innerHTML = '';
+    return;
+  }
+
+  const currentVal = ($('tc-exp-trip')?.value || '').trim();
+  const chipsHtml = sortedTrips.map(t => {
+    const isActive = currentVal.toLowerCase() === t.name.toLowerCase();
+    return `<button type="button" class="tc-trip-chip ${isActive ? 'is-active' : ''}" onclick="tcSelectTripOption('tc-exp-trip', '${t.name.replace(/'/g, "\\'")}')">
+      ✈ ${escapeHtml(t.name)} <span class="count-pill">${t.count}</span>
+    </button>`;
+  }).join('');
+
+  chipsContainer.innerHTML = chipsHtml;
+}
+
+function tcUpdateTripSelectedPreview() {
+  const input = $('tc-exp-trip');
+  const preview = $('tc-trip-selected-preview');
+  if (!input || !preview) return;
+
+  const val = (input.value || '').trim();
+  if (!val) {
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+    return;
+  }
+
+  const summary = _tcGetTripsSummaryAll();
+  const tripInfo = summary[val];
+  const baseCurrency = TAX_CENTER.settings?.baseCurrency || 'CAD';
+
+  if (tripInfo) {
+    preview.style.display = 'flex';
+    preview.innerHTML = `
+      <span>✈ <b>Active Trip:</b> ${escapeHtml(val)} &bull; ${tripInfo.count} expense${tripInfo.count === 1 ? '' : 's'} logged (<span style="color:var(--red-light);font-weight:700;">-${fmt(tripInfo.total, baseCurrency)}</span>)</span>
+      <button class="clear-btn" type="button" onclick="tcClearSelectedTrip('tc-exp-trip')" title="Clear trip assignment">✕ Clear</button>
+    `;
+  } else {
+    preview.style.display = 'flex';
+    preview.innerHTML = `
+      <span>✨ <b>New Trip:</b> ${escapeHtml(val)} (will be created on save)</span>
+      <button class="clear-btn" type="button" onclick="tcClearSelectedTrip('tc-exp-trip')" title="Clear trip assignment">✕ Clear</button>
+    `;
+  }
+}
+
+function tcClearSelectedTrip(inputId) {
+  const input = $(inputId);
+  if (input) {
+    input.value = '';
+    if (inputId === 'tc-exp-trip') {
+      tcUpdateTripSelectedPreview();
+      tcRenderQuickTripChips();
+    }
+  }
+}
+
+function tcOpenTripDropdown(inputId) {
+  tcFilterTripDropdown(inputId);
+  const menu = $(`${inputId}-menu`);
+  if (menu) menu.classList.add('is-open');
+  const btn = menu?.previousElementSibling;
+  if (btn?.classList.contains('tc-trip-dropdown-btn')) btn.setAttribute('aria-expanded', 'true');
+}
+
+function tcCloseTripDropdown(inputId) {
+  const menu = $(`${inputId}-menu`);
+  if (menu) menu.classList.remove('is-open');
+  const btn = menu?.previousElementSibling;
+  if (btn?.classList.contains('tc-trip-dropdown-btn')) btn.setAttribute('aria-expanded', 'false');
+}
+
+function tcToggleTripDropdown(inputId) {
+  const menu = $(`${inputId}-menu`);
+  if (menu) {
+    if (menu.classList.contains('is-open')) {
+      tcCloseTripDropdown(inputId);
+    } else {
+      tcOpenTripDropdown(inputId);
+    }
+  }
+}
+
+function tcFilterTripDropdown(inputId) {
+  const input = $(inputId);
+  const menu = $(`${inputId}-menu`);
+  if (!input || !menu) return;
+
+  const filterText = (input.value || '').trim().toLowerCase();
+  const summary = _tcGetTripsSummaryAll();
+  const baseCurrency = TAX_CENTER.settings?.baseCurrency || 'CAD';
+
+  const allNames = Object.keys(summary).sort();
+  const matched = allNames.filter(name => name.toLowerCase().includes(filterText));
+
+  let html = matched.map(name => {
+    const t = summary[name];
+    const safeName = name.replace(/'/g, "\\'");
+    return `<div class="tc-trip-option" onclick="tcSelectTripOption('${inputId}', '${safeName}')">
+      <div class="tc-trip-option-main">
+        <span>✈</span>
+        <span class="tc-trip-option-name">${escapeHtml(name)}</span>
+      </div>
+      <div class="tc-trip-option-meta">
+        <span class="tc-trip-option-count">${t.count} item${t.count === 1 ? '' : 's'}</span>
+        <span class="tc-trip-option-amount">-${fmt(t.total, baseCurrency)}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  if (filterText && !allNames.some(name => name.toLowerCase() === filterText)) {
+    const typedEsc = input.value.trim().replace(/'/g, "\\'");
+    html += `<div class="tc-trip-create-option" onclick="tcSelectTripOption('${inputId}', '${typedEsc}')">
+      ➕ Add new trip: "${escapeHtml(input.value.trim())}"
+    </div>`;
+  }
+
+  if (!html) {
+    html = `<div style="padding:10px 12px;font-size:var(--text-sm);color:var(--text3);text-align:center;">No existing trips. Type a name to create one!</div>`;
+  }
+
+  menu.innerHTML = html;
+  menu.classList.add('is-open');
+}
+
+function tcSelectTripOption(inputId, tripName) {
+  const input = $(inputId);
+  if (input) {
+    input.value = tripName;
+    tcCloseTripDropdown(inputId);
+    if (inputId === 'tc-exp-trip') {
+      tcUpdateTripSelectedPreview();
+      tcRenderQuickTripChips();
+    }
+  }
+}
+
+// ── PENDING / TO-CONFIRM EXPENSES ─────────────────────────────────────────
+// Costs the publisher knows about but cannot log yet: the amount is unknown,
+// the receipt has not arrived, the date is not fixed. They live in their own
+// array and are NEVER read by the ledger, the category totals or any tax
+// export — a pending note is a reminder, not a transaction, and letting one
+// reach a deductible total would be a reporting error. Confirming one moves it
+// into businessExpenses through the normal expense form, which is the only
+// path that computes an FX rate and a base amount.
+let _tcPendingEditingId = null;
+// Set when the expense form was pre-filled from a pending note, so a successful
+// submit clears the note it came from instead of leaving a duplicate reminder.
+let _tcConfirmingPendingId = null;
+
+function _tcPendingList() {
+  if (!Array.isArray(TAX_CENTER.pendingExpenses)) TAX_CENTER.pendingExpenses = [];
+  return TAX_CENTER.pendingExpenses;
+}
+
+function _tcFindPending(id) {
+  return _tcPendingList().find(p => String(p.id) === String(id)) || null;
+}
+
+/** Whole days from today to an ISO date; negative is in the past. */
+function _tcDaysUntil(isoDate, todayStr = today()) {
+  if (!isoDate) return null;
+  const a = Date.parse(`${todayStr}T00:00:00`);
+  const b = Date.parse(`${isoDate}T00:00:00`);
+  if (isNaN(a) || isNaN(b)) return null;
+  return Math.round((b - a) / 86400000);
+}
+
+/** Reminder state for one pending note: drives its badge and sort position. */
+function _tcPendingDue(item, todayStr = today()) {
+  const days = _tcDaysUntil(item?.remindOn, todayStr);
+  if (days === null) return { state: 'none', days: null, label: 'No reminder' };
+  if (days < 0) return { state: 'overdue', days, label: `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} overdue` };
+  if (days === 0) return { state: 'today', days, label: 'Due today' };
+  if (days <= 7) return { state: 'soon', days, label: `In ${days} day${days === 1 ? '' : 's'}` };
+  return { state: 'later', days, label: `In ${days} days` };
+}
+
+const _TC_DUE_ORDER = {
+  overdue: 0,
+  today: 1,
+  soon: 2,
+  later: 3,
+  none: 4,
+};
+
+/** Pending notes, most urgent first; undated notes sink to the bottom. */
+function _tcSortedPending(todayStr = today()) {
+  return _tcPendingList()
+    .map(item => ({ item, due: _tcPendingDue(item, todayStr) }))
+    .sort((a, b) => {
+      const rank = _TC_DUE_ORDER[a.due.state] - _TC_DUE_ORDER[b.due.state];
+      if (rank !== 0) return rank;
+      if (a.due.days !== null && b.due.days !== null && a.due.days !== b.due.days) return a.due.days - b.due.days;
+      const dA = a.item.expectedDate || '';
+      const dB = b.item.expectedDate || '';
+      return dA > dB ? 1 : dA < dB ? -1 : 0;
+    });
+}
+
+function _tcSetPendingError(msg) {
+  const box = $('tc-pending-err');
+  if (!box) return;
+  box.textContent = msg || '';
+  box.style.display = msg ? 'block' : 'none';
+}
+
+function tcPendingValidate() {
+  const ok = !!($('tc-pending-desc')?.value || '').trim();
+  if (ok) _tcSetPendingError('');
+  return ok;
+}
+
+/** Quick reminder chips: days from today, or null to clear the field. */
+function tcPendingRemindIn(days) {
+  const el = $('tc-pending-remind');
+  if (!el) return;
+  if (days === null || days === undefined) { el.value = ''; return; }
+  el.value = localDayPlus(days, new Date(`${today()}T00:00:00`));
+}
+
+function openPendingExpense(id, prefillTrip) {
+  const item = id ? _tcFindPending(id) : null;
+  _tcPendingEditingId = item ? item.id : null;
+
+  const catSelect = $('tc-pending-cat');
+  if (catSelect && !catSelect.options.length) {
+    catSelect.innerHTML = TC_CATEGORIES.map(c => `<option value="${c.replace(/"/g, '&quot;')}">${escapeHtml(c)}</option>`).join('');
+  }
+
+  const set = (elId, val) => { const el = $(elId); if (el) el.value = val ?? ''; };
+  set('tc-pending-desc', item?.desc);
+  set('tc-pending-cat', item?.cat || 'Other');
+  setSelectCurrency($('tc-pending-cur'), item?.currency || TAX_CENTER.settings?.baseCurrency || 'CAD');
+  set('tc-pending-amount', item?.estAmount || '');
+  set('tc-pending-date', item?.expectedDate);
+  set('tc-pending-remind', item?.remindOn);
+  set('tc-pending-trip', item?.trip ?? (typeof prefillTrip === 'string' ? prefillTrip : ''));
+  set('tc-pending-note', item?.note);
+  _tcSetPendingError('');
+
+  const heading = $('tc-pending-heading');
+  if (heading) heading.textContent = item ? 'Edit pending expense' : 'Note a pending expense';
+  const saveBtn = $('tc-pending-save');
+  if (saveBtn) saveBtn.textContent = item ? 'Save changes' : 'Save note';
+  const delBtn = $('tc-pending-delete');
+  if (delBtn) delBtn.style.display = item ? '' : 'none';
+
+  closeM('tc-trip-detail');
+  openM('tc-pending');
+  setTimeout(() => $('tc-pending-desc')?.focus(), 50);
+}
+
+async function savePendingExpense() {
+  const desc = ($('tc-pending-desc')?.value || '').trim();
+  if (!desc) {
+    _tcSetPendingError('Give the note a description — that is the part you need to recognise it later.');
+    $('tc-pending-desc')?.focus();
+    return;
+  }
+
+  const amountRaw = ($('tc-pending-amount')?.value || '').trim();
+  const estAmount = amountRaw ? parseFloat(amountRaw) : 0;
+  if (amountRaw && (isNaN(estAmount) || estAmount < 0)) {
+    _tcSetPendingError('The estimated amount has to be a positive number, or blank.');
+    return;
+  }
+
+  const record = {
+    id: _tcPendingEditingId || Date.now(),
+    desc,
+    cat: $('tc-pending-cat')?.value || 'Other',
+    currency: $('tc-pending-cur')?.value || 'CAD',
+    estAmount: estAmount > 0 ? estAmount : 0,
+    expectedDate: ($('tc-pending-date')?.value || '').trim(),
+    remindOn: ($('tc-pending-remind')?.value || '').trim(),
+    trip: ($('tc-pending-trip')?.value || '').trim(),
+    note: ($('tc-pending-note')?.value || '').trim(),
+    created: _tcFindPending(_tcPendingEditingId)?.created || today(),
+  };
+
+  const list = _tcPendingList();
+  const idx = list.findIndex(p => String(p.id) === String(record.id));
+  if (idx >= 0) list[idx] = record;
+  else list.unshift(record);
+
+  const wasEditing = !!_tcPendingEditingId;
+  _tcPendingEditingId = null;
+  closeM('tc-pending');
+  await saveTaxCenter();
+  renderTaxCenter();
+  showToast(wasEditing ? '✓ Pending note updated' : '✓ Noted — it will wait here until you confirm it');
+}
+
+async function deletePendingExpense(id) {
+  const targetId = id ?? _tcPendingEditingId;
+  const item = _tcFindPending(targetId);
+  if (!item) return;
+  if (!(await confirmDialog(`Delete the pending note “${item.desc}”?`, { okLabel: 'Delete note', danger: true }))) return;
+
+  TAX_CENTER.pendingExpenses = _tcPendingList().filter(p => String(p.id) !== String(targetId));
+  if (String(_tcPendingEditingId) === String(targetId)) _tcPendingEditingId = null;
+  closeM('tc-pending');
+  await saveTaxCenter();
+  renderTaxCenter();
+  showToast('✓ Pending note deleted');
+}
+
+/** Push a reminder out by N days from today, from the list row. */
+async function snoozePendingExpense(id, days = 7) {
+  const item = _tcFindPending(id);
+  if (!item) return;
+  item.remindOn = localDayPlus(days, new Date(`${today()}T00:00:00`));
+  await saveTaxCenter();
+  renderTaxCenter();
+  showToast(`✓ Reminder moved to ${item.remindOn}`);
+}
+
+// Confirming does not write an expense itself: it pre-fills the logger with
+// whatever the note knows and lets the normal submit path do the FX maths and
+// the receipt handling. submitTaxExpense clears the note on success.
+function confirmPendingExpense(id) {
+  const item = _tcFindPending(id);
+  if (!item) return;
+  _tcConfirmingPendingId = item.id;
+
+  const set = (elId, val) => { const el = $(elId); if (el) el.value = val ?? ''; };
+  set('tc-exp-desc', item.desc);
+  set('tc-exp-cat', item.cat || 'Other');
+  setSelectCurrency($('tc-exp-cur'), item.currency || 'CAD');
+  set('tc-exp-amount', item.estAmount || '');
+  set('tc-exp-date', item.expectedDate || today());
+  if ($('tc-exp-trip')) tcSelectTripOption('tc-exp-trip', item.trip || '');
+
+  closeM('tc-pending');
+  const card = $('tc-expense-form-card');
+  if (card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('tc-flash-target');
+    setTimeout(() => card.classList.remove('tc-flash-target'), 1600);
+  }
+  setTimeout(() => $(item.estAmount ? 'tc-exp-amount' : 'tc-exp-desc')?.focus(), 400);
+  showToast('Confirm the details and log it — the note clears itself once saved');
+}
+
+/** Called by submitTaxExpense after a successful save. */
+function _tcClearConfirmedPending() {
+  if (_tcConfirmingPendingId === null) return null;
+  const item = _tcFindPending(_tcConfirmingPendingId);
+  TAX_CENTER.pendingExpenses = _tcPendingList().filter(p => String(p.id) !== String(_tcConfirmingPendingId));
+  _tcConfirmingPendingId = null;
+  return item;
+}
+
+function _tcRenderPendingPanel() {
+  const list = $('tc-pending-list');
+  const countEl = $('tc-pending-count');
+  if (!list) return;
+
+  const rows = _tcSortedPending();
+  const dueNow = rows.filter(r => r.due.state === 'overdue' || r.due.state === 'today').length;
+
+  if (countEl) {
+    countEl.textContent = rows.length ? `${rows.length}${dueNow ? ` · ${dueNow} due` : ''}` : '';
+    countEl.className = `tc-pending-count${dueNow ? ' is-due' : ''}${rows.length ? '' : ' is-empty'}`;
+  }
+
+  if (!rows.length) {
+    list.innerHTML = `<div class="tc-pending-empty">
+      <div class="tc-pending-empty-icon">🕑</div>
+      <div class="tc-pending-empty-title">Nothing pending</div>
+      <div class="tc-pending-empty-sub">Waiting on an invoice, or spent something you can't total yet? Note it here so it doesn't get lost before tax time.</div>
+    </div>`;
+    return;
+  }
+
+  const cur = TAX_CENTER.settings?.baseCurrency || 'CAD';
+
+  // ⚡ Bolt Optimization: Loop fusion - Combine .reduce(), .filter(), and .map().join() passes
+  // into a single imperative loop to eliminate intermediate array allocations
+  let estTotal = 0;
+  let withoutAmount = 0;
+  let body = '';
+
+  for (const { item, due } of rows) {
+    const amt = Number(item.estAmount) || 0;
+    if (amt) {
+      estTotal += amt * (_fxRateCache[`${(item.currency || 'CAD')}_${cur}`] || _fxRateCache[`${(item.currency || 'CAD')}_CAD`] || 1);
+    } else {
+      withoutAmount++;
+    }
+
+    const safeId = String(item.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const amount = amt
+      ? `<span class="tc-pending-amt">~${getSym(item.currency || 'CAD')}${amt.toFixed(2)}</span>`
+      : `<span class="tc-pending-amt is-unknown">Amount unknown</span>`;
+
+    let bits = '';
+    if (item.cat) bits += escapeHtml(item.cat);
+    if (item.expectedDate) {
+      if (bits) bits += ' &nbsp;·&nbsp; ';
+      bits += `📅 ${escapeHtml(item.expectedDate)}`;
+    }
+    if (item.trip) {
+      if (bits) bits += ' &nbsp;·&nbsp; ';
+      bits += `✈ ${escapeHtml(item.trip)}`;
+    }
+
+    body += `<div class="tc-pending-row tc-due-${due.state}">
+      <div class="tc-pending-main">
+        <div class="tc-pending-top">
+          <span class="tc-pending-desc">${escapeHtml(item.desc)}</span>
+          <span class="tc-due-badge tc-due-${due.state}">${item.remindOn ? '⏰ ' : ''}${escapeHtml(due.label)}</span>
+        </div>
+        ${bits ? `<div class="tc-pending-meta">${bits}</div>` : ''}
+        ${item.note ? `<div class="tc-pending-note">${escapeHtml(item.note)}</div>` : ''}
+      </div>
+      <div class="tc-pending-right">
+        ${amount}
+        <div class="tc-pending-actions">
+          <button class="btn gold" onclick="confirmPendingExpense('${safeId}')" title="Pre-fill the expense form from this note">✓ Confirm &amp; log</button>
+          <button class="btn tag" onclick="snoozePendingExpense('${safeId}', 7)" title="Push the reminder out a week">⏰ +1w</button>
+          <button class="btn-icon" aria-label="Edit note" onclick="openPendingExpense('${safeId}')" title="Edit note">✏️</button>
+          <button class="btn-icon" aria-label="Delete note" onclick="deletePendingExpense('${safeId}')" title="Delete note">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  const foot = `<div class="tc-pending-foot">
+    <span>${rows.length} pending note${rows.length === 1 ? '' : 's'}${withoutAmount ? ` · ${withoutAmount} without an amount` : ''}</span>
+    ${estTotal > 0 ? `<span>Estimated, not yet in your ledger: <b>${fmt(estTotal, cur)}</b></span>` : ''}
+  </div>`;
+
+  list.innerHTML = body + foot;
+}
+
+// ── CREATE / EDIT A TRIP ──────────────────────────────────────────────────
+// _tcTripEditingName is null for a brand-new trip and holds the original name
+// while editing, so a rename can carry the assigned expenses across with it.
+let _tcTripEditingName = null;
+
+function _tcSetTripFormError(msg) {
+  const box = $('tc-new-trip-err');
+  if (!box) return;
+  box.textContent = msg || '';
+  box.style.display = msg ? 'block' : 'none';
+}
+
+function _tcFillTripForm(rec) {
+  const set = (id, val) => { const el = $(id); if (el) el.value = val ?? ''; };
+  set('tc-new-trip-name', rec?.name);
+  set('tc-new-trip-dest', rec?.destination);
+  set('tc-new-trip-start', rec?.startDate);
+  set('tc-new-trip-end', rec?.endDate);
+  set('tc-new-trip-purpose', rec?.purpose);
+  set('tc-new-trip-notes', rec?.notes);
+  const budget = rec?.name ? (TAX_CENTER.tripBudgets?.[rec.name] || '') : '';
+  set('tc-new-trip-budget', budget);
+  _tcSetTripFormError('');
+}
+
+function openNewTrip(prefillName) {
+  _tcTripEditingName = null;
+  _tcFillTripForm(prefillName ? { name: prefillName } : null);
+  const heading = $('tc-new-trip-heading');
+  if (heading) heading.textContent = 'Create a business trip';
+  const saveBtn = $('tc-new-trip-save');
+  if (saveBtn) saveBtn.textContent = 'Create trip';
+  const delBtn = $('tc-new-trip-delete');
+  if (delBtn) delBtn.style.display = 'none';
+  openM('tc-new-trip');
+  setTimeout(() => $('tc-new-trip-name')?.focus(), 50);
+}
+
+// Opens the same form against the trip currently shown in the detail modal.
+function openEditTripDetails(tripName) {
+  const name = (tripName || _tcOpenTripName || '').trim();
+  if (!name) return;
+  _tcTripEditingName = name;
+  _tcFillTripForm(_tcFindTripRecord(name) || { name });
+  const heading = $('tc-new-trip-heading');
+  if (heading) heading.textContent = 'Edit trip details';
+  const saveBtn = $('tc-new-trip-save');
+  if (saveBtn) saveBtn.textContent = 'Save changes';
+  const delBtn = $('tc-new-trip-delete');
+  if (delBtn) delBtn.style.display = '';
+  closeM('tc-trip-detail');
+  openM('tc-new-trip');
+  setTimeout(() => $('tc-new-trip-name')?.focus(), 50);
+}
+
+// Live validation on the name field: blank and duplicate names are the only
+// two ways this form can be wrong, so say so before the user hits Save.
+function tcNewTripValidate() {
+  const name = ($('tc-new-trip-name')?.value || '').trim();
+  const saveBtn = $('tc-new-trip-save');
+  let err = '';
+  if (!name) {
+    err = '';
+  } else {
+    const clash = _tcFindTripRecord(name);
+    if (clash && (clash.name || '').trim().toLowerCase() !== (_tcTripEditingName || '').trim().toLowerCase()) {
+      err = `A trip called "${clash.name}" already exists.`;
+    }
+  }
+  _tcSetTripFormError(err);
+  if (saveBtn) saveBtn.disabled = !!err;
+  return !err && !!name;
+}
+
+async function saveNewTrip() {
+  const name = ($('tc-new-trip-name')?.value || '').trim();
+  if (!name) {
+    _tcSetTripFormError('Give the trip a name — that is what expenses get grouped under.');
+    $('tc-new-trip-name')?.focus();
+    return;
+  }
+  if (!tcNewTripValidate()) return;
+
+  const startDate = ($('tc-new-trip-start')?.value || '').trim();
+  const endDate = ($('tc-new-trip-end')?.value || '').trim();
+  if (startDate && endDate && endDate < startDate) {
+    _tcSetTripFormError('The end date falls before the start date.');
+    return;
+  }
+
+  const rec = {
+    id: _tcTripEditingName ? (_tcFindTripRecord(_tcTripEditingName)?.id || Date.now()) : Date.now(),
+    name,
+    destination: ($('tc-new-trip-dest')?.value || '').trim(),
+    startDate,
+    endDate,
+    purpose: ($('tc-new-trip-purpose')?.value || '').trim(),
+    notes: ($('tc-new-trip-notes')?.value || '').trim(),
+    created: _tcFindTripRecord(_tcTripEditingName || name)?.created || today(),
+  };
+
+  const records = _tcTripRecords();
+  const existingIdx = records.findIndex(t => (t.name || '').trim().toLowerCase() === (_tcTripEditingName || name).trim().toLowerCase());
+  if (existingIdx >= 0) records[existingIdx] = rec;
+  else records.push(rec);
+
+  // A rename has to follow the expenses, or the trip's spend silently detaches.
+  let moved = 0;
+  if (_tcTripEditingName && _tcTripEditingName !== name) {
+    (TAX_CENTER.businessExpenses || []).forEach(e => {
+      if ((e.trip || '').trim() === _tcTripEditingName) { e.trip = name; moved++; }
+    });
+    if (TAX_CENTER.tripBudgets?.[_tcTripEditingName] != null) {
+      TAX_CENTER.tripBudgets[name] = TAX_CENTER.tripBudgets[_tcTripEditingName];
+      delete TAX_CENTER.tripBudgets[_tcTripEditingName];
+    }
+  }
+
+  const budgetRaw = ($('tc-new-trip-budget')?.value || '').trim();
+  const budget = parseFloat(budgetRaw);
+  if (!TAX_CENTER.tripBudgets) TAX_CENTER.tripBudgets = {};
+  if (budgetRaw && !isNaN(budget) && budget > 0) TAX_CENTER.tripBudgets[name] = budget;
+  else delete TAX_CENTER.tripBudgets[name];
+
+  const wasEditing = _tcTripEditingName;
+  _tcTripEditingName = null;
+  closeM('tc-new-trip');
+  await saveTaxCenter();
+  renderTaxCenter();
+
+  if (wasEditing) {
+    showToast(moved ? `✓ Trip updated (${moved} expense${moved === 1 ? '' : 's'} moved)` : '✓ Trip updated');
+  } else {
+    showToast(`✓ Trip "${name}" created — assign expenses to it when you log them`);
+    // Pre-select the fresh trip in the expense logger so the next thing the
+    // user types lands on it.
+    tcSelectTripOption('tc-exp-trip', name);
+  }
+}
+
+async function deleteTripRecord() {
+  const name = _tcTripEditingName;
+  if (!name) return;
+  const assigned = (TAX_CENTER.businessExpenses || []).filter(e => (e.trip || '').trim() === name).length;
+  const msg = assigned
+    ? `Delete the trip "${name}"? The ${assigned} expense${assigned === 1 ? '' : 's'} assigned to it stay in your ledger but lose the trip grouping.`
+    : `Delete the trip "${name}"?`;
+  if (!(await confirmDialog(msg, { okLabel: 'Delete trip', danger: true }))) return;
+
+  TAX_CENTER.trips = _tcTripRecords().filter(t => (t.name || '').trim().toLowerCase() !== name.trim().toLowerCase());
+  (TAX_CENTER.businessExpenses || []).forEach(e => { if ((e.trip || '').trim() === name) e.trip = ''; });
+  if (TAX_CENTER.tripBudgets) delete TAX_CENTER.tripBudgets[name];
+
+  _tcTripEditingName = null;
+  closeM('tc-new-trip');
+  await saveTaxCenter();
+  renderTaxCenter();
+  showToast(`✓ Trip "${name}" deleted`);
+}
+
+// Jump from a trip straight into the expense logger with the trip pre-filled.
+// Without this, a freshly created trip tells you to go assign an expense and
+// then leaves you to scroll up and retype its name — the one place the whole
+// flow could still lose the connection it just made.
+function logExpenseForTrip(tripName) {
+  const name = (tripName || _tcOpenTripName || '').trim();
+  if (!name) return;
+  // A different entry point into the same form — not a pending confirmation —
+  // so any confirm-flow link from an earlier, abandoned edit no longer applies.
+  _tcConfirmingPendingId = null;
+  closeM('tc-trip-detail');
+  tcSelectTripOption('tc-exp-trip', name);
+
+  const card = $('tc-expense-form-card');
+  if (card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // A brief ring so it is obvious *which* card the page just jumped to.
+    card.classList.add('tc-flash-target');
+    setTimeout(() => card.classList.remove('tc-flash-target'), 1600);
+  }
+  setTimeout(() => $('tc-exp-desc')?.focus(), 400);
+  showToast(`Logging to “${name}” — fill in the expense below`);
+}
+
+// ── PRINTABLE TRIP REPORT ─────────────────────────────────────────────────
+// A standalone document (its own stylesheet, no app chrome) printed from a
+// popup, matching how invoices and the sales tracker already print. Remote
+// receipt URLs embed as thumbnails; local:// receipts live in the publisher's
+// own folder and can't be read from a detached document, so they are listed
+// by filename instead of silently printing as broken images.
+function _tcTripReportReceipts(items) {
+  const refs = [];
+  items.forEach(item => {
+    const files = (Array.isArray(item.receiptFiles) && item.receiptFiles.length)
+      ? item.receiptFiles
+      : (item.receipt ? [item.receipt] : []);
+    files.forEach(r => {
+      if (typeof r !== 'string' || !r) return;
+      const meta = { desc: item.desc || '', date: item.date || '' };
+      if (r.startsWith('local://')) {
+        const path = r.replace('local://', '');
+        refs.push({ ...meta, source: 'local', path, name: path.split('/').pop() });
+      } else if (/^https?:\/\//i.test(r)) {
+        refs.push({ ...meta, source: 'remote', url: r, name: r.split('/').pop().split('?')[0] || 'receipt' });
+      }
+    });
+  });
+  return refs;
+}
+
+/** True when a filename/URL looks like a PDF rather than an image. */
+function _tcIsPdfName(name) {
+  return /\.pdf(?:$|[?#])/i.test(name || '');
+}
+
+function _tcBlobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = () => reject(fr.error || new Error('read failed'));
+    fr.readAsDataURL(blob);
+  });
+}
+
+// Rasterise a PDF receipt's pages to PNG data URLs. A printed <embed>/<iframe>
+// of a PDF renders blank in every engine, so the only way to actually SHOW a
+// PDF receipt on the page is to draw it. pdf.js is fetched on demand and this
+// rejects offline, which the caller downgrades to a filename listing.
+async function _tcPdfToImages(blob, maxPages = 3) {
+  const pdfjsLib = await ensurePdfJs();
+  const buf = await blob.arrayBuffer();
+  const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pages = [];
+  const count = Math.min(doc.numPages, maxPages);
+  for (let n = 1; n <= count; n++) {
+    const page = await doc.getPage(n);
+    // 1.8× gives a thumbnail that still reads when printed at ~30% width.
+    const viewport = page.getViewport({ scale: 1.8 });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    pages.push({ dataUrl: canvas.toDataURL('image/png'), page: n, total: doc.numPages });
+  }
+  return pages;
+}
+
+// Turn every receipt reference into something printable. Local files are read
+// through the connected folder handle; remote ones are fetched so they can be
+// inlined as data URLs (a remote <img> often fails to load in time for the
+// print dialog, and a cross-origin PDF can't be rasterised any other way).
+// Anything that can't be resolved comes back in `missing` with a reason, so
+// the report says why instead of silently dropping a receipt.
+async function _tcResolveReceiptImages(refs) {
+  const resolved = [];
+  const missing = [];
+  if (!refs.length) return { resolved, missing };
+
+  let dirHandle = null;
+  let folderReason = 'receipt folder not connected';
+  if (refs.some(r => r.source === 'local')) {
+    try { dirHandle = await loadReceiptFolderHandle(); } catch (e) { dirHandle = null; }
+    // A stored handle can still be un-permissioned after a browser restart, so
+    // ask once here rather than failing every file with a misleading reason.
+    if (dirHandle?.queryPermission) {
+      try {
+        let perm = await dirHandle.queryPermission({ mode: 'read' });
+        if (perm !== 'granted' && dirHandle.requestPermission) {
+          perm = await dirHandle.requestPermission({ mode: 'read' });
+        }
+        if (perm !== 'granted') { dirHandle = null; folderReason = 'folder access not granted'; }
+      } catch (e) { /* older engines without the permission API — just try the read */ }
+    }
+  }
+
+  for (const ref of refs) {
+    try {
+      let blob = null;
+      if (ref.source === 'local') {
+        if (!dirHandle) { missing.push({ ...ref, reason: folderReason }); continue; }
+        blob = await resolveLocalReceiptFile(dirHandle, ref.path);
+      } else {
+        const res = await fetch(ref.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        blob = await res.blob();
+      }
+
+      const isPdf = _tcIsPdfName(ref.name) || (blob.type || '').includes('pdf');
+      if (isPdf) {
+        const pages = await _tcPdfToImages(blob);
+        if (!pages.length) throw new Error('no pages rendered');
+        pages.forEach(p => resolved.push({
+          ...ref,
+          dataUrl: p.dataUrl,
+          pageLabel: p.total > 1 ? `page ${p.page} of ${p.total}` : '',
+        }));
+      } else {
+        resolved.push({ ...ref, dataUrl: await _tcBlobToDataUrl(blob) });
+      }
+    } catch (e) {
+      missing.push({ ...ref, reason: _tcIsPdfName(ref.name) ? 'PDF could not be rendered' : 'file could not be read' });
+    }
+  }
+  return { resolved, missing };
+}
+
+async function exportTripPDF(tripName) {
+  const name = (tripName || _tcOpenTripName || '').trim();
+  const detail = window._tcTripDetail;
+  if (!name || !detail || !detail.byName || !detail.byName[name]) {
+    showToast('⚠ Trip details not found', 'warn');
+    return;
+  }
+
+  // The window has to open in the click's own turn — a window.open() after an
+  // await is treated as an unsolicited popup and blocked. It holds a placeholder
+  // while the receipts are read, then gets the finished document written into it.
+  const win = window.open('', '_blank', 'width=900,height=1000');
+  if (!win) {
+    showToast('Pop-up blocked — allow pop-ups to print the trip report', 'warn');
+    return;
+  }
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Trip report — ${escapeHtml(name)}</title></head>
+    <body style="font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;padding:40px;color:#6b635c;">
+    Preparing the trip report and its receipts…</body></html>`);
+  win.document.close();
+
+  const { baseCurrency } = detail;
+  const { items, total, count, categories } = detail.byName[name];
+  const deductibleTotal = detail.byName[name].deductible ?? total;
+  const rec = _tcFindTripRecord(name);
+  const budget = TAX_CENTER.tripBudgets?.[name] || 0;
+
+  const sorted = items.slice().sort((a, b) => {
+    const dA = a.date || '';
+    const dB = b.date || '';
+    return dA > dB ? 1 : dA < dB ? -1 : 0;
+  });
+
+  const metaRows = [
+    rec?.destination ? ['Destination', rec.destination] : null,
+    (rec?.startDate || rec?.endDate) ? ['Dates', [rec.startDate, rec.endDate].filter(Boolean).join(' – ')] : null,
+    rec?.purpose ? ['Business purpose', rec.purpose] : null,
+    ['Expenses', `${count} item${count === 1 ? '' : 's'}`],
+    ['Reporting currency', baseCurrency],
+  ].filter(Boolean).map(([k, v]) => `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(v)}</td></tr>`).join('');
+
+  let budgetLine = '';
+  if (budget > 0) {
+    const over = total > budget;
+    const delta = Math.abs(total - budget);
+    budgetLine = `<div class="budget ${over ? 'over' : 'under'}">
+      Budget ${fmt(budget, baseCurrency)} &nbsp;·&nbsp;
+      ${over ? `Over by ${fmt(delta, baseCurrency)}` : `${fmt(delta, baseCurrency)} remaining`}
+    </div>`;
+  }
+
+  const catRows = Object.entries(categories || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([cat, amt]) => `<tr>
+      <td>${escapeHtml(cat)}</td>
+      <td class="r">${total > 0 ? ((amt / total) * 100).toFixed(1) : '0.0'}%</td>
+      <td class="r">${fmt(amt, baseCurrency)}</td>
+      <td class="r">${fmt(deductibleAmount(cat, amt), baseCurrency)}${deductibleRate(cat) < 1 ? ` <small>(${Math.round(deductibleRate(cat) * 100)}% limit)</small>` : ''}</td>
+    </tr>`).join('') || '<tr><td colspan="4" class="empty">No expenses assigned to this trip.</td></tr>';
+
+  const expenseRows = sorted.map(item => `<tr>
+      <td>${escapeHtml(item.date || '—')}</td>
+      <td>${escapeHtml(item.desc || '')}</td>
+      <td>${escapeHtml(item.cat || '')}</td>
+      <td class="r">${escapeHtml(getSym(item.origCurrency || 'CAD'))}${Number(item.origAmount || 0).toFixed(2)}</td>
+      <td class="r">${fmt(item.baseAmount, baseCurrency)}</td>
+    </tr>`).join('') || '<tr><td colspan="5" class="empty">No expenses assigned to this trip yet.</td></tr>';
+
+  // Receipts are read/rasterised before the document is written, so the print
+  // window opens with every image already inlined as a data URL.
+  const refs = _tcTripReportReceipts(sorted);
+  let resolved = [];
+  let missing = [];
+  if (refs.length) {
+    showToast(`Preparing ${refs.length} receipt${refs.length === 1 ? '' : 's'} for the report…`);
+    ({ resolved, missing } = await _tcResolveReceiptImages(refs));
+  }
+
+  const thumbs = resolved.map(r => `<figure class="thumb">
+      <img src="${r.dataUrl}" alt="${escapeHtml(r.desc || r.name)}">
+      <figcaption>${escapeHtml([r.date, r.desc, r.pageLabel].filter(Boolean).join(' · '))}</figcaption>
+    </figure>`).join('');
+  const missingList = missing.length
+    ? `<div class="local-note"><b>${missing.length} receipt${missing.length === 1 ? '' : 's'} could not be shown:</b>
+        ${missing.map(m => `${escapeHtml(m.name)} (${escapeHtml(m.reason)})`).join(', ')}</div>`
+    : '';
+  const receiptsSection = (thumbs || missingList)
+    ? `<h2>Receipts</h2>${thumbs ? `<div class="thumbs">${thumbs}</div>` : ''}${missingList}`
+    : '';
+
+  const printedOn = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Trip report — ${escapeHtml(name)}</title>
+  <style>
+    @page { size: letter portrait; margin: 0.55in; }
+    * { box-sizing: border-box; }
+    html, body { background: #fff; color: #14110e; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; }
+    .head { border-bottom: 2px solid #14110e; padding-bottom: 12px; margin-bottom: 18px; }
+    .eyebrow { font-size: 8.5pt; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #B4271A; }
+    h1 { margin: 6px 0 2px; font-size: 21pt; font-weight: 800; letter-spacing: -.01em; }
+    .sub { font-size: 9.5pt; color: #6b635c; }
+    .totals { display: flex; align-items: baseline; gap: 12px; margin: 16px 0 6px; }
+    .totals .amount { font-size: 20pt; font-weight: 800; }
+    .totals .label { font-size: 9pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6b635c; }
+    .budget { display: inline-block; font-size: 9.5pt; font-weight: 700; padding: 4px 10px; border-radius: 999px; margin-bottom: 14px; }
+    .budget.under { background: #e7f4ea; color: #1f6b36; }
+    .budget.over { background: #fbe9e6; color: #97281a; }
+    h2 { font-size: 11pt; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #B4271A; margin: 22px 0 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e3ddd3; vertical-align: top; }
+    thead th { font-size: 8.5pt; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #6b635c; border-bottom: 1.5px solid #14110e; }
+    td.r, th.r { text-align: right; }
+    td.empty { text-align: center; color: #6b635c; font-style: italic; }
+    tfoot td { font-weight: 800; border-top: 1.5px solid #14110e; border-bottom: none; }
+    .meta th { width: 34%; font-weight: 700; color: #6b635c; }
+    .notes { margin-top: 10px; padding: 10px 12px; background: #faf7f1; border-left: 3px solid #E8402A; font-size: 9.5pt; }
+    .thumbs { display: flex; flex-wrap: wrap; gap: 10px; }
+    .thumb { margin: 0; width: 30%; }
+    .thumb img { width: 100%; border: 1px solid #e3ddd3; border-radius: 4px; }
+    .thumb figcaption { font-size: 8pt; color: #6b635c; margin-top: 3px; }
+    .local-note { margin-top: 10px; font-size: 9pt; color: #6b635c; }
+    .foot { margin-top: 26px; padding-top: 10px; border-top: 1px solid #e3ddd3; font-size: 8.5pt; color: #6b635c; }
+    @media print { .thumb { break-inside: avoid; } tr { break-inside: avoid; } }
+  </style>
+  </head><body>
+    <div class="head">
+      <div class="eyebrow">Business trip report</div>
+      <h1>${escapeHtml(name)}</h1>
+      <div class="sub">Lyricalmyrical Books &nbsp;·&nbsp; prepared ${escapeHtml(printedOn)}</div>
+    </div>
+
+    <div class="totals">
+      <div class="amount">${fmt(deductibleTotal, baseCurrency)}</div>
+      <div class="label">Total deductible spend${deductibleTotal !== total ? ` (of ${fmt(total, baseCurrency)} spent)` : ''}</div>
+    </div>
+    ${budgetLine}
+
+    <h2>Trip details</h2>
+    <table class="meta"><tbody>${metaRows}</tbody></table>
+    ${rec?.notes ? `<div class="notes">${escapeHtml(rec.notes)}</div>` : ''}
+
+    <h2>Spend by tax category</h2>
+    <table>
+      <thead><tr><th>Tax category</th><th class="r">Share</th><th class="r">Spent (${escapeHtml(baseCurrency)})</th><th class="r">Deductible</th></tr></thead>
+      <tbody>${catRows}</tbody>
+      <tfoot><tr><td>Total</td><td class="r"></td><td class="r">${fmt(total, baseCurrency)}</td><td class="r">${fmt(deductibleTotal, baseCurrency)}</td></tr></tfoot>
+    </table>
+
+    <h2>Expenses</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Description</th><th>Tax category</th><th class="r">Original</th><th class="r">${escapeHtml(baseCurrency)}</th></tr></thead>
+      <tbody>${expenseRows}</tbody>
+      <tfoot><tr><td colspan="4">Total</td><td class="r">${fmt(total, baseCurrency)}</td></tr></tfoot>
+    </table>
+
+    ${receiptsSection}
+
+    <div class="foot">Amounts converted to ${escapeHtml(baseCurrency)} at the rate stored with each expense. Generated by Lyricalmyrical Inventory.</div>
+  </body></html>`;
+
+  if (win.closed) return;
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  // Images are inline data URLs, so they only need a paint before printing.
+  setTimeout(() => { try { win.print(); } catch (e) { } }, resolved.length ? 600 : 350);
+  showToast('✓ Trip report ready — use “Save as PDF” in the print dialog');
+}
+
+function _tcRenderTripsPanel(selectedYear, baseCurrency) {
+  const tripBody = $('tc-trip-body');
+  const cardsGrid = $('tc-trip-cards-grid');
+  const statsBar = $('tc-trip-stats-bar');
+
+  const tripSummary = {};
+  // Declared trips show up even with zero expenses — that is the whole point of
+  // being able to create one before you have spent anything on it. A trip with
+  // dates outside the selected year is filtered out like its expenses would be.
+  _tcTripRecords().forEach(rec => {
+    const name = (rec.name || '').trim();
+    if (!name) return;
+    if (selectedYear !== 'all') {
+      const years = [rec.startDate, rec.endDate, rec.created].filter(Boolean).map(d => String(d).substring(0, 4));
+      if (years.length && !years.includes(selectedYear)) return;
+    }
+    tripSummary[name] = _tcEmptyTripBucket(rec);
+  });
+  (TAX_CENTER.businessExpenses || []).forEach(e => {
+    const eYear = e.date ? e.date.substring(0, 4) : '';
+    if (selectedYear !== 'all' && eYear !== selectedYear) return;
+    const t = (e.trip || '').trim();
+    if (!t) return;
+    const eCur = e.currency || 'CAD';
+    const eBase = _tcExpenseBaseAmount(e);
+    const cat = canonicalExpenseCategory(e.cat, 'Other');
+    if (!tripSummary[t]) tripSummary[t] = { total: 0, count: 0, items: [], categories: {}, minDate: '', maxDate: '' };
+    tripSummary[t].total += eBase;
+    tripSummary[t].count++;
+    if (!tripSummary[t].categories[cat]) tripSummary[t].categories[cat] = 0;
+    tripSummary[t].categories[cat] += eBase;
+    // The CRA limit (50% of meals) applies to the same spend; the report shows
+    // it as the deductible figure while budgets keep tracking what was spent.
+    tripSummary[t].deductible = (tripSummary[t].deductible || 0) + deductibleAmount(cat, eBase);
+
+    if (e.date) {
+      if (!tripSummary[t].minDate || e.date < tripSummary[t].minDate) tripSummary[t].minDate = e.date;
+      if (!tripSummary[t].maxDate || e.date > tripSummary[t].maxDate) tripSummary[t].maxDate = e.date;
+    }
+
+    tripSummary[t].items.push({ ...e, baseAmount: eBase, origCurrency: eCur, origAmount: e.amount || 0 });
+  });
+
+  window._tcTripDetail = { baseCurrency, byName: tripSummary };
+
+  const tripList = Object.keys(tripSummary)
+    .map(t => ({ name: t, ...tripSummary[t] }))
+    .sort((a, b) => b.total - a.total);
+
+  // Render Stats Bar
+  if (statsBar) {
+    const totalTrips = tripList.length;
+    const totalSpent = sumMoney(tripList, t => t.total);
+    const topTrip = tripList[0];
+    const avgSpent = totalTrips > 0 ? totalSpent / totalTrips : 0;
+
+    statsBar.innerHTML = `
+      <div class="tc-trip-stat-card">
+        <div class="tc-trip-stat-val">${totalTrips}</div>
+        <div class="tc-trip-stat-lbl">Active Business Trips</div>
+      </div>
+      <div class="tc-trip-stat-card">
+        <div class="tc-trip-stat-val" style="color:var(--red-light);">${fmt(totalSpent, baseCurrency)}</div>
+        <div class="tc-trip-stat-lbl">Total Trip Portfolio Spend</div>
+      </div>
+      <div class="tc-trip-stat-card">
+        <div class="tc-trip-stat-val">${topTrip ? escapeHtml(topTrip.name) : '—'}</div>
+        <div class="tc-trip-stat-lbl">Highest Spend Event ${topTrip ? `(${fmt(topTrip.total, baseCurrency)})` : ''}</div>
+      </div>
+      <div class="tc-trip-stat-card">
+        <div class="tc-trip-stat-val">${fmt(avgSpent, baseCurrency)}</div>
+        <div class="tc-trip-stat-lbl">Average Spend per Trip</div>
+      </div>
+    `;
+  }
+
+  // Render Visual Cards Grid
+  if (cardsGrid) {
+    if (tripList.length === 0) {
+      cardsGrid.innerHTML = `
+        <div class="empty-state tc-trip-empty-state" style="grid-column:1/-1;">
+          <div class="e-icon" aria-hidden="true">✈</div>
+          <strong style="font-size:var(--text-base);font-weight:700;color:var(--content-primary);margin-bottom:var(--space-1);display:block;">No Business Trips Logged Yet</strong>
+          <p style="font-size:var(--text-xs);color:var(--content-secondary);max-width:380px;margin:0 auto var(--space-3);line-height:var(--leading-snug);">Create a trip (e.g. "Toronto Book Fair") and every travel, lodging and booth expense you assign to it totals here, ready for your tax return.</p>
+          <button class="btn gold sm" type="button" onclick="openNewTrip()" style="min-height:var(--target-min);display:inline-flex;align-items:center;gap:6px;">
+            <span aria-hidden="true">✈</span>
+            <span>Create your first trip</span>
+          </button>
+        </div>
+      `;
+    } else {
+      cardsGrid.innerHTML = tripList.map(t => {
+        const catEntries = Object.entries(t.categories);
+        const catSegs = catEntries.map(([cat, amt]) => {
+          const pct = t.total > 0 ? ((amt / t.total) * 100).toFixed(1) : '0.0';
+          const color = TC_TRIP_CAT_COLORS[cat] || 'var(--gold)';
+          return `<div class="tc-trip-cat-seg" style="width:${pct}%;background:${color};" title="${escapeHtml(cat)}: ${fmt(amt, baseCurrency)} (${pct}%)"></div>`;
+        }).join('');
+
+        const dateSpan = t.minDate && t.maxDate
+          ? (t.minDate === t.maxDate ? t.minDate : `${t.minDate} &rarr; ${t.maxDate}`)
+          : (t.count === 0 ? 'Dates not set' : 'Multiple Dates');
+        const recMeta = _tcTripRecordMeta(t.record ?? _tcFindTripRecord(t.name));
+
+        const targetBudget = TAX_CENTER.tripBudgets?.[t.name] || 0;
+        let budgetHtml = '';
+        if (targetBudget > 0) {
+          const pct = Math.min(100, Math.round((t.total / targetBudget) * 100));
+          const isOver = t.total > targetBudget;
+          const barColor = isOver ? 'var(--red, #a63a2b)' : pct > 85 ? 'var(--gold2, #FF6B55)' : 'var(--green-light, #3ba75c)';
+          const badgeText = isOver
+            ? `⚠️ OVER BUDGET (+${fmt(t.total - targetBudget, baseCurrency)})`
+            : `🎯 ${pct}% of ${fmt(targetBudget, baseCurrency)} budget`;
+          budgetHtml = `
+            <div style="margin-bottom:12px;font-size:var(--text-xs);">
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-weight:600;color:${isOver ? 'var(--red, #a63a2b)' : 'var(--text2)'};">
+                <span>${badgeText}</span>
+              </div>
+              <div style="height:5px;background:var(--cream3, #e5ddd0);border-radius:var(--r);overflow:hidden;">
+                <div style="height:100%;width:${pct}%;background:${barColor};border-radius:var(--r);transition:width 0.3s ease;"></div>
+              </div>
+            </div>
+          `;
+        }
+
+        const safeName = t.name.replace(/'/g, "\\'");
+        return `
+          <div class="tc-trip-card" onclick="showTripDetail('${safeName}')">
+            <div>
+              <div class="tc-trip-card-head">
+                <h4 class="tc-trip-card-title">✈ ${escapeHtml(t.name)}</h4>
+                <div class="tc-trip-card-total">${t.count === 0 ? '<span class="tc-trip-badge-new">Planned</span>' : `-${fmt(t.total, baseCurrency)}`}</div>
+              </div>
+              <div class="tc-trip-card-meta">
+                <span>📅 ${dateSpan}</span>
+                <span>•</span>
+                <span>📄 ${t.count} expense${t.count === 1 ? '' : 's'}</span>
+              </div>
+              ${recMeta ? `<div class="tc-trip-card-meta tc-trip-card-submeta">${recMeta}</div>` : ''}
+              ${t.count === 0
+                ? `<div class="tc-trip-card-empty">No expenses assigned yet — pick this trip when you log one.</div>`
+                : `<div class="tc-trip-cat-bar" aria-label="Category breakdown bar">${catSegs}</div>`}
+              ${budgetHtml}
+            </div>
+            <div class="tc-trip-card-foot">
+              <span style="color:var(--text3);font-size:var(--text-xs);">Click to view expenses & breakdown</span>
+              <span style="color:var(--gold-text, #B4271A);font-weight:700;">View Details &rarr;</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // Render Table View
+    if (tripBody) {
+    tripBody.innerHTML = tripList.map(t => `
+        <tr onclick="showTripDetail(this.dataset.trip)" data-trip="${escapeHtml(t.name)}" style="cursor:pointer;" title="Click to view ${t.count} expense${t.count === 1 ? '' : 's'}">
+          <td style="color:var(--gold);text-decoration:underline;">✈ ${escapeHtml(t.name)}</td>
+          <td class="r tnum">${t.count}</td>
+          <td class="r tnum" style="font-weight:bold;color:var(--red);">${t.count === 0 ? '<span style="color:var(--text3);font-weight:600;">Planned</span>' : `- ${fmt(t.total, baseCurrency)}`}</td>
+        </tr>
+    `).join('') || `<tr><td colspan="3"><div class="empty-state" style="padding:var(--space-4);"><span aria-hidden="true" style="font-size:20px;display:block;margin-bottom:4px;">✈</span><strong>No trips logged yet</strong><div style="font-size:var(--text-xs);color:var(--content-muted);margin-top:2px;">Press <b>✈ New trip</b> above to create one.</div></div></td></tr>`;
+  }
+
+  // Sync current view mode toggle button states
+  tcSetTripsView(_tcTripsViewMode);
+
+  // Render quick chips for expense logger input
+  tcRenderQuickTripChips();
+  tcUpdateTripSelectedPreview();
+}
+
+function _tcBuildLedger(selectedYear) {
+  let totalGrossSales = 0;
+  let totalOperatingExpenses = 0;
+  let allLedger = [];
+
+  Object.keys(BOOKS).forEach(bid => {
+    if (bid.toLowerCase().includes('test') || BOOKS[bid]?.title?.toLowerCase()?.includes('test')) return;
+    const s = states[bid] || defaultState(BOOKS[bid]);
+    const b = BOOKS[bid];
+    const cur = getBookCurrencyCode(b);
+    // Re-derive consignment Sale mirrors from their canonical ledger rows, so a
+    // sale corrected in the Consignment tab reports its NEW amount here (and in
+    // the CSV export built from these rows) rather than the amount it was first
+    // recorded at, and so an invoice rename reaches the Receipt/Ref column.
+    reconcileConsignmentMirrors(s);
+
+    // Each sale is converted at its own date's rate (see lib/sale-fx.js), not
+    // today's, so a past year's totals don't move with the exchange rate.
+
+    // Add sales to ledger
+    // ⚡ Bolt Optimization: Use imperative loop to avoid array allocation from .filter()
+    if (s.hist && s.hist.length > 0) {
+      for (const h of s.hist) {
+        if (h.artistPending && !h.voided) continue;
+
+        const hYear = h.date ? h.date.substring(0, 4) : '';
+        if (selectedYear !== 'all' && hYear !== selectedYear) continue;
+
+        const fx = saleCadAmounts(h, cur, _fxRateCache);
+        const amt = fx.merchandise;
+        const baseAmt = fx.merchandiseCad;
+        totalGrossSales = roundCents(totalGrossSales + baseAmt);
+
+        allLedger.push({
+          date: h.date,
+          type: 'Sale',
+          desc: `${b.title} (Qty: ${h.qty || 1})`,
+          cat: 'Income',
+          ref: h.num,
+          invoiceNum: h.consignmentLink ? (h.invoiceNum || '') : '',
+          origCurrency: cur,
+          origAmount: amt,
+          baseAmount: baseAmt,
+          qty: h.qty || 1,
+          voided: !!h.voided,
+          hasRateError: fx.missing,
+          rateEstimated: fx.estimated && !fx.missing && !h.voided,
+          isIncome: true,
+          sourceType: 'sale',
+          sourceId: bid,
+          itemId: h.id || h.num
+        });
+
+        // Customer shipping is recorded in CAD whatever the book's currency.
+        const shippingIncome = h.voided ? 0 : (Number(h.shippingPaid) || 0);
+        if (shippingIncome > 0) {
+          const shippingBase = fx.shippingCad;
+          totalGrossSales = roundCents(totalGrossSales + shippingBase);
+          allLedger.push({
+            date: h.date,
+            type: 'Shipping income',
+            desc: `Customer shipping paid (${b.title})`,
+            cat: 'Income',
+            ref: h.num,
+            origCurrency: 'CAD',
+            origAmount: shippingIncome,
+            baseAmount: shippingBase,
+            qty: 0,
+            voided: false,
+            hasRateError: false,
+            isIncome: true,
+            sourceType: 'shippingIncome',
+            sourceId: bid,
+            itemId: `${h.id || h.num}-shipping-income`,
+          });
+        }
+      }
+    }
+
+    // Add book specific expenses
+    (s.expenses || []).forEach(e => {
+      const eYear = e.date ? e.date.substring(0, 4) : '';
+      if (selectedYear !== 'all' && eYear !== selectedYear) return;
+
+      // Use stored origCurrency/origAmount for display, and stored baseAmount to avoid double-conversion.
+      // Fallback for legacy entries that don't have baseAmount stored.
+      const displayOrigCur = e.origCurrency || e.currency || 'CAD';
+      const displayOrigAmt = e.origAmount != null ? e.origAmount : (e.amount || 0);
+      const bookCur = e.currency || 'CAD';
+
+      let eBase;
+      let eRateMissing = false;
+      if (e.baseAmount != null) {
+        // Pre-calculated at submission time — no double conversion
+        eBase = e.baseAmount;
+      } else {
+        // No stored CAD value: convert at the expense's own date's rate.
+        const eRate = datedCadRate(bookCur, e.date, _fxRateCache);
+        eBase = roundCents((e.amount || 0) * eRate.rate);
+        eRateMissing = eRate.missing;
+      }
+
+      totalOperatingExpenses += eBase;
+
+      allLedger.push({
+        date: e.date,
+        type: 'Expense',
+        desc: e.desc + ` (${b.title})`,
+        cat: canonicalExpenseCategory(e.cat, 'Project Expense'),
+        ref: e.shippingOrderNumber ? `${e.ref || ''} · ${e.shippingOrderNumber}` : e.ref || '',
+        receipt: e.receipt || '',
+        origCurrency: displayOrigCur,
+        origAmount: displayOrigAmt,
+        baseAmount: eBase,
+        hasRateError: eRateMissing,
+        isIncome: false,
+        sourceType: 'bookExpense',
+        sourceId: bid,
+        itemId: e.id
+      });
+    });
+
+    // Add artist payments.
+    //
+    // Sourced from `artistPayouts` — the payments the publisher actually
+    // recorded. This previously read `artistTransfers` filtered on a `paid`
+    // flag that nothing ever sets (settlement deletes the transfer instead of
+    // marking it), so no artist payout ever reached the ledger, the CSV or the
+    // "Artist Payouts" KPI, and the row edit/delete paths were unreachable.
+    // ⚡ Bolt Optimization: Use imperative loop to avoid array allocation from .filter()
+    if (s.artistPayouts && s.artistPayouts.length > 0) {
+      for (const p of s.artistPayouts) {
+        if (p.voided) continue;
+
+        const tDate = p.date || '';
+        const tYear = tDate ? tDate.substring(0, 4) : '';
+        if (selectedYear !== 'all' && tYear !== selectedYear) continue;
+
+        // `amount` is always in the book's own currency; a payout paid in
+        // another currency keeps that cash in `payment` for the audit trail.
+        const pAmount = Number(p.amount) || 0;
+        const pFx = datedCadRate(cur, tDate, _fxRateCache);
+        const pBase = roundCents(pAmount * pFx.rate);
+        allLedger.push({
+          date: tDate,
+          type: 'Expense',
+          // The ledger counts cash only; say when part of the royalty was
+          // settled by netting a debt, so a small or zero row isn't a mystery.
+          desc: p.settlement
+            ? `Author settlement (${b.title}) — earnings settled, including money retained from sales`
+            : payoutNetted(p) > 0.005
+            ? `Artist Payout (${b.title}) — plus ${fmt(payoutNetted(p), cur)} netted against money owed`
+            : `Artist Payout (${b.title})`,
+          cat: 'Artist Royalties',
+          ref: p.method || p.sourceNum || '',
+          origCurrency: cur,
+          origAmount: pAmount,
+          baseAmount: pBase,
+          hasRateError: pFx.missing,
+          rateEstimated: pFx.estimated && !pFx.missing,
+          isIncome: false,
+          // An artist payout is backed by the payment record, not a till slip.
+          receiptExempt: true,
+          sourceType: 'artistPayout',
+          sourceId: bid,
+          itemId: p.id
+        });
+        const debtCollected = payoutDebtCollected(p);
+        if (debtCollected > 0) allLedger.push({
+          date: tDate, type: 'Transfer', desc: `Author debt settled (${b.title}) — included in the combined payment; not another sale`,
+          cat: 'Debt repayment', ref: p.method || '', origCurrency: cur,
+          origAmount: debtCollected, baseAmount: roundCents(debtCollected * pFx.rate),
+          hasRateError: pFx.missing, isIncome: true, sourceType: 'artistDebtRecovery', sourceId: bid, itemId: p.id,
+        });
+      }
+    }
+  });
+
+  (TAX_CENTER.businessExpenses || []).forEach(e => {
+    const eYear = e.date ? e.date.substring(0, 4) : '';
+    if (selectedYear !== 'all' && eYear !== selectedYear) return;
+
+    const eCur = e.currency || 'CAD';
+    // Use stored baseAmount when available to avoid re-conversion. Without one,
+    // a rate already known for the expense's date gives the value; otherwise it
+    // counts as 0 and is flagged until healExpenseRates fills it in.
+    const eFx = datedCadRate(eCur, e.date, _fxRateCache);
+    const eBase = e.baseAmount != null
+      ? e.baseAmount
+      : (e.fxMissing && eFx.estimated) || eFx.missing
+        ? 0
+        : roundCents((e.amount || 0) * eFx.rate);
+
+    if (e.affectsCashFlow !== false) totalOperatingExpenses += eBase;
+
+    allLedger.push({
+      date: e.date,
+      type: 'Business Exp.',
+      desc: e.desc,
+      cat: canonicalExpenseCategory(e.cat),
+      ref: e.ref || '',
+      receipt: e.receipt || '',
+      receiptFiles: e.receiptFiles || [],
+      origCurrency: eCur,
+      origAmount: e.amount || 0,
+      baseAmount: eBase,
+      hasRateError: e.baseAmount == null && ((!!e.fxMissing && eFx.estimated) || eFx.missing),
+      isIncome: false,
+      // Inventory write-downs and the like carry this flag on the saved expense.
+      receiptExempt: !!(e.receiptExempt || e.isRent),
+      sourceType: 'businessExpense',
+      itemId: e.id,
+      trip: e.trip || '',
+      affectsCashFlow: e.affectsCashFlow !== false
+    });
+  });
+
+  return { totalGrossSales, totalOperatingExpenses, allLedger };
+}
+
+/* ── Integration connection pills ─────────────────────────────────────────
+   Each service header carries a one-word verdict — Connected, Not connected,
+   Turned off — so the owner can see at a glance which services are actually
+   wired up without opening five panels. Derived from the fields on screen,
+   so it stays true the moment a key is typed, saved or cleared. */
+const INTEGRATION_PILL_SPECS = [
+  { key: 'gemini', fields: ['tc-api-key', 'tc-backup-key'] },
+  { key: 'shippo', fields: ['tc-shippo-key'] },
+  { key: 'zonos', fields: ['tc-zonos-key'], toggle: 'tc-zonos-enabled' },
+  { key: 'chitchats', fields: ['tc-cc-client-id', 'tc-cc-token'], toggle: 'tc-cc-enabled', requireAll: true },
+  { key: 'canadapost', fields: ['tc-cp-live-key', 'tc-cp-live-secret', 'tc-cp-test-key', 'tc-cp-test-secret'], toggle: 'tc-cp-enabled', requireAll: false },
+  { key: 'stripe', fields: ['stripe-fees-key'] },
+];
+
+function refreshIntegrationStatusPills() {
+  let connected = 0;
+  let total = 0;
+  INTEGRATION_PILL_SPECS.forEach(spec => {
+    const pill = $(`tc-service-status-${spec.key}`);
+    if (!pill) return;
+    total += 1;
+    const values = spec.fields.map(id => ($(id)?.value || '').trim());
+    const filled = spec.requireAll ? values.every(Boolean) : values.some(Boolean);
+    const partial = !filled && values.some(Boolean);
+    const toggleEl = spec.toggle ? $(spec.toggle) : null;
+    const turnedOff = !!toggleEl && !toggleEl.checked;
+
+    let cls = 'is-idle';
+    let label = 'Not connected';
+    if (filled && turnedOff) { cls = 'is-off'; label = 'Turned off'; }
+    else if (filled) { cls = 'is-ready'; label = 'Connected'; connected += 1; }
+    else if (partial) { cls = 'is-attention'; label = 'Finish setup'; }
+
+    pill.className = `tc-service-status ${cls}`;
+    pill.textContent = label;
+  });
+
+  const summary = $('tc-integrations-summary');
+  if (summary && total) summary.textContent = `${connected} of ${total} services connected`;
+}
+
+// One delegated listener keeps the pills honest while the owner types.
+let _integrationPillsWired = false;
+function wireIntegrationStatusPills() {
+  if (_integrationPillsWired) return;
+  const card = document.querySelector('.tc-integrations-card');
+  if (!card) return;
+  _integrationPillsWired = true;
+  card.addEventListener('input', refreshIntegrationStatusPills);
+  card.addEventListener('change', refreshIntegrationStatusPills);
+}
+
+function _tcRenderStatusHeaders() {
+  if ($('tc-api-key') && TAX_CENTER.settings?.geminiKey) $('tc-api-key').value = TAX_CENTER.settings.geminiKey;
+  hydrateCredentialField('tc-backup-key', TAX_CENTER.settings?.openRouterKey);
+  if ($('tc-backup-model') && TAX_CENTER.settings?.openRouterModel) $('tc-backup-model').value = TAX_CENTER.settings.openRouterModel;
+  if ($('stripe-fees-key') && TAX_CENTER.settings?.stripeKey) $('stripe-fees-key').value = TAX_CENTER.settings.stripeKey;
+  const _stripeStatusEl = $('stripe-fees-status');
+  if (_stripeStatusEl && !_stripeStatusEl.textContent && TAX_CENTER.settings?.stripeFeesLastImportAt) {
+    const last = new Date(TAX_CENTER.settings.stripeFeesLastImportAt);
+    if (!isNaN(last)) {
+      const days = Math.floor((Date.now() - last.getTime()) / 86400000);
+      const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+      _stripeStatusEl.textContent = `Fees last filed in your ledger ${ago} (${last.toISOString().slice(0, 10)}). Fetch again to refresh.`;
+    }
+  }
+  // The saved report, so the section opens on the last figures (and their
+  // ledger status against the ledger just loaded) without a fetch.
+  renderStripeFeesReport();
+  if ($('tc-shippo-key') && TAX_CENTER.settings?.shippoKey) $('tc-shippo-key').value = TAX_CENTER.settings.shippoKey;
+  const _shippoStatusEl = $('tc-shippo-status');
+  if (_shippoStatusEl && TAX_CENTER.settings?.shippoLastImportAt) {
+    const last = new Date(TAX_CENTER.settings.shippoLastImportAt);
+    if (!isNaN(last)) {
+      const days = Math.floor((Date.now() - last.getTime()) / 86400000);
+      const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+      _shippoStatusEl.textContent = `Last synced ${ago} (${last.toISOString().slice(0, 10)}). Imports non-refunded transaction rates as Shipping & Postage expenses.`;
+    }
+  }
+  hydrateCredentialField('tc-zonos-key', TAX_CENTER.settings?.zonosApiKey);
+  hydrateCredentialField('tc-cc-client-id', TAX_CENTER.settings?.ccClientId);
+  hydrateCredentialField('tc-cc-token', TAX_CENTER.settings?.ccToken);
+  if ($('tc-cc-test-mode')) $('tc-cc-test-mode').checked = !!TAX_CENTER.settings?.ccTestMode;
+  if ($('tc-cc-enabled') && TAX_CENTER.settings?.ccEnabled !== undefined) $('tc-cc-enabled').checked = TAX_CENTER.settings.ccEnabled !== false;
+
+  hydrateCredentialField('tc-zonos-account-key', TAX_CENTER.settings?.zonosAccountKey);
+  if ($('tc-zonos-enabled') && TAX_CENTER.settings?.zonosEnabled !== undefined) $('tc-zonos-enabled').checked = TAX_CENTER.settings.zonosEnabled !== false;
+  if ($('tc-zonos-strict-prepay') && TAX_CENTER.settings?.requireZonosUsPrepay !== undefined) $('tc-zonos-strict-prepay').checked = TAX_CENTER.settings.requireZonosUsPrepay !== false;
+  const _zonosStatusEl = $('tc-zonos-status');
+  if (_zonosStatusEl && TAX_CENTER.settings?.zonosLastTestAt) {
+    const last = new Date(TAX_CENTER.settings.zonosLastTestAt);
+    if (!isNaN(last)) {
+      _zonosStatusEl.innerHTML = `<span class="tc-status-ok">✓ API connection active</span> <span class="tc-status-meta">(tested ${last.toLocaleDateString()} ${last.toLocaleTimeString()})</span>`;
+    }
+  }
+
+  // A pre-split configuration is moved into the set it belongs to before the
+  // boxes are filled, so the key appears where it will actually be used rather
+  // than vanishing from a card that now has two homes for it.
+  const migration = migrateCanadaPostCredentials(TAX_CENTER.settings || {});
+  for (const mode of ['live', 'test']) {
+    const set = readCanadaPostCredentialSet(TAX_CENTER.settings || {}, mode);
+    hydrateCredentialField(`tc-cp-${mode}-key`, set.apiKey);
+    hydrateCredentialField(`tc-cp-${mode}-secret`, set.apiSecret);
+    hydrateCredentialField(`tc-cp-${mode}-customer-number`, set.customerNumber);
+    hydrateCredentialField(`tc-cp-${mode}-contract-id`, set.contractId);
+  }
+  if (migration.migrated) _cpMigrationNotice = migration.mode;
+  renderCanadaPostKeySets();
+  if ($('tc-cp-test-mode') && TAX_CENTER.settings?.cpTestMode !== undefined) $('tc-cp-test-mode').checked = !!TAX_CENTER.settings.cpTestMode;
+  if ($('tc-cp-enabled') && TAX_CENTER.settings?.cpEnabled !== undefined) $('tc-cp-enabled').checked = TAX_CENTER.settings.cpEnabled !== false;
+  const _cpStatusEl = $('tc-cp-status');
+  if (_cpStatusEl && TAX_CENTER.settings?.cpLastTestAt) {
+    const last = new Date(TAX_CENTER.settings.cpLastTestAt);
+    if (!isNaN(last)) {
+      _cpStatusEl.innerHTML = `<span class="tc-status-ok">✓ API connection active</span> <span class="tc-status-meta">(tested ${last.toLocaleDateString()} ${last.toLocaleTimeString()})</span>`;
+    }
+  }
+
+  wireIntegrationStatusPills();
+  refreshIntegrationStatusPills();
+
+  // Update the receipt storage status shown inline next to the Receipt
+  // input on Log Business Expense.
+  loadReceiptFolderHandle().then(async handle => {
+    const inlineStatus = $('tc-exp-storage-status');
+    const inlineAuthBtn = $('tc-exp-storage-auth-btn');
+    const setInline = (text, color, showAuth) => {
+      if (inlineStatus) {
+        inlineStatus.innerHTML = text;
+        inlineStatus.style.color = color || 'var(--text3)';
+      }
+      if (inlineAuthBtn) inlineAuthBtn.style.display = showAuth ? '' : 'none';
+    };
+    if (!handle) {
+      setInline('Storage: <strong>Cloud</strong> — receipts are kept safely online until you pick a folder to file them in', 'var(--text3)', false);
+      _tcRenderReceiptStorage();
+      return;
+    }
+    const perm = typeof handle.queryPermission === 'function'
+      ? await handle.queryPermission({ mode: 'readwrite' })
+      : 'prompt';
+    if (perm === 'granted') {
+      // Says what will actually be created: the chosen folder, then a year and
+      // a category. It used to claim "receipts/General", which was both an
+      // extra folder level and a stray one.
+      setInline(`Saving to: <strong>${escapeHtml(handle.name)}</strong> › ${new Date().getFullYear()} › category`, 'var(--green)', false);
+    } else {
+      setInline(`⚠ Access needed for folder: <strong>${escapeHtml(handle.name)}</strong> — receipts go to the cloud until you allow it`, 'var(--amber)', true);
+    }
+    _tcRenderReceiptStorage();
+  }).catch(e => {
+    // A browser with no IndexedDB (private mode) or no folder API rejects here.
+    // The backlog prompt is the one thing that must still render — it is what
+    // tells the owner receipts are piling up somewhere other than their folder.
+    console.warn('Receipt folder status unavailable', e);
+    _tcRenderReceiptStorage();
+  });
+}
+
+/**
+ * Where the receipts live, stated neutrally.
+ *
+ * This used to nag: "40 receipts waiting to be filed, the oldest 95 days,
+ * anything past 14 days is worth bringing down now." That framing came from
+ * treating the local folder as the real home and the cloud as a queue to drain.
+ * With the cloud as the permanent home, receipts held there are simply stored,
+ * and the only thing worth flagging is an expense with no receipt at all — the
+ * one an accountant will actually ask about.
+ *
+ * The folder-unreachable banner and the offline-copies readout are rendered by
+ * main.js, which owns the folder handle and the cache.
+ */
+export const DISMISSED_NOTICES_KEY = 'lm-dismissed-receipt-notices';
+
+export function getDismissedReceiptNotices() {
+  try {
+    return JSON.parse(localStorage.getItem(DISMISSED_NOTICES_KEY) || '{}');
+  } catch (_) {
+    return {};
+  }
+}
+
+function isReceiptNoticeDismissed(key) {
+  const map = getDismissedReceiptNotices();
+  return !!map[key];
+}
+
+function dismissReceiptNotice(key) {
+  try {
+    const map = getDismissedReceiptNotices();
+    map[key] = true;
+    localStorage.setItem(DISMISSED_NOTICES_KEY, JSON.stringify(map));
+    _tcRenderReceiptStorage();
+    if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+      window.showToast('Notice dismissed', 'ok', 3000);
+    }
+  } catch (e) {
+    console.error('Failed to dismiss notice', e);
+  }
+}
+
+function resetDismissedReceiptNotices() {
+  try {
+    localStorage.removeItem(DISMISSED_NOTICES_KEY);
+    _tcRenderReceiptStorage();
+    if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+      window.showToast('✓ Dismissed notices restored', 'ok', 3000);
+    }
+  } catch (e) {
+    console.error('Failed to reset notices', e);
+  }
+}
+
+function _tcRenderReceiptStorage() {
+  const el = $('tc-cloud-backlog');
+  const viewBtn = $('tc-view-cloud-btn');
+  const exportBtn = $('tc-export-receipts-btn');
+  const resetBtn = $('tc-reset-notices-btn');
+  if (!el) return;
+
+  const owners = receiptOwners(TAX_CENTER.businessExpenses, states, BOOKS);
+  const s = summarizeReceiptStorage(owners.map(o => o.exp));
+
+  if (viewBtn) viewBtn.style.display = s.cloudFiles ? '' : 'none';
+  if (exportBtn) exportBtn.style.display = s.totalFiles ? '' : 'none';
+
+  const countBadge = $('tc-vault-gallery-count');
+  if (countBadge) countBadge.textContent = String(s.totalFiles || 0);
+
+  if (!s.totalFiles && !s.withoutReceipts) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+
+  const isSelected = (type) => _tcLedgerSpecialFilter === type ? ' is-selected-filter' : '';
+
+  // Stat grid tiles
+  const tiles = [];
+  tiles.push(`
+    <div class="tc-receipt-tile${isSelected('local')}" role="button" tabindex="0" onclick="tcFilterLedgerByReceiptStorage('local')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tcFilterLedgerByReceiptStorage('local');}" title="Click to filter ledger to expenses stored in your local folder">
+      <div class="tc-tile-icon">📁</div>
+      <div class="tc-tile-body">
+        <div class="tc-tile-num">${s.localFiles}</div>
+        <div class="tc-tile-label">In your folder</div>
+        <div class="tc-tile-hint">Saved in the receipts folder on this computer</div>
+      </div>
+    </div>
+  `);
+
+  tiles.push(`
+    <div class="tc-receipt-tile ${s.cloudFiles ? 'is-active' : ''}${isSelected('cloud')}" role="button" tabindex="0" onclick="tcFilterLedgerByReceiptStorage('cloud')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tcFilterLedgerByReceiptStorage('cloud');}" title="Click to filter ledger to expenses saved in cloud backup">
+      <div class="tc-tile-icon">☁️</div>
+      <div class="tc-tile-body">
+        <div class="tc-tile-num">${s.cloudFiles}</div>
+        <div class="tc-tile-label">Backed up online</div>
+        <div class="tc-tile-hint">Stored safely online</div>
+      </div>
+    </div>
+  `);
+
+  if (s.linkedFiles) {
+    tiles.push(`
+      <div class="tc-receipt-tile${isSelected('linked')}" role="button" tabindex="0" onclick="tcFilterLedgerByReceiptStorage('linked')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tcFilterLedgerByReceiptStorage('linked');}" title="Click to filter ledger to expenses with external receipt links">
+        <div class="tc-tile-icon">🔗</div>
+        <div class="tc-tile-body">
+          <div class="tc-tile-num">${s.linkedFiles}</div>
+          <div class="tc-tile-label">Web links</div>
+        <div class="tc-tile-hint">Receipts saved as a link to another website</div>
+        </div>
+      </div>
+    `);
+  }
+
+  if (s.withoutReceipts) {
+    tiles.push(`
+      <div class="tc-receipt-tile is-warning${isSelected('missing')}" role="button" tabindex="0" onclick="tcFilterLedgerByReceiptStorage('missing')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tcFilterLedgerByReceiptStorage('missing');}" title="Click to filter ledger to expenses missing receipts">
+        <div class="tc-tile-icon">⚠️</div>
+        <div class="tc-tile-body">
+          <div class="tc-tile-num">${s.withoutReceipts}</div>
+          <div class="tc-tile-label">Missing receipt</div>
+        <div class="tc-tile-hint">Expenses with no receipt attached yet</div>
+        </div>
+      </div>
+    `);
+  }
+
+  if (s.linkOnlyExpenses) {
+    tiles.push(`
+      <div class="tc-receipt-tile is-notice${isSelected('label')}" role="button" tabindex="0" onclick="tcFilterLedgerByReceiptStorage('label')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tcFilterLedgerByReceiptStorage('label');}" title="Click to filter ledger to expenses with shipping labels only">
+        <div class="tc-tile-icon">🏷️</div>
+        <div class="tc-tile-body">
+          <div class="tc-tile-num">${s.linkOnlyExpenses}</div>
+          <div class="tc-tile-label">Shipping label only</div>
+        <div class="tc-tile-hint">Postage with a label but no Shippo receipt yet</div>
+        </div>
+      </div>
+    `);
+  }
+
+  // Actionable advisory alerts (dismissible)
+  const notices = [];
+  const dismissed = getDismissedReceiptNotices();
+
+  if (s.withoutReceipts && !dismissed.missing) {
+    notices.push(`
+      <div class="tc-receipt-alert is-warn" id="tc-notice-missing">
+        <span class="tc-alert-glyph">⚠️</span>
+        <div class="tc-alert-info">
+          <strong>${s.withoutReceipts} expense${s.withoutReceipts === 1 ? '' : 's'} without a receipt attached.</strong>
+          <span>Attach digital receipts or supplier invoices to maintain full audit compliance for tax filing.</span>
+        </div>
+        <button class="tc-alert-dismiss" type="button" onclick="dismissReceiptNotice('missing')" title="Dismiss this notice" aria-label="Dismiss notice">✕</button>
+      </div>
+    `);
+  }
+  if (s.linkOnlyExpenses && !dismissed.shippo) {
+    notices.push(`
+      <div class="tc-receipt-alert is-info" id="tc-notice-shippo">
+        <span class="tc-alert-glyph">🏷️</span>
+        <div class="tc-alert-info">
+          <strong>${s.linkOnlyExpenses} postage expense${s.linkOnlyExpenses === 1 ? ' has' : 's have'} a shipping label but no receipt.</strong>
+          <span>A label proves a parcel was sent, not that you paid. Shippo sends a receipt for your postage each week — fetch those and attach them here.</span>
+          <button type="button" class="btn sm ink tc-alert-cta" onclick="findShippoReceipts(this)">Find my Shippo receipts</button>
+        </div>
+        <button class="tc-alert-dismiss" type="button" onclick="dismissReceiptNotice('shippo')" title="Dismiss this notice" aria-label="Dismiss notice">✕</button>
+      </div>
+    `);
+  }
+
+  if (resetBtn) {
+    resetBtn.style.display = (dismissed.missing || dismissed.shippo) ? '' : 'none';
+  }
+
+  el.className = (s.withoutReceipts || s.linkOnlyExpenses) ? 'tc-cloud-backlog is-stale' : 'tc-cloud-backlog';
+  el.innerHTML = `<div class="tc-receipt-stat-head">Where your receipts are <span>Tap a box to list those expenses below</span></div><div class="tc-receipt-stat-grid">${tiles.join('')}</div>`
+    + (notices.length ? `<div class="tc-receipt-alert-stack">${notices.join('')}</div>` : '');
+  el.style.display = '';
+}
+
+let activeTaxCenterSubTab = 'ledger';
+
+
+// ── COSTS WITH NO RECORD ─────────────────────────────────────────────────────
+//
+// The panel behind the "Missing Costs" sub-tab. The finding logic is all in
+// src/lib/deduction-gaps.js and is pure; this only assembles what it needs,
+// draws the result, and remembers what the publisher said about each item.
+//
+// Deliberately worded throughout as a gap in the RECORDS, never as tax advice.
+// Whether a cost can be claimed depends on where they file and is an
+// accountant's question; whether they took four hundred dollars at a fair and
+// logged no costs for it is a fact about this database.
+
+function _dedNotes() {
+  if (!TAX_CENTER.deductionNotes || typeof TAX_CENTER.deductionNotes !== 'object') {
+    TAX_CENTER.deductionNotes = {};
+  }
+  return TAX_CENTER.deductionNotes;
+}
+
+function _dedContext() {
+  let tripsSummary = {};
+  try { tripsSummary = _tcGetTripsSummaryAll() || {}; } catch (_) { tripsSummary = {}; }
+  return { books: BOOKS, states, taxCenter: TAX_CENTER, tripsSummary };
+}
+
+/** One gap, as a card the publisher can act on or put off. */
+function _dedGapHtml(gap, cur) {
+  const amount = gap.estimate == null
+    ? '<span class="ded-amount is-unknown" title="Not enough history to estimate">&mdash;</span>'
+    : `<span class="ded-amount intel-fig">${escapeHtml(cur)} ${gap.estimate.toFixed(2)}</span>`;
+  return `<div class="ded-gap card">
+      <div class="ded-gap-top">
+        <div class="ded-gap-head">
+          <strong class="ded-gap-title">${escapeHtml(gap.title)}</strong>
+          <span class="pill gray">${escapeHtml(gap.category)}</span>
+        </div>
+        ${amount}
+      </div>
+      <p class="ded-gap-detail">${escapeHtml(gap.detail)}</p>
+      ${gap.estimateBasis ? `<p class="ded-gap-basis">Estimated from ${escapeHtml(gap.estimateBasis)}.</p>` : ''}
+      <p class="ded-gap-prompt">${escapeHtml(gap.prompt)}</p>
+      <div class="ded-gap-actions">
+        <button type="button" class="btn gold sm sys-target" onclick="switchTaxCenterSubTab('ledger')">Add the cost</button>
+        <button type="button" class="btn ghost sm sys-target" onclick="snoozeDeductionGap('${escapeHtml(gap.id)}')">Remind me later</button>
+        <button type="button" class="btn ghost sm sys-target" onclick="dismissDeductionGap('${escapeHtml(gap.id)}')">Not a cost I have</button>
+      </div>
+    </div>`;
+}
+
+function renderDeductionGaps() {
+  const host = $('tc-deductions-body');
+  if (!host || isAuthor()) return;
+  renderCategoryMismatches();
+
+  const out = findDeductionGaps(_dedContext());
+  const cur = TAX_CENTER.settings?.baseCurrency || 'CAD';
+
+  const total = $('tc-deductions-total');
+  if (total) {
+    total.textContent = out.totalEstimate > 0 ? `${cur} ${out.totalEstimate.toFixed(2)}` : '—';
+  }
+  const status = $('tc-deductions-status');
+  if (status) {
+    status.textContent = out.gaps.length
+      ? `${out.gaps.length} ${out.gaps.length === 1 ? 'gap' : 'gaps'} found in your records.`
+      : 'Nothing missing that this can see.';
+  }
+
+  const hiddenNote = out.hidden
+    ? `<p class="ded-hidden">${out.hidden} ${out.hidden === 1 ? 'item is' : 'items are'} put off or dismissed.
+         <button type="button" class="btn ghost sm sys-target" onclick="restoreDeductionGaps()">Show them again</button></p>`
+    : '';
+
+  if (!out.gaps.length) {
+    host.innerHTML = `<div class="empty-state sys-empty">
+        <div class="e-icon" aria-hidden="true">🔎</div>
+        <strong>Nothing obviously missing</strong>
+        <span>Every fair with takings has costs against it, and the regular ones are all present.
+          This checks again whenever you open it, so it will catch the next gap as it appears.</span>
+      </div>${hiddenNote}`;
+    return;
+  }
+
+  host.innerHTML = out.gaps.map(g => _dedGapHtml(g, cur)).join('') + hiddenNote;
+}
+
+// ── POSSIBLE MISCATEGORIZATIONS ──────────────────────────────────────────────
+//
+// A different question from the gaps above: not "is a cost missing" but "is a
+// cost filed under the right name". The finding logic lives in
+// src/lib/category-fit.js and is pure and deliberately not a classifier — it
+// only points out where an expense's own wording contradicts how this
+// business has filed that same wording everywhere else. Shares the same
+// put-off/dismiss notes as the gaps above, so an id namespace ("cat-mismatch:")
+// keeps the two from ever colliding in TAX_CENTER.deductionNotes.
+
+/** One possible miscategorization, as a card the publisher can fix or dismiss. */
+function _catMismatchHtml(f, cur) {
+  const q = (v) => escapeHtml(String(v)).replace(/'/g, '&#39;');
+  return `<div class="ded-gap card">
+      <div class="ded-gap-top">
+        <div class="ded-gap-head">
+          <strong class="ded-gap-title">${escapeHtml(f.title)}</strong>
+          <span class="pill gray">${escapeHtml(f.currentCategory)} → ${escapeHtml(f.suggestedCategory)}</span>
+        </div>
+        <span class="ded-amount intel-fig">${escapeHtml(cur)} ${f.amount.toFixed(2)}</span>
+      </div>
+      <p class="ded-gap-detail">${escapeHtml(f.detail)}</p>
+      <p class="ded-gap-prompt">${escapeHtml(f.prompt)}</p>
+      <div class="ded-gap-actions">
+        ${f.scope === 'business'
+          ? `<button type="button" class="btn gold sm sys-target" onclick="changeExpenseCategory('${q(f.expenseId)}', '${q(f.suggestedCategory)}');renderDeductionGaps()">Move to ${escapeHtml(f.suggestedCategory)}</button>`
+          : `<button type="button" class="btn gold sm sys-target" onclick="openEditExpense('bookExpense', '${q(f.bookId || '')}', '${q(f.expenseId)}')">Review — move to ${escapeHtml(f.suggestedCategory)}</button>`}
+        <button type="button" class="btn ghost sm sys-target" onclick="snoozeDeductionGap('${q(f.id)}')">Remind me later</button>
+        <button type="button" class="btn ghost sm sys-target" onclick="dismissDeductionGap('${q(f.id)}')">Not a mistake</button>
+      </div>
+    </div>`;
+}
+
+function renderCategoryMismatches() {
+  const host = $('tc-catcheck-body');
+  if (!host || isAuthor()) return;
+
+  const notes = _dedNotes();
+  const todayStr = today();
+  let hidden = 0;
+  const findings = findCategoryMismatches(_dedContext()).filter(f => {
+    if (gapNoteState(notes[f.id], todayStr) === 'open') return true;
+    hidden += 1;
+    return false;
+  });
+  const cur = TAX_CENTER.settings?.baseCurrency || 'CAD';
+
+  const total = $('tc-catcheck-total');
+  if (total) total.textContent = findings.length ? String(findings.length) : '—';
+  const status = $('tc-catcheck-status');
+  if (status) {
+    status.textContent = findings.length
+      ? `${findings.length} possible ${findings.length === 1 ? 'miscategorization' : 'miscategorizations'} found.`
+      : 'Nothing looks miscategorized.';
+  }
+
+  const hiddenNote = hidden
+    ? `<p class="ded-hidden">${hidden} ${hidden === 1 ? 'item is' : 'items are'} put off or dismissed.
+         <button type="button" class="btn ghost sm sys-target" onclick="restoreDeductionGaps()">Show them again</button></p>`
+    : '';
+
+  if (!findings.length) {
+    host.innerHTML = `<div class="empty-state sys-empty">
+        <div class="e-icon" aria-hidden="true">🏷️</div>
+        <strong>Nothing looks out of place</strong>
+        <span>Every expense's wording matches how you've filed similar wording before.
+          This needs a real history to check against, so it says more once you have a few months of entries.</span>
+      </div>${hiddenNote}`;
+    return;
+  }
+
+  host.innerHTML = findings.map(f => _catMismatchHtml(f, cur)).join('') + hiddenNote;
+}
+
+async function _dedSaveNote(id, note, message) {
+  _dedNotes()[String(id)] = note;
+  try {
+    await saveTaxCenter({ rethrow: true });
+    showToast(message, 'ok', 2800);
+  } catch (e) {
+    console.error('Could not save that', e);
+    showToast('Could not save that — it is queued and will retry', 'warn', 4200);
+  }
+  renderDeductionGaps();
+}
+
+/**
+ * Put an item off rather than making it a thing to deal with now.
+ *
+ * The whole point of a year-round check is that it does not demand everything
+ * at once. Without this the same finding reappears on every visit and the panel
+ * becomes something to scroll past.
+ */
+function snoozeDeductionGap(id) {
+  return _dedSaveNote(
+    id,
+    { status: 'snoozed', until: snoozeUntil(DEFAULT_SNOOZE_DAYS), at: new Date().toISOString() },
+    `Put off for ${DEFAULT_SNOOZE_DAYS} days`
+  );
+}
+
+function dismissDeductionGap(id) {
+  return _dedSaveNote(id, { status: 'dismissed', at: new Date().toISOString() }, 'Left out from now on');
+}
+
+function restoreDeductionGaps() {
+  TAX_CENTER.deductionNotes = {};
+  return _dedSaveNote('__none__', undefined, 'Showing everything again');
+}
+
+function switchTaxCenterSubTab(subTabName) {
+  const leavingEmailImport = activeTaxCenterSubTab === 'email-import' && subTabName !== 'email-import';
+  activeTaxCenterSubTab = subTabName || 'ledger';
+  const subTabs = ['ledger', 'receipts', 'deductions', 'integrations', 'email-import'];
+  subTabs.forEach(tab => {
+    const btn = document.getElementById('btn-tctab-' + tab);
+    const sec = document.getElementById('tc-sec-' + tab);
+    if (btn && sec) {
+      if (tab === activeTaxCenterSubTab) {
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        btn.setAttribute('tabindex', '0');
+        sec.style.display = '';
+      } else {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
+        btn.setAttribute('tabindex', '-1');
+        sec.style.display = 'none';
+      }
+    }
+  });
+  if (activeTaxCenterSubTab === 'deductions') renderDeductionGaps();
+  if (activeTaxCenterSubTab === 'receipts') {
+    if (_tcVaultViewMode === 'gallery') {
+      _tcRenderReceiptGallery();
+    } else {
+      _tcRenderReceiptStorage();
+    }
+  }
+  // Navigating away must actually stop an in-flight Gmail search/extraction,
+  // the same cleanup that used to fire when the old dialog was dismissed —
+  // otherwise it keeps running against a tab the owner can no longer see.
+  if (leavingEmailImport) window.closeEmailReceiptImportModal();
+  if (activeTaxCenterSubTab === 'email-import') window.openEmailReceiptImportModal();
+}
+
+function tcSubNavKeydown(e) {
+  const subTabs = ['ledger', 'receipts', 'deductions', 'integrations', 'email-import'];
+  const currentIdx = subTabs.indexOf(activeTaxCenterSubTab);
+  if (currentIdx === -1) return;
+
+  let nextIdx = -1;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    nextIdx = (currentIdx + 1) % subTabs.length;
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    nextIdx = (currentIdx - 1 + subTabs.length) % subTabs.length;
+  } else if (e.key === 'Home') {
+    nextIdx = 0;
+  } else if (e.key === 'End') {
+    nextIdx = subTabs.length - 1;
+  }
+
+  if (nextIdx !== -1) {
+    e.preventDefault();
+    const nextTab = subTabs[nextIdx];
+    switchTaxCenterSubTab(nextTab);
+    const targetBtn = document.getElementById('btn-tctab-' + nextTab);
+    if (targetBtn) targetBtn.focus();
+  }
+}
+
+// ── Tax Season Pre-Flight Audit Modal ───────────────────────────────────────
+function openTaxSeasonPreflightModal() {
+  const yearSelect = $('tc-year') || $('tc-year-ledger');
+  const year = yearSelect ? yearSelect.value : 'all';
+  const isAllTime = (year === 'all');
+  const baseCurrency = TAX_CENTER.settings?.baseCurrency || 'CAD';
+
+  const { totalGrossSales, totalOperatingExpenses, allLedger } = _tcBuildLedger(year);
+
+  // Check 1: Missing receipts (excluding rent / lease payments and gratuity copies which are exempt)
+  const expenseEntries = allLedger.filter(r => !r.isIncome);
+  const missingReceipts = expenseEntries.filter(r => !isReceiptExemptExpense(r) && !r.receipt && (!r.receiptFiles || !r.receiptFiles.length) && !(typeof r.ref === 'string' && (r.ref.includes('local://') || /^https?:\/\//i.test(r.ref)))).length;
+
+  // Check 2: Foreign currency rate fallback warnings
+  const rateWarnings = [];
+  BOOK_LIST.forEach(book => {
+    if (isTestBook(book) || isTestBookId(book.id)) return;
+    const cur = getBookCurrencyCode(book);
+    if (cur && cur !== 'CAD' && !_fxRateCache[`${cur}_CAD`]) {
+      rateWarnings.push({ title: book.title, cur });
+    }
+  });
+  const hasRateErrors = allLedger.some(r => r.hasRateError) || rateWarnings.length > 0;
+
+  // Check 3: Pending notes
+  const pendingList = _tcPendingList();
+  const pendingInYear = isAllTime ? pendingList.length : pendingList.filter(p => !p.expectedDate || p.expectedDate.startsWith(year)).length;
+
+  // Compute readiness score (0 - 100)
+  let score = 100;
+  if (missingReceipts > 0) score -= Math.min(25, missingReceipts * 3);
+  if (hasRateErrors) score -= 20;
+  if (pendingInYear > 0) score -= Math.min(15, pendingInYear * 5);
+  score = Math.max(20, Math.min(100, score));
+
+  const scoreColor = score >= 90 ? 'var(--green)' : score >= 70 ? 'var(--gold)' : 'var(--red)';
+  const scoreBadge = score === 100 ? '✓ 100% Audit Ready' : `${score}% Audit Ready`;
+
+  const container = $('tc-preflight-content');
+  if (container) {
+    container.innerHTML = `
+      <div style="background:var(--surface-sunken);border:var(--stroke-hair) solid var(--border-default);border-radius:var(--r2);padding:14px 16px;margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+          <div>
+            <span style="font-size:var(--text-xs);text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);font-weight:700;">Tax Reporting Period</span>
+            <div style="font-size:16px;font-weight:700;color:var(--text1);">${isAllTime ? 'All Time (Full Historical Export)' : `Calendar Year ${escapeHtml(year)}`}</div>
+          </div>
+          <div style="font-family:var(--font-ui);font-size:var(--text-base);font-weight:700;color:${scoreColor};background:var(--cream2);border:var(--stroke-hair) solid ${scoreColor};padding:4px 12px;border-radius:var(--r-pill);">
+            ${scoreBadge}
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;font-size:var(--text-sm);padding-top:10px;border-top:var(--stroke-hair) solid var(--border-subtle);">
+          <div><span style="color:var(--text3);">Gross Sales:</span><br><strong style="color:var(--green);font-family:var(--font-mono);">+${fmt(totalGrossSales, baseCurrency)}</strong></div>
+          <div><span style="color:var(--text3);">Operating Exp:</span><br><strong style="color:var(--red);font-family:var(--font-mono);">-${fmt(totalOperatingExpenses, baseCurrency)}</strong></div>
+          <div><span style="color:var(--text3);">Net Cash Flow:</span><br><strong style="color:var(--gold);font-family:var(--font-mono);">${fmt(totalGrossSales - totalOperatingExpenses, baseCurrency)}</strong></div>
+        </div>
+      </div>
+
+      <div class="tc-preflight-checklist" style="display:flex;flex-direction:column;gap:10px;">
+        <div class="tc-preflight-item" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:var(--r2);background:${hasRateErrors ? 'rgba(180,40,40,.08)' : 'var(--cream2)'};border:var(--stroke-hair) solid ${hasRateErrors ? 'var(--red)' : 'var(--border)'};">
+          <span style="font-size:16px;line-height:1.2;">${hasRateErrors ? '⚠️' : '✓'}</span>
+          <div style="flex:1;font-size:var(--text-sm);">
+            <strong>${hasRateErrors ? 'Foreign Currency Exchange Rates Incomplete' : 'Foreign Currency Rates Verified'}</strong>
+            <div style="color:var(--text2);margin-top:2px;">${hasRateErrors ? `${rateWarnings.length || 'Some'} book(s) or entries use fallback 1.0 FX rate. Refresh rates to ensure tax totals match CRA/IRS filings.` : 'All foreign transactions properly converted to CAD base currency.'}</div>
+          </div>
+        </div>
+
+        <div class="tc-preflight-item" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:var(--r2);background:${missingReceipts > 0 ? 'rgba(180,120,20,.08)' : 'var(--cream2)'};border:var(--stroke-hair) solid ${missingReceipts > 0 ? 'var(--amber)' : 'var(--border)'};">
+          <span style="font-size:16px;line-height:1.2;">${missingReceipts > 0 ? '⚠️' : '✓'}</span>
+          <div style="flex:1;font-size:var(--text-sm);">
+            <strong>${missingReceipts > 0 ? `${missingReceipts} expense(s) without attached receipts` : 'All eligible expenses have proof-of-payment attached'}</strong>
+            <div style="color:var(--text2);margin-top:2px;">${missingReceipts > 0 ? 'Digital receipts or supplier invoices are recommended for audit compliance (rent/lease payments exempt).' : 'Complete paper trail ready for tax archiving (rent/lease payments verified via bank records).'}</div>
+          </div>
+          ${missingReceipts > 0 ? `<button class="btn sm tag" onclick="tcJumpToFixPreflightIssues()" type="button" style="white-space:nowrap;">Inspect →</button>` : ''}
+        </div>
+
+        <div class="tc-preflight-item" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:var(--r2);background:${pendingInYear > 0 ? 'var(--gold-bg)' : 'var(--cream2)'};border:var(--stroke-hair) solid ${pendingInYear > 0 ? 'var(--gold-line)' : 'var(--border)'};">
+          <span style="font-size:16px;line-height:1.2;">${pendingInYear > 0 ? 'ℹ️' : '✓'}</span>
+          <div style="flex:1;font-size:var(--text-sm);">
+            <strong>${pendingInYear > 0 ? `${pendingInYear} pending expense note(s) in review` : 'No unconfirmed pending notes'}</strong>
+            <div style="color:var(--text2);margin-top:2px;">${pendingInYear > 0 ? 'Pending notes are kept out of ledger totals until confirmed.' : 'All known expenses are logged into the ledger.'}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const fixBtn = $('tc-preflight-fix-btn');
+  if (fixBtn) fixBtn.style.display = missingReceipts > 0 ? '' : 'none';
+
+  openM('tc-preflight');
+}
+
+function tcJumpToFixPreflightIssues() {
+  closeM('tc-preflight');
+  tcFilterLedgerByReceiptStorage('missing');
+}
+
+function executeFullTaxSeasonExport() {
+  closeM('tc-preflight');
+  if (typeof window.downloadFullTaxSeasonExportDirect === 'function') {
+    window.downloadFullTaxSeasonExportDirect();
+  } else if (typeof window.downloadFullTaxSeasonExport === 'function') {
+    window.downloadFullTaxSeasonExport();
+  }
+}
+
+// ── Receipts Vault Visual Gallery & Lightbox ────────────────────────────────
+let _tcVaultViewMode = 'overview';
+let _tcGallerySearch = '';
+let _tcGalleryCategory = 'all';
+let _tcGalleryPage = 0;
+const TC_GALLERY_PAGE_SIZE = 12;
+
+function tcSetVaultView(mode) {
+  _tcVaultViewMode = mode === 'gallery' ? 'gallery' : 'overview';
+  const btnOverview = $('btn-vault-view-overview');
+  const btnGallery = $('btn-vault-view-gallery');
+  const secOverview = $('tc-vault-overview-view');
+  const secGallery = $('tc-vault-gallery-view');
+
+  if (btnOverview && btnGallery && secOverview && secGallery) {
+    if (_tcVaultViewMode === 'gallery') {
+      btnGallery.classList.add('active');
+      btnOverview.classList.remove('active');
+      secGallery.style.display = '';
+      secOverview.style.display = 'none';
+      _tcRenderReceiptGallery();
+    } else {
+      btnOverview.classList.add('active');
+      btnGallery.classList.remove('active');
+      secOverview.style.display = '';
+      secGallery.style.display = 'none';
+      _tcRenderReceiptStorage();
+    }
+  }
+}
+
+function tcGallerySearchInput(v) {
+  _tcGallerySearch = (v || '').trim().toLowerCase();
+  _tcGalleryPage = 0;
+  _tcRenderReceiptGallery();
+}
+
+function tcGalleryFilterChange() {
+  const catSel = $('tc-gallery-category');
+  _tcGalleryCategory = catSel ? catSel.value : 'all';
+  _tcGalleryPage = 0;
+  _tcRenderReceiptGallery();
+}
+
+function _tcAllReceiptItems() {
+  const items = [];
+  const baseCurrency = TAX_CENTER.settings?.baseCurrency || 'CAD';
+
+  // Business Expenses
+  (TAX_CENTER.businessExpenses || []).forEach(e => {
+    const files = (Array.isArray(e.receiptFiles) && e.receiptFiles.length) ? e.receiptFiles : (e.receipt ? [e.receipt] : []);
+    files.forEach(ref => {
+      if (!ref || typeof ref !== 'string') return;
+      items.push({
+        sourceType: 'businessExpense',
+        id: e.id,
+        desc: e.desc || 'Expense',
+        date: e.date || '',
+        cat: e.cat || 'Other',
+        amount: e.baseAmount != null ? e.baseAmount : (e.amount || 0),
+        currency: baseCurrency,
+        origAmount: e.amount || 0,
+        origCurrency: e.currency || 'CAD',
+        receiptRef: ref,
+        trip: e.trip || ''
+      });
+    });
+  });
+
+  // Book Expenses
+  Object.keys(BOOKS).forEach(bid => {
+    if (isTestBookId(bid)) return;
+    const s = states[bid];
+    if (!s || !s.expenses) return;
+    const bTitle = BOOKS[bid]?.title || '';
+    s.expenses.forEach(e => {
+      const files = (Array.isArray(e.receiptFiles) && e.receiptFiles.length) ? e.receiptFiles : (e.receipt ? [e.receipt] : []);
+      files.forEach(ref => {
+        if (!ref || typeof ref !== 'string') return;
+        items.push({
+          sourceType: 'bookExpense',
+          bookId: bid,
+          id: e.id,
+          desc: `${e.desc || 'Expense'} (${bTitle})`,
+          date: e.date || '',
+          cat: e.cat || 'Project Expense',
+          amount: e.baseAmount != null ? e.baseAmount : (e.amount || 0),
+          currency: baseCurrency,
+          origAmount: e.origAmount != null ? e.origAmount : (e.amount || 0),
+          origCurrency: e.origCurrency || e.currency || 'CAD',
+          receiptRef: ref,
+          trip: ''
+        });
+      });
+    });
+  });
+
+  // Sort latest date first
+  // ⚡ Bolt: Optimize date string sorting by bypassing slow localeCompare
+  items.sort((a, b) => { const aDate = a.date || ''; const bDate = b.date || ''; return bDate < aDate ? -1 : (bDate > aDate ? 1 : 0); });
+  return items;
+}
+
+function _tcRenderReceiptGallery() {
+  const grid = $('tc-gallery-grid');
+  const countBadge = $('tc-vault-gallery-count');
+  if (!grid) return;
+
+  const allItems = _tcAllReceiptItems();
+  if (countBadge) countBadge.textContent = String(allItems.length);
+
+  // Populate category select options if empty
+  const catSel = $('tc-gallery-category');
+  if (catSel && catSel.options.length <= 1) {
+    const cats = Array.from(new Set(allItems.map(i => i.cat).filter(Boolean))).sort();
+    catSel.innerHTML = '<option value="all">All Categories</option>' + cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  }
+
+  // Filter items
+  let filtered = allItems;
+  if (_tcGalleryCategory && _tcGalleryCategory !== 'all') {
+    filtered = filtered.filter(i => i.cat === _tcGalleryCategory);
+  }
+  if (_tcGallerySearch) {
+    filtered = filtered.filter(i => `${i.desc} ${i.cat} ${i.trip} ${i.date} ${i.receiptRef}`.toLowerCase().includes(_tcGallerySearch));
+  }
+
+  const baseCurrency = TAX_CENTER.settings?.baseCurrency || 'CAD';
+  const totalPages = Math.max(1, Math.ceil(filtered.length / TC_GALLERY_PAGE_SIZE));
+  if (_tcGalleryPage >= totalPages) _tcGalleryPage = totalPages - 1;
+  if (_tcGalleryPage < 0) _tcGalleryPage = 0;
+
+  const pageStart = _tcGalleryPage * TC_GALLERY_PAGE_SIZE;
+  const pageItems = filtered.slice(pageStart, pageStart + TC_GALLERY_PAGE_SIZE);
+
+  window._tcGalleryRenderedItems = filtered;
+
+  if (pageItems.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;padding:40px 20px;">
+      <div class="e-icon">🗂</div>
+      <div>${_tcGallerySearch || _tcGalleryCategory !== 'all' ? 'No receipts match your search filter' : 'No receipts attached yet. Drop receipts when logging expenses.'}</div>
+    </div>`;
+    const pg = $('tc-gallery-pagination');
+    if (pg) pg.innerHTML = '';
+    return;
+  }
+
+  grid.innerHTML = pageItems.map((item, idx) => {
+    const isPdf = _tcIsPdfName(item.receiptRef);
+    const globalIdx = pageStart + idx;
+    const isCloud = item.receiptRef.startsWith('cloud://');
+    const isLocal = item.receiptRef.startsWith('local://');
+    const storageBadge = isCloud
+      ? '<span class="pill blue" style="font-size:var(--text-2xs);">☁️ Cloud</span>'
+      : isLocal
+        ? '<span class="pill green" style="font-size:var(--text-2xs);">📁 Local</span>'
+        : '<span class="pill gray" style="font-size:var(--text-2xs);">🔗 Link</span>';
+
+    const thumbHtml = isPdf
+      ? `<div class="tc-gallery-pdf-badge"><span style="font-size:28px;">📄</span><span style="font-size:var(--text-2xs);font-weight:700;margin-top:4px;">PDF DOCUMENT</span></div>`
+      : `<div class="tc-gallery-img-thumb"><span style="font-size:28px;">🧾</span></div>`;
+
+    return `
+      <div class="tc-gallery-card" role="button" tabindex="0" onclick="openReceiptLightbox(${globalIdx})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openReceiptLightbox(${globalIdx});}" title="Click to preview receipt: ${escapeHtml(item.desc)}">
+        <div class="tc-gallery-thumb-wrap">
+          ${thumbHtml}
+          <div class="tc-gallery-card-badges">
+            ${storageBadge}
+          </div>
+        </div>
+        <div class="tc-gallery-card-body">
+          <div class="tc-gallery-card-title">${escapeHtml(item.desc)}</div>
+          <div class="tc-gallery-card-meta">
+            <span>📅 ${escapeHtml(item.date || '—')}</span>
+            <span>•</span>
+            <span style="color:var(--red);font-weight:700;">-${fmt(item.amount, baseCurrency)}</span>
+          </div>
+          <div style="font-size:var(--text-2xs);color:var(--text3);margin-top:2px;">${escapeHtml(item.cat)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Render pagination controls
+  const pgWrap = $('tc-gallery-pagination');
+  if (pgWrap) {
+    if (totalPages <= 1) {
+      pgWrap.innerHTML = '';
+    } else {
+      pgWrap.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:var(--text-sm);color:var(--text3);">
+          <span>Showing ${pageStart + 1}–${Math.min(pageStart + TC_GALLERY_PAGE_SIZE, filtered.length)} of ${filtered.length} receipts</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn sm" type="button" onclick="setTcGalleryPage(${_tcGalleryPage - 1})" ${_tcGalleryPage === 0 ? 'disabled' : ''}>‹ Prev</button>
+            <span style="padding:4px 8px;font-family:var(--font-mono);">${_tcGalleryPage + 1} / ${totalPages}</span>
+            <button class="btn sm" type="button" onclick="setTcGalleryPage(${_tcGalleryPage + 1})" ${_tcGalleryPage === totalPages - 1 ? 'disabled' : ''}>Next ›</button>
+          </div>
+        </div>
+      `;
+    }
+  }
+}
+
+function setTcGalleryPage(p) {
+  _tcGalleryPage = p;
+  _tcRenderReceiptGallery();
+}
+
+// Lightbox state
+let _tcLightboxState = {
+  items: [],
+  index: 0,
+  zoom: 1,
+  rotate: 0,
+};
+
+async function openReceiptLightbox(index) {
+  const items = window._tcGalleryRenderedItems || _tcAllReceiptItems();
+  if (!items || !items[index]) return;
+
+  _tcLightboxState = {
+    items,
+    index,
+    zoom: 1,
+    rotate: 0,
+  };
+
+  openM('tc-receipt-lightbox');
+  await _tcRenderLightboxContent();
+}
+
+async function _tcRenderLightboxContent() {
+  const { items, index, zoom, rotate } = _tcLightboxState;
+  const item = items[index];
+  if (!item) return;
+
+  const titleEl = $('tc-lightbox-title');
+  const metaEl = $('tc-lightbox-meta');
+  const counterEl = $('tc-lightbox-counter');
+  if (titleEl) titleEl.textContent = item.desc || 'Receipt Preview';
+  if (metaEl) {
+    metaEl.innerHTML = `
+      <span>📅 ${escapeHtml(item.date || '—')}</span> &nbsp;·&nbsp;
+      <span>🏷️ ${escapeHtml(item.cat || '')}</span> &nbsp;·&nbsp;
+      <strong style="color:var(--red);font-family:var(--font-mono);">-${fmt(item.amount, item.currency || 'CAD')}</strong>
+    `;
+  }
+  if (counterEl) counterEl.textContent = `${index + 1} / ${items.length}`;
+
+  const prevBtn = $('tc-lightbox-prev-btn');
+  const nextBtn = $('tc-lightbox-next-btn');
+  if (prevBtn) prevBtn.disabled = (index <= 0);
+  if (nextBtn) nextBtn.disabled = (index >= items.length - 1);
+
+  const imgEl = $('tc-lightbox-img');
+  const canvasEl = $('tc-lightbox-canvas');
+  const loadEl = $('tc-lightbox-loading');
+  const extLink = $('tc-lightbox-open-external');
+  const viewport = $('tc-lightbox-viewport');
+
+  if (viewport) {
+    viewport.style.transform = `scale(${zoom}) rotate(${rotate}deg)`;
+  }
+
+  if (loadEl) loadEl.style.display = 'block';
+  if (imgEl) imgEl.style.display = 'none';
+  if (canvasEl) canvasEl.style.display = 'none';
+
+  const ref = item.receiptRef;
+  const isPdf = _tcIsPdfName(ref);
+
+  try {
+    let resolvedUrl = '';
+    let blob = null;
+
+    if (ref.startsWith('local://')) {
+      const path = ref.replace('local://', '');
+      const handle = await loadReceiptFolderHandle();
+      if (handle) {
+        blob = await resolveLocalReceiptFile(handle, path);
+        if (blob) resolvedUrl = URL.createObjectURL(blob);
+      }
+    } else if (ref.startsWith('cloud://')) {
+      if (typeof window._fbGetCloudReceiptUrl === 'function') {
+        resolvedUrl = await window._fbGetCloudReceiptUrl(ref);
+      }
+    } else if (/^https?:\/\//i.test(ref)) {
+      resolvedUrl = ref;
+    }
+
+    if (extLink) {
+      extLink.href = resolvedUrl || '#';
+      extLink.style.display = resolvedUrl ? '' : 'none';
+    }
+
+    if (isPdf) {
+      if (!blob && resolvedUrl) {
+        const res = await fetch(resolvedUrl);
+        blob = await res.blob();
+      }
+      if (blob) {
+        const pdfjsLib = await ensurePdfJs();
+        const buf = await blob.arrayBuffer();
+        const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+        const page = await doc.getPage(1);
+        const vp = page.getViewport({ scale: 1.5 });
+        if (canvasEl) {
+          canvasEl.width = vp.width;
+          canvasEl.height = vp.height;
+          await page.render({ canvasContext: canvasEl.getContext('2d'), viewport: vp }).promise;
+          canvasEl.style.display = 'block';
+        }
+        if (loadEl) loadEl.style.display = 'none';
+      } else {
+        throw new Error('PDF file could not be retrieved');
+      }
+    } else if (resolvedUrl) {
+      if (imgEl) {
+        imgEl.src = resolvedUrl;
+        imgEl.onload = () => {
+          if (loadEl) loadEl.style.display = 'none';
+          imgEl.style.display = 'block';
+        };
+        imgEl.onerror = () => {
+          if (loadEl) {
+            loadEl.style.display = 'block';
+            loadEl.innerHTML = '<div class="e-icon">⚠️</div><div>Image preview could not be displayed</div>';
+          }
+        };
+      }
+    } else {
+      throw new Error('No receipt resource available');
+    }
+  } catch (err) {
+    if (loadEl) {
+      loadEl.style.display = 'block';
+      loadEl.innerHTML = `<div class="e-icon">⚠️</div><div>Could not load preview (${escapeHtml(err.message || 'File offline')})</div>`;
+    }
+  }
+}
+
+function tcLightboxZoom(delta) {
+  _tcLightboxState.zoom = Math.max(0.5, Math.min(3.0, _tcLightboxState.zoom + delta));
+  const viewport = $('tc-lightbox-viewport');
+  if (viewport) viewport.style.transform = `scale(${_tcLightboxState.zoom}) rotate(${_tcLightboxState.rotate}deg)`;
+}
+
+function tcLightboxRotate() {
+  _tcLightboxState.rotate = (_tcLightboxState.rotate + 90) % 360;
+  const viewport = $('tc-lightbox-viewport');
+  if (viewport) viewport.style.transform = `scale(${_tcLightboxState.zoom}) rotate(${_tcLightboxState.rotate}deg)`;
+}
+
+function tcLightboxReset() {
+  _tcLightboxState.zoom = 1;
+  _tcLightboxState.rotate = 0;
+  const viewport = $('tc-lightbox-viewport');
+  if (viewport) viewport.style.transform = `scale(1) rotate(0deg)`;
+}
+
+function tcLightboxNav(dir) {
+  const newIndex = _tcLightboxState.index + dir;
+  if (newIndex >= 0 && newIndex < _tcLightboxState.items.length) {
+    _tcLightboxState.index = newIndex;
+    _tcLightboxState.zoom = 1;
+    _tcLightboxState.rotate = 0;
+    _tcRenderLightboxContent();
+  }
+}
+
+function renderTaxCenter() {
+  if (isAuthor()) return;
+  // The Tax Centre holds the key and the other "AI Scan" button, and opening it
+  // is idle time. Checking here — rather than inside a scan — means a newer
+  // reader is found without anyone ever waiting on the lookup.
+  if (TAX_CENTER?.settings?.geminiKey) _warmGeminiModelCache(TAX_CENTER.settings.geminiKey);
+  // Preserve active subtab state
+  switchTaxCenterSubTab(activeTaxCenterSubTab);
+  // Populate years before restoring a saved selection such as next year.
+  _tcRefreshYearOptions();
+  // Restore the saved ledger view (year + search + type) before reading the year.
+  _tcRestoreLedgerPrefs();
+  _tcRenderStatusHeaders();
+
+  const baseCurrency = TAX_CENTER.settings?.baseCurrency || 'CAD';
+  const yearSelect = $('tc-year');
+  const selectedYear = yearSelect ? yearSelect.value : 'all';
+
+  const { totalGrossSales, totalOperatingExpenses, allLedger } = _tcBuildLedger(selectedYear);
+
+  const netCashFlow = totalGrossSales - totalOperatingExpenses;
+
+  // Render the redesigned Cash Flow Summary card (headline stats + deltas +
+  // secondary KPIs + monthly mini-chart + FX-staleness banner). Pass the
+  // already-built ledger so the chart and counts never re-iterate or drift.
+  _tcRenderCashFlowSummary({
+    selectedYear, baseCurrency, allLedger,
+    totalGrossSales, totalOperatingExpenses, netCashFlow,
+  });
+
+  // Trips panel + autocomplete suggestions
+  _tcRenderTripsPanel(selectedYear, baseCurrency);
+
+  _tcRenderPendingPanel();
+
+  _tcRenderCategoryPanel(allLedger, baseCurrency);
+
+  // ⚡ Bolt Optimization: Use string comparison instead of parsing to Date for sorting "YYYY-MM-DD" formatted dates
+  allLedger.sort((a, b) => {
+    const dateA = a.date || '';
+    const dateB = b.date || '';
+    return dateA > dateB ? -1 : dateA < dateB ? 1 : 0;
+  });
+
+  // Apply the search + type filter; everything below (pagination, totals footer,
+  // CSV export) operates on this filtered view. Stash it so the CSV export covers
+  // the WHOLE filtered year — not just the visible page.
+  const filteredLedger = _tcApplyLedgerFilter(allLedger);
+  window._tcLedgerExport = { rows: filteredLedger, baseCurrency };
+
+  // Clamp page to valid range
+  const totalPages = Math.max(1, Math.ceil(filteredLedger.length / TC_LEDGER_PAGE_SIZE));
+  if (_tcLedgerPage >= totalPages) _tcLedgerPage = totalPages - 1;
+  if (_tcLedgerPage < 0) _tcLedgerPage = 0;
+  const pageStart = _tcLedgerPage * TC_LEDGER_PAGE_SIZE;
+  const pageLedger = filteredLedger.slice(pageStart, pageStart + TC_LEDGER_PAGE_SIZE);
+
+  _tcRenderLedgerTable(pageLedger, baseCurrency);
+
+  // Filtered totals footer — reacts to the year + search + type filter.
+  _tcRenderLedgerFoot(filteredLedger, baseCurrency);
+
+  // Active-filter chip (search + type) — makes it obvious why the table shows
+  // fewer rows than the year-scoped summary cards, with one-click reset.
+  _tcRenderLedgerFilterChip();
+
+  // Pagination controls
+  _tcRenderLedgerPagination(filteredLedger, pageStart, totalPages);
+
+  _tcRenderRecurringSubscriptions();
+
+  // Keep BOTH year selects in agreement with the period that was just rendered,
+  // regardless of which control triggered the change (or a restored pref).
+  [$('tc-year'), $('tc-year-ledger')].forEach(el => {
+    if (el && el.value !== selectedYear &&
+      Array.from(el.options).some(o => o.value === selectedYear)) {
+      el.value = selectedYear;
+    }
+  });
+  renderShippingReconciliationWorklist();
+}
+
+function _tcDeltaChip(delta, prevYear, goodWhenUp) {
+  if (!delta) return '';
+  if (delta.kind === 'new') {
+    return `<span class="cf-chip-new" title="No activity in ${prevYear}">new</span>`;
+  }
+  const up = delta.dir === 'up';
+  const flat = delta.dir === 'flat';
+  const arrow = flat ? '→' : up ? '▲' : '▼';
+  // For income/net: up = good (green). For expenses: up = bad (red).
+  const good = flat ? null : (goodWhenUp ? up : !up);
+  const cls = good === null ? 'cf-chip-flat' : good ? 'cf-chip-up' : 'cf-chip-down';
+  const pct = Math.abs(delta.pct);
+  const pctStr = pct >= 100 ? Math.round(pct) : pct.toFixed(pct < 10 ? 1 : 0);
+  return `<span class="${cls}" title="vs ${prevYear}">${arrow} ${pctStr}% <span class="cf-chip-vs">vs ${prevYear}</span></span>`;
+}
+
+function _tcRenderCashFlowSummary(ctx) {
+  const { selectedYear, baseCurrency, allLedger,
+    totalGrossSales, totalOperatingExpenses, netCashFlow } = ctx;
+
+  // ---- Headline values + colours -----------------------------------------
+  const salesEl = $('tc-sales');
+  const expEl = $('tc-expenses');
+  const netEl = $('tc-net');
+  if (salesEl) salesEl.textContent = fmt(totalGrossSales, baseCurrency);
+  if (expEl) expEl.textContent = fmt(totalOperatingExpenses, baseCurrency);
+  if (netEl) netEl.textContent = fmt(netCashFlow, baseCurrency);
+
+  // Net is green when in the black, red when underwater (previously always green).
+  const netCard = $('tc-net-card');
+  if (netCard) {
+    netCard.classList.remove('cf-income', 'cf-expense');
+    netCard.classList.add(netCashFlow >= 0 ? 'cf-income' : 'cf-expense');
+  }
+
+  // ---- Secondary KPI metrics for the selected period ----------------------
+  const sources = { books: BOOKS, states, taxCenter: TAX_CENTER, fxRateCache: _fxRateCache };
+  const cur = computeCashFlowMetrics(sources, selectedYear);
+  const artistPayouts = cur.artistPayouts;
+  const netAfterPayouts = netCashFlow - artistPayouts + (cur.artistDebtRecovered || 0) + (cur.artistSettlementCashAdjustment || 0);
+  const profitMargin = totalGrossSales > 0 ? (netCashFlow / totalGrossSales) * 100 : null;
+  const avgSale = cur.txnCount > 0 ? totalGrossSales / cur.txnCount : null;
+
+  // ---- Period-over-period deltas (single year only) -----------------------
+  const salesDeltaEl = $('tc-sales-delta');
+  const expDeltaEl = $('tc-expenses-delta');
+  const netDeltaEl = $('tc-net-delta');
+  if (selectedYear !== 'all' && /^\d{4}$/.test(selectedYear)) {
+    const prevYear = String(Number(selectedYear) - 1);
+    const prev = computeCashFlowMetrics(sources, prevYear);
+    const prevNet = prev.grossSales - prev.operatingExpenses;
+    if (salesDeltaEl) salesDeltaEl.innerHTML = _tcDeltaChip(cashFlowDelta(cur.grossSales, prev.grossSales), prevYear, true);
+    if (expDeltaEl) expDeltaEl.innerHTML = _tcDeltaChip(cashFlowDelta(cur.operatingExpenses, prev.operatingExpenses), prevYear, false);
+    if (netDeltaEl) netDeltaEl.innerHTML = _tcDeltaChip(cashFlowDelta(netCashFlow, prevNet), prevYear, true);
+  } else {
+    if (salesDeltaEl) salesDeltaEl.innerHTML = '';
+    if (expDeltaEl) expDeltaEl.innerHTML = '';
+    if (netDeltaEl) netDeltaEl.innerHTML = '';
+  }
+
+  // ---- Secondary KPI chips row --------------------------------------------
+  const kpisEl = $('tc-cf-kpis');
+  if (kpisEl) {
+    const marginCls = profitMargin == null ? '' : profitMargin >= 0 ? 'cf-kpi-good' : 'cf-kpi-bad';
+    const napCls = netAfterPayouts >= 0 ? 'cf-kpi-good' : 'cf-kpi-bad';
+    const chip = (label, value, valCls = '', title = '') =>
+      `<div class="cf-kpi"${title ? ` title="${escapeHtml(title)}"` : ''}>
+        <div class="cf-kpi-val ${valCls}">${value}</div>
+        <div class="cf-kpi-label">${label}</div>
+      </div>`;
+    kpisEl.innerHTML = [
+      chip('Profit Margin', profitMargin == null ? '—' : `${profitMargin.toFixed(1)}%`, marginCls, 'Net cash flow ÷ gross sales'),
+      chip('Transactions', String(cur.txnCount), '', 'Number of sales in this period'),
+      chip('Avg Sale', avgSale == null ? '—' : fmt(avgSale, baseCurrency), '', 'Gross sales ÷ transactions'),
+      chip('Artist Payouts', fmt(artistPayouts, baseCurrency), 'cf-kpi-muted', 'Earnings paid or retained by artists — excluded from operating expenses'),
+      ...(cur.artistDebtRecovered ? [chip('Author debt recovered', fmt(cur.artistDebtRecovered, baseCurrency), 'cf-kpi-muted', 'Debt cleared by combined payments — kept separate from new sales')] : []),
+      chip('Net After Payouts', fmt(netAfterPayouts, baseCurrency), napCls, 'After artist payouts and debt repayments; combined payments count on their payment date'),
+    ].join('');
+  }
+
+  // ---- FX rate-staleness banner -------------------------------------------
+  const fxEl = $('tc-fx-warning');
+  if (fxEl) {
+    const stale = (allLedger || []).filter(r => r.hasRateError).length;
+    const estimated = (allLedger || []).filter(r => r.rateEstimated).length;
+    if (stale > 0) {
+      fxEl.innerHTML =
+        `<div class="cf-fx-warn" role="status">
+          <span class="cf-fx-ic" aria-hidden="true">⚠</span>
+          <span>${stale} transaction${stale === 1 ? '' : 's'} used a fallback exchange rate (1.0) — totals may be inaccurate. Refresh FX rates and reload.</span>
+        </div>`;
+    } else if (estimated > 0) {
+      fxEl.innerHTML =
+        `<div class="cf-fx-warn" role="status">
+          <span class="cf-fx-ic" aria-hidden="true">⚠</span>
+          <span>${estimated} foreign-currency sale${estimated === 1 ? ' is' : 's are'} shown at today's exchange rate for now. The rate from each sale's own date downloads the next time you're online, and the totals update then.</span>
+        </div>`;
+    } else {
+      fxEl.innerHTML = '';
+    }
+  }
+
+  // ---- Monthly / yearly mini bar chart (inline SVG) -----------------------
+  const chartEl = $('tc-cf-chart');
+  if (chartEl) {
+    chartEl.innerHTML = _tcBuildCashFlowChart(allLedger, selectedYear, baseCurrency);
+    _tcRenderSelectedCashFlowBucket();
+  }
+}
+
+function _tcCashFlowBucketRows(key) {
+  const data = window._tcCashFlowChartDetail || {};
+  const monthly = data.selectedYear !== 'all' && data.selectedYear;
+  return (data.ledger || []).filter((item) => {
+    if (item.sourceType === 'artistPayout' || item.sourceType === 'artistDebtRecovery') return false;
+    if (item.affectsCashFlow === false) return false;
+    const date = item.date || '';
+    const itemKey = monthly ? date.substring(0, 7) : date.substring(0, 4);
+    return itemKey === key;
+  });
+}
+
+function _tcRenderSelectedCashFlowBucket() {
+  const data = window._tcCashFlowChartDetail || {};
+  const detailEl = $('tc-cf-chart-detail');
+  if (!detailEl) return;
+  const buckets = data.buckets || [];
+  const key = data.selectedKey || '';
+  const bucket = buckets.find((b) => b.key === key);
+  if (!bucket) {
+    detailEl.innerHTML = '<div class="cf-chart-hint">Click a month or year to see its income and expense breakdown.</div>';
+    return;
+  }
+
+  const rows = _tcCashFlowBucketRows(key).sort((a, b) => {
+    // ⚡ Bolt Optimization: Replace slow localeCompare with string inequality for ISO dates
+    const dA = a.date || '';
+    const dB = b.date || '';
+    return dA < dB ? -1 : (dA > dB ? 1 : 0);
+  });
+  const expenseRows = rows.filter((r) => !r.isIncome);
+  const incomeRows = rows.filter((r) => r.isIncome);
+  const activeType = data.detailType === 'income' || data.detailType === 'expenses' ? data.detailType : 'all';
+  const visibleRows = activeType === 'income'
+    ? incomeRows
+    : activeType === 'expenses'
+      ? expenseRows
+      : rows;
+  const total = (items) => items.reduce((sum, item) => sum + (Number(item.baseAmount) || 0), 0);
+  const fmtSigned = (item) => `${item.isIncome ? '+' : '-'}${fmt(item.baseAmount || 0, data.baseCurrency || 'CAD')}`;
+  const typeButton = (type, label, count) => `
+    <button
+      class="cf-detail-filter ${activeType === type ? 'is-active' : ''}"
+      type="button"
+      aria-pressed="${activeType === type ? 'true' : 'false'}"
+      onclick="tcSetCashFlowDetailType('${type}')">
+      ${escapeHtml(label)} <span>${count}</span>
+    </button>`;
+  const rowHtml = (item) => `
+    <tr>
+      <td>${escapeHtml(item.date || '—')}</td>
+      <td>${escapeHtml(item.desc || item.type || 'Transaction')}</td>
+      <td>${escapeHtml(item.cat || (item.isIncome ? 'Income' : 'Expense'))}</td>
+      <td class="r ${item.isIncome ? 'cf-detail-income' : 'cf-detail-expense'}">${escapeHtml(fmtSigned(item))}</td>
+    </tr>`;
+  const label = data.selectedYear === 'all' ? bucket.label : `${bucket.label} ${data.selectedYear}`;
+  detailEl.innerHTML = `
+    <div class="cf-detail-card">
+      <div class="cf-detail-head">
+        <div>
+          <div class="cf-detail-kicker">Selected period</div>
+          <strong>${escapeHtml(label)}</strong>
+        </div>
+        <button class="btn tiny ghost" type="button" onclick="tcClearCashFlowBucket()">Clear</button>
+      </div>
+      <div class="cf-detail-totals">
+        <span><b>Income</b>${escapeHtml(fmt(total(incomeRows), data.baseCurrency || 'CAD'))}</span>
+        <span><b>Expenses</b>${escapeHtml(fmt(total(expenseRows), data.baseCurrency || 'CAD'))}</span>
+        <span><b>Net</b>${escapeHtml(fmt((bucket.income || 0) - (bucket.expense || 0), data.baseCurrency || 'CAD'))}</span>
+      </div>
+      <div class="cf-detail-filters" aria-label="Filter selected period transactions">
+        ${typeButton('all', 'All', rows.length)}
+        ${typeButton('income', 'Income only', incomeRows.length)}
+        ${typeButton('expenses', 'Expenses only', expenseRows.length)}
+      </div>
+      <table class="cf-detail-table">
+        <thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="r">Amount</th></tr></thead>
+        <tbody>${visibleRows.length ? visibleRows.map(rowHtml).join('') : '<tr><td colspan="4">No transactions match this filter.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+function tcSelectCashFlowBucket(key) {
+  if (!window._tcCashFlowChartDetail) return;
+  window._tcCashFlowChartDetail.selectedKey = key;
+  window._tcCashFlowChartDetail.detailType = 'all';
+  _tcRenderSelectedCashFlowBucket();
+}
+
+function tcSetCashFlowDetailType(type) {
+  if (!window._tcCashFlowChartDetail) return;
+  window._tcCashFlowChartDetail.detailType = type === 'income' || type === 'expenses' ? type : 'all';
+  _tcRenderSelectedCashFlowBucket();
+}
+
+function tcClearCashFlowBucket() {
+  if (!window._tcCashFlowChartDetail) return;
+  window._tcCashFlowChartDetail.selectedKey = '';
+  window._tcCashFlowChartDetail.detailType = 'all';
+  _tcRenderSelectedCashFlowBucket();
+}
+
+function _tcBuildCashFlowChart(allLedger, selectedYear, baseCurrency) {
+  const buckets = buildCashFlowBuckets(allLedger, selectedYear);
+  const hasData = buckets.some(b => b.income > 0 || b.expense > 0);
+  if (!buckets.length || !hasData) return '';
+
+  const max = Math.max(1, ...buckets.map(b => Math.max(b.income, b.expense)));
+
+  window._tcCashFlowChartDetail = {
+    ledger: allLedger || [],
+    buckets,
+    selectedYear,
+    baseCurrency,
+    selectedKey: window._tcCashFlowChartDetail?.selectedKey || '',
+    detailType: window._tcCashFlowChartDetail?.detailType || 'all',
+  };
+  if (!buckets.some((b) => b.key === window._tcCashFlowChartDetail.selectedKey)) {
+    window._tcCashFlowChartDetail.selectedKey = '';
+  }
+
+  // Bars are flat boxes sized against the tallest figure. They are HTML rather
+  // than an SVG so the year label and the printed totals are never stretched.
+  const cols = buckets.map((b) => {
+    const label = escapeHtml(b.label);
+    const key = escapeHtml(b.key);
+    const openKey = `onclick="tcSelectCashFlowBucket('${key}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tcSelectCashFlowBucket('${key}')}"`;
+    const bar = (kind, word, value) => {
+      const text = escapeHtml(fmt(value, baseCurrency));
+      return `<div class="cf-chart-bar is-${kind}" tabindex="0" role="button" aria-label="View ${label} cash flow details" ${openKey} style="--cf-v:${((value / max) * 100).toFixed(2)}%" title="${label} ${word}: ${text}"><span class="cf-chart-val">${text}</span></div>`;
+    };
+    const incBar = b.income > 0 ? bar('income', 'income', b.income) : '';
+    const expBar = b.expense > 0 ? bar('expense', 'expenses', b.expense) : '';
+    return `<div class="cf-chart-col"><div class="cf-chart-lane">${incBar}${expBar}</div><span class="cf-chart-axis">${label}</span></div>`;
+  }).join('');
+
+  const title = selectedYear === 'all' ? 'Income vs expenses by year' : `Income vs expenses by month — ${selectedYear}`;
+  return `
+    <div class="cf-chart-head">
+      <span class="cf-chart-title">${escapeHtml(title)}</span>
+      <span class="cf-legend">
+        <span class="cf-legend-item"><span class="cf-legend-dot is-income"></span>Income</span>
+        <span class="cf-legend-item"><span class="cf-legend-dot is-expense"></span>Expenses</span>
+      </span>
+    </div>
+    <div class="cf-chart-plot" role="group" aria-label="${escapeHtml(title)}">${cols}</div>
+    <div id="tc-cf-chart-detail" class="cf-chart-detail" aria-live="polite"></div>`;
+}
+
+// Artist payouts are editable in their own right now, so this opens the payout
+// itself on the book's dashboard. It used to search `artistTransfers` — the
+// wrong array, which never matched — and offer to edit the originating sale
+// instead, which could not change the payout at all.
+function openEditArtistPayout(bid, itemId) {
+  const s = states[bid];
+  if (!s || !Array.isArray(s.artistPayouts)) return;
+  const p = s.artistPayouts.find(x => String(x.id) === String(itemId));
+  if (!p) {
+    showToast('⚠ Payout record not found', 'err');
+    return;
+  }
+  openArtistPayoutEditor(bid, itemId);
+}
+
+// Set when a pre-split configuration is moved into one of the two sets, so the
+// card can say which boxes the old key landed in. A publisher whose Sandbox
+// toggle was wrong at the time can then move it themselves — nothing else in
+// the app can tell a development key from a production one.
+let _cpMigrationNotice = '';
+
+/** Which of the two Canada Post modes the Sandbox toggle currently selects. */
+function activeCanadaPostMode() {
+  const toggle = $('tc-cp-test-mode');
+  const isTest = toggle ? toggle.checked : !!TAX_CENTER.settings?.cpTestMode;
+  return isTest ? 'test' : 'live';
+}
+
+/**
+ * The credentials Test Connection and Diagnose should act on.
+ *
+ * What is typed into the active set's boxes wins over what is saved, so a key
+ * can be tried before it is committed; the saved set stands in for anything
+ * left blank. Reading the boxes for the INACTIVE mode would test credentials
+ * that no request is going to use.
+ */
+function canadaPostCredentialsUnderTest() {
+  const mode = activeCanadaPostMode();
+  const saved = readCanadaPostCredentialSet(TAX_CENTER.settings || {}, mode);
+  const resolved = resolveCanadaPostCredentials({ ...(TAX_CENTER.settings || {}), cpTestMode: mode === 'test' });
+  const typed = (field, fallback) => ($(`tc-cp-${mode}-${field}`)?.value.trim() || fallback || '');
+  return {
+    mode,
+    isTest: mode === 'test',
+    apiKey: typed('key', saved.apiKey || resolved.apiKey),
+    apiSecret: typed('secret', saved.apiSecret || resolved.apiSecret),
+    customerNumber: typed('customer-number', saved.customerNumber || resolved.customerNumber),
+    contractId: typed('contract-id', saved.contractId || resolved.contractId),
+  };
+}
+
+/**
+ * Keep the two key panels honest about which one is in use.
+ *
+ * With both sets on screen the only thing separating "the keys I ship with"
+ * from "the keys I rehearse with" is the Sandbox switch, and that switch is
+ * further down the card. So the state is written onto the panels themselves —
+ * an ACTIVE badge on the selected one, dimmed on the other — and it moves the
+ * moment the switch is flipped rather than after a save.
+ */
+function renderCanadaPostKeySets() {
+  const activeMode = activeCanadaPostMode();
+
+  for (const mode of ['live', 'test']) {
+    const panel = $(`tc-cp-set-${mode}`);
+    const badge = $(`tc-cp-set-${mode}-badge`);
+    if (!panel || !badge) continue;
+
+    const isActive = mode === activeMode;
+    // Read the boxes, not the saved settings: a key just typed in counts.
+    const filled = credentialSetIsConfigured({
+      apiKey: $(`tc-cp-${mode}-key`)?.value,
+      apiSecret: $(`tc-cp-${mode}-secret`)?.value,
+    });
+
+    panel.classList.toggle('is-active', isActive);
+    panel.classList.toggle('is-empty', !filled);
+
+    if (isActive && filled) {
+      badge.className = 'tc-cp-set-badge is-active';
+      badge.textContent = 'In use';
+    } else if (isActive) {
+      badge.className = 'tc-cp-set-badge is-missing';
+      badge.textContent = 'In use — but empty';
+    } else if (filled) {
+      badge.className = 'tc-cp-set-badge is-idle';
+      badge.textContent = 'Saved, not in use';
+    } else {
+      badge.className = 'tc-cp-set-badge is-idle';
+      badge.textContent = 'Not set up';
+    }
+  }
+
+  renderCanadaPostMigrationNote();
+}
+
+/**
+ * Say where a pre-split key was put.
+ *
+ * Nothing here can tell a development key from a production one, so the old
+ * single key goes into whichever set the Sandbox switch pointed at when it was
+ * saved — and that guess needs checking by someone who knows. Shown once, until
+ * the card is next rebuilt.
+ */
+function renderCanadaPostMigrationNote() {
+  const host = $('tc-cp-migration-note');
+  if (!host) return;
+  if (!_cpMigrationNotice) { host.classList.remove('is-shown'); host.innerHTML = ''; return; }
+
+  const where = _cpMigrationNotice === 'test' ? 'Sandbox keys' : 'Live keys';
+  const other = _cpMigrationNotice === 'test' ? 'Live keys' : 'Sandbox keys';
+  host.classList.add('is-shown');
+  host.innerHTML = `
+    <strong>Your existing Canada Post key moved into “${where}”.</strong>
+    <span>There is a separate box for each environment now. It went where it did because that is what the
+    Sandbox switch was set to — if that key is really your ${other.toLowerCase().replace(' keys', '')} one,
+    move it across before you ship.</span>`;
+}
+
+/**
+ * Put a saved credential into its box and mark the box as showing the truth.
+ *
+ * The marker is what lets Save clear a field. Save used to write a credential
+ * only when the box was non-empty (`if (key) settings.key = key`), so deleting
+ * a wrong Canada Post secret or a stale Zonos Account Key was impossible — the
+ * old value stayed in Firebase and kept riding on every request, while the card
+ * showed an empty box. Without the marker the alternative is worse: a Save
+ * triggered before the card was populated would wipe every credential.
+ */
+function hydrateCredentialField(id, value) {
+  const el = $(id);
+  if (!el) return;
+  el.value = value || '';
+  el.dataset.hydrated = '1';
+}
+
+/**
+ * Read a credential box. Returns undefined — meaning "leave the stored value
+ * alone" — when the box was never populated from settings, and '' when the
+ * publisher genuinely emptied it.
+ */
+function readCredentialField(id) {
+  const el = $(id);
+  if (!el) return undefined;
+  if (!el.dataset.hydrated) return el.value.trim() || undefined;
+  return el.value.trim();
+}
+
+async function testOpenRouterConnectionFromSettings() {
+  const btn = $('tc-test-backup-btn');
+  const status = $('tc-backup-test-status');
+  const apiKey = readCredentialField('tc-backup-key');
+  const oldText = btn?.textContent || 'Test OpenRouter';
+  if (!apiKey) {
+    if (status) status.textContent = 'Paste an OpenRouter key first.';
+    showToast('Paste an OpenRouter key first', 'warn');
+    return false;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Testing…'; }
+  if (status) status.textContent = 'Checking the key with OpenRouter…';
+  try {
+    const result = await testOpenRouterConnection({
+      apiKey,
+      model: $('tc-backup-model')?.value.trim() || undefined,
+    });
+    const rawRemaining = result.account?.limit_remaining;
+    const remaining = Number(rawRemaining);
+    const allowance = rawRemaining != null && Number.isFinite(remaining) ? ` · ${remaining.toFixed(2)} credits remaining` : '';
+    const model = result.model ? ` via ${result.model}` : '';
+    // How far the backup stretches matters more than that it connected: on an
+    // account that has never bought credit it covers about 50 AI requests a
+    // day, which one big email scan can use up on the day Gemini runs out.
+    const note = openRouterAllowanceNote(result.account);
+    if (status) status.textContent = `Connected to OpenRouter${model}${allowance}.${note ? ` ${note}` : ''}`;
+    showToast('✓ OpenRouter connected', 'ok');
+    return true;
+  } catch (error) {
+    const message = friendlyOpenRouterError(error);
+    if (status) status.textContent = `Could not connect: ${message}`;
+    showToast(`OpenRouter: ${message}`, 'err', 6000);
+    return false;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = oldText; }
+  }
+}
+
+async function saveTaxCenterSettings() {
+  if (isAuthor()) return;
+  const btn = $('tc-save-config-btn') || $('tc-save-zonos-btn') || $('tc-save-cp-btn');
+  const oldText = btn ? btn.textContent : 'Save Config';
+  if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+
+  const geminiKey = $('tc-api-key')?.value.trim() || '';
+  const openRouterKey = readCredentialField('tc-backup-key');
+  const openRouterModel = $('tc-backup-model')?.value.trim();
+  const zonosApiKey = readCredentialField('tc-zonos-key');
+  const ccClientId = readCredentialField('tc-cc-client-id');
+  const ccToken = readCredentialField('tc-cc-token');
+  const ccEnabled = $('tc-cc-enabled') ? $('tc-cc-enabled').checked : true;
+
+  const zonosAccountKey = readCredentialField('tc-zonos-account-key');
+  const zonosEnabled = $('tc-zonos-enabled') ? $('tc-zonos-enabled').checked : true;
+  const requireZonosUsPrepay = $('tc-zonos-strict-prepay') ? $('tc-zonos-strict-prepay').checked : true;
+
+  const cpSets = {};
+  for (const mode of ['live', 'test']) {
+    cpSets[mode] = {
+      apiKey: readCredentialField(`tc-cp-${mode}-key`),
+      apiSecret: readCredentialField(`tc-cp-${mode}-secret`),
+      customerNumber: readCredentialField(`tc-cp-${mode}-customer-number`),
+      contractId: readCredentialField(`tc-cp-${mode}-contract-id`),
+    };
+  }
+  const cpTestMode = $('tc-cp-test-mode') ? $('tc-cp-test-mode').checked : false;
+  const cpEnabled = $('tc-cp-enabled') ? $('tc-cp-enabled').checked : true;
+
+  try {
+    await loadTaxCenter();
+    if (!TAX_CENTER.settings) TAX_CENTER.settings = {};
+    // A different Google key has its own allowance, so a spent one says
+    // nothing about it: ask Google first again rather than going to the backup.
+    if (geminiKey !== (TAX_CENTER.settings.geminiKey || '')) _geminiClearRest();
+    TAX_CENTER.settings.geminiKey = geminiKey;
+    // undefined means the box was never populated from settings, so the stored
+    // value stands; '' means it was deliberately emptied and must be cleared.
+    const put = (key, value) => { if (value !== undefined) TAX_CENTER.settings[key] = value; };
+    put('openRouterKey', openRouterKey);
+    put('openRouterModel', openRouterModel);
+    put('zonosApiKey', zonosApiKey);
+    put('zonosAccountKey', zonosAccountKey);
+    put('ccClientId', ccClientId);
+    put('ccToken', ccToken);
+    TAX_CENTER.settings.ccEnabled = ccEnabled;
+    TAX_CENTER.settings.ccTestMode = !!$('tc-cc-test-mode')?.checked;
+    TAX_CENTER.settings.zonosEnabled = zonosEnabled;
+    TAX_CENTER.settings.requireZonosUsPrepay = requireZonosUsPrepay;
+
+    // Migrate first, so a set the publisher just typed into is not overwritten
+    // by legacy values that were only ever a stand-in for it.
+    migrateCanadaPostCredentials(TAX_CENTER.settings);
+    for (const [mode, values] of Object.entries(cpSets)) {
+      const fields = CANADAPOST_CREDENTIAL_FIELDS[mode];
+      put(fields.apiKey, values.apiKey);
+      put(fields.apiSecret, values.apiSecret);
+      put(fields.customerNumber, values.customerNumber);
+      put(fields.contractId, values.contractId);
+    }
+    TAX_CENTER.settings.cpTestMode = cpTestMode;
+    TAX_CENTER.settings.cpEnabled = cpEnabled;
+
+    await saveTaxCenter();
+    // The split is persisted now, so the "your key moved" note has served its
+    // purpose and should not reappear on every visit.
+    _cpMigrationNotice = '';
+    refreshIntegrationStatusPills();
+    renderCanadaPostKeySets();
+    showToast('✓ Settings saved to Firebase');
+  } catch (e) {
+    console.error(e);
+    showToast('⚠ Failed to save settings', 'err');
+  }
+
+  if (btn) { btn.textContent = oldText; btn.disabled = false; }
+}
+
+async function testZonosConnectionHandler() {
+  const keyInput = $('tc-zonos-key');
+  const statusEl = $('tc-zonos-status');
+  const testBtn = $('tc-zonos-test-btn');
+  const apiKey = keyInput?.value.trim() || TAX_CENTER.settings?.zonosApiKey || '';
+
+  if (!apiKey) {
+    showToast('⚠ Please enter your Zonos Live API Key first', 'warn');
+    if (keyInput) keyInput.focus();
+    return;
+  }
+
+  if (testBtn) { testBtn.disabled = true; testBtn.textContent = 'Testing...'; }
+  if (statusEl) {
+    statusEl.innerHTML = '<span style="color:var(--text2);">Testing connection to Zonos GraphQL API...</span>';
+  }
+
+  try {
+    const result = await testZonosConnection(apiKey);
+    if (result.ok) {
+      if (statusEl) {
+        statusEl.innerHTML = `<span style="color:var(--green);font-weight:600;">✓ Connected to Zonos API successfully!</span> <span style="color:var(--text3);font-size:var(--text-2xs);">(${new Date().toLocaleTimeString()})</span>`;
+      }
+      showToast('✓ Connected to Zonos API successfully');
+      if (!TAX_CENTER.settings) TAX_CENTER.settings = {};
+      TAX_CENTER.settings.zonosApiKey = apiKey;
+      TAX_CENTER.settings.zonosLastTestAt = new Date().toISOString();
+      await saveTaxCenter().catch(() => {});
+    } else {
+      if (statusEl) {
+        statusEl.innerHTML = `<span style="color:var(--red);font-weight:600;">⚠ Connection failed: ${escapeHtml(result.error || 'Check API key')}</span>`;
+      }
+      showToast(`⚠ Zonos connection failed: ${result.error || 'Check key'}`, 'err');
+    }
+  } catch (err) {
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:var(--red);font-weight:600;">⚠ Error: ${escapeHtml(err.message)}</span>`;
+    }
+    showToast(`⚠ Zonos error: ${err.message}`, 'err');
+  } finally {
+    if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'Test Connection'; }
+  }
+}
+
+/**
+ * Canada Post answers every credential problem with the same E002 code, so a
+ * failed test cannot say which of its several causes applies. This tries the
+ * key against both gateways, with and without the customer number, and reports
+ * which combination Canada Post actually accepts — turning "authentication
+ * failure" into a specific instruction.
+ */
+async function diagnoseCanadaPostHandler() {
+  const statusEl = $('tc-cp-status');
+  const btn = $('tc-cp-diagnose-btn');
+
+  const { mode, isTest, apiKey, apiSecret, customerNumber, contractId } = canadaPostCredentialsUnderTest();
+  const keyInput = $(`tc-cp-${mode}-key`);
+
+  if (!apiKey.trim() || !apiSecret.trim()) {
+    showToast(`⚠ Enter your ${isTest ? 'sandbox' : 'live'} Canada Post key and password first`, 'warn');
+    keyInput?.focus();
+    return;
+  }
+
+  // Shape problems are free to detect and are the likeliest cause of an E002
+  // on a key that looks correct, so surface them before any network call.
+  const inspection = inspectCanadaPostCredentials({ apiKey, apiSecret, customerNumber });
+  if (inspection.findings.length && statusEl) {
+    statusEl.innerHTML = `
+      <div style="padding:10px 12px;background:rgba(245,158,11,0.08);border-left:var(--stroke) solid var(--amber);border-radius:var(--r);font-size:11.5px;color:var(--text2);line-height:1.55;">
+        <strong>Found a problem with what is typed in:</strong>
+        <ul style="margin:6px 0 0;padding-left:18px;">
+          ${inspection.findings.map(f => `<li>${escapeHtml(f)}</li>`).join('')}
+        </ul>
+        <div style="margin-top:6px;color:var(--text3);">Checking with Canada Post anyway…</div>
+      </div>
+    `;
+  } else if (statusEl) {
+    statusEl.innerHTML = '<span style="color:var(--text2);">Trying your key against both Canada Post gateways… this takes a few seconds.</span>';
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Diagnosing...'; }
+  try {
+    const result = await diagnoseCanadaPostConnection({
+      apiKey,
+      apiSecret,
+      customerNumber,
+      contractId,
+      isTest
+    });
+
+    const tone = result.ok
+      ? { bg: 'rgba(16,185,129,0.08)', border: 'var(--green)', label: 'var(--green)' }
+      : { bg: 'rgba(239,68,68,0.08)', border: 'var(--rose)', label: 'var(--red)' };
+
+    const rows = (result.attempts || []).map(a => `
+      <tr>
+        <td style="padding:3px 10px 3px 0;color:var(--text3);">${a.sandbox ? 'Sandbox' : 'Live'}</td>
+        <td style="padding:3px 10px 3px 0;color:var(--text3);">${a.withCustomer ? 'with customer #' : 'no customer #'}</td>
+        <td style="padding:3px 0;color:${a.ok ? 'var(--green)' : 'var(--text3)'};">
+          ${a.ok ? `accepted — ${a.quoteCount} service${a.quoteCount === 1 ? '' : 's'}` : escapeHtml(a.error.slice(0, 90))}
+        </td>
+      </tr>
+    `).join('');
+
+    const steps = (result.steps || []).length
+      ? `<ol style="margin:8px 0 0;padding-left:18px;line-height:1.55;">${result.steps.map(t => `<li style="margin-bottom:4px;">${escapeHtml(t)}</li>`).join('')}</ol>`
+      : '';
+
+    const findings = inspection.findings.length
+      ? `<ul style="margin:8px 0 0;padding-left:18px;line-height:1.55;">${inspection.findings.map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul>`
+      : '';
+
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <div style="padding:10px 12px;background:${tone.bg};border-left:var(--stroke) solid ${tone.border};border-radius:var(--r);font-size:11.5px;color:var(--text2);line-height:1.55;">
+          <strong style="color:${tone.label};">${escapeHtml(result.headline)}</strong>
+          ${findings}
+          ${steps}
+          <details style="margin-top:8px;">
+            <summary style="cursor:pointer;color:var(--text3);font-size:10.5px;">What was tried</summary>
+            <table class="tnum" style="margin-top:5px;font-size:10.5px;border-collapse:collapse;">${rows}</table>
+          </details>
+        </div>
+      `;
+    }
+    showToast(result.ok ? '✓ Canada Post connection works' : '⚠ ' + result.headline, result.ok ? 'ok' : 'warn');
+  } catch (err) {
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:var(--red);font-weight:600;">⚠ Diagnosis failed: ${escapeHtml(err.message)}</span>`;
+    }
+    showToast(`⚠ Diagnosis failed: ${err.message}`, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Diagnose'; }
+  }
+}
+
+async function testCanadaPostConnectionHandler() {
+  const statusEl = $('tc-cp-status');
+  const testBtn = $('tc-cp-test-btn');
+
+  // Test the set the Sandbox toggle selects — that is the one requests use.
+  const { mode, isTest, apiKey, apiSecret, customerNumber } = canadaPostCredentialsUnderTest();
+  const keyInput = $(`tc-cp-${mode}-key`);
+  const secretInput = $(`tc-cp-${mode}-secret`);
+  const customerInput = $(`tc-cp-${mode}-customer-number`);
+
+  if (!apiKey || !apiSecret) {
+    const which = isTest ? 'sandbox' : 'live';
+    showToast(`⚠ Enter both the ${which} Canada Post Client ID and Secret first`, 'warn');
+    if (!apiKey && keyInput) keyInput.focus();
+    else if (!apiSecret && secretInput) secretInput.focus();
+    return;
+  }
+
+  // Live and sandbox look identical once connected, so state the target account up front.
+  const audit = validateCanadaPostAccount({ apiKey, apiSecret, customerNumber, isTest });
+  if (customerNumber && !isValidCustomerNumber(customerNumber)) {
+    showToast(`⚠ Canada Post customer number must be 7 to 10 digits (got ${customerNumber.replace(/\D/g, '').length})`, 'warn');
+    customerInput?.focus();
+    return;
+  }
+
+  const sheetsUrl = getSavedSheetsUrl();
+  const isOnlineWeb = typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http') && !window.location.hostname.includes('localhost');
+  if (!sheetsUrl && isOnlineWeb) {
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <div style="padding:10px 12px;background:rgba(245,158,11,0.08);border-left:var(--stroke) solid var(--amber);border-radius:var(--r);font-size:11.5px;color:var(--text2);line-height:1.5;">
+          <strong>Setup Required: Google Sheets Web App Connection</strong><br>
+          Canada Post Web Services does not permit direct cross-origin requests from web browsers. Requests must be securely routed through your Google Sheet backend.<br>
+          <div style="margin-top:6px;">
+            Please open the <strong>Settings</strong> tab ➔ <strong>Connect your Google Sheet</strong>, paste your Web App URL, and ensure it is deployed with the latest code.
+          </div>
+        </div>
+      `;
+    }
+    showToast('⚠ Connect your Google Sheet in Settings first to proxy Canada Post requests', 'warn');
+    return;
+  }
+
+  if (testBtn) { testBtn.disabled = true; testBtn.textContent = 'Testing...'; }
+  if (statusEl) {
+    statusEl.innerHTML = '<span style="color:var(--text2);">Connecting to Canada Post Web Services...</span>';
+  }
+
+  try {
+    const result = await testCanadaPostConnection({
+      apiKey,
+      apiSecret,
+      customerNumber,
+      isTest
+    });
+
+    if (result.ok) {
+      if (statusEl) {
+        const modePill = audit.environment.mode === 'live'
+          ? '<span class="pill green sm">Live Production Mode</span>'
+          : '<span class="pill gold sm">Sandbox Test Mode</span>';
+        const notes = [...audit.errors, ...audit.warnings]
+          .map(n => `<div style="color:var(--text3);font-size:var(--text-2xs);margin-top:3px;">${escapeHtml(n)}</div>`)
+          .join('');
+        statusEl.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="color:var(--green);font-weight:600;">✓ Connected to Canada Post! (${result.servicesCount} services quoted)</span>
+            ${modePill}
+            <span class="tnum" style="color:var(--text3);font-size:var(--text-2xs);font-family:var(--font-mono);">${escapeHtml(audit.environment.hostname)}</span>
+            <span style="color:var(--text3);font-size:var(--text-2xs);">(${new Date().toLocaleTimeString()})</span>
+          </div>
+          <div style="color:var(--text3);font-size:var(--text-2xs);margin-top:3px;">Labels will be billed to customer number <span class="tnum">${escapeHtml(audit.customerNumber || '—')}</span>.</div>
+          ${notes}
+        `;
+      }
+      showToast(`✓ Connected to Canada Post — ${audit.environment.label}`);
+      if (!TAX_CENTER.settings) TAX_CENTER.settings = {};
+      // Save into the set that was tested. Writing the shared slot would put a
+      // sandbox key where live shipping reads from, or the reverse.
+      const fields = CANADAPOST_CREDENTIAL_FIELDS[mode];
+      TAX_CENTER.settings[fields.apiKey] = apiKey;
+      TAX_CENTER.settings[fields.apiSecret] = apiSecret;
+      if (customerNumber) TAX_CENTER.settings[fields.customerNumber] = customerNumber;
+      TAX_CENTER.settings.cpTestMode = isTest;
+      TAX_CENTER.settings[mode === 'test' ? 'cpTestKeyVerifiedAt' : 'cpLiveKeyVerifiedAt'] = new Date().toISOString();
+      TAX_CENTER.settings.cpLastTestAt = new Date().toISOString();
+      await saveTaxCenter().catch(() => {});
+    }
+  } catch (err) {
+    if (statusEl) {
+      const isAuthFail = /E002|Authentication Failure|unauthorized|HTTP 401|rejected these credentials|invalid_client/i.test(err.message);
+      const isEntitlement = /HTTP 403|refused this request|entitlement/i.test(err.message);
+      const isStaleScript = /invalid client ID or secret|not subscribed to this API|invalid_scope|Missing scope/i.test(err.message);
+      const isCors = /CORS|Google Sheet is not connected|Browser CORS restriction/i.test(err.message);
+      let extraHint = '';
+      if (isStaleScript) {
+        // The "invalid client ID or secret" wording can now only come from a
+        // Google Apps Script deployment older than v31, which guessed the
+        // authentication method from the shape of the key and gave up before
+        // it ever reached Canada Post.
+        extraHint = `
+          <div style="margin-top:6px;padding:8px 10px;background:rgba(245,158,11,0.08);border-left:var(--stroke) solid var(--amber);border-radius:var(--r);font-size:var(--text-xs);color:var(--text2);line-height:1.45;">
+            <strong>Your Google Sheet script is out of date.</strong><br>
+            This error comes from the connection script itself, not from Canada Post — an older version misread your API key and stopped before contacting them.
+            Open <strong>Settings ➔ Connect your Google Sheet</strong>, copy the latest script and redeploy it, then test again — the card there shows which version you are running.
+          </div>
+        `;
+      } else if (isAuthFail) {
+        extraHint = `
+          <div style="margin-top:6px;padding:8px 10px;background:rgba(239,68,68,0.08);border-left:var(--stroke) solid var(--rose);border-radius:var(--r);font-size:var(--text-xs);color:var(--text2);line-height:1.45;">
+            <strong>Canada Post refused this key and password.</strong><br>
+            • Development / test keys only work with the <strong>Sandbox Environment</strong> toggle <strong>ON</strong>; production keys only work with it <strong>OFF</strong>. Try flipping it.<br>
+            • The password must be the <strong>API password</strong> from the Canada Post Developer Program — not the password you sign in to canadapost.ca with.<br>
+            • Copy both values again with no leading or trailing spaces.
+          </div>
+        `;
+      } else if (isEntitlement) {
+        extraHint = `
+          <div style="margin-top:6px;padding:8px 10px;background:rgba(239,68,68,0.08);border-left:var(--stroke) solid var(--rose);border-radius:var(--r);font-size:var(--text-xs);color:var(--text2);line-height:1.45;">
+            <strong>The key is valid but this account cannot quote rates.</strong><br>
+            Sign in to the Canada Post Developer Program and confirm the account has the Rating and Shipping services enabled, and that customer number <span class="tnum">${escapeHtml(customerNumber || '—')}</span> belongs to it.
+          </div>
+        `;
+      } else if (isCors) {
+        extraHint = `
+          <div style="margin-top:6px;padding:8px 10px;background:rgba(245,158,11,0.08);border-left:var(--stroke) solid var(--amber);border-radius:var(--r);font-size:var(--text-xs);color:var(--text2);line-height:1.45;">
+            <strong>Google Sheet Webhook Required:</strong><br>
+            Canada Post API blocks direct browser calls due to browser CORS policies. Please go to <strong>Settings ➔ Connect your Google Sheet</strong> and paste your Apps Script URL so requests can be proxied.
+          </div>
+        `;
+      }
+      statusEl.innerHTML = `<span style="color:var(--red);font-weight:600;">⚠ Error: ${escapeHtml(err.message)}</span>${extraHint}`;
+    }
+    showToast(`⚠ Canada Post error: ${err.message}`, 'err');
+  } finally {
+    if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'Test Connection'; }
+  }
+}
+
+// ── Recurring subscription editor ───────────────────────────────────────────
+// One modal serves both "add" and "edit"; _tcEditingRecurring holds the id of
+// the record being edited, or '' while adding.
+
+let _tcEditingRecurring = '';
+
+// ── Price changes inside the editor ─────────────────────────────────────────
+// The rows are the source of truth while the sheet is open: add/remove re-reads
+// what's on screen and re-renders it, so a half-typed row survives its
+// neighbour being deleted. Nothing is normalized until save.
+
+/** One dated price-adjustment row. */
+function _tcRateRowHtml(row = {}) {
+  const cur = $('rec-edit-cur')?.value || 'CAD';
+  const amount = row.amount === 0 || row.amount ? String(row.amount) : '';
+  return `
+    <div class="rec-rate-row">
+      <div class="rec-rate-field">
+        <label>Starts on</label>
+        <input type="date" class="rec-rate-date" value="${escapeHtml(row.effectiveFrom || '')}" onchange="updateRecurringPreview()">
+      </div>
+      <div class="rec-rate-field">
+        <label>New amount</label>
+        <div class="rec-rate-amount-wrap">
+          <span class="rec-rate-cur">${escapeHtml(cur)}</span>
+          <input type="number" inputmode="decimal" step="0.01" min="0" class="rec-rate-amount"
+            value="${escapeHtml(amount)}" placeholder="0.00" oninput="updateRecurringPreview()">
+        </div>
+      </div>
+      <div class="rec-rate-field rec-rate-field-note">
+        <label>Note <span class="tc-opt">optional</span></label>
+        <input type="text" class="rec-rate-note" value="${escapeHtml(row.note || '')}"
+          placeholder="e.g. 2026 rent increase" oninput="updateRecurringPreview()">
+      </div>
+      <label class="rec-rate-moves-lbl" title="Tick this when the payment date moves too — from this date the charge lands on this day of the month instead of the old one.">
+        <input type="checkbox" class="rec-rate-moves"${row.movesCharge ? ' checked' : ''} onchange="updateRecurringPreview()">
+        <span>Charge moves to this day too</span>
+      </label>
+      <button type="button" class="btn sm danger-btn rec-rate-del" aria-label="Delete this price change"
+        title="Delete this price change" onclick="removeRecurringRateChange(this)">✕</button>
+    </div>`;
+}
+
+/** Repaint the whole list from a plain array of rows. */
+function _tcRenderRateRows(list) {
+  const wrap = $('rec-edit-rates');
+  if (!wrap) return;
+  const rows = Array.isArray(list) ? list : [];
+  wrap.innerHTML = rows.length
+    ? rows.map(r => _tcRateRowHtml(r)).join('')
+    : `<div class="rec-rate-empty">No price changes — the amount above applies to every charge.</div>`;
+}
+
+/** Read the rows exactly as typed, blanks included, for validation and redraws. */
+function _tcReadRateRows() {
+  return Array.from(document.querySelectorAll('#rec-edit-rates .rec-rate-row')).map(row => ({
+    effectiveFrom: row.querySelector('.rec-rate-date')?.value || '',
+    amount: row.querySelector('.rec-rate-amount')?.value || '',
+    note: (row.querySelector('.rec-rate-note')?.value || '').trim(),
+    movesCharge: !!row.querySelector('.rec-rate-moves')?.checked,
+  }));
+}
+
+/**
+ * Add a blank change, dated at the next charge by default — a rent rise almost
+ * always starts on a billing date, and typing the date is the fiddly part.
+ */
+function addRecurringRateChange(prefillDate = '') {
+  const rows = _tcReadRateRows();
+  rows.push({ effectiveFrom: prefillDate || '', amount: '', note: '', movesCharge: false });
+  _tcRenderRateRows(rows);
+  const dates = document.querySelectorAll('#rec-edit-rates .rec-rate-date');
+  const last = dates[dates.length - 1];
+  // showPicker throws outside a user gesture in some browsers; the focus above
+  // is the part that has to work, so never let the convenience break the add.
+  if (last) { last.focus(); if (!prefillDate) { try { last.showPicker?.(); } catch { /* no picker */ } } }
+  updateRecurringPreview();
+}
+
+function removeRecurringRateChange(btn) {
+  const row = btn?.closest?.('.rec-rate-row');
+  if (!row) return;
+  const rows = _tcReadRateRows();
+  const at = Array.from(document.querySelectorAll('#rec-edit-rates .rec-rate-row')).indexOf(row);
+  if (at !== -1) rows.splice(at, 1);
+  _tcRenderRateRows(rows);
+  updateRecurringPreview();
+}
+
+/** Keep the currency chip on each row honest when the currency select moves. */
+function _tcSyncRateCurrency() {
+  const cur = $('rec-edit-cur')?.value || 'CAD';
+  document.querySelectorAll('#rec-edit-rates .rec-rate-cur').forEach(el => { el.textContent = cur; });
+}
+
+/**
+ * Open the add/edit sheet. Called with no argument to add, or with a
+ * subscription id to edit that record. Pass `focus` as 'rates' to land on the
+ * price-change section with a fresh row ready — that's the path the "Adjust
+ * price" link in the table takes.
+ */
+function openRecurringEditor(id = '', focus = '') {
+  const record = id ? _tcFindRecurring(id) : null;
+  if (id && !record) {
+    showToast('⚠ Subscription not found', 'err');
+    return;
+  }
+  const sub = record ? normalizeRecurring(record) : null;
+  _tcEditingRecurring = id ? String(id) : '';
+
+  const catSel = $('rec-edit-cat');
+  if (catSel) {
+    catSel.innerHTML = TC_CATEGORIES.map(c => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
+    // A record saved under a category that has since been retired keeps it
+    // rather than being silently reassigned to Other on the next save.
+    if (sub?.cat && !TC_CATEGORIES.includes(sub.cat)) {
+      catSel.innerHTML += `<option value="${sub.cat.replace(/"/g, '&quot;')}">${sub.cat}</option>`;
+    }
+    catSel.value = sub?.cat || 'Software & Subscriptions';
+  }
+  const freqSel = $('rec-edit-freq');
+  if (freqSel) {
+    freqSel.innerHTML = RECURRING_FREQUENCIES
+      .map(f => `<option value="${f.id}">${f.label}</option>`).join('');
+    freqSel.value = sub?.frequency || 'monthly';
+  }
+
+  $('rec-edit-desc').value = sub?.desc || '';
+  $('rec-edit-vendor').value = sub?.vendor || '';
+  setSelectCurrency($('rec-edit-cur'), sub?.currency || 'CAD');
+  $('rec-edit-amount').value = sub ? sub.amount : '';
+  $('rec-edit-start').value = sub?.startDate || today();
+  $('rec-edit-end').value = sub?.endDate || '';
+  $('rec-edit-notes').value = sub?.notes || '';
+  const pausedEl = $('rec-edit-paused');
+  if (pausedEl) pausedEl.checked = !!sub?.paused;
+
+  _tcRenderRateRows(sub?.rateChanges || []);
+  const amountLbl = $('rec-edit-amount-label');
+  if (amountLbl) amountLbl.textContent = sub?.rateChanges?.length ? 'Starting amount' : 'Amount per period';
+
+  const title = $('rec-edit-title');
+  if (title) title.textContent = id ? 'Edit subscription' : 'Add a recurring subscription';
+  const saveBtn = $('rec-edit-save');
+  if (saveBtn) saveBtn.textContent = id ? 'Save changes' : 'Add subscription';
+  const histEl = $('rec-edit-history');
+  if (histEl) {
+    histEl.innerHTML = sub
+      ? `Posted ${_tcRecurringChargeCount(sub)} charge(s) so far · last period logged: ${escapeHtml(sub.lastInjected || 'none')}`
+      : 'Charges are posted to the ledger automatically, from the start date onward.';
+  }
+
+  openM('rec-edit');
+
+  // "Adjust price" opens straight onto a new row, dated at the next charge —
+  // the answer to "my rent goes up next month" in two fields.
+  if (focus === 'rates' && sub) {
+    const suggested = nextRecurringDate(sub) || '';
+    addRecurringRateChange(suggested);
+    requestAnimationFrame(() => {
+      $('rec-edit-rates-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  updateRecurringPreview();
+}
+
+/**
+ * Live read-out under the form: cadence, monthly equivalent, annual run rate
+ * and the next charge date, recomputed from the fields as they're typed.
+ * The old inline form gave no feedback at all until after the record saved.
+ */
+function updateRecurringPreview() {
+  const el = $('rec-edit-preview');
+  if (!el) return;
+  _tcSyncRateCurrency();
+  const draft = _tcReadRecurringForm();
+  const baseCurrency = TAX_CENTER.settings?.baseCurrency || 'CAD';
+  const amountLbl = $('rec-edit-amount-label');
+  if (amountLbl) amountLbl.textContent = draft.rateChanges.length ? 'Starting amount' : 'Amount per period';
+  if (!draft.amount || !draft.startDate) {
+    el.innerHTML = '<span class="rec-dim">Enter an amount and a start date to see the running cost.</span>';
+    return;
+  }
+  const rate = draft.currency === baseCurrency ? 1 : Number(_fxRateCache[`${draft.currency}_${baseCurrency}`]) || 0;
+  const perMonth = monthlyEquivalent(draft);
+  const money = rate
+    ? `${fmt(perMonth * rate, baseCurrency)}/mo · ${fmt(perMonth * rate * 12, baseCurrency)}/yr`
+    : `≈ ${fmt(perMonth, draft.currency)}/mo · ${fmt(perMonth * 12, draft.currency)}/yr (no ${draft.currency}→${baseCurrency} rate cached)`;
+
+  const next = nextRecurringDate({ ...draft, lastInjected: '' });
+  const status = recurringStatus(draft);
+  const when = draft.paused
+    ? 'Paused — nothing will post until you resume.'
+    : status === 'ended'
+      ? `Ended ${escapeHtml(draft.endDate)} — no further charges.`
+      : next
+        ? `Next charge ${escapeHtml(fmt(amountOnDate(draft, next), draft.currency))} on ${escapeHtml(next)} (${escapeHtml(relativeDayLabel(next))}).`
+        : 'No upcoming charge.';
+
+  // Backfill warning: a start date in the past means the ledger gets every
+  // missed period at once on save. Better said here than discovered after.
+  const dueNow = recurringDueCharges({ ...draft, lastInjected: _tcEditingRecurring ? (_tcFindRecurring(_tcEditingRecurring)?.lastInjected || '') : '' });
+  const missed = dueNow.length;
+  const missedTotal = sumMoney(dueNow, c => c.amount);
+  const backfill = missed
+    ? `<div class="rec-preview-warn">⚠ ${missed} past charge${missed === 1 ? '' : 's'} (${escapeHtml(fmt(missedTotal, draft.currency))}) will be posted to the ledger immediately.</div>`
+    : '';
+
+  // The scheduled-change line: the whole point of the section below the form is
+  // that you can see the new price and the date before you commit to it.
+  const change = nextRateChange(draft);
+  const perMonthAfter = change ? change.to / frequencyMonths(draft.frequency) : 0;
+  const changeLine = change
+    ? `<div class="rec-preview-change">${change.delta < 0 ? '↓' : '↑'} ${escapeHtml(fmt(change.from, draft.currency))} → <strong>${escapeHtml(fmt(change.to, draft.currency))}</strong>${escapeHtml(frequencySuffix(draft.frequency))} from ${escapeHtml(change.effectiveFrom)} (${escapeHtml(relativeDayLabel(change.effectiveFrom))})${draft.frequency === 'monthly' ? '' : ` · ${escapeHtml(fmt(perMonthAfter, draft.currency))}/mo`}<br><span class="rec-dim">Charges dated before then keep ${escapeHtml(fmt(change.from, draft.currency))}.</span></div>`
+    : '';
+
+  // Moving the charge day rearranges the calendar, and the rule that stops one
+  // period being billed twice can push the first charge on the new day a whole
+  // cadence out. That is the kind of thing you want to see as dates, before
+  // saving — so the next three charges are spelled out whenever a move is set.
+  const moves = draft.rateChanges.some(r => r.movesCharge);
+  const soon = moves && !draft.paused
+    ? upcomingCharges({ ...draft, lastInjected: _tcEditingRecurring ? (_tcFindRecurring(_tcEditingRecurring)?.lastInjected || '') : '' }, 3)
+    : [];
+  const scheduleLine = soon.length
+    ? `<div class="rec-preview-sched"><span class="rec-dim">Charges from here:</span> ${soon.map(c => `${escapeHtml(c.date)} · ${escapeHtml(fmt(c.amount, draft.currency))}`).join(' &nbsp;·&nbsp; ')}</div>`
+    : moves
+      ? `<div class="rec-preview-sched"><span class="rec-dim">No further charges on this schedule.</span></div>`
+      : '';
+
+  el.innerHTML = `<div class="rec-preview-money">${money}</div>
+    <div class="rec-preview-when">${escapeHtml(frequencyLabel(draft.frequency))} · ${when}</div>${changeLine}${scheduleLine}${backfill}`;
+}
+
+/** Read the editor fields into a subscription-shaped draft. */
+function _tcReadRecurringForm() {
+  return normalizeRecurring({
+    desc: ($('rec-edit-desc')?.value || '').trim(),
+    vendor: ($('rec-edit-vendor')?.value || '').trim(),
+    cat: $('rec-edit-cat')?.value || 'Other',
+    currency: $('rec-edit-cur')?.value || 'CAD',
+    amount: parseFloat($('rec-edit-amount')?.value) || 0,
+    startDate: $('rec-edit-start')?.value || '',
+    endDate: $('rec-edit-end')?.value || '',
+    frequency: $('rec-edit-freq')?.value || 'monthly',
+    paused: !!$('rec-edit-paused')?.checked,
+    notes: ($('rec-edit-notes')?.value || '').trim(),
+    // normalizeRecurring sorts these, drops the blanks and de-duplicates dates,
+    // so the preview never has to reason about a half-typed row.
+    rateChanges: _tcReadRateRows(),
+  });
+}
+
+async function saveRecurringEditor() {
+  const draft = _tcReadRecurringForm();
+  if (!draft.desc) { showToast('⚠ Give the subscription a description', 'warn'); $('rec-edit-desc')?.focus(); return; }
+  if (!(draft.amount > 0)) { showToast('⚠ Enter an amount above zero', 'warn'); $('rec-edit-amount')?.focus(); return; }
+  if (!draft.startDate) { showToast('⚠ Pick a start date', 'warn'); $('rec-edit-start')?.focus(); return; }
+  if (draft.endDate && draft.endDate < draft.startDate) {
+    showToast('⚠ The end date is before the start date', 'warn'); $('rec-edit-end')?.focus(); return;
+  }
+
+  // Price changes are validated against the rows as typed, not the normalized
+  // copy — a row missing its date has to be pointed at, not silently discarded.
+  const rateRows = Array.from(document.querySelectorAll('#rec-edit-rates .rec-rate-row'));
+  for (const row of rateRows) {
+    const dateEl = row.querySelector('.rec-rate-date');
+    const amtEl = row.querySelector('.rec-rate-amount');
+    const date = dateEl?.value || '';
+    const amt = parseFloat(amtEl?.value);
+    if (!date && !(amt > 0)) continue; // an untouched blank row just goes away
+    if (!date) { showToast('⚠ Give every price change the date it starts', 'warn'); dateEl?.focus(); return; }
+    if (!(amt > 0)) { showToast('⚠ Enter the new amount for every price change', 'warn'); amtEl?.focus(); return; }
+    if (date <= draft.startDate) {
+      showToast('⚠ A price change has to start after the first charge — edit the amount above instead', 'warn', 5000);
+      dateEl?.focus(); return;
+    }
+    if (draft.endDate && date > draft.endDate) {
+      showToast('⚠ That price change starts after this subscription ends', 'warn');
+      dateEl?.focus(); return;
+    }
+  }
+
+  // A change backdated behind a charge the ledger already has cannot rewrite
+  // that charge — posted expenses are real records. Say so plainly instead of
+  // leaving the owner to find the old figure still sitting in the ledger.
+  const existingRecord = _tcEditingRecurring ? _tcFindRecurring(_tcEditingRecurring) : null;
+  const lastPosted = existingRecord ? lastPostedChargeDate(existingRecord) : '';
+  const retro = lastPosted ? draft.rateChanges.filter(r => r.effectiveFrom <= lastPosted) : [];
+  if (retro.length && !(await confirmDialog(
+    `${retro.length === 1 ? 'A price change starts' : `${retro.length} price changes start`} on or before ${lastPosted}, which has already been posted to the ledger.\n\n` +
+    `Charges that are already posted keep the amount they were posted at — this only prices the charges that haven't been posted yet. Edit those ledger entries directly if the old ones need correcting.`,
+    { title: 'Charges already posted', okLabel: 'Save anyway' }))) {
+    return;
+  }
+
+  const btn = $('rec-edit-save');
+  const label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  try {
+    await loadTaxCenter();
+    if (!TAX_CENTER.recurring) TAX_CENTER.recurring = [];
+    _tcEnsureRecurringIds();
+
+    if (_tcEditingRecurring) {
+      const existing = _tcFindRecurring(_tcEditingRecurring);
+      if (!existing) {
+        showToast('⚠ That subscription was removed elsewhere', 'err');
+        closeM('rec-edit');
+        return;
+      }
+      // lastInjected is deliberately preserved: editing the price of a
+      // subscription must not re-post periods the ledger already has.
+      Object.assign(existing, draft, { id: existing.id, lastInjected: existing.lastInjected || '' });
+    } else {
+      const clash = TAX_CENTER.recurring.find(s =>
+        (s.desc || '').toLowerCase() === draft.desc.toLowerCase() && !s.paused);
+      if (clash && !(await confirmDialog(
+        `"${draft.desc}" is already tracked as a recurring cost (${fmt(currentAmount(clash), clash.currency || 'CAD')} ${frequencyLabel(clash.frequency)}).\n\nAdd a second one anyway? Both will post charges to the ledger.`,
+        { title: 'Possible duplicate', okLabel: 'Add anyway' }))) {
+        return;
+      }
+      TAX_CENTER.recurring.push({ ...draft, id: newRecurringId(), lastInjected: '' });
+    }
+
+    await saveTaxCenter();
+    // Post anything the new/changed schedule already owes, then repaint — so
+    // adding a subscription that started in March lands its back-charges now.
+    processRecurringExpenses();
+    await saveTaxCenter();
+    closeM('rec-edit');
+    renderTaxCenter();
+    showToast(_tcEditingRecurring ? '✓ Subscription updated' : '✓ Subscription added');
+    _tcEditingRecurring = '';
+  } catch (e) {
+    console.error(e);
+    showToast('⚠ Could not save the subscription', 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+
+/**
+ * Pause or resume without deleting. Resuming rolls `lastInjected` forward to
+ * the month before this one, so the ledger doesn't get a lump of back-charges
+ * for a period the subscription was explicitly not billing.
+ */
+async function toggleRecurringPause(id) {
+  await loadTaxCenter();
+  _tcEnsureRecurringIds();
+  const sub = _tcFindRecurring(id);
+  if (!sub) { showToast('⚠ Subscription not found', 'err'); return; }
+
+  if (sub.paused) {
+    const now = new Date();
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+    if ((sub.lastInjected || '') < prevKey) sub.lastInjected = prevKey;
+    sub.paused = false;
+  } else {
+    sub.paused = true;
+  }
+
+  await saveTaxCenter();
+  if (!sub.paused) processRecurringExpenses();
+  await saveTaxCenter();
+  renderTaxCenter();
+  showToast(sub.paused ? '⏸ Subscription paused' : '▶ Subscription resumed');
+}
+
+async function removeRecurring(id) {
+  await loadTaxCenter();
+  _tcEnsureRecurringIds();
+
+  // Older callers passed the array index; ids are strings like 'rec_…', so a
+  // numeric argument can still be resolved positionally for one release.
+  let sub = _tcFindRecurring(id);
+  if (!sub && typeof id === 'number') sub = (TAX_CENTER.recurring || [])[id] || null;
+  if (!sub) { showToast('⚠ Subscription not found', 'err'); return; }
+
+  const posted = _tcRecurringChargeCount(sub);
+  const ok = await confirmDialog(
+    `Remove "${sub.desc}" from recurring costs?\n\n` +
+    (posted
+      ? `The ${posted} charge${posted === 1 ? '' : 's'} it already posted stay in the ledger — only the schedule stops.`
+      : 'Nothing has been posted from it yet.') +
+    `\n\nTo stop it temporarily and keep the record, use Pause instead.`,
+    { title: 'Remove subscription', okLabel: 'Remove', danger: true }
+  );
+  if (!ok) return;
+
+  const at = TAX_CENTER.recurring.indexOf(sub);
+  if (at !== -1) TAX_CENTER.recurring.splice(at, 1);
+  await saveTaxCenter();
+  renderTaxCenter();
+  showToast('✓ Subscription removed');
+}
+
+function downloadTaxLedgerCSV() {
+  // Build straight from the filtered ledger data (stashed by renderTaxCenter),
+  // NOT the paginated DOM — so the export covers the entire filtered year, all
+  // columns. renderTaxCenter() always runs when the Tax Center is visible, but
+  // call it once here as a safety net if the stash is missing.
+  if (!window._tcLedgerExport) renderTaxCenter();
+  const exportData = window._tcLedgerExport || { rows: [], baseCurrency: 'CAD' };
+  const { rows: data, baseCurrency } = exportData;
+
+  if (!data.length) { showToast('Nothing to export for this filter'); return; }
+
+  const rows = [['Date', 'Type', 'Description', 'Category', 'Receipt/Ref', 'Orig Currency', 'Amount (Orig)', `Amount (${baseCurrency})`]];
+  for (const r of data) {
+    // Sign the base-currency column so totals sum correctly in a spreadsheet.
+    const signedBase = (r.isIncome ? 1 : -1) * Number(r.baseAmount || 0);
+    rows.push([
+      r.date || '',
+      r.type || '',
+      r.desc || '',
+      r.cat || '',
+      [r.ref || '', r.invoiceNum ? `Invoice ${r.invoiceNum}` : ''].filter(Boolean).join(' · '),
+      r.origCurrency || '',
+      Number(r.origAmount || 0).toFixed(2),
+      signedBase.toFixed(2),
+    ]);
+  }
+
+  // BOM + CRLF preserved: this file is opened directly in Excel, where the BOM
+  // is what keeps a `·` or an accented description from arriving as mojibake.
+  downloadCsv(toCsv(rows, { bom: true, eol: '\r\n' }), `Tax_Ledger_${today()}.csv`);
+}
+
+// ── LOG BUSINESS EXPENSE: RECEIPT DROPZONE ──────────────────────────────
+// These target #tc-exp-file, this tab's own receipt field. They sat in main.js
+// next to the project-ledger dropzone they were copied from, and followed the
+// receipts out of it by proximity rather than by ownership.
+
+// Same dropzone treatment for the Tax Center's Log Business Expense receipt
+// field (#tc-exp-file). Kept separate from expFileChosen/etc above since
+// that pair is wired to the plain ledger expense form's #exp-file ids.
+// These three sites used to read and write `window._pendingWebcamReceipt`,
+// which is a DIFFERENT property from the module-scoped `_pendingWebcamReceipt`
+// that useReceiptPhoto() sets and that submitExpense/saveExpenseEdit read.
+// Nothing ever wrote the window one, so the read was always falsy and the write
+// cleared nothing. They now go through the accessors, which is plainly what the
+// code was written to do: clearing the receipt field clears the pending capture.
+function tcExpFileChosen() {
+  const input = $('tc-exp-file'), chip = $('tc-exp-file-chip'), nameEl = $('tc-exp-file-name'), dz = $('tc-exp-dropzone');
+  const pending = getPendingWebcamReceipt();
+  const hasFile = (input && input.files && input.files.length > 0) || !!pending;
+  if (nameEl && hasFile) nameEl.textContent = input?.files?.[0]?.name || pending?.name || 'receipt';
+  if (chip) chip.style.display = hasFile ? 'flex' : 'none';
+  if (dz) dz.style.display = hasFile ? 'none' : 'flex';
+  const aiBtn = $('tc-ai-scan-btn');
+  if (aiBtn) {
+    aiBtn.disabled = !hasFile;
+    aiBtn.title = hasFile ? 'Scan receipt with Gemini AI' : 'Select or capture a receipt first to enable AI scanning';
+  }
+  // The reason the button is greyed out, visible on a phone (which never shows a title tooltip).
+  const aiHint = $('tc-ai-scan-hint');
+  if (aiHint) aiHint.style.display = hasFile ? 'none' : '';
+  // A summary of the last receipt read must never sit beside a different one.
+  clearReceiptScanReview('tc-exp-scan-read');
+  // Get the photo ready now, while the rest of the form is being filled in.
+  if (input?.files?.[0]) warmReceiptScan(input.files[0]);
+}
+function tcExpFileClear(ev) {
+  if (ev) ev.preventDefault();
+  const input = $('tc-exp-file');
+  if (input) input.value = '';
+  setPendingWebcamReceipt(null);
+  tcExpFileChosen();
+}
+function tcExpFileDragOver(ev) { setDropzoneDrag(ev, 'tc-exp-dropzone', true); }
+function tcExpFileDragLeave(ev) { setDropzoneDrag(ev, 'tc-exp-dropzone', false); }
+function tcExpFileDrop(ev) {
+  if (dropFilesIntoInput(ev, 'tc-exp-dropzone', 'tc-exp-file')) tcExpFileChosen();
+}
+
+async function testChitChatsConnectionHandler() {
+  const statusEl = $('tc-cc-status');
+  const testBtn = $('tc-cc-test-btn');
+  if (!statusEl || !testBtn) return;
+  const clientId = $('tc-cc-client-id')?.value.trim();
+  const token = $('tc-cc-token')?.value.trim();
+
+  if (!clientId || !token) {
+    statusEl.className = 'tc-status-msg tc-status-err';
+    statusEl.innerHTML = '⚠ Client ID and Token are required to test connection.';
+    return;
+  }
+
+  testBtn.disabled = true;
+  testBtn.innerHTML = '<span class="spinner"></span>Testing…';
+  statusEl.className = 'tc-status-msg';
+  statusEl.innerHTML = 'Connecting to Chit Chats API…';
+
+  try {
+    const { verifyChitChatsConnection } = await import('../lib/carriers/chitchats.js');
+    const result = await verifyChitChatsConnection({ clientId, token, isTest: !!$('tc-cc-test-mode')?.checked });
+    if (result.ok) {
+      statusEl.className = 'tc-status-msg tc-status-ok';
+      statusEl.textContent = `✓ ${$('tc-cc-test-mode')?.checked ? 'Staging' : 'Live'} account authenticated. Save Config to keep these settings.`;
+    } else {
+      statusEl.className = 'tc-status-msg tc-status-err';
+      statusEl.textContent = `⚠ Connection failed: ${result.error}`;
+    }
+  } catch (err) {
+    statusEl.className = 'tc-status-msg tc-status-err';
+    statusEl.textContent = `⚠ Error: ${err.message}`;
+  } finally {
+    testBtn.disabled = false;
+    testBtn.innerHTML = 'Test Connection';
+  }
+}
+
+export {
+  _tcAllReceiptItems,
+  isReceiptNoticeDismissed,
+  _tcApplyLedgerFilter,
+  _tcBlobToDataUrl,
+  _tcBuildCashFlowChart,
+  _tcBuildLedger,
+  _tcCashFlowBucketRows,
+  _tcClearConfirmedPending,
+  _tcDeltaChip,
+  _tcFindTripRecord,
+  _tcGetTripsSummaryAll,
+  _tcIsPdfName,
+  _tcPdfToImages,
+  _tcPendingList,
+  _tcRenderCashFlowSummary,
+  _tcRenderCategoryPanel,
+  _tcRenderLedgerFilterChip,
+  _tcRenderLedgerFoot,
+  _tcRenderLedgerPagination,
+  _tcRenderLedgerTable,
+  _tcRenderPendingPanel,
+  _tcRenderReceiptGallery,
+  _tcRenderRecurringSubscriptions,
+  _tcRenderSelectedCashFlowBucket,
+  _tcRenderStatusHeaders,
+  _tcRenderTripsPanel,
+  _tcResolveReceiptImages,
+  _tcRestoreLedgerPrefs,
+  _tcSaveLedgerPrefs,
+  _tcTripRecords,
+  _tcTripReportReceipts,
+  confirmPendingExpense,
+  deletePendingExpense,
+  deleteTripRecord,
+  dismissReceiptNotice,
+  downloadTaxLedgerCSV,
+  downloadTaxReport,
+  executeFullTaxSeasonExport,
+  exportTripPDF,
+  logExpenseForTrip,
+  openEditArtistPayout,
+  openEditTripDetails,
+  openNewTrip,
+  addRecurringRateChange,
+  openPendingExpense,
+  openReceiptLightbox,
+  openRecurringEditor,
+  openTaxSeasonPreflightModal,
+  postSubscriptionChargeEarly,
+  processRecurringExpenses,
+  refreshRecurringCharges,
+  removeRecurring,
+  removeRecurringRateChange,
+  renderTaxCenter,
+  resetDismissedReceiptNotices,
+  saveNewTrip,
+  savePendingExpense,
+  saveRecurringEditor,
+  dismissDeductionGap,
+  renderDeductionGaps,
+  restoreDeductionGaps,
+  saveTaxCenter,
+  saveTaxCenterSettings,
+  testOpenRouterConnectionFromSettings,
+  snoozeDeductionGap,
+  testZonosConnectionHandler,
+  testChitChatsConnectionHandler,
+  testCanadaPostConnectionHandler,
+  diagnoseCanadaPostHandler,
+  renderCanadaPostKeySets,
+  setTcGalleryPage,
+  setTcLedgerPage,
+  snoozePendingExpense,
+  switchTaxCenterSubTab,
+  tcClearCashFlowBucket,
+  tcClearLedgerFilters,
+  tcClearSelectedTrip,
+  tcCloseTripDropdown,
+  tcExpFileChosen,
+  tcExpFileClear,
+  tcExpFileDragLeave,
+  tcExpFileDragOver,
+  tcExpFileDrop,
+  tcExpenseRowDragLeave,
+  tcExpenseRowDragOver,
+  tcExpenseRowDrop,
+  tcFilterLedgerByReceiptStorage,
+  tcFilterTripDropdown,
+  tcGalleryFilterChange,
+  tcGallerySearchInput,
+  tcJumpToFixPreflightIssues,
+  tcLedgerSearchInput,
+  tcLedgerTypeFilter,
+  tcLedgerYearChange,
+  tcLightboxNav,
+  tcLightboxReset,
+  tcLightboxRotate,
+  tcLightboxZoom,
+  tcNewTripValidate,
+  tcOpenTripDropdown,
+  tcPendingRemindIn,
+  tcPendingValidate,
+  tcRenderQuickTripChips,
+  tcSelectCashFlowBucket,
+  tcSelectTripOption,
+  tcSetCashFlowDetailType,
+  tcSetRecurringFilter,
+  tcSetTripsView,
+  tcSetVaultView,
+  tcShowRecurringCharges,
+  tcCloseSubscriptionDoublesNote,
+  tcKeepRecurringDay,
+  tcMoveRecurringDay,
+  tcReviewSubscriptionDoubles,
+  tcSubNavKeydown,
+  tcToggleTripDropdown,
+  tcUpdateTripSelectedPreview,
+  tcYearChange,
+  toggleRecurringPause,
+  updateRecurringPreview,
+};

@@ -4,6 +4,7 @@ Newest first. One line each: date, decision, why.
 
 | Date | Decision | Why |
 | --- | --- | --- |
+| 2026-10-27 | The product's shop and stockroom are copies in `apps/` of this repo; `LyricalmyricalWebsite` and `lyrical-inventory` are never changed for the product. Replaces "shop and stockroom stay in their own repos". | Owner's choice: the website and stockroom are specific to Lyricalmyrical and must keep working in all circumstances. |
 | 2026-10-27 | The public shop profile is a script file (`/shop-profile.js`) that sets `window.__SHOP_PROFILE__`, loaded with `defer` before the app. Server-only values (plan, test mode, Stripe account) stay out of it. | The page has the profile before Firebase starts with no extra wait, and one build serves every shop. |
 | 2026-10-27 | Build order is `docs/code-plan.md`, one pull request per line. | Small steps, each keeping the live shop working. |
 | 2026-10-27 | One central payment service holds the Stripe platform key; shops never do (`docs/payments.md`). | Connect needs the platform key on every call; one place to protect it, one address for Stripe events. |

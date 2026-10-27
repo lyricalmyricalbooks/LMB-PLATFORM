@@ -1,0 +1,948 @@
+# UX Component Patterns — reuse before inventing
+
+> [!NOTE]
+> This is the concrete companion to `.agents/skills/ux-designer/SKILL.md`. That file sets
+> the *principles* (shadows, motion curves, Fitts's/Hick's law, mandatory checklist). This
+> file maps those principles to the **actual classes and snippets already proven in this
+> codebase**, so new UI converges on one system instead of drifting toward one-off CSS every
+> session.
+>
+> **Rule of thumb:** before writing a new class for a button, pill, table, dropdown, or empty
+> state, grep `src/style.css` for the patterns below. Extend an existing one (a modifier class,
+> a new `.pill.<color>`) before creating a parallel pattern.
+
+---
+
+## Buttons — `.btn`
+Base: `.btn` (`style.css:2502`) — Archivo 800 uppercase at `--text-xs` (11px) with `--tracking-caps`, square (`border-radius:var(--r2)` = 0), a 2px `--rule-ink` outline, `padding:8px 16px` and a flat `--elev-1` offset that grows to `--elev-hover` on hover. It sits at ~33px tall by design (a settled decision — no `min-height`); a control pressed on a phone gets its full 44px target from `.sys-target` or `btn lg`.
+
+Modifiers (compose, don't reinvent):
+- `.btn.gold` — primary action (gold fill, ink text)
+- `.btn.ink` — secondary dark action
+- `.btn.danger-btn` — destructive (delete, void, remove)
+- `.btn.sm` — compact, for inline row actions (`padding:5px 11px`)
+- `.btn.lg` — 44px-tall hero CTA
+- `:disabled` is already styled (`opacity:.35`) — never build a custom disabled look.
+
+```html
+<button class="btn gold">+ Add store</button>
+<button class="btn sm ink" data-action="books.manage" data-book="${escapeHtml(book.id)}">Manage →</button>
+<button class="btn danger-btn sm" data-action="ledger.void" data-id="${escapeHtml(id)}">Void</button>
+```
+
+**Wiring a button: name an action, don't write code into the markup.** New buttons use
+`data-action="screen.verb"` (or `data-on-change` / `data-on-input` for fields) with the
+values in `data-*` attributes, and the screen registers its handlers with `registerActions`
+from `src/lib/actions.js` (see `intelActions` in `features/intel.js`). Don't add new
+`onclick="fn('${value}')"` attributes: a value pasted into one is a quote away from running as
+script, even when escaped for HTML. `tests/actions.test.js` stops the count of inline
+handlers from growing.
+
+Row-level icon actions (edit/manage buttons that appear on hover) use `.edit-btn` —
+see `.tbl tbody tr:hover .edit-btn` (`style.css:1821`) for the reveal-on-hover convention.
+
+**Icon-only round buttons — full state set.** `.modal-close-btn` (`style.css:2741`, `:hover`/
+`:active`/`:focus-visible` at `style.css:4008-4010`) is the reference: hover swaps the fill to
+`--surface-inset` and lifts the icon colour to `--content-primary`, `:active` snaps a
+`transform:scale(0.94)` with no transition (so it reads as an instant press, not a wobble, and
+needs no `prefers-reduced-motion` guard), and `:focus-visible` gets its own outline rather than
+inheriting the browser default. Any new icon-only circular button (`.more-sheet-close`,
+`.store-balance-pop-close`, `.fk-pop-close`) should carry all three — a phone's bottom nav
+(`.mnav-btn`) and its More-sheet tiles (`.more-sheet-body .snav`) shipped with a `background-color`
+transition already declared but nothing ever set it, so every tap landed with zero visual
+confirmation until the same three states were added there too.
+
+---
+
+## Status & count badges — `.pill`
+
+### A smaller sibling family — `.chip-status`
+`.chip-status` (`style.css:315`) is the compact inline badge used for
+meta-annotations riding next to a piece of content (an invoice number, a
+history row's channel) rather than standing alone as a status column —
+`.emerald` `.amber` `.violet` `.gray` `.red` `.gold`. Two rules worth keeping:
+- **Every tone the code reaches for needs a rule, or it's invisible.** The
+  `.red` tone was used in `main.js` (a failed reminder chip on the Invoices
+  list) for a long time with no matching CSS rule at all — it rendered with
+  none of its siblings' background, border or color, so a real payment-chasing
+  failure looked identical to plain text. Add a tone here the moment code
+  reaches for `.chip-status.<new-color>`; don't assume an existing sibling
+  class covers it.
+- **Reach for `.chip-status.sm` instead of an inline `font-size` override**
+  when a chip needs to sit smaller alongside other text — a run of chips each
+  hand-picking its own `style="font-size:9px"` (or, worse, opting out of
+  `.chip-status` entirely for a fully bespoke pill) is how one invoice row
+  ended up with three different badge shapes side by side. `.sm` keeps the
+  same shape at a smaller size so a row of chips still reads as one family.
+
+Base: `.pill` (`style.css:1569`) — full-pill radius, 11px, always paired with a semantic color modifier: `.green` `.amber` `.red` `.gray` `.blue` `.gold`.
+
+Convention: **amber = active/needs-attention, green = settled/good, gray = neutral/inert,
+red = error/void, gold = highlighted/primary count.** Keep a leading glyph (`●` active, `✓`
+settled, `✕` void) — it's how users scan a whole column of pills without reading text.
+
+```html
+<span class="pill amber">● Active</span>
+<span class="pill gray">✓ Settled</span>
+<span class="pill gold">10 accounts</span>
+```
+
+Chip variant for inline counts/filters (not status): `.pile-chip` (`style.css:1632`) —
+bordered, neutral background, optional colored `.dot`.
+
+### Flagging one tile inside a group of tiles
+
+When one figure in a row of KPI tiles is the one to act on (Owed on a store card, a
+disputed balance, a failed sync), mark it with an **inset accent bar plus a tinted
+border** — `box-shadow: inset 3px 0 0 var(--status-active)` — not with a
+`--status-*-bg` fill. Two reasons, both learned on `.sk` (the store card's tiles):
+
+- **A status wash is *lighter* than the plate it sits on.** The `--status-*-bg` tokens
+  are low-alpha tints designed for white cards; over `--surface-inset` in light mode
+  they land paler than the neutral tiles beside them, so the flagged tile becomes the
+  *least* prominent one on the card. Exactly backwards.
+- **It costs the figure its contrast.** Amber `--status-active` on an amber-washed
+  plate measured 4.25:1 — under AA for an 18px figure. The accent bar changes no
+  background, so the figure keeps the full contrast it was checked at.
+
+The bar is already the house device for this: `.sys-failed`/`.sys-conflict`
+(`system.css`), the active consignment row, and `.store-balance-tbl tr.is-off` all use
+it. Derive the state with `:has()` where the figure already carries a class
+(`.sk:has(.sk-v.warn)`) rather than stamping a second class from JS — §3. Order the
+rules so critical comes *after* active, or a tile that is both owed-money and
+off-ledger paints amber.
+
+### An odd number of tiles — let the lead one span, never leave an orphan
+
+`repeat(auto-fit, minmax(…))` wraps three tiles into a row of two and a lone third with a
+hole beside it — the carrier tiles on Shipping did exactly that in the desktop column. When a
+group has a known, small number of tiles and one of them leads, lay it out by the group's own
+width with a named container query: one column when narrow, the lead tile spanning
+(`grid-column: 1 / -1`) over the rest side by side, then all in one row once there is room.
+`.ship-carrier-grid` is the specimen; `tests/ship-carrier-tile-layout.test.js` pins it.
+
+### A row that needs you is flagged, never faded
+
+Opacity is how this app says *spent* — `.tbl tbody tr.voided td{opacity:.35}`. A row
+awaiting the publisher's decision (an artist-submitted sale or expense) used to be set to
+`opacity:0.8` inline, so the one row on the screen that needed action read as half-voided,
+and its Approve button was dimmed with it. It now carries `.is-awaiting`: full ink, the
+`--amber-bg` wash, and the inset amber bar on its first cell (the same device as above). On a
+phone the bar moves up to the record card itself (`styles/phone.css`). Its Approve / Reject
+pair (`.appr-btn`) sits on the `.btn` chassis — 2px ink outline, caps, `--elev-1`, press-in —
+so never restyle it with a darker raw hex on hover; the lift is the hover.
+
+### Reporting stock on a surface that spends it
+
+Any screen that moves inventory (POS register, manual entry, a future shipment form) should say
+what it is about to do to on-hand *before* it does it. Two pure helpers already encode this —
+`orderStockPreview()`/`orderStockPreviewCopy()` in [src/lib/inventory.js](../src/lib/inventory.js)
+for the manual-entry form, and `posStockView()`/`posOversellSummary()` in
+[src/lib/pos-stock.js](../src/lib/pos-stock.js) for the register. Four rules they share:
+
+- **Report, never recompute.** These helpers read a stock figure and describe it. The ledger keeps
+  sole ownership of the number — no rounding, re-tallying, or writing back.
+- **A book's `threshold` is a REORDER alarm, not a screen-level one.** It is sized against a whole
+  print run (15, 30…), so on a register card it would paint nearly every title amber and mean
+  nothing. Pick a cutoff that matches the surface's question; `POS_LOW_STOCK_AT` is the fair-table
+  one.
+- **Warn, don't block.** A seller may genuinely have brought copies the records don't know about,
+  and a refused sale at a fair table is worse than an off-by-two stock count. Say what will happen
+  ("on-hand stops at 0 and your count stops matching") and let them decide.
+- **Never print a negative count.** Keep the true arithmetic in the returned object so the shortfall
+  is reportable, and show `Math.max(0, …)` — a stock count below zero is the bug being reported, not
+  a number to render.
+
+Untracked things say nothing at all. A POS-only guest title has no catalog stock, so its card gets
+no pill — a `0` there would read as "out of stock" and stop a perfectly good sale.
+
+---
+
+## Review a queue one item at a time — `.ri-*` (review inbox)
+
+For anything the app found by itself and stopped short of deciding (a receipt read from an
+email, a label bought elsewhere), don't send the owner to a table. Use the review inbox
+(`src/features/review-inbox.js`, `src/styles/review-inbox.css`): a list on the left, a detail
+pane on the right, and on a phone the two take turns with a "← Back to the list" button.
+
+The pane always answers four questions in this order, in plain words:
+1. **Why it is here** — the specific reason the app stopped (`reasons` from `lib/review-queue.js`).
+2. **What to do** — numbered steps that name the buttons exactly as they are labelled.
+3. **The details to check** — the fields, or the one decision, right there in the pane.
+4. **What the app found** — the evidence (sender, subject, tracking) and a link to the original.
+
+Rules worth keeping:
+- **State is a word plus a glyph, never colour alone** — `! Needs you`, `● Take a look`, `✓ Ready to file` (`.ri-chip`).
+- **Filters are squared Riso tabs, not lozenges** (`.ri-filter`): 2px ink outline, caps label like `.btn`, and the active one inked in (`--surface-inverse` / `--content-on-inverse`; night mode steps it to `--cream4` instead). The detail pane is the card on this screen — ink outline, `--elev-2` — and its title is Anton uppercase so the item leads. Lozenge radius stays reserved for the status chips. `tests/review-inbox-riso-chrome.test.js` pins it.
+- **Nothing is filed by opening the screen.** A button that says "File" files; one that only opens something says "Review".
+- **Disable a button only with the reason beside it** ("Fill in the missing details above to file it.").
+- **Fields that save as they change go inside `[data-autosave]`**, so closing the window never asks "discard unsaved changes?" about them (see `_modalFieldSig` in `lib/modal.js`).
+- **After a field edit, repaint the list and the guidance but not the box being typed in.**
+- A notification that points at review work is rebuilt from what is waiting *now* (`reviewTaskStillOpen`): finished work says "All reviewed", open work says how many are left.
+
+---
+
+## Stat cards / HUD strips — one anatomy, two surfaces
+
+A row of headline figures at the head of a screen (the consignment summary HUD, Order History's
+reconciliation strip) uses **one** card anatomy. Before adding a third, extend one of these rather
+than starting a parallel set — the two above were parallel systems for a while and the drift was
+visible on screen.
+
+The anatomy: **icon plate → content column → 3px bottom accent.**
+
+```html
+<div class="hist-kpi-card highlight-gold is-lead">
+  <div class="hist-kpi-icon" aria-hidden="true">📚</div>
+  <div class="hist-kpi-content">
+    <div class="hist-kpi-label">Stock On Hand</div>
+    <div class="hist-kpi-val">88</div>
+    <div class="hist-kpi-sub">35% available</div>
+  </div>
+</div>
+```
+
+Reference implementations: `.consignment-stat-card` (`style.css:4041`) and `.hist-kpi-card`
+(`style.css:~110`). Five rules they share:
+
+- **Label `--text-2xs` / 800 / `--tracking-label`, figure `'DM Mono'` at `--text-xl`, sub-line
+  `--text-sm`.** Anything else and the strip reads as a different app's component. Spacing comes
+  off `--space-*`; gaps written as raw 12/14/4/2px are how the drift started.
+- **The accent is a 3px `::after` along the bottom, never a left border.** Everything is
+  `border-box`, so a left border shrinks the content box of the accented cards only — their labels
+  then sit a few px right of the unaccented card's and the row reads ragged for a reason nobody can
+  name. Colour the `::after`, not the frame.
+- **Exactly one card leads, by size *and* colour.** `.is-lead` steps the figure to `--text-2xl` and
+  recolours it `--gold-text`. One size step on its own reads as an accident. Pick the figure the
+  screen exists to act on — not the biggest number, and never more than one.
+- **Sub-lines bottom-align with `margin-top:auto`.** The lead's taller figure otherwise pushes its
+  own sub-line below the others'. Card is `align-items:stretch`, content is a flex column, icon
+  plate takes `align-self:flex-start`.
+- **The grid is an explicit `repeat(3, minmax(0,1fr))` with a `@container` step to `1fr` at 680px** —
+  matching the consignment HUD, so a phone gets the same layout in both places. `auto-fit` looks
+  equivalent and isn't: at mid widths it wraps 3 cards into 2 columns and leaves the third an orphan
+  half the row wide. The `container-type` has to sit on a **wrapper** (`.hist-recon-strip`), because
+  an element cannot query its own container.
+
+**Progress bar under a strip:** trough is `var(--track-bg)` — never `--cream2`, which lands ~3% off
+the page colour on dark and leaves the unfilled remainder invisible. The fill stays inside **one**
+colour family and matches the card it plots; a `--gold` → `--emerald` ramp blends two semantic roles
+across a single measurement, so the colour change reads as a state change that isn't there. Width
+transitions use `var(--dur-base) var(--ease-entrance)` so they collapse under reduced motion.
+
+**Third reference implementation — `.ps-stat-card`** (the book dashboard's Profit Sharing panel:
+earnings / paid / held / owed). Same anatomy, one addition worth reusing: the row mixes cards that
+just carry a coloured *figure* (`.ps-stat-val.is-positive`/`.is-muted` — earnings, paid) with cards
+that are a genuine call-out (`.ps-stat-card.tone-gold`/`.tone-critical`/`.tone-green` — held, owed),
+which tint the card's background, border and bottom accent together. Reach for a `tone-*` card
+modifier only for the figure that actually needs the call-out; a plain `.ps-stat-val` colour is
+enough for a card that's merely reporting, or every card ends up looking flagged and none of them
+are. **Never reuse `.hs-label`/`.hs-val`** for a card like this — that pair is built for the app
+header's permanently-dark strip (`rgba(255,255,255,.34)` label, fixed `--gold3` figure) and using it
+on a light card means fighting every property back with an inline override, one per card.
+
+**Two-sided balance — `.ps-settle`** (the Profit Sharing panel's "Settle up", `src/lib/settle-up-view.js`).
+When money runs both ways between two parties, never show it as a running list that subtracts,
+subtotals and subtracts again. Use two facing `.ps-settle-col` columns, one per direction. Every line
+is a plain positive amount, and each column ends in one `.ps-settle-total` above a 2px ink rule (the
+Riso "sum line"). The subtraction happens once, in a `.ps-stat-card.tone-*` result card whose sub-line
+shows the equation (`499.97 − 267.76`). The headline strip then leads with that single net figure
+instead of flagging both sides. Columns stack below 680px through a `@container` on `.ps-settle`.
+Follow-up actions are a numbered `.ps-settle-steps` list (check → share → record), and the record step
+only renders for a role that can write.
+
+---
+
+## Permanently-dark banner tables — `.metric-banner-table`
+
+The dashboard's "Expenses owed to artist" banner (`.metric-banner-danger`, a fixed dark card that
+does not flip with the theme — same family as `.hs-label`/`.hs-val`) used to build its table's
+row markup entirely from inline styles in `main.js`: date and amount cells were flush-padded to
+the banner edge while the middle three columns carried `padding:6px 8px`, there was no `<thead>`,
+and the category tag was a one-off inline-styled span duplicating `.pill`/`.chip-status`. Four
+rules now hold it together:
+- **A static `<thead>` lives in the markup, not the renderer.** The column set doesn't change per
+  render, so the header row is plain HTML in `index.html`; only `<tbody>` is re-rendered.
+- **One padding rule for every cell, with edge alignment as an override, not a per-cell guess.**
+  `.metric-banner-table tbody td{padding:7px 8px}` is the rule; `:first-child`/`:last-child`
+  zero out the side that touches the banner's own edge. Never hand-pick a cell's padding in JS.
+- **A row divider and hover, like every other list in the app.** `border-top` on `tbody tr` (not
+  `border-bottom`, so the last row doesn't carry a trailing hairline) plus a hover tint — this
+  table had neither, so several rows of expenses ran together into one dark block.
+- **`.metric-banner-cat` is `.chip-status`'s sibling for this surface.** `.chip-status`'s tones are
+  tuned against `--surface-card`; reusing it directly on a fixed `var(--ink)` fill would fight the
+  same low-alpha-on-dark problem the flagged-tile accent-bar rule above exists to avoid. Match the
+  banner's own established tone family (`rgba(255,255,255,.08)` fill, `--on-inverse-3` text —
+  already used for this banner's other muted text) instead of pulling in a themed component that
+  wasn't designed for a permanently-dark plate.
+
+The sibling author-facing banners (`#arb-items` in `renderArtistReimburseBanner`, `#apb-transfers`
+in the publisher-owed transfer summary) show the same kind of data as a flex list of rows rather
+than a `<table>`, so this fix didn't originally reach them — now fixed with the equivalent row
+convention: `.metric-banner-items .mbi-row` (divider + padding, no more relying on the parent's
+flex `gap`), `.mbi-desc`/`.mbi-amt` for the two cells, and the amount's colour keyed off the
+banner's own tone class (`.metric-banner-green .mbi-amt` / `.metric-banner-gold .mbi-amt`) rather
+than a value hardcoded per call site. Reuse `.metric-banner-cat` for any tag inside one of these
+rows — it's the same tone family as `.mbi-desc`, not `.chip-status`.
+
+---
+
+## Tables / lists — `.tbl`
+Base: `.tbl` (`style.css:1540`) — dark header (`.tbl thead{background:var(--ink)}`), uppercase
+9px th labels at `.14em` tracking, 13px body, right-aligned numeric columns via `th.r`/`td.r`
+(and `td.r` gets `font-family:'DM Mono',monospace` — numbers are always mono in this app).
+
+Row states to reuse rather than re-derive:
+- `tbody tr:hover td` → `background:var(--cream2)` (built into `.tbl` itself)
+- `.voided` → struck-through + faded (`style.css:1818`)
+- Zebra + accent-bar + grouped/nested rows: see `.all-consignment-table` block
+  (`style.css:2627-2662`) for the fullest example — nth-child zebra, `is-active`/`is-settled`
+  row classes, a `box-shadow: inset 3px 0 0 var(--gold2)` left-accent for the active state,
+  collapsible `.con-group-row` headers with a `.con-group-chevron`, and `.con-nested-row` for
+  indented children. Copy this pattern for any other "grouped ledger" table before inventing
+  a new grouping mechanism.
+- Clickable data-viz cell inside a row (e.g. a mini progress bar that navigates): give it
+  `role="button" tabindex="0"`, an `onclick` **and** an `onkeydown` handler for Enter/Space,
+  and a `title` describing the destination — see `.con-row-progress-link` (`style.css:2660`)
+  and `conAccountRowHtml()` in `main.js` for the reference implementation.
+
+**Narrowing a long ledger:** the consignment ledger's filter bar (`.ledger-filter-bar`,
+`renderLedgerFilterBar()` in `main.js`, pure helpers in
+[src/lib/consignment-ledger-filter.js](../src/lib/consignment-ledger-filter.js)) is the
+reference. Four rules it encodes, worth keeping on any other filtered money table:
+- **Filter the rows the totals are taken over, never re-tally them.** The footer still calls
+  `consignmentLedgerTotals()`; the filter only decides which entries it is handed, so a
+  per-store total is the same arithmetic over a smaller set and adds back up to the whole.
+- **Skip rows inside the original index walk** rather than mapping a filtered copy — row
+  actions like `openEditLedger(i)` are keyed on the real array index.
+- **Say what is hidden, not just what is shown.** An empty filtered table must state that the
+  other rows exist and the filter is hiding them, or it reads as "this book has no history".
+- **A live region has to be a permanent node.** `#con-ledger-status` sits outside the part of
+  the bar that is rebuilt, because a region replaced wholesale announces nothing.
+
+**Searching a long ledger:** Order History's box (`.ledger-filter-bar` + `.ledger-filter-input`,
+`renderHistSearchBar()` in `main.js`, pure helpers in
+[src/lib/order-history-search.js](../src/lib/order-history-search.js)) is the reference for free-text
+search. It shares the filter bar's furniture — reuse `.ledger-filter-input` rather than styling a new
+`<input type="search">`. Five rules on top of the filter-bar ones above:
+- **The field is permanent markup, never part of the render.** A field rebuilt by `innerHTML` on
+  every keystroke drops the caret mid-word. Only write `input.value` when it *disagrees* with state,
+  so a render triggered while someone is typing can't reset them.
+- **Debounce at 200ms**, matching `tcLedgerSearchInput()`. Repainting a fifty-row table between two
+  keystrokes is wasted work.
+- **Search what is on screen, not what is stored.** Rows hold `POS` but the table paints
+  "In Person"; a search that only matches the stored value looks broken to anyone who has not seen
+  the raw records. `channelSearchWords()` carries the alias list — keep it in step with
+  `formatChannelBadge()`.
+- **Text only — no dates, no amounts.** Someone typing `12` wants order 12, and folding dates in
+  buries it under every order placed on the 12th of any month.
+- **Scope the query to the book it was typed on.** A query carried across a book switch opens the
+  next book on a table that looks empty for no visible reason.
+
+**Totalling a money table:** `.ledger-total-row` + `.ledger-total-label` / `.ledger-total-sub` /
+`.ledger-total-val` (`.is-owed` amber, `.is-clear` green, `.is-neutral`) / `.ledger-total-scope`
+is the shared footer furniture. `.is-end` on the label right-aligns it when it spans several
+columns before its figure. Three rules every footer here follows:
+- **One row per currency, never one sum across them.** Bucket by the code each row was recorded
+  in (`consignmentLedgerTotals()` in [src/lib/consignment.js](../src/lib/consignment.js),
+  `expenseLedgerTotals()` in [src/lib/expense-totals.js](../src/lib/expense-totals.js) — same
+  shape, book's own code first then alphabetical, so the order is stable across re-renders). Add
+  a `<span class="chip-status gray">CODE</span>` only once there is more than one bucket.
+- **Never convert at render time.** An exchange rate belongs to the day the money moved; a rate
+  invented in the footer disagrees with the per-row converted column beside it.
+- **Say all-clear outright.** A bare `0.00` does not read as "nobody is waiting to be paid" —
+  swap the label ("All settled", "All reimbursed") and the pill, and keep a sub-line naming what
+  *has* been settled.
+
+**Column roles on a wide table.** `td.r` is the whole vocabulary a five-column table
+needs. Past about seven columns the numbers stop being the only thing in the row and
+quietly lose the argument — a money column left in proportional body type at the same
+size and colour as the free text beside it cannot be compared down the page. Four
+classes on `.tbl td` say which cell leads, which anchors, and which recede:
+
+- `.lead-cell` — the row's subject (a buyer's name, a store name). Archivo 600, primary
+  text. **One per row**; a second one leaves the row with no entry point again.
+- `.money-cell` — pairs with `.r`; the row's headline figure. Primary text at
+  `font-weight:500`, not 600 — DM Mono is loaded at 400/500 only (see the font link in
+  `index.html`), so a heavier request is synthesised and faux-bold smears the digits it
+  is meant to strengthen. Every DM Mono rule in `style.css` uses 500; match it.
+- `.date-cell` — reads left-aligned like text but in DM Mono, so a column of dates lines
+  up. This is the treatment the consignment and history ledgers already re-type inline
+  (`class="mono-num" style="font-size:12px;color:var(--text3)"`) — prefer the class.
+- `.text-cell` — free text sitting between the figures. Recedes to `--content-muted` at
+  `--text-sm`, and its **inner `<span>`** carries `max-width:26ch` so one long value
+  can't squeeze the money column. The cap must live on the span: `max-width` on a `td`
+  is unreliable under auto table layout. It wraps rather than truncating — a list of
+  what someone bought is data, not a label, so no `text-overflow` here.
+
+Reference: the Discovered Buyers and Curated Mailing List tables on the Customers tab.
+
+**A row of cards that behaves like a table** (`.invoice-card` is the reference — a CSS grid of
+label/figure cells rather than a `<table>`): it loses the alignment `.tbl` gets for free from
+`th.r`/`td.r`, so put it back explicitly. Four rules:
+- **Right-align the money cell and give its track a floor.** `text-align:right` plus
+  `minmax(<floor>, 1fr)` on that grid column is what makes every card's figure land on one
+  shared edge; without the floor a long total reflows the grid and the edge moves card to card.
+  Drop the right-align in the narrow stacked layout, where each cell is full width and a
+  right-aligned figure just floats away from the labels above it.
+- **One figure leads.** The row exists to answer one question — for an invoice, *how much* — so
+  that figure goes two steps up the scale (`--text-lg` against the `--text-base` dates beside it).
+  A total at the same size as a due date is the bug, whatever colour it is.
+- **Captions go on the Archivo micro-label scale** (`--text-3xs`, uppercase, `--tracking-caps`),
+  and the figure inside must reset `letter-spacing` and `text-transform` or it inherits the
+  caption's tracking. At body size a caption and its own figure read as one run of text.
+- **`--gold-text`, never `--gold`, for a figure you want to sing.** Raw `--gold` is a fill/accent
+  colour and does not clear AA as text on a card surface in either theme.
+
+**Repeated rows inside one card** (a legend, a mini ledger, any run of label + % + amount)
+align with **column subgrid on the card, not `auto` tracks on each row** — `.ch-legend` /
+`.ch-leg-row` is the reference. Each row being its own grid looks identical in a mock-up with
+one row in it and falls apart with four: `auto` tracks size to each row's own content, so a
+card reading 62% / 8% / 30% steps its percentage and money columns in and out down the card.
+The card declares the tracks; every row takes `grid-column: 1 / -1` plus
+`grid-template-columns: subgrid`. Two rules come with it:
+- **Keep the plain tracks in the base rule and put `subgrid` behind
+  `@supports (grid-template-columns: subgrid)`.** An unsupported `subgrid` value is dropped,
+  which would leave the row a one-column grid — a worse fallback than today's ragged one.
+- **Padding and margin go on *every* row, not just the interactive ones.** Padding on a
+  subgrid item insets that item's own tracks, so a hover pill given to the clickable rows
+  only pushes exactly those rows out of the shared edges. Give all rows the geometry and let
+  the interactive modifier carry nothing but paint.
+
+Empty body row: always `colspan` = the real column count, wrapping `.empty-state` —
+`<tr><td colspan="N"><div class="empty-state" style="padding:1rem;">No X yet.</div></td></tr>`.
+
+**Sticky column labels on a long ledger:** add `.sys-sticky-head` to the `.tbl-wrap`
+(`system.css`, alongside `.sys-long-list`). The header cells pin just under the app header
+instead of scrolling away, so row 200 of a money table is still readable as Qty / Unit price /
+Total. Already on Order History, the consignment ledger and the tax ledger.
+
+Two conditions before you add it:
+- The table must scroll with the **page**. A wrap that is already its own scroll container
+  (an inline `max-height` + `overflow:auto`, or one inside a scrolling modal body) resolves
+  `top` against the wrong box and pushes its header down *inside* the panel.
+- The header must use the flat `.tbl thead` fill. `.all-consignment-table` paints a gradient
+  across the whole `thead`; moving that onto each `th` restarts the gradient per cell, so that
+  table stays unsticky until someone reworks the fill.
+
+The offset comes from `--sticky-top`, published by `src/lib/sticky-header.js` — it measures the
+real `.app-header` height (which wraps to two rows on a phone and grows with the safe-area
+inset) and republishes on resize. It falls back to `0px` everywhere it can't measure, and the
+wrap falls back to `overflow:hidden` on engines without `overflow: clip`, so both degrade to
+today's plain header rather than to a broken one.
+
+### Several action buttons in a table row — one line, stacked only when it must
+
+Two full-target buttons in an Action cell that are left to `flex-wrap` fold into a stack the
+moment the table is squeezed, and every row becomes two tap targets tall — twice the height of
+the figures beside it. The buyer table (`#cust-body`) settles it:
+
+- Put the buttons in a `nowrap` flex row and give the cell `width:1%; white-space:nowrap`.
+- Make room by tightening the *gutters* between columns (8px a side), never the table's outer
+  edges, which keep 16px so the first and last columns still line up with the card.
+- Make the wrap a size container (`container: <name> / inline-size`) and, below the width where
+  one line no longer fits, switch to `flex-direction:column; align-items:stretch` so the stack
+  shares one width and the column keeps a straight right edge.
+- Scope both to `min-width: 768px`: on a phone the row is a card and `phone.css` re-grids it.
+- The same gutter rule frees width across a whole wide ledger. Order History (`.tbl.hist-ledger`)
+  keeps its order numbers and dates `nowrap`, gives the notes a `min-width` so they don't fall to a
+  word per line, and lets the one header that sits over a tiny figure ("Stock after") wrap to two
+  lines. That is what keeps Approve / ✕ in view at a laptop width without a sideways scroll.
+
+---
+
+## Metric bands — `.kpi-grid` / `.kpi` / `.kpi.is-lead`
+
+The dashboard's numbers band is the reference for any row of headline figures.
+Three rules it now encodes, worth keeping on any other metric row:
+
+- **One tile leads, and it is marked in the markup.** `.kpi.is-lead` gets the figure at
+  `var(--text-3xl)` (a clamp, so the step over the 28px body figure survives the ≤480px drop to
+  22px), a brighter label, an accent-tinted border and `--elev-3`. Everything else stays neutral.
+  Pick the lead by what the *screen* is about, not by which number is biggest — the dashboard leads
+  on stock on hand because the inventory bar, the threshold alert and the drift banner below it all
+  elaborate that one figure.
+- **The book accent marks exactly one tile.** `.tab-panel .kpi::before` used to paint the accent
+  hairline across every tile in the band, which is the same as painting it on none; it is now split
+  into `.kpi.is-lead::before` (accent gradient) and `.kpi:not(.is-lead)::before` (a plain neutral
+  rule). Same for the figure colour: only the lead keeps `.kpi-value.gold`, which
+  `.tab-panel .kpi-value.gold` resolves to the live book accent.
+- **Tracks are `auto-fit`, never a fixed count, when the tile count varies.** The primary band shows
+  four tiles, or five once a book has profit sharing configured. At `repeat(4, …)` that fifth tile
+  stranded alone at quarter width on a second line; `repeat(auto-fit, minmax(180px, 1fr))` lets
+  whatever a book's setup shows fill one row evenly. Only reach for this where the count really is
+  variable — a fixed 3-column grid holding six tiles still beats auto-fit's 5-plus-orphan.
+
+---
+
+## Empty states — `.empty-state`
+Two tiers exist; use the richer one whenever the empty state is a primary destination
+(a whole tab/panel), and the plain one only for small nested table bodies.
+
+**Plain** (nested table body, low-stakes): `<div class="empty-state" style="padding:1rem;">No sales yet.</div>`
+
+**Rich** (a tab or panel's main empty state) — icon + message + primary CTA, per AGENTS.md
+§3 "No Blank States":
+```html
+<div class="empty-state">
+  <div class="e-icon">🏪</div>
+  No stores yet. Add your first consignment account.
+  <div style="margin-top:12px;">
+    <button class="btn gold" onclick="openM('add-store')">+ Add store</button>
+  </div>
+</div>
+```
+Real examples: `main.js:8389` (stores), `main.js:8899` (invoices), `main.js:18579` (Stripe
+reconciliation). Grep `e-icon` before adding a new empty-state icon convention — most already
+carry a single emoji that matches the section's theme (💳 payments, 📄 invoices, 🔍 filtered-empty).
+
+---
+
+## Section heads — `.sec-head`
+
+A screen's sections are headed one of two ways, and mixing the two on one screen is
+what `.sec-head` exists to stop. The app has a micro-label tier (`.sect` — 9px uppercase
+grey with a trailing hairline) and a heading tier (`.section-hed` — Anton 20px uppercase).
+Before this landed, the "All books" landing screen ran two `.sect` labels above a section
+that had a gold kicker, a heading and a line of subcopy — so the first screen the publisher
+sees carried the faintest headings in the app, and the only part that looked designed was
+the supporting section at the bottom.
+
+Use `.sect` for a label *inside* a panel (a sub-divider). Use `.sec-head` for a section that
+is one of a screen's top-level parts:
+
+```html
+<div class="overview-section">
+  <div class="sec-head is-muted">
+    <div class="sec-head-titles">
+      <div class="sec-kicker"><span class="sec-kicker-dot"></span>Sales Performance</div>
+      <div class="section-hed sec-head-title">Combined sales by channel</div>
+      <p class="section-subcopy">Where the whole catalogue actually sells.</p>
+    </div>
+    <div class="sec-head-badges"><span class="pill gold">4 channels</span></div>
+  </div>
+  …section content…
+</div>
+```
+
+Four rules it encodes:
+- **The heading tier is `.section-hed`, not a new class.** `.sec-head-title` only owns the
+  spacing inside the head. A section that invents its own heading size is how a screen ends
+  up with three heading tiers.
+- **`--sec-accent` tints one head's kicker, and gold is spent once per screen.** Default is
+  gold; `.is-muted` re-points it at `var(--slate)`. Reach for the custom property rather
+  than a hardcoded colour so it themes itself in both directions. A screen where every
+  kicker is gold has no entry point left.
+- **`.consignment-summary-head` and friends alias onto these rules** rather than keeping a
+  second copy. Extend the selector list; don't fork the declarations.
+- **Space between sections has to beat space within one.** `.overview-section` is
+  `var(--space-6)`, and it zeroes the trailing margin of the last card inside itself — the
+  cards already carry 14–16px of their own, and left alone that sums with the section gap
+  and the rhythm drifts down the screen. It is also its own `@container` (`overview-sec`),
+  so the head stacks on a narrow panel without a viewport breakpoint.
+
+The pair generalises past the landing screen — the per-book Consignment tab (accounts /
+invoices / ledger) is the second screen on it. Two things that surfaced there:
+
+- **`.overview-section` and `.sys-sticky-head` coexist.** `container-type: inline-size`
+  applies layout and inline-size containment, not paint containment, so it does **not**
+  become a scroll container and a sticky `th` inside it still resolves `top` against the
+  page. Verified against the real sheet at `--sticky-top: 60px`.
+- **`.sec-head-badges` wraps.** A head's badge slot is not always one pill — these sections
+  hang two or three `.btn`s (and a `.sec-head-note` summary line) off it. Without
+  `flex-wrap`, `flex-shrink:0` squeezes the title column narrower and narrower until the
+  head overflows, well before the 680px container stack takes over. Use `.sec-head-note`
+  for a figure or status line riding alongside those buttons — mono and tabular, one step
+  below the buttons, so the actions still lead the slot.
+- **Replacing `.divider` is the point, not a side effect.** A screen that separates its
+  sections with hairlines is one where the spacing is doing no grouping work. Delete the
+  rules and let the section gap carry it.
+
+---
+
+## Dialogs — `.modal`
+Every dialog is a three-part shell: a pinned `.modal-title` header, a scrolling body, a pinned
+`.modal-footer` action row. Both pinned edges carry a `--border-default` hairline and a
+`--space-3` gradient scrim. Four rules hold it together — break any one and the shell leaks.
+
+- **The block padding lives on the header and footer, not on `.modal`.** `.modal` sets
+  `padding: 0 var(--space-6)` only. A sticky child can pin no higher than the scrollport edge,
+  so padding left on `.modal` would sit *above* the pinned header and show a strip of scrolling
+  content through the gap. `.modal:not(:has(.modal-title))` and its footer twin give that
+  padding back to the two dialogs here that render without one of those parts (the receipt
+  lightbox and the invoice paper). Repeat the split in any breakpoint that re-declares
+  `.modal`'s padding — the ≤768px block does.
+- **A hairline alone is not enough; it needs a scrim.** An opaque pinned bar guillotines
+  whatever glyph lands on the seam, and a field label sliced through its x-height reads as a
+  rendering fault rather than as "there is more above". The scrim fades the body into the
+  pinned surface over one spacing step instead. It is absolutely positioned, which also keeps
+  it out of the footer's flex row — a static pseudo-element there lays out as a third button.
+- **Offset the scrim past the hairline: `calc(100% + 1px)`.** A percentage offset on an
+  absolutely positioned box resolves against the containing block's *padding* box, so a plain
+  `100%` starts the scrim inside the border and paints its opaque end straight over the seam
+  it is meant to sit below.
+- **`.modal-title` must be the dialog's first element.** It is what the header *is*, and what
+  the padding guard keys off. A dialog opening with something else pins that something else
+  against the top edge. `tests/modal-shell-seams.test.js` holds the two known exceptions in an
+  exact allowlist.
+
+Spacing comes from the shared rule — never an inline `margin-top` on a footer. Twelve of them
+used to hand-pick 14/16/18px, so no two dialogs put their buttons the same distance below the
+last field.
+
+---
+
+## Stacked panels — group with a stage wrapper, not with margins
+
+A tall panel built as a flat run of blocks, each carrying its own
+`margin-bottom`, always drifts: the POS checkout column reached eleven blocks
+whose gaps ran 6 / 10 / 8 / 4 / 12 / 12 / 4 / 14 / 12 / 8 / 8 px. However
+carefully each one was chosen, the space *between* the stages of the task ended
+up the same as the space *inside* them, so nothing grouped and the panel read as
+one undifferentiated run of small text.
+
+The fix is two numbers, not eleven. Wrap each stage of the task in a stage div
+and let two `gap`s do all the spacing — see `.pos-cart-panel` /
+`.pos-checkout-stage` (`style.css`, "POS CHECKOUT PANEL") for the reference:
+
+```css
+.some-panel       { display:flex; flex-direction:column; gap:var(--space-5); }  /* BETWEEN stages */
+.some-panel-stage { display:flex; flex-direction:column; gap:var(--space-2); }  /* WITHIN one    */
+```
+
+Three rules that come with it:
+- **Between must exceed within, visibly.** One step apart (12 vs 8) is not a
+  grouping, it's a rounding error. `--space-5` against `--space-2` is.
+- **Zero out child margins that predate the gap.** A component written for a
+  flow context brings its own `margin-bottom` and it stacks *on top of* the gap
+  — `.pos-checkout-stage .pos-oversell-note{margin-bottom:0}` is that fix. A
+  `display:none` child (`[hidden]`) contributes no gap, so conditional rows need
+  no special handling.
+- **`min-width: 0` on the stage.** Without it a long unbreakable figure — a
+  mixed-currency total, a full ISBN — stretches the flex item and widens the
+  whole column.
+
+Second surface on this pattern: the book dashboard's Inventory and Break-even
+panels (`.stock-block` / `.stock-stage`, "STOCK BLOCK" in `style.css`). Same
+before-state — five hand-picked margins running 20 / 10 / 17.6 / 9.6 / 12px — and
+the same two-gap fix. Two things it adds:
+
+- **The reading goes ABOVE the bar it explains.** A progress bar is an
+  illustration of a figure, so the figure has to exist first; with the number
+  underneath, the bar is the panel's largest element and the reading is a
+  footnote to it. Order is figure → bar → breakdown pills, all inside one stage.
+- **Scope a bar's height to the panel, not to `.bar-track`.** 5px of trough
+  carries no weight under a 22px figure, but the same class draws the catalogue's
+  own bars, which are sized against a whole shelf of cards. `.stock-block
+  .bar-track{height:8px}` + `.stock-block .bar-fill{height:100%}` leaves those
+  alone.
+
+**Layout that JS resets belongs in a class, not inline.** `#d-recalc-onhand-wrap`
+held `display:flex` in its `style` attribute while `updateDashboard()` reset the
+row with `style.display = ''` on leaving author mode — which clears the inline
+property outright and left the row stacked. Anything a `style.display = ''`
+touches must get its display from CSS (`.stock-actions`).
+
+**Money figures lead on type, not just size.** The sale total on that panel was
+34px Syne 800 — the old heading face, proportional — so the digits re-widthed on
+every quantity tap and it was the one monetary value in the app not in DM Mono.
+Any figure that leads a panel gets `'DM Mono'` + `font-variant-numeric:
+tabular-nums` + `font-feature-settings:"tnum" 1,"zero" 1` and takes its
+prominence from the size step and `--text-3xl`, not from an accent colour.
+Reserve the status colours for status: a pending cart total wearing `--green`
+claimed the settled/paid role and left the panel with three accents competing
+(gold heading, green total, gold primary button) and no emphasis left.
+
+---
+
+## Dropdowns & menus
+The book switcher (`index.html:311`, `#book-dropdown-menu`) is the canonical custom dropdown:
+absolute-positioned panel, `var(--ink2)` background, `0 8px 32px rgba(0,0,0,.4)` shadow,
+`border-radius:var(--r2)`, items highlighted via `.book-dd-item` active-state color swap
+(`main.js` `switchBook()`, ~line 2593). Reuse this shell for any new custom dropdown instead
+of a native `<select>` when you need rich items (color dots, icons, secondary text) — for a
+plain list of strings, prefer the native `.form-group select` (already themed with the custom
+arrow SVG, hover/focus states — `style.css:1592-1597`) over building a custom listbox.
+
+Toggle buttons that hold binary view-state (e.g. "Group by book") should mirror
+`.con-group-toggle-btn` (`style.css:2643`): pill-shaped, neutral by default, `.is-on` swaps to
+`var(--gold-bg)` background + gold border, and the button always sets `aria-pressed` in JS —
+see `toggleConGrouping()` in `main.js`.
+
+---
+
+## Feedback — never `alert()`/`confirm()`
+Use `showToast(message, type)` for all non-blocking feedback (`type` omitted = success,
+`'warn'`, or `'err'`) — `.toast` (`style.css:1812`) already has color-coded left borders and
+slide-up motion. Use `confirmDialog()`/`promptDialog()` (already on `window`, see the
+`Object.assign(window, {...})` export block) for anything that would otherwise be a native
+`confirm()`. This is a hard rule in AGENTS.md §9 — flag it in review if you see a raw
+`alert(`/`confirm(` sneak into a diff.
+
+---
+
+## Every card and notice gets an X — `.card-x`
+
+The owner has asked for this directly: anything that appears on its own (a
+notice, a "done" summary, an "up next" card, a checklist, a queue) must have a
+close button. Inline form validation and in-modal warnings are the exception —
+the modal's own close covers those.
+
+- Use `<button class="card-x" type="button" aria-label="Close …">✕</button>`, placed at
+  the top-right of the card. It's a 44px touch target and themed for dark mode.
+- Closing must never lose anything. Say where it comes back in the `title`
+  ("stays under Reprint a Past Label", "comes back when a new order arrives").
+- Removing one item from a list needs a way back ("Show removed" → "Put back").
+- A warning about something still broken may close for the visit only, and
+  comes back the next time the app opens.
+
+## Loading states
+Use `.skeleton-line` (`style.css:2447`) for any content that loads asynchronously (Sheets
+sync, Stripe pulls, Gemini OCR) instead of a spinner GIF or a bare "Loading…" string.
+
+---
+
+# Modern platform capabilities — the current state of the art
+
+> [!IMPORTANT]
+> **Posture: progressive enhancement, never load-bearing.** Every item below must degrade to
+> the existing behaviour when unsupported. Feature-detect (`CSS.supports()`,
+> `'startViewTransition' in document`, `HTMLElement.prototype.hasOwnProperty('popover')`) rather
+> than assuming. All of these are native platform features — **none adds a runtime dependency**,
+> so they stay inside the vanilla-JS / thin-Vite constraint.
+>
+> Already adopted in this codebase: `color-mix()` (33 uses), `:focus-visible` (24),
+> `prefers-reduced-motion` (3), `aria-live` (4), `inert` (2). The items below are the gaps.
+
+## 1. View Transitions — available, but DO NOT wire without asking
+
+> [!WARNING]
+> **Prior art: this was tried and rejected.** PR #128 shipped View Transitions across
+> `switchTab`/`switchBook`; PR #129 reverted them **seven minutes later**. Neither PR records
+> a reason, so the only durable fact is the outcome: app-wide navigation transitions were not
+> wanted here.
+>
+> `withViewTransition()` exists in `src/lib/motion.js` and the root crossfade rules exist in
+> `system.css`, but **nothing calls the helper** and that is deliberate. Do not wire it into a
+> render path on your own initiative — treat it as a product decision to raise with the user,
+> not a self-evident polish win. A narrow single-widget use may be fine; re-applying it to
+> navigation is re-litigating a settled call.
+
+The mechanics, for when it *is* wanted: `main.js` performs ~237 `innerHTML` assignments, each
+repainting instantly with no continuity. Wrapping one in `document.startViewTransition()` gives
+an automatic crossfade; naming elements with `view-transition-name` makes them *morph* rather
+than pop. The helper already feature-detects and honours reduced motion, falling back to a
+direct synchronous update.
+
+```js
+// Helper worth adding once, then reusing everywhere.
+// Falls back to a plain call when unsupported or when the user wants reduced motion.
+function withViewTransition(update) {
+  if (!document.startViewTransition || _prefersReducedMotion()) return update();
+  return document.startViewTransition(update);
+}
+// `_prefersReducedMotion()` already exists in main.js (~line 10974) — reuse it, don't duplicate.
+
+function toggleConGrouping() {
+  window._allConGrouped = !window._allConGrouped;
+  withViewTransition(() => renderConsignmentTable());
+}
+```
+Support: same-document transitions ship in Chromium and Safari; Firefox is more recent. Because
+it is wrapped in a feature check, unsupported browsers simply get today's instant swap.
+
+## 2. Popover API + `<dialog>` — delete the hand-rolled overlay plumbing
+`#book-dropdown-menu` (`index.html:311`) currently hand-rolls `position:absolute`,
+`z-index:999`, and manual outside-click closing via `closeBookDropdown()`. `.modal`
+(`style.css:1714`) likewise hand-rolls its own backdrop and focus handling.
+
+The platform now does all of that natively:
+- **`popover`** → top layer (no z-index arms race), light-dismiss on outside click, Esc to
+  close, all free. Ideal for the book switcher, the header menu, and any future filter menu.
+- **`<dialog>` + `.showModal()`** → focus trap, `::backdrop`, Esc, and inert-background for
+  free. Ideal for `openM()` modals and `confirmDialog()`/`promptDialog()`.
+
+```html
+<button popovertarget="book-menu">All books</button>
+<div id="book-menu" popover>…</div>
+```
+Pair with `@starting-style` + `transition-behavior: allow-discrete` so they animate in/out from
+`display:none` **without JS timers**:
+```css
+#book-menu {
+  opacity: 0; translate: 0 -4px;
+  transition: opacity .18s, translate .18s, display .18s allow-discrete;
+}
+#book-menu:popover-open { opacity: 1; translate: 0 0; }
+@starting-style { #book-menu:popover-open { opacity: 0; translate: 0 -4px; } }
+```
+Migrate opportunistically — when you're already touching a menu or modal, not as a big-bang
+refactor.
+
+## 3. `:has()` — state on the parent, without JS class bookkeeping
+Currently row/card states are computed in JS and stamped as classes (`is-active`,
+`is-settled`, `needs-attention`). `:has()` removes a whole category of that bookkeeping:
+
+```css
+/* Row containing an active pill gets the accent bar — no is-active class needed */
+.tbl tbody tr:has(.pill.amber) td:first-child { box-shadow: inset 3px 0 0 var(--gold2); }
+/* Form group whose input is invalid, styled from the wrapper */
+.form-group:has(input:invalid) label { color: var(--red); }
+/* Card that ended up empty */
+.card:has(.empty-state) { background: var(--cream2); }
+```
+Prefer `:has()` for *derived visual* state. Keep explicit JS classes when the state carries
+domain meaning (a settled account is business state, not a styling artifact).
+
+## 4. Container queries — component-level responsive
+All responsiveness today is viewport `@media`. But `.consignment-stat-card`, `.kpi`, and
+`.card` render at very different widths depending on their host panel, so viewport width is the
+wrong signal. This is the correct fix for "the Sell-through column crowds on mobile":
+
+```css
+.consignment-summary-panel { container-type: inline-size; }
+@container (max-width: 640px) {
+  .consignment-stat-grid { grid-template-columns: 1fr; }
+  .all-consignment-table th:nth-child(6),
+  .all-consignment-table td:nth-child(6) { display: none; } /* Sell-through column */
+}
+```
+Rule going forward: **new components use `@container`; leave existing `@media` blocks alone**
+until you're already editing them.
+
+## 5. `content-visibility` — long-list performance with zero dependencies
+The no-runtime-deps constraint rules out virtualization libraries, but the platform has a
+one-line equivalent. For long ledger/history tables (order history, tax ledger, reconciliation):
+
+```css
+.tbl tbody tr { content-visibility: auto; contain-intrinsic-size: auto 44px; }
+```
+The browser skips rendering off-screen rows entirely. This is the answer to "will this jank at
+200+ rows" — reach for it before considering manual windowing.
+
+## 6. Typography & layout polish — one-liners with real payoff
+```css
+h1, h2, h3, .sect        { text-wrap: balance; }  /* no orphaned last word in headings */
+.section-subcopy, p      { text-wrap: pretty; }   /* no single-word final lines */
+html                     { scrollbar-gutter: stable; }  /* no layout shift when content grows */
+textarea                 { field-sizing: content; }     /* grows with input, no JS autosize */
+```
+
+## 7. Optimistic UI as a documented visual vocabulary
+This is the state-of-the-art *pattern* that matters most for an offline-first PWA, and it's a
+product decision, not just CSS: a queued mutation should render **immediately** in its final
+position with a visible "not yet synced" affordance, rather than blocking on the network.
+
+The app already has the sync queue; what it lacks is a consistent visual language for it.
+Standardise on:
+- **Pending** — `.pill.gray` with a `◌` glyph, row at ~70% opacity
+- **Failed / needs retry** — `.pill.red` plus an inline retry `.btn.sm`
+- **Conflict** — `.pill.amber` with an explicit "server changed this" reconcile action
+
+Never show a queued write as fully-committed, and never make the user wait on the network to
+see their own action land. When adding any new mutation path, decide which of these three states
+it can enter and render all of them.
+
+**App-level counterpart — `#sync-chip`.** The three classes above say "this row is queued"; the
+chip says "the connection is why". It is fixed bottom-left (`.sync-chip` in `system.css`;
+`.toast` owns bottom-right) and painted by `renderSyncChip()` in `main.js` from the pure
+`describeSyncStatus()` in [src/lib/sync-status.js](../src/lib/sync-status.js). Two rules it
+encodes, worth keeping if you touch it:
+- **It only appears when there is something the publisher could not otherwise know** — online
+  with an empty queue paints nothing at all. A permanent "all good" badge is noise.
+- **Offline is reported the instant it happens**, off the `offline` window event, not at the next
+  save attempt. Before this the app read "Live" until something was sold.
+
+Copy for it goes through `describeSyncStatus()`, never inline — a test asserts the visible
+strings stay free of "Firestore", "queue" and friends.
+
+## 8. Deliberately *not* adopting yet
+- **CSS anchor positioning** (`anchor-name`/`position-anchor`) — genuinely the right model for
+  dropdown/tooltip placement, but support is still Chromium-led. Revisit; today the popover +
+  existing absolute positioning is the safer pairing.
+- **Scroll-driven animations** (`animation-timeline`) — attractive, but this is a dense
+  financial tool where scroll-jacking hurts more than it delights. Skip.
+- **`oklch()` colour tokens** — worth it only alongside a full palette migration; mixing
+  colour spaces piecemeal in `style.css` would make the tokens harder to reason about, not
+  easier.
+
+---
+
+## Decisions on record
+
+Reviewed against live specimens and settled. **These are not open questions.** Each one is a
+deliberate choice, and two of them look like bugs if you don't know the history — so confirm
+here before "fixing" anything in this list.
+
+| Decision | Ruling | Why it matters |
+| :-- | :-- | :-- |
+| **Shadows** | Keep the two-layer elevation scale. `--shadow`/`--shadow2` stay aliased onto `--elev-2`/`--elev-3`. | Reviewed on real cards and stat tiles. Prefer `--elev-*` directly in new code. |
+| **Button height** | `.btn` stays at ~33px. **Overrides AGENTS.md §3's 44px minimum.** | Raising it reflows every screen, and the density is wanted. Do *not* add `min-height` to `.btn`. Apply `.sys-target` to individual controls that genuinely need a full target. |
+| **Dark mode** | **Shipped** (supersedes the earlier groundwork-only ruling). Lives entirely in [src/styles/theme-dark.css](../src/styles/theme-dark.css). | Re-points the PRIMITIVES rather than waiting on the semantic migration — the aliases are defined in terms of them, so flipping the primitives carries the whole system. Add a `@media (prefers-color-scheme)` block to `style.css` and you are back to half-themed; `tests/tokens.test.js` blocks it. |
+| **View transitions** | Helper stays available and unwired. | See §1 — shipped and reverted in PR #128/#129. |
+
+Button height is a place where the codebase deliberately does *not* match `AGENTS.md`. That is
+intentional. If a future change makes it worth reopening, raise it with the user rather than
+silently converging on the written guideline. (Dark mode used to be the second such divergence;
+the user asked for it and it now ships — the row above records what replaced the old ruling.)
+
+### A token scale can collide with itself once both ends go dark
+
+`--ink`/`--ink2`/`--ink3`/`--ink4` is the "permanently dark chrome" scale (header, tab bar, sync
+bar, the book-switcher and header-menu dropdowns, the publisher sidebar menu — all via the
+`--surface-inverse-raised` alias onto `--ink2`). In light mode this scale has the whole distance
+from near-black up to `--cream`'s `#f7f2e9` to climb through, so every step is obviously distinct
+from the page. In dark mode `--cream` itself drops to near-black, and `--ink2` was authored at
+`#14110e` — one RGB unit from `--cream`'s `#14110d`. Every panel built on it (the tab bar, both
+dropdown menus, the sidebar menu) rendered with no visible fill in dark mode: same colour as the
+page underneath, nothing but a shadow and a 4%-opacity hairline. `--ink3`/`--ink4` happened to
+escape this because their light-mode step sizes are big enough to land them *above* `--cream` in
+dark mode instead — fine for their role as hover/active accents inside the chrome, but not a fix
+you can lean on for `--ink2`, which is a flat base fill sitting directly against page content.
+
+The lesson for the next dark-mode token: when a scale's page-relative role flips end for end
+(light mode: light page, dark chrome digs down; dark mode: dark page, chrome has to dig down from
+an already-near-black start), check each step against the *page* token in that theme, not just
+against its neighbours in the same scale. Two tokens can each look internally consistent and still
+land on top of each other. `tests/dark-chrome-ink2-separation.test.js` pins the fix.
+
+### Working in a themed codebase
+1. **`--cream*` and `--ink*` are surfaces, and both flip.** Text on a permanently dark surface
+   (header, KPI banners, toast, sidebar) uses `--on-inverse`; text on a saturated accent fill
+   uses `--on-accent`. Never `color:var(--cream)` — `tests/theme.test.js` fails on it.
+2. **Reach for a token before a literal.** The accent families (`--emerald`, `--rose`,
+   `--orange`, `--violet`, `--slate`) exist so a status colour themes itself. A new hardcoded
+   hex is a rule that will be wrong in one of the two themes.
+3. **Deliberately light things stay light.** The invoice paper, the email composer preview, and
+   the carrier logo plates are documents and artwork, not chrome — the foot of
+   `theme-dark.css` lists them and why.
+4. **A `--cream` fill is "the page" in dark mode.** In light mode `--cream` sits a step below
+   the white `--surface-card`, so a component filled with it (the author's Riso pay box, the
+   thank-you slip) reads as newsprint. In dark mode `--cream` *is* the page colour, and the
+   same component renders with no fill at all. Give it a `.theme-dark` override onto
+   `--surface-card`, and move anything that should rise off it up to `--cream3`.
+   `tests/author-pay-box-dark-fill.test.js` pins the pay box case.
+
+---
+
+## Quick pre-flight before shipping any new list/dropdown/button
+1. Did I reuse `.btn`/`.pill`/`.tbl`/`.empty-state`/`.toast` instead of new ad-hoc classes?
+2. Does every new interactive element have hover **and** `:focus-visible` states, and a
+   touch target ≥ 44px?
+3. If it's clickable-but-not-a-`<button>` (a table cell, a progress bar), does it have
+   `role="button" tabindex="0"` + `onkeydown` Enter/Space handling?
+4. Numbers in mono (`DM Mono`), labels and buttons in Archivo uppercase, names and titles in
+   Anton — did I match the existing type split?
+5. Active/settled/error states — did I reuse the amber/green/gray/red pill convention instead
+   of picking new colors?
+6. Empty state: rich (icon+CTA) if it's a panel's primary state, plain if it's a nested list.
+7. If I re-rendered a list via `innerHTML`, did I leave it un-transitioned? View Transitions
+   are available but intentionally unwired — check §1 before calling `withViewTransition()`.
+8. New component with width-dependent layout — did I use `@container` rather than a viewport
+   `@media` breakpoint? (§4)
+9. New menu or modal — did I reach for `popover`/`<dialog>` before hand-rolling z-index,
+   outside-click, and Esc handling? (§2)
+10. New mutation path — did I decide how its pending / failed / conflict states render, and is
+    it optimistic rather than network-blocking? (§7)
+11. New table that can run past a screenful and scrolls with the page — did I add
+    `.sys-sticky-head` to its wrap so the column labels survive the scroll?

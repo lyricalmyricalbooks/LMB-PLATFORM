@@ -1,0 +1,24 @@
+# Security updates only (version update PRs stay off: open-pull-requests-limit 0).
+# Ignore rules still apply to security updates: vitest 5 broke main's install twice, so its
+# major jumps wait for a deliberate upgrade. Patched 4.x releases are still offered.
+# firebase-admin majors are offered again: CI's "Cloud Functions load like the deploy" step
+# fails the PR if one breaks loading the Functions.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: npm
+    directory: "/functions"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0

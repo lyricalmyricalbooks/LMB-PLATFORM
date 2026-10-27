@@ -1,0 +1,28 @@
+{
+  "_comment": [
+    "Pre-existing colour pairings that fail strict WCAG AA (4.5:1 normal / 3:1 large)",
+    "but are this app's established secondary/meta-text design language, used",
+    "consistently across many screens (var(--text3) muted labels, var(--gold)",
+    "accent labels/links, low-opacity rgba() captions on dark cards, etc).",
+    "Recorded here so npm run lint:contrast / tests/contrast.test.js gate on NEW",
+    "regressions instead of failing on every pre-existing screen. \"count\" is how",
+    "many places (across index.html and the rendered HTML in src/) use this exact",
+    "resolved colour pairing as of the",
+    "last regeneration — informational only, not enforced.",
+    "",
+    "Keyed per THEME: index.html is swept once against the light palette and",
+    "once against src/styles/theme-dark.css, and an inline colour resolves to a",
+    "different RGB pair in each — so the two sweeps never share a key and an",
+    "entry accepted for light does not silence the same markup on dark.",
+    "Regenerate after an intentional palette change with:",
+    "  node scripts/check-contrast.mjs --write-baseline"
+  ],
+  "themes": {
+    "light": {
+      "accepted": []
+    },
+    "dark": {
+      "accepted": []
+    }
+  }
+}

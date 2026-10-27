@@ -1,0 +1,17 @@
+/* Overview widgets "Where visitors drop off" and "Looked at but not added" (OverviewVisitorPath.tsx). Riso tokens only. */
+.rp-vp { padding: 14px 20px 16px; min-width: 0; overflow-wrap: anywhere; }
+.rp-vp-headline { margin: 0; font-family: var(--rp-font-body); font-size: var(--rp-text-lg, 18px); font-weight: 700; line-height: 1.3; color: var(--rp-text); }
+.rp-vp-sub { margin: 4px 0 10px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-vp-flag, .rp-vp-low { color: var(--rp-danger); font-weight: 700; }
+.rp-vp-foot { margin: 10px 0 0; }
+.rp-vp-drill { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); display: grid; gap: 8px; justify-items: start; }
+.rp-vp-drill p { margin: 0; }
+.rp-vp-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-vp-pick .rp-select { width: auto; min-width: 0; }
+.rp-vp .rp-viz-rank-row, .rp-vp .rp-viz-funnel { padding-left: 0; padding-right: 0; }
+.rp-vp .rp-state[data-inline] { padding-left: 0; padding-right: 0; }
+/* Nine steps make narrow bars: keep each count on one line, and give long labels room. */
+.rp-vp .rp-viz-funnel-bar { min-width: min(100%, 240px); }
+.rp-vp .rp-viz-funnel-bar strong { white-space: nowrap; flex: none; }
+/* Books with a healthy add rate are quiet grey; the red ones are the books to look at. */
+.rp-vp .rp-viz-bar[data-tone="ink"] { background: var(--rp-text-subtle); }

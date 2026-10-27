@@ -1,0 +1,260 @@
+/* The Overview's shared chart look (OverviewViz.tsx). Riso tokens only; works in night mode through the tokens. */
+.rp-viz-eyebrow { font-size: var(--rp-text-3xs); font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--rp-text-subtle); margin: 0 0 6px; }
+.rp-viz-dim { color: var(--rp-text-subtle); font-weight: 400; }
+.rp-viz-hatch, .rp-viz-bar-prev, .rp-viz-col-prev {
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--rp-text) 34%, transparent) 0 2px, transparent 2px 5px);
+}
+
+/* Sparkline */
+.rp-viz-spark { display: block; width: 100%; height: 28px; margin-top: 6px; overflow: visible; }
+.rp-viz-spark-line { fill: none; stroke: var(--rp-primary); stroke-width: 2; }
+.rp-viz-spark-fill { fill: color-mix(in srgb, var(--rp-primary) 16%, transparent); stroke: none; }
+.rp-viz-spark[data-tone="down"] .rp-viz-spark-line { stroke: var(--rp-danger); }
+.rp-viz-spark[data-tone="down"] .rp-viz-spark-fill { fill: color-mix(in srgb, var(--rp-danger) 12%, transparent); }
+.rp-viz-spark[data-tone="flat"] .rp-viz-spark-fill { fill: color-mix(in srgb, var(--rp-text) 8%, transparent); }
+.rp-viz-spark-prev { fill: color-mix(in srgb, var(--rp-text) 9%, transparent); stroke: none; }
+.rp-viz-spark-dot { stroke: var(--rp-primary); stroke-width: 6; stroke-linecap: round; }
+.rp-viz-spark[data-tone="down"] .rp-viz-spark-dot { stroke: var(--rp-danger); }
+.rp-viz-spark[data-tone="flat"] .rp-viz-spark-line, .rp-viz-spark[data-tone="flat"] .rp-viz-spark-dot { stroke: var(--rp-text); }
+
+/* Rank movement */
+.rp-viz-move { font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); font-weight: 600; white-space: nowrap; min-width: 34px; text-align: right; color: var(--rp-text-subtle); flex-shrink: 0; }
+.rp-viz-move[data-dir="up"] { color: var(--rp-success); }
+.rp-viz-move[data-dir="down"] { color: var(--rp-danger); }
+.rp-viz-move[data-dir="new"] { color: var(--rp-info); letter-spacing: 0.08em; }
+
+/* Covers */
+.rp-viz-cover { flex-shrink: 0; width: 32px; height: 44px; object-fit: cover; border: var(--rp-hair) solid var(--rp-border-strong); background: var(--rp-surface-2);
+  display: inline-flex; align-items: center; justify-content: center; font-family: var(--rp-font-display); font-size: 13px; color: var(--rp-text-muted); }
+.rp-viz-cover[data-size="sm"] { width: 26px; height: 36px; font-size: 11px; }
+
+/* Ranked bars */
+.rp-viz-rank { list-style: none; margin: 0; padding: 4px 0; }
+.rp-viz-rank > li { border-bottom: var(--rp-hair) solid var(--rp-divider); }
+.rp-viz-rank > li:last-child { border-bottom: 0; }
+.rp-viz-rank-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 20px; text-align: left; background: none; border: 0; color: inherit; font: inherit; }
+button.rp-viz-rank-row { cursor: pointer; }
+button.rp-viz-rank-row:hover { background: var(--rp-surface-2); }
+button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: -2px; }
+.rp-viz-rank-main { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.rp-viz-rank-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.rp-viz-rank-label { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.rp-viz-rank-value { font-family: var(--rp-font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp-viz-rank-sub { font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+.rp-viz-track { position: relative; display: block; height: 12px; background: var(--rp-surface-inset); }
+.rp-viz-bar, .rp-viz-bar-prev { position: absolute; left: 0; display: block; }
+.rp-viz-bar-prev { top: 0; bottom: 0; }
+.rp-viz-bar { top: 2px; bottom: 2px; background: var(--rp-primary); }
+.rp-viz-bar[data-tone="info"] { background: var(--rp-info); }
+.rp-viz-bar[data-tone="ink"] { background: var(--rp-text); }
+.rp-viz-bar-tick { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--rp-text); }
+
+/* 100% stacked bar */
+.rp-viz-stack { margin: 0; padding: 14px 20px 16px; }
+.rp-viz-stack-bar { display: flex; height: 30px; border: var(--rp-hair) solid var(--rp-border-strong); margin-bottom: 10px; overflow: hidden; }
+.rp-viz-stack-bar[data-thin] { height: 10px; opacity: 0.7; }
+.rp-viz-stack-part { display: flex; align-items: center; min-width: 0; padding: 0 6px; overflow: hidden; color: var(--rp-on-primary);
+  font-size: var(--rp-text-2xs); font-weight: 700; white-space: nowrap; border-right: 1px solid var(--rp-surface); }
+.rp-viz-stack-part:last-child { border-right: 0; }
+.rp-viz-stack-part[data-ink="light"] { color: var(--rp-surface); }
+.rp-viz-stack-part > span { overflow: hidden; text-overflow: ellipsis; }
+.rp-viz-legend { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); gap: 6px 16px; }
+.rp-viz-legend li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: var(--rp-text-sm); min-width: 0; }
+.rp-viz-legend-label { font-weight: 600; flex: 1 1 auto; min-width: 8ch; }
+.rp-viz-legend-value { margin-left: auto; font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); white-space: nowrap; }
+.rp-viz-swatch { width: 12px; height: 12px; flex-shrink: 0; border: var(--rp-hair) solid var(--rp-border-strong); }
+
+/* Waterfall: columns when wide, horizontal bars when the widget is narrow (container query, so an S widget on a computer
+   gets the bars too). Totals flare, added = ink outline + light ink, taken off = danger tint, passed on = dashed outline. */
+.rp-viz-fall { margin: 0; padding: 16px 20px; container-type: inline-size; }
+.rp-viz-fall-cols { display: grid; gap: 6px; align-items: start; }
+.rp-viz-fall-col { display: flex; flex-direction: column; min-width: 0; }
+.rp-viz-fall-plot { position: relative; height: 170px; border-bottom: var(--rp-stroke) solid var(--rp-border-strong); }
+.rp-viz-fall-bar { position: absolute; display: block; background: var(--rp-primary); box-sizing: border-box; }
+.rp-viz-fall-plot .rp-viz-fall-bar { left: 10%; right: 10%; }
+.rp-viz-fall-bar[data-kind="plus"], .rp-viz-swatch[data-kind="plus"] { background: color-mix(in srgb, var(--rp-text) 14%, var(--rp-surface)); border: 2px solid var(--rp-text); }
+.rp-viz-fall-bar[data-kind="minus"], .rp-viz-swatch[data-kind="minus"] { background: color-mix(in srgb, var(--rp-danger) 55%, var(--rp-surface)); border: 1px solid var(--rp-danger); }
+.rp-viz-fall-bar[data-pass], .rp-viz-swatch[data-kind="pass"] { background: transparent; border: 2px dashed var(--rp-text); }
+.rp-viz-swatch[data-kind="total"] { background: var(--rp-primary); }
+.rp-viz-fall-num { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding-bottom: 3px; font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); white-space: nowrap; color: var(--rp-text); }
+.rp-viz-fall-link { position: absolute; left: 90%; width: calc(20% + 6px); border-top: 1px dashed var(--rp-text-muted); pointer-events: none; }
+.rp-viz-fall-label { font-size: var(--rp-text-xs); font-weight: 700; margin-top: 6px; overflow-wrap: anywhere; }
+.rp-viz-fall-hint { display: block; font-size: var(--rp-text-2xs); font-weight: 400; color: var(--rp-text-subtle); overflow-wrap: anywhere; }
+.rp-viz-fall-rows { display: none; list-style: none; margin: 0; padding: 0; }
+.rp-viz-fall-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label num" "track track"; gap: 4px 10px; align-items: baseline; padding: 8px 0; border-bottom: var(--rp-hair) solid var(--rp-divider); }
+.rp-viz-fall-row-label { grid-area: label; } .rp-viz-fall-row-num { grid-area: num; } .rp-viz-fall-row-track { grid-area: track; }
+.rp-viz-fall-row[data-last] { border-bottom: 0; border-top: var(--rp-stroke) solid var(--rp-border-strong); font-weight: 700; }
+.rp-viz-fall-row-label { font-size: var(--rp-text-sm); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.rp-viz-fall-row-track { position: relative; height: 14px; }
+.rp-viz-fall-row-track .rp-viz-fall-bar { top: 0; bottom: 0; }
+.rp-viz-fall-row-num { font-family: var(--rp-font-mono); font-variant-numeric: tabular-nums; font-size: var(--rp-text-sm); white-space: nowrap; text-align: right; }
+.rp-viz-fall-row[data-last] .rp-viz-fall-row-num { font-size: var(--rp-text-base); }
+.rp-viz-fall-key { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+.rp-viz-fall-key span, .rp-viz-key span { display: inline-flex; align-items: center; gap: 6px; }
+@container (max-width: 520px) {
+  .rp-viz-fall-cols { display: none; }
+  .rp-viz-fall-rows { display: block; }
+}
+
+/* Funnel */
+.rp-viz-funnel { list-style: none; margin: 0; padding: 14px 20px 16px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.rp-viz-funnel-step { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.rp-viz-funnel-btn { width: 100%; display: flex; justify-content: center; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; font: inherit; }
+.rp-viz-funnel-btn:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-viz-funnel-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: min(100%, 180px); padding: 7px 10px;
+  background: color-mix(in srgb, var(--rp-primary) 78%, var(--rp-surface)); color: var(--rp-on-primary); font-size: var(--rp-text-sm); font-weight: 700; }
+.rp-viz-funnel-bar[data-last] { background: var(--rp-primary); outline: 2px solid var(--rp-border-strong); }
+.rp-viz-funnel-bar strong { font-family: var(--rp-font-mono); font-weight: 600; }
+.rp-viz-funnel-step .rp-ov-drill-body { width: 100%; }
+.rp-viz-funnel-gap { font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); color: var(--rp-text-subtle); padding: 1px 0; }
+.rp-viz-funnel-gap[data-worst] { color: var(--rp-danger); font-weight: 600; }
+.rp-viz-funnel-wrap .rp-viz-note { margin: -6px 20px 14px; text-align: center; }
+
+/* Heat grid */
+.rp-viz-heat { margin: 0; padding: 4px 20px 16px; overflow-x: auto; }
+.rp-viz-heat-grid { display: grid; grid-template-columns: 34px repeat(24, minmax(12px, 1fr)); gap: 2px; font-size: 10px; min-width: 360px; }
+.rp-viz-heat-hour { text-align: left; color: var(--rp-text-subtle); font-family: var(--rp-font-mono); white-space: nowrap; overflow: visible; }
+.rp-viz-heat-day { font-family: var(--rp-font-mono); color: var(--rp-text-muted); }
+.rp-viz-heat-cell { height: 18px; background: var(--rp-surface-inset); --rp-heat-floor: 18%; }
+.rp-viz-heat-cell[data-empty] { box-shadow: inset 0 0 0 1px var(--rp-divider); }
+.rp-viz-heat-cell:not([data-empty]) { background: color-mix(in srgb, var(--rp-primary) calc(var(--rp-heat-floor) + var(--rp-heat, 0) * (100% - var(--rp-heat-floor))), var(--rp-surface)); }
+.rp-viz-heat-cell[data-best] { outline: 2px solid var(--rp-text); outline-offset: -1px; }
+.rp-viz-heat-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-viz-heat-key strong { color: var(--rp-text); }
+.rp-viz-heat-scale { display: inline-flex; gap: 2px; }
+.rp-viz-heat-scale i { width: 12px; height: 12px; background: var(--rp-primary); }
+.rp-viz-heat-scale i:nth-child(1) { background: var(--rp-surface-inset); }
+.rp-viz-heat-scale i:nth-child(2) { background: color-mix(in srgb, var(--rp-primary) 30%, var(--rp-surface)); }
+.rp-viz-heat-scale i:nth-child(3) { background: color-mix(in srgb, var(--rp-primary) 55%, var(--rp-surface)); }
+.rp-viz-heat-scale i:nth-child(4) { background: color-mix(in srgb, var(--rp-primary) 78%, var(--rp-surface)); }
+
+/* Columns */
+.rp-viz-cols { margin: 0; padding: 14px 20px 16px; }
+.rp-viz-cols-row { display: grid; gap: 6px; align-items: end; }
+.rp-viz-col { display: flex; flex-direction: column; align-items: stretch; min-width: 0; }
+.rp-viz-col-num { font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); text-align: center; min-height: 14px; }
+.rp-viz-col-plot { position: relative; height: 110px; border-bottom: var(--rp-stroke) solid var(--rp-border-strong); }
+.rp-viz-col-bar, .rp-viz-col-prev { position: absolute; bottom: 0; }
+.rp-viz-col-prev { left: 4%; width: 46%; }
+.rp-viz-col-bar { right: 4%; width: 62%; background: color-mix(in srgb, var(--rp-primary) 62%, var(--rp-surface)); }
+.rp-viz-col-bar[data-top] { background: var(--rp-primary); }
+.rp-viz-col-label { font-size: var(--rp-text-xs); font-weight: 700; text-align: center; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Days left */
+.rp-viz-days { list-style: none; margin: 0; padding: 4px 0; }
+.rp-viz-days-row { display: flex; gap: 12px; align-items: center; padding: 10px 20px; border-bottom: var(--rp-hair) solid var(--rp-divider); }
+.rp-viz-days-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.rp-viz-days-track { position: relative; height: 12px; background: var(--rp-surface-inset); }
+.rp-viz-days-bar { position: absolute; left: 0; top: 2px; bottom: 2px; background: color-mix(in srgb, var(--rp-text) 55%, var(--rp-surface)); }
+.rp-viz-days-row[data-state="now"] .rp-viz-days-bar { background: var(--rp-danger); }
+.rp-viz-days-row[data-state="soon"] .rp-viz-days-bar { background: var(--rp-warning); }
+.rp-viz-days-row[data-state="none"] .rp-viz-days-bar { background: color-mix(in srgb, var(--rp-text) 18%, transparent); }
+.rp-viz-days-lead { position: absolute; top: -3px; bottom: -3px; border-left: 2px dashed var(--rp-text); }
+.rp-viz-days-key { padding: 8px 20px 4px; font-size: var(--rp-text-xs); color: var(--rp-text-subtle); }
+.rp-viz-pill { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: var(--rp-text-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid currentColor; }
+.rp-viz-pill[data-state="now"] { color: var(--rp-danger); }
+.rp-viz-pill[data-state="soon"] { color: var(--rp-warning); }
+.rp-viz-pill[data-state="fine"] { color: var(--rp-text); }
+.rp-viz-pill[data-state="none"] { color: var(--rp-text-subtle); }
+
+/* Shaded grid (cohorts) */
+.rp-viz-shade-wrap { overflow-x: auto; padding: 8px 20px 14px; }
+.rp-viz-shade { border-collapse: separate; border-spacing: 2px; width: 100%; font-size: var(--rp-text-xs); }
+.rp-viz-shade th { text-align: left; font-weight: 700; white-space: nowrap; padding: 4px 6px; }
+.rp-viz-shade thead th { font-size: var(--rp-text-3xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.rp-viz-shade td { font-family: var(--rp-font-mono); text-align: center; padding: 6px 4px; background: var(--rp-surface-inset); min-width: 40px; }
+.rp-viz-shade td[data-none] { background: transparent; outline: 1px dotted var(--rp-border); outline-offset: -2px; }
+.rp-viz-shade td[data-zero] { color: var(--rp-text-subtle); }
+.rp-viz-shade tbody th { position: sticky; left: 0; z-index: 1; background: var(--rp-surface); }
+
+/* Shared words around charts */
+/* One class for a widget's single hero number (a goal's amount, a countdown's days): every widget's big number looks alike.
+   Figure grids keep the smaller mono .rp-ov-figure-value. */
+.rp-viz-hero { display: block; font-family: var(--rp-font-display); font-weight: 400; font-size: clamp(32px, 2.4vw + 18px, 48px); line-height: 1;
+  letter-spacing: 0.01em; font-variant-numeric: tabular-nums; color: var(--rp-text); white-space: nowrap; margin: 0; }
+.rp-viz-hero-sub { display: block; margin-top: 4px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-viz-takeaway { margin: 0 0 8px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-viz-note { margin: 6px 0 0; font-size: var(--rp-text-xs); color: var(--rp-text-subtle); }
+.rp-viz-key { display: inline-flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+.rp-viz-table { padding: 0 20px 12px; }
+.rp-viz-table-wrap { overflow-x: auto; margin-top: 8px; }
+.rp-viz-table table { border-collapse: collapse; width: 100%; font-size: var(--rp-text-xs); }
+.rp-viz-table th, .rp-viz-table td { padding: 5px 8px; border-bottom: var(--rp-hair) solid var(--rp-divider); text-align: left; white-space: nowrap; }
+.rp-viz-table td, .rp-viz-table th[data-num] { text-align: right; font-family: var(--rp-font-mono); font-variant-numeric: tabular-nums; }
+
+/* Key figures (#2): one number never splits, shrinks to fit, at most four to a row. Higher specificity than riso.css. */
+.rp-ov-figures.rp-ov-figures { grid-template-columns: repeat(auto-fit, minmax(max(140px, calc(25% - 1px)), 1fr)); }
+.rp-ov-figure .rp-ov-figure-value { overflow-wrap: normal; white-space: nowrap; font-size: clamp(18px, 1.6vw + 6px, 26px); }
+
+/* Newest orders: links readable in both modes; amount + status as a right-aligned column. */
+.rp-viz-orders a { color: var(--rp-link, var(--rp-text)); text-decoration: underline; text-decoration-color: var(--rp-primary); text-underline-offset: 2px; }
+.rp-viz-orders a:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-viz-order-end { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.rp-viz-order-end .rp-viz-rank-value { text-align: right; min-width: 10ch; }
+.rp-viz-orders .rp-badge[data-tone="neutral"] { color: var(--rp-text); }
+/* Newest orders in a narrow widget or on a phone: the amount and status move to their own line under the order, lined
+   up with the name, so the customer's name and the order line keep their width instead of breaking word by word. */
+@container (max-width: 600px) {
+  .rp-viz-orders .rp-viz-rank-row { flex-wrap: wrap; align-items: flex-start; column-gap: 10px; row-gap: 6px; }
+  .rp-viz-orders .rp-viz-order-end { flex: 1 0 100%; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 6px 12px; padding-left: calc(32px + 10px); }
+  .rp-viz-orders .rp-viz-order-end .rp-viz-rank-value { min-width: 0; text-align: left; }
+}
+
+/* Trend chart controls (#24): measure tabs in one row that scrolls sideways; grouping as a select. */
+.rp-wb-chart .rp-ov-switch[role="tablist"] { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: thin; max-width: 100%; }
+.rp-wb-chart .rp-ov-switch[role="tablist"] button { flex-shrink: 0; white-space: nowrap; }
+.rp-viz-grain { display: inline-flex; align-items: center; gap: 6px; font-size: var(--rp-text-xs); font-weight: 700; }
+.rp-viz-grain select { min-height: 34px; padding: 0 8px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); font: inherit; font-weight: 600; border-radius: 0; }
+
+/* Night (#26, ux2 #19): hatching and the faint heat steps stay visible on the dark surface. */
+.rp[data-rp-appearance="dark"] .rp-viz-hatch, .rp[data-rp-appearance="dark"] .rp-viz-bar-prev, .rp[data-rp-appearance="dark"] .rp-viz-col-prev {
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--rp-text) 45%, transparent) 0 2px, transparent 2px 5px);
+}
+.rp[data-rp-appearance="dark"] .rp-viz-heat-cell { --rp-heat-floor: 32%; }
+.rp[data-rp-appearance="dark"] .rp-viz-heat-scale i:nth-child(2) { background: color-mix(in srgb, var(--rp-primary) 42%, var(--rp-surface)); }
+.rp[data-rp-appearance="dark"] .rp-viz-spark-prev { fill: color-mix(in srgb, var(--rp-text) 16%, transparent); }
+
+/* Touch (#25): chart tabs, the table toggle, order links and the folded-list buttons reach 44px. */
+@media (pointer: coarse) {
+  .rp-wb-chart .rp-ov-switch button, .rp-viz-grain select { min-height: 44px; }
+  .rp-ov-table-toggle summary { min-height: 44px; display: flex; align-items: center; }
+  .rp-viz-orders a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+
+/* Ranked bars on a phone (ux2 #16): the value goes under the title so the title keeps one line. */
+@container (max-width: 480px) {
+  .rp-viz-rank-head { flex-wrap: wrap; }
+  .rp-viz-rank-head .rp-viz-rank-value { flex-basis: 100%; font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+}
+.rp-viz-rank { container-type: inline-size; }
+
+@media (max-width: 767px) {
+  .rp-viz-rank-row, .rp-viz-days-row { padding: 9px 14px; gap: 10px; }
+  .rp-viz-stack, .rp-viz-cols, .rp-viz-funnel, .rp-viz-fall { padding-left: 14px; padding-right: 14px; }
+  .rp-viz-shade-wrap, .rp-viz-heat { padding-left: 14px; padding-right: 14px; }
+}
+@media print {
+  .rp-viz-bar, .rp-viz-stack-part, .rp-viz-fall-bar, .rp-viz-funnel-bar, .rp-viz-col-bar, .rp-viz-days-bar, .rp-viz-heat-cell { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+
+/* What changed: the badge sits level with the line's title, and all four badges share one width so the titles and
+   figures run in one straight column whatever mix of moves is listed. */
+.rp-ov-change { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
+.rp-ov-change > .rp-badge { min-width: 7.6em; justify-content: center; }
+/* What changed in a narrow widget or on a phone: the badge moves above its title instead of keeping a wide column of its
+   own, so the title and figures use the whole width rather than wrapping two or three words to a line. */
+.rp-ov-changes { container-type: inline-size; }
+@container (max-width: 480px) {
+  .rp-ov-change { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .rp-ov-change > .rp-badge { order: -1; justify-self: start; min-width: 0; }
+}
+
+/* Needs you: the shared list's own row padding and bottom line used to win over the panel's rows, pushing every count
+   20px in from the big total and drawing a second line under each row. Rows now line up with the total and keep one
+   line between them; on a phone the panel's own padding is narrower so the words get the room. */
+.rp-ov-run .rp-list > .rp-ov-run-row { padding: 12px 0; border-bottom: 0; }
+@media (max-width: 767px) {
+  .rp-ov-run { padding: 16px; }
+  .rp-ov-run .rp-ov-run-count { min-width: 30px; font-size: 28px; }
+  .rp-ov-run .rp-list > .rp-ov-run-row { gap: 12px; }
+}

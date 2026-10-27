@@ -1,0 +1,27 @@
+name: App release notes
+on:
+  pull_request:
+    branches: [main]
+# A newer push to the same pull request replaces the older check.
+concurrency:
+  group: release-note-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  release-note:
+    # Dependabot's dependency bumps can't write a note; a person's follow-up PR adds one if shoppers notice.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require an app update in every PR
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Each PR adds its own note file (one file per note, so PRs never conflict on a shared list).
+          if ! git diff --name-only --diff-filter=A "$BASE_SHA" "$HEAD_SHA" | grep -qE '^src/app/admin/updates/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+\.ts$'; then
+            echo '::error::Add a release note file src/app/admin/updates/YYYY-MM-DD-NN-<id>.ts describing this PR and linking to its affected admin screens (node scripts/split-app-updates.mjs moves an old inline entry into one).'
+            exit 1
+          fi

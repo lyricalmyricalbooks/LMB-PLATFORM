@@ -1,0 +1,703 @@
+/* Admin Dashboard White Mode CSS Overrides */
+.admin-light {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.admin-light .text-white,
+.admin-light h2.text-white,
+.admin-light h3.text-white,
+.admin-light h4.text-white,
+.admin-light h5.text-white,
+.admin-light span.text-white,
+.admin-light p.text-white,
+.admin-light div.text-white,
+.admin-light label.text-white,
+.admin-light button.text-white {
+  color: #0f172a !important;
+}
+
+.admin-light .text-slate-200 {
+  color: #1e293b !important;
+}
+
+.admin-light .text-slate-300 {
+  color: #334155 !important;
+}
+
+.admin-light .text-slate-400,
+.admin-light .text-slate-500,
+.admin-light .text-slate-600 {
+  color: #475569 !important;
+}
+
+/*
+ * Opacity-modified white text (e.g. `text-white/30`) is invisible on the
+ * light-mode background because it resolves to faint white-on-white. Remap
+ * each opacity step to a graduated slate so the original "muted/disabled"
+ * intent is preserved while staying readable. Keep this list in sync with
+ * `npm run check:readability`, which flags any faint-white text utility that
+ * is used in the admin but missing an override here.
+ */
+.admin-light .text-white\/90,
+.admin-light .text-white\/85,
+.admin-light .text-white\/80,
+.admin-light .text-white\/70 {
+  color: #1e293b !important;
+}
+
+.admin-light .text-white\/60,
+.admin-light .text-white\/50,
+.admin-light .text-white\/40 {
+  color: #475569 !important;
+}
+
+.admin-light .text-white\/30,
+.admin-light .text-white\/20,
+.admin-light .text-white\/15,
+.admin-light .text-white\/10 {
+  color: #94a3b8 !important;
+}
+
+.admin-light .border-white\/5,
+.admin-light .border-white\/10,
+.admin-light .border-white\/20,
+.admin-light .border-r.border-white\/5,
+.admin-light .border-b.border-white\/5 {
+  border-color: #cbd5e1 !important;
+}
+
+.admin-light .bg-white\/5,
+.admin-light .bg-white\/10,
+.admin-light .bg-white\/\[0\.01\],
+.admin-light .bg-white\/\[0\.02\],
+.admin-light .bg-white\/\[0\.03\],
+.admin-light .bg-white\/\[0\.04\],
+.admin-light .bg-white\/\[0\.05\],
+.admin-light .bg-slate-900\/50,
+.admin-light .bg-slate-900,
+.admin-light .bg-black\/20,
+.admin-light .bg-black\/40,
+.admin-light .bg-black\/60,
+.admin-light .bg-black\/80 {
+  background-color: #ffffff !important;
+}
+
+.admin-light .fixed.bg-black\/80 {
+  background-color: rgba(15, 23, 42, 0.4) !important;
+  backdrop-filter: blur(16px) !important;
+}
+
+.admin-light .fixed.bg-black\/80 > div,
+.admin-light .fixed.bg-black\/80 > motion\.div,
+.admin-light .bg-\[\#0A0A0B\],
+.admin-light .bg-\[\#050506\],
+.admin-light .bg-black {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.admin-light .bg-\[\#050506\] {
+  background-color: #f8fafc !important;
+}
+
+.admin-light aside.bg-black\/40 {
+  background-color: #ffffff !important;
+  border-right: 1px solid #e2e8f0 !important;
+}
+
+.admin-light main {
+  background-color: #f8fafc !important;
+}
+
+.admin-light .glass-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05) !important;
+}
+
+.admin-light .hover\:bg-white\/\[0\.03\]:hover,
+.admin-light .hover\:bg-white\/\[0\.02\]:hover,
+.admin-light .group\/item:hover {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+.admin-light input,
+.admin-light textarea,
+.admin-light select {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.admin-light input::placeholder,
+.admin-light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.admin-light input:focus,
+.admin-light textarea:focus,
+.admin-light select:focus {
+  border-color: #9333ea !important;
+  background-color: #ffffff !important;
+}
+
+.admin-light .text-violet-400 {
+  color: #7c3aed !important;
+}
+
+.admin-light .text-cyan-400 {
+  color: #0891b2 !important;
+}
+
+.admin-light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+.admin-light .text-amber-400 {
+  color: #d97706 !important;
+}
+
+.admin-light .text-rose-400 {
+  color: #e11d48 !important;
+}
+
+.admin-light .recharts-cartesian-grid-horizontal line {
+  stroke: #e2e8f0 !important;
+}
+
+.admin-light .recharts-text {
+  fill: #64748b !important;
+}
+
+.admin-light .recharts-default-tooltip {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1) !important;
+}
+
+.admin-light table {
+  background-color: #ffffff !important;
+}
+
+.admin-light th {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+.admin-light td {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.admin-light tr:hover td {
+  background-color: #f8fafc !important;
+}
+
+.admin-light button.bg-white\/5,
+.admin-light button.bg-white\/10 {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+.admin-light button.bg-white\/5:hover,
+.admin-light button.bg-white\/10:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.admin-light .Switch button div,
+.admin-light button div.bg-white\/5 {
+  background-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.admin-light button div.bg-violet-600 {
+  background-color: #7c3aed !important;
+}
+
+.admin-light button div div.bg-slate-600 {
+  background-color: #94a3b8 !important;
+}
+
+.admin-light button div div.bg-white {
+  background-color: #ffffff !important;
+}
+
+.admin-light header .admin-search-shell {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.admin-light header input {
+  background-color: transparent !important;
+  border: none !important;
+  color: #0f172a !important;
+}
+
+.admin-light header .admin-search-shell input {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), inset 0 1px 2px rgba(15, 23, 42, 0.03) !important;
+}
+
+.admin-light header .admin-search-shell input:focus {
+  border-color: rgba(124, 58, 237, 0.45) !important;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12), 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+
+.admin-light aside button {
+  color: #475569 !important;
+}
+
+.admin-light aside button:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.admin-light aside button.bg-white\/5 {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.admin-light aside div button {
+  color: #64748b !important;
+}
+
+.admin-light aside div button.text-violet-400 {
+  color: #7c3aed !important;
+}
+
+.admin-light .shadow-inner {
+  box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.02) !important;
+}
+
+.admin-light .fixed .bg-\[\#050506\] {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+
+.admin-light .fixed .border-white\/5 {
+  border-color: #e2e8f0 !important;
+}
+
+.admin-light .fixed .bg-white\/\[0\.01\] {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+.admin-light .fixed .bg-black\/40 {
+  background-color: #f1f5f9 !important;
+}
+
+.admin-light .bg-emerald-500\/5 {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.admin-light .bg-rose-500\/5 {
+  background-color: #ffe4e6 !important;
+  color: #9f1239 !important;
+  border-color: #fecdd3 !important;
+}
+
+.admin-light .bg-amber-500\/5 {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+  border-color: #fde68a !important;
+}
+
+.admin-light .bg-indigo-500\/5 {
+  background-color: #e0e7ff !important;
+  color: #3730a3 !important;
+  border-color: #c7d2fe !important;
+}
+
+.admin-light .bg-cyan-500\/5 {
+  background-color: #ecfeff !important;
+  color: #155e75 !important;
+  border-color: #cffafe !important;
+}
+
+/* Ensure dark buttons in admin light mode keep white text and icons */
+.admin-light button.bg-violet-600,
+.admin-light button.bg-violet-600 *,
+.admin-light button.bg-violet-500,
+.admin-light button.bg-violet-500 *,
+.admin-light button.bg-red-500,
+.admin-light button.bg-red-500 *,
+.admin-light button.bg-rose-500,
+.admin-light button.bg-rose-500 *,
+.admin-light button.bg-rose-600,
+.admin-light button.bg-rose-600 *,
+.admin-light button.bg-emerald-600,
+.admin-light button.bg-emerald-600 *,
+.admin-light button.bg-slate-950,
+.admin-light button.bg-slate-950 * {
+  color: #ffffff !important;
+}
+
+.admin-light select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/*
+ * Riso Press compatibility layer (legacy admin pages only)
+ * --------------------------------------------------------
+ * Pages not yet rebuilt from src/app/admin/riso components still contain legacy
+ * dark utility classes. This block, scoped to `.admin-reso`, maps them onto the
+ * published Riso Press palette (newsprint, ink outlines, flare gold, square
+ * corners). Migrated pages never render inside `.admin-reso`; do not add rules
+ * here for new work — build it from the Riso components instead.
+ */
+.admin-reso[data-admin-theme="reso"],
+.admin-reso:not([data-admin-theme]) {
+  --admin-canvas: #faf6ec;
+  --admin-panel: #ffffff;
+  --admin-panel-soft: #ffffff;
+  --admin-ink: #100f0d;
+  --admin-muted: #3e3a34;
+  --admin-line: rgba(16, 15, 13, 0.26);
+  --admin-purple: #e8402a;
+  --admin-purple-soft: rgba(232, 64, 42, 0.1);
+  --admin-cyan: #1b3fe0;
+  background: var(--admin-canvas);
+  color: var(--admin-ink);
+  font-family: "Archivo", "Helvetica Neue", system-ui, sans-serif;
+}
+
+.admin-reso[data-admin-theme="reso"] h1,
+.admin-reso[data-admin-theme="reso"] h2,
+.admin-reso[data-admin-theme="reso"] h3 {
+  color: var(--admin-ink) !important;
+  font-family: "Anton", Impact, "Archivo", sans-serif;
+  font-style: normal !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.01em;
+}
+
+.admin-reso[data-admin-theme="reso"] .text-white,
+.admin-reso[data-admin-theme="reso"] .text-slate-900 { color: #100f0d !important; }
+.admin-reso[data-admin-theme="reso"] .text-slate-200,
+.admin-reso[data-admin-theme="reso"] .text-slate-300,
+.admin-reso[data-admin-theme="reso"] .text-slate-400 { color: #3e3a34 !important; }
+.admin-reso[data-admin-theme="reso"] .text-slate-500,
+.admin-reso[data-admin-theme="reso"] .text-slate-600 { color: #5f5950 !important; }
+.admin-reso[data-admin-theme="reso"] .text-violet-400,
+.admin-reso[data-admin-theme="reso"] .text-violet-500,
+.admin-reso[data-admin-theme="reso"] .text-violet-600 { color: #b4271a !important; }
+.admin-reso[data-admin-theme="reso"] .text-emerald-400,
+.admin-reso[data-admin-theme="reso"] .text-emerald-500 { color: #0a6b47 !important; }
+.admin-reso[data-admin-theme="reso"] .text-rose-400,
+.admin-reso[data-admin-theme="reso"] .text-rose-500 { color: #b4271a !important; }
+.admin-reso[data-admin-theme="reso"] .text-amber-400,
+.admin-reso[data-admin-theme="reso"] .text-amber-500 { color: #6b4600 !important; }
+.admin-reso[data-admin-theme="reso"] .text-cyan-400,
+.admin-reso[data-admin-theme="reso"] .text-cyan-500 { color: #1b3fe0 !important; }
+
+.admin-reso[data-admin-theme="reso"] .glass-card,
+.admin-reso[data-admin-theme="reso"] section[class*="border"],
+.admin-reso[data-admin-theme="reso"] article[class*="border"] {
+  background: var(--admin-panel) !important;
+  border: 2px solid #100f0d !important;
+  border-radius: 4px !important;
+  box-shadow: 3px 3px 0 rgba(16, 15, 13, 0.3) !important;
+  backdrop-filter: none !important;
+}
+
+.admin-reso[data-admin-theme="reso"] [class*="rounded-"] { border-radius: 4px !important; }
+.admin-reso[data-admin-theme="reso"] [class*="rounded-full"] { border-radius: 999px !important; }
+.admin-reso[data-admin-theme="reso"] .glass-card [class*="rounded-"],
+.admin-reso[data-admin-theme="reso"] button[class*="rounded-"],
+.admin-reso[data-admin-theme="reso"] input[class*="rounded-"],
+.admin-reso[data-admin-theme="reso"] select[class*="rounded-"],
+.admin-reso[data-admin-theme="reso"] textarea[class*="rounded-"] { border-radius: 0 !important; }
+
+.admin-reso[data-admin-theme="reso"] input,
+.admin-reso[data-admin-theme="reso"] textarea,
+.admin-reso[data-admin-theme="reso"] select {
+  background: #ffffff !important;
+  border: 1px solid rgba(16, 15, 13, 0.26) !important;
+  border-radius: 0 !important;
+  color: var(--admin-ink) !important;
+  box-shadow: none;
+  font-family: "Archivo", system-ui, sans-serif;
+}
+
+.admin-reso[data-admin-theme="reso"] input:focus,
+.admin-reso[data-admin-theme="reso"] textarea:focus,
+.admin-reso[data-admin-theme="reso"] select:focus {
+  border-color: #e8402a !important;
+  box-shadow: 0 0 0 4px rgba(232, 64, 42, 0.22) !important;
+  outline: none;
+}
+
+.admin-reso[data-admin-theme="reso"] button:focus-visible,
+.admin-reso[data-admin-theme="reso"] a:focus-visible {
+  outline: 2px solid #e8402a;
+  outline-offset: 2px;
+}
+
+/* Flare primary: gold fill, ink text (never white on flare). */
+.admin-reso[data-admin-theme="reso"] button.bg-violet-600,
+.admin-reso[data-admin-theme="reso"] button.bg-violet-500,
+.admin-reso[data-admin-theme="reso"] a.bg-violet-600 {
+  background: #e8402a !important;
+  color: #100f0d !important;
+  border: 2px solid #100f0d !important;
+  border-radius: 0 !important;
+  box-shadow: 2px 2px 0 rgba(16, 15, 13, 0.18) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 800;
+}
+.admin-reso[data-admin-theme="reso"] button.bg-violet-600 *,
+.admin-reso[data-admin-theme="reso"] button.bg-violet-500 * { color: #100f0d !important; }
+.admin-reso[data-admin-theme="reso"] button.bg-violet-600:hover,
+.admin-reso[data-admin-theme="reso"] button.bg-violet-500:hover {
+  background: #ff6b55 !important;
+  box-shadow: 3px 3px 0 rgba(16, 15, 13, 0.3) !important;
+}
+.admin-reso[data-admin-theme="reso"] button.bg-emerald-600,
+.admin-reso[data-admin-theme="reso"] button.bg-emerald-500 {
+  background: #0a6b47 !important;
+  color: #ffffff !important;
+  border: 2px solid #100f0d !important;
+  border-radius: 0 !important;
+}
+.admin-reso[data-admin-theme="reso"] button.bg-rose-600,
+.admin-reso[data-admin-theme="reso"] button.bg-rose-500 {
+  background: #b4271a !important;
+  color: #ffffff !important;
+  border: 2px solid #100f0d !important;
+  border-radius: 0 !important;
+}
+
+.admin-reso[data-admin-theme="reso"] table {
+  border: 2px solid #100f0d;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 rgba(16, 15, 13, 0.3);
+}
+.admin-reso[data-admin-theme="reso"] th {
+  background: #100f0d !important;
+  color: #faf6ec !important;
+  letter-spacing: 0.14em;
+}
+.admin-reso[data-admin-theme="reso"] td { border-color: rgba(16, 15, 13, 0.12) !important; }
+
+.admin-reso[data-admin-theme="reso"] .fixed[class*="inset-0"] > [class*="bg-\[\#050506\]"],
+.admin-reso[data-admin-theme="reso"] .fixed[class*="inset-0"] > [class*="bg-black"] {
+  background: var(--admin-panel) !important;
+  color: var(--admin-ink) !important;
+  border: 2px solid #100f0d !important;
+}
+
+.admin-reso[data-admin-theme="reso"] ::-webkit-scrollbar-track { background: #f0e9da; }
+.admin-reso[data-admin-theme="reso"] ::-webkit-scrollbar-thumb { background: #d3c6ab; }
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-reso *, .admin-reso *::before, .admin-reso *::after {
+    animation-duration: 0.01ms !important; transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* Accent remap for legacy admin utilities (generated from classes in use): violet/indigo → flare, cyan/blue → press blue. */
+.admin-reso[data-admin-theme="reso"] [class~="accent-blue-600"]{accent-color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="accent-violet-500"]{accent-color:#e8402a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-100"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-50"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-50\/40"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-50\/50"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-500\/10"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-600"]{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-400"]{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-50"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-500"]{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-500\/10"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-600"]{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-600\/10"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-950\/30"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-sky-400"]{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-sky-500\/10"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-100"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-400"]{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-50"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-50\/40"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-500"]{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-500\/10"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-500\/20"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600"]{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600\/10"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600\/15"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600\/20"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600\/5"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-950\/20"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-950\/30"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-100"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-200"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-400"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-500"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-500\/20"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-500\/30"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-600"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-cyan-400"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-cyan-500"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-cyan-500\/20"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-cyan-500\/30"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-fuchsia-500\/30"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-sky-500\/20"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-100"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-200"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-400"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-400\/20"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-400\/50"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500\/10"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500\/20"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500\/30"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500\/40"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500\/50"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-600"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-900"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:border-blue-400"]:focus{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:border-cyan-500\/50"]:focus{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:border-sky-500\/50"]:focus{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:border-violet-500"]:focus{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:border-violet-500\/50"]:focus{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:ring-violet-500"]:focus{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-blue-500"]{background-image:none !important;background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-cyan-500"]{background-image:none !important;background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-cyan-500\/10"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-cyan-600\/5"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-fuchsia-600\/20"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-purple-400"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-sky-500"]{background-image:none !important;background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-500"]{background-image:none !important;background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-500\/10"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-600"]{background-image:none !important;background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-600\/0"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-600\/10"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-600\/20"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-600\/5"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-blue-50"]:hover{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-blue-700"]:hover{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-cyan-500"]:hover{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-cyan-600"]:hover{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-purple-600"]:hover{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-50\/40"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-50\/50"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-500"]:hover{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-500\/20"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-500\/5"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-600"]:hover{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-600\/20"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-600\/25"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-blue-200"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-blue-300"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-blue-400"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-cyan-300"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-cyan-500\/20"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-cyan-500\/30"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-fuchsia-400\/50"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-300"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-400"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-400\/50"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-500\/20"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-500\/30"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-500\/40"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-500\/50"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:from-violet-500"]:hover{background-image:none !important;background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:shadow-blue-500\/5"]:hover{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:text-blue-500"]:hover{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:text-blue-600"]:hover{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:text-violet-300"]:hover{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:to-indigo-500"]:hover{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="ring-violet-500\/0"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="ring-violet-500\/30"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="ring-violet-500\/5"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-100"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-200"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-500"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-500\/10"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-500\/20"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-500\/5"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-cyan-600\/10"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-purple-200"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-500"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-500\/10"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-500\/30"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-600\/20"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-600\/30"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-600\/40"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-blue-400"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-blue-500"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-blue-600"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-blue-700"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-cyan-300"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-cyan-400"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-cyan-500"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-cyan-600"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-cyan-700"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-fuchsia-300"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-fuchsia-500"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-purple-500"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-sky-400"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-sky-600"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-300"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-400"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-500"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-500\/50"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-600"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-700"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-blue-500"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-cyan-500"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-cyan-600\/10"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-fuchsia-600\/20"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-indigo-500"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-indigo-600"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-violet-600\/20"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="via-violet-600\/5"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600"] *, .admin-reso[data-admin-theme="reso"] [class~="bg-violet-500"] *, .admin-reso[data-admin-theme="reso"] [class~="from-violet-600"] * { color: #100f0d !important; }
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-600"] *, .admin-reso[data-admin-theme="reso"] [class~="bg-blue-700"] * { color: #ffffff !important; }
+
+/* Ink chrome bars inside legacy pages keep light-on-ink text. */
+.admin-reso[data-admin-theme="reso"] [class~="bg-[#1E1E1F]"] h3,
+.admin-reso[data-admin-theme="reso"] [class~="bg-[#1E1E1F]"] .text-white { color: #faf6ec !important; }
+.admin-reso[data-admin-theme="reso"] [class~="bg-[#1E1E1F]"] button[class*="text-slate"],
+.admin-reso[data-admin-theme="reso"] [class~="bg-[#1E1E1F]"] button[class*="text-white"] { color: rgba(250, 246, 236, 0.85) !important; }
+
+/* Stray arbitrary purple fills/text from earlier admin designs → flare. */
+.admin-reso[data-admin-theme="reso"] [class~="bg-[#7C3AED]"], .admin-reso[data-admin-theme="reso"] [class~="bg-[#6D28D9]"], .admin-reso[data-admin-theme="reso"] [class~="bg-[#A855F7]"] {
+  background-color: #e8402a !important; color: #100f0d !important; border: 2px solid #100f0d !important; border-radius: 0 !important;
+}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-[#6D28D9]"]:hover, .admin-reso[data-admin-theme="reso"] [class~="hover:bg-[#7C3AED]"]:hover { background-color: #ff6b55 !important; }
+.admin-reso[data-admin-theme="reso"] [class~="text-[#7C3AED]"] { color: #b4271a !important; }
+
+/* ── Studio editor: keep light-on-dark controls readable ───────────────────────
+ * The admin compatibility layer remaps `.text-white` to dark ink (correct for the light Riso
+ * admin canvas). Studio's own dark controls (primary buttons, selected tabs/devices, Publish)
+ * use `bg-neutral-900 text-white`, which turned into dark-on-dark. Repeat the attribute to
+ * out-rank the compat selectors. */
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900 *,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-700,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-700 *,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-red-600,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-red-600 * {
+  color: #ffffff !important;
+}
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900 svg,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900 svg * {
+  stroke: currentColor !important;
+}

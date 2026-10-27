@@ -4,6 +4,6 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test \"*.test.js\" \"profile/*.test.js\" \"waitlist/*.test.js\""
   }
 }

@@ -2,17 +2,20 @@
 
 The platform behind the press shop and stockroom subscription. It creates and runs one Firebase copy per press.
 
-The shop and the stockroom themselves live in their own repos:
+The shop and the stockroom used by the platform are copies in `apps/`:
 
-- [LyricalmyricalWebsite](https://github.com/lyricalmyricalbooks/LyricalmyricalWebsite): the shop and its admin.
-- [lyrical-inventory](https://github.com/lyricalmyricalbooks/lyrical-inventory): the stockroom app.
+- `apps/shop/`: the product's shop, a copy of [LyricalmyricalWebsite](https://github.com/lyricalmyricalbooks/LyricalmyricalWebsite).
+- `apps/stockroom/`: the product's stockroom, a copy of [lyrical-inventory](https://github.com/lyricalmyricalbooks/lyrical-inventory).
 
-Lyricalmyrical is one shop on the platform, not a special case.
+Julian's own website and stockroom repos are never changed for the platform; they must keep working in all circumstances.
+
+
 
 ## What lives here
 
 | Folder | What it does |
 | --- | --- |
+| `apps/` | Copies of the shop and the stockroom for the platform. Julian's own repos are never changed. |
 | `setup/` | The shop maker. It creates a press's Firebase copy in numbered steps, each safe to re-run. |
 | `releases/` | Sends a new shop and stockroom version to every press, starting with a test shop. |
 | `control-room/` | Platform admin: every shop's health, plan and version, plus a logged "act as this shop" button. |

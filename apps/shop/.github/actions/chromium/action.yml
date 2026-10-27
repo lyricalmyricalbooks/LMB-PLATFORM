@@ -1,0 +1,29 @@
+name: Chromium for Playwright
+description: >
+  Restores Playwright's Chromium from the cache (downloads it on a miss) and installs Ubuntu packages only when the
+  browser is missing some. The old `playwright install --with-deps` always ran apt-get, which sometimes hung 9-11 minutes.
+runs:
+  using: composite
+  steps:
+    - id: version
+      shell: bash
+      run: echo "playwright=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.version.outputs.playwright }}
+
+    - shell: bash
+      run: pnpm exec playwright install chromium
+
+    - name: System packages (only if missing)
+      shell: bash
+      run: |
+        missing=$(find ~/.cache/ms-playwright -maxdepth 3 -type f \( -name chrome -o -name chrome-headless-shell \) -exec ldd {} \; 2>/dev/null | grep "not found" || true)
+        if [ -n "$missing" ]; then
+          echo "Missing libraries:"; echo "$missing"
+          timeout 600 pnpm exec playwright install-deps chromium
+        else
+          echo "Every library Chromium needs is already installed."
+        fi

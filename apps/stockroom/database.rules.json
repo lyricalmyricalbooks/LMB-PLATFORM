@@ -1,0 +1,58 @@
+{
+  "rules": {
+    "lyrical": {
+      "books": {
+        "$bookId": {
+          // Readable ONLY by the publisher and the book's own author — mirrors
+          // the same restriction in firestore.rules. Books can still live here
+          // (a book uses Firestore only once its fs_mode_<id> flag is set), so
+          // leaving this open to every signed-in user would let one author read
+          // another's sales, ledger and customers straight out of the RTDB
+          // fallback no matter how tight the Firestore rules are.
+          ".read": "auth != null && ((auth.token.email === 'lyricalmyricalbooks@gmail.com' && auth.token.email_verified === true) || root.child('lyrical/settings/bookOwners').child($bookId).val() === auth.token.email.toLowerCase())",
+          // Publisher writes any book; an author writes ONLY the book whose
+          // authorEmail matches theirs in settings/bookOwners (a plain map
+          // maintained by the publisher client). Ownership lives there because
+          // the per-book payload is a stringified JSON string these rules can't
+          // introspect. Missing map/entry → not the owner → denied.
+          ".write": "auth != null && ((auth.token.email === 'lyricalmyricalbooks@gmail.com' && auth.token.email_verified === true) || root.child('lyrical/settings/bookOwners').child($bookId).val() === auth.token.email.toLowerCase())",
+          // Shape guard: the app always writes the whole node as
+          // { data: <json string>, ts: <number> }. Reject anything else and cap
+          // the blob at ~5 MB so a buggy or malicious client can't bloat the DB
+          // (deletes set null and skip validation, so this doesn't block them).
+          ".validate": "newData.hasChildren(['data','ts']) && newData.child('data').isString() && newData.child('data').val().length < 5000000 && newData.child('ts').isNumber()"
+        }
+      },
+      "submissions": {
+        "$bookId": {
+          // Publisher sees/writes every book's submissions; an author may only
+          // read and write submissions for their own book.
+          ".read": "auth != null && ((auth.token.email === 'lyricalmyricalbooks@gmail.com' && auth.token.email_verified === true) || root.child('lyrical/settings/bookOwners').child($bookId).val() === auth.token.email.toLowerCase())",
+          ".write": "auth != null && ((auth.token.email === 'lyricalmyricalbooks@gmail.com' && auth.token.email_verified === true) || root.child('lyrical/settings/bookOwners').child($bookId).val() === auth.token.email.toLowerCase())"
+        }
+      },
+      "settings": {
+        // Only the publisher writes settings, at any key.
+        ".write": "auth != null && (auth.token.email === 'lyricalmyricalbooks@gmail.com' && auth.token.email_verified === true)",
+        // Read is granted per key rather than on the whole node, because RTDB
+        // read rules cascade downwards and cannot be revoked by a child — a
+        // ".read" here would hand every signed-in account the Gemini API key in
+        // taxCenter and the Big Cartel credentials.
+        //
+        // An ALLOWLIST of the keys an author session loads, same list as
+        // isAuthorReadableSetting() in firestore.rules (see the reasons there;
+        // tests/security-rules.test.js checks the two agree). Everything else —
+        // secrets, the mailing list, unsubscribes, campaigns, open-call
+        // contributors, and any key added later — is publisher-only.
+        "$key": {
+          ".read": "auth != null && ((auth.token.email === 'lyricalmyricalbooks@gmail.com' && auth.token.email_verified === true) || (root.child('lyrical/settings/bookOwners/authorEmails').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && ($key === 'modeFlags' || $key === 'notifyEndpoint' || $key === 'analyticsConfig' || $key === 'catalog' || $key === 'paymentLinks' || $key === 'productionCosts' || $key === 'websitePaymentMethods')))"
+        }
+      },
+      "backups": {
+        // System backup snapshots — one node per backup, publisher only.
+        ".read": "auth != null && (auth.token.email === 'lyricalmyricalbooks@gmail.com' && auth.token.email_verified === true)",
+        ".write": "auth != null && (auth.token.email === 'lyricalmyricalbooks@gmail.com' && auth.token.email_verified === true)"
+      }
+    }
+  }
+}

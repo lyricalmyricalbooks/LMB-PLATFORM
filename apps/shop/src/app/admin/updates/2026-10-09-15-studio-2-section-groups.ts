@@ -1,0 +1,7 @@
+import type { AppUpdate } from "../appUpdates";
+
+export default {
+  id: "studio-2-section-groups", date: "2026-10-09", title: "Every-page sections, a pop-up and rotating announcements",
+  summary: "Page layout in the Design studio can now add sections that show on every page in three places: under the header (for example a promo strip), above the footer (the shared sections you already had, unchanged) and in a pop-up. Find them under Header, Footer and Pop-overs in Page layout. The pop-up waits until a shopper has answered the cookie notice, then opens after a delay you choose; Theme settings › Pop-up also sets how often it shows (once per visit, once per shopper or on every page), where it sits, its width, colours and whether phones see it. In the studio preview it only opens when you open it. The announcement bar can now hold several messages that take turns (pausing when a shopper points at them), each with an optional link and show-from / show-until days — add them in Theme settings › Header & announcement bar › Announcement messages. With no messages the bar shows your existing announcement text exactly as before. Header menu links with sub-links can now be shown as a mega menu with columns and a featured picture card (Navigation › Header menu). Tested with local checks only.",
+  links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],
+} satisfies AppUpdate;

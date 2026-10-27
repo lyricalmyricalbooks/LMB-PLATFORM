@@ -1,0 +1,21 @@
+{
+  "id": "/admin",
+  "name": "Lyricalmyrical Admin",
+  "short_name": "LM Admin",
+  "description": "Orders, stock and sales for Lyricalmyrical Books.",
+  "start_url": "/admin#overview",
+  "scope": "/admin",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf6ec",
+  "theme_color": "#faf6ec",
+  "icons": [
+    { "src": "/admin-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/admin-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/admin-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Orders", "url": "/admin#orders", "icons": [{ "src": "/admin-icon-192.png", "sizes": "192x192" }] },
+    { "name": "Inventory", "url": "/admin#inventory", "icons": [{ "src": "/admin-icon-192.png", "sizes": "192x192" }] }
+  ]
+}

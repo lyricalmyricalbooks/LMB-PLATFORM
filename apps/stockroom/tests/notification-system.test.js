@@ -1,0 +1,279 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import {
+  LOG_LIMIT,
+  clearNotificationLog,
+  logNotification,
+  markNotificationsRead,
+  markInformationalNotificationsRead,
+  markNotificationKindRead,
+  notificationDayLabel,
+  notificationSource,
+  pruneResolvedNotifications,
+  readNotificationLog,
+  removeNotification,
+  resolvedNotificationUids,
+  unreadNotificationCount,
+} from '../src/lib/notification-log.js';
+import { buildAttentionSignals } from '../src/lib/attention-signals.js';
+import { buildActivityFeed } from '../src/lib/activity-feed.js';
+
+describe('notification history', () => {
+  beforeEach(() => { localStorage.clear(); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('keeps each notification, newest first, unread', () => {
+    logNotification({ id: 'delivery-watch', title: 'Parcel delivered' }, { now: 1000 });
+    logNotification({ id: 'receipt-sweep', title: '2 new receipts' }, { now: 2000 });
+    const log = readNotificationLog();
+    expect(log.map(i => i.title)).toEqual(['2 new receipts', 'Parcel delivered']);
+    expect(unreadNotificationCount()).toBe(2);
+  });
+
+  it('updates an unread message of the same kind instead of stacking it', () => {
+    logNotification({ id: 'new-orders', title: '2 new orders' }, { now: 1000 });
+    logNotification({ id: 'new-orders', title: '3 new orders' }, { now: 5000 });
+    expect(readNotificationLog().map(i => i.title)).toEqual(['3 new orders']);
+  });
+
+  it('adds a fresh line once the earlier one was read', () => {
+    logNotification({ id: 'new-orders', title: '2 new orders' }, { now: 1000 });
+    markNotificationsRead();
+    logNotification({ id: 'new-orders', title: '1 new order' }, { now: 5000 });
+    expect(readNotificationLog().map(i => [i.title, i.read])).toEqual([['1 new order', false], ['2 new orders', true]]);
+  });
+
+  it('does not repeat the exact same words it already showed', () => {
+    logNotification({ id: 'x', title: 'Same', detail: 'same' }, { now: 1000 });
+    markNotificationsRead();
+    logNotification({ id: 'x', title: 'Same', detail: 'same' }, { now: 2000 });
+    expect(readNotificationLog()).toHaveLength(1);
+  });
+
+  it('keeps review tasks unread when the panel opens, then acknowledges only the opened task', () => {
+    logNotification({ id: 'receipt-sweep', title: 'Review receipts', actionLabel: 'Review receipts', action: 'openReceipts()' }, { now: 1000 });
+    logNotification({ id: 'delivery-watch', title: 'Parcel delivered' }, { now: 2000 });
+    markInformationalNotificationsRead();
+    expect(readNotificationLog().map(i => [i.kind, i.read])).toEqual([
+      ['delivery-watch', true], ['receipt-sweep', false],
+    ]);
+    markNotificationKindRead('receipt-sweep');
+    expect(unreadNotificationCount()).toBe(0);
+  });
+
+  it('is capped, and can be cleared', () => {
+    for (let i = 0; i < LOG_LIMIT + 20; i++) logNotification({ id: `k${i}`, title: `t${i}` }, { now: i });
+    expect(readNotificationLog()).toHaveLength(LOG_LIMIT);
+    clearNotificationLog();
+    expect(readNotificationLog()).toEqual([]);
+  });
+
+  it('survives storage that is blocked', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+    expect(() => logNotification({ id: 'x', title: 'y' })).not.toThrow();
+    expect(readNotificationLog()).toEqual([]);
+  });
+
+  it('labels days plainly', () => {
+    const now = Date.parse('2026-09-23T15:00:00');
+    expect(notificationDayLabel(now - 3600000, now)).toBe('Today');
+    expect(notificationDayLabel(now - 86400000, now)).toBe('Yesterday');
+  });
+
+  it('names the source of an alert so the publisher knows where it came from', () => {
+    expect(notificationSource({ id: 'receipt-sweep' })).toBe('Receipt finder');
+    expect(notificationSource({ id: 'postage-sweep-canada-post' })).toBe('Canada Post');
+    expect(notificationSource({ id: 'health-gmail' })).toBe('Connection check');
+  });
+});
+
+describe('clearing notifications away', () => {
+  beforeEach(() => { localStorage.clear(); });
+
+  it('clears one message on its own and leaves the rest', () => {
+    const a = logNotification({ id: 'delivery-watch', title: 'Parcel delivered' }, { now: 1000 });
+    logNotification({ id: 'health-gmail', title: 'Gmail is back' }, { now: 2000 });
+    expect(removeNotification(a.uid)).toBe(true);
+    expect(readNotificationLog().map(i => i.title)).toEqual(['Gmail is back']);
+    expect(removeNotification(a.uid)).toBe(false);
+  });
+
+  it('clears a to-do message once its signal has gone, and keeps a live one', () => {
+    logNotification({ id: 'todo:stock-low:hound', title: 'Stock running low' }, { now: 1000 });
+    logNotification({ id: 'todo:setup-script', title: 'Script is out of date' }, { now: 2000 });
+    const removed = pruneResolvedNotifications({ signalIds: new Set(['setup-script']), review: {} });
+    expect(removed).toBe(1);
+    expect(readNotificationLog().map(i => i.kind)).toEqual(['todo:setup-script']);
+  });
+
+  it('keeps only the newest message of a still-active to-do item', () => {
+    logNotification({ id: 'todo:setup-script', title: 'Script out of date (v47)' }, { now: 1000 });
+    markNotificationsRead();
+    logNotification({ id: 'todo:setup-script', title: 'Script out of date (v48)' }, { now: 5000 });
+    pruneResolvedNotifications({ signalIds: new Set(['setup-script']), review: {} });
+    expect(readNotificationLog().map(i => i.title)).toEqual(['Script out of date (v48)']);
+  });
+
+  it('clears receipt and label messages once nothing is left to review, and never touches plain news', () => {
+    logNotification({ id: 'receipt-sweep', title: '1 new receipt' }, { now: 1000 });
+    logNotification({ id: 'postage-sweep-your-email', title: '1 label added' }, { now: 2000 });
+    logNotification({ id: 'delivery-watch', title: 'Parcel delivered' }, { now: 3000 });
+    const list = readNotificationLog();
+    expect(resolvedNotificationUids(list, { review: { receipts: 0, labels: 1 } })).toEqual([list[2].uid]);
+    pruneResolvedNotifications({ review: { receipts: 0, labels: 0 } });
+    expect(readNotificationLog().map(i => i.kind)).toEqual(['delivery-watch']);
+  });
+});
+
+describe('the to-do list knows what the automations left', () => {
+  const book = { id: 'hound', title: 'The Hound of Heaven', threshold: 0 };
+  const run = (automation, hist = []) => buildAttentionSignals({
+    books: [book], states: { hound: { stock: 50, hist } }, automation, today: '2026-09-23',
+  }).byGroup.orders;
+
+  it('lists orders, card payments, refunds, receipts and labels waiting for the owner', () => {
+    const ids = run({
+      websiteOrdersToReview: 2, cardPaymentsToMatch: 1, refundsToReverse: 1, storeReversals: 1,
+      receiptsWaiting: 3, receiptsReady: 2, labelsToMatch: 4,
+    }).map(s => s.id);
+    expect(ids).toEqual(expect.arrayContaining([
+      'orders-review', 'orders-card-match', 'orders-reverse', 'orders-receipts', 'orders-labels',
+    ]));
+  });
+
+  it('website orders the app couldn’t match, and records only in the old storage, go on the list', () => {
+    const all = buildAttentionSignals({
+      books: [book], states: { hound: { stock: 50, hist: [] } }, today: '2026-09-23',
+      automation: { websiteLink: { needYou: 1, storageMissing: [{ title: 'Injured', count: 2 }] } },
+    });
+    const review = all.signals.find(s => s.id === 'orders-website-link-review');
+    expect(review).toMatchObject({ status: 'blocked', label: '1 order from your website needs you', fix: { kind: 'tab', tab: 'website' } });
+    const storage = all.signals.find(s => s.id === 'setup-storage-missing-injured');
+    expect(storage).toMatchObject({ group: 'setup', status: 'warn', label: 'Injured has 2 records only in the old storage' });
+    const none = buildAttentionSignals({ books: [book], states: { hound: { stock: 50, hist: [] } }, today: '2026-09-23', automation: { websiteLink: { needYou: 0, storageMissing: [] } } });
+    expect(none.signals.some(s => s.id.startsWith('orders-website-link') || s.id.startsWith('setup-storage'))).toBe(false);
+  });
+
+  it('reads unsent orders and problem parcels straight from the ledger', () => {
+    const hist = [
+      { chan: 'Website', num: '#AB-1', date: '2026-09-15', shipName: 'Dana', shipAddr1: '1 Main' },
+      { chan: 'Website', num: '#AB-2', date: '2026-09-10', shipped: true, deliveryState: 'pickup', shipName: 'Sam' },
+      { chan: 'Website', num: '#AB-3', date: '2026-09-10', shipped: true, deliveryState: 'pickup', deliveredDate: '2026-09-20' },
+    ];
+    const signals = run({}, hist);
+    const unsent = signals.find(s => s.id === 'orders-unshipped');
+    expect(unsent.label).toBe('1 paid order hasn’t been sent');
+    expect(unsent.detail).toContain('Dana (#AB-1), waiting 8 days');
+    const pickup = signals.find(s => s.id === 'parcels-pickup');
+    expect(pickup.label).toBe('1 parcel is waiting at a post office');
+  });
+
+  it('does not count an order that has a label matched to it', () => {
+    const hist = [{ chan: 'Website', num: '#AB-1', date: '2026-09-15', shipAddr1: '1 Main' }];
+    expect(run({ labelledOrderNums: ['#AB-1'] }, hist).some(s => s.id === 'orders-unshipped')).toBe(false);
+  });
+
+  it('is empty when nothing is waiting', () => {
+    expect(run({})).toEqual([]);
+  });
+
+  it('points each fix at a fixed, named destination — never code', () => {
+    run({ receiptsWaiting: 1, labelsToMatch: 1, refundsToReverse: 1 }).forEach(signal => {
+      expect(['tab', 'action']).toContain(signal.fix.kind);
+      expect(signal.fix.tab).toMatch(/^[a-z-]+$/);
+    });
+  });
+});
+
+describe('what has been happening includes what the app did on its own', () => {
+  const book = { id: 'hound', title: 'The Hound of Heaven', currency: 'CAD' };
+  const feed = (hist) => buildActivityFeed([book], { hound: { hist } }, { limit: 0 });
+
+  it('says when a sale was recorded for you, and via the card reader', () => {
+    const [ev] = feed([{ chan: 'Book Fair', qty: 1, price: 30, date: '2026-09-20', notes: 'Card reader', autoRecorded: true }]);
+    expect(ev.text).toBe('Recorded for you — The Hound of Heaven via the card reader');
+  });
+
+  it('follows the parcel: sent, then delivered', () => {
+    const texts = feed([{
+      chan: 'Website', num: '#AB-1', qty: 1, price: 30, date: '2026-09-10', shipName: 'Dana',
+      shipped: true, shippedDate: '2026-09-11', trackingNumber: '1', deliveredDate: '2026-09-14',
+    }]).map(e => e.text);
+    expect(texts).toEqual(expect.arrayContaining([
+      'Sent Dana’s order (#AB-1) — tracking added',
+      'Delivered to Dana (#AB-1)',
+    ]));
+  });
+
+  it('says when the tracking number came from Big Cartel', () => {
+    const texts = feed([{
+      chan: 'Website', num: '#AB-2', qty: 1, price: 30, date: '2026-09-10', shipName: 'Lutz',
+      shipped: true, shippedDate: '2026-09-11', trackingNumber: '7023', trackingSource: 'bigcartel',
+    }]).map(e => e.text);
+    expect(texts).toContain('Sent Lutz’s order (#AB-2) — tracking from Big Cartel');
+  });
+
+  it('marks a label bought on the Canada Post website', () => {
+    const events = buildActivityFeed([book], { hound: { hist: [] } }, {
+      limit: 0,
+      businessExpenses: [{ id: 1, ref: 'canadapost:7023', postageSource: 'canadapost', shippingOrderNumber: '#AB-2', desc: 'Expedited Parcel', amount: 18.5, currency: 'CAD', date: '2026-09-11' }],
+    });
+    expect(events.map(e => e.text)).toContain('Shipping label for #AB-2 (bought on the Canada Post website) — Expedited Parcel');
+  });
+
+  it('shows a reversed sale, with the reason', () => {
+    const [ev] = feed([{ chan: 'Website', num: '#AB-1', qty: 2, price: 30, date: '2026-09-10', voided: true, voidedAt: Date.parse('2026-09-12T10:00:00'), voidedReason: 'Refunded in Stripe' }]);
+    expect(ev.kind).toBe('reversal');
+    expect(ev.text).toBe('Sale reversed — 2× The Hound of Heaven (#AB-1) · Refunded in Stripe');
+  });
+
+  it('leaves out a voided row with no record of when or why', () => {
+    expect(feed([{ chan: 'Website', qty: 1, price: 30, date: '2026-09-10', voided: true }])).toEqual([]);
+  });
+});
+
+describe('one-tap actions on to-do items', () => {
+  const book = { id: 'hound', title: 'The Hound of Heaven', threshold: 0 };
+  const run = (automation, hist = []) => buildAttentionSignals({
+    books: [book], states: { hound: { stock: 50, hist } }, automation, today: '2026-09-23',
+  }).byGroup.orders;
+
+  it('gives each unsent order its own "Mark as sent" button', () => {
+    const hist = [
+      { chan: 'Website', num: '#AB-1', date: '2026-09-15', shipName: 'Dana', shipAddr1: '1 Main' },
+      { chan: 'Website', num: '#AB-2', date: '2026-09-18', shipName: 'Sam', shipAddr1: '2 Main' },
+    ];
+    const signal = run({}, hist).find(s => s.id === 'orders-unshipped');
+    expect(signal.items.map(i => i.label)).toEqual(['Dana · #AB-1 · 8 days', 'Sam · #AB-2 · 5 days']);
+    expect(signal.items[0].quick).toEqual({ label: 'Mark as sent', kind: 'action', tab: 'mark-shipped', bookId: 'hound', num: '#AB-1' });
+  });
+
+  it('offers to reverse refunded sales in one tap, and sends receipts to the review inbox', () => {
+    const signals = run({ receiptsWaiting: 3, receiptsReady: 2, refundsToReverse: 1 });
+    expect(signals.find(s => s.id === 'orders-reverse').quick).toMatchObject({ label: 'Reverse now', tab: 'reverse-sales' });
+    // It used to say "File 2 now" while only opening a table; filing is now an explicit press in the inbox.
+    const receipts = signals.find(s => s.id === 'orders-receipts');
+    expect(receipts.quick).toBeNull();
+    expect(receipts.fix).toMatchObject({ kind: 'action', tab: 'review-inbox', num: 'receipt', label: 'Review receipts' });
+  });
+
+  it('sends labels to the review inbox too', () => {
+    const labels = run({ labelsToMatch: 2 }).find(s => s.id === 'orders-labels');
+    expect(labels.label).toBe('2 shipping labels need your review');
+    expect(labels.fix).toMatchObject({ kind: 'action', tab: 'review-inbox', num: 'label' });
+  });
+});
+
+describe('what the app did on its own is marked automatic', () => {
+  const book = { id: 'hound', title: 'The Hound of Heaven', currency: 'CAD' };
+  const feed = (hist) => buildActivityFeed([book], { hound: { hist } }, { limit: 0 });
+
+  it('marks sales it recorded and parcels it saw delivered, and nothing else', () => {
+    const events = feed([
+      { chan: 'Website', num: '#AB-1', qty: 1, price: 30, date: '2026-09-10', autoRecorded: true, shipped: true, shippedDate: '2026-09-11', deliveredDate: '2026-09-14' },
+      { chan: 'Direct', qty: 1, price: 30, date: '2026-09-12' },
+    ]);
+    const byKind = Object.fromEntries(events.map(e => [e.kind, e.auto]));
+    expect(byKind).toMatchObject({ 'sale-auto': true, delivered: true, shipped: false, sale: false });
+  });
+});

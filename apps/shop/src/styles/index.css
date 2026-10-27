@@ -1,0 +1,69 @@
+@import './fonts.css';
+@import './tailwind.css';
+
+@layer base {
+  /* Anchor jumps (#reviews, back-in-stock box) stop below the sticky shop header (StoreHeader measures it). */
+  html {
+    scroll-padding-top: var(--fm-header-offset, 0px);
+  }
+  body {
+    @apply bg-background text-on-surface antialiased;
+    font-family: var(--font-manrope);
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 100%);
+    backdrop-filter: blur(12px);
+  }
+
+  .pulse-violet-glow {
+    box-shadow: 0 0 15px rgba(208, 188, 255, 0.2);
+  }
+}
+
+/* Marquee / scrolling text — used by the announcement bar and Scrolling Text section */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee var(--marquee-duration, 20s) linear infinite;
+  white-space: nowrap;
+  will-change: transform;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Custom scrollbar for dark mode */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #010f1f;
+}
+::-webkit-scrollbar-thumb {
+  background: #1c2b3c;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #273647;
+}
+@import './theme.css';
+
+/* Phones: iOS Safari zooms the page when a focused field's text is under 16px.
+   Keep form fields at 16px on phone-sized screens so tapping a box never zooms. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
+/* Phone navigation tabs scroll sideways without a visible bar. */
+.fm-mobile-tabs::-webkit-scrollbar { display: none; }
+/* Fade the right edge so shoppers can tell the row scrolls; the end padding keeps the last tab clear of it. */
+.fm-mobile-tabs { padding-right: 48px; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }

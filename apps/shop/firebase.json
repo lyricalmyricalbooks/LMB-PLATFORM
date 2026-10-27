@@ -1,0 +1,109 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": ["node_modules", ".git", "*.log", "*.test.js", "*.test.ts", "*.fakes.mjs", "README.md"],
+      "runtime": "nodejs22"
+    }
+  ],
+  "hosting": {
+    "site": "lmb-test-shop",
+    "public": "dist",
+    "ignore": [],
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "redirects": [
+      {"source": "/product/the-hound-ian-willms", "destination": "https://lyricalmyricalbooks.com/books/the-hound", "type": 301},
+      {"source": "/product/Lyricalmyricalcollections", "destination": "https://lyricalmyricalbooks.com/books/lyricalmyrical-collections-1-collective-photobook", "type": 301},
+      {"source": "/product/lyricalmyricalcollections", "destination": "https://lyricalmyricalbooks.com/books/lyricalmyrical-collections-1-collective-photobook", "type": 301},
+      {"source": "/product/collective-photobook", "destination": "https://lyricalmyricalbooks.com/books/lyricalmyrical-collections-1-collective-photobook", "type": 301},
+      {"source": "/product/un-fantastico-altrove-silvia-clo-di-gregorio", "destination": "https://lyricalmyricalbooks.com/books/un-fantastico-altrove", "type": 301},
+      {"source": "/product/Archaeology_of_Presence", "destination": "https://lyricalmyricalbooks.com/books/archaeology-of-presence", "type": 301},
+      {"source": "/product/archaeology_of_presence", "destination": "https://lyricalmyricalbooks.com/books/archaeology-of-presence", "type": 301},
+      {"source": "/product/sistema_non_autorizzato", "destination": "https://lyricalmyricalbooks.com/books/sistema-non-autorizzato", "type": 301},
+      {"source": "/product/injured", "destination": "https://lyricalmyricalbooks.com/books/injured-zine", "type": 301},
+      {"source": "/product/oltre-il-tempo-isabella-tortola", "destination": "https://lyricalmyricalbooks.com/books/oltre-il-tempo", "type": 301},
+      {"source": "/product/cream-show", "destination": "https://lyricalmyricalbooks.com/books/cream-show", "type": 301},
+      {"source": "/product/content-unaware", "destination": "https://lyricalmyricalbooks.com/books/content-unaware", "type": 301},
+      {"source": "/products", "destination": "https://lyricalmyricalbooks.com/collections/publications", "type": 301},
+      {"source": "/category/books", "destination": "https://lyricalmyricalbooks.com/collections/books", "type": 301},
+      {"source": "/category/zines", "destination": "https://lyricalmyricalbooks.com/collections/zines", "type": 301},
+      {"source": "/about", "destination": "https://lyricalmyricalbooks.com/page/about", "type": 301},
+      {"source": "/contact", "destination": "https://lyricalmyricalbooks.com/page/contact", "type": 301},
+      {"source": "/submissions", "destination": "https://lyricalmyricalbooks.com/page/submissions", "type": 301},
+      {"source": "/open-call-collective-book", "destination": "https://lyricalmyricalbooks.com/page/open-call", "type": 301},
+      {"source": "/roots", "destination": "https://lyricalmyricalbooks.com/page/history-of-lyricalmyrical", "type": 301}
+    ],
+    "rewrites": [
+      {
+        "regex": "^/(?:(?:books|collections|page)/[^/]+/?|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist)$",
+        "destination": "/spa.html"
+      }
+    ],
+    "headers": [
+      {
+        "regex": "^/assets/.+$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "regex": "^/(?:favicon[^/]*|apple-touch-icon|icon-[^/]+|admin-icon-[^/]+)\\.(?:ico|png)$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=604800"
+          }
+        ]
+      },
+      {
+        "regex": "^/(?:|spa|404|(?:books|collections|page)/.*|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist|[^/]+\\.(?:xml|txt|json)|shop-profile\\.js|.*\\.html)$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "regex": "^/(?:spa|404|cart|checkout|track|wishlist|(?:account|admin)(?:/.*)?)(?:\\.html)?$",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex"
+          }
+        ]
+      },
+      {
+        "regex": "^/.*$",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          }
+        ]
+      }
+    ]
+  }
+}

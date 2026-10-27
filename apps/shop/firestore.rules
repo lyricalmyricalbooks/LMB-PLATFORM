@@ -1,0 +1,528 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == "lyricalmyricalbooks@gmail.com"
+        && request.auth.token.email_verified == true;
+    }
+
+    // Short optional text: missing/null, or a string no longer than n.
+    function shortText(v, n) {
+      return v == null || (v is string && v.size() <= n);
+    }
+    // A checkout / profile address map (Checkout.tsx customer.address, Account.tsx defaultAddress).
+    function addressOk(a) {
+      return a is map && a.size() <= 12
+        && shortText(a.get('name', ''), 200)
+        && shortText(a.get('street', ''), 300)
+        && shortText(a.get('unit', ''), 100)
+        && shortText(a.get('city', ''), 120)
+        && shortText(a.get('state', ''), 120)
+        && shortText(a.get('zip', ''), 40)
+        && shortText(a.get('country', ''), 80);
+    }
+    // The guest's customer block on a browser-created order: bounded so a forged order can't bloat.
+    function guestCustomerOk(c) {
+      return c is map && c.size() <= 10
+        && shortText(c.get('name', ''), 200)
+        && c.email.size() <= 254
+        && shortText(c.get('phone', ''), 60)
+        && (!('address' in c) || addressOk(c.address))
+        && (!('billingAddress' in c) || addressOk(c.billingAddress));
+    }
+
+    // Browser-written order fields other than the line items: right type and a sane size, so a forged order
+    // can't carry a negative total or a huge object. (Per-line content can't be checked here: rules can't loop
+    // over a list. priceOrder rebuilds every line from the catalogue before any charge.)
+    function moneyOk(v) {
+      return v is number && v >= 0 && v <= 1000000;
+    }
+    function guestOrderFieldsOk(d) {
+      return moneyOk(d.get('subtotal', 0)) && moneyOk(d.get('discount', 0)) && moneyOk(d.get('shipping', 0))
+        && moneyOk(d.get('tax', 0)) && moneyOk(d.get('total', 0))
+        && shortText(d.get('shippingMethod', null), 200)
+        && (d.get('fulfillmentSelection', null) == null || (d.fulfillmentSelection is map && d.fulfillmentSelection.size() <= 12))
+        && (d.get('appliedDiscount', null) == null || (d.appliedDiscount is map && d.appliedDiscount.size() <= 10))
+        && (d.get('activity', []) is list && d.get('activity', []).size() <= 5)
+        && shortText(d.get('customerId', null), 128)
+        && (d.get('cartId', '') is string && d.get('cartId', '').size() <= 64)
+        && (d.get('addressVerified', null) == null || d.get('addressVerified', null) is bool)
+        && (d.get('testMode', false) is bool)
+        && (d.get('createdAt', '') is string && d.get('createdAt', '').size() <= 40)
+        && (d.get('updatedAt', '') is string && d.get('updatedAt', '').size() <= 40)
+        && d.customer.keys().hasOnly(['name', 'email', 'phone', 'address', 'billingAddress']);
+    }
+
+    match /books/{bookId} {
+      // Shoppers see published books only (list queries must filter status == "published"); drafts, archived
+      // and unreleased records are the admin's. Private fields (cost prices, shelf codes, the legacy
+      // inventory key, the digital file path) live in books/{id}/private/admin, never on this document.
+      allow read: if isAdmin() || resource.data.status == "published";
+      allow write: if isAdmin();
+      match /private/{docId} {
+        allow read, write: if isAdmin();
+      }
+    }
+    // The admin's collection-group read of every book's private document (Books, Inventory, Orders packing).
+    match /{path=**}/private/{docId} {
+      allow read: if isAdmin();
+    }
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /authors/{authorId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /shipping-profiles/{profileId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // Integration credentials are only available to Cloud Functions through
+    // the Admin SDK. Even authenticated admins cannot read the raw keys in a browser.
+    match /private-integrations/{integrationId} {
+      allow read, write: if false;
+    }
+    match /pages/{pageId} {
+      // Shoppers see published pages only (queries must filter status == "published");
+      // drafts and hidden pages are the admin's.
+      allow read: if isAdmin() || resource.data.status == "published";
+      allow write: if isAdmin();
+    }
+    // Publisher packing, holds and internal notes never appear in guest tracking.
+    // Written only by Cloud Functions (sendEmail); the admin reads it in Notifications.
+    // Private email-sending credentials (Gmail app password). Admin-only: unlike settings/*,
+    // this is never publicly readable. Cloud Functions read it with the Admin SDK.
+    match /adminSecrets/{docId} {
+      allow read, write: if isAdmin();
+    }
+    // The owner's admin screen layouts (Overview boards: admin/overview/overviewBoardStore.ts) and the Overview's sales notes
+    // (admin/overview/overviewNotesStore.ts). Admin-only, one JSON string each.
+    match /adminPrefs/{docId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin() && (docId == "overviewBoard" || docId == "overviewNotes")
+        && request.resource.data.keys().hasOnly(["data", "updatedAt"])
+        && request.resource.data.data is string && request.resource.data.data.size() <= 200000
+        && request.resource.data.updatedAt is number;
+    }
+    // Nightly backup outcome (functions nightlyFirestoreBackup); Settings › General › Backups & export.
+    match /systemStatus/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    // Shopper-side crash reports, counted by the Functions (functions/clientErrors.js). The admin reads them in
+    // Settings › General › Tools & records › Shop errors and may clear them.
+    match /clientErrors/{errorId} {
+      allow read, delete: if isAdmin();
+      allow create, update: if false;
+    }
+    match /emailLog/{entryId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    // Inventory app link: what each website order sent to the inventory app (functions/inventoryLinkJobs.js).
+    // Server-only; the admin reads the link's summary from systemStatus/inventoryLink instead.
+    match /inventoryPushes/{orderId} {
+      allow read, write: if false;
+    }
+    match /order-operations/{orderId} {
+      allow read, write: if isAdmin();
+    }
+    match /orders/{orderId} {
+      // Guests never read orders directly: order tracking and the checkout
+      // thank-you page ask the server (createStripeCheckoutSession action
+      // "track"), which checks the customer email or emailed link key.
+      // Admins see everything; signed-in customers only their own orders.
+      allow get, list: if isAdmin()
+        // Only a verified sign-in email may list a customer's orders.
+        || (request.auth != null && request.auth.token.email_verified == true
+          && resource.data.customer.email == request.auth.token.email);
+      // Orders are always created unpaid; only verified payment handlers using
+      // the Admin SDK flip them to paid. Admins may create orders in any state
+      // (for example, manual/sample orders).
+      allow create: if isAdmin()
+        // Guests only start card/PayPal orders here. Manual-payment orders are priced and
+        // created by Functions (createManualLocalOrder), never by the browser.
+        || (request.resource.data.paymentStatus == "unpaid"
+        && request.resource.data.status == "pending_payment"
+        && request.resource.data.orderId == orderId
+        && request.resource.data.trackingKey is string
+        && request.resource.data.trackingKey.matches('^[a-f0-9]{64}$')
+        // Only checkout's own fields: no isTest, inventory/discount/refund markers or payment ids.
+        && request.resource.data.keys().hasOnly(['customer', 'cartId', 'customerId', 'referralSource', 'acquisition', 'orderNote',
+          'addressVerified', 'addressError', 'items', 'subtotal', 'discount', 'shipping', 'shippingMethod',
+          'fulfillmentSelection', 'tax', 'total', 'status', 'paymentStatus', 'paymentMethod', 'paymentInstructions',
+          'testMode', 'appliedDiscount', 'metadata', 'trackingKey', 'orderId', 'createdAt', 'updatedAt', 'activity', 'giftCards'])
+        // Gift card codes the shopper typed; the server prices and holds them (functions/giftCards.js).
+        && (!('giftCards' in request.resource.data) || (request.resource.data.giftCards is list && request.resource.data.giftCards.size() <= 5))
+        && (request.resource.data.paymentMethod == "Stripe" || request.resource.data.paymentMethod == "PayPal" || request.resource.data.paymentMethod == "Free")
+        && (!('paymentInstructions' in request.resource.data) || request.resource.data.paymentInstructions == "")
+        && request.resource.data.customer.email is string
+        && guestCustomerOk(request.resource.data.customer)
+        && guestOrderFieldsOk(request.resource.data)
+        && (!('metadata' in request.resource.data) || (request.resource.data.metadata is map
+          && request.resource.data.metadata.size() <= 4
+          && request.resource.data.metadata.get('userAgent', '') is string && request.resource.data.metadata.get('userAgent', '').size() <= 1000
+          && request.resource.data.metadata.get('platform', '') is string && request.resource.data.metadata.get('platform', '').size() <= 40))
+        && (!('referralSource' in request.resource.data) || (request.resource.data.referralSource is string && request.resource.data.referralSource.size() <= 200))
+        // How the shopper found the shop (src/app/lib/visitSource.ts), as one JSON string: a per-key check of a map
+        // pushed this rule past the rules engine's expression budget and refused every order that carried it.
+        && (!('acquisition' in request.resource.data) || (request.resource.data.acquisition is string && request.resource.data.acquisition.size() <= 2000))
+        && (!('addressError' in request.resource.data) || (request.resource.data.addressError is string && request.resource.data.addressError.size() <= 2000))
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.items.size() <= 50
+        // Per-line quantities can't be checked here (rules can't loop over a list, and an
+        // unrolled 50-line check exceeds the 1000-expression limit): priceOrder clamps every
+        // line to 1–99 copies and rebuilds the lines from the catalogue before any charge.
+        // The guest submits only a method/option ID. Functions build the
+        // priced fulfillment snapshot from current server configuration.
+        && (!('orderNote' in request.resource.data) || (request.resource.data.orderNote is string && request.resource.data.orderNote.size() <= 500)));
+      allow update: if isAdmin();
+      // Paid, refunded or shipped orders (or ones with money waiting on them) are kept
+      // for the shop's records; only unpaid/cancelled/test orders may be deleted
+      // (mirrors deleteRefusal in src/app/admin/orderListHelpers.ts).
+      allow delete: if isAdmin() && (resource.data.get('isTest', false) == true || (
+        !(resource.data.get('paymentStatus', '') in ['paid', 'refunded', 'refund_pending', 'partially_refunded'])
+        && resource.data.get('paidAt', null) == null
+        && resource.data.get('partiallyRefunded', false) != true
+        && !(resource.data.get('refundedAmountMinor', 0) > 0)
+        && !(resource.data.get('fulfillmentStatus', '') in ['shipped', 'out_for_delivery', 'delivered', 'collected'])
+        && resource.data.get('shippedAt', null) == null
+        && resource.data.get('reconciliationPending', null) == null
+        && resource.data.get('paymentMismatch', null) == null
+        && resource.data.get('giftCardConflict', null) == null
+        && resource.data.get('duplicatePayments', []).size() == 0
+        && (resource.data.get('status', '') == 'cancelled' || (
+          resource.data.get('stripePaymentIntentId', null) == null
+          && resource.data.get('stripeCheckoutSessionId', null) == null
+          && resource.data.get('paypalOrderId', null) == null))));
+    }
+    // Server-only counters for the public-endpoint rate limits (functions/rateLimit.js).
+    match /rate-limits/{id} {
+      allow read, write: if false;
+    }
+    // Server-only checkout stock holds (functions/stockHolds.js).
+    match /stock-holds/{bookId} {
+      allow read, write: if false;
+    }
+    // Server-only "this order email was sent" claims (sendOrderEmailOnce in functions/index.js).
+    match /email-claims/{claimId} {
+      allow read, write: if false;
+    }
+    // Server-only email retry queue: whole messages (gift-card codes, download links) waiting to
+    // be sent again. The admin sees a summary through sendTestEmail's emailQueue action only.
+    match /emailOutbox/{entryId} {
+      allow read, write: if false;
+    }
+    // Server-only per-shopper hold counts (email hash / address hash) for the hold caps.
+    match /stock-hold-owners/{holderId} {
+      allow read, write: if false;
+    }
+    // Server-only contact-form email throttles (functions/emailThrottle.js).
+    match /contact-email-throttle/{id} {
+      allow read, write: if false;
+    }
+    // Customer privacy requests (copy / delete my data). Created by Functions only.
+    match /marketing-optout/{id} {
+      // Written only by Functions (unsubscribe link / privacy erase); the admin reads it to see consent.
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /customerNotes/{noteId} {
+      // Private notes + tags per customer (id = sha256 of the lowercased email). Admin only.
+      allow read, delete: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(["email", "note", "tags", "updatedAt"])
+        && request.resource.data.email is string && request.resource.data.email.size() <= 254
+        && request.resource.data.note is string && request.resource.data.note.size() <= 5000
+        && request.resource.data.tags is list && request.resource.data.tags.size() <= 20
+        && request.resource.data.updatedAt is string;
+    }
+    match /privacyRequests/{requestId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if false;
+    }
+    match /theme-versions/{versionId} {
+      allow read, write: if isAdmin();
+    }
+    // Scheduled publishes and campaigns (Studio 3.5). Admin-only; the Functions scheduler (Admin SDK) runs them.
+    match /themeSchedule/{entryId} {
+      allow read, write: if isAdmin();
+    }
+    // Share previews (Studio 3.4): an unpublished design behind an unguessable token. Anyone holding the link can
+    // read that one document until it expires; nobody but the admin can list, create, change or remove them.
+    match /previewTokens/{token} {
+      allow get: if resource.data.expiresAt is timestamp && resource.data.expiresAt > request.time;
+      allow list: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(["design", "name", "createdAt", "expiresAt"])
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt <= request.time + duration.value(31, "d")
+        && token.size() >= 24 && token.size() <= 64;
+      allow delete: if isAdmin();
+    }
+    // Studio's private working copy (themes/workspace: unpublished draft + save revision)
+    // and My themes. Never public: shoppers only ever read the published settings/website.design.
+    match /themes/{themeId} {
+      allow read, write: if isAdmin();
+    }
+    match /savedThemes/{themeId} {
+      allow read, write: if isAdmin();
+    }
+    // Studio media library (2.4): image records (description, focal point, sizes, files). Admin only —
+    // the picture files are public under Storage assets/media/, and a placed picture's srcset details
+    // travel in the published design, so shoppers never read these.
+    match /media/{mediaId} {
+      allow read, write: if isAdmin();
+    }
+    match /audit-log/{logId} {
+      allow read, write: if isAdmin();
+    }
+    match /analytics/{docId} {
+      // Visitors may bump traffic/funnel counters, but order and revenue
+      // figures are written exclusively by the payment webhook (Admin SDK).
+      // Only the admin reads the daily docs (revenue, search terms): the storefront
+      // writes counters with increment() and never needs to read them back.
+      allow read: if isAdmin();
+      // Each recorded map stays small, so a forged client can't bloat the doc, and
+      // one write can't raise the visit counter by more than one.
+      // Only the maps a write changes are checked (`ch` = every field on create, the changed fields on update): a
+      // merge write carries the whole day doc, and checking a dozen unchanged maps overran the rules engine's
+      // 1,000-expression budget, which would silently refuse every counter. Unchanged maps can't have been altered.
+      function analyticsMapsOk(ch) {
+        let d = request.resource.data;
+        return (!('funnel' in ch) || (d.funnel is map && d.funnel.size() <= 4))
+          && (!('sources' in ch) || (d.sources is map && d.sources.size() <= 60))
+          && (!('devices' in ch) || (d.devices is map && d.devices.size() <= 4))
+          && (!('searches' in ch) || (d.searches is map && d.searches.size() <= 150))
+          && (!('noResults' in ch) || (d.noResults is map && d.noResults.size() <= 150))
+          && (!('bookViews' in ch) || (d.bookViews is map && d.bookViews.size() <= 300))
+          && (!('categoryViews' in ch) || (d.categoryViews is map && d.categoryViews.size() <= 100))
+          && (!('bookAdds' in ch) || (d.bookAdds is map && d.bookAdds.size() <= 300))
+          && (!('wishlistAdds' in ch) || (d.wishlistAdds is map && d.wishlistAdds.size() <= 300))
+          && (!('unbuyableViews' in ch) || (d.unbuyableViews is map && d.unbuyableViews.size() <= 300))
+          && (!('checkout' in ch) || d.checkout is map)
+          && (!('vitals' in ch) || (d.vitals is map && d.vitals.size() <= 128));
+      }
+      // Counters only ever go up by one per write, and a write can't wipe or rewrite recorded data (#111).
+      // Fixed-key maps (the funnel, device buckets, checkout steps = lib/commerce.ts CHECKOUT_STEPS) are checked key
+      // by key; maps with free keys (sources, searches, book and category views, bag/wishlist adds per book, views of
+      // books that can't be bought, page speed) may gain or raise one entry per write and never lose any.
+      function stepOk(n, o, k) {
+        return n.get(k, 0) is int && n.get(k, 0) - o.get(k, 0) >= 0 && n.get(k, 0) - o.get(k, 0) <= 1;
+      }
+      function funnelStepOk(n, o) {
+        return n.keys().hasOnly(['view', 'add_to_cart', 'checkout_start', 'purchase'])
+          && stepOk(n, o, 'view') && stepOk(n, o, 'add_to_cart') && stepOk(n, o, 'checkout_start') && stepOk(n, o, 'purchase');
+      }
+      function devicesStepOk(n, o) {
+        return n.keys().hasOnly(['mobile', 'tablet', 'desktop'])
+          && stepOk(n, o, 'mobile') && stepOk(n, o, 'tablet') && stepOk(n, o, 'desktop');
+      }
+      function checkoutStepOk(n, o) {
+        return n.keys().hasOnly(['email', 'address', 'delivery', 'pay', 'fields', 'declined', 'failed'])
+          && stepOk(n, o, 'email') && stepOk(n, o, 'address') && stepOk(n, o, 'delivery') && stepOk(n, o, 'pay')
+          && stepOk(n, o, 'fields') && stepOk(n, o, 'declined') && stepOk(n, o, 'failed');
+      }
+      function freeMapStepOk(n, o) {
+        return n is map && n.diff(o).removedKeys().size() == 0 && n.diff(o).affectedKeys().size() <= 1;
+      }
+      function analyticsStepsOk(o, ch) {
+        let d = request.resource.data;
+        return (!('funnel' in ch) || funnelStepOk(d.funnel, o.get('funnel', {})))
+          && (!('devices' in ch) || devicesStepOk(d.devices, o.get('devices', {})))
+          && (!('sources' in ch) || freeMapStepOk(d.sources, o.get('sources', {})))
+          && (!('searches' in ch) || freeMapStepOk(d.searches, o.get('searches', {})))
+          && (!('noResults' in ch) || freeMapStepOk(d.noResults, o.get('noResults', {})))
+          && (!('bookViews' in ch) || freeMapStepOk(d.bookViews, o.get('bookViews', {})))
+          && (!('categoryViews' in ch) || freeMapStepOk(d.categoryViews, o.get('categoryViews', {})))
+          && (!('bookAdds' in ch) || freeMapStepOk(d.bookAdds, o.get('bookAdds', {})))
+          && (!('wishlistAdds' in ch) || freeMapStepOk(d.wishlistAdds, o.get('wishlistAdds', {})))
+          && (!('unbuyableViews' in ch) || freeMapStepOk(d.unbuyableViews, o.get('unbuyableViews', {})))
+          && (!('checkout' in ch) || checkoutStepOk(d.checkout, o.get('checkout', {})))
+          && (!('vitals' in ch) || freeMapStepOk(d.vitals, o.get('vitals', {})));
+      }
+      // Visitors write only today's day doc (commerce.ts dayKey / publicApi.recordVisit: the
+      // id is the UTC date "YYYY-MM-DD" and `date` repeats it), within a day of the server
+      // clock, so a forged client can't fill the collection with made-up days.
+      function analyticsDayOk() {
+        return docId.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.get('date', docId) == docId
+          && request.time > timestamp.date(int(docId.split('-')[0]), int(docId.split('-')[1]), int(docId.split('-')[2])) - duration.value(1, 'd')
+          && request.time < timestamp.date(int(docId.split('-')[0]), int(docId.split('-')[1]), int(docId.split('-')[2])) + duration.value(2, 'd');
+      }
+      allow create: if isAdmin() || (
+        analyticsDayOk()
+        && request.resource.data.keys().hasOnly(['date', 'visits', 'orders', 'revenue', 'conversion', 'funnel', 'categoryViews', 'sources', 'devices', 'searches', 'noResults', 'bookViews', 'bookAdds', 'wishlistAdds', 'unbuyableViews', 'checkout', 'vitals'])
+        && (!('orders' in request.resource.data) || request.resource.data.orders == 0)
+        && (!('revenue' in request.resource.data) || request.resource.data.revenue == 0)
+        && request.resource.data.get('visits', 0) is int
+        && request.resource.data.get('visits', 0) >= 0
+        && request.resource.data.get('visits', 0) <= 1
+        && analyticsMapsOk(request.resource.data.keys())
+        && analyticsStepsOk({}, request.resource.data.keys())
+      );
+      allow update: if isAdmin() || (
+        analyticsDayOk()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['date', 'visits', 'funnel', 'categoryViews', 'sources', 'devices', 'searches', 'noResults', 'bookViews', 'bookAdds', 'wishlistAdds', 'unbuyableViews', 'checkout', 'vitals'])
+        // Visits only ever go up by one: a visitor can't reset or shrink the day's count.
+        && request.resource.data.get('visits', 0) - resource.data.get('visits', 0) <= 1
+        && request.resource.data.get('visits', 0) >= resource.data.get('visits', 0)
+        && request.resource.data.get('visits', 0) is int
+        && analyticsMapsOk(request.resource.data.diff(resource.data).affectedKeys())
+        && analyticsStepsOk(resource.data, request.resource.data.diff(resource.data).affectedKeys())
+      );
+      allow delete: if isAdmin();
+    }
+    // Gift cards (functions/giftCards.js): the admin reads them; only Functions create, spend or change them.
+    match /giftCards/{cardId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /discounts/{docId} {
+      // Public code validation happens via the validateDiscountCode function.
+      allow read, write: if isAdmin();
+    }
+    match /customers/{customerId} {
+      // Customers can read/write their own profile; admin can read all
+      allow read: if request.auth != null
+        && (request.auth.uid == customerId || isAdmin());
+      // Only the profile fields Account.tsx writes, bounded, and only the signed-in account's own
+      // email: a profile naming someone else's address would trigger the welcome email to them
+      // (onCustomerCreated also checks the Auth record's verified email).
+      allow create, update: if request.auth != null && request.auth.uid == customerId
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'name', 'phone', 'defaultAddress'])
+        && request.resource.data.get('uid', customerId) == customerId
+        && shortText(request.resource.data.get('email', ''), 254)
+        && (request.resource.data.get('email', '') == null || request.resource.data.get('email', '') == ''
+          || request.resource.data.email == request.auth.token.get('email', null))
+        && shortText(request.resource.data.get('name', ''), 200)
+        && shortText(request.resource.data.get('phone', ''), 60)
+        && (!('defaultAddress' in request.resource.data) || addressOk(request.resource.data.defaultAddress));
+      allow delete: if isAdmin();
+    }
+    match /newsletter/{docId} {
+      // Double opt-in: signups go through the createStripeCheckoutSession Function (action
+      // newsletterSignup), which stores a pending record with the consent text and mails a signed
+      // confirmation link. Browsers can no longer write here, so a stranger's address can't be
+      // added without the owner confirming. Unsubscribe deletes the row server-side.
+      allow read, create, update, delete: if isAdmin();
+    }
+    match /inventoryLog/{entryId} {
+      // Inventory › stock adjustment history: admin-only, append-only (written with the stock change).
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(["bookId", "variantId", "title", "edition", "from", "to", "delta", "reason", "note", "at", "by"])
+        && request.resource.data.bookId is string && request.resource.data.bookId.size() <= 160
+        && request.resource.data.from is int && request.resource.data.to is int && request.resource.data.delta is int
+        && request.resource.data.reason is string && request.resource.data.reason.size() <= 40
+        && shortText(request.resource.data.get("note", ""), 500);
+      allow update, delete: if false;
+    }
+    match /inventoryCosts/{bookId} {
+      // Cost prices per book (CAD). Books are public, so costs live here, admin-only.
+      allow read, write: if isAdmin();
+    }
+    match /contactMessages/{messageId} {
+      // Storefront contact form: anyone can send; only admin (and Functions) can read/change.
+      allow create: if request.resource.data.keys().hasOnly(["name", "email", "phone", "subject", "message", "page", "status", "createdAt"])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string && request.resource.data.email.size() <= 254
+        // One plain address: no commas, semicolons, spaces or angle brackets, so the shop's
+        // "message received" reply can never be addressed to a list of strangers.
+        && request.resource.data.email.matches("[^@/\\s,;<>]+@[^@/\\s,;<>]+\\.[^@/\\s,;<>]+")
+        && request.resource.data.phone is string && request.resource.data.phone.size() <= 40
+        && request.resource.data.subject is string && request.resource.data.subject.size() <= 200
+        && request.resource.data.message is string && request.resource.data.message.size() > 0 && request.resource.data.message.size() <= 5000
+        && request.resource.data.page is string && request.resource.data.page.size() <= 300
+        && request.resource.data.status == "new"
+        && request.resource.data.createdAt == request.time;
+      allow read, delete: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
+        && request.resource.data.status in ["new", "emailed", "read", "archived", "replied"];
+    }
+    match /stockAlerts/{alertId} {
+      // Shoppers can sign up for a back-in-stock email; only admin (and Functions) can read/change.
+      // One alert per address + book + edition: the id is "<email>__<bookId>__<variantId>",
+      // so repeats are refused instead of queueing hundreds of emails to one inbox.
+      allow create: if request.resource.data.keys().hasOnly(["email", "bookId", "bookTitle", "variantId", "variantName", "status", "createdAt"])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.email.matches("[^@/ ]+@[^@/ ]+\\.[^@/ ]+")
+        && request.resource.data.bookId is string
+        && request.resource.data.bookId.size() <= 160
+        && request.resource.data.get("variantId", "") is string
+        && alertId == request.resource.data.email + "__" + request.resource.data.bookId + "__" + request.resource.data.get("variantId", "")
+        && request.resource.data.get("bookTitle", "") is string
+        && request.resource.data.get("bookTitle", "").size() <= 300
+        && request.resource.data.get("variantName", "") is string
+        && request.resource.data.get("variantName", "").size() <= 120
+        && request.resource.data.status == "waiting";
+      allow read, update, delete: if isAdmin();
+    }
+    match /reviewContacts/{reviewId} {
+      // The reviewer's email for a review, readable by the admin only. A visitor may add one only
+      // together with the new pending review of the same id, in the same batch (reviews.ts create),
+      // so this collection can't be filled on its own. The admin's legacy-email move also writes here.
+      allow create: if request.resource.data.keys().hasOnly(["email", "createdAt"])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.createdAt is string
+        && request.resource.data.createdAt.size() <= 40
+        && (isAdmin() || (
+          !exists(/databases/$(database)/documents/reviews/$(reviewId))
+          && getAfter(/databases/$(database)/documents/reviews/$(reviewId)).data.status == "pending"
+          && getAfter(/databases/$(database)/documents/reviews/$(reviewId)).data.createdAt == request.resource.data.createdAt));
+      allow read, update, delete: if isAdmin();
+    }
+    match /reviews/{reviewId} {
+      // The public sees approved reviews only; pending/rejected ones are the admin's.
+      // Reviewer emails live in admin-only reviewContacts, never on the public review.
+      allow read: if isAdmin() || resource.data.status == "approved";
+      // Anyone can submit a review (lands "pending"); no reply, no email, no extra fields.
+      allow create: if request.resource.data.status == "pending"
+        && request.resource.data.keys().hasOnly(["bookId", "authorName", "rating", "title", "body", "status", "createdAt"])
+        && request.resource.data.get("authorName", "") is string
+        && request.resource.data.get("authorName", "").size() <= 80
+        && request.resource.data.get("title", "") is string
+        && request.resource.data.get("title", "").size() <= 200
+        && request.resource.data.createdAt is string
+        && request.resource.data.createdAt.size() <= 40
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.bookId is string
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 4000;
+      allow update, delete: if isAdmin();
+    }
+    match /abandoned-carts/{cartId} {
+      // Anyone can retrieve their own cart by its secure token; only admin can query/list all carts
+      allow get: if true;
+      // Browsers may only write the cart fields the storefront sends. Server-owned
+      // fields (notified, notifiedAt) are off limits, and a recovered cart can't be
+      // reopened, so a forged doc can't re-trigger the reminder email.
+      allow create: if cartFieldsValid()
+        && request.resource.data.keys().hasOnly(cartClientKeys())
+        && request.resource.data.get("recovered", false) == false;
+      allow update: if cartFieldsValid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(cartClientKeys())
+        && (resource.data.get("recovered", false) == false || request.resource.data.get("recovered", false) == true);
+      allow list, delete: if isAdmin();
+    }
+    function cartClientKeys() {
+      return ["email", "items", "subtotal", "customer", "cartKey", "recovered", "recoveredAt", "updatedAt", "createdAt"];
+    }
+    function cartFieldsValid() {
+      return request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && (!("items" in request.resource.data) || (request.resource.data.items is list && request.resource.data.items.size() <= 50));
+    }
+  }
+}

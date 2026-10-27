@@ -3,6 +3,8 @@ on:
   pull_request:
   push:
     branches: [main]
+
+# Checks only. Nothing here deploys, and no job has keys for a live shop.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -12,3 +14,49 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+
+  # The platform's copy of the shop (apps/shop), with the same checks its original repo runs before merging.
+  shop:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/shop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/shop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: npm ci
+        working-directory: apps/shop/functions
+      - name: Cloud Functions load like the deploy
+        working-directory: apps/shop/functions
+        run: node -e "const n = Object.keys(require('./index.js')).length; if (!n) throw new Error('functions/index.js exports no functions'); console.log(n + ' functions load')"
+      - run: pnpm test
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: npx vite build
+
+  # The platform's copy of the stockroom (apps/stockroom).
+  stockroom:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/stockroom
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/stockroom/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
