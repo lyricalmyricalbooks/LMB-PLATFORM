@@ -16,3 +16,6 @@ The platform that creates and runs one Firebase copy per press shop. The shop an
 
 - Run `npm test` before pushing.
 - After a change, end the reply with a "Next moves" list written for the shop owner, in plain words, same format as the shop repo's CLAUDE.md.
+- **Merge your own PRs automatically (owner's instruction, 27 October 2026).** Open PRs ready for review, wait for every
+  check to pass, then merge (merge commit, pinned to the head SHA) when GitHub reports no conflict. Never merge with a
+  red, pending or missing check: fix it first.
