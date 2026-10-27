@@ -96,7 +96,7 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 // Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-const ADMIN_EMAILS = ["owner@example.com"];
+const { adminRole, syncMemberRole } = require("./roles");
 
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
@@ -161,7 +161,7 @@ async function requireAdmin(req, res) {
   }
   try {
     const decoded = await admin.auth().verifyIdToken(match[1]);
-    if (!ADMIN_EMAILS.includes(decoded.email) || decoded.email_verified !== true) {
+    if (!adminRole(decoded)) {
       res.status(403).json({ error: "Admin access required" });
       return null;
     }
@@ -171,6 +171,35 @@ async function requireAdmin(req, res) {
     return null;
   }
 }
+
+// Team (functions/roles.js). Adding, changing or removing someone in Settings › Team updates their sign-in pass at once.
+exports.syncMemberRole = onDocumentWritten("members/{email}", async event => {
+  await syncMemberRole({ auth: admin.auth(), db, email: event.params.email });
+});
+
+// The admin calls this right after Google sign-in: someone added before they ever signed in gets their role now.
+exports.refreshMyRole = onBrowserRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+  const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+  let decoded;
+  try {
+    decoded = match && await admin.auth().verifyIdToken(match[1]);
+  } catch { decoded = null; }
+  if (!decoded) {
+    res.status(401).json({ error: "Sign in first." });
+    return;
+  }
+  if (decoded.email_verified !== true) {
+    res.json({ role: null });
+    return;
+  }
+  const result = await syncMemberRole({ auth: admin.auth(), db, email: decoded.email });
+  res.json({ role: adminRole(decoded) === "owner" ? "owner" : result.role ?? null, changed: result.status === "updated" });
+});
 
 exports.deleteTestOrders = onBrowserRequest(async (req, res) => {
   if (applyCors(req, res)) return;

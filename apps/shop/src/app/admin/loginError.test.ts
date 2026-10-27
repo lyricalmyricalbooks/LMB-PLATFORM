@@ -12,7 +12,7 @@ describe("loginErrorMessage", () => {
   it("says what to do for the common cases", () => {
     expect(loginErrorMessage({ code: "auth/popup-blocked" })).toMatch(/Allow pop-ups/);
     expect(loginErrorMessage({ code: "auth/popup-closed-by-user" })).toMatch(/try again/);
-    expect(loginErrorMessage(new Error("Unauthorized: Access restricted to owner@example.com"))).toMatch(/shop's own Google account/);
+    expect(loginErrorMessage(new Error("Unauthorized: this account is not on the shop's Team list"))).toMatch(/shop's own Google account/);
     expect(loginErrorMessage(undefined)).toBe("Couldn't sign in. Please try again in a moment.");
   });
 });

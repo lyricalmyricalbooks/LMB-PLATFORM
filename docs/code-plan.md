@@ -40,9 +40,9 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
-| 1.6 | shop | `members` list and `functions/roles.js`, which copies each member's role onto their sign-in pass; your email stays owner | function tests | |
-| 1.7 | shop | Rules check the role on the pass, with your email kept as a fallback for one release | rules emulator tests: owner, staff, stranger | |
-| 1.8 | shop | Admin sign-in checks the role, not one address (`src/app/admin/api.ts`) | admin tests | |
+| 1.6 | shop | `members` list and `functions/roles.js`, which copies each member's role onto their sign-in pass; the owner address stays owner | function tests | done |
+| 1.7 | shop | Rules check the role on the pass (owner, staff); the Team and secret keys are owner-only | rules emulator tests: owner, staff, stranger (CI job `shop-rules`) | done |
+| 1.8 | shop | Admin sign-in checks the role, not one address (`src/app/admin/api.ts`), and Settings › Team manages the list | admin tests | done |
 | 1.9 | stockroom | The three rule files check the role; per-book author access becomes the author role | rules tests | |
 | 1.10 | shop, stockroom | Remove the email fallback after one week on the live shop with no lock-outs | rules tests | |
 

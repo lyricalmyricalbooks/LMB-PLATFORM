@@ -11,9 +11,9 @@ describe("admin navigation", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("keeps nested Settings navigation (general, shipping, payments, taxes, design, notifications, email sender)", () => {
+  it("keeps nested Settings navigation (general, shipping, payments, taxes, design, notifications, email sender, team)", () => {
     const settings = NAV.find((n) => n.id === "settings");
-    expect(settings?.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "designer", "notifications"]);
+    expect(settings?.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "designer", "notifications", "team"]);
     // Notifications and Email sender are one page, listed once as "Email sender".
     expect(settings?.children?.find((c) => c.id === "notifications")?.label).toBe("Email sender");
   });

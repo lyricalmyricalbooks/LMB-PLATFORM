@@ -64,6 +64,7 @@ import {
 } from "firebase/auth";
 import { db, auth, googleProvider } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
+import { currentAdminRole, refreshAdminRole } from "./adminAccess";
 import { publicApi } from "../lib/publicApi";
 import { defaultSettings } from "./defaultSettings";
 // Storage + the legacy Realtime Database are admin-only and heavy; they are
@@ -108,10 +109,11 @@ export const adminApi = {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
-      // Restrict to authorized email
-      if (user.email !== "owner@example.com") {
+      // Only the owner and the people on the owner's Team list (adminAccess.ts) may open the admin.
+      const role = await refreshAdminRole(user, token => functionFetch("refreshMyRole", { method: "POST", headers: { Authorization: `Bearer ${token}` } }));
+      if (!role) {
         await signOut(auth);
-        throw new Error("Unauthorized: Access restricted to owner@example.com");
+        throw new Error("Unauthorized: this account is not on the shop's Team list");
       }
 
       // Also sign into legacy inventory project using the same Google credential
@@ -159,7 +161,7 @@ export const adminApi = {
   },
 
   updateCategoryBooks: async (ids: string[], source: any, action: CategoryAction, target?: any) => {
-    if (auth.currentUser?.email !== "owner@example.com") throw new Error("Admin sign-in is required.");
+    if (!await currentAdminRole(auth.currentUser)) throw new Error("Admin sign-in is required.");
     const unique = [...new Set(ids)];
     if (unique.length > 400) throw new Error("More than 400 books are assigned here. Use Edit → Assigned here to move or remove up to 400 at a time, then retry deletion. No books were changed.");
     if (!source?.name || (action === "move" && (!target?.name || target.id === source.id))) throw new Error("Choose a different destination category.");
@@ -702,7 +704,7 @@ export const adminApi = {
   },
 
   updateLocalFulfillment: async (config: LocalFulfillmentConfig) => {
-    if (auth.currentUser?.email !== "owner@example.com" || !auth.currentUser.emailVerified) throw new Error("Unauthorized local fulfillment update.");
+    if (!await currentAdminRole(auth.currentUser)) throw new Error("Unauthorized local fulfillment update.");
     const errors = validateLocalFulfillment(config);
     if (errors.length) throw new Error(errors.join(" "));
     await setDoc(doc(db, "settings", "website"), { localFulfillment: JSON.parse(JSON.stringify(config)) }, { mergeFields: ["localFulfillment"] });

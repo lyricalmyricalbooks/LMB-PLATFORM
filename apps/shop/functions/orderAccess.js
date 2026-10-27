@@ -1,5 +1,6 @@
 // Order IDs and email addresses are identifiers, not authentication secrets.
 const crypto = require("crypto");
+const { adminRole } = require("./roles");
 const normEmail = v => String(v || "").trim().toLowerCase();
 function sameSecret(a, b) {
   if (typeof a !== "string" || typeof b !== "string" || !a || a.length > 256) return false;
@@ -11,7 +12,7 @@ function canViewOrder(order, { key, identity } = {}) {
   if (sameSecret(key, order.trackingKey)) return true;
   if (identity?.email_verified !== true) return false;
   const email = normEmail(identity.email);
-  return !!email && (email === normEmail(order.customer?.email) || email === "owner@example.com");
+  return !!email && (email === normEmail(order.customer?.email) || !!adminRole(identity));
 }
 const PUBLIC_FIELDS = ["preorderReleasedAt", "orderId", "createdAt", "updatedAt", "status", "paymentStatus", "fulfillmentStatus",
   "paidAt", "shippedAt", "deliveredAt", "readyForPickupAt", "collectedAt", "readyForDeliveryAt", "outForDeliveryAt",

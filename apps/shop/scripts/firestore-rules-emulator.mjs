@@ -7,7 +7,7 @@
 // refused every guest order, which the text checks in src/app/securityRules.test.ts can't see.
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
 import { readFileSync } from "node:fs";
-import { doc, setDoc, getDoc, getDocs, collection, collectionGroup, query, where, orderBy, documentId, writeBatch, increment, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, collectionGroup, query, where, orderBy, documentId, writeBatch, increment, serverTimestamp } from "firebase/firestore";
 
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080").split(":");
 const rulesPath = process.env.RULES_FILE || new URL("../firestore.rules", import.meta.url);
@@ -261,6 +261,31 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
 // clientErrors: written only by the Functions; shoppers can neither add nor read crash reports
 await check("anon can't write a crash report", assertFails(setDoc(doc(anon, "clientErrors/x"), { message: "fake", count: 1 })));
 await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clientErrors/x"))));
+
+// Team roles (functions/roles.js): the owner address or a role on the pass opens the admin; only owners manage the Team
+{
+  const owner = env.authenticatedContext("o1", { email: "owner@example.com", email_verified: true }).firestore();
+  const ownerRole = env.authenticatedContext("o2", { email: "co@press.test", email_verified: true, role: "owner" }).firestore();
+  const staff = env.authenticatedContext("s1", { email: "sam@press.test", email_verified: true, role: "staff" }).firestore();
+  const unverifiedStaff = env.authenticatedContext("s2", { email: "kim@press.test", email_verified: false, role: "staff" }).firestore();
+  const stranger = env.authenticatedContext("r1", { email: "reader@press.test", email_verified: true, role: "boss" }).firestore();
+  await check("staff reads a draft book", assertSucceeds(getDoc(doc(staff, "books/draft"))));
+  await check("unverified staff can't", assertFails(getDoc(doc(unverifiedStaff, "books/draft"))));
+  await check("unknown role can't", assertFails(getDoc(doc(stranger, "books/draft"))));
+  await check("owner adds staff", assertSucceeds(setDoc(doc(owner, "members/sam@press.test"), { role: "staff", addedBy: "owner@example.com" })));
+  await check("owner role adds staff", assertSucceeds(setDoc(doc(ownerRole, "members/lee@press.test"), { role: "staff" })));
+  await check("owner reads the Team", assertSucceeds(getDocs(collection(owner, "members"))));
+  await check("staff can't read the Team", assertFails(getDocs(collection(staff, "members"))));
+  await check("staff can't promote themselves", assertFails(setDoc(doc(staff, "members/sam@press.test"), { role: "owner" })));
+  await check("Team role must be known", assertFails(setDoc(doc(owner, "members/x@press.test"), { role: "boss" })));
+  await check("Team id is lower case", assertFails(setDoc(doc(owner, "members/X@press.test"), { role: "staff" })));
+  await check("no Team entry for the owner address", assertFails(setDoc(doc(owner, "members/owner@example.com"), { role: "staff" })));
+  await check("owner removes someone", assertSucceeds(deleteDoc(doc(owner, "members/lee@press.test"))));
+  await check("staff can't write keys", assertFails(setDoc(doc(staff, "adminSecrets/stripe"), { secretKey: "x" })));
+  await check("staff can't read keys", assertFails(getDoc(doc(staff, "adminSecrets/stripe"))));
+  await check("staff reads webhook status", assertSucceeds(getDoc(doc(staff, "adminSecrets/stripeWebhookStatus"))));
+  await check("owner writes keys", assertSucceeds(setDoc(doc(owner, "adminSecrets/stripe"), { secretKey: "x" })));
+}
 
 await env.cleanup();
 console.log(failures ? `${failures} FAILED` : "ALL OK");
