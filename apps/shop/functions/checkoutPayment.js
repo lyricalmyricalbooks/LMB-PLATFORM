@@ -2,16 +2,16 @@
 // local order, the one-click marketing unsubscribe, a $0 order completed without a card, and creating the Stripe
 // Checkout Session or PaymentIntent for an order. Every total is priced here on the server from the catalog; nothing
 // marks a card order paid (only stripeWebhook does). Moved out of index.js as is (functions/CLAUDE.md › Cloud Functions
-// › Action table): index.js passes in its own db, Stripe wrapper, pricing and stock helpers, so the vm-based handler
-// tests' fakes still apply.
+// › Action table): index.js passes in its own db, payments module (functions/payments), pricing and stock helpers, so
+// the vm-based handler tests' fakes still apply.
 
 function checkoutPaymentActions({
   ALLOWED_ORIGINS, canViewOrder, checkoutCurrencyOf, checkoutRefusal, clientIpOf, completeOrderWithoutCard,
   crypto, db, encodeAcquisition, FALLBACK_RATES, getCountryCode, getExchangeRates, GiftCardError, holdOwner,
   loadHoldLimits, normMarketingEmail, optOutId, orderRequestIdentity, orderRequestKey, priceOrder,
   PricingError, publicErrorMessage, readAdminSecret, recalculateOrder, refusePreviousAttemptPaid, releaseStock,
-  releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, Stripe,
-  STRIPE_SECRET_KEY, stripeIntentKey, tokenMatches, withPrivateStripeKeys,
+  releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, payments,
+  stripeIntentKey, tokenMatches,
 }) {
   // A manual payment method (Settings › Payments › Manual methods) for pickup, local delivery, shipped or e-book
   // orders: priced from the catalog, stock held, and the order created pending until the shop marks it paid.
@@ -190,20 +190,9 @@ function checkoutPaymentActions({
       const shippingCountryCode = getCountryCode((fulfillment?.method === 'pickup' ? fulfillment.address : order.customer?.address)?.country || order.customer?.billingAddress?.country || '');
       const ipCountryMatchesShipping = !ipCountry || ipCountry.toUpperCase() === shippingCountryCode.toUpperCase();
       const testMode = settings.payments?.testMode || false;
-      const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
 
-      // 5. Stripe checkout parameters
-      const stripeSecret = testMode 
-        ? stripeSettings.testSecretKey 
-        : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
-
-      if (!stripeSecret) {
-        throw new Error(testMode 
-          ? "Stripe Test Secret Key is not configured in settings." 
-          : "Stripe Secret Key is not configured.");
-      }
-
-      const stripe = new Stripe(stripeSecret);
+      // 5. Stripe checkout parameters: the shop's key for its current mode (functions/payments; throws without one).
+      const card = await payments.forCheckout(settings);
       // The discount is spread over the discountable lines; gift cards are always face value.
       const discountableSubtotal = items.filter(item => item.giftCard !== true).reduce((sum, item) => sum + item.price * item.quantity, 0);
       const discountFactor = discountableSubtotal > 0 ? (discountableSubtotal - discountAmount) / discountableSubtotal : 1;
@@ -275,19 +264,9 @@ function checkoutPaymentActions({
       if (paymentElement) {
         if (order.stripePaymentIntentId) {
           try {
-            const previous = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
-            if (["succeeded", "processing", "requires_capture"].includes(previous.status)) {
+            if (await card.settlePreviousIntent(order.stripePaymentIntentId) === "in_progress") {
               res.status(409).json({ error: "This order already has a payment in progress. Check your order status before paying again.", code: "payment_in_progress" });
               return;
-            }
-            if (["requires_payment_method", "requires_confirmation", "requires_action"].includes(previous.status)) {
-              try {
-                await stripe.paymentIntents.cancel(previous.id);
-              } catch (cancelErr) {
-                // A simultaneous request may have cancelled it first; only a still-live intent blocks a new one.
-                const again = await stripe.paymentIntents.retrieve(previous.id);
-                if (again.status !== "canceled") throw cancelErr;
-              }
             }
           } catch (err) {
             // Unsure whether the earlier payment is still live: never open a second one beside it.
@@ -339,15 +318,10 @@ function checkoutPaymentActions({
       // total through a PaymentIntent instead of a Checkout Session.
       if (paymentElement) {
         const amount = chargeMinor;
-        const intent = await stripe.paymentIntents.create({
-          amount,
-          currency: checkoutCurrency,
-          automatic_payment_methods: { enabled: true },
-          // No receipt_email: the shop's own "Order confirmed" email is the customer's
-          // one confirmation (Stripe's receipt duplicated it).
-          description: `Order ${orderId}`,
-          metadata: { order_id: orderId, checkout: "payment_element" },
-        }, { idempotencyKey: stripeIntentKey(orderId, amount, checkoutCurrency, order.stripePaymentIntentId) });
+        const intent = await card.createCardIntent({
+          amount, currency: checkoutCurrency, orderId,
+          idempotencyKey: stripeIntentKey(orderId, amount, checkoutCurrency, order.stripePaymentIntentId),
+        });
         // The webhook marks the order paid only for exactly this amount and currency.
         await orderRef.update({ stripePaymentIntentId: intent.id, expectedAmountMinor: amount, expectedCurrency: checkoutCurrency, chargedGiftCards: giftCardRedemptions, updatedAt: new Date().toISOString() });
         // stripeMode lets the browser check its card form uses the same Stripe mode.
@@ -376,7 +350,7 @@ function checkoutPaymentActions({
       // Same order, amount and minute = the same session (a double click can't open two).
       const sessionAmount = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0);
       const sessionMinute = Math.floor(Date.now() / 60000);
-      const session = await stripe.checkout.sessions.create({
+      const session = await card.createCheckoutSession({
         line_items: lineItems,
         mode: "payment",
         client_reference_id: orderId,

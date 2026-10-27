@@ -263,7 +263,7 @@ async function readAdminSecret(id) {
 // Every Stripe client made with the shop's own key comes from functions/payments (code plan 1.11). These names stay
 // as before for the many callers (and for the handler tests that swap one out).
 const payments = createPayments({ db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret });
-const { withPrivateStripeKeys, getStripeClientForMode, stripeSecretFor, shopTestMode, readStripeKeys } = payments;
+const { getStripeClientForMode, shopTestMode, readStripeKeys } = payments;
 
 // Asks Stripe (test and live accounts, the order's own mode first) for one of the
 // order's saved payments. Returns { intent | session, mode } or null when no account knows it.
@@ -1666,7 +1666,7 @@ exports.paypalWebhook = onRequest(
 );
 
 const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, handleWebhookHealth, handleRegisterPaymentDomain } = checkoutAdminActions({
-  db, Stripe, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, shopTestMode, stripeSecretFor, withPrivateStripeKeys, inventoryLinkDeps,
+  db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, inventoryLinkDeps,
 });
 
 // Handler tests replace sendEmail after loading index.js; this keeps the moved handlers on the current one.
@@ -1717,8 +1717,8 @@ const { handleManualLocalOrder, handleUnsubscribe, handleCompleteFreeOrder, hand
   crypto, db, encodeAcquisition, FALLBACK_RATES, getCountryCode, getExchangeRates, GiftCardError, holdOwner,
   loadHoldLimits, normMarketingEmail, optOutId, orderRequestIdentity, orderRequestKey, priceOrder,
   PricingError, publicErrorMessage, readAdminSecret, recalculateOrder, refusePreviousAttemptPaid, releaseStock,
-  releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, Stripe,
-  STRIPE_SECRET_KEY, stripeIntentKey, tokenMatches, withPrivateStripeKeys,
+  releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, payments,
+  stripeIntentKey, tokenMatches,
 });
 
 // ──────────────────────────────────────────────────────────────

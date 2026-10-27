@@ -237,10 +237,152 @@ describe("webhook", () => {
   });
 });
 
+// A Stripe whose every method records its call and answers from `answers[name]` (a value or a function of the args).
+function recordingStripe(answers = {}) {
+  const made = [];
+  const calls = [];
+  const resource = (prefix) => new Proxy({}, { get: (_, method) => async (...args) => {
+    const name = `${prefix}.${String(method)}`;
+    calls.push({ name, args });
+    const answer = answers[name];
+    return typeof answer === "function" ? answer(...args) : answer;
+  } });
+  class Stripe {
+    constructor(key, opts) {
+      made.push({ key, opts });
+      this.paymentIntents = resource("paymentIntents");
+      this.checkout = { sessions: resource("checkout.sessions") };
+      this.accounts = resource("accounts");
+      this.balance = resource("balance");
+      this.webhookEndpoints = resource("webhookEndpoints");
+      this.paymentMethodDomains = resource("paymentMethodDomains");
+    }
+  }
+  return { Stripe, made, calls };
+}
+
+function makeWith(answers, { website = null, stripeSecret = null, liveSecret = "sk_live_deployed" } = {}) {
+  const db = fakeDb({ website, stripeSecret });
+  const stripe = recordingStripe(answers);
+  const readAdminSecret = async (id) => {
+    const snap = await db.collection("adminSecrets").doc(id).get();
+    return snap.exists ? snap.data() || {} : {};
+  };
+  const liveSecretKey = { value: () => { if (liveSecret instanceof Error) throw liveSecret; return liveSecret; } };
+  return { ...stripe, payments: createPayments({ db, Stripe: stripe.Stripe, liveSecretKey, readAdminSecret }) };
+}
+
+describe("checkout (plan 1.12)", () => {
+  test("uses the key for the shop's current mode, and refuses with the shopper-safe message when there is none", async () => {
+    const live = makeWith({}, { stripeSecret: { secretKey: "sk_live_private" } });
+    await live.payments.forCheckout({ payments: { testMode: false } });
+    expect(live.made).toEqual([{ key: "sk_live_private", opts: undefined }]);
+    const deployed = makeWith({});
+    await deployed.payments.forCheckout({});
+    expect(deployed.made[0].key).toBe("sk_live_deployed");
+    const test = makeWith({}, { stripeSecret: { testSecretKey: "sk_test_private" } });
+    await test.payments.forCheckout({ payments: { testMode: true, stripe: { testSecretKey: "sk_test_public" } } });
+    expect(test.made[0].key).toBe("sk_test_private");
+    await expect(makeWith({}).payments.forCheckout({ payments: { testMode: true } })).rejects.toThrow("Stripe Test Secret Key is not configured in settings.");
+    await expect(makeWith({}, { liveSecret: "" }).payments.forCheckout({})).rejects.toThrow("Stripe Secret Key is not configured.");
+  });
+
+  test("an earlier payment that took (or may be taking) the money blocks a new one", async () => {
+    for (const status of ["succeeded", "processing", "requires_capture"]) {
+      const app = makeWith({ "paymentIntents.retrieve": { id: "pi_1", status } });
+      expect(await (await app.payments.forCheckout({})).settlePreviousIntent("pi_1")).toBe("in_progress");
+      expect(app.calls.map(c => c.name)).toEqual(["paymentIntents.retrieve"]);
+    }
+  });
+
+  test("an unfinished earlier payment is cancelled; a finished-without-paying one is left alone", async () => {
+    const open = makeWith({ "paymentIntents.retrieve": { id: "pi_1", status: "requires_action" }, "paymentIntents.cancel": {} });
+    expect(await (await open.payments.forCheckout({})).settlePreviousIntent("pi_1")).toBe("cleared");
+    expect(open.calls.map(c => [c.name, c.args[0]])).toEqual([["paymentIntents.retrieve", "pi_1"], ["paymentIntents.cancel", "pi_1"]]);
+    const cancelled = makeWith({ "paymentIntents.retrieve": { id: "pi_1", status: "canceled" } });
+    expect(await (await cancelled.payments.forCheckout({})).settlePreviousIntent("pi_1")).toBe("cleared");
+    expect(cancelled.calls.map(c => c.name)).toEqual(["paymentIntents.retrieve"]);
+  });
+
+  test("a failed cancel is fine only when a simultaneous request already cancelled it", async () => {
+    let reads = 0;
+    const raced = makeWith({
+      "paymentIntents.retrieve": () => ({ id: "pi_1", status: reads++ ? "canceled" : "requires_payment_method" }),
+      "paymentIntents.cancel": () => { throw new Error("already cancelled"); },
+    });
+    expect(await (await raced.payments.forCheckout({})).settlePreviousIntent("pi_1")).toBe("cleared");
+    const live = makeWith({
+      "paymentIntents.retrieve": { id: "pi_1", status: "requires_payment_method" },
+      "paymentIntents.cancel": () => { throw new Error("network"); },
+    });
+    await expect((await live.payments.forCheckout({})).settlePreviousIntent("pi_1")).rejects.toThrow("network");
+  });
+
+  test("the card-form intent and the Checkout Session carry exactly what checkout priced", async () => {
+    const app = makeWith({ "paymentIntents.create": { id: "pi_new" }, "checkout.sessions.create": { id: "cs_new" } });
+    const card = await app.payments.forCheckout({});
+    expect(await card.createCardIntent({ amount: 4250, currency: "cad", orderId: "o1", idempotencyKey: "pi-key" })).toEqual({ id: "pi_new" });
+    expect(app.calls[0].args).toEqual([{
+      amount: 4250, currency: "cad", automatic_payment_methods: { enabled: true }, description: "Order o1",
+      metadata: { order_id: "o1", checkout: "payment_element" },
+    }, { idempotencyKey: "pi-key" }]);
+    const params = { mode: "payment", client_reference_id: "o1" };
+    expect(await card.createCheckoutSession(params, { idempotencyKey: "cs-key" })).toEqual({ id: "cs_new" });
+    expect(app.calls[1].args).toEqual([params, { idempotencyKey: "cs-key" }]);
+  });
+});
+
+describe("admin: key test, webhook setup, wallet domains (plan 1.12)", () => {
+  test("deployedLiveKey never throws", () => {
+    expect(makeWith({}).payments.deployedLiveKey()).toBe("sk_live_deployed");
+    expect(makeWith({}, { liveSecret: new Error("not set") }).payments.deployedLiveKey()).toBe("");
+  });
+
+  test("checkKey names the account, falls back to a balance read, and reports a rejected key", async () => {
+    const named = makeWith({ "accounts.retrieve": { id: "acct_1", settings: { dashboard: { display_name: "Press" } }, charges_enabled: true } });
+    expect(await named.payments.checkKey("sk_test_1")).toEqual({ ok: true, accountId: "acct_1", accountName: "Press", chargesEnabled: true });
+    const restricted = makeWith({ "accounts.retrieve": () => { throw new Error("no permission"); }, "balance.retrieve": {} });
+    expect(await restricted.payments.checkKey("rk_live_1")).toEqual({ ok: true, accountId: null });
+    const rejected = makeWith({ "accounts.retrieve": () => { throw new Error("first"); }, "balance.retrieve": () => { throw new Error("Invalid API Key"); } });
+    expect(await rejected.payments.checkKey("sk_live_bad")).toEqual({ ok: false, error: "Invalid API Key" });
+    expect(rejected.made.map(m => m.key)).toEqual(["sk_live_bad", "sk_live_bad"]);
+  });
+
+  test("webhook endpoints of the current mode's account; none without a key", async () => {
+    const app = makeWith({ "webhookEndpoints.list": { data: [] }, "webhookEndpoints.create": { id: "we_1" } },
+      { website: { payments: { testMode: true } }, stripeSecret: { testSecretKey: "sk_test_1" } });
+    const { mode, endpoints } = await app.payments.webhookEndpoints();
+    expect(mode).toBe("test");
+    expect(app.made[0].key).toBe("sk_test_1");
+    await endpoints.list();
+    await endpoints.remove("we_0");
+    await endpoints.create({ url: "u" });
+    await endpoints.update("we_1", { disabled: false });
+    expect(app.calls.map(c => [c.name, ...c.args])).toEqual([
+      ["webhookEndpoints.list", { limit: 100 }], ["webhookEndpoints.del", "we_0"],
+      ["webhookEndpoints.create", { url: "u" }], ["webhookEndpoints.update", "we_1", { disabled: false }],
+    ]);
+    expect(await makeWith({}, { website: { payments: { testMode: true } } }).payments.webhookEndpoints()).toEqual({ mode: "test", endpoints: null });
+  });
+
+  test("a wallet domain is created once, then re-validated", async () => {
+    const fresh = makeWith({ "paymentMethodDomains.list": { data: [] }, "paymentMethodDomains.create": { id: "pmd_1", apple_pay: { status: "active" } } });
+    expect(await fresh.payments.registerPaymentDomain("shop.example")).toEqual({ id: "pmd_1", apple_pay: { status: "active" } });
+    expect(fresh.calls.map(c => [c.name, c.args[0]])).toEqual([
+      ["paymentMethodDomains.list", { domain_name: "shop.example", limit: 1 }],
+      ["paymentMethodDomains.create", { domain_name: "shop.example", enabled: true }],
+    ]);
+    const known = makeWith({ "paymentMethodDomains.list": { data: [{ id: "pmd_1" }] }, "paymentMethodDomains.validate": { id: "pmd_1" } });
+    await known.payments.registerPaymentDomain("shop.example");
+    expect(known.calls.map(c => [c.name, c.args[0]])).toEqual([["paymentMethodDomains.list", { domain_name: "shop.example", limit: 1 }], ["paymentMethodDomains.validate", "pmd_1"]]);
+    await expect(makeWith({}, { website: { payments: { testMode: true } } }).payments.registerPaymentDomain("shop.example")).rejects.toThrow("Stripe is not configured.");
+  });
+});
+
 describe("one door", () => {
-  // Every other file reaches Stripe through this module. The two checkout files move in plan 1.12.
-  const STILL_TO_MOVE = ["checkoutAdmin.js", "checkoutPayment.js"];
-  test("no other functions file makes a Stripe client, refunds or verifies a webhook itself", async () => {
+  // Every other file reaches Stripe through this module (index.js, orderRequests.js, checkoutPayment.js, checkoutAdmin.js).
+  const STILL_TO_MOVE = [];
+  test("no other functions file makes a Stripe client, takes or refunds a payment, or sets up the webhook itself", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const dir = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -248,7 +390,7 @@ describe("one door", () => {
       .filter(f => f.endsWith(".js") && !f.includes(".test.") && !STILL_TO_MOVE.includes(f))
       .filter(f => {
         const text = fs.readFileSync(path.join(dir, f), "utf8").replace(/^\s*\/\/.*$/gm, "");
-        return /new Stripe\(|\.refunds\.create\(|\.webhooks\.constructEvent\(/.test(text);
+        return /new Stripe\(|\.refunds\.create\(|\.webhooks\.constructEvent\(|\.paymentIntents\.create\(|\.sessions\.create\(|\.webhookEndpoints\.|\.paymentMethodDomains\./.test(text);
       });
     expect(offenders).toEqual([]);
   });

@@ -1,12 +1,12 @@
 // Admin actions of createStripeCheckoutSession: Stripe key test, Stripe webhook health and repair, Apple Pay / Google Pay
 // domain registration, gift card changes and the inventory app link. Every one is admin-only (requireAdmin first) and
 // none creates or marks a payment. Moved out of index.js as is (functions/CLAUDE.md › Cloud Functions › Action table):
-// index.js passes in its own db, Stripe wrapper, secrets and guards, so the vm-based handler tests' fakes still apply.
+// index.js passes in its own db, payments module (functions/payments), secrets and guards, so the vm-based handler tests' fakes still apply.
 
 function checkoutAdminActions({
-  db, Stripe, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS,
+  db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS,
   webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret,
-  readBody, requireAdmin, shopTestMode, stripeSecretFor, withPrivateStripeKeys, inventoryLinkDeps,
+  readBody, requireAdmin, inventoryLinkDeps,
 }) {
   // Admin: "Test connection" — does each saved Stripe secret key work, which Stripe
   // account and mode is it, and do the publishable keys match their mode?
@@ -21,7 +21,7 @@ function checkoutAdminActions({
       for (const mode of ["live", "test"]) {
         const stored = mode === "live" ? priv.secretKey : priv.testSecretKey;
         let fallback = "";
-        if (mode === "live" && !stored) { try { fallback = STRIPE_SECRET_KEY.value() || ""; } catch { fallback = ""; } }
+        if (mode === "live" && !stored) fallback = payments.deployedLiveKey();
         const key = stored || fallback;
         const publishable = String((mode === "live" ? stripeSettings.publicKey : stripeSettings.testPublicKey) || "").trim();
         const r = {
@@ -30,14 +30,7 @@ function checkoutAdminActions({
         };
         if (key) {
           r.keyMode = /_live_/.test(key) ? "live" : /_test_/.test(key) ? "test" : "unknown";
-          try {
-            const account = await new Stripe(key).accounts.retrieve();
-            Object.assign(r, { ok: true, accountId: account.id, accountName: account.settings?.dashboard?.display_name || account.business_profile?.name || null, chargesEnabled: account.charges_enabled !== false });
-          } catch (err) {
-            // Restricted keys may not read the account: a balance read still proves the key works.
-            try { await new Stripe(key).balance.retrieve(); Object.assign(r, { ok: true, accountId: null }); }
-            catch (err2) { Object.assign(r, { ok: false, error: err2?.message || err?.message || "Stripe rejected the key." }); }
-          }
+          Object.assign(r, await payments.checkKey(key));
         }
         results[mode] = r;
       }
@@ -180,24 +173,21 @@ function checkoutAdminActions({
   async function handleWebhookHealth(req, res) {
     if (!await requireAdmin(req, res)) return;
     try {
-      const testMode = await shopTestMode();
-      const mode = testMode ? "test" : "live";
-      const secret = await stripeSecretFor(mode);
-      if (!secret) { res.status(400).json({ error: `Add your Stripe ${mode} secret key first.` }); return; }
-      const stripe = new Stripe(secret);
-      const listed = await stripe.webhookEndpoints.list({ limit: 100 });
+      const { mode, endpoints } = await payments.webhookEndpoints();
+      if (!endpoints) { res.status(400).json({ error: `Add your Stripe ${mode} secret key first.` }); return; }
+      const listed = await endpoints.list();
       let report = webhookEndpointReport(listed.data, STRIPE_WEBHOOK_URL);
       const actions = [];
       // Stripe only reveals an endpoint's signing secret when it is created. If the
       // signatures keep failing, replace the endpoint so a known secret is saved.
       if (req.body?.recreate === true && report.found) {
-        await stripe.webhookEndpoints.del(report.endpointId);
+        await endpoints.remove(report.endpointId);
         report = webhookEndpointReport([], STRIPE_WEBHOOK_URL);
         actions.push("Removed the old webhook endpoint (its signing secret didn't match).");
       }
       if (req.body?.fix === true || req.body?.recreate === true) {
         if (!report.found) {
-          const created = await stripe.webhookEndpoints.create({
+          const created = await endpoints.create({
             url: STRIPE_WEBHOOK_URL,
             enabled_events: REQUIRED_WEBHOOK_EVENTS,
             description: "Your Press shop orders (created by Admin › Payments)",
@@ -215,9 +205,9 @@ function checkoutAdminActions({
           }
           if (!report.enabled) { update.disabled = false; actions.push("Re-enabled the endpoint."); }
           if (report.wrongUrl) { update.url = STRIPE_WEBHOOK_URL; actions.push("Pointed the endpoint at the shop's webhook address."); }
-          if (Object.keys(update).length) await stripe.webhookEndpoints.update(report.endpointId, update);
+          if (Object.keys(update).length) await endpoints.update(report.endpointId, update);
         }
-        const relisted = await stripe.webhookEndpoints.list({ limit: 100 });
+        const relisted = await endpoints.list();
         report = webhookEndpointReport(relisted.data, STRIPE_WEBHOOK_URL);
       }
       const status = (await db.collection("adminSecrets").doc("stripeWebhookStatus").get()).data() || {};
@@ -262,19 +252,8 @@ function checkoutAdminActions({
         return;
       }
       try {
-        const settingsDoc = await db.collection("settings").doc("website").get();
-        const settings = settingsDoc.exists ? settingsDoc.data() : {};
-        const testMode = settings.payments?.testMode || false;
-        const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
-        const stripeSecret = testMode
-          ? stripeSettings.testSecretKey
-          : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
-        if (!stripeSecret) throw new Error("Stripe is not configured.");
-        const stripe = new Stripe(stripeSecret);
-        const existing = await stripe.paymentMethodDomains.list({ domain_name: domainName, limit: 1 });
-        let domain = existing.data[0];
-        if (!domain) domain = await stripe.paymentMethodDomains.create({ domain_name: domainName, enabled: true });
-        else domain = await stripe.paymentMethodDomains.validate(domain.id);
+        // The current mode's account; throws "Stripe is not configured." without a key (functions/payments).
+        const domain = await payments.registerPaymentDomain(domainName);
         res.status(200).json({
           domain: domainName,
           applePay: domain.apple_pay?.status || "unknown",

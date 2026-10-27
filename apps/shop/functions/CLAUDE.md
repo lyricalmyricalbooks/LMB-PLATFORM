@@ -769,4 +769,9 @@ client and signature check (`webhookClient`, `verifyWebhookEvent`). index.js bui
 its lazy `Stripe`, so the vm handler tests' fake Stripe still applies; the module never requires `stripe` itself. Order
 bookkeeping (what a refund or a reversal means for an order) stays with the callers. `index.js` and `orderRequests.js`
 use it. `payments/payments.test.js` (fake Firestore and Stripe) pins its behaviour, and fails when another file makes a
-Stripe client, refunds or verifies a webhook itself (`checkoutAdmin.js` and `checkoutPayment.js` move in plan 1.12).
+Stripe client, takes or refunds a payment, verifies a webhook or sets up the webhook or wallet domains itself.
+**Plan 1.12:** checkout (`checkoutPayment.js`) gets the current mode's card side from `payments.forCheckout(settings)`
+(same "not configured" messages; `settlePreviousIntent` → `"in_progress"`/`"cleared"` or throws when unsure,
+`createCardIntent`, `createCheckoutSession`); the pricing, holds and order writes stay in checkout. `checkoutAdmin.js` uses
+`deployedLiveKey`, `checkKey` (key test), `webhookEndpoints()` (`{ mode, endpoints }`, endpoints null without a key) and
+`registerPaymentDomain`. Neither file receives `Stripe` or `STRIPE_SECRET_KEY` any more.

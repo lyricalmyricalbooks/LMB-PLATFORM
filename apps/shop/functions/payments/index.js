@@ -206,9 +206,120 @@ function createPayments({ db, Stripe, liveSecretKey, readAdminSecret }) {
     return { event: null, lastError };
   }
 
+  // ── Checkout (plan 1.12) ──────────────────────────────────────────────────────────────────────────────────────
+
+  // The card payment side of one checkout, for the shop's current mode. `settings` is settings/website as the checkout
+  // already read it. Throws (with the shopper-safe messages checkout always used) when that mode has no key.
+  async function forCheckout(settings) {
+    const testMode = settings.payments?.testMode || false;
+    const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
+    const stripeSecret = testMode
+      ? stripeSettings.testSecretKey
+      : (stripeSettings.secretKey || liveSecretKey.value());
+
+    if (!stripeSecret) {
+      throw new Error(testMode
+        ? "Stripe Test Secret Key is not configured in settings."
+        : "Stripe Secret Key is not configured.");
+    }
+
+    const stripe = new Stripe(stripeSecret);
+    return {
+      // An earlier card payment on the same order: "in_progress" when it took (or may be taking) the money, else
+      // "cleared" (cancelled here, or by a simultaneous request first). Throws when unsure whether it is still live.
+      async settlePreviousIntent(intentId) {
+        const previous = await stripe.paymentIntents.retrieve(intentId);
+        if (["succeeded", "processing", "requires_capture"].includes(previous.status)) return "in_progress";
+        if (["requires_payment_method", "requires_confirmation", "requires_action"].includes(previous.status)) {
+          try {
+            await stripe.paymentIntents.cancel(previous.id);
+          } catch (cancelErr) {
+            // A simultaneous request may have cancelled it first; only a still-live intent blocks a new one.
+            const again = await stripe.paymentIntents.retrieve(previous.id);
+            if (again.status !== "canceled") throw cancelErr;
+          }
+        }
+        return "cleared";
+      },
+      // The PaymentIntent for the card form on the checkout page, for exactly the server-priced amount.
+      createCardIntent({ amount, currency, orderId, idempotencyKey }) {
+        return stripe.paymentIntents.create({
+          amount,
+          currency,
+          automatic_payment_methods: { enabled: true },
+          // No receipt_email: the shop's own "Order confirmed" email is the customer's
+          // one confirmation (Stripe's receipt duplicated it).
+          description: `Order ${orderId}`,
+          metadata: { order_id: orderId, checkout: "payment_element" },
+        }, { idempotencyKey });
+      },
+      // A Stripe Checkout Session (hosted or embedded) with the caller's server-priced parameters.
+      createCheckoutSession(params, { idempotencyKey }) {
+        return stripe.checkout.sessions.create(params, { idempotencyKey });
+      },
+    };
+  }
+
+  // ── Admin: key test, webhook setup, wallet domains (plan 1.12) ─────────────────────────────────────────────────
+
+  // The deployed live key, or "" when it isn't set (never throws).
+  function deployedLiveKey() {
+    try { return liveSecretKey.value() || ""; } catch { return ""; }
+  }
+
+  // Does this secret key work, and for which account? Restricted keys may not read the account: a balance read
+  // still proves the key works. { ok: true, accountId, accountName?, chargesEnabled? } or { ok: false, error }.
+  async function checkKey(key) {
+    try {
+      const account = await new Stripe(key).accounts.retrieve();
+      return { ok: true, accountId: account.id, accountName: account.settings?.dashboard?.display_name || account.business_profile?.name || null, chargesEnabled: account.charges_enabled !== false };
+    } catch (err) {
+      try { await new Stripe(key).balance.retrieve(); return { ok: true, accountId: null }; }
+      catch (err2) { return { ok: false, error: err2?.message || err?.message || "Stripe rejected the key." }; }
+    }
+  }
+
+  // The webhook endpoints of the account for the shop's current mode: { mode, endpoints } where endpoints is null when
+  // that mode has no key. endpoints.list/remove/create/update are Stripe's webhookEndpoints calls.
+  async function webhookEndpoints() {
+    const testMode = await shopTestMode();
+    const mode = testMode ? "test" : "live";
+    const secret = await stripeSecretFor(mode);
+    if (!secret) return { mode, endpoints: null };
+    const stripe = new Stripe(secret);
+    return {
+      mode,
+      endpoints: {
+        list: () => stripe.webhookEndpoints.list({ limit: 100 }),
+        remove: id => stripe.webhookEndpoints.del(id),
+        create: params => stripe.webhookEndpoints.create(params),
+        update: (id, changes) => stripe.webhookEndpoints.update(id, changes),
+      },
+    };
+  }
+
+  // Registers (or re-validates) a storefront domain for Apple Pay / Google Pay in the current mode's account.
+  // Throws "Stripe is not configured." when that mode has no key. Returns Stripe's payment method domain.
+  async function registerPaymentDomain(domainName) {
+    const settingsDoc = await db.collection("settings").doc("website").get();
+    const settings = settingsDoc.exists ? settingsDoc.data() : {};
+    const testMode = settings.payments?.testMode || false;
+    const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
+    const stripeSecret = testMode
+      ? stripeSettings.testSecretKey
+      : (stripeSettings.secretKey || liveSecretKey.value());
+    if (!stripeSecret) throw new Error("Stripe is not configured.");
+    const stripe = new Stripe(stripeSecret);
+    const existing = await stripe.paymentMethodDomains.list({ domain_name: domainName, limit: 1 });
+    const domain = existing.data[0];
+    if (!domain) return stripe.paymentMethodDomains.create({ domain_name: domainName, enabled: true });
+    return stripe.paymentMethodDomains.validate(domain.id);
+  }
+
   return {
     withPrivateStripeKeys, getStripeClientForMode, stripeSecretFor, shopTestMode, readStripeKeys,
     inOrderAccounts, retrieveOrderPayment, checkReversal, refundPayment, webhookClient, verifyWebhookEvent,
+    forCheckout, deployedLiveKey, checkKey, webhookEndpoints, registerPaymentDomain,
   };
 }
 
