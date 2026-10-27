@@ -144,6 +144,52 @@ test("a profile that drifted from the web app is written again", async () => {
   assert.deepEqual(await registry.getProfile("lmb-test-shop"), profile);
 });
 
+const ALL_OFF = { legacyStockroomSignIn: false, githubPagesForwarding: false, gmailReceiptFinder: false };
+
+test("a new shop's profile writes every switch down as off, and the audit log says so", async () => {
+  const { registry, profileFiles, auditLog, run } = setup();
+  await run();
+  const profile = await registry.getProfile("lmb-test-shop");
+  assert.deepEqual(profile.switches, ALL_OFF);
+  const window = {};
+  vm.runInNewContext(await profileFiles.read("lmb-test-shop"), { window });
+  assert.deepEqual({ ...window.__SHOP_PROFILE__.switches }, ALL_OFF);
+  const step6 = [...auditLog.entries.get("lmb-test-shop").values()].find((e) => e.step === 6 && e.status === "done");
+  assert.equal(step6.acted, true);
+  assert.deepEqual(step6.detail, { switches: ALL_OFF });
+  const registryEntry = (await registry.readSteps("lmb-test-shop")).find((e) => e.step === 6 && e.status === "done");
+  assert.deepEqual(registryEntry.detail, { switches: ALL_OFF });
+});
+
+test("re-running the profile step keeps a switch someone turned on, and fills in missing ones as off", async () => {
+  const { registry, profileFiles, steps, run } = setup();
+  const profileStep = steps[5];
+  await run();
+  const saved = await registry.getProfile("lmb-test-shop");
+  await registry.saveProfile("lmb-test-shop", { ...saved, switches: { gmailReceiptFinder: true } });
+  assert.equal(await profileStep.check({ shop: TEST_SHOP }), false);
+  await profileStep.act({ shop: TEST_SHOP });
+  assert.deepEqual((await registry.getProfile("lmb-test-shop")).switches, { ...ALL_OFF, gmailReceiptFinder: true });
+  assert.equal(await profileStep.check({ shop: TEST_SHOP }), true);
+  // Twice in a row writes the same thing.
+  const text = await profileFiles.read("lmb-test-shop");
+  await profileStep.act({ shop: TEST_SHOP });
+  assert.equal(await profileFiles.read("lmb-test-shop"), text);
+  // A shop set up before switches existed gets them all, off.
+  const { switches: _switches, ...older } = await registry.getProfile("lmb-test-shop");
+  await registry.saveProfile("lmb-test-shop", older);
+  assert.equal(await profileStep.check({ shop: TEST_SHOP }), false);
+  await profileStep.act({ shop: TEST_SHOP });
+  assert.deepEqual((await registry.getProfile("lmb-test-shop")).switches, ALL_OFF);
+});
+
+test("shopProfile writes all three switches, keeping only true or false from what was saved", () => {
+  const settings = { apiKey: "k", authDomain: "a", projectId: "lmb-test-shop", storageBucket: "b", messagingSenderId: "1", appId: "x" };
+  assert.deepEqual(shopProfile(TEST_SHOP, settings).switches, ALL_OFF);
+  assert.deepEqual(shopProfile(TEST_SHOP, settings, REGION, { githubPagesForwarding: true, gmailReceiptFinder: "yes", other: true }).switches,
+    { ...ALL_OFF, githubPagesForwarding: true });
+});
+
 test("the dry run for the test shop prints all fifteen steps and changes nothing", async () => {
   const google = fakeGoogle();
   const services = fakeServices();
