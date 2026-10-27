@@ -103,6 +103,7 @@ Gate: a press nobody has spoken to signs up, pays and takes an order with no hel
 | --- | --- | --- |
 | 2.1 | platform | `services/payments/`: Connect checkout, refunds, the one Stripe events address; shop identity checked against the registry |
 | 2.2 | shop | `functions/payments/` gains the platform mode, chosen by the profile |
+| 2.2b | shop, platform | Square as a second way to take payments (Julian, 27 October 2026): a Connect Square button, then checkout, refunds and payment lookups through the same `functions/payments/` module, with the provider chosen per shop. 1.11–1.13 build that module with Stripe as its first provider |
 | 2.3 | platform | `services/email/`: sends for every shop from the platform address with the press's name and reply-to |
 | 2.4 | platform | `services/billing/`: plans (shop, stockroom, both), card, cancel, failed-payment emails |
 | 2.5 | platform | Sign-up: email link or Google, one skippable question, plan choice, no card for the trial |
