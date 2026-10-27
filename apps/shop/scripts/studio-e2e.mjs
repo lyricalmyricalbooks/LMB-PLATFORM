@@ -1324,6 +1324,33 @@ await check("Themes saves the draft as a theme, previews a look without changing
   await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "revokePreviewLink"));
 });
 
+await check("a ready-made look offers its layout and starter pages after the look, and adds only pages the shop lacks", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  const panel = page.locator("[data-studio-panel='themes']");
+  const card = panel.locator("[data-theme-card='preset:press-riso']");
+  await card.locator("[data-preset-content]").waitFor({ timeout: 5000 });
+  if (!/Home layout/.test(await card.locator("[data-preset-content]").innerText())) throw new Error("the card doesn't say it comes with a Home layout");
+  // Skipping keeps only the look: no page is made.
+  await card.getByRole("button", { name: "Use this look" }).click();
+  const ask = page.getByRole("dialog", { name: /Also use “Riso Paper” layout and starter pages\?/ });
+  await ask.waitFor({ timeout: 5000 });
+  if (!/Kept as they are: your own About page/.test(await ask.innerText())) throw new Error("the dialog doesn't say the shop's own About page is kept");
+  await ask.getByRole("button", { name: "Cancel" }).click();
+  if ((await calls(page)).some(c => c.method === "createPage")) throw new Error("skipping the layout still made pages");
+  // Accepting replaces Home's sections in the draft and adds the missing pages as drafts.
+  await card.getByRole("button", { name: "Use this look" }).click();
+  await ask.waitFor({ timeout: 5000 });
+  await ask.getByRole("button", { name: "Use layout and pages" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.filter(c => c.method === "createPage").length === 2, null, { timeout: 10000 });
+  const made = (await calls(page)).filter(c => c.method === "createPage").map(c => c.args[0]);
+  if (made.map(p => p.slug).join() !== "shipping-returns,contact") throw new Error(`made pages ${made.map(p => p.slug).join()}`);
+  if (made.some(p => p.status !== "draft")) throw new Error("a starter page was published straight away");
+  await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 5000 });
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-section]").first().waitFor({ timeout: 10000 });
+});
+
 await check("Schedule publishing saves a campaign in Toronto time and lists it, from the Publish dialog", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();

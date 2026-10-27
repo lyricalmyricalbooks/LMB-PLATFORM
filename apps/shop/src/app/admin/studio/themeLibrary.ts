@@ -38,6 +38,8 @@ export const THEME_LIBRARY = [
     productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "ADD TO BAG",
     catalogLayoutStyle: "reference", showCatalogControls: true,
     homeLayoutTemplate: RISO_NOIR_ID,
+    // Offered after the look is applied, never applied with it (presetContent.ts): Home above, and these draft pages.
+    content: { starterPages: ["about", "shipping", "contact"] },
     // The footer look chosen in October 2026 (E3), so applying Riso Noir from another theme brings it back.
     global: {
       ...RISO_NOIR_TOKENS,
@@ -55,6 +57,8 @@ export const THEME_LIBRARY = [
     productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "ADD TO BAG",
     catalogLayoutStyle: "reference", showCatalogControls: true,
     homeLayoutTemplate: "press-riso",
+    // Offered after the look is applied, never applied with it (presetContent.ts): Home above, and these draft pages.
+    content: { starterPages: ["about", "shipping", "contact"] },
     global: {
       themeStyle: "riso", backgroundColor: "#faf6ec", textColor: "#100f0d", primaryColor: "#e8402a",
       secondaryColor: "#1b3fe0", surfaceColor: "#f0e9da", surfaceRaisedColor: "#ffffff",
@@ -88,6 +92,8 @@ export const THEME_LIBRARY = [
     catalogLayoutStyle: "modern", showCatalogControls: true,
     // Installed on request after applying the preset (never silently overwrites sections).
     homeLayoutTemplate: "press-punk",
+    // Offered after the look is applied, never applied with it (presetContent.ts): Home above, and these draft pages.
+    content: { starterPages: ["about", "shipping", "contact"] },
     // Applied to the root design AND both page surfaces so every storefront
     // surface (homepage, catalog, product page, cart drawer, footer, custom
     // pages) inherits the full token set. Each key remains individually

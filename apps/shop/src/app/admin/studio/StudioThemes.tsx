@@ -7,7 +7,14 @@ import { useEffect, useState } from "react";
 import { Copy, Eye, Link2, Upload } from "lucide-react";
 import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "../riso/components";
 import { withRisoNoirDefault } from "../../features/site/risoNoir";
+import { PRESET_SECTION_TEMPLATES, hasPresetContent, presetSections, presetStarterPages, type PresetContent } from "./presetContent";
 import type { SavedTheme } from "./savedThemes";
+
+/** "Home layout · About, Contact pages" for a preset card. */
+const presetContentLabel = (preset: any) => [
+  ...Object.keys(presetSections(preset)).map(id => `${PRESET_SECTION_TEMPLATES[id]} layout`),
+  ...(presetStarterPages(preset).length ? [`${presetStarterPages(preset).map(s => s.title).join(", ")} pages`] : []),
+].join(" · ");
 
 export type PreviewLink = { token: string; name: string; createdAt: string; expiresAt: string };
 export type PreviewLinkApi = {
@@ -37,7 +44,7 @@ type Props = {
   published: any;
   unpublished: boolean;
   savedThemes: SavedTheme[];
-  presets: { id: string; name: string; mood?: string; global?: any }[];
+  presets: { id: string; name: string; mood?: string; global?: any; homeLayoutTemplate?: string; content?: PresetContent }[];
   currentPresetId?: string;
   previewingId: string | null;
   onPreview: (entry: { id: string; label: string; design: any } | null) => void;
@@ -169,7 +176,7 @@ export function StudioThemes(p: Props) {
 
       <section>
         <h3>Start from a ready-made look</h3>
-        <p className="studio-hint">A look sets colours, fonts and print details; your sections, words and menus stay.</p>
+        <p className="studio-hint">A look sets colours, fonts and print details; your sections, words and menus stay. Some looks also come with a layout and starter pages: Studio offers those after the look, and you can skip them.</p>
         <div className="studio-theme-grid">
           {p.presets.map(preset => {
             const look = { ...p.design, ...(preset.global || {}) };
@@ -179,6 +186,7 @@ export function StudioThemes(p: Props) {
                 <div>
                   <strong>{preset.name}</strong> {p.currentPresetId === preset.id && <StatusBadge tone="success">Current</StatusBadge>}
                   {preset.mood && <small>{preset.mood}</small>}
+                  {hasPresetContent(preset) && <small data-preset-content>Comes with: {presetContentLabel(preset)}</small>}
                   <div className="studio-theme-actions">
                     <PrimaryButton size="sm" onClick={() => p.onApplyPreset(preset)}>Use this look</PrimaryButton>
                     {previewButton(`preset:${preset.id}`, preset.name, look)}
