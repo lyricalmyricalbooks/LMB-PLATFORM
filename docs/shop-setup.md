@@ -1,0 +1,65 @@
+# Setting up a new shop
+
+The steps the shop maker (`setup/`) runs to give a press its own copy. Phase 1 runs them by hand from one command for
+the first presses; Phase 2 runs the same code from sign-up. Write the code once, as these steps.
+
+## Rules every step follows
+
+- **Numbered and re-runnable.** Running a step twice does nothing new. A failed run resumes at the step that failed.
+- **Checks before it acts.** Each step first looks at whether its work is already done ("project exists?") and skips if so.
+- **Logged twice.** Each step writes `{ step, status, startedAt, finishedAt, error? }` to the shop registry in the
+  platform project and, once the shop's database exists, to that shop's `audit-log` collection.
+- **Never deletes a project to start over.** Deleted Google Cloud projects linger 30 days and their ID can't be reused.
+  A broken setup is resumed or retried, or the project is marked `abandoned` in the registry and left for cleanup.
+- **No platform keys in the shop.** The Stripe platform key and the email sender key stay in the platform's services
+  (see `payments.md`). The shop project only gets keys that belong to that press.
+
+## Inputs
+
+| Input | Example | From |
+| --- | --- | --- |
+| Shop ID (also the project ID suffix) | `mothpress` | sign-up, checked unique in the registry |
+| Press name | Moth Press | sign-up |
+| Owner email | owner@example.com | sign-up |
+| Plan | shop, stockroom or both | sign-up |
+| Country and currency | CA, CAD | sign-up |
+
+## The steps
+
+| # | Step | Checks first | Done when |
+| --- | --- | --- | --- |
+| 1 | Reserve the shop ID in the registry | ID free or already this shop's | registry row `status: creating` |
+| 2 | Create the Google Cloud project in the `shops` folder, link billing | project exists | project active and billed |
+| 3 | Add Firebase to the project | Firebase already added | Firebase project ready |
+| 4 | Turn on services: Firestore, Storage, Auth, Functions, Hosting, Cloud Build, Artifact Registry, Eventarc, Scheduler, Secret Manager, App Check, IAM | each service on | all listed services on |
+| 5 | Create the Firestore database (region from country) and the Storage bucket | database exists | database and bucket exist |
+| 6 | Create the web app; write the shop profile (Firebase config, site address, bot-check key) to the registry and to a per-shop file Hosting serves | profile matches | shop can read its profile at page open |
+| 7 | Deploy security rules and indexes for the shop (and the stockroom when the plan includes it) | deployed version = release version | rules live |
+| 8 | Deploy the shop's server code from the current release | deployed version = release version | functions live |
+| 9 | Deploy the shop and stockroom pages from the current release | deployed version = release version | site answers on its Firebase address |
+| 10 | Grant the nightly backup its permission and run one backup | backup permission present | a backup file exists |
+| 11 | Check storage is private: an unsigned read of a test file is refused | a recent pass recorded | refused as expected |
+| 12 | Write starter content and settings (theme, currency, shipping zone, owner as admin member) | settings doc exists | admin opens with the setup checklist |
+| 13 | Create the press's Stripe connected account and save its account ID (via the payments service) | account ID saved | onboarding link ready |
+| 14 | Email the owner their sign-in link (via the email service) | email logged as sent | email sent |
+| 15 | Run the shop check: home page, a book page, admin sign-in | — | all pass; registry `status: live` |
+
+Steps 2–5 borrow the service list and backup permission from a public Firebase project factory
+(https://github.com/cilly-yllic/terraform-google-firebase-project-factory). Plain Node scripts using Google's APIs are
+enough. Terraform isn't needed.
+
+## What has to change in the shop and stockroom first
+
+Before step 6 can work, the apps must read their settings when the page opens instead of having them baked into the
+build:
+
+- Shop: the Firebase config in `src/lib/firebaseApp.ts`, the project ID in `src/app/lib/functionsBase.ts`, the site
+  address in `vite.config.ts`, and the bot-check key in `src/lib/appCheck.ts`.
+- Stockroom: the Firebase config in `src/firebase.js`, and hosting moves from GitHub Pages to each shop's Firebase
+  Hosting.
+
+## Open questions
+
+- Does the stockroom get its own named database in the shop project, or share the shop's rules file?
+- Who pays for each shop project: one platform billing account, with the cost in the subscription price (assumed here)?
+- Region choice for presses outside North America.

@@ -16,3 +16,10 @@ for (const folder of folders) {
     assert.ok(existsSync(file), `${file} is missing`);
   });
 }
+
+test("waitlist page never names a rival platform", () => {
+  const page = readFileSync("waitlist/index.html", "utf8").toLowerCase();
+  for (const rival of ["big cartel", "bigcartel", "shopify", "squarespace", "etsy", "wix", "woocommerce"]) {
+    assert.ok(!page.includes(rival), `waitlist names ${rival}`);
+  }
+});

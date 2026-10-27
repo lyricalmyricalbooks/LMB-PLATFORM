@@ -20,7 +20,7 @@ Lyricalmyrical is one shop on the platform, not a special case.
 | `services/email/` | The one service that holds the email sender key. |
 | `signup/` | Sign-up, plan choice and billing. |
 | `waitlist/` | The public waitlist page. |
-| `docs/` | Decisions and how-tos. |
+| `docs/` | Decisions and plans: `shop-setup.md`, `payments.md`, `test-shop.md`, `decisions.md`. |
 
 The plan behind all of this is the "Press platform build plan" doc.
 
