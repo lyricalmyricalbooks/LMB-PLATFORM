@@ -226,11 +226,12 @@ ignored. Dismiss hides one for the browser session until a new order joins it.
   checkout (same limits and sold-out answer), still without gift-card holds (`functions/testShopHolds.test.js`). Its
   sandbox payments also take stock (`createSettlement({ testShop })`, stamped `inventoryDecrementedAt`), and full,
   partial and later "put the books back" refunds return it, only when that stamp is there (`sandboxStockTaken`);
-  discount use, gift cards and revenue stay untouched (`functions/sandboxPayment.test.js`, plan 1.31b). The stockroom
-  link sends its paid sandbox orders as real orders (`pushKind({ testShop })`, `deps.testShop` in the jobs), so the
-  stockroom counts them and their refunds; other shops send them only as rehearsals (`web.test`), which it never counts. Not covered:
-  a test-shop sandbox payment whose 30-minute hold expired skips the at-payment stock check (`reserveForConfirmedPayment`),
-  so it can oversell instead of being refused.
+  discount use, gift cards and revenue stay untouched (`functions/sandboxPayment.test.js`, plan 1.31b). Its sandbox
+  payments (Stripe and PayPal) also get the at-payment stock check (`reserveForConfirmedPayment` and its Stripe/PayPal
+  call sites): one whose hold lapsed while the book sold out is not marked paid and records `inventoryConflict`, like a
+  live one. Other shops' sandbox payments still skip it. The stockroom link sends its paid sandbox orders as real
+  orders (`pushKind({ testShop })`, `deps.testShop` in the jobs), so the stockroom counts them and their refunds; other
+  shops send them only as rehearsals (`web.test`), which it never counts.
 - **Stripe keys:** `SecretField` passes every edit up (clearing cancels), refuses wrong-slot keys
   (`stripeSecretKeyProblem`), and offers **Remove stored key** (`adminApi.removeStripeSecretKey`). Saves return
   true/false (`Dashboard.saveSection`), and saved secrets are scrubbed from screen state (`scrubSavedSecrets`).
