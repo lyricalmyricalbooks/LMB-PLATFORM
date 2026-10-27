@@ -1,0 +1,33 @@
+rules_version = '2';
+// The platform project's database. Today it only holds waitlist sign-ups, which the public page adds and nobody
+// else reads through the web: the owner reads them in the Firebase console. Every other path is closed.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function text(value, min, max) {
+      return value is string && value.size() >= min && value.size() <= max;
+    }
+
+    match /waitlist/{id} {
+      // Matches waitlist/signup.js: one record per email, keyed by the first 32 hex characters of its SHA-256.
+      allow create: if request.resource.data.keys().hasOnly(
+            ["email", "name", "press", "plan", "today", "source", "firstSignedUpAt", "lastSignedUpAt", "signups"])
+        && request.resource.data.keys().hasAll(
+            ["email", "name", "plan", "source", "firstSignedUpAt", "lastSignedUpAt", "signups"])
+        && text(request.resource.data.email, 6, 254)
+        && request.resource.data.email.matches('^[^\\s@A-Z]+@[^\\s@A-Z]+[.][^\\s@A-Z]+$')
+        && id == hashing.sha256(request.resource.data.email).toHexString().lower()[0:32]
+        && text(request.resource.data.name, 1, 120)
+        && text(request.resource.data.get("press", ""), 0, 160)
+        && request.resource.data.plan in ["shop", "stockroom", "both", "unsure"]
+        && text(request.resource.data.get("today", ""), 0, 500)
+        && text(request.resource.data.source, 1, 120)
+        && text(request.resource.data.firstSignedUpAt, 20, 30)
+        && request.resource.data.lastSignedUpAt == request.resource.data.firstSignedUpAt
+        && request.resource.data.signups == 1;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

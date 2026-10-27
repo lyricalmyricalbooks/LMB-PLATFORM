@@ -15,7 +15,7 @@ test("a good sign-up is stored", async () => {
     { store, now: at("2026-11-01T10:00:00Z") },
   );
   assert.equal(result.status, 200);
-  const row = store.rows.get(signupId("ada@moth.example"));
+  const row = store.rows.get(await signupId("ada@moth.example"));
   assert.equal(row.name, "Ada Lane");
   assert.equal(row.email, "ada@moth.example");
   assert.equal(row.plan, "both");
@@ -58,7 +58,8 @@ test("unknown plans and long text are trimmed", async () => {
   assert.equal(row.today.length, 500);
 });
 
-test("the record id does not contain the email", () => {
-  assert.ok(!signupId("ada@moth.example").includes("ada"));
-  assert.equal(signupId("ada@moth.example"), signupId(" ADA@moth.example"));
+test("the record id does not contain the email", async () => {
+  const id = await signupId("ada@moth.example");
+  assert.match(id, /^[0-9a-f]{32}$/);
+  assert.equal(id, await signupId(" ADA@moth.example"));
 });
