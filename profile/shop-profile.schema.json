@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lyricalmyricalbooks/LMB-PLATFORM/profile/shop-profile.schema.json",
+  "title": "Shop profile (public part)",
+  "description": "What differs between shops and is safe for anyone to read. Hosting serves it as /shop-profile.js; the shop and the stockroom read it when the page opens. Plan, test mode, Stripe account and sender domain are NOT here: they live in server-only documents and the platform registry.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "shopId", "firebase", "functionsRegion", "siteUrl", "apps"],
+  "properties": {
+    "version": { "const": 1, "description": "Format version. Bump only with a change both apps can read." },
+    "shopId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,29}$",
+      "description": "The shop's id in the registry, also the project id suffix."
+    },
+    "firebase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiKey", "authDomain", "projectId", "storageBucket", "messagingSenderId", "appId"],
+      "description": "The Firebase web settings. Not secret.",
+      "properties": {
+        "apiKey": { "type": "string", "minLength": 1 },
+        "authDomain": { "type": "string", "minLength": 1 },
+        "projectId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$" },
+        "storageBucket": { "type": "string", "minLength": 1 },
+        "messagingSenderId": { "type": "string", "pattern": "^[0-9]+$" },
+        "appId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "functionsRegion": { "type": "string", "pattern": "^[a-z]+-[a-z]+[0-9]$" },
+    "siteUrl": { "type": "string", "pattern": "^https://[^/\\s]+$", "description": "The shop's address, no trailing slash." },
+    "appCheckSiteKey": { "type": "string", "description": "Bot-protection site key. Empty or missing: the app's build setting is used." },
+    "apps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shop", "stockroom"],
+      "properties": {
+        "shop": { "type": "boolean" },
+        "stockroom": { "type": "boolean" }
+      }
+    }
+  }
+}
