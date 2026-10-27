@@ -51,6 +51,8 @@
       </select>
     </label>
     <label class="wide">How do you sell today? (optional)<input name="today" placeholder="Website, fairs, a spreadsheet…"></label>
+    <!-- Left empty by people; bots that fill it are quietly ignored (waitlist/signup.js). -->
+    <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
     <button class="wide" type="submit">Join the waitlist</button>
     <p id="status" class="wide" role="status" aria-live="polite"></p>
   </form>
