@@ -82,7 +82,8 @@ export const defaultRestockOnRefund = (o: any) => !LEFT_THE_SHOP_STATUSES.includ
 /** A refunded order whose printed books were never put back in stock (Order detail › Put the books back in stock). */
 export const booksLeftOutAfterRefund = (o: any) => ["refunded", "refund_pending"].includes(o?.paymentStatus)
   && o?.inventoryRestockedAt == null
-  && o?.sandboxPayment !== true
+  // A sandbox payment took no stock, except on the platform's test shop, where it is stamped like a live one.
+  && (o?.sandboxPayment !== true || o?.inventoryDecrementedAt != null)
   && (o?.items || []).some((item: any) => item && !isDigitalItem(item) && Number(item.quantity) > 0);
 export function dispatchProblem(o: any): string {
  if (o.isTest) return "Test orders cannot be fulfilled.";

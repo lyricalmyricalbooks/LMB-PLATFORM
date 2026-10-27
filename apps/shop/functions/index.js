@@ -90,7 +90,9 @@ setGlobalOptions({ maxInstances: 10, region: require("./shopConfig").shopConfig.
 
 admin.initializeApp();
 const db = admin.firestore();
-const { settlePayment } = require("./settlePayment").createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n) });
+// On the platform's test shop only (shopConfig.testShop), sandbox payments take stock and their refunds put it back.
+const { createSettlement, sandboxStockTaken } = require("./settlePayment");
+const { settlePayment } = createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n), testShop: require("./shopConfig").shopConfig.testShop });
 
 const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 
@@ -1713,7 +1715,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     const wantsRestock = restock !== undefined ? restock !== false
       : typeof order.refundRequest?.restock === "boolean" ? order.refundRequest.restock
       : !leftTheShop(order);
-    const shouldRestock = !sandboxPaid && wantsRestock && itemList.length > 0 && order.inventoryRestockedAt == null;
+    // A sandbox payment took no stock, so there is none to put back, except on the test shop (sandboxStockTaken).
+    const shouldRestock = (!sandboxPaid || sandboxStockTaken(order, shopConfig.testShop)) && wantsRestock && itemList.length > 0 && order.inventoryRestockedAt == null;
     const books = shouldRestock ? await readBooks(transaction, db, itemList) : new Map();
     const shouldReverseDiscount = !sandboxPaid && order.appliedDiscount?.id && order.discountUsageReversedAt == null;
     const discountRef = shouldReverseDiscount ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
@@ -1804,8 +1807,8 @@ async function applyPartialRefund(orderId, { provider, refundId = null, amountMi
     const records = Array.isArray(order.partialRefunds) ? order.partialRefunds : [];
     if (order.paymentStatus !== "paid" || (refundId && records.some(r => r && r.id === refundId))) { alreadyRecorded = true; return; }
     const now = new Date().toISOString();
-    // Sandbox payments never touch real stock.
-    const lines = order.sandboxPayment === true ? [] : restockLines;
+    // Sandbox payments never touch real stock, except on the test shop (sandboxStockTaken).
+    const lines = order.sandboxPayment === true && !sandboxStockTaken(order, shopConfig.testShop) ? [] : restockLines;
     const books = lines.length ? await readBooks(transaction, db, lines) : new Map();
     if (lines.length) writeStock(transaction, db, lines, books, 1, now);
     const label = provider === "stripe" ? "Stripe" : provider === "paypal" ? "PayPal" : "Manual";
@@ -4172,7 +4175,7 @@ async function handleRestockRefunded(req, res) {
   if (!body) return;
   const { orderId } = body;
   try {
-    const result = await restockRefundedOrder(db, orderId, { actor: adminUser.email || adminUser.uid });
+    const result = await restockRefundedOrder(db, orderId, { actor: adminUser.email || adminUser.uid, testShop: shopConfig.testShop });
     res.status(200).json({ ok: true, ...result });
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });
