@@ -781,3 +781,17 @@ unsure, `createCardIntent`, `createCheckoutSession`), and for Settings › Payme
   `stripeMode`, …), the `stripeWebhook` endpoint, order-record functions the handler tests pin (`checkStripeReversal`,
   `markStripeOrderPaid`, `syncStripeReversal`) and the Stripe-shaped guards in `paymentGuards.js`/`stripeRecovery.js`.
 - A new provider is one file beside `stripe.js` with the same names, added to `PROVIDERS` in `index.js`.
+
+## Email module (27 October 2026, code plan 1.13)
+
+`functions/email/index.js` (`createEmail`) is the one door for every email the server sends, built like the payments
+module: index.js builds it once (`mailer`) and passes in its db, lazy `Resend` and `nodemailer`, the owner and default
+sender (shopConfig), `readAdminSecret`, `resendSecretValue` (read at send time: it is a `const` further down) and
+`escapeHtml`, so the vm handler tests' fakes still apply. Interface: `send(message)` (Gmail first when an app password is
+saved, then Resend with the sandbox retry; logs every attempt; parks a failed `queue` email in `emailOutbox`),
+`logEmailAttempt`, `enqueueEmail` and `checkGmail()` (Settings › Email sender › Check connection, used by
+`shopEmails.js`, which now receives `mailer` instead of `nodemailer`). The code moved as is. index.js keeps
+`sendEmail(message)` as a thin wrapper, because handler tests reassign it, and keeps the retry queue's runner
+(`sendQueuedEmail`), the claims (`sendOrderEmailOnce`) and every template. `email/email.test.js` (fake Firestore, Gmail
+and Resend) pins the send paths and fails when another functions file opens a mail transport, makes a Resend client,
+sends through one or writes `emailLog` itself.

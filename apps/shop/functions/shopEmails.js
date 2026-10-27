@@ -1,11 +1,11 @@
 // Emails outside the order flow: the contact form message to the shop, the welcome email for a new customer account,
 // and the admin email endpoint (sendTestEmail: the test send, Messages › Reply, the waiting-to-send queue, the weekly
 // summary send-now and the Gmail check). Moved out of index.js as is (functions/CLAUDE.md › Cloud Functions › Action
-// table): index.js passes in its own Firebase wrappers, db, mail transport and email helpers, so the vm-based handler
+// table): index.js passes in its own Firebase wrappers, db, email module (functions/email) and email helpers, so the vm-based handler
 // tests' fakes still apply, and keeps each `exports.<name> =` line.
 
 function shopEmails({
-  onBrowserRequest, onDocumentCreated, admin, db, nodemailer, applyCors, requireAdmin, ADMIN_TO,
+  onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
   loadNotificationSettings, logEmailAttempt, publicOutboxEntry, sendEmail, sendQueuedEmail,
   sendWeeklySummary, siteLink,
@@ -228,21 +228,7 @@ function shopEmails({
       // Settings › Notifications › Gmail sending › Check connection: signs in to Gmail without
       // sending anything, so a revoked or mistyped app password shows up before an order does.
       if (body.action === "verifyGmail") {
-        let pass = "";
-        try { pass = String((await db.collection("adminSecrets").doc("gmail").get()).data()?.appPassword || "").replace(/\s+/g, ""); }
-        catch (err) { console.warn("verifyGmail: could not read the app password:", err.message); }
-        if (!pass) { res.status(200).json({ ok: false, error: "No Gmail app password is saved yet." }); return; }
-        try {
-          const transport = nodemailer.createTransport({ service: "gmail", auth: { user: ADMIN_TO, pass }, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
-          await transport.verify();
-          res.status(200).json({ ok: true });
-        } catch (err) {
-          const raw = String(err?.message || err);
-          const wrong = /535|invalid login|username and password not accepted|badcredentials/i.test(raw);
-          res.status(200).json({ ok: false, error: wrong
-            ? "Gmail refused this app password. Create a new one at myaccount.google.com › Security › App passwords and save it here."
-            : `Gmail could not be reached (${raw.slice(0, 200)}). Try again in a minute.` });
-        }
+        res.status(200).json(await mailer.checkGmail());
         return;
       }
 

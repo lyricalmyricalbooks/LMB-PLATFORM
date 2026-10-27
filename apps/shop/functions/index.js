@@ -17,7 +17,6 @@ const { defineSecret } = require("firebase-functions/params");
 const admin = require("./adminSdk")(require("firebase-admin"));
 const crypto = require("crypto");
 const { browserRequestHandler } = require("./appCheck");
-const { explainEmailError } = require("./emailErrors");
 const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
 // Stripe, nodemailer and Resend load on first use, so the many functions that never pay or mail start faster.
 // `new Stripe(key)` / `new Resend(key)` work unchanged (a constructor that returns an object hands that object back).
@@ -63,6 +62,7 @@ const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
+const { createEmail } = require("./email");
 const { shippoEndpoints } = require("./shippoEndpoints");
 const { scheduledJobs } = require("./scheduledJobs");
 const { shopEmails } = require("./shopEmails");
@@ -81,7 +81,7 @@ const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCoun
 const { paypalCredentials } = require("./paypalCredentials");
 const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
 const { runInBatches, backupFoldersToPrune } = require("./sweepLimits");
-const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
+const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
 // Cost ceiling for every function (#147): an anonymous flood can scale a public endpoint or a
 // Firestore trigger only this far. A function that sets its own maxInstances overrides it.
@@ -326,15 +326,13 @@ function orderRowsHtml(items = [], order = null) {
     .join("");
 }
 
-// Admin-only delivery log (firestore.rules: emailLog is readable by the admin, writable by no client).
-// Shown in Admin › Notifications so failed sends are visible instead of only in Functions logs.
-async function logEmailAttempt(entry) {
-  try {
-    await db.collection("emailLog").add({ ...entry, at: new Date().toISOString() });
-  } catch (err) {
-    console.warn("Could not write emailLog entry:", err);
-  }
-}
+// Every email the server sends goes through functions/email (code plan 1.13). `sendEmail` stays index.js's own name for
+// it (handler tests swap it out). resendSecretValue is a const further down, so it is read at send time.
+const mailer = createEmail({
+  db, crypto, Resend, nodemailer, ownerEmail: ADMIN_TO, senderName: shopConfig.senderName, senderEmail: shopConfig.senderEmail,
+  readAdminSecret, resendSecretValue: () => resendSecretValue(), escapeHtml,
+});
+const { logEmailAttempt } = mailer;
 
 // One order email of each kind, even when Firestore re-runs the trigger: the send is claimed
 // first in the server-only `email-claims` collection (firestore.rules deny every client) and
@@ -375,207 +373,12 @@ async function sendOrderEmailOnce(orderId, kind, message) {
 // the server-only retry queue (emailOutbox) instead of losing it; the thrown error carries
 // `.queued` (the queue id). `outboxId` marks a send made by the retry queue itself.
 // `attachments` ([{ filename, content: Buffer, contentType }]) go with the email but never into the retry queue (pass no `queue`).
-async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "", attempt = 0, claimId = "", about = {}, attachments = [] }) {
-  const recipientList = cleanRecipients(to);
-  subject = cleanSubject(subject);
-  const sourceHtml = html;
-  // Order emails name their order, so Order detail › Activity can list its delivery attempts.
-  const aboutOrder = typeof about?.orderId === "string" && about.orderId ? { orderId: about.orderId } : {};
-  const logBase = { to: Array.isArray(to) ? to.join(", ") : String(to || ""), subject, ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...aboutOrder };
-  if (!recipientList) {
-    // Permanent: no retry can fix an address, and a bad one may be an attempt to inject headers.
-    const message = `${String(logBase.to).replace(/[\r\n]+/g, " ").slice(0, 120) || "(no address)"} is not a valid email address, so nothing was sent.`;
-    await logEmailAttempt({ ...logBase, to: String(logBase.to).replace(/[\r\n]+/g, " ").slice(0, 254), status: "failed", error: message, permanent: true });
-    const err = new Error(message); err.permanent = true; throw err;
-  }
-  to = recipientList.length === 1 ? recipientList[0] : recipientList;
-  // One id for this email across every try: the queue entry's id, and Resend's idempotency key,
-  // so a reply lost after Resend accepted the message can't turn into a second copy.
-  const queueId = outboxId || (queue ? crypto.randomBytes(12).toString("hex") : "");
-  const okExtra = { ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...(attempt > 1 ? { attempt } : {}), ...aboutOrder };
-  // Callers that forgot to pass the Functions secret still get it (every function that can
-  // send mail declares RESEND_API_KEY): resendSecretValue() reads "" when it isn't declared.
-  secret = secret || resendSecretValue();
-  let apiKey = secret;
-  let keySource = secret ? "secret" : "none";
-  let fromName = shopConfig.senderName;
-  let fromEmail = shopConfig.senderEmail;
-  let replyTo = null;
-  let brand = {};
-  let mailingAddress = "";
-
-  try {
-    const settingsDoc = await db.collection("settings").doc("website").get();
-    if (settingsDoc.exists) {
-      const settings = settingsDoc.data() || {};
-      const comms = settings.communications || {};
-      if (comms.fromName) fromName = comms.fromName;
-      if (comms.replyTo) replyTo = comms.replyTo;
-      if (comms.fromEmail) fromEmail = comms.fromEmail;
-      if (comms.resendApiKey) { apiKey = comms.resendApiKey; keySource = "settings"; }
-      mailingAddress = footerAddress(settings.location);
-    }
-  } catch (err) {
-    console.warn("Failed to load custom sender details, using default fallbacks:", err);
-  }
-
-  // Also check settings/notifications for custom API Key
-  try {
-    const notificationsDoc = await db.collection("settings").doc("notifications").get();
-    if (notificationsDoc.exists) {
-      const notifications = notificationsDoc.data() || {};
-      if (notifications.resendApiKey) { apiKey = notifications.resendApiKey; keySource = "settings"; }
-      if (notifications.brand && notifications.brand.resendApiKey) { apiKey = notifications.brand.resendApiKey; keySource = "settings"; }
-      brand = notifications.brand || {};
-    }
-  } catch (err) {
-    console.warn("Failed to load notifications custom API Key:", err);
-  }
-
-  const privateResend = await readAdminSecret("resend");
-  if (privateResend.apiKey) { apiKey = privateResend.apiKey; keySource = "settings"; }
-
-  if (typeof apiKey === "string") apiKey = apiKey.trim();
-  const recipients = Array.isArray(to) ? to.join(", ") : String(to || "");
-  // Every email footer carries the shop's postal address (Settings › General › Location).
-  const withFooter = doc => mailingAddress && doc ? doc.replace("<!--fm-footer-extra-->", ` &middot; ${escapeHtml(mailingAddress)}`) : doc;
-
-  // Gmail SMTP is the primary sender while the shop has no verified domain in Resend. Gmail
-  // always sends from the authenticated account, so customers get real inbox delivery.
-  // If it is unset or fails, fall through to Resend below.
-  let gmailPass = "";
-  try {
-    const gmailDoc = await db.collection("adminSecrets").doc("gmail").get();
-    if (gmailDoc.exists) gmailPass = String(gmailDoc.data()?.appPassword || "").replace(/\s+/g, "");
-  } catch (err) {
-    console.warn("Could not read adminSecrets/gmail:", err);
-  }
-  let gmailProblem = "";
-  if (gmailPass) {
-    try {
-      if (html && !/<html[\s>]/i.test(html)) {
-        html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
-      }
-      // Bounded waits: a hung connection must not stall a trigger or the 15-minute sweep.
-      const transport = nodemailer.createTransport({ service: "gmail", auth: { user: ADMIN_TO, pass: gmailPass }, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
-      const info = await transport.sendMail({
-        from: `"${cleanFromName(fromName)}" <${ADMIN_TO}>`,
-        to,
-        subject,
-        html: withFooter(html),
-        replyTo: replyTo || undefined,
-        ...(attachments.length ? { attachments } : {}),
-      });
-      await logEmailAttempt({ to: recipients, subject, status: "sent", from: ADMIN_TO, keySource: "gmail", id: info.messageId || null, ...okExtra });
-      return { id: info.messageId || null };
-    } catch (err) {
-      console.error("Gmail SMTP send failed, falling back to Resend:", err);
-      gmailProblem = `Gmail SMTP rejected the send (${err?.message || err}). Re-enter the Gmail app password in Settings › Notifications › Gmail sending.`;
-      // Not a failure yet: Resend below may still deliver it. Only the final outcome counts as "failed".
-      await logEmailAttempt({ to: recipients, subject, status: "fallback", from: ADMIN_TO, keySource: "gmail", ...okExtra,
-        error: `${gmailProblem} Trying the backup sender (Resend).` });
-    }
-  }
-  const fail = async (message, extra = {}) => {
-    const error = gmailProblem ? `${message} (${gmailProblem})` : message;
-    const thrown = new Error(message);
-    // The retry queue logs its own outcome (try N of M / gave up).
-    if (outboxId) throw thrown;
-    if (queue && !isPermanentEmailError(error)) {
-      const queued = await enqueueEmail({ id: queueId, to: recipientList, subject, html: sourceHtml, kind: queue, error, claimId, about });
-      if (queued) {
-        await logEmailAttempt({ to: recipients, subject, status: "queued", error: `${error} Saved to try again automatically.`, from: fromEmail, keySource, kind: String(queue), outboxId: queued.id, retryAt: queued.nextAttemptAt, ...aboutOrder, ...extra });
-        thrown.queued = queued.id;
-        throw thrown;
-      }
-    }
-    await logEmailAttempt({ to: recipients, subject, status: "failed", error, from: fromEmail, keySource, ...(queue ? { kind: String(queue) } : {}), ...aboutOrder, ...extra });
-    throw thrown;
-  };
-
-  if (!apiKey || apiKey === "dummy_value" || !apiKey.startsWith("re_")) {
-    await fail(explainEmailError("Missing API key", { fromEmail }));
-  }
-
-  const resend = new Resend(apiKey);
-
-  // Every email gets the Riso Press shell (light/dark, accent and logo from Notifications › Email branding);
-  // templates from compileEmailTemplate are already full documents.
-  if (html && !/<html[\s>]/i.test(html)) {
-    html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
-  }
-
-  // If using a Resend onboarding key, force the sender to onboarding@resend.dev
-  if (apiKey.startsWith("re_onb_")) {
-    fromEmail = "onboarding@resend.dev";
-  }
-
-  const send = (fromAddress) => {
-    let timer;
-    const timeout = new Promise(resolve => { timer = setTimeout(() => resolve({ data: null, error: { message: "Resend did not answer within 20 seconds." } }), 20000); });
-    const request = resend.emails.send({
-      from: `${cleanFromName(fromName)} <${fromAddress}>`,
-      to,
-      subject,
-      html: withFooter(html),
-      replyTo: replyTo || undefined,
-      ...(attachments.length ? { attachments: attachments.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType })) } : {}),
-    }, queueId ? { idempotencyKey: `${queueId}:${fromAddress}` } : undefined)
-      .catch(err => ({ data: null, error: { message: err?.message || String(err) } }));
-    return Promise.race([request, timeout]).finally(() => clearTimeout(timer));
-  };
-
-  let response = await send(fromEmail);
-  let usedSandbox = fromEmail === "onboarding@resend.dev";
-
-  if (response.error && !usedSandbox) {
-    const errorMsg = (response.error.message || "").toLowerCase();
-    // If it's a domain validation / verification error, retry using the Resend sandbox address
-    if (["verify", "domain", "sender", "from address", "unverified"].some(word => errorMsg.includes(word))) {
-      console.warn(`Domain not verified for '${fromEmail}'. Retrying send via 'onboarding@resend.dev' sandbox fallback...`);
-      const fallbackResponse = await send("onboarding@resend.dev");
-      usedSandbox = true;
-      if (!fallbackResponse.error) {
-        await logEmailAttempt({ to: recipients, subject, status: "sent", from: "onboarding@resend.dev", keySource, id: fallbackResponse.data?.id || null, sandbox: true, ...okExtra,
-          note: `${fromEmail.split("@")[1] || "Sender domain"} is not verified in Resend; sent from onboarding@resend.dev, which only reaches the Resend account owner.` });
-        return fallbackResponse.data;
-      }
-      response = fallbackResponse; // If fallback also fails, report the fallback's error
-    }
-  }
-
-  if (response.error) {
-    console.error(`Resend rejected email to ${recipients}:`, response.error);
-    await fail(explainEmailError(response.error.message, { fromEmail, usedSandbox }), usedSandbox ? { sandbox: true } : {});
-  }
-  await logEmailAttempt({ to: recipients, subject, status: "sent", from: usedSandbox ? "onboarding@resend.dev" : fromEmail, keySource, id: response.data?.id || null, ...(usedSandbox ? { sandbox: true } : {}), ...okExtra });
-  return response.data;
+async function sendEmail(message) {
+  return mailer.send(message);
 }
 
 
 // ── Email retry queue (server-only emailOutbox; rules in ./emailOutbox) ──
-async function enqueueEmail({ id = "", to, subject, html, kind, error, claimId = "", about = {} }) {
-  id = id || crypto.randomBytes(12).toString("hex");
-  const now = Date.now();
-  const entry = {
-    to, subject, html: String(html || ""), kind: String(kind || ""), status: "pending", attempts: 1,
-    createdAt: new Date(now).toISOString(), lastAttemptAt: new Date(now).toISOString(),
-    nextAttemptAt: nextRetryAt(1, now), lastError: String(error || "").slice(0, 1000), leaseUntil: null,
-    ...(claimId ? { claimId } : {}),
-    // Re-checked before each retry (an order refunded meanwhile, a gift card voided) and used by privacy erase.
-    toLower: to.map(addr => String(addr).toLowerCase()),
-    ...(typeof about.orderId === "string" && about.orderId ? { orderId: about.orderId } : {}),
-    ...(typeof about.giftCardId === "string" && about.giftCardId ? { giftCardId: about.giftCardId } : {}),
-  };
-  try {
-    await db.collection("emailOutbox").doc(id).set(entry);
-    return { id, nextAttemptAt: entry.nextAttemptAt };
-  } catch (err) {
-    console.warn("Could not save the email for a retry:", err.message);
-    return null;
-  }
-}
-
 const resendSecretValue = () => { try { return RESEND_API_KEY.value(); } catch { return ""; } };
 
 // Sends one queued email (due, or `force` for the admin's Retry now). Takes a short lease in a
@@ -3730,7 +3533,7 @@ exports.onOrderCreated = onDocumentCreated(
 );
 
 const shopMail = shopEmails({
-  onBrowserRequest, onDocumentCreated, admin, db, nodemailer, applyCors, requireAdmin, ADMIN_TO,
+  onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
   loadNotificationSettings, logEmailAttempt, publicOutboxEntry, sendEmail: lateSendEmail, sendQueuedEmail,
   sendWeeklySummary, siteLink,
