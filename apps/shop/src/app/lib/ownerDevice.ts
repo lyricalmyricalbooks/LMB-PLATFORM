@@ -5,7 +5,7 @@
 // A pure module (no Firebase), shared by the storefront's tracking guard and the admin card.
 
 /** The shop owner's sign-in (the one admin account, CLAUDE.md › Auth & admin access). */
-export const SHOP_OWNER_EMAIL = "lyricalmyricalbooks@gmail.com";
+export const SHOP_OWNER_EMAIL = "owner@example.com";
 
 /**
  * An order the owner placed themselves (with the shop's own email): kept in Orders, left out of the Overview's figures

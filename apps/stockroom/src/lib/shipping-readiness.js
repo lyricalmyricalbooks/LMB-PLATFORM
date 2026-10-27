@@ -26,7 +26,7 @@
  * Kept here so the check and the substitution can never drift apart.
  */
 export const SHIPMENT_PLACEHOLDERS = {
-  senderName: 'Lyricalmyrical Books',
+  senderName: 'Your Press',
   senderPhone: '4165550199',
   senderAddress1: '123 Main St',
   senderCity: 'Toronto',

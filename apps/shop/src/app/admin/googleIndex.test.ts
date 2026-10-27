@@ -10,9 +10,9 @@ describe("Google indexing list", () => {
       { id: "4", title: "Card", slug: "card", status: "published", productType: "giftCard" },
       { id: "5", title: "Later", slug: "later", status: "published", scheduleDate: "2099-01-01" },
     ];
-    expect(indexPages(books, "https://lyricalmyricalbooks.com/")).toEqual([
-      { id: "_home", title: "Home page", url: "https://lyricalmyricalbooks.com/" },
-      { id: "1", title: "The Hound", url: "https://lyricalmyricalbooks.com/books/the-hound" },
+    expect(indexPages(books, "https://yourpress.example/")).toEqual([
+      { id: "_home", title: "Home page", url: "https://yourpress.example/" },
+      { id: "1", title: "The Hound", url: "https://yourpress.example/books/the-hound" },
     ]);
   });
   it("puts Google's verdict in plain words", () => {

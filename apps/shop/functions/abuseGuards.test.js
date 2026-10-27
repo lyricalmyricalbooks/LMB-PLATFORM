@@ -57,7 +57,7 @@ const contact = (extra = {}) => ({
   params: { messageId: 'm' },
 });
 const toVisitor = (app, email = 'victim@example.com') => app.sent.filter(m => m.to === email);
-const toShop = app => app.sent.filter(m => m.to === 'lyricalmyricalbooks@gmail.com');
+const toShop = app => app.sent.filter(m => m.to === 'owner@example.com');
 
 test('the visitor confirmation never echoes what the visitor typed', async () => {
   const app = harness();

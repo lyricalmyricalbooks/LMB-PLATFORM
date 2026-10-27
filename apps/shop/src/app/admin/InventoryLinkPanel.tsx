@@ -343,7 +343,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
               : <span className="rp-hint">it appears here once the updated website is live.</span>}
           </li>
           <li>
-            Open Google Cloud, signed in as lyricalmyricalbooks@gmail.com:{" "}
+            Open Google Cloud, signed in as owner@example.com:{" "}
             <a className="rp-link" href={IAM_URL} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
               Inventory app permissions <ExternalLink size={12} aria-hidden /><span className="rp-sr-only"> (opens in a new tab)</span>
             </a>

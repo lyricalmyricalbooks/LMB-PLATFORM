@@ -17,11 +17,11 @@ describe("Studio links", () => {
     expect(parseStudioLocation("#designer?c=zines")).toEqual({ templateId: "collectionPage", collectionSlug: "zines" });
   });
   it("maps storefront addresses to the page you were looking at", () => {
-    const base = "/LyricalmyricalWebsiteTrial/";
-    expect(locationForPath("/LyricalmyricalWebsiteTrial/books/night-pages", base)).toEqual({ templateId: "productPage", productSlug: "night-pages" });
-    expect(locationForPath("/LyricalmyricalWebsiteTrial/page/about", base)).toEqual({ templateId: "page:about" });
-    expect(locationForPath("/LyricalmyricalWebsiteTrial/collections/zines", base)).toEqual({ templateId: "collectionPage", collectionSlug: "zines" });
-    expect(locationForPath("/LyricalmyricalWebsiteTrial/", base)).toEqual({ templateId: "heroPage" });
+    const base = "/ShopTrial/";
+    expect(locationForPath("/ShopTrial/books/night-pages", base)).toEqual({ templateId: "productPage", productSlug: "night-pages" });
+    expect(locationForPath("/ShopTrial/page/about", base)).toEqual({ templateId: "page:about" });
+    expect(locationForPath("/ShopTrial/collections/zines", base)).toEqual({ templateId: "collectionPage", collectionSlug: "zines" });
+    expect(locationForPath("/ShopTrial/", base)).toEqual({ templateId: "heroPage" });
   });
 
   it("sends links to the retired Shared layout tab to Page layout", () => {

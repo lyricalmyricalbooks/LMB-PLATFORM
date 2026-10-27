@@ -24,7 +24,7 @@ const BOOKS = [
   { id: "b5", title: "Altrove", isbn: "9781234567897" },
 ];
 const APP = [{ id: "hound", title: "The Hound" }, { id: "altrove", title: "Altrove", isbn: "978-1-23456-789-7" },
-  { id: "zine", title: "Fair Zine", author: "Lyricalmyrical", price: 12, currency: "CA$" }];
+  { id: "zine", title: "Fair Zine", author: "Your Press", price: 12, currency: "CA$" }];
 
 describe("book lists", () => {
   test("website books the app doesn't have: printed, unmatched, not archived, not a suggestion, not dismissed", () => {
@@ -36,7 +36,7 @@ describe("book lists", () => {
     expect(link.shopBooksForApp(BOOKS, APP, STATE.links, { ignoredMatches: { "b5|": "altrove" } }).map(b => b.key)).toContain("b5|");
   });
   test("app books the shop doesn't have: unmatched, not a suggestion, not marked Not for the shop", () => {
-    expect(link.appBooksForShop(BOOKS, APP, STATE.links)).toEqual([{ id: "zine", title: "Fair Zine", author: "Lyricalmyrical", isbn: "", price: 12, currency: "CA$" }]);
+    expect(link.appBooksForShop(BOOKS, APP, STATE.links)).toEqual([{ id: "zine", title: "Fair Zine", author: "Your Press", isbn: "", price: 12, currency: "CA$" }]);
     expect(link.appBooksForShop(BOOKS, APP, STATE.links, { ignoredAppBooks: { zine: "x" } })).toEqual([]);
   });
 });

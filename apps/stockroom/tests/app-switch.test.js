@@ -36,16 +36,16 @@ describe('addresses', () => {
   });
 
   it('sends deep links back to the website address this app was opened from', () => {
-    expect(websiteAdminFor('https://www.lyricalmyricalbooks.com/admin#orders/1')).toBe('https://www.lyricalmyricalbooks.com/admin');
+    expect(websiteAdminFor('https://www.yourpress.example/admin#orders/1')).toBe('https://www.yourpress.example/admin');
     expect(websiteAdminFor('https://lmb-test-shop.firebaseapp.com/admin')).toBe('https://lmb-test-shop.firebaseapp.com/admin');
     expect(websiteAdminFor('https://mail.google.com/')).toBe(WEBSITE_ADMIN);
     expect(websiteAdminFor('android-app://com.example/')).toBe(WEBSITE_ADMIN);
     expect(websiteAdminFor('')).toBe(WEBSITE_ADMIN);
     try {
-      expect(useWebsiteFrom('https://lyricalmyricalbooks.com/admin')).toBe('https://lyricalmyricalbooks.com/admin');
-      expect(websiteAdmin()).toBe('https://lyricalmyricalbooks.com/admin');
-      expect(websiteOrderUrl('A-1')).toBe('https://lyricalmyricalbooks.com/admin#orders/A-1');
-      expect(openOnWebsiteHtml('A-1')).toContain('href="https://lyricalmyricalbooks.com/admin#orders/A-1"');
+      expect(useWebsiteFrom('https://yourpress.example/admin')).toBe('https://yourpress.example/admin');
+      expect(websiteAdmin()).toBe('https://yourpress.example/admin');
+      expect(websiteOrderUrl('A-1')).toBe('https://yourpress.example/admin#orders/A-1');
+      expect(openOnWebsiteHtml('A-1')).toContain('href="https://yourpress.example/admin#orders/A-1"');
     } finally {
       useWebsiteFrom('');
     }
@@ -63,7 +63,7 @@ describe('addresses', () => {
 
   it('lists every website address, and reads origins safely', () => {
     expect(WEBSITE_ORIGINS).toContain('https://lmb-test-shop.web.app');
-    expect(WEBSITE_ORIGINS).toContain('https://www.lyricalmyricalbooks.com');
+    expect(WEBSITE_ORIGINS).toContain('https://www.yourpress.example');
     expect(originOf('https://lmb-test-shop.web.app/admin#orders/x')).toBe('https://lmb-test-shop.web.app');
     expect(originOf('android-app://com.example')).toBe('');
     expect(originOf('')).toBe('');
@@ -171,7 +171,7 @@ describe('installed app or browser tab', () => {
     expect(isStandalone({ matchMedia: mm(['(display-mode: standalone)']) })).toBe(true);
     expect(isStandalone({ matchMedia: mm(['(display-mode: fullscreen)']) })).toBe(true);
     expect(isStandalone({ navigator: { standalone: true } })).toBe(true);
-    expect(isStandalone({ referrer: 'android-app://com.lyricalmyrical.inventory/' })).toBe(true);
+    expect(isStandalone({ referrer: 'android-app://example.press.inventory/' })).toBe(true);
     expect(isStandalone({ twaSeen: true })).toBe(true);
   });
 

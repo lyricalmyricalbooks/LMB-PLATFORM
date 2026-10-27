@@ -22,7 +22,7 @@ writeFileSync(resolve(root, 'dist/prerender-routes.xml'), rendered.xml);
 writeFileSync(resolve(root, 'dist/seo-published-fingerprint.txt'), publishedFingerprint({ books, pages, settings, reviews }) + '\n');
 // Google Merchant Center fetches this file (Books › Google Shopping feed shows its address).
 const design = effectivePublishedSettings(settings).design || {};
-const shopName = (typeof design.copy?.siteName === 'string' && design.copy.siteName.trim()) || (typeof design.siteName === 'string' && design.siteName.trim()) || 'Lyricalmyrical Books';
+const shopName = (typeof design.copy?.siteName === 'string' && design.copy.siteName.trim()) || (typeof design.siteName === 'string' && design.siteName.trim()) || 'Your Press';
 const feed = merchantFeedItems(siteUrl, books, { shopName });
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist', FEED_FILE), merchantFeedXml(siteUrl, feed.items, { shopName }));

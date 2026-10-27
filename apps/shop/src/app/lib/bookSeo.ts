@@ -284,7 +284,7 @@ function shopRef(name: string, shopUrl?: string) {
   return { '@type': 'Organization', ...(url ? { '@id': url + '#organization', url } : {}), name };
 }
 
-/** "Lyricalmyrical Books", "lyricalmyrical", "Lyricalmyrical Books (Toronto)" all name the shop; a co-publisher does not. */
+/** "Night Books", "night", "Night Books (Toronto)" all name the shop "Night Books"; a co-publisher does not. */
 function namesShop(publisher: string, shop: string) {
   const key = (v: string) => v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
   const p = key(publisher), s = key(shop);

@@ -370,7 +370,7 @@ function downloadInventoryValuationCSV() {
   const { items, totals } = calculateInventoryValuationData();
   const esc = csvCell;
 
-  let csv = 'Lyricalmyrical Book Inventory Valuation Report\n';
+  let csv = 'Your Press Book Inventory Valuation Report\n';
   csv += 'Generated on: ' + today() + '\n';
   csv += `Active Titles: ${totals.totalTitles} | Total Unsold Units: ${totals.totalUnsoldUnits} (${totals.totalStockOnHand} Warehouse / ${totals.totalStockConsigned} Consigned)\n`;
   csv += `Total Balance Sheet Inventory Asset Cost: CAD $${totals.totalAssetValueCostCAD.toFixed(2)} | Total Retail Value: CAD $${totals.totalAssetValueRetailCAD.toFixed(2)}\n\n`;
@@ -506,7 +506,7 @@ function printInventoryValuationReport() {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Lyricalmyrical Books - Inventory Valuation Report</title>
+      <title>Your Press - Inventory Valuation Report</title>
       <style>
         body { font-family: system-ui, -apple-system, sans-serif; padding: 24px; color: #111; line-height: 1.5; }
         h1 { margin: 0 0 4px 0; font-size: 24px; }
@@ -523,7 +523,7 @@ function printInventoryValuationReport() {
       </style>
     </head>
     <body>
-      <h1>Lyricalmyrical Books — Inventory Valuation Report</h1>
+      <h1>Your Press — Inventory Valuation Report</h1>
       <div class="meta">Generated: ${today()} | Publisher Balance Sheet & Stock Audit</div>
       <div class="summary">
         <div class="card"><div class="card-label">Asset Cost Basis (CAD)</div><div class="card-val">$${totals.totalAssetValueCostCAD.toFixed(2)}</div></div>

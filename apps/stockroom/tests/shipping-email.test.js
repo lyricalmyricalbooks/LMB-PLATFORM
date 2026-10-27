@@ -137,7 +137,7 @@ describe('reading one carrier email without an AI', () => {
     // customer's order. The tracking number is the better match signal.
     const parsed = parseShippingEmail({
       ...email,
-      body: `${email.body}\nShip from: Lyricalmyrical Books\nAttn: Dana Okafor`,
+      body: `${email.body}\nShip from: Your Press\nAttn: Dana Okafor`,
     });
     expect(parsed.recipientName).toBe('');
     expect(parsed.recipientPostal).toBe('');

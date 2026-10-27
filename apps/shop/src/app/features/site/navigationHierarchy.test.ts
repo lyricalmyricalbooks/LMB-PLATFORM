@@ -10,7 +10,7 @@ describe("navigation hierarchy", () => {
   it("recognizes the published publisher page names and slugs", () => {
     const pages: any[] = [
       { key: "page:submissions", kind: "page", label: "PROJECT SUBMISSIONS", page: { slug: "submissions" } },
-      { key: "page:history", kind: "page", label: "HISTORY OF LYRICALMYRICAL", page: { slug: "history-of-lyricalmyrical" } },
+      { key: "page:history", kind: "page", label: "HISTORY OF THE PRESS", page: { slug: "history-of-the-press" } },
       { key: "page:open-call", kind: "page", label: "OPEN CALL - COLLECTIVE BOOK", page: { slug: "open-call" } },
     ];
     expect(splitNavigation(pages, {}).secondary).toEqual(pages);

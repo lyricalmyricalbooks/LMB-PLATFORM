@@ -1371,7 +1371,7 @@ function summarizeReceiptProblems(problems) {
 function formatReceiptDiagnostic(problems, context = {}) {
   const groups = summarizeReceiptProblems(problems);
   const lines = [
-    'Lyricalmyrical Inventory — receipt move diagnostic',
+    'Your Press Inventory — receipt move diagnostic',
     `When: ${new Date().toISOString()}`,
     `Attempted: ${problems.length} receipt${problems.length === 1 ? '' : 's'}`,
   ];
@@ -1752,7 +1752,7 @@ async function exportReceiptsZip(year = null) {
   files.push(textEntry('manifest.csv', toCsv(manifest)));
 
   const label = year ? `-${year}` : '';
-  downloadBlob(createZip(files), `Lyricalmyrical-Receipts${label}.zip`);
+  downloadBlob(createZip(files), `Press-Receipts${label}.zip`);
 
   if (btn) { btn.disabled = false; btn.textContent = oldText; }
   if (progress) progress.textContent = '';

@@ -6,7 +6,7 @@ export function normalizeLetterhead(saved = {}, invoice = {}) {
   const result = {};
   for (const field of FIELDS) result[field] = String(saved[field] ?? '').slice(0, field === 'body' ? 30000 : 2000);
   for (const [field, source] of [['name', 'name'], ['address', 'addr'], ['email', 'email'], ['website', 'web']]) {
-    if (saved[field] == null) result[field] = String(invoice[source] || (field === 'name' ? 'Lyricalmyrical Books' : ''));
+    if (saved[field] == null) result[field] = String(invoice[source] || (field === 'name' ? 'Your Press' : ''));
   }
   result.accent = /^#[0-9a-fA-F]{6}$/.test(saved.accent || '') ? saved.accent : '#a87042';
   result.logo = /^data:image\/(?:png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(saved.logo || '') ? saved.logo : '';

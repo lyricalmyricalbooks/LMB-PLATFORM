@@ -266,7 +266,7 @@ export function invoiceShareForBook(inv, ownerBookId, bookId, books) {
 
 export const NEUTRAL_PREFIX_FALLBACK = 'LMB';
 
-// Initials of the business name — "Lyricalmyrical Books" → "LB". A single-word
+// Initials of the business name — "Your Press" → "LB". A single-word
 // name keeps its first letters instead ("Nightjar" → "NIGHT") so the prefix is
 // still recognisable rather than one bare letter. Derived from the name printed
 // on the invoice, so the number reads as the publisher's rather than a title's.

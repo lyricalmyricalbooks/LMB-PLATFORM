@@ -12,7 +12,7 @@ class ReplyProblem extends Error {
 }
 
 /** Pure: the email for a reply. Throws ReplyProblem when the reply or the address is unusable. */
-function buildMessageReply(message, rawBody, { shopName = "Lyricalmyrical Books" } = {}) {
+function buildMessageReply(message, rawBody, { shopName = "Your Press" } = {}) {
   const body = String(rawBody ?? "").replace(/\r\n?/g, "\n").trim();
   if (!body) throw new ReplyProblem(400, "Write a reply first.");
   if (body.length > MAX_REPLY) throw new ReplyProblem(400, `Keep the reply under ${MAX_REPLY} characters.`);

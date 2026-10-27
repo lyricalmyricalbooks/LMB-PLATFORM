@@ -15,7 +15,7 @@ import {
 // The real corpus, taken from the actual "General receipts" folder. Tests
 // written against invented names would pass while the real folder stayed a mess.
 const REAL_FILES = [
-  '2026-04-20_36.LyricalmyricalBooksInvoice.pdf',
+  '2026-04-20_36.YourPressInvoice.pdf',
   '2026-04-20_Gmail-YourGooglePlayOrderR.pdf',
   '2026-05-03_OrderDetails.pdf',
   '2026-05-11_Fattura23-2026.pdf',
@@ -24,7 +24,7 @@ const REAL_FILES = [
   '2026-08-01_Uber_CAD-8.19.pdf',
   '2026-08-05_Litoservice-s.r.l.-Printing-Volu.pdf',
   '2026-06-15_webcam-receipt-2026-06-15.jpg',
-  'Ordine_17190_lyricalmyrical_books.pdf',
+  'Ordine_17190_your_press.pdf',
   'invoice amazon.pdf',
   'receipt_c917c7a6-2807-4b95-b96b-b8035.pdf',
   'Card authorization approved.pdf',
@@ -46,7 +46,7 @@ const KEYWORDS = {
 describe('dates out of real filenames', () => {
   it('reads the leading ISO date most files already carry', () => {
     expect(dateFromName('2026-07-30_Uber_CAD-13.93.pdf')).toBe('2026-07-30');
-    expect(dateFromName('2026-04-20_36.LyricalmyricalBooksInvoice.pdf')).toBe('2026-04-20');
+    expect(dateFromName('2026-04-20_36.YourPressInvoice.pdf')).toBe('2026-04-20');
   });
 
   it('reads day-first dates, as European invoices tend to be written', () => {
@@ -56,7 +56,7 @@ describe('dates out of real filenames', () => {
   it('finds nothing in files that genuinely have no date', () => {
     expect(dateFromName('invoice amazon.pdf')).toBe('');
     expect(dateFromName('Card authorization approved.pdf')).toBe('');
-    expect(dateFromName('Ordine_17190_lyricalmyrical_books.pdf')).toBe('');
+    expect(dateFromName('Ordine_17190_your_press.pdf')).toBe('');
   });
 
   it('does not invent a date out of a UUID full of digits', () => {
@@ -78,7 +78,7 @@ describe('amounts out of real filenames', () => {
   it('refuses to read an order number as money', () => {
     // "Ordine_17190" is an order number. Reading it as $17,190 would file the
     // receipt against the wrong expense and be very hard to notice.
-    expect(amountFromName('Ordine_17190_lyricalmyrical_books.pdf')).toBeNull();
+    expect(amountFromName('Ordine_17190_your_press.pdf')).toBeNull();
     expect(amountFromName('2026-06-09_Invoice-FKJTGVYE-0001.pdf')).toBeNull();
   });
 

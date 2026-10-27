@@ -11,7 +11,7 @@ const zlib = require("zlib");
 const SKIP_COLLECTIONS = ["rate-limits"];
 /** Sub-collection names, copied with collection-group reads (firestore.rules lists books/{id}/private only). */
 const SUBCOLLECTION_GROUPS = ["private"];
-const BACKUP_FORMAT = "lyricalmyrical-firestore-json/1";
+const BACKUP_FORMAT = "press-firestore-json/1";
 /** The one-file copy of a backup folder, offered as a download (backupAdmin.js). */
 const DOWNLOAD_FILE = "backup.json";
 

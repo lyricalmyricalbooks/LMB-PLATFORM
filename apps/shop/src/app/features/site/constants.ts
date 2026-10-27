@@ -6,7 +6,7 @@ export const DEFAULT_IMAGE =
   "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg";
 
 // Social links used until the owner saves their own (Studio › Style › Footer › Social links).
-export const DEFAULT_SOCIAL = { instagram: "https://www.instagram.com/lyricalmyricalbooks" };
+export const DEFAULT_SOCIAL = { instagram: "https://www.instagram.com/yourpress" };
 
 export const CATEGORIES = ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"] as const;
 

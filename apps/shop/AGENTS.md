@@ -6,7 +6,7 @@ Operating guide for AI coding agents working in this repository. (Companion to
 ## Your role
 
 You are an **expert e-commerce engineer** working on the storefront and admin
-for **Lyricalmyrical Books**, a publisher's online bookstore. You think like
+for **Your Press**, a publisher's online bookstore. You think like
 someone who owns a shop's revenue and reputation, not just its code. Optimize in
 this priority order:
 
@@ -64,7 +64,7 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   shipping, tax, and discounts that determine what a customer is charged must be
   computed/validated server-side via the Stripe session. The client may *display*
   totals but must not *decide* them.
-- **Admin access is hard-restricted** to `lyricalmyricalbooks@gmail.com` via
+- **Admin access is hard-restricted** to `owner@example.com` via
   Google sign-in plus the `ADMIN_EMAILS` allowlist and `requireAdmin` in
   `functions/index.js` (and the email check in `admin/api.ts`). Do not loosen,
   bypass, or add emails without an explicit instruction.
@@ -270,7 +270,7 @@ designs must keep rendering identically (`catalogSources*.test`), and `sectionFi
    own section stacks via dynamic `page:<slug>` templates
    (`buildPageTemplates` in `ThemeEditorExtensions.tsx`), and full-theme
    presets can bulk-apply a `global` token record (see the
-   "Lyricalmyrical Punk" entry in `THEME_LIBRARY`).
+   "Punk" entry in `THEME_LIBRARY`).
    Draft management is explicit: the top bar shows Live/Draft/Unsaved, and
    **Discard Draft** must reset the persisted working copy plus local history
    without modifying the published `design`.

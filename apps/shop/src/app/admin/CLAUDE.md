@@ -9,7 +9,7 @@ another admin call takes it from its own small file the same way. `adminApiImpor
 
 ## Inventory app link (11 October 2026)
 
-The shop and the inventory app (`lyricalmyricalbooks/lyrical-inventory`, Firebase project `lmb-test-stockroom`) share sales
+The shop and the inventory app (`lyricalmyricalbooks/LMB-PLATFORM (apps/stockroom)`, Firebase project `lmb-test-stockroom`) share sales
 and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory repo's `docs/website-link.md` — change both).
 **The inventory app is the master count** for every linked edition; nothing here is a payment path.
 - **Transport:** Functions open a second Admin SDK app on `lmb-test-stockroom` (`functions/inventoryLinkStore.js`, the only code
@@ -87,7 +87,7 @@ square corners, 2px ink outlines on objects and hairlines inside lists, flat off
 shadows by day, warm-grey night mode, Anton / Archivo / DM Mono, status = glyph + word.
 If tokens change there, update `riso.css` to match.
 
-**Pressroom (22 October 2026, Julian's concept A, https://claude.ai/artifact/AR9vcvX5mR5JNCDHeBpFte):** the last layer of
+**Pressroom (22 October 2026, the owner's concept A, https://claude.ai/artifact/AR9vcvX5mR5JNCDHeBpFte):** the last layer of
 `riso.css` ("Pressroom") restyles the whole admin: cream page, 232px ink rail (`--rp-rail*`; "Website admin" under the wordmark, 16px line icons in one column (faint, label colour on hover/current), active item
 cream, `data-nav` on each item, Orders badge red), 64px top bar with a hairline (search, "Shop open" as glyph + word, round
 ink avatar), 72px Anton titles, 40px underlined page tabs, figures as a ledger (2px ink rule over mono labels/36px mono

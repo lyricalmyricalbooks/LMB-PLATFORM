@@ -28,14 +28,14 @@ it("shows one topic per sub tab, keeps the others mounted and marks unsaved ones
   expect(panels().map((p) => p.hidden)).toEqual([false, true]);
   expect(container.textContent).toContain("(unsaved changes)");
   const name = container.querySelector<HTMLInputElement>("input")!;
-  name.value = "Lyricalmyrical";
+  name.value = "Your Press";
   const details = Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.startsWith("Shop details"))!;
   await act(async () => details.click());
   expect(panels().map((p) => p.hidden)).toEqual([true, false]);
   expect(panels()[1].getAttribute("aria-labelledby")).toBe(details.id);
   await act(async () => (Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Shop status") as HTMLButtonElement).click());
   // The hidden topic kept what was typed in it.
-  expect(container.querySelector<HTMLInputElement>("input")!.value).toBe("Lyricalmyrical");
+  expect(container.querySelector<HTMLInputElement>("input")!.value).toBe("Your Press");
   expect(window.location.hash).toBe("#settings/general");
   await act(async () => root.unmount());
 });

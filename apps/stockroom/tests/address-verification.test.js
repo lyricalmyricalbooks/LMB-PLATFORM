@@ -66,7 +66,7 @@ const V2_INVALID = {
 const V2_VALID = {
   original_address: {
     address_line_1: '456 Montrose Ave', city_locality: 'Toronto', state_province: 'ON',
-    postal_code: 'M6G 3H1', country_code: 'CA', name: 'Lyricalmyrical Books',
+    postal_code: 'M6G 3H1', country_code: 'CA', name: 'Your Press',
   },
   analysis: {
     validation_result: {
@@ -79,7 +79,7 @@ const V2_VALID = {
 };
 
 const TORONTO = {
-  name: 'Lyricalmyrical Books', company: '', street1: '456 Montrose Ave', street2: '',
+  name: 'Your Press', company: '', street1: '456 Montrose Ave', street2: '',
   city: 'Toronto', state: 'ON', zip: 'M6G 3H1', country: 'CA',
 };
 
@@ -290,7 +290,7 @@ describe('isDeliverable', () => {
 describe('addressSignature', () => {
   it('is stable across case and whitespace noise', () => {
     expect(addressSignature(TORONTO)).toBe(addressSignature({
-      ...TORONTO, name: 'LYRICALMYRICAL  BOOKS', city: ' Toronto ',
+      ...TORONTO, name: 'YOUR  PRESS', city: ' Toronto ',
     }));
   });
 
@@ -501,7 +501,7 @@ describe('describeShippoError', () => {
 describe('formatAddressLines', () => {
   it('drops blank lines and uppercases the country', () => {
     expect(formatAddressLines(TORONTO)).toEqual([
-      'Lyricalmyrical Books',
+      'Your Press',
       '456 Montrose Ave',
       'Toronto, ON  M6G 3H1',
       'CA',

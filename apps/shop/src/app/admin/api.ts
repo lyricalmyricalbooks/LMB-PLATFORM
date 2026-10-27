@@ -109,9 +109,9 @@ export const adminApi = {
       const user = result.user;
       
       // Restrict to authorized email
-      if (user.email !== "lyricalmyricalbooks@gmail.com") {
+      if (user.email !== "owner@example.com") {
         await signOut(auth);
-        throw new Error("Unauthorized: Access restricted to lyricalmyricalbooks@gmail.com");
+        throw new Error("Unauthorized: Access restricted to owner@example.com");
       }
 
       // Also sign into legacy inventory project using the same Google credential
@@ -159,7 +159,7 @@ export const adminApi = {
   },
 
   updateCategoryBooks: async (ids: string[], source: any, action: CategoryAction, target?: any) => {
-    if (auth.currentUser?.email !== "lyricalmyricalbooks@gmail.com") throw new Error("Admin sign-in is required.");
+    if (auth.currentUser?.email !== "owner@example.com") throw new Error("Admin sign-in is required.");
     const unique = [...new Set(ids)];
     if (unique.length > 400) throw new Error("More than 400 books are assigned here. Use Edit → Assigned here to move or remove up to 400 at a time, then retry deletion. No books were changed.");
     if (!source?.name || (action === "move" && (!target?.name || target.id === source.id))) throw new Error("Choose a different destination category.");
@@ -702,7 +702,7 @@ export const adminApi = {
   },
 
   updateLocalFulfillment: async (config: LocalFulfillmentConfig) => {
-    if (auth.currentUser?.email !== "lyricalmyricalbooks@gmail.com" || !auth.currentUser.emailVerified) throw new Error("Unauthorized local fulfillment update.");
+    if (auth.currentUser?.email !== "owner@example.com" || !auth.currentUser.emailVerified) throw new Error("Unauthorized local fulfillment update.");
     const errors = validateLocalFulfillment(config);
     if (errors.length) throw new Error(errors.join(" "));
     await setDoc(doc(db, "settings", "website"), { localFulfillment: JSON.parse(JSON.stringify(config)) }, { mergeFields: ["localFulfillment"] });

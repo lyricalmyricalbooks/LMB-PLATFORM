@@ -43,7 +43,7 @@ parallel one.
   Anything in either table is off the board.
 - **Count the `Kind` of the last five rows** — it decides what sort of run this is. See the balance
   rule in step 3.
-- List **open** pull requests for `lyricalmyricalbooks/lyrical-inventory` via the GitHub MCP tools,
+- List **open** pull requests for `yourpress/LMB-PLATFORM (apps/stockroom)` via the GitHub MCP tools,
   to catch work that is in flight but not yet merged and so not yet in the log.
 - Only if the log is missing or clearly stale, fall back to `git log --oneline -40`.
 

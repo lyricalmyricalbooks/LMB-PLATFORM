@@ -116,7 +116,7 @@ describe('Robust Inventory Valuation Suite & CSV Export', () => {
     expect(toastMessage).toContain('Comprehensive Inventory Valuation CSV exported');
 
     const lines = createdBlobContent.split('\n');
-    expect(lines[0]).toBe('Lyricalmyrical Book Inventory Valuation Report');
+    expect(lines[0]).toBe('Your Press Book Inventory Valuation Report');
     expect(lines[1]).toBe('Generated on: 2026-07-14');
     expect(lines[2]).toContain('Active Titles: 2 | Total Unsold Units: 43 (35 Warehouse / 8 Consigned)');
     expect(lines[3]).toContain('Total Balance Sheet Inventory Asset Cost: CAD $380.00');

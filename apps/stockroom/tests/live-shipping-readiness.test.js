@@ -40,7 +40,7 @@ const indexHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 // ─────────────────────────────────────────────────────────────────────────
 
 const goodSender = {
-  name: 'Lyricalmyrical Books',
+  name: 'Your Press',
   phone: '416 555 0142',
   address1: '88 Bookish Way',
   city: 'Toronto',

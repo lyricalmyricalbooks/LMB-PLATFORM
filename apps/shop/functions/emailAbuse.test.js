@@ -123,7 +123,7 @@ test('a contact "email" that is a list of addresses is never mailed', async () =
   const app = load({ db: makeDb(SETTINGS) });
   await app.exports.onContactMessage(contact('a@x.com,b@y.com,c@z.com'));
   expect(app.sent.filter(m => String(m.to).includes(','))).toEqual([]);
-  expect(app.sent.filter(m => m.to !== 'lyricalmyricalbooks@gmail.com')).toEqual([]);
+  expect(app.sent.filter(m => m.to !== 'owner@example.com')).toEqual([]);
 });
 
 test('sendEmail refuses a recipient that is not one plain address', async () => {

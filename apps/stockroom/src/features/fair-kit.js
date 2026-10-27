@@ -1414,7 +1414,7 @@ async function printPaymentQRCodes(opts = {}) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Lyricalmyrical Books — Payment QR Codes</title>
+<title>Your Press — Payment QR Codes</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -1528,7 +1528,7 @@ async function printPaymentQRCodes(opts = {}) {
 <body>
 
 <header class="header">
-  <div class="brand"><em>Lyricalmyrical</em> Books</div>
+  <div class="brand"><em>Your Press</em> Books</div>
   <div class="tagline">Scan to purchase · Secured by Stripe</div>
   <div class="date-line" id="date-line"></div>
 </header>
@@ -1538,7 +1538,7 @@ async function printPaymentQRCodes(opts = {}) {
 </main>
 
 <footer class="footer">
-  <span class="footer-brand">Lyricalmyrical Books</span>
+  <span class="footer-brand">Your Press</span>
   <span class="footer-note">All transactions secured by Stripe · Adaptive Pricing enabled</span>
 </footer>
 

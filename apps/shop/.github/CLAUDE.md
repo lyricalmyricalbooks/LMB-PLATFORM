@@ -17,7 +17,7 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
   true; it is the emergency stop). Vite `base` defaults to `/` and `SPA_FALLBACK` to `shell`; every `SITE_URL` default (build
   scripts, `vite.config.ts`, `build-pages-redirect.mjs`, `functions/index.js` email links), the workflow fallback and
   `index.html`'s address must agree (`scripts/siteAddress.test.ts`). Still use `import.meta.env.BASE_URL` for links.
-- **The old address forwards.** GitHub Pages (`…github.io/LyricalmyricalWebsite/…`) serves only forwarding pages
+- **The old address forwards.** GitHub Pages (`…github.io/shop/…`) serves only forwarding pages
   (`scripts/pagesRedirect.mjs`, inlined with `toString()`): `index.html`, `404.html` and one page per prerendered route (200 +
   canonical to the new page, `<noscript>` refresh, `no-referrer`). `movedUrl` keeps path, query and `#hash` (emails already sent:
   `/track?orderId&key`, unsubscribe, `/checkout?cartId=`, `/admin#orders/<id>`) and decodes the old `?/…~and~` form. It also
@@ -49,9 +49,9 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
   statuses, redirects, bodies and headers in the Hosting emulator (CI and `build-hosting`) and on the live site after each
   deploy; live runs try failing checks again for about 3 minutes (`scripts/retryChecks.mjs`, `LIVE_RETRY_WAITS_MS`) because
   the CDN can serve the previous release for a while (run 804 failed 3 s after release); the emulator run never retries. `ALLOWED_ORIGINS` includes web.app (not firebaseapp.com) and, for tabs opened before the move, github.io (remove in the
-  cleanup step); it already lists lyricalmyricalbooks.com/www for the shop's own domain later (`docs/FIREBASE_HOSTING.md`).
+  cleanup step); it already lists yourpress.example/www for the shop's own domain later (`docs/FIREBASE_HOSTING.md`).
 - **Old Big Cartel addresses (15 October 2026):** `firebase.json` `redirects` lists each old `/product/<name>`, `/category/<name>`
-  and page address as an exact 301 to an absolute `https://lyricalmyricalbooks.com/...` page (one hop). No `/product/**` or
+  and page address as an exact 301 to an absolute `https://yourpress.example/...` page (one hop). No `/product/**` or
   `/category/**` catch-all: an unknown old address answers 404 (Google reads a redirect to a listing as a soft 404; Hosting can't
   send 410 without a function). Add a book's old address when one turns up. `/cart` is an app route (shop with the bag open,
   `CartRoute` in `App.tsx`) with `X-Robots-Tag: noindex`, and robots.txt must not disallow it. `scripts/seo-url-check.mjs` checks
@@ -59,7 +59,7 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
   Collection pages' single `<h1>` is the category name, with an intro from the category description or Text & labels ›
   Collection & wishlist pages › `collectionIntro*` (`features/site/collectionIntro.ts`).
 - **Own domain (`docs/CUSTOM_DOMAIN.md`, ready, not switched):** the switch is Firebase Hosting › Add custom domain
-  (apex `lyricalmyricalbooks.com`, www redirecting to it) + repository variable `SITE_URL=https://lyricalmyricalbooks.com`
+  (apex `yourpress.example`, www redirecting to it) + repository variable `SITE_URL=https://yourpress.example`
   + Deploy Firebase, then Deploy storefront. Both workflows lower-case `SITE_URL` first. `moveToCanonicalHost` also moves
   the www/bare twin of SITE_URL's host; `stampSiteAddress` (in the `canonicalHost` Vite plugin) rewrites index.html's
   built-in web.app address (`DEFAULT_SITE_URL`) to SITE_URL; after the switch `hosting-smoke.mjs` checks web.app and

@@ -37,7 +37,7 @@ const PAGE_SIZE = 25;
 
 const slugOf = (b: any) => b.slug || (b.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-/** Sub-path safe public URL (the site is served under /LyricalmyricalWebsite/ on GitHub Pages). */
+/** Sub-path safe public URL (the site is served under /shop/ on GitHub Pages). */
 const listingUrl = (b: any) =>
   `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/books/${slugOf(b)}`;
 

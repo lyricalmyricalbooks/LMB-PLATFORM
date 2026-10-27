@@ -14,7 +14,7 @@ Guidance for working in this repository.
 
 ## What this is
 
-An e-commerce storefront + admin for **Lyricalmyrical Books**, a publisher.
+An e-commerce storefront + admin for **Your Press**, a publisher.
 It's a single-page React app (the public bookstore and the admin dashboard are
 the same SPA), backed by **Firebase** (Firestore, Auth, Storage) and a set of
 **Cloud Functions** that handle payments, email, and fulfillment. The UI was
@@ -128,7 +128,7 @@ npm run logs
 ## Auth & admin access
 
 - Admin login is **Google sign-in**, hard-restricted to
-  `lyricalmyricalbooks@gmail.com` (see `src/app/admin/api.ts` and the
+  `owner@example.com` (see `src/app/admin/api.ts` and the
   `ADMIN_EMAILS` allowlist + `requireAdmin` in `functions/index.js`). There is
   no password-based admin anymore.
 - Cloud Functions verify the Firebase ID token and require a verified admin

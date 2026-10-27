@@ -40,7 +40,7 @@ export function SearchConsoleCard() {
       actions={check && <StatusBadge tone={check.connected ? "success" : "neutral"}>{check.connected ? "Connected" : "Not connected"}</StatusBadge>}>
       <HowTo summary="Setup steps" open={!check?.connected}>
         <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
-          <li>At <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer">search.google.com/search-console</a> add the shop's address as a property if it isn't there yet (a <strong>Domain</strong> property for lyricalmyricalbooks.com covers every address).</li>
+          <li>At <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer">search.google.com/search-console</a> add the shop's address as a property if it isn't there yet (a <strong>Domain</strong> property for yourpress.example covers every address).</li>
           <li>Press <strong>Check connection</strong> below. It shows the one email to add in Search Console › Settings › <strong>Users and permissions</strong> › Add user, with <strong>Restricted</strong> permission, and whether Google's Search Console API needs switching on.</li>
           <li>Check again. Google's search figures run two to three days behind.</li>
         </ol>

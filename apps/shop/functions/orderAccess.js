@@ -11,7 +11,7 @@ function canViewOrder(order, { key, identity } = {}) {
   if (sameSecret(key, order.trackingKey)) return true;
   if (identity?.email_verified !== true) return false;
   const email = normEmail(identity.email);
-  return !!email && (email === normEmail(order.customer?.email) || email === "lyricalmyricalbooks@gmail.com");
+  return !!email && (email === normEmail(order.customer?.email) || email === "owner@example.com");
 }
 const PUBLIC_FIELDS = ["preorderReleasedAt", "orderId", "createdAt", "updatedAt", "status", "paymentStatus", "fulfillmentStatus",
   "paidAt", "shippedAt", "deliveredAt", "readyForPickupAt", "collectedAt", "readyForDeliveryAt", "outForDeliveryAt",

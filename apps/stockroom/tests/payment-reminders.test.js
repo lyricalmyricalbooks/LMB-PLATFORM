@@ -214,7 +214,7 @@ describe('buildReminderEmail', () => {
   const built = () => buildReminderEmail(lateInvoice(), {
     settings,
     payLink: 'https://buy.stripe.com/test_abc',
-    publisher: 'Lyricalmyrical Books',
+    publisher: 'Your Press',
     amountLabel: 'CA$180.00',
   });
 
@@ -261,7 +261,7 @@ describe('buildReminderEmail', () => {
     expect(stripe.text).toContain('using the Stripe link');
 
     const paypal = buildReminderEmail(lateInvoice(), {
-      settings, payLink: 'https://paypal.me/lyricalmyrical/180', amountLabel: 'CA$180.00',
+      settings, payLink: 'https://paypal.me/yourpress/180', amountLabel: 'CA$180.00',
     });
     expect(paypal.text).toContain('using the payment link');
     expect(paypal.text).not.toContain('Stripe');

@@ -320,11 +320,11 @@ async function sendTestNotification() {
       }
     }, url);
     if (res && res.ok && res.notified) {
-      showToast('✓ Test email sent to lyricalmyricalbooks@gmail.com');
+      showToast('✓ Test email sent to owner@example.com');
     } else {
       // no-cors fallback (res === 'unknown') can't read the response — the POST
       // went out but we can't confirm the send. Tell the user to check.
-      showToast('Sent — check lyricalmyricalbooks@gmail.com to confirm', 'warn', 4500);
+      showToast('Sent — check owner@example.com to confirm', 'warn', 4500);
     }
   } catch (e) {
     showToast('⚠ Test failed: ' + (e.message || 'could not reach the notifier'), 'err', 5000);
@@ -357,7 +357,7 @@ async function emailArtistForPayment() {
     'When you have a moment, please log in to the inventory app and submit or forward any payments due so the ledger stays up to date.',
     '',
     'Thank you,',
-    'Lyricalmyrical Books'
+    'Your Press'
   ].join('\n');
   const btn = $('d-email-artist-btn');
   const prev = btn ? btn.textContent : '';

@@ -16,7 +16,7 @@ const orders = [
   order("a", "2026-10-13T15:00:00Z", { total: 60, items: [{ bookId: "b1", name: "Riso Book", quantity: 2 }] }),
   order("b", "2026-10-18T23:00:00Z", { items: [{ bookId: "b2", name: "Poèmes (côté) \\ éditions", quantity: 1 }] }), // Sunday evening Toronto
   order("c", "2026-10-07T15:00:00Z"),
-  order("own", "2026-10-14T15:00:00Z", { customer: { email: "lyricalmyricalbooks@gmail.com" }, total: 999 }),
+  order("own", "2026-10-14T15:00:00Z", { customer: { email: "owner@example.com" }, total: 999 }),
 ];
 const daily = [
   { date: "2026-10-13", visits: 100, funnel: { view: 40, add_to_cart: 6, checkout_start: 4, purchase: 1 },
@@ -98,7 +98,7 @@ describe("weekly highlights PDF", () => {
   });
 
   it("names the file after the week", () => {
-    expect(weeklyPdfName(week)).toBe("lyricalmyrical-weekly-highlights-2026-10-12.pdf");
+    expect(weeklyPdfName(week)).toBe("press-weekly-highlights-2026-10-12.pdf");
   });
 });
 

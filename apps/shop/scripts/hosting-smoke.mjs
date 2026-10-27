@@ -4,7 +4,7 @@
 // immutable hashed assets, no-cache HTML and the security headers. Node built-ins only.
 //
 // Against the Hosting emulator (CI and the deploy workflow, after a build):
-//   npx firebase-tools@<FIREBASE_TOOLS_VERSION> emulators:exec --only hosting --project demo-lyricalmyrical \
+//   npx firebase-tools@<FIREBASE_TOOLS_VERSION> emulators:exec --only hosting --project demo-shop \
 //     "node scripts/hosting-smoke.mjs"
 // Against the live site after a deploy (reads the same dist/ that was deployed):
 //   node scripts/hosting-smoke.mjs --base https://lmb-test-shop.web.app

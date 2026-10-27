@@ -9,24 +9,24 @@ const allowed = allowedOriginsFrom(functions);
 describe('the shop address a deploy may use', () => {
   it('reads the Cloud Functions allow-list and the email-link default', () => {
     expect(allowed).toContain('https://lmb-test-shop.web.app');
-    expect(allowed).toContain('https://www.lyricalmyricalbooks.com');
+    expect(allowed).toContain('https://www.yourpress.example');
     expect(siteAddressProblem(defaultSiteUrl(functions), allowed)).toBeNull();
   });
 
   it("accepts the shop's own domain once the Functions allow it", () => {
-    expect(siteAddressProblem('https://www.lyricalmyricalbooks.com', allowed)).toBeNull();
-    expect(siteAddressProblem('https://lyricalmyricalbooks.com/', allowed)).toBeNull();
+    expect(siteAddressProblem('https://www.yourpress.example', allowed)).toBeNull();
+    expect(siteAddressProblem('https://yourpress.example/', allowed)).toBeNull();
   });
 
   it('refuses addresses that would send shoppers somewhere checkout fails', () => {
     expect(siteAddressProblem('https://lmb-test-shop.firebaseapp.com', allowed)).toMatch(/ALLOWED_ORIGINS/);
-    expect(siteAddressProblem('https://www.lyricalmyricalbook.com', allowed)).toMatch(/ALLOWED_ORIGINS/);
-    expect(siteAddressProblem('https://lyricalmyricalbooks.github.io', allowed)).toMatch(/GitHub Pages/);
-    expect(siteAddressProblem('https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite', allowed)).toMatch(/no folder/);
-    for (const bad of ['', 'http://lyricalmyricalbooks.com', 'lyricalmyricalbooks.com', 'https://Shop.com', undefined]) {
+    expect(siteAddressProblem('https://www.yourpres.example', allowed)).toMatch(/ALLOWED_ORIGINS/);
+    expect(siteAddressProblem('https://yourpress.github.io', allowed)).toMatch(/GitHub Pages/);
+    expect(siteAddressProblem('https://yourpress.github.io/shop', allowed)).toMatch(/no folder/);
+    for (const bad of ['', 'http://yourpress.example', 'yourpress.example', 'https://Shop.com', undefined]) {
       expect(siteAddressProblem(bad, allowed), String(bad)).not.toBeNull();
     }
-    expect(siteAddressProblem('https://Lyricalmyricalbooks.com', allowed)).toMatch(/lower case/);
+    expect(siteAddressProblem('https://Yourpress.example', allowed)).toMatch(/lower case/);
   });
 
   it('the deploy workflows lower-case SITE_URL before checking it (hosts are case-insensitive)', () => {

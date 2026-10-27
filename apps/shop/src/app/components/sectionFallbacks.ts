@@ -4,7 +4,7 @@
 // admin/sectionFallbacks.test.ts checks that every settings-level key has a Content field.
 export const SECTION_FALLBACKS: Record<string, string> = {
   "CompositionSection.block.text": "Button",
-  "HeroSection.title": "Lyricalmyrical",
+  "HeroSection.title": "Your Press",
   "HeroSection.subtitle": "Photography & Art Books",
   "HeroSection.ctaText": "Explore",
   "ImageBannerSection.title": "Stories worth keeping",
@@ -28,12 +28,12 @@ export const SECTION_FALLBACKS: Record<string, string> = {
   "CollectionListSection.item.title": "Collection",
   "FeaturedProductSection.eyebrow": "Featured",
   "FeaturedProductSection.ctaText": "View product",
-  "ProductGridHeaderSection.title": "Lyricalmyrical Books",
+  "ProductGridHeaderSection.title": "Your Press",
   "ProductGridHeaderSection.cartLabel": "Cart",
   "ProductGridHeaderSection.cartTotalText": "CA$130.00",
   "ProductGridHeaderSection.navText": "Products · About · Project Submissions · Contact",
   "ProductGridHeaderSection.saleLabel": "On sale",
-  "ProductCoverCarouselSection.title": "Lyricalmyrical Books",
+  "ProductCoverCarouselSection.title": "Your Press",
   "StaffNotesTableSection.colTitleLabel": "TITLE",
   "StaffNotesTableSection.colCategoryLabel": "CATEGORY",
   "StaffNotesTableSection.colFormatLabel": "FORMAT",

@@ -40,7 +40,7 @@ describe('book search metadata', () => {
     expect(checks.find(c => c.id === 'published')?.ok).toBe(false);
   });
   it('adds star ratings only from real reviews and marks new copies sold by the shop', () => {
-    const options = { currency: 'CAD', price: 24, url: 'https://example.com/books/one', seller: 'Lyricalmyrical Books' };
+    const options = { currency: 'CAD', price: 24, url: 'https://example.com/books/one', seller: 'Your Press' };
     const reviews = [
       { authorName: 'Ana', rating: 5, title: 'Lovely', body: '<p>Beautiful prints.</p>', createdAt: '2026-09-01T10:00:00Z' },
       { authorName: 'Ben', rating: 4, body: 'Great paper.' },
@@ -51,7 +51,7 @@ describe('book search metadata', () => {
     expect(data.aggregateRating).toMatchObject({ ratingValue: 4, reviewCount: 3, bestRating: 5 });
     expect(data.review).toHaveLength(2);
     expect(data.review[0]).toMatchObject({ author: { name: 'Ana' }, name: 'Lovely', reviewBody: 'Beautiful prints.', datePublished: '2026-09-01' });
-    expect(data.offers).toMatchObject({ itemCondition: 'https://schema.org/NewCondition', seller: { name: 'Lyricalmyrical Books' } });
+    expect(data.offers).toMatchObject({ itemCondition: 'https://schema.org/NewCondition', seller: { name: 'Your Press' } });
     expect(bookStructuredData(book, { ...options, reviews: [] }).aggregateRating).toBeUndefined();
     expect(ratingData([{ authorName: 'A', rating: 5 }])).not.toHaveProperty('review');
   });
@@ -71,7 +71,7 @@ describe('book search metadata', () => {
     expect(data.mainEntity.itemListElement[0]).toMatchObject({ position: 1, name: 'Book 0', image: 'https://example.com/shop/c.jpg' });
   });
   it('links the shop and website and keeps only https profile links', () => {
-    const [org, site]: any[] = siteStructuredData({ name: 'Lyricalmyrical Books', url: 'https://example.com/shop/', logo: '/shop/logo.png', sameAs: ['https://instagram.com/x', '', 'javascript:alert(1)', 42] });
+    const [org, site]: any[] = siteStructuredData({ name: 'Your Press', url: 'https://example.com/shop/', logo: '/shop/logo.png', sameAs: ['https://instagram.com/x', '', 'javascript:alert(1)', 42] });
     expect(org).toMatchObject({ '@type': 'BookStore', '@id': 'https://example.com/shop/#organization', logo: 'https://example.com/shop/logo.png', sameAs: ['https://instagram.com/x'] });
     expect(site).toMatchObject({ '@type': 'WebSite', publisher: { '@id': 'https://example.com/shop/#organization' } });
     expect(org.knowsAbout).toBeUndefined();
@@ -88,13 +88,13 @@ describe('book search metadata', () => {
     expect(bare.address).toBeUndefined();
   });
   it('ties a book to the shop by @id when the shop published it, and keeps co-publishers by name', () => {
-    const opts = { currency: 'CAD', price: 24, url: 'https://example.com/books/one', seller: 'Lyricalmyrical Books', shopUrl: 'https://example.com/' };
-    const own: any = bookStructuredData({ ...book, publisher: 'Lyricalmyrical' } as any, opts);
-    expect(own.publisher).toEqual({ '@type': 'Organization', '@id': 'https://example.com/#organization', url: 'https://example.com/', name: 'Lyricalmyrical' });
-    expect(own.offers.seller).toMatchObject({ '@id': 'https://example.com/#organization', name: 'Lyricalmyrical Books' });
-    expect((bookStructuredData({ ...book, publisher: 'Lyricalmyrical Books (Toronto)' } as any, opts) as any).publisher['@id']).toBe('https://example.com/#organization');
+    const opts = { currency: 'CAD', price: 24, url: 'https://example.com/books/one', seller: 'Your Press', shopUrl: 'https://example.com/' };
+    const own: any = bookStructuredData({ ...book, publisher: 'Your Press' } as any, opts);
+    expect(own.publisher).toEqual({ '@type': 'Organization', '@id': 'https://example.com/#organization', url: 'https://example.com/', name: 'Your Press' });
+    expect(own.offers.seller).toMatchObject({ '@id': 'https://example.com/#organization', name: 'Your Press' });
+    expect((bookStructuredData({ ...book, publisher: 'Your Press (Toronto)' } as any, opts) as any).publisher['@id']).toBe('https://example.com/#organization');
     expect((bookStructuredData({ ...book, publisher: 'Other Press' } as any, opts) as any).publisher).toEqual({ '@type': 'Organization', name: 'Other Press' });
-    expect((bookStructuredData({ ...book, publisher: 'Lyricalmyrical Books' } as any, { ...opts, shopUrl: undefined }) as any).publisher).toEqual({ '@type': 'Organization', name: 'Lyricalmyrical Books' });
+    expect((bookStructuredData({ ...book, publisher: 'Your Press' } as any, { ...opts, shopUrl: undefined }) as any).publisher).toEqual({ '@type': 'Organization', name: 'Your Press' });
   });
   it('lists what the shop publishes as knowsAbout, trimmed and without repeats', () => {
     expect(seoTopicList(" Art books, Photography books,, art books ,Artists' books\nZines")).toEqual(['Art books', 'Photography books', "Artists' books", 'Zines']);
@@ -137,15 +137,15 @@ describe('search listing auto-fill', () => {
     expect(fittingTitle(['x'.repeat(70)]).length).toBeLessThanOrEqual(60);
   });
   it('writes a book title with author and shop name when they fit', () => {
-    const seo = autoBookSeo({ title: 'Night Songs', authorName: 'A. Poet', description: '<p>Poems about the city at night. Second sentence here.</p>' }, 'Lyricalmyrical Books');
-    expect(seo).toEqual({ metaTitle: 'Night Songs by A. Poet — Lyricalmyrical Books', metaDescription: 'Poems about the city at night. Second sentence here.' });
-    const long = autoBookSeo({ title: 'An Extremely Long Title For A Collection Of Poems', authorName: 'Someone Else' }, 'Lyricalmyrical Books');
+    const seo = autoBookSeo({ title: 'Night Songs', authorName: 'A. Poet', description: '<p>Poems about the city at night. Second sentence here.</p>' }, 'Your Press');
+    expect(seo).toEqual({ metaTitle: 'Night Songs by A. Poet — Your Press', metaDescription: 'Poems about the city at night. Second sentence here.' });
+    const long = autoBookSeo({ title: 'An Extremely Long Title For A Collection Of Poems', authorName: 'Someone Else' }, 'Your Press');
     // With the author it would be 65 characters, so the plain title is used.
     expect(long.metaTitle).toBe('An Extremely Long Title For A Collection Of Poems');
   });
   it('describes a book with no description from its real facts only', () => {
-    expect(autoBookSeo({ title: 'Zine', format: 'paperback', pageCount: 32, publisher: 'Lyricalmyrical' }).metaDescription)
-      .toBe('Zine. Paperback, 32 pages. Published by Lyricalmyrical.');
+    expect(autoBookSeo({ title: 'Zine', format: 'paperback', pageCount: 32, publisher: 'Your Press' }).metaDescription)
+      .toBe('Zine. Paperback, 32 pages. Published by Your Press.');
     expect(autoBookSeo({ title: '' })).toEqual({ metaTitle: '', metaDescription: '' });
   });
 });
@@ -157,7 +157,7 @@ describe('book creators from Author / contributors', () => {
     expect(bookCreators({ subtitle: 'Zoe Moss, Lucia Bellemare & Ana Ruiz' })).toEqual(['Zoe Moss', 'Lucia Bellemare', 'Ana Ruiz']);
     expect(bookCreators({ subtitle: 'Various artists' })).toEqual([]);
     expect(bookCreators({ subtitle: 'AA.VV.' })).toEqual([]);
-    expect(bookCreators({ subtitle: 'Subverso Magazines x Lyricalmyrical Books' })).toEqual([]);
+    expect(bookCreators({ subtitle: 'Subverso Magazines x Your Press' })).toEqual([]);
     expect(bookCreators({ authorName: 'A. Poet' })).toEqual(['A. Poet']);
     expect(bookCreators({})).toEqual([]);
   });
@@ -174,7 +174,7 @@ describe('book creators from Author / contributors', () => {
     expect(defaultBookTitle({ title: 'Untitled' }, byline)).toBe('Untitled');
   });
   it('auto-fill uses the contributors box too', () => {
-    expect(autoBookSeo({ title: 'The Hound', subtitle: 'Ian Willms' }, 'Lyricalmyrical Books').metaTitle).toBe('The Hound by Ian Willms — Lyricalmyrical Books');
+    expect(autoBookSeo({ title: 'The Hound', subtitle: 'Ian Willms' }, 'Your Press').metaTitle).toBe('The Hound by Ian Willms — Your Press');
   });
 });
 

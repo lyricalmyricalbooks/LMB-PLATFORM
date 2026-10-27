@@ -31,12 +31,12 @@ describe("deployed browser endpoint coverage", () => {
   });
   it.each(endpoints)("%s permits the App Check header in browser preflight", async name => {
     const res = response();
-    await harness()[name]({ method: "OPTIONS", headers: { origin: "https://lyricalmyricalbooks.github.io" }, body: {}, path: "/" + name }, res);
+    await harness()[name]({ method: "OPTIONS", headers: { origin: "https://yourpress.github.io" }, body: {}, path: "/" + name }, res);
     expect(res.statusCode).toBe(204);
     expect(res.headers["Access-Control-Allow-Headers"]).toContain("X-Firebase-AppCheck");
-    expect(res.headers["Access-Control-Allow-Origin"]).toBe("https://lyricalmyricalbooks.github.io");
+    expect(res.headers["Access-Control-Allow-Origin"]).toBe("https://yourpress.github.io");
   });
-  it.each(["https://lmb-test-shop.web.app", "https://lyricalmyricalbooks.github.io"])("browser calls from the storefront at %s get CORS", async origin => {
+  it.each(["https://lmb-test-shop.web.app", "https://yourpress.github.io"])("browser calls from the storefront at %s get CORS", async origin => {
     const res = response();
     await harness().createStripeCheckoutSession({ method: "OPTIONS", headers: { origin }, body: {}, path: "/createStripeCheckoutSession" }, res);
     expect(res.headers["Access-Control-Allow-Origin"]).toBe(origin);

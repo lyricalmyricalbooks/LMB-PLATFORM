@@ -93,70 +93,70 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     subject: "Order confirmed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your purchase! We've received your order and are preparing it for shipment. We will send you another email when it has shipped.",
     buttonText: "View your order",
-    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    signoff: "Thanks,\nThe Your Press team",
     enabled: true
   },
   order_pending_payment: {
     subject: "Order received — payment needed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your order! It is reserved for you, but it is not paid yet. Please pay {{total_price}} by {{payment_method}} using the instructions below. We'll confirm by email as soon as your payment arrives and then prepare your order.",
     buttonText: "View your order",
-    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    signoff: "Thanks,\nThe Your Press team",
     enabled: true
   },
   shipping_confirmation: {
     subject: "Your order is on the way!",
     body: "Hi {{customer_name}},\n\nGood news! Your order {{order_id}} has shipped with {{tracking_carrier}} and is on its way.\n\nTracking number: {{tracking_number}}\n\nUse the button below to follow your parcel on the carrier's website.",
     buttonText: "Track your shipment",
-    signoff: "Best,\nThe Lyricalmyrical Team",
+    signoff: "Best,\nThe Your Press team",
     enabled: true
   },
   abandoned_cart: {
     subject: "Did you forget something?",
     body: "Hi {{customer_name}},\n\nWe noticed you left some items in your cart. We've saved them for you, so you can easily complete your purchase whenever you're ready!",
     buttonText: "Resume purchase",
-    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    signoff: "Thanks,\nThe Your Press team",
     enabled: true
   },
   order_cancelled: {
     subject: "Order cancelled: {{order_id}}",
     body: "Hi {{customer_name}},\n\nYour order has been cancelled and you will not be charged. If you have any questions, please contact us.",
     buttonText: "",
-    signoff: "Best,\nThe Lyricalmyrical Team",
+    signoff: "Best,\nThe Your Press team",
     enabled: true
   },
   order_refunded: {
     subject: "Order refunded: {{order_id}}",
     body: "Hi {{customer_name}},\n\nWe have successfully refunded {{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
     buttonText: "",
-    signoff: "Best,\nThe Lyricalmyrical Team",
+    signoff: "Best,\nThe Your Press team",
     enabled: true
   },
   customer_welcome: {
-    subject: "Welcome to Lyricalmyrical Books!",
-    body: "Hi {{customer_name}},\n\nThank you for creating an account with Lyricalmyrical Books! You can now log in to view your orders, save shipping addresses, and download digital library books.",
+    subject: "Welcome to Your Press!",
+    body: "Hi {{customer_name}},\n\nThank you for creating an account with Your Press! You can now log in to view your orders, save shipping addresses, and download digital library books.",
     buttonText: "Go to your account",
-    signoff: "Warmly,\nThe Lyricalmyrical Team",
+    signoff: "Warmly,\nThe Your Press team",
     enabled: true
   },
   contact_reply: {
     subject: "We got your message",
-    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Lyricalmyrical Books! We've received your message and will reply as soon as we can.",
+    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Your Press! We've received your message and will reply as soon as we can.",
     buttonText: "",
-    signoff: "Warmly,\nThe Lyricalmyrical Team",
+    signoff: "Warmly,\nThe Your Press team",
     enabled: true
   },
   gift_card: {
     subject: "You've received a {{amount}} gift card",
-    body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for Lyricalmyrical Books.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter this code at checkout to use it. Any balance left over stays on the card for next time. {{expires}}",
+    body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for Your Press.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter this code at checkout to use it. Any balance left over stays on the card for next time. {{expires}}",
     buttonText: "Shop now",
-    signoff: "Happy reading,\nThe Lyricalmyrical Team",
+    signoff: "Happy reading,\nThe Your Press team",
     enabled: true
   },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
     buttonText: "Track shipment",
-    signoff: "Best,\nThe Lyricalmyrical Team",
+    signoff: "Best,\nThe Your Press team",
     enabled: true
   },
   // Mirrors functions/reviewRequests.js REVIEW_REQUEST_TEMPLATE.
@@ -164,7 +164,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     subject: "How are you finding your book?",
     body: "Hi {{customer_name}},\n\nWe hope your books from order {{order_id}} arrived safely. If you have a moment, we'd love to hear what you think — a short review helps other readers find their next book. Each title below opens its page, where the review form is.",
     buttonText: "Write a review",
-    signoff: "Thanks for reading,\nThe Lyricalmyrical Team",
+    signoff: "Thanks for reading,\nThe Your Press team",
     enabled: false,
     delayDays: 14
   },
@@ -632,9 +632,9 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       <div id="email-sender" style={{ scrollMarginTop: 16 }} />
       <SectionCard title="Email sender" description="Who it's from. Where replies go.">
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-          <TextField label="Sender name" value={sender.fromName} placeholder="Lyricalmyrical Books" error={senderIssues.fromName}
+          <TextField label="Sender name" value={sender.fromName} placeholder="Your Press" error={senderIssues.fromName}
             onChange={(e) => setSender(prev => ({ ...prev, fromName: e.target.value }))} />
-          <TextField label="Reply-to address" type="email" value={sender.replyTo} placeholder="lyricalmyricalbooks@gmail.com" error={senderIssues.replyTo}
+          <TextField label="Reply-to address" type="email" value={sender.replyTo} placeholder="owner@example.com" error={senderIssues.replyTo}
             hint="Blank = the sending address."
             onChange={(e) => setSender(prev => ({ ...prev, replyTo: e.target.value }))} />
           <TextField label="Backup sender address (Resend)" type="email" value={sender.fromEmail} placeholder="orders@your-domain.com" error={senderIssues.fromEmail}
@@ -905,7 +905,7 @@ function WeeklySummaryNow() {
     setSending(true);
     try {
       await emailFunction({ action: "weeklySummaryNow" });
-      toast.success("Last week's summary is on its way to lyricalmyricalbooks@gmail.com");
+      toast.success("Last week's summary is on its way to owner@example.com");
     } catch (err: any) {
       toast.error(plainError(err, "The summary wasn't sent"));
     } finally {

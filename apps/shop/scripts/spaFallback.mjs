@@ -1,5 +1,5 @@
 // public/404.html (GitHub Pages SPA fallback) keeps the first N path segments as the site's folder.
-// N must match the build's base: 1 for /LyricalmyricalWebsite/, 0 for a custom domain at /.
+// N must match the build's base: 1 for /shop/, 0 for a custom domain at /.
 // The Vite build writes it (vite.config.ts `spaFallbackBase`) so it can never disagree with the base.
 const SEGMENTS = /var pathSegmentsToKeep = \d+;[^\n]*/;
 

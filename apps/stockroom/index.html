@@ -9,7 +9,7 @@
      (src/lib/actions.js); refusing it is the step after that. -->
 <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Lyricalmyrical Inventory</title>
+<title>Your Press Inventory</title>
 
 <!-- Firebase -->
 
@@ -30,7 +30,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Lyricalmyrical Inventory">
+<meta name="apple-mobile-web-app-title" content="Your Press Inventory">
 <meta name="theme-color" content="#100F0D">
 
 <!-- THEME BOOTSTRAP — must run before first paint, and before the module
@@ -342,9 +342,9 @@
   <div class="pw-frame">
     <div class="pw-inner">
 
-      <div class="pw-corner-label"><span class="wm">Lyricalmyrical Books</span></div>
+      <div class="pw-corner-label"><span class="wm">Your Press</span></div>
 
-      <div class="pw-logo" aria-label="Lyricalmyrical Books">
+      <div class="pw-logo" aria-label="Your Press">
         <div>Lyrical</div>
         <div>Myrical</div>
         <div class="pw-logo-outline">Books</div>
@@ -387,7 +387,7 @@
   <div class="pub-brand" onclick="switchBook('all')">
     <div class="header-mark">L</div>
     <div class="pub-brand-text">
-      <div class="pub-wordmark">Lyricalmyrical Books</div>
+      <div class="pub-wordmark">Your Press</div>
       <div class="pub-tag">Inventory</div>
     </div>
   </div>
@@ -446,7 +446,7 @@
             onclick="toggleSideAccount(event)">
       <span class="pub-side-avatar">LM</span>
       <span class="pub-side-who">
-        <b>Lyricalmyrical</b>
+        <b>Your Press</b>
         <span class="pub-side-live"><span class="sync-dot syncing" id="side-sync-dot"></span><span id="side-sync-text">Connecting…</span></span>
       </span>
       <span class="pub-side-caret" aria-hidden="true">⌃</span>
@@ -501,7 +501,7 @@
   <div class="header-brand" onclick="switchBook('all')">
     <div class="header-mark riso-mark"><span class="riso-mark-ghost" aria-hidden="true">L</span><span class="riso-mark-letter">L</span></div>
     <div class="header-brand-text">
-      <div class="header-wordmark">Lyricalmyrical Books</div>
+      <div class="header-wordmark">Your Press</div>
       <div class="header-tag" id="hdr-sub">Inventory</div>
     </div>
   </div>
@@ -682,7 +682,7 @@
     <button type="button" class="more-sheet-row" onclick="closeMoreSheet();openReviewInbox()"><span class="snav-ic" data-ink="RV" aria-hidden="true">📥</span><span class="snav-label">Review inbox</span><span class="nav-badge" id="more-sheet-review-badge" hidden></span></button>
     <div class="more-sheet-acct">
       <span class="more-sheet-avatar" aria-hidden="true">LM</span>
-      <span class="more-sheet-who"><b>Lyricalmyrical</b><span id="more-sheet-sync">Connecting…</span></span>
+      <span class="more-sheet-who"><b>Your Press</b><span id="more-sheet-sync">Connecting…</span></span>
       <button type="button" class="more-sheet-link" id="more-sheet-theme" onclick="toggleTheme()">Night mode</button>
     </div>
     <div class="more-sheet-acct-actions">
@@ -1507,12 +1507,12 @@
   <details class="recon-fold" id="pm-settings">
     <summary>Accepted payment methods</summary>
     <div id="payment-methods-config-container" class="recon-fold-body">
-      <p class="lead-note">Configure which payment methods are accepted globally for your website (lyricalmyricalbooks.com) and override them for individual books. This controls options displayed on invoices and QR payment pages.</p>
+      <p class="lead-note">Configure which payment methods are accepted globally for your website (yourpress.example) and override them for individual books. This controls options displayed on invoices and QR payment pages.</p>
       <div class="card payment-methods-card">
         <div class="payment-methods-grid">
           <!-- Global Website Settings -->
           <div class="payment-methods-col">
-            <h4 class="payment-methods-title">Website Settings (lyricalmyricalbooks.com)</h4>
+            <h4 class="payment-methods-title">Website Settings (yourpress.example)</h4>
             <div class="payment-methods-list" id="pm-global-list">
               <!-- Populated by JS -->
             </div>
@@ -1713,7 +1713,7 @@
       <div class="g3" style="margin-bottom:12px;">
         <div class="form-group">
           <label for="c-subject">Subject Line <span class="req-badge">Required</span></label>
-          <input type="text" id="c-subject" placeholder="e.g. Exciting updates from Lyricalmyrical Books!" oninput="updateCampaignPreview()">
+          <input type="text" id="c-subject" placeholder="e.g. Exciting updates from Your Press!" oninput="updateCampaignPreview()">
         </div>
         <div class="form-group">
           <label for="c-segment">Target Segment</label>
@@ -1726,7 +1726,7 @@
         </div>
         <div class="form-group">
           <label for="c-replyto">Reply-To Email</label>
-          <input type="email" id="c-replyto" placeholder="lyricalmyricalbooks@gmail.com">
+          <input type="email" id="c-replyto" placeholder="owner@example.com">
         </div>
       </div>
 
@@ -3972,7 +3972,7 @@
               <span id="ship-sender-fold-line" class="ship-sender-fold-line">From: add your sender address</span>
               <span class="ship-sender-fold-edit">Edit</span>
             </summary>
-          <div class="form-group" style="margin-bottom:8px;"><label>Sender Name</label><input type="text" id="sf-name" placeholder="Lyricalmyrical Books"></div>
+          <div class="form-group" style="margin-bottom:8px;"><label>Sender Name</label><input type="text" id="sf-name" placeholder="Your Press"></div>
           <div class="form-group" style="margin-bottom:8px;"><label>Company</label><input type="text" id="sf-company" placeholder="Optional"></div>
           <div class="form-group" style="margin-bottom:8px;"><label>Phone <span style="font-size:var(--text-2xs);color:var(--text3);text-transform:none;letter-spacing:0;">required for international</span></label><input type="tel" id="sf-phone" placeholder="+1 416 555 0123"></div>
           <div class="form-group" style="margin-bottom:8px;"><label>Street Address</label><input type="text" id="sf-street1" placeholder="123 Bookish Way"></div>
@@ -4655,7 +4655,7 @@
         <div style="display:flex; align-items:center; gap:8px;">
           <span style="font-size:var(--text-lg); color:var(--status-positive);">●</span>
           <span style="font-weight:600; font-size:var(--text-base); color:var(--text);">Live Traffic Dashboard Connected</span>
-          <span id="webanalytics-domain-label" style="font-size:var(--text-xs); color:var(--text2); font-family:var(--font-mono); background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:var(--r); margin-left:8px;">lyricalmyricalbooks.com</span>
+          <span id="webanalytics-domain-label" style="font-size:var(--text-xs); color:var(--text2); font-family:var(--font-mono); background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:var(--r); margin-left:8px;">yourpress.example</span>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <a id="webanalytics-external-link" href="#" target="_blank" class="btn sm" style="text-decoration:none;">↗ Open Dashboard</a>
@@ -4972,7 +4972,7 @@
                     <li><code>MAIL_PROVIDER</code> — one of <code>resend</code>, <code>brevo</code>, <code>sendgrid</code>, <code>mailgun</code>, <code>postmark</code></li>
                     <li><code>MAIL_API_KEY</code> — your provider's API key (stays on Google's servers, never in this app)</li>
                     <li><code>MAIL_FROM</code> — the verified sender, e.g. <code>noreply@yourdomain</code></li>
-                    <li><code>MAIL_FROM_NAME</code> — display name (optional, e.g. <code>Lyricalmyrical Inventory</code>)</li>
+                    <li><code>MAIL_FROM_NAME</code> — display name (optional, e.g. <code>Your Press Inventory</code>)</li>
                     <li><code>MAIL_REPLY_TO</code> — where replies should go (optional; leave blank to keep your address hidden)</li>
                   </ul>
                   <div style="margin-top:6px;">Mailgun also needs <code>MAIL_DOMAIN</code> (and <code>MAIL_REGION=eu</code> for the EU region). Redeploy after saving. If these aren't set, the email still sends from your Gmail as before.</div>
@@ -5010,7 +5010,7 @@
           <div style="display:flex; align-items:center; gap:10px;">
             <span style="font-weight:600; color:#34d399;">● Connected (Simulated)</span>
             <span style="opacity:0.5;">|</span>
-            <span>File: <strong style="color:rgba(255,255,255,0.95);">Lyricalmyrical Inventory (Simulated)</strong></span>
+            <span>File: <strong style="color:rgba(255,255,255,0.95);">Your Press Inventory (Simulated)</strong></span>
           </div>
           <div style="font-style:italic;" id="sim-sheet-row-count">0 rows synced</div>
         </div>
@@ -5750,7 +5750,7 @@
   <div style="font-size:var(--text-sm);color:var(--text3);margin-bottom:1.25rem;line-height:1.6;">These details appear on every invoice you generate. Stored locally per browser.</div>
 
   <div class="g2" style="margin-bottom:12px;">
-    <div class="form-group"><label for="ivs-name">Publisher name</label><input id="ivs-name" type="text" placeholder="Lyricalmyrical Books"></div>
+    <div class="form-group"><label for="ivs-name">Publisher name</label><input id="ivs-name" type="text" placeholder="Your Press"></div>
     <div class="form-group"><label for="ivs-email">Contact email</label><input id="ivs-email" type="email" placeholder="hello@…"></div>
   </div>
   <div class="form-group" style="margin-bottom:12px;"><label for="ivs-addr">Address (one block, supports line breaks)</label>
@@ -5758,7 +5758,7 @@
   </div>
   <div class="g2" style="margin-bottom:12px;">
     <div class="form-group"><label for="ivs-vat">VAT / Tax ID</label><input id="ivs-vat" type="text" placeholder="optional"></div>
-    <div class="form-group"><label for="ivs-web">Website</label><input id="ivs-web" type="url" placeholder="https://lyricalmyrical.com"></div>
+    <div class="form-group"><label for="ivs-web">Website</label><input id="ivs-web" type="url" placeholder="https://yourpress.example"></div>
   </div>
   <div class="form-group" style="margin-bottom:12px;"><label for="ivs-terms">Default terms (used as a starting point)</label>
     <textarea id="ivs-terms" rows="2" placeholder="Net 30. Payment in EUR via Stripe / SEPA / PayPal."></textarea>
@@ -6077,7 +6077,7 @@
     <div class="g2" style="margin-bottom:12px;">
       <div class="form-group">
         <label for="nb-author">Author / Contributor</label>
-        <input id="nb-author" placeholder="e.g. Lyricalmyrical Books or Artist Name">
+        <input id="nb-author" placeholder="e.g. Your Press or Artist Name">
       </div>
       <div class="form-group">
         <label for="nb-isbn">ISBN-13</label>
@@ -6229,7 +6229,7 @@
     </div>
     <div class="form-group" style="margin-bottom:12px;">
       <label for="nb-payment-link">Publisher Payment Link <span style="font-weight:400;font-size:var(--text-2xs);color:var(--text3);">(For Artist Dues / Balance Settlement)</span></label>
-      <input type="url" id="nb-payment-link" placeholder="https://paypal.me/lyricalmyricalbooks or email@interac.ca" style="font-family:var(--font-mono);font-size:var(--text-sm);">
+      <input type="url" id="nb-payment-link" placeholder="https://paypal.me/yourpress or email@interac.ca" style="font-family:var(--font-mono);font-size:var(--text-sm);">
       <div style="font-size:var(--text-xs);color:var(--text3);margin-top:4px;line-height:1.45;">
         When the artist owes the publisher money (e.g. negative balance from shipping/advances), this payment link appears in their private author portal.
       </div>
@@ -6639,13 +6639,13 @@
     <div>Myrical</div>
     <div class="pw-logo-outline">Books</div>
   </div>
-  <div class="updating-screen-title">Updating Lyricalmyrical Inventory…</div>
+  <div class="updating-screen-title">Updating Your Press Inventory…</div>
   <div class="updating-screen-copy">Polishing the latest version. This will take just a moment.</div>
   <div class="updating-screen-orbit" aria-hidden="true"></div>
 </div>
 
 <!-- PWA UPDATE PROMPT BANNER -->
-<div id="pwa-update-prompt" class="pwa-prompt" role="button" tabindex="0" aria-label="Update Lyricalmyrical Inventory to the latest version">
+<div id="pwa-update-prompt" class="pwa-prompt" role="button" tabindex="0" aria-label="Update Your Press Inventory to the latest version">
   <div class="pwa-prompt-content">
     <div class="pwa-prompt-icon">✨</div>
     <div class="pwa-prompt-text">
@@ -6889,7 +6889,7 @@
     <div class="send-progress-track">
       <div class="send-progress-fill" id="c-send-progress-fill"></div>
     </div>
-    <div style="font-size:var(--text-xs);color:var(--text3);margin-bottom:10px;">Please keep Lyricalmyrical Inventory open until sending finishes.</div>
+    <div style="font-size:var(--text-xs);color:var(--text3);margin-bottom:10px;">Please keep Your Press Inventory open until sending finishes.</div>
     <button class="btn sm" id="c-send-cancel-btn" onclick="cancelCampaignSending()">✕ Abort Send</button>
     <div class="send-log-console" id="c-send-log-console"></div>
   </div>

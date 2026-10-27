@@ -44,7 +44,7 @@ describe('Code.gs caller authentication', () => {
   it('gates doGet actions and doPost on a verified publisher token', () => {
     expect(gs).toMatch(/function doGet\(e\) \{[\s\S]*?requirePublisher_\(e\.parameter\.idToken\)/);
     expect(gs).toMatch(/action === 'notifypublisher'\s*\? verifyFirebaseCaller_\(payload\.idToken\)\s*: requirePublisher_\(payload\.idToken\)/);
-    expect(gs).toContain("const PUBLISHER_EMAIL = 'lyricalmyricalbooks@gmail.com'");
+    expect(gs).toContain("const PUBLISHER_EMAIL = 'owner@example.com'");
     expect(gs).toContain('users[0].emailVerified !== true');
   });
   it('keeps the public copy byte-identical', () => {

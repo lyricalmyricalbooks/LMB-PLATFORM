@@ -1,6 +1,6 @@
-# Lyricalmyrical Inventory
+# Your Press Inventory
 
-Inventory, sales and bookkeeping for Lyricalmyrical Books: a point-of-sale for
+Inventory, sales and bookkeeping for Your Press: a point-of-sale for
 markets and fairs, per-book ledgers, consignment, author payouts, invoices,
 shipping labels, receipts and the tax centre.
 

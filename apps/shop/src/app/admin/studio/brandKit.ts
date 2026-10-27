@@ -109,7 +109,7 @@ export const PERSONALITIES: Personality[] = [
   { id: "bookish", label: "Bookish", blurb: "Classic serif type and quiet outlined buttons, like a reading room.",
     headingFont: "Cormorant Garamond", bodyFont: "Libre Baskerville", buttonStyle: "outline", buttonRadius: 0, cardRadius: 0, uppercase: false, homeLayoutId: "editorial-launch" },
   { id: "bold", label: "Bold", blurb: "Tall poster headings and solid buttons, like a print shop.",
-    headingFont: "Anton", bodyFont: "Archivo", buttonStyle: "solid", buttonRadius: 0, cardRadius: 0, uppercase: true, homeLayoutId: "lyricalmyrical-riso" },
+    headingFont: "Anton", bodyFont: "Archivo", buttonStyle: "solid", buttonRadius: 0, cardRadius: 0, uppercase: true, homeLayoutId: "press-riso" },
   { id: "minimal", label: "Minimal", blurb: "One clean sans-serif, soft corners and plenty of space.",
     headingFont: "Inter", bodyFont: "Inter", buttonStyle: "outline", buttonRadius: 4, cardRadius: 4, uppercase: false, homeLayoutId: "minimal-gallery" },
 ];

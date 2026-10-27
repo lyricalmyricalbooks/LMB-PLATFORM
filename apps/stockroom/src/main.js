@@ -1443,11 +1443,11 @@ export function saveCatalogWithDeletions() {
     });
 }
 const DEFAULT_BOOKS = {
-  altrove: { id: 'altrove', title: 'Un Fantastico Altrove', author: 'Silvia Clo Di Gregorio', isbn: '—', maxPrint: 120, listPrice: 40, currency: '€', threshold: 15, productionCost: 0, paymentLink: 'https://paypal.me/lyricalmyricalbooks', accent: '#c8913a', accentBg: 'rgba(200,145,58,.1)', urlParam: 'altrove', authorPassword: 'silvia2025' },
-  hound: { id: 'hound', title: 'The Hound', author: '', isbn: '—', maxPrint: 300, listPrice: 65, currency: 'CA$', threshold: 30, productionCost: 15000, paymentLink: 'https://paypal.me/lyricalmyricalbooks', accent: '#3a7cc8', accentBg: 'rgba(58,124,200,.1)', urlParam: 'hound', authorPassword: 'hound2025' },
-  archaeology: { id: 'archaeology', title: 'Archaeology of Presence', author: 'Ilaria di Benedetto', isbn: '—', maxPrint: 80, listPrice: 40, currency: '€', threshold: 10, productionCost: 0, paymentLink: 'https://paypal.me/lyricalmyricalbooks', accent: '#7a5c3a', accentBg: 'rgba(122,92,58,.1)', urlParam: 'archaeology', authorPassword: 'ilaria2025' },
-  sistema: { id: 'sistema', title: 'Sistema_non_autorizzato', author: 'Maria Luna Tucci', isbn: '—', maxPrint: 60, listPrice: 40, currency: '€', threshold: 8, productionCost: 0, paymentLink: 'https://paypal.me/lyricalmyricalbooks', accent: '#2a7a5c', accentBg: 'rgba(42,122,92,.1)', urlParam: 'sistema', authorPassword: 'marialuna2025' },
-  collective: { id: 'collective', title: 'Collective Photobook', author: 'Lyricalmyrical Books', isbn: '—', maxPrint: 100, listPrice: 40, currency: '€', threshold: 10, productionCost: 0, paymentLink: 'https://paypal.me/lyricalmyricalbooks', accent: '#c8913a', accentBg: 'rgba(200,145,58,.1)', urlParam: 'collective', authorPassword: 'collective2025' }
+  altrove: { id: 'altrove', title: 'Un Fantastico Altrove', author: 'Silvia Clo Di Gregorio', isbn: '—', maxPrint: 120, listPrice: 40, currency: '€', threshold: 15, productionCost: 0, paymentLink: 'https://paypal.me/yourpress', accent: '#c8913a', accentBg: 'rgba(200,145,58,.1)', urlParam: 'altrove', authorPassword: 'silvia2025' },
+  hound: { id: 'hound', title: 'The Hound', author: '', isbn: '—', maxPrint: 300, listPrice: 65, currency: 'CA$', threshold: 30, productionCost: 15000, paymentLink: 'https://paypal.me/yourpress', accent: '#3a7cc8', accentBg: 'rgba(58,124,200,.1)', urlParam: 'hound', authorPassword: 'hound2025' },
+  archaeology: { id: 'archaeology', title: 'Archaeology of Presence', author: 'Ilaria di Benedetto', isbn: '—', maxPrint: 80, listPrice: 40, currency: '€', threshold: 10, productionCost: 0, paymentLink: 'https://paypal.me/yourpress', accent: '#7a5c3a', accentBg: 'rgba(122,92,58,.1)', urlParam: 'archaeology', authorPassword: 'ilaria2025' },
+  sistema: { id: 'sistema', title: 'Sistema_non_autorizzato', author: 'Maria Luna Tucci', isbn: '—', maxPrint: 60, listPrice: 40, currency: '€', threshold: 8, productionCost: 0, paymentLink: 'https://paypal.me/yourpress', accent: '#2a7a5c', accentBg: 'rgba(42,122,92,.1)', urlParam: 'sistema', authorPassword: 'marialuna2025' },
+  collective: { id: 'collective', title: 'Collective Photobook', author: 'Your Press', isbn: '—', maxPrint: 100, listPrice: 40, currency: '€', threshold: 10, productionCost: 0, paymentLink: 'https://paypal.me/yourpress', accent: '#c8913a', accentBg: 'rgba(200,145,58,.1)', urlParam: 'collective', authorPassword: 'collective2025' }
 };
 
 // `early` is a catalog read startup began before the mode flags arrived, from
@@ -1692,7 +1692,7 @@ function resetBookForm() {
   if ($('nb-author-grat')) $('nb-author-grat').value = '0';
   if ($('nb-author-stock')) $('nb-author-stock').value = '0';
   $('nb-paylink').value = '';
-  if ($('nb-payment-link')) $('nb-payment-link').value = 'https://paypal.me/lyricalmyricalbooks';
+  if ($('nb-payment-link')) $('nb-payment-link').value = 'https://paypal.me/yourpress';
   $('nb-ship-length').value = '';
   $('nb-ship-width').value = '';
   $('nb-ship-height').value = '';
@@ -1764,7 +1764,7 @@ function openEditBookModal(id) {
   if ($('nb-author-grat')) $('nb-author-grat').value = book.authorGratuity ?? 0;
   if ($('nb-author-stock')) $('nb-author-stock').value = (states[id] && Number.isFinite(states[id].authorStock)) ? states[id].authorStock : 0;
   $('nb-paylink').value = book.stripeLink || '';
-  if ($('nb-payment-link')) $('nb-payment-link').value = book.paymentLink || 'https://paypal.me/lyricalmyricalbooks';
+  if ($('nb-payment-link')) $('nb-payment-link').value = book.paymentLink || 'https://paypal.me/yourpress';
   $('nb-ship-length').value = book.shipLength ?? '';
   $('nb-ship-width').value = book.shipWidth ?? '';
   $('nb-ship-height').value = book.shipHeight ?? '';
@@ -2475,7 +2475,7 @@ async function saveBookFromModal() {
     productionCost: parseFloat($('nb-prod').value) || 0,
     pubGratuity: parseInt($('nb-pub-grat')?.value) || 0,
     authorGratuity: parseInt($('nb-author-grat')?.value) || 0,
-    paymentLink: $('nb-payment-link') ? $('nb-payment-link').value.trim() || 'https://paypal.me/lyricalmyricalbooks' : currentBook.paymentLink || 'https://paypal.me/lyricalmyricalbooks',
+    paymentLink: $('nb-payment-link') ? $('nb-payment-link').value.trim() || 'https://paypal.me/yourpress' : currentBook.paymentLink || 'https://paypal.me/yourpress',
     stripeLink: $('nb-paylink').value.trim(),
     accent: $('nb-accent').value,
     accentBg: hexToRgba($('nb-accent').value, 0.1),
@@ -2802,7 +2802,7 @@ function updateSingleBookPaymentQR() {
   const hasOverride = !isNaN(overrideVal) && overrideVal > 0;
   const targetPrice = hasOverride ? overrideVal : (book.listPrice || 0);
 
-  let url = getEffectiveBookPaymentLink(book) || 'https://paypal.me/lyricalmyricalbooks';
+  let url = getEffectiveBookPaymentLink(book) || 'https://paypal.me/yourpress';
   if (hasOverride && !url.includes('amount=')) {
     // Include parameter hint for payment processors if not custom Stripe link
     const joiner = url.includes('?') ? '&' : '?';
@@ -3708,7 +3708,7 @@ export let notifyUrl = localStorage.getItem('lm-notify-url') || '';
 // The Apps Script `scriptVersion` the client expects. Bump this (and the value
 // in apps-script/Code.gs) whenever Code.gs gains behaviour that needs a fresh
 // deploy — the connection card flags any older deployed version as outdated.
-export const EXPECTED_SCRIPT_VERSION = 'v57';
+export const EXPECTED_SCRIPT_VERSION = 'v58';
 // What the connected spreadsheet last told us it was running. Null until a
 // version check has actually answered — an unknown version is not a mismatch,
 // so the To-do list stays quiet rather than inventing a problem.
@@ -18397,7 +18397,7 @@ async function sendInvoiceReminder(inv, bookId, { kind = 'auto' } = {}) {
   const mail = buildReminderEmail(inv, {
     settings: reminderSettings(settings),
     payLink: effectivePaymentLink(inv) || '',
-    publisher: settings.name || 'Lyricalmyrical Books',
+    publisher: settings.name || 'Your Press',
     amountLabel: invoiceAmountLabel(inv),
     attached: !!attachment,
   });
@@ -18665,7 +18665,7 @@ async function sendTestReminderEmail() {
   const mail = buildReminderEmail(inv, {
     settings: cfg,
     payLink: livePayLink,
-    publisher: ($('ivs-name') ? $('ivs-name').value : stored.name) || 'Lyricalmyrical Books',
+    publisher: ($('ivs-name') ? $('ivs-name').value : stored.name) || 'Your Press',
     amountLabel,
     attached: !!attachment,
   });
@@ -19132,7 +19132,7 @@ window.dismissAppUpdate = dismissAppUpdate;
 
 async function fetchRecentChanges() {
   try {
-    const res = await fetch('https://api.github.com/repos/lyricalmyricalbooks/lyrical-inventory/commits?per_page=20');
+    const res = await fetch('https://api.github.com/repos/yourpress/LMB-PLATFORM/commits?per_page=20');
     if (!res.ok) throw new Error('GitHub API request failed');
     const commits = await res.json();
     return commits.map(c => ({
@@ -19196,7 +19196,7 @@ async function showWhatsNew(event) {
       const head = heading !== lastHeading ? `<h3 class="wn-day">${escapeHtml(heading)}</h3>` : '';
       lastHeading = heading;
       const link = c.fullSha
-        ? `<a class="wn-tech" href="https://github.com/lyricalmyricalbooks/lyrical-inventory/commit/${encodeURIComponent(c.fullSha)}" target="_blank" rel="noopener">Technical details ↗</a>`
+        ? `<a class="wn-tech" href="https://github.com/yourpress/LMB-PLATFORM/commit/${encodeURIComponent(c.fullSha)}" target="_blank" rel="noopener">Technical details ↗</a>`
         : '';
       return `${head}
         <article class="commit-item wn-item">
@@ -19220,7 +19220,7 @@ async function initStartup() {
   // Must match the address the Firestore/Storage/Database rules and the Apps
   // Script trust, or the publisher UI would open for an account the backend
   // then refuses.
-  const publisherEmail = 'lyricalmyricalbooks@gmail.com';
+  const publisherEmail = 'owner@example.com';
 
   window._fbOnAuthStateChanged(async user => {
     const dismissSplash = () => {
@@ -19452,7 +19452,7 @@ function setupGate(errMsg) {
   $('pw-gate').style.display = '';
   $('pw-app').style.display = 'none';
   document.querySelector('#gate-sub').textContent = 'inventory app';
-  document.querySelector('#pw-gate .wm').textContent = 'Lyricalmyrical Books';
+  document.querySelector('#pw-gate .wm').textContent = 'Your Press';
   const desc = document.getElementById('gate-desc');
   if (desc) {
     desc.style.display = errMsg ? 'block' : 'none';

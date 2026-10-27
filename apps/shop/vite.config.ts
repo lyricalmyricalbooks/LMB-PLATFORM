@@ -98,7 +98,7 @@ function preloadShopChrome() {
 }
 
 // Firebase Hosting serves the shop from the root of its address (dev too). SITE_BASE can still be overridden
-// for a sub-path deploy; the old GitHub Pages folder (/LyricalmyricalWebsite/) now only forwards visitors.
+// for a sub-path deploy; the old GitHub Pages folder (/shop/) now only forwards visitors.
 const SITE_BASE = process.env.SITE_BASE ?? '/'
 
 export default defineConfig(({ command }) => ({

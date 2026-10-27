@@ -8,7 +8,7 @@
 // recognised as one: "earlier attempt already paid"); and the referring site's host name, because the forwarding page
 // itself sends no referrer. The new site takes them at boot (src/app/features/site/movedState.ts) and removes them
 // from the address bar.
-export const OLD_BASE = '/LyricalmyricalWebsite';
+export const OLD_BASE = '/shop';
 export const MOVED_PREFIX = '#lm-move=';
 
 /** The same page on the new address: drops the old folder, decodes the old 404 redirect's `?/…` form, keeps query and hash. */
@@ -104,12 +104,12 @@ export function redirectPage({ target, newUrl, oldBase = OLD_BASE }) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>Lyricalmyrical Books has moved</title>
+<title>Your Press has moved</title>
 <script>${forwardScript(target, oldBase)}</script>
 ${fallback}
 </head>
 <body>
-<p>Lyricalmyrical Books has moved to <a href="${escapeHtml(link)}">${escapeHtml(link)}</a>.</p>
+<p>Your Press has moved to <a href="${escapeHtml(link)}">${escapeHtml(link)}</a>.</p>
 </body>
 </html>
 `;

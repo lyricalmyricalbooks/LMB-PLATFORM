@@ -10,9 +10,9 @@ function fakeWindow(href: string) {
 
 describe("shared discount links", () => {
   it("remembers the code and strips it from the address", () => {
-    const win = fakeWindow("https://x.test/LyricalmyricalWebsiteTrial/books/odes?discount=save10&ref=ig#reviews");
+    const win = fakeWindow("https://x.test/ShopTrial/books/odes?discount=save10&ref=ig#reviews");
     expect(captureSharedDiscount(win)).toBe("SAVE10");
-    expect(win.location.href).toBe("https://x.test/LyricalmyricalWebsiteTrial/books/odes?ref=ig#reviews");
+    expect(win.location.href).toBe("https://x.test/ShopTrial/books/odes?ref=ig#reviews");
     expect(sharedDiscount(win.sessionStorage)).toBe("SAVE10");
     clearSharedDiscount(win.sessionStorage);
     expect(sharedDiscount(win.sessionStorage)).toBe("");
@@ -34,7 +34,7 @@ describe("shared discount links", () => {
     expect(rememberDiscountCode("OK123", { setItem: () => { throw new Error("blocked"); } } as any)).toBe("");
   });
   it("builds a sub-path aware link", () => {
-    expect(discountShareLink("save10", "https://a.github.io", "/LyricalmyricalWebsiteTrial/")).toBe("https://a.github.io/LyricalmyricalWebsiteTrial/?discount=SAVE10");
+    expect(discountShareLink("save10", "https://a.github.io", "/ShopTrial/")).toBe("https://a.github.io/ShopTrial/?discount=SAVE10");
     expect(discountShareLink("X1Y", "https://shop.ca/", "/")).toBe("https://shop.ca/?discount=X1Y");
   });
 });

@@ -39,7 +39,7 @@ export function GmailSendingCard({ lastProblem = null }: { lastProblem?: { at?: 
     setCheck(null);
     try {
       const result = await emailFunction({ action: "verifyGmail" });
-      setCheck(result.ok ? { ok: true, message: "Gmail accepted the app password. Shop emails will send from lyricalmyricalbooks@gmail.com." } : { ok: false, message: result.error || "Gmail refused the app password." });
+      setCheck(result.ok ? { ok: true, message: "Gmail accepted the app password. Shop emails will send from owner@example.com." } : { ok: false, message: result.error || "Gmail refused the app password." });
     } catch (err: any) {
       setCheck({ ok: false, message: plainError(err, "Couldn't check the connection") });
     } finally {
@@ -100,7 +100,7 @@ export function GmailSendingCard({ lastProblem = null }: { lastProblem?: { at?: 
         <details style={{ marginTop: 8 }}>
           <summary className="rp-label" style={{ cursor: "pointer", minHeight: 32, display: "inline-flex", alignItems: "center" }}>How to get an app password</summary>
           <ol className="rp-hint" style={{ margin: "8px 0 0", paddingLeft: 20, display: "grid", gap: 4 }}>
-            <li>Sign in to myaccount.google.com as lyricalmyricalbooks@gmail.com.</li>
+            <li>Sign in to myaccount.google.com as owner@example.com.</li>
             <li>Open Security and make sure 2-Step Verification is on.</li>
             <li>Search for “App passwords”, create one called “Shop”, and copy the 16 letters.</li>
             <li>Paste them above and choose Save password. The shop checks it straight away.</li>

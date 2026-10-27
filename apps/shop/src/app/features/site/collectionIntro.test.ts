@@ -7,7 +7,7 @@ describe("collectionIntro", () => {
     for (const [slug, key] of Object.entries(COLLECTION_INTRO_KEYS)) {
       expect(DEFAULT_COPY[key], key).toBeTruthy();
       const intro = collectionIntro({}, slug, { name: slug });
-      expect(intro).toContain("Lyricalmyrical Books");
+      expect(intro).toContain("Your Press");
       expect(intro.split(/[.!?](\s|$)/).filter(s => s.trim().length > 1).length).toBeGreaterThanOrEqual(2);
     }
   });

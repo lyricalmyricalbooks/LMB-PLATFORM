@@ -91,7 +91,7 @@ function checkoutAdminActions({
           last4: "", initialMinor: amountMinor, balanceMinor: amountMinor, currency: "CAD", enabled: true,
           ...(expiresOn ? { expiresOn } : {}),
           recipientEmail, recipientName: String(body.recipientName || "").trim().slice(0, 100),
-          senderName: String(body.senderName || "Lyricalmyrical Books").trim().slice(0, 100),
+          senderName: String(body.senderName || "Your Press").trim().slice(0, 100),
           message: String(body.message || "").trim().slice(0, 300), note: String(body.note || "").trim().slice(0, 500),
           source: "admin", issuedBy: actor, holds: {},
           history: [{ type: "issued", minor: amountMinor, actor, at: now }],
@@ -200,7 +200,7 @@ function checkoutAdminActions({
           const created = await stripe.webhookEndpoints.create({
             url: STRIPE_WEBHOOK_URL,
             enabled_events: REQUIRED_WEBHOOK_EVENTS,
-            description: "Lyricalmyrical shop orders (created by Admin › Payments)",
+            description: "Your Press shop orders (created by Admin › Payments)",
           });
           await db.collection("adminSecrets").doc("stripeWebhook").set({ [mode]: created.secret, [`${mode}EndpointId`]: created.id, updatedAt: new Date().toISOString() }, { merge: true });
           // A fresh endpoint with a known secret: older signature failures no longer apply.

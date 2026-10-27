@@ -1330,7 +1330,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <SelectField label="Format" name="format" value={formData.format} onChange={handleChange}>
                     {["Paperback", "Hardcover", "Special Edition", "Box Set", "Zine", "E-book (PDF)", "E-book (EPUB)", "Audiobook"].map((f) => <option key={f}>{f}</option>)}
                   </SelectField>
-                  <TextField label="Publisher" name="publisher" value={formData.publisher || ""} onChange={handleChange} placeholder="Lyricalmyrical Books" />
+                  <TextField label="Publisher" name="publisher" value={formData.publisher || ""} onChange={handleChange} placeholder="Your Press" />
                   <TextField label="Edition" name="edition" value={formData.edition || ""} onChange={handleChange} placeholder="First Edition" />
                   <TextField label="Publication date" type="date" name="publishDate" value={formData.publishDate || ""} onChange={handleChange} />
                   <TextField label="Page count" type="number" min={0} name="pageCount" value={formData.pageCount ?? 0} onChange={handleChange} />

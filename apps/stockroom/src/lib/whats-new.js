@@ -26,7 +26,7 @@ export const PLAIN_NOTES = {
   902: { kind: 'fixed', title: 'The main screen fits smaller windows', detail: 'The side menu and pages now adjust properly when the browser window is narrow.' },
   901: { kind: 'faster', title: 'The app opens faster', detail: 'Less is loaded when the app starts. The Excel reader is now fetched only the first time you import a spreadsheet.' },
   900: { skip: true },
-  899: { kind: 'improved', title: 'Your publisher name shows correctly everywhere', detail: 'The side menu and sign-in screen now read "Lyricalmyrical Books".' },
+  899: { kind: 'improved', title: 'Your publisher name shows correctly everywhere', detail: 'The side menu and sign-in screen now read "Your Press".' },
   898: { kind: 'new', title: 'Nothing is lost when two devices edit the same thing', detail: 'If you change the same record on two devices while offline, the version that was set aside is now kept so you can compare and choose.', tryIt: 'Open the Backups tab and look for "Review sync conflicts" when the side menu shows a badge there.' },
   897: { kind: 'fixed', title: 'Customer lists are now private to you', detail: 'Your mailing list, campaigns and open-call contributors can only be seen by the publisher account. The app also starts more reliably offline.' },
   896: { kind: 'fixed', title: 'Invoice lines are clearer', detail: 'The quantity is always visible, and an invoice line can no longer end up with a negative amount.' },

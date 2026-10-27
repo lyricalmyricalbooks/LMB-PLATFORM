@@ -177,9 +177,9 @@ export default defineConfig({
         ]
       },
       manifest: {
-        name: 'Lyricalmyrical Inventory',
+        name: 'Your Press Inventory',
         short_name: 'Lyrical-Inv',
-        description: 'Inventory management for Lyricalmyrical Books',
+        description: 'Inventory management for Your Press',
         // id and scope pin the app's identity to this folder. The Android app
         // (android/twa-manifest.json) opens this same address, and an installed
         // copy is matched to its web app by id, so neither should change.

@@ -19,13 +19,13 @@ export const WEBSITE_ADMIN = 'https://lmb-test-shop.web.app/admin';
 export const WEBSITE_ORIGINS = Object.freeze([
   'https://lmb-test-shop.web.app',
   'https://lmb-test-shop.firebaseapp.com',
-  'https://lyricalmyricalbooks.com',
-  'https://www.lyricalmyricalbooks.com',
+  'https://yourpress.example',
+  'https://www.yourpress.example',
 ]);
 
 /** This app, as the website links to it. */
-export const INVENTORY_ORIGIN = 'https://lyricalmyricalbooks.github.io';
-export const INVENTORY_APP_URL = `${INVENTORY_ORIGIN}/lyrical-inventory/`;
+export const INVENTORY_ORIGIN = 'https://yourpress.github.io';
+export const INVENTORY_APP_URL = `${INVENTORY_ORIGIN}/stockroom/`;
 
 /**
  * Tab names. A tab keeps its name for its whole life, so a second click finds

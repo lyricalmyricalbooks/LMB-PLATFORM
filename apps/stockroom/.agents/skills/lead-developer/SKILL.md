@@ -5,7 +5,7 @@ description: Lead Orchestrator & Chief Architect procedure. Decomposes complex t
 
 # Lead Developer Orchestration Procedure (`/lead-developer`)
 
-Use this skill when leading, decomposing, coordinating, or synthesizing multi-faceted features, refactoring jobs, or complex bug fixes across the `lyrical-inventory` codebase.
+Use this skill when leading, decomposing, coordinating, or synthesizing multi-faceted features, refactoring jobs, or complex bug fixes across the `stockroom` codebase.
 
 ---
 

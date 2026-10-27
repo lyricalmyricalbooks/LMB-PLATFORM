@@ -1,4 +1,4 @@
-# Project Memory: Lyricalmyrical Inventory
+# Project Memory: Your Press Inventory
 
 This file acts as a persistent memory of the project's architecture, patterns, key decisions, and recent changes.
 

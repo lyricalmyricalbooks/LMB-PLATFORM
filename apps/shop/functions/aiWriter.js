@@ -304,7 +304,7 @@ ${clip(f.brief, 500)}`;
 function systemText(voice, task) {
   const v = clip(voice, VOICE_MAX);
   return [
-    "You write shop copy for Lyricalmyrical Books, an independent publisher. You return only the JSON asked for.",
+    "You write shop copy for Your Press, an independent publisher. You return only the JSON asked for.",
     task === "rewrite" || task === "sectionDraft" ? STUDIO_HONESTY : HONESTY,
     v ? `The shop owner's house style (follow it unless it conflicts with the rules above):\n${v}` : "",
   ].filter(Boolean).join("\n\n");
@@ -482,7 +482,7 @@ async function callOpenRouter({ apiKey, body, fetchImpl }) {
   try {
     const res = await fetchImpl(OPENROUTER_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "X-Title": "Lyricalmyrical Books admin" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "X-Title": "Your Press admin" },
       body: JSON.stringify(body),
       ...(ctrl ? { signal: ctrl.signal } : {}),
     });

@@ -51,7 +51,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
     : linksAlign === "start" ? "md:grid-cols-[auto_minmax(0,1fr)]" : "md:grid-cols-[minmax(0,1fr)_auto]";
   const groupsLayout = linksAlign === "spread" ? "grid grid-cols-2"
     : `grid grid-cols-2 sm:flex sm:flex-wrap ${linksAlign === "start" ? "md:justify-self-start" : "md:justify-self-end"}`;
-  const email = settings?.info?.email || "lyricalmyricalbooks@gmail.com";
+  const email = settings?.info?.email || "owner@example.com";
   const footerAbout: string = String((settings?.design?.copy?.footerAbout != null ? getCopy(settings?.design, "footerAbout") : shopCopyFallback(settings, "footerAbout") || getCopy(settings?.design, "footerAbout")) ?? "");
   const footerLocation: string = String(getCopy(d, "footerLocation") ?? "");
   const badges = d?.showPaymentBadges !== false ? resolveFooterBadges(d, settings) : [];
@@ -81,7 +81,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
           )}
           {footerLogoSrc && footerLogoMode === "image" ? null : d?.wordmarkStyle === "two-part" ? (
             <p className="text-white text-xl" style={{ fontFamily: wordmarkFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
-              <span data-studio-style-text="wordmarkPrimary">{d.wordmarkPrimary ?? "Lyricalmyrical"}</span> <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary ?? "Books"}</span>
+              <span data-studio-style-text="wordmarkPrimary">{d.wordmarkPrimary ?? "Your"}</span> <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary ?? "Books"}</span>
             </p>
           ) : (
             <p className="text-white font-bold tracking-widest text-xs"><span data-studio-copy="footerWordmark">{getCopy(settings?.design, "footerWordmark")}</span></p>
@@ -118,7 +118,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
               {d?.showSocialInFooter !== false && instagramUrl && <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkInstagram">{getCopy(settings?.design, "footerLinkInstagram")}</span></a>}
               {d?.showSocialInFooter !== false && otherSocial.map((s) => <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors"><span data-studio-copy={s.linkKey}>{getCopy(settings?.design, s.linkKey)}</span></a>)}
               <a
-                href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
+                href={`mailto:${settings?.info?.email || "owner@example.com"}`}
                 className="block hover:text-white transition-colors"
               >
                 <span data-studio-copy="footerLinkContact">{getCopy(settings?.design, "footerLinkContact")}</span>
@@ -142,10 +142,10 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
             <p className="fm-footer-heading text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLocationHeading">{getCopy(settings?.design, "footerLocationHeading")}</span></p>
             <p><span data-studio-copy="footerLocation">{getCopy(settings?.design, "footerLocation")}</span></p>
             <a
-              href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
+              href={`mailto:${settings?.info?.email || "owner@example.com"}`}
               className="block hover:text-white transition-colors"
             >
-              {settings?.info?.email || "lyricalmyricalbooks@gmail.com"}
+              {settings?.info?.email || "owner@example.com"}
             </a>
           </div>
         )}

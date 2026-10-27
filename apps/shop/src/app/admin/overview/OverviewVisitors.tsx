@@ -17,7 +17,7 @@ export type VisitorWidget = "livePages" | "pageTime" | "visitHours" | "actions" 
 export const VISITOR_WIDGETS: VisitorWidget[] = ["livePages", "pageTime", "visitHours", "actions", "outbound", "newReturning"];
 
 /** The shop's own addresses: a click to one of them is not a visitor leaving. */
-export const OWN_HOSTS = ["lyricalmyricalbooks.com", "lmb-test-shop.web.app", "lmb-test-shop.firebaseapp.com"];
+export const OWN_HOSTS = ["yourpress.example", "lmb-test-shop.web.app", "lmb-test-shop.firebaseapp.com"];
 
 export function OverviewVisitors({ only, ga, books, dailyCurrent, dailyPrevious, config, onConfig, full, setActiveTab, periodLabel = "this period" }: {
   only: VisitorWidget; ga: GaState; books: Book[];

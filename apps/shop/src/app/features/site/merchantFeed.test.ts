@@ -56,7 +56,7 @@ describe("merchant feed rules match checkout", () => {
 });
 
 describe("merchantFeedItems", () => {
-  const { items, skipped } = merchantFeedItems(SITE, catalog, { now, shopName: "Lyricalmyrical Books" });
+  const { items, skipped } = merchantFeedItems(SITE, catalog, { now, shopName: "Your Press" });
   const byId = Object.fromEntries(items.map((i: any) => [i.id, i]));
 
   it("lists only books shoppers can buy today", () => {
@@ -94,7 +94,7 @@ describe("artist names in the feed", () => {
   it("credits people the same way as the book page", () => {
     for (const book of [
       { subtitle: "Ian Willms" }, { subtitle: "A <b>One</b> &amp; B Two; C" }, { subtitle: "Various artists" },
-      { subtitle: "Subverso Magazines x Lyricalmyrical Books" }, { authorName: "Legacy Name" }, { subtitle: "Ann and Bo + Cy" }, {},
+      { subtitle: "Subverso Magazines x Your Press" }, { authorName: "Legacy Name" }, { subtitle: "Ann and Bo + Cy" }, {},
     ]) expect(creatorNames(book)).toEqual(bookCreators(book as any));
   });
   it("puts the artist in the title once and lists them as Author", () => {

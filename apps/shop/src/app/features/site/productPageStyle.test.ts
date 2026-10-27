@@ -199,7 +199,7 @@ describe("book title on phones", () => {
     expect(productPageCss({})).toContain("font-size:min(var(--pdp-title-auto, clamp(34px, 4.6vw, 62px)), var(--pdp-title-fit, 100vw))");
   });
   it("works out the cap from the longest word", () => {
-    expect(titleFitSize("Lyricalmyrical Collections #1 (Collective Photobook)")).toBe("calc(100cqi / 10.08)");
+    expect(titleFitSize("Riverbendpress Collections #1 (Collective Photobook)")).toBe("calc(100cqi / 10.08)");
     expect(titleFitSize("A Book")).toBe("");
     expect(titleFitSize(undefined)).toBe("");
   });

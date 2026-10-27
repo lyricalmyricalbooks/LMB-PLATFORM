@@ -23,7 +23,7 @@ describe("liveNow", () => {
       { paymentStatus: "unpaid", paymentMethod: "stripe", createdAt: minsAgo(5), isTest: true },
       paid({ createdAt: minsAgo(30), total: 30 }),
       paid({ createdAt: minsAgo(90) }),
-      paid({ createdAt: minsAgo(5), customer: { email: "lyricalmyricalbooks@gmail.com" } }),
+      paid({ createdAt: minsAgo(5), customer: { email: "owner@example.com" } }),
     ];
     expect(liveNow(orders, carts, NOW)).toEqual({ bags: 1, checkout: 1, bought: 1, boughtTotal: 30, lastBag: "Paper Moons" });
   });
@@ -37,7 +37,7 @@ describe("liveNow", () => {
   });
   it("isOpenCheckout ignores paid and owner orders", () => {
     expect(isOpenCheckout({ paymentStatus: "paid", paymentMethod: "stripe" })).toBe(false);
-    expect(isOpenCheckout({ paymentMethod: "card", customer: { email: "LyricalMyricalBooks@gmail.com" } })).toBe(false);
+    expect(isOpenCheckout({ paymentMethod: "card", customer: { email: "Owner@Example.com" } })).toBe(false);
     expect(isOpenCheckout({ paymentMethod: "card" })).toBe(true);
   });
 });

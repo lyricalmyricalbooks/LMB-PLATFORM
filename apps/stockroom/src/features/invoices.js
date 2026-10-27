@@ -98,7 +98,7 @@ function saveInvoiceSettingsObj(o) { localStorage.setItem(INVOICE_SETTINGS_KEY, 
 
 function openInvoiceTemplateSettings() {
   const s = getInvoiceSettings();
-  $('ivs-name').value = s.name || 'Lyricalmyrical Books';
+  $('ivs-name').value = s.name || 'Your Press';
   $('ivs-email').value = s.email || '';
   $('ivs-addr').value = s.addr || '';
   $('ivs-vat').value = s.vat || '';
@@ -594,7 +594,7 @@ function allInvoicesEverywhere() {
 // a bill charging for two books should not be numbered after just one of them.
 function invoicePrefixForBooks(bookIds) {
   if (Array.isArray(bookIds) && bookIds.length > 1) {
-    return neutralInvoicePrefix(getInvoiceSettings().name || 'Lyricalmyrical Books');
+    return neutralInvoicePrefix(getInvoiceSettings().name || 'Your Press');
   }
   const bid = (bookIds && bookIds[0]) || activeBook;
   const book = BOOKS[bid] || getBook();
@@ -1561,7 +1561,7 @@ function renderInvoicePaperHTML(inv, { showChase = false } = {}) {
   return `<div style="--book-accent:${accent};">
     <header class="inv-head">
       <div class="inv-brand">
-        <h1>${escapeHtml(settings.name || 'Lyricalmyrical Books')}</h1>
+        <h1>${escapeHtml(settings.name || 'Your Press')}</h1>
         <div class="inv-addr">${escapeHtml(settings.addr || '')}${settings.email ? '\n' + escapeHtml(settings.email) : ''}${settings.web ? '\n' + escapeHtml(settings.web) : ''}${settings.vat ? '\nVAT/Tax ID: ' + escapeHtml(settings.vat) : ''}</div>
       </div>
       <div class="inv-id">
@@ -1766,7 +1766,7 @@ function invoiceEmailPlainText(inv) {
     inv.notes ? `Notes: ${inv.notes}` : null,
     ``,
     `Thank you,`,
-    settings.name || 'Lyricalmyrical Books',
+    settings.name || 'Your Press',
   ].filter(v => v !== null).join('\n');
 }
 
@@ -1806,7 +1806,7 @@ function buildInvoiceEmailHTML(inv) {
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:26px;">
           <tr>
             <td style="vertical-align:top;">
-              <div style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;color:#0e0c0a;line-height:1.1;">${escapeHtml(settings.name || 'Lyricalmyrical Books')}</div>
+              <div style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;color:#0e0c0a;line-height:1.1;">${escapeHtml(settings.name || 'Your Press')}</div>
               <div style="font-size:12px;line-height:1.55;color:#756e64;margin-top:10px;white-space:pre-wrap;">${escapeHtml(settings.addr || '')}${settings.email ? '<br>' + escapeHtml(settings.email) : ''}${settings.web ? '<br>' + escapeHtml(settings.web) : ''}</div>
             </td>
             <td align="right" style="vertical-align:top;white-space:nowrap;">
@@ -1842,7 +1842,7 @@ function buildInvoiceEmailHTML(inv) {
         <div style="text-align:center;font-size:12px;color:#6b6459;margin-top:24px;font-style:italic;">${escapeHtml(settings.footer || 'Thank you for stocking our books.')}</div>
       </div>
     </div>
-    <p style="font-size:15px;line-height:1.55;margin:22px 0 0;">Thank you,<br>${escapeHtml(settings.name || 'Lyricalmyrical Books')}</p>
+    <p style="font-size:15px;line-height:1.55;margin:22px 0 0;">Thank you,<br>${escapeHtml(settings.name || 'Your Press')}</p>
   </div>
 </div>`;
 }
@@ -1868,7 +1868,7 @@ async function emailInvoice() {
   const inv = invoiceHome(currentViewInvoiceId).inv;
   if (!inv) return;
   const settings = getInvoiceSettings();
-  const subject = `Invoice ${inv.num} — ${settings.name || 'Lyricalmyrical Books'}`;
+  const subject = `Invoice ${inv.num} — ${settings.name || 'Your Press'}`;
   const to = inv.storeEmail || '';
   let richCopied = false;
   try {

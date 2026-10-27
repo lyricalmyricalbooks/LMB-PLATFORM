@@ -5,7 +5,7 @@ description: Release & Deployment Specialist procedure. Manages Git branch hygie
 
 # Release & Deployment Procedure (`/release-manager`)
 
-Use this skill when managing Git branches, creating pull requests, bumping script versions, or preparing releases for `lyrical-inventory`.
+Use this skill when managing Git branches, creating pull requests, bumping script versions, or preparing releases for `stockroom`.
 
 ---
 

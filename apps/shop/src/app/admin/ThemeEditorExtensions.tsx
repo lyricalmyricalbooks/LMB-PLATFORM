@@ -387,7 +387,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     description: "Screenshot-style masthead plus configurable product grid.",
     category: "Commerce",
     defaults: {
-      title: "Lyricalmyrical Books",
+      title: "Your Press",
       navText: "Products · About · Project Submissions · Contact",
       cartLabel: "Cart",
       cartTotalText: "CA$130.00",
@@ -575,7 +575,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     description: "Full-height hero that auto-cycles through your book covers with a serif wordmark overlay.",
     category: "Commerce",
     defaults: {
-      title: "Lyricalmyrical Books",
+      title: "Your Press",
       tagline: "An independent publishing house based in Toronto, specializing in contemporary photography and art books.",
       titleItalic: true,
       productSource: "all",
@@ -649,7 +649,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
       align: "center",
       gap: 24,
       items: [
-        { kind: "spine", label: "LYRICALMYRICAL", color: "#A855F7", rotation: -2 },
+        { kind: "spine", label: "YOUR PRESS", color: "#A855F7", rotation: -2 },
         { kind: "negative", label: "", color: "#d97706", rotation: 1 },
         { kind: "seal", label: "LM", color: "#9a2c3c", rotation: -3 },
         { kind: "ribbon", label: "", color: "#A855F7", rotation: 2 },

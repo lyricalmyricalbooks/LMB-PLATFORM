@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// "Lyricalmyrical Riso Noir" — the Riso Press storefront on black with white text.
+// "Riso Noir" — the Riso Press storefront on black with white text.
 //
 // One token record shared by (a) the THEME_LIBRARY preset, (b) the default design a
 // fresh site starts from, and (c) the fallback applied to older saved designs that
@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { applyThemeKeysToSurfaces } from "../../admin/themeScope";
 
-export const RISO_NOIR_ID = "lyricalmyrical-riso-noir";
+export const RISO_NOIR_ID = "press-riso-noir";
 
 const FLARE = "#e8402a";
 const INK = "#100f0d";
@@ -42,7 +42,7 @@ export const RISO_NOIR_TOKENS: Record<string, any> = {
   cartDrawerBg: "#000000", cartDrawerText: "#ffffff", cartDrawerMuted: "rgba(255,255,255,0.64)",
   cartDrawerSurface: "#0d0d0d", cartDrawerBorder: "#ffffff", pageChromeStyle: "theme",
   navStyle: "default", wordmarkStyle: "two-part",
-  wordmarkPrimary: "Lyricalmyrical", wordmarkSecondary: "Books", wordmarkSecondaryMuted: false,
+  wordmarkPrimary: "Your", wordmarkSecondary: "Press", wordmarkSecondaryMuted: false,
   wordmarkSize: 1.8, wordmarkWeight: 400, logoColor: "#ffffff",
   // Catalog.
   // Clean grid by default: no heading, category chips, search/sort bar or result count (all switchable on).

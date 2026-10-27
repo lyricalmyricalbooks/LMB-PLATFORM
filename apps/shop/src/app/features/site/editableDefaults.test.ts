@@ -6,7 +6,7 @@ import { getFeaturedBooks } from "./selectors";
 
 describe("values that used to be hard-coded are now Studio settings", () => {
   it("{name} in any copy string follows Site & sharing › Site name", () => {
-    expect(getCopy(null, "seoCheckoutDescription")).toBe("Secure checkout for Lyricalmyrical Books.");
+    expect(getCopy(null, "seoCheckoutDescription")).toBe("Secure checkout for Your Press.");
     expect(getCopy({ copy: { siteName: "Acme Press" } }, "seoCheckoutDescription")).toBe("Secure checkout for Acme Press.");
     expect(getCopy({ copy: { siteName: "Acme Press" } }, "siteTitleFormat", { title: "Cart" })).toBe("Cart — Acme Press");
   });

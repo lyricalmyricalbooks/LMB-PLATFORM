@@ -204,7 +204,7 @@ await check("signed-in customer can't read the private document", assertFails(ge
 await check("anon can't write a book", assertFails(setDoc(doc(anon, "books/new"), { status: "published", title: "x" })));
 await check("anon can't write the private document", assertFails(setDoc(doc(anon, "books/pub/private/admin"), { costPrice: 0 })));
 {
-  const admin = env.authenticatedContext("admin", { email: "lyricalmyricalbooks@gmail.com", email_verified: true }).firestore();
+  const admin = env.authenticatedContext("admin", { email: "owner@example.com", email_verified: true }).firestore();
   await check("admin reads a draft book", assertSucceeds(getDoc(doc(admin, "books/draft"))));
   await check("admin lists every book", assertSucceeds(getDocs(collection(admin, "books"))));
   await check("admin reads the private document", assertSucceeds(getDoc(doc(admin, "books/pub/private/admin"))));
@@ -218,7 +218,7 @@ await check("anon can't write the private document", assertFails(setDoc(doc(anon
   await check("other admin prefs docs stay closed", assertFails(setDoc(doc(admin, "adminPrefs/somethingElse"), { data: "[]", updatedAt: Date.now() })));
   await check("signed-in customer can't read the Overview notes", assertFails(getDoc(doc(user, "adminPrefs/overviewNotes"))));
   await check("anon can't write the Overview notes", assertFails(setDoc(doc(anon, "adminPrefs/overviewNotes"), { data: "[]", updatedAt: 1 })));
-  const unverified = env.authenticatedContext("imposter", { email: "lyricalmyricalbooks@gmail.com", email_verified: false }).firestore();
+  const unverified = env.authenticatedContext("imposter", { email: "owner@example.com", email_verified: false }).firestore();
   await check("unverified admin email can't read the private document", assertFails(getDoc(doc(unverified, "books/pub/private/admin"))));
 }
 
@@ -231,7 +231,7 @@ await check("anon can't read customer notes", assertFails(getDoc(doc(anon, "cust
 await check("anon can't write customer notes", assertFails(setDoc(doc(anon, "customerNotes/x"), { email: "a@b.co", note: "", tags: [], updatedAt: "now" })));
 await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-optout/x"))));
 {
-  const admin = env.authenticatedContext("admin", { email: "lyricalmyricalbooks@gmail.com", email_verified: true }).firestore();
+  const admin = env.authenticatedContext("admin", { email: "owner@example.com", email_verified: true }).firestore();
   await check("admin writes a customer note", assertSucceeds(setDoc(doc(admin, "customerNotes/x"), { email: "a@b.co", note: "Likes poetry", tags: ["wholesale"], updatedAt: "now" })));
   await check("admin note extra key refused", assertFails(setDoc(doc(admin, "customerNotes/y"), { email: "a@b.co", note: "", tags: [], updatedAt: "now", junk: 1 })));
   await check("admin reads opt-outs", assertSucceeds(getDoc(doc(admin, "marketing-optout/x"))));
@@ -240,7 +240,7 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
 
 // Inventory app link: per-order records are server-only; the admin reads the link's status document.
 {
-  const admin = env.authenticatedContext("admin", { email: "lyricalmyricalbooks@gmail.com", email_verified: true }).firestore();
+  const admin = env.authenticatedContext("admin", { email: "owner@example.com", email_verified: true }).firestore();
   await check("anon can't read inventory pushes", assertFails(getDoc(doc(anon, "inventoryPushes/x"))));
   await check("admin can't read inventory pushes", assertFails(getDoc(doc(admin, "inventoryPushes/x"))));
   await check("admin can't write inventory pushes", assertFails(setDoc(doc(admin, "inventoryPushes/x"), { net: { a: 1 } })));

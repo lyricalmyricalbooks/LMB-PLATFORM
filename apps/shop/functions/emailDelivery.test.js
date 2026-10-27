@@ -75,7 +75,7 @@ test("a re-delivered paid trigger does not email the customer or the shop twice"
   await app.exports.onOrderUpdated(event);
   await app.exports.onOrderUpdated(event);
   expect(app.sent.filter(m => m.to === "reader@example.com")).toHaveLength(1);
-  expect(app.sent.filter(m => m.to === "lyricalmyricalbooks@gmail.com")).toHaveLength(1);
+  expect(app.sent.filter(m => m.to === "owner@example.com")).toHaveLength(1);
   // The claims live in a server-only collection, not on the guest-readable order.
   expect(Object.keys(app.docs["email-claims"]).sort()).toEqual(["o1_orderConfirmed", "o1_shopNewOrder"]);
 });
@@ -105,7 +105,7 @@ test("a failed send releases its claim so a retry can deliver it", async () => {
   app.exports.__ok();
   await app.exports.onOrderUpdated(event);
   expect(app.sent.filter(m => m.to === "reader@example.com")).toHaveLength(1);
-  expect(app.sent.filter(m => m.to === "lyricalmyricalbooks@gmail.com")).toHaveLength(1);
+  expect(app.sent.filter(m => m.to === "owner@example.com")).toHaveLength(1);
 });
 
 const sweepPatch = (sendFails) => `

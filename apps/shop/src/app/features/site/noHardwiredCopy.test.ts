@@ -15,7 +15,7 @@ const ATTRS = new Set(["placeholder", "aria-label", "title", "alt", "label"]);
 
 // Brand marks and units that are not editable words.
 // Also allowed: wordmark defaults (Studio › Style › wordmark fields) and the fallback contact address (Settings › General).
-const ALLOWED = new Set(["AX", "GPay", "afterpay", "Kl.", "CAD", "USD", "EUR", "Lyricalmyrical", "Books", "lyricalmyricalbooks@gmail.com"]);
+const ALLOWED = new Set(["AX", "GPay", "afterpay", "Kl.", "CAD", "USD", "EUR", "Your", "Press", "Books", "owner@example.com"]);
 
 function files(dir: string, out: string[] = []) {
   for (const n of readdirSync(dir)) {

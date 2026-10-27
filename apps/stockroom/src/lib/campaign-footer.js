@@ -5,8 +5,8 @@ const SUBJECT = 'Unsubscribe';
 export function campaignFooterText(replyTo) {
   const to = String(replyTo || '').trim();
   return to
-    ? `You are receiving this email because you are a valued customer of Lyricalmyrical Books.\nTo unsubscribe, reply to this email or write to ${to} with the word "Unsubscribe".`
-    : 'You are receiving this email because you are a valued customer of Lyricalmyrical Books.\nTo unsubscribe, reply to this email with the word "Unsubscribe".';
+    ? `You are receiving this email because you are a valued customer of Your Press.\nTo unsubscribe, reply to this email or write to ${to} with the word "Unsubscribe".`
+    : 'You are receiving this email because you are a valued customer of Your Press.\nTo unsubscribe, reply to this email with the word "Unsubscribe".';
 }
 
 export function campaignFooterHtml(replyTo) {
@@ -15,7 +15,7 @@ export function campaignFooterHtml(replyTo) {
     ? `<a href="mailto:${to}?subject=${SUBJECT}" style="color:#8a5815;text-decoration:underline;">Unsubscribe</a>`
     : 'Unsubscribe (reply with that word)';
   return '<div style="font-size:11px;color:#63605c;border-top:1px dashed #eee;margin-top:24px;padding-top:12px;line-height:1.4;">'
-    + 'You are receiving this email because you are a valued customer of Lyricalmyrical Books.<br>'
+    + 'You are receiving this email because you are a valued customer of Your Press.<br>'
     + `${link} from this list.</div>`;
 }
 

@@ -59,3 +59,19 @@ test("no workflow deploys anything", () => {
   );
   assert.deepEqual(deploys, []);
 });
+
+// The copies are a general shop and stockroom for any press: nothing in them may name Lyricalmyrical, send people to
+// its web address, mail its inbox or point Google at its site. The only allowed mention is this repository's own
+// GitHub address (the organisation is still called lyricalmyricalbooks), and apps/README.md, which records where the
+// copies came from.
+test("no app copy names Lyricalmyrical, its address or its email", () => {
+  const ALLOWED = /lyricalmyricalbooks\/LMB-PLATFORM/gi;
+  const hits = [];
+  for (const path of files("apps")) {
+    if (path === join("apps", "README.md")) continue;
+    const text = readFileSync(path, "latin1").replace(ALLOWED, "");
+    const match = text.match(/lyricalmyrical|lyrical-inventory/i);
+    if (match) hits.push(`${path}: ${match[0]}`);
+  }
+  assert.deepEqual(hits, []);
+});

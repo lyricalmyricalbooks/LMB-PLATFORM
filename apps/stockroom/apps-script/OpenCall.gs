@@ -1,4 +1,4 @@
-/* Lyricalmyrical — Open Call automation (v1)
+/* Your Press — Open Call automation (v1)
  *
  * Turns the manual "Collective Photobook open call" spreadsheet into a
  * three-stage mail-merge run from a Gmail menu. For each artist row it
@@ -172,14 +172,14 @@ function ocSetupTemplates() {
   const defaults = [
     ['Stage', 'Subject', 'Body (use {{name}} and {{photo}})'],
     ['selection',
-     'Your photo has been selected — Lyricalmyrical Collective Photobook',
-     'Hi {{name}},\n\nCongratulations! Your photo "{{photo}}" has been selected from our open call to be featured in the first Lyricalmyrical Collective Photobook. We\'re thrilled to include your work!\n\nWe are now entering the book design phase and require one initial piece of information:\n1. The exact name you want to use in the credits at the back of the book.\n\nPlease reply to this email by the end of the week with: "The exact name for my credit is: [your name]"\n\nNEXT STEPS\nWe\'ll be in touch with instructions for sending your high-resolution CMYK files once the printer and color profile are finalized. We\'ll also share pre-order details and special contributor discounts soon.\n\nThank you so much for sharing your work with us!\n\nWarm regards,\nLyricalmyrical Books'],
+     'Your photo has been selected — Your Press Collective Photobook',
+     'Hi {{name}},\n\nCongratulations! Your photo "{{photo}}" has been selected from our open call to be featured in the first Your Press Collective Photobook. We\'re thrilled to include your work!\n\nWe are now entering the book design phase and require one initial piece of information:\n1. The exact name you want to use in the credits at the back of the book.\n\nPlease reply to this email by the end of the week with: "The exact name for my credit is: [your name]"\n\nNEXT STEPS\nWe\'ll be in touch with instructions for sending your high-resolution CMYK files once the printer and color profile are finalized. We\'ll also share pre-order details and special contributor discounts soon.\n\nThank you so much for sharing your work with us!\n\nWarm regards,\nYour Press'],
     ['cmyk',
-     'Print-ready files needed — Lyricalmyrical Collective Photobook',
-     'Hi {{name}},\n\nWe\'re moving ahead with the book design for the Lyricalmyrical Collective Photobook!\n\nFor the next step, we need your high-quality, print-ready file for "{{photo}}".\n\nRequired file preparation:\n- Format: high-quality .TIFF\n- Color profile: CMYK (to be confirmed with our printer); make any final color adjustments after conversion\n- File naming (very important): FINAL_{{photo}}\n\nPlease reply to this email chain with the file attached.\n\nWe\'ll be in touch shortly about pre-orders and special contributor discounts!\n\nWarm regards,\nLyricalmyrical Books'],
+     'Print-ready files needed — Your Press Collective Photobook',
+     'Hi {{name}},\n\nWe\'re moving ahead with the book design for the Your Press Collective Photobook!\n\nFor the next step, we need your high-quality, print-ready file for "{{photo}}".\n\nRequired file preparation:\n- Format: high-quality .TIFF\n- Color profile: CMYK (to be confirmed with our printer); make any final color adjustments after conversion\n- File naming (very important): FINAL_{{photo}}\n\nPlease reply to this email chain with the file attached.\n\nWe\'ll be in touch shortly about pre-orders and special contributor discounts!\n\nWarm regards,\nYour Press'],
     ['preorder',
-     'Pre-orders are open — Lyricalmyrical Collective Photobook',
-     'Hi {{name}},\n\nWe are thrilled to announce that pre-orders for the Lyricalmyrical Collective Photobook are now officially open!\n\nAs per the open call submission instructions: https://www.lyricalmyricalbooks.com/open-call-collective-book\n\nSelected artists in the book receive a 50% discount code for any number of copies (shipping not included; all orders ship from Toronto, Canada). Use code LMBCOLLECTIVE at checkout:\nhttps://www.lyricalmyricalbooks.com/product/collective-photobook\n\nThank you again for being part of this project!\n\nWarm regards,\nLyricalmyrical Books']
+     'Pre-orders are open — Your Press Collective Photobook',
+     'Hi {{name}},\n\nWe are thrilled to announce that pre-orders for the Your Press Collective Photobook are now officially open!\n\nAs per the open call submission instructions: https://www.yourpress.example/open-call-collective-book\n\nSelected artists in the book receive a 50% discount code for any number of copies (shipping not included; all orders ship from Toronto, Canada). Use code LMBCOLLECTIVE at checkout:\nhttps://www.yourpress.example/product/collective-photobook\n\nThank you again for being part of this project!\n\nWarm regards,\nYour Press']
   ];
 
   sheet.getRange(1, 1, defaults.length, 3).setValues(defaults);

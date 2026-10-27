@@ -37,11 +37,11 @@ describe('ocFieldWords', () => {
 
 describe('ocTrimQuotedReply', () => {
   it('keeps only the new part above a Gmail-style quote header', () => {
-    const t = 'Please credit me as A. Okafor.\n\nThanks!\n\nOn Tue, Sep 30, 2026 at 10:02 AM Lyricalmyrical <hi@x.com> wrote:\n> You’re in!';
+    const t = 'Please credit me as A. Okafor.\n\nThanks!\n\nOn Tue, Sep 30, 2026 at 10:02 AM Your Press <hi@x.com> wrote:\n> You’re in!';
     expect(ocTrimQuotedReply(t)).toBe('Please credit me as A. Okafor.\n\nThanks!');
   });
   it('handles a quote header that wraps onto two lines', () => {
-    const t = 'Files attached.\n\nOn Tue, Sep 30, 2026 at 10:02 AM Lyricalmyrical Books <\nhi@x.com> wrote:\n> old';
+    const t = 'Files attached.\n\nOn Tue, Sep 30, 2026 at 10:02 AM Your Press <\nhi@x.com> wrote:\n> old';
     expect(ocTrimQuotedReply(t)).toBe('Files attached.');
   });
   it('stops at quoted lines and Outlook headers', () => {

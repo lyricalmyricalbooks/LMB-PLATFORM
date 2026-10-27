@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
-function harness(identity = { email: "lyricalmyricalbooks@gmail.com", email_verified: true }, pending = false) {
+function harness(identity = { email: "owner@example.com", email_verified: true }, pending = false) {
   const docs = {
     orders: { A: { paymentStatus: "paid", paymentMethod: "Stripe", stripePaymentIntentId: "pi_saved", total: 60, customerRequest: { type: "return", status: "open" }, items: [{ id: "a", quantity: 2, format: "Paperback" }, { id: "b", quantity: 1, format: "Paperback" }] } },
     books: { a: { status: "published", format: "Paperback", retailPrice: 20, trackInventory: true, stockLevel: 3 }, b: { status: "published", format: "Paperback", retailPrice: 20, trackInventory: true, stockLevel: 3 } },

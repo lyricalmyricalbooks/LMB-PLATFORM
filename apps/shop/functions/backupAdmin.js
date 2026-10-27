@@ -31,7 +31,7 @@ async function listBackups({ bucket }) {
   }));
 }
 
-/** A 15-minute link that saves that day's backup as lyricalmyrical-backup-<day>.json. */
+/** A 15-minute link that saves that day's backup as press-backup-<day>.json. */
 async function backupDownloadUrl({ bucket, day, now = Date.now() }) {
   if (!DAY_RE.test(String(day || ""))) return { status: 400, body: { error: "Pick a backup day." } };
   const file = bucket.file(`backups/${day}/json/${DOWNLOAD_FILE}`);
@@ -40,7 +40,7 @@ async function backupDownloadUrl({ bucket, day, now = Date.now() }) {
   const [url] = await file.getSignedUrl({
     action: "read",
     expires: now + LINK_MINUTES * 60 * 1000,
-    responseDisposition: `attachment; filename="lyricalmyrical-backup-${day}.json"`,
+    responseDisposition: `attachment; filename="press-backup-${day}.json"`,
     responseType: "application/json",
   });
   return { status: 200, body: { url } };

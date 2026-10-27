@@ -1,5 +1,5 @@
 {
-  "name": "lyricalmyrical-functions",
+  "name": "shop-functions",
   "version": "1.0.0",
   "description": "Firebase Cloud Functions: order emails + abandoned-cart recovery",
   "main": "index.js",

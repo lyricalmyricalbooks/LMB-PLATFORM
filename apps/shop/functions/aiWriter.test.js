@@ -16,7 +16,7 @@ describe("AI writing assistant (Gemini)", () => {
   });
 
   it("asks for JSON and turns off thinking on 2.5 flash only", () => {
-    const body = buildRequest("bookSeo", { title: "Salt" }, { siteName: "Lyricalmyrical Books" }, "gemini-2.5-flash");
+    const body = buildRequest("bookSeo", { title: "Salt" }, { siteName: "Your Press" }, "gemini-2.5-flash");
     expect(body.generationConfig.responseMimeType).toBe("application/json");
     expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
     expect(buildRequest("bookSeo", { title: "Salt" }, {}, "gemini-flash-latest").generationConfig.thinkingConfig).toBeUndefined();
@@ -96,9 +96,9 @@ describe("AI writing assistant (Gemini)", () => {
   });
 
   it("returns a suggestion for a book", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(answer({ metaTitle: "Salt by Ana — Lyricalmyrical", metaDescription: "A risograph-printed book of sea poems." }));
-    const out = await handleAiWrite({ task: "bookSeo", input: { title: "Salt", author: "Ana" }, siteName: "Lyricalmyrical" }, deps({ fetchImpl }));
-    expect(out).toEqual({ status: 200, body: { ok: true, result: { metaTitle: "Salt by Ana — Lyricalmyrical", metaDescription: "A risograph-printed book of sea poems.", model: "gemini-2.5-flash", provider: "gemini" } } });
+    const fetchImpl = vi.fn().mockResolvedValue(answer({ metaTitle: "Salt by Ana — Your Press", metaDescription: "A risograph-printed book of sea poems." }));
+    const out = await handleAiWrite({ task: "bookSeo", input: { title: "Salt", author: "Ana" }, siteName: "Your Press" }, deps({ fetchImpl }));
+    expect(out).toEqual({ status: 200, body: { ok: true, result: { metaTitle: "Salt by Ana — Your Press", metaDescription: "A risograph-printed book of sea poems.", model: "gemini-2.5-flash", provider: "gemini" } } });
   });
 
   it("describes a book photo from the shop's own Storage bucket only", async () => {

@@ -1,5 +1,5 @@
 /**
- * Firebase Cloud Functions for Lyricalmyrical Books
+ * Firebase Cloud Functions for Your Press
  *
  *   1. createStripeCheckoutSession (HTTP) -> Secure session creation
  *   2. stripeWebhook (HTTP)               -> Secure payment webhook
@@ -96,7 +96,7 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 // Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-const ADMIN_EMAILS = ["lyricalmyricalbooks@gmail.com"];
+const ADMIN_EMAILS = ["owner@example.com"];
 
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
@@ -104,12 +104,12 @@ const ALLOWED_ORIGINS = [
   "http://localhost:4000",
   // The old GitHub Pages address now only forwards visitors; it stays allowed for tabs opened before the move
   // (remove it in the cleanup step, 30–60 days after the cutover).
-  "https://lyricalmyricalbooks.github.io",
+  "https://yourpress.github.io",
   // The shop (Firebase Hosting). firebaseapp.com is deliberately absent: the site sends visitors there to web.app
   // (scripts/canonicalHost.mjs) instead of serving checkout twice.
   "https://lmb-test-shop.web.app",
-  "https://lyricalmyricalbooks.com",
-  "https://www.lyricalmyricalbooks.com",
+  "https://yourpress.example",
+  "https://www.yourpress.example",
 ];
 
 // Returns true when the request was an OPTIONS preflight (already answered).
@@ -332,7 +332,7 @@ async function retrieveOrderPayment(orderId, order, { paymentIntentId, sessionId
   return null;
 }
 
-const ADMIN_TO = "lyricalmyricalbooks@gmail.com";
+const ADMIN_TO = "owner@example.com";
 
 function moneyFmt(n) {
   return `$${Number(n || 0).toFixed(2)}`;
@@ -458,8 +458,8 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
   secret = secret || resendSecretValue();
   let apiKey = secret;
   let keySource = secret ? "secret" : "none";
-  let fromName = "Lyricalmyrical Books";
-  let fromEmail = "orders@lyricalmyricalbooks.com";
+  let fromName = "Your Press";
+  let fromEmail = "orders@example.com";
   let replyTo = null;
   let brand = {};
   let mailingAddress = "";
@@ -2764,70 +2764,70 @@ const DEFAULT_NOTIFICATIONS = {
     subject: "Order confirmed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your purchase! We've received your order and are preparing it for shipment. We will send you another email when it has shipped.",
     buttonText: "View your order",
-    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    signoff: "Thanks,\nThe Your Press team",
     enabled: true
   },
   shipping_confirmation: {
     subject: "Your order is on the way!",
     body: "Hi {{customer_name}},\n\nGood news! Your order {{order_id}} has shipped with {{tracking_carrier}} and is on its way.\n\nTracking number: {{tracking_number}}\n\nUse the button below to follow your parcel on the carrier's website.",
     buttonText: "Track your shipment",
-    signoff: "Best,\nThe Lyricalmyrical Team",
+    signoff: "Best,\nThe Your Press team",
     enabled: true
   },
   abandoned_cart: {
     subject: "Did you forget something?",
     body: "Hi {{customer_name}},\n\nWe noticed you left some items in your cart. We've saved them for you, so you can easily complete your purchase whenever you're ready!",
     buttonText: "Resume purchase",
-    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    signoff: "Thanks,\nThe Your Press team",
     enabled: true
   },
   order_cancelled: {
     subject: "Order cancelled: {{order_id}}",
     body: "Hi {{customer_name}},\n\nYour order has been cancelled and you will not be charged. If you have any questions, please contact us.",
     buttonText: "",
-    signoff: "Best,\nThe Lyricalmyrical Team",
+    signoff: "Best,\nThe Your Press team",
     enabled: true
   },
   order_pending_payment: {
     subject: "Order received — payment needed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your order! It is reserved for you, but it is not paid yet. Please pay {{total_price}} by {{payment_method}} using the instructions below. We'll confirm by email as soon as your payment arrives and then prepare your order.",
     buttonText: "View your order",
-    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    signoff: "Thanks,\nThe Your Press team",
     enabled: true
   },
   order_refunded: {
     subject: "Order refunded: {{order_id}}",
     body: "Hi {{customer_name}},\n\nWe have successfully refunded {{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
     buttonText: "",
-    signoff: "Best,\nThe Lyricalmyrical Team",
+    signoff: "Best,\nThe Your Press team",
     enabled: true
   },
   customer_welcome: {
-    subject: "Welcome to Lyricalmyrical Books!",
-    body: "Hi {{customer_name}},\n\nThank you for creating an account with Lyricalmyrical Books! You can now log in to view your orders, save shipping addresses, and download digital library books.",
+    subject: "Welcome to Your Press!",
+    body: "Hi {{customer_name}},\n\nThank you for creating an account with Your Press! You can now log in to view your orders, save shipping addresses, and download digital library books.",
     buttonText: "Go to your account",
-    signoff: "Warmly,\nThe Lyricalmyrical Team",
+    signoff: "Warmly,\nThe Your Press team",
     enabled: true
   },
   contact_reply: {
     subject: "We got your message",
-    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Lyricalmyrical Books! We've received your message and will reply as soon as we can.",
+    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Your Press! We've received your message and will reply as soon as we can.",
     buttonText: "",
-    signoff: "Warmly,\nThe Lyricalmyrical Team",
+    signoff: "Warmly,\nThe Your Press team",
     enabled: true
   },
   gift_card: {
     subject: "You've received a {{amount}} gift card",
-    body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for Lyricalmyrical Books.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter it in the Gift card box at checkout. {{expires}}",
+    body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for Your Press.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter it in the Gift card box at checkout. {{expires}}",
     buttonText: "Shop now",
-    signoff: "Happy reading,\nThe Lyricalmyrical Team",
+    signoff: "Happy reading,\nThe Your Press team",
     enabled: true
   },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
     buttonText: "Track shipment",
-    signoff: "Best,\nThe Lyricalmyrical Team",
+    signoff: "Best,\nThe Your Press team",
     enabled: true
   }
 };

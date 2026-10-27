@@ -89,7 +89,7 @@ jobs:
       # they can reach the live shop. No prerender here, so prerendered-page checks are skipped; the deploy workflow
       # runs them on the full build.
       - name: Firebase Hosting routing check
-        run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs"
+        run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-shop "node scripts/hosting-smoke.mjs"
 
   firestore-rules:
     # Runs scripts/firestore-rules-emulator.mjs against the real rules engine (Firestore emulator), so a rules change

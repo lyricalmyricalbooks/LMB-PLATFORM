@@ -538,7 +538,7 @@ its own click-to-edit target (Bag heading, Free-shipping bar, Bag line items, Ba
 
 **Riso Noir storefront:** the public site defaults to the Riso Press look on black with white text
 (`src/app/features/site/risoNoir.ts` → `RISO_NOIR_TOKENS`, `withRisoNoirDefault`; theme-library
-preset `lyricalmyrical-riso-noir`). `RISO_STOREFRONT_CSS` in `themeTokens.ts` must stay token-driven
+preset `press-riso-noir`). `RISO_STOREFRONT_CSS` in `themeTokens.ts` must stay token-driven
 (no literal hex — `themeTokens.test.ts` enforces it). Colour triplet variables (`--fg-rgb`, `--accent-rgb`,
 …) are **comma-separated** (`255, 255, 255`) so `rgba(var(--x-rgb), a)` is valid. Every shopper-facing
 string goes through `getCopy(design, key)` with a `COPY_SCHEMA` entry (`storeCopy.coverage.test.ts`

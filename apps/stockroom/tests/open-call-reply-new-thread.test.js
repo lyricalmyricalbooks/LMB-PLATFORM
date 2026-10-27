@@ -8,7 +8,7 @@ import path from 'node:path';
 // reply, but a reply in a brand-new thread after our first email must.
 const source = fs.readFileSync(path.resolve('apps-script/Code.gs'), 'utf8');
 const ARTIST = 'ada@example.com';
-const OURS = 'lyricalmyricalbooks@gmail.com';
+const OURS = 'owner@example.com';
 
 const msg = (from, iso, attachments = 0) => ({
   getFrom: () => from, getDate: () => new Date(iso), getPlainBody: () => '',

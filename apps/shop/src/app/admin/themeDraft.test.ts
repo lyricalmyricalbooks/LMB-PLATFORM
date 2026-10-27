@@ -47,7 +47,7 @@ describe("theme draft / publish separation", () => {
   });
 
   it("non-theme settings saves do not create a design or draft", async () => {
-    await adminApi.updateSettings({ info: { name: "Lyricalmyrical" } });
+    await adminApi.updateSettings({ info: { name: "Your Press" } });
     const payload = lastWrite();
     expect("design" in payload).toBe(false);
     expect("draftDesign" in payload).toBe(false);

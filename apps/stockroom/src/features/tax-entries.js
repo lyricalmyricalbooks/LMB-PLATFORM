@@ -1010,7 +1010,7 @@ function downloadFullTaxSeasonExport() {
   const year = yearSelect ? yearSelect.value : 'all';
   const isAllTime = (year === 'all');
 
-  let csv = 'Lyricalmyrical Tax Season Export\n';
+  let csv = 'Your Press Tax Season Export\n';
   csv += 'Generated on: ' + today() + '\n';
   csv += 'Tax Year: ' + (isAllTime ? 'All Time' : year) + '\n\n';
 

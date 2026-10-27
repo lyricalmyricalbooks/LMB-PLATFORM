@@ -1,7 +1,7 @@
-# Gmail add-on — "Send to Lyricalmyrical Inventory"
+# Gmail add-on — "Send to Your Press Inventory"
 
 Adds a panel inside Gmail. Open a receipt or invoice, confirm the vendor /
-amount / category, and press **Send to Lyricalmyrical Inventory**. The receipt shows
+amount / category, and press **Send to Your Press Inventory**. The receipt shows
 up live in the app under **Import from Email** as a draft expense, ready to
 review and import.
 
@@ -62,10 +62,10 @@ Gmail, open any email, and approve the authorization prompt the first time
 
 ## Using it
 1. Open a receipt/invoice in Gmail.
-2. The **Send to Lyricalmyrical Inventory** panel appears on the right. Fields are
+2. The **Send to Your Press Inventory** panel appears on the right. Fields are
    pre-filled by a quick heuristic — correct the amount/vendor/category if
    needed.
-3. Press the button. You'll see "✓ Sent to Lyricalmyrical Inventory."
+3. Press the button. You'll see "✓ Sent to Your Press Inventory."
 4. In the app, the **📧 Import from Email** button shows a count badge. Open it,
    review the draft(s) in the table, and **Import selected drafts**. Each
    imported row is removed from the queue automatically.
@@ -80,6 +80,6 @@ local folder is connected, the expense keeps the cloud download link instead.
   Firebase GCP project (step 2), or the Firestore API isn't enabled (step 3),
   or you authorized as an account that isn't an owner/editor of the project.
 - **Nothing shows up in the app** — confirm the rules were published (step 4)
-  and that you're signed into the app as `lyricalmyricalbooks@gmail.com`.
+  and that you're signed into the app as `owner@example.com`.
 - **No panel in Gmail** — re-check the `addOns.gmail` block in the manifest and
   that the add-on deployment/installation succeeded.

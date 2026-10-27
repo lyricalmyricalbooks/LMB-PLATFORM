@@ -2,7 +2,7 @@
 // Search Console check for the live shop: fetches every sitemap URL and the old Big Cartel addresses and prints
 // status, final URL and canonical for each. Node built-ins only; reads firebase.json for the redirect map.
 //
-//   node scripts/seo-url-check.mjs                       # https://lyricalmyricalbooks.com
+//   node scripts/seo-url-check.mjs                       # https://yourpress.example
 //   node scripts/seo-url-check.mjs --base https://lmb-test-shop.web.app
 //
 // Fails (exit 1) when a sitemap URL isn't a 200 with a self-referencing canonical, when robots.txt doesn't point
@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const option = name => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
-const base = (option('--base') || process.env.SITE_URL || 'https://lyricalmyricalbooks.com').replace(/\/+$/, '');
+const base = (option('--base') || process.env.SITE_URL || 'https://yourpress.example').replace(/\/+$/, '');
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const redirects = JSON.parse(readFileSync(resolve(root, 'firebase.json'), 'utf8')).hosting.redirects || [];
 
@@ -22,7 +22,7 @@ const failures = [];
 const rows = [];
 
 async function get(url) {
-  const response = await fetch(url, { redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000), headers: { 'User-Agent': 'lyricalmyrical-seo-url-check' } });
+  const response = await fetch(url, { redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000), headers: { 'User-Agent': 'press-seo-url-check' } });
   return { status: response.status, headers: response.headers, body: response.status === 200 ? await response.text() : '' };
 }
 
@@ -67,7 +67,7 @@ async function checkUrl(label, path, expect) {
   } else if (expect.kind === 'redirect') {
     if (hops.length !== 2 || hops[0].status !== 301) problems.push(`expected one 301 hop, got ${chain}`);
     if (expect.to && final !== expect.to) problems.push(`lands on ${final}, expected ${expect.to}`);
-    if (!final.startsWith('https://lyricalmyricalbooks.com/')) problems.push('target is not on https://lyricalmyricalbooks.com');
+    if (!final.startsWith('https://yourpress.example/')) problems.push('target is not on https://yourpress.example');
     if (res.status !== 200) problems.push(`target answers ${res.status}`);
     if (res.status === 200 && canonical !== final) problems.push(`target canonical "${canonical}" ≠ "${final}"`);
   } else if (expect.kind === 'gone') {
@@ -105,7 +105,7 @@ for (const slug of ['books', 'zines', 'publications']) {
 }
 
 // Old Big Cartel addresses.
-const apex = 'https://lyricalmyricalbooks.com';
+const apex = 'https://yourpress.example';
 for (const rule of redirects) {
   if (/[*]/.test(rule.source)) continue;
   await checkUrl('old address', rule.source, { kind: 'redirect', to: rule.destination.startsWith('http') ? rule.destination : apex + rule.destination });

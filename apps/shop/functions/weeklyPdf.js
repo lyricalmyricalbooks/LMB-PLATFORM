@@ -91,7 +91,7 @@ function writePdf(pages, { title = "Weekly highlights" } = {}) {
   });
   objects[catalog - 1] = `<< /Type /Catalog /Pages ${pagesObj} 0 R >>`;
   objects[pagesObj - 1] = `<< /Type /Pages /Kids [${kids.map(k => `${k} 0 R`).join(" ")}] /Count ${kids.length} >>`;
-  const info = add(`<< /Title ${pdfString(title)} /Producer (Lyricalmyrical Books) >>`);
+  const info = add(`<< /Title ${pdfString(title)} /Producer (Your Press) >>`);
 
   const chunks = [Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n", "latin1")];
   let offset = chunks[0].length;
@@ -130,7 +130,7 @@ const DEVICE_NAMES = { mobile: "Phones", tablet: "Tablets", desktop: "Computers"
 // ── Building blocks ──
 function header(c, h, page, pages) {
   c.rect(0, 0, PAGE_W, PAGE_H, { fill: C.paper });
-  c.text("LYRICALMYRICAL BOOKS", M, M + 10, { size: 9, bold: true, color: C.muted });
+  c.text("YOUR PRESS", M, M + 10, { size: 9, bold: true, color: C.muted });
   c.text(`Page ${page} of ${pages}`, PAGE_W - M, M + 10, { size: 9, color: C.muted, align: "right" });
   c.text(page === 1 ? "Weekly highlights" : "Weekly highlights, continued", M, M + 44, { size: page === 1 ? 30 : 20, bold: true });
   const range = `${dayWords(h.week.start, { weekday: "long", day: "numeric", month: "long" })} to ${dayWords(h.week.end, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`;
@@ -319,6 +319,6 @@ function buildWeeklyPdf(highlights) {
   return writePdf([pageOne(highlights), pageTwo(highlights)], { title: `Weekly highlights, week of ${dayWords(highlights.week.start)}` });
 }
 
-const weeklyPdfName = week => `lyricalmyrical-weekly-highlights-${week.start}.pdf`;
+const weeklyPdfName = week => `press-weekly-highlights-${week.start}.pdf`;
 
 module.exports = { buildWeeklyPdf, weeklyPdfName, winAnsi, textWidth, fit, sourceName };

@@ -77,7 +77,7 @@ describe("switching between browser tabs", () => {
   it("never asks the tab that opened this one to come forward (browsers ignore it): it finds that tab by name", () => {
     const opener = otherAppTab();
     opener.focus = vi.fn();
-    const win = browser({ opener, document: { referrer: "https://lyricalmyricalbooks.github.io/" }, open: vi.fn(() => opener) });
+    const win = browser({ opener, document: { referrer: "https://yourpress.github.io/" }, open: vi.fn(() => opener) });
     expect(openInventoryApp(win, inventoryOrderUrl("A-9"))).toBe(true);
     expect(win.open).toHaveBeenCalledWith("", INVENTORY_TAB_NAME);
     expect(opener.set).toEqual([inventoryOrderUrl("A-9")]);

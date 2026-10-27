@@ -240,7 +240,7 @@ export function buildReminderEmail(inv, { settings, payLink = '', publisher = ''
   const cfg = settings && settings.days !== undefined ? settings : reminderSettings(settings);
   const num = str(inv && inv.num) || 'your invoice';
   const who = greetingName(inv);
-  const from = str(publisher) || 'Lyricalmyrical Books';
+  const from = str(publisher) || 'Your Press';
   const amount = str(amountLabel);
   const isStripeLink = /buy\.stripe\.com/i.test(payLink);
   const payWord = isStripeLink ? 'Stripe' : 'payment';

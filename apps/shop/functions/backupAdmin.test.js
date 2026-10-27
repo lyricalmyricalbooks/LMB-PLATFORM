@@ -35,7 +35,7 @@ describe("backupDownloadUrl", () => {
   it("signs a short link that saves a dated .json file", async () => {
     const r = await backupDownloadUrl({ bucket, day: "2026-10-11", now: 0 });
     expect(r).toEqual({ status: 200, body: { url: "https://signed/backups/2026-10-11/json/backup.json" } });
-    expect(bucket.signed[0]).toMatchObject({ action: "read", expires: 15 * 60 * 1000, responseDisposition: 'attachment; filename="lyricalmyrical-backup-2026-10-11.json"' });
+    expect(bucket.signed[0]).toMatchObject({ action: "read", expires: 15 * 60 * 1000, responseDisposition: 'attachment; filename="press-backup-2026-10-11.json"' });
   });
   it("refuses anything but a plain day, and days without a download file", async () => {
     expect((await backupDownloadUrl({ bucket, day: "../adminSecrets" })).status).toBe(400);

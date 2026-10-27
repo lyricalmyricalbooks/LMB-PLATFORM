@@ -1391,7 +1391,7 @@ function posPrintReceipt() {
   win.document.write(`
     <html><head><title>POS Receipt</title><style>body{font-family:Arial,sans-serif;padding:16px;} table{width:100%;border-collapse:collapse;} td,th{padding:6px 0;border-bottom:var(--stroke-hair) solid #ddd;} .r{text-align:right;} .mt{margin-top:12px;}</style></head>
     <body>
-      <h2>Lyricalmyrical Books</h2>
+      <h2>Your Press</h2>
       <div>Timestamp: ${escapeHtml(posPendingSale.timestampLabel)}</div>
       <div>Payment: ${escapeHtml(posPendingSale.method)}</div>
       <table class="mt"><thead><tr><th>Item</th><th>Qty</th><th class="r">Line</th></tr></thead><tbody>${rowsHtml}</tbody></table>

@@ -32,7 +32,7 @@ const { CurrencyProvider } = await import("../../CurrencyContext");
 
 const FIXTURE = join(__dirname, "__fixtures__", "productCardDom.json");
 const photo = [{ id: "p1", url: "https://example.com/1.jpg" }];
-const base = { status: "published", stockLevel: 5, retailPrice: 30, categories: ["Books"], photos: photo, authorName: "A. Writer", description: "<p>About it.</p>", format: "Paperback", isbn: "9780000000002", language: "English", pageCount: 120, publisher: "Lyricalmyrical" };
+const base = { status: "published", stockLevel: 5, retailPrice: 30, categories: ["Books"], photos: photo, authorName: "A. Writer", description: "<p>About it.</p>", format: "Paperback", isbn: "9780000000002", language: "English", pageCount: 120, publisher: "Your Press" };
 const BOOKS: Record<string, any> = {
   plain: { ...base, id: "plain", slug: "plain", title: "Plain Book", subtitle: "A subtitle" },
   sale: { ...base, id: "sale", slug: "sale", title: "Sale Book", isOnSale: true, salePrice: 20, saleEndsAt: "2099-12-31" },

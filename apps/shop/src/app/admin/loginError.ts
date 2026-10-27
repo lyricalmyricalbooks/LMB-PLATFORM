@@ -18,7 +18,7 @@ export function loginErrorMessage(err: unknown): string {
     return "Too many sign-in attempts in a row. Wait a minute, then try again.";
   }
   if (/^Unauthorized/i.test(message)) {
-    return "That Google account can't open the admin. Sign in with the shop's own Google account (lyricalmyricalbooks@gmail.com).";
+    return "That Google account can't open the admin. Sign in with the shop's own Google account (owner@example.com).";
   }
   if (code === "auth/unauthorized-domain") {
     return "Google sign-in isn't switched on for this web address yet. Open the admin from the shop's usual address.";

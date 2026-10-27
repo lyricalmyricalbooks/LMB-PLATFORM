@@ -124,7 +124,7 @@ const money = n => `${n.toFixed(2)} CAD`;
  * The feed's items, plus the published books left out and why (shown in the admin panel).
  * `books` = the whole catalog; only books shoppers can buy today are listed.
  */
-export function merchantFeedItems(siteUrl, books, { shopName = 'Lyricalmyrical Books', now = new Date() } = {}) {
+export function merchantFeedItems(siteUrl, books, { shopName = 'Your Press', now = new Date() } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const byId = new Map(books.map(b => [b.id, b]));
   const live = books.filter(b => isLive(b, now));
@@ -193,7 +193,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = 'Lyricalmyrical B
 const xml = value => String(value).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '')
   .replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]);
 
-export function merchantFeedXml(siteUrl, items, { shopName = 'Lyricalmyrical Books' } = {}) {
+export function merchantFeedXml(siteUrl, items, { shopName = 'Your Press' } = {}) {
   const tag = (name, value) => (value === '' || value === undefined || value === null ? '' : `\n      <${name}>${xml(value)}</${name}>`);
   const body = items.map(item => '    <item>'
     + tag('g:id', item.id) + tag('g:item_group_id', item.groupId) + tag('title', item.title) + tag('description', item.description)

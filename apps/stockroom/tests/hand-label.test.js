@@ -25,8 +25,8 @@ describe('hand-addressed label', () => {
   });
 
   it('uses the saved return address, or the fallback when it is incomplete', () => {
-    const origin = { company: 'Lyricalmyrical Books', street1: '456 Montrose Ave', city: 'Toronto', state: 'ON', zip: 'm6g3h1', country: 'CA' };
-    expect(returnLines(origin, ['x'])).toEqual(['Lyricalmyrical Books', '456 Montrose Ave', 'Toronto ON  M6G 3H1', 'Canada']);
+    const origin = { company: 'Your Press', street1: '456 Montrose Ave', city: 'Toronto', state: 'ON', zip: 'm6g3h1', country: 'CA' };
+    expect(returnLines(origin, ['x'])).toEqual(['Your Press', '456 Montrose Ave', 'Toronto ON  M6G 3H1', 'Canada']);
     expect(returnLines({}, ['fallback'])).toEqual(['fallback']);
   });
 

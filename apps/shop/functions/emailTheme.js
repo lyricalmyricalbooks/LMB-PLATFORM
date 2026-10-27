@@ -61,8 +61,8 @@ function risoLayout(inner, { logoUrl = "", accent = "", theme = "light", year = 
   const p = risoPalette(theme);
   const logo = safeLogoUrl(logoUrl);
   const masthead = logo
-    ? `<img src="${logo}" alt="Lyricalmyrical Books" style="max-height:44px;width:auto;display:block;" />`
-    : `<div style="font-family:${FONT_DISPLAY};font-size:30px;line-height:1;letter-spacing:0.01em;text-transform:uppercase;color:${p.text};">Lyricalmyrical Books</div>`;
+    ? `<img src="${logo}" alt="Your Press" style="max-height:44px;width:auto;display:block;" />`
+    : `<div style="font-family:${FONT_DISPLAY};font-size:30px;line-height:1;letter-spacing:0.01em;text-transform:uppercase;color:${p.text};">Your Press</div>`;
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -84,7 +84,7 @@ function risoLayout(inner, { logoUrl = "", accent = "", theme = "light", year = 
     <div style="padding:28px 32px 18px;border-bottom:2px solid ${p.rule};">${masthead}</div>
     <div style="padding:28px 32px;font-size:15px;line-height:1.6;color:${p.text};">${risoize(inner, a, theme)}</div>
     <div style="padding:16px 32px;border-top:2px solid ${p.rule};background:${p.sunken};font-family:${FONT_MONO};font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:${p.subtle};">
-      &copy; ${year} Lyricalmyrical Books<!--fm-footer-extra-->
+      &copy; ${year} Your Press<!--fm-footer-extra-->
     </div>
   </div>
 </body>

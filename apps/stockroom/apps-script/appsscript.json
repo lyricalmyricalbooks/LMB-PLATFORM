@@ -20,7 +20,7 @@
   },
   "addOns": {
     "common": {
-      "name": "Lyricalmyrical Inventory Receipt Importer",
+      "name": "Your Press Inventory Receipt Importer",
       "logoUrl": "https://www.gstatic.com/images/icons/material/system/2x/receipt_long_black_48dp.png",
       "useLocaleFromApp": true,
       "homepageTrigger": {

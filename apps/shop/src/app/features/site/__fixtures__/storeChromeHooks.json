@@ -2,13 +2,13 @@
  "page:empty": [
   "aria-current=page ×2",
   "aria-label=Account ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Search ×1",
   "aria-label=Select currency ×2",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=navigation ×1",
   "data-studio-copy=navAdmin ×1",
@@ -76,7 +76,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:empty:false": [
@@ -164,7 +164,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:empty:true": [
@@ -252,7 +252,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:empty": [
@@ -339,19 +339,19 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:reference": [
   "aria-current=page ×2",
   "aria-label=Account ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Search ×1",
   "aria-label=Select currency ×2",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=navigation ×1",
   "data-studio-copy=navAdmin ×1",
@@ -428,7 +428,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:reference:false": [
@@ -524,7 +524,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:reference:true": [
@@ -620,7 +620,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:reference": [
@@ -724,18 +724,18 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:referenceNavEnd": [
   "aria-current=page ×2",
   "aria-label=Account ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Select currency ×2",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=navigation ×1",
   "data-studio-label=Category bar ×1",
@@ -806,7 +806,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:referenceNavEnd:false": [
@@ -895,7 +895,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:referenceNavEnd:true": [
@@ -984,7 +984,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:referenceNavEnd": [
@@ -1081,19 +1081,19 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:modern": [
   "aria-current=page ×2",
   "aria-label=Account ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Search ×1",
   "aria-label=Select currency ×2",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=navigation ×1",
   "data-studio-copy=navAdmin ×1",
@@ -1171,7 +1171,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modern:false": [
@@ -1179,7 +1179,6 @@
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -1190,6 +1189,7 @@
   "aria-label=Select currency ×2",
   "aria-label=Sort books ×1",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -1286,7 +1286,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=https://x.test ×1",
   "href=mailto:shop@example.com ×2"
  ],
@@ -1295,7 +1295,6 @@
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -1306,6 +1305,7 @@
   "aria-label=Select currency ×2",
   "aria-label=Sort books ×1",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -1402,7 +1402,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=https://x.test ×1",
   "href=mailto:shop@example.com ×2"
  ],
@@ -1411,7 +1411,6 @@
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -1422,6 +1421,7 @@
   "aria-label=Select currency ×2",
   "aria-label=Sort books ×1",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -1526,20 +1526,20 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=https://x.test ×1",
   "href=mailto:shop@example.com ×2"
  ],
  "page:modernCenter": [
   "aria-current=page ×2",
   "aria-label=Account ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Search ×1",
   "aria-label=Select currency ×2",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=navigation ×1",
   "data-studio-copy=navAdmin ×1",
@@ -1616,7 +1616,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernCenter:false": [
@@ -1624,7 +1624,6 @@
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -1635,6 +1634,7 @@
   "aria-label=Select currency ×2",
   "aria-label=Sort books ×1",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -1731,7 +1731,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernCenter:true": [
@@ -1739,7 +1739,6 @@
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -1750,6 +1749,7 @@
   "aria-label=Select currency ×2",
   "aria-label=Sort books ×1",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -1846,7 +1846,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:modernCenter": [
@@ -1854,7 +1854,6 @@
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -1865,6 +1864,7 @@
   "aria-label=Select currency ×2",
   "aria-label=Sort books ×1",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -1969,13 +1969,13 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:modernRight": [
   "aria-current=page ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=navigation ×1",
   "data-studio-label=Category bar ×1",
@@ -2037,7 +2037,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernRight:false": [
@@ -2045,12 +2045,12 @@
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Remove from wishlist ×1",
   "aria-label=Search the catalogue ×1",
   "aria-label=Sort books ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -2138,7 +2138,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernRight:true": [
@@ -2146,12 +2146,12 @@
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Remove from wishlist ×1",
   "aria-label=Search the catalogue ×1",
   "aria-label=Sort books ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -2239,7 +2239,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:modernRight": [
@@ -2247,12 +2247,12 @@
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Remove from wishlist ×1",
   "aria-label=Search the catalogue ×1",
   "aria-label=Sort books ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -2348,17 +2348,17 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:modernPageOverrides": [
   "aria-current=page ×2",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Search ×1",
   "aria-label=Select currency ×2",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=navigation ×1",
   "data-studio-copy=navAdmin ×1",
@@ -2432,14 +2432,13 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernPageOverrides:false": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -2449,6 +2448,7 @@
   "aria-label=Select currency ×2",
   "aria-label=Sort books ×1",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -2542,14 +2542,13 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernPageOverrides:true": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -2559,6 +2558,7 @@
   "aria-label=Select currency ×2",
   "aria-label=Sort books ×1",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -2652,14 +2652,13 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:modernPageOverrides": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -2669,6 +2668,7 @@
   "aria-label=Select currency ×2",
   "aria-label=Sort books ×1",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=announcements ×1",
   "data-section=navigation ×1",
@@ -2770,19 +2770,19 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:footerColumns": [
   "aria-current=page ×2",
   "aria-label=Account ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Search ×1",
   "aria-label=Select currency ×2",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=navigation ×1",
   "data-studio-copy=navAdmin ×1",
@@ -3106,13 +3106,13 @@
  "page:footer4": [
   "aria-current=page ×2",
   "aria-label=Account ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Search ×1",
   "aria-label=Select currency ×2",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=navigation ×1",
   "data-studio-copy=navAdmin ×1",
@@ -3179,7 +3179,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×3"
  ],
  "main:footer4:false": [
@@ -3266,7 +3266,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×3"
  ],
  "main:footer4:true": [
@@ -3353,7 +3353,7 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×3"
  ],
  "maincoll:footer4": [
@@ -3448,19 +3448,19 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×2",
+  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×3"
  ],
  "page:footerGroupedOff": [
   "aria-current=page ×2",
   "aria-label=Account ×1",
-  "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Search ×1",
   "aria-label=Select currency ×2",
   "aria-label=Wishlist ×1",
+  "aria-label=Your Press logo ×1",
   "data-hdr-fixed=true ×2",
   "data-section=navigation ×1",
   "data-studio-copy=navAdmin ×1",
@@ -3522,7 +3522,7 @@
   "href=/page/journal ×1",
   "href=/page/policy-returns ×1",
   "href=/page/policy-shipping ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×1",
+  "href=https://www.instagram.com/yourpress ×1",
   "href=mailto:shop@example.com ×1"
  ],
  "main:footerGroupedOff:false": [
@@ -3604,7 +3604,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×2",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×1",
+  "href=https://www.instagram.com/yourpress ×1",
   "href=mailto:shop@example.com ×1"
  ],
  "main:footerGroupedOff:true": [
@@ -3686,7 +3686,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×2",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×1",
+  "href=https://www.instagram.com/yourpress ×1",
   "href=mailto:shop@example.com ×1"
  ],
  "maincoll:footerGroupedOff": [
@@ -3776,7 +3776,7 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×2",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/lyricalmyricalbooks ×1",
+  "href=https://www.instagram.com/yourpress ×1",
   "href=mailto:shop@example.com ×1"
  ]
 }

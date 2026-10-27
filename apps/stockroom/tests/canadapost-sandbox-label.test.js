@@ -3,7 +3,7 @@ import { buyCanadaPostLabel } from '../src/lib/carriers/canadapost.js';
 
 describe('Canada Post Sandbox Label Purchasing with false 503 gateway signals', () => {
   const testSender = {
-    name: 'Lyricalmyrical Books',
+    name: 'Your Press',
     phone: '16474096863',
     address1: '456 Montrose Ave',
     city: 'Toronto',

@@ -156,7 +156,7 @@ Field kinds: a link field is `kind: "link"` (never a bare `text` box), a video U
   This matters because page surfaces resolve object-first, so surface clones
   shadow root-only writes. A preset may also name a `homeLayoutTemplate`
   (`HOME_LAYOUT_TEMPLATES` id), offered opt-in (confirm dialog) after apply.
-  Reference implementation: `lyricalmyrical-punk`.
+  Reference implementation: `press-punk`.
 
 ## Known gaps & inconsistencies (seed for the roadmap)
 
@@ -828,16 +828,16 @@ library → verify), then check it off.
       Collection list, Featured product, Blog posts, Countdown, Contact form,
       Map, Gallery, Row, Marquee, Logo list, Collapsible, Text content,
       Custom HTML).
-- [x] "Lyricalmyrical Riso" full-app design shipped as a first-class theme:
+- [x] "Riso" full-app design shipped as a first-class theme:
       warm uncoated-paper surfaces, red/blue/yellow ink tokens, hard black
       rules, halftone texture, deliberately stepped interactions, print-style
       card shadows, cart and checkout tokens, and matching global loading and
       consent overlays. The preset includes the curated
-      `lyricalmyrical-riso` homepage layout (cover carousel, press marquee,
+      `press-riso` homepage layout (cover carousel, press marquee,
       product grid, print-room notes, and newsletter), and the shared Riso CSS
       is applied across the homepage and every standalone storefront surface
       when `themeStyle` is `riso`.
-- [x] **Riso Press alignment (September 2026).** The "Lyricalmyrical Riso" preset now
+- [x] **Riso Press alignment (September 2026).** The "Riso" preset now
       uses the published Riso Press design-system tokens (newsprint `#faf6ec`, ink
       `#100f0d`, flare `#e8402a` with ink text, press blue `#1b3fe0`, Anton / Archivo,
       square outlined objects, flat offset shadows, ink footer/announcement) and
@@ -857,7 +857,7 @@ library → verify), then check it off.
       storefront now defaults to Riso Press on black with white text and the flare
       `#e8402a` accent (ink text on flare fills). `features/site/risoNoir.ts` holds the shared
       `RISO_NOIR_TOKENS` record used by (a) the first `THEME_LIBRARY` preset
-      (`lyricalmyrical-riso-noir`, with a matching `HOME_LAYOUT_TEMPLATES` layout), (b) the default
+      (`press-riso-noir`, with a matching `HOME_LAYOUT_TEMPLATES` layout), (b) the default
       design in `adminApi.getDefaultSettings` and `DEFAULT_SETTINGS`, and (c) `withRisoNoirDefault`,
       which restyles saved designs that never chose a `themeStyle` or applied a library preset
       (content, sections and menus are untouched; choosing "Standard" print style or any preset opts
@@ -919,7 +919,7 @@ library → verify), then check it off.
       over its image scrim (it was following the theme text colour), and Checkout restores
       literal paper for `bg-white` on light themes (the token layer maps `bg-white` to the
       foreground, which turned checkout fields black).
-- [x] "Lyricalmyrical Punk" design shipped end-to-end (violet-on-black,
+- [x] "Punk" design shipped end-to-end (violet-on-black,
       Cormorant Garamond headings / Inter body). Four new catalog-driven
       sections: `ProductCoverCarouselSection` (hero auto-cycling book covers
       with dots, scrim, color-blend overlay, film grain),
@@ -930,9 +930,9 @@ library → verify), then check it off.
       `EphemeraRowSection` (pure-CSS decorative objects as blocks). Section
       extensions: HeroSection `eyebrow`/`titleItalic`/`metaText`/
       `sideImageUrl`/`ctaUrl`; MarqueeSection `fontWeight`/`letterSpacing`.
-      Theme plumbing: `punk` palette + `lyricalmyrical-punk` THEME_LIBRARY
-      preset with a full `global` token record, and `lyricalmyrical-punk` /
-      `lyricalmyrical-about` / `lyricalmyrical-journal` layout templates in
+      Theme plumbing: `punk` palette + `press-punk` THEME_LIBRARY
+      preset with a full `global` token record, and `press-punk` /
+      `press-about` / `press-journal` layout templates in
       `HOME_LAYOUT_TEMPLATES` (the About/Journal ones are applied while a
       per-page template pill is active). Chrome counterparts (settings-gated,
       defaults preserve the old look): sticker-pill nav + two-part wordmark

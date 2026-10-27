@@ -142,7 +142,7 @@ jobs:
         env:
           CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
         run: |
-          # Hosts are case-insensitive; "Lyricalmyricalbooks.com" means lyricalmyricalbooks.com.
+          # Hosts are case-insensitive; "Yourpress.example" means yourpress.example.
           CUSTOM_SITE_URL="$(printf '%s' "$CUSTOM_SITE_URL" | tr '[:upper:]' '[:lower:]')"
           url="${CUSTOM_SITE_URL:-https://lmb-test-shop.web.app}"
           url="${url%/}"
@@ -205,7 +205,7 @@ jobs:
 
       - name: Check routing and headers in the Hosting emulator
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
-        run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs"
+        run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-shop "node scripts/hosting-smoke.mjs"
 
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'

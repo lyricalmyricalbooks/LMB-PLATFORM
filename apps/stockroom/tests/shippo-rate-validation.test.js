@@ -26,7 +26,7 @@ function failing(values, opts = {}) {
 }
 
 const COMPLETE = {
-  'sf-name': 'Lyricalmyrical Books',
+  'sf-name': 'Your Press',
   'sf-phone': '+1 416 555 0123',
   'sf-street1': '123 Bookish Way',
   'sf-city': 'Toronto',

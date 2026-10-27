@@ -10,7 +10,7 @@ function run(payload, response) {
   const ctx = { UrlFetchApp: { fetch }, ContentService: { MimeType: { JSON: 'json' }, createTextOutput: text => ({ setMimeType: () => JSON.parse(text) }) }, Utilities: { base64Encode: () => 'JVBERi0=' }, Logger: { log() {} } };
   vm.createContext(ctx); vm.runInContext(source, ctx);
   // Caller authentication is covered in gas-auth.test.js.
-  vm.runInContext('verifyFirebaseCaller_ = requirePublisher_ = () => ({ email: "lyricalmyricalbooks@gmail.com" });', ctx);
+  vm.runInContext('verifyFirebaseCaller_ = requirePublisher_ = () => ({ email: "owner@example.com" });', ctx);
   return { result: ctx.doPost({ postData: { contents: JSON.stringify({ version: 2, action: 'proxychitchats', payload }) } }), fetch };
 }
 describe('Chit Chats serverless proxy', () => {

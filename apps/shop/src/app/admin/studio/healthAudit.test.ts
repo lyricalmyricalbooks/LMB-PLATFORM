@@ -10,7 +10,7 @@ beforeEach(() => {
     return { x: 0, y: 0, top: 0, left: 0, right: w, bottom: h, width: w, height: h, toJSON() {} } as DOMRect;
   };
   document.head.innerHTML = '<meta name="description" content="Independent publisher.">';
-  document.title = "Lyricalmyrical Books";
+  document.title = "Your Press";
 });
 afterEach(() => { Element.prototype.getBoundingClientRect = realRect; document.body.innerHTML = ""; document.body.removeAttribute("style"); });
 

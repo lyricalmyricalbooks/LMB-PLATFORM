@@ -155,7 +155,7 @@ describe('main.js window binding verification', () => {
     expect(appSource).toContain('class="commit-item wn-item"');
     expect(appSource).toContain('Technical details ↗');
     expect(appSource).toContain('fullSha');
-    expect(appSource).toContain('https://github.com/lyricalmyricalbooks/lyrical-inventory/commit/');
+    expect(appSource).toContain('https://github.com/yourpress/LMB-PLATFORM/commit/');
   });
 
   it('supports percentage discount in recalcInvoiceTotals and saveInvoice', () => {

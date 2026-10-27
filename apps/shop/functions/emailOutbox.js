@@ -31,7 +31,7 @@ function cleanSubject(subject) {
 
 // Sender display name for a mail header (no quotes, angle brackets or newlines).
 function cleanFromName(name) {
-  return String(name ?? "").replace(/[\r\n"<>]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Lyricalmyrical Books";
+  return String(name ?? "").replace(/[\r\n"<>]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Your Press";
 }
 
 // When the next try is due after `attempts` failed tries (ISO), or null once the queue gives up.
