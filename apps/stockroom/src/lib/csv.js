@@ -50,7 +50,7 @@ export function toCsv(rows, { bom = false, eol = '\n' } = {}) {
 
 // Split raw spreadsheet text (pasted rows or a .csv file's contents) into
 // records of trimmed fields. Understands what Excel actually produces:
-// quoted fields with commas inside ("Ackman, Jeremy"), doubled quotes for a
+// quoted fields with commas inside ("Vale, Robin"), doubled quotes for a
 // literal quote (""), newlines inside a quoted Notes field, a UTF-8 BOM, and
 // CRLF line endings. Tab-separated rows (Excel copy-paste) are detected per
 // record so a comma inside an unquoted name can't split it.

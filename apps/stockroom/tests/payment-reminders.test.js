@@ -31,7 +31,7 @@ const lateInvoice = (over = {}) => ({
   status: 'sent',
   dueDate: '2026-09-01',
   storeName: 'Casa Bosques',
-  storeEmail: 'hola@casabosques.com',
+  storeEmail: 'hola@bookshop.example',
   total: 180,
   ...over,
 });

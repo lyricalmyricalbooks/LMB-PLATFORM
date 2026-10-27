@@ -88,10 +88,10 @@ describe('parseContributorRows', () => {
   });
 
   it('captures Credit Name and Notes (columns 4 and 5)', () => {
-    const { contributors } = parseContributorRows('Jeremy Ackman, ackmanj@gmail.com, Jeremy_ackman_5.jpg, J. Ackman, Selected');
+    const { contributors } = parseContributorRows('Robin Vale, robin@contributor.example, Robin_vale_5.jpg, R. Vale, Selected');
     expect(contributors[0]).toMatchObject({
-      name: 'Jeremy Ackman', email: 'ackmanj@gmail.com', photo: 'Jeremy_ackman_5.jpg',
-      creditName: 'J. Ackman', notes: 'Selected',
+      name: 'Robin Vale', email: 'robin@contributor.example', photo: 'Robin_vale_5.jpg',
+      creditName: 'R. Vale', notes: 'Selected',
     });
   });
 
@@ -101,11 +101,11 @@ describe('parseContributorRows', () => {
   });
 
   it('honors quoted fields with commas inside (Excel-style CSV)', () => {
-    const raw = '"Ackman, Jeremy",ackmanj@gmail.com,photo.jpg,"Ackman, J.","Selected, files pending"';
+    const raw = '"Vale, Robin",robin@contributor.example,photo.jpg,"Vale, R.","Selected, files pending"';
     const { contributors, added } = parseContributorRows(raw);
     expect(added).toBe(1);
     expect(contributors[0]).toMatchObject({
-      name: 'Ackman, Jeremy', creditName: 'Ackman, J.', notes: 'Selected, files pending',
+      name: 'Vale, Robin', creditName: 'Vale, R.', notes: 'Selected, files pending',
     });
   });
 
