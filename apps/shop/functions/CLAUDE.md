@@ -758,20 +758,26 @@ order-confirmation email both use them. Emailed download links stay outside brow
   `responseType` from the extension (pdf, epub, mp3, m4a, zip).
 - Deploy Functions with the frontend. No rule or index change (`downloadCounts` is written by Functions and by the admin).
 
-## Payments module (27 October 2026, code plan 1.11)
+## Payments module (27 October 2026, code plans 1.11–1.12)
 
-`functions/payments/index.js` (`createPayments`) is the one door to Stripe with the shop's own key: which key a mode
-uses (`withPrivateStripeKeys`, `getStripeClientForMode`, `stripeSecretFor`, `shopTestMode`, `readStripeKeys`), the
-order-account loop (`inOrderAccounts`: the order's own mode first, skips an account that doesn't know the id),
-`retrieveOrderPayment`, the refund/dispute read (`checkReversal`: it hands the charge, the dispute and a lazy
-`listRefunds` to the caller's `apply`), `refundPayment` (`onCalling` fires just before Stripe is asked) and the webhook's
-client and signature check (`webhookClient`, `verifyWebhookEvent`). index.js builds it once (`payments`) and passes in
-its lazy `Stripe`, so the vm handler tests' fake Stripe still applies; the module never requires `stripe` itself. Order
-bookkeeping (what a refund or a reversal means for an order) stays with the callers. `index.js` and `orderRequests.js`
-use it. `payments/payments.test.js` (fake Firestore and Stripe) pins its behaviour, and fails when another file makes a
-Stripe client, takes or refunds a payment, verifies a webhook or sets up the webhook or wallet domains itself.
-**Plan 1.12:** checkout (`checkoutPayment.js`) gets the current mode's card side from `payments.forCheckout(settings)`
-(same "not configured" messages; `settlePreviousIntent` → `"in_progress"`/`"cleared"` or throws when unsure,
-`createCardIntent`, `createCheckoutSession`); the pricing, holds and order writes stay in checkout. `checkoutAdmin.js` uses
-`deployedLiveKey`, `checkKey` (key test), `webhookEndpoints()` (`{ mode, endpoints }`, endpoints null without a key) and
-`registerPaymentDomain`. Neither file receives `Stripe` or `STRIPE_SECRET_KEY` any more.
+`functions/payments/` is the one door to the shop's card payment provider. `index.js` (`createPayments`) lists the
+provider interface in its header comment, picks the shop's provider (`shopConfig.paymentProvider`, from
+`SHOP_PAYMENT_PROVIDER` in `functions/.env.<project id>`; unset or unknown keeps `stripe`, the only provider so far) and
+hands callers exactly that interface, frozen. `stripe.js` (`createStripeProvider`) is the Stripe implementation: the
+code that used to live in index.js and the checkout files, moved as is. Interface: `testMode`, `readKeys` (once per
+sweep), `clientForMode` (an opaque account), `findOrderPayment`, `readAttempt` (writes into `found` as it reads, so a
+failed second read keeps the first), `stopAttempt`, `checkReversal` (hands the charge, dispute and a lazy `listRefunds`
+to the caller's `apply`), `refund` (`onCalling` fires just before the provider is asked), `webhookClient`,
+`verifyWebhookEvent`, `forCheckout(settings)` (`settlePreviousIntent` → `"in_progress"`/`"cleared"` or throws when
+unsure, `createCardIntent`, `createCheckoutSession`), and for Settings › Payments `deployedLiveKey`, `checkKey`,
+`webhookEndpoints()` (`{ mode, endpoints }`, null without a key) and `registerPaymentDomain`.
+- index.js builds it once (`payments`) and passes in its lazy `Stripe`, so the vm handler tests' fake Stripe still
+  applies; the module never requires `stripe` itself. index.js, `orderRequests.js`, `checkoutPayment.js` and
+  `checkoutAdmin.js` use it; none receives `Stripe` or `STRIPE_SECRET_KEY`. Order bookkeeping (what a payment, refund or
+  reversal means for an order) stays with the callers.
+- `payments/payments.test.js` (fake Firestore and Stripe) pins every call, the provider choice, and two "one door"
+  checks: no other functions file calls Stripe's API or makes a client, or uses the Stripe provider's own helper names.
+- Still Stripe-named outside the module (Phase 2, plan 2.2): stored order fields (`stripePaymentIntentId`,
+  `stripeMode`, …), the `stripeWebhook` endpoint, order-record functions the handler tests pin (`checkStripeReversal`,
+  `markStripeOrderPaid`, `syncStripeReversal`) and the Stripe-shaped guards in `paymentGuards.js`/`stripeRecovery.js`.
+- A new provider is one file beside `stripe.js` with the same names, added to `PROVIDERS` in `index.js`.
