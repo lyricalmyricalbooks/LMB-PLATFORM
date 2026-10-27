@@ -11,7 +11,7 @@ function checkoutPaymentActions({
   loadHoldLimits, normMarketingEmail, optOutId, orderRequestIdentity, orderRequestKey, priceOrder,
   PricingError, publicErrorMessage, readAdminSecret, recalculateOrder, refusePreviousAttemptPaid, releaseStock,
   releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, payments,
-  stripeIntentKey, tokenMatches,
+  stripeIntentKey, testShop = false, tokenMatches,
 }) {
   // A manual payment method (Settings › Payments › Manual methods) for pickup, local delivery, shipped or e-book
   // orders: priced from the catalog, stock held, and the order created pending until the shop marks it paid.
@@ -301,10 +301,12 @@ function checkoutPaymentActions({
         updatedAt: new Date().toISOString()
       });
 
-      // Sandbox sessions rehearse payment only; they do not reserve or consume live stock or gift cards.
-      if (!testMode) {
+      // Sandbox sessions rehearse payment only; they do not reserve or consume live stock or gift cards. On a shop the
+      // platform marks as a test shop (shopConfig.testShop), a sandbox session holds the stock like a live one, so the
+      // release check exercises the hold; its gift cards are still not held, and payment still takes no stock.
+      if (!testMode || testShop) {
         try {
-          await reserveCheckout(orderId, items, order, giftCardRedemptions, testMode, req);
+          await reserveCheckout(orderId, items, order, testMode ? [] : giftCardRedemptions, testMode, req);
         } catch (holdErr) {
           if (holdErr instanceof StockHoldError || holdErr instanceof GiftCardError) {
             res.status(409).json({ error: holdErr.message, code: holdErr instanceof GiftCardError ? "gift_card_rejected" : holdErr.code });

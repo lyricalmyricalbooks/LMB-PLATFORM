@@ -1525,7 +1525,7 @@ const { handleManualLocalOrder, handleUnsubscribe, handleCompleteFreeOrder, hand
   loadHoldLimits, normMarketingEmail, optOutId, orderRequestIdentity, orderRequestKey, priceOrder,
   PricingError, publicErrorMessage, readAdminSecret, recalculateOrder, refusePreviousAttemptPaid, releaseStock,
   releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, payments,
-  stripeIntentKey, tokenMatches,
+  stripeIntentKey, testShop: shopConfig.testShop, tokenMatches,
 });
 
 // ──────────────────────────────────────────────────────────────
