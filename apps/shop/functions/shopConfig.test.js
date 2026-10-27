@@ -71,6 +71,14 @@ describe('readShopConfig', () => {
     }
   });
 
+  test('only SHOP_TEST_SHOP="true" marks the platform test shop; anything else is a normal shop', () => {
+    expect(readShopConfig({}).testShop).toBe(false);
+    expect(PLACEHOLDER.testShop).toBe(false);
+    expect(readShopConfig({ SHOP_TEST_SHOP: 'true' }).testShop).toBe(true);
+    expect(readShopConfig({ SHOP_TEST_SHOP: ' TRUE ' }).testShop).toBe(true);
+    for (const value of ['', 'false', '1', 'yes', 'truee']) expect(readShopConfig({ SHOP_TEST_SHOP: value }).testShop).toBe(false);
+  });
+
   test('the result cannot be changed by a caller', () => {
     const config = readShopConfig({});
     expect(Object.isFrozen(config)).toBe(true);

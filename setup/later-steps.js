@@ -49,6 +49,9 @@ export function envFileText(shop, { senderEmail, region = REGION }) {
     `SHOP_PAYMENT_PROVIDER=${quote(paymentProviderOf(shop))}`,
     // Where the server code runs (step 8 deploys it there); the shop reads it for its function addresses.
     `SHOP_FUNCTIONS_REGION=${quote(region)}`,
+    // "true" only for the platform's own test shop (docs/test-shop.md): its test-card checkouts then move stock like
+    // real ones, for the release check. Every other shop gets "false", so the shop never guesses.
+    `SHOP_TEST_SHOP=${quote(shop.testShop === true)}`,
     "",
   ].join("\n");
 }

@@ -18,6 +18,9 @@
 //   SHOP_FUNCTIONS_REGION where the shop's server code runs (the shop profile's functionsRegion; the deploy writes it
 //                        from public/shop-profile.js). Every function deploys there (index.js setGlobalOptions), and
 //                        links to them (the Stripe webhook, e-book downloads) name it. Unset keeps us-central1
+//   SHOP_TEST_SHOP       "true" only on the platform's own test shop (docs/test-shop.md): its sandbox checkouts hold
+//                        stock like live ones, so the release check covers the hold. Anything else, or unset, is a
+//                        normal shop. Set by the platform, never by the shop owner
 
 const { PROVIDER_NAMES, DEFAULT_PROVIDER } = require("./payments");
 
@@ -30,6 +33,7 @@ const PLACEHOLDER = Object.freeze({
   project: "lmb-test-shop",
   paymentProvider: DEFAULT_PROVIDER,
   region: "us-central1",
+  testShop: false,
 });
 
 // A Cloud Functions region name: northamerica-northeast1, us-central1, europe-west2…
@@ -78,6 +82,7 @@ function readShopConfig(env = {}) {
     siteUrl,
     siteHost: host.replace(/^www\./, ""),
     paymentProvider: paymentProviderOf(env.SHOP_PAYMENT_PROVIDER),
+    testShop: text(env.SHOP_TEST_SHOP).toLowerCase() === "true",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
     project: functionsProject,
     region,

@@ -1,6 +1,6 @@
 name: Deploy storefront
 
-# Builds the storefront and publishes it to Firebase Hosting (the shop: https://lmb-test-shop.web.app, or the
+# Builds the storefront and publishes it to Firebase Hosting (the shop profile's project and siteUrl, or the
 # repository variable SITE_URL once it has its own domain). GitHub Pages, the old address, then gets forwarding
 # pages only (scripts/pagesRedirect.mjs), and only after Hosting has deployed and passed its live check.
 # The file keeps its name so keep-refresh-alive.yml and the schedule history stay put.
@@ -9,6 +9,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      project:
+        description: "Firebase project id to publish to (empty: the repository variable FIREBASE_PROJECT_ID, else the shop profile's project). Must be the shop profile's project."
+        type: string
+        default: ""
   schedule:
     - cron: "7,22,37,52 * * * *"
 
@@ -26,7 +31,6 @@ concurrency:
 # holds a Firebase key, so a new release must not run with it unreviewed.
 env:
   FIREBASE_TOOLS_VERSION: 15.32.1
-  FIREBASE_PROJECT: lmb-test-shop
 
 jobs:
   newest:
@@ -247,6 +251,18 @@ jobs:
         with:
           name: hosting-dist
           path: dist
+
+      # Which Firebase project gets the site (plan 1.19): the `project` input of a run started by hand, else the
+      # repository variable FIREBASE_PROJECT_ID, else the shop profile's project. It must be the profile's project, the
+      # one this build's pages call; anything else stops here before the key is touched (scripts/deployProject.mjs).
+      - name: Firebase project
+        env:
+          PROJECT_INPUT: ${{ inputs.project || vars.FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          project="$(node scripts/deployProject.mjs "$PROJECT_INPUT")"
+          echo "FIREBASE_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "Publishing to $project"
 
       # Re-check right before publishing: a newer commit may have landed while this one was building, and an older
       # build must never replace a newer one.
