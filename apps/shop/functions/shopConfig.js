@@ -13,7 +13,8 @@
 //                        still forwards, for example). Set it, even empty, for a real shop: unset keeps the
 //                        placeholder addresses below
 //   SHOP_PAYMENT_PROVIDER which card payment provider the shop uses (functions/payments lists them; only "stripe" so
-//                        far). Unset or unknown keeps "stripe"
+//                        far). Unset or empty means "stripe". Any other name stops the functions from loading
+//                        (paymentProviderOf): a shop must never take payments through a provider it didn't choose
 
 const { PROVIDER_NAMES, DEFAULT_PROVIDER } = require("./payments");
 
@@ -38,6 +39,16 @@ const origin = value => {
   return ORIGIN.test(v) ? v.toLowerCase() : "";
 };
 
+// The shop's payment provider. Unlike the other values, a wrong one is refused rather than replaced: quietly using
+// Stripe for a shop set up for another provider would fail at checkout, in front of a shopper.
+function paymentProviderOf(value) {
+  const name = text(value).toLowerCase();
+  if (!name) return PLACEHOLDER.paymentProvider;
+  if (PROVIDER_NAMES.includes(name)) return name;
+  throw new Error(`SHOP_PAYMENT_PROVIDER is "${text(value).slice(0, 40)}", which this shop can't use yet. `
+    + `Set it to one of: ${PROVIDER_NAMES.join(", ")} (or leave it empty for ${PLACEHOLDER.paymentProvider}) in the shop's functions/.env file, then deploy again.`);
+}
+
 /** The shop's server settings from `env` (process.env in the functions), each one checked on its own. */
 function readShopConfig(env = {}) {
   const project = text(env.GCLOUD_PROJECT) || text(env.GOOGLE_CLOUD_PROJECT) || PLACEHOLDER.project;
@@ -56,11 +67,11 @@ function readShopConfig(env = {}) {
     senderEmail: email(env.SHOP_SENDER_EMAIL) || PLACEHOLDER.senderEmail,
     siteUrl,
     siteHost: host.replace(/^www\./, ""),
-    paymentProvider: PROVIDER_NAMES.includes(text(env.SHOP_PAYMENT_PROVIDER).toLowerCase()) ? text(env.SHOP_PAYMENT_PROVIDER).toLowerCase() : PLACEHOLDER.paymentProvider,
+    paymentProvider: paymentProviderOf(env.SHOP_PAYMENT_PROVIDER),
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
   });
 }
 
 const shopConfig = readShopConfig(process.env);
 
-module.exports = { PLACEHOLDER, readShopConfig, shopConfig };
+module.exports = { PLACEHOLDER, readShopConfig, shopConfig, paymentProviderOf };

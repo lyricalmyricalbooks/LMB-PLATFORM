@@ -411,12 +411,34 @@ describe("provider choice", () => {
     expect(await payments.findOrderPayment("o1", {}, { paymentIntentId: "pi_1" })).toEqual({ intent: { id: "pi_1", metadata: { order_id: "o1" } }, mode: "live" });
   });
 
-  test("the shop's server settings name the provider, keeping stripe for anything unknown", () => {
+  test("the shop's server settings name the provider; unset or empty means stripe", () => {
     const { readShopConfig } = require("../shopConfig.js");
     expect(readShopConfig({}).paymentProvider).toBe("stripe");
+    expect(readShopConfig({ SHOP_PAYMENT_PROVIDER: "" }).paymentProvider).toBe("stripe");
+    expect(readShopConfig({ SHOP_PAYMENT_PROVIDER: "   " }).paymentProvider).toBe("stripe");
     expect(readShopConfig({ SHOP_PAYMENT_PROVIDER: " Stripe " }).paymentProvider).toBe("stripe");
-    expect(readShopConfig({ SHOP_PAYMENT_PROVIDER: "square" }).paymentProvider).toBe("stripe");
   });
+
+  test("a provider that isn't built (or a typo) stops the shop's server with a plain message", () => {
+    const { readShopConfig } = require("../shopConfig.js");
+    for (const value of ["square", "strpe", "paypal"]) {
+      expect(() => readShopConfig({ SHOP_PAYMENT_PROVIDER: value }))
+        .toThrow(`SHOP_PAYMENT_PROVIDER is "${value}", which this shop can't use yet. Set it to one of: stripe (or leave it empty for stripe)`);
+    }
+  });
+
+  test("the functions refuse to load at all with an unknown provider", () => {
+    const { execFileSync } = require("node:child_process");
+    const dir = new URL("..", import.meta.url).pathname;
+    const run = (provider) => {
+      try {
+        execFileSync(process.execPath, ["-e", "require('./index.js')"], { cwd: dir, env: { ...process.env, SHOP_PAYMENT_PROVIDER: provider }, stdio: "pipe" });
+        return "loaded";
+      } catch (err) { return String(err.stderr); }
+    };
+    expect(run("square")).toContain(`SHOP_PAYMENT_PROVIDER is "square", which this shop can't use yet.`);
+    expect(run("stripe")).toBe("loaded");
+  }, 30000);
 });
 
 describe("unpaid attempt (cancel an unpaid order, a shopper's retry)", () => {

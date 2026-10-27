@@ -781,6 +781,9 @@ unsure, `createCardIntent`, `createCheckoutSession`), and for Settings › Payme
   `stripeMode`, …), the `stripeWebhook` endpoint, order-record functions the handler tests pin (`checkStripeReversal`,
   `markStripeOrderPaid`, `syncStripeReversal`) and the Stripe-shaped guards in `paymentGuards.js`/`stripeRecovery.js`.
 - A new provider is one file beside `stripe.js` with the same names, added to `PROVIDERS` in `index.js`.
+- `SHOP_PAYMENT_PROVIDER` unset or empty means `stripe`; any name not in `PROVIDERS` (a typo, or `square` before it is
+  built) makes `shopConfig.js` throw a plain message, so the functions refuse to load instead of quietly taking
+  payments through Stripe (`paymentProviderOf`; payments.test.js loads index.js with `square` to prove it).
 
 ## Email module (27 October 2026, code plan 1.13)
 
