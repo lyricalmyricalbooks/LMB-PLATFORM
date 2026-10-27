@@ -619,3 +619,8 @@ Local fixture checks do not certify authenticated Firestore publishing or live c
 Preview canvases retain their selected viewport width (1200px desktop, 820px tablet,
 390px phone) in a scrollable canvas, so narrow editor windows cannot activate the
 wrong breakpoint while the owner edits a different device.
+
+**Closed dialogs build nothing (27 October 2026).** `StudioEditor` re-renders on every edit, so a closed dialog must
+not build its contents: guard children with the open flag (the Keyboard shortcuts list) or return early once the hooks
+have run (`StudioSchedule`, which otherwise measured the whole design on every keystroke). Measured with the
+StudioEditor tests: about a fifth less time per click in development React.
