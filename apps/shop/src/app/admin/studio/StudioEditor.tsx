@@ -2750,12 +2750,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         })()}
       </Dialog>
       <Dialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Keyboard shortcuts" description="Plain-key shortcuts work when you aren't typing in a field.">
-        <div className="studio-shortcuts">
+        {/* Built only while open: the list is over a hundred elements, and Studio re-renders on every edit. */}
+        {shortcutsOpen && <div className="studio-shortcuts">
           {[...new Set(SHORTCUTS.map(x => x.group))].map(group => <section key={group}>
             <h3>{group}</h3>
             <dl>{SHORTCUTS.filter(x => x.group === group).map(x => <div key={x.action}><dt><kbd>{x.keys}</kbd></dt><dd>{x.label}</dd></div>)}</dl>
           </section>)}
-        </div>
+        </div>}
       </Dialog>
       <StudioSearch open={findOpen} onClose={() => setFindOpen(false)} index={searchIndex} context={paletteContext} onPick={goToResult} />
       <StudioHistory open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); }}

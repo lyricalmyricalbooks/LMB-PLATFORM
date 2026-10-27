@@ -64,6 +64,14 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(pagePicker).toEqual(expect.arrayContaining(["Home", "About", "Open call (draft)", "Night Pages", "Header & footer sections (every page)"]));
   });
 
+  it("? opens the keyboard shortcuts list, which is not built while closed", async () => {
+    await mount();
+    expect(document.querySelector(".studio-shortcuts")).toBeNull();
+    await act(async () => { document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true })); await new Promise(r => setTimeout(r, 0)); });
+    const dialog = [...document.querySelectorAll("[role=dialog]")].find(d => d.textContent?.includes("Keyboard shortcuts"));
+    expect(dialog?.querySelectorAll(".studio-shortcuts kbd").length).toBeGreaterThan(10);
+  });
+
   it("switching page keeps the open workspace and is remembered next time", async () => {
     await mount();
     await click(buttons("Theme settings")[0]);
