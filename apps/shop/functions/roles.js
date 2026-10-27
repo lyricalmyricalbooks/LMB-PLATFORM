@@ -1,0 +1,55 @@
+// Who may open the admin. Each person the owner adds under Settings › Team is a members/{email} document with a role;
+// syncMemberRole copies that role onto the person's sign-in pass (a custom claim), which Firestore rules, Storage
+// rules and requireAdmin read. The owner address below always counts as owner, so the shop's first sign-in works
+// before anyone is added, and nobody can lock the owner out by editing the list.
+const OWNER_EMAILS = ["owner@example.com"];
+const ROLES = ["owner", "staff"];
+
+const normEmail = v => String(v || "").trim().toLowerCase();
+const memberId = email => normEmail(email);
+const isRole = v => ROLES.includes(v);
+
+/** The admin role on a verified sign-in pass: "owner", "staff", or null for everyone else. */
+function adminRole(token) {
+  if (!token || token.email_verified !== true) return null;
+  if (OWNER_EMAILS.includes(normEmail(token.email))) return "owner";
+  return isRole(token.role) ? token.role : null;
+}
+
+/** Checks one Team entry an owner writes. */
+function memberProblem(email, data) {
+  const id = memberId(email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || id.length > 254) return "That isn't an email address.";
+  if (OWNER_EMAILS.includes(id)) return "The shop owner always has access.";
+  if (!isRole(data?.role)) return `Role must be one of: ${ROLES.join(", ")}.`;
+  return null;
+}
+
+/**
+ * Makes the sign-in pass of the person with this email match their Team entry: the role is set, changed or taken away.
+ * Other custom claims are kept. Someone who hasn't signed in yet has no account; their first sign-in calls this again.
+ */
+async function syncMemberRole({ auth, db, email }) {
+  const id = memberId(email);
+  if (!id) return { status: "no-email" };
+  let user;
+  try {
+    user = await auth.getUserByEmail(id);
+  } catch (err) {
+    if (err?.code === "auth/user-not-found") return { status: "no-account" };
+    throw err;
+  }
+  const snap = await db.collection("members").doc(id).get();
+  const data = snap.exists ? snap.data() : null;
+  const role = !OWNER_EMAILS.includes(id) && isRole(data?.role) ? data.role : null;
+  const claims = { ...(user.customClaims || {}) };
+  if ((claims.role ?? null) === role) return { status: "unchanged", role };
+  if (role) claims.role = role;
+  else delete claims.role;
+  await auth.setCustomUserClaims(user.uid, claims);
+  // Older passes keep the old role for up to an hour; this makes them sign in again.
+  if (!role) await auth.revokeRefreshTokens(user.uid);
+  return { status: "updated", role };
+}
+
+module.exports = { OWNER_EMAILS, ROLES, adminRole, memberId, memberProblem, syncMemberRole };

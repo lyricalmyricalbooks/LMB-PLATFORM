@@ -42,6 +42,11 @@ describe('local fulfillment persistence authorization', () => {
   await adminApi.updateLocalFulfillment(config);
   expect(setDoc).toHaveBeenCalledWith({ path: 'settings/website' }, { localFulfillment: config }, { mergeFields: ['localFulfillment'] });
  });
+ it('saves for a Team member whose pass carries the staff role', async () => {
+  taskAuth.currentUser = { email: 'sam@press.test', emailVerified: true, getIdTokenResult: async () => ({ claims: { role: 'staff' } }) };
+  await adminApi.updateLocalFulfillment(config);
+  expect(setDoc).toHaveBeenCalled();
+ });
  it('rejects invalid enabled configuration before writing', async () => {
   taskAuth.currentUser = { email: 'owner@example.com', emailVerified: true };
   await expect(adminApi.updateLocalFulfillment({ ...config, deliveryZones: [{ id: 'bad', enabled: true, name: 'Bad', price: -1, minimumSubtotal: 0, postalPrefixes: ['M6G'], postalCodes: [] }] })).rejects.toThrow('Fees');

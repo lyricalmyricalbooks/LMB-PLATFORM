@@ -28,6 +28,7 @@ import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
 
 /** Same cap as functions/liveRateExtra.js MAX_LIVE_RATE_EXTRA. */
 const MAX_LIVE_RATE_EXTRA = 50;
+import { TeamSettings } from "./TeamSettings";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { ShopErrorsCard } from "./ShopErrorsCard";
@@ -114,6 +115,7 @@ export function ShopSettings({
             subTab={subTab} onSubTabChange={onSubTabChange}
             onOpenShipping={() => { setActiveTab("shipping"); if (onSubTabChange) onSubTabChange("carrier", "shipping"); else setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {activeTab === "team" && <TeamSettings />}
           {/* Communications was retired: its links open Notifications. */}
           {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} subTab={subTab} onSubTabChange={onSubTabChange} />}
         </m.div>

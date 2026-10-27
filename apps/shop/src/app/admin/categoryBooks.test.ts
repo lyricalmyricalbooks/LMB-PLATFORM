@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
-  auth: { currentUser: { email: "owner@example.com" } as any },
+  auth: { currentUser: { email: "owner@example.com", emailVerified: true } as any },
   live: [{ id: "a", name: "ZINES" }, { id: "b", name: "Books" }],
   records: {} as Record<string, any>, writes: [] as any[], reads: [] as string[],
 }));
@@ -31,7 +31,7 @@ import { adminApi } from "./api";
 
 describe("live category assignment writes", () => {
   beforeEach(() => {
-    mocks.auth.currentUser = { email: "owner@example.com" };
+    mocks.auth.currentUser = { email: "owner@example.com", emailVerified: true };
     mocks.writes.length = 0; mocks.reads.length = 0;
     mocks.records = { "books/one": { title: "One", categories: ["Art"], stock: 8 }, "books/two": { title: "Two", genres: ["ZINES", "Poetry"], price: 12 } };
   });
@@ -55,7 +55,7 @@ describe("live category assignment writes", () => {
   it("rejects non-admin users and oversized saves before touching documents", async () => {
     mocks.auth.currentUser = null;
     await expect(adminApi.updateCategoryBooks(["one"], { id: "a", name: "ZINES" }, "add")).rejects.toThrow(/sign-in/);
-    mocks.auth.currentUser = { email: "owner@example.com" };
+    mocks.auth.currentUser = { email: "owner@example.com", emailVerified: true };
     await expect(adminApi.updateCategoryBooks(Array.from({ length: 401 }, (_, i) => `${i}`), { id: "a", name: "ZINES" }, "remove")).rejects.toThrow(/400/);
     expect(mocks.reads).toHaveLength(0);
   });

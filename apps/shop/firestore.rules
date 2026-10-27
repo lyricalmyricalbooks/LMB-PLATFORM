@@ -2,10 +2,16 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAdmin() {
+    // Admin access (functions/roles.js): the owner address, or a role the server copied onto the sign-in pass from
+    // the owner's Team list (members/{email}). Staff can do everything in the admin except the Team and secret keys.
+    function isOwner() {
       return request.auth != null
-        && request.auth.token.email == "owner@example.com"
-        && request.auth.token.email_verified == true;
+        && request.auth.token.email_verified == true
+        && (request.auth.token.email == "owner@example.com" || request.auth.token.get("role", "") == "owner");
+    }
+    function isAdmin() {
+      return isOwner()
+        || (request.auth != null && request.auth.token.email_verified == true && request.auth.token.get("role", "") == "staff");
     }
 
     // Short optional text: missing/null, or a string no longer than n.
@@ -97,7 +103,20 @@ service cloud.firestore {
     // Private email-sending credentials (Gmail app password). Admin-only: unlike settings/*,
     // this is never publicly readable. Cloud Functions read it with the Admin SDK.
     match /adminSecrets/{docId} {
-      allow read, write: if isAdmin();
+      // Staff see whether the Stripe webhook is set up; the keys themselves are the owner's.
+      allow read: if isOwner() || (isAdmin() && docId == "stripeWebhookStatus");
+      allow write: if isOwner();
+    }
+    // The owner's Team list (Settings › Team): one document per person, named by their lower-case email.
+    // functions/roles.js copies the role onto that person's sign-in pass.
+    match /members/{email} {
+      allow read: if isOwner();
+      allow delete: if isOwner();
+      allow create, update: if isOwner()
+        && email == email.lower()
+        && email != "owner@example.com"
+        && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy"])
+        && request.resource.data.role in ["owner", "staff"];
     }
     // The owner's admin screen layouts (Overview boards: admin/overview/overviewBoardStore.ts) and the Overview's sales notes
     // (admin/overview/overviewNotesStore.ts). Admin-only, one JSON string each.

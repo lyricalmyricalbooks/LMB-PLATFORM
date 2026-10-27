@@ -1,6 +1,6 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
-  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 
@@ -22,6 +22,7 @@ export const NAV: NavEntry[] = [
     { id: "designer", label: "Design", icon: Palette },
     // One email page: templates, shop alerts, Gmail sending, sender details and recent deliveries.
     { id: "notifications", label: "Email sender", icon: Mail },
+    { id: "team", label: "Team", icon: UserPlus },
   ] },
 ];
 

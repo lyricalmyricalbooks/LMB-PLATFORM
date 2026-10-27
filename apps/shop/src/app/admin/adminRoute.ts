@@ -12,7 +12,7 @@ export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "n
 /** The Settings page an id really opens (an alias resolves to its page). */
 export const settingsPageOf = (id: string): string => SETTINGS_TAB_ALIASES[id] || id;
 
-export const SETTINGS_TABS = ["general", "shipping", "payments", "notifications", "taxes", "communications", "designer"] as const;
+export const SETTINGS_TABS = ["general", "shipping", "payments", "notifications", "taxes", "communications", "designer", "team"] as const;
 
 /** Sub tabs per page (a Settings page id, or a top-level tab): address slug → the page's own tab id. The first is the default. */
 export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
