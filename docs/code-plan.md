@@ -90,7 +90,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
 | 1.28 | platform | `setup/` step runner: numbered steps, check-before-act, logged, resumes after a failure, dry-run mode | runner tests with fake steps | done |
-| 1.29 | platform | Steps 1–6 (registry, project, Firebase, services, database, web app and profile) using Google's APIs | dry run against the test shop | |
+| 1.29 | platform | Steps 1–6 (registry, project, Firebase, services, database, web app and profile) using Google's APIs | dry run against the test shop | done |
 | 1.30 | platform | Steps 7–15 (rules, functions, pages, backup, private storage check, starter content, Stripe, email, shop check) | dry run | |
 | 1.31 | shop | Sandbox checkouts hold stock on shops the platform marks as test shops | checkout tests | |
 | 1.32 | platform | Create `platform-test` with the script; the release check (test card purchase, stock drop, email, refund) | the check passes | |
