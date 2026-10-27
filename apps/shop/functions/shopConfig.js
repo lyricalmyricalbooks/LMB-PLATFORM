@@ -12,6 +12,10 @@
 //   SHOP_EXTRA_ORIGINS   more web addresses allowed to call the functions, comma-separated (an old address that
 //                        still forwards, for example). Set it, even empty, for a real shop: unset keeps the
 //                        placeholder addresses below
+//   SHOP_PAYMENT_PROVIDER which card payment provider the shop uses (functions/payments lists them; only "stripe" so
+//                        far). Unset or unknown keeps "stripe"
+
+const { PROVIDER_NAMES, DEFAULT_PROVIDER } = require("./payments");
 
 const PLACEHOLDER = Object.freeze({
   ownerEmail: "owner@example.com",
@@ -20,6 +24,7 @@ const PLACEHOLDER = Object.freeze({
   siteUrl: "https://lmb-test-shop.web.app",
   extraOrigins: Object.freeze(["https://yourpress.github.io", "https://yourpress.example", "https://www.yourpress.example"]),
   project: "lmb-test-shop",
+  paymentProvider: DEFAULT_PROVIDER,
 });
 
 const EMAIL = /^[^\s@,<>"]+@[^\s@,<>"]+\.[^\s@,<>"]+$/;
@@ -51,6 +56,7 @@ function readShopConfig(env = {}) {
     senderEmail: email(env.SHOP_SENDER_EMAIL) || PLACEHOLDER.senderEmail,
     siteUrl,
     siteHost: host.replace(/^www\./, ""),
+    paymentProvider: PROVIDER_NAMES.includes(text(env.SHOP_PAYMENT_PROVIDER).toLowerCase()) ? text(env.SHOP_PAYMENT_PROVIDER).toLowerCase() : PLACEHOLDER.paymentProvider,
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
   });
 }

@@ -260,17 +260,16 @@ async function readAdminSecret(id) {
   }
 }
 
-// Every Stripe client made with the shop's own key comes from functions/payments (code plan 1.11). These names stay
-// as before for the many callers (and for the handler tests that swap one out).
-const payments = createPayments({ db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret });
-const { getStripeClientForMode, shopTestMode, readStripeKeys } = payments;
+// The shop's card payment provider (Stripe unless its shopConfig names another) is reached only through
+// functions/payments (code plans 1.11-1.12; the provider interface is listed there).
+const payments = createPayments({ provider: shopConfig.paymentProvider, db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret });
+const { testMode: shopTestMode } = payments;
 
-// Asks Stripe (test and live accounts, the order's own mode first) for one of the
+// Asks the payment provider (test and live accounts, the order's own mode first) for one of the
 // order's saved payments. Returns { intent | session, mode } or null when no account knows it.
-// Only a payment whose metadata/client_reference_id names this order counts.
-// `keys` (readStripeKeys) skips the settings reads; without it they are read here.
+// Only a payment that names this order counts. `keys` (payments.readKeys) skips the settings reads.
 async function retrieveOrderPayment(orderId, order, ids = {}, keys = null) {
-  return payments.retrieveOrderPayment(orderId, order, ids, keys);
+  return payments.findOrderPayment(orderId, order, ids, keys);
 }
 
 const ADMIN_TO = shopConfig.ownerEmail;
@@ -1369,9 +1368,9 @@ async function releaseSupersededAttempt(req, email, currentOrderId, currentItems
     if (prev.paymentStatus !== "unpaid" || checkoutRefusal(prev)) return {};
     const intentId = String(prev.stripePaymentIntentId || ""), sessionId = String(prev.stripeCheckoutSessionId || "");
     if (intentId.startsWith("pi_") || sessionId.startsWith("cs_")) {
-      const { stripe, requestOptions } = await getStripeClientForMode(prev.stripeMode === "test" ? "test" : "live", prev.stripeAccountId || null);
-      const intent = intentId.startsWith("pi_") ? await stripe.paymentIntents.retrieve(intentId, {}, requestOptions) : null;
-      const session = sessionId.startsWith("cs_") ? await stripe.checkout.sessions.retrieve(sessionId, {}, requestOptions) : null;
+      const account = await payments.clientForMode(prev.stripeMode === "test" ? "test" : "live", prev.stripeAccountId || null);
+      const found = await payments.readAttempt(account, { intentId, sessionId });
+      const intent = found.intent || null, session = found.session || null;
       if (previousAttemptPaid(prev, intent, session)) return sameBag ? { paidOrderId: prevId } : {};
       if (intent && !["requires_payment_method", "canceled"].includes(intent.status)) return {};
     }
@@ -2187,7 +2186,7 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
 }
 
 // Asks Stripe for a paid order's charge (and any dispute) and syncs refunds/disputes.
-// `keys` (readStripeKeys) skips the settings reads. With `onChecked` the caller records the check
+// `keys` (payments.readKeys) skips the settings reads. With `onChecked` the caller records the check
 // itself (the sweep keeps one schedule record, reversalSchedule.js) and the order is not written just to
 // stamp it; onChecked runs after the refund/dispute sync.
 async function checkStripeReversal(orderId, order, source, { keys = null, onChecked = null } = {}) {
@@ -2234,7 +2233,7 @@ exports.stripeWebhook = onRequest(
     }
 
     // The shop's key for its current mode, else the deployed secret (functions/payments).
-    const stripe = await payments.webhookClient();
+    const client = await payments.webhookClient();
     const sig = req.headers["stripe-signature"];
 
     // Test and live endpoints each sign with their own secret: accept the deployed
@@ -2244,7 +2243,7 @@ exports.stripeWebhook = onRequest(
     let deployedSecret = "";
     try { deployedSecret = STRIPE_WEBHOOK_SECRET.value(); } catch { /* not set */ }
     const secrets = signingSecrets(deployedSecret, savedSecrets.live, savedSecrets.test);
-    const { event, lastError } = payments.verifyWebhookEvent(stripe, req.rawBody, sig, secrets);
+    const { event, lastError } = payments.verifyWebhookEvent(client, req.rawBody, sig, secrets);
     if (!event) {
       const message = lastError?.message || "No webhook signing secret is configured.";
       console.error("Signature verification failed:", message);
@@ -2565,7 +2564,7 @@ exports.refundOrder = onBrowserRequest(
       }
       let outcome;
       if (provider === "stripe") {
-        outcome = await payments.refundPayment({
+        outcome = await payments.refund({
           mode: order.stripeMode, accountId: order.stripeAccountId || null, paymentIntentId: order.stripePaymentIntentId,
           amountMinor: plan.kind === "partial" ? plan.amountMinor : null,
           metadata: { order_id: orderId, admin_email: adminUser.email || "", reason: reasonText },
@@ -4132,7 +4131,7 @@ exports.unpaidPaymentSweep = onSchedule(
     // The Stripe mode and keys are read once for the whole sweep (only when Stripe is asked at all).
     // A failed read falls back to the per-call reads every lookup used to do.
     let keysRead = null;
-    const stripeKeys = () => keysRead || (keysRead = readStripeKeys().catch(err => {
+    const paymentKeys = () => keysRead || (keysRead = payments.readKeys().catch(err => {
       console.warn("unpaidPaymentSweep: could not read the Stripe keys once; reading them for each order:", err.message);
       return null;
     }));
@@ -4144,7 +4143,7 @@ exports.unpaidPaymentSweep = onSchedule(
         const usesIntent = typeof order.stripePaymentIntentId === "string" && order.stripePaymentIntentId.startsWith("pi_");
         const result = await retrieveOrderPayment(order.id, order, usesIntent
           ? { paymentIntentId: order.stripePaymentIntentId }
-          : { sessionId: order.stripeCheckoutSessionId }, await stripeKeys());
+          : { sessionId: order.stripeCheckoutSessionId }, await paymentKeys());
         if (result?.session && result.session.payment_status === "paid") {
           const session = result.session;
           await recordStripeReconciliation(order.id, session)
@@ -4197,7 +4196,7 @@ exports.unpaidPaymentSweep = onSchedule(
         queryPaid: paidOrderScanner(db),
         getOrders: async ids => (ids.length ? await db.getAll(...ids.map(id => db.collection("orders").doc(id))) : [])
           .map(doc => (doc.exists ? { id: doc.id, ...doc.data() } : null)),
-        check: async (order, onChecked) => checkStripeReversal(order.id, order, "automatic check", { keys: await stripeKeys(), onChecked })
+        check: async (order, onChecked) => checkStripeReversal(order.id, order, "automatic check", { keys: await paymentKeys(), onChecked })
           .catch(err => console.warn(`reversal check ${order.id}:`, err.message)),
         stampOrders: ids => Promise.all(ids.map(id => db.collection("orders").doc(id).update({ stripeCheckedAt: new Date().toISOString() }))),
         warn: message => console.warn(`unpaidPaymentSweep: ${message}`),
