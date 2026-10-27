@@ -61,6 +61,9 @@ export function shopProblems(shop) {
   if (typeof shop.country !== "string" || !/^[A-Z]{2}$/.test(shop.country)) problems.push("the country must be a two-letter code like CA");
   if (typeof shop.currency !== "string" || !/^[A-Z]{3}$/.test(shop.currency)) problems.push("the currency must be a three-letter code like CAD");
   if ("testMode" in shop && typeof shop.testMode !== "boolean") problems.push("test mode must be true or false");
+  if ("testShop" in shop && typeof shop.testShop !== "boolean") problems.push("the test shop mark must be true or false");
+  // The test shop's test purchases move its stock like real ones; it must never take real money.
+  if (shop.testShop === true && shop.testMode !== true) problems.push("the test shop must take payments in test mode");
   problems.push(...paymentProblems(shop));
   return problems;
 }

@@ -9,6 +9,8 @@ export const TEST_SHOP = Object.freeze({
   currency: "CAD",
   paymentProvider: "stripe",
   testMode: true,
+  // The platform's own test shop (docs/test-shop.md): step 8 writes SHOP_TEST_SHOP="true" for it alone.
+  testShop: true,
 });
 
 // The starter documents a release would bring. The real list comes with each release of the shop copy, which owns their
