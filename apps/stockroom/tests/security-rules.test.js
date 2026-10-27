@@ -146,6 +146,48 @@ describe('author-only settings reads', () => {
   });
 });
 
+// The shop's Team list can give someone the "author" role (the shop's
+// functions/roles.js copies it onto the sign-in pass). It counts as an author
+// for the allowlisted settings reads only: a role can't say which book, so
+// per-book access stays with the bookOwners map, and it is never a publisher.
+describe('author role', () => {
+  const fn = (rules, name) => {
+    const m = rules.match(new RegExp(`function ${name}\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\s*\\}`));
+    expect(m, name).not.toBeNull();
+    return m[1].replace(/\s+/g, ' ');
+  };
+
+  it('Firestore: a verified author role counts as an author for settings reads', () => {
+    expect(fn(firestoreRules, 'hasAuthorRole')).toContain("request.auth.token.email_verified == true && request.auth.token.get('role', '') == 'author'");
+    expect(fn(firestoreRules, 'isAnyAuthor')).toMatch(/^ return hasAuthorRole\(\) \|\| \(/);
+  });
+
+  it('the Realtime Database accepts the same role, verified, before the allowlist only', () => {
+    const expr = rtdbRules.rules.lyrical.settings.$key['.read'];
+    const role = "(auth.token.email_verified === true && auth.token.role === 'author')";
+    expect(expr.split(role).length - 1).toBe(1);
+    const after = expr.slice(expr.indexOf(role));
+    expect(after).toMatch(/^\(auth\.token\.email_verified === true && auth\.token\.role === 'author'\) \|\| root\.child\('lyrical\/settings\/bookOwners\/authorEmails'\)[^&]*\.exists\(\)\) && \(\$key === /);
+  });
+
+  it('never opens a book, a receipt or a publisher check', () => {
+    // Per-book access: Firestore and Storage isBookAuthor(), RTDB books and submissions.
+    expect(fn(firestoreRules, 'isBookAuthor')).not.toContain('role');
+    expect(fn(storageRules, 'isBookAuthor')).not.toContain('role');
+    const { books, submissions } = rtdbRules.rules.lyrical;
+    for (const e of [books.$bookId['.read'], books.$bookId['.write'], submissions.$bookId['.read'], submissions.$bookId['.write']]) {
+      expect(e).not.toContain("'author'");
+    }
+    for (const rules of [firestoreRules, storageRules]) expect(fn(rules, 'isPublisher')).not.toContain('author');
+    // Settings writes and backups stay publisher-only.
+    expect(rtdbRules.rules.lyrical.settings['.write']).not.toContain("'author'");
+    expect(JSON.stringify(rtdbRules.rules.lyrical.backups)).not.toContain("'author'");
+    expect(firestoreRules.match(/function hasAuthorRole/g)).toHaveLength(1);
+    // Defined once and used once (inside isAnyAuthor).
+    expect(firestoreRules.match(/hasAuthorRole\(\)/g)).toHaveLength(2);
+  });
+});
+
 // The website link (docs/website-link.md). The website writes with the Admin
 // SDK and bypasses rules; these pin what the publisher's browser may do, so a
 // later edit can't quietly let the app rewrite the website's copy of an order.

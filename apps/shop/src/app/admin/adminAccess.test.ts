@@ -7,6 +7,8 @@ describe("admin access", () => {
     expect(adminRoleOf(SHOP_OWNER_EMAIL.toUpperCase(), true)).toBe("owner");
     expect(adminRoleOf("sam@press.test", true, { role: "staff" })).toBe("staff");
     expect(adminRoleOf("sam@press.test", true, { role: "boss" })).toBeNull();
+    // An author on the Team is for the stockroom only and never opens the admin.
+    expect(adminRoleOf("ana@press.test", true, { role: "author" })).toBeNull();
     expect(adminRoleOf("reader@press.test", true)).toBeNull();
     expect(adminRoleOf(SHOP_OWNER_EMAIL, false)).toBeNull();
   });

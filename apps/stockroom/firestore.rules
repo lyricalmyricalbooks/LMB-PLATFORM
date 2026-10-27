@@ -39,17 +39,30 @@ service cloud.firestore {
         && request.auth.token.email.lower() == bookOwnerEmail(bookId);
     }
 
-    // Any actual author: the caller's lowercased address (dots swapped for
-    // commas, because Realtime Database keys cannot contain dots and both
-    // stores share one encoding) is a key in settings/bookOwners.authorEmails,
-    // written by the publisher client alongside the bookId map. A bare Google
-    // account that is not an author is NOT one, so it reads no settings.
-    function isAnyAuthor() {
+    // Any actual author, either way round:
+    //  - the "author" role the shop's server copies onto the sign-in pass from
+    //    the owner's Team list (the shop's functions/roles.js), with a verified
+    //    email; or
+    //  - the caller's lowercased address (dots swapped for commas, because
+    //    Realtime Database keys cannot contain dots and both stores share one
+    //    encoding) is a key in settings/bookOwners.authorEmails, written by the
+    //    publisher client alongside the bookId map.
+    // A bare Google account that is neither is NOT one, so it reads no
+    // settings. This only opens the author-readable settings below: the role
+    // can't say which book, so per-book access stays with isBookAuthor() and
+    // the bookOwners map, and an author is never a publisher.
+    function hasAuthorRole() {
       return request.auth != null
-        && request.auth.token.email != null
-        && exists(/databases/$(database)/documents/settings/bookOwners)
-        && request.auth.token.email.lower().replace('\\.', ',')
-           in get(/databases/$(database)/documents/settings/bookOwners).data.get('authorEmails', {});
+        && request.auth.token.email_verified == true
+        && request.auth.token.get('role', '') == 'author';
+    }
+    function isAnyAuthor() {
+      return hasAuthorRole()
+        || (request.auth != null
+          && request.auth.token.email != null
+          && exists(/databases/$(database)/documents/settings/bookOwners)
+          && request.auth.token.email.lower().replace('\\.', ',')
+             in get(/databases/$(database)/documents/settings/bookOwners).data.get('authorEmails', {}));
     }
 
     // Per-book data — readable ONLY by the publisher and the book's own author.

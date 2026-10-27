@@ -21,11 +21,15 @@ describe('adminRole', () => {
     expect(adminRole({ email: 'sam@press.test', role: 'staff' })).toBeNull();
     expect(adminRole(null)).toBeNull();
   });
+  test('an author on the Team never opens the admin', () => {
+    expect(adminRole({ email: 'ana@press.test', email_verified: true, role: 'author' })).toBeNull();
+  });
 });
 
 describe('memberProblem', () => {
   test('accepts an email with a known role', () => {
     expect(memberProblem('Sam@Press.test', { role: 'staff' })).toBeNull();
+    expect(memberProblem('ana@press.test', { role: 'author' })).toBeNull();
   });
   test('refuses bad addresses, unknown roles and the owner', () => {
     expect(memberProblem('sam', { role: 'staff' })).toMatch(/email/);
@@ -73,6 +77,24 @@ describe('syncMemberRole', () => {
   test('never writes a role for the owner address, which needs none', async () => {
     const { auth, db } = fakes({ member: { role: 'staff' } });
     expect(await syncMemberRole({ auth, db, email: OWNER })).toEqual({ status: 'unchanged', role: null });
+  });
+  test('puts the author role on the pass', async () => {
+    const { auth, db } = fakes({ member: { role: 'author' } });
+    expect(await syncMemberRole({ auth, db, email: 'ana@press.test' })).toEqual({ status: 'updated', role: 'author' });
+    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('u1', { role: 'author' });
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+  });
+  test('signs the person out when their role gets smaller, so an old pass stops working sooner', async () => {
+    for (const [from, to] of [['staff', 'author'], ['owner', 'staff'], ['owner', 'author']]) {
+      const { auth, db } = fakes({ claims: { role: from }, member: { role: to } });
+      expect(await syncMemberRole({ auth, db, email: 'sam@press.test' })).toEqual({ status: 'updated', role: to });
+      expect(auth.revokeRefreshTokens, `${from} to ${to}`).toHaveBeenCalledWith('u1');
+    }
+  });
+  test('keeps the person signed in when they move up to owner', async () => {
+    const { auth, db } = fakes({ claims: { role: 'staff' }, member: { role: 'owner' } });
+    expect(await syncMemberRole({ auth, db, email: 'sam@press.test' })).toEqual({ status: 'updated', role: 'owner' });
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
   });
   test('ignores an unknown role in the Team entry', async () => {
     const { auth, db } = fakes({ claims: { role: 'staff' }, member: { role: 'boss' } });

@@ -2,20 +2,23 @@
 // syncMemberRole copies that role onto the person's sign-in pass (a custom claim), which Firestore rules, Storage
 // rules and requireAdmin read. The owner address (SHOP_OWNER_EMAIL, shopConfig.js) always counts as owner, so the shop's first sign-in works
 // before anyone is added, and nobody can lock the owner out by editing the list.
+// "author" is a Team role for the stockroom only: its rules let an author read the settings their own books need, and
+// which books stays in the stockroom's per-book list. It never opens this admin (adminRole answers owner or staff only).
 const { shopConfig } = require("./shopConfig");
 
 const OWNER_EMAILS = [shopConfig.ownerEmail];
-const ROLES = ["owner", "staff"];
+const ROLES = ["owner", "staff", "author"];
+const ADMIN_ROLES = ["owner", "staff"];
 
 const normEmail = v => String(v || "").trim().toLowerCase();
 const memberId = email => normEmail(email);
 const isRole = v => ROLES.includes(v);
 
-/** The admin role on a verified sign-in pass: "owner", "staff", or null for everyone else. */
+/** The admin role on a verified sign-in pass: "owner", "staff", or null for everyone else (authors included). */
 function adminRole(token) {
   if (!token || token.email_verified !== true) return null;
   if (OWNER_EMAILS.includes(normEmail(token.email))) return "owner";
-  return isRole(token.role) ? token.role : null;
+  return ADMIN_ROLES.includes(token.role) ? token.role : null;
 }
 
 /** Checks one Team entry an owner writes. */
@@ -45,13 +48,15 @@ async function syncMemberRole({ auth, db, email }) {
   const data = snap.exists ? snap.data() : null;
   const role = !OWNER_EMAILS.includes(id) && isRole(data?.role) ? data.role : null;
   const claims = { ...(user.customClaims || {}) };
-  if ((claims.role ?? null) === role) return { status: "unchanged", role };
+  const before = claims.role ?? null;
+  if (before === role) return { status: "unchanged", role };
   if (role) claims.role = role;
   else delete claims.role;
   await auth.setCustomUserClaims(user.uid, claims);
-  // Older passes keep the old role for up to an hour; this makes them sign in again.
-  if (!role) await auth.revokeRefreshTokens(user.uid);
+  // Older passes keep the old role for up to an hour; this makes them sign in again whenever a role is taken away or
+  // changed to a smaller one (owner to staff, staff to author). Only a first role or a move up to owner keeps them in.
+  if (before && role !== "owner") await auth.revokeRefreshTokens(user.uid);
   return { status: "updated", role };
 }
 
-module.exports = { OWNER_EMAILS, ROLES, adminRole, memberId, memberProblem, syncMemberRole };
+module.exports = { OWNER_EMAILS, ROLES, ADMIN_ROLES, adminRole, memberId, memberProblem, syncMemberRole };
