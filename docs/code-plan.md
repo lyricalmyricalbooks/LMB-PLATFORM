@@ -79,7 +79,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
 | 1.22 | shop | Hidden layout switches become named options on shared parts, with Studio controls (classic and modern headers first). Header & announcement bar › Header layout (`headerLayout`: classic, modern; empty follows the shop page layout as before) | Studio checks; `referenceHeader.test.ts` | done |
-| 1.23 | shop | A theme preset can hold section lists and starter pages, not only colours and fonts | preset tests | |
+| 1.23 | shop | A theme preset can hold section lists and starter pages, not only colours and fonts. Offered after the look, never applied with it; pages are added as drafts only when missing (`studio/presetContent.ts`) | preset tests (`presetContent.test.ts`); Studio check | done |
 | 1.24 | shop | Check: a theme file only uses settings that have a Studio control | the check | |
 | 1.25 | shop | Check: every section and book page block draws under every theme and stays readable | the check | |
 | 1.26 | shop | Theme wave 1: Riso, Broadsheet, Imprint; admin themes Riso Press and Paper (all admin colours in one file) | theme checks | |
