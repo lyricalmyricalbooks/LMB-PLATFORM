@@ -1,6 +1,6 @@
 import "../../styles/adminCompat.css";
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
-import { markOwnerDeviceOnSignIn, SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
+import { isShopOwner, markOwnerDeviceOnSignIn } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import {
@@ -291,12 +291,16 @@ export function Dashboard() {
 
     const unsubscribe = adminApi.onAuthStateChange((u) => {
       setUser(u);
-      setLoading(false);
-      if (u) {
+      if (!u) { setLoading(false); return; }
+      loadSettings();
+      // The server tells the admin the owner's address (lib/ownerDevice.ts); wait for it, briefly, so the owner's own
+      // orders stay out of the first figures. Offline, the admin opens anyway after a few seconds.
+      const known = Promise.resolve(adminApi.learnShopOwner?.()).catch(() => null);
+      void Promise.race([known, new Promise(resolve => setTimeout(resolve, 4000))]).finally(() => {
         // The owner's own browsers never count as shop traffic (Settings › General › Your own visits).
-        if (String(u.email || "").toLowerCase() === SHOP_OWNER_EMAIL) markOwnerDeviceOnSignIn();
-        loadSettings();
-      }
+        if (isShopOwner(u.email)) markOwnerDeviceOnSignIn();
+        setLoading(false);
+      });
     });
     return () => unsubscribe();
   }, []);

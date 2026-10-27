@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   cityMap, cleanLeadDays, cleanNotes, countryCode, dailyRevenue, giftOwed, isOpenCheckout, liveNow, noteEffect, preorderRows, project, readLeadDays, reprintState, REPRINT_WORDS, soldOutCountdown, MAX_NOTES,
 } from "./overviewNewLive";
+import { rememberShopOwner } from "../../lib/ownerDevice";
 
 const NOW = Date.parse("2026-10-18T16:00:00Z"); // noon in Toronto
 const minsAgo = (m: number) => new Date(NOW - m * 60_000).toISOString();
 const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
 const paid = (extra: any = {}) => ({ paymentStatus: "paid", total: 20, customer: { email: "a@b.c" }, items: [], ...extra });
+
+// The server named this shop's owner after sign-in (functions/index.js refreshMyRole).
+rememberShopOwner("owner@example.com", "staff@example.com", null);
 
 describe("liveNow", () => {
   it("counts recent bags, open checkouts and the last hour's sales", () => {

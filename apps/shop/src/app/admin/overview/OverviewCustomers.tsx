@@ -9,7 +9,7 @@ import { abandonedCartApi } from "../../lib/commerce";
 import { BarRow, DrillList, SPLIT, StatRow, money, orderHref, percent, shopWhen, type DrillItem } from "./OverviewParts";
 import { ShadeGrid } from "./OverviewViz";
 import { newsletterWeeks, reminderResults } from "./overviewSignals";
-import { SHOP_OWNER_EMAIL } from "../../lib/ownerDevice";
+import { isShopOwner } from "../../lib/ownerDevice";
 import { sharedLoad } from "./overviewShared";
 
 /** One abandoned cart as a drill-down line: who, what, when, the reminder and what happened. */
@@ -56,7 +56,7 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
     setCarts({ rows: null, error: false });
     // The owner's own test carts aren't customers. Every widget on the board shares one read.
     sharedLoad("carts", () => abandonedCartApi.list(500), fresh)
-      .then(rows => setCarts({ rows: rows.filter((c: any) => String(c?.email || "").toLowerCase() !== SHOP_OWNER_EMAIL), error: false })).catch(() => setCarts({ rows: null, error: true }));
+      .then(rows => setCarts({ rows: rows.filter((c: any) => !isShopOwner(c?.email)), error: false })).catch(() => setCarts({ rows: null, error: true }));
   };
   const retry = () => load(true);
   useEffect(() => load(), []);

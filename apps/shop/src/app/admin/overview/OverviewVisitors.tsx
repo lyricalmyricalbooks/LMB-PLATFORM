@@ -8,6 +8,7 @@ import type { WidgetConfig } from "./overviewBoard";
 import { actionRows, liveMinutes, livePagesOf, outboundRows, pageTimeRows, visitHeat, visitorMix } from "./overviewVisitors";
 import { actionsHeadline, clock, shortPageTitle, liveHeadline, mixHeadline, outboundHeadline, pageTimeHeadline, visitHoursHeadline } from "./overviewVisitorsCopy";
 import "./overviewVisitors.css";
+import { shopProfile } from "../../../lib/shopProfile";
 
 // Overview › Traffic: six visitor widgets read from Google Analytics (the 4th GA4 batch + realtime pages/minutes, maths in
 // overviewVisitors.ts). Each one is a headline sentence that answers its question, the chart, and a quiet source line.
@@ -16,8 +17,8 @@ import "./overviewVisitors.css";
 export type VisitorWidget = "livePages" | "pageTime" | "visitHours" | "actions" | "outbound" | "newReturning";
 export const VISITOR_WIDGETS: VisitorWidget[] = ["livePages", "pageTime", "visitHours", "actions", "outbound", "newReturning"];
 
-/** The shop's own addresses: a click to one of them is not a visitor leaving. */
-export const OWN_HOSTS = ["yourpress.example", "lmb-test-shop.web.app", "lmb-test-shop.firebaseapp.com"];
+/** The shop's own addresses (shop profile): a click to one of them is not a visitor leaving. */
+export const OWN_HOSTS = [...new Set([new URL(shopProfile.siteUrl).hostname, `${shopProfile.firebase.projectId}.web.app`, `${shopProfile.firebase.projectId}.firebaseapp.com`])];
 
 export function OverviewVisitors({ only, ga, books, dailyCurrent, dailyPrevious, config, onConfig, full, setActiveTab, periodLabel = "this period" }: {
   only: VisitorWidget; ga: GaState; books: Book[];

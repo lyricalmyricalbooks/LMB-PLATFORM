@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { fallbackFiles } from './scripts/spaFallback.mjs'
 import { canonicalHostScript, stampSiteAddress } from './scripts/canonicalHost.mjs'
+import { shopSiteUrlSync } from './scripts/shopProfile.mjs'
 
 
 function figmaAssetResolver() {
@@ -46,7 +47,7 @@ function spaFallbackBase(base: string) {
 // domain) to SITE_URL, and names SITE_URL in index.html's built-in links (scripts/canonicalHost.mjs).
 // Inert unless SITE_URL is a site at the root of its host.
 function canonicalHost() {
-  const siteUrl = process.env.SITE_URL || 'https://lmb-test-shop.web.app'
+  const siteUrl = shopSiteUrlSync() // SITE_URL, else the shop profile's siteUrl
   return {
     name: 'canonical-host',
     apply: 'build' as const,

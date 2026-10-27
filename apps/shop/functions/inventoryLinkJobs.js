@@ -17,6 +17,7 @@ const {
 const { externalDispatchProblem } = require("./fulfillmentGuard");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { runInBatches } = require("./sweepLimits");
+const { shopConfig } = require("./shopConfig");
 
 const STATE_DOC = ["systemStatus", "inventoryLink"];
 const LEASE_MS = 4 * 60 * 1000;
@@ -614,7 +615,7 @@ async function runSweep(deps, opts = {}) {
         holds: state.autoSync ? ((status.lastSync || state.lastSync)?.holds || []).filter(h => OWNER_HOLDS.has(h && h.hold)) : [],
         newMatches: matches ? openMatches(matches.items, links, state.ignoredMatches || {}).length : 0,
         appOnly: (appOnly?.items || []).filter(b => !used.has(b.id) && !ignoredApp[b.id]).length,
-        adminUrl: deps.adminUrl || "https://lmb-test-shop.web.app/admin",
+        adminUrl: deps.adminUrl || `${shopConfig.siteUrl}/admin`,
         now: start,
       });
       const signature = stable({ items: todo.items, replies });

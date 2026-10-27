@@ -133,7 +133,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The shop's address: the repository variable SITE_URL (its own domain, later) or the Firebase Hosting default.
+      # The shop's address: the repository variable SITE_URL (its own domain, later) or the shop profile's siteUrl.
       # The canonical-host script sends every visitor there, so scripts/siteAddressCheck.mjs refuses a malformed or
       # GitHub Pages address, one the Cloud Functions don't allow (checkout would fail CORS) and, for a custom one, an
       # address that isn't serving the shop yet (DNS or certificate still pending, or a typo).
@@ -144,7 +144,8 @@ jobs:
         run: |
           # Hosts are case-insensitive; "Yourpress.example" means yourpress.example.
           CUSTOM_SITE_URL="$(printf '%s' "$CUSTOM_SITE_URL" | tr '[:upper:]' '[:lower:]')"
-          url="${CUSTOM_SITE_URL:-https://lmb-test-shop.web.app}"
+          # Without the variable: the address in the shop profile (public/shop-profile.js siteUrl).
+          url="${CUSTOM_SITE_URL:-$(node scripts/shopProfile.mjs siteUrl)}"
           url="${url%/}"
           live=""
           if [ -n "$CUSTOM_SITE_URL" ]; then live="--live"; fi

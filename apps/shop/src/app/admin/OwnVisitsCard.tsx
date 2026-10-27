@@ -1,6 +1,6 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { isOwnerDevice, looksAutomated, OWNER_DEVICE_PARAM, SHOP_OWNER_EMAIL, setOwnerDevice } from "../lib/ownerDevice";
+import { isOwnerDevice, looksAutomated, OWNER_DEVICE_PARAM, setOwnerDevice, shopOwnerEmail } from "../lib/ownerDevice";
 import { HowTo } from "./settingsLayout";
 import { SecondaryButton, SectionCard, StatusBadge, Toggle } from "./riso/components";
 
@@ -33,7 +33,7 @@ export function OwnVisitsCard() {
       <div style={{ marginTop: 12 }}>
       <HowTo summary="Fine print">
       <ul className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "disc" }}>
-        <li>Orders with <span className="rp-mono">{SHOP_OWNER_EMAIL}</span> stay in Orders, out of sales.</li>
+        <li>Orders with {shopOwnerEmail() ? <span className="rp-mono">{shopOwnerEmail()}</span> : "the owner's sign-in email"} stay in Orders, out of sales.</li>
         <li>Keep the link private. Whoever opens it stops counting.</li>
         <li>Robots and speed testers never count{looksAutomated() ? " (this browser looks automated, so it doesn't either)" : ""}.</li>
         <li>Past visits stay. Overview › <strong>Start traffic counts again</strong> wipes the shop's counter.</li>

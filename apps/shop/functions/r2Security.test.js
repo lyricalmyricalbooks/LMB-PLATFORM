@@ -14,7 +14,7 @@ const source = fs.readFileSync(path.join(here, 'index.js'), 'utf8');
 const { clientIpOf, serverGeoCountry, LIMITS } = realRequire('./rateLimit');
 const { publicErrorMessage } = realRequire('./publicErrors');
 
-function harness({ docs: initial = {}, stripeError = null, discountError = null } = {}) {
+function harness({ docs: initial = {}, stripeError = null, discountError = null, token = {} } = {}) {
   const docs = structuredClone(initial);
   const counts = { retrieve: [], bookReads: 0, discountQueries: 0 };
   const globalOptions = [];
@@ -44,7 +44,13 @@ function harness({ docs: initial = {}, stripeError = null, discountError = null 
     async runTransaction(fn) { return fn({ get: (ref) => ref.get(), set: (ref, v) => ref.set(v), update: (ref, v) => ref.update(v) }); },
   };
   const firestore = Object.assign(() => db, { FieldValue: { increment: (n) => n, serverTimestamp: () => 'now', delete: () => undefined } });
-  const admin = { initializeApp() {}, firestore, auth: () => ({ verifyIdToken: async () => ({}) }), appCheck: () => ({}) };
+  const authApi = {
+    verifyIdToken: async () => structuredClone(token),
+    getUserByEmail: async (email) => ({ uid: 'u1', email, customClaims: token.role ? { role: token.role } : {} }),
+    setCustomUserClaims: async () => {},
+    revokeRefreshTokens: async () => {},
+  };
+  const admin = { initializeApp() {}, firestore, auth: () => authApi, appCheck: () => ({}) };
   class Stripe {
     constructor() {
       this.paymentIntents = { retrieve: async (id) => { counts.retrieve.push(id); if (stripeError) throw stripeError; return { id, status: 'requires_payment_method', metadata: { order_id: 'A' } }; } };
@@ -80,6 +86,26 @@ describe('#147 instance cap', () => {
     expect(app.globalOptions).toHaveLength(1);
     expect(app.globalOptions[0].maxInstances).toBeGreaterThan(0);
     expect(app.globalOptions[0].maxInstances).toBeLessThanOrEqual(20);
+  });
+  test('every function runs in the shop\'s region (us-central1 unless SHOP_FUNCTIONS_REGION says otherwise)', () => {
+    expect(harness().globalOptions[0].region).toBe(realRequire('./shopConfig').shopConfig.region);
+  });
+});
+
+describe('refreshMyRole tells only admins the owner\'s address', () => {
+  const { shopConfig } = realRequire('./shopConfig');
+  const ask = (token, docs = {}) => harness({ token, docs }).call('refreshMyRole', {}, { authorization: 'Bearer t' });
+  test('the owner and staff get it', async () => {
+    expect((await ask({ email: shopConfig.ownerEmail, email_verified: true })).body).toMatchObject({ role: 'owner', ownerEmail: shopConfig.ownerEmail });
+    const staff = await ask({ email: 'sam@press.test', email_verified: true, role: 'staff' }, { members: { 'sam@press.test': { role: 'staff' } } });
+    expect(staff.body).toMatchObject({ role: 'staff', ownerEmail: shopConfig.ownerEmail });
+  });
+  test('an author, a stranger and an unverified account do not', async () => {
+    const author = await ask({ email: 'ana@press.test', email_verified: true, role: 'author' }, { members: { 'ana@press.test': { role: 'author' } } });
+    expect(author.body.role).toBe('author');
+    for (const res of [author, await ask({ email: 'reader@press.test', email_verified: true }), await ask({ email: shopConfig.ownerEmail, email_verified: false })]) {
+      expect(res.body).not.toHaveProperty('ownerEmail');
+    }
   });
 });
 

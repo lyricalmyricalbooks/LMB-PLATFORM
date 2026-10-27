@@ -3,6 +3,7 @@ import { doc, getDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
+import { shopProfile } from "../../lib/shopProfile";
 import { adminApi } from "./api";
 import { catalogToCsv } from "./bulkPricing";
 import { buildCustomers, customersToCsv } from "./customerInsights";
@@ -11,7 +12,7 @@ import { describeBackup, describeBackupDay, type BackupDay, type BackupRecord } 
 import { friendlyError } from "./settingsLayout";
 import { DataTable, GhostButton, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 
-const IAM_URL = "https://console.cloud.google.com/iam-admin/iam?project=lmb-test-shop";
+const IAM_URL = `https://console.cloud.google.com/iam-admin/iam?project=${encodeURIComponent(shopProfile.firebase.projectId)}`;
 
 // Server calls for this card (createStripeCheckoutSession, admin only): "backupNow" runs the same backup as the
 // nightly job; "backups" lists the daily backups (op "list") or signs a 15-minute download link (op "download").
