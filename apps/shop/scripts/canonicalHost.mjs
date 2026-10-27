@@ -1,6 +1,6 @@
 // Firebase Hosting answers on two default addresses (<project>.web.app and <project>.firebaseapp.com) and,
 // later, on the shop's own domain. Only SITE_URL may be the public address: the other hosts would be duplicate
-// sites for search engines, and checkout fails on any origin the Cloud Functions don't allow (ALLOWED_ORIGINS).
+// sites for search engines, and checkout fails on any origin the Cloud Functions don't allow (functions/shopConfig.js).
 // vite.config.ts inlines this function at the top of index.html; it sends visitors on a default Firebase host,
 // or on the www/bare twin of the shop's own domain, to the same page on SITE_URL. It does nothing on GitHub Pages,
 // localhost or the prerender server. docs/CUSTOM_DOMAIN.md has the switch-day steps.

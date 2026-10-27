@@ -1,8 +1,10 @@
 // Who may open the admin. Each person the owner adds under Settings › Team is a members/{email} document with a role;
 // syncMemberRole copies that role onto the person's sign-in pass (a custom claim), which Firestore rules, Storage
-// rules and requireAdmin read. The owner address below always counts as owner, so the shop's first sign-in works
+// rules and requireAdmin read. The owner address (SHOP_OWNER_EMAIL, shopConfig.js) always counts as owner, so the shop's first sign-in works
 // before anyone is added, and nobody can lock the owner out by editing the list.
-const OWNER_EMAILS = ["owner@example.com"];
+const { shopConfig } = require("./shopConfig");
+
+const OWNER_EMAILS = [shopConfig.ownerEmail];
 const ROLES = ["owner", "staff"];
 
 const normEmail = v => String(v || "").trim().toLowerCase();

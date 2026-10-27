@@ -1,11 +1,13 @@
 // Pure readers for shop-wide settings (Settings › General / Notifications) used by several
 // functions. Tested in shopSettings.test.js.
 
+const { shopConfig } = require("./shopConfig");
+
 // Before the owner filled in General › Location these were the hard-coded shipping origin.
 const ORIGIN_FALLBACK = {
   street: "456 Montrose Ave", city: "Toronto", state: "ON", zip: "M6G3H1", country: "CA", phone: "6474096863",
 };
-const SHOP_EMAIL = "owner@example.com";
+const SHOP_EMAIL = shopConfig.ownerEmail;
 
 const text = value => (typeof value === "string" ? value.trim() : "");
 

@@ -74,9 +74,11 @@ const deps = (fetchImpl, saved = {}) => ({
 
 describe("Search Console", () => {
   it("picks the saved property, else the shop's own domain, else the only one", () => {
-    const sites = [{ siteUrl: "https://other.example/" }, { siteUrl: "sc-domain:yourpress.example" }];
+    // The shop's own domain is its site address (functions/shopConfig.js).
+    const own = `sc-domain:${require("./shopConfig").shopConfig.siteHost}`;
+    const sites = [{ siteUrl: "https://other.example/" }, { siteUrl: own }];
     expect(pickSite("https://other.example/", sites)).toBe("https://other.example/");
-    expect(pickSite("", sites)).toBe("sc-domain:yourpress.example");
+    expect(pickSite("", sites)).toBe(own);
     expect(pickSite("", [{ siteUrl: "https://only.example/" }])).toBe("https://only.example/");
     expect(pickSite("", [{ siteUrl: "https://a.example/" }, { siteUrl: "https://b.example/" }])).toBeNull();
     expect(cleanSite("javascript:alert(1)")).toBe("");

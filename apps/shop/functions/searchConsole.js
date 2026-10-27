@@ -5,12 +5,13 @@
 // The chosen property ("sc-domain:…" or "https://…/") lives in admin-only adminSecrets/googleAnalytics.searchConsoleSite.
 // Nothing here writes to Firestore.
 const { cleanRange, fetchJson } = require("./googleAnalytics");
+const { shopConfig } = require("./shopConfig");
 
 const API = "https://searchconsole.googleapis.com/webmasters/v3/";
 const INSPECT_API = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
 const MAX_INSPECT = 30;
 const SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
-const SHOP_HOST = "yourpress.example";
+const SHOP_HOST = shopConfig.siteHost;
 
 /** A Search Console property name as Google writes it, or "" when it isn't one. */
 function cleanSite(value) {

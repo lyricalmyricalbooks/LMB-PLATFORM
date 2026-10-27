@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -18,10 +19,10 @@ const folder = (url: string) => new URL(url).pathname.replace(/\/+$/, '') + '/';
 
 describe('one site address everywhere', () => {
   const viteBase = read('vite.config.ts').match(/SITE_BASE \?\? '([^']+)'/)?.[1];
-  const files = ['functions/index.js', 'vite.config.ts', 'scripts/carry-previous-assets.mjs', 'scripts/build-pages-redirect.mjs'];
+  const files = ['vite.config.ts', 'scripts/carry-previous-assets.mjs', 'scripts/build-pages-redirect.mjs'];
   // These read the address from the shop profile (scripts/shopProfile.mjs) instead of a default of their own.
   const profileReaders = ['scripts/generate-sitemap.mjs', 'scripts/prerender-storefront.mjs', 'scripts/check-published-change.mjs'];
-  const address = defaultUrl('functions/index.js');
+  const address = defaultUrl('vite.config.ts');
 
   it('every SITE_URL default matches the Vite base', () => {
     expect(viteBase).toMatch(/^\/(?:[^/]+\/)*$/);
@@ -40,8 +41,8 @@ describe('one site address everywhere', () => {
   it('the deploy workflows build for that address when no SITE_URL variable is set', () => {
     const fallback = read('.github/workflows/deploy-pages.yml').match(/\$\{CUSTOM_SITE_URL:-(https:\/\/[^}]+)\}/)?.[1];
     expect(fallback).toBe(address);
-    // deploy-firebase.yml reads the email-link default straight from functions/index.js.
-    expect(read('.github/workflows/deploy-firebase.yml')).toContain('functions/index.js');
+    // deploy-firebase.yml reads the email-link default from the Cloud Functions' own settings.
+    expect(read('.github/workflows/deploy-firebase.yml')).toContain('functions/shopConfig.js');
   });
 
   it('the app shell links to that address', () => {
@@ -50,11 +51,11 @@ describe('one site address everywhere', () => {
     expect(shell).toContain(`"url": "${address}/"`);
   });
 
-  it('the Cloud Functions accept browser calls from the shop (and, for open tabs, from the old address)', () => {
-    const functions = read('functions/index.js');
-    const start = functions.indexOf('const ALLOWED_ORIGINS');
-    const allowed = functions.slice(start, functions.indexOf('];', start));
-    expect(allowed).toContain(`"${new URL(address).origin}"`);
-    expect(allowed).toContain('"https://yourpress.github.io"');
+  it('the Cloud Functions link emails to that address and accept browser calls from it (and, for open tabs, from the old address)', () => {
+    const { readShopConfig } = createRequire(import.meta.url)('../functions/shopConfig.js');
+    const { allowedOrigins, siteUrl } = readShopConfig({});
+    expect(siteUrl).toBe(address);
+    expect(allowedOrigins).toContain(new URL(address).origin);
+    expect(allowedOrigins).toContain('https://yourpress.github.io');
   });
 });

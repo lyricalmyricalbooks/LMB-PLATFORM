@@ -97,20 +97,10 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
 const { adminRole, syncMemberRole } = require("./roles");
+const { shopConfig } = require("./shopConfig");
 
-const ALLOWED_ORIGINS = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:4000",
-  // The old GitHub Pages address now only forwards visitors; it stays allowed for tabs opened before the move
-  // (remove it in the cleanup step, 30–60 days after the cutover).
-  "https://yourpress.github.io",
-  // The shop (Firebase Hosting). firebaseapp.com is deliberately absent: the site sends visitors there to web.app
-  // (scripts/canonicalHost.mjs) instead of serving checkout twice.
-  "https://lmb-test-shop.web.app",
-  "https://yourpress.example",
-  "https://www.yourpress.example",
-];
+// Who may call the functions from a browser: local dev, this shop's Hosting address and its own domain (shopConfig.js).
+const ALLOWED_ORIGINS = shopConfig.allowedOrigins;
 
 // Returns true when the request was an OPTIONS preflight (already answered).
 function applyCors(req, res) {
@@ -361,7 +351,7 @@ async function retrieveOrderPayment(orderId, order, { paymentIntentId, sessionId
   return null;
 }
 
-const ADMIN_TO = "owner@example.com";
+const ADMIN_TO = shopConfig.ownerEmail;
 
 function moneyFmt(n) {
   return `$${Number(n || 0).toFixed(2)}`;
@@ -487,8 +477,8 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
   secret = secret || resendSecretValue();
   let apiKey = secret;
   let keySource = secret ? "secret" : "none";
-  let fromName = "Your Press";
-  let fromEmail = "orders@example.com";
+  let fromName = shopConfig.senderName;
+  let fromEmail = shopConfig.senderEmail;
   let replyTo = null;
   let brand = {};
   let mailingAddress = "";
@@ -2930,8 +2920,9 @@ function deliveryDetails(order) {
 const isPhysicalAny = order => (order?.items || []).some(item => item && isPhysicalItem(item));
 
 // Public storefront address for links in emails (Firebase Hosting). When the shop gets its own domain, set the
-// repository variable SITE_URL: deploy-firebase.yml writes it into the Functions env (functions/.env.<project>).
-const SITE_URL = String(process.env.SITE_URL || "https://lmb-test-shop.web.app").replace(/\/+$/, "");
+// repository variable SITE_URL: deploy-firebase.yml writes it into the Functions env (functions/.env.<project>),
+// which shopConfig.js reads (else the project's own web.app address).
+const SITE_URL = shopConfig.siteUrl;
 function siteLink(path) { return `${SITE_URL}${path}`; }
 
 // One-click order link for emails: /track opens the order straight away when the
