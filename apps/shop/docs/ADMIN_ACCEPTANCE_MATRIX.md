@@ -9,7 +9,7 @@ its row before and after restyling it. Sources: the code in `src/app/admin/*`,
 
 - Checkout totals are server-authoritative (Stripe session); the client only displays them.
 - Orders are created `unpaid`; only `stripeWebhook` marks them paid, decrements stock, counts discounts, records revenue. The admin "Mark paid" button calls the admin-authenticated `markOrderPaid` Cloud Function (Bearer ID token) and is gated by a confirmation dialog — never a client-side Firestore write.
-- Admin auth is Google sign-in restricted to `lyricalmyricalbooks@gmail.com` (`admin/api.ts` + `ADMIN_EMAILS`/`requireAdmin`).
+- Admin auth is Google sign-in restricted to `owner@example.com` (`admin/api.ts` + `ADMIN_EMAILS`/`requireAdmin`).
 - Theme `design` (live) and `draftDesign` (draft) stay separate; Discard Draft never touches `design`.
 - Fulfillment and address-verification states stay visible on orders.
 - Accessible names and keyboard behaviour cannot regress.

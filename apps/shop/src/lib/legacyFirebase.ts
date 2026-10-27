@@ -2,18 +2,18 @@
  * legacyFirebase.ts
  *
  * Initializes a SECONDARY Firebase app connected to the legacy
- * Lyricalmyrical inventory project (lmb-test-stockroom).
+ * Your Press inventory project (lmb-test-stockroom).
  *
  * This is read-only from the website's perspective — we only pull
  * stock levels from the RTDB and write them into the main Firestore.
  * The legacy app's auth is signed into separately using the same
- * Google account (lyricalmyricalbooks@gmail.com).
+ * Google account (owner@example.com).
  */
 import { initializeApp, getApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 import { getAuth } from "firebase/auth";
 
-const LEGACY_APP_NAME = "lyricalmyrical-legacy";
+const LEGACY_APP_NAME = "press-legacy";
 
 const legacyConfig = {
   apiKey: "AIzaTestStockroomKeyNotReal000000000000",

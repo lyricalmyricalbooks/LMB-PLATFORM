@@ -71,7 +71,7 @@ jobs:
           CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
         run: |
           set -euo pipefail
-          # Hosts are case-insensitive; "Lyricalmyricalbooks.com" means lyricalmyricalbooks.com.
+          # Hosts are case-insensitive; "Yourpress.example" means yourpress.example.
           CUSTOM_SITE_URL="$(printf '%s' "$CUSTOM_SITE_URL" | tr '[:upper:]' '[:lower:]')"
           url="${CUSTOM_SITE_URL%/}"
           if [ -n "$url" ]; then

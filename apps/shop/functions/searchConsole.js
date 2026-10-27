@@ -10,7 +10,7 @@ const API = "https://searchconsole.googleapis.com/webmasters/v3/";
 const INSPECT_API = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
 const MAX_INSPECT = 30;
 const SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
-const SHOP_HOST = "lyricalmyricalbooks.com";
+const SHOP_HOST = "yourpress.example";
 
 /** A Search Console property name as Google writes it, or "" when it isn't one. */
 function cleanSite(value) {

@@ -19,7 +19,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { endPrerenderedHandoff, prerenderedHtml, whenPrerenderedReady } from "./lib/prerenderedPage";
 import { preloadSiteData } from "./features/site/useSiteData";
 
-// import.meta.env.BASE_URL is the Vite `base` config (e.g. "/LyricalmyricalWebsite/").
+// import.meta.env.BASE_URL is the Vite `base` config (e.g. "/shop/").
 // Strip the trailing slash so React Router treats it as a basename.
 const ROUTER_BASENAME = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
 

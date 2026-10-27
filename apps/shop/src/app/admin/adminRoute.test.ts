@@ -79,7 +79,7 @@ describe("admin route ↔ hash", () => {
   });
 
   it("names the browser tab after the page", () => {
-    expect(adminDocumentTitle("Orders")).toBe("Orders · Lyricalmyrical admin");
+    expect(adminDocumentTitle("Orders")).toBe("Orders · Shop admin");
   });
   it("keeps the Overview's own sub tab in the address", () => {
     expect(routeFromHash("#overview/visitors/move")).toEqual({ tab: "overview" });

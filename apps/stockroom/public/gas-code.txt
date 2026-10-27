@@ -1,4 +1,4 @@
-/* Lyricalmyrical Inventory — Unified Backend (v57)
+/* Your Press Inventory — Unified Backend (v58)
  * Features:
  *  1. Gmail scanner for Big Cartel order emails, including customer-paid shipping
  *  2. Sheets sync with:
@@ -101,7 +101,7 @@
  *      Bump flags v25-and-older as outdated.
  *  25. v27: Add OAuth 2.0 token resolution for Canada Post Developer Portal Client ID/Secret.
  *      Bump flags v26-and-older as outdated.
- *  26. v28: Rebranded to Lyricalmyrical Inventory with state-of-the-art graphical HTML email templates,
+ *  26. v28: Rebranded to Your Press Inventory with state-of-the-art graphical HTML email templates,
  *      human-readable timestamps, gold luxury masthead, and action badges. Bump flags v27-and-older as outdated.
  *  27. v29: Luxury graphical HTML email template for author payment requests (emailauthor action).
  *      Bump flags v28-and-older as outdated.
@@ -287,6 +287,10 @@
  *      write sent with deferSummary:true (more queued behind it) skips the
  *      refresh entirely. Bump flags v56-and-older as outdated so the
  *      publisher redeploys.
+ *  56. v58: the platform copy (LMB-PLATFORM apps/stockroom) names no press:
+ *      owner and sender addresses, links and the shop name are neutral
+ *      placeholders until each press's own settings replace them. Bump flags
+ *      v57-and-older as outdated so the publisher redeploys.
  */
 
 const HEADERS = [
@@ -350,8 +354,8 @@ function doGet(e) {
   const receiptModel = receiptProps.getProperty('GEMINI_MODEL') || 'gemini-2.5-flash';
   const receiptModelValid = /^[a-zA-Z0-9.-]+$/.test(receiptModel);
   return jsonOut_({
-    service: 'lyrical-sheets-webhook-v57',
-    scriptVersion: 'v57',
+    service: 'lyrical-sheets-webhook-v58',
+    scriptVersion: 'v58',
     capabilities: { reset: true, voidDeletes: true, providerEmail: true, invoiceColumn: true, getBookData: true, captureThread: true, openCallIntake: true, bounceDetection: true, senderAlias: true, mailQuota: true, ocSchedule: true, batchSync: true, bigCartelShipping: true, proxyBigCartel: true, batchEmailContent: true, cheapReceiptList: true, proxyCanadaPost: true, proxyChitChats: true, proxyZonos: true, canadaPostTracking: true, canadaPostOAuth: true, canadaPostRefund: true, graphicalEmails: true, authorPaymentEmails: true, dateOrderedRows: true, receiptExtraction: true, receiptSelfTest: true, receiptDailySweep: true, receiptBackupAi: true, pruneOrphans: true, expenseRows: true, pruneDuplicates: true, renameBook: true, deferSummary: true },
     receiptAi: {
       geminiApiKey: !!receiptProps.getProperty('GEMINI_API_KEY'),
@@ -1115,7 +1119,7 @@ function doPost(e) {
         const clean_ = (s) => String(s == null ? '' : s).replace(/[\x00-\x1F\x7F]+/g, ' ').trim();
         const kind = clean_(d.kind || 'Submission');
         const needsAction = /approval|payment|payout|transfer|reimburse/i.test(kind);
-        const prefix = needsAction ? '[ACTION REQUIRED]' : '[Lyricalmyrical Inventory]';
+        const prefix = needsAction ? '[ACTION REQUIRED]' : '[Your Press Inventory]';
         const subject = `${prefix} ${kind} awaiting approval — ${clean_(d.bookTitle)}`;
         const intro = needsAction
           ? `An author submission requires your action: ${kind}.`
@@ -1145,7 +1149,7 @@ function doPost(e) {
           data: d.data || {}
         });
         MailApp.sendEmail({
-          to: 'lyricalmyricalbooks@gmail.com',
+          to: 'owner@example.com',
           subject: subject,
           body: body,
           htmlBody: htmlBody
@@ -1164,7 +1168,7 @@ function doPost(e) {
         const username = d.username;
         const password = d.password;
         const method = d.method || 'GET';
-        const userAgent = d.userAgent || 'LyricalInventoryProxy/1.0 (lyricalmyricalbooks@gmail.com)';
+        const userAgent = d.userAgent || 'LyricalInventoryProxy/1.0 (owner@example.com)';
 
         if (!url || !url.startsWith('https://api.bigcartel.com/')) {
           return jsonOut_({ error: 'invalid API url' });
@@ -1215,7 +1219,7 @@ function doPost(e) {
         const body = cleanBody_(d.body) ||
           ('Hi,\n\nThis is a friendly reminder regarding outstanding payments' +
            (bookTitle ? ' for "' + bookTitle + '"' : '') +
-           '. When you have a moment, please submit or forward any payments due so the ledger stays up to date.\n\nThank you,\nLyricalmyrical Books');
+           '. When you have a moment, please submit or forward any payments due so the ledger stays up to date.\n\nThank you,\nYour Press');
         const htmlBody = cleanBody_(d.htmlBody) || buildAuthorPaymentEmailHtml_({
           to: to,
           authorName: clean_(d.authorName),
@@ -3054,7 +3058,7 @@ function numOrBlank_(v) {
 // never trusted. The web API key is a public identifier, not a secret, so it
 // ships as a default here; FIREBASE_WEB_API_KEY in Script Properties overrides.
 // ─────────────────────────────────────────────────────────────
-const PUBLISHER_EMAIL = 'lyricalmyricalbooks@gmail.com';
+const PUBLISHER_EMAIL = 'owner@example.com';
 const DEFAULT_FIREBASE_WEB_API_KEY = 'AIzaTestStockroomKeyNotReal000000000000';
 
 function authErrorMessage_(err) {
@@ -3797,7 +3801,7 @@ function buildNotifyEmailHtml_(opts) {
                             LM
                           </td>
                           <td style="padding-left:12px;" valign="middle">
-                            <div style="font-family:Georgia,'Playfair Display',serif;font-weight:700;font-size:18px;letter-spacing:0.01em;color:#fdfbf7;line-height:1.2;">Lyricalmyrical Inventory</div>
+                            <div style="font-family:Georgia,'Playfair Display',serif;font-weight:700;font-size:18px;letter-spacing:0.01em;color:#fdfbf7;line-height:1.2;">Your Press Inventory</div>
                             <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.14em;color:#c8913a;text-transform:uppercase;margin-top:3px;">Publisher Operations</div>
                           </td>
                         </tr>
@@ -3863,8 +3867,8 @@ function buildNotifyEmailHtml_(opts) {
                 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top:24px;">
                   <tr>
                     <td align="center">
-                      <a href="https://lyricalmyricalbooks.github.io/lyrical-inventory/" target="_blank" style="display:inline-block;background-color:#c8913a;color:#0e0c0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.03em;text-decoration:none;padding:12px 28px;border-radius:8px;box-shadow:0 4px 14px rgba(200,145,58,0.25);">
-                        Open Lyricalmyrical Inventory →
+                      <a href="https://lmb-test-stockroom.web.app/" target="_blank" style="display:inline-block;background-color:#c8913a;color:#0e0c0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.03em;text-decoration:none;padding:12px 28px;border-radius:8px;box-shadow:0 4px 14px rgba(200,145,58,0.25);">
+                        Open Your Press Inventory →
                       </a>
                     </td>
                   </tr>
@@ -3876,10 +3880,10 @@ function buildNotifyEmailHtml_(opts) {
             <tr>
               <td style="background-color:#fbf8f2;border-top:1px solid #ece4d7;padding:18px 28px;text-align:center;">
                 <div style="color:#786f65;font-size:12px;font-weight:500;margin-bottom:4px;">
-                  Sent automatically by <strong>Lyricalmyrical Inventory</strong>
+                  Sent automatically by <strong>Your Press Inventory</strong>
                 </div>
                 <div style="color:#a89f94;font-size:11px;">
-                  Confidential operations notice for Lyricalmyrical Books management.
+                  Confidential operations notice for Your Press management.
                 </div>
               </td>
             </tr>
@@ -3937,7 +3941,7 @@ function buildAuthorPaymentEmailHtml_(opts) {
                             LM
                           </td>
                           <td style="padding-left:12px;" valign="middle">
-                            <div style="font-family:Georgia,'Playfair Display',serif;font-weight:700;font-size:18px;letter-spacing:0.01em;color:#fdfbf7;line-height:1.2;">Lyricalmyrical Books</div>
+                            <div style="font-family:Georgia,'Playfair Display',serif;font-weight:700;font-size:18px;letter-spacing:0.01em;color:#fdfbf7;line-height:1.2;">Your Press</div>
                             <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.14em;color:#c8913a;text-transform:uppercase;margin-top:3px;">Author &amp; Contributor Operations</div>
                           </td>
                         </tr>
@@ -3983,7 +3987,7 @@ function buildAuthorPaymentEmailHtml_(opts) {
                         </tr>
                         <tr>
                           <td style="padding:6px 0 4px;color:#786f65;font-size:12px;font-weight:600;vertical-align:top;text-transform:uppercase;letter-spacing:0.04em;">Publisher</td>
-                          <td style="padding:6px 0 4px;color:#110f0d;font-size:13px;font-weight:600;">Lyricalmyrical Books</td>
+                          <td style="padding:6px 0 4px;color:#110f0d;font-size:13px;font-weight:600;">Your Press</td>
                         </tr>
                       </table>
                     </td>
@@ -3992,14 +3996,14 @@ function buildAuthorPaymentEmailHtml_(opts) {
 
                 <!-- Callout Box -->
                 <div style="background-color:#fdfbf7;border:1px solid #e7ded0;border-left:4px solid #c8913a;border-radius:8px;padding:14px 18px;margin:0 0 22px;color:#1c1916;font-size:13px;line-height:1.55;">
-                  Please visit your author portal in Lyricalmyrical Inventory to forward any collected reader payments, record off-app sales, or verify your direct payout link.
+                  Please visit your author portal in Your Press Inventory to forward any collected reader payments, record off-app sales, or verify your direct payout link.
                 </div>
 
                 <!-- Action CTA -->
                 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top:24px;">
                   <tr>
                     <td align="center">
-                      <a href="https://lyricalmyricalbooks.github.io/lyrical-inventory/" target="_blank" style="display:inline-block;background-color:#c8913a;color:#0e0c0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.03em;text-decoration:none;padding:12px 28px;border-radius:8px;box-shadow:0 4px 14px rgba(200,145,58,0.25);">
+                      <a href="https://lmb-test-stockroom.web.app/" target="_blank" style="display:inline-block;background-color:#c8913a;color:#0e0c0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.03em;text-decoration:none;padding:12px 28px;border-radius:8px;box-shadow:0 4px 14px rgba(200,145,58,0.25);">
                         Open Author Portal →
                       </a>
                     </td>
@@ -4012,10 +4016,10 @@ function buildAuthorPaymentEmailHtml_(opts) {
             <tr>
               <td style="background-color:#fbf8f2;border-top:1px solid #ece4d7;padding:18px 28px;text-align:center;">
                 <div style="color:#786f65;font-size:12px;font-weight:500;margin-bottom:4px;">
-                  Sent via <strong>Lyricalmyrical Inventory</strong> on behalf of <strong>Lyricalmyrical Books</strong>
+                  Sent via <strong>Your Press Inventory</strong> on behalf of <strong>Your Press</strong>
                 </div>
                 <div style="color:#a89f94;font-size:11px;">
-                  Thank you for being part of the Lyricalmyrical Books creator community.
+                  Thank you for being part of the Your Press creator community.
                 </div>
               </td>
             </tr>
@@ -4031,14 +4035,14 @@ function buildAuthorPaymentEmailHtml_(opts) {
 // Outbound email — provider-agnostic sender
 //
 // By default email goes out through MailApp, which Google forces to send from
-// the account that owns this script (e.g. lyricalmyricalbooks@gmail.com). To
+// the account that owns this script (e.g. owner@example.com). To
 // make payment-request emails come from a neutral "the app" address instead,
 // configure a transactional email provider in this script's Script Properties
 // (Project Settings ▸ Script Properties, or run configureMail_ once):
 //
 //   MAIL_PROVIDER   resend | brevo | sendgrid | mailgun | postmark
 //   MAIL_API_KEY    the provider API key / server token
-//   MAIL_FROM       a verified sender address, e.g. noreply@lyricalmyrical.app
+//   MAIL_FROM       a verified sender address, e.g. noreply@example.com
 //   MAIL_FROM_NAME  display name shown to recipients (optional, default below)
 //   MAIL_REPLY_TO   where replies should go (optional; leave unset to keep the
 //                   publisher's personal address hidden)
@@ -4054,7 +4058,7 @@ function sendMail_(opts) {
   const provider = String(props.getProperty('MAIL_PROVIDER') || '').trim().toLowerCase();
   const apiKey = String(props.getProperty('MAIL_API_KEY') || '').trim();
   const fromEmail = String(props.getProperty('MAIL_FROM') || '').trim();
-  const fromName = String(props.getProperty('MAIL_FROM_NAME') || 'Lyricalmyrical Inventory').trim();
+  const fromName = String(props.getProperty('MAIL_FROM_NAME') || 'Your Press Inventory').trim();
   const replyTo = String(opts.replyTo || props.getProperty('MAIL_REPLY_TO') || '').trim();
   const to = String(opts.to || '').trim();
   const subject = String(opts.subject || '');
@@ -4207,8 +4211,8 @@ function configureMail_() {
   const cfg = {
     MAIL_PROVIDER: '',   // resend | brevo | sendgrid | mailgun | postmark
     MAIL_API_KEY: '',    // provider API key / server token
-    MAIL_FROM: '',       // verified sender, e.g. noreply@lyricalmyrical.app
-    MAIL_FROM_NAME: 'Lyricalmyrical Inventory',
+    MAIL_FROM: '',       // verified sender, e.g. noreply@example.com
+    MAIL_FROM_NAME: 'Your Press Inventory',
     MAIL_REPLY_TO: '',   // optional
     MAIL_DOMAIN: '',     // Mailgun only
     MAIL_REGION: ''      // Mailgun only: "eu" or blank for US
@@ -4473,7 +4477,7 @@ function ocSendDigest_(freshRows, nameByEmail) {
       to: me,
       subject: 'Open Call: ' + freshRows.length + ' update' + (freshRows.length === 1 ? '' : 's') + ' to review',
       body: 'The scheduled Gmail scan found:\n\n' + lines.join('\n') +
-        '\n\nNothing has been applied automatically. Open Lyricalmyrical Inventory → Open Call → "Review scan results" to approve or dismiss each one.'
+        '\n\nNothing has been applied automatically. Open Your Press Inventory → Open Call → "Review scan results" to approve or dismiss each one.'
     });
   } catch (_) {}
 }

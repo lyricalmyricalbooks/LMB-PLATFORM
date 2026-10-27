@@ -1,4 +1,4 @@
-// ESLint flat config for the lyrical-inventory app.
+// ESLint flat config for the stockroom app.
 // Rules are deliberately conservative so the existing codebase passes today,
 // while still catching genuine bugs (typo'd identifiers, accidental globals,
 // loose equality on null checks, etc.).

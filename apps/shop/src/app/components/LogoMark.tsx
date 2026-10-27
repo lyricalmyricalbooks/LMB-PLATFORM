@@ -36,7 +36,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
   const logoColor = design?.logoColor;
   const text = design?.logoText ?? defaultText;
 
-  // Two-part wordmark ("Lyricalmyrical Books"): both words share the same
+  // Two-part wordmark ("Your Press"): both words share the same
   // size and (heading) font; the second word can be muted.
   if (design?.wordmarkStyle === "two-part") {
     const size = design?.wordmarkSize ?? 1.75;
@@ -53,7 +53,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
           ...(logoColor ? { color: logoColor } : {}),
         }}
       >
-        <span data-studio-style-text="wordmarkPrimary">{design?.wordmarkPrimary ?? "Lyricalmyrical"}</span>
+        <span data-studio-style-text="wordmarkPrimary">{design?.wordmarkPrimary ?? "Your"}</span>
         <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(design, 0.56)}>
           {design?.wordmarkSecondary ?? "Books"}
         </span>

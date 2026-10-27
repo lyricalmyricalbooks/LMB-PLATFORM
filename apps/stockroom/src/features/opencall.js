@@ -327,7 +327,7 @@ function renderOcBulkModalContent(retryMode = false) {
       <div style="display:grid;grid-template-columns:1fr 120px 140px;gap:12px;align-items:end;margin-bottom:14px;">
         <div>
           <label style="font-size:var(--text-xs);color:var(--text3);font-weight:600;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.04em;">Reply-To (optional)</label>
-          <input id="oc-bulk-replyto" type="email" placeholder="e.g. hello@lyricalmyricalbooks.com" style="width:100%;padding:8px 12px;font-size:var(--text-sm);background:var(--input-bg);color:var(--text);border:var(--stroke-hair) solid var(--border);border-radius:var(--r);box-sizing:border-box;">
+          <input id="oc-bulk-replyto" type="email" placeholder="e.g. hello@example.com" style="width:100%;padding:8px 12px;font-size:var(--text-sm);background:var(--input-bg);color:var(--text);border:var(--stroke-hair) solid var(--border);border-radius:var(--r);box-sizing:border-box;">
         </div>
         <div>
           <label style="font-size:var(--text-xs);color:var(--text3);font-weight:600;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.04em;">Deadline ({{date}})</label>
@@ -798,24 +798,24 @@ const OC_TMPL_TABS = [
 function ocDefaultTemplates_(title) {
   return {
     selectionSent: {
-      subject: `[Selected] Lyricalmyrical Collective Open Call`,
-      body: `Hi {{name}},\n\nCongratulations! Your work has been selected from our open call to be featured in our upcoming project. We're thrilled to include you!\n\nWe are now entering the layout phase and require one initial piece of info:\n1. The exact name you want to use in the credit index.\n\nPlease reply to this email to let us know.\n\nWarm regards,\nLyricalmyrical Books`
+      subject: `[Selected] Your Press Collective Open Call`,
+      body: `Hi {{name}},\n\nCongratulations! Your work has been selected from our open call to be featured in our upcoming project. We're thrilled to include you!\n\nWe are now entering the layout phase and require one initial piece of info:\n1. The exact name you want to use in the credit index.\n\nPlease reply to this email to let us know.\n\nWarm regards,\nYour Press`
     },
     cmykSent: {
-      subject: `[Files Requested] Lyricalmyrical Open Call - ${title}`,
-      body: `Hi {{name}},\n\nWe are now preparing the print-ready files and require your high-resolution artwork.\n\nPlease send us your files (CMYK profile, 300 DPI, with 3mm bleed) as soon as possible.\n\nThank you again!\n\nWarm regards,\nLyricalmyrical Books`
+      subject: `[Files Requested] Your Press Open Call - ${title}`,
+      body: `Hi {{name}},\n\nWe are now preparing the print-ready files and require your high-resolution artwork.\n\nPlease send us your files (CMYK profile, 300 DPI, with 3mm bleed) as soon as possible.\n\nThank you again!\n\nWarm regards,\nYour Press`
     },
     preorderSent: {
-      subject: `[Pre-orders Open] Lyricalmyrical Collective Project - ${title}`,
-      body: `Hi {{name}},\n\nWe are thrilled to announce that pre-orders for the collective project are now officially open!\n\nAs selected contributor, you receive a special 50% discount on any number of copies. Use code LMBCOLLECTIVE at checkout:\nhttps://www.lyricalmyricalbooks.com/product/collective-photobook\n\nThank you for being part of this project!\n\nWarm regards,\nLyricalmyrical Books`
+      subject: `[Pre-orders Open] Your Press Collective Project - ${title}`,
+      body: `Hi {{name}},\n\nWe are thrilled to announce that pre-orders for the collective project are now officially open!\n\nAs selected contributor, you receive a special 50% discount on any number of copies. Use code LMBCOLLECTIVE at checkout:\nhttps://www.yourpress.example/product/collective-photobook\n\nThank you for being part of this project!\n\nWarm regards,\nYour Press`
     },
     nudgeCredit: {
       subject: `Quick reminder — your credit name for {{project}}`,
-      body: `Hi {{name}},\n\nJust a gentle reminder — we still need the exact name you'd like printed in the credit index for {{project}}.\n\nCould you reply to this email with it when you have a moment?\n\nThank you!\n\nWarm regards,\nLyricalmyrical Books`
+      body: `Hi {{name}},\n\nJust a gentle reminder — we still need the exact name you'd like printed in the credit index for {{project}}.\n\nCould you reply to this email with it when you have a moment?\n\nThank you!\n\nWarm regards,\nYour Press`
     },
     nudgeFiles: {
       subject: `Quick reminder — your files for {{project}}`,
-      body: `Hi {{name}},\n\nA friendly reminder that we're still waiting on your high-resolution files for {{project}} (CMYK profile, 300 DPI, with 3mm bleed).\n\nIf you've already sent them, please ignore this — otherwise just reply to this email with them attached.\n\nThank you!\n\nWarm regards,\nLyricalmyrical Books`
+      body: `Hi {{name}},\n\nA friendly reminder that we're still waiting on your high-resolution files for {{project}} (CMYK profile, 300 DPI, with 3mm bleed).\n\nIf you've already sent them, please ignore this — otherwise just reply to this email with them attached.\n\nThank you!\n\nWarm regards,\nYour Press`
     },
   };
 }
@@ -2010,7 +2010,7 @@ function ocAutomationHtml_(sched, lastScannedVal) {
             <datalist id="oc-alias-options">${ocAliasCache.map(a => `<option value="${escapeHtml(a)}"></option>`).join('')}</datalist>
           </label>
           <label class="oc-field"><span>Display name (optional)</span>
-            <input id="oc-from-name" type="text" placeholder="e.g. Lyricalmyrical Books" value="${escapeHtml(ocFromName)}" oninput="ocSaveSenderConfig()">
+            <input id="oc-from-name" type="text" placeholder="e.g. Your Press" value="${escapeHtml(ocFromName)}" oninput="ocSaveSenderConfig()">
           </label>
           <button type="button" class="btn sm" onclick="ocLoadSenderAliases()" ${sheetsUrl ? '' : 'disabled'}>↻ Load my Gmail aliases</button>
           <div class="oc-add-hint">Must be a verified Gmail “Send mail as” address (Gmail → Settings → Accounts). Sending from your own domain means fewer emails bounce or land in spam, and replies still thread. Leave blank to send from your Gmail.</div>
@@ -2965,14 +2965,14 @@ function ocComposeStageEmail(cId, stageKey) {
     body = ocMergeTemplate(ocTemplateBodyHtml_(tmpl.body), c, { project: proj.title, date: dl || 'July 15th' });
   } else {
     if (stageKey === 'selectionSent') {
-      subject = `[Selected] Lyricalmyrical Collective Open Call`;
-      body = ocTemplateBodyHtml_(`Hi ${c.name || 'Artist'},\n\nCongratulations! Your work has been selected from our open call to be featured in our upcoming project. We're thrilled to include you!\n\nWe are now entering the layout phase and require one initial piece of info:\n1. The exact name you want to use in the credit index.\n\nPlease reply to this email to let us know.\n\nWarm regards,\nLyricalmyrical Books`);
+      subject = `[Selected] Your Press Collective Open Call`;
+      body = ocTemplateBodyHtml_(`Hi ${c.name || 'Artist'},\n\nCongratulations! Your work has been selected from our open call to be featured in our upcoming project. We're thrilled to include you!\n\nWe are now entering the layout phase and require one initial piece of info:\n1. The exact name you want to use in the credit index.\n\nPlease reply to this email to let us know.\n\nWarm regards,\nYour Press`);
     } else if (stageKey === 'cmykSent') {
-      subject = `[Files Requested] Lyricalmyrical Open Call - ${proj.title}`;
-      body = ocTemplateBodyHtml_(`Hi ${c.name || 'Artist'},\n\nWe are now preparing the print-ready files and require your high-resolution artwork.\n\nPlease send us your files (CMYK profile, 300 DPI, with 3mm bleed) as soon as possible.\n\nThank you again!\n\nWarm regards,\nLyricalmyrical Books`);
+      subject = `[Files Requested] Your Press Open Call - ${proj.title}`;
+      body = ocTemplateBodyHtml_(`Hi ${c.name || 'Artist'},\n\nWe are now preparing the print-ready files and require your high-resolution artwork.\n\nPlease send us your files (CMYK profile, 300 DPI, with 3mm bleed) as soon as possible.\n\nThank you again!\n\nWarm regards,\nYour Press`);
     } else if (stageKey === 'preorderSent') {
-      subject = `[Pre-orders Open] Lyricalmyrical Collective Project - ${proj.title}`;
-      body = ocTemplateBodyHtml_(`Hi ${c.name || 'Artist'},\n\nWe are thrilled to announce that pre-orders for the collective project are now officially open!\n\nAs selected contributor, you receive a special 50% discount on any number of copies. Use code LMBCOLLECTIVE at checkout:\nhttps://www.lyricalmyricalbooks.com/product/collective-photobook\n\nThank you for being part of this project!\n\nWarm regards,\nLyricalmyrical Books`);
+      subject = `[Pre-orders Open] Your Press Collective Project - ${proj.title}`;
+      body = ocTemplateBodyHtml_(`Hi ${c.name || 'Artist'},\n\nWe are thrilled to announce that pre-orders for the collective project are now officially open!\n\nAs selected contributor, you receive a special 50% discount on any number of copies. Use code LMBCOLLECTIVE at checkout:\nhttps://www.yourpress.example/product/collective-photobook\n\nThank you for being part of this project!\n\nWarm regards,\nYour Press`);
     } else {
       subject = `Regarding Open Call - ${proj.title}`;
       body = ocTemplateBodyHtml_(`Hi ${c.name || 'Artist'},\n\n...`);
@@ -3502,7 +3502,7 @@ async function ocToggleInlineThread(cId, threadId, title) {
     }
 
     const msgsHtml = data.messages.map((msg, idx) => {
-      const isMe = msg.from.toLowerCase().includes('lyricalmyrical') || msg.from.toLowerCase().includes('me');
+      const isMe = msg.from.toLowerCase().includes('yourpress') || msg.from.toLowerCase().includes('me');
       const dateStr = formatDateTime(msg.date);
       return `
         <div style="margin-bottom:12px;border-bottom:var(--stroke-hair) solid rgba(255,255,255,0.05);padding-bottom:8px;${idx === data.messages.length - 1 ? 'border-bottom:none;margin-bottom:0;padding-bottom:0;' : ''}">

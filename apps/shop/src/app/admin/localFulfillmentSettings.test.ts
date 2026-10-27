@@ -31,24 +31,24 @@ const config = { enabled: false, pickupLocations: [], deliveryZones: [] };
 beforeEach(() => { setDoc.mockClear(); taskAuth.currentUser = null; });
 describe('local fulfillment persistence authorization', () => {
  it('rejects anonymous, other accounts and unverified owner before writing', async () => {
-  for (const user of [null, { email: 'other@example.com', emailVerified: true }, { email: 'lyricalmyricalbooks@gmail.com', emailVerified: false }]) {
+  for (const user of [null, { email: 'other@example.com', emailVerified: true }, { email: 'owner@example.com', emailVerified: false }]) {
    taskAuth.currentUser = user;
    await expect(adminApi.updateLocalFulfillment(config)).rejects.toThrow('Unauthorized');
   }
   expect(setDoc).not.toHaveBeenCalled();
  });
  it('saves only the local fulfillment field for the verified owner', async () => {
-  taskAuth.currentUser = { email: 'lyricalmyricalbooks@gmail.com', emailVerified: true };
+  taskAuth.currentUser = { email: 'owner@example.com', emailVerified: true };
   await adminApi.updateLocalFulfillment(config);
   expect(setDoc).toHaveBeenCalledWith({ path: 'settings/website' }, { localFulfillment: config }, { mergeFields: ['localFulfillment'] });
  });
  it('rejects invalid enabled configuration before writing', async () => {
-  taskAuth.currentUser = { email: 'lyricalmyricalbooks@gmail.com', emailVerified: true };
+  taskAuth.currentUser = { email: 'owner@example.com', emailVerified: true };
   await expect(adminApi.updateLocalFulfillment({ ...config, deliveryZones: [{ id: 'bad', enabled: true, name: 'Bad', price: -1, minimumSubtotal: 0, postalPrefixes: ['M6G'], postalCodes: [] }] })).rejects.toThrow('Fees');
   expect(setDoc).not.toHaveBeenCalled();
  });
  it('rejects a disabled pickup with a missing address before writing', async () => {
-  taskAuth.currentUser = { email: 'lyricalmyricalbooks@gmail.com', emailVerified: true };
+  taskAuth.currentUser = { email: 'owner@example.com', emailVerified: true };
   await expect(adminApi.updateLocalFulfillment({ ...config, pickupLocations: [{ id: 'pickup', enabled: false, name: 'Pickup', price: 0, address: null }] })).rejects.toThrow('Pickup address');
   expect(setDoc).not.toHaveBeenCalled();
  });

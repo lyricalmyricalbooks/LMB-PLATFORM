@@ -9,8 +9,8 @@ export type HomeLayoutTemplate = {
 
 export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
   {
-    id: "lyricalmyrical-riso-noir",
-    name: "Lyricalmyrical Riso Noir",
+    id: "press-riso-noir",
+    name: "Riso Noir",
     description: "Black-and-white print-shop homepage: cover carousel, flare marquee, product grid, print-room notes and newsletter.",
     sections: [
       { type: "ProductCoverCarouselSection", settings: { title: "Books for looking / books for keeping", tagline: "Independent photography and art publishing from Toronto." } },
@@ -21,8 +21,8 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
-    id: "lyricalmyrical-riso",
-    name: "Lyricalmyrical Riso",
+    id: "press-riso",
+    name: "Riso",
     description: "A print-led storefront with a bold cover carousel, overprint-colored marquee, catalog grid and editorial notes.",
     sections: [
       { type: "ProductCoverCarouselSection", settings: { title: "Books for looking / books for keeping", tagline: "Independent photography and art publishing from Toronto." } },
@@ -33,15 +33,15 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
-    id: "lyricalmyrical-punk",
-    name: "Lyricalmyrical Punk",
+    id: "press-punk",
+    name: "Punk",
     description: "Book-cover carousel hero, scrolling marquee, releases grid, staff notes table and a featured release banner.",
     sections: [
       // The homepage header is fixed/transparent, so the full-bleed carousel
       // leads and the marquee strip sits below it (a first-section marquee
       // would collide with the header).
       { type: "ProductCoverCarouselSection", settings: {
-        title: "Lyricalmyrical Books",
+        title: "Your Press",
         tagline: "An independent publishing house based in Toronto, specializing in contemporary photography and art books.",
       } },
       { type: "MarqueeSection", settings: {
@@ -60,8 +60,8 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
-    id: "lyricalmyrical-about",
-    name: "Lyricalmyrical About",
+    id: "press-about",
+    name: "About page",
     description: "Jumbo centered headline, ephemera object row, 'Why this exists' columns and a photo + contact block — apply on an About page template.",
     sections: [
       { type: "TextContentSection", settings: {
@@ -70,17 +70,17 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
       { type: "EphemeraRowSection", settings: { align: "center" } },
       { type: "RowSection", settings: { layout: "33-67", gap: 48, verticalAlign: "top", items: [
         { kind: "text", title: "WHY THIS EXISTS", body: "" },
-        { kind: "text", title: "", body: "Lyricalmyrical Books is an independent imprint publishing contemporary photography and art books in small, considered runs. We care more about ink, paper, and sequence than trends. Independently run out of Toronto, and updated whenever there's something worth printing." },
+        { kind: "text", title: "", body: "Your Press is an independent imprint publishing contemporary photography and art books in small, considered runs. We care more about ink, paper, and sequence than trends. Independently run out of Toronto, and updated whenever there's something worth printing." },
       ] } },
       { type: "ImageWithTextSection", settings: {
         eyebrow: "CONTACT", title: "Got a manuscript, a proposal, or a question about an order?",
-        body: "Toronto, Canada", ctaText: "Email us", ctaUrl: "mailto:lyricalmyricalbooks@gmail.com", layout: "image-left",
+        body: "Toronto, Canada", ctaText: "Email us", ctaUrl: "mailto:owner@example.com", layout: "image-left",
       } },
     ],
   },
   {
-    id: "lyricalmyrical-journal",
-    name: "Lyricalmyrical Journal",
+    id: "press-journal",
+    name: "Journal",
     description: "Jumbo centered headline plus editorial article cards — apply on a Journal page template.",
     sections: [
       { type: "TextContentSection", settings: {

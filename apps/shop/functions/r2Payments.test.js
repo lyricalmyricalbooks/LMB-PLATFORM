@@ -74,7 +74,7 @@ function harness({ docs = {}, intents = {}, charge = null, refunds = [], stripeR
   const admin = {
     initializeApp() {},
     firestore: Object.assign(() => db, { FieldValue }),
-    auth: () => ({ verifyIdToken: async () => ({ email: 'lyricalmyricalbooks@gmail.com', email_verified: true, uid: 'admin1' }) }),
+    auth: () => ({ verifyIdToken: async () => ({ email: 'owner@example.com', email_verified: true, uid: 'admin1' }) }),
   };
   const wrap = (...args) => args.at(-1);
   const Stripe = class {

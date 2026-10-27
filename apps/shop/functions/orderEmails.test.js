@@ -60,14 +60,14 @@ test('a card order sends nothing when it is created (it is not paid yet)', async
 test('a manual-payment order tells the shop once when placed', async () => {
   const app = harness();
   await app.exports.onOrderCreated(created(order({ paymentStatus: 'pending', paymentMethod: 'e-Transfer' })));
-  expect(app.sent.filter((m) => m.to === 'lyricalmyricalbooks@gmail.com' && /\[NEW ORDER\]/.test(m.subject)).length).toBe(1);
+  expect(app.sent.filter((m) => m.to === 'owner@example.com' && /\[NEW ORDER\]/.test(m.subject)).length).toBe(1);
 });
 
 test('becoming paid sends exactly one customer email and one shop email', async () => {
   const app = harness();
   await app.exports.onOrderUpdated(updated(order({ paymentStatus: 'unpaid' }), order({ paymentStatus: 'paid' })));
   const toCustomer = app.sent.filter((m) => m.to === 'reader@example.com');
-  const toShop = app.sent.filter((m) => m.to === 'lyricalmyricalbooks@gmail.com');
+  const toShop = app.sent.filter((m) => m.to === 'owner@example.com');
   expect(toCustomer.length).toBe(1);
   expect(toShop.length).toBe(1);
   expect(toShop[0].subject).toMatch(/^\[NEW ORDER\] AB-1 Â· paid/);
@@ -82,7 +82,7 @@ test('"Resend order confirmation" sends the customer one more copy per request, 
   await app.exports.onOrderUpdated(updated(paid, stamped));
   await app.exports.onOrderUpdated(updated(stamped, stamped)); // unrelated later update: no resend
   expect(app.sent.filter((m) => m.to === 'reader@example.com').length).toBe(1);
-  expect(app.sent.filter((m) => m.to === 'lyricalmyricalbooks@gmail.com').length).toBe(0);
+  expect(app.sent.filter((m) => m.to === 'owner@example.com').length).toBe(0);
   await app.exports.onOrderUpdated(updated(order({ paymentStatus: 'unpaid' }), order({ paymentStatus: 'unpaid', confirmationEmailRequestedAt: 'x' })));
   expect(app.sent.filter((m) => m.to === 'reader@example.com').length).toBe(1);
 });
@@ -101,7 +101,7 @@ test('the customer email total is exactly what the card was charged, not total Ã
 test('a sandbox order marks the shop email [TEST]', async () => {
   const app = harness();
   await app.exports.onOrderUpdated(updated(order({ paymentStatus: 'unpaid' }), order({ paymentStatus: 'paid', isTest: true, sandboxPayment: true })));
-  expect(app.sent.find((m) => m.to === 'lyricalmyricalbooks@gmail.com').subject).toMatch(/^\[TEST\] \[NEW ORDER\]/);
+  expect(app.sent.find((m) => m.to === 'owner@example.com').subject).toMatch(/^\[TEST\] \[NEW ORDER\]/);
 });
 
 test('the card payment asks Stripe for no receipt email', () => {

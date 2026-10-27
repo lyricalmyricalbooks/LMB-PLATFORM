@@ -30,7 +30,7 @@ export const THEME_APPLIED_KEYS = [
 export const THEME_LIBRARY = [
   {
     id: RISO_NOIR_ID,
-    name: "Lyricalmyrical Riso Noir",
+    name: "Riso Noir",
     mood: "Riso Press on black: white ink, flare-red accent, square outlined objects and flat offset shadows",
     palettePreset: "dark",
     font: "Archivo", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "minimal",
@@ -46,15 +46,15 @@ export const THEME_LIBRARY = [
     },
   },
   {
-    id: "lyricalmyrical-riso",
-    name: "Lyricalmyrical Riso (Paper)",
+    id: "press-riso",
+    name: "Riso Paper",
     mood: "Riso Press: flat ink on newsprint, flare-red accent, square outlined objects and offset shadows",
     palettePreset: "warm",
     font: "Archivo", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "minimal",
     productCardStyle: "editorial", productHoverEffect: "lift", imageAspectRatio: "3:4", productImageLayout: "grid",
     productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "ADD TO BAG",
     catalogLayoutStyle: "reference", showCatalogControls: true,
-    homeLayoutTemplate: "lyricalmyrical-riso",
+    homeLayoutTemplate: "press-riso",
     global: {
       themeStyle: "riso", backgroundColor: "#faf6ec", textColor: "#100f0d", primaryColor: "#e8402a",
       secondaryColor: "#1b3fe0", surfaceColor: "#f0e9da", surfaceRaisedColor: "#ffffff",
@@ -72,14 +72,14 @@ export const THEME_LIBRARY = [
       cartDrawerBg: "#faf6ec", cartDrawerText: "#100f0d", cartDrawerMuted: "#5f5950",
       cartDrawerSurface: "#ffffff", cartDrawerBorder: "#100f0d", pageChromeStyle: "theme",
       navStyle: "default", wordmarkStyle: "two-part",
-      wordmarkPrimary: "Lyricalmyrical", wordmarkSecondary: "Books", wordmarkSecondaryMuted: false,
+      wordmarkPrimary: "Your", wordmarkSecondary: "Press", wordmarkSecondaryMuted: false,
       wordmarkSize: 1.8, wordmarkWeight: 400, showCategoryChips: true, categoryChipShowCounts: true,
       catalogHeading: "Printed matter", productBorderRadius: 0, showCatalogCount: true, showQtyStepper: true, productDescriptionStyle: "designed",
     },
   },
   {
-    id: "lyricalmyrical-punk",
-    name: "Lyricalmyrical Punk",
+    id: "press-punk",
+    name: "Punk",
     mood: "Violet-on-black editorial punk — serif drama, sticker nav, film grain",
     palettePreset: "punk",
     font: "Inter", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "moderate",
@@ -87,7 +87,7 @@ export const THEME_LIBRARY = [
     productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 2, productCTA: "ADD TO BAG",
     catalogLayoutStyle: "modern", showCatalogControls: true,
     // Installed on request after applying the preset (never silently overwrites sections).
-    homeLayoutTemplate: "lyricalmyrical-punk",
+    homeLayoutTemplate: "press-punk",
     // Applied to the root design AND both page surfaces so every storefront
     // surface (homepage, catalog, product page, cart drawer, footer, custom
     // pages) inherits the full token set. Each key remains individually
@@ -114,7 +114,7 @@ export const THEME_LIBRARY = [
       cartDrawerSurface: "#1c1a22", cartDrawerBorder: "rgba(255,255,255,0.12)",
       footerLayout: "4col", footerBg: "#08070c", pageChromeStyle: "theme",
       navStyle: "stickers", wordmarkStyle: "two-part",
-      wordmarkPrimary: "Lyricalmyrical", wordmarkSecondary: "Books",
+      wordmarkPrimary: "Your", wordmarkSecondary: "Press",
       wordmarkSecondaryMuted: true, wordmarkSize: 1.75, wordmarkWeight: 600,
       navPillRadius: "14px 4px 14px 4px", navPillRotate: true, navPillActivePalette: true,
       showCategoryChips: true, categoryChipShowCounts: true,
@@ -122,7 +122,7 @@ export const THEME_LIBRARY = [
       showQtyStepper: true, productDescriptionStyle: "designed",
     },
   },
-  { id: "lyrical-photo-reference", name: "Lyrical Photo Reference", mood: "Black reference storefront with oversized masthead, ruled nav and three-column book grid", palettePreset: "cyber", font: "Inter", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "1:1", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "VIEW", catalogLayoutStyle: "reference", showCatalogControls: false, global: { catalogMastheadText: "Lyricalmyrical Books", catalogHeaderWidth: 1180, catalogHeaderRuleWidth: 4, catalogGridGap: 18, catalogTitleTransform: "none", catalogImageFit: "cover", showAnnouncement: false, showCollectionMeta: false, referenceCategoryLimit: 1, catalogCartPlacement: "top-right", catalogMastheadDesktop: 58, catalogMastheadMobile: 38, catalogNavGapDesktop: 40, catalogNavGapMobile: 18, catalogImageFocalX: 50, catalogImageFocalY: 50, headerBg: "#000000", headerColor: "#ffffff", borderColor: "#B1B1AA" } },
+  { id: "lyrical-photo-reference", name: "Lyrical Photo Reference", mood: "Black reference storefront with oversized masthead, ruled nav and three-column book grid", palettePreset: "cyber", font: "Inter", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "1:1", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "VIEW", catalogLayoutStyle: "reference", showCatalogControls: false, global: { catalogMastheadText: "Your Press", catalogHeaderWidth: 1180, catalogHeaderRuleWidth: 4, catalogGridGap: 18, catalogTitleTransform: "none", catalogImageFit: "cover", showAnnouncement: false, showCollectionMeta: false, referenceCategoryLimit: 1, catalogCartPlacement: "top-right", catalogMastheadDesktop: 58, catalogMastheadMobile: 38, catalogNavGapDesktop: 40, catalogNavGapMobile: 18, catalogImageFocalX: 50, catalogImageFocalY: 50, headerBg: "#000000", headerColor: "#ffffff", borderColor: "#B1B1AA" } },
   { id: "editorial-luxe", name: "Editorial Luxe", mood: "High-contrast serif with generous spacing", palettePreset: "light", font: "Playfair Display", fontSize: "md", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 12, productCTA: "READ MORE" },
   { id: "night-neon", name: "Night Neon", mood: "Dark cinematic storefront with energetic accents", palettePreset: "cyber", font: "Space Mono", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "card", productHoverEffect: "lift", imageAspectRatio: "2:3", productImageLayout: "slider", productContentPosition: "left", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 4, productCTA: "BUY NOW" },
   { id: "earthy-studio", name: "Earthy Studio", mood: "Warm lifestyle brand with artisan feel", palettePreset: "warm", font: "Fraunces", fontSize: "md", cornerStyle: "rounded", buttonStyle: "soft", animationLevel: "moderate", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "stacked", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 14, productCTA: "DISCOVER" },

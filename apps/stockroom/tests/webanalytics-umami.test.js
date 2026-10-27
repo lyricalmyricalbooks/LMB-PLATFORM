@@ -34,7 +34,7 @@ describe('Umami Analytics API Helper Functions', () => {
 
   describe('parseUmamiShareUrl', () => {
     it('correctly extracts origin and shareId from Umami Cloud share URL', () => {
-      const result = parseUmamiShareUrl('https://cloud.umami.is/share/1a2b3c4d-5e6f-7a8b-9c0d/lyricalmyricalbooks.com');
+      const result = parseUmamiShareUrl('https://cloud.umami.is/share/1a2b3c4d-5e6f-7a8b-9c0d/yourpress.example');
       expect(result).toEqual({
         origin: 'https://cloud.umami.is',
         shareId: '1a2b3c4d-5e6f-7a8b-9c0d'

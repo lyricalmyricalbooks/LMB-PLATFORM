@@ -10,8 +10,8 @@
 //   Optional: --only books,orders   (collection ids; "group:private" for book private fields)
 //             --project <id>        (default: the project in .firebaserc / GCLOUD_PROJECT)
 //
-// The file downloaded from Settings › General › Backups & export (lyricalmyrical-backup-YYYY-MM-DD.json) works too:
-//     node scripts/restore-json-backup.mjs ./lyricalmyrical-backup-2026-10-11.json   (then --apply)
+// The file downloaded from Settings › General › Backups & export (press-backup-YYYY-MM-DD.json) works too:
+//     node scripts/restore-json-backup.mjs ./press-backup-2026-10-11.json   (then --apply)
 // With a downloaded file, --only takes collection names (e.g. books,orders).
 //
 // A managed export (backups/YYYY-MM-DD/export) is restored with `gcloud firestore import` instead.

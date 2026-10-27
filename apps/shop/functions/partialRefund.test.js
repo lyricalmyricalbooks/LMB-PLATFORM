@@ -48,7 +48,7 @@ function harness() {
     async get() { return { docs: [] }; },
   }; }, async runTransaction(fn) { const queued = []; const result = await fn({ get: ref => ref.get(), update: (ref, value) => queued.push(() => ref.update(value)), set: (ref, value) => queued.push(() => ref.set(value)) }); for (const apply of queued) await apply(); return result; } };
   const firestore = () => db; firestore.FieldValue = { increment: value => value };
-  const admin = { initializeApp() {}, firestore, auth: () => ({ verifyIdToken: async () => ({ email: "lyricalmyricalbooks@gmail.com", email_verified: true }) }) };
+  const admin = { initializeApp() {}, firestore, auth: () => ({ verifyIdToken: async () => ({ email: "owner@example.com", email_verified: true }) }) };
   class Stripe { constructor() { this.refunds = { create: async (params, opts) => { refunds.push({ params, opts }); const left = 6000 - (docs.orders.A.refundedAmountMinor || 0); return { id: `re_${refunds.length}`, amount: params.amount ?? left, currency: "cad", status: "succeeded" }; } }; } }
   const wrap = (...args) => args.at(-1);
   const mockRequire = name => name === "firebase-admin" ? admin : name === "stripe" ? Stripe : name.startsWith("firebase-functions/v2/") ? new Proxy({}, { get: () => wrap }) : name === "firebase-functions/params" ? { defineSecret: () => ({ value: () => "fake" }) } : name === "./rateLimit" ? { ...require(name), hitLimit: async () => true } : require(name);

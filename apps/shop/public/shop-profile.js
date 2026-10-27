@@ -1,7 +1,7 @@
 // This shop's profile (src/lib/shopProfile.ts). The platform writes one per shop from LMB-PLATFORM/profile; keep it equal to DEFAULT_SHOP_PROFILE.
 window.__SHOP_PROFILE__ = {
   "version": 1,
-  "shopId": "lyricalmyrical",
+  "shopId": "lmb-test-shop",
   "firebase": {
     "apiKey": "AIzaTestShopKeyNotReal00000000000000000",
     "authDomain": "lmb-test-shop.firebaseapp.com",

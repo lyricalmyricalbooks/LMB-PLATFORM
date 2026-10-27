@@ -43,7 +43,7 @@ function privacyActions({
       await ref.set(pendingRecord(email, req.body?.source, new Date().toISOString()));
       const { confirmUrl, unsubscribeUrl } = await newsletterLinks(email);
       const website = (await db.collection("settings").doc("website").get()).data() || {};
-      const mail = confirmationEmail({ shopName: "Lyricalmyrical Books", confirmUrl, unsubscribeUrl, address: footerAddress(website.location) });
+      const mail = confirmationEmail({ shopName: "Your Press", confirmUrl, unsubscribeUrl, address: footerAddress(website.location) });
       await sendEmail({ queue: "newsletterConfirm", secret: RESEND_API_KEY.value(), to: email, subject: mail.subject, html: mail.html })
         .catch(err => console.warn("newsletter confirmation email failed:", err.message));
       return res.status(200).json({ ok: true });

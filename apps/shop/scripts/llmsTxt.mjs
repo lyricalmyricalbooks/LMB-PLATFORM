@@ -24,7 +24,7 @@ function bookFacts(book) {
   ].filter(Boolean).join(' · ');
 }
 
-export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date(), shopName = 'Lyricalmyrical Books' } = {}) {
+export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date(), shopName = 'Your Press' } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const info = settings?.info || {};
   const location = settings?.location || {};

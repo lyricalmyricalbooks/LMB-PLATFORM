@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from "react";
 import { orderDay } from "../lib/shopDay";
 
-// The "Website · Inventory" switcher: the website admin and the inventory app (lyricalmyricalbooks/lyrical-inventory)
+// The "Website · Inventory" switcher: the website admin and the inventory app (lyricalmyricalbooks/LMB-PLATFORM (apps/stockroom))
 // open each other. Rules shared with the inventory app's src/lib/app-switch.js (docs/INVENTORY_LINK.md › Switching
 // between the apps). Pure helpers first; the window handling takes its window as an argument so it can be tested.
 
-export const INVENTORY_APP_URL = "https://lyricalmyricalbooks.github.io/lyrical-inventory/";
+export const INVENTORY_APP_URL = "https://lmb-test-stockroom.web.app/";
 /** Each app names its own tab so the other can find it again instead of opening another one. */
 export const WEBSITE_TAB_NAME = "lm-website-admin";
 export const INVENTORY_TAB_NAME = "lm-inventory-app";

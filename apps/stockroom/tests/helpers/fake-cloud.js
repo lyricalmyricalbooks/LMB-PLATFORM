@@ -12,7 +12,7 @@
 // them as deleted. Deleting them keeps each run's catalog to its own books.
 export const DEFAULT_BOOK_IDS = ['altrove', 'hound', 'archaeology', 'sistema', 'nobody', 'collective'];
 
-export const PUBLISHER_EMAIL = 'lyricalmyricalbooks@gmail.com';
+export const PUBLISHER_EMAIL = 'owner@example.com';
 
 /**
  * @param {object[]} books          catalog entries

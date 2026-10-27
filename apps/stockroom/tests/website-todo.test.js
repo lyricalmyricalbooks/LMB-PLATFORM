@@ -39,7 +39,7 @@ describe('the website’s to-do items', () => {
       item({ id: 'b', href: 'javascript:alert(1)' }),
       item({ id: 'c', href: 'http://lmb-test-shop.web.app/admin' }),
       item({ id: 'd', href: '' }),
-      item({ id: 'e', href: 'https://www.lyricalmyricalbooks.com/admin#orders' }),
+      item({ id: 'e', href: 'https://www.yourpress.example/admin#orders' }),
     ] } });
     expect(out.map(i => i.id)).toEqual(['e']);
   });

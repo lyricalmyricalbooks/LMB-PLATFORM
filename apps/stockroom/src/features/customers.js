@@ -832,7 +832,7 @@ function openCampaignWizard(presets = null) {
     } else {
       $('c-segment').value = presets.segment || 'all-curated';
     }
-    $('c-replyto').value = presets.replyTo || 'lyricalmyricalbooks@gmail.com';
+    $('c-replyto').value = presets.replyTo || 'owner@example.com';
     $('c-body').value = presets.body || '';
     $('campaign-wizard-title').textContent = presets.title || 'Create New Email Campaign';
   } else {
@@ -844,7 +844,7 @@ function openCampaignWizard(presets = null) {
       if (prevTemp) prevTemp.remove();
       segmentSel.value = 'all-curated';
     }
-    $('c-replyto').value = 'lyricalmyricalbooks@gmail.com';
+    $('c-replyto').value = 'owner@example.com';
     $('c-body').value = '';
     $('campaign-wizard-title').textContent = 'Create New Email Campaign';
   }
@@ -1029,7 +1029,7 @@ async function editCampaignDraft(id) {
   $('c-draft-id').value = camp.id;
   $('c-subject').value = camp.subject;
   $('c-segment').value = camp.segment;
-  $('c-replyto').value = camp.replyTo || 'lyricalmyricalbooks@gmail.com';
+  $('c-replyto').value = camp.replyTo || 'owner@example.com';
   $('c-body').value = camp.body;
 
   $('campaign-wizard-title').textContent = 'Edit Campaign Draft';

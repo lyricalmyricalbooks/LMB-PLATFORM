@@ -73,7 +73,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8">
        padding:10px 16px;border:2px solid #FAF6EC;box-shadow:6px 6px 0 #FAF6EC}
 </style></head><body><div class="wrap">
   <img src="${logoData}" alt="">
-  <div><div class="kicker">Lyricalmyrical Books</div><h1>Inventory</h1>
+  <div><div class="kicker">Your Press</div><h1>Inventory</h1>
   <div class="tag">Stock, sales and shipping, even offline</div></div>
 </div></body></html>`;
 

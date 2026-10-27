@@ -47,7 +47,7 @@ function mountDestinationForm(values = {}) {
 }
 
 const TORONTO = {
-  name: 'Lyricalmyrical Books', street1: '456 Montrose Ave',
+  name: 'Your Press', street1: '456 Montrose Ave',
   city: 'Toronto', state: 'ON', zip: 'M6G 3H1', country: 'CA',
 };
 

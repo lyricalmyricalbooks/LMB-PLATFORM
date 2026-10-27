@@ -11,7 +11,7 @@ const { customsItems, needsCustoms, validHsCode } = require("./customs.js");
 const { labelRatesFor, isPurchasableRate } = require("./labelRates.js");
 const { addressMissing } = require("./shared/addressRules.js");
 
-const ADMIN = { email: "lyricalmyricalbooks@gmail.com", email_verified: true };
+const ADMIN = { email: "owner@example.com", email_verified: true };
 const DELETE = { __delete: true };
 
 const ok = body => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });

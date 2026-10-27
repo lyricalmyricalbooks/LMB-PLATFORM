@@ -55,6 +55,6 @@ describe('one site address everywhere', () => {
     const start = functions.indexOf('const ALLOWED_ORIGINS');
     const allowed = functions.slice(start, functions.indexOf('];', start));
     expect(allowed).toContain(`"${new URL(address).origin}"`);
-    expect(allowed).toContain('"https://lyricalmyricalbooks.github.io"');
+    expect(allowed).toContain('"https://yourpress.github.io"');
   });
 });

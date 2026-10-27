@@ -24,7 +24,7 @@ describe("Monday summary", () => {
     expect(countsAsSale(order("t", "2026-10-13T15:00:00Z", { isTest: true }))).toBe(false);
     expect(countsAsSale(order("s", "2026-10-13T15:00:00Z", { sandboxPayment: true }))).toBe(false);
     expect(countsAsSale(order("u", "2026-10-13T15:00:00Z", { paymentStatus: "unpaid" }))).toBe(false);
-    expect(countsAsSale(order("o", "2026-10-13T15:00:00Z", { customer: { email: "LyricalMyricalBooks@gmail.com" } }))).toBe(false);
+    expect(countsAsSale(order("o", "2026-10-13T15:00:00Z", { customer: { email: "Owner@Example.com" } }))).toBe(false);
     // A customer's order rung up on the owner's computer is a real sale.
     expect(countsAsSale(order("d", "2026-10-13T15:00:00Z", { metadata: { ownerDevice: true } }))).toBe(true);
   });
@@ -34,7 +34,7 @@ describe("Monday summary", () => {
       order("a", "2026-10-13T15:00:00Z", { items: [{ bookId: "b1", name: "Riso Book", quantity: 2 }], total: 60 }),
       order("b", "2026-10-18T23:00:00Z", { items: [{ bookId: "b2", name: "Zine <One>", quantity: 1 }] }), // Sunday evening Toronto
       order("c", "2026-10-07T15:00:00Z"),
-      order("x", "2026-10-14T15:00:00Z", { customer: { email: "lyricalmyricalbooks@gmail.com" }, total: 999 }),
+      order("x", "2026-10-14T15:00:00Z", { customer: { email: "owner@example.com" }, total: 999 }),
       order("old", "2026-09-01T15:00:00Z", { customer: { email: "a@example.com" } }),
     ];
     const daily = [{ date: "2026-10-13", visits: 100, funnel: { checkout_start: 4 } }, { date: "2026-10-06", visits: 50 }];
@@ -74,9 +74,9 @@ const deps = (fetchImpl, saved = {}) => ({
 
 describe("Search Console", () => {
   it("picks the saved property, else the shop's own domain, else the only one", () => {
-    const sites = [{ siteUrl: "https://other.example/" }, { siteUrl: "sc-domain:lyricalmyricalbooks.com" }];
+    const sites = [{ siteUrl: "https://other.example/" }, { siteUrl: "sc-domain:yourpress.example" }];
     expect(pickSite("https://other.example/", sites)).toBe("https://other.example/");
-    expect(pickSite("", sites)).toBe("sc-domain:lyricalmyricalbooks.com");
+    expect(pickSite("", sites)).toBe("sc-domain:yourpress.example");
     expect(pickSite("", [{ siteUrl: "https://only.example/" }])).toBe("https://only.example/");
     expect(pickSite("", [{ siteUrl: "https://a.example/" }, { siteUrl: "https://b.example/" }])).toBeNull();
     expect(cleanSite("javascript:alert(1)")).toBe("");
@@ -91,19 +91,19 @@ describe("Search Console", () => {
     const calls = [];
     const fetchImpl = async (url, init) => {
       calls.push({ url, body: init?.body ? JSON.parse(init.body) : null });
-      if (url.endsWith("/sites")) return reply(200, { siteEntry: [{ siteUrl: "sc-domain:lyricalmyricalbooks.com", permissionLevel: "siteRestrictedUser" }] });
+      if (url.endsWith("/sites")) return reply(200, { siteEntry: [{ siteUrl: "sc-domain:yourpress.example", permissionLevel: "siteRestrictedUser" }] });
       const body = JSON.parse(init.body);
       if (!body.dimensions) return reply(200, { rows: [{ clicks: body.startDate === RANGE.startDate ? 12 : 6, impressions: 300, ctr: 0.04, position: 8.2 }] });
-      return reply(200, { rows: [{ keys: [body.dimensions[0] === "query" ? "riso zine" : "https://lyricalmyricalbooks.com/books/x"], clicks: 5, impressions: 40, ctr: 0.125, position: 3.1 }] });
+      return reply(200, { rows: [{ keys: [body.dimensions[0] === "query" ? "riso zine" : "https://yourpress.example/books/x"], clicks: 5, impressions: 40, ctr: 0.125, position: 3.1 }] });
     };
     const { status, body } = await handleSearchConsole({ op: "report", range: RANGE }, deps(fetchImpl));
     expect(status).toBe(200);
     expect(body.connected).toBe(true);
-    expect(body.site).toBe("sc-domain:lyricalmyricalbooks.com");
+    expect(body.site).toBe("sc-domain:yourpress.example");
     expect(body.report.totals.current.clicks).toBe(12);
     expect(body.report.totals.previous.clicks).toBe(6);
     expect(body.report.queries[0]).toEqual({ key: "riso zine", clicks: 5, impressions: 40, ctr: 12.5, position: 3.1 });
-    expect(calls.some(c => c.url.includes(encodeURIComponent("sc-domain:lyricalmyricalbooks.com")))).toBe(true);
+    expect(calls.some(c => c.url.includes(encodeURIComponent("sc-domain:yourpress.example")))).toBe(true);
   });
 
   it("asks for the service account to be added when Google lists no property", async () => {
@@ -114,7 +114,7 @@ describe("Search Console", () => {
   });
 
   it("refuses a bad range and too many requests", async () => {
-    const fetchImpl = async () => reply(200, { siteEntry: [{ siteUrl: "sc-domain:lyricalmyricalbooks.com", permissionLevel: "siteOwner" }] });
+    const fetchImpl = async () => reply(200, { siteEntry: [{ siteUrl: "sc-domain:yourpress.example", permissionLevel: "siteOwner" }] });
     expect((await handleSearchConsole({ op: "report", range: { startDate: "x" } }, deps(fetchImpl))).status).toBe(400);
     expect((await handleSearchConsole({ op: "report", range: RANGE }, { ...deps(fetchImpl), allow: async () => false })).status).toBe(429);
   });
@@ -122,18 +122,18 @@ describe("Search Console", () => {
   it("checks whether book pages are in Google's index", async () => {
     const asked = [];
     const fetchImpl = async (url, init) => {
-      if (url.endsWith("/sites")) return reply(200, { siteEntry: [{ siteUrl: "sc-domain:lyricalmyricalbooks.com", permissionLevel: "siteRestrictedUser" }] });
+      if (url.endsWith("/sites")) return reply(200, { siteEntry: [{ siteUrl: "sc-domain:yourpress.example", permissionLevel: "siteRestrictedUser" }] });
       const body = JSON.parse(init.body);
       asked.push(body);
       if (body.inspectionUrl.endsWith("/hound")) return reply(200, { inspectionResult: { inspectionResultLink: "https://search.google.com/search-console/inspect?x=1", indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed", lastCrawlTime: "2026-10-17T10:00:00Z" } } });
       return reply(200, { inspectionResult: { inspectionResultLink: "javascript:alert(1)", indexStatusResult: { verdict: "NEUTRAL", coverageState: "Discovered - currently not indexed" } } });
     };
-    const urls = ["https://lyricalmyricalbooks.com/books/hound", "https://www.lyricalmyricalbooks.com/books/tempo"];
+    const urls = ["https://yourpress.example/books/hound", "https://www.yourpress.example/books/tempo"];
     const { body } = await handleSearchConsole({ op: "inspect", urls }, deps(fetchImpl));
-    expect(asked.map(a => a.siteUrl)).toEqual(["sc-domain:lyricalmyricalbooks.com", "sc-domain:lyricalmyricalbooks.com"]);
+    expect(asked.map(a => a.siteUrl)).toEqual(["sc-domain:yourpress.example", "sc-domain:yourpress.example"]);
     expect(body.results[0]).toMatchObject({ verdict: "PASS", coverageState: "Submitted and indexed", link: "https://search.google.com/search-console/inspect?x=1" });
     expect(body.results[1]).toMatchObject({ verdict: "NEUTRAL", link: "" });
-    expect(body.sitemapsUrl).toContain(encodeURIComponent("sc-domain:lyricalmyricalbooks.com"));
+    expect(body.sitemapsUrl).toContain(encodeURIComponent("sc-domain:yourpress.example"));
     const outside = await handleSearchConsole({ op: "inspect", urls: ["https://evil.example/books/x"] }, deps(fetchImpl));
     expect(outside.body.code).toBe("outside_site");
     expect((await handleSearchConsole({ op: "inspect", urls: [] }, deps(fetchImpl))).status).toBe(400);
@@ -141,9 +141,9 @@ describe("Search Console", () => {
 
   it("says what to do when Google refuses every inspection", async () => {
     const fetchImpl = async url => (url.endsWith("/sites")
-      ? reply(200, { siteEntry: [{ siteUrl: "sc-domain:lyricalmyricalbooks.com", permissionLevel: "siteRestrictedUser" }] })
+      ? reply(200, { siteEntry: [{ siteUrl: "sc-domain:yourpress.example", permissionLevel: "siteRestrictedUser" }] })
       : reply(403, { error: { message: "User does not have sufficient permission for site" } }));
-    const { body } = await handleSearchConsole({ op: "inspect", urls: ["https://lyricalmyricalbooks.com/books/a"] }, deps(fetchImpl));
+    const { body } = await handleSearchConsole({ op: "inspect", urls: ["https://yourpress.example/books/a"] }, deps(fetchImpl));
     expect(body.connected).toBe(false);
     expect(body.code).toBe("no_access");
   });

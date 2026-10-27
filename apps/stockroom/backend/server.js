@@ -295,7 +295,7 @@ const server = http.createServer(async (req, res) => {
         const cpRes = await fetch(endpoint, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ email: email || 'publisher@lyricalmyrical.com' })
+          body: JSON.stringify({ email: email || 'publisher@example.com' })
         });
 
         const text = await cpRes.text();
@@ -876,8 +876,8 @@ function defaultStore() {
     authors: {},
     shippingProfiles: {},
     websiteSettings: {
-      siteName: 'Lyricalmyrical Books',
-      seo: { titleTemplate: '%s · Lyricalmyrical Books', defaultDescription: '' },
+      siteName: 'Your Press',
+      seo: { titleTemplate: '%s · Your Press', defaultDescription: '' },
       merchandising: { featuredCollectionTitle: 'Featured Books', showBadges: true },
       announcements: [],
       updatedAt: new Date().toISOString(),

@@ -1,4 +1,4 @@
-# AGENTS.md — lyrical-inventory (archived, inactive)
+# AGENTS.md — stockroom (archived, inactive)
 
 > [!NOTE]
 > Archived on request. This file used to sit at the repo root, where any AI
@@ -115,7 +115,7 @@ Any user-facing interface, component, or style change MUST follow the design sta
 
 > [!WARNING]
 > **Always bump the script version** whenever [Code.gs](apps-script/Code.gs)'s behavior changes (new action, changed response shape, changed email/side-effect logic — not comment-only or pure-refactor edits). All of the following move together in the same commit:
-> 1. `/* Lyricalmyrical Inventory — Unified Backend (vNN)` in line 1 of [Code.gs](apps-script/Code.gs).
+> 1. `/* Your Press Inventory — Unified Backend (vNN)` in line 1 of [Code.gs](apps-script/Code.gs).
 > 2. `scriptVersion: 'vNN'` and the matching `service: 'lyrical-sheets-webhook-vNN'` string in the `doGet` capabilities response in [Code.gs](apps-script/Code.gs).
 > 3. `EXPECTED_SCRIPT_VERSION` in [main.js](src/main.js) — this is what the client compares against to flag an out-of-date deployment on the connection card.
 > 4. A new numbered entry in the version-history comment block at the top of [Code.gs](apps-script/Code.gs) describing what changed and, if relevant, which older deployments it flags as outdated.
@@ -124,7 +124,7 @@ Any user-facing interface, component, or style change MUST follow the design sta
 
 ## App Overview & Architecture
 
-Lyricalmyrical Inventory is a Progressive Web App (PWA) designed for Lyricalmyrical Books to manage book catalogs, sales inventory, consignment partners, invoices, expenses, and in-person checkouts (POS).
+Your Press Inventory is a Progressive Web App (PWA) designed for Your Press to manage book catalogs, sales inventory, consignment partners, invoices, expenses, and in-person checkouts (POS).
 
 ### Architecture & Data Flow Diagram
 

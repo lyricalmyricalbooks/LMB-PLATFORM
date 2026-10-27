@@ -281,7 +281,7 @@ export function Dashboard() {
     if (import.meta.env.DEV && new URLSearchParams(window.location.search).get("debug") === "true") {
       setUser({
         displayName: "Debug Admin",
-        email: "lyricalmyricalbooks@gmail.com",
+        email: "owner@example.com",
         photoURL: null
       });
       setLoading(false);
@@ -615,7 +615,7 @@ export function Dashboard() {
             onSelectChild={goToChild}
             top={<AppSwitcher onSwitch={() => setSidebarOpen(false)} />}
             brand={
-              <a className="rp-brand-link" href="#overview" aria-label="Lyricalmyrical website admin: go to Overview"
+              <a className="rp-brand-link" href="#overview" aria-label="Website admin: go to Overview"
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
                 <span className="rp-brand-text">
                   <span className="rp-wordmark">Lyrical<em>myrical</em></span>
@@ -638,7 +638,7 @@ export function Dashboard() {
               <Menu size={20} aria-hidden />
             </IconButton>
             {/* Phones: the wordmark sits in the top bar (the rail is a drawer there). */}
-            <a className="rp-topbar-wordmark" href="#overview" onClick={(e) => { e.preventDefault(); void goTo("overview"); }}>Lyricalmyrical</a>
+            <a className="rp-topbar-wordmark" href="#overview" onClick={(e) => { e.preventDefault(); void goTo("overview"); }}>Your Press</a>
             <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} shortcut={!showEditor && !(activeTab === "settings" && settingsTab === "designer")}
               appBooks={appSearch.books} appConnected={appSearch.connected} request={searchRequest}
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}

@@ -211,7 +211,7 @@ describe('The drawn label is marked as a reference copy, not postage', () => {
   const svg = generateCanadaPostLabelSvg({
     serviceCode: 'USA.TP',
     trackingPin: '7012345678901234',
-    sender: { name: 'Lyricalmyrical Books', postalCode: 'M4B 1B3' },
+    sender: { name: 'Your Press', postalCode: 'M4B 1B3' },
     destination: { name: 'Jane Doe', city: 'Bisbee', state: 'AZ', postalCode: '85603', countryCode: 'US' },
     customerNumber: '0001298882',
   });
@@ -240,7 +240,7 @@ describe('The official Canada Post label is fetched, and told apart from ours', 
   const context = {
     trackingPin: '7012345678901234',
     labelUrl: 'https://api.canadapost-postescanada.ca/rs/artifact/abc/10000/0',
-    sender: { name: 'Lyricalmyrical Books' },
+    sender: { name: 'Your Press' },
     destination: { name: 'Jane Doe', countryCode: 'US' },
   };
 

@@ -25,7 +25,7 @@ describe("SECTION_REGISTRY ↔ SectionComponents parity", () => {
     expect(missing).toEqual([]);
   });
 
-  it("includes the Lyricalmyrical Punk sections in both registry and renderers", () => {
+  it("includes the Punk sections in both registry and renderers", () => {
     for (const t of [
       "ProductCoverCarouselSection",
       "ProductShowcaseGridSection",

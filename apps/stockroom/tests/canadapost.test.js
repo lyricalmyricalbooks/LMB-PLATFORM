@@ -149,7 +149,7 @@ describe('Canada Post Label & Shipment Creation', () => {
       serviceCode: 'USA.TP',
       sender: {
         name: 'Lyrical Books',
-        company: 'Lyricalmyrical Books',
+        company: 'Your Press',
         phone: '4165550199',
         address1: '123 Main St',
         city: 'Toronto',
@@ -448,7 +448,7 @@ describe('Canada Post Label & Shipment Creation', () => {
     const jsonStr = buildNonContractShipmentJson({
       serviceCode: 'USA.TP',
       sender: {
-        name: 'Lyricalmyrical Books',
+        name: 'Your Press',
         address1: '123 Bookish Way',
         address2: 'Suite 400',
         city: 'Toronto',
@@ -491,7 +491,7 @@ describe('Canada Post Label & Shipment Creation', () => {
       serviceCode: 'USA.TP',
       serviceName: 'Tracked Packet - USA',
       trackingPin: '7012345678901234',
-      sender: { name: 'Lyricalmyrical Books', address1: '123 Main St', city: 'Toronto', province: 'ON', postalCode: 'M4B 1B3' },
+      sender: { name: 'Your Press', address1: '123 Main St', city: 'Toronto', province: 'ON', postalCode: 'M4B 1B3' },
       destination: { name: 'Daniela Dawson', address1: 'PO Box 897', city: 'Bisbee', state: 'AZ', postalCode: '85603', countryCode: 'US' },
       parcel: { weightKg: 0.357, lengthCm: 19.5, widthCm: 15, heightCm: 2 },
       customs: { description: 'Printed books', quantity: 1, declaredValue: 25.00, hsCode: '490199' },
@@ -543,7 +543,7 @@ describe('Canada Post Label & Shipment Creation', () => {
 // A live shipment is refused without a real return address and sender phone, so
 // every live-mode purchase below ships with one. Only sandbox runs may omit it.
 const realSender = {
-  name: 'Lyricalmyrical Books',
+  name: 'Your Press',
   phone: '4165550142',
   address1: '88 Bookish Way',
   city: 'Toronto',

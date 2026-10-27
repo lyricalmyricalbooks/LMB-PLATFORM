@@ -1,5 +1,5 @@
 /*
- * Riso Press — Lyricalmyrical application design system
+ * Riso Press — Your Press application design system
  * -----------------------------------------------------
  * Explicit, component-owned styling for the admin application. Every class
  * here is prefixed `rp-` and resolved from the semantic tokens below, so a
@@ -1722,7 +1722,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 /* Clickable table rows can be reached and opened from the keyboard (Tab, then Enter or Space). */
 .rp .rp-table tbody tr[data-clickable="true"]:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: -2px; background: var(--rp-surface-2); }
 
-/* ── Pocket Pressroom (23 October 2026): the admin on phones, Julian's concept A ─────────────────
+/* ── Pocket Pressroom (23 October 2026): the admin on phones, the owner's concept A ─────────────────
  * https://claude.ai/artifact/JUjyHuqyhnM6weXdj3vh8i. A shrink of the Pressroom desktop: a 56px top bar
  * (menu · wordmark · shop status · search), the ink rail as a 320px drawer that ends with the account row,
  * 56px Anton mastheads, a 20px gutter, figures as a two-column ledger, lists as flat sheets of 44px+ rows.

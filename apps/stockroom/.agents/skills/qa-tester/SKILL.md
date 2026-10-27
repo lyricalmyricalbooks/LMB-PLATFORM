@@ -5,7 +5,7 @@ description: QA Automation & Test Harness procedure. Guides Vitest unit testing,
 
 # QA Automation & Test Harness Procedure (`/qa-tester`)
 
-Use this skill when authoring unit tests, building mock services, validating edge cases, or executing regression test suites in `lyrical-inventory`.
+Use this skill when authoring unit tests, building mock services, validating edge cases, or executing regression test suites in `stockroom`.
 
 ---
 

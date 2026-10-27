@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
 const { addressKey, packingKey, shippoTransactionOutcome } = require("./fulfillmentGuard.js");
 
-const ADMIN = { email: "lyricalmyricalbooks@gmail.com", email_verified: true };
+const ADMIN = { email: "owner@example.com", email_verified: true };
 
 function harness({ transaction, identity = ADMIN, pending = false, shippoOrder, refuseLinked = false, orderPatch = {}, opsPatch = {}, shippo } = {}) {
   const order = { orderId: "AB-1", paymentStatus: "paid", status: "processing", customer: { name: "Reader", email: "reader@example.com", address: { street: "1 Main", city: "Toronto", state: "ON", zip: "M1M1M1", country: "CA" } }, items: [{ id: "b", title: "Book", quantity: 1, format: "Paperback" }] };

@@ -89,7 +89,7 @@ describe('#32 admin email links', () => {
   test('a guest-chosen order id cannot add markup to the "Fulfil this order" email', async () => {
     const app = harness();
     await app.exports.onOrderUpdated({ data: { before: { data: () => order({ paymentStatus: 'unpaid' }) }, after: { data: () => order({ paymentStatus: 'paid' }) } }, params: { orderId: hostile } });
-    const toShop = app.sent.filter((m) => m.to === 'lyricalmyricalbooks@gmail.com');
+    const toShop = app.sent.filter((m) => m.to === 'owner@example.com');
     expect(toShop.length).toBe(1);
     expect(toShop[0].html).not.toContain('href="https://evil.example"');
     expect(toShop[0].html).not.toContain(hostile);

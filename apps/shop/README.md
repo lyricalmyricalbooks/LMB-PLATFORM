@@ -51,7 +51,7 @@ The shop is served by Firebase Hosting at `https://lmb-test-shop.web.app`, publi
 
 - Every push to `main` builds the site (Vite, sitemap, prerendered pages) and deploys it to Firebase Hosting; a
   15-minute schedule rebuilds when published content changed.
-- The old GitHub Pages address (`…github.io/LyricalmyricalWebsite/`) only forwards to the same page on the shop. Keep
+- The old GitHub Pages address (`…github.io/shop/`) only forwards to the same page on the shop. Keep
   **Settings → Pages → Source** set to **GitHub Actions**.
 - You can also run it manually from **Actions → Deploy storefront → Run workflow**.
 - Setup, the move from GitHub Pages and adding your own domain: `docs/FIREBASE_HOSTING.md`.

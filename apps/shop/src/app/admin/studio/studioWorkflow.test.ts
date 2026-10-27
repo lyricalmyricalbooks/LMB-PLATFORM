@@ -61,14 +61,14 @@ describe("Studio workflow", () => {
     expect(parseRecovery(recovery, { title: "Local" })).toBeNull();
   });
   it("maps preview navigation under the deployed subpath", () => {
-    expect(previewRoute("/LyricalmyricalWebsiteTrial/books/poems?preview=true", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "productPage", product: "poems" });
-    expect(previewRoute("/LyricalmyricalWebsiteTrial/?catalog=true", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "storefront" });
-    expect(previewRoute("/LyricalmyricalWebsiteTrial/page/about", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "page:about" });
-    expect(previewRoute("/outside", "/LyricalmyricalWebsiteTrial/")).toBeNull();
-    expect(previewRoute("/LyricalmyricalWebsiteTrial/wishlist", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "wishlistPage" });
-    expect(previewRoute("/LyricalmyricalWebsiteTrial/account/orders", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "accountPage" });
-    expect(previewRoute("/LyricalmyricalWebsiteTrial/track", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "trackingPage" });
-    expect(previewRoute("/LyricalmyricalWebsiteTrial/studio-missing-page", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "page404" });
+    expect(previewRoute("/ShopTrial/books/poems?preview=true", "/ShopTrial/")).toEqual({ templateId: "productPage", product: "poems" });
+    expect(previewRoute("/ShopTrial/?catalog=true", "/ShopTrial/")).toEqual({ templateId: "storefront" });
+    expect(previewRoute("/ShopTrial/page/about", "/ShopTrial/")).toEqual({ templateId: "page:about" });
+    expect(previewRoute("/outside", "/ShopTrial/")).toBeNull();
+    expect(previewRoute("/ShopTrial/wishlist", "/ShopTrial/")).toEqual({ templateId: "wishlistPage" });
+    expect(previewRoute("/ShopTrial/account/orders", "/ShopTrial/")).toEqual({ templateId: "accountPage" });
+    expect(previewRoute("/ShopTrial/track", "/ShopTrial/")).toEqual({ templateId: "trackingPage" });
+    expect(previewRoute("/ShopTrial/studio-missing-page", "/ShopTrial/")).toEqual({ templateId: "page404" });
   });
   it("follows the shop's own choices for links that name no template", () => {
     // Show a Home page off: "/" is the catalog.

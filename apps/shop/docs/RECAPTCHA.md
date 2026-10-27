@@ -19,9 +19,9 @@ the owner completes registration and the checks below.
 1. Open the Google Cloud console for project lmb-test-shop. Enable the
    reCAPTCHA Enterprise API and create a Web / score-based key. Leave the checkbox
    challenge option off.
-2. Allow these hostnames (without paths): lyricalmyricalbooks.github.io,
-   lmb-test-shop.web.app (Firebase Hosting), lyricalmyricalbooks.com and
-   www.lyricalmyricalbooks.com (the shop's own domain, docs/CUSTOM_DOMAIN.md). Add any other hostname
+2. Allow these hostnames (without paths): yourpress.github.io,
+   lmb-test-shop.web.app (Firebase Hosting), yourpress.example and
+   www.yourpress.example (the shop's own domain, docs/CUSTOM_DOMAIN.md). Add any other hostname
    actually serving the app. Do not allow localhost on a production key.
 3. In Firebase console > App Check > Apps, register web app
    1:100000000001:web:0000000000000000000001 with the Enterprise provider and this key.

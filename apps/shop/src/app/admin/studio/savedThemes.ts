@@ -58,7 +58,7 @@ export function duplicateSavedTheme(list: SavedTheme[] | undefined, id: string, 
   return addSavedTheme(list, name, src.design, now);
 }
 
-const FILE_KIND = "lyricalmyrical-theme";
+const FILE_KIND = "press-theme";
 
 export const themeFileName = (t: Pick<SavedTheme, "name">) =>
   `${t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "theme"}.theme.json`;
@@ -95,7 +95,7 @@ export function parseThemeFile(text: string): { name: string; design: any; strip
   let raw: any;
   try { raw = JSON.parse(text); } catch { return { error: "That file isn't valid JSON." }; }
   const design = raw && raw.kind === FILE_KIND ? raw.design : raw?.design ?? null;
-  if (!design || typeof design !== "object" || Array.isArray(design)) return { error: "That file isn't a Lyricalmyrical theme export." };
+  if (!design || typeof design !== "object" || Array.isArray(design)) return { error: "That file isn't a Your Press theme export." };
   const { design: safe, removed } = stripImportedCustomCode(design);
   return { name: String(raw.name || "Imported theme").slice(0, 60), design: safe, ...(removed.length ? { strippedCustomCode: removed } : {}) };
 }

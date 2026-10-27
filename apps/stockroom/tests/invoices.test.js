@@ -279,8 +279,8 @@ describe('invoiceShareForBook', () => {
 // A number naming one title reads as an error on a bill charging for two.
 describe('invoice numbering', () => {
   it('builds a neutral prefix from the business initials', () => {
-    expect(neutralInvoicePrefix('Lyricalmyrical Books')).toBe('LB');
-    expect(neutralInvoicePrefix('Lyricalmyrical Books & Co')).toBe('LBC');
+    expect(neutralInvoicePrefix('Your Press')).toBe('YP');
+    expect(neutralInvoicePrefix('Your Press & Co')).toBe('YPC');
   });
 
   it('keeps a one-word business name recognisable', () => {

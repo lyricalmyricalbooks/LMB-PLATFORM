@@ -4,7 +4,7 @@ import {
 } from "./overviewVisitorEvents";
 
 const books = [{ id: "b1", slug: "salt", title: "Salt" }];
-const HOSTS = ["lyricalmyricalbooks.com"];
+const HOSTS = ["yourpress.example"];
 
 describe("sourceState", () => {
   it("tells an old server from unregistered parameters from an unanswered report from a ready one", () => {
@@ -83,7 +83,7 @@ describe("bookPageActions", () => {
 describe("missingPages", () => {
   const report: any = { notFound: [
     { pagePath: "/books/old-title", pageReferrer: "https://www.google.com/", eventCount: 6 },
-    { pagePath: "/books/old-title", pageReferrer: "https://lyricalmyricalbooks.com/books/salt", eventCount: 2 },
+    { pagePath: "/books/old-title", pageReferrer: "https://yourpress.example/books/salt", eventCount: 2 },
     { pagePath: "/product/x?ref=1", pageReferrer: "", eventCount: 3 },
   ] };
   it("lists missing addresses with where people came from", () => {

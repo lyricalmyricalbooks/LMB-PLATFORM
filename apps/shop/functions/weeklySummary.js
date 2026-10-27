@@ -2,7 +2,7 @@
 // Toronto days) against the week before, from real paid orders and the shop's own daily traffic counters. Same rules as
 // the admin Overview: test orders, unpaid/refunded orders and the owner's own orders (placed with the shop's own email:
 // src/app/lib/ownerDevice.ts isOwnOrder) don't count; revenue is after partial refunds. Pure.
-const OWNER_EMAIL = "lyricalmyricalbooks@gmail.com";
+const OWNER_EMAIL = "owner@example.com";
 const TZ = "America/Toronto";
 const DAY = 86_400_000;
 

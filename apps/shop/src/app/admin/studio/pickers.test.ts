@@ -68,7 +68,7 @@ describe("link picker", () => {
     expect(options.find(o => o.label === "PUBLICATIONS › Zines & Things")?.value).toBe("/collections/zines-things");
     expect(options.find(o => o.label === "Night Pages")?.value).toBe("/books/night-pages");
     // siteHref (SectionComponents) adds the GitHub Pages sub-path to "/…" links — never stored here.
-    expect(options.every(o => o.value.startsWith("/") && !o.value.includes("LyricalmyricalWebsiteTrial"))).toBe(true);
+    expect(options.every(o => o.value.startsWith("/") && !o.value.includes("ShopTrial"))).toBe(true);
   });
   it("uses the same hrefs as the header and footer menus", () => {
     expect(options.find(o => o.id === "page:p1")?.value).toBe(resolveHref({ id: "x", label: "", type: "page", value: "about" }));

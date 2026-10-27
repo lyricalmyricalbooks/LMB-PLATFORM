@@ -18,30 +18,30 @@ describe('one public address on Firebase Hosting', () => {
   });
 
   it('later sends both default hosts to the shop domain', () => {
-    const domain = 'https://www.lyricalmyricalbooks.com';
+    const domain = 'https://www.yourpress.example';
     expect(moveToCanonicalHost(domain, project, at(`${site}/track?orderId=1&key=k`))).toBe(`${domain}/track?orderId=1&key=k`);
     expect(moveToCanonicalHost(domain, project, at('https://lmb-test-shop.firebaseapp.com/'))).toBe(`${domain}/`);
   });
 
   it('sends the www twin to the bare domain, and the bare domain to a www SITE_URL', () => {
-    const apex = 'https://lyricalmyricalbooks.com';
-    expect(moveToCanonicalHost(apex, project, at('https://www.lyricalmyricalbooks.com/books/x?a=1#top'))).toBe(`${apex}/books/x?a=1#top`);
+    const apex = 'https://yourpress.example';
+    expect(moveToCanonicalHost(apex, project, at('https://www.yourpress.example/books/x?a=1#top'))).toBe(`${apex}/books/x?a=1#top`);
     expect(moveToCanonicalHost(apex, project, at(`${site}/`))).toBe(`${apex}/`);
-    expect(moveToCanonicalHost('https://www.lyricalmyricalbooks.com', project, at('https://lyricalmyricalbooks.com/track'))).toBe('https://www.lyricalmyricalbooks.com/track');
+    expect(moveToCanonicalHost('https://www.yourpress.example', project, at('https://yourpress.example/track'))).toBe('https://www.yourpress.example/track');
     expect(moveToCanonicalHost(apex, project, at(`${apex}/`))).toBeNull();
-    expect(moveToCanonicalHost(apex, project, at('https://shop.lyricalmyricalbooks.com/'))).toBeNull();
-    expect(moveToCanonicalHost(apex, project, at('https://www.lyricalmyricalbooks.com/__/auth/handler'))).toBeNull();
+    expect(moveToCanonicalHost(apex, project, at('https://shop.yourpress.example/'))).toBeNull();
+    expect(moveToCanonicalHost(apex, project, at('https://www.yourpress.example/__/auth/handler'))).toBeNull();
   });
 
   it('does nothing on the canonical host, GitHub Pages, localhost or the prerender server', () => {
     expect(moveToCanonicalHost(site, project, at(`${site}/admin`))).toBeNull();
-    for (const href of ['https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite/', 'http://localhost:5173/', 'http://127.0.0.1:41234/books/x']) {
+    for (const href of ['https://yourpress.github.io/shop/', 'http://localhost:5173/', 'http://127.0.0.1:41234/books/x']) {
       expect(moveToCanonicalHost(site, project, at(href))).toBeNull();
     }
   });
 
   it('is inert while the build targets the GitHub Pages sub-path', () => {
-    expect(moveToCanonicalHost('https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite', project, at(`${site}/`))).toBeNull();
+    expect(moveToCanonicalHost('https://yourpress.github.io/shop', project, at(`${site}/`))).toBeNull();
   });
 
   it("leaves Firebase's reserved sign-in paths alone and survives a bad address", () => {
@@ -63,9 +63,9 @@ describe('one public address on Firebase Hosting', () => {
   it("rewrites index.html's built-in address only for another valid SITE_URL", () => {
     const html = readFileSync(join(__dirname, '..', 'index.html'), 'utf8');
     expect(html).toContain(`${DEFAULT_SITE_URL}/`);
-    const stamped = stampSiteAddress(html, 'https://lyricalmyricalbooks.com/');
+    const stamped = stampSiteAddress(html, 'https://yourpress.example/');
     expect(stamped).not.toContain(DEFAULT_SITE_URL);
-    expect(stamped).toContain('<meta property="og:url" content="https://lyricalmyricalbooks.com/" />');
+    expect(stamped).toContain('<meta property="og:url" content="https://yourpress.example/" />');
     expect(stampSiteAddress(html, DEFAULT_SITE_URL)).toBe(html);
     expect(stampSiteAddress(html, 'https://x.com/folder')).toBe(html);
     expect(stampSiteAddress(html, undefined)).toBe(html);

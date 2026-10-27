@@ -69,7 +69,7 @@ export function mixHeadline(newCount: number, returning: number, prevNew: number
   return `${lead}, ${r > before ? "up" : "down"} from ${before}% before.`;
 }
 
-/** A browser-tab title without the shop's name after it: "Salt Hymns — Lyricalmyrical Books" → "Salt Hymns". */
+/** A browser-tab title without the shop's name after it: "Salt Hymns — Your Press" → "Salt Hymns". */
 export function shortPageTitle(title: string): string {
   const t = String(title || "").trim();
   const cut = t.replace(/\s+[—–|·-]\s+[^—–|·]+$/, "").trim();

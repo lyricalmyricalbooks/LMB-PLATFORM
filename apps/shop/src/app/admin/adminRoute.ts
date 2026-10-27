@@ -121,5 +121,5 @@ export const OVERVIEW_HASH_EVENT = "lm:overview-hash";
 
 /** Browser-tab title for the page on screen. */
 export function adminDocumentTitle(pageTitle: string): string {
-  return `${pageTitle} · Lyricalmyrical admin`;
+  return `${pageTitle} · Shop admin`;
 }

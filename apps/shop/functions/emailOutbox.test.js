@@ -26,7 +26,7 @@ describe("pure rules", () => {
     expect(outbox.cleanSubject("Hi\r\nBcc: x@evil.test")).toBe("Hi Bcc: x@evil.test");
     expect(outbox.cleanSubject("x".repeat(400))).toHaveLength(250);
     expect(outbox.cleanFromName('Shop "Books" <x>\nBcc')).toBe("Shop Books x Bcc");
-    expect(outbox.cleanFromName("")).toBe("Lyricalmyrical Books");
+    expect(outbox.cleanFromName("")).toBe("Your Press");
   });
 
   test("retries widen from 15 minutes and give up after the last try", () => {
@@ -118,7 +118,7 @@ function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patc
   const admin = {
     initializeApp() {},
     firestore: Object.assign(() => db, { FieldValue: { increment: n => n, arrayUnion: (...x) => x } }),
-    auth: () => ({ verifyIdToken: async () => ({ email: "lyricalmyricalbooks@gmail.com", email_verified: true }), getUserByEmail: async () => { throw new Error("none"); } }),
+    auth: () => ({ verifyIdToken: async () => ({ email: "owner@example.com", email_verified: true }), getUserByEmail: async () => { throw new Error("none"); } }),
   };
   const wrap = (...args) => args.at(-1);
   const nodemailer = { createTransport: () => ({ verify: async () => { if (state.gmailFails) throw new Error("535-5.7.8 Username and Password not accepted"); return true; }, sendMail: async (m) => { if (state.gmailFails) throw new Error("Invalid login"); delivered.push(m); return { messageId: "gmail-1" }; } }) };
@@ -522,7 +522,7 @@ describe("order table in templates", () => {
 describe("shop alerts and the Gmail check", () => {
   const paidEvent = () => updated(order({ paymentStatus: "unpaid" }), order({ paymentStatus: "paid" }));
   const shipEvent = () => updated(order({ paymentStatus: "paid", fulfillmentStatus: "processing" }), order({ paymentStatus: "paid", fulfillmentStatus: "shipped", trackingNumber: "T1", trackingCarrier: "Canada Post" }));
-  const shopMail = app => app.delivered.filter(m => m.to === "lyricalmyricalbooks@gmail.com");
+  const shopMail = app => app.delivered.filter(m => m.to === "owner@example.com");
 
   test("the new-order and shipped-copy switches stop only the shop's emails", async () => {
     const app = harness({ gmailFails: false, docs: { settings: { website: { payments: {} }, notifications: { shopAlerts: { newOrder: false, shipped: false } } } } });
@@ -555,7 +555,7 @@ describe("shop alerts and the Gmail check", () => {
 
 describe("notification fixes from the email review", () => {
   const notif = extra => ({ settings: { website: { payments: {} }, notifications: extra } });
-  const toShop = app => app.delivered.filter(m => m.to === "lyricalmyricalbooks@gmail.com");
+  const toShop = app => app.delivered.filter(m => m.to === "owner@example.com");
   const toReader = app => app.delivered.filter(m => m.to === "reader@example.com");
 
   test("pausing a customer email never silences the shop's own alert", async () => {

@@ -36,8 +36,8 @@ describe("visitor widget words", () => {
     expect(mixHeadline(0, 0, 1, 1)).toBe("No visitors recorded yet.");
   });
   it("drops the shop name from live page titles", () => {
-    expect(shortPageTitle("Salt Hymns — Lyricalmyrical Books")).toBe("Salt Hymns");
-    expect(shortPageTitle("Checkout | Lyricalmyrical")).toBe("Checkout");
-    expect(shortPageTitle("Lyricalmyrical Books")).toBe("Lyricalmyrical Books");
+    expect(shortPageTitle("Salt Hymns — Your Press")).toBe("Salt Hymns");
+    expect(shortPageTitle("Checkout | Your Press")).toBe("Checkout");
+    expect(shortPageTitle("Your Press")).toBe("Your Press");
   });
 });

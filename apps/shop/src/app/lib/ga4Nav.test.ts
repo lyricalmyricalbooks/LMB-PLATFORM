@@ -15,7 +15,7 @@ describe("Google Analytics menu clicks", () => {
   it("names the menu from data-ga-menu, else the shop's header or footer", () => {
     page(`
       <header data-fm-header>
-        <a id="logo" href="/" aria-label="Lyricalmyrical home"><img alt=""></a>
+        <a id="logo" href="/" aria-label="Your Press home"><img alt=""></a>
         <nav data-ga-menu="categories"><a id="cat" href="/collections/zines">Zines</a></nav>
         <nav data-ga-menu="phone"><a id="tab" href="/page/about">About</a></nav>
         <div data-fm-section><a id="sec" href="/books/salt">Salt</a></div>

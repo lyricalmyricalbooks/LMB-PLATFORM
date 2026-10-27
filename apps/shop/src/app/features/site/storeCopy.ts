@@ -41,7 +41,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "draftPreviewNoStudio", label: "Draft preview banner (Studio closed)", multiline: true, default: "Studio isn't open in this browser, so this tab shows your live shop. Open Studio and press View website to see your draft.", hint: "Only you see this, in the tab Studio's View website button opens." },
       { key: "draftPreviewHide", label: "Draft preview banner: hide button", default: "Hide" },
       { key: "googleSiteVerification", label: "Google Search Console verification token", default: "", hint: "Paste the content value from Google’s HTML verification tag. This public token is included in page metadata." },
-      { key: "siteName", label: "Site name", default: "Lyricalmyrical Books", hint: "Used as {name} in the browser-tab title, share previews and search results." },
+      { key: "siteName", label: "Site name", default: "Your Press", hint: "Used as {name} in the browser-tab title, share previews and search results." },
       { key: "siteDefaultTitle", label: "Home page title (browser tab / Google)", default: "{name} — Independent Publishing House", hint: "Use {name} for the site name." },
       { key: "siteDefaultDescription", label: "Default description (Google / social previews)", default: "{name} is an independent publishing house based in Toronto, specializing in photography and art books, photobooks and artists' books.", multiline: true, hint: "Use {name} for the site name." },
       { key: "seoTopics", label: "What the shop publishes (for search engines, comma-separated)", multiline: true, default: "Art books, Photography books, Photobooks, Artists' books, Zines", hint: "Told to Google as the subjects the shop knows about (structured data on the home page). Not shown on the page. Blank = left out." },
@@ -181,7 +181,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "footerExploreHeading", label: "Explore group heading", default: "Explore" },
       { key: "footerConnectHeading", label: "Participate & connect group heading", default: "Participate & connect" },
       { key: "footerNavHeading", label: "Navigation heading", default: "Navigate" },
-      { key: "footerWordmark", label: "Footer wordmark (single-line style)", default: "LYRICALMYRICAL BOOKS" },
+      { key: "footerWordmark", label: "Footer wordmark (single-line style)", default: "YOUR PRESS" },
       { key: "footerLinkShop", label: "Link: Shop", default: "Shop" },
       { key: "footerLinkTrack", label: "Link: Track order", default: "Track Order" },
       { key: "footerLinkInstagram", label: "Link: Instagram", default: "Instagram" },
@@ -205,7 +205,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       {
         key: "footerCopyright",
         label: "Copyright line",
-        default: "© {year} Lyricalmyrical Books · All rights reserved",
+        default: "© {year} Your Press · All rights reserved",
         hint: "Use {year} for the current year.",
       },
     ],
@@ -364,7 +364,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       {
         key: "historyBody",
         label: "History of LM — body",
-        default: "Lyricalmyrical Books is an independent publishing house based in Toronto, with roots in Italy. We specialize in photography and art books, bringing artists, images, and ideas together through carefully made printed editions.",
+        default: "Your Press is an independent publishing house based in Toronto, with roots in Italy. We specialize in photography and art books, bringing artists, images, and ideas together through carefully made printed editions.",
         multiline: true,
       },
       {
@@ -381,7 +381,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
   {
     group: "Loading screen",
     fields: [
-      { key: "loadingAria", label: "Accessible label", default: "Loading Lyricalmyrical Books" },
+      { key: "loadingAria", label: "Accessible label", default: "Loading Your Press" },
       { key: "loadingTag", label: "Sticker tag", default: "Toronto · Est. independently" },
       { key: "loadingWordmarkA", label: "Wordmark (first part)", default: "Lyrical" },
       { key: "loadingWordmarkB", label: "Wordmark (accent part)", default: "myrical" },
@@ -403,7 +403,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "ucEmail", label: "Contact email (leave empty to hide the button)", default: "" },
       { key: "ucButton", label: "Contact button", default: "Get in touch" },
       { key: "ucAdmin", label: "Admin button", default: "Admin" },
-      { key: "ucFootnote", label: "Footnote", default: "Lyricalmyrical Books — printed matter" },
+      { key: "ucFootnote", label: "Footnote", default: "Your Press — printed matter" },
     ],
   },
   {
@@ -435,7 +435,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "maintenanceTag", label: "Sticker tag", default: "Back soon" },
       { key: "maintenanceTitle", label: "Heading", default: "Under maintenance" },
       { key: "maintenanceMessage", label: "Default message (if none set in Settings)", default: "We are updating our archive. Please check back soon.", multiline: true },
-      { key: "maintenanceFooter", label: "Footer line", default: "Lyricalmyrical Books · Toronto" },
+      { key: "maintenanceFooter", label: "Footer line", default: "Your Press · Toronto" },
       { key: "maintenanceAdmin", label: "Admin link label", default: "Admin console" },
     ],
   },
@@ -462,10 +462,10 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "currencyLabel", label: "Currency selector label", default: "CURRENCY" },
       { key: "ariaCurrency", label: "Currency selector (read aloud by screen readers, not shown)", default: "Select currency" },
       { key: "ariaThemeToggle", label: "Light/dark toggle (read aloud by screen readers, not shown)", default: "Toggle theme" },
-      { key: "logoAlt", label: "Logo image — alt text / screen-reader label", default: "Lyricalmyrical Books logo" },
+      { key: "logoAlt", label: "Logo image — alt text / screen-reader label", default: "Your Press logo" },
       { key: "ariaPrevSlide", label: "Previous slide (read aloud by screen readers, not shown)", default: "Previous slide" },
       { key: "ariaNextSlide", label: "Next slide (read aloud by screen readers, not shown)", default: "Next slide" },
-      { key: "poweredBy", label: "Powered-by line", default: "Powered by Lyricalmyrical" },
+      { key: "poweredBy", label: "Powered-by line", default: "Powered by Your Press" },
     ],
   },
   {
@@ -779,7 +779,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
   {
     group: "Checkout",
     fields: [
-      { key: "coBrand", label: "Header brand name", default: "Lyricalmyrical Books" },
+      { key: "coBrand", label: "Header brand name", default: "Your Press" },
       { key: "coReturn", label: "Back link (opens the bag; phones show only the arrow)", default: "Back to bag" },
       { key: "coSecure", label: "Secure label", default: "Secure checkout" },
       { key: "coProgressAria", label: "Progress (read aloud by screen readers, not shown)", default: "Checkout progress" },
@@ -1020,7 +1020,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "reviewsRetry", label: "Reviews couldn't load: Try again button", default: "Try again" },
       { key: "reviewsMoreError", label: "More reviews couldn't load", default: "More reviews couldn't be loaded. Please try again." },
       { key: "reviewsAuthor", label: "Review author credit", default: "— {author}", hint: "Use {author} for the reviewer name." },
-      { key: "reviewsReply", label: "Store reply label", default: "Reply from Lyricalmyrical Books" },
+      { key: "reviewsReply", label: "Store reply label", default: "Reply from Your Press" },
       { key: "reviewsVerified", label: "Verified purchase badge", default: "Verified purchase", hint: "Shown on reviews whose writer bought the book here." },
       { key: "reviewsFeatured", label: "Featured review label", default: "Featured review", hint: "Shown on reviews you pin to the top in Admin › Reviews." },
       { key: "reviewsThanks", label: "Submitted message", default: "Thanks — your review has been submitted for moderation." },

@@ -4,7 +4,7 @@
 // build serves every shop. The format's master copy is profile/shop-profile.schema.json in the platform repo.
 //
 // When the file is missing or broken (local dev, tests, the Studio fixture), the shop falls back to this shop's own
-// values below, so nothing changes for Lyricalmyrical. Plan, test mode and the Stripe account are never in here.
+// values below, so nothing changes for Your Press. Plan, test mode and the Stripe account are never in here.
 
 export type ShopProfile = {
   version: 1;
@@ -29,7 +29,7 @@ declare global {
 
 export const DEFAULT_SHOP_PROFILE: ShopProfile = {
   version: 1,
-  shopId: "lyricalmyrical",
+  shopId: "lmb-test-shop",
   firebase: {
     apiKey: "AIzaTestShopKeyNotReal00000000000000000",
     authDomain: "lmb-test-shop.firebaseapp.com",

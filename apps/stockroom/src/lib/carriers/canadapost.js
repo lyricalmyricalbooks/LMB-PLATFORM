@@ -740,7 +740,7 @@ export function generateCanadaPostLabelSvg({
   declarationId = '',
   customerNumber = ''
 }) {
-  const sfName = sender.name || 'Lyricalmyrical Books';
+  const sfName = sender.name || 'Your Press';
   const sfAddr1 = sender.address1 || '123 Main St';
   const sfAddr2 = sender.address2 || '';
   const sfCity = sender.city || 'Toronto';
@@ -2064,7 +2064,7 @@ export function buildNonContractShipmentJson({
   // Canada Post requires a company on the sender. A sole publisher has no
   // separate company name, so their own name stands in rather than the field
   // being dropped and the whole shipment refused for a missing mandatory field.
-  const senderName = ph(sender.name, 'Lyricalmyrical Books');
+  const senderName = ph(sender.name, 'Your Press');
 
   const deliverySpec = {
     serviceCode: serviceCode,
@@ -2756,7 +2756,7 @@ export async function refundCanadaPostShipment({
 
   const refundEndpoint = `${env.baseUrl}/prod/devportal-portaildesdeveloppeurs/shipping/v1/${encodeURIComponent(custNum)}/${encodeURIComponent(custNum)}/shipments/${encodeURIComponent(cleanId)}/refund`;
   const refundPayload = JSON.stringify({
-    email: email || 'publisher@lyricalmyrical.com'
+    email: email || 'publisher@example.com'
   });
 
   let refundSuccess = false;
@@ -2863,7 +2863,7 @@ export async function fetchCanadaPostLabelBlob({
   // so the screen has something to show rather than nothing.
   return generateClientCanadaPostLabelBlob({
     trackingPin: String(labelUrl || '').split('/').pop() || '',
-    sender: { name: 'Lyricalmyrical Books' },
+    sender: { name: 'Your Press' },
     destination: { name: 'Customer' }
   });
 }

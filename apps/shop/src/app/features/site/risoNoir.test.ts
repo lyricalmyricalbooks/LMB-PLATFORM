@@ -42,7 +42,7 @@ describe("withRisoNoirDefault", () => {
   it("leaves deliberate choices alone", () => {
     const explicit = { themeStyle: "default", backgroundColor: "#ffffff" };
     expect(withRisoNoirDefault(explicit)).toBe(explicit);
-    const preset = { themeLibraryPreset: "lyricalmyrical-punk", backgroundColor: "#0a0910" };
+    const preset = { themeLibraryPreset: "press-punk", backgroundColor: "#0a0910" };
     expect(withRisoNoirDefault(preset)).toBe(preset);
     expect(withRisoNoirDefault(undefined)).toBeUndefined();
   });

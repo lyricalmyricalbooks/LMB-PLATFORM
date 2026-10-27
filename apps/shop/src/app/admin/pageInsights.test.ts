@@ -20,10 +20,10 @@ describe("pageInsights", () => {
     expect(movePage(s, "c", 1)).toEqual([]);
   });
   it("auto-fills a search listing from the page", () => {
-    const body = "<h2>Our story</h2><p>Lyricalmyrical began in 2009 as a small press in Toronto.</p><p>We publish poetry &amp; art books. " + "More words here. ".repeat(20) + "</p>";
-    const seo = autoSeo({ title: "  History of   Lyricalmyrical ", body });
-    expect(seo.seoTitle).toBe("History of Lyricalmyrical");
-    expect(seo.metaDescription.startsWith("Lyricalmyrical began in 2009 as a small press in Toronto. We publish poetry & art books.")).toBe(true);
+    const body = "<h2>Our story</h2><p>Your Press began in 2009 as a small press in Toronto.</p><p>We publish poetry &amp; art books. " + "More words here. ".repeat(20) + "</p>";
+    const seo = autoSeo({ title: "  History of   Your Press ", body });
+    expect(seo.seoTitle).toBe("History of Your Press");
+    expect(seo.metaDescription.startsWith("Your Press began in 2009 as a small press in Toronto. We publish poetry & art books.")).toBe(true);
     expect(seo.metaDescription.length).toBeLessThanOrEqual(160);
     expect(/[.!?]$/.test(seo.metaDescription)).toBe(true);
   });
@@ -43,9 +43,9 @@ describe("pageInsights", () => {
     expect(missingSeo({ title: "", body: "" })).toEqual({});
   });
   it("measures the title as the shop sends it and shortens nothing just to fit the name", () => {
-    const fmt = (t: string) => `${t} — Lyricalmyrical Books`;
+    const fmt = (t: string) => `${t} — Riverbend Book Press`;
     expect(seoHints("About", "", "x".repeat(100), fmt)[0]).toEqual({ level: "good", text: "Title length is good (28 with the shop name)." });
-    expect(seoHints("History of Lyricalmyrical and its friends", "", "x".repeat(100), fmt)[0].level).toBe("warn");
-    expect(autoSeo({ title: "History of Lyricalmyrical and its friends", body: "" }, fmt).seoTitle).toBe("History of Lyricalmyrical and its friends");
+    expect(seoHints("History of Riverbend Press and its friends", "", "x".repeat(100), fmt)[0].level).toBe("warn");
+    expect(autoSeo({ title: "History of Riverbend Press and its friends", body: "" }, fmt).seoTitle).toBe("History of Riverbend Press and its friends");
   });
 });

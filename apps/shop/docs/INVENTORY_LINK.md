@@ -1,7 +1,7 @@
 # Website ↔ inventory app link
 
 The shop (this repo, Firebase project `lmb-test-shop`) and the inventory app
-(`lyricalmyricalbooks/lyrical-inventory`, Firebase project `lmb-test-stockroom`) exchange
+(`lyricalmyricalbooks/LMB-PLATFORM (apps/stockroom)`, Firebase project `lmb-test-stockroom`) exchange
 three things:
 
 1. **Website sales → inventory app.** Each paid website order (and every later refund or
@@ -233,7 +233,7 @@ the inventory app shows it only in a publisher session, never in author view). I
 `src/app/admin/appSwitch.ts` and the app's `src/lib/app-switch.js`; change both together.
 
 - **Addresses.** Website admin: `https://lmb-test-shop.web.app/admin`, an order is `#orders/<orderId>`. Inventory
-  app: `https://lyricalmyricalbooks.github.io/lyrical-inventory/`, a website order is `#website-order=<orderId>` (URL-encoded).
+  app: `https://lmb-test-stockroom.web.app/`, a website order is `#website-order=<orderId>` (URL-encoded).
   When the inventory app was opened from the website, it sends its deep links to the website origin it came from.
 - **Tabs.** The website admin's tab is named `lm-website-admin`, the inventory app's `lm-inventory-app`. A click on the
   other app goes, in order, to the tab this page opened before, else `window.open("", <other name>)` (which also finds the

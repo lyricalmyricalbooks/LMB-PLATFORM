@@ -23,7 +23,7 @@ export function automaticFooterItems(settings: any, pages: any[]): MenuItem[] {
   const instagram = (d.social ?? DEFAULT_SOCIAL).instagram;
   if (d.showSocialInFooter !== false && instagram) items.push({ id: "footer-instagram", label: getCopy(d, "footerLinkInstagram"), type: "url", value: instagram, footerGroup: "connect" });
   // A contact page already supplies the contact destination; do not repeat it.
-  if (!visible.some(p => /^(contact|contact-us)$/i.test(p.slug))) items.push({ id: "footer-contact", label: getCopy(d, "footerLinkContact"), type: "url", value: `mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`, footerGroup: "connect" });
+  if (!visible.some(p => /^(contact|contact-us)$/i.test(p.slug))) items.push({ id: "footer-contact", label: getCopy(d, "footerLinkContact"), type: "url", value: `mailto:${settings?.info?.email || "owner@example.com"}`, footerGroup: "connect" });
   return items;
 }
 

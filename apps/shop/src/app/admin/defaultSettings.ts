@@ -8,11 +8,11 @@ export const defaultSettings = (): any => ({
   // Settings › General › Checkout stock holds: most copies one shopper can have set aside while checking out.
   stockHolds: { perBook: 10, units: 50, orders: 3 },
   maintenance: { enabled: false, message: "WE ARE UPDATING OUR ARCHIVE. PLEASE CHECK BACK SOON." },
-  domain: { subdomain: "lyricalmyrical", custom: "lyricalmyricalbooks.com" },
+  domain: { subdomain: "yourpress", custom: "yourpress.example" },
   info: { 
-    name: "Lyricalmyrical Books", 
-    description: "Lyricalmyrical Books is an independent publishing house based in Toronto with roots in Italy, specializing in publishing photography and art books, photobooks and artists' books.",
-    website: "https://lyricalmyricalbooks.com"
+    name: "Your Press", 
+    description: "Your Press is an independent publishing house based in Toronto with roots in Italy, specializing in publishing photography and art books, photobooks and artists' books.",
+    website: "https://yourpress.example"
   },
   inventory: { tracking: true, overselling: false },
   checkout: { requirePhone: true },
@@ -126,7 +126,7 @@ export const defaultSettings = (): any => ({
     announcementScrolling: false,
     // Social
     social: {
-      instagram: "https://www.instagram.com/lyricalmyricalbooks",
+      instagram: "https://www.instagram.com/yourpress",
       twitter: "",
       facebook: "",
       tiktok: "",

@@ -147,7 +147,7 @@ describe('receipt finder setup guidance', () => {
     // The first deployments answered to a different service name and none of
     // the fields the app reads, so the setup check told the publisher the
     // address was wrong — about the very address it had asked them to paste.
-    const result = describeFinderSetup({ service: 'lyricalmyrical-receipt-finder', version: 2 });
+    const result = describeFinderSetup({ service: 'press-receipt-finder', version: 2 });
     expect(result.level).toBe('error');
     expect(result.headline).toContain('older Receipt Finder script');
     expect(result.steps.join(' ')).toContain('no longer need a second script');

@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest";
 import { deviceSteps, followPage, landingJourneys, listClicks, pageMoves } from "./overviewNavigation";
 
 const books = [{ id: "b1", slug: "salt", title: "Salt" }];
-const HOSTS = ["lyricalmyricalbooks.com"];
+const HOSTS = ["yourpress.example"];
 
 describe("pageMoves", () => {
   const report: any = {
     moves: [
-      { pageReferrer: "https://www.lyricalmyricalbooks.com/", pagePath: "/books/salt", screenPageViews: 12 },
-      { pageReferrer: "https://lyricalmyricalbooks.com/?utm_source=x", pagePath: "/books/salt/", screenPageViews: 3 },
-      { pageReferrer: "https://lyricalmyricalbooks.com/books/salt", pagePath: "/page/about", screenPageViews: 4 },
+      { pageReferrer: "https://www.yourpress.example/", pagePath: "/books/salt", screenPageViews: 12 },
+      { pageReferrer: "https://yourpress.example/?utm_source=x", pagePath: "/books/salt/", screenPageViews: 3 },
+      { pageReferrer: "https://yourpress.example/books/salt", pagePath: "/page/about", screenPageViews: 4 },
       { pageReferrer: "https://www.instagram.com/", pagePath: "/", screenPageViews: 50 },
       { pageReferrer: "", pagePath: "/", screenPageViews: 40 },
-      { pageReferrer: "https://lyricalmyricalbooks.com/page/about", pagePath: "/page/about", screenPageViews: 9 },
+      { pageReferrer: "https://yourpress.example/page/about", pagePath: "/page/about", screenPageViews: 9 },
       { pageReferrer: "not a url", pagePath: "/", screenPageViews: 1 },
     ],
   };

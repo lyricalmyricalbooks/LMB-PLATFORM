@@ -3,9 +3,9 @@
 // The problem this solves is a real folder: fifty-odd PDFs sitting flat in
 // "General receipts", named by whatever produced them —
 //
-//   2026-04-20_36.LyricalmyricalBooksInvoice...pdf   (date, and a clue)
+//   2026-04-20_36.YourPressInvoice...pdf   (date, and a clue)
 //   2026-07-30_Uber_CAD-13.93.pdf                    (date, vendor and amount)
-//   Ordine_17190_lyricalmyrical_books.pdf            (an Italian printer's order no.)
+//   Ordine_17190_your_press.pdf            (an Italian printer's order no.)
 //   receipt_c917c7a6-2807-4b95-b96b-b8035....pdf     (a bare UUID — nothing)
 //   invoice amazon.pdf                               (a vendor, no date)
 //

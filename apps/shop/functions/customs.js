@@ -75,7 +75,7 @@ function customsDeclaration(itemIds, order, signer, fromCountry) {
     contents_explanation: DEFAULT_DESCRIPTION,
     non_delivery_option: "RETURN",
     certify: true,
-    certify_signer: String(signer || "Lyricalmyrical Books").slice(0, 100),
+    certify_signer: String(signer || "Your Press").slice(0, 100),
     incoterm: "DDU",
     invoice: String(order.orderId || "").slice(0, 100) || undefined,
     items: itemIds,

@@ -95,7 +95,7 @@ describe('doPost can reach a spreadsheet at all', () => {
       // only need to prove doPost reaches them without throwing.
       (ss, data) => { ssStub.getSheetByName('Overview'); appended.push({ sheet: 'Overview', data }); return { added: 1, replaced: 0 }; },
       () => {}, () => {}, () => 0,
-      () => ({ email: 'lyricalmyricalbooks@gmail.com' }), () => ({ email: 'lyricalmyricalbooks@gmail.com' }),
+      () => ({ email: 'owner@example.com' }), () => ({ email: 'owner@example.com' }),
       { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
       { postData: { contents: JSON.stringify({
         version: 2,

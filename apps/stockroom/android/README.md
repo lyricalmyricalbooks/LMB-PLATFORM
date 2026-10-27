@@ -2,7 +2,7 @@
 
 This folder holds everything the Android version needs that lives in the code.
 The Android app is a thin shell around the web app you already use. It opens
-`https://lyricalmyricalbooks.github.io/lyrical-inventory/` full-screen, in
+`https://lmb-test-stockroom.web.app/` full-screen, in
 Chrome's engine, with your icon on the home screen. That means:
 
 - Every change merged here shows up in the Android app on its next launch. You
@@ -48,7 +48,7 @@ To regenerate the pictures after a logo change: `npm run android:assets`.
 
 1. Go to https://play.google.com/console and sign up. There is a one-time
    US $25 fee.
-2. Choose **Organization** if Lyricalmyrical Books is a registered business,
+2. Choose **Organization** if Your Press is a registered business,
    otherwise **Personal**. Google checks your ID (and for organizations, a
    D-U-N-S number), which can take a few days.
 3. **Important for personal accounts:** before a new personal account can
@@ -60,15 +60,15 @@ To regenerate the pictures after a logo change: `npm run android:assets`.
 ### 2. Decide where the ownership file lives
 
 Android only hides the browser's address bar if it finds the ownership file at
-`https://lyricalmyricalbooks.github.io/.well-known/assetlinks.json`. That is
+`https://yourpress.github.io/.well-known/assetlinks.json`. That is
 the very top of the address, which this repository does not control. Pick one:
 
 - **A tiny second repository (recommended).** Create a public GitHub repository
-  named exactly `lyricalmyricalbooks.github.io` containing only
+  named exactly `yourpress.github.io` containing only
   `.well-known/assetlinks.json`, plus an empty file named `.nojekyll`. Free,
   ten minutes, and the app's address does not change.
 - **Your own web address.** Point an address you own (for example
-  `app.lyricalmyrical.com`) at this site. Cleaner, but it needs DNS changes,
+  `app.yourpress.example`) at this site. Cleaner, but it needs DNS changes,
   the address must be added to Firebase sign-in's allowed list, and everyone's
   bookmarks move.
 - **Skip it.** The app still works, but a thin browser bar with the address
@@ -79,11 +79,11 @@ the very top of the address, which this repository does not control. Pick one:
 The easiest route needs no software installed:
 
 1. Open https://www.pwabuilder.com, paste
-   `https://lyricalmyricalbooks.github.io/lyrical-inventory/` and press Start.
+   `https://lmb-test-stockroom.web.app/` and press Start.
 2. Choose **Package for stores → Android → Generate package**, then
    **Options**, and enter the values from `twa-manifest.json`:
-   - Package ID: `io.github.lyricalmyricalbooks.inventory`
-   - App name: `Lyricalmyrical Inventory`, launcher name: `Lyrical Inv`
+   - Package ID: `example.press.inventory`
+   - App name: `Your Press Inventory`, launcher name: `Lyrical Inv`
    - Version code `1`, version name `1.0.0`
    - Signing key: **Create new**
 3. Download the zip. It contains the `.aab` file you upload to Play, an
@@ -105,7 +105,7 @@ ignored by git on purpose.
 
 ### 4. Create the app in Play Console
 
-1. **Create app** → name "Lyricalmyrical Inventory", type App, Free.
+1. **Create app** → name "Your Press Inventory", type App, Free.
 2. **Test and release → Setup → App signing**: accept Play App Signing.
 3. Copy the **SHA-256 certificate fingerprint** shown under "App signing key
    certificate". Put it into `assetlinks.json` (use `assetlinks.example.json`
@@ -126,7 +126,7 @@ Play will not let you publish until these are done:
 - **Phone screenshots:** at least 2. Take them on your phone from the real app,
   ideally Home, a book page and the shipping screen.
 - **Short description** (80 characters), for example: "Stock, sales,
-  consignment and shipping for Lyricalmyrical Books, even offline."
+  consignment and shipping for Your Press, even offline."
 - **Privacy policy link:** required, because the app signs people in with
   Google. It must be a public web page. See the list below for what it has to
   cover.

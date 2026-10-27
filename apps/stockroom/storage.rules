@@ -6,7 +6,7 @@ service firebase.storage {
     // (see the reason there).
     function isPublisher() {
       return request.auth != null
-        && request.auth.token.email == 'lyricalmyricalbooks@gmail.com'
+        && request.auth.token.email == 'owner@example.com'
         && request.auth.token.email_verified == true;
     }
 

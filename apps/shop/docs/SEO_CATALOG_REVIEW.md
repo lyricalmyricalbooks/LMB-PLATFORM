@@ -29,10 +29,10 @@ record, so none were copied. The owner can expand the description with verified
 creator, subject and edition information in Books > Details.
 
 Image labels now describe the observed red geometric artwork, two white
-Lyricalmyrical logos, floral pattern, stack of art books and restaurant table.
+Your Press logos, floral pattern, stack of art books and restaurant table.
 Filename-only labels such as `dyptics2.bmp` and `IMG_2555.jpg` were removed.
-Original labels: BETTER RED; Lyricalmyrical Secondary Logo with white font;
-Lyricalmyrical Logo - white font - no background.png;
+Original labels: BETTER RED; Your Press Secondary Logo with white font;
+Your Press Logo - white font - no background.png;
 image-from-rawpixel-id-4180406-jpeg.jpg; IMG_2555.jpg; dyptics2.bmp.
 Search summaries and titles were previously empty; the original Altrove listing
 now has a custom search title. The prior noindex fields were absent.

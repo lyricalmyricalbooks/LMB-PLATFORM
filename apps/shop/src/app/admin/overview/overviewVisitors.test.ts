@@ -130,8 +130,8 @@ describe("outboundRows", () => {
       { linkDomain: "www.instagram.com", eventCount: 4, activeUsers: 3 },
       { linkDomain: "instagram.com", eventCount: 2, activeUsers: 2 },
       { linkDomain: "(not set)", eventCount: 9, activeUsers: 9 },
-      { linkDomain: "lyricalmyricalbooks.com", eventCount: 9, activeUsers: 9 },
-    ] }, ["https://www.lyricalmyricalbooks.com"])!;
+      { linkDomain: "yourpress.example", eventCount: 9, activeUsers: 9 },
+    ] }, ["https://www.yourpress.example"])!;
     expect(rows).toEqual([
       { key: "instagram.com", domain: "instagram.com", label: "instagram.com", clicks: 6, people: 5 },
       { key: "bandcamp.com", domain: "bandcamp.com", label: "bandcamp.com", clicks: 3, people: 2 },

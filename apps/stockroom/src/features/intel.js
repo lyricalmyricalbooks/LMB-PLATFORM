@@ -230,7 +230,7 @@ function intelMessageHtml(msg, i) {
   return `<article class="intel-msg ${mine ? 'is-you' : 'is-app'}${isError ? ' is-error' : ''}" id="intel-msg-${i}">
       ${mine ? '' : '<div class="intel-msg-avatar" aria-hidden="true">L</div>'}
       <div class="intel-msg-content">
-        <div class="intel-msg-who">${mine ? 'You' : 'Lyricalmyrical Intelligence'}</div>
+        <div class="intel-msg-who">${mine ? 'You' : 'Your Press Intelligence'}</div>
         ${isError ? intelErrorHtml(msg) : `<div class="intel-msg-body">${body}</div>
         ${mine ? '' : toolTrace(msg.tools, msg)}
         ${mine ? '' : `<div class="intel-msg-actions">
@@ -370,7 +370,7 @@ function intelPendingHtml() {
   return `<article class="intel-msg is-app is-thinking" aria-hidden="true">
       <div class="intel-msg-avatar">L</div>
       <div class="intel-msg-content">
-        <div class="intel-msg-who">Lyricalmyrical Intelligence</div>
+        <div class="intel-msg-who">Your Press Intelligence</div>
         <div class="intel-msg-body">
           <div class="skeleton-line" style="width:82%"></div>
           <div class="skeleton-line" style="width:64%"></div>

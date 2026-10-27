@@ -36,7 +36,7 @@ are listed with `Checkout.tsx` in `checkoutLayout`'s files; `checkoutWiring.test
 the form (phone summary bar, lines, free gift, pre-order note, ledger, nudge, total, slip extras) draws in
 `CheckoutOrderSummary.tsx` the same way: display only, every amount worked out in `Checkout.tsx`.
 
-`Checkout.tsx` is concept A "Order slip" (Julian's pick): a ruled header (back link, wordmark with the last word in the accent,
+`Checkout.tsx` is concept A "Order slip" (the owner's pick): a ruled header (back link, wordmark with the last word in the accent,
 Secure), a one-page form of lettered sections (`SectionHead`: Contact · Ship to · Delivery · Pay) and an outlined **Order slip**
 aside (numbered lines with covers, discount/gift-card boxes, ledger, big total, footer strip). Every class is `fm-co-*`, all CSS
 comes from `features/site/checkoutSlipStyle.ts` `checkoutSlipCss(design)` (token-only, scoped to `[data-fm-checkout].fm-co`; field
@@ -260,7 +260,7 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
 
 ## Search drawer (21 October 2026)
 
-`features/site/SearchOverlay.tsx` is concept A "Catalogue index" (Julian's pick): a full-width drawer from the top, the typing
+`features/site/SearchOverlay.tsx` is concept A "Catalogue index" (the owner's pick): a full-width drawer from the top, the typing
 line in the heading font, and three columns. Before typing: New in the shop (`newestBooks`), Browse (`visibleCategoryCounts`,
 shop categories passed from `StoreHeader` as `categories`), recent + popular searches. While typing: Books (cover, credit,
 format, stock word `stockState`, price; arrow keys move the outlined row), Artists (`matchingArtists`, from `bookCreators`, link

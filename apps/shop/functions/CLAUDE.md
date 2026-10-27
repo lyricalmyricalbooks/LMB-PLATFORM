@@ -107,7 +107,7 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
   the card's **Daily backups** list and **Download** use action `backups` (`op: list | download`, `functions/backupAdmin.js`,
   15-minute signed link). The restore script accepts that downloaded file too.
 
-**Email sending:** `sendEmail` sends through Gmail SMTP (nodemailer, account `lyricalmyricalbooks@gmail.com`) first, because the shop has no Resend-verified domain. The Gmail app password is entered in Settings › Notifications › **Gmail sending** (`admin/GmailSendingCard.tsx`) and stored in the admin-only `adminSecrets/gmail` doc (never in public `settings/*`). If it is unset or Gmail fails, sending falls back to Resend (`onboarding@resend.dev` only reaches the account owner).
+**Email sending:** `sendEmail` sends through Gmail SMTP (nodemailer, account `owner@example.com`) first, because the shop has no Resend-verified domain. The Gmail app password is entered in Settings › Notifications › **Gmail sending** (`admin/GmailSendingCard.tsx`) and stored in the admin-only `adminSecrets/gmail` doc (never in public `settings/*`). If it is unset or Gmail fails, sending falls back to Resend (`onboarding@resend.dev` only reaches the account owner).
 
 Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
 `SHIPPO_API_TOKEN`) are stored as Firebase Functions secrets, not in the repo.

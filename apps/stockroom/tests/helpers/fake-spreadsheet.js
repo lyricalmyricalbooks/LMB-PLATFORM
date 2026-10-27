@@ -153,7 +153,7 @@ function makeRange(sheet, row, col, numRows, numCols) {
   return range.api;
 }
 
-export function createFakeSpreadsheet({ name = 'Lyricalmyrical Inventory' } = {}) {
+export function createFakeSpreadsheet({ name = 'Your Press Inventory' } = {}) {
   const sheets = [];
   const ss = {
     sheets,
@@ -240,7 +240,7 @@ export function loadAppsScript({ ss = createFakeSpreadsheet(), source } = {}) {
   vm.createContext(ctx);
   ScriptDate = vm.runInContext('Date', ctx);
   vm.runInContext(`${code}\n;this.__gs = { HEADERS, COL };`, ctx, { filename: 'Code.gs' });
-  ctx.requirePublisher_ = () => ({ uid: 'publisher', email: 'lyricalmyricalbooks@gmail.com' });
+  ctx.requirePublisher_ = () => ({ uid: 'publisher', email: 'owner@example.com' });
   ctx.verifyFirebaseCaller_ = ctx.requirePublisher_;
 
   const parse = (out) => JSON.parse(out.getContent());

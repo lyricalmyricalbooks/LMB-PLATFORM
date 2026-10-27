@@ -13,7 +13,7 @@ This is a UX/UI and rendering-structure enhancement for the Open Call tab only. 
 - Start with decisions that unblock the campaign, not configuration.
 - Give each contributor one unmistakable next action.
 - Keep advanced tools present but visually quiet until intentionally opened.
-- Preserve the editorial Lyricalmyrical character: warm paper surfaces, restrained gold emphasis, confident serif display type, and generous whitespace.
+- Preserve the editorial Your Press character: warm paper surfaces, restrained gold emphasis, confident serif display type, and generous whitespace.
 - Make every interaction understandable without relying only on emoji, colour, or hover state.
 
 ## Information architecture

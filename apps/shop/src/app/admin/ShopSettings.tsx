@@ -235,7 +235,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
             <div className="rp-stack" style={{ gap: 20 }}>
               <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
                 <TextField label="Publisher name" value={name} maxLength={100} hint={`${name.length} / 100 characters`} onChange={(e) => set("info", { name: e.target.value })} />
-                <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@lyricalmyricalbooks.com" onChange={(e) => set("info", { email: e.target.value })} />
+                <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@example.com" onChange={(e) => set("info", { email: e.target.value })} />
               </div>
               <TextArea label="Publisher description" rows={4} value={desc} maxLength={150} hint={`${desc.length} / 150 · search and social previews`} onChange={(e) => set("info", { description: e.target.value })} />
             </div>
@@ -281,7 +281,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         </SettingsAnchor>
         <SettingsAnchor id="gs-domain">
           <SectionCard title="Domain & visibility" description="For your records.">
-            <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="lyricalmyricalbooks.com"
+            <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="yourpress.example"
               hint="Doesn't move the shop. The domain is already live."
               onChange={(e) => set("domain", { custom: e.target.value })} />
           </SectionCard>
@@ -1409,7 +1409,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
     let defaultInstructions = "";
     if (type === "bank") {
       defaultName = "Bank Deposit / e-Transfer";
-      defaultInstructions = `Please send your Interac e-Transfer to ${settings.info?.email || "lyricalmyricalbooks@gmail.com"}. Use your order number as the transaction message.`;
+      defaultInstructions = `Please send your Interac e-Transfer to ${settings.info?.email || "owner@example.com"}. Use your order number as the transaction message.`;
     } else if (type === "cod") {
       defaultName = "Cash on Delivery (COD)";
       defaultInstructions = "Please prepare the exact amount of cash for your order. Our delivery agent will collect it upon delivery.";

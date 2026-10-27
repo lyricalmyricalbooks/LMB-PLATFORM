@@ -58,7 +58,8 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
-| 1.14 | shop | Take Lyricalmyrical out of the copy: its redirects, fallback email, starter words and project ids go; `firebase.json` built from a template at deploy | no "lyricalmyrical" left (check 1.18) | |
+| 1.14 | shop, stockroom | Take Lyricalmyrical out of both copies: redirects to its site, its address, email, starter words, update history and project ids go (neutral "Your Press" placeholders) | `apps-isolation.test.js` finds no "lyricalmyrical" | done |
+| 1.14b | shop | `firebase.json` built from a template at deploy | template test | |
 | 1.15 | shop | Site address and email links come from the profile (build scripts, server emails, `index.html`) | email link tests | |
 | 1.16 | shop | Shop name, wordmark and default words become theme and Text & labels defaults | Studio coverage checks | |
 | 1.17 | shop | Your one-offs become switches: legacy admin sign-in, Gmail receipt finder, GitHub Pages forwarding | tests | |

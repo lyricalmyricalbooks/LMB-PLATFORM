@@ -1,7 +1,7 @@
 {
-  "packageId": "com.lyricalmyrical.admin",
-  "host": "lyricalmyricalbooks.com",
-  "name": "Lyricalmyrical Admin",
+  "packageId": "example.press.admin",
+  "host": "yourpress.example",
+  "name": "Shop Admin",
   "launcherName": "LM Admin",
   "display": "standalone",
   "orientation": "portrait",
@@ -14,22 +14,22 @@
   "backgroundColor": "#faf6ec",
   "enableNotifications": false,
   "startUrl": "/admin#overview",
-  "iconUrl": "https://lyricalmyricalbooks.com/admin-icon-512.png",
-  "maskableIconUrl": "https://lyricalmyricalbooks.com/admin-icon-maskable-512.png",
-  "webManifestUrl": "https://lyricalmyricalbooks.com/admin.webmanifest",
+  "iconUrl": "https://yourpress.example/admin-icon-512.png",
+  "maskableIconUrl": "https://yourpress.example/admin-icon-maskable-512.png",
+  "webManifestUrl": "https://yourpress.example/admin.webmanifest",
   "splashScreenFadeOutDuration": 300,
-  "signingKey": { "path": "./lyricalmyrical-admin.keystore", "alias": "lyricalmyrical-admin" },
+  "signingKey": { "path": "./press-admin.keystore", "alias": "press-admin" },
   "appVersionName": "1.0.0",
   "appVersionCode": 1,
   "shortcuts": [
-    { "name": "Orders", "shortName": "Orders", "url": "/admin#orders", "chosenIconUrl": "https://lyricalmyricalbooks.com/admin-icon-192.png" },
-    { "name": "Inventory", "shortName": "Inventory", "url": "/admin#inventory", "chosenIconUrl": "https://lyricalmyricalbooks.com/admin-icon-192.png" }
+    { "name": "Orders", "shortName": "Orders", "url": "/admin#orders", "chosenIconUrl": "https://yourpress.example/admin-icon-192.png" },
+    { "name": "Inventory", "shortName": "Inventory", "url": "/admin#inventory", "chosenIconUrl": "https://yourpress.example/admin-icon-192.png" }
   ],
   "generatorApp": "bubblewrap-cli",
   "fallbackType": "customtabs",
   "enableSiteSettingsShortcut": false,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://lyricalmyricalbooks.com/admin",
+  "fullScopeUrl": "https://yourpress.example/admin",
   "minSdkVersion": 21
 }

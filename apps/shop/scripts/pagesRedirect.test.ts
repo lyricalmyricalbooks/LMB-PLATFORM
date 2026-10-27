@@ -3,7 +3,7 @@ import vm from 'node:vm';
 import { carryFragment, forwardScript, movedUrl, redirectPage, OLD_BASE } from './pagesRedirect.mjs';
 
 const target = 'https://lmb-test-shop.web.app';
-const old = 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite';
+const old = 'https://yourpress.github.io/shop';
 const store = (data: Record<string, string> = {}) => ({
   data, getItem: (k: string) => (k in data ? data[k] : null), setItem: (k: string, v: string) => { data[k] = String(v); },
 });
@@ -76,7 +76,7 @@ describe('what the old address hands over', () => {
 
   it('passes on where the visit came from (the forwarding page itself sends no referrer)', () => {
     expect(decode(carryFragment(store(), store(), `${target}/books/x`, 'https://l.instagram.com/?u=x'))).toEqual({ v: 1, from: 'l.instagram.com' });
-    expect(carryFragment(store(), store(), `${target}/`, 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite/')).toBe('');
+    expect(carryFragment(store(), store(), `${target}/`, 'https://yourpress.github.io/shop/')).toBe('');
     expect(carryFragment(store(), store(), `${target}/`, 'not a url')).toBe('');
   });
 });

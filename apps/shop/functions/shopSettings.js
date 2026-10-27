@@ -5,7 +5,7 @@
 const ORIGIN_FALLBACK = {
   street: "456 Montrose Ave", city: "Toronto", state: "ON", zip: "M6G3H1", country: "CA", phone: "6474096863",
 };
-const SHOP_EMAIL = "lyricalmyricalbooks@gmail.com";
+const SHOP_EMAIL = "owner@example.com";
 
 const text = value => (typeof value === "string" ? value.trim() : "");
 
@@ -20,7 +20,7 @@ function shopOrigin(settings) {
   // Shippo wants digits (and an optional +); "(647) 409-6863" becomes "6474096863".
   const phone = text(location.phone).replace(/[^\d+]/g, "") || ORIGIN_FALLBACK.phone;
   return {
-    name: text(settings?.info?.name) || "Lyricalmyrical Books",
+    name: text(settings?.info?.name) || "Your Press",
     street1: pick("street"),
     city: pick("city"),
     state: pick("state"),

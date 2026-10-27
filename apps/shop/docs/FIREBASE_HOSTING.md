@@ -1,7 +1,7 @@
 # Moving the storefront to Firebase Hosting
 
 GitHub stays the code home and the place builds run. Only where the built shop is served changes: from
-GitHub Pages (`https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite/`) to Firebase Hosting
+GitHub Pages (`https://yourpress.github.io/shop/`) to Firebase Hosting
 (`https://lmb-test-shop.web.app`, at the root of its own address; your own domain later). Stripe,
 Firestore and the Cloud Functions' payment and order logic do not change.
 
@@ -87,12 +87,12 @@ cookie banner again.
 
 ## Your own domain (later)
 
-The step-by-step guide for lyricalmyricalbooks.com is `docs/CUSTOM_DOMAIN.md`. In short:
+The step-by-step guide for yourpress.example is `docs/CUSTOM_DOMAIN.md`. In short:
 
 1. Firebase console › Hosting › **Add custom domain**. Follow the DNS steps and wait for the certificate.
 2. Add the domain to the reCAPTCHA key, to Stripe payment-method domains (test and live, from the admin opened on the
    new domain), and to Firebase Auth authorized domains in both projects. `ALLOWED_ORIGINS` already lists
-   lyricalmyricalbooks.com and www.
+   yourpress.example and www.
 3. Once the domain opens the shop, set the repository variable **`SITE_URL`** to `https://<your domain>`. Both deploys
    refuse an address that isn't in `ALLOWED_ORIGINS` or doesn't serve the shop yet, so a typo or a pending
    certificate can't redirect your visitors to a dead address.

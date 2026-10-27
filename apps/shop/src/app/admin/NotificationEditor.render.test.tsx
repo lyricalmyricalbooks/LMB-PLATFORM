@@ -9,7 +9,7 @@ const m = vi.hoisted(() => ({
   logs: [] as any[],
   publicSettings: {} as any,
 }));
-vi.mock('../../lib/firebase', () => ({ db: {}, auth: { currentUser: { email: 'lyricalmyricalbooks@gmail.com' } } }));
+vi.mock('../../lib/firebase', () => ({ db: {}, auth: { currentUser: { email: 'owner@example.com' } } }));
 vi.mock('firebase/firestore', () => ({
   doc: (_db: any, col: string, id: string) => ({ col, id }),
   collection: (_db: any, col: string) => ({ col }),
@@ -52,7 +52,7 @@ const cases: [string, () => void][] = [
   ['nothing saved yet', () => {}],
   ['saved settings with sender and shop alerts', () => {
     m.notifications = { brand: { logoUrl: '', brandColor: '#ff0000' }, shopAlerts: { newOrder: true, shipped: false, dailyOrderDigest: true }, order_confirmation: { subject: 'Hi', body: 'x' } };
-    m.publicSettings = { communications: { fromName: 'Lyricalmyrical', replyTo: 'a@b.co', fromEmail: 'onboarding@resend.dev' } };
+    m.publicSettings = { communications: { fromName: 'Your Press', replyTo: 'a@b.co', fromEmail: 'onboarding@resend.dev' } };
     m.logs = [{ at: '2026-10-10T10:00:00Z', to: 'x@y.co', subject: 's', status: 'sent' }, { at: { seconds: 1 }, to: null, status: 'failed', error: null }];
   }],
   ['odd stored shapes (null templates, communications not an object)', () => {

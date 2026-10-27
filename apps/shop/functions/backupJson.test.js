@@ -68,7 +68,7 @@ describe("runJsonBackup", () => {
     expect(Object.keys(bucket.files).pop()).toBe("backups/d/json/manifest.json");
     // One downloadable file with every document, named in the manifest.
     const all = JSON.parse(bucket.files["backups/d/json/backup.json"]);
-    expect(all).toMatchObject({ format: "lyricalmyrical-firestore-json/1", createdAt: "t", complete: true, documentCount: 5 });
+    expect(all).toMatchObject({ format: "press-firestore-json/1", createdAt: "t", complete: true, documentCount: 5 });
     expect(all.documents.map(d => d.path)).toEqual(["books/a", "books/b", "books/c", "orders/o1", "books/a/private/admin"]);
     expect(m.download).toBe("backups/d/json/backup.json");
   });

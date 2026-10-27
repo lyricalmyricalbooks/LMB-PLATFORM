@@ -1,8 +1,8 @@
 {
   "id": "/admin",
-  "name": "Lyricalmyrical Admin",
+  "name": "Shop Admin",
   "short_name": "LM Admin",
-  "description": "Orders, stock and sales for Lyricalmyrical Books.",
+  "description": "Orders, stock and sales for Your Press.",
   "start_url": "/admin#overview",
   "scope": "/admin",
   "display": "standalone",

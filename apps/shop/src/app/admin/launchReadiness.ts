@@ -112,7 +112,7 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
     ? { id: "first-sale", label: "A real paid order is recorded", detail: "The order is marked paid. Inspect provider payment, webhook logs, receipt, refund and fulfillment separately to verify the full flow.", status: "warn", tab: "orders", action: "Open Orders" }
     : { id: "first-sale", label: "No real paid order yet", detail: "Place one small live order (then refund it) to prove checkout end to end.", status: "warn", tab: "orders", action: "Open Orders" });
 
-  items.push({ id: "deployment", label: "Production deployment is unverified", detail: "This dashboard has no release or deployment evidence. Compare the latest successful workflow and Firebase release with the intended production version.", status: "warn", tab: "general", action: "Check deployments", href: "https://github.com/lyricalmyricalbooks/LyricalmyricalWebsite/actions" });
+  items.push({ id: "deployment", label: "Production deployment is unverified", detail: "This dashboard has no release or deployment evidence. Compare the latest successful workflow and Firebase release with the intended production version.", status: "warn", tab: "general", action: "Check deployments", href: "https://github.com/lyricalmyricalbooks/LMB-PLATFORM/actions" });
   items.push({ id: "hosting", label: "Hosting release needs verification", detail: "Confirm the live domain and Hosting release in the configured Firebase project. Frontend and Functions releases are separate.", status: "warn", tab: "general", action: "Open Firebase", href: "https://console.firebase.google.com/project/lmb-test-shop/hosting" });
   return items;
 }
