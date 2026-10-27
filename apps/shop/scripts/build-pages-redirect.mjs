@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Writes the old GitHub Pages site after the move to Firebase Hosting: forwarding pages only (scripts/pagesRedirect.mjs).
-//   SITE_URL=https://lmb-test-shop.web.app node scripts/build-pages-redirect.mjs --routes dist/prerender-routes.xml --out pages-redirect
+//   [SITE_URL=https://press.example] node scripts/build-pages-redirect.mjs --routes dist/prerender-routes.xml --out pages-redirect
 // index.html and 404.html cover every old address; each prerendered page also gets its own forwarding page at its
 // old address, answered with 200 and a canonical link to the new page, so search engines follow the move.
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -8,10 +8,11 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { publicRoutes, routeOutputPath } from './prerenderHtml.mjs';
 import { redirectPage } from './pagesRedirect.mjs';
+import { shopSiteUrl } from './shopProfile.mjs';
 
 const args = process.argv.slice(2);
 const option = name => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
-const target = (process.env.SITE_URL || 'https://lmb-test-shop.web.app').replace(/\/+$/, '');
+const target = await shopSiteUrl(); // SITE_URL, else the shop profile's siteUrl
 const parsed = new URL(target);
 if (parsed.protocol !== 'https:' || parsed.pathname !== '/' || /github\.io$/.test(parsed.hostname)) {
   throw new Error(`The forwarding pages need the shop's own https address at the root of its host, not ${target}`);

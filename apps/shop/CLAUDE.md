@@ -127,10 +127,14 @@ npm run logs
 
 ## Auth & admin access
 
-- Admin login is **Google sign-in**, hard-restricted to
-  `owner@example.com` (see `src/app/admin/api.ts` and the
-  `ADMIN_EMAILS` allowlist + `requireAdmin` in `functions/index.js`). There is
-  no password-based admin anymore.
+- Admin login is **Google sign-in**: the owner's address (`SHOP_OWNER_EMAIL`, `functions/shopConfig.js`) or a Team
+  role (`functions/roles.js`). There is no password-based admin anymore. The page never holds the owner's address:
+  `refreshMyRole` tells it to the owner and staff after sign-in (`src/app/lib/ownerDevice.ts` `rememberShopOwner`;
+  only the owner's own browser keeps it). The rules get it filled in at deploy (`scripts/deployConfig.mjs`).
+- **Per shop (plan 1.15):** site address and functions region come from `public/shop-profile.js` (`siteUrl`,
+  `functionsRegion`) for the pages and build scripts (`scripts/shopProfile.mjs`), and from `SITE_URL`/`SHOP_SITE_URL`
+  and `SHOP_FUNCTIONS_REGION` for the Cloud Functions (the deploy writes them from the profile). Never write a
+  `cloudfunctions.net` or `web.app` address by hand (`functionLink` in `shopConfig.js`).
 - Cloud Functions verify the Firebase ID token and require a verified admin
   email for privileged endpoints.
 

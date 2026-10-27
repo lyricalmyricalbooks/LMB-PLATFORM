@@ -4,16 +4,51 @@
 // (`off` undoes it). Kept in this browser only; it changes nothing but whether this browser's visits are counted.
 // A pure module (no Firebase), shared by the storefront's tracking guard and the admin card.
 
-/** The shop owner's sign-in (the one admin account, CLAUDE.md › Auth & admin access). */
-export const SHOP_OWNER_EMAIL = "owner@example.com";
+/**
+ * The shop owner's sign-in address. It is never built into the page: each shop's server holds it
+ * (functions/shopConfig.js SHOP_OWNER_EMAIL) and tells the admin after sign-in, only to the owner and staff
+ * (refreshMyRole). Until then it is "" and matches nobody. The owner's own browser keeps it, so the storefront can
+ * leave the signed-in owner out of Google Analytics; nobody else's browser stores it.
+ */
+const OWNER_EMAIL_KEY = "lm:owner-email";
+let ownerEmail = "";
+
+const normalised = (value: unknown) => String(value || "").trim().toLowerCase();
+const looksLikeEmail = (value: string) => /^[^\s@,<>"]+@[^\s@,<>"]+\.[^\s@,<>"]+$/.test(value) && value.length <= 254;
+
+/** The owner's address as far as this page knows it ("" before an admin sign-in told it). */
+export function shopOwnerEmail(storage: Store | null = store()): string {
+  if (ownerEmail) return ownerEmail;
+  try {
+    const saved = normalised(storage?.getItem(OWNER_EMAIL_KEY));
+    if (looksLikeEmail(saved)) ownerEmail = saved;
+  } catch { /* storage blocked: unknown */ }
+  return ownerEmail;
+}
+
+/** What the server said after sign-in. Kept in this browser only when the signed-in person is the owner. */
+export function rememberShopOwner(address: unknown, signedInEmail: unknown, storage: Store | null = store()): void {
+  const value = normalised(address);
+  if (!looksLikeEmail(value)) return;
+  ownerEmail = value;
+  try {
+    if (normalised(signedInEmail) === value) storage?.setItem(OWNER_EMAIL_KEY, value);
+    else storage?.removeItem(OWNER_EMAIL_KEY);
+  } catch { /* storage blocked: known for this page only */ }
+}
+
+/** Whether this address is the shop owner's (false while the owner's address isn't known). */
+export const isShopOwner = (email: unknown) => {
+  const owner = shopOwnerEmail();
+  return !!owner && normalised(email) === owner;
+};
 
 /**
  * An order the owner placed themselves (with the shop's own email): kept in Orders, left out of the Overview's figures
  * and the Monday summary (functions/weeklySummary.js has the same rule). The browser flag below is for visits only: the
  * owner may ring up a real customer's order on their own computer, and that sale must count.
  */
-export const isOwnOrder = (order: { customer?: { email?: unknown } } | null | undefined) =>
-  String(order?.customer?.email || "").trim().toLowerCase() === SHOP_OWNER_EMAIL;
+export const isOwnOrder = (order: { customer?: { email?: unknown } } | null | undefined) => isShopOwner(order?.customer?.email);
 
 export const OWNER_DEVICE_KEY = "lm:owner-device";
 export const OWNER_DEVICE_PARAM = "owner-device";

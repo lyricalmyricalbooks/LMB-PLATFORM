@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { teamMemberProblem } from "./teamApi";
-import { SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
+import { rememberShopOwner } from "../lib/ownerDevice";
+
+const SHOP_OWNER_EMAIL = "hello@moth.example";
+rememberShopOwner(SHOP_OWNER_EMAIL, "sam@press.test");
 
 describe("Team entries", () => {
   it("accepts a new person with a role, whatever the capitals", () => {

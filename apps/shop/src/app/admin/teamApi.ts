@@ -1,6 +1,6 @@
 import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
-import { SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
+import { shopOwnerEmail } from "../lib/ownerDevice";
 import { TEAM_ROLES, type TeamRole } from "./adminAccess";
 
 // Settings › Team: members/{email}, written only by the owner (firestore.rules). The server copies each role onto
@@ -14,7 +14,7 @@ export const teamEmail = (value: string) => value.trim().toLowerCase();
 export function teamMemberProblem(email: string, role: string, members: TeamMember[] = []): string | null {
   const id = teamEmail(email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || id.length > 254) return "Enter the person's email address.";
-  if (id === SHOP_OWNER_EMAIL) return "That's the owner's address, which always has access.";
+  if (id === shopOwnerEmail()) return "That's the owner's address, which always has access.";
   if (!TEAM_ROLES.includes(role as TeamRole)) return "Choose a role.";
   if (members.some(m => m.email === id && m.role === role)) return "That person already has this role.";
   return null;

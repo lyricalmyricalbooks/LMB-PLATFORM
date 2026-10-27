@@ -3,6 +3,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
+import { shopProfile } from "../../lib/shopProfile";
 import { HowTo, friendlyError } from "./settingsLayout";
 import { GhostButton, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 
@@ -96,7 +97,7 @@ export function AddressFinderCard() {
       actions={stored !== null && <StatusBadge tone={stored ? "success" : "warning"}>{stored ? "Google" : "Free (OpenStreetMap)"}</StatusBadge>}>
       <HowTo summary="Get a Google key" open={stored === false}>
         <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
-          <li>In Google Cloud (console.cloud.google.com), open the project <strong>lmb-test-shop</strong> and enable <strong>Places API (New)</strong>.</li>
+          <li>In Google Cloud (console.cloud.google.com), open the project <strong>{shopProfile.firebase.projectId}</strong> and enable <strong>Places API (New)</strong>.</li>
           <li>APIs &amp; Services › Credentials › Create credentials › API key. Under API restrictions, allow only Places API (New). Leave Application restrictions on None: the shop's server makes the lookups, not shoppers' browsers.</li>
           <li>Paste the key here and choose Save key. Google bills lookups beyond its monthly free allowance, so set a budget alert in Google Cloud › Billing. The shop also stops using the key after 300 lookups a day (checkout then uses the free suggestions until the next day), which keeps a month inside Google's free allowance.</li>
         </ol>

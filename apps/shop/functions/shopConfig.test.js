@@ -53,6 +53,24 @@ describe('readShopConfig', () => {
     expect(config.allowedOrigins.filter(o => o.includes('www.'))).toEqual(['https://www.mothpress.example']);
   });
 
+  test('function links follow the shop\'s region and project', () => {
+    const { functionLink } = require('./shopConfig');
+    const moth = readShopConfig({ SHOP_FUNCTIONS_REGION: 'northamerica-northeast1', GCLOUD_PROJECT: 'moth-press-shop' });
+    expect(moth.region).toBe('northamerica-northeast1');
+    expect(functionLink(moth, 'stripeWebhook')).toBe('https://northamerica-northeast1-moth-press-shop.cloudfunctions.net/stripeWebhook');
+    // Unset or malformed keeps today's region for the test shop.
+    expect(functionLink(readShopConfig({}), 'downloadDigitalAsset')).toBe('https://us-central1-lmb-test-shop.cloudfunctions.net/downloadDigitalAsset');
+    expect(readShopConfig({ SHOP_FUNCTIONS_REGION: 'Mars/../x' }).region).toBe(PLACEHOLDER.region);
+  });
+
+  test('no function link is written out by hand anywhere in the server code', async () => {
+    const { readdirSync, readFileSync } = await import('node:fs');
+    const here = new URL('.', import.meta.url);
+    for (const file of readdirSync(here).filter(f => f.endsWith('.js') && !f.endsWith('.test.js'))) {
+      expect(readFileSync(new URL(file, here), 'utf8'), file).not.toMatch(/https:\/\/[a-z0-9-]+\.cloudfunctions\.net/);
+    }
+  });
+
   test('the result cannot be changed by a caller', () => {
     const config = readShopConfig({});
     expect(Object.isFrozen(config)).toBe(true);

@@ -28,6 +28,9 @@ vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
 vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
 vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 import { adminApi } from "./api";
+import { rememberShopOwner } from "../lib/ownerDevice";
+// The server named the shop's owner after sign-in (functions/index.js refreshMyRole).
+rememberShopOwner("owner@example.com", "", null);
 
 describe("live category assignment writes", () => {
   beforeEach(() => {

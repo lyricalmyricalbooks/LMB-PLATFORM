@@ -47,6 +47,15 @@ describe("webhookEndpointReport", () => {
     const r = webhookEndpointReport([{ id: "we_1", url: URL + "/", status: "disabled", enabled_events: ["*"] }], URL);
     expect(r).toMatchObject({ missingEvents: [], enabled: false, wrongUrl: false });
   });
+  it("finds this shop's endpoint left in another region, and never another shop's", () => {
+    const moved = "https://northamerica-northeast1-lmb-test-shop.cloudfunctions.net/stripeWebhook";
+    const other = { id: "we_other", url: "https://us-central1-other-press-shop.cloudfunctions.net/stripeWebhook", status: "enabled", enabled_events: ["*"] };
+    const r = webhookEndpointReport([other, { id: "we_1", url: URL, status: "enabled", enabled_events: ["*"] }], moved);
+    expect(r).toMatchObject({ found: true, endpointId: "we_1", wrongUrl: true });
+    expect(webhookEndpointReport([other], moved)).toMatchObject({ found: false });
+    // A longer project name that merely ends the same way is someone else's.
+    expect(webhookEndpointReport([{ ...other, url: "https://us-central1-not-lmb-test-shop.cloudfunctions.net/stripeWebhook" }], moved)).toMatchObject({ found: false });
+  });
 });
 
 describe("signingSecrets", () => {

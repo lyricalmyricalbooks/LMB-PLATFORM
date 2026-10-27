@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { cleanMeasurementId, cleanPropertyId, googleAnalyticsApi, type Ga4Answer } from "./googleAnalytics";
 import { bigQueryDatasetProblem, cleanBigQueryDataset, type JourneyAnswer } from "./bigQueryJourneys";
 import { HowTo, friendlyError } from "./settingsLayout";
+import { shopProfile } from "../../lib/shopProfile";
 import { PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField } from "./riso/components";
 
 // Settings › General › Google Analytics. The measurement ID turns on Google's tag for shoppers (consent-aware,
@@ -120,8 +121,8 @@ export function GoogleAnalyticsCard() {
         <p className="rp-hint" style={{ margin: "0 0 8px" }}>The real paths people take, and where they leave.</p>
         <HowTo summary="Setup steps" open={false}>
           <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
-            <li>In Google Analytics › Admin › Product links › <strong>BigQuery links</strong> › Link, choose this Firebase project (<span className="rp-mono">lmb-test-shop</span>), tick <strong>Daily</strong> export and submit. The first day's data appears about a day later.</li>
-            <li>In <a href="https://console.cloud.google.com/iam-admin/iam?project=lmb-test-shop" target="_blank" rel="noopener noreferrer">Google Cloud › IAM</a>, give the shop's service account (shown by <strong>Check BigQuery</strong>) the roles <strong>BigQuery Data Viewer</strong> and <strong>BigQuery Job User</strong>.</li>
+            <li>In Google Analytics › Admin › Product links › <strong>BigQuery links</strong> › Link, choose this Firebase project (<span className="rp-mono">{shopProfile.firebase.projectId}</span>), tick <strong>Daily</strong> export and submit. The first day's data appears about a day later.</li>
+            <li>In <a href={`https://console.cloud.google.com/iam-admin/iam?project=${encodeURIComponent(shopProfile.firebase.projectId)}`} target="_blank" rel="noopener noreferrer">Google Cloud › IAM</a>, give the shop's service account (shown by <strong>Check BigQuery</strong>) the roles <strong>BigQuery Data Viewer</strong> and <strong>BigQuery Job User</strong>.</li>
             <li>Leave the box below empty: the shop reads <span className="rp-mono">analytics_&lt;property ID&gt;</span> in this project. Only if the export lives elsewhere, write its <span className="rp-mono">project.dataset</span>. Then press <strong>Check BigQuery</strong>.</li>
           </ol>
         </HowTo>

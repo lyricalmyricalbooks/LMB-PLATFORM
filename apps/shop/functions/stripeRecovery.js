@@ -65,9 +65,15 @@ function normaliseUrl(url) {
 function webhookEndpointReport(endpoints, webhookUrl) {
   const target = normaliseUrl(webhookUrl);
   const list = Array.isArray(endpoints) ? endpoints : [];
+  // This shop's project, from its own webhook address (https://<region>-<project>.cloudfunctions.net/stripeWebhook).
+  const project = (target.match(/^https:\/\/[a-z]+-[a-z]+[0-9]{1,2}-([a-z][a-z0-9-]{4,28}[a-z0-9])\.cloudfunctions\.net\//) || [])[1];
+  const sameProject = (url) => {
+    const m = normaliseUrl(url).match(/^https:\/\/[a-z]+-[a-z]+[0-9]{1,2}-([a-z][a-z0-9-]{4,28}[a-z0-9])\.cloudfunctions\.net\/stripewebhook$/);
+    return !!project && !!m && m[1] === project;
+  };
   const match = list.find((e) => normaliseUrl(e && e.url) === target)
-    // Same function on another URL form for this project only — never another shop's endpoint.
-    || list.find((e) => /lmb-test-shop.*\/stripeWebhook$/i.test(String((e && e.url) || "").replace(/\/+$/, "")));
+    // The same function of this project in another region (the shop moved) — never another shop's endpoint.
+    || list.find((e) => sameProject(e && e.url));
   if (!match) return { found: false, endpointId: null, url: null, enabled: false, missingEvents: REQUIRED_WEBHOOK_EVENTS.slice(), wrongUrl: false };
   const events = Array.isArray(match.enabled_events) ? match.enabled_events : [];
   const all = events.includes("*");

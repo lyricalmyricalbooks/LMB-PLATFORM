@@ -11,10 +11,11 @@ import { readdir, writeFile, access } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assetNames, parseAssetManifest, isHtmlResponse } from './assetManifest.mjs';
+import { shopSiteUrl } from './shopProfile.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assetsDir = resolve(root, 'dist/assets');
-const siteUrl = (process.env.SITE_URL || 'https://lmb-test-shop.web.app').replace(/\/$/, '');
+const siteUrl = await shopSiteUrl(); // SITE_URL, else the shop profile's siteUrl
 const warn = message => console.warn(`::warning::${message}`);
 
 const own = assetNames(await readdir(assetsDir));

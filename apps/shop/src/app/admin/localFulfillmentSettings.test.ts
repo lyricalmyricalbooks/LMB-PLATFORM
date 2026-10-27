@@ -27,6 +27,9 @@ vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 
 
 import { adminApi } from './api';
+import { rememberShopOwner } from '../lib/ownerDevice';
+// The server named the shop's owner after sign-in (functions/index.js refreshMyRole).
+rememberShopOwner('owner@example.com', '', null);
 const config = { enabled: false, pickupLocations: [], deliveryZones: [] };
 beforeEach(() => { setDoc.mockClear(); taskAuth.currentUser = null; });
 describe('local fulfillment persistence authorization', () => {
