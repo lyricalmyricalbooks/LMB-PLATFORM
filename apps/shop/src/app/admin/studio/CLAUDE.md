@@ -552,6 +552,14 @@ renderer **+** storefront mapping **+** library entry **+** verify on the live
 storefront. Theme data persists as `design` (live, public `settings/website`) and the private
 draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
 
+**Named header layouts (27 October 2026, plan 1.22).** The shop header's two looks are named options of the shared
+header: Header & announcement bar › **Header layout** (`headerLayout`: `classic` = the big masthead over a ruled
+category bar, once called Reference; `modern` = logo, links and bag in one bar). Empty (every existing shop) follows
+Shop page masthead & covers › Layout exactly as before, and picking one never changes the shop page grid.
+`features/site/headerLayout.ts` decides; `usesReferenceHeader` (navItems.ts) reads it, so StoreHeader and Menus ›
+Shop categories agree. Theme presets set only the shop page layout, so an owner's explicit header choice survives
+applying one. Product and other pages keep their own header for now.
+
 ## Studio organization
 
 Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages

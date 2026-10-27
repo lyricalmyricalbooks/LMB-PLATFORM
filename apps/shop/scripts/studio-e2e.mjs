@@ -1595,6 +1595,30 @@ await check("the default shop header follows the Header menu, link colour, stick
   await bar.locator(".fm-sticker-pill").first().waitFor({ timeout: 10000 });
 });
 
+await check("Header layout picks the shop header on its own, and empty follows the shop page layout", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  const classic = frame.locator("header .fm-ref-masthead");
+  const modern = frame.locator("header .fm-hdr-row");
+  await frame.locator("header").first().waitFor({ timeout: 15000 });
+  const startsClassic = await classic.count() > 0;
+  await findStyleField(page, "Header layout on the shop pages", "headerLayout");
+  const control = styleControl(page, "headerLayout", "select");
+  if (await control.inputValue() !== "") throw new Error("Header layout doesn't start empty (following the shop page layout)");
+  await control.selectOption("modern");
+  await modern.waitFor({ timeout: 10000 });
+  if (await classic.count()) throw new Error("Modern still draws the classic masthead");
+  await control.selectOption("classic");
+  await classic.waitFor({ timeout: 10000 });
+  if (await modern.count()) throw new Error("Classic still draws the modern bar");
+  // Back to empty: the header the shop drew before.
+  await control.selectOption("");
+  await (startsClassic ? classic : modern).waitFor({ timeout: 10000 });
+  // The shop page layout itself never moved.
+  await findStyleField(page, "Layout (the shop page grid", "catalogLayoutStyle");
+  if (await styleControl(page, "catalogLayoutStyle", "select").inputValue() !== (startsClassic ? "reference" : "modern")) throw new Error("Header layout changed the shop page layout");
+});
+
 await check("Theme settings switches start in the state the shop shows", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await openStyleCategory(page, "Badges & shop labels");
