@@ -1,0 +1,340 @@
+name: Deploy storefront
+
+# Builds the storefront and publishes it to Firebase Hosting (the shop: https://lmb-test-shop.web.app, or the
+# repository variable SITE_URL once it has its own domain). GitHub Pages, the old address, then gets forwarding
+# pages only (scripts/pagesRedirect.mjs), and only after Hosting has deployed and passed its live check.
+# The file keeps its name so keep-refresh-alive.yml and the schedule history stay put.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+
+permissions:
+  contents: read
+
+# Nothing here is ever cancelled: a cancelled run shows as a red mark on main and could stop mid-deploy. Every run is its
+# own group instead, and a run that is no longer the newest commit on main finishes green as "superseded" (the
+# `newest` step below, re-checked right before the Hosting deploy), so the newest commit is always what ends up live.
+concurrency:
+  group: pages-${{ github.run_id }}
+  cancel-in-progress: false
+
+# Same exact CLI version as deploy-firebase.yml (scripts/hostingConfig.test.ts keeps them equal): the Hosting deploy
+# holds a Firebase key, so a new release must not run with it unreviewed.
+env:
+  FIREBASE_TOOLS_VERSION: 15.32.1
+  FIREBASE_PROJECT: lmb-test-shop
+
+jobs:
+  newest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      superseded: ${{ steps.newest.outputs.superseded }}
+    steps:
+      # A newer commit reached main since this run started: it builds and publishes everything this one would, so this
+      # run stops here (green) instead of racing it.
+      - name: Is this still the newest commit on main?
+        id: newest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$REPO/commits/main" --jq .sha) || { echo "Could not read main's head; carrying on."; echo "superseded=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          if [ "$head" != "$SHA" ] && [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            echo "main has moved on to $head; this run ($SHA) is superseded and will not publish."
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "superseded=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Deploy order contract (.github/CLAUDE.md): Firestore rules, indexes and Functions go live BEFORE the frontend that
+  # depends on them. When this push also changed a path deploy-firebase.yml watches, wait for that run and
+  # require it to succeed. Scheduled and manual builds change no backend files, so they pass straight through.
+  # It runs alongside build-hosting (building publishes nothing); only deploy-hosting waits for it.
+  firebase-first:
+    needs: newest
+    if: needs.newest.outputs.superseded != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Wait for the Firebase deploy when this push changed backend files
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          # Keep this list identical to `on.push.paths` in deploy-firebase.yml.
+          WATCHED='^(firestore\.rules|firestore\.indexes\.json|storage\.rules|firebase\.json|functions/.*|\.github/workflows/deploy-firebase\.yml)$'
+          IGNORED='^(functions/.*\.test\.js|functions/.*\.test\.ts|functions/.*\.fakes\.mjs|functions/README\.md)$'
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No previous commit to compare; treating backend files as changed."
+            expect=true
+          else
+            files=$(gh api --paginate "repos/$REPO/compare/$BEFORE...$SHA" --jq '.files[].filename') || {
+              echo "::error::Could not list the files changed by this push, so the Firebase deploy order cannot be checked. Re-run this workflow."
+              exit 1
+            }
+            if printf '%s\n' "$files" | grep -Ev "$IGNORED" | grep -Eq "$WATCHED"; then expect=true; else expect=false; fi
+          fi
+          if [ "$expect" != "true" ]; then
+            echo "No Firebase files changed in this push; publishing the frontend straight away."
+            exit 0
+          fi
+          echo "Backend files changed; waiting for the Firebase deploy of $SHA to finish first."
+          deadline=$(( $(date +%s) + 2100 ))
+          seen_at=$(( $(date +%s) + 300 ))
+          while :; do
+            run=$(gh run list --repo "$REPO" --workflow deploy-firebase.yml --commit "$SHA" --event push \
+              --json status,conclusion,url --jq '.[0] // empty')
+            if [ -n "$run" ]; then
+              status=$(printf '%s' "$run" | jq -r .status)
+              if [ "$status" = "completed" ]; then
+                conclusion=$(printf '%s' "$run" | jq -r .conclusion)
+                if [ "$conclusion" = "success" ]; then echo "Firebase deploy succeeded; continuing."; exit 0; fi
+                echo "::error::The Firebase deploy ended as '$conclusion' ($(printf '%s' "$run" | jq -r .url)). The frontend was NOT published, so it cannot run ahead of its rules and Functions. Fix it and re-run, or start this workflow by hand once the backend is current."
+                exit 1
+              fi
+            elif [ "$(date +%s)" -gt "$seen_at" ]; then
+              echo "::error::Backend files changed but no Firebase deploy run appeared for $SHA within 5 minutes."
+              exit 1
+            fi
+            if [ "$(date +%s)" -gt "$deadline" ]; then echo "::error::Timed out waiting for the Firebase deploy."; exit 1; fi
+            sleep 20
+          done
+
+  # Built without any secret (dependencies and Playwright run here); the key only appears in deploy-hosting,
+  # which installs nothing.
+  build-hosting:
+    needs: newest
+    # FIREBASE_HOSTING_ENABLED (repository variable) must stay true: it was the switch for the side-by-side step and
+    # is now the emergency stop. A manual run from another branch must never publish (the key has no branch rule).
+    if: github.ref == 'refs/heads/main' && vars.FIREBASE_HOSTING_ENABLED == 'true' && needs.newest.outputs.superseded != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      built: ${{ steps.result.outputs.built }}
+      site-url: ${{ steps.address.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The shop's address: the repository variable SITE_URL (its own domain, later) or the Firebase Hosting default.
+      # The canonical-host script sends every visitor there, so scripts/siteAddressCheck.mjs refuses a malformed or
+      # GitHub Pages address, one the Cloud Functions don't allow (checkout would fail CORS) and, for a custom one, an
+      # address that isn't serving the shop yet (DNS or certificate still pending, or a typo).
+      - name: Site address
+        id: address
+        env:
+          CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          # Hosts are case-insensitive; "Lyricalmyricalbooks.com" means lyricalmyricalbooks.com.
+          CUSTOM_SITE_URL="$(printf '%s' "$CUSTOM_SITE_URL" | tr '[:upper:]' '[:lower:]')"
+          url="${CUSTOM_SITE_URL:-https://lmb-test-shop.web.app}"
+          url="${url%/}"
+          live=""
+          if [ -n "$CUSTOM_SITE_URL" ]; then live="--live"; fi
+          node scripts/siteAddressCheck.mjs "$url" $live
+          echo "SITE_URL=$url" >> "$GITHUB_ENV"
+          echo "SITE_BASE=/" >> "$GITHUB_ENV"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Building for $url"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Check published content
+        id: published
+        if: github.event_name == 'schedule'
+        run: node scripts/check-published-change.mjs
+
+      - run: pnpm install --frozen-lockfile
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+
+      # Keeps the downloaded Chromium (and the pinned firebase-tools that npx fetches for the emulator check) between
+      # runs. This job holds no secret; deploy-hosting deliberately restores no cache next to its key.
+      - name: Restore the browser and CLI downloads
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ~/.npm/_npx
+          key: build-tools-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-firebase-${{ env.FIREBASE_TOOLS_VERSION }}
+
+      - run: pnpm exec playwright install --with-deps chromium
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+
+      - name: Build with reCAPTCHA App Check configuration
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        env:
+          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.RECAPTCHA_ENTERPRISE_SITE_KEY }}
+          VITE_APP_CHECK_MODE: ${{ vars.APP_CHECK_MODE || 'monitor' }}
+        run: |
+          case "$VITE_APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
+          if [ "$VITE_APP_CHECK_MODE" = "enforce" ] && [ -z "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY" ]; then
+            echo "::error::Register reCAPTCHA Enterprise and set RECAPTCHA_ENTERPRISE_SITE_KEY before enforcing App Check."
+            exit 1
+          fi
+          pnpm run build
+
+      # Firebase Hosting replaces the whole site; keep the previous build's CSS/JS for tabs opened before it.
+      - name: Keep the previous deploy's assets
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        run: node scripts/carry-previous-assets.mjs
+
+      - name: Check routing and headers in the Hosting emulator
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs"
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        with:
+          name: hosting-dist
+          path: dist
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+      - id: result
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        run: echo "built=true" >> "$GITHUB_OUTPUT"
+
+  # Publishing is the only step that has to wait for the backend: firebase-first must have succeeded (a failed or
+  # skipped firebase-first skips this job, so the frontend never runs ahead of its rules and Functions).
+  deploy-hosting:
+    needs: [build-hosting, firebase-first]
+    if: needs.build-hosting.outputs.built == 'true' && needs.firebase-first.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      deployed: ${{ steps.newest.outputs.deploy }}
+    environment:
+      name: firebase-hosting
+      url: ${{ needs.build-hosting.outputs.site-url }}
+    steps:
+      # Only the repository's own scripts and the pinned CLI run next to the key: no pnpm install, no Playwright.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: hosting-dist
+          path: dist
+
+      # Re-check right before publishing: a newer commit may have landed while this one was building, and an older
+      # build must never replace a newer one.
+      - name: Is this still the newest commit on main?
+        id: newest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$REPO/commits/main" --jq .sha) || head="$SHA"
+          if [ "$head" != "$SHA" ]; then
+            echo "main has moved on to $head; not publishing $SHA."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to Firebase Hosting
+        if: steps.newest.outputs.deploy == 'true'
+        env:
+          # A service account with only "Firebase Hosting Admin" (preferred), else the backend deploy key.
+          HOSTING_KEY: ${{ secrets.FIREBASE_HOSTING_SERVICE_ACCOUNT }}
+          FALLBACK_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          key="${HOSTING_KEY:-$FALLBACK_KEY}"
+          if [ -z "$key" ]; then
+            echo "::error::Add the FIREBASE_HOSTING_SERVICE_ACCOUNT secret (docs/FIREBASE_HOSTING.md): the shop can't be published without it."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$key" > "$RUNNER_TEMP/hosting-sa.json"
+          trap 'rm -f "$RUNNER_TEMP/hosting-sa.json"' EXIT
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/hosting-sa.json"
+          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy --only hosting \
+            --project "$FIREBASE_PROJECT" --non-interactive \
+            --message "${GITHUB_SHA::12} (${GITHUB_EVENT_NAME})"
+
+      - name: Check the live site
+        if: steps.newest.outputs.deploy == 'true'
+        env:
+          SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
+        run: node scripts/hosting-smoke.mjs --base "$SITE_URL"
+
+      # Search Console: every sitemap URL answers 200 with its own canonical, old Big Cartel addresses take one 301
+      # hop (unknown ones answer 404), /cart says noindex. Reported only: a finding never holds the old-address pages.
+      - name: Check search-engine URLs on the live site
+        if: steps.newest.outputs.deploy == 'true'
+        continue-on-error: true
+        env:
+          SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
+        run: node scripts/seo-url-check.mjs --base "$SITE_URL"
+
+  # The old address forwards to the shop. Replaced only after the shop itself deployed and passed its live check,
+  # so GitHub Pages never forwards to an address that isn't serving. Schedules don't touch it.
+  redirect-old-address:
+    needs: [build-hosting, deploy-hosting]
+    if: github.event_name != 'schedule' && needs.deploy-hosting.outputs.deployed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: hosting-dist
+          path: dist
+
+      - name: Build the forwarding pages
+        env:
+          SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
+        run: node scripts/build-pages-redirect.mjs --routes dist/prerender-routes.xml --out pages-redirect
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./pages-redirect
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -4,7 +4,7 @@ The one written format the shop and the stockroom agree on. Everything that diff
 public: Firebase web settings, functions region, the shop's address, the bot-protection site key and which apps are on.
 
 - `shop-profile.schema.json` is the master copy. Each app repo keeps a copy, checked by a test.
-- `examples/lyricalmyrical.json` is your shop's profile.
+- `examples/test-shop.json` is the made-up test shop's profile (never a live project).
 - `profile.js` checks a profile and writes the file Hosting serves (`/shop-profile.js`), which sets
   `window.__SHOP_PROFILE__` before the app starts.
 

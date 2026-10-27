@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.next/
+.DS_Store
+*.log
+.env
+.env.*
+temp_*.json
+*.ps1
+backend/data/store.json
+backend/uploads/*
+!backend/uploads/.gitkeep
+studio-shots/
+.firebase/

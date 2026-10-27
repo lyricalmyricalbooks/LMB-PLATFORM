@@ -1,0 +1,11904 @@
+// Shipping — Shippo label buying and rate quoting, the postage/expense
+// reconciliation worklist, and the shipping analysis hub (P&L, carrier
+// scorecard, region split, weight bands, ledger and insights).
+//
+// Lifted out of src/main.js as one unit, the same way Open Call was. The
+// reconciliation rules already lived in lib/shipping-reconciliation.js; this is
+// the API calls, the DOM and the state around them.
+//
+// Deliberately NOT included, because they belong to the Big Cartel integration
+// rather than to shipping: prefillShippingFromBigCartelOrder,
+// hydrateShippingDestinationPhone, syncBigCartelShippingPaid and
+// triggerBigCartelShippingSync. Shipping should not own a storefront's fetch
+// logic. getAllStores stays in main.js for the same reason in reverse — it is a
+// consignment concept that shipping merely reads.
+//
+// The cycle with main.js is safe for the reason set out in
+// tests/features-boundary.test.js: nothing here runs at module-evaluation
+// time. eslint's no-undef, an error in CI, keeps the import list below honest.
+import { withAutoLocalPickup } from '../lib/local-pickup.js';
+import { notifyDevice } from '../lib/device-notify.js';
+import { buildChitChatsShipment, getChitChatsRates, buyChitChatsLabel, normalizeChitChatsShipment,
+  listChitChatsShipments, refundChitChatsShipment, fetchChitChatsLabelArtifact, deleteChitChatsDraft, chitChatsCharge } from '../lib/carriers/chitchats.js';
+import { readChitChatsState, saveChitChatsState, safeChitChatsRecord } from '../lib/carriers/chitchats-state.js';
+import {
+  bigCartelShipQueue,
+  findOrderInAnyBook,
+  nextOrderToShip,
+  ordersStillToShip,
+  queueCardClosed,
+  shippedOrderNumbers,
+  storefrontSaysShipped,
+  waitingPhrase,
+} from '../lib/ship-queue.js';
+import { storeReversal } from '../lib/store-reversals.js';
+import { HAND_LABEL_ORIENTATION_KEY, buildHandLabelDocument, returnLines } from '../lib/hand-label.js';
+import { bigCartelTrackingByOrder, shipmentDate, trackingToStamp } from '../lib/bigcartel-tracking.js';
+import {
+  $,
+  TAX_CENTER,
+  commitRecoveredWebsiteOrder,
+  _fxRateCache,
+  addLog,
+  fetchHistoricalRate,
+  fetchLiveRate,
+  getAllStores,
+  isAuthor,
+  normalizeCountryCode,
+  orders,
+  renderHist,
+  renderOrders,
+  saveCatalogWithDeletions,
+  saveState,
+  sheetsUrl,
+  showToast,
+  switchTab,
+  today,
+} from '../main.js';
+import { BOOKS, BOOK_LIST, states, activeBook, getState, getBook } from '../core/store.js';
+import { renderExpenses, saveReceiptToLocalFile, readShippingFieldsFromReceipt } from './receipts.js';
+import { openReviewInbox } from './review-inbox.js';
+import { findExistingLabel, describeExistingLabel, websiteLabelWords } from '../lib/carriers/label-duplicate-guard.js';
+import { isShippoTestKey, isWebsiteFulfilled } from '../lib/website-link.js';
+import { websiteShipmentNote } from './website-link.js';
+import {
+  refundCarrier, refundState, canRequestRefund, shippoTransactionId, refundCredit,
+  unshipOrderForRefund, describeRefundRefusal,
+} from '../lib/carriers/label-refunds.js';
+import {
+  BATCH_LOOKBACK_DAYS, isBatchCandidate, scaledParcel, batchCustomsDeclaration, pickCheapestRate,
+  originBlocker, preflightBlocker, addressVerdictBlocker, describeBatchTotal, buildLabelPrintPage,
+} from '../lib/batch-shipping.js';
+import { openM, closeM, confirmDialog, promptDialog, validateFields, clearFieldErrors, fieldError, _prefersReducedMotion } from '../lib/modal.js';
+import { dismissAppAlert, pushAppAlert } from '../lib/app-alert.js';
+import {
+  integrationBackoffMs,
+  noteIntegrationFailure,
+  noteIntegrationSuccess,
+} from '../lib/integration-watch.js';
+import {
+  extractBigCartelAddress,
+  getBigCartelIncluded,
+  getBigCartelOrders,
+  hydrateShippingDestinationPhone,
+  refreshBigCartelOrdersIfDue,
+} from './bigcartel.js';
+import { renderTaxCenter, saveTaxCenter } from './taxcentre.js';
+import { escapeHtml } from '../lib/html.js';
+import {
+  REGION_LABELS,
+  countryIsUnrecognized,
+  countryName,
+  countryOptions,
+  resolveCountryCode,
+  shipmentRegion,
+} from '../lib/countries.js';
+import { csvCell } from '../lib/csv.js';
+import { downloadBlob, downloadCsv } from '../lib/download.js';
+import { fmt, fmtD, roundCents, cadEquivalentForSale, getBookCurrencyCode } from '../lib/money.js';
+import { localDay, localDayPlus } from '../lib/calendar-day.js';
+import {
+  buildRecoveredOrderEntry,
+  recoveredOrderPrefill,
+  validateRecoveredOrder,
+} from '../lib/manual-website-order.js';
+import {
+  describeParcelPlan,
+  orderParcelPlan,
+  parcelLinesFromLedgerEntry,
+} from '../lib/order-parcel-prefill.js';
+import { bigCartelOrderLines, bigCartelOrderNumber } from '../lib/bigcartel-ledger-gap.js';
+import { receiptLinkTarget } from '../lib/receipt-links.js';
+import {
+  autoMatchPostage,
+  carrierFromTracking,
+  findPostageByKey,
+  postageExpenseKey,
+  mergeScannedPostageFields,
+  postageScanCandidates,
+  formatTrackingNumber,
+  isPostageExpense,
+  isPostageLinked,
+  normalizeTrackingNumber,
+  postageLinkPatch,
+  postageRecipientName,
+  suggestPostageMatches,
+  trackingUrlFor,
+} from '../lib/postage-matching.js';
+import {
+  applyShippoExpenseEnrichments,
+  autoLinkConfidentShippingMatches,
+  enrichShippoExpense,
+  isUnresolvedShippoPostage,
+  needsAmountAttention,
+  linkedShippingSummary,
+  normalizeShippingOrderNumber,
+  persistManualShippingLink,
+  reconcileShippingExpense,
+  stageShippoExpenseEnrichment,
+  writeShippingLink,
+} from '../lib/shipping-reconciliation.js';
+import {
+  describeImportedLabels,
+  dueForShippoCheck,
+} from '../lib/carriers/shippo-watch.js';
+import { browserWatchState, dueForCheck, effectiveInterval, startWatch } from '../lib/watch-schedule.js';
+import { SYNC_TONES } from '../lib/sync-status.js';
+import {
+  describePostageReport,
+  describeUnshipped,
+  destinationLabel,
+  postageReport,
+  previousMonth,
+  unshippedOrders,
+} from '../lib/order-followups.js';
+import {
+  REGION_NAMES,
+  describePostageLosses,
+  describeRatesAgainstPaid,
+  describeShippingPriceCheck,
+  newPostageLosses,
+  rateAgainstPaid,
+  shippingPriceCheck,
+} from '../lib/shipping-price-check.js';
+import {
+  describeDeliveryNews,
+  isDeliveryNews,
+  readDelivery,
+  shipmentsToFollow,
+} from '../lib/delivery-watch.js';
+import {
+  SHIPPO_RECEIPT_EMAIL_QUERY,
+  attachEmailReceipts,
+  attachInvoiceReceipts,
+  describeInvoiceAvailability,
+  invoiceIndexByTransaction,
+  isSettledRefund,
+  parseInvoiceItem,
+  parseRefund,
+  parseShippoReceiptEmail,
+  shippoInvoicePageUrl,
+  shippoTxIdFromRef,
+} from '../lib/carriers/shippo-invoices.js';
+import {
+  ADDRESS_FIELD_LABELS,
+  SHIPPO_ADDRESSES_V1_URL,
+  SHIPPO_VALIDATE_V2_URL,
+  addressFromOrder,
+  addressSignature,
+  addressValidationBlocker,
+  buildAddressValidationQuery,
+  buildLegacyValidationPayload,
+  countryFallbackWarning,
+  describeShippoError,
+  isDeliverable,
+  normalizeAddressVerification,
+  orderAddressPatch,
+  persistableVerification,
+  storedVerificationIsCurrent,
+  verificationVerdict,
+} from '../lib/address-verification.js';
+import {
+  calculateZonosLandedCost,
+  estimateOfflineLandedCost,
+  resolveDutyPrepaymentRoute,
+  buildZonosPrepayDeepLink,
+  formatDeclarationId,
+  DEFAULT_ZONOS_API_KEY,
+} from '../lib/zonos.js';
+import {
+  getCanadaPostRates,
+  estimateOfflineCanadaPostRates,
+  buyCanadaPostLabel,
+  validateDeclarationId,
+  generateCanadaPostLabelSvg,
+  getLastPurchasedShipmentContext,
+  validateCanadaPostAccount,
+  verifyCanadaPostTrackingPin,
+  resolveCanadaPostEnvironment,
+  getArchivedShipmentContext,
+  listArchivedShipments,
+  fetchCanadaPostLabelArtifact,
+  resolveCanadaPostCredentials,
+  refundCanadaPostShipment,
+  executeCanadaPostProxy,
+} from '../lib/carriers/canadapost.js';
+import {
+  resolveListShipmentsEndpoint,
+  resolveShipmentDetailsEndpoint,
+  resolveShipmentPriceEndpoint,
+  resolveShipmentReceiptEndpoint,
+} from '../lib/carriers/canadapost-endpoints.js';
+import {
+  absorbDuplicatePostage,
+  buildPostageExpense,
+  duplicatePostageRows,
+  mergePostageCandidates,
+  needsAmount,
+  normalizeCanadaPostShipment,
+  normalizeShippingEmail,
+  postageCandidateRef,
+  postageRowSource,
+  postageTrackingIndex,
+} from '../lib/postage-intake.js';
+import { parseShippingEmail, shippingEmailQuery, trackingEmailQuery } from '../lib/shipping-email.js';
+import {
+  assessLiveShippingReadiness,
+  inspectZonosAccountKey,
+} from '../lib/shipping-readiness.js';
+import {
+  collectVerifiableShipments,
+  classifyTrackingResult,
+  summarizeTrackingAudit,
+  describeTrackingAudit,
+} from '../lib/tracking-audit.js';
+
+/**
+ * The return address as last saved on the shipping form.
+ *
+ * Read from storage rather than the DOM because the go-live checklist can be
+ * run from the Tax Centre, where the shipping form has not been populated yet —
+ * and an empty input there is "this tab has not been opened", not "this
+ * publisher has no address". Reporting the latter would send someone off to fix
+ * an address that is already saved.
+ */
+function savedShippingOrigin() {
+  const read = (key) => {
+    try { return localStorage.getItem(key) || ''; } catch (_) { return ''; }
+  };
+  return {
+    name: read('lm-shippo-origin-name'),
+    company: read('lm-shippo-origin-company'),
+    phone: read('lm-shippo-origin-phone'),
+    street1: read('lm-shippo-origin-street1'),
+    street2: read('lm-shippo-origin-street2'),
+    city: read('lm-shippo-origin-city'),
+    state: read('lm-shippo-origin-state'),
+    zip: read('lm-shippo-origin-zip'),
+    country: read('lm-shippo-origin-country') || 'CA'
+  };
+}
+
+function getShippingReconciliationOrders() {
+  const byNumber = new Map();
+  Object.values(states).forEach(state => (state?.hist || []).forEach(history => {
+    const number = normalizeShippingOrderNumber(history.num);
+    if (!number || history.chan !== 'Website' || history.voided) return;
+    // An order filed under several books keeps its address (and its shipping
+    // money) on one row; never let a bare sibling row stand for the order.
+    const held = byNumber.get(number);
+    if (held && String(held.shipAddr1 || held.shipName || '').trim() && !String(history.shipAddr1 || history.shipName || '').trim()) return;
+    byNumber.set(number, history);
+  }));
+  (orders || []).forEach(order => {
+    const number = normalizeShippingOrderNumber(order.orderNum || order.num);
+    if (number && !byNumber.has(number)) byNumber.set(number, { ...order, num: number });
+  });
+  return Array.from(byNumber.values());
+}
+
+function deliveryPhrase(order) {
+  if (order?.deliveredDate) return `Delivered ${escapeHtml(fmtD(order.deliveredDate) || order.deliveredDate)}`;
+  if (order?.deliveryState === 'pickup') return '<strong>Waiting at a post office</strong>';
+  if (order?.deliveryState === 'returning') return '<strong>Coming back to you</strong>';
+  if (order?.deliveryState === 'stuck') return '<strong>No tracking update for a week</strong>';
+  return '';
+}
+
+function renderOrderShippingSummary(order) {
+  // Every kind of postage that can be linked to an order — Shippo, Canada Post,
+  // counter receipts / carrier emails ('postage:'), and Chit Chats — matches
+  // what the shipping worklist and monthly report count.
+  const expenses = (TAX_CENTER.businessExpenses || []).filter(expense => /^(shippo:|canadapost:|postage[:-]|chitchats:)/.test(String(expense?.ref || '')));
+  const summary = linkedShippingSummary(order, expenses, 1);
+  const customerPaidVal = summary.customerPaid ?? Number(order.shippingPaid || order.shipping_total || 0);
+  const parts = [];
+  if (customerPaidVal > 0) {
+    parts.push(`Shipping paid ${fmt(customerPaidVal, 'CAD')}`);
+  }
+  // A website order is packed on the website unless postage was bought here.
+  const packedOnWebsite = isWebsiteFulfilled(order) && !summary.linkedCount;
+  if (summary.postageBase == null && !order.shipped && !packedOnWebsite) {
+    parts.push(summary.linkedCount ? 'Postage linked' : 'Postage not linked');
+  }
+  const web = websiteShipmentNote(order);
+  if (web) {
+    const glyph = { positive: '✓', critical: '✕', active: '●', neutral: '◌' }[web.tone] || '●';
+    parts.push(`<span class="wl-ship"><span aria-hidden="true">${glyph}</span> ${escapeHtml(web.text)}</span>${web.next ? `<span class="wl-ship-next">${escapeHtml(web.next)}</span>` : ''}`);
+  }
+  // What the parcel-following watch last heard, in words, so a waiting or
+  // returning parcel is visible on the order itself, not only in a passing card.
+  const delivery = deliveryPhrase(order);
+  if (delivery) parts.push(delivery);
+  const declId = order.declarationId || order.zonosDeclarationId || '';
+  if (declId) {
+    parts.push(`<span class="zonos-decl-tag" style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--green);background:rgba(46,125,50,0.08);padding:2px 6px;border-radius:var(--r);border:var(--stroke-hair) solid rgba(46,125,50,0.2);display:inline-flex;align-items:center;gap:4px;">Decl ID: <strong>${escapeHtml(declId)}</strong> <button type="button" onclick="navigator.clipboard.writeText('${escapeHtml(declId)}');showToast('✓ Copied Declaration ID');" style="background:none;border:none;cursor:pointer;padding:0 2px;font-size:var(--text-xs);" title="Copy Declaration ID">📋</button></span>`);
+  }
+  return parts.length ? `<span class="subtext-mute">${parts.join(' · ')}</span>` : '';
+}
+
+async function backfillShipping() {
+  const log = 'log-web';
+  const btn = $('backfill-shipping-btn');
+  if (!sheetsUrl) {
+    showToast('Connect Google Sheets first to scan Gmail', 'warn');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Scanning…'; }
+  addLog(log, '🔁 Re-scanning Gmail for missing shipping info…', 'ok');
+
+  const daysBack = parseInt(localStorage.getItem('lm-scan-days') || '30');
+  let parsed = null;
+  try {
+    const destUrl = sheetsUrl + (sheetsUrl.includes('?') ? '&' : '?') + 'action=scanGmail&daysBack=' + daysBack;
+    const res = await fetch(destUrl, { method: 'GET', mode: 'cors' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    parsed = await res.json();
+    if (!parsed || !parsed.ok) throw new Error(parsed?.error || 'Server returned failure');
+  } catch (e) {
+    addLog(log, `❌ Backfill scan failed: ${e.message}`, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = 'Backfill shipping info'; }
+    return;
+  }
+
+  const norm = (v) => {
+    const raw = String(v || '').trim();
+    if (!raw) return '';
+    const hit = raw.match(/#?[a-z0-9]+-[a-z0-9-]+/i);
+    if (hit) {
+      const upper = hit[0].toUpperCase();
+      return upper.startsWith('#') ? upper : `#${upper}`;
+    }
+    return raw.toUpperCase();
+  };
+
+  const lookup = new Map();
+  for (const o of (parsed.orders || [])) {
+    const key = norm(o.orderNum);
+    if (key && !lookup.has(key)) lookup.set(key, o);
+  }
+
+  const fields = ['shipName', 'shipEmail', 'shipAddr1', 'shipAddr2',
+    'shipCity', 'shipProvince', 'shipPostal', 'shipCountry'];
+  let updated = 0;
+  let stillMissing = 0;
+  const touchedBooks = new Set();
+
+  for (const bookId of Object.keys(states)) {
+    const st = states[bookId];
+    if (!st || !Array.isArray(st.hist)) continue;
+    for (const h of st.hist) {
+      if (h.chan !== 'Website' || h.voided) continue;
+      const incompleteAddress = !h.shipName || !h.shipAddr1 || !h.shipCity || !h.shipPostal;
+      const incompleteFinancials = !Number(h.shippingPaid || 0) || !Number(h.totalPaid || 0);
+      const incomplete = incompleteAddress || incompleteFinancials;
+      if (!incomplete) continue;
+      const match = lookup.get(norm(h.num));
+      if (!match) { stillMissing++; continue; }
+      let changed = false;
+      for (const f of fields) {
+        const incoming = (match[f] || (f === 'shipName' ? match.customer : '') || (f === 'shipEmail' ? match.email : '') || '').trim();
+        if (incoming && !h[f]) { h[f] = incoming; changed = true; }
+      }
+      const financialFields = ['subtotal', 'discountCode', 'discountAmount', 'discountSource',
+        'merchandisePaid', 'shippingMethod', 'shippingPaid', 'taxPaid', 'totalPaid'];
+      for (const f of financialFields) {
+        if (match[f] === undefined || match[f] === null) continue;
+        const incoming = f === 'discountCode' || f === 'discountSource' || f === 'shippingMethod'
+          ? String(match[f] || '')
+          : Number(match[f]) || 0;
+        if (h[f] !== incoming) { h[f] = incoming; changed = true; }
+      }
+      if (match.merchandisePaid !== undefined && Number(h.qty) > 0) {
+        const netPrice = Math.round((Number(match.merchandisePaid) / Number(h.qty)) * 100) / 100;
+        if (h.price !== netPrice) {
+          // Revenue was booked at qty × the old price, so move it by the
+          // difference (as Reapply does) — otherwise totals drift from history
+          // and a later void would subtract an amount that was never added.
+          const delta = roundCents(Number(h.qty) * (netPrice - (Number(h.price) || 0)));
+          st.revenue = roundCents((Number(st.revenue) || 0) + delta);
+          if (!st.chStats) st.chStats = {};
+          if (!st.chStats.Website) st.chStats.Website = { txns: 0, units: 0, revenue: 0 };
+          st.chStats.Website.revenue = roundCents((Number(st.chStats.Website.revenue) || 0) + delta);
+          h.price = netPrice;
+          changed = true;
+        }
+      }
+      if (changed) {
+        updated++;
+        touchedBooks.add(bookId);
+      } else {
+        stillMissing++;
+      }
+    }
+  }
+
+  await Promise.all(Array.from(touchedBooks).map(bookId => saveState(bookId)));
+  renderHist();
+
+  if (updated > 0) {
+    addLog(log, `✓ Backfilled shipping info on ${updated} order(s).`, 'ok');
+    showToast(`✓ Updated ${updated} order${updated === 1 ? '' : 's'}`);
+  } else {
+    addLog(log, `📭 No orders updated. ${stillMissing} order(s) still missing info — Gmail email may be older than the ${daysBack}-day scan window or has no parseable address.`, 'warn');
+    showToast('No orders updated', 'warn');
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Backfill shipping info'; }
+}
+
+function _toggleShippingPanel() { }  // no-op, kept for safety
+
+let _labelOrderIndex = null;
+
+function openLabelModal(histIndex) {
+  _labelOrderIndex = histIndex;
+  const h = getState().hist[histIndex];
+  const book = getBook();
+  $('shipping-label-order-info').textContent = `${h.num} · ${book.title} × ${h.qty} · ${fmtD(h.date)}`;
+  $('sl-name').value = h.shipName || '';
+  $('sl-email').value = h.shipEmail || '';
+  $('sl-addr1').value = h.shipAddr1 || '';
+  $('sl-addr2').value = h.shipAddr2 || '';
+  $('sl-city').value = h.shipCity || '';
+  $('sl-province').value = h.shipProvince || '';
+  $('sl-postal').value = h.shipPostal || '';
+  populateCountryDatalist('sl-country-options');
+  $('sl-country').value = h.shipCountry || 'Canada';
+  renderLabelCountryHint();
+  updateShippedStatusUI(h);
+  openM('shipping-label');
+}
+
+/**
+ * Warns, on the label form itself, when the typed country is not one this app
+ * can place on a map.
+ *
+ * An unrecognized country used to be invisible: the order saved fine, no label
+ * could ever be bought for it, and every report counted it as a US sale. The
+ * warning is the moment the mistake is cheapest to fix — while the order is
+ * open in front of whoever typed it.
+ */
+function renderLabelCountryHint() {
+  const hint = $('sl-country-hint');
+  if (!hint) return;
+  const typed = $('sl-country')?.value.trim() || '';
+  if (!typed || !countryIsUnrecognized(typed)) {
+    hint.hidden = true;
+    hint.textContent = '';
+    return;
+  }
+  hint.hidden = false;
+  hint.textContent = `“${typed}” isn’t a country we recognize — pick one from the list so this order is counted and shipped correctly.`;
+}
+
+function updateShippedStatusUI(h) {
+  const status = $('sl-shipped-status');
+  const toggleBtn = $('sl-toggle-shipped-btn');
+  if (!status || !toggleBtn) return;
+  if (h.shipped) {
+    status.style.display = '';
+    status.innerHTML = `✓ Shipped${h.shippedDate ? ' on ' + fmtD(h.shippedDate) : ''}`;
+    toggleBtn.style.display = '';
+    toggleBtn.textContent = 'Mark as not shipped';
+  } else {
+    status.style.display = 'none';
+    toggleBtn.style.display = '';
+    toggleBtn.textContent = 'Mark as shipped';
+  }
+}
+
+function toggleShipped() {
+  if (_labelOrderIndex == null) return;
+  const h = getState().hist[_labelOrderIndex];
+  if (h.shipped) {
+    delete h.shipped;
+    delete h.shippedDate;
+  } else {
+    h.shipped = true;
+    h.shippedDate = today();
+  }
+  saveState(activeBook);
+  updateShippedStatusUI(h);
+  renderHist();
+}
+
+function printShippingLabel() {
+  const h = getState().hist[_labelOrderIndex];
+
+  // Save address to history entry so it's remembered next time
+  h.shipName = $('sl-name').value.trim();
+  h.shipEmail = $('sl-email').value.trim();
+  h.shipAddr1 = $('sl-addr1').value.trim();
+  h.shipAddr2 = $('sl-addr2').value.trim();
+  h.shipCity = $('sl-city').value.trim();
+  h.shipProvince = $('sl-province').value.trim();
+  h.shipPostal = $('sl-postal').value.trim();
+  // Stored in its canonical spelling so every later reader — the region split,
+  // the ledger filters, the Shippo payload — sees the same country the person
+  // typing meant, however they happened to spell it.
+  h.shipCountry = countryName($('sl-country').value.trim());
+  if (!h.shipped) {
+    h.shipped = true;
+    h.shippedDate = today();
+  }
+  saveState(activeBook);
+  renderHist();
+
+  const fallbackFrom = ['Lyricalmyrical Books', '456 Montrose Ave', 'Toronto ON  M6G 3H1', 'Canada'];
+  let orientation = 'portrait';
+  try { orientation = localStorage.getItem(HAND_LABEL_ORIENTATION_KEY) || 'portrait'; } catch (_) { /* private mode */ }
+  const doc = buildHandLabelDocument({
+    to: {
+      name: h.shipName, addr1: h.shipAddr1, addr2: h.shipAddr2, city: h.shipCity,
+      province: h.shipProvince, postal: h.shipPostal, country: h.shipCountry,
+    },
+    from: returnLines(savedShippingOrigin(), fallbackFrom),
+    orderNum: h.num || '',
+    orientation,
+  });
+
+  // Opens as a preview with a Vertical / Horizontal switch and its own Print
+  // button, rather than jumping straight to the print dialog in one layout.
+  const win = window.open('', '_blank', 'width=760,height=820');
+  if (!win) { showToast('Allow pop-ups for this site to print the label', 'warn'); return; }
+  win.document.write(doc);
+  win.document.close();
+  win.focus();
+  closeM('shipping-label');
+}
+
+function shippingPurchaseRowPayload(book, nativeCur, h) {
+  const amount = Number(h.shippingPaid || 0) || 0;
+  return {
+    type: 'shipping',
+    book: book.title,
+    date: h.date,
+    num: h.num,
+    chan: 'Website shipping',
+    qty: '',
+    price: '',
+    total: amount,
+    stockAfter: h.after,
+    notes: `Customer shipping paid${h.num ? ` on ${h.num}` : ''}`,
+    sheetsId: (h.sheetsId || `ship-${String(h.num || '').replace(/^#/, '').replace(/[^A-Za-z0-9-]/g, '')}`) + '-shipping',
+    currency: nativeCur,
+    paymentCurrency: nativeCur,
+    paymentAmount: amount,
+    convertedTotal: cadEquivalentForSale({ nativeCurrency: nativeCur, totalNative: amount }),
+    status: 'OK'
+  };
+}
+
+const _rateCostCache = new Map();
+
+async function getShippoTxCost(tx, token) {
+  if (tx.rate && typeof tx.rate === 'object') {
+    return { amount: parseFloat(tx.rate.amount), currency: String(tx.rate.currency || 'USD').toUpperCase() };
+  }
+  if (tx.rate_amount != null || tx.amount != null) {
+    return {
+      amount: parseFloat(tx.rate_amount != null ? tx.rate_amount : tx.amount),
+      currency: String(tx.rate_currency || tx.currency || 'USD').toUpperCase()
+    };
+  }
+  if (tx.rate && typeof tx.rate === 'string') {
+    if (_rateCostCache.has(tx.rate)) return _rateCostCache.get(tx.rate);
+    try {
+      const r = await fetch(`https://api.goshippo.com/rates/${tx.rate}`, {
+        headers: { Authorization: `ShippoToken ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (r.ok) {
+        const rate = await r.json();
+        const out = { amount: parseFloat(rate.amount), currency: String(rate.currency || 'USD').toUpperCase() };
+        _rateCostCache.set(tx.rate, out);
+        return out;
+      }
+    } catch (_) { /* fall through to NaN */ }
+  }
+  return { amount: NaN, currency: 'USD' };
+}
+
+/**
+ * Open a Shippo label by minting a fresh signed link.
+ *
+ * The stored `label_url` is signed and expires a year after the label was
+ * created, so a link kept in the ledger stops working on its own — silently,
+ * and long before records stop being needed. The transaction id is on the
+ * expense already (`ref: "shippo:<id>"`), so asking Shippo for the transaction
+ * again returns a newly signed URL that works today.
+ */
+async function openShippoLabel(ref) {
+  const txId = shippoTxIdFromRef(ref);
+  if (!txId) { showToast('⚠ No Shippo reference on this expense', 'warn'); return; }
+
+  const token = (TAX_CENTER.settings?.shippoKey || '').trim();
+  if (!token) { showToast('⚠ Add your Shippo API token in Config first', 'err', 5000); return; }
+
+  showToast('Getting a fresh link from Shippo…');
+  try {
+    const tx = await fetchShippoObject(token, 'transactions', txId);
+    const url = tx?.label_url;
+    if (!url) {
+      showToast('⚠ Shippo has no label for this shipment any more', 'warn', 5000);
+      return;
+    }
+    window.open(url, '_blank', 'noopener');
+  } catch (e) {
+    console.error('Could not refresh Shippo label', e);
+    // describeShippoError takes (status, bodyText). Passing the Error itself as
+    // the status produced "Shippo validation failed (Error: Shippo transactions
+    // lookup 401: …)" — the raw throw echoed back at the publisher inside a
+    // sentence about address validation. Now that the throw carries its status,
+    // both arguments can be what the function actually expects.
+    showToast(`⚠ Could not get the label from Shippo — ${describeShippoError(e?.status || 0, e?.message || '')}`, 'err', 6000);
+  }
+}
+
+async function saveShippoLabelLocally(labelUrl, txId) {
+  if (!labelUrl || typeof saveReceiptToLocalFile !== 'function') return null;
+  try {
+    const r = await fetch(labelUrl);
+    if (!r.ok) return null;
+    const blob = await r.blob();
+    const ext = (blob.type && blob.type.includes('png')) ? 'png'
+      : (/\.png(\?|$)/i.test(labelUrl) ? 'png' : 'pdf');
+    const file = new File([blob], `shippo_${txId}.${ext}`, { type: blob.type || 'application/pdf' });
+    return await saveReceiptToLocalFile(file, 'Shippo');
+  } catch (_) {
+    return null;
+  }
+}
+
+async function fetchShippoTransactionsPageAPI(token, page) {
+  const url = `https://api.goshippo.com/transactions/?page=${page}&results=100&expand[]=rate`;
+  const resp = await fetch(url, {
+    headers: {
+      Authorization: `ShippoToken ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    // Carried as a property too, so a caller can tell a refused token from an
+    // outage without parsing the sentence. `status: 0` is this file's existing
+    // convention for "could not reach it" — see fetchShippoInvoiceItems.
+    const apiError = new Error(`Shippo API error ${resp.status}${txt ? `: ${txt.slice(0, 140)}` : ''}`);
+    apiError.status = resp.status;
+    throw apiError;
+  }
+  return resp.json();
+}
+
+/**
+ * Read the invoices behind the labels — the documents that actually prove
+ * payment. Beta endpoint, so this is best-effort by design: any failure returns
+ * an empty index plus a reason, and the caller carries on importing labels.
+ */
+async function fetchShippoInvoiceItems(token) {
+  const items = [];
+  let page = 1;
+  try {
+    while (page <= 50) {
+      // Documented path is /invoice-items. The app used to ask for
+      // /invoices/items/, which does not exist, so every lookup came back
+      // "unavailable" and Find receipt never reached Shippo's own records.
+      const resp = await fetch(`https://api.goshippo.com/invoice-items?page=${page}&results=100`, {
+        headers: { Authorization: `ShippoToken ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!resp.ok) {
+        return { index: new Map(), unavailable: describeInvoiceAvailability(resp.status), status: resp.status };
+      }
+      const json = await resp.json();
+      const rows = Array.isArray(json?.results) ? json.results : [];
+      rows.forEach(r => { const it = parseInvoiceItem(r); if (it) items.push(it); });
+      if (!json?.next || !rows.length) break;
+      page++;
+    }
+  } catch (e) {
+    console.warn('Shippo invoice items unavailable', e);
+    return { index: new Map(), unavailable: describeInvoiceAvailability(0), status: 0 };
+  }
+  return { index: invoiceIndexByTransaction(items), unavailable: '', status: 200, count: items.length };
+}
+
+/** Every "Your Shippo Invoice Receipt" email from the last ~13 months, parsed. */
+async function fetchShippoReceiptEmails() {
+  const found = await gmailJson('listReceiptEmails', `limit=100&q=${encodeURIComponent(`${SHIPPO_RECEIPT_EMAIL_QUERY} newer_than:400d`)}`);
+  const ids = (found.emails || []).map(e => e?.id).filter(Boolean);
+  const receipts = [];
+  // The batch reader takes twelve messages per call.
+  for (let i = 0; i < ids.length; i += 12) {
+    const batch = await gmailJson('getEmailContents', `ids=${encodeURIComponent(ids.slice(i, i + 12).join(','))}`);
+    (batch.emails || []).forEach(email => {
+      const r = email && parseShippoReceiptEmail({ id: email.id, body: email.body || '', date: email.date || '' });
+      if (r) receipts.push(r);
+    });
+  }
+  return receipts;
+}
+
+/**
+ * When each unreceipted label was bought, read back from Shippo.
+ *
+ * Emailed receipts are matched to labels by purchase time, and expenses
+ * imported before that time was kept only have a day. Returns how many
+ * expenses gained a time, so the caller knows there is something to save.
+ */
+async function backfillLabelPurchaseTimes(token, expenses) {
+  const missing = (expenses || []).filter(e => shippoTxIdFromRef(e?.ref) && !e.invoiceId && !e.labelCreatedAt);
+  let filled = 0;
+  for (let i = 0; i < missing.length; i += 5) {
+    await Promise.all(missing.slice(i, i + 5).map(async e => {
+      try {
+        const tx = await fetchShippoObject(token, 'transactions', shippoTxIdFromRef(e.ref));
+        if (tx?.object_created) { e.labelCreatedAt = tx.object_created; filled++; }
+      } catch (err) {
+        console.warn('Could not read when a Shippo label was bought', err);
+      }
+    }));
+  }
+  return filled;
+}
+
+/**
+ * "Find the real receipts" for postage: attach each label's Shippo invoice as
+ * the receipt of record, keeping the label behind it. Asks Shippo's invoice
+ * records first, then Shippo's receipt emails. Runs from the Receipts card's
+ * "Shipping label only" notice and from a single row's "Find receipt" link,
+ * which carries that row's ref so the answer can be about that row.
+ */
+async function findShippoReceipts(btn) {
+  const token = (TAX_CENTER.settings?.shippoKey || '').trim();
+  if (!token) { showToast('Connect Shippo in Settings first, then try again.', 'warn'); return; }
+  if (!navigator.onLine) { showToast('You’re offline — connect to the internet to fetch Shippo receipts.', 'warn'); return; }
+  // The row link is an <a>, which `disabled` doesn't stop, so guard a second click here.
+  if (btn?.dataset?.busy) return;
+  const label = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.dataset.busy = '1'; btn.textContent = 'Looking up Shippo receipts…'; }
+  const expenses = TAX_CENTER.businessExpenses || [];
+  const rowRef = btn?.dataset?.ref || '';
+  const row = rowRef ? expenses.find(e => e?.ref === rowRef) : null;
+  try {
+    const items = await fetchShippoInvoiceItems(token);
+    const unavailable = items.unavailable;
+    const { changed, noInvoice } = attachInvoiceReceipts(expenses, items.index);
+    let timesFilled = 0;
+    // Shippo emails a receipt for every payment, so when its invoice list can't
+    // be read (or hasn't caught up), the emails fill the gap.
+    if ((unavailable || noInvoice) && sheetsUrl) {
+      if (btn) btn.textContent = 'Checking your email for Shippo receipts…';
+      try {
+        timesFilled = await backfillLabelPurchaseTimes(token, expenses);
+        const fromEmail = attachEmailReceipts(expenses, await fetchShippoReceiptEmails());
+        changed.push(...fromEmail.changed);
+      } catch (e) {
+        console.warn('Shippo receipt emails unavailable', e);
+      }
+    }
+    if (changed.length || timesFilled) {
+      await saveTaxCenter({ rethrow: true });
+      renderTaxCenter();
+    }
+    if (row && changed.includes(row)) {
+      showToast(changed.length === 1
+        ? '✓ Found the Shippo receipt for this label and attached it.'
+        : `✓ Found the Shippo receipt for this label, and ${changed.length - 1} other${changed.length === 2 ? '' : 's'}.`);
+    } else if (row && !unavailable) {
+      showToast(sheetsUrl
+        ? 'Couldn’t find Shippo’s receipt for this label yet. Shippo emails one when it charges you — try again once it’s in your inbox.'
+        : 'Shippo hasn’t listed a receipt for this label yet. Connect your Google Sheet in Settings so the app can also read the receipt Shippo emails you.', 'warn', 7000);
+    } else if (changed.length) {
+      showToast(`✓ Attached the Shippo receipt to ${changed.length} postage expense${changed.length === 1 ? '' : 's'}.`);
+    } else if (unavailable) {
+      showToast(sheetsUrl
+        ? 'No matching Shippo receipt emails were found in your Gmail yet. Shippo emails one after each payment — try again once it arrives.'
+        : `${unavailable} Connect your Google Sheet in Settings and the app can read Shippo's receipt emails instead.`, 'warn');
+    } else {
+      showToast(noInvoice
+        ? `Shippo hasn’t issued a receipt yet for ${noInvoice} label${noInvoice === 1 ? '' : 's'} — try again once Shippo has charged you for ${noInvoice === 1 ? 'it' : 'them'}.`
+        : 'Every postage expense already has its Shippo receipt.');
+    }
+  } catch (e) {
+    console.warn('Finding Shippo receipts failed', e);
+    showToast('Couldn’t save the Shippo receipts — nothing was changed. Try again.', 'error');
+  } finally {
+    // The re-render may already have replaced the link; restoring a detached one is harmless.
+    if (btn) { btn.disabled = false; delete btn.dataset.busy; btn.textContent = label; }
+  }
+}
+
+/**
+ * Refunds, so a refunded label stops being counted as postage.
+ *
+ * Nothing read these before, which meant a label refunded after import stayed
+ * in the ledger at full price indefinitely.
+ */
+async function fetchShippoRefunds(token) {
+  const refunds = [];
+  let page = 1;
+  try {
+    while (page <= 50) {
+      const resp = await fetch(`https://api.goshippo.com/refunds/?page=${page}&results=100`, {
+        headers: { Authorization: `ShippoToken ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!resp.ok) return { refunds: [], unavailable: `Refunds could not be read (${resp.status}).` };
+      const json = await resp.json();
+      const rows = Array.isArray(json?.results) ? json.results : [];
+      rows.forEach(r => { const rf = parseRefund(r); if (rf && isSettledRefund(rf)) refunds.push(rf); });
+      if (!json?.next || !rows.length) break;
+      page++;
+    }
+  } catch (e) {
+    console.warn('Shippo refunds unavailable', e);
+    return { refunds: [], unavailable: 'Refunds could not be read just now.' };
+  }
+  return { refunds, unavailable: '' };
+}
+
+async function fetchShippoObject(token, resource, id) {
+  if (!id) return {};
+  const resp = await fetch(`https://api.goshippo.com/${resource}/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `ShippoToken ${token}`, 'Content-Type': 'application/json' },
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    const lookupError = new Error(`Shippo ${resource} lookup ${resp.status}${text ? `: ${text.slice(0, 140)}` : ''}`);
+    lookupError.status = resp.status;
+    throw lookupError;
+  }
+  return resp.json();
+}
+
+async function fetchShippoContext(token, tx) {
+  let shipment = tx.shipment && typeof tx.shipment === 'object' ? tx.shipment : {};
+  const shipmentId = typeof tx.shipment === 'string' ? tx.shipment : shipment.object_id;
+  if (shipmentId && !shipment.address_to) {
+    shipment = await fetchShippoObject(token, 'shipments', shipmentId);
+  }
+
+  // Shippo sometimes returns address_to as a string ID
+  if (typeof shipment.address_to === 'string') {
+    try {
+      shipment.address_to = await fetchShippoObject(token, 'addresses', shipment.address_to);
+    } catch (e) {
+      console.warn('Failed to fetch shipment.address_to', e);
+    }
+  }
+
+  let shippoOrder = tx.order && typeof tx.order === 'object' ? tx.order : {};
+  const orderId = typeof tx.order === 'string' ? tx.order : (shippoOrder.object_id || shipment.order);
+  if (orderId && !shippoOrder.order_number) {
+    shippoOrder = await fetchShippoObject(token, 'orders', orderId);
+  }
+
+  // Shippo sometimes returns to_address as a string ID
+  if (typeof shippoOrder.to_address === 'string') {
+    try {
+      shippoOrder.to_address = await fetchShippoObject(token, 'addresses', shippoOrder.to_address);
+    } catch (e) {
+      console.warn('Failed to fetch shippoOrder.to_address', e);
+    }
+  }
+
+  return { shipment, shippoOrder };
+}
+
+/**
+ * The Tax Centre's line about labels waiting for review. The review itself
+ * happens in the Review inbox; this only says how many are waiting there.
+ */
+function renderShippingReconciliationWorklist() {
+  const summary = $('shipping-review-summary');
+  if (!summary || isAuthor()) return;
+  const entries = labelReviewEntries();
+  if (!entries.length) {
+    summary.textContent = 'No labels are waiting for review.';
+    return;
+  }
+  const amounts = entries.filter(e => e.needsAmount).length;
+  const orders = entries.filter(e => e.needsOrder).length;
+  const parts = [];
+  if (amounts) parts.push(`${amounts} need${amounts === 1 ? 's' : ''} an amount`);
+  if (orders) parts.push(`${orders} need${orders === 1 ? 's' : ''} an order link`);
+  summary.textContent = `${entries.length} label${entries.length === 1 ? '' : 's'} waiting for review: ${parts.join(', ')}.`;
+}
+
+function openPostageAmountEditor(ref) {
+  const expense = (TAX_CENTER.businessExpenses || []).find(item =>
+    String(item.ref) === String(ref) && needsAmountAttention(item));
+  if (!expense) {
+    renderShippingReconciliationWorklist();
+    showToast('This label no longer needs an amount.', 'ok');
+    return;
+  }
+  window.openEditExpense('businessExpense', '', expense.id);
+  const amount = $('edit-exp-amount');
+  if (amount) {
+    amount.value = '';
+    amount.focus();
+  }
+}
+
+function knownImportedPostageRefs() {
+  return new Set([
+    ...(TAX_CENTER.businessExpenses || []).map(expense => cpText(expense?.ref)),
+    ...(TAX_CENTER.discardedPostageRefs || []),
+  ].filter(Boolean));
+}
+
+/**
+ * Remove second copies of a label (same tracking number, filed again from an
+ * email or receipt) and fold their order link and receipt into the row that
+ * stays. Returns how many were removed. The removed refs are remembered so a
+ * later sweep doesn't file them again.
+ */
+function dropDuplicatePostage() {
+  const list = TAX_CENTER.businessExpenses || [];
+  const pairs = duplicatePostageRows(list);
+  if (!pairs.length) return 0;
+  const dropped = new Set();
+  pairs.forEach(({ keep, drop }) => {
+    absorbDuplicatePostage(keep, drop);
+    dropped.add(drop);
+  });
+  TAX_CENTER.businessExpenses = list.filter(expense => !dropped.has(expense));
+  // What was removed, so it can be checked later (Tax Centre has no undo for it).
+  const at = new Date().toISOString();
+  TAX_CENTER.removedDuplicatePostage = [
+    ...pairs.map(({ keep, drop }) => ({
+      id: `dup-${cpText(drop.ref) || drop.id}-${at}`,
+      ref: cpText(drop.ref), desc: cpText(drop.desc), amount: Number(drop.amount) || 0, currency: cpText(drop.currency) || 'CAD',
+      date: cpText(drop.date), keptRef: cpText(keep.ref), removedAt: at,
+    })),
+    ...(TAX_CENTER.removedDuplicatePostage || []),
+  ].slice(0, 100);
+  const total = pairs.reduce((sum, { drop }) => sum + (Number(drop.baseAmount ?? drop.amount) || 0), 0);
+  pushAppAlert({
+    id: 'postage-duplicates-removed',
+    icon: '📮',
+    title: `${pairs.length} shipping cost${pairs.length === 1 ? ' was' : 's were'} counted twice`,
+    detail: `The same label had been filed twice (from an email, or by two devices at once). The extra cost${pairs.length === 1 ? '' : 's'} (${total.toFixed(2)} CAD in all) ${pairs.length === 1 ? 'was' : 'were'} removed; the Shippo or Canada Post record stays, with its order link and receipt.`,
+  });
+  TAX_CENTER.discardedPostageRefs = [...new Set([
+    ...(TAX_CENTER.discardedPostageRefs || []),
+    ...[...dropped].map(expense => cpText(expense.ref)).filter(Boolean),
+  ])];
+  return dropped.size;
+}
+
+async function discardImportedPostageExpense(ref) {
+  const expense = (TAX_CENTER.businessExpenses || []).find(item =>
+    String(item.ref) === String(ref) && needsAmountAttention(item));
+  if (!expense) {
+    renderShippingReconciliationWorklist();
+    showToast('This label is no longer waiting for review.', 'warn');
+    return;
+  }
+  const accepted = await confirmDialog(
+    `Discard "${expense.desc || 'shipping label'}"?\n\nThis removes its expense from Shipping & Postage and prevents this label from being imported again. Tracking already saved on an order will remain.`,
+    { title: 'Discard imported label', okLabel: 'Discard label', danger: true },
+  );
+  if (!accepted) return;
+
+  const priorExpenses = TAX_CENTER.businessExpenses;
+  const priorDiscarded = TAX_CENTER.discardedPostageRefs;
+  TAX_CENTER.businessExpenses = priorExpenses.filter(item => item !== expense);
+  TAX_CENTER.discardedPostageRefs = [...new Set([...(priorDiscarded || []), String(expense.ref)])];
+  try {
+    await saveTaxCenter({ rethrow: true });
+  } catch (error) {
+    TAX_CENTER.businessExpenses = priorExpenses;
+    TAX_CENTER.discardedPostageRefs = priorDiscarded;
+    console.error('Imported postage discard failed', error);
+    showToast('Could not discard that label. Please try again.', 'err');
+    return;
+  }
+  dismissAppAlert(`postage-sweep-${expense.postageSource === 'email' ? 'your-email' : 'canada-post'}`);
+  renderTaxCenter();
+  renderShippingAnalysisHub();
+  renderPostageMatchWorklist();
+  showToast('Imported label discarded and removed from Shipping & Postage', 'ok');
+}
+
+async function clearShippingReconciliationList() {
+  const expenses = (TAX_CENTER.businessExpenses || []).filter(isUnresolvedShippoPostage);
+  if (!expenses.length) {
+    showToast('The reconciliation list is already clear', 'warn');
+    return;
+  }
+  const accepted = await confirmDialog(
+    `Dismiss ${expenses.length} unmatched Shippo postage item${expenses.length === 1 ? '' : 's'} from this list?\n\n` +
+    'The expenses will stay in your Shipping & Postage ledger.',
+    { title: 'Clear shipping reconciliation list', okLabel: 'Clear list' },
+  );
+  if (!accepted) return;
+  const priorStatuses = expenses.map(expense => ({ expense, hadStatus: Object.prototype.hasOwnProperty.call(expense, 'shippingMatchStatus'), status: expense.shippingMatchStatus }));
+  expenses.forEach(expense => { expense.shippingMatchStatus = 'dismissed'; });
+  try {
+    await saveTaxCenter({ rethrow: true });
+  } catch (error) {
+    priorStatuses.forEach(({ expense, hadStatus, status }) => {
+      if (hadStatus) expense.shippingMatchStatus = status;
+      else delete expense.shippingMatchStatus;
+    });
+    console.error('Shipping reconciliation clear failed', error);
+    showToast('Could not clear the reconciliation list. Please try again.', 'err');
+    return;
+  }
+  renderShippingReconciliationWorklist();
+  showToast(`Cleared ${expenses.length} reconciliation item${expenses.length === 1 ? '' : 's'}`);
+}
+
+// ── RECOVERING A MISSING WEBSITE ORDER ──────────────────────────────────
+//
+// The reconciliation worklist can only offer orders the app already knows
+// about. When the Gmail scan missed the confirmation email, there is nothing to
+// offer and the postage is stuck: the customer exists on the label and nowhere
+// else. These three functions turn the label back into the order — prefilled
+// from the recipient Shippo already gave us, written to the ledger through the
+// same path a scanned order takes, and linked to its postage on the way out.
+
+// The worklist row that opened the intake form, so the save can find its way
+// back to the expense without threading the ref through the DOM.
+let _recoverOrderRef = '';
+
+/**
+ * Every order number the app already holds, across all books and both the
+ * applied ledger and the not-yet-applied Gmail queue. Re-using one of these
+ * would double-count a sale, so the recovery form refuses it. Built here from
+ * state this module already reads rather than crossing back into main.js for
+ * one more name.
+ */
+function ledgerOrderNumbers() {
+  const nums = new Set();
+  Object.values(states).forEach(state => (state?.hist || []).forEach(entry => {
+    if (entry?.num) nums.add(String(entry.num));
+  }));
+  (orders || []).forEach(order => { if (order?.orderNum) nums.add(String(order.orderNum)); });
+  return Array.from(nums);
+}
+
+function findShippoExpense(ref) {
+  return (TAX_CENTER.businessExpenses || []).find(item => String(item.ref) === String(ref));
+}
+
+function openRecoverWebsiteOrder(ref) {
+  const expense = findShippoExpense(ref);
+  if (!expense) { showToast('Shipping expense was not found', 'err'); return; }
+  if (!BOOK_LIST.length) { showToast('Add a book to your catalogue first', 'warn'); return; }
+  _recoverOrderRef = String(ref);
+
+  const prefill = recoveredOrderPrefill(expense);
+  const bookId = BOOKS[activeBook] ? activeBook : (BOOK_LIST[0]?.id || '');
+  const bookOptions = BOOK_LIST.map(b =>
+    `<option value="${escapeHtml(b.id)}"${b.id === bookId ? ' selected' : ''}>${escapeHtml(b.title)}</option>`
+  ).join('');
+  const bookSelect = $('rwo-book');
+  if (bookSelect) bookSelect.innerHTML = bookOptions;
+
+  const set = (id, value) => { const el = $(id); if (el) el.value = value ?? ''; };
+  set('rwo-num', prefill.orderNumber);
+  set('rwo-date', prefill.date || today());
+  set('rwo-customer', prefill.customer);
+  set('rwo-email', prefill.email);
+  set('rwo-addr1', prefill.addr1);
+  set('rwo-addr2', prefill.addr2);
+  set('rwo-city', prefill.city);
+  set('rwo-province', prefill.province);
+  set('rwo-postal', prefill.postal);
+  set('rwo-country', prefill.country);
+  set('rwo-qty', 1);
+  set('rwo-shipping-paid', '0.00');
+  onRecoverWebsiteOrderBookChange();
+
+  const summary = $('rwo-postage-summary');
+  if (summary) {
+    const tracking = expense.trackingUrl ? ' · tracking saved' : '';
+    summary.textContent = `${fmt(expense.amount || 0, expense.currency || 'CAD')} postage paid ${fmtD(expense.date) || 'on an unknown date'}${tracking}. Saving links it to this order.`;
+  }
+  openM('recover-website-order');
+}
+
+// The price field follows whichever book is selected, so the publisher is
+// correcting a real list price rather than typing one from memory.
+function onRecoverWebsiteOrderBookChange() {
+  const bookId = $('rwo-book')?.value || '';
+  const book = BOOKS[bookId];
+  const priceEl = $('rwo-price');
+  const symEl = $('rwo-price-sym');
+  if (book && priceEl) priceEl.value = Number(book.listPrice || 0).toFixed(2);
+  if (book && symEl) symEl.textContent = getBookCurrencyCode(book);
+  const stockEl = $('rwo-stock-hint');
+  if (stockEl) {
+    const stock = Number(getState(bookId)?.stock ?? 0);
+    const qty = Math.max(1, parseInt($('rwo-qty')?.value || '1', 10) || 1);
+    stockEl.textContent = book
+      ? `${book.title} stock ${stock} → ${Math.max(0, stock - qty)} after saving`
+      : '';
+  }
+}
+
+async function saveRecoverWebsiteOrder() {
+  const expense = findShippoExpense(_recoverOrderRef);
+  if (!expense) { showToast('Shipping expense was not found', 'err'); return; }
+  const overlay = $('m-recover-website-order');
+  clearFieldErrors(overlay || document);
+
+  const form = {
+    orderNumber: ($('rwo-num')?.value || '').trim(),
+    bookId: $('rwo-book')?.value || '',
+    date: ($('rwo-date')?.value || '').trim(),
+    qty: parseInt($('rwo-qty')?.value || '1', 10),
+    price: parseFloat($('rwo-price')?.value || '0'),
+    shippingPaid: parseFloat($('rwo-shipping-paid')?.value || '0'),
+    customer: ($('rwo-customer')?.value || '').trim(),
+    email: ($('rwo-email')?.value || '').trim(),
+    addr1: ($('rwo-addr1')?.value || '').trim(),
+    addr2: ($('rwo-addr2')?.value || '').trim(),
+    city: ($('rwo-city')?.value || '').trim(),
+    province: ($('rwo-province')?.value || '').trim(),
+    postal: ($('rwo-postal')?.value || '').trim(),
+    country: ($('rwo-country')?.value || '').trim(),
+    phone: '',
+  };
+
+  const errors = validateRecoveredOrder(form, { takenOrderNumbers: ledgerOrderNumbers() });
+  if (errors.length) {
+    const fieldIds = {
+      orderNumber: 'rwo-num', bookId: 'rwo-book', qty: 'rwo-qty', price: 'rwo-price',
+      shippingPaid: 'rwo-shipping-paid', date: 'rwo-date', customer: 'rwo-customer',
+    };
+    errors.forEach(error => fieldError(fieldIds[error.field] || 'rwo-num', error.message));
+    showToast(errors[0].message, 'warn');
+    return;
+  }
+
+  const btn = $('rwo-save-btn');
+  if (btn) btn.disabled = true;
+  let entry;
+  try {
+    entry = commitRecoveredWebsiteOrder(form.bookId, form, ({ stockAfter }) =>
+      buildRecoveredOrderEntry(form, { stockAfter }));
+  } catch (error) {
+    console.error('Recovered order save failed', error);
+    if (btn) btn.disabled = false;
+    showToast('Could not save that order. Please try again.', 'err');
+    return;
+  }
+
+  // The order exists now, so the postage has something to point at. A failure
+  // here leaves the order in the ledger and the label in the worklist — the
+  // publisher can retry the link, and nothing is double-counted.
+  try {
+    await persistManualShippingLink(expense, entry.num, () => saveTaxCenter({ rethrow: true }));
+  } catch (error) {
+    console.error('Shipping link save failed after recovery', error);
+    if (btn) btn.disabled = false;
+    closeM('recover-website-order');
+    renderShippingReconciliationWorklist();
+    renderOrders();
+    renderHist();
+    showToast(`${entry.num} was added, but linking the postage failed. Try Link postage again.`, 'warn');
+    return;
+  }
+
+  if (btn) btn.disabled = false;
+  closeM('recover-website-order');
+  _recoverOrderRef = '';
+  renderShippingReconciliationWorklist();
+  renderOrders();
+  renderHist();
+  renderTaxCenter();
+  showToast(`✓ ${entry.num} added and postage linked`);
+}
+
+/**
+ * Link any stranded postage to an order that has just been added to the ledger.
+ *
+ * When a website order was missing, its paid label sat in the reconciliation
+ * worklist as "unmatched" — there was literally nothing to match it to. The
+ * moment the order exists, that label usually has an unambiguous home: the
+ * order number is in the label's own metadata, or the recipient and date line
+ * up. Rather than making the publisher go back to the worklist and re-link by
+ * hand, this runs the same matcher the import uses, restricted to the one new
+ * order, and links whatever it is confident about.
+ *
+ * Only exact metadata matches and single-candidate recipient matches are taken.
+ * An ambiguous label is left in the worklist for a human, because attaching the
+ * wrong postage to an order quietly misstates that sale's margin.
+ *
+ * Returns the number of labels linked. Never throws: this is a convenience on
+ * top of a save that has already succeeded, and a failure here must not read as
+ * the order failing to save.
+ */
+async function autoLinkPostageForOrder(order) {
+  if (!order || !order.num) return 0;
+  const candidates = (TAX_CENTER.businessExpenses || []).filter(isUnresolvedShippoPostage);
+  if (!candidates.length) return 0;
+
+  let linked = 0;
+  for (const expense of candidates) {
+    const verdict = reconcileShippingExpense({
+      sourceOrderNumber: expense.sourceOrderNumber || expense.shippingOrderNumber,
+      sourceOrderMethod: expense.sourceOrderMethod,
+      recipientEmail: expense.recipientEmail,
+      recipientName: expense.recipientName,
+      recipientPostal: expense.recipientPostal,
+      date: expense.date,
+    }, [order]);
+    const match = verdict.shippingOrderNumber || verdict.shippingSuggestedOrderNumber;
+    if (!match) continue;
+    try {
+      await persistManualShippingLink(expense, match, () => saveTaxCenter({ rethrow: true }));
+      linked++;
+    } catch (error) {
+      console.warn('Could not auto-link postage to ' + order.num, error);
+    }
+  }
+  if (linked) renderShippingReconciliationWorklist();
+  return linked;
+}
+
+async function linkShippingExpense(ref) {
+  const expense = (TAX_CENTER.businessExpenses || []).find(item => String(item.ref) === String(ref));
+  if (!expense) { showToast('Shipping expense was not found', 'err'); return; }
+  const domId = String(expense.ref).replace(/[^A-Za-z0-9_-]/g, '-');
+  await linkPostageToOrder(ref, $(domId)?.value);
+}
+
+/**
+ * Link one label's postage to an order. Shared by the Tax Centre worklist
+ * (which reads the order from its dropdown) and the review inbox (which reads
+ * it from its own), so the two can never link differently.
+ */
+async function linkPostageToOrder(ref, orderNumber) {
+  const expense = (TAX_CENTER.businessExpenses || []).find(item => String(item.ref) === String(ref));
+  if (!expense) { showToast('Shipping expense was not found', 'err'); return false; }
+  const number = normalizeShippingOrderNumber(orderNumber);
+  if (!number) { showToast('Choose an order before linking postage', 'warn'); return false; }
+  try {
+    await persistManualShippingLink(expense, number, () => saveTaxCenter({ rethrow: true }));
+  } catch (error) {
+    console.error('Shipping link save failed', error);
+    renderShippingReconciliationWorklist();
+    showToast('Could not save the shipping link. Please try again.', 'err');
+    return false;
+  }
+  renderShippingReconciliationWorklist();
+  renderOrders();
+  renderHist();
+  renderTaxCenter();
+  showToast(`Postage linked to ${number}`);
+  return true;
+}
+
+/**
+ * Every label that still needs a person, and what it needs — for the review
+ * inbox. Uses the same two tests as the Tax Centre worklist (needs an order,
+ * needs an amount), so the inbox and the worklist always list the same labels.
+ */
+function labelReviewEntries() {
+  const entries = [];
+  (TAX_CENTER.businessExpenses || []).forEach(expense => {
+    const needsAmount = needsAmountAttention(expense);
+    const needsOrder = isUnresolvedShippoPostage(expense);
+    if (!needsAmount && !needsOrder) return;
+    entries.push({
+      expense,
+      needsAmount,
+      needsOrder,
+      suggestedOrder: normalizeShippingOrderNumber(expense.shippingSuggestedOrderNumber),
+    });
+  });
+  return entries;
+}
+
+/**
+ * Stop asking about one label's order without touching its cost.
+ *
+ * For a label that was never for a website order — a hand sale, a personal
+ * parcel. The expense stays in Shipping & Postage exactly as it was; only the
+ * "needs an order" flag is set aside, the same mark the worklist's Clear list
+ * button puts on many at once.
+ */
+async function setAsideLabelFromReview(ref) {
+  const expense = (TAX_CENTER.businessExpenses || []).find(item => String(item.ref) === String(ref));
+  if (!expense || !isUnresolvedShippoPostage(expense)) return false;
+  const hadStatus = Object.prototype.hasOwnProperty.call(expense, 'shippingMatchStatus');
+  const prior = expense.shippingMatchStatus;
+  expense.shippingMatchStatus = 'dismissed';
+  try {
+    await saveTaxCenter({ rethrow: true });
+  } catch (error) {
+    if (hadStatus) expense.shippingMatchStatus = prior;
+    else delete expense.shippingMatchStatus;
+    console.error('Setting a label aside failed', error);
+    showToast('Could not save that. Please try again.', 'err');
+    return false;
+  }
+  renderShippingReconciliationWorklist();
+  renderTaxCenter();
+  showToast('Done. The cost stays in your books; it just stops asking for an order.', 'ok');
+  return true;
+}
+
+/** The orders a label can be linked to, as `{ number, name }`. */
+function postageOrderChoices() {
+  return getShippingReconciliationOrders()
+    .map(order => ({
+      number: normalizeShippingOrderNumber(order.num || order.orderNum),
+      name: `${order.shipName || order.customer || 'Customer'}${order.webOrderId ? ' · Website order' : ''}`,
+    }))
+    .filter(choice => choice.number);
+}
+
+async function processShippoTxToExpense(tx, token, txId, ref, importedCount, context, knownOrders, invoiceIndex = null) {
+  const { amount, currency } = await getShippoTxCost(tx, token);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const dateRaw = tx.object_created || tx.object_updated || '';
+  const date = localDay(dateRaw) || today();
+
+  let fxRate = currency === 'CAD' ? 1 : 0;
+  if (currency !== 'CAD') {
+    try { const historical = await fetchHistoricalRate(currency, 'CAD', date); fxRate = historical?.rate || 0; } catch (_) { /* continue */ }
+    if (!fxRate) {
+      try { const live = await fetchLiveRate(currency, 'CAD'); fxRate = live?.rate || 0; } catch (_) { /* continue */ }
+    }
+    if (!fxRate) fxRate = _fxRateCache[`${currency}_CAD`] || 0;
+  }
+  const fxMissing = !fxRate;
+
+  const labelUrl = tx.label_url || '';
+  const localReceipt = labelUrl ? await saveShippoLabelLocally(labelUrl, txId) : null;
+  const label = localReceipt || labelUrl;
+
+  // The label is supporting evidence, not the receipt of record. The invoice is
+  // what proves the money left the account, so when we know which invoice
+  // billed this label, that reference goes first and the label follows.
+  const invoiceItem = invoiceIndex ? invoiceIndex.get(txId) : null;
+  const invoiceUrl = shippoInvoicePageUrl(invoiceItem?.invoiceId);
+
+  const expense = {
+    id: Date.now() + importedCount + 1,
+    desc: `Shippo shipping label${tx.tracking_number ? ` #${tx.tracking_number}` : ''}`,
+    cat: 'Shipping & Postage',
+    currency,
+    amount,
+    origCurrency: currency,
+    origAmount: amount,
+    fxRate: fxMissing ? null : fxRate,
+    baseAmount: fxMissing ? null : roundCents(amount * fxRate),
+    fxMissing,
+    date,
+    ref,
+    receipt: invoiceUrl || label,
+    ...(invoiceUrl ? { receiptFiles: label ? [invoiceUrl, label] : [invoiceUrl] } : {}),
+    // Kept separate so the ledger can show what each document actually is.
+    supportingFiles: label ? [label] : [],
+    invoiceId: invoiceItem?.invoiceId || '',
+    // To the second, so the receipt Shippo emails moments later can be matched to it.
+    labelCreatedAt: tx.object_created || '',
+    trackingUrl: tx.tracking_url_provider || '',
+    // The parcel's identity across every road postage arrives by (emails, the
+    // Canada Post sweep): without it the same label was filed twice.
+    trackingNumber: normalizeTrackingNumber(tx.tracking_number),
+    trip: '',
+  };
+  return enrichShippoExpense(expense, tx, context.shipment, context.shippoOrder, knownOrders);
+}
+
+/**
+ * Add a cancelling entry for every refunded label that doesn't already have one.
+ *
+ * Deliberately additive rather than editing or deleting the original expense:
+ * the original charge did happen, and an audit trail that shows the charge and
+ * the credit is the honest record. It also makes the operation idempotent —
+ * re-running the import cannot double-credit, because each refund carries its
+ * own reference.
+ */
+function applyShippoRefunds(refunds) {
+  if (!Array.isArray(refunds) || !refunds.length) return 0;
+
+  const expenses = TAX_CENTER.businessExpenses || [];
+  const byRef = new Map(expenses
+    .filter(e => String(e?.ref || '').startsWith('shippo:'))
+    .map(e => [String(e.ref), e]));
+  const alreadyCredited = new Set(expenses
+    .map(e => String(e?.ref || ''))
+    .filter(r => r.startsWith('shippo-refund:')));
+
+  let added = 0;
+  refunds.forEach((refund, i) => {
+    if (alreadyCredited.has(`shippo-refund:${refund.id}`)) return;
+    const original = byRef.get(`shippo:${refund.transactionId}`);
+    if (!original) return; // never imported the label, so nothing to reverse
+    const entry = refundCredit(original, { refundId: refund.id, date: refund.date || original.date }, Date.now() + 500000 + i);
+    if (!entry) return;
+    original.refundRequest = { ...(original.refundRequest || {}), id: refund.id, status: 'SUCCESS' };
+    expenses.unshift(entry);
+    added++;
+  });
+  return added;
+}
+
+/** How much postage is still waiting on a person. */
+/** Of these order numbers, the ones with a shipping label matched to them. */
+function ordersWithLabels(nums = []) {
+  const wanted = new Set(nums.filter(Boolean));
+  if (!wanted.size) return [];
+  const expenses = postageExpenses();
+  return [...wanted].filter(num => linkedShippingSummary({ num }, expenses, 1).linkedCount > 0);
+}
+
+function reconciliationBacklog() {
+  return (TAX_CENTER.businessExpenses || []).filter(isUnresolvedShippoPostage).length;
+}
+
+/**
+ * Link every label whose order is beyond reasonable doubt, and report how many.
+ *
+ * In-memory only. Both callers save immediately afterwards — the importer once
+ * for everything it wrote, the worklist button once for the batch — and a link
+ * that persisted itself here would turn one write into a dozen.
+ *
+ * Run over the whole ledger rather than one import's batch, because the guard
+ * that matters (no two labels claiming one order) cannot be judged from a batch
+ * alone, and because a label imported last week whose order only turned up
+ * today has exactly as much claim on being linked as one bought a minute ago.
+ */
+function applyConfidentShippingLinks() {
+  const expenses = (TAX_CENTER.businessExpenses || []).filter(isUnresolvedShippoPostage);
+  if (!expenses.length) return 0;
+  const links = autoLinkConfidentShippingMatches(expenses, getShippingReconciliationOrders());
+  links.forEach(({ expense, orderNumber }) => writeShippingLink(expense, orderNumber, 'recipient-auto'));
+  return links.length;
+}
+
+/**
+ * Link the confident matches sitting in the worklist right now.
+ *
+ * The list already had a clear-all, which dismisses rows rather than resolving
+ * them — useful for a backlog of labels that will never have an order, useless
+ * for the ordinary case where most of them plainly do. This is its counterpart:
+ * one press for everything the app would have linked on its own had it been
+ * watching at the time.
+ */
+async function linkConfidentShippingMatchesNow() {
+  const linked = applyConfidentShippingLinks();
+  if (!linked) {
+    showToast('Nothing here is a certain enough match to link on its own', 'warn');
+    return;
+  }
+  try {
+    await saveTaxCenter({ rethrow: true });
+  } catch (error) {
+    console.error('Saving automatic postage links failed', error);
+    showToast('Could not save those links — please try again', 'err');
+    return;
+  }
+  renderTaxCenter();
+  renderShippingAnalysisHub();
+  const left = reconciliationBacklog();
+  showToast(`✓ Linked ${linked} label${linked === 1 ? '' : 's'}${left ? ` — ${left} still need${left === 1 ? 's' : ''} you` : ''}`);
+}
+
+// ─── Watching for labels bought somewhere else ────────────────────────────
+//
+// A label bought on Shippo's website was invisible here until somebody went and
+// fetched it: four clicks into the Tax Centre, then two more per label in the
+// worklist, and nothing anywhere to say there was something to fetch. Postage
+// that is not in the ledger is money missing from the shipping P&L, so the cost
+// of not noticing is real.
+//
+// Same three triggers as the storefront order watch, for the same reasons, and
+// the same gates on when a request would be wasted. The rules live in
+// lib/carriers/shippo-watch.js; this is the timer and the card.
+
+// ─── Canada Post: asking what was bought, rather than being told ──────────
+//
+// A label bought on canadapost.ca used to reach this app only by being typed
+// into it — the amount, the date, the category, then a separate trip to link it
+// to whoever it was posted to. But it was bought on the same business account
+// whose credentials the app already holds, which means the app can simply ask.
+//
+// What comes back is the carrier's own record: `/details` for who it went to,
+// `/receipt` for what was actually charged. Nothing is read off a photograph
+// and nothing is inferred from a rate table, so this is the most trustworthy of
+// the three ways postage reaches the ledger.
+//
+// Two things it deliberately does not do. It never guesses an amount: a
+// contract shipment has no card receipt, and when the price endpoint is also
+// silent the expense is filed with the figure blank and flagged rather than
+// plausible and wrong. And it only ever reads — GET, no create, no void, no
+// manifest transmit — because a Canada Post call that is not a read spends real
+// money, and a background sweep is the last place that should be possible.
+//
+// It also cannot see everything. Get Shipments answers for shipments on this
+// customer number, so a counter purchase paid at a till is not in it. That is
+// not a gap to apologise for; it is why the email path exists beside this one.
+
+const CP_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
+// How far back a sweep reaches when there is no record of a previous one. Long
+// enough to catch the week a publisher installs this, short enough that a first
+// run does not walk the whole account history.
+const CP_SWEEP_COLD_START_DAYS = 14;
+const CP_SWEEP_LIMIT = 50;
+const CP_SWEEP_LAST_KEY = 'lm-cp-sweep-last';
+
+const cpText = (value) => String(value ?? '').trim();
+
+let _cpSweepStarted = false;
+let _cpSweeping = false;
+
+function readCpSweepStamp() {
+  try { return Number(localStorage.getItem(CP_SWEEP_LAST_KEY)) || 0; } catch (_) { return 0; }
+}
+
+function writeCpSweepStamp(at) {
+  try { localStorage.setItem(CP_SWEEP_LAST_KEY, String(at)); } catch (_) { /* private mode */ }
+}
+
+/** `YYYYMMDD`, the only date format Get Shipments accepts. */
+// Set when Big Cartel names a tracking number older than the normal look-back,
+// so the next sweep reaches back far enough to find that label. Cleared after.
+let _cpSweepReachBackTo = 0;
+const CP_SWEEP_MAX_REACH_DAYS = 60;
+
+function cpSweepFromDate() {
+  if (_cpSweepReachBackTo) {
+    const floor = Date.now() - CP_SWEEP_MAX_REACH_DAYS * 86400000;
+    return new Date(Math.max(floor, _cpSweepReachBackTo - 86400000)).toISOString().slice(0, 10).replace(/-/g, '');
+  }
+  const last = readCpSweepStamp();
+  const from = last
+    // A day of overlap, because a shipment created just before the last sweep
+    // can be dated to it; a duplicate is caught by tracking number anyway,
+    // whereas a missed label is silent.
+    ? new Date(last - 86400000)
+    : new Date(Date.now() - CP_SWEEP_COLD_START_DAYS * 86400000);
+  return from.toISOString().slice(0, 10).replace(/-/g, '');
+}
+
+/** One read through the Canada Post proxy. GET only — no payload, ever. */
+async function cpRead(endpoint, credentials, isTest) {
+  if (!endpoint) return null;
+  const res = await executeCanadaPostProxy({
+    targetEndpoint: endpoint,
+    // No jsonPayload is what makes this a GET, in the proxy and in the backend.
+    jsonPayload: '',
+    apiKey: credentials.apiKey,
+    apiSecret: credentials.apiSecret,
+    customerNumber: credentials.customerNumber,
+    isTest,
+    // Both explicit. `isShipment` is otherwise inferred from the word
+    // "shipments" in the path, which is in every one of these read endpoints —
+    // and with it comes sandbox simulation, which could answer a read with a
+    // fabricated shipment. A read must never invent its own data.
+    isShipment: false,
+    allowSimulation: false,
+    scope: 'shipping',
+  });
+  return res?.json || null;
+}
+
+/** The shipment ids in a Get Shipments response, however it nests them. */
+function cpShipmentIdsFrom(payload) {
+  const links = payload?.shipments?.link || payload?.shipments || payload?.link || [];
+  const list = Array.isArray(links) ? links : [links];
+  return list.map(entry => {
+    // The spec returns each shipment as a link whose href doubles as the Get
+    // Shipment endpoint, so the id is read out of the path rather than expected
+    // as its own field.
+    const href = cpText(entry?.href);
+    const fromHref = href.match(/\/shipments\/([^/?#]+)/);
+    if (fromHref) return fromHref[1];
+    return cpText(entry?.shipmentId || entry?.['shipment-id'] || (typeof entry === 'string' ? entry : ''));
+  }).filter(Boolean);
+}
+
+/**
+ * Ask Canada Post what has been bought since the last time, and file it.
+ *
+ * Returns a count of what landed and what still needs a figure, so the caller
+ * can say so once rather than per shipment.
+ */
+async function sweepCanadaPostShipments({ force = false, pins = [] } = {}) {
+  const settings = TAX_CENTER.settings || {};
+  const credentials = resolveCanadaPostCredentials(settings);
+  const isTest = !!settings.cpTestMode;
+  const configured = !!(credentials.apiKey && credentials.apiSecret && credentials.customerNumber);
+  const { online, visible } = browserWatchState();
+
+  const due = force
+    ? configured && online && !_cpSweeping
+    : dueForCheck({
+      lastCheckedAt: readCpSweepStamp(),
+      now: Date.now(),
+      intervalMs: effectiveInterval(
+        CP_SWEEP_INTERVAL_MS,
+        integrationBackoffMs('canadapost', CP_SWEEP_INTERVAL_MS),
+      ),
+      online, configured, visible, busy: _cpSweeping,
+    });
+  if (!due) return null;
+
+  _cpSweeping = true;
+  try {
+    const listed = await cpRead(resolveListShipmentsEndpoint({
+      customerNumber: credentials.customerNumber,
+      mobo: credentials.customerNumber,
+      date: cpSweepFromDate(),
+      limit: CP_SWEEP_LIMIT,
+    }), credentials, isTest);
+
+    const ids = cpShipmentIdsFrom(listed);
+    // Tracking numbers Big Cartel knows about but the dated listing didn't
+    // return: ask for each by number too. A website label that the list leaves
+    // out can still be found this way, and it costs only a read.
+    for (const pin of pins.slice(0, 10)) {
+      const one = await cpRead(resolveListShipmentsEndpoint({
+        customerNumber: credentials.customerNumber,
+        mobo: credentials.customerNumber,
+        trackingPin: pin,
+      }), credentials, isTest).catch(() => null);
+      cpShipmentIdsFrom(one).forEach(id => { if (!ids.includes(id)) ids.push(id); });
+    }
+    const known = knownImportedPostageRefs();
+    // A label already filed under another road (a Shippo label on this account).
+    const tracked = postageTrackingIndex(TAX_CENTER.businessExpenses || []);
+    const knownOrders = getShippingReconciliationOrders();
+
+    let filed = 0;
+    let blank = 0;
+    const filedRefs = new Set();
+    for (const shipmentId of ids) {
+      const args = {
+        customerNumber: credentials.customerNumber,
+        mobo: credentials.customerNumber,
+        shipmentId,
+      };
+      // Details first: it carries the tracking number the ref is keyed on, so a
+      // shipment already in the ledger costs one read rather than three.
+      const details = await cpRead(resolveShipmentDetailsEndpoint(args), credentials, isTest);
+      let candidate = normalizeCanadaPostShipment({ shipmentId }, details, {}, {});
+      if (!candidate.trackingNumber || known.has(postageCandidateRef(candidate)) || tracked.has(candidate.trackingNumber)) continue;
+
+      const receipt = await cpRead(resolveShipmentReceiptEndpoint(args), credentials, isTest)
+        .catch(() => null);
+      const price = receipt?.ccReceiptDetails
+        ? null
+        : await cpRead(resolveShipmentPriceEndpoint(args), credentials, isTest).catch(() => null);
+      candidate = mergePostageCandidates(
+        candidate,
+        normalizeCanadaPostShipment({ shipmentId }, details, receipt || {}, price || {}),
+      );
+
+      const ref = postageCandidateRef(candidate);
+      // Read again after the network calls: the Shippo watch may have filed it meanwhile.
+      if (!ref || known.has(ref) || TAX_CENTER.discardedPostageRefs?.includes(ref) || tracked.has(candidate.trackingNumber)
+        || postageTrackingIndex(TAX_CENTER.businessExpenses || []).has(candidate.trackingNumber)) continue;
+      known.add(ref);
+      if (!TAX_CENTER.businessExpenses) TAX_CENTER.businessExpenses = [];
+
+      // Graded as it is filed. Without this the expense arrives with no match
+      // status at all, which is neither 'suggested' nor 'matched' — so the
+      // auto-linker would skip it and every one of these would sit in the
+      // worklist waiting for a human, which is the whole thing this is meant to
+      // remove.
+      const expense = buildPostageExpense(candidate);
+      Object.assign(expense, reconcileShippingExpense({
+        recipientName: expense.recipientName,
+        recipientPostal: expense.recipientPostal,
+        trackingNumber: expense.trackingNumber,
+        date: expense.date,
+      }, knownOrders));
+      TAX_CENTER.businessExpenses.unshift(expense);
+      filedRefs.add(ref);
+      filed++;
+      if (needsAmount(candidate)) blank++;
+    }
+
+    writeCpSweepStamp(Date.now());
+    _cpSweepReachBackTo = 0;
+    noteIntegrationSuccess('canadapost');
+
+    if (filed) {
+      const linked = applyConfidentShippingLinks();
+      // The tracking number belongs on the order too, not only on the expense.
+      const stamped = writeTrackingBackToOrders(TAX_CENTER.businessExpenses || []);
+      await saveTaxCenter().catch(e => console.warn('Canada Post sweep save failed', e));
+      renderTaxCenter();
+      renderShippingAnalysisHub();
+      const needsReview = TAX_CENTER.businessExpenses
+        .filter(expense => filedRefs.has(expense.ref) && isUnresolvedShippoPostage(expense)).length;
+      const linkedNow = TAX_CENTER.businessExpenses
+        .filter(expense => filedRefs.has(expense.ref) && expense.shippingMatchStatus === 'matched').length;
+      showPostageSweepAlert({ filed, linked: linkedNow, blank, needsReview });
+      return { filed, linked, blank, stamped };
+    }
+    return { filed: 0, linked: 0, blank: 0, stamped: 0 };
+  } catch (error) {
+    console.warn('Canada Post shipment sweep failed', error);
+    noteIntegrationFailure('canadapost', error, { online, configured });
+    return null;
+  } finally {
+    _cpSweeping = false;
+  }
+}
+
+/**
+ * Put the tracking number on the order the postage was linked to.
+ *
+ * This is the half of the job that is not bookkeeping. buyCanadaPostLabel and
+ * buyShippoLabel already stamp `trackingNumber` and `shipped` onto the history
+ * row when a label is bought in the app, so an order shipped that way carries
+ * its own tracking. A label bought on canadapost.ca could not — the app never
+ * saw it — and the publisher typed the number onto the order by hand, or more
+ * often did not, and the order sat looking unshipped.
+ *
+ * Now that the postage is linked, the number it carries belongs on the order,
+ * and the "shipped" flag with it.
+ *
+ * Only ever fills a blank. An order that already names a tracking number was
+ * shipped by some route this does not know about, and overwriting that with a
+ * later label's number would replace a true record with a plausible one.
+ */
+function writeTrackingBackToOrders(expenses = []) {
+  let stamped = 0;
+  const wanted = new Map();
+  expenses.forEach(expense => {
+    const orderNumber = normalizeShippingOrderNumber(expense?.shippingOrderNumber);
+    const tracking = cpText(expense?.trackingNumber);
+    // A test-mode label's number never scans; it must not mark an order sent.
+    // A refunded (or refund-requested) label no longer ships anything: its
+    // number must not put an order the refund put back on the to-ship list
+    // back to "sent".
+    if (orderNumber && tracking && expense.shippingMatchStatus === 'matched' && !expense.simulated
+      && !expense.refundRequest && refundState(expense, expenses) === 'none') {
+      wanted.set(orderNumber, { tracking, date: cpText(expense.date) });
+    }
+  });
+  if (!wanted.size) return 0;
+
+  Object.entries(states).forEach(([bookId, state]) => {
+    if (!state || !Array.isArray(state.hist)) return;
+    let touched = false;
+    state.hist.forEach(entry => {
+      if (!entry || entry.voided) return;
+      const found = wanted.get(normalizeShippingOrderNumber(entry.num));
+      if (!found || cpText(entry.trackingNumber)) return;
+      entry.trackingNumber = found.tracking;
+      if (!entry.shipped) {
+        entry.shipped = true;
+        entry.shippedDate = found.date || entry.shippedDate || today();
+      }
+      touched = true;
+      stamped++;
+    });
+    if (touched) saveState(bookId);
+  });
+
+  if (stamped) renderHist();
+  return stamped;
+}
+
+/**
+ * Tracking numbers the owner typed into Big Cartel, put onto the matching
+ * orders here.
+ *
+ * A label bought on canadapost.ca is found by the Canada Post sweep, but the
+ * sweep could only guess its order from the name and postal code. The owner
+ * types the tracking number into Big Cartel every time, so once it is on the
+ * order the sweep matches the label on that number exactly, and the postage
+ * cost links itself.
+ *
+ * Same rules as writeTrackingBackToOrders: fills a blank only, never a voided
+ * row. Postage already filed but unlinked is re-checked against the new
+ * numbers, and anything still not found asks Canada Post straight away.
+ */
+const _bcTrackingChased = new Set();
+async function applyBigCartelTracking(orders = [], included = []) {
+  const byOrder = bigCartelTrackingByOrder(orders, included);
+  if (!byOrder.size) return { stamped: 0, linked: 0 };
+
+  const changes = trackingToStamp(websiteLedgerRows(), byOrder, normalizeShippingOrderNumber);
+  const touchedBooks = new Set();
+  changes.forEach(({ bookId, entry, shipment }) => {
+    entry.trackingNumber = shipment.tracking;
+    // Lets Recent Activity say where the number came from.
+    entry.trackingSource = 'bigcartel';
+    if (shipment.trackingUrl && !entry.trackingUrl) entry.trackingUrl = shipment.trackingUrl;
+    if (!entry.shipped) {
+      entry.shipped = true;
+      entry.shippedDate = shipmentDate(shipment) || entry.shippedDate || today();
+    }
+    touchedBooks.add(bookId);
+  });
+  touchedBooks.forEach(bookId => saveState(bookId));
+  if (changes.length) renderHist();
+
+  // Re-check postage already filed against the new numbers: a label that sat
+  // in "needs review" because the name didn't match now has an exact key.
+  const fresh = new Set(changes.map(c => c.shipment.tracking));
+  let linked = 0;
+  if (fresh.size) {
+    const orders = getShippingReconciliationOrders();
+    postageExpenses().forEach(expense => {
+      if (!isUnresolvedShippoPostage(expense)) return;
+      if (!fresh.has(normalizeTrackingNumber(expense.trackingNumber))) return;
+      Object.assign(expense, reconcileShippingExpense({
+        recipientName: expense.recipientName,
+        recipientPostal: expense.recipientPostal,
+        trackingNumber: expense.trackingNumber,
+        date: expense.date,
+      }, orders));
+    });
+    linked = applyConfidentShippingLinks();
+    if (linked) {
+      await saveTaxCenter().catch(e => console.warn('Big Cartel tracking link save failed', e));
+      renderShippingAnalysisHub();
+    }
+  }
+
+  // Any number with no postage behind it yet: ask Canada Post now rather than
+  // in up to half an hour, reaching back to the oldest one.
+  const filedTracking = new Set(postageExpenses().map(e => normalizeTrackingNumber(e.trackingNumber)).filter(Boolean));
+  // Each number is chased once per visit, so a parcel sent another way (not on
+  // this Canada Post account) doesn't trigger a Canada Post check every refresh.
+  const missing = changes.filter(c => !filedTracking.has(c.shipment.tracking) && !_bcTrackingChased.has(c.shipment.tracking));
+  missing.forEach(c => _bcTrackingChased.add(c.shipment.tracking));
+  if (missing.length) {
+    const oldest = Math.min(...missing.map(c => Date.parse(c.shipment.shippedAt) || Date.now()));
+    _cpSweepReachBackTo = oldest;
+    const pins = missing.map(c => c.shipment.tracking);
+    // Two independent places to find the cost: Canada Post's record of the
+    // label, and its receipt email. Whichever answers first files it; the other
+    // sees the tracking number already on the books and skips it.
+    sweepCanadaPostShipments({ force: true, pins })
+      .finally(() => sweepShippingEmails({ force: true, pins }))
+      .catch(() => {});
+  }
+
+  if (changes.length) {
+    renderCustomShippoDestPicker();
+    const n = changes.length;
+    const title = `${n} order${n === 1 ? '' : 's'} marked shipped from Big Cartel`;
+    const detail = linked
+      ? `Tracking added, and ${linked} postage cost${linked === 1 ? '' : 's'} matched to ${linked === 1 ? 'its order' : 'their orders'}.`
+      : 'Tracking added. The postage cost is added once Canada Post reports the label.';
+    pushAppAlert({ id: 'bigcartel-tracking', icon: '📦', title, detail });
+    notifyDeviceShipping(title, detail, 'lm-bc-tracking');
+  }
+  return { stamped: changes.length, linked };
+}
+
+/**
+ * The same news as a phone or desktop notification, for when the app is in a
+ * background tab. Uses the switch that already exists for new-order
+ * notifications, so there is one setting, not two. Best-effort: a browser that
+ * blocks notifications changes nothing here.
+ */
+function notifyDeviceShipping(title, body, tag, open = { to: 'tab', tab: 'shipping' }) {
+  notifyDevice({ kind: 'orders', title, body, tag, open });
+}
+
+/** The card announcing labels bought elsewhere that filed themselves. */
+function showPostageSweepAlert({ filed, linked, blank, needsReview, source = 'Canada Post' }) {
+  const labels = `${filed} label${filed === 1 ? '' : 's'}`;
+  const parts = [];
+  if (linked > 0) parts.push(`${linked} matched to ${linked === 1 ? 'its order' : 'their orders'}`);
+  if (blank > 0) parts.push(`${blank} ${blank === 1 ? 'needs' : 'need'} a postage amount`);
+  if (needsReview > 0) parts.push(`${needsReview} ${needsReview === 1 ? 'needs' : 'need'} an order link`);
+
+  const detail = parts.length
+    ? `Added to Shipping & Postage from ${source}; ${parts.join(', ')}. Press Review to finish them.`
+    : `Found in ${source} and added to Shipping & Postage.`;
+  notifyDeviceShipping(`${labels} found in ${source}`, detail, 'lm-postage-sweep',
+    { to: 'labels', source: source === 'your email' ? 'email' : 'canadapost' });
+  pushAppAlert({
+    // Keyed per source, so a Canada Post sweep and an email sweep finding
+    // labels minutes apart do not overwrite each other's news.
+    id: `postage-sweep-${source.replace(/[^a-z]+/gi, '-').toLowerCase()}`,
+    icon: '📮',
+    title: `${labels} found in ${source}`,
+    detail,
+    actionLabel: (blank || needsReview) ? 'Review labels' : '',
+    action: (blank || needsReview)
+      ? `openShippingReconciliationFromAlert(event, '${source === 'your email' ? 'email' : 'canadapost'}')` : '',
+  });
+}
+
+function startCanadaPostSweep() {
+  if (_cpSweepStarted || typeof window === 'undefined') return;
+  _cpSweepStarted = true;
+  startWatch(() => { sweepCanadaPostShipments(); }, { intervalMs: CP_SWEEP_INTERVAL_MS });
+}
+
+// ─── The carrier email, for everything Canada Post cannot be asked about ──
+//
+// The sweep above covers labels on the Canada Post account. Another courier's
+// website is not on it, and neither is a Canada Post purchase made outside that
+// customer number. What those leave is an email.
+//
+// This reuses the receipt scanner's Gmail pipeline wholesale — the search, the
+// batched body fetch, both already built and both already talking to an Apps
+// Script endpoint that takes a client-supplied query. Nothing new crosses to
+// the script, so there is no version bump and nothing to redeploy.
+//
+// Reading is deterministic: lib/shipping-email.js finds the tracking number and
+// the labelled total with regexes, and an email it cannot crack is left for the
+// scanner's AI path rather than half-read. That keeps a five-minute background
+// job free of per-email AI cost, makes the same email parse the same way every
+// time, and means no figure in the ledger was ever invented by a model.
+
+const EMAIL_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
+const EMAIL_SWEEP_COLD_START_DAYS = 14;
+const EMAIL_SWEEP_LAST_KEY = 'lm-shipping-email-sweep-last';
+
+let _emailSweepStarted = false;
+let _emailSweeping = false;
+
+function readEmailSweepStamp() {
+  try { return Number(localStorage.getItem(EMAIL_SWEEP_LAST_KEY)) || 0; } catch (_) { return 0; }
+}
+
+function writeEmailSweepStamp(at) {
+  try { localStorage.setItem(EMAIL_SWEEP_LAST_KEY, String(at)); } catch (_) { /* private mode */ }
+}
+
+async function gmailJson(action, params) {
+  const url = `${sheetsUrl}${sheetsUrl.includes('?') ? '&' : '?'}action=${action}&${params}`;
+  const res = await fetch(url, { method: 'GET', mode: 'cors' });
+  if (!res.ok) {
+    const err = new Error(`Gmail search failed (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  const data = await res.json();
+  // Apps Script reports its own failures as HTTP 200 plus {error}, so a bad
+  // query or a stale deployment arrives looking like a success.
+  if (data && data.error) throw new Error(String(data.error));
+  return data || {};
+}
+
+/**
+ * Look for labels a carrier emailed about, and file the ones it can read.
+ *
+ * Only emails carrying a verifiable tracking number are filed, and only ones
+ * not already in the ledger under that number — which is also what stops this
+ * and the Canada Post sweep filing the same Canada Post label twice.
+ */
+async function sweepShippingEmails({ force = false, pins = [] } = {}) {
+  const configured = !!sheetsUrl;
+  const { online, visible } = browserWatchState();
+  const due = force
+    ? configured && online && !_emailSweeping
+    : dueForCheck({
+      lastCheckedAt: readEmailSweepStamp(),
+      now: Date.now(),
+      intervalMs: effectiveInterval(
+        EMAIL_SWEEP_INTERVAL_MS,
+        integrationBackoffMs('shipping-email', EMAIL_SWEEP_INTERVAL_MS),
+      ),
+      online, configured, visible, busy: _emailSweeping,
+    });
+  if (!due) return null;
+
+  _emailSweeping = true;
+  try {
+    const last = readEmailSweepStamp();
+    const since = new Date(last
+      // A day of overlap: an email can arrive between a sweep starting and
+      // finishing, and a duplicate is caught by tracking number anyway whereas
+      // a missed label is silent.
+      ? last - 86400000
+      : Date.now() - EMAIL_SWEEP_COLD_START_DAYS * 86400000).toISOString().slice(0, 10);
+
+    // With tracking numbers to chase, search for those numbers in any mail
+    // from the last 60 days: the label's receipt, whoever sent it. This is a
+    // targeted look, so it leaves the regular sweep's clock alone.
+    const byPin = pins.length > 0;
+    const query = byPin
+      ? trackingEmailQuery(pins, { since: new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10) })
+      : shippingEmailQuery({ since });
+    const found = await gmailJson('listReceiptEmails', `limit=25&q=${encodeURIComponent(query)}`);
+    const ids = (found.emails || []).map(email => cpText(email?.id)).filter(Boolean);
+    if (!ids.length) {
+      if (!byPin) writeEmailSweepStamp(Date.now());
+      noteIntegrationSuccess('shipping-email');
+      return { filed: 0, linked: 0, blank: 0, stamped: 0 };
+    }
+
+    const bodies = await gmailJson('getEmailContents', `ids=${encodeURIComponent(ids.join(','))}`);
+    const known = knownImportedPostageRefs();
+    // The website's Shippo labels are already in the ledger as `shippo:` rows:
+    // an email about the same parcel is the same cost, not a second one.
+    const tracked = postageTrackingIndex(TAX_CENTER.businessExpenses || []);
+    const knownOrders = getShippingReconciliationOrders();
+
+    let filed = 0;
+    let blank = 0;
+    const filedRefs = new Set();
+    (bodies.emails || []).forEach(email => {
+      if (!email) return;
+      const parsed = parseShippingEmail({
+        subject: email.subject || '',
+        body: email.body || email.plainBody || '',
+        date: email.date || '',
+        from: email.from || '',
+      });
+      // Null means no verifiable tracking number — newsletters, delivery
+      // notices, the storefront's own order mail. Left alone rather than filed
+      // half-read; the scanner's AI path is where a stubborn one goes.
+      if (!parsed) return;
+
+      const candidate = normalizeShippingEmail(parsed, { messageId: email.id });
+      const ref = postageCandidateRef(candidate);
+      if (!ref || known.has(ref) || tracked.has(candidate.trackingNumber)) return;
+      known.add(ref);
+
+      const expense = buildPostageExpense(candidate);
+      expense.postageEmailFrom = cpText(email.from);
+      expense.postageEmailSubject = cpText(email.subject);
+      Object.assign(expense, reconcileShippingExpense({
+        recipientName: expense.recipientName,
+        recipientPostal: expense.recipientPostal,
+        trackingNumber: expense.trackingNumber,
+        date: expense.date,
+      }, knownOrders));
+      if (!TAX_CENTER.businessExpenses) TAX_CENTER.businessExpenses = [];
+      TAX_CENTER.businessExpenses.unshift(expense);
+      filedRefs.add(ref);
+      filed++;
+      if (needsAmount(candidate)) blank++;
+    });
+
+    if (!byPin) writeEmailSweepStamp(Date.now());
+    noteIntegrationSuccess('shipping-email');
+
+    if (filed) {
+      const linked = applyConfidentShippingLinks();
+      // The tracking number belongs on the order too, not only on the expense.
+      const stamped = writeTrackingBackToOrders(TAX_CENTER.businessExpenses || []);
+      await saveTaxCenter().catch(e => console.warn('Shipping email sweep save failed', e));
+      renderTaxCenter();
+      renderShippingAnalysisHub();
+      const linkedNow = TAX_CENTER.businessExpenses
+        .filter(expense => filedRefs.has(expense.ref) && expense.shippingMatchStatus === 'matched').length;
+      showPostageSweepAlert({
+        filed, linked: linkedNow, blank,
+        needsReview: TAX_CENTER.businessExpenses
+          .filter(expense => filedRefs.has(expense.ref) && isUnresolvedShippoPostage(expense)).length,
+        source: 'your email',
+      });
+      return { filed, linked, blank, stamped };
+    }
+    return { filed: 0, linked: 0, blank: 0, stamped: 0 };
+  } catch (error) {
+    console.warn('Shipping email sweep failed', error);
+    noteIntegrationFailure('shipping-email', error, { online, configured });
+    return null;
+  } finally {
+    _emailSweeping = false;
+  }
+}
+
+function startShippingEmailSweep() {
+  if (_emailSweepStarted || typeof window === 'undefined') return;
+  _emailSweepStarted = true;
+  startWatch(() => { sweepShippingEmails(); }, { intervalMs: EMAIL_SWEEP_INTERVAL_MS });
+}
+
+// ── Following parcels to the door ─────────────────────────────────────────
+//
+// Once a label was bought the app forgot the parcel. It could already ask
+// Canada Post about a tracking number — the audit button above does exactly
+// that — but only when someone pressed it. This asks on its own, a few parcels
+// at a time, writes what it hears onto the order, and says something only when
+// the news changes: delivered, waiting at a post office, on its way back, or
+// not moving. The rules live in lib/delivery-watch.js.
+
+const DELIVERY_WATCH_INTERVAL_MS = 60 * 60 * 1000;
+const DELIVERY_WATCH_LAST_KEY = 'lm-delivery-watch-last';
+
+let _deliveryWatchStarted = false;
+let _deliveryChecking = false;
+
+function readDeliveryWatchStamp() {
+  try { return Number(localStorage.getItem(DELIVERY_WATCH_LAST_KEY)) || 0; } catch (_) { return 0; }
+}
+
+function writeDeliveryWatchStamp(at) {
+  try { localStorage.setItem(DELIVERY_WATCH_LAST_KEY, String(at)); } catch (_) { /* private mode */ }
+}
+
+/** Every shipped ledger row, with the book it lives in so the answer can be saved back. */
+function shippedLedgerRows() {
+  const rows = [];
+  Object.entries(states).forEach(([bookId, state]) => {
+    (state?.hist || []).forEach(entry => {
+      if (entry && entry.shipped) rows.push({ bookId, entry });
+    });
+  });
+  return rows;
+}
+
+async function followShippedParcels({ force = false } = {}) {
+  if (isAuthor()) return null;
+  const { apiKey, apiSecret } = resolveCanadaPostCredentials(TAX_CENTER.settings || {});
+  const configured = !!(apiKey && apiSecret);
+  const { online, visible } = browserWatchState();
+  const due = force
+    ? configured && online && !_deliveryChecking
+    : dueForCheck({
+      lastCheckedAt: readDeliveryWatchStamp(),
+      now: Date.now(),
+      intervalMs: effectiveInterval(
+        DELIVERY_WATCH_INTERVAL_MS,
+        integrationBackoffMs('canadapost-tracking', DELIVERY_WATCH_INTERVAL_MS),
+      ),
+      online, configured, visible, busy: _deliveryChecking,
+    });
+  if (!due) return null;
+
+  _deliveryChecking = true;
+  try {
+    const now = Date.now();
+    const todo = shipmentsToFollow(shippedLedgerRows(), { now });
+    const isTest = !!TAX_CENTER.settings?.cpTestMode;
+    const touched = new Set();
+    const news = [];
+    let answered = 0;
+    let lastError = null;
+
+    for (const item of todo) {
+      let result = null;
+      try {
+        result = await verifyCanadaPostTrackingPin({ pin: item.pin, apiKey, apiSecret, isTest });
+        answered++;
+      } catch (error) {
+        // "No such parcel" is the tracking audit's business, not this watch's —
+        // and a network failure says nothing about the parcel at all. Either
+        // way the row is left exactly as it was, to be asked again later.
+        lastError = error;
+        continue;
+      }
+      const entry = item.entry;
+      const reading = readDelivery(result, { now, shippedDate: entry.shippedDate || entry.date });
+      entry.deliveryCheckedAt = new Date(now).toISOString();
+      touched.add(item.bookId);
+      if (!reading) continue;
+
+      const previous = entry.deliveryState || '';
+      entry.deliveryState = reading.state;
+      entry.deliveryStatus = reading.status;
+      if (reading.eventDate) entry.deliveryEventDate = reading.eventDate;
+      if (reading.state === 'delivered') entry.deliveredDate = reading.deliveredDate;
+      if (isDeliveryNews(previous, reading)) {
+        news.push({
+          state: reading.state,
+          place: reading.place,
+          num: entry.num || '',
+          customer: entry.shipName || '',
+        });
+      }
+    }
+
+    // One save per book that changed, not one per parcel.
+    for (const bookId of touched) saveState(bookId);
+    writeDeliveryWatchStamp(Date.now());
+
+    if (todo.length && !answered && lastError) {
+      noteIntegrationFailure('canadapost-tracking', lastError, { online, configured });
+    } else {
+      noteIntegrationSuccess('canadapost-tracking');
+    }
+
+    if (news.length) showDeliveryAlert(news);
+    return { asked: todo.length, answered, news: news.length };
+  } catch (error) {
+    console.warn('Delivery watch failed', error);
+    noteIntegrationFailure('canadapost-tracking', error, { online, configured });
+    return null;
+  } finally {
+    _deliveryChecking = false;
+  }
+}
+
+function showDeliveryAlert(news) {
+  const said = describeDeliveryNews(news);
+  if (!said.count) return;
+  pushAppAlert({
+    id: 'delivery-watch',
+    icon: said.needsYou ? '📮' : '📬',
+    title: said.title,
+    detail: said.detail,
+    tone: said.needsYou ? SYNC_TONES.PENDING : '',
+    actionLabel: said.needsYou ? 'Open Shipping' : '',
+    action: said.needsYou ? 'openShippingFromDeliveryAlert(event)' : '',
+  });
+}
+
+function openShippingFromDeliveryAlert(event) {
+  if (event) event.stopPropagation();
+  dismissAppAlert('delivery-watch');
+  switchTab('shipping');
+}
+
+// ── After an order is recorded ────────────────────────────────────────────
+//
+// Two follow-ups the automatic recording made worth having: a paid order that
+// has sat unsent for days, and a month where postage cost more than
+// customers paid for it. Rules in lib/order-followups.js.
+
+const UNSHIPPED_ALERT_DAY_KEY = 'lm-unshipped-alert-day';
+const POSTAGE_REPORT_MONTH_KEY = 'lm-postage-report-month';
+const ORDER_FOLLOWUP_INTERVAL_MS = 60 * 60 * 1000;
+let _orderFollowupsStarted = false;
+
+/**
+ * Whether an expense is parcel postage that can be linked to an order. The
+ * old Shippo / Canada Post prefixes are kept, and labels filed from counter
+ * receipts, carrier emails and Chit Chats count too — the same rule the
+ * shipping analysis uses — so a linked label always shows in its order's margin.
+ */
+function isLinkablePostageExpense(expense) {
+  const ref = String(expense?.ref || '');
+  return /^(shippo:|canadapost:|postage[:-]|chitchats:)/.test(ref) || isPostageExpense(expense || {});
+}
+
+function postageExpenses() {
+  return (TAX_CENTER.businessExpenses || []).filter(isLinkablePostageExpense);
+}
+
+function websiteLedgerRows() {
+  const rows = [];
+  Object.entries(states).forEach(([bookId, state]) => {
+    (state?.hist || []).forEach(entry => {
+      if (entry && entry.chan === 'Website') rows.push({ bookId, entry, bookTitle: BOOKS[bookId]?.title || '' });
+    });
+  });
+  return rows;
+}
+
+function readStamp(key) {
+  try { return localStorage.getItem(key) || ''; } catch (_) { return ''; }
+}
+
+function writeStamp(key, value) {
+  try { localStorage.setItem(key, value); } catch (_) { /* storage blocked */ }
+}
+
+/** Once a day: the paid orders still waiting to go out. */
+function remindUnshippedOrders() {
+  const day = today();
+  if (readStamp(UNSHIPPED_ALERT_DAY_KEY) === day) return null;
+  const expenses = postageExpenses();
+  const rows = websiteLedgerRows();
+  // An order with a label matched to it has been sent, whatever its flag says.
+  const labelled = new Set(rows
+    .filter(({ entry }) => linkedShippingSummary(entry, expenses, 1).linkedCount > 0)
+    .map(({ entry }) => entry.num));
+  const waiting = unshippedOrders(rows, { labelled });
+  writeStamp(UNSHIPPED_ALERT_DAY_KEY, day);
+  const said = describeUnshipped(waiting);
+  if (!said.count) { dismissAppAlert('unshipped-orders'); return waiting; }
+  pushAppAlert({
+    id: 'unshipped-orders',
+    icon: '📦',
+    title: said.title,
+    detail: said.detail,
+    tone: SYNC_TONES.PENDING,
+    actionLabel: 'Open Shipping',
+    action: 'openShippingFromUnshippedAlert(event)',
+  });
+  return waiting;
+}
+
+function openShippingFromUnshippedAlert(event) {
+  if (event) event.stopPropagation();
+  dismissAppAlert('unshipped-orders');
+  switchTab('shipping');
+}
+
+/** Once a month: whether last month's shipping paid for itself. */
+function reportPostageLosses() {
+  const month = previousMonth(today());
+  if (!month || readStamp(POSTAGE_REPORT_MONTH_KEY) === month) return null;
+  const expenses = postageExpenses();
+  // An order for two books is two ledger rows sharing one order number. It is
+  // one parcel, so it is one item: the postage is already summed per order, and
+  // the customer's shipping charge is the largest on any row, never the sum.
+  const orders = new Map();
+  websiteLedgerRows().forEach(({ bookId, entry }) => {
+    if (entry.voided || entry.excludeFromShipping || String(entry.date || '').slice(0, 7) !== month) return;
+    // Compared in dollars only: mixing a euro-priced book's shipping into a
+    // Canadian-dollar postage total would invent a loss or hide one.
+    if (getBookCurrencyCode(BOOKS[bookId]) !== 'CAD') return;
+    const key = normalizeShippingOrderNumber(entry.num) || `row:${bookId}:${orders.size}`;
+    const order = orders.get(key);
+    if (!order) {
+      orders.set(key, { entry, shippingPaid: Number(entry.shippingPaid) || 0 });
+    } else {
+      order.shippingPaid = Math.max(order.shippingPaid, Number(entry.shippingPaid) || 0);
+    }
+  });
+  const items = [];
+  orders.forEach(({ entry, shippingPaid }) => {
+    const summary = linkedShippingSummary({ ...entry, shippingPaid }, expenses, 1);
+    if (summary.postageBase == null || summary.customerBase == null) return;
+    items.push({
+      date: entry.date,
+      num: entry.num,
+      destination: destinationLabel(entry),
+      paid: summary.customerBase,
+      postage: summary.postageBase,
+    });
+  });
+  const report = postageReport(items, month);
+  writeStamp(POSTAGE_REPORT_MONTH_KEY, month);
+  const said = describePostageReport(report);
+  if (said.count) {
+    pushAppAlert({
+      id: 'postage-report',
+      icon: '📮',
+      title: said.title,
+      detail: said.detail,
+      tone: SYNC_TONES.PENDING,
+    });
+  }
+  return report;
+}
+
+// ─── Is shipping paying for itself? ────────────────────────────────────────
+
+const POSTAGE_LOSS_SEEN_KEY = 'lm-postage-loss-seen';
+const SHIP_PRICE_CHECK_MONTH_KEY = 'lm-ship-price-check-month';
+
+/**
+ * Whether a ledger row ships to Ontario. Rows store the province as
+ * `shipProvince` (label modal, Big Cartel, manual orders); `shipState` is the
+ * older spelling and is still honoured so neither shape lands in the wrong bucket.
+ */
+function isOntarioOrder(entry = {}) {
+  const province = String(entry.shipProvince || entry.shipState || '').trim().toUpperCase();
+  return province === 'ON' || province === 'ONTARIO';
+}
+
+/** The pricing region an order's address falls in, the same four the Shipping page recommends for. */
+function pricingRegion(entry = {}) {
+  const bucket = shipmentRegion(entry.shipCountry);
+  if (bucket === 'CA') {
+    return isOntarioOrder(entry) ? 'ON' : 'CA';
+  }
+  return bucket === 'US' ? 'US' : 'intl';
+}
+
+/**
+ * Website orders as one row per order, in Canadian dollars, with what the
+ * customer paid for shipping and what the postage cost.
+ *
+ * An order for two books is two ledger rows sharing one order number, and
+ * the shipping charge can sit on either or both — so the charge is the
+ * largest on any row, never the sum, and the quantities add up.
+ */
+function websiteOrdersForPricing() {
+  const expenses = (TAX_CENTER.businessExpenses || []).filter(isPostageExpense);
+  const postageByOrder = new Map();
+  expenses.forEach(e => {
+    if (e.shippingMatchStatus !== 'matched') return;
+    const num = normalizeShippingOrderNumber(e.shippingOrderNumber);
+    if (!num) return;
+    postageByOrder.set(num, roundCents((postageByOrder.get(num) || 0) + (Number(e.baseAmount) || Number(e.amount) || 0)));
+  });
+  const orders = new Map();
+  websiteLedgerRows().forEach(({ bookId, entry }) => {
+    if (entry.voided || entry.excludeFromShipping) return;
+    if (getBookCurrencyCode(BOOKS[bookId]) !== 'CAD') return;
+    const num = normalizeShippingOrderNumber(entry.num);
+    if (!num) return;
+    const order = orders.get(num) || {
+      num, date: entry.date, region: pricingRegion(entry), destination: destinationLabel(entry),
+      qty: 0, paid: 0, manualPostage: 0,
+    };
+    order.qty += Math.max(1, Number(entry.qty) || 1);
+    order.paid = Math.max(order.paid, Number(entry.shippingPaid) || 0);
+    if (entry.manualPostagePaid) order.manualPostage = Math.max(order.manualPostage, Number(entry.postagePaid) || 0);
+    orders.set(num, order);
+  });
+  return [...orders.values()].map(o => ({
+    ...o,
+    postage: postageByOrder.has(o.num) ? postageByOrder.get(o.num) : (o.manualPostage || 0),
+  }));
+}
+
+/** What the customer paid for shipping on the order the Shipping form is filled in for, if known. */
+function selectedOrderShippingPaid() {
+  const num = normalizeShippingOrderNumber($('ship-prefill-dest')?.dataset.orderNumber);
+  if (!num) return 0;
+  let paid = 0;
+  let foreign = false;
+  websiteLedgerRows().forEach(({ bookId, entry }) => {
+    if (normalizeShippingOrderNumber(entry.num) !== num) return;
+    if (getBookCurrencyCode(BOOKS[bookId]) !== 'CAD') foreign = true;
+    paid = Math.max(paid, Number(entry.shippingPaid) || 0);
+  });
+  return foreign ? 0 : paid;
+}
+
+/** The small tag beside one rate, saying whether the customer's shipping charge covers it. */
+function rateCoverageTagHtml(price, paid, currency = 'CAD') {
+  if (String(currency || 'CAD').toUpperCase() !== 'CAD') return '';
+  const verdict = rateAgainstPaid(price, paid);
+  if (!verdict) return '';
+  return `<span class="pill ${verdict.losing ? 'red' : 'green'} sm rate-coverage-tag">${verdict.losing ? '▲ ' : '✓ '}${escapeHtml(verdict.text)}</span>`;
+}
+
+/** The line above a list of rates, or nothing when there is no order to compare with. */
+function rateCoverageNoteHtml(prices, paid) {
+  const text = describeRatesAgainstPaid(prices, paid);
+  return text ? `<div class="rate-coverage-note" role="note">${escapeHtml(text)}</div>` : '';
+}
+
+/**
+ * Orders whose postage has come in over what the customer paid, said once
+ * each. `justBought` covers a label bought in the app a moment ago, which may
+ * not be linked to its order yet: `{ num, postage }`.
+ */
+function checkNewPostageLosses({ justBought = null } = {}) {
+  if (isAuthor()) return null;
+  let orders = websiteOrdersForPricing();
+  if (justBought && justBought.num) {
+    const num = normalizeShippingOrderNumber(justBought.num);
+    const known = orders.find(o => o.num === num);
+    if (known) known.postage = Math.max(Number(known.postage) || 0, Number(justBought.postage) || 0);
+  }
+  let seen = null;
+  try { const raw = JSON.parse(localStorage.getItem(POSTAGE_LOSS_SEEN_KEY) || 'null'); seen = Array.isArray(raw) ? raw : null; } catch (_) { seen = null; }
+  // A label bought in the app is news even on a device that has never
+  // checked before — that is exactly the moment worth speaking up — but the
+  // older losers it would find alongside it are not.
+  if (!seen && justBought) {
+    const num = normalizeShippingOrderNumber(justBought.num);
+    seen = newPostageLosses(orders, null, { today: today() }).remember.filter(id => id !== num);
+  }
+  const { fresh, remember } = newPostageLosses(orders, seen, { today: today() });
+  try { localStorage.setItem(POSTAGE_LOSS_SEEN_KEY, JSON.stringify(remember)); } catch (_) { /* storage blocked */ }
+  const said = describePostageLosses(fresh);
+  if (said.count) {
+    pushAppAlert({
+      id: 'postage-loss',
+      icon: '📮',
+      title: said.title,
+      detail: said.detail,
+      tone: SYNC_TONES.PENDING,
+      actionLabel: 'See suggested prices',
+      action: 'openShippingPricesFromAlert(event)',
+    });
+  }
+  return fresh;
+}
+
+/** Once a month: whether the website's shipping prices still cover postage, per destination. */
+function checkShippingPrices() {
+  if (isAuthor()) return null;
+  const month = String(today()).slice(0, 7);
+  if (!month || readStamp(SHIP_PRICE_CHECK_MONTH_KEY) === month) return null;
+  const results = shippingPriceCheck(websiteOrdersForPricing(), { today: today() });
+  writeStamp(SHIP_PRICE_CHECK_MONTH_KEY, month);
+  const said = describeShippingPriceCheck(results);
+  if (said.count) {
+    pushAppAlert({
+      id: 'shipping-price-check',
+      icon: '🏷️',
+      title: said.title,
+      detail: said.detail,
+      tone: SYNC_TONES.PENDING,
+      actionLabel: 'See suggested prices',
+      action: 'openShippingPricesFromAlert(event)',
+    });
+  }
+  return results;
+}
+
+/** Open the Shipping page at its price recommendations. */
+function openShippingPricesFromAlert(event) {
+  if (event) event.stopPropagation();
+  dismissAppAlert('postage-loss');
+  dismissAppAlert('shipping-price-check');
+  switchTab('shipping');
+  setTimeout(() => {
+    const details = document.querySelector('.shipping-pnl-insights');
+    if (details) details.open = true;
+    const target = document.querySelector('.shipping-reco-container') || details;
+    if (target && typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({ behavior: _prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+    }
+  }, 120);
+}
+
+/**
+ * Canada Post labels bought in the app before the fix above: give them the
+ * postage category and dollar amount every reader looks for, and tie each to
+ * the order that carries its tracking number. Practice labels are left alone.
+ * Returns how many were repaired; safe to run any number of times.
+ */
+function repairInAppCanadaPostExpenses() {
+  const expenses = TAX_CENTER.businessExpenses || [];
+  const targets = expenses.filter(e => e && String(e.ref || '').startsWith('canadapost:')
+    && !e.cat && e.category === 'Shipping & Postage' && !e.simulated);
+  if (!targets.length) return 0;
+  const orderByPin = new Map();
+  websiteLedgerRows().forEach(({ entry }) => {
+    const pin = String(entry.trackingNumber || '').replace(/\s+/g, '');
+    if (pin && entry.num) orderByPin.set(pin, entry.num);
+  });
+  targets.forEach(e => {
+    e.cat = 'Shipping & Postage';
+    if (e.baseAmount == null && String(e.currency || 'CAD').toUpperCase() === 'CAD') {
+      e.baseAmount = roundCents(Number(e.amount) || 0);
+      e.fxRate = 1;
+      e.fxMissing = false;
+    }
+    const pin = String(e.trackingPin || '').replace(/\s+/g, '');
+    if (e.shippingMatchStatus !== 'matched' && pin && orderByPin.has(pin)) {
+      writeShippingLink(e, orderByPin.get(pin), 'label');
+    }
+  });
+  saveTaxCenter().catch(() => { /* retried by the next save */ });
+  return targets.length;
+}
+
+function startOrderFollowups() {
+  if (_orderFollowupsStarted || typeof window === 'undefined' || isAuthor()) return;
+  _orderFollowupsStarted = true;
+  try { repairInAppCanadaPostExpenses(); } catch (_) { /* never block the checks */ }
+  // Hourly, so an app left open overnight still says it on the new day; each
+  // check itself runs at most once a day (orders) or once a month (postage
+  // and prices). Losing labels are said as soon as they are linked.
+  startWatch(() => {
+    remindUnshippedOrders();
+    reportPostageLosses();
+    checkNewPostageLosses();
+    checkShippingPrices();
+  }, { intervalMs: ORDER_FOLLOWUP_INTERVAL_MS });
+}
+
+function startDeliveryWatch() {
+  if (_deliveryWatchStarted || typeof window === 'undefined') return;
+  _deliveryWatchStarted = true;
+  startWatch(() => { followShippedParcels(); }, { intervalMs: DELIVERY_WATCH_INTERVAL_MS });
+}
+
+const SHIPPO_WATCH_INTERVAL_MS = 5 * 60 * 1000;
+
+let _shippoWatchStarted = false;
+let _shippoLastCheckAt = 0;
+let _shippoChecking = false;
+
+/**
+ * Ask Shippo whether anything new has been bought, and file it if so.
+ *
+ * Reads page one only. Shippo returns transactions newest-first and the
+ * ledger's own refs are the dedupe surface, so in the steady state — nothing
+ * new since last time — this is a single request that writes nothing.
+ */
+async function refreshShippoLabelsIfDue({ force = false } = {}) {
+  const { online, visible } = browserWatchState();
+  const configured = !!TAX_CENTER.settings?.shippoKey;
+  const due = force
+    ? configured && online && !_shippoChecking
+    : dueForShippoCheck({
+      lastCheckedAt: _shippoLastCheckAt,
+      now: Date.now(),
+      // Widened once Shippo has refused twice running, so a dead endpoint is
+      // not asked every five minutes for the rest of the day.
+      intervalMs: effectiveInterval(SHIPPO_WATCH_INTERVAL_MS, integrationBackoffMs('shippo', SHIPPO_WATCH_INTERVAL_MS)),
+      online,
+      configured,
+      visible,
+      busy: _shippoChecking,
+    });
+  if (!due) return null;
+
+  _shippoChecking = true;
+  _shippoLastCheckAt = Date.now();
+  try {
+    const result = await importShippoShippingFromApi({
+      silent: true, maxPages: 1, skipInvoices: true, skipRefunds: true,
+    });
+    noteIntegrationSuccess('shippo');
+    if (result?.imported) showShippoLabelAlert(result);
+    return result;
+  } catch (error) {
+    // The failure is recorded rather than swallowed. This used to end at
+    // console.warn on the belief that the sync chip already reported a dead
+    // connection — it does not; that chip reports the Firestore write queue,
+    // so a refused Shippo token read exactly like a day with no labels.
+    console.warn('Shippo label watch failed', error);
+    noteIntegrationFailure('shippo', error, {
+      online,
+      configured,
+    });
+    return null;
+  } finally {
+    _shippoChecking = false;
+  }
+}
+
+/** The card announcing labels that filed themselves. */
+function showShippoLabelAlert(result) {
+  const said = describeImportedLabels({
+    imported: result?.imported || 0,
+    linked: result?.autoLinked || 0,
+    needsReview: result?.needsReview || 0,
+  });
+  if (!said.count) return;
+  pushAppAlert({
+    id: 'shippo-labels',
+    icon: '🏷️',
+    title: said.title,
+    detail: said.detail,
+    actionLabel: said.needsReview ? `Review ${said.needsReview} label${said.needsReview === 1 ? '' : 's'}` : '',
+    action: said.needsReview ? 'openShippingReconciliationFromAlert(event)' : '',
+  });
+}
+
+/**
+ * The card's Review button: open the review inbox on the labels, wherever the
+ * publisher happens to be. The inbox is a window over whatever screen is open,
+ * so unlike the Tax Centre worklist it needs no navigation to be seen.
+ */
+function openShippingReconciliationFromAlert(event, source = '') {
+  if (event) event.stopPropagation();
+  dismissAppAlert('shippo-labels');
+  if (source) dismissAppAlert(`postage-sweep-${source === 'email' ? 'your-email' : 'canada-post'}`);
+  openReviewInbox({ filter: 'label' });
+}
+
+/**
+ * Start watching. Three triggers, because a PWA is used three ways: left open
+ * on a desk (the timer), switched back to from another app (visibility), and
+ * picked up again once the signal returns (online).
+ */
+function startShippoLabelWatch() {
+  if (_shippoWatchStarted || typeof window === 'undefined') return;
+  _shippoWatchStarted = true;
+  // Seeded from the last real import rather than from now, so an app opening
+  // on a week-old answer checks straight away instead of sitting on it.
+  const last = Date.parse(TAX_CENTER.settings?.shippoLastImportAt || '');
+  _shippoLastCheckAt = Number.isFinite(last) ? last : 0;
+
+  // Timer, return-to-app and reconnect, from the shared scheduler rather than
+  // wired by hand here — the same three triggers the storefront watch and the
+  // postage sweep use, so there is one place they can be reasoned about.
+  startWatch(() => { refreshShippoLabelsIfDue(); }, { intervalMs: SHIPPO_WATCH_INTERVAL_MS });
+}
+
+/**
+ * Bring labels bought outside this app into the ledger.
+ *
+ * One body, two callers. The Tax Centre button runs it the way it always has —
+ * the full sweep, invoices and refunds included, nothing written until the
+ * publisher confirms a summary. The background watch runs the same code with
+ * `{ silent: true, maxPages: 1 }`, which is what makes a label bought on
+ * Shippo's website turn up here on its own instead of waiting four clicks deep
+ * in a screen nobody had a reason to open.
+ *
+ * Two things had to change for the second caller to be possible at all, and
+ * both were latent bugs rather than new requirements: the token was read only
+ * from a DOM input, and `btn.disabled` was written unguarded — so any call made
+ * before the Tax Centre had ever rendered threw on the first line that touched
+ * the page.
+ */
+async function importShippoShippingFromApi({
+  silent = false,
+  maxPages = 200,
+  skipInvoices = false,
+  skipRefunds = false,
+  token: tokenOverride = '',
+} = {}) {
+  const keyEl = $('tc-shippo-key');
+  const statusEl = silent ? null : $('tc-shippo-status');
+  const btn = silent ? null : $('tc-shippo-btn');
+  // The saved key is the fallback, not the input: the watch runs with no Tax
+  // Centre on screen and so no input to read.
+  const token = String(tokenOverride || keyEl?.value || TAX_CENTER.settings?.shippoKey || '').trim();
+  if (!token) {
+    if (!silent) showToast('⚠ Enter your Shippo API token first', 'warn');
+    return null;
+  }
+
+  if (!TAX_CENTER.settings) TAX_CENTER.settings = {};
+  if (TAX_CENTER.settings.shippoKey !== token) {
+    TAX_CENTER.settings.shippoKey = token;
+    saveTaxCenter().catch(e => console.warn('Shippo key save failed', e));
+  }
+
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.textContent = 'Fetching Shippo transactions…';
+
+  if (!TAX_CENTER.businessExpenses) TAX_CENTER.businessExpenses = [];
+  const existingExpensesByRef = new Map((TAX_CENTER.businessExpenses || [])
+    .filter(expense => String(expense?.ref || '').startsWith('shippo:'))
+    .map(expense => [String(expense.ref), expense]));
+  const importedIds = new Set(Array.from(existingExpensesByRef.keys())
+    .map(ref => ref.replace(/^shippo:/, ''))
+    .filter(Boolean));
+  const fetchedIds = new Set();
+  const pendingExpenses = [];
+  const stagedExistingEnrichments = [];
+  const knownOrders = getShippingReconciliationOrders();
+  // Labels already filed by another road, by tracking number.
+  const trackedPostage = postageTrackingIndex(TAX_CENTER.businessExpenses || []);
+  let enrichedCount = 0;
+  let contextFailureCount = 0;
+  let amountsFilled = 0;
+
+  let imported = 0;
+  let skipped = 0;
+  let alreadyImported = 0; // already in the ledger from a prior run (deduped)
+  let totalUsd = 0;
+  let page = 1;
+  let hasMore = true;
+
+  // Pull the money records first so each label can be tied to the invoice that
+  // billed it. Both are best-effort: an unavailable beta endpoint must not stop
+  // the postage import that already worked.
+  // The background check skips both. They are two extra paged sweeps for
+  // reconciliation completeness, not for noticing that a label exists, and
+  // running them every few minutes would turn a one-request check into three.
+  // The Tax Centre sweep still does the whole job.
+  if (statusEl) statusEl.textContent = 'Fetching Shippo invoices…';
+  const invoiceResult = skipInvoices
+    ? { index: new Map(), count: 0, unavailable: '' }
+    : await fetchShippoInvoiceItems(token);
+  const invoiceIndex = invoiceResult.index;
+  if (statusEl) statusEl.textContent = 'Fetching Shippo refunds…';
+  const refundResult = skipRefunds ? { refunds: [] } : await fetchShippoRefunds(token);
+
+  try {
+    while (hasMore && page <= maxPages) {
+      // Shippo list transactions endpoint:
+      //   GET /transactions with optional filters (rate, object_status,
+      //   tracking_status, page, results). We intentionally avoid status
+      //   query filters here so valid paid labels in non-default states
+      //   still appear and can be imported.
+      const json = await fetchShippoTransactionsPageAPI(token, page);
+      const rows = json.results || [];
+      const CHUNK_SIZE = 10;
+      for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+        const chunk = rows.slice(i, i + CHUNK_SIZE);
+
+        const chunkResults = await Promise.all(chunk.map(async (tx, chunkIdx) => {
+          const result = { skipped: false, alreadyImported: false, staged: null, expense: null, txId: null, contextFailure: false, ref: null };
+          const status = String(tx?.status || '').toUpperCase();
+          if (!tx || status === 'REFUNDED' || status === 'ERROR' || status === 'INVALID') { result.skipped = true; return result; }
+          const txId = String(tx.object_id || '').trim();
+          if (!txId) { result.skipped = true; return result; }
+          const ref = `shippo:${txId}`;
+          result.txId = txId;
+          result.ref = ref;
+
+          if (fetchedIds.has(txId)) { result.alreadyImported = true; return result; }
+          fetchedIds.add(txId);
+
+          const existingExpense = existingExpensesByRef.get(ref);
+          // The Canada Post sweep already filed this parcel from the carrier's own
+          // record: that is the cost of record, so Shippo's copy isn't a second one.
+          // (A copy read off an email gives way to this label instead, below.)
+          const sameLabel = !existingExpense && trackedPostage.get(normalizeTrackingNumber(tx.tracking_number));
+          if (sameLabel && postageRowSource(sameLabel) === 'canadapost') {
+            // Canada Post gave no price for it: Shippo's is the figure we have.
+            if (sameLabel.amountUnknown) {
+              const cost = await getShippoTxCost(tx, token).catch(() => null);
+              if (cost && cost.currency === 'CAD' && Number.isFinite(cost.amount) && cost.amount > 0) {
+                Object.assign(sameLabel, {
+                  amount: cost.amount, origAmount: cost.amount, baseAmount: roundCents(cost.amount),
+                  currency: 'CAD', origCurrency: 'CAD', amountUnknown: false,
+                });
+                if (!cpText(sameLabel.receipt) && tx.label_url) sameLabel.receipt = tx.label_url;
+                result.filledAmount = true;
+              }
+            }
+            result.alreadyImported = true;
+            return result;
+          }
+          // A dismissed label was set aside on purpose (hand sale, personal parcel):
+          // re-enriching it would wipe that and could auto-link it to an order.
+          if (existingExpense && (existingExpense.shippingMatchStatus === 'matched' || existingExpense.shippingMatchStatus === 'dismissed')) {
+            result.alreadyImported = true;
+            return result;
+          }
+
+          let context = { shipment: {}, shippoOrder: {} };
+          let contextLoaded = true;
+          try {
+            context = await fetchShippoContext(token, tx);
+          } catch (error) {
+            console.warn(`Shippo context lookup failed for ${txId}`, error);
+            result.contextFailure = true;
+            contextLoaded = false;
+          }
+
+          if (existingExpense) {
+            const staged = stageShippoExpenseEnrichment(
+              existingExpense, tx, context.shipment, context.shippoOrder, knownOrders, contextLoaded,
+            );
+            if (staged) result.staged = staged;
+            result.alreadyImported = true;
+            return result;
+          }
+
+          const expense = await processShippoTxToExpense(
+            tx, token, txId, ref, imported + i + chunkIdx, context, knownOrders, invoiceIndex,
+          );
+
+          if (!expense) {
+            result.skipped = true;
+            return result;
+          }
+
+          result.expense = expense;
+          return result;
+        }));
+
+        for (const res of chunkResults) {
+          if (res.contextFailure) contextFailureCount++;
+          if (res.filledAmount) amountsFilled++;
+          if (res.skipped) { skipped++; continue; }
+          if (res.alreadyImported) {
+            alreadyImported++;
+            if (res.staged) {
+              const staged = res.staged;
+              stagedExistingEnrichments.push(staged);
+              enrichedCount++;
+            }
+            continue;
+          }
+          if (res.expense) {
+            pendingExpenses.push(res.expense);
+            existingExpensesByRef.set(res.ref, res.expense);
+            importedIds.add(res.txId);
+            imported++;
+            if (res.expense.currency === 'USD') totalUsd += res.expense.amount;
+          }
+        }
+      }
+      hasMore = Boolean(json.next);
+      page += 1;
+      if (statusEl) statusEl.textContent = `Fetched ${imported + skipped} transactions…`;
+    }
+
+    // The confirmation is the publisher's gate on writing to their own ledger,
+    // and the background check does not get to skip it by pretending to be one.
+    // It is skipped because there is nobody at the screen to ask, and what it
+    // guards is affordable without asking: only GET requests were made, no money
+    // was spent, and the summary card afterwards reports every line that landed.
+    if (imported > 0 && !silent) {
+      // Build a cost breakdown so the confirmation reflects what will actually
+      // be written: total CAD, original amounts per currency, and date range.
+      const totalCad = pendingExpenses.reduce((s, e) => s + (e.baseAmount || 0), 0);
+      const byCur = {};
+      for (const e of pendingExpenses) byCur[e.currency] = (byCur[e.currency] || 0) + (e.amount || 0);
+      const curLines = Object.keys(byCur).sort()
+        .map(c => `  • ${byCur[c].toFixed(2)} ${c}`).join('\n');
+      let minDate = '', maxDate = '';
+      for (let i = 0; i < pendingExpenses.length; i++) {
+        const d = pendingExpenses[i].date;
+        if (!d) continue;
+        if (!minDate || d < minDate) minDate = d;
+        if (!maxDate || d > maxDate) maxDate = d;
+      }
+      const range = minDate ? `${minDate} → ${maxDate}` : '—';
+
+      const accept = await confirmDialog(
+        `Add ${imported} new Shippo shipping cost${imported === 1 ? '' : 's'} to your master ledger?\n\n` +
+        `Total: ${totalCad.toFixed(2)} CAD\n` +
+        `Original amounts:\n${curLines}\n` +
+        `Dates: ${range}\n` +
+        (alreadyImported ? `Already in ledger (skipped): ${alreadyImported}\n` : '') +
+        `\nOnly new labels are listed above — nothing is written until you confirm.`,
+        { title: 'Import Shippo shipping costs', okLabel: 'Add to ledger' }
+      );
+      if (!accept) {
+        if (stagedExistingEnrichments.length) {
+          applyShippoExpenseEnrichments(stagedExistingEnrichments);
+          TAX_CENTER.settings.shippoImportedObjectIds = Array.from(importedIds).slice(-10000);
+          TAX_CENTER.settings.shippoLastImportAt = new Date().toISOString();
+          await saveTaxCenter();
+          renderTaxCenter();
+        }
+        if (statusEl) statusEl.textContent = `Found ${imported} new Shippo transactions (${totalCad.toFixed(2)} CAD). Import cancelled before ledger insertion.`;
+        showToast(
+          enrichedCount
+            ? `New Shippo expense import cancelled; ${enrichedCount} existing expense${enrichedCount === 1 ? '' : 's'} reconciled`
+            : 'Shippo import cancelled before insertion',
+          enrichedCount ? 'ok' : 'warn',
+        );
+        return;
+      }
+    }
+
+    applyShippoExpenseEnrichments(stagedExistingEnrichments);
+    if (pendingExpenses.length > 0) TAX_CENTER.businessExpenses.unshift(...pendingExpenses.reverse());
+    // An email or receipt that described one of these labels was filed as its
+    // own cost; it gives way to the Shippo record (its order link carried over),
+    // which also lets the label below link to its order on its own.
+    const duplicatesRemoved = dropDuplicatePostage();
+
+    // Link what is exact enough to link without asking. Runs over the whole
+    // ledger rather than just this batch, because the guard that matters —
+    // no two labels claiming one order — cannot be judged from a batch alone,
+    // and because a label imported last week whose order only arrived today
+    // deserves the same treatment as one that arrived a moment ago.
+    const autoLinked = applyConfidentShippingLinks();
+
+    // Cancel out anything Shippo refunded. A refunded label that was imported
+    // before the refund happened stayed in the ledger at full price, which
+    // overstates postage and understates profit for as long as nobody notices.
+    const refundsAdded = applyShippoRefunds(refundResult.refunds);
+
+    // A check that changed nothing must not write anything. The background
+    // watch runs every few minutes, and the two settings stamps below always
+    // differ from last time — so saving unconditionally would push the whole
+    // tax document to Firestore roughly a hundred times a working day to record
+    // that nothing had happened, costing quota, battery and sync churn for no
+    // information. The manual sweep still always stamps, because a publisher who
+    // pressed the button is owed a "last synced" time either way.
+    const changed = imported > 0 || enrichedCount > 0 || autoLinked > 0 || refundsAdded > 0 || duplicatesRemoved > 0 || amountsFilled > 0;
+    if (!silent || changed) {
+      TAX_CENTER.settings.shippoImportedObjectIds = Array.from(importedIds).slice(-10000);
+      TAX_CENTER.settings.shippoLastImportAt = new Date().toISOString();
+      await saveTaxCenter();
+      renderTaxCenter();
+    }
+    const dupNote = alreadyImported ? ` ${alreadyImported} already imported.` : '';
+    const enrichNote = enrichedCount ? ` ${enrichedCount} existing expense${enrichedCount === 1 ? '' : 's'} reconciled.` : '';
+    const contextNote = contextFailureCount ? ` ${contextFailureCount} label${contextFailureCount === 1 ? '' : 's'} still need review because Shippo details could not load.` : '';
+    const refundNote = refundsAdded ? ` ${refundsAdded} refund${refundsAdded === 1 ? '' : 's'} credited back.` : '';
+    // Say plainly when the money receipts could not be read, rather than
+    // leaving the owner to assume the labels are proof of payment.
+    const invoiceNote = invoiceResult.unavailable
+      ? ` ${invoiceResult.unavailable}`
+      : (invoiceResult.count ? ` Matched ${invoiceResult.count} invoice line${invoiceResult.count === 1 ? '' : 's'}.` : '');
+    const duplicateNote = duplicatesRemoved ? ` ${duplicatesRemoved} label${duplicatesRemoved === 1 ? ' was' : 's were'} counted twice (also filed from an email) — the extra cost${duplicatesRemoved === 1 ? '' : 's'} removed.` : '';
+    const reconciliationNote = `${enrichNote}${contextNote}${refundNote}${duplicateNote}${invoiceNote}`;
+    if (statusEl) statusEl.textContent = imported
+      ? `Imported ${imported} new Shippo transactions.${dupNote}${skipped ? ` ${skipped} skipped.` : ''}${totalUsd ? ` USD imported: ${totalUsd.toFixed(2)}.` : ''}${reconciliationNote}`
+      : `No new Shippo transactions to import.${dupNote}${skipped ? ` ${skipped} skipped.` : ''}${reconciliationNote}`;
+    if (!silent) {
+      showToast(
+        (imported
+          ? `Imported ${imported} new Shippo expense${imported === 1 ? '' : 's'}`
+          : (alreadyImported ? `No new Shippo expenses (${alreadyImported} already imported)` : 'No new Shippo expenses to import')) + reconciliationNote,
+        imported || enrichedCount ? 'ok' : 'warn',
+      );
+    }
+    return { imported, alreadyImported, skipped, enrichedCount, autoLinked, needsReview: reconciliationBacklog() };
+  } catch (e) {
+    console.error(e);
+    if (statusEl) statusEl.textContent = `Error: ${e.message || e}`;
+    if (!silent) showToast('⚠ Shippo import failed', 'err');
+    // A background check that failed must say so to its caller rather than
+    // resolving as though it found nothing — "nothing new" and "could not ask"
+    // are different answers and only one of them is reassuring.
+    if (silent) throw e;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+let shippoBaseSpecs = { length: 10, width: 8, height: 1, dim_unit: 'in', weight: 1.2, weight_unit: 'lb' };
+
+const GENERIC_SHIP_SPECS = { length: 10, width: 8, height: 1, dim_unit: 'in', weight: 1.2, weight_unit: 'lb' };
+
+// Measured specs for the catalog's own titles, keyed by book id. Keyed by id
+// rather than matched against the title, because a rename used to drop a book
+// silently back onto GENERIC_SHIP_SPECS and mis-rate every quote for it with no
+// visible sign. Anything saved on the book record itself still wins over this;
+// this is only the fallback for books whose ship fields were never filled in.
+const BOOK_SHIP_PRESETS = {
+  altrove: { length: 10, width: 8, height: 0.8, dim_unit: 'in', weight: 1.1, weight_unit: 'lb' },
+  hound: { length: 12, width: 9, height: 1.2, dim_unit: 'in', weight: 2.2, weight_unit: 'lb' },
+  archaeology: { length: 9, width: 7, height: 0.6, dim_unit: 'in', weight: 0.9, weight_unit: 'lb' },
+  sistema: { length: 8, width: 6, height: 0.5, dim_unit: 'in', weight: 0.7, weight_unit: 'lb' },
+  nobody: { length: 10, width: 8, height: 0.8, dim_unit: 'in', weight: 1.0, weight_unit: 'lb' },
+  collective: { length: 10, width: 8, height: 0.8, dim_unit: 'in', weight: 1.2, weight_unit: 'lb' },
+};
+
+// Legacy title matching, kept only as a tertiary hop so a book copied to a new
+// id under a known title still rates correctly. Never the reason a rename works.
+const LEGACY_TITLE_PRESET_IDS = ['altrove', 'hound', 'archaeology', 'sistema', 'nobody', 'collective'];
+
+// Returns the specs plus where they came from, so callers can tell the user when
+// a quote is running on generic numbers rather than this book's real dimensions.
+function resolveBookPresetSpecs(book) {
+  if (!book) return { specs: { ...GENERIC_SHIP_SPECS }, source: 'generic' };
+
+  // Prioritize custom specifications saved on the book
+  if (book.shipLength && book.shipWidth && book.shipHeight && book.shipWeight) {
+    return {
+      source: 'book',
+      specs: {
+        length: book.shipLength,
+        width: book.shipWidth,
+        height: book.shipHeight,
+        dim_unit: book.shipDimUnit || 'in',
+        weight: book.shipWeight,
+        weight_unit: book.shipWeightUnit || 'lb'
+      },
+    };
+  }
+
+  const byId = BOOK_SHIP_PRESETS[book.id];
+  if (byId) return { specs: { ...byId }, source: 'preset' };
+
+  const title = (book.title || '').toLowerCase();
+  const legacyId = LEGACY_TITLE_PRESET_IDS.find(id => title.includes(id));
+  if (legacyId) return { specs: { ...BOOK_SHIP_PRESETS[legacyId] }, source: 'preset' };
+
+  return { specs: { ...GENERIC_SHIP_SPECS }, source: 'generic' };
+}
+
+function getBookPresetSpecs(book) {
+  return resolveBookPresetSpecs(book).specs;
+}
+
+/**
+ * Fills a country <select> from the full ISO list, keeping whatever was already
+ * chosen.
+ *
+ * The markup used to hard-code about forty countries, which is how a Serbian
+ * customer ended up unshippable and then mis-filed as a US sale. Building the
+ * list from the shared table means a destination nobody anticipated is
+ * selectable the first time it comes up.
+ */
+function populateCountrySelect(selectId) {
+  const select = $(selectId);
+  if (!select) return;
+  const previous = select.value;
+  if (select.dataset.isoPopulated !== '1') {
+    const frag = document.createDocumentFragment();
+    countryOptions().forEach((country, index) => {
+      // Canada and the United States stay pinned above a separator, as before.
+      if (index === 2) {
+        const divider = document.createElement('option');
+        divider.disabled = true;
+        divider.textContent = '─'.repeat(10);
+        frag.appendChild(divider);
+      }
+      const opt = document.createElement('option');
+      opt.value = country.code;
+      opt.textContent = country.name;
+      frag.appendChild(opt);
+    });
+    select.replaceChildren(frag);
+    select.dataset.isoPopulated = '1';
+  }
+  if (previous && Array.from(select.options).some(o => o.value === previous)) {
+    select.value = previous;
+  }
+}
+
+/** Fills the label modal's country suggestion list with every ISO name. */
+function populateCountryDatalist(listId) {
+  const list = $(listId);
+  if (!list || list.dataset.isoPopulated === '1') return;
+  const frag = document.createDocumentFragment();
+  countryOptions().forEach(country => {
+    const opt = document.createElement('option');
+    opt.value = country.name;
+    frag.appendChild(opt);
+  });
+  list.replaceChildren(frag);
+  list.dataset.isoPopulated = '1';
+}
+
+// Phone: the sender address folds to one summary line once it is filled in, and
+// the pricing preferences fold under "More options". Presentation only: these
+// functions read the sender fields and set the folds' open state; they never
+// write a field's value, id or name, and never touch what is sent to a carrier.
+const SHIP_SENDER_REQUIRED_IDS = ['sf-name', 'sf-phone', 'sf-street1', 'sf-city', 'sf-state', 'sf-zip', 'sf-country'];
+const SHIP_DESKTOP_QUERY = '(min-width: 769px)';
+let shipFoldsWired = false;
+
+function shipFieldValue(id) {
+  return String(document.getElementById(id)?.value ?? '').trim();
+}
+
+function shipSenderHasEmpty() {
+  return SHIP_SENDER_REQUIRED_IDS.some((id) => !shipFieldValue(id));
+}
+
+function paintShipSenderLine() {
+  const line = document.getElementById('ship-sender-fold-line');
+  if (!line) return;
+  const name = shipFieldValue('sf-name');
+  const city = shipFieldValue('sf-city');
+  line.textContent = name || city
+    ? `From: ${[name, city].filter(Boolean).join(', ')}`
+    : 'From: add your sender address';
+}
+
+// Typing in the sender fields only ever opens the fold (never closes it under the thumb).
+function onShipSenderEdit() {
+  paintShipSenderLine();
+  const senderFold = document.getElementById('ship-sender-fold');
+  if (senderFold && shipSenderHasEmpty()) senderFold.open = true;
+}
+
+function syncShipFolds() {
+  const senderFold = document.getElementById('ship-sender-fold');
+  const moreFold = document.getElementById('ship-more-options');
+  const desktop = window.matchMedia(SHIP_DESKTOP_QUERY).matches;
+  if (!shipFoldsWired && senderFold) {
+    shipFoldsWired = true;
+    senderFold.addEventListener('input', onShipSenderEdit);
+    senderFold.addEventListener('change', onShipSenderEdit);
+    window.matchMedia(SHIP_DESKTOP_QUERY).addEventListener('change', syncShipFolds);
+  }
+  paintShipSenderLine();
+  // Desktop always shows the sender fields; on phone the fold opens only while a required field is empty.
+  if (senderFold) senderFold.open = desktop || shipSenderHasEmpty();
+  // Desktop always shows the pricing preferences; on phone they stay as the owner left them.
+  if (moreFold && desktop) moreFold.open = true;
+}
+
+function initShippingTab() {
+  populateCountrySelect('sf-country');
+  populateCountrySelect('st-country');
+  const shippoKey = TAX_CENTER.settings?.shippoKey || '';
+  const indicator = $('ship-key-indicator');
+  const statusText = $('ship-key-status-text');
+  const setupGroup = $('ship-key-setup-group');
+  const activeGroup = $('ship-key-active-group');
+  const maskedEl = $('ship-key-masked');
+
+  if (shippoKey) {
+    if (indicator) indicator.style.background = 'var(--green)';
+    if (statusText) statusText.textContent = 'Shippo API Key Configured';
+    if (setupGroup) setupGroup.style.display = 'none';
+    if (activeGroup) activeGroup.style.display = 'flex';
+    if (maskedEl) {
+      const visible = shippoKey.length > 8 ? shippoKey.slice(0, 4) + '...' + shippoKey.slice(-4) : '••••••••';
+      maskedEl.textContent = visible;
+    }
+  } else {
+    if (indicator) indicator.style.background = 'var(--red)';
+    if (statusText) statusText.textContent = 'Shippo API Key Required';
+    if (setupGroup) setupGroup.style.display = 'flex';
+    if (activeGroup) activeGroup.style.display = 'none';
+  }
+
+  // Load Saved Origin from localStorage
+  const savedOrigin = savedShippingOrigin();
+
+  $('sf-name').value = savedOrigin.name || '';
+  $('sf-company').value = savedOrigin.company || '';
+  $('sf-phone').value = savedOrigin.phone || '';
+  $('sf-street1').value = savedOrigin.street1 || '';
+  $('sf-street2').value = savedOrigin.street2 || '';
+  $('sf-city').value = savedOrigin.city || '';
+  $('sf-state').value = savedOrigin.state || '';
+  $('sf-zip').value = savedOrigin.zip || '';
+  $('sf-country').value = savedOrigin.country || 'CA';
+  syncShipFolds();
+
+  // Populate pre-fill dropdowns
+  const bcGroup = $('ship-prefill-bc-group');
+  const storesGroup = $('ship-prefill-stores-group');
+  const ordersGroup = $('ship-prefill-orders-group');
+
+  if (bcGroup) {
+    bcGroup.innerHTML = '';
+    const bcOrders = getBigCartelOrders();
+
+    if (bcOrders.length === 0) {
+      const opt = document.createElement('option');
+      opt.disabled = true;
+      opt.textContent = 'No Big Cartel orders found';
+      bcGroup.appendChild(opt);
+    } else {
+      // Read once, not per order: without the Big Cartel tab opened first this
+      // re-parsed the whole saved order cache twice for every order listed.
+      const bcIncluded = getBigCartelIncluded();
+      bcOrders.forEach(o => {
+        // Pass the whole order: dropping `relationships` hides the included
+        // customer/shipping_address resources that carry the phone number.
+        const addrObj = extractBigCartelAddress(o, o.id, bcIncluded);
+        const opt = document.createElement('option');
+        // What was bought rides along with where it is going, so choosing this
+        // option fills the box as well as the address.
+        opt.value = JSON.stringify({
+          ...addrObj,
+          parcelLines: bigCartelOrderLines(o, bcIncluded, BOOKS),
+        });
+        opt.textContent = `Order #${o.id} - ${addrObj.name} (${addrObj.city || 'Local'}, ${addrObj.country})`;
+        bcGroup.appendChild(opt);
+      });
+    }
+  }
+
+  if (storesGroup) {
+    storesGroup.innerHTML = '';
+    const stores = getAllStores();
+    if (stores.length === 0) {
+      const opt = document.createElement('option');
+      opt.disabled = true;
+      opt.textContent = 'No consignment stores found';
+      storesGroup.appendChild(opt);
+    } else {
+      stores.forEach(st => {
+        const addrObj = storeShippingAddress(st);
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify(addrObj);
+        opt.textContent = `${st.name} (${st.city || ''}, ${st.country || ''})`;
+        storesGroup.appendChild(opt);
+      });
+    }
+  }
+
+  if (ordersGroup) {
+    ordersGroup.innerHTML = '';
+    const orders = getRecentShippingOrders();
+    if (orders.length === 0) {
+      const opt = document.createElement('option');
+      opt.disabled = true;
+      opt.textContent = 'No recent website orders found';
+      ordersGroup.appendChild(opt);
+    } else {
+      orders.slice(0, 20).forEach(h => {
+        const addrObj = recentOrderShippingAddress(h, recentOrderParcelLines(h));
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify(addrObj);
+        opt.textContent = `${h.shipName} (${h.shipCity || ''}, ${h.shipCountry || ''}) - ${h.date || ''}`;
+        ordersGroup.appendChild(opt);
+      });
+    }
+  }
+
+  // Populate book preset dropdown
+  const presetSelect = $('ship-preset-book');
+  if (presetSelect) {
+    presetSelect.innerHTML = '<option value="">— Select book preset —</option>';
+    BOOK_LIST.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b.id;
+      opt.textContent = b.title;
+      presetSelect.appendChild(opt);
+    });
+  }
+
+  // Reset quantity and load base specifications from current inputs
+  const qtyInput = $('sp-qty');
+  if (qtyInput) qtyInput.value = '1';
+  shippoBaseSpecs = {
+    length: parseFloat($('sp-length').value) || 10,
+    width: parseFloat($('sp-width').value) || 8,
+    height: parseFloat($('sp-height').value) || 1,
+    dim_unit: $('sp-dim-unit').value || 'in',
+    weight: parseFloat($('sp-weight').value) || 1.2,
+    weight_unit: $('sp-weight-unit').value || 'lb'
+  };
+  renderCustomShippoDestPicker();
+  // Ask Big Cartel for anything new so the "Ready to ship" queue is current.
+  // Skipped quietly offline or when it was checked a moment ago.
+  refreshBigCartelOrdersIfDue()
+    .then(fetched => { if (fetched) renderCustomShippoDestPicker(); })
+    .catch(() => {});
+  bindDestinationVerificationWatchers();
+  renderDestinationVerification();
+  bindRateReadinessWatchers();
+  renderShippoRateReadiness();
+  setShippoAutoQuote(autoQuoteEnabled());
+  loadShippoIncotermPreference($('st-country')?.value || '');
+  updateShippoCustomsTotalHint();
+  renderShippingAnalysisHub();
+  recoverChitChatsRecords().catch(() => {});
+  if (!window._ccRecoveryWired) {
+    window._ccRecoveryWired = true;
+    window.addEventListener('online', () => { recoverChitChatsRecords().catch(() => {}); });
+  }
+}
+
+function getFallbackShippingPhone(preferredPhone) {
+  return (preferredPhone || '').toString().trim();
+}
+
+// The ship-to address for a consignment store, shared by the destination
+// dropdown and the searchable picker so both fill the form the same way.
+function storeShippingAddress(st) {
+  const rawPhone = st.phone || st.contactPhone || st.mobile || st.telephone || '';
+  return {
+    name: st.contact || st.name,
+    company: st.name,
+    phone: getFallbackShippingPhone(rawPhone),
+    street1: st.address || '',
+    street2: '',
+    city: st.city || '',
+    state: st.region || '',
+    zip: st.postal || '',
+    country: st.country ? resolveCountryCode(st.country) : 'CA',
+    countryRaw: st.country || '',
+  };
+}
+
+// The ship-to address for a recent ledger order, with the books it carries,
+// shared by the destination dropdown and the searchable picker.
+function recentOrderShippingAddress(h, parcelLines) {
+  const rawPhone = h.shipPhone || h.phone || h.contactPhone || h.buyerPhone || '';
+  return {
+    orderNumber: h.num,
+    parcelLines,
+    name: h.shipName,
+    company: '',
+    phone: getFallbackShippingPhone(rawPhone),
+    street1: h.shipAddr1,
+    street2: h.shipAddr2 || '',
+    city: h.shipCity,
+    state: h.shipProvince,
+    zip: h.shipPostal,
+    country: h.shipCountry ? resolveCountryCode(h.shipCountry) : 'CA',
+    countryRaw: h.shipCountry || '',
+  };
+}
+
+let _shippoDestMasterList = [];
+let _shippoDestActiveCat = 'all';
+
+function renderCustomShippoDestPicker() {
+  const wrapper = $('custom-ship-dest-wrapper');
+  if (!wrapper) return;
+
+  const items = [];
+
+  // 1. Big Cartel Orders
+  const bcOrders = getBigCartelOrders();
+
+  const bcIncluded = getBigCartelIncluded();
+
+  bcOrders.forEach(o => {
+    const addrObj = extractBigCartelAddress(o, o.id, bcIncluded);
+    // The order's books travel with its address, so one pick fills the whole
+    // form rather than just the half of it that says where the parcel goes.
+    const parcelLines = bigCartelOrderLines(o, bcIncluded, BOOKS);
+
+    items.push({
+      category: 'bc',
+      catLabel: 'Big Cartel',
+      icon: '🛒',
+      title: `Order #${o.id} · ${addrObj.name}`,
+      sub: `${addrObj.street1 ? addrObj.street1 + ', ' : ''}${addrObj.city || 'Local'}${addrObj.state ? ', ' + addrObj.state : ''} ${addrObj.country}`,
+      parcelSummary: describeParcelPlan(orderParcelPlan(parcelLines, BOOKS)),
+      value: JSON.stringify({ ...addrObj, parcelLines }),
+      orderNumber: o.id,
+      placedAt: Date.parse(o.attributes?.created_at || '') || 0,
+      storefrontShipped: storefrontSaysShipped(o),
+      // Cancelled or refunded in the store: nothing to send.
+      skipQueue: Boolean(storeReversal(o)),
+      missingPhone: !getFallbackShippingPhone(addrObj.phone),
+      searchText: `order #${o.id} ${addrObj.name} ${addrObj.city} ${addrObj.state} ${addrObj.country} ${addrObj.street1}`.toLowerCase()
+    });
+  });
+
+  // 2. Consignment Stores
+  const stores = typeof getAllStores === 'function' ? getAllStores() : [];
+  stores.forEach(st => {
+    const addrObj = storeShippingAddress(st);
+
+    items.push({
+      category: 'stores',
+      catLabel: 'Store',
+      icon: '🏬',
+      title: st.name,
+      sub: `${st.address ? st.address + ', ' : ''}${st.city || ''} ${st.country || ''}`,
+      value: JSON.stringify(addrObj),
+      orderNumber: '',
+      missingPhone: !getFallbackShippingPhone(addrObj.phone),
+      searchText: `${st.name} ${st.contact || ''} ${st.city || ''} ${st.region || ''} ${st.country || ''}`.toLowerCase()
+    });
+  });
+
+  // 3. Ledger Orders
+  const recentOrders = typeof getRecentShippingOrders === 'function' ? getRecentShippingOrders() : [];
+  recentOrders.slice(0, 20).forEach(h => {
+    const parcelLines = recentOrderParcelLines(h);
+    const addrObj = recentOrderShippingAddress(h, parcelLines);
+
+    // A website order stays pickable — the owner sometimes buys its postage
+    // here — but it is the website's to pack, so it never counts as waiting.
+    const websiteOrder = isWebsiteFulfilled(h);
+    items.push({
+      category: 'orders',
+      catLabel: websiteOrder ? 'Website order' : 'Order',
+      icon: '📦',
+      title: `${h.num ? 'Order #' + h.num + ' · ' : ''}${h.shipName}`,
+      sub: `${h.shipAddr1 ? h.shipAddr1 + ', ' : ''}${h.shipCity || ''} ${h.shipCountry || ''}`,
+      parcelSummary: describeParcelPlan(orderParcelPlan(parcelLines, BOOKS)),
+      value: JSON.stringify(addrObj),
+      orderNumber: h.num,
+      websiteOrder,
+      missingPhone: !getFallbackShippingPhone(addrObj.phone),
+      searchText: `${h.num || ''} ${h.shipName} ${h.shipCity || ''} ${h.shipCountry || ''}${websiteOrder ? ' website' : ''}`.toLowerCase()
+    });
+  });
+
+  // Orders already sent sink below the ones still waiting, and say so, so the
+  // top of the list is always the next parcel to pack.
+  const shipped = shippedOrderNumbers(websiteLedgerRows(), normalizeShippingOrderNumber);
+  const pickups = localPickupOrderNumbers();
+  const hiddenNums = hiddenQueueOrders();
+  items.forEach(item => {
+    const num = normalizeShippingOrderNumber(item.orderNumber);
+    item.shipped = Boolean(item.storefrontShipped || (num && shipped.has(num)));
+    if (num && (pickups.has(num) || hiddenNums.has(num))) item.skipQueue = true;
+    if (item.websiteOrder) item.skipQueue = true;
+  });
+  // Big Cartel orders waiting to ship come first, oldest at the top, so the
+  // picker and "Ship next order" follow the same queue as the Ready to ship card.
+  const rank = item => {
+    if (item.shipped || item.skipQueue) return 3;
+    if (item.category === 'bc') return 0;
+    return item.orderNumber ? 1 : 2;
+  };
+  items.sort((a, b) => rank(a) - rank(b) || (rank(a) === 0 ? (a.placedAt || Infinity) - (b.placedAt || Infinity) : 0));
+
+  _shippoDestMasterList = items;
+
+  const countBadge = $('ship-dest-count-badge');
+  const waiting = ordersStillToShip(items.filter(i => !i.shipped && !i.skipQueue), shipped, normalizeShippingOrderNumber).length;
+  if (countBadge) {
+    countBadge.textContent = waiting
+      ? `${waiting} order${waiting === 1 ? '' : 's'} to ship`
+      : `${items.length} destination${items.length === 1 ? '' : 's'}`;
+  }
+
+  filterShippoDestMenu();
+  renderBigCartelShipQueue();
+}
+
+/** Ledger orders marked (or recognised) as picked up in person — no parcel. */
+function localPickupOrderNumbers() {
+  const out = new Set();
+  websiteLedgerRows().forEach(({ entry }) => {
+    const num = normalizeShippingOrderNumber(entry.num);
+    if (num && withAutoLocalPickup(entry)?.localPickup) out.add(num);
+  });
+  return out;
+}
+
+/** Big Cartel orders still waiting for a parcel, oldest first. */
+function getBigCartelShipQueue() {
+  return bigCartelShipQueue(getBigCartelOrders(), {
+    shipped: shippedOrderNumbers(websiteLedgerRows(), normalizeShippingOrderNumber),
+    pickups: localPickupOrderNumbers(),
+    orderNumber: order => normalizeShippingOrderNumber(order.id) || bigCartelOrderNumber(order),
+    reversed: order => Boolean(storeReversal(order)),
+    normalize: normalizeShippingOrderNumber,
+    hidden: hiddenQueueOrders(),
+  });
+}
+
+// Orders the owner removed from "Ready to ship" (sent some other way, or not
+// being sent). Kept in settings so it follows them to every device.
+function hiddenQueueOrders() {
+  return new Set(Object.keys(TAX_CENTER.settings?.shipQueueHidden || {}));
+}
+
+function saveShipQueueSettings() {
+  saveTaxCenter().catch(e => console.warn('Could not save the shipping queue choice', e));
+}
+
+/** The X on one order: take it out of the queue (it can be put back). */
+function hideQueuedOrder(orderNumber) {
+  const num = normalizeShippingOrderNumber(orderNumber);
+  if (!num) return;
+  if (!TAX_CENTER.settings) TAX_CENTER.settings = {};
+  TAX_CENTER.settings.shipQueueHidden = { ...(TAX_CENTER.settings.shipQueueHidden || {}), [num]: today() };
+  saveShipQueueSettings();
+  renderCustomShippoDestPicker();
+  showToast(`Removed ${num} from Ready to ship — "Show removed" puts it back`);
+}
+
+/** Undo for the X: put one removed order back in the queue. */
+function unhideQueuedOrder(orderNumber) {
+  const num = normalizeShippingOrderNumber(orderNumber);
+  const hidden = { ...(TAX_CENTER.settings?.shipQueueHidden || {}) };
+  delete hidden[num];
+  TAX_CENTER.settings.shipQueueHidden = hidden;
+  saveShipQueueSettings();
+  _shipQueueShowHidden = Object.keys(hidden).length > 0 && _shipQueueShowHidden;
+  renderCustomShippoDestPicker();
+}
+
+/** The X on the whole card: close it until a new order comes in. */
+function closeShipQueueCard() {
+  if (!TAX_CENTER.settings) TAX_CENTER.settings = {};
+  TAX_CENTER.settings.shipQueueClosedFor = getBigCartelShipQueue().map(q => q.orderNumber);
+  saveShipQueueSettings();
+  renderBigCartelShipQueue();
+}
+
+let _shipQueueShowHidden = false;
+function toggleShipQueueHidden() {
+  _shipQueueShowHidden = !_shipQueueShowHidden;
+  renderBigCartelShipQueue();
+}
+
+function shipQueueCloseButton() {
+  return `<button class="ship-queue-x" type="button" onclick="closeShipQueueCard()" aria-label="Close Ready to ship" title="Close — comes back when a new order arrives">✕</button>`;
+}
+
+/** The "Show removed (n)" link and, when open, each removed order with Put back. */
+function shipQueueHiddenHtml() {
+  const hidden = Object.keys(TAX_CENTER.settings?.shipQueueHidden || {});
+  if (!hidden.length) return '';
+  const list = _shipQueueShowHidden ? `
+    <ul class="ship-queue-hidden-list">
+      ${hidden.map(num => `
+        <li><span>${escapeHtml(num)}</span>
+          <button class="btn sm tag" type="button" onclick="unhideQueuedOrder('${escapeHtml(num)}')">Put back</button></li>`).join('')}
+    </ul>` : '';
+  return `
+    <button class="ship-queue-hidden-toggle" type="button" onclick="toggleShipQueueHidden()" aria-expanded="${_shipQueueShowHidden}">
+      ${_shipQueueShowHidden ? 'Hide removed' : `Show removed (${hidden.length})`}
+    </button>${list}`;
+}
+
+/**
+ * The "Ready to ship" card at the top of the Shipping tab: every Big Cartel
+ * order still waiting for a parcel, oldest first, one tap each to load it.
+ */
+function renderBigCartelShipQueue() {
+  const host = $('ship-bc-queue');
+  if (!host) return;
+  const queue = getBigCartelShipQueue();
+  if (queueCardClosed(queue.map(q => q.orderNumber), TAX_CENTER.settings?.shipQueueClosedFor ?? null)) {
+    host.innerHTML = '';
+    return;
+  }
+  if (!queue.length) {
+    // Only worth saying once the store is connected and has orders at all.
+    host.innerHTML = getBigCartelOrders().length ? `
+      <div class="card ship-queue-card is-empty" role="status">
+        <span aria-hidden="true">✓</span>
+        <span class="ship-queue-empty-text"><strong>All caught up.</strong> No Big Cartel orders are waiting to ship. ${shipQueueHiddenHtml()}</span>
+        ${shipQueueCloseButton()}
+      </div>` : '';
+    return;
+  }
+  const included = getBigCartelIncluded();
+  const MAX_ROWS = 8;
+  const rows = queue.slice(0, MAX_ROWS).map(({ order, orderNumber, daysWaiting }) => {
+    const addr = extractBigCartelAddress(order, order.id, included);
+    const parcel = describeParcelPlan(orderParcelPlan(bigCartelOrderLines(order, included, BOOKS), BOOKS));
+    const place = [addr.city, addr.state || addr.country].filter(Boolean).join(', ');
+    const late = daysWaiting !== null && daysWaiting >= 3;
+    return `
+      <li class="ship-queue-row">
+        <div class="ship-queue-main">
+          <strong class="ship-queue-name">${escapeHtml(addr.name || 'Customer')}</strong>
+          <span class="ship-queue-meta">${escapeHtml(orderNumber)}${place ? ` · ${escapeHtml(place)}` : ''}</span>
+          ${parcel ? `<span class="ship-queue-meta">📦 ${escapeHtml(parcel)}</span>` : ''}
+        </div>
+        ${daysWaiting !== null ? `<span class="ship-queue-wait${late ? ' is-late' : ''}">${daysWaiting <= 0 ? 'Ordered today' : `Waiting ${escapeHtml(waitingPhrase(daysWaiting))}`}</span>` : ''}
+        <button class="btn sm outline ship-queue-btn" type="button" onclick="shipQueuedOrder('${escapeHtml(orderNumber)}')">Ship</button>
+        <button class="ship-queue-x" type="button" onclick="hideQueuedOrder('${escapeHtml(orderNumber)}')" aria-label="Remove ${escapeHtml(orderNumber)} from Ready to ship" title="Already sent or not shipping — remove from this list">✕</button>
+      </li>`;
+  }).join('');
+  const more = queue.length - MAX_ROWS;
+  host.innerHTML = `
+    <section class="card ship-queue-card" aria-labelledby="ship-queue-title">
+      <div class="ship-queue-head">
+        <div>
+          <h3 id="ship-queue-title" class="ship-queue-title">Ready to ship</h3>
+          <p class="ship-queue-sub">${queue.length} Big Cartel order${queue.length === 1 ? ' is' : 's are'} waiting for a parcel. Oldest first.</p>
+        </div>
+        <div class="ship-queue-head-actions">
+          <button class="btn gold ship-queue-start" type="button" onclick="shipQueuedOrder('${escapeHtml(queue[0].orderNumber)}')">
+            Start with the oldest <span aria-hidden="true">→</span>
+          </button>
+          ${shipQueueCloseButton()}
+        </div>
+      </div>
+      <ul class="ship-queue-list">${rows}</ul>
+      ${more > 0 ? `<p class="ship-queue-more">+ ${more} more — they'll come up as you go with "Ship next order".</p>` : ''}
+      <div class="ship-queue-foot">${shipQueueHiddenHtml()}</div>
+    </section>`;
+}
+
+/** Loads one queued Big Cartel order into the form: address, box and rates. */
+async function shipQueuedOrder(orderNumber) {
+  const key = normalizeShippingOrderNumber(orderNumber);
+  const idx = _shippoDestMasterList.findIndex(item => item.category === 'bc'
+    && normalizeShippingOrderNumber(item.orderNumber) === key);
+  if (idx < 0) { showToast('That order is no longer in the list — refresh Big Cartel and try again', 'warn'); return; }
+  const panel = $('cp-purchased-label-panel');
+  if (panel) { panel.innerHTML = ''; panel.style.display = 'none'; }
+  $('custom-ship-dest-trigger')?.scrollIntoView({ behavior: _prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
+  await selectShippoDestCustomItem(idx);
+}
+
+function setShippoDestMenuOpenState(isOpen) {
+  const menu = $('custom-ship-dest-menu');
+  const trigger = $('custom-ship-dest-trigger');
+  const arrow = $('custom-ship-dest-arrow');
+  const wrapper = $('custom-ship-dest-wrapper');
+  const card = wrapper?.closest('.card');
+
+  if (isOpen) {
+    if (menu) menu.style.display = 'flex';
+    if (trigger) {
+      trigger.classList.add('active');
+      trigger.setAttribute('aria-expanded', 'true');
+    }
+    if (arrow) arrow.style.transform = 'rotate(180deg)';
+    if (card) {
+      card.style.position = 'relative';
+      card.style.zIndex = '9999';
+    }
+    if (wrapper) wrapper.style.zIndex = '10000';
+    const searchInput = $('custom-ship-dest-search');
+    if (searchInput) searchInput.focus();
+  } else {
+    if (menu) menu.style.display = 'none';
+    if (trigger) {
+      trigger.classList.remove('active');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+    if (arrow) arrow.style.transform = 'rotate(0deg)';
+    if (card) card.style.zIndex = '10';
+    if (wrapper) wrapper.style.zIndex = '1000';
+  }
+}
+
+function toggleShippoDestDropdown(e) {
+  if (e) e.stopPropagation();
+  const menu = $('custom-ship-dest-menu');
+  if (!menu) return;
+  const isOpen = menu.style.display === 'flex' || menu.style.display === 'block';
+  setShippoDestMenuOpenState(!isOpen);
+}
+
+function setShippoDestCategoryFilter(cat, e) {
+  if (e) e.stopPropagation();
+  _shippoDestActiveCat = cat;
+  const chips = document.querySelectorAll('#custom-ship-dest-chips .dest-chip');
+  chips.forEach(chip => {
+    if (chip.dataset.cat === cat) chip.classList.add('active');
+    else chip.classList.remove('active');
+  });
+  filterShippoDestMenu();
+}
+
+function filterShippoDestMenu() {
+  const searchInput = $('custom-ship-dest-search');
+  const query = (searchInput?.value || '').toLowerCase().trim();
+  const listContainer = $('custom-ship-dest-list');
+  if (!listContainer) return;
+
+  const filtered = _shippoDestMasterList.filter(item => {
+    if (_shippoDestActiveCat !== 'all' && item.category !== _shippoDestActiveCat) return false;
+    if (query && !item.searchText.includes(query)) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    listContainer.innerHTML = `
+      <div style="padding:16px;text-align:center;color:var(--text3);font-size:var(--text-sm);">
+        No matching addresses found.
+      </div>`;
+    return;
+  }
+
+  const selectedVal = $('ship-prefill-dest')?.value || '';
+  const originCountry = normalizeCountryCode(localStorage.getItem('lm-shippo-origin-country') || 'CA');
+
+  listContainer.innerHTML = filtered.map(item => {
+    const isSelected = selectedVal === item.value;
+    const masterIdx = _shippoDestMasterList.indexOf(item);
+    // Carriers reject international labels without a recipient phone, so flag those rows up front.
+    let destCountry = '';
+    let destCountryRaw = '';
+    try {
+      const parsed = JSON.parse(item.value);
+      destCountry = parsed.country || '';
+      destCountryRaw = parsed.countryRaw || '';
+    } catch (_) { destCountry = ''; }
+    const phoneWarning = (item.missingPhone && destCountry && destCountry !== originCountry)
+      ? '<span class="custom-dest-item-warn" title="No recipient phone on file — required for international labels">⚠ no phone</span>'
+      : '';
+    // No country means no label. Said here, in the picker, rather than at the
+    // rate call — the row is where someone is choosing who to ship to.
+    const countryWarning = (!destCountry && destCountryRaw)
+      ? `<span class="custom-dest-item-warn" title="${escapeHtml(destCountryRaw)} is not a country we recognize — set the destination country before buying a label">⚠ check country</span>`
+      : '';
+    return `
+      <div class="custom-dest-item ${isSelected ? 'selected' : ''}${item.shipped ? ' is-shipped' : ''}" onclick="selectShippoDestCustomItem(${masterIdx}, event)">
+        <div class="custom-dest-item-header">
+          <span class="custom-dest-item-title">${item.icon} ${escapeHtml(item.title)}</span>
+          <span class="custom-dest-item-badge ${item.category}">${escapeHtml(item.catLabel)}</span>
+        </div>
+        <div class="custom-dest-item-sub">${escapeHtml(item.sub)}${item.shipped ? '<span class="custom-dest-item-done">✓ shipped</span>' : ''}${countryWarning}${phoneWarning}</div>
+        ${item.parcelSummary ? `<div class="custom-dest-item-parcel">📦 ${escapeHtml(item.parcelSummary)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+/**
+ * The "next order" card shown once a label is bought, so a stack of orders is
+ * one click each instead of reopening the picker every time.
+ */
+function nextOrderCardHtml(justShipped) {
+  // Rebuilt first so the order that was just labelled drops out of the queue.
+  renderCustomShippoDestPicker();
+  const shipped = shippedOrderNumbers(websiteLedgerRows(), normalizeShippingOrderNumber);
+  const left = ordersStillToShip(_shippoDestMasterList.filter(i => !i.shipped && !i.skipQueue), shipped, normalizeShippingOrderNumber)
+    .filter(item => normalizeShippingOrderNumber(item.orderNumber) !== normalizeShippingOrderNumber(justShipped));
+  const next = left[0];
+  if (!next) {
+    return `
+      <div class="cp-next-order is-done" role="status">
+        <span aria-hidden="true">🎉</span>
+        <span><strong>That's every order.</strong> Nothing else is waiting to ship.</span>
+        <button class="ship-queue-x cp-next-order-x" type="button" onclick="this.closest('.cp-next-order').remove()" aria-label="Close">✕</button>
+      </div>`;
+  }
+  return `
+    <div class="cp-next-order">
+      <div class="cp-next-order-text">
+        <span class="cp-next-order-kicker">Up next · ${left.length} order${left.length === 1 ? '' : 's'} left</span>
+        <strong>${escapeHtml(next.title)}</strong>
+        ${next.parcelSummary ? `<span class="cp-next-order-sub">📦 ${escapeHtml(next.parcelSummary)}</span>` : ''}
+      </div>
+      <button class="btn gold cp-label-action-btn" type="button" onclick="shipNextOrder('${escapeHtml(justShipped || '')}')">
+        <span>Ship next order</span><span aria-hidden="true">→</span>
+      </button>
+      <button class="ship-queue-x cp-next-order-x" type="button" onclick="this.closest('.cp-next-order').remove()" aria-label="Close Up next">✕</button>
+    </div>`;
+}
+
+/** Loads the next unsent order into the form and scrolls back up to it. */
+async function shipNextOrder(justShipped = '') {
+  closeCanadaPostLabelModal();
+  const shipped = shippedOrderNumbers(websiteLedgerRows(), normalizeShippingOrderNumber);
+  const next = nextOrderToShip(_shippoDestMasterList.filter(i => !i.shipped && !i.skipQueue), shipped, justShipped, normalizeShippingOrderNumber);
+  if (!next) {
+    showToast("✓ That's every order — nothing left to ship");
+    return;
+  }
+  const panel = $('cp-purchased-label-panel');
+  if (panel) { panel.innerHTML = ''; panel.style.display = 'none'; }
+  const trigger = $('custom-ship-dest-trigger');
+  trigger?.scrollIntoView({ behavior: _prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
+  await selectShippoDestCustomItem(_shippoDestMasterList.indexOf(next));
+}
+
+function selectShippoDestCustomItem(idx, e) {
+  if (e) e.stopPropagation();
+  const item = _shippoDestMasterList[idx];
+  if (!item) return;
+
+  const nativeSelect = $('ship-prefill-dest');
+  if (nativeSelect) {
+    nativeSelect.value = item.value;
+    nativeSelect.dataset.orderNumber = normalizeShippingOrderNumber(item.orderNumber);
+  }
+
+  const label = $('custom-ship-dest-label');
+  const icon = $('custom-ship-dest-icon');
+  const clearBtn = $('custom-ship-dest-clear');
+
+  if (label) {
+    label.textContent = item.title;
+    label.style.color = 'var(--text)';
+    label.style.fontWeight = '600';
+  }
+  if (icon) icon.textContent = item.icon;
+  if (clearBtn) clearBtn.style.display = 'inline-block';
+
+  // Close the dropdown first: the fill that follows reaches out for rates, and
+  // an open menu sitting over the results for the length of that call reads as
+  // the click not having registered.
+  setShippoDestMenuOpenState(false);
+
+  return onShippoPreFillDestChange();
+}
+
+function clearShippoDestSelection(e) {
+  if (e) e.stopPropagation();
+  const nativeSelect = $('ship-prefill-dest');
+  if (nativeSelect) {
+    nativeSelect.value = '';
+    nativeSelect.dataset.orderNumber = '';
+  }
+
+  const label = $('custom-ship-dest-label');
+  const icon = $('custom-ship-dest-icon');
+  const clearBtn = $('custom-ship-dest-clear');
+
+  if (label) {
+    label.textContent = '— Search or select an address —';
+    label.style.color = 'var(--text3)';
+    label.style.fontWeight = 'normal';
+  }
+  if (icon) icon.textContent = '🔍';
+  if (clearBtn) clearBtn.style.display = 'none';
+
+  // Clear inputs
+  $('st-name').value = '';
+  $('st-company').value = '';
+  $('st-phone').value = '';
+  $('st-street1').value = '';
+  $('st-street2').value = '';
+  $('st-city').value = '';
+  $('st-state').value = '';
+  $('st-zip').value = '';
+  $('st-country').value = 'US';
+  onShippoDestCountryChange();
+  dismissAddressVerification();
+  renderOrderPrefillSummary(null);
+  renderShippoRateReadiness();
+}
+
+/** Every title on a picker order, as parcel lines (the first row plus any other rows of the same order). */
+function recentOrderParcelLines(h) {
+  return [
+    ...parcelLinesFromLedgerEntry(h, h._bookId, BOOKS),
+    ...(h._otherRows || []).flatMap(({ bookId, entry }) => parcelLinesFromLedgerEntry(entry, bookId, BOOKS)),
+  ];
+}
+
+/**
+ * Recent website orders for the picker, one per ORDER. A customer who orders
+ * twice has two orders; a two-book order is two ledger rows with one order
+ * number. Rows without an order number fall back to name + street.
+ */
+function getRecentShippingOrders() {
+  const orders = [];
+  const byKey = new Map();
+  Object.entries(states).forEach(([bookId, s]) => {
+    if (s && Array.isArray(s.hist)) {
+      s.hist.forEach(h => {
+        if (h && h.shipName && h.shipAddr1 && !h.voided) {
+          const num = normalizeShippingOrderNumber(h.num);
+          const key = num
+            ? `order:${num}`
+            : `${h.shipName.trim()}|${h.shipAddr1.trim()}`.toLowerCase();
+          const existing = byKey.get(key);
+          if (existing) {
+            // Another title on the same order: carried so the parcel is sized
+            // for everything in it, not just the first book.
+            existing._otherRows.push({ bookId, entry: h });
+            return;
+          }
+          // A history row does not record which book it sold — the book is
+          // the state it is filed under — so the id is carried alongside it
+          // for the parcel prefill. A shallow copy rather than a tag on the
+          // stored row, so nothing here can write into saved ledger state.
+          const copy = { ...h, _bookId: bookId, _otherRows: [] };
+          byKey.set(key, copy);
+          orders.push(copy);
+        }
+      });
+    }
+  });
+  orders.sort((a, b) => {
+    const da = a.date ? new Date(a.date) : new Date(0);
+    const db = b.date ? new Date(b.date) : new Date(0);
+    return db - da;
+  });
+  return orders;
+}
+
+function saveShippoApiKey() {
+  const keyInput = $('ship-api-key-input');
+  if (!keyInput) return;
+  const token = keyInput.value.trim();
+  if (!token) {
+    showToast('⚠️ Enter a valid Shippo token', 'warn');
+    return;
+  }
+
+  if (!TAX_CENTER.settings) {
+    TAX_CENTER.settings = { baseCurrency: 'CAD', geminiKey: '' };
+  }
+  TAX_CENTER.settings.shippoKey = token;
+
+  saveTaxCenter()
+    .then(() => {
+      showToast('✓ Shippo API key saved');
+      keyInput.value = '';
+      initShippingTab();
+      // Sync to Tax Center UI if present
+      const tcKeyEl = $('tc-shippo-key');
+      if (tcKeyEl) tcKeyEl.value = token;
+    })
+    .catch(e => {
+      console.error(e);
+      showToast('❌ Failed to save API key', 'err');
+    });
+}
+
+function editShippoApiKey() {
+  const setupGroup = $('ship-key-setup-group');
+  const activeGroup = $('ship-key-active-group');
+  const keyInput = $('ship-api-key-input');
+
+  if (setupGroup) setupGroup.style.display = 'flex';
+  if (activeGroup) activeGroup.style.display = 'none';
+  if (keyInput) {
+    keyInput.value = TAX_CENTER.settings?.shippoKey || '';
+    keyInput.focus();
+  }
+}
+
+// ─── One-touch order → parcel → quote ─────────────────────────────────────
+//
+// A web order already states everything the shipping form asks for. Picking one
+// as the destination used to fill in the address and then leave the publisher
+// to restate the rest by hand: open the package dropdown, find the book, set
+// the quantity, correct the customs value, press Calculate. Every one of those
+// answers was sitting in the order.
+//
+// So the order fills the whole form. The address, the box, the count and the
+// declared value all land together, and — unless the publisher has switched it
+// off — the rates are fetched straight away, so the quotes are on screen by the
+// time they look up. Buying is untouched: that spends real money and stays a
+// deliberate press.
+
+const AUTO_QUOTE_PREF_KEY = 'lm-ship-auto-quote';
+
+/** Whether an order should pull its own rates. On unless switched off. */
+function autoQuoteEnabled() {
+  try { return localStorage.getItem(AUTO_QUOTE_PREF_KEY) !== 'off'; } catch (_) { return true; }
+}
+
+function setShippoAutoQuote(enabled) {
+  try { localStorage.setItem(AUTO_QUOTE_PREF_KEY, enabled ? 'on' : 'off'); } catch (_) { /* private mode */ }
+  const box = $('ship-auto-quote-toggle');
+  if (box) box.checked = enabled;
+}
+
+function onShippoAutoQuoteToggle() {
+  const enabled = !!$('ship-auto-quote-toggle')?.checked;
+  setShippoAutoQuote(enabled);
+  showToast(enabled
+    ? '✓ Orders will fetch their own rates from now on'
+    : '✓ Rates will wait for you to press Calculate');
+}
+
+/**
+ * Write a parcel plan into the box fields.
+ *
+ * The preset supplies the per-copy dimensions, the order supplies the count,
+ * and the two are combined the same way a publisher stacking copies by hand
+ * would: load the box, then scale it. Everything is silent here — the caller
+ * describes the whole prefill in one message.
+ */
+function applyOrderParcelPlan(plan) {
+  if (!plan || !plan.presetBookId || !BOOKS[plan.presetBookId]) return null;
+  const presetSelect = $('ship-preset-book');
+  if (!presetSelect) return null;
+  // The preset list is built from the catalogue; a book missing from it means
+  // the tab has not finished rendering, and writing a value the select cannot
+  // hold would leave the box fields describing nothing.
+  if (!Array.from(presetSelect.options).some(opt => opt.value === plan.presetBookId)) return null;
+
+  presetSelect.value = plan.presetBookId;
+  const source = onShippoBookPresetChange({ silent: true });
+
+  const qtyInput = $('sp-qty');
+  const qty = Math.max(1, plan.totalQty || 1);
+  if (qtyInput) qtyInput.value = String(qty);
+  scaleShippoSpecsForQty(qty);
+
+  const customsValue = $('sp-customs-value');
+  if (customsValue && plan.customsUnitValue > 0) {
+    customsValue.value = plan.customsUnitValue.toFixed(2);
+  }
+  const customsDescription = $('sp-customs-description');
+  if (customsDescription && plan.customsDescription) {
+    customsDescription.value = plan.customsDescription;
+  }
+  updateShippoCustomsTotalHint();
+  renderShippoRateReadiness();
+  return { source, qty };
+}
+
+/**
+ * The line under the pre-fills saying what the order filled in and what still
+ * wants a human eye. It is the receipt for work the publisher did not watch
+ * happen — without it, a box silently sized on the wrong book is invisible.
+ */
+function renderOrderPrefillSummary(state) {
+  const host = $('ship-order-prefill-summary');
+  if (!host) return;
+  if (!state) { host.innerHTML = ''; host.style.display = 'none'; return; }
+
+  const { orderNumber, plan, quoting, presetSource } = state;
+  const pills = [];
+  const label = orderNumber ? `Order ${orderNumber}` : 'Destination';
+
+  if (!plan || !plan.presetBookId) {
+    pills.push('<span class="pill amber">● Pick the package</span>');
+    pills.push('<span class="ship-readiness-note">Address filled in. This order didn’t name a book we recognise, so choose the package yourself.</span>');
+  } else {
+    const warn = plan.confidence !== 'exact' || presetSource === 'generic';
+    pills.push(warn
+      ? '<span class="pill amber">● Check the weight</span>'
+      : '<span class="pill green">✓ Address &amp; package filled in</span>');
+    let note = describeParcelPlan(plan);
+    if (presetSource === 'generic' && plan.confidence === 'exact') {
+      note += ' — no saved box for this book, so a standard one was used';
+    }
+    pills.push(`<span class="ship-readiness-note">${escapeHtml(note)}</span>`);
+  }
+
+  if (quoting) pills.push('<span class="pill">Fetching rates…</span>');
+
+  host.innerHTML = `<span class="ship-prefill-order">${escapeHtml(label)}</span>${pills.join('')}`;
+  host.style.display = 'flex';
+}
+
+/**
+ * Fetch rates now, if the form has everything and the publisher has left the
+ * setting on. Quoting only reads prices, so nothing is spent and nothing is
+ * committed — the worst case is a wasted call, and the best case is that the
+ * rates are already waiting.
+ */
+async function maybeAutoQuoteRates(state) {
+  if (!autoQuoteEnabled()) return false;
+  if (!TAX_CENTER.settings?.shippoKey) return false;
+  if (shippoRateFormState().missing.length) return false;
+  renderOrderPrefillSummary({ ...state, quoting: true });
+  try {
+    await calculateShippoRates();
+  } catch (error) {
+    console.warn('Auto rate quote failed', error);
+  } finally {
+    renderOrderPrefillSummary({ ...state, quoting: false });
+  }
+  return true;
+}
+
+/**
+ * Everything that happens once an order has been chosen as the destination:
+ * the box gets filled from what was bought, the summary line explains it, and
+ * the rates go and fetch themselves.
+ *
+ * Split from onShippoPreFillDestChange so the storefront's "Ship" button can
+ * reach the same finish from its own start.
+ */
+async function applyOrderPrefill({ orderNumber = '', parcelLines = [] } = {}) {
+  const plan = orderParcelPlan(parcelLines, BOOKS);
+  const applied = applyOrderParcelPlan(plan);
+  const state = { orderNumber, plan, presetSource: applied?.source || '', quoting: false };
+  renderOrderPrefillSummary(state);
+  const quoted = await maybeAutoQuoteRates(state);
+  return { plan, applied, quoted };
+}
+
+async function onShippoPreFillDestChange() {
+  const select = $('ship-prefill-dest');
+  if (!select) return;
+  if (!select.value) {
+    select.dataset.orderNumber = '';
+    renderOrderPrefillSummary(null);
+    return;
+  }
+
+  try {
+    const addr = JSON.parse(select.value);
+    select.dataset.orderNumber = normalizeShippingOrderNumber(addr.orderNumber);
+    $('st-name').value = addr.name || '';
+    $('st-company').value = addr.company || '';
+    $('st-phone').value = getFallbackShippingPhone(addr.phone);
+    $('st-street1').value = addr.street1 || '';
+    $('st-street2').value = addr.street2 || '';
+    $('st-city').value = addr.city || '';
+    $('st-state').value = addr.state || '';
+    $('st-zip').value = addr.zip || '';
+    $('st-country').value = addr.country || 'US';
+    onShippoDestCountryChange();
+    // A verdict belongs to one address; loading a different one retires it.
+    dismissAddressVerification();
+    // Fields written in code fire no input event, so the readiness line has to
+    // be told the destination just filled itself in.
+    renderShippoRateReadiness();
+
+    // Older cached orders were fetched without the contact resources, so the phone
+    // can still be missing here — ask Big Cartel for it directly.
+    if (!$('st-phone').value && select.dataset.orderNumber) {
+      hydrateShippingDestinationPhone(select.dataset.orderNumber);
+    }
+
+    // A store address is a destination and nothing more; an order also says
+    // what is in the box, so it fills that in too and goes for the rates.
+    const parcelLines = Array.isArray(addr.parcelLines) ? addr.parcelLines : [];
+    if (!parcelLines.length) {
+      renderOrderPrefillSummary(null);
+      showToast('✓ Destination populated');
+      return;
+    }
+
+    const { plan, quoted } = await applyOrderPrefill({
+      orderNumber: select.dataset.orderNumber || String(addr.orderNumber || ''),
+      parcelLines,
+    });
+    const parcelNote = describeParcelPlan(plan);
+    showToast(parcelNote
+      ? `✓ Address and package ready — ${parcelNote}${quoted ? '. Rates below.' : ''}`
+      : '✓ Destination populated — choose the package below');
+  } catch (e) {
+    console.error('Failed to parse pre-fill address', e);
+  }
+}
+
+// ─── Destination address verifier ─────────────────────────────────────────
+//
+// Backed by Shippo's address validation (the `ValidateAddress` operation in
+// Shippo's MCP tool catalogue). It answers a graded verdict rather than a
+// yes/no, so the UI shows the verdict, the reasons behind it, and the
+// standardized address as an *offer* the publisher applies — Shippo's
+// recommendation is authoritative about postal formatting, not about which
+// apartment the buyer actually lives in, so it is never written silently.
+//
+// The parsing lives in lib/address-verification.js; what is here is the call,
+// the DOM and the freshness rule.
+
+// Last verdict, tied to the exact address text it was produced from. Anything
+// that reads it must compare signatures first: a verdict for an address the
+// publisher has since edited is worse than no verdict, because it vouches for
+// text Shippo never saw.
+let _destVerification = null;
+
+/** Reads the destination form into the field names the verifier speaks. */
+function readShippoDestinationAddress() {
+  return {
+    name: $('st-name')?.value.trim() || '',
+    company: $('st-company')?.value.trim() || '',
+    street1: $('st-street1')?.value.trim() || '',
+    street2: $('st-street2')?.value.trim() || '',
+    city: $('st-city')?.value.trim() || '',
+    state: $('st-state')?.value.trim() || '',
+    zip: $('st-zip')?.value.trim() || '',
+    country: normalizeCountryCode($('st-country')?.value || '') || ($('st-country')?.value.trim() || ''),
+  };
+}
+
+/** The cached verdict, but only while it still describes what is in the form. */
+function currentDestinationVerification() {
+  if (!_destVerification) return null;
+  return _destVerification.signature === addressSignature(readShippoDestinationAddress())
+    ? _destVerification
+    : null;
+}
+
+/**
+ * Calls Shippo's v2 validator and falls back to the legacy endpoint.
+ *
+ * v2 is the richer answer and the one worth having, but not every Shippo token
+ * can reach it, and a verifier that simply fails on those accounts is a verifier
+ * the publisher stops trusting. The legacy `/addresses/` endpoint with
+ * `validate: true` has been answering for this app all along, so it is the
+ * fallback rather than the error path — normalizeAddressVerification flattens
+ * both into one shape, and the panel reports which one answered.
+ */
+async function fetchShippoAddressVerification(token, address) {
+  const headers = { 'Authorization': `ShippoToken ${token}`, 'Content-Type': 'application/json' };
+  const query = new URLSearchParams(buildAddressValidationQuery(address)).toString();
+  let v2Note = '';
+  // Held rather than thrown: a throw here would be caught by this function's
+  // own catch and turn an outage into a second request against the same
+  // service. It is rethrown below, past the fallback.
+  let outage = null;
+
+  try {
+    const resp = await fetch(`${SHIPPO_VALIDATE_V2_URL}?${query}`, { headers });
+    if (resp.ok) return normalizeAddressVerification(await resp.json(), address);
+    const text = await resp.text().catch(() => '');
+    // 401/403 = token not entitled to v2, 404/405 = endpoint not on this
+    // account's API version, 400/501 = v2 rejected the shape. Each of those is
+    // worth a second opinion from v1. Anything else (429, 5xx) is Shippo
+    // rate-limiting or down, and v1 is the same service behind the same
+    // limiter — retrying it would add load and report the outage twice.
+    if ([400, 401, 403, 404, 405, 422, 501].includes(resp.status)) {
+      // 422 included: v2's enum validation is stricter than v1's, so an input
+      // v2 rejects outright is exactly the case worth a legacy second opinion.
+      v2Note = describeShippoError(resp.status, text);
+    } else {
+      outage = new Error(describeShippoError(resp.status, text));
+    }
+  } catch (error) {
+    v2Note = error.message || 'v2 validator unreachable';
+  }
+  if (outage) throw outage;
+
+  const legacyResp = await fetch(SHIPPO_ADDRESSES_V1_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(buildLegacyValidationPayload(address)),
+  });
+  if (!legacyResp.ok) {
+    const text = await legacyResp.text().catch(() => '');
+    throw new Error(`${v2Note}; legacy validator also failed — ${describeShippoError(legacyResp.status, text)}`);
+  }
+  return normalizeAddressVerification(await legacyResp.json(), address);
+}
+
+const VERIFY_TONE_CLASS = {
+  ok: 'ok',
+  warn: 'warn',
+  err: 'err',
+};
+
+function renderVerificationReasons(reasons) {
+  if (!reasons.length) return '';
+  const REASON_TONE = { error: 'err', warning: 'warn', correction: 'note' };
+  return `<ul class="addr-verify-reasons">${reasons.map(reason => {
+    const tone = REASON_TONE[reason.type] || 'info';
+    return `<li class="addr-verify-reason ${tone}">
+      <span class="addr-verify-reason-tag">${escapeHtml(reason.type || 'info')}</span>
+      <span>${escapeHtml(reason.description)}</span>
+    </li>`;
+  }).join('')}</ul>`;
+}
+
+function renderVerificationCorrections(corrections) {
+  if (!corrections.length) return '';
+  return `<div class="addr-verify-corrections">
+    <div class="addr-verify-corrections-head">
+      <span>Shippo standardized ${corrections.length} field${corrections.length === 1 ? '' : 's'}</span>
+      <button type="button" class="btn gold sm" onclick="applyVerifiedAddressCorrections()">Apply corrections</button>
+    </div>
+    <ul>${corrections.map(correction => `<li>
+      <span class="addr-verify-field">${escapeHtml(correction.label)}</span>
+      <span class="addr-verify-from">${escapeHtml(correction.from || '—')}</span>
+      <span class="addr-verify-arrow" aria-hidden="true">→</span>
+      <span class="addr-verify-to">${escapeHtml(correction.to)}</span>
+    </li>`).join('')}</ul>
+  </div>`;
+}
+
+/**
+ * Draws whatever the verifier currently knows. Staleness is recomputed from the
+ * live form on every call rather than tracked with a flag, so there is no way
+ * for the panel to sit there claiming an edited address is deliverable.
+ */
+function renderDestinationVerification() {
+  const panel = $('ship-dest-verify-panel');
+  if (!panel) return;
+
+  if (!_destVerification) {
+    panel.hidden = true;
+    panel.innerHTML = '';
+    return;
+  }
+
+  if (_destVerification.pending) {
+    panel.hidden = false;
+    panel.className = 'addr-verify pending';
+    panel.innerHTML = `<div class="addr-verify-skeleton" role="status" aria-live="polite">
+      <span class="sr-only">Checking this address with Shippo…</span>
+      <span class="addr-verify-skeleton-bar wide"></span>
+      <span class="addr-verify-skeleton-bar"></span>
+      <span class="addr-verify-skeleton-bar narrow"></span>
+    </div>`;
+    return;
+  }
+
+  const { result } = _destVerification;
+  const verdict = verificationVerdict(result.status);
+  const tone = VERIFY_TONE_CLASS[verdict.tone] || 'warn';
+  const stale = _destVerification.signature !== addressSignature(readShippoDestinationAddress());
+
+  const meta = [
+    result.confidence?.score ? `${result.confidence.score} confidence` : '',
+    result.addressType && result.addressType !== 'unknown' ? result.addressType : '',
+    // Which validator answered matters when the verdicts differ in detail:
+    // the legacy endpoint cannot report confidence or address type at all.
+    result.source === 'v2' ? 'Shippo v2' : 'Shippo legacy',
+  ].filter(Boolean).join(' · ');
+
+  panel.hidden = false;
+  panel.className = `addr-verify ${tone}${stale ? ' stale' : ''}`;
+  panel.innerHTML = `
+    <div class="addr-verify-head">
+      <span class="addr-verify-badge ${tone}">${escapeHtml(verdict.icon)} ${escapeHtml(verdict.label)}</span>
+      <span class="addr-verify-meta">${escapeHtml(meta)}</span>
+      <button type="button" class="addr-verify-dismiss" onclick="dismissAddressVerification()" aria-label="Dismiss address check">×</button>
+    </div>
+    ${stale ? '<div class="addr-verify-stale-note">You have edited the address since this check — verify again before buying a label.</div>' : ''}
+    <p class="addr-verify-summary">${escapeHtml(verdict.summary)}</p>
+    ${renderVerificationReasons(result.reasons)}
+    ${stale ? '' : renderVerificationCorrections(result.corrections)}
+  `;
+}
+
+/** Re-renders so an edit flips the panel to its stale state as it is typed. */
+function markDestinationVerificationStale() {
+  if (_destVerification) renderDestinationVerification();
+}
+
+/**
+ * Watches the destination fields so the panel can never outlive its address.
+ * Bound once per element — initShippingTab runs on every visit to the tab.
+ */
+function bindDestinationVerificationWatchers() {
+  ADDRESS_FIELD_LABELS.forEach(([field]) => {
+    // The form's ids are the field names verbatim: st-name, st-street1, st-zip…
+    const input = $(`st-${field}`);
+    if (!input || input.dataset.verifyWatch === 'true') return;
+    input.dataset.verifyWatch = 'true';
+    input.addEventListener('input', markDestinationVerificationStale);
+    input.addEventListener('change', markDestinationVerificationStale);
+  });
+}
+
+/** Clears the panel — used by the dismiss button and by destination changes. */
+function dismissAddressVerification() {
+  _destVerification = null;
+  renderDestinationVerification();
+}
+
+async function verifyDestinationAddress() {
+  const shippoKey = TAX_CENTER.settings?.shippoKey || '';
+  if (!shippoKey) {
+    showToast('⚠️ Please configure your Shippo API Key first', 'warn');
+    return;
+  }
+
+  const address = readShippoDestinationAddress();
+  const blocker = addressValidationBlocker(address);
+  if (blocker) {
+    showToast(`⚠️ ${blocker}`, 'warn');
+    return;
+  }
+
+  const button = $('ship-verify-btn');
+  const priorLabel = button?.innerHTML;
+  if (button) { button.disabled = true; button.innerHTML = 'Checking…'; }
+
+  _destVerification = { signature: addressSignature(address), pending: true, result: null };
+  renderDestinationVerification();
+
+  try {
+    const result = await fetchShippoAddressVerification(shippoKey, address);
+    _destVerification = {
+      signature: addressSignature(address),
+      pending: false,
+      result,
+      address,
+      at: new Date().toISOString(),
+    };
+    renderDestinationVerification();
+
+    const verdict = verificationVerdict(result.status);
+    const correctionNote = result.corrections.length
+      ? ` — ${result.corrections.length} suggested correction${result.corrections.length === 1 ? '' : 's'}`
+      : '';
+    showToast(
+      `${verdict.icon} ${verdict.label}${correctionNote}`,
+      verdict.tone,
+      result.status === 'valid' ? 4000 : 7000,
+    );
+  } catch (error) {
+    console.error('Shippo address verification failed', error);
+    _destVerification = null;
+    renderDestinationVerification();
+    showToast(`❌ Could not verify the address: ${error.message}`, 'err', 7000);
+  } finally {
+    if (button) { button.disabled = false; button.innerHTML = priorLabel ?? '🔍 Verify Address'; }
+  }
+}
+
+/**
+ * Writes Shippo's standardized fields into the destination form.
+ *
+ * Only the fields Shippo actually changed are touched, and only while the form
+ * still holds the address that was verified — between rendering the panel and
+ * clicking the button the publisher may have typed something, and overwriting
+ * that with a stale recommendation would be a silent data loss.
+ */
+function applyVerifiedAddressCorrections() {
+  const record = currentDestinationVerification();
+  if (!record?.result?.corrections?.length) {
+    showToast('That address check is out of date — verify again', 'warn');
+    renderDestinationVerification();
+    return;
+  }
+
+  const applied = [];
+  record.result.corrections.forEach(correction => {
+    const input = $(`st-${correction.field}`);
+    if (!input) return;
+    input.value = correction.to;
+    applied.push(correction.label);
+  });
+
+  if (!applied.length) {
+    showToast('No fields to update on this form', 'warn');
+    return;
+  }
+
+  // The form now holds Shippo's own text, which is by definition what Shippo
+  // recommended — so the verdict is re-pinned to it and the corrections list
+  // collapses instead of offering the same changes a second time.
+  const updated = readShippoDestinationAddress();
+  _destVerification = {
+    ...record,
+    signature: addressSignature(updated),
+    address: updated,
+    result: { ...record.result, corrections: [], recommended: null },
+  };
+  onShippoDestCountryChange();
+  renderDestinationVerification();
+  renderShippoRateReadiness();
+  showToast(`✓ Applied Shippo's standardized ${applied.length === 1 ? 'field' : 'fields'}: ${applied.join(', ')}`);
+}
+
+/**
+ * Load a book's saved box into the parcel fields.
+ *
+ * `silent` is for the automated path: when an order fills the whole form in
+ * one go, this fires alongside the address and the quantity, and three toasts
+ * stacking on top of each other reads as noise rather than confirmation. The
+ * caller then says the one thing worth saying. The return value tells it
+ * whether the box came from real saved dimensions or the generic fallback, so
+ * a guessed weight can still be called out in that single message.
+ */
+function onShippoBookPresetChange({ silent = false } = {}) {
+  const select = $('ship-preset-book');
+  if (!select || !select.value) return '';
+
+  const book = BOOKS[select.value];
+  if (!book) return '';
+
+  const { specs, source } = resolveBookPresetSpecs(book);
+
+  // Set quantity back to 1
+  const qtyInput = $('sp-qty');
+  if (qtyInput) qtyInput.value = '1';
+
+  // Update inputs
+  $('sp-length').value = specs.length;
+  $('sp-width').value = specs.width;
+  $('sp-height').value = specs.height;
+  $('sp-dim-unit').value = specs.dim_unit;
+  $('sp-weight').value = specs.weight;
+  $('sp-weight-unit').value = specs.weight_unit;
+  const customsValue = $('sp-customs-value');
+  if (customsValue) {
+    customsValue.value = (book.shipCustomsVal != null)
+      ? parseFloat(book.shipCustomsVal).toFixed(2)
+      : Math.max(1, parseFloat(book.listPrice || book.price || customsValue.value || 25)).toFixed(2);
+  }
+  const customsDescription = $('sp-customs-description');
+  if (customsDescription) {
+    customsDescription.value = book.shipCustomsDesc || `${book.title || 'Printed books'} - printed books`.slice(0, 80);
+  }
+  const customsHs = $('sp-customs-hs');
+  if (customsHs) {
+    customsHs.value = book.shipHsCode || '490199';
+  }
+  if (book.shipIncoterm && $('sp-incoterm')) {
+    $('sp-incoterm').value = book.shipIncoterm;
+  }
+
+  // Update base specifications cache
+  shippoBaseSpecs = {
+    length: specs.length,
+    width: specs.width,
+    height: specs.height,
+    dim_unit: specs.dim_unit,
+    weight: specs.weight,
+    weight_unit: specs.weight_unit
+  };
+
+  updateShippoCustomsTotalHint();
+  renderShippoRateReadiness();
+
+  if (!silent) {
+    if (source === 'generic') {
+      showToast(`⚠ ${book.title} has no shipping specs — quoting on generic 10×8×1 in / 1.2 lb. Set its dimensions in the book editor or click "Save to Book Preset".`, 'warn', 6000);
+    } else {
+      showToast(`✓ Package preset loaded: ${book.title}`);
+    }
+  }
+  return source;
+}
+
+/**
+ * Open modal to save the current parcel and customs specifications to a book preset in the catalog.
+ */
+function openSaveBookPresetModal() {
+  const select = $('sbp-target-book');
+  if (!select) return;
+
+  const currentPresetVal = $('ship-preset-book')?.value || activeBook || (BOOK_LIST[0]?.id || '');
+  select.innerHTML = '<option value="">— Select a catalogue book to update —</option>' +
+    BOOK_LIST.map(b => `<option value="${escapeHtml(b.id)}" ${b.id === currentPresetVal ? 'selected' : ''}>${escapeHtml(b.title)} (${escapeHtml(b.id)})</option>`).join('');
+
+  renderSaveBookPresetPreview();
+  openM('save-book-preset');
+}
+
+/**
+ * Render the live preview of dimensions, weight, and customs values to be saved to the book preset.
+ */
+function renderSaveBookPresetPreview() {
+  const preview = $('sbp-specs-preview');
+  if (!preview) return;
+
+  const qty = Math.max(1, parseInt($('sp-qty')?.value || '1', 10));
+  const length = parseFloat($('sp-length')?.value || '0');
+  const width = parseFloat($('sp-width')?.value || '0');
+  const totalHeight = parseFloat($('sp-height')?.value || '0');
+  const dimUnit = $('sp-dim-unit')?.value || 'in';
+  const totalWeight = parseFloat($('sp-weight')?.value || '0');
+  const weightUnit = $('sp-weight-unit')?.value || 'lb';
+  const customsVal = parseFloat($('sp-customs-value')?.value || '0');
+  const customsDesc = $('sp-customs-description')?.value?.trim() || '';
+  const hsCode = $('sp-customs-hs')?.value?.trim() || '';
+  const incoterm = $('sp-incoterm')?.value || 'auto';
+
+  const singleHeight = totalHeight > 0 ? (totalHeight / qty) : 0;
+  const singleWeight = totalWeight > 0 ? (totalWeight / qty) : 0;
+
+  const formattedHeight = singleHeight ? (Math.round(singleHeight * 100) / 100) : '—';
+  const formattedWeight = singleWeight ? (singleWeight >= 10 ? (Math.round(singleWeight * 100) / 100) : (Math.round(singleWeight * 10000) / 10000)) : '—';
+
+  const scalingNote = qty > 1
+    ? `<div class="sbp-scale-note" style="margin-top:10px;padding:8px 10px;background:var(--gold-bg);border-radius:var(--r);font-size:var(--text-xs);color:var(--gold-text);line-height:1.45;">ℹ Automatically normalized per copy from total quantity of <strong>${qty}</strong>: single-copy height is <strong>${formattedHeight} ${dimUnit}</strong> and weight is <strong>${formattedWeight} ${weightUnit}</strong>.</div>`
+    : '';
+
+  preview.innerHTML = `
+    <div class="sbp-spec-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--surface-card);border:var(--stroke-hair) solid var(--border);border-radius:var(--r2);padding:10px 12px;">
+      <div class="sbp-spec-item" style="display:flex;flex-direction:column;gap:2px;">
+        <label style="font-size:var(--text-3xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Dimensions (Per Copy)</label>
+        <span style="font-family:var(--font-mono);font-size:var(--text-base);font-weight:700;color:var(--text);">${length} × ${width} × ${formattedHeight} ${dimUnit}</span>
+      </div>
+      <div class="sbp-spec-item" style="display:flex;flex-direction:column;gap:2px;">
+        <label style="font-size:var(--text-3xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Weight (Per Copy)</label>
+        <span style="font-family:var(--font-mono);font-size:var(--text-base);font-weight:700;color:var(--text);">${formattedWeight} ${weightUnit}</span>
+      </div>
+      <div class="sbp-spec-item" style="display:flex;flex-direction:column;gap:2px;">
+        <label style="font-size:var(--text-3xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Customs Value (CAD)</label>
+        <span style="font-family:var(--font-mono);font-size:var(--text-base);font-weight:700;color:var(--gold-text);">${customsVal ? customsVal.toFixed(2) + ' CAD' : '—'}</span>
+      </div>
+      <div class="sbp-spec-item" style="display:flex;flex-direction:column;gap:2px;">
+        <label style="font-size:var(--text-3xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">HS Tariff Code</label>
+        <span style="font-family:var(--font-mono);font-size:var(--text-base);font-weight:700;color:var(--text);">${escapeHtml(hsCode || '—')}</span>
+      </div>
+      <div class="sbp-spec-item" style="display:flex;flex-direction:column;gap:2px;">
+        <label style="font-size:var(--text-3xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Default Incoterm</label>
+        <span style="font-size:var(--text-sm);font-weight:600;color:var(--text);">${escapeHtml(incoterm || 'Auto')}</span>
+      </div>
+      <div class="sbp-spec-item" style="grid-column:1 / -1;display:flex;flex-direction:column;gap:2px;border-top:var(--stroke-hair) solid rgba(255,255,255,0.06);padding-top:6px;margin-top:2px;">
+        <label style="font-size:var(--text-3xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Customs Description</label>
+        <span style="font-size:var(--text-sm);color:var(--text2);font-weight:500;">${escapeHtml(customsDesc || 'Printed books')}</span>
+      </div>
+    </div>
+    ${scalingNote}
+  `;
+}
+
+/**
+ * Confirm and save the current specifications to the selected book record in the catalog.
+ */
+async function confirmSaveBookPreset() {
+  const targetId = $('sbp-target-book')?.value;
+  if (!targetId || !BOOKS[targetId]) {
+    showToast('Please select a book to save these specifications to', 'warn');
+    return;
+  }
+
+  const book = BOOKS[targetId];
+  const qty = Math.max(1, parseInt($('sp-qty')?.value || '1', 10));
+  const length = parseFloat($('sp-length')?.value || '0');
+  const width = parseFloat($('sp-width')?.value || '0');
+  const totalHeight = parseFloat($('sp-height')?.value || '0');
+  const dimUnit = $('sp-dim-unit')?.value || 'in';
+  const totalWeight = parseFloat($('sp-weight')?.value || '0');
+  const weightUnit = $('sp-weight-unit')?.value || 'lb';
+  const customsVal = parseFloat($('sp-customs-value')?.value || '0');
+  const customsDesc = $('sp-customs-description')?.value?.trim() || '';
+  const hsCode = $('sp-customs-hs')?.value?.trim() || '';
+  const incoterm = $('sp-incoterm')?.value || 'auto';
+
+  if (!length || !width || !totalHeight || !totalWeight) {
+    showToast('Please specify valid length, width, height, and weight values', 'warn');
+    return;
+  }
+
+  const singleHeight = Math.round((totalHeight / qty) * 100) / 100;
+  const singleWeight = Math.round((totalWeight / qty) * 10000) / 10000;
+
+  // Persist to book object
+  book.shipLength = length;
+  book.shipWidth = width;
+  book.shipHeight = singleHeight;
+  book.shipDimUnit = dimUnit;
+  book.shipWeight = singleWeight;
+  book.shipWeightUnit = weightUnit;
+  if (hsCode) book.shipHsCode = hsCode;
+  if (customsDesc) book.shipCustomsDesc = customsDesc;
+  if (customsVal) book.shipCustomsVal = customsVal;
+  if (incoterm) book.shipIncoterm = incoterm;
+
+  // Update base specifications cache
+  shippoBaseSpecs = {
+    length,
+    width,
+    height: singleHeight,
+    dim_unit: dimUnit,
+    weight: singleWeight,
+    weight_unit: weightUnit
+  };
+
+  // Sync with Firestore & localStorage
+  try {
+    await saveCatalogWithDeletions();
+    localStorage.setItem('lm-catalog-backup', JSON.stringify(BOOKS));
+  } catch (err) {
+    console.error('Error saving book preset:', err);
+  }
+
+  // Update book preset dropdown selection
+  const presetSelect = $('ship-preset-book');
+  if (presetSelect) presetSelect.value = targetId;
+
+  closeM('save-book-preset');
+  showToast(`✓ Saved shipping preset to ${book.title}`, 'ok');
+}
+
+function isCanadaPostRate(rate) {
+  const provider = String(rate?.provider || '').toLowerCase();
+  return provider.includes('canada post') || provider.includes('canadapost') || provider.includes('postes canada');
+}
+
+function moneyAmount(rate) {
+  const amount = parseFloat(rate?.amount);
+  return Number.isFinite(amount) ? amount : Infinity;
+}
+
+function roundShippingCharge(amount) {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  return Math.ceil(amount) - 0.01;
+}
+
+function buildShippingChargePrediction(rates) {
+  const usableRates = (rates || []).filter(r => Number.isFinite(moneyAmount(r))).sort((a, b) => moneyAmount(a) - moneyAmount(b));
+  if (!usableRates.length) return null;
+
+  const canadaPostRates = usableRates.filter(isCanadaPostRate);
+  const benchmarkMode = $('sp-benchmark')?.value || 'canada_post';
+  const handling = Math.max(0, parseFloat($('sp-handling')?.value) || 0);
+  const margin = Math.max(0, parseFloat($('sp-margin')?.value) || 0);
+  let benchmarkRate = usableRates[0];
+  let benchmarkLabel = 'Cheapest returned rate';
+
+  if (benchmarkMode === 'canada_post' && canadaPostRates.length) {
+    benchmarkRate = canadaPostRates[0];
+    benchmarkLabel = 'Cheapest Canada Post rate';
+  } else if (benchmarkMode === 'median') {
+    benchmarkRate = usableRates[Math.floor(usableRates.length / 2)];
+    benchmarkLabel = 'Median returned rate';
+  }
+
+  const baseAmount = moneyAmount(benchmarkRate);
+  const subtotal = baseAmount + handling;
+  const recommended = roundShippingCharge(subtotal * (1 + margin));
+  const cheapest = usableRates[0];
+
+  // ⚡ Bolt Optimization: Use O(N) imperative loop instead of O(N log N) filter().sort()[0] to find fastest rate
+  let fastest = null;
+  let minDays = Infinity;
+  for (let i = 0; i < usableRates.length; i++) {
+    const r = usableRates[i];
+    if (r.estimated_days != null) {
+      const days = parseInt(r.estimated_days);
+      if (days < minDays) {
+        minDays = days;
+        fastest = r;
+      }
+    }
+  }
+
+  return {
+    recommended,
+    currency: benchmarkRate.currency || 'CAD',
+    benchmarkRate,
+    benchmarkLabel,
+    handling,
+    margin,
+    canadaPostCount: canadaPostRates.length,
+    cheapest,
+    fastest
+  };
+}
+
+function renderShippingChargePrediction(rates) {
+  const card = $('ship-prediction-card');
+  if (!card) return;
+  const prediction = buildShippingChargePrediction(rates);
+  if (!prediction) {
+    card.style.display = 'none';
+    card.innerHTML = '';
+    return;
+  }
+
+  const benchmark = prediction.benchmarkRate;
+  const fastest = prediction.fastest;
+  const canadaPostNote = prediction.canadaPostCount
+    ? `${prediction.canadaPostCount} Canada Post option${prediction.canadaPostCount === 1 ? '' : 's'} returned by Shippo.`
+    : 'No Canada Post rate returned; prediction used your selected fallback.';
+
+  card.innerHTML = `
+    <div class="shipping-prediction-topline">
+      <div>
+        <div class="shipping-prediction-label">Recommended website charge</div>
+        <div class="shipping-prediction-price">${prediction.recommended.toFixed(2)} ${escapeHtml(prediction.currency)}</div>
+      </div>
+      <span class="rate-badge cheapest">Prediction</span>
+    </div>
+    <div class="shipping-prediction-grid">
+      <div><strong>${escapeHtml(prediction.benchmarkLabel)}</strong><span>${escapeHtml(benchmark.provider || 'Carrier')} · ${escapeHtml(benchmark.servicelevel?.name || 'Service')} · ${moneyAmount(benchmark).toFixed(2)} ${escapeHtml(benchmark.currency || prediction.currency)}</span></div>
+      <div><strong>Buffer</strong><span>${prediction.handling.toFixed(2)} CAD handling + ${(prediction.margin * 100).toFixed(0)}% margin</span></div>
+      <div><strong>Fastest option</strong><span>${fastest ? `${escapeHtml(fastest.provider || 'Carrier')} · ${fastest.estimated_days || '?'} day${parseInt(fastest.estimated_days) === 1 ? '' : 's'}` : 'No transit estimate returned'}</span></div>
+    </div>
+    <div class="shipping-prediction-note">${escapeHtml(canadaPostNote)} Use this as a pricing recommendation before publishing customer-facing flat rates.</div>
+  `;
+  card.style.display = 'block';
+}
+
+function isInternationalShipment(fromCountry, toCountry) {
+  return normalizeCountryCode(fromCountry) !== normalizeCountryCode(toCountry);
+}
+
+function readShippoCustomsValue(id, fallback) {
+  const value = $(id)?.value;
+  return String(value || fallback).trim();
+}
+
+// Canada Post stopped accepting DDU for US-bound shipments on 2025-08-29: the
+// rate call still returns Tracked Packet / Small Packet USA happily, and only
+// the label purchase fails with "Service not available to US for DDU
+// shipments". So the destination, not the rate list, has to pick the incoterm.
+function resolveShippoIncoterm(destCountryCode) {
+  const choice = String($('sp-incoterm')?.value || 'auto');
+  if (choice !== 'auto') return choice;
+  return normalizeCountryCode(destCountryCode) === 'US' ? 'DDP' : 'DDU';
+}
+
+const INCOTERM_PREF_PREFIX = 'lm-shippo-incoterm-';
+
+// A deliberate DDU choice for, say, the UK should survive a reload the same way
+// the saved origin does — but it is remembered per destination country, so it
+// can never silently carry a non-DDP choice over to a US shipment.
+function loadShippoIncotermPreference(destCountryCode) {
+  const country = normalizeCountryCode(destCountryCode);
+  if (!country) return;
+  const select = $('sp-incoterm');
+  if (!select) return;
+  let stored = '';
+  try { stored = localStorage.getItem(`${INCOTERM_PREF_PREFIX}${country}`) || ''; } catch (_) { /* private mode */ }
+  const allowed = Array.from(select.options).map(option => option.value);
+  select.value = allowed.includes(stored) ? stored : 'auto';
+  renderShippoIncotermHint();
+}
+
+function saveShippoIncotermPreference(destCountryCode) {
+  const country = normalizeCountryCode(destCountryCode);
+  const choice = String($('sp-incoterm')?.value || 'auto');
+  if (!country) return;
+  try { localStorage.setItem(`${INCOTERM_PREF_PREFIX}${country}`, choice); } catch (_) { /* private mode */ }
+}
+
+function onShippoDestCountryChange() {
+  loadShippoIncotermPreference($('st-country')?.value || '');
+  const sfCountryCode = $('sf-country')?.value || 'CA';
+  const stCountryCode = normalizeCountryCode($('st-country')?.value || 'US');
+
+  // Toggle US Zonos Duty Prepayment Card
+  const usCard = $('us-zonos-duty-card');
+  if (usCard) {
+    if (stCountryCode === 'US') {
+      usCard.style.display = 'block';
+    } else {
+      usCard.style.display = 'none';
+    }
+  }
+
+  if (isInternationalShipment(sfCountryCode, stCountryCode)) {
+    calculateZonosDutiesHandler().catch(() => {});
+  } else {
+    const card = $('zonos-duty-card');
+    if (card) card.style.display = 'none';
+  }
+}
+
+function onZonosDeclarationIdInput(val) {
+  const input = $('sp-zonos-declaration-id');
+  const formatted = formatDeclarationId(val);
+  if (input && input.value !== formatted) input.value = formatted;
+
+  const pill = $('us-zonos-status-pill');
+  const hint = $('zonos-decl-validation-hint');
+  const counter = $('us-zonos-char-counter');
+  const isValid = validateDeclarationId(formatted);
+
+  if (counter) {
+    counter.textContent = `${formatted.length}/13`;
+    counter.classList.toggle('is-valid', isValid);
+  }
+
+  if (pill) {
+    if (isValid) {
+      // "Format OK", not "Ready". Nothing here has spoken to Zonos: this check
+      // counts 13 characters, and thirteen characters typed at random pass it
+      // exactly as well as a real declaration does. Calling that "Ready" told
+      // the owner the duty was sorted when all that was known was the shape of
+      // the code, and a mistyped one fails silently at the border weeks later.
+      pill.className = 'pill green';
+      pill.textContent = '✓ Format OK';
+    } else if (formatted.length > 0) {
+      pill.className = 'pill amber';
+      pill.textContent = `● ${formatted.length}/13 Characters`;
+    } else {
+      pill.className = 'pill amber';
+      pill.textContent = '● Declaration Required';
+    }
+  }
+
+  if (hint) {
+    hint.textContent = isValid
+      ? 'Right shape — but only Zonos knows if it is real and paid. Paste it from your Prepay order history rather than typing it.'
+      : '13 alphanumeric characters required';
+    hint.classList.toggle('is-valid', isValid);
+    hint.style.color = isValid ? 'var(--green)' : 'var(--text3)';
+  }
+}
+
+async function pasteZonosDeclarationId() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) {
+      const clean = formatDeclarationId(text);
+      const input = $('sp-zonos-declaration-id');
+      if (input) {
+        input.value = clean;
+        onZonosDeclarationIdInput(clean);
+        showToast(`Pasted Declaration ID: ${clean}`);
+      }
+    }
+  } catch (_) {
+    showToast('Please paste the 13-character ID manually into the input', 'warn');
+  }
+}
+
+
+/**
+ * Verify the Canada Post account configuration and, when a PIN is supplied,
+ * confirm the shipment actually exists on Canada Post's tracking system.
+ */
+/**
+ * Check every shipped order's Canada Post tracking number against Canada Post.
+ *
+ * Orders shipped before the app stopped inventing tracking numbers may still be
+ * carrying one, and it is indistinguishable from a real PIN by eye. This asks
+ * Canada Post about each one and lists the parcels it has never heard of.
+ */
+async function verifyShippedTrackingPinsHandler() {
+  const btn = $('cp-verify-shipped-btn');
+  const out = $('cp-account-check-result');
+  const oldText = btn ? btn.innerHTML : '';
+
+  const { apiKey, apiSecret } = resolveCanadaPostCredentials(TAX_CENTER.settings || {});
+  const isTest = !!TAX_CENTER.settings?.cpTestMode;
+
+  if (!apiKey || !apiSecret) {
+    showToast('⚠ Add your Canada Post API key and secret in Tax Centre settings first', 'warn');
+    return;
+  }
+
+  const shipments = collectVerifiableShipments(getShippingReconciliationOrders());
+  if (!shipments.length) {
+    if (out) {
+      out.style.display = 'block';
+      out.innerHTML = '<div style="font-size:var(--text-xs);color:var(--text3);">No shipped orders with a Canada Post tracking number to check yet.</div>';
+    }
+    showToast('Nothing to check — no shipped orders carry a Canada Post tracking number', 'ok');
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+
+  const verdicts = [];
+  try {
+    for (let i = 0; i < shipments.length; i++) {
+      const shipment = shipments[i];
+      if (btn) btn.innerHTML = `<span>⏳</span><span>Checking ${i + 1} of ${shipments.length}…</span>`;
+      if (out) {
+        out.style.display = 'block';
+        out.innerHTML = `<div style="font-size:var(--text-xs);color:var(--text3);">Asking Canada Post about parcel ${i + 1} of ${shipments.length}…</div>`;
+      }
+
+      let verdict;
+      try {
+        const result = await verifyCanadaPostTrackingPin({ pin: shipment.pin, apiKey, apiSecret, isTest });
+        verdict = classifyTrackingResult({ result });
+      } catch (err) {
+        verdict = classifyTrackingResult({ error: err });
+      }
+      verdicts.push({ ...shipment, ...verdict });
+    }
+
+    const summary = summarizeTrackingAudit(verdicts);
+    renderTrackingAuditResult(out, verdicts, summary);
+
+    if (summary.missing) {
+      showToast(`⚠ ${summary.missing} tracking number${summary.missing === 1 ? '' : 's'} Canada Post has no record of`, 'warn');
+    } else if (summary.unchecked === summary.total) {
+      showToast('⚠ Could not reach Canada Post to check any parcels', 'warn');
+    } else {
+      showToast(`✓ ${summary.verified} tracking number${summary.verified === 1 ? '' : 's'} confirmed with Canada Post`, 'ok');
+    }
+  } catch (err) {
+    console.warn('Tracking sweep failed:', err);
+    showToast(`⚠ Tracking check failed: ${err?.message || 'unknown error'}`, 'warn');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
+  }
+}
+
+/** Render the sweep's findings, problems first. */
+function renderTrackingAuditResult(out, verdicts, summary) {
+  if (!out) return;
+
+  const order = { missing: 0, unchecked: 1, verified: 2 };
+  const sorted = [...verdicts].sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3));
+
+  const rowFor = v => {
+    const tone = v.status === 'missing'
+      ? 'color:var(--red,var(--text));'
+      : v.status === 'verified'
+        ? 'color:var(--green);'
+        : 'color:var(--text3);';
+    const mark = v.status === 'missing' ? '✕' : v.status === 'verified' ? '✓' : '—';
+    return `
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:5px 0;border-top:var(--stroke-hair) solid var(--border-subtle,var(--border));">
+        <span style="${tone}font-weight:700;">${mark}</span>
+        <span class="tnum" style="font-family:var(--font-mono);font-size:var(--text-xs);">${escapeHtml(v.pin)}</span>
+        ${v.orderNum ? `<span style="font-size:var(--text-xs);color:var(--text3);">${escapeHtml(v.orderNum)}</span>` : ''}
+        <span style="font-size:var(--text-xs);${tone}flex:1;min-width:140px;">${escapeHtml(v.detail || '')}</span>
+      </div>
+    `;
+  };
+
+  const advice = summary.missing
+    ? `<div style="font-size:var(--text-xs);color:var(--text3);margin-top:8px;line-height:1.5;">
+         A parcel Canada Post has no record of was never actually bought — most likely the connection dropped
+         during an older purchase. Buy the label again for those orders before telling the customer it is on its way.
+       </div>`
+    : '';
+
+  out.style.display = 'block';
+  out.innerHTML = `
+    <div style="font-size:var(--text-xs);font-weight:700;color:var(--text);margin-bottom:6px;">${escapeHtml(describeTrackingAudit(summary))}</div>
+    ${sorted.map(rowFor).join('')}
+    ${advice}
+  `;
+}
+
+async function checkCanadaPostAccountAndPinHandler() {
+  const btn = $('cp-check-account-btn');
+  const out = $('cp-account-check-result');
+  const oldText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span><span>Checking…</span>';
+  }
+
+  try {
+    const { apiKey, apiSecret, customerNumber, contractId } = resolveCanadaPostCredentials(TAX_CENTER.settings || {});
+    const isTest = !!TAX_CENTER.settings?.cpTestMode;
+
+    const audit = validateCanadaPostAccount({ apiKey, apiSecret, customerNumber, contractId, isTest });
+
+    const pin = ($('cp-check-pin')?.value || getLastPurchasedShipmentContext()?.trackingPin || '').trim();
+    let tracking = null;
+    let trackingError = '';
+    if (pin) {
+      try {
+        tracking = await verifyCanadaPostTrackingPin({ pin, apiKey, apiSecret, isTest });
+      } catch (err) {
+        trackingError = err?.message || 'Tracking lookup failed.';
+      }
+    }
+
+    if (out) {
+      const modePill = audit.environment.mode === 'live'
+        ? '<span class="pill green sm">Live Production Mode</span>'
+        : '<span class="pill amber sm">Sandbox Test Mode</span>';
+
+      const rows = [];
+      rows.push(`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${modePill}<span class="tnum" style="font-size:var(--text-xs);color:var(--text3);font-family:var(--font-mono);">${escapeHtml(audit.environment.hostname)}</span></div>`);
+      rows.push(`<div style="font-size:var(--text-xs);color:var(--text3);margin-top:6px;">${escapeHtml(audit.environment.description)}</div>`);
+      rows.push(`<div style="font-size:var(--text-xs);margin-top:8px;">Customer number: <span class="tnum" style="font-family:var(--font-mono);">${escapeHtml(audit.customerNumber || '—')}</span>${audit.configured ? '' : ' <span class="pill gray sm">not configured</span>'}</div>`);
+
+      audit.errors.forEach(e => {
+        rows.push(`<div style="font-size:var(--text-xs);color:var(--red,var(--text));margin-top:6px;">✕ ${escapeHtml(e)}</div>`);
+      });
+      audit.warnings.forEach(w => {
+        rows.push(`<div style="font-size:var(--text-xs);color:var(--text3);margin-top:6px;">⚠ ${escapeHtml(w)}</div>`);
+      });
+      if (audit.ok && !audit.errors.length) {
+        rows.push('<div style="font-size:var(--text-xs);color:var(--green);margin-top:6px;">✓ Account settings look complete — labels will be attached to this customer number.</div>');
+      }
+
+      if (pin) {
+        if (tracking && tracking.found) {
+          rows.push(`<div style="font-size:var(--text-xs);color:var(--green);margin-top:10px;">✓ Tracking PIN <span class="tnum" style="font-family:var(--font-mono);">${escapeHtml(tracking.pin)}</span> found at Canada Post${tracking.status ? ` — ${escapeHtml(tracking.status)}` : ''}.</div>`);
+          if (tracking.expectedDeliveryDate) {
+            rows.push(`<div style="font-size:var(--text-xs);color:var(--text3);margin-top:3px;">Expected delivery: <span class="tnum">${escapeHtml(tracking.expectedDeliveryDate)}</span></div>`);
+          }
+        } else {
+          rows.push(`<div style="font-size:var(--text-xs);color:var(--red,var(--text));margin-top:10px;">✕ Tracking PIN <span class="tnum" style="font-family:var(--font-mono);">${escapeHtml(pin)}</span> could not be confirmed. ${escapeHtml(trackingError)}</div>`);
+        }
+      }
+
+      out.style.display = 'block';
+      out.innerHTML = rows.join('');
+    }
+
+    if (!audit.ok) {
+      showToast('⚠ Canada Post account settings need attention', 'warn');
+    } else if (pin && tracking?.found) {
+      showToast('✓ Account and tracking PIN verified', 'ok');
+    } else if (pin) {
+      showToast('⚠ Tracking PIN could not be confirmed', 'warn');
+    } else {
+      showToast('✓ Canada Post account settings verified', 'ok');
+    }
+  } catch (err) {
+    console.warn('Canada Post account check failed:', err);
+    showToast(`⚠ Account check failed: ${err?.message || 'unknown error'}`, 'warn');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
+  }
+}
+
+/**
+ * The Zonos Verified Account key, as saved by the Tax Centre.
+ *
+ * This is what makes the whole flow automatic: sent as X-CPC-Zonos-Key on the
+ * shipment call, it lets Canada Post issue the Declaration ID and bill the duty.
+ * It was previously read here under a name nothing ever wrote
+ * (`cpZonosAccountKey`, while the Tax Centre saves `zonosAccountKey`), so the
+ * key was always blank and the automated route never once fired. The old name is
+ * still read as a fallback in case anything stored one under it.
+ */
+function getZonosAccountKey() {
+  return String(
+    TAX_CENTER.settings?.zonosAccountKey
+    || TAX_CENTER.settings?.cpZonosAccountKey
+    || ''
+  ).trim();
+}
+
+/**
+ * Everything the live-readiness check needs, read from the form and settings.
+ *
+ * The sender and recipient panels live on the shipping tab and the credentials
+ * on the Tax Centre tab, but both are in the same document, so this answers the
+ * same way from either screen.
+ */
+function currentLiveReadiness() {
+  const settings = TAX_CENTER.settings || {};
+  const credentials = resolveCanadaPostCredentials(settings);
+  const accountAudit = validateCanadaPostAccount({ ...credentials, isTest: credentials.isTest });
+
+  // Prefer what is on the form; fall back to what was saved, so the answer is
+  // the same whether this runs from the shipping screen or the Tax Centre.
+  const saved = savedShippingOrigin();
+  const field = (id, fallback) => ($(id)?.value?.trim() || fallback || '');
+
+  return assessLiveShippingReadiness({
+    settings,
+    credentials,
+    accountAudit,
+    sender: {
+      name: field('sf-name', saved.name),
+      phone: field('sf-phone', saved.phone),
+      address1: ($('sf-street1')?.value || $('sf-street')?.value || '').trim() || saved.street1,
+      city: field('sf-city', saved.city),
+      province: field('sf-state', saved.state),
+      postalCode: field('sf-zip', saved.zip),
+    },
+    destination: {
+      phone: $('st-phone')?.value?.trim() || '',
+      countryCode: normalizeCountryCode($('st-country')?.value) || '',
+    },
+    dutyRoute: currentDutyPrepaymentRoute(),
+  });
+}
+
+const READINESS_ICONS = { ok: '✓', warn: '!', blocked: '✕' };
+
+/** The X on the purchased-label summary. The label itself stays in the archive. */
+function closePurchasedLabelPanel() {
+  const panel = $('cp-purchased-label-panel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  panel.style.display = 'none';
+}
+
+/** The X on the go-live checklist; "Check" opens it again. */
+function closeLiveReadinessChecklist(hostId = 'cp-live-readiness') {
+  const host = $(hostId);
+  if (!host) return;
+  host.style.display = 'none';
+  host.innerHTML = '';
+}
+
+/**
+ * The go-live checklist: every condition for buying a real label, each with
+ * what to do about it. Rendered wherever a host element exists, so the same
+ * answer appears on the settings card and on the shipping screen.
+ */
+function renderLiveReadinessChecklist(hostId = 'cp-live-readiness') {
+  const host = $(hostId);
+  if (!host) return null;
+
+  const readiness = currentLiveReadiness();
+  const blocked = readiness.checks.filter(c => c.status === 'blocked').length;
+  const warned = readiness.checks.filter(c => c.status === 'warn').length;
+
+  let headline;
+  if (blocked) {
+    headline = `<span class="pill red">${blocked} thing${blocked === 1 ? '' : 's'} to fix</span>`
+      + '<span class="cp-ready-note">A real label cannot be bought until these are sorted.</span>';
+  } else if (readiness.mode === 'test') {
+    headline = '<span class="pill gold">Ready, in sandbox</span>'
+      + '<span class="cp-ready-note">Everything checks out. Turn off sandbox keys to ship for real.</span>';
+  } else {
+    headline = '<span class="pill green">Ready to ship live</span>'
+      + `<span class="cp-ready-note">Labels bought here are real and charged to your account.${warned ? ` ${warned} thing${warned === 1 ? '' : 's'} worth a look below.` : ''}</span>`;
+  }
+
+  host.innerHTML = `
+    <div class="cp-ready-head">${headline}
+      <button class="card-x" type="button" onclick="closeLiveReadinessChecklist('${escapeHtml(hostId)}')" aria-label="Close checklist">✕</button>
+    </div>
+    <ul class="cp-ready-list">
+      ${readiness.checks.map(c => `
+        <li class="cp-ready-item is-${escapeHtml(c.status)}">
+          <span class="cp-ready-icon" aria-hidden="true">${READINESS_ICONS[c.status] || '·'}</span>
+          <span class="cp-ready-body">
+            <strong>${escapeHtml(c.label)}</strong>
+            <span class="cp-ready-detail">${escapeHtml(c.detail)}</span>
+            ${c.fix ? `<span class="cp-ready-fix">→ ${escapeHtml(c.fix)}</span>` : ''}
+          </span>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+  host.style.display = 'block';
+  return readiness;
+}
+
+/**
+ * Say what the Zonos Account Key in the settings box is, before it is saved.
+ *
+ * The key is sent as X-CPC-Zonos-Key on every U.S. shipment, so a wrong value
+ * pasted here does not fail loudly — Canada Post simply declines to issue the
+ * Declaration ID, and the parcel ships with duty unpaid. The commonest mistakes
+ * have a recognisable shape (an email address, a Declaration ID in the wrong
+ * box), so they are named on the card rather than discovered on a live parcel.
+ */
+function renderZonosAccountKeyHint() {
+  const host = $('tc-zonos-account-key-hint');
+  const input = $('tc-zonos-account-key');
+  if (!host || !input) return;
+
+  const verdict = inspectZonosAccountKey(input.value);
+  if (!verdict.present) {
+    host.className = 'tc-form-hint';
+    host.textContent = 'Saving a Verified Account key lets Canada Post add the U.S. Declaration ID to every label automatically and bill the duty to Zonos — no per-parcel prepayment.';
+    return;
+  }
+  if (!verdict.plausible) {
+    host.className = 'tc-form-hint is-warn';
+    host.textContent = `⚠ ${verdict.problem}`;
+    return;
+  }
+  host.className = 'tc-form-hint is-ok';
+  host.textContent = '✓ Looks like an Account Key. U.S. parcels will have their duty prepaid automatically once this is saved.';
+}
+
+/** Refresh the checklist and say what it found, for the button on the card. */
+function checkLiveShippingReadinessHandler() {
+  const readiness = renderLiveReadinessChecklist();
+  if (!readiness) return;
+  if (readiness.blockers.length) {
+    showToast(`⚠ ${readiness.blockers.length} thing${readiness.blockers.length === 1 ? '' : 's'} to fix before you can buy a real label`, 'warn');
+  } else if (readiness.mode === 'test') {
+    showToast('✓ Setup checks out — turn off sandbox keys to ship for real', 'ok');
+  } else {
+    showToast('✓ Ready to buy real Canada Post labels', 'ok');
+  }
+}
+
+/** Which duty-prepayment route the shipment in the form will take. */
+function currentDutyPrepaymentRoute() {
+  return resolveDutyPrepaymentRoute({
+    destCountry: normalizeCountryCode($('st-country')?.value) || '',
+    accountKey: getZonosAccountKey(),
+    declarationId: ($('sp-zonos-declaration-id')?.value || '').trim()
+  });
+}
+
+function openZonosPrepayAppHandler() {
+  // Prepay has no documented deep-link format, so the form cannot be pre-filled.
+  // The parcel's details are copied to the clipboard instead, to be pasted in.
+  const qty = Math.max(1, parseInt($('sp-qty')?.value, 10) || 1);
+  const unitVal = Math.max(0.01, parseFloat($('sp-customs-value')?.value) || 25);
+  const hsCode = ($('sp-customs-hs')?.value || '490199').trim();
+  const desc = $('sp-customs-description')?.value || 'Printed books';
+  const stZip = $('st-zip')?.value || '';
+  const stState = $('st-state')?.value || '';
+
+  const details = [
+    `Description: ${desc}`,
+    `HS code: ${hsCode}`,
+    `Quantity: ${qty}`,
+    `Value: CAD $${(unitVal * qty).toFixed(2)}`,
+    `Destination: ${[stState, stZip].filter(Boolean).join(' ')} US`
+  ].join('\n');
+
+  try {
+    navigator.clipboard?.writeText(details);
+  } catch (_) {}
+
+  window.open(buildZonosPrepayDeepLink(), '_blank', 'noopener');
+  showToast('Opened Zonos Prepay — parcel details copied, ready to paste');
+}
+
+function onShippoIncotermChange() {
+  saveShippoIncotermPreference($('st-country')?.value || '');
+  renderShippoIncotermHint();
+}
+
+// The customs value input is per copy, but what Shippo declares is the line
+// total. Show that total so the declared amount is visible before purchase
+// rather than only discoverable in the API payload.
+function updateShippoCustomsTotalHint() {
+  const hint = $('sp-customs-total');
+  if (!hint) return;
+  const qty = Math.max(1, parseInt($('sp-qty')?.value, 10) || 1);
+  const unitValue = Math.max(0.01, parseFloat($('sp-customs-value')?.value) || 25);
+  hint.textContent = qty === 1
+    ? `Declared to customs: ${unitValue.toFixed(2)} CAD`
+    : `Declared to customs: ${qty} × ${unitValue.toFixed(2)} = ${(unitValue * qty).toFixed(2)} CAD`;
+}
+
+function renderShippoIncotermHint() {
+  const hint = $('sp-incoterm-hint');
+  if (!hint) return;
+  const destCountry = normalizeCountryCode($('st-country')?.value || '');
+  const originCountry = normalizeCountryCode($('sf-country')?.value || 'CA');
+  if (!destCountry || !isInternationalShipment(originCountry, destCountry)) {
+    hint.textContent = '';
+    return;
+  }
+  const incoterm = resolveShippoIncoterm(destCountry);
+  if (destCountry === 'US' && incoterm !== 'DDP') {
+    hint.innerHTML = '<strong style="color:var(--red);">Canada Post rejects DDU labels to the US.</strong> Rates will still be quoted, but the purchase will fail — leave this on Auto or DDP for US destinations.';
+  } else if (incoterm === 'DDP') {
+    hint.textContent = 'DDP: duties and taxes are billed to you, not collected from the buyer on delivery.';
+  } else {
+    hint.textContent = `${incoterm}: the recipient pays any duties and taxes on delivery.`;
+  }
+}
+
+async function calculateZonosDutiesHandler({ shippingAmount, carrierName } = {}) {
+  const sfCountryCode = $('sf-country')?.value || 'CA';
+  const stCountryCode = $('st-country')?.value || 'US';
+  const stState = $('st-state')?.value || '';
+  const stZip = $('st-zip')?.value || '';
+  const sfState = $('sf-state')?.value || 'QC';
+  const sfZip = $('sf-zip')?.value || 'H2X 1Y4';
+
+  const isInternational = isInternationalShipment(sfCountryCode, stCountryCode);
+  const card = $('zonos-duty-card');
+  if (!card) return;
+
+  if (!isInternational) {
+    card.style.display = 'none';
+    card.innerHTML = '';
+    return;
+  }
+
+  const qty = Math.max(1, parseInt($('sp-qty')?.value, 10) || 1);
+  const unitValue = Math.max(0.01, parseFloat($('sp-customs-value')?.value) || 25);
+  const hsCode = ($('sp-customs-hs')?.value || '490199').trim();
+  const description = $('sp-customs-description')?.value || 'Printed books';
+  const length = Math.max(0.1, parseFloat($('sp-length')?.value) || 10);
+  const width = Math.max(0.1, parseFloat($('sp-width')?.value) || 8);
+  const height = Math.max(0.1, parseFloat($('sp-height')?.value) || 1);
+  const dimUnit = $('sp-dim-unit')?.value || 'in';
+  const weight = Math.max(0.01, parseFloat($('sp-weight')?.value) || 1.2);
+  const weightUnit = $('sp-weight-unit')?.value || 'lb';
+  const incoterm = resolveShippoIncoterm(stCountryCode);
+
+  const zonosApiKey = TAX_CENTER.settings?.zonosApiKey || DEFAULT_ZONOS_API_KEY;
+  const isEnabled = TAX_CENTER.settings?.zonosEnabled !== false;
+
+  card.style.display = 'block';
+  card.innerHTML = `
+    <div class="zonos-duty-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="zonos-duty-icon">🌐</span>
+        <strong>Zonos Cross-Border Duties &amp; Taxes</strong>
+      </div>
+      <span class="pill gold" style="animation:pulse-glow 1.5s infinite ease-in-out;">Calculating...</span>
+    </div>
+    <div style="font-size:var(--text-sm);color:var(--text3);margin-top:8px;">Fetching real-time landed cost quote from Zonos GraphQL API for destination (${escapeHtml(stCountryCode)})...</div>
+  `;
+
+  const finalShippingAmount = typeof shippingAmount === 'number' ? shippingAmount : 15.00;
+
+  try {
+    let result;
+    if (zonosApiKey && isEnabled && navigator.onLine) {
+      result = await calculateZonosLandedCost({
+        apiKey: zonosApiKey,
+        origin: { countryCode: sfCountryCode, stateCode: sfState, postalCode: sfZip },
+        destination: { countryCode: stCountryCode, stateCode: stState, postalCode: stZip },
+        items: [{
+          amount: unitValue,
+          currencyCode: 'CAD',
+          description,
+          hsCode,
+          quantity: qty
+        }],
+        parcel: { length, width, height, dimUnit, weight, weightUnit },
+        shippingRate: { amount: finalShippingAmount, displayName: carrierName || 'Estimated Postage' },
+        incoterm: incoterm === 'auto' ? (stCountryCode === 'US' ? 'DDP' : 'DAP') : incoterm,
+        currency: 'CAD'
+      });
+    } else {
+      result = estimateOfflineLandedCost({
+        destCountryCode: stCountryCode,
+        declaredValueCad: unitValue * qty,
+        shippingCostCad: finalShippingAmount,
+        hsCode
+      });
+    }
+
+    renderZonosDutyCard(result, { stCountryCode, qty, unitValue, hsCode });
+  } catch (err) {
+    console.warn('Zonos API calculation fallback:', err);
+    const offlineResult = estimateOfflineLandedCost({
+      destCountryCode: stCountryCode,
+      declaredValueCad: unitValue * qty,
+      shippingCostCad: finalShippingAmount,
+      hsCode
+    });
+    renderZonosDutyCard(offlineResult, { stCountryCode, qty, unitValue, hsCode, errorNote: err.message });
+  }
+}
+
+function renderZonosDutyCard(calc, { stCountryCode, qty, unitValue, hsCode, errorNote } = {}) {
+  const card = $('zonos-duty-card');
+  if (!card) return;
+  card.style.display = 'block';
+
+  const isOffline = !!calc.isOfflineEstimate;
+  const cur = calc.currencyCode || calc.currency || 'CAD';
+  const duty = (calc.dutiesAmount || 0).toFixed(2);
+  const tax = (calc.taxesAmount || 0).toFixed(2);
+  const fee = (calc.feesAmount || 0).toFixed(2);
+  const total = (calc.totalLandedCost || 0).toFixed(2);
+
+  const deMinimisNotes = [];
+  if (Array.isArray(calc.deMinimis) && calc.deMinimis.length > 0) {
+    calc.deMinimis.forEach(dm => {
+      if (dm.note) deMinimisNotes.push(`${dm.type || 'Rule'}: ${dm.note} (${dm.threshold || ''})`);
+    });
+  } else if (calc.deMinimisNote) {
+    deMinimisNotes.push(calc.deMinimisNote);
+  }
+
+  const isFree = parseFloat(total) === 0;
+  const statusBadge = isOffline
+    ? '<span class="pill gray">Offline Estimate</span>'
+    : (isFree ? '<span class="pill green">Duty &amp; Tax Free</span>' : '<span class="pill gold">Landed Cost Quoted</span>');
+
+  // ⚡ Bolt Optimization: Replace chained .filter().map().join() passes with a single imperative loop to eliminate intermediate array allocations
+  let dutyItemRows = '';
+  for (const d of (calc.dutiesBreakdown || [])) {
+    if (d.amount > 0) {
+      dutyItemRows += `
+    <div class="zonos-detail-row">
+      <span>${escapeHtml(d.description || 'Duty')} ${d.note ? `<small style="color:var(--text3);">(${escapeHtml(d.note)})</small>` : ''}</span>
+      <strong class="tnum">${d.amount.toFixed(2)} ${cur}</strong>
+    </div>
+  `;
+    }
+  }
+
+  let feeItemRows = '';
+  for (const f of (calc.feesBreakdown || [])) {
+    if (f.amount > 0) {
+      feeItemRows += `
+    <div class="zonos-detail-row">
+      <span>${escapeHtml(f.description || 'Clearance Fee')}</span>
+      <strong class="tnum">${f.amount.toFixed(2)} ${cur}</strong>
+    </div>
+  `;
+    }
+  }
+
+  let taxItemRows = '';
+  for (const t of (calc.taxesBreakdown || [])) {
+    if (t.amount > 0) {
+      taxItemRows += `
+    <div class="zonos-detail-row">
+      <span>${escapeHtml(t.description || 'Import Tax')}</span>
+      <strong class="tnum">${t.amount.toFixed(2)} ${cur}</strong>
+    </div>
+  `;
+    }
+  }
+
+  card.innerHTML = `
+    <div class="zonos-duty-header">
+      <div>
+        <div class="zonos-duty-title">
+          <span class="zonos-duty-icon">🌐</span>
+          <strong>Zonos Landed Cost &amp; Duties</strong>
+        </div>
+        <div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">
+          ${escapeHtml(stCountryCode || 'International')} · HS Code <span class="tnum">${escapeHtml(hsCode || '490199')}</span> · Declared <span class="tnum">${(qty * unitValue).toFixed(2)} ${cur}</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        ${statusBadge}
+        <button class="btn sm tag" type="button" onclick="calculateZonosDutiesHandler()" style="font-size:var(--text-2xs);padding:3px 8px;" title="Refresh calculation">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div class="zonos-duty-metrics">
+      <div class="zonos-metric-box">
+        <label>Customs Duty</label>
+        <span class="zonos-metric-val tnum">${duty} ${cur}</span>
+      </div>
+      <div class="zonos-metric-box">
+        <label>Import VAT / Tax</label>
+        <span class="zonos-metric-val tnum">${tax} ${cur}</span>
+      </div>
+      <div class="zonos-metric-box">
+        <label>Clearance / Brokerage</label>
+        <span class="zonos-metric-val tnum">${fee} ${cur}</span>
+      </div>
+      <div class="zonos-metric-box highlighted">
+        <label>Total Landed Cost</label>
+        <span class="zonos-metric-val grand tnum">${total} ${cur}</span>
+      </div>
+    </div>
+
+    ${(dutyItemRows || taxItemRows || feeItemRows) ? `
+      <div class="zonos-breakdown-details">
+        ${dutyItemRows}
+        ${taxItemRows}
+        ${feeItemRows}
+      </div>
+    ` : ''}
+
+    ${deMinimisNotes.length > 0 ? `
+      <div class="zonos-duty-note">
+        ${deMinimisNotes.map(n => `<div>${escapeHtml(n)}</div>`).join('')}
+      </div>
+    ` : ''}
+
+    ${errorNote ? `<div style="font-size:var(--text-2xs);color:var(--text3);margin-top:6px;font-style:italic;">Note: Using verified offline table (${escapeHtml(errorNote)})</div>` : ''}
+  `;
+}
+
+/**
+ * Calculate Direct Canada Post Rates for the current shipment form
+ */
+/**
+ * Calculate Direct Canada Post Rates for the current shipment form
+ */
+
+async function calculateChitChatsRatesHandler() {
+  const card = $('chitchats-rates-card');
+  if (!card || isAuthor() || _ccBusy) return;
+  const account = chitChatsAccount();
+  card.style.display = 'block';
+  if (!account.clientId || !account.token || TAX_CENTER.settings?.ccEnabled === false) {
+    renderChitChatsPortal('Connect and enable Chit Chats in Tax Centre → Integrations first.'); return;
+  }
+  if (!navigator.onLine) { renderChitChatsPortal('You are offline. Saved labels remain available; rates and purchases need a connection.'); return; }
+  _ccBusy = true;
+  renderChitChatsPortal('Getting Chit Chats rates…');
+  try {
+    const payload = chitChatsFormPayload();
+    const fingerprint = JSON.stringify(payload);
+    const quotedFor = shippingFormFingerprint();
+    const state = readChitChatsState(account);
+    const sameDraft = state.draft?.fingerprint === fingerprint && state.draft?.clientId === account.clientId;
+    const replaced = sameDraft ? '' : state.draft?.id;
+    let result;
+    try { result = await getChitChatsRates({ ...account, payload, shipmentId: sameDraft ? state.draft.id : '' }); }
+    catch (error) {
+      if (error.alreadyBought) { delete state.draft; saveChitChatsState(account, state); }
+      throw error;
+    }
+    state.draft = { id: result.shipment.id, clientId: account.clientId, fingerprint, payload, rates: result.rates, quotedAt: Date.now() };
+    saveChitChatsState(account, state);
+    setCarrierTilePrice('chitchats', result.rates.map(rate => rate.totalPrice), { fingerprint: quotedFor });
+    renderChitChatsPortal(result.rates.length ? '' : 'Chit Chats offered no services for this parcel. Check its address, size, weight, and customs details.');
+    // Tidy the draft this parcel replaced so the Chit Chats account doesn't
+    // fill with unpaid shipments. Never one that a purchase may be using.
+    if (replaced && replaced !== result.shipment.id && !state.purchases?.[replaced]) {
+      deleteChitChatsDraft({ ...account, shipmentId: replaced }).catch(() => {});
+    }
+  } catch (error) { renderChitChatsPortal(error.message); }
+  finally { _ccBusy = false; }
+}
+
+let _ccBusy = false;
+let _ccImportBusy = false;
+const CHITCHATS_QUOTE_TTL_MS = 60 * 60 * 1000;
+
+function chitChatsAccount() {
+  const settings = TAX_CENTER.settings || {};
+  return { clientId: String(settings.ccClientId || '').trim(), token: String(settings.ccToken || '').trim(), isTest: !!settings.ccTestMode };
+}
+
+// Chit Chats takes today or a date up to a week ahead, on the owner's own
+// calendar (the app's today() is UTC, a day ahead on Canadian evenings).
+function chitChatsShipDateRange(now = new Date()) {
+  return { first: localDay(now), last: localDayPlus(7, now) };
+}
+
+function limitChitChatsShipDate() {
+  const input = $('cc-ship-date'); if (!input) return;
+  const { first, last } = chitChatsShipDateRange();
+  input.min = first; input.max = last;
+}
+
+function chitChatsFormPayload() {
+  const value = id => String($(id)?.value || '').trim();
+  const quantity = Number(value('sp-qty'));
+  const unitValue = Number(value('sp-customs-value'));
+  if (!Number.isInteger(quantity) || quantity < 1 || !Number.isFinite(unitValue) || unitValue <= 0) throw new Error('Check the number of copies and the declared value per copy.');
+  const weight = Number(value('sp-weight'));
+  const weightUnit = value('sp-weight-unit');
+  const country = normalizeCountryCode(value('st-country'));
+  const description = value('sp-customs-description');
+  const { first, last } = chitChatsShipDateRange();
+  const shipDate = value('cc-ship-date') || first;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(shipDate) || shipDate < first || shipDate > last) {
+    throw new Error('Set the drop-off date to today or a day within the next week.');
+  }
+  if (['CA', 'US'].includes(country) && (!value('st-state') || !value('st-zip'))) {
+    throw new Error(`Fill in the ${country === 'US' ? 'state and ZIP code' : 'province and postal code'} before requesting rates.`);
+  }
+  const payload = {
+    name: value('st-name'), address_1: value('st-street1'), address_2: value('st-street2'), city: value('st-city'),
+    province_code: value('st-state'), postal_code: value('st-zip'), country_code: country, phone: value('st-phone'),
+    package_contents: 'merchandise', description, value: roundCents(unitValue * quantity).toFixed(2), value_currency: 'cad',
+    order_id: normalizeShippingOrderNumber($('ship-prefill-dest')?.dataset.orderNumber || value('sp-order-num')),
+    package_type: 'parcel', weight, weight_unit: weightUnit, size_x: Number(value('sp-length')), size_y: Number(value('sp-width')),
+    size_z: Number(value('sp-height')), size_unit: value('sp-dim-unit'), ship_date: shipDate,
+  };
+  if (country !== 'CA') {
+    const hs = value('sp-customs-hs').replace(/\./g, '');
+    const origin = value('cc-origin-country').toUpperCase();
+    if (!/^\d{6,10}$/.test(hs) || !/^[A-Z]{2}$/.test(origin)) throw new Error('Check the customs tariff code and enter the country where the books were printed.');
+    // One line per copy avoids ambiguity between per-item and line-total value.
+    if (quantity > 100) throw new Error('Chit Chats customs supports up to 100 copies in this form. Split this order into parcels.');
+    payload.line_items = Array.from({ length: quantity }, () => ({ quantity: 1, description, value_amount: unitValue.toFixed(2),
+      currency_code: 'cad', hs_tariff_code: hs, origin_country: origin }));
+  }
+  return buildChitChatsShipment(payload);
+}
+
+function renderChitChatsPortal(message = '') {
+  const card = $('chitchats-rates-card');
+  if (!card || isAuthor()) return;
+  const account = chitChatsAccount();
+  const state = readChitChatsState(account);
+  const draft = state.draft;
+  card.style.display = 'block';
+  card.hidden = false;
+  if ($('cc-portal-status')) $('cc-portal-status').textContent = message;
+  limitChitChatsShipDate();
+  let matches = false;
+  try { matches = draft?.fingerprint === JSON.stringify(chitChatsFormPayload()); } catch (_) { /* incomplete form */ }
+  const pending = Object.values(state.purchases || {}).filter(item => item.status === 'pending');
+  const stale = matches && !(Date.now() - Number(draft.quotedAt) < CHITCHATS_QUOTE_TTL_MS);
+  const rates = matches && !stale ? draft.rates || [] : [];
+  const archive = Object.values(state.shipments || {}).slice(-30).reverse();
+  card.innerHTML = `<div class="cp-rate-header"><strong>Chit Chats rates &amp; labels</strong><span class="pill ${account.isTest ? 'amber' : 'blue'}">${account.isTest ? '● Staging — not mailable' : '● Live account'}</span></div>
+    <p>${escapeHtml(message || (rates.length ? 'Choose a service below. Buying a label charges your Chit Chats balance.'
+      : stale ? 'Those prices are over an hour old. Choose the Chit Chats button again for today’s prices.' : 'Use the Chit Chats button to quote the address and parcel above.'))}</p>
+    ${pending.map(item => `<div class="cp-buy-blocked"><span>● Purchase ${escapeHtml(item.id)} needs checking. Do not buy another label for this parcel.</span><button class="btn lg" type="button" data-cc-check="${escapeHtml(item.id)}">Check purchase</button></div>`).join('')}
+    <div class="cp-rates-list">${rates.map((rate, index) => `<div class="cp-rate-row"><div><strong>${escapeHtml(rate.serviceName)}</strong><div>${escapeHtml(rate.delivery)} · ${escapeHtml(rate.tracking)}</div></div><div><strong class="tnum">${rate.totalPrice.toFixed(2)} CAD</strong><button class="btn gold lg" type="button" data-cc-buy="${index}" ${pending.length ? 'disabled' : ''}>Buy label</button></div></div>`).join('')}</div>
+    ${archive.length ? '<p><strong>Saved Chit Chats shipments</strong> — downloaded PDFs can be reprinted offline.</p>' : ''}
+    ${archive.map(shipment => {
+      const expense = normalizeChitChatsShipment(shipment, account);
+      const row = (TAX_CENTER.businessExpenses || []).find(item => item.ref === expense?.ref);
+      const refund = row && refundState(row, TAX_CENTER.businessExpenses);
+      return `<div class="cp-rate-row"><div><strong>${escapeHtml(shipment.to_name || shipment.id)}</strong><div>${escapeHtml(shipment.carrier_tracking_code || shipment.id)} · ${escapeHtml(shipment.status)}</div>${expense?.trackingUrl ? `<a href="${escapeHtml(expense.trackingUrl)}" target="_blank" rel="noopener noreferrer">Track parcel</a>` : ''}</div><div>
+        <button class="btn lg" type="button" data-cc-label="${escapeHtml(shipment.id)}">Download PDF</button>
+        ${row && refund === 'none' && !row.simulated && shipment.status !== 'voided' ? `<button class="btn lg" type="button" data-cc-refund="${escapeHtml(row.ref)}">Request refund</button>` : ''}
+        ${row && refund === 'requested' ? `<span class="pill amber">● Refund requested</span><button class="btn lg" type="button" data-cc-credit="${escapeHtml(row.ref)}">Refund arrived</button>` : ''}
+        </div></div>`;
+    }).join('')}`;
+  card.querySelectorAll('[data-cc-buy]').forEach(button => button.addEventListener('click', () => buyChitChatsLabelHandler(Number(button.dataset.ccBuy))));
+  card.querySelectorAll('[data-cc-check]').forEach(button => button.addEventListener('click', () => checkChitChatsPurchaseHandler(button.dataset.ccCheck)));
+  card.querySelectorAll('[data-cc-label]').forEach(button => button.addEventListener('click', () => openChitChatsLabelHandler(button.dataset.ccLabel)));
+  card.querySelectorAll('[data-cc-refund]').forEach(button => button.addEventListener('click', () => requestLabelRefund(button.dataset.ccRefund)));
+  card.querySelectorAll('[data-cc-credit]').forEach(button => button.addEventListener('click', async () => { await markLabelRefundArrived(button.dataset.ccCredit); renderChitChatsPortal(); }));
+}
+
+async function applyChitChatsShipment(shipment, account, orderNumber = '') {
+  const quoted = readChitChatsState(account).purchases?.[shipment.id]?.quotedTotal;
+  const expense = normalizeChitChatsShipment(shipment, { ...account, quoted });
+  if (!expense || account.isTest) return;
+  const expenses = TAX_CENTER.businessExpenses ||= [];
+  let existing = expenses.find(item => item.ref === expense.ref || (expense.trackingNumber && !item.simulated && item.trackingNumber === expense.trackingNumber));
+  if (!existing) { expenses.unshift(expense); existing = expense; }
+  else {
+    // Retain receipt links, refund history, and a manual order match.
+    const receipt = existing.receipt; const link = existing.shippingOrderNumber;
+    if (expense.amountUnknown && !existing.amountUnknown) {
+      for (const field of ['amount', 'baseAmount', 'origAmount', 'amountUnknown', 'amountConfirmed']) expense[field] = existing[field];
+    }
+    Object.assign(existing, expense, { id: existing.id, receipt: receipt || '', shippingOrderNumber: link || '' });
+  }
+  const local = readChitChatsState(account);
+  if (!existing.refundRequest && local.refundRequests?.[shipment.id]) existing.refundRequest = local.refundRequests[shipment.id];
+  for (const credit of Object.values(local.credits || {})) {
+    if (!expenses.some(row => row.ref === credit.ref)) expenses.unshift(credit);
+  }
+  const wanted = normalizeShippingOrderNumber(orderNumber || shipment.order_id);
+  const found = wanted ? findOrderAcrossBooks(wanted) : null;
+  if (found && !existing.shippingOrderNumber) writeShippingLink(existing, wanted, 'label');
+  // A label voided or refunded on the Chit Chats site must put its order back
+  // in the to-ship pile, as the in-app refund button does — but only when the
+  // order still carries THIS label's tracking number, so a replacement label or
+  // a hand-marked shipment is left alone.
+  if (['voided', 'canceled'].includes(shipment.status)) {
+    const voidedFor = found || (existing.shippingOrderNumber ? findOrderAcrossBooks(normalizeShippingOrderNumber(existing.shippingOrderNumber)) : null);
+    const labelTracking = expense.trackingNumber || shipment.id;
+    if (voidedFor && String(voidedFor.entry.trackingNumber || '').trim()
+      && unshipOrderForRefund(voidedFor.entry, labelTracking)) {
+      await saveState(voidedFor.bookId);
+    }
+  }
+  if (found && !['voided', 'canceled'].includes(shipment.status) && refundState(existing, expenses) === 'none') {
+    const oldTracking = String(found.entry.trackingNumber || '');
+    if (!oldTracking || oldTracking === expense.trackingNumber) {
+      found.entry.shipped = true; found.entry.shippedDate ||= shipment.ship_date || today();
+      found.entry.trackingNumber = expense.trackingNumber || shipment.id; found.entry.carrier = 'chitchats';
+      if (!expense.amountUnknown) found.entry.postagePaid = expense.amount;
+      await saveState(found.bookId);
+    }
+  }
+}
+
+async function finishChitChatsPurchase(shipment, account) {
+  const state = readChitChatsState(account);
+  const intent = state.purchases?.[shipment.id];
+  (state.shipments ||= {})[shipment.id] = safeChitChatsRecord(shipment);
+  if (intent) intent.status = 'complete';
+  if (state.draft?.id === shipment.id) delete state.draft;
+  saveChitChatsState(account, state);
+  await applyChitChatsShipment(shipment, account, intent?.orderNumber);
+  if (navigator.onLine) await saveTaxCenter();
+  // Say so when the charge differs from the confirmed quote; the books keep
+  // what Chit Chats actually charged.
+  const charged = chitChatsCharge(shipment); const quoted = Number(intent?.quotedTotal);
+  const priceNote = charged && quoted > 0 && Math.abs(charged - quoted) >= 0.01
+    ? ` Chit Chats charged ${charged.toFixed(2)} CAD (quoted ${quoted.toFixed(2)}); your books use the charged amount.` : '';
+  renderHist(); renderTaxCenter(); renderShippingAnalysisHub(); renderChitChatsPortal(`✓ Label purchased. Open / print PDF below and take the parcel to Chit Chats.${priceNote}`);
+  // Fetch immediately so a later printer jam or disconnect can use the cache.
+  fetchChitChatsLabelArtifact({ ...account, shipmentId: shipment.id }).catch(() => {});
+}
+
+async function buyChitChatsLabelHandler(index) {
+  if (_ccBusy || isAuthor()) return;
+  _ccBusy = true;
+  const account = chitChatsAccount();
+  try {
+    if (!navigator.onLine || TAX_CENTER.settings?.ccEnabled === false) throw new Error('Connect to the internet and enable Chit Chats before buying.');
+    const state = readChitChatsState(account); const draft = state.draft; const rate = draft?.rates?.[index];
+    if (!rate || draft.fingerprint !== JSON.stringify(chitChatsFormPayload())) throw new Error('The parcel changed. Get fresh Chit Chats rates before buying.');
+    // Chit Chats charges today's price, not the one on screen.
+    if (!(Date.now() - Number(draft.quotedAt) < CHITCHATS_QUOTE_TTL_MS)) throw new Error('These prices are over an hour old. Choose the Chit Chats button again before buying.');
+    if (Object.values(state.purchases || {}).some(item => item.status === 'pending')) throw new Error('Check the previous purchase before buying another label.');
+    const orderNumber = draft.payload.order_id;
+    if (!account.isTest && orderNumber) {
+      const found = findExistingLabel(orderNumber, { hist: Object.values(states).flatMap(s => s.hist || []), expenses: TAX_CENTER.businessExpenses || [] });
+      if (found && !(await confirmDialog('This order already has a label. Buying another charges you again.', { title: 'Another label?', details: describeExistingLabel(found), okLabel: 'Buy another', cancelLabel: 'Go back', danger: true }))) return;
+    }
+    if (!(await confirmDialog(account.isTest ? 'This creates a staging label. It cannot be mailed and will not enter your accounts.' : 'This charges your Chit Chats account. Only buy when the parcel details are correct.', {
+      title: 'Buy this Chit Chats label?', details: [['Service', rate.serviceName], ['Recipient', draft.payload.name], ['Address', `${draft.payload.address_1}, ${draft.payload.city}, ${draft.payload.postal_code}`], ['Price', `${rate.totalPrice.toFixed(2)} CAD`]], okLabel: 'Buy label', cancelLabel: 'Cancel' }))) return;
+    // Recheck after the confirmation: another tab/device may have changed the form.
+    if (draft.fingerprint !== JSON.stringify(chitChatsFormPayload())) throw new Error('The parcel changed while confirming. Get fresh rates.');
+    const shipment = await buyChitChatsLabel({ ...account, shipmentId: draft.id, postageType: rate.postageType, onIntent: () => {
+      const fresh = readChitChatsState(account);
+      if (Object.values(fresh.purchases || {}).some(item => item.status === 'pending')) throw new Error('A purchase is already waiting to be checked.');
+      (fresh.purchases ||= {})[draft.id] = { id: draft.id, status: 'pending', orderNumber, at: new Date().toISOString(), quotedTotal: rate.totalPrice };
+      saveChitChatsState(account, fresh);
+    } });
+    await finishChitChatsPurchase(shipment, account);
+  } catch (error) {
+    if (error.purchaseFailed) clearFailedChitChatsPurchase(account);
+    renderChitChatsPortal(error.message); showToast(error.message, 'warn', 9000);
+  }
+  finally { _ccBusy = false; }
+}
+
+async function checkChitChatsPurchaseHandler(shipmentId) {
+  if (_ccBusy || isAuthor()) return;
+  _ccBusy = true; const account = chitChatsAccount();
+  try { await finishChitChatsPurchase(await buyChitChatsLabel({ ...account, shipmentId, resume: true }), account); }
+  catch (error) {
+    if (error.purchaseFailed) clearFailedChitChatsPurchase(account, shipmentId);
+    renderChitChatsPortal(error.message);
+  }
+  finally { _ccBusy = false; }
+}
+
+async function openChitChatsLabelHandler(shipmentId) {
+  if (isAuthor()) return;
+  try { downloadBlob(await fetchChitChatsLabelArtifact({ ...chitChatsAccount(), shipmentId }), `chitchats-${shipmentId}.pdf`); }
+  catch (error) { showToast(error.message, 'err', 9000); }
+}
+
+// Keeps the unpaid draft, so topping up the balance and choosing Buy label
+// again reuses it instead of leaving an orphan in the Chit Chats account.
+function clearFailedChitChatsPurchase(account, shipmentId = '') {
+  const state = readChitChatsState(account);
+  for (const item of Object.values(state.purchases || {})) {
+    if (item.status === 'pending' && (!shipmentId || item.id === shipmentId)) item.status = 'failed';
+  }
+  saveChitChatsState(account, state);
+}
+
+// After one full import, Refresh shipments only reads the last few months:
+// newer labels, and older ones whose status (voided, delivered) changed late.
+// Import paid shipments in Tax Centre always reads the whole account.
+const CHITCHATS_REFRESH_DAYS = 120;
+
+async function importChitChatsShippingHandler({ full = false } = {}) {
+  if (_ccImportBusy || isAuthor()) return;
+  _ccImportBusy = true; const account = chitChatsAccount(); const status = $('tc-cc-status');
+  const button = $('tc-cc-import-btn'); if (button) button.disabled = true;
+  if (status) status.textContent = 'Reading Chit Chats shipments…';
+  try {
+    if (TAX_CENTER.settings?.ccEnabled === false) throw new Error('Enable Chit Chats and save its settings first.');
+    const before = readChitChatsState(account);
+    const recentOnly = !full && !!before.fullImportAt;
+    const since = new Date(); since.setDate(since.getDate() - CHITCHATS_REFRESH_DAYS);
+    const shipments = await listChitChatsShipments({ ...account, fromDate: recentOnly ? since.toISOString().slice(0, 10) : '' });
+    const state = readChitChatsState(account); let count = 0;
+    if (!recentOnly) state.fullImportAt = new Date().toISOString();
+    for (const shipment of shipments) {
+      if (!normalizeChitChatsShipment(shipment, account)) continue;
+      (state.shipments ||= {})[shipment.id] = safeChitChatsRecord(shipment); count++;
+    }
+    saveChitChatsState(account, state);
+    for (const shipment of Object.values(state.shipments || {})) await applyChitChatsShipment(shipment, account);
+    if (!account.isTest) await saveTaxCenter();
+    const summary = `✓ ${count} paid ${account.isTest ? 'staging shipments saved for practice; no expenses filed' : 'shipments checked; existing expenses kept without duplicates'}${recentOnly ? ` (last ${CHITCHATS_REFRESH_DAYS} days — use Import paid shipments in Tax Centre for older ones)` : ''}.`;
+    renderHist(); renderTaxCenter(); renderShippingAnalysisHub(); renderChitChatsPortal(summary);
+    if (status) status.textContent = summary;
+  } catch (error) {
+    if (status) status.textContent = error.message;
+    renderChitChatsPortal(error.message); showToast(error.message, 'err');
+  }
+  finally { _ccImportBusy = false; if (button) button.disabled = false; }
+}
+
+async function recoverChitChatsRecords() {
+  if (isAuthor()) return;
+  const account = chitChatsAccount(); if (!account.clientId) return;
+  const state = readChitChatsState(account);
+  for (const shipment of Object.values(state.shipments || {})) await applyChitChatsShipment(shipment, account, state.purchases?.[shipment.id]?.orderNumber);
+  if (navigator.onLine && !account.isTest && Object.keys(state.shipments || {}).length) await saveTaxCenter();
+  renderChitChatsPortal();
+}
+
+async function requestChitChatsRefundHandler(expense) {
+  if (isAuthor() || _ccBusy) return;
+  const account = chitChatsAccount();
+  if (account.clientId !== expense.ccClientId || account.isTest !== expense.ccTestMode) {
+    showToast('Switch back to the Chit Chats account that bought this label before requesting a refund.', 'warn'); return;
+  }
+  if (!navigator.onLine) { showToast('Connect to the internet before requesting a refund.', 'warn'); return; }
+  _ccBusy = true;
+  try {
+    if (!(await confirmDialog('Use this only for a label you will not mail. Chit Chats may take up to two weeks to return the money. The cost stays in your books until you confirm the refund arrived.', {
+      title: 'Refund this Chit Chats label?', details: [['Label', expense.desc], ['Cost', `${Number(expense.amount).toFixed(2)} CAD`]], okLabel: 'Request refund', cancelLabel: 'Keep label', danger: true }))) return;
+    const state = readChitChatsState(account);
+    if (state.refundRequests?.[expense.ccShipmentId]) throw new Error('A refund request was already sent or needs checking in Chit Chats.');
+    const intent = { id: expense.ccShipmentId, status: 'CHECK_REQUIRED', at: new Date().toISOString() };
+    (state.refundRequests ||= {})[expense.ccShipmentId] = intent;
+    saveChitChatsState(account, state);
+    expense.refundRequest = intent;
+    await refundChitChatsShipment({ ...account, shipmentId: expense.ccShipmentId });
+    intent.status = 'REQUESTED';
+    saveChitChatsState(account, state);
+    const found = findOrderAcrossBooks(expense.shippingOrderNumber);
+    if (found && unshipOrderForRefund(found.entry, expense.trackingNumber || expense.ccShipmentId)) await saveState(found.bookId);
+    await saveTaxCenter(); renderHist(); renderTaxCenter(); renderShippingAnalysisHub();
+    renderChitChatsPortal('✓ Refund requested. Confirm Refund arrived only after the credit appears in Chit Chats.');
+  } catch (error) {
+    renderChitChatsPortal(`${error.message} Check the refund in Chit Chats before sending another request.`);
+    if (error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status)) {
+      const state = readChitChatsState(account);
+      delete state.refundRequests?.[expense.ccShipmentId];
+      saveChitChatsState(account, state);
+      delete expense.refundRequest;
+    }
+    showToast(error.message, 'warn');
+  } finally { _ccBusy = false; }
+}
+
+async function calculateCanadaPostRatesHandler() {
+  const card = $('canadapost-rates-card');
+  if (!card) return;
+
+  const sfZip = $('sf-zip')?.value || 'M4B 1B3';
+  const stCountryCode = normalizeCountryCode($('st-country')?.value) || 'CA';
+  const stZip = $('st-zip')?.value || '';
+
+  const length = Math.max(0.1, parseFloat($('sp-length')?.value) || 20);
+  const width = Math.max(0.1, parseFloat($('sp-width')?.value) || 15);
+  const height = Math.max(0.1, parseFloat($('sp-height')?.value) || 2);
+  const dimUnit = $('sp-dim-unit')?.value || 'cm';
+  const rawWeight = parseFloat($('sp-weight')?.value) || 0.5;
+  const weightUnit = $('sp-weight-unit')?.value || 'kg';
+
+  // Normalize dimensions to cm and weight to kg
+  const lengthCm = dimUnit === 'in' ? length * 2.54 : length;
+  const widthCm = dimUnit === 'in' ? width * 2.54 : width;
+  const heightCm = dimUnit === 'in' ? height * 2.54 : height;
+  let weightKg = rawWeight;
+  if (weightUnit === 'lb') weightKg = rawWeight * 0.45359237;
+  else if (weightUnit === 'oz') weightKg = rawWeight * 0.0283495;
+  else if (weightUnit === 'g') {
+    // If entered as e.g. 0.367 g, it was typed in kilograms (0.367 kg = 367 g)
+    weightKg = rawWeight < 1.0 ? rawWeight : rawWeight / 1000;
+  }
+  // Enforce parcel floor of 0.1 kg (100g) for parcel rating
+  weightKg = Math.max(0.1, weightKg);
+
+  const { apiKey, apiSecret, customerNumber, contractId } = resolveCanadaPostCredentials(TAX_CENTER.settings || {});
+  const isTest = !!TAX_CENTER.settings?.cpTestMode;
+  const isEnabled = TAX_CENTER.settings?.cpEnabled !== false;
+  const quotedFor = shippingFormFingerprint();
+
+  card.style.display = 'block';
+  card.innerHTML = `
+    <div class="cp-rate-header">
+      <div class="cp-brand-badge">
+        <span class="cp-flag-icon">🇨🇦</span>
+        <div>
+          <strong style="font-size:var(--text-base);color:var(--text);">Canada Post Direct Rates</strong>
+          <div style="font-size:var(--text-xs);color:var(--text3);">Official Web Services Rating</div>
+        </div>
+      </div>
+      <span class="pill gold" style="animation:pulse-glow 1.5s infinite ease-in-out;">Quoting live...</span>
+    </div>
+    <div style="padding:14px 0;display:flex;flex-direction:column;gap:8px;">
+      <div class="skeleton-line" style="height:44px;border-radius:var(--r);"></div>
+      <div class="skeleton-line" style="height:44px;border-radius:var(--r);"></div>
+    </div>
+  `;
+
+  try {
+    let quotes;
+    if (apiKey && apiSecret && isEnabled && navigator.onLine) {
+      quotes = await getCanadaPostRates({
+        originPostalCode: sfZip || 'M4B1B3',
+        destCountry: stCountryCode,
+        destPostalOrZip: stZip,
+        weightKg,
+        lengthCm,
+        widthCm,
+        heightCm,
+        apiKey,
+        apiSecret,
+        customerNumber,
+        contractId,
+        isTest
+      });
+    } else {
+      quotes = estimateOfflineCanadaPostRates({
+        destCountry: stCountryCode,
+        weightKg,
+        isCommercial: !!customerNumber
+      });
+    }
+
+    // isEnabled belongs in this test: with the integration switched off the
+    // quotes above came from the offline estimate table, and leaving it out
+    // stamped guessed prices with a "Live Direct Rates" badge and offered a
+    // Buy Label button beside each one.
+    setCarrierTilePrice('canadapost', (quotes || []).map(q => q.totalPrice), {
+      estimate: !apiKey || !apiSecret || !isEnabled || !navigator.onLine, fingerprint: quotedFor,
+    });
+    renderCanadaPostRatesCard(quotes, {
+      stCountryCode,
+      isOffline: !apiKey || !apiSecret || !isEnabled || !navigator.onLine,
+      isDisabled: !isEnabled,
+      isTest
+    });
+  } catch (err) {
+    console.warn('Canada Post direct rates fallback:', err);
+    const offlineQuotes = estimateOfflineCanadaPostRates({
+      destCountry: stCountryCode,
+      weightKg,
+      isCommercial: !!customerNumber
+    });
+    setCarrierTilePrice('canadapost', (offlineQuotes || []).map(q => q.totalPrice), { estimate: true, fingerprint: quotedFor });
+    renderCanadaPostRatesCard(offlineQuotes, { stCountryCode, isOffline: true, isDisabled: !isEnabled, errorNote: err.message, isTest });
+  }
+}
+
+function renderCanadaPostRatesCard(quotes, { stCountryCode, isOffline, isDisabled, errorNote, isTest } = {}) {
+  const card = $('canadapost-rates-card');
+  if (!card) return;
+  card.style.display = 'block';
+
+  const {
+    apiKey: cpApiKey,
+    apiSecret: cpApiSecret,
+    customerNumber: cpCustomerNumber,
+    contractId: cpContractId,
+  } = resolveCanadaPostCredentials(TAX_CENTER.settings || {});
+  const env = resolveCanadaPostEnvironment({ isTest });
+  const audit = validateCanadaPostAccount({
+    apiKey: cpApiKey,
+    apiSecret: cpApiSecret,
+    customerNumber: cpCustomerNumber,
+    contractId: cpContractId,
+    isTest
+  });
+
+  const isRetail = (quotes || []).some(q => q.quoteType === 'counter' || q.isRetail || q.commercialUnavailable);
+  let statusBadge = isRetail
+    ? '<span class="pill green">Live Direct Rates · Retail</span>'
+    : '<span class="pill green">Live Direct Rates</span>';
+  if (isTest) statusBadge = '<span class="pill gold">Sandbox Test Mode</span>';
+  if (isOffline) statusBadge = '<span class="pill gray">Offline Estimate</span>';
+
+  // A label can only be bought when the prices on screen are Canada Post's own
+  // and the account they would bill is complete. Anything else and the button
+  // is disabled with the reason on it, rather than failing after the
+  // confirmation — which is where the publisher has already decided to spend.
+  let blockedReason = '';
+  if (isDisabled) blockedReason = 'Direct Canada Post API is switched off in Tax Centre → Canada Post.';
+  else if (isOffline) blockedReason = 'These are the app\u2019s own estimates, not Canada Post quotes. Reconnect and refresh to buy.';
+  else if (!audit.ok) blockedReason = audit.errors[0];
+  else {
+    // Beyond the account itself: a live label also needs a real return address
+    // and a sender phone, and without them Canada Post answers with a schema
+    // error after the money screen rather than before it.
+    const readiness = currentLiveReadiness();
+    if (readiness.blockers.length) blockedReason = readiness.blockers[0];
+  }
+  const canBuy = !blockedReason;
+
+  // Which Canada Post account a purchase actually bills is not obvious from the rates alone,
+  // so the environment and customer number are stated before any Buy Label button.
+  const accountBanner = `
+    <div class="cp-account-banner ${env.mode === 'live' ? 'is-live' : 'is-sandbox'}">
+      <div class="cp-account-banner-head">
+        <span class="pill ${env.mode === 'live' ? 'green' : 'gold'} sm">${escapeHtml(env.label)}</span>
+        <span class="tnum cp-account-host">${escapeHtml(env.hostname)}</span>
+        <span class="cp-account-cust">Account <span class="tnum">${escapeHtml(audit.customerNumber || '—')}</span></span>
+      </div>
+      <div class="cp-account-banner-note">${escapeHtml(env.description)}</div>
+      ${audit.errors.map(e => `<div class="cp-account-banner-error">✕ ${escapeHtml(e)}</div>`).join('')}
+      ${audit.warnings.map(w => `<div class="cp-account-banner-warn">⚠ ${escapeHtml(w)}</div>`).join('')}
+      <div class="cp-account-banner-actions">
+        <input type="text" id="cp-check-pin" class="cp-account-pin-input tnum" placeholder="Tracking PIN (optional)" inputmode="numeric" autocomplete="off" aria-label="Canada Post tracking PIN to verify">
+        <button class="btn sm tag cp-label-action-btn" id="cp-check-account-btn" type="button" onclick="checkCanadaPostAccountAndPinHandler()" title="Verify your Canada Post account settings and confirm a tracking PIN exists">
+          <span>🔍</span>
+          <span>Check Account &amp; Tracking PIN</span>
+        </button>
+        <button class="btn sm tag cp-label-action-btn" id="cp-verify-shipped-btn" type="button" onclick="verifyShippedTrackingPinsHandler()" title="Ask Canada Post about every shipped order's tracking number">
+          <span>📦</span>
+          <span>Verify All Shipped Orders</span>
+        </button>
+        <button class="btn sm tag cp-label-action-btn" id="cp-past-labels-btn" type="button" onclick="showArchivedCanadaPostLabels()" title="Reprint a label you already bought — works offline">
+          <span>🗂️</span>
+          <span>Reprint a Past Label</span>
+        </button>
+      </div>
+      <div id="cp-account-check-result" class="cp-account-check-result" style="display:none;"></div>
+    </div>
+  `;
+
+  // Canada Post returns an empty list for a route the account has no agreement
+  // on, and separately for a parcel no service can carry.
+  const usedRetailFallback = (quotes || []).some(q => q.commercialUnavailable || q.isRetail || q.quoteType === 'counter');
+  const isUsBound = String(stCountryCode || '').toUpperCase() === 'US';
+
+  const retailNote = usedRetailFallback ? `
+    <div class="cp-rate-note" style="margin-bottom:12px;padding:10px 14px;background:var(--surface-sunken);border:var(--stroke-hair) solid var(--border);border-radius:var(--r);font-size:var(--text-sm);color:var(--text2);line-height:1.5;">
+      <div style="display:flex;align-items:center;gap:6px;font-weight:700;color:var(--text);margin-bottom:2px;">
+        <span>🛒</span>
+        <span>Showing Canada Post Published Retail (Counter) Rates</span>
+      </div>
+      Live pricing retrieved directly from Canada Post's retail rate schedule for destination <strong>${escapeHtml(stCountryCode || 'CA')}</strong>. Standard consumer pricing — no commercial volume contract required.
+    </div>
+  ` : '';
+
+  const emptyStateHtml = isOffline
+    ? 'No direct Canada Post services found for this package and route.'
+    : `
+      <strong>Canada Post returned no services for this parcel.</strong>
+      <div style="margin-top:6px;line-height:1.55;">
+        The connection worked — Canada Post simply offered nothing for this combination. Usually one of:
+        <ul style="margin:6px 0 0;padding-left:18px;">
+          <li>The parcel's weight or size is outside every service${isUsBound ? ' for United States delivery' : ''}.</li>
+          ${isUsBound ? '<li>Canada Post has periodically paused United States shipping while U.S. customs rules change. Shippo can still carry these orders.</li>' : ''}
+          <li>This account is not set up to ship to ${escapeHtml(stCountryCode || 'this destination')}.</li>
+        </ul>
+      </div>
+    `;
+
+  // What the customer paid for shipping on the order being labelled, so each
+  // service can say whether it is covered before anything is bought.
+  const customerPaid = selectedOrderShippingPaid();
+  const coverageNote = rateCoverageNoteHtml((quotes || []).map(q => q.totalPrice), customerPaid);
+
+  const rateRows = (quotes || []).map(q => `
+    <div class="cp-rate-row">
+      <div style="flex:1;min-width:180px;">
+        <div style="font-weight:700;font-size:var(--text-base);color:var(--text);">${escapeHtml(q.serviceName)}</div>
+        <div style="font-size:var(--text-xs);color:var(--text3);margin-top:3px;display:flex;align-items:center;gap:6px;">
+          <span>⏱️ ${escapeHtml(q.estimatedSpeed || 'Standard')}</span>
+          ${q.deliveryDate ? `<span>· Est. ${escapeHtml(q.deliveryDate)}</span>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="text-align:right;">
+          <strong class="tnum" style="font-size:var(--text-md);color:var(--text);font-weight:800;">${q.totalPrice.toFixed(2)} CAD</strong>
+          ${q.taxes > 0 ? `<div class="tnum" style="font-size:var(--text-2xs);color:var(--text3);">incl. ${q.taxes.toFixed(2)} tax</div>` : ''}
+          ${rateCoverageTagHtml(q.totalPrice, customerPaid)}
+        </div>
+        <button class="btn sm gold cp-buy-btn" type="button"
+          ${canBuy ? '' : 'disabled aria-disabled="true"'}
+          onclick="buyCanadaPostLabelHandler('${escapeHtml(q.serviceCode)}', '${escapeHtml(q.serviceName)}', ${q.totalPrice}, this)"
+          title="${canBuy ? `Buy an official ${escapeHtml(q.serviceName)} label from Canada Post` : escapeHtml(blockedReason)}">
+          <span aria-hidden="true">🏷️</span>
+          <span>Buy Label</span>
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  card.innerHTML = `
+    <div class="cp-rate-header">
+      <div class="cp-brand-badge">
+        <span class="cp-flag-icon">🇨🇦</span>
+        <div>
+          <strong style="font-size:var(--text-base);color:var(--text);">Canada Post Direct Rates &amp; Labels</strong>
+          <div style="font-size:var(--text-xs);color:var(--text3);">Destination: <strong>${escapeHtml(stCountryCode || 'CA')}</strong> (${(quotes || []).length} available)</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        ${statusBadge}
+        <button class="btn sm tag cp-label-action-btn" type="button" onclick="calculateCanadaPostRatesHandler()" title="Refresh rates">
+          <span>↻</span>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </div>
+    ${accountBanner}
+    ${blockedReason ? `<div class="cp-buy-blocked" role="status">🔒 <span>${escapeHtml(blockedReason)}</span></div>` : ''}
+    <div class="cp-rates-list">
+      ${retailNote}
+      ${rateRows ? coverageNote : ''}
+      ${rateRows || `<div class="cp-rate-empty">${emptyStateHtml}</div>`}
+    </div>
+    ${errorNote ? `<div style="font-size:var(--text-xs);color:var(--text3);margin-top:8px;font-style:italic;">Note: ${escapeHtml(errorNote)}</div>` : ''}
+    <div id="cp-purchased-label-panel" style="display:none;"></div>
+  `;
+}
+
+/**
+ * Open or print Canada Post purchased shipping label PDF / Vector In-App Modal
+ */
+async function openCanadaPostPurchasedLabel(labelUrl) {
+  const context = getLastPurchasedShipmentContext();
+  // Prefer the stored shipment, but keep an explicitly-passed artifact address:
+  // it is what the official PDF is fetched from.
+  return showCanadaPostLabelModal(
+    context ? { ...context, labelUrl: labelUrl || context.labelUrl || '' } : null
+  );
+}
+
+/**
+ * Reopen a label bought earlier, redrawn from the stored shipment details.
+ * Needs no network and no Canada Post credentials — the postage is already paid.
+ */
+function reprintArchivedCanadaPostLabel(pin) {
+  const context = getArchivedShipmentContext(pin);
+  if (!context) {
+    showToast('⚠ That label is no longer stored on this device', 'warn');
+    return;
+  }
+  showCanadaPostLabelModal(context);
+}
+
+/**
+ * List the labels still held on this device so any of them can be reprinted.
+ */
+function showArchivedCanadaPostLabels() {
+  const out = $('cp-account-check-result');
+  if (!out) return;
+
+  const labels = listArchivedShipments();
+  out.style.display = 'block';
+
+  if (!labels.length) {
+    out.innerHTML = `
+      <div style="font-size:var(--text-xs);color:var(--text3);line-height:1.5;">
+        No labels stored on this device yet. Every label you buy from here is kept automatically,
+        so you can reprint it later even with no internet.
+      </div>`;
+    return;
+  }
+
+  const rows = labels.map(l => `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-top:var(--stroke-hair) solid var(--border-subtle,var(--border));">
+      <span class="tnum" style="font-family:var(--font-mono);font-size:var(--text-xs);">${escapeHtml(l.trackingPin || l.pin)}</span>
+      ${l.orderNum ? `<span style="font-size:var(--text-xs);color:var(--text3);">${escapeHtml(l.orderNum)}</span>` : ''}
+      ${l.destinationName ? `<span style="font-size:var(--text-xs);color:var(--text3);">→ ${escapeHtml(l.destinationName)}${l.destinationCountry ? ` (${escapeHtml(l.destinationCountry)})` : ''}</span>` : ''}
+      <button class="btn sm tag cp-label-action-btn" type="button" style="margin-left:auto;min-height:36px;padding:6px 12px;" onclick="reprintArchivedCanadaPostLabel('${escapeHtml(l.pin)}')" title="Reopen and reprint this label">
+        🖨️ Reprint
+      </button>
+      <button class="btn sm tag cp-label-action-btn" type="button" style="min-height:36px;padding:6px 12px;color:var(--danger,#e11d48);" onclick="voidCanadaPostLabelAction('${escapeHtml(l.pin)}')" title="Void and refund label">
+        ↩️ Void
+      </button>
+    </div>
+  `).join('');
+
+  out.innerHTML = `
+    <div style="font-size:var(--text-xs);font-weight:700;color:var(--text);margin-bottom:4px;">
+      ${labels.length} label${labels.length === 1 ? '' : 's'} stored on this device
+    </div>
+    <div style="font-size:var(--text-xs);color:var(--text3);margin-bottom:4px;">These reprint without internet — the postage is already paid.</div>
+    ${rows}
+  `;
+}
+
+/**
+ * In-app Canada Post label inspector.
+ *
+ * Shows the OFFICIAL label — the PDF artifact Canada Post returns — whenever it
+ * can be fetched, because that is the only thing a post office accepts. The
+ * app's own drawn sheet is the fallback, and it is labelled as a reference copy
+ * so it cannot be printed and taken to the counter by mistake. The two used to
+ * be indistinguishable here: the drawn sheet was all this modal ever showed,
+ * for real purchases included.
+ */
+let _cpLabelObjectUrl = '';
+let _cpLabelArtifact = null;
+let _cpLabelContext = null;
+
+async function showCanadaPostLabelModal(shipmentContext) {
+  const context = shipmentContext || getLastPurchasedShipmentContext();
+
+  closeCanadaPostLabelModal();
+  // Held for the footer buttons: reprinting an archived label must download
+  // THAT label, not whichever one happens to be the most recent purchase.
+  _cpLabelContext = context;
+
+  // No shipment to show. This used to fall back to a worked example with an
+  // invented tracking number, which reads exactly like a real purchased label.
+  if (!context) {
+    showToast('No label to show yet — buy one, or reopen a stored label from “Reprint a Past Label”', 'warn');
+    return;
+  }
+
+  const cleanPin = String(context.trackingPin || '').replace(/[^0-9A-Z]/gi, '');
+  const trackingUrl = `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchFor=${encodeURIComponent(cleanPin)}`;
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div id="cp-label-modal-overlay" class="cp-label-modal-overlay" onclick="if(event.target === this) closeCanadaPostLabelModal();">
+      <div class="cp-label-modal-content" role="dialog" aria-modal="true" aria-labelledby="cp-label-modal-title">
+        <div class="cp-label-modal-header">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            <span style="font-size:20px;" aria-hidden="true">🇨🇦</span>
+            <div style="min-width:0;">
+              <strong id="cp-label-modal-title" style="font-size:14px;color:var(--text);">Canada Post Shipping Label</strong>
+              <div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">
+                ${cleanPin
+                  ? `Tracking PIN: <strong class="tnum" style="color:var(--text);letter-spacing:0.5px;">${escapeHtml(cleanPin)}</strong>`
+                  : 'No tracking number on this shipment'}
+              </div>
+            </div>
+          </div>
+          <button class="btn sm tag cp-label-action-btn" type="button" onclick="closeCanadaPostLabelModal()" style="min-width:44px;min-height:44px;padding:6px 10px;" aria-label="Close label inspector">✕</button>
+        </div>
+        <div id="cp-label-status" class="cp-label-status" role="status" aria-live="polite">
+          <span class="cp-label-status-spinner" aria-hidden="true"></span>
+          <span>Fetching your official label from Canada Post…</span>
+        </div>
+        <div class="cp-label-modal-body">
+          <div id="cp-label-preview-container" class="cp-label-preview-container">
+            <div class="skeleton-line" style="height:420px;border-radius:var(--r);"></div>
+          </div>
+        </div>
+        <div class="cp-label-modal-footer">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <button class="btn gold cp-label-action-btn" id="cp-label-print-btn" type="button" onclick="printCanadaPostLabelModal()" disabled>
+              <span aria-hidden="true">🖨️</span>
+              <span>Print Label (4" × 6")</span>
+            </button>
+            <button class="btn outline cp-label-action-btn" id="cp-label-download-btn" type="button" onclick="downloadCanadaPostLabelModal()" disabled>
+              <span aria-hidden="true">📥</span>
+              <span>Download</span>
+            </button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            ${cleanPin ? `
+              <button class="btn sm tag cp-label-action-btn" type="button" onclick="copyCanadaPostPin('${escapeHtml(cleanPin)}')">
+                <span aria-hidden="true">📋</span>
+                <span>Copy PIN</span>
+              </button>
+              <a href="${escapeHtml(trackingUrl)}" target="_blank" rel="noopener noreferrer" class="btn sm tag cp-label-action-btn" style="text-decoration:none;color:var(--text);">
+                <span aria-hidden="true">🔍</span>
+                <span>Track Parcel</span>
+              </a>
+              <button class="btn sm tag cp-label-action-btn" type="button" style="color:var(--danger,#e11d48);" onclick="voidCanadaPostLabelAction('${escapeHtml(cleanPin)}')" title="Cancel and request postage refund">
+                <span aria-hidden="true">↩️</span>
+                <span>Void & Refund</span>
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+
+  const { apiKey, apiSecret } = resolveCanadaPostCredentials(TAX_CENTER.settings || {});
+
+  let artifact = null;
+  try {
+    artifact = await fetchCanadaPostLabelArtifact({
+      labelUrl: context.labelUrl || '',
+      apiKey,
+      apiSecret,
+      shipmentContext: context
+    });
+  } catch (err) {
+    console.warn('Canada Post label fetch failed:', err);
+  }
+
+  // The dialog may have been closed while the download was in flight.
+  if (!document.getElementById('cp-label-modal-overlay')) return;
+
+  renderCanadaPostLabelArtifact(artifact, context);
+}
+
+/** Paint whichever label came back, and say plainly which one it is. */
+function renderCanadaPostLabelArtifact(artifact, context) {
+  const container = $('cp-label-preview-container');
+  const status = $('cp-label-status');
+  const printBtn = $('cp-label-print-btn');
+  const downloadBtn = $('cp-label-download-btn');
+  if (!container || !status) return;
+
+  _cpLabelArtifact = artifact;
+  if (_cpLabelObjectUrl) { URL.revokeObjectURL(_cpLabelObjectUrl); _cpLabelObjectUrl = ''; }
+
+  if (artifact && artifact.kind === 'pdf') {
+    _cpLabelObjectUrl = URL.createObjectURL(artifact.blob);
+    container.classList.add('is-pdf');
+    container.innerHTML = `<iframe id="cp-label-frame" class="cp-label-frame" src="${_cpLabelObjectUrl}" title="Official Canada Post shipping label"></iframe>`;
+    status.className = 'cp-label-status is-official';
+    status.innerHTML = `<span aria-hidden="true">✓</span><span><strong>Official Canada Post label.</strong> Print at 100% scale on 4&quot; × 6&quot; stock or plain paper, and tape it flat over the whole parcel face.</span>`;
+    if (printBtn) printBtn.disabled = false;
+    if (downloadBtn) downloadBtn.disabled = false;
+    return;
+  }
+
+  container.classList.remove('is-pdf');
+
+  if (!artifact) {
+    status.className = 'cp-label-status is-warn';
+    status.innerHTML = `<span aria-hidden="true">⚠</span><span>There is nothing stored for this shipment to show.</span>`;
+    container.innerHTML = `
+      <div class="cp-label-empty">
+        <div class="cp-label-empty-icon" aria-hidden="true">🏷️</div>
+        <strong>No label to display</strong>
+        <p>This shipment has no stored label details. If you bought it on another device, download it from your Canada Post account.</p>
+      </div>`;
+    if (printBtn) printBtn.disabled = true;
+    if (downloadBtn) downloadBtn.disabled = true;
+    return;
+  }
+
+  // The drawn copy. Say so before anyone reaches for the printer.
+  container.innerHTML = generateCanadaPostLabelSvg(context);
+  status.className = 'cp-label-status is-warn';
+  status.innerHTML = `
+    <span aria-hidden="true">⚠</span>
+    <span style="flex:1;">
+      <strong>This is a reference copy — Canada Post will not accept it at the counter.</strong>
+      The official label could not be downloaded${artifact.reason ? ` (${escapeHtml(artifact.reason)})` : ''}.
+      The postage is still paid: sign in to your Canada Post account to print the real label, or retry downloading below.
+    </span>
+    ${context.labelUrl ? `
+      <button class="btn sm gold cp-label-action-btn" type="button" onclick="retryFetchCanadaPostLabelArtifact()" style="margin-left:auto;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">
+        <span aria-hidden="true">🔄</span>
+        <span>Retry PDF Download</span>
+      </button>
+    ` : ''}`;
+  if (printBtn) printBtn.disabled = false;
+  if (downloadBtn) downloadBtn.disabled = false;
+}
+
+async function retryFetchCanadaPostLabelArtifact() {
+  const context = _cpLabelContext || getLastPurchasedShipmentContext();
+  if (!context || !context.labelUrl) {
+    showToast('No label URL stored to retry download', 'warn');
+    return;
+  }
+  const status = $('cp-label-status');
+  if (status) {
+    status.className = 'cp-label-status';
+    status.innerHTML = `<span class="cp-label-status-spinner" aria-hidden="true"></span><span>Re-fetching official PDF label from Canada Post…</span>`;
+  }
+  const { apiKey, apiSecret } = resolveCanadaPostCredentials(TAX_CENTER.settings || {});
+  let artifact = null;
+  try {
+    artifact = await fetchCanadaPostLabelArtifact({
+      labelUrl: context.labelUrl,
+      apiKey,
+      apiSecret,
+      shipmentContext: context
+    });
+  } catch (e) {
+    console.warn('Retry fetch artifact failed:', e);
+  }
+  if (!document.getElementById('cp-label-modal-overlay')) return;
+  renderCanadaPostLabelArtifact(artifact, context);
+}
+
+function closeCanadaPostLabelModal() {
+  const modal = document.getElementById('cp-label-modal-overlay');
+  if (modal) modal.remove();
+  if (_cpLabelObjectUrl) { URL.revokeObjectURL(_cpLabelObjectUrl); _cpLabelObjectUrl = ''; }
+  _cpLabelArtifact = null;
+  _cpLabelContext = null;
+}
+
+function copyCanadaPostPin(pin) {
+  try {
+    navigator.clipboard?.writeText(String(pin || ''));
+    showToast('✓ Tracking PIN copied to clipboard');
+  } catch (_) {
+    showToast('⚠ Could not copy — select the number and copy it by hand', 'warn');
+  }
+}
+
+/**
+ * Print what is on screen. A PDF prints from its own frame so Canada Post's
+ * exact page geometry is preserved; the drawn copy prints through the page's
+ * print stylesheet, which crops it to 4x6.
+ */
+function printCanadaPostLabelModal() {
+  const frame = document.getElementById('cp-label-frame');
+  if (frame && _cpLabelArtifact?.kind === 'pdf') {
+    try {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+      return;
+    } catch (err) {
+      // Cross-origin-ish blob quirks in some browsers: fall back to opening the
+      // PDF in a tab rather than silently printing the wrong thing.
+      console.warn('Frame print unavailable, opening label in a new tab:', err);
+      if (_cpLabelObjectUrl) {
+        window.open(_cpLabelObjectUrl, '_blank', 'noopener');
+        showToast('Opened the label in a new tab — print it from there', 'ok');
+        return;
+      }
+    }
+  }
+  window.print();
+}
+
+/**
+ * Save the label. A real PDF is saved as a PDF; the drawn copy is saved as an
+ * SVG named so the difference survives the download folder.
+ */
+function downloadCanadaPostLabelModal() {
+  const artifact = _cpLabelArtifact;
+  if (!artifact) {
+    showToast('⚠ Nothing to download for this shipment', 'warn');
+    return;
+  }
+
+  const pin = String(_cpLabelContext?.trackingPin || '').replace(/[^0-9A-Z]/gi, '') || 'package';
+  const isPdf = artifact.kind === 'pdf';
+  const filename = isPdf
+    ? `canadapost-label-${pin}.pdf`
+    : `canadapost-REFERENCE-COPY-${pin}.svg`;
+
+  downloadBlob(artifact.blob, filename);
+  showToast(isPdf ? '✓ Official label downloaded' : '✓ Reference copy downloaded — not valid for mailing', isPdf ? 'ok' : 'warn');
+}
+
+
+/**
+ * Buy a Canada Post shipping label for the chosen service.
+ *
+ * Guarded against re-entry: every press of this button is a real charge against
+ * a real account, and a slow network is exactly when someone presses it twice.
+ * Two presses used to mean two labels and two charges, with only one of them
+ * ever reaching the ledger or the order.
+ */
+let _cpPurchaseInFlight = false;
+
+async function buyCanadaPostLabelHandler(serviceCode, serviceName, quotedPrice, buttonEl = null) {
+  if (_cpPurchaseInFlight) {
+    showToast('A label purchase is already running — give it a moment', 'warn');
+    return;
+  }
+  const sfName = $('sf-name')?.value?.trim() || 'Lyricalmyrical Books';
+  const sfCompany = $('sf-company')?.value?.trim() || 'Lyricalmyrical Books';
+  const sfPhone = $('sf-phone')?.value?.trim() || '4165550199';
+  const sfAddr = ($('sf-street1')?.value || $('sf-street')?.value || '').trim();
+  const sfAddr2 = ($('sf-street2')?.value || '').trim();
+  const sfCity = $('sf-city')?.value?.trim() || 'Toronto';
+  const sfProv = $('sf-state')?.value?.trim() || 'ON';
+  const sfZip = $('sf-zip')?.value?.trim() || 'M4B 1B3';
+
+  const stName = $('st-name')?.value?.trim() || '';
+  const stCompany = $('st-company')?.value?.trim() || '';
+  const stPhone = $('st-phone')?.value?.trim() || '5555555555';
+  const stAddr = ($('st-street1')?.value || $('st-street')?.value || '').trim();
+  const stAddr2 = ($('st-street2')?.value || '').trim();
+  const stCity = $('st-city')?.value?.trim() || '';
+  const stState = $('st-state')?.value?.trim() || '';
+  const stZip = $('st-zip')?.value?.trim() || '';
+  const stCountryCode = normalizeCountryCode($('st-country')?.value) || 'CA';
+
+  if (!stAddr || !stCity || !stZip) {
+    showToast('⚠ Please fill in recipient street address, city, and postal/zip code before buying a label', 'warn');
+    if (!stAddr) $('st-street1')?.focus();
+    else if (!stCity) $('st-city')?.focus();
+    else if (!stZip) $('st-zip')?.focus();
+    return;
+  }
+
+  const length = Math.max(0.1, parseFloat($('sp-length')?.value) || 20);
+  const width = Math.max(0.1, parseFloat($('sp-width')?.value) || 15);
+  const height = Math.max(0.1, parseFloat($('sp-height')?.value) || 2);
+  const dimUnit = $('sp-dim-unit')?.value || 'cm';
+  const rawWeight = parseFloat($('sp-weight')?.value) || 0.5;
+  const weightUnit = $('sp-weight-unit')?.value || 'kg';
+
+  // Normalize dimensions to cm and weight to kg
+  const lengthCm = dimUnit === 'in' ? length * 2.54 : length;
+  const widthCm = dimUnit === 'in' ? width * 2.54 : width;
+  const heightCm = dimUnit === 'in' ? height * 2.54 : height;
+  let weightKg = rawWeight;
+  if (weightUnit === 'lb') weightKg = rawWeight * 0.45359237;
+  else if (weightUnit === 'oz') weightKg = rawWeight * 0.0283495;
+  else if (weightUnit === 'g') {
+    weightKg = rawWeight < 1.0 ? rawWeight : rawWeight / 1000;
+  }
+  weightKg = Math.max(0.1, weightKg);
+
+  const { apiKey, apiSecret, customerNumber, contractId } = resolveCanadaPostCredentials(TAX_CENTER.settings || {});
+  const isTest = !!TAX_CENTER.settings?.cpTestMode;
+  const isEnabled = TAX_CENTER.settings?.cpEnabled !== false;
+
+  // Pre-flight, before any dialog: the same audit the rates card runs, so what
+  // stops a purchase here is the same thing shown on the card rather than a
+  // stray error thrown from inside the API client after the confirmation.
+  const audit = validateCanadaPostAccount({ apiKey, apiSecret, customerNumber, contractId, isTest });
+
+  if (!isEnabled) {
+    showToast('⚠ Direct Canada Post API is switched off — turn it on in Tax Centre → Canada Post to buy labels', 'warn');
+    return;
+  }
+  if (!audit.ok) {
+    showToast(`⚠ ${audit.errors[0]}`, 'err');
+    return;
+  }
+  // The full go-live check, not just the account: a live purchase with the
+  // example return address still on the form would print a label that a
+  // returned parcel could never come back to.
+  const readiness = currentLiveReadiness();
+  if (readiness.blockers.length) {
+    showToast(`⚠ ${readiness.blockers[0]}`, 'err');
+    renderLiveReadinessChecklist();
+    return;
+  }
+  // Prices shown while offline are the app's own estimates, not Canada Post
+  // quotes. Buying against one would post a guessed amount to the ledger as if
+  // it were the real charge, and the purchase itself needs the network anyway.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    showToast('⚠ You are offline. Reconnect before buying a label — the prices shown are estimates, not Canada Post quotes.', 'warn');
+    return;
+  }
+
+  // U.S. duty prepayment, in the order Canada Post documents it.
+  //
+  // With a Zonos VERIFIED ACCOUNT, the app does NOT create the declaration.
+  // Canada Post's own integration guide is explicit about who mints it:
+  //
+  //   1. You create a shipment as per your normal process.
+  //   2. Canada Post generates a Declaration ID.
+  //   3. Canada Post links the Declaration ID to your shipment's tracking number.
+  //   4. Canada Post issues a shipping label.
+  //   5. Zonos pays CBP directly, using the tracking number and the data Canada
+  //      Post shares with them.
+  //   6. Zonos invoices you for the duty.
+  //
+  // All the account key does is ride along on the request header
+  // (`X-CPC-Zonos-Key`), which buyCanadaPostLabel already sends. That is the
+  // whole integration.
+  //
+  // This used to call Zonos' declarationCreateWorkflow whenever an account key
+  // was present, and put whatever came back into the Canada Post request. That
+  // was wrong twice over: that mutation belongs to Zonos' Landed Cost/Checkout
+  // product rather than to Canada Post's prepayment declaration, and even if it
+  // had returned something, sending a self-minted id would override the one
+  // Canada Post is supposed to generate and link to the tracking number — the
+  // link that is the actual proof of prepayment. So with an account key we send
+  // the key and nothing else, and read back the id Canada Post issues.
+  let declarationId = ($('sp-zonos-declaration-id')?.value || '').trim();
+
+  const dutyRoute = currentDutyPrepaymentRoute();
+  // A U.S. label cannot be bought without a Declaration ID entered by hand.
+  //
+  // Absolute, by the shop owner's instruction: no Verified Account bypass, no
+  // settings toggle, no "carry on anyway". All three escape hatches that used
+  // to sit here are gone, and that is the point — each one ended with a parcel
+  // crossing the border with the duty unpaid, which the shop only finds out
+  // about weeks later when the customer is billed at their door.
+  //
+  // The check is on the FORMAT, not merely on the field being non-empty. A
+  // half-typed code is not a declaration: letting eight characters through
+  // would buy a label carrying an id Canada Post can match to nothing, which
+  // is the same outcome as sending none, minus the warning.
+  declarationId = formatDeclarationId(declarationId);
+
+  if (stCountryCode === 'US' && !validateDeclarationId(declarationId)) {
+    const partial = declarationId.length > 0;
+    showToast(partial
+      ? `🚫 That Declaration ID is only ${declarationId.length} of 13 characters`
+      : '🚫 A U.S. parcel needs a Zonos Declaration ID before you can buy the label', 'err');
+
+    const openPrepay = typeof confirmDialog === 'function' && await confirmDialog(
+      (partial
+        ? `The Declaration ID box has ${declarationId.length} of the 13 characters it needs, so it is not a complete ID yet.\n\n`
+        : 'This parcel is going to the United States, and U.S. customs requires the duty to be paid before it crosses the border.\n\n')
+      + 'What to do:\n'
+      + '1. Open the Zonos Prepay app and buy the declaration for this parcel.\n'
+      + '2. Copy the 13-character Declaration ID it gives you.\n'
+      + '3. Paste it into the Declaration ID box on this screen.\n'
+      + '4. Then buy the label.\n\n'
+      + 'The order matters: the ID has to be on the form BEFORE you buy, because it is sent to '
+      + 'Canada Post as part of the label request. Pasting it afterwards links nothing.\n\n'
+      + 'Each declaration covers one parcel only — do not reuse one from an earlier order.',
+      {
+        title: 'Declaration ID required before buying this label',
+        okLabel: 'Open Zonos Prepay',
+        cancelLabel: 'Close'
+      }
+    );
+
+    if (openPrepay && typeof window !== 'undefined' && typeof window.open === 'function') {
+      try { window.open(buildZonosPrepayDeepLink(), '_blank', 'noopener'); } catch (_) {}
+    }
+
+    // Put the cursor where the work is, rather than leaving them to hunt for
+    // the box the dialog just described.
+    const declInput = $('sp-zonos-declaration-id');
+    if (declInput && typeof declInput.focus === 'function') {
+      try {
+        declInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        declInput.focus();
+      } catch (_) {}
+    }
+    return;
+  }
+
+  // Everything that decides whether this is the right thing to spend money on:
+  // what is being bought, where it is going, how much, and which account pays.
+  const destinationLine = [stCity, stState, stCountryCode].filter(Boolean).join(', ');
+  const shipTo = [
+    stName || 'Customer',
+    [stAddr, stAddr2].filter(Boolean).join(', '),
+    [destinationLine, stZip].filter(Boolean).join(' ')
+  ].filter(Boolean).join('\n');
+
+  const details = [
+    ['Service', serviceName],
+    ['Ship to', shipTo],
+    ['Price', `$${quotedPrice.toFixed(2)} CAD (quoted)`],
+    ['Account', `Canada Post ${audit.customerNumber || '—'}`]
+  ];
+  if (declarationId) details.push(['U.S. duty', `Prepaid · ${declarationId}`]);
+  else if (stCountryCode === 'US') {
+    details.push(['U.S. duty', dutyRoute.route === 'verified'
+      ? 'Prepaid automatically by your Zonos Verified Account'
+      : 'NOT prepaid — the customer is billed on delivery']);
+  }
+
+  const prefilledOrder = $('ship-prefill-dest')?.dataset.orderNumber || $('sp-order-num')?.value;
+  if (!isTest && prefilledOrder && !(await confirmNoExistingLabel(prefilledOrder))) return;
+
+  const billingWarning = isTest
+    ? 'Sandbox Test Mode is on, but Canada Post serves test and live from the same address. '
+      + 'If the key saved in Tax Centre is a production key, this buys a real label and charges your account.'
+    : 'This charges your live Canada Post account and cannot be undone from here — '
+      + 'a label bought by mistake has to be refunded through Canada Post.';
+
+  const confirmed = await confirmDialog(billingWarning, {
+    title: 'Buy this Canada Post label?',
+    details,
+    okLabel: `Buy Label · $${quotedPrice.toFixed(2)} CAD`,
+    cancelLabel: 'Cancel'
+  });
+
+  if (!confirmed) return;
+
+  showToast('⏳ Creating shipment and generating Canada Post label...', 'ok');
+
+  const customsValRaw = String($('sp-customs-value')?.value || '25').replace(/[^0-9.]/g, '');
+  const customs = stCountryCode !== 'CA' ? {
+    quantity: Math.max(1, parseInt($('sp-qty')?.value, 10) || 1),
+    declaredValue: parseFloat(customsValRaw || '25'),
+    description: $('sp-customs-description')?.value || 'Printed books',
+    hsCode: $('sp-customs-hs')?.value || '4901.99',
+    declarationId
+  } : null;
+
+  const orderNum = $('sp-order-num')?.value || `ORDER-${Date.now().toString().slice(-6)}`;
+
+  // Locked immediately before the try, so the matching finally always unlocks
+  // it — a stranded button would leave the publisher unable to ship at all.
+  setCanadaPostPurchaseBusy(true, buttonEl);
+
+  try {
+    const result = await buyCanadaPostLabel({
+      serviceCode,
+      sender: {
+        name: sfName,
+        company: sfCompany,
+        phone: sfPhone,
+        address1: sfAddr,
+        address2: sfAddr2,
+        city: sfCity,
+        province: sfProv,
+        postalCode: sfZip
+      },
+      destination: {
+        name: stName || 'Customer',
+        company: stCompany,
+        phone: stPhone,
+        address1: stAddr,
+        address2: stAddr2,
+        city: stCity,
+        province: stState,
+        state: stState,
+        countryCode: stCountryCode,
+        postalCode: stZip
+      },
+      parcel: {
+        lengthCm,
+        widthCm,
+        heightCm,
+        weightKg
+      },
+      orderNum,
+      customs,
+      declarationId,
+      apiKey,
+      apiSecret,
+      customerNumber,
+      contractId,
+      zonosAccountKey: getZonosAccountKey(),
+      isTest
+    });
+
+    // A test run walks the same path a real purchase does — order, ledger,
+    // archive, label modal — so the sandbox actually rehearses the thing it is
+    // meant to rehearse. It used to stop dead here, which left the whole second
+    // half of the flow untested. Every record it writes is stamped `simulated`
+    // and shown as a test, so nothing it leaves behind can pass for a purchase.
+    const isSim = !!result.isSimulated;
+
+    if (result.trackingPin || result.labelUrl) {
+      // The request asks Canada Post to return the postage rate, so when it
+      // does, that is what the account was billed. The quote next to the button
+      // is only a fallback: it drifts from the invoice on surcharges and tax.
+      const chargedPrice = Number.isFinite(result.postageCharged) && result.postageCharged > 0
+        ? result.postageCharged
+        : quotedPrice;
+      const priceIsConfirmed = chargedPrice !== quotedPrice || Number.isFinite(result.postageCharged);
+
+      showToast(
+        isSim
+          ? `✓ Test run complete — practice label created (not mailable). Reference: ${result.trackingPin}`
+          : `✓ Canada Post label purchased! Tracking PIN: ${result.trackingPin}`,
+        isSim ? 'warn' : 'ok'
+      );
+
+      // Auto-mark prefilled order as Shipped in Order History
+      // A Verified Account purchase returns the Declaration ID Canada Post issued;
+      // prefer it over anything typed in, and show it on the form.
+      if (result.declarationId && result.declarationId !== declarationId) {
+        declarationId = result.declarationId;
+        const declInput = $('sp-zonos-declaration-id');
+        if (declInput) {
+          declInput.value = declarationId;
+          onZonosDeclarationIdInput(declarationId);
+        }
+      }
+
+      const selectedOrderNumber = normalizeShippingOrderNumber($('ship-prefill-dest')?.dataset.orderNumber || orderNum);
+      if (selectedOrderNumber) {
+        try {
+          // Every book, not just the open one: an order for another book used
+          // to stay "unshipped" after its label was bought.
+          const found = findOrderInAnyBook(states, selectedOrderNumber, normalizeShippingOrderNumber);
+          const histItem = found?.entry;
+          if (histItem) {
+            histItem.shipped = true;
+            histItem.shippedDate = today();
+            histItem.trackingNumber = result.trackingPin || '';
+            histItem.carrier = 'canadapost';
+            histItem.declarationId = declarationId || '';
+            // Whether the U.S. duty was actually prepaid, recorded on the order
+            // itself. Without it, an order with a blank Declaration ID cannot be
+            // told apart from a domestic one months later, when a customer asks
+            // why they were billed duty on delivery.
+            histItem.declarationSignal = result.declarationSignal || '';
+            histItem.postagePaid = chargedPrice;
+            // A test run's number will not scan at Canada Post. Flagging it on
+            // the order is what stops it being read out to a customer as a real
+            // tracking number, and lets a later sweep clear practice runs out.
+            histItem.simulated = isSim;
+            histItem.trackingSimulated = isSim;
+            saveState(found.bookId);
+            renderHist();
+            // Said now, while a cheaper service or a better website price can
+            // still make a difference. A practice label cost nothing.
+            if (!isSim) checkNewPostageLosses({ justBought: { num: selectedOrderNumber, postage: chargedPrice } });
+          }
+        } catch (e) {
+          console.warn('Auto-mark order shipped note:', e);
+        }
+      }
+
+      // Record business expense into TAX_CENTER ledger
+      try {
+        if (!TAX_CENTER.businessExpenses) TAX_CENTER.businessExpenses = [];
+        const cpRef = `canadapost:${result.trackingPin || result.shipmentId}`;
+        const alreadyLogged = TAX_CENTER.businessExpenses.some(e => e && e.ref === cpRef);
+        if (!alreadyLogged) {
+          TAX_CENTER.businessExpenses.unshift({
+            id: `exp_cp_${Date.now()}`,
+            date: today(),
+            // Canada Post postage is billed natively in CAD; stored verbatim with no FX conversion.
+            amount: chargedPrice,
+            // `cat` is the field every postage reader checks. This row used to
+            // carry only `category`, which nothing reads, so a label bought
+            // here never reached the shipping profit figures or the Tax Centre's
+            // postage total. `category` stays for anything that read it.
+            cat: 'Shipping & Postage',
+            category: 'Shipping & Postage',
+            baseAmount: roundCents(chargedPrice),
+            fxRate: 1,
+            fxMissing: false,
+            vendor: 'Canada Post',
+            desc: `${isSim ? '[SANDBOX TEST — not a real charge] ' : ''}Canada Post ${serviceName} (PIN: ${result.trackingPin || result.shipmentId})${declarationId ? ` · Zonos: ${declarationId}` : ''}`,
+            // Marked on the row itself as well as in its description, so a test
+            // run can be filtered out of the books rather than only spotted by
+            // reading the wording.
+            simulated: isSim,
+            // Distinguishes a figure Canada Post confirmed from the quote we
+            // fell back to, so a later reconciliation knows which to trust.
+            amountConfirmed: priceIsConfirmed,
+            quotedAmount: quotedPrice,
+            ref: cpRef,
+            currency: 'CAD',
+            trackingPin: result.trackingPin || '',
+            declarationId: declarationId || '',
+            // This label was generated in-app, so its amount is already exact.
+            // These flags keep the receipt organizer from spending an AI scan re-reading it.
+            source: 'canadapost-label',
+            autoLogged: true,
+            receiptRequired: false,
+            ocrSkip: true
+          });
+          // Bought for a known order, so it belongs to that order now rather
+          // than waiting in the match-a-receipt list.
+          const orderForLabel = normalizeShippingOrderNumber($('ship-prefill-dest')?.dataset.orderNumber || orderNum);
+          // Only an order that is really in the ledger: a blank order box
+          // gets a made-up number, and a link to it would hide the postage.
+          const orderExists = orderForLabel && websiteLedgerRows()
+            .some(({ entry }) => normalizeShippingOrderNumber(entry.num) === orderForLabel);
+          if (orderExists && !isSim) writeShippingLink(TAX_CENTER.businessExpenses[0], orderForLabel, 'label');
+        }
+        await saveTaxCenter().catch(() => {});
+        renderTaxCenter();
+        renderShippingAnalysisHub();
+      } catch (e) {
+        console.error('Failed to auto-log Canada Post expense:', e);
+      }
+
+      // Display purchased label panel in card
+      const labelPanel = $('cp-purchased-label-panel');
+      if (labelPanel) {
+        labelPanel.style.display = 'block';
+
+        labelPanel.innerHTML = `
+          <div class="cp-purchased-panel"${isSim ? ' style="border-color:var(--amber,var(--border));"' : ''}>
+            ${isSim ? `
+              <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;padding:10px 14px;background:var(--surface-card);border:var(--stroke-hair) solid var(--amber,var(--border));border-radius:var(--r);">
+                <span style="font-size:var(--text-lg);line-height:1.1;" aria-hidden="true">🧪</span>
+                <div style="font-size:var(--text-xs);color:var(--text3);line-height:1.5;">
+                  <strong style="font-size:var(--text-sm);color:var(--text);">This was a test run — nothing was bought and nothing was charged.</strong><br>
+                  ${escapeHtml(result.simulationReason || 'Canada Post could not be reached.')}
+                  The number below will not scan, and the label is a practice copy that Canada Post will not accept at the counter.
+                  The order and the postage entry it created are both marked as a test so you can find and clear them.
+                </div>
+              </div>
+            ` : ''}
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:var(--text-xl);color:${isSim ? 'var(--amber,var(--text3))' : 'var(--green)'};">${isSim ? '🧪' : '✓'}</span>
+                <div>
+                  <strong style="color:${isSim ? 'var(--amber,var(--text))' : 'var(--green)'};font-size:14px;">${isSim ? 'Test label created' : 'Label purchased'}</strong>
+                  <div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">
+                    ${isSim ? 'Reference' : 'Tracking PIN'}: <strong class="tnum" style="color:var(--text);font-size:var(--text-sm);">${escapeHtml(result.trackingPin || '—')}</strong>
+                    · ${isSim ? 'Would cost' : 'Charged'} <strong class="tnum">$${chargedPrice.toFixed(2)} CAD</strong>${priceIsConfirmed ? '' : ' (quoted)'}
+                  </div>
+                </div>
+              </div>
+              <div class="cp-label-actions">
+                <button class="btn gold cp-label-action-btn" type="button" onclick="showCanadaPostLabelModal()" title="Open the label to print it">
+                  <span aria-hidden="true">🖨️</span>
+                  <span>Open &amp; Print Label</span>
+                </button>
+                <button class="btn sm tag cp-label-action-btn" type="button" onclick="copyCanadaPostPin('${escapeHtml(result.trackingPin || '')}')" title="Copy tracking number">
+                  <span aria-hidden="true">📋</span>
+                  <span>Copy PIN</span>
+                </button>
+                <button class="card-x" type="button" onclick="closePurchasedLabelPanel()" aria-label="Close label summary" title="Close — the label stays under “Reprint a Past Label”">✕</button>
+              </div>
+            </div>
+            ${nextOrderCardHtml(selectedOrderNumber)}
+            ${result.manifestRequired && !isSim ? `
+              <div style="margin-top:12px;padding:12px 14px;background:var(--surface-card);border:var(--stroke-hair) solid var(--amber,var(--border));border-radius:var(--r);display:flex;align-items:flex-start;gap:10px;">
+                <span style="font-size:var(--text-lg);line-height:1.1;" aria-hidden="true">📋</span>
+                <div style="font-size:var(--text-xs);color:var(--text3);line-height:1.5;">
+                  ${result.manifestSignal === 'unknown' ? `
+                    <strong style="font-size:var(--text-sm);color:var(--text);">Canada Post did not say whether this parcel needs a manifest.</strong><br>
+                    A manifest is one summary sheet that goes with a batch of parcels. Sending one when it
+                    is not needed costs nothing, so send it to be safe.
+                  ` : `
+                    <strong style="font-size:var(--text-sm);color:var(--text);">This parcel needs a manifest before you drop it off.</strong><br>
+                    A manifest is one summary sheet Canada Post wants alongside parcels like this one.
+                    If the parcel is handed over without it, Canada Post adds an extra charge to it later.
+                  `}
+                </div>
+              </div>
+            ` : ''}
+            ${declarationId && isSim ? `
+              <div style="margin-top:12px;padding:10px 14px;background:var(--surface-card);border:var(--stroke-hair) solid var(--border);border-radius:var(--r);font-size:var(--text-xs);color:var(--text3);line-height:1.5;">
+                <strong style="font-size:var(--text-sm);color:var(--text);">Practice run — nothing was linked.</strong><br>
+                Declaration <span class="tnum" style="font-weight:700;">${escapeHtml(declarationId)}</span> was not
+                spent and no real parcel exists. Do not take this to the counter.
+              </div>
+            ` : ''}
+            ${declarationId && !isSim ? `
+              <div style="margin-top:12px;padding:14px;background:var(--surface-card);border:var(--stroke-hair) solid var(--green);border-radius:var(--r);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                  <span style="font-size:var(--text-lg);" aria-hidden="true">🇺🇸</span>
+                  <strong style="font-size:var(--text-base);color:var(--green);">U.S. duty is prepaid and attached to this parcel</strong>
+                </div>
+
+                <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:var(--text-xs);margin-bottom:10px;">
+                  <span style="color:var(--text3);">Declaration ID</span>
+                  <span class="tnum" style="font-weight:700;color:var(--text);letter-spacing:1px;">${escapeHtml(declarationId)}</span>
+                  <span style="color:var(--text3);">Tracking number</span>
+                  <span class="tnum" style="font-weight:700;color:var(--text);letter-spacing:1px;">${escapeHtml(result.trackingPin || '—')}</span>
+                </div>
+
+                <div style="font-size:var(--text-xs);color:var(--text3);line-height:1.6;">
+                  ${result.declarationSignal === 'issued' ? `
+                    Canada Post returned this Declaration ID with the label, which means it has recorded
+                    the duty against this parcel.
+                  ` : `
+                    This Declaration ID was sent with the label request and Canada Post accepted the
+                    shipment and issued the tracking number above. Canada Post requires a valid
+                    declaration on U.S. parcels, so an accepted shipment is one it could match.
+                  `}
+                </div>
+
+                <div style="margin-top:10px;padding-top:10px;border-top:var(--stroke-hair) solid var(--border);font-size:var(--text-xs);color:var(--text3);line-height:1.6;">
+                  <strong style="color:var(--text);font-size:var(--text-sm);">Before the counter:</strong>
+                  <div style="margin-top:4px;">1. Print this label and tape it to the parcel.</div>
+                  ${result.manifestRequired ? `
+                    <div style="margin-top:2px;">2. Send the manifest — see the note above. Handing the parcel over without it earns a surcharge.</div>
+                    <div style="margin-top:2px;">3. Hand it in. The duty is already paid, so nothing is owed at the counter.</div>
+                  ` : `
+                    <div style="margin-top:2px;">2. Hand it in. No manifest is needed, and the duty is already paid, so nothing is owed at the counter.</div>
+                  `}
+                </div>
+
+                <div style="margin-top:10px;padding-top:10px;border-top:var(--stroke-hair) solid var(--border);font-size:var(--text-xs);color:var(--text3);line-height:1.6;">
+                  <strong style="color:var(--text);font-size:var(--text-sm);">Want it confirmed by Zonos?</strong>
+                  Open your Prepay order history — <span class="tnum" style="font-weight:700;">${escapeHtml(result.trackingPin || 'the tracking number')}</span>
+                  should now be showing beside declaration <span class="tnum" style="font-weight:700;">${escapeHtml(declarationId)}</span>.
+                  That pairing is Zonos confirming it too, and it is the only check that does not rely on this app.
+                </div>
+
+                <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="btn sm tag cp-label-action-btn" type="button" onclick="navigator.clipboard.writeText('${escapeHtml(declarationId)}');showToast('✓ Copied Declaration ID');" style="min-height:36px;padding:6px 12px;">
+                    📋 Copy Declaration ID
+                  </button>
+                  <button class="btn sm tag cp-label-action-btn" type="button" onclick="openZonosPrepayAppHandler()" style="min-height:36px;padding:6px 12px;">
+                    🔎 Check it in Zonos Prepay
+                  </button>
+                </div>
+              </div>
+            ` : ''}
+            ${result.declarationSignal === 'missing' && !isSim ? `
+              <div style="margin-top:12px;padding:12px 14px;background:var(--surface-card);border:var(--stroke-hair) solid var(--red,var(--border));border-radius:var(--r);display:flex;align-items:flex-start;gap:10px;">
+                <span style="font-size:var(--text-lg);line-height:1.1;" aria-hidden="true">🇺🇸</span>
+                <div style="font-size:var(--text-xs);color:var(--text3);line-height:1.5;">
+                  <strong style="font-size:var(--text-sm);color:var(--text);">This U.S. parcel has no duty declaration, so the duty is not paid.</strong><br>
+                  U.S. customs can hold the parcel or bill your customer for the duty on delivery.
+                  Buy a declaration in the Zonos Prepay app and add its ID before you drop this parcel
+                  off, or save your Zonos account key in Tax Centre so every future U.S. label gets one
+                  automatically.
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      // Open the label straight away — the next thing anyone does after buying
+      // postage is print it. Awaited so a failure to fetch the official PDF is
+      // reported here rather than escaping as an unhandled rejection.
+      await showCanadaPostLabelModal();
+    }
+  } catch (err) {
+    console.error('Canada Post label purchase error:', err);
+    const msg = String(err?.message || '');
+    if (msg.includes('9174') || /payment card|payment method/i.test(msg)) {
+      if (typeof confirmDialog === 'function') {
+        confirmDialog(
+          'Canada Post could not bill this label because no default payment card is saved on your Canada Post online profile (Account #0001298882).\n\n'
+          + 'How to fix:\n'
+          + '1. Log into your Canada Post account at canadapost.ca\n'
+          + '2. Go to Profile / Business Profile → Manage Payment Methods\n'
+          + '3. Add or select your active credit card and check "Make this my default payment card"\n\n'
+          + 'Alternatively, if you hold a commercial contract with Canada Post, enter your Contract ID in Tax Centre → Canada Post to bill by account.',
+          {
+            title: '💳 Default Payment Card Required by Canada Post',
+            okLabel: 'Open Canada Post Profile',
+            cancelLabel: 'Close'
+          }
+        ).then(openProfile => {
+          if (openProfile) {
+            window.open('https://www.canadapost-postescanada.ca/cpc/en/personal/profile.page', '_blank');
+          }
+        }).catch(() => {});
+      }
+    }
+    showToast(`⚠ Label purchase failed: ${err.message}`, 'err');
+  } finally {
+    setCanadaPostPurchaseBusy(false, buttonEl);
+  }
+}
+
+/**
+ * Void and request a refund for a Canada Post label.
+ */
+async function voidCanadaPostLabelAction(pin) {
+  const context = getArchivedShipmentContext(pin) || _cpLabelContext || { trackingPin: pin };
+  const targetPin = context.trackingPin || pin;
+  const shipmentId = context.shipmentId || targetPin;
+
+  const userConfirmed = typeof confirmDialog === 'function'
+    ? await confirmDialog({
+        title: 'Void & Refund Canada Post Label?',
+        message: `Are you sure you want to request a refund for Canada Post label ${escapeHtml(targetPin)}? This will send a cancellation/refund request to Canada Post and remove the cached label from this device.`,
+        confirmText: 'Request Refund',
+        cancelText: 'Keep Label',
+        danger: true
+      })
+    : window.confirm(`Request refund for Canada Post label ${targetPin}?`);
+
+  if (!userConfirmed) return;
+
+  const { apiKey, apiSecret, customerNumber } = resolveCanadaPostCredentials(TAX_CENTER.settings || {});
+  try {
+    showToast('Submitting refund request to Canada Post…', 'info');
+    await refundCanadaPostShipment({
+      shipmentId,
+      trackingPin: targetPin,
+      customerNumber: context.customerNumber || customerNumber,
+      apiKey,
+      apiSecret,
+      isTest: !!TAX_CENTER.settings?.cpTestMode
+    });
+    const cpExpense = (TAX_CENTER.businessExpenses || []).find(e => e && e.ref === `canadapost:${targetPin}`);
+    if (cpExpense) await recordLabelRefundRequest(cpExpense, { status: 'REQUESTED', tracking: targetPin });
+    showToast('✓ Refund requested from Canada Post. The order is back on your to-ship list. Once the money shows up on your Canada Post account, press “Refund arrived” in the shipping ledger.', 'ok', 9000);
+    closeCanadaPostLabelModal();
+    showArchivedCanadaPostLabels();
+  } catch (err) {
+    showToast(`⚠ Refund request failed: ${err.message}`, 'err');
+  }
+}
+
+/**
+ * Lock every Buy Label button on the card while one purchase is in flight —
+ * not just the one that was pressed, since they all spend from the same
+ * account and only one label is wanted.
+ */
+function setCanadaPostPurchaseBusy(busy, buttonEl) {
+  _cpPurchaseInFlight = busy;
+  document.querySelectorAll('.cp-buy-btn').forEach(btn => {
+    if (busy) {
+      // Remember the pre-lock state: a button the card disabled for its own
+      // reason (offline estimates, incomplete account) must stay disabled when
+      // this unlocks, not be quietly switched on.
+      btn.dataset.cpWasDisabled = btn.disabled ? '1' : '';
+      if (!btn.dataset.cpIdleLabel) btn.dataset.cpIdleLabel = btn.innerHTML;
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+      if (btn === buttonEl) btn.innerHTML = '<span aria-hidden="true">⏳</span><span>Buying…</span>';
+    } else {
+      if (btn.dataset.cpIdleLabel) { btn.innerHTML = btn.dataset.cpIdleLabel; delete btn.dataset.cpIdleLabel; }
+      const wasDisabled = btn.dataset.cpWasDisabled === '1';
+      delete btn.dataset.cpWasDisabled;
+      btn.disabled = wasDisabled;
+      if (wasDisabled) btn.setAttribute('aria-disabled', 'true');
+      else btn.removeAttribute('aria-disabled');
+    }
+  });
+  if (busy && buttonEl) buttonEl.setAttribute('aria-busy', 'true');
+  else if (buttonEl) buttonEl.removeAttribute('aria-busy');
+}
+
+// Shippo weighs a customs line as quantity x net_weight and rejects the whole
+// shipment with "Combined weight of all Customs Items on the Customs
+// Declaration cannot be larger than the Parcel Weight" when that product is
+// over the parcel's own weight. net_weight is therefore PER COPY, not the line
+// total, so it is the parcel weight split across the copies in the box.
+//
+// The split is rounded DOWN to the two decimals Shippo stores. Rounding to
+// nearest would let the rounded-up copies push the total back over the parcel
+// weight (1.00 lb over 8 copies rounds 0.125 up to 0.13, and 8 x 0.13 = 1.04),
+// which is the same 400 error by another route.
+function shippoCustomsNetWeight(parcelWeight, quantity) {
+  const weight = Math.max(0.01, parseFloat(parcelWeight) || 0.01);
+  const qty = Math.max(1, parseInt(quantity, 10) || 1);
+  const perUnit = Math.floor((weight / qty) * 100) / 100;
+  // 0.01 is Shippo's smallest accepted net weight. Hitting this floor means the
+  // parcel weight is too low to cover the copies inside it; the rate form warns
+  // about that before we get here, so the declaration stays valid-shaped.
+  return Math.max(0.01, perUnit).toFixed(2);
+}
+
+function buildShippoCustomsDeclaration({ sfName, sfCountryCode, stCountryCode, spWeight, spWeightUnit }) {
+  const quantity = Math.max(1, parseInt($('sp-qty')?.value, 10) || 1);
+  const description = readShippoCustomsValue('sp-customs-description', 'Printed books');
+  // sp-customs-value is the value of a single copy; Shippo's items[].value_amount
+  // is the line total (quantity x per-unit), while net_weight is per copy.
+  const unitValue = Math.max(0.01, parseFloat(readShippoCustomsValue('sp-customs-value', '25')) || 25);
+  const hsCode = readShippoCustomsValue('sp-customs-hs', '490199');
+  const originCountry = normalizeCountryCode(sfCountryCode) || 'CA';
+
+  return {
+    certify: true,
+    certify_signer: sfName,
+    contents_type: 'MERCHANDISE',
+    contents_explanation: 'Printed books',
+    non_delivery_option: 'RETURN',
+    incoterm: resolveShippoIncoterm(stCountryCode),
+    eel_pfc: 'NOEEI_30_37_a',
+    items: [{
+      description,
+      quantity,
+      net_weight: shippoCustomsNetWeight(spWeight, quantity),
+      mass_unit: spWeightUnit,
+      value_amount: (unitValue * quantity).toFixed(2),
+      value_currency: 'CAD',
+      origin_country: originCountry,
+      tariff_number: hsCode
+    }]
+  };
+}
+
+const SHIPPO_IGNORED_KEYS = new Set(['text', 'message', 'detail', 'error', 'source', 'carrier', 'provider', 'code']);
+
+function collectShippoMessages(value, prefix = '') {
+  const messages = [];
+  if (!value) return messages;
+  if (typeof value === 'string') return [prefix ? `${prefix}: ${value}` : value];
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const item = value[i];
+      const label = prefix && typeof item !== 'string' ? `${prefix} ${i + 1}` : prefix;
+      messages.push(...collectShippoMessages(item, label));
+    }
+    return messages;
+  }
+
+  if (typeof value === 'object') {
+    const direct = value.text || value.message || value.detail || value.error;
+    if (direct && typeof direct !== 'object') {
+      const source = value.source || value.carrier || value.provider || value.code || prefix;
+      messages.push(source ? `${source}: ${direct}` : String(direct));
+    }
+    for (const [key, item] of Object.entries(value)) {
+      if (SHIPPO_IGNORED_KEYS.has(key)) continue;
+      messages.push(...collectShippoMessages(item, prefix ? `${prefix}.${key}` : key));
+    }
+  }
+  return messages;
+}
+
+function renderShippoDiagnostics(data, fallbackMessage) {
+  const rawMessages = [];
+  if (data) {
+    rawMessages.push(...collectShippoMessages(data.messages, 'message'));
+    rawMessages.push(...collectShippoMessages(data.object_messages, 'message'));
+    if (data.address_from) {
+      rawMessages.push(...collectShippoMessages(data.address_from.messages, 'origin'));
+    }
+    if (data.address_to) {
+      rawMessages.push(...collectShippoMessages(data.address_to.messages, 'destination'));
+    }
+    if (data.parcels && Array.isArray(data.parcels)) {
+      const parcelMessages = data.parcels.map(p => p?.messages).filter(Boolean);
+      rawMessages.push(...collectShippoMessages(parcelMessages, 'parcel'));
+    }
+  }
+
+  const uniqueMessages = Array.from(new Set(rawMessages.filter(Boolean)));
+
+  let detailsHtml = '';
+  if (uniqueMessages.length > 0) {
+    let listItemsHtml = '';
+    for (let i = 0; i < Math.min(uniqueMessages.length, 8); i++) {
+      listItemsHtml += `<li>${escapeHtml(uniqueMessages[i])}</li>`;
+    }
+    detailsHtml = `<ul style="margin:12px 0 0; padding-left:18px; text-align:left; line-height:1.55;">${listItemsHtml}</ul>`;
+  } else {
+    detailsHtml = `<div style="margin-top:12px; font-size:var(--text-sm); line-height:1.55;">${escapeHtml(fallbackMessage)}</div>`;
+  }
+
+  return `
+    <div style="text-align:center; padding:3rem 1rem; color:var(--text3);">
+      <div style="font-size:32px; margin-bottom:12px;">⚠️</div>
+      <div>No rates were returned by Shippo.</div>
+      ${detailsHtml}
+      <div style="margin-top:12px; font-size:var(--text-sm); line-height:1.55; color:var(--text3);">The API key was accepted because Shippo created a shipment response; this usually points to address validation, unsupported origin/destination service, package specs, or missing/enabled carrier accounts rather than a bad key.</div>
+    </div>`;
+}
+
+/**
+ * Asks before buying a second label for an order that already has one.
+ * Resolves true when the purchase should go ahead.
+ */
+async function confirmNoExistingLabel(orderNumber) {
+  // Every book, not just the open one: a website order for another book, or
+  // one the website already shipped, must be caught too.
+  const found = findExistingLabel(orderNumber, {
+    hist: allOrderHistory(),
+    expenses: TAX_CENTER.businessExpenses || [],
+  });
+  if (!found) return true;
+  return confirmDialog(
+    found.fromWebsite
+      ? `Order ${normalizeShippingOrderNumber(orderNumber)}: ${websiteLabelWords(found)} It also charges you again.`
+      : `Order ${normalizeShippingOrderNumber(orderNumber)} already has a shipping label. `
+        + 'Buying another charges you again for the same parcel.',
+    {
+      title: 'This order already has a label',
+      details: describeExistingLabel(found),
+      okLabel: 'Buy another anyway',
+      cancelLabel: 'Go back',
+      danger: true,
+    },
+  );
+}
+
+let _shippoPurchaseInFlight = false;
+
+async function buyShippoLabel(rateId, provider, serviceName, amount, currency) {
+  if (_shippoPurchaseInFlight) {
+    showToast('A label purchase is already running — give it a moment', 'warn');
+    return;
+  }
+  _shippoPurchaseInFlight = true;
+  try {
+    await buyShippoLabelOnce(rateId, provider, serviceName, amount, currency);
+  } finally {
+    _shippoPurchaseInFlight = false;
+  }
+}
+
+async function buyShippoLabelOnce(rateId, provider, serviceName, amount, currency) {
+  const shippoKey = TAX_CENTER.settings?.shippoKey || '';
+  if (!shippoKey) {
+    showToast('⚠️ Please configure your Shippo API Key first', 'warn');
+    return;
+  }
+
+  // A label bought for an address Shippo has already called undeliverable is
+  // money spent on a parcel that comes back. The check only fires when the
+  // publisher actually verified *this* address and Shippo rejected it — an
+  // unverified destination buys as it always did, so the verifier adds a guard
+  // rather than a gate.
+  const verification = currentDestinationVerification();
+  if (verification?.result && !isDeliverable(verification.result)) {
+    const reason = verification.result.reasons[0]?.description || 'Shippo could not find this address.';
+    const overridden = await confirmDialog(
+      `Shippo says this destination is undeliverable.\n\n${reason}\n\nBuy the label anyway?`,
+      { title: 'Undeliverable address', okLabel: 'Buy anyway', cancelLabel: 'Go back', danger: true },
+    );
+    if (!overridden) return;
+  }
+
+  const prefilledOrder = $('ship-prefill-dest')?.dataset.orderNumber;
+  if (prefilledOrder && !(await confirmNoExistingLabel(prefilledOrder))) return;
+
+  const confirmed = await confirmDialog(`Confirm purchasing shipping label?\n\nCarrier: ${provider}\nService: ${serviceName}\nCost: ${amount} ${currency}`, {
+    title: 'Purchase Shipping Label',
+    okLabel: 'Purchase',
+    cancelLabel: 'Cancel'
+  });
+  if (!confirmed) return;
+
+  showToast('⚡ Purchasing label from Shippo...');
+
+  try {
+    const { labelUrl, trackingNumber } = await purchaseShippoRate({
+      rateId, provider, serviceName, amount, currency,
+      orderNumber: $('ship-prefill-dest')?.dataset.orderNumber,
+    });
+    if (labelUrl) window.open(labelUrl, '_blank');
+    showToast(`✓ Label purchased! Tracking: ${trackingNumber || 'N/A'}`, 'ok', 6000);
+  } catch (err) {
+    console.error('Failed to buy Shippo label:', err);
+    showToast(`❌ Purchase failed: ${err.message}`, 'err');
+  }
+}
+
+/** The order history entry for an order number, in whichever book it was sold. */
+function findOrderAcrossBooks(orderNumber) {
+  const wanted = normalizeShippingOrderNumber(orderNumber);
+  if (!wanted) return null;
+  for (const [bookId, state] of Object.entries(states)) {
+    const entry = (state?.hist || []).find(h => normalizeShippingOrderNumber(h?.num) === wanted);
+    if (entry) return { bookId, entry };
+  }
+  return null;
+}
+
+/**
+ * Buys one Shippo rate and records it: marks the order shipped, logs the
+ * postage expense, links it to the order. No prompts — every caller confirms
+ * with the publisher first. Throws when Shippo does not sell the label.
+ */
+async function purchaseShippoRate({ rateId, provider, serviceName, amount, currency, orderNumber = '', labelFileType = '' }) {
+  const shippoKey = TAX_CENTER.settings?.shippoKey || '';
+  if (!shippoKey) throw new Error('No Shippo API key saved.');
+
+  const resp = await fetch('https://api.goshippo.com/transactions/', {
+    method: 'POST',
+    headers: {
+      'Authorization': `ShippoToken ${shippoKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ rate: rateId, async: false, ...(labelFileType ? { label_file_type: labelFileType } : {}) })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => null);
+    throw new Error(err ? JSON.stringify(err) : `API Error ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  if (data.status !== 'SUCCESS') {
+    const msgs = (data.messages || []).map(m => m.text).join('; ') || 'Transaction failed.';
+    throw new Error(`Shippo returned status ${data.status}: ${msgs}`);
+  }
+
+  const labelUrl = data.label_url;
+  const trackingNumber = data.tracking_number;
+  const transactionId = data.object_id;
+
+  // Auto-mark the order as Shipped, in whichever book sold it.
+  const selectedOrderNumber = normalizeShippingOrderNumber(orderNumber);
+  const found = selectedOrderNumber ? findOrderAcrossBooks(selectedOrderNumber) : null;
+  if (found) {
+    found.entry.shipped = true;
+    found.entry.shippedDate = today();
+    found.entry.trackingNumber = trackingNumber || '';
+    // A Shippo test key buys a label that never scans: say so on the order,
+    // so it is never treated (or sent to the website) as a real parcel.
+    if (isShippoTestKey(shippoKey)) found.entry.trackingSimulated = true;
+    else delete found.entry.trackingSimulated;
+    saveState(found.bookId);
+    renderHist();
+    if (String(currency || '').toUpperCase() === 'CAD') {
+      checkNewPostageLosses({ justBought: { num: selectedOrderNumber, postage: Number(amount) || 0 } });
+    }
+  }
+  // Auto-log as expense. This has to land in TAX_CENTER.businessExpenses with
+  // the same shape processShippoTxToExpense produces: that is the only ledger
+  // the shipping P&L, carrier scorecard and reconciliation worklist read, and
+  // it is also what the Shippo API import dedupes against by `ref`. Writing
+  // to the per-book state.expenses instead left every in-app purchase
+  // invisible to the analysis hub until a later import re-added it as a
+  // second, duplicate line for the same transaction.
+  const ref = 'shippo:' + transactionId;
+  if (!TAX_CENTER.businessExpenses) TAX_CENTER.businessExpenses = [];
+  if (!TAX_CENTER.settings) TAX_CENTER.settings = {};
+  const alreadyLogged = TAX_CENTER.businessExpenses.some(e => String(e?.ref || '') === ref);
+
+  if (!alreadyLogged) {
+    const purchaseCurrency = String(currency || 'CAD').toUpperCase();
+    const purchaseAmount = Number(amount);
+    const date = today();
+
+    let fxRate = purchaseCurrency === 'CAD' ? 1 : 0;
+    if (purchaseCurrency !== 'CAD') {
+      try { fxRate = (await fetchHistoricalRate(purchaseCurrency, 'CAD', date))?.rate || 0; } catch (_) { /* continue */ }
+      if (!fxRate) {
+        try { fxRate = (await fetchLiveRate(purchaseCurrency, 'CAD'))?.rate || 0; } catch (_) { /* continue */ }
+      }
+      if (!fxRate) fxRate = _fxRateCache[`${purchaseCurrency}_CAD`] || 0;
+    }
+    const fxMissing = !fxRate;
+
+    const localReceipt = labelUrl ? await saveShippoLabelLocally(labelUrl, transactionId) : null;
+
+    const expense = {
+      id: Date.now(),
+      desc: `Shippo shipping label${trackingNumber ? ` #${trackingNumber}` : ''} — ${provider} ${serviceName}`,
+      cat: 'Shipping & Postage',
+      currency: purchaseCurrency,
+      amount: purchaseAmount,
+      origCurrency: purchaseCurrency,
+      origAmount: purchaseAmount,
+      fxRate: fxMissing ? null : fxRate,
+      baseAmount: fxMissing ? null : roundCents(purchaseAmount * fxRate),
+      fxMissing,
+      date,
+      ref,
+      receipt: localReceipt || labelUrl,
+      trackingUrl: data.tracking_url_provider || '',
+      trip: '',
+    };
+
+    // Reconcile against the order right here rather than waiting for the next
+    // API import to link it. The transaction echoes the shipment metadata,
+    // but the picker's own order number is the authoritative source, so pass
+    // it through as the shipment metadata enrichShippoExpense reads.
+    const shipmentContext = selectedOrderNumber ? { metadata: `order_number:${selectedOrderNumber}` } : {};
+    TAX_CENTER.businessExpenses.unshift(
+      enrichShippoExpense(expense, data, shipmentContext, {}, getShippingReconciliationOrders()),
+    );
+    TAX_CENTER.settings.shippoImportedObjectIds =
+      Array.from(new Set([...(TAX_CENTER.settings.shippoImportedObjectIds || []), transactionId])).slice(-10000);
+    await saveTaxCenter().catch(e => console.warn('Shippo label expense save failed', e));
+    renderTaxCenter();
+    renderShippingAnalysisHub();
+  }
+  renderExpenses();
+
+  return { labelUrl, trackingNumber, transactionId };
+}
+
+// ── BATCH SHIPPING ───────────────────────────────────────────────────────
+// Several orders, one pass: check each address with Shippo, size each box from
+// the catalogue, take the cheapest rate, and only then — after one clear
+// confirmation showing the total — buy the labels. Anything the checks cannot
+// vouch for is held back with the reason, to be done in the normal form.
+// The rules live in lib/batch-shipping.js; this is the network and the dialog.
+
+let _batch = { phase: 'idle', rows: [] };
+
+function allOrderHistory() {
+  return Object.values(states).flatMap(state => (Array.isArray(state?.hist) ? state.hist : []));
+}
+
+function batchRowPlace(entry) {
+  return [entry.shipCity, entry.shipProvince, entry.shipCountry].filter(Boolean).join(', ');
+}
+
+function openBatchShipping() {
+  if (!TAX_CENTER.settings?.shippoKey) {
+    showToast('⚠️ Please configure your Shippo API Key first', 'warn');
+    return;
+  }
+  if (_batch.phase === 'checking' || _batch.phase === 'buying') {
+    openM('batch-ship');
+    return;
+  }
+  const now = new Date();
+  const rows = [];
+  const hiddenOrders = hiddenQueueOrders();
+  const pickupOrders = localPickupOrderNumbers();
+  Object.entries(states).forEach(([bookId, state]) => {
+    (state?.hist || []).forEach(entry => {
+      if (!isBatchCandidate(entry, now, { hidden: hiddenOrders, includeWebsite: true })) return;
+      if (pickupOrders.has(normalizeShippingOrderNumber(entry.num))) return;
+      // Packed on the website as a rule, so listed for the odd time its postage
+      // is bought here — but never ticked for you.
+      const website = isWebsiteFulfilled(entry);
+      rows.push({
+        bookId,
+        entry,
+        orderNumber: normalizeShippingOrderNumber(entry.num),
+        website,
+        selected: !website,
+        status: 'waiting',
+        reason: '',
+        rate: null,
+        plan: null,
+      });
+    });
+  });
+  // One sale can be filed under two books (a mixed order); one label covers it.
+  // The batch plans a parcel from one row, so an order filed under several
+  // titles is flagged and held for the full form rather than bought part-sized.
+  const rowsPerOrder = new Map();
+  rows.forEach(row => rowsPerOrder.set(row.orderNumber, (rowsPerOrder.get(row.orderNumber) || 0) + 1));
+  rows.forEach(row => { row.multiTitle = rowsPerOrder.get(row.orderNumber) > 1; });
+  // ⚡ Bolt Optimization: read each sale's date once, not twice per comparison
+  // (the sort used to build two Date objects on every one of its n·log n steps).
+  const timeOf = new Map(rows.map(row => [row, new Date(row.entry.date || 0).getTime()]));
+  const seen = new Set();
+  _batch = {
+    phase: 'idle',
+    rows: rows
+      .sort((a, b) => timeOf.get(a) - timeOf.get(b))
+      .filter(row => (seen.has(row.orderNumber) ? false : seen.add(row.orderNumber))),
+  };
+  renderBatchShipping();
+  openM('batch-ship');
+}
+
+const BATCH_STATUS_PILLS = {
+  waiting: '<span class="pill gray">● Not checked</span>',
+  checking: '<span class="pill blue">● Checking…</span>',
+  ready: '<span class="pill green">✓ Ready</span>',
+  held: '<span class="pill amber">● Do by hand</span>',
+  buying: '<span class="pill blue">● Buying…</span>',
+  bought: '<span class="pill green">✓ Label bought</span>',
+  failed: '<span class="pill red">✕ Not bought</span>',
+};
+
+function renderBatchShipping() {
+  const body = $('batch-ship-body');
+  const footer = $('batch-ship-footer');
+  if (!body || !footer) return;
+  const { rows, phase } = _batch;
+
+  if (!rows.length) {
+    body.innerHTML = `<div class="empty-state"><div class="e-icon">📦</div>No orders are waiting to ship. Orders from the last ${BATCH_LOOKBACK_DAYS} days that aren't marked shipped will show up here.</div>`;
+    footer.innerHTML = '<button class="btn" type="button" onclick="attemptCloseModal(\'batch-ship\')">Close</button>';
+    return;
+  }
+
+  const locked = phase === 'checking' || phase === 'buying';
+  const canTick = row => (phase === 'idle' && row.status === 'waiting') || (phase === 'review' && row.status === 'ready');
+  const rowHtml = rows.map((row, i) => {
+    const { entry } = row;
+    const tickable = canTick(row) && !locked;
+    const price = row.rate
+      ? `${escapeHtml(row.rate.provider)} ${escapeHtml(row.rate.servicelevel?.name || '')}<br><strong>$${parseFloat(row.rate.amount).toFixed(2)} ${escapeHtml(row.rate.currency || '')}</strong>`
+      : '<span style="color:var(--text3);">—</span>';
+    let action = '';
+    if (row.status === 'held' || row.status === 'failed') {
+      action = `<button class="btn sm ink" type="button" onclick="openBatchRowInForm(${i})">Open in form</button>`;
+    } else if (row.status === 'bought' && row.labelUrl) {
+      action = `<a class="btn sm gold" href="${escapeHtml(row.labelUrl)}" target="_blank" rel="noopener">Print label</a>`
+        + (row.transactionId ? ` <button class="btn sm ghost" type="button" onclick="requestLabelRefund('shippo:${escapeHtml(row.transactionId)}')" title="Cancel this label and get the postage back">↩ Refund</button>` : '');
+    }
+    return `<tr>
+      <td><input type="checkbox" aria-label="Include order ${escapeHtml(row.orderNumber)}" ${row.selected && (tickable || row.status === 'bought' || row.status === 'buying') ? 'checked' : ''} ${tickable ? '' : 'disabled'} onchange="toggleBatchRow(${i}, this.checked)" style="width:20px;height:20px;"></td>
+      <td><strong>${escapeHtml(row.orderNumber)}</strong> · ${escapeHtml(entry.shipName || '')}${row.website ? ' <span class="chip-status sm gray" title="Packed on the website as a rule — tick it only if you are buying its postage here">Website order</span>' : ''}<br><span style="color:var(--text3);font-size:var(--text-sm);">${escapeHtml(batchRowPlace(entry))}</span></td>
+      <td>${BATCH_STATUS_PILLS[row.status] || ''}${row.reason ? `<div style="font-size:var(--text-sm);color:var(--text2);margin-top:4px;line-height:1.4;">${escapeHtml(row.reason)}</div>` : ''}${row.tracking ? `<div style="font-size:var(--text-sm);margin-top:4px;">Tracking ${escapeHtml(row.tracking)}</div>` : ''}</td>
+      <td class="r" style="font-family:inherit;">${price}</td>
+      <td>${action}</td>
+    </tr>`;
+  }).join('');
+
+  const intro = {
+    idle: 'Untick anything you don’t want to send yet, then press <strong>Check orders</strong>. Nothing is bought at this step — the app checks each address with Shippo, works out the box from your catalogue, and finds the cheapest rate.',
+    checking: 'Checking each order… nothing is being bought.',
+    review: 'Only orders that passed every check can be bought here. Anything marked <strong>Do by hand</strong> needs a person to look at it first — open it in the normal form.',
+    buying: 'Buying labels one at a time. Keep this window open.',
+    done: 'Done. Print each label from its row — they’re also saved with the expense in your Tax Centre.',
+  }[phase];
+
+  body.innerHTML = `<p style="margin:0 0 12px;line-height:1.5;">${intro}</p>
+    <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th></th><th>Order</th><th>Check</th><th class="r">Cheapest</th><th></th></tr></thead><tbody>${rowHtml}</tbody></table></div>`;
+
+  const picked = rows.filter(r => r.selected && canTick(r));
+  if (phase === 'idle') {
+    footer.innerHTML = `<button class="btn" type="button" onclick="attemptCloseModal('batch-ship')">Cancel</button>
+      <button class="btn gold" type="button" ${picked.length ? '' : 'disabled'} onclick="checkBatchOrders()">Check ${picked.length} order${picked.length === 1 ? '' : 's'}</button>`;
+  } else if (phase === 'review') {
+    footer.innerHTML = `<button class="btn" type="button" onclick="attemptCloseModal('batch-ship')">Not now</button>
+      <button class="btn gold" type="button" ${picked.length ? '' : 'disabled'} onclick="buyBatchLabels()">Buy ${picked.length} label${picked.length === 1 ? '' : 's'} · ${escapeHtml(describeBatchTotal(picked))}</button>`;
+  } else if (phase === 'done') {
+    const printable = rows.filter(r => r.status === 'bought' && r.labelUrl).length;
+    footer.innerHTML = `<button class="btn" type="button" onclick="attemptCloseModal('batch-ship')">Close</button>`
+      + (printable ? `<button class="btn gold" type="button" onclick="printBatchLabels()"><span aria-hidden="true">🖨️</span> Print all ${printable} label${printable === 1 ? '' : 's'}</button>` : '');
+  } else {
+    footer.innerHTML = `<button class="btn" type="button" disabled>${phase === 'buying' ? 'Buying…' : 'Checking…'}</button>`;
+  }
+}
+
+function toggleBatchRow(index, checked) {
+  const row = _batch.rows[index];
+  if (!row) return;
+  row.selected = !!checked;
+  renderBatchShipping();
+}
+
+function batchHold(row, reason) {
+  row.status = 'held';
+  row.reason = reason;
+  row.selected = false;
+}
+
+async function fetchBatchRates(shippoKey, origin, row, address) {
+  const { specs } = resolveBookPresetSpecs(BOOKS[row.plan.presetBookId]);
+  const parcel = scaledParcel(specs, row.plan.totalQty);
+  const originCountry = normalizeCountryCode(origin.country || 'CA') || 'CA';
+  const payload = {
+    address_from: { ...origin, country: originCountry },
+    address_to: {
+      ...address,
+      phone: getFallbackShippingPhone(row.entry.shipPhone || row.entry.phone || ''),
+    },
+    parcels: [parcel],
+    metadata: `order_number:${row.orderNumber.slice(0, 100)}`,
+    async: false,
+  };
+  if (address.country !== originCountry) {
+    payload.customs_declaration = batchCustomsDeclaration({
+      signer: origin.name,
+      originCountry,
+      destCountry: address.country,
+      parcel,
+      qty: row.plan.totalQty,
+      unitValue: row.plan.customsUnitValue,
+      description: row.plan.customsDescription,
+    });
+  }
+  const resp = await fetch('https://api.goshippo.com/shipments/', {
+    method: 'POST',
+    headers: { 'Authorization': `ShippoToken ${shippoKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(`Shippo couldn’t quote this parcel (error ${resp.status}).`);
+  const data = await resp.json();
+  return data.rates || [];
+}
+
+async function checkBatchOrders() {
+  if (_batch.phase !== 'idle') return;
+  const shippoKey = TAX_CENTER.settings?.shippoKey || '';
+  if (!navigator.onLine) {
+    showToast('⚠️ You’re offline — batch shipping needs a connection to check addresses and rates', 'warn');
+    return;
+  }
+  const origin = savedShippingOrigin();
+  const originProblem = originBlocker(origin);
+  if (originProblem) {
+    showToast(`⚠️ ${originProblem}`, 'warn', 8000);
+    return;
+  }
+
+  _batch.phase = 'checking';
+  const touchedBooks = new Set();
+  const history = allOrderHistory();
+  const originCountry = normalizeCountryCode(origin.country || 'CA') || 'CA';
+
+  for (const row of _batch.rows) {
+    if (!row.selected || row.status !== 'waiting') continue;
+    row.status = 'checking';
+    renderBatchShipping();
+    try {
+      if (row.multiTitle) {
+        batchHold(row, 'This order has more than one title, so one parcel size can’t be worked out here. Ship it from the Shipping form.');
+        continue;
+      }
+      const address = ledgerOrderAddress(row.entry);
+      const countryProblem = countryFallbackWarning(row.entry.shipCountry, address.country);
+      row.plan = orderParcelPlan(parcelLinesFromLedgerEntry(row.entry, row.bookId, BOOKS), BOOKS);
+      const existing = findExistingLabel(row.orderNumber, { hist: history, expenses: TAX_CENTER.businessExpenses || [] });
+      const early = countryProblem || preflightBlocker({
+        address,
+        plan: row.plan,
+        existing,
+        originCountry,
+        phone: row.entry.shipPhone || row.entry.phone || '',
+      });
+      if (early) { batchHold(row, early); continue; }
+
+      const verified = await verifyOrderAddressRecord(shippoKey, row.entry, { save: false });
+      touchedBooks.add(row.bookId);
+      const addressProblem = verified.skipped ? verified.blocker : addressVerdictBlocker(verified.result);
+      if (addressProblem) { batchHold(row, addressProblem); continue; }
+
+      const rate = pickCheapestRate(await fetchBatchRates(shippoKey, origin, row, address));
+      if (!rate) { batchHold(row, 'No carrier offered a rate for this parcel.'); continue; }
+      row.rate = rate;
+      row.status = 'ready';
+      row.reason = describeParcelPlan(row.plan);
+    } catch (err) {
+      console.error('Batch shipping check failed', row.orderNumber, err);
+      batchHold(row, err.message || 'The check didn’t finish.');
+    }
+  }
+
+  // The address verdicts are kept on each order, same as the ledger checker.
+  await Promise.all([...touchedBooks].map(bookId => saveState(bookId).catch(() => {})));
+  _batch.phase = 'review';
+  renderBatchShipping();
+  const ready = _batch.rows.filter(r => r.status === 'ready').length;
+  const held = _batch.rows.filter(r => r.status === 'held').length;
+  showToast(`✓ ${ready} ready to buy${held ? ` · ${held} to do by hand` : ''}`, held ? 'warn' : 'ok', 6000);
+}
+
+async function buyBatchLabels() {
+  if (_batch.phase !== 'review') return;
+  const picked = _batch.rows.filter(r => r.selected && r.status === 'ready' && r.rate);
+  if (!picked.length) return;
+
+  const details = picked.slice(0, 8).map(r => [
+    r.orderNumber,
+    `${r.entry.shipName || ''} · ${r.rate.provider} ${r.rate.servicelevel?.name || ''} · $${parseFloat(r.rate.amount).toFixed(2)} ${r.rate.currency || ''}`,
+  ]);
+  if (picked.length > 8) details.push(['', `…and ${picked.length - 8} more`]);
+  details.push(['Total', describeBatchTotal(picked)]);
+
+  const confirmed = await confirmDialog(
+    'This charges your Shippo account for every label below. A label bought by mistake has to be refunded through Shippo.',
+    {
+      title: `Buy ${picked.length} shipping label${picked.length === 1 ? '' : 's'}?`,
+      details,
+      okLabel: `Buy · ${describeBatchTotal(picked)}`,
+      cancelLabel: 'Go back',
+    },
+  );
+  if (!confirmed || _batch.phase !== 'review') return;
+
+  _batch.phase = 'buying';
+  let bought = 0;
+  let failed = 0;
+  for (const row of picked) {
+    row.status = 'buying';
+    renderBatchShipping();
+    // Checked again right before spending: another device may have shipped it
+    // since the check ran.
+    const existing = findExistingLabel(row.orderNumber, { hist: allOrderHistory(), expenses: TAX_CENTER.businessExpenses || [] });
+    if (existing) {
+      row.status = 'failed';
+      row.reason = 'Skipped — this order got a label while the batch was open.';
+      failed++;
+      continue;
+    }
+    if (!navigator.onLine) {
+      row.status = 'failed';
+      row.reason = 'Skipped — you went offline. Nothing was charged for this one.';
+      failed++;
+      continue;
+    }
+    try {
+      const result = await purchaseShippoRate({
+        rateId: row.rate.object_id,
+        provider: row.rate.provider,
+        serviceName: row.rate.servicelevel?.name || '',
+        amount: parseFloat(row.rate.amount),
+        currency: row.rate.currency,
+        orderNumber: row.orderNumber,
+        // Pictures rather than PDFs, so every label in the batch can go on one
+        // printable page.
+        labelFileType: 'PNG',
+      });
+      row.status = 'bought';
+      row.reason = '';
+      row.labelUrl = result.labelUrl || '';
+      row.tracking = result.trackingNumber || '';
+      row.transactionId = result.transactionId || '';
+      bought++;
+    } catch (err) {
+      console.error('Batch label purchase failed', row.orderNumber, err);
+      row.status = 'failed';
+      row.reason = `Shippo didn’t sell this label: ${err.message}`;
+      failed++;
+    }
+  }
+  _batch.phase = 'done';
+  renderBatchShipping();
+  showToast(
+    `✓ ${bought} label${bought === 1 ? '' : 's'} bought${failed ? ` · ${failed} not bought — see the list` : ''}`,
+    failed ? 'warn' : 'ok',
+    8000,
+  );
+}
+
+/** Opens every label bought in this batch on one page and prints it. */
+function printBatchLabels() {
+  const labels = _batch.rows
+    .filter(r => r.status === 'bought' && r.labelUrl)
+    .map(r => ({ url: r.labelUrl, orderNumber: r.orderNumber }));
+  if (!labels.length) return;
+  const win = window.open('', '_blank');
+  if (!win) {
+    showToast('⚠️ Your browser blocked the print window — allow pop-ups for this app, then try again', 'warn', 8000);
+    return;
+  }
+  win.document.open();
+  win.document.write(buildLabelPrintPage(labels));
+  win.document.close();
+}
+
+/** Hands a held-back order to the normal one-order form. */
+function openBatchRowInForm(index) {
+  const row = _batch.rows[index];
+  if (!row) return;
+  renderCustomShippoDestPicker();
+  const idx = _shippoDestMasterList.findIndex(item =>
+    item.category === 'orders' && normalizeShippingOrderNumber(item.orderNumber) === row.orderNumber);
+  closeM('batch-ship');
+  if (idx >= 0) {
+    selectShippoDestCustomItem(idx);
+  } else {
+    showToast(`Pick order ${row.orderNumber} from the Destination list to finish it by hand`, 'warn', 7000);
+  }
+}
+
+// ── LABEL REFUNDS ────────────────────────────────────────────────────────
+// Asking for money back on an unused label, and keeping the books and the
+// order in step with it. The rules live in lib/carriers/label-refunds.js.
+
+/** Records a refund request: marks the expense, frees the order, credits the books if settled. */
+async function recordLabelRefundRequest(expense, { status = 'REQUESTED', refundId = '', tracking = '' } = {}) {
+  expense.refundRequest = { id: refundId, status, at: new Date().toISOString() };
+
+  const found = findOrderAcrossBooks(expense.shippingOrderNumber);
+  if (found && unshipOrderForRefund(found.entry, tracking || expense.trackingNumber || expense.trackingPin || '')) {
+    await saveState(found.bookId).catch(() => {});
+    renderHist();
+  }
+
+  if (isSettledRefund({ status }) && refundId) {
+    const credit = refundCredit(expense, { refundId, date: today() });
+    if (credit) TAX_CENTER.businessExpenses.unshift(credit);
+  }
+  await saveTaxCenter().catch(e => console.warn('Refund save failed', e));
+  renderTaxCenter();
+  renderExpenses();
+  renderShippingAnalysisHub();
+}
+
+/** "Refund label" from the shipping ledger or the batch window. */
+async function requestLabelRefund(expenseKey) {
+  const expenses = TAX_CENTER.businessExpenses || [];
+  const expense = findPostageByKey(expenses, expenseKey)
+    || expenses.find(e => e && String(e.ref || '') === String(expenseKey));
+  if (!expense) { showToast('Couldn’t find that label.', 'err'); return; }
+  if (!canRequestRefund(expense, expenses)) {
+    showToast(refundState(expense, expenses) === 'none'
+      ? 'This label can’t be refunded from here.'
+      : 'A refund has already been requested for this label.', 'warn');
+    return;
+  }
+
+  const carrier = refundCarrier(expense);
+  if (carrier === 'chitchats') {
+    await requestChitChatsRefundHandler(expense);
+    return;
+  }
+  if (carrier === 'canadapost') {
+    await voidCanadaPostLabelAction(expense.trackingPin || String(expense.ref).slice('canadapost:'.length));
+    return;
+  }
+
+  const shippoKey = TAX_CENTER.settings?.shippoKey || '';
+  if (!shippoKey) { showToast('⚠️ Please configure your Shippo API Key first', 'warn'); return; }
+  if (!navigator.onLine) { showToast('⚠️ You’re offline — connect to request a refund', 'warn'); return; }
+
+  const details = [
+    ['Label', expense.desc || 'Shippo label'],
+    ['Cost', `$${(Number(expense.amount) || 0).toFixed(2)} ${expense.currency || 'CAD'}`],
+  ];
+  if (expense.shippingOrderNumber) details.push(['Order', expense.shippingOrderNumber]);
+  const confirmed = await confirmDialog(
+    'Only use this for a label that will never be mailed — once you ask, the label stops working. '
+      + 'Shippo checks that the carrier never scanned it, then returns the money, usually within a few days to a couple of weeks. '
+      + 'The order goes back on your to-ship list.',
+    { title: 'Refund this shipping label?', details, okLabel: 'Request refund', cancelLabel: 'Keep label', danger: true },
+  );
+  if (!confirmed) return;
+
+  showToast('Asking Shippo for a refund…');
+  try {
+    const resp = await fetch('https://api.goshippo.com/refunds/', {
+      method: 'POST',
+      headers: { 'Authorization': `ShippoToken ${shippoKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transaction: shippoTransactionId(expense), async: false }),
+    });
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '');
+      throw new Error(describeRefundRefusal(resp.status, body));
+    }
+    const refund = parseRefund(await resp.json());
+    const status = refund?.status || 'QUEUED';
+    if (status === 'ERROR') throw new Error('Shippo couldn’t refund this label — the carrier may have already scanned it.');
+    await recordLabelRefundRequest(expense, { status, refundId: refund?.id || '' });
+    showToast(isSettledRefund({ status })
+      ? '✓ Label refunded — the cost is taken back out of your books and the order is back on your to-ship list.'
+      : '✓ Refund requested. The order is back on your to-ship list, and the money comes off your books automatically once Shippo confirms it.', 'ok', 9000);
+  } catch (err) {
+    console.error('Shippo refund failed', err);
+    showToast(`❌ ${err.message}`, 'err', 9000);
+  }
+}
+
+/** For carriers that don't report back: the owner confirms the money is back. */
+async function markLabelRefundArrived(expenseKey) {
+  const expenses = TAX_CENTER.businessExpenses || [];
+  const expense = findPostageByKey(expenses, expenseKey);
+  if (!expense || refundState(expense, expenses) !== 'requested') return;
+  const ok = await confirmDialog(
+    `Take $${(Number(expense.amount) || 0).toFixed(2)} back out of your shipping costs? Only do this once the refund shows up on your account.`,
+    { title: 'Refund arrived?', okLabel: 'Yes, it arrived', cancelLabel: 'Not yet' },
+  );
+  if (!ok) return;
+  const prefix = `${refundCarrier(expense) || 'shippo'}-refund`;
+  const credit = refundCredit(expense, { refundId: expense.refundRequest?.id || `manual-${Date.now()}`, date: today(), prefix });
+  if (!credit) return;
+  if (refundCarrier(expense) === 'chitchats') {
+    const account = { clientId: expense.ccClientId, isTest: expense.ccTestMode };
+    const state = readChitChatsState(account);
+    (state.credits ||= {})[credit.ref] = credit;
+    saveChitChatsState(account, state);
+  }
+  expense.refundRequest = { ...expense.refundRequest, status: 'SUCCESS' };
+  expenses.unshift(credit);
+  await saveTaxCenter().catch(() => {});
+  renderTaxCenter();
+  renderExpenses();
+  renderShippingAnalysisHub();
+  showToast('✓ Refund recorded');
+}
+
+/** The refund control for one label in the shipping ledger. */
+function labelRefundControlHtml(expense) {
+  if (!expense) return '';
+  const expenses = TAX_CENTER.businessExpenses || [];
+  const key = escapeHtml(postageExpenseKey(expense));
+  const state = refundState(expense, expenses);
+  if (state === 'refunded') return '<span class="pill gray">✓ Refunded</span>';
+  if (state === 'requested') {
+    return `<span class="pill amber">● Refund requested</span>
+      <button class="btn sm ghost" style="font-size:var(--text-2xs); padding:3px 8px;" onclick="markLabelRefundArrived('${key}')" title="Record the refund once the money is back">Refund arrived</button>`;
+  }
+  if (!canRequestRefund(expense, expenses)) return '';
+  return `<button class="btn sm ghost" style="font-size:var(--text-2xs); padding:3px 8px; color:var(--text3);" onclick="requestLabelRefund('${key}')" title="Cancel an unused label and get the postage back">↩ Refund label</button>`;
+}
+
+// ── RATE FORM READINESS ──────────────────────────────────────────────────
+// A quote needs a specific set of boxes filled in, spread over three cards and
+// roughly twenty inputs. The old feedback was a toast naming a whole card
+// ("Origin address (Sender Name, Street, City, Zip) is required") and then
+// leaving the publisher to hunt the form for the one that is actually blank —
+// on a phone the empty box is usually off-screen when the toast appears.
+//
+// This is the single list both the live readiness line and the Calculate button
+// read, in the order the fields appear on screen, so the two can never disagree
+// about what is still missing and "the first one" is always the topmost one.
+//
+// `test` signatures match validateFields() in lib/modal.js — the same helper the
+// modals already use for inline errors — so the marking, the aria-invalid and
+// the clear-as-you-type behaviour are the app's existing ones, not new ones.
+function shippoRateRules(opts) {
+  const o = opts || {};
+  const international = !!o.international;
+  // resolveCountryCode, not normalizeCountryCode: the latter falls back to 'US'
+  // and so would call every value supported, including the ones that are the
+  // whole reason this check exists.
+  const supported = o.isSupportedCountry || ((v) => !!resolveCountryCode(v));
+  const filled = (v) => String(v ?? '').trim().length > 0;
+  const positive = (v) => parseFloat(v) > 0;
+
+  const rules = [
+    { id: 'sf-name', label: 'Sender name', msg: 'Who is the parcel coming from?', test: filled },
+  ];
+  // Only asked for when it is genuinely required, so a domestic quote is never
+  // blocked on a phone number no carrier will look at.
+  if (international) {
+    rules.push({ id: 'sf-phone', label: 'Sender phone', msg: 'International carriers need a sender phone for customs.', test: filled });
+  }
+  rules.push(
+    { id: 'sf-street1', label: 'Sender street address', msg: 'Add the street the parcel ships from.', test: filled },
+    { id: 'sf-city', label: 'Sender city', msg: 'Add the sending city.', test: filled },
+    { id: 'sf-zip', label: 'Sender postal code', msg: 'Add the sending postal or zip code.', test: filled },
+    { id: 'sf-country', label: 'Sender country', msg: 'Choose a country Shippo can rate from.', test: supported },
+    { id: 'st-name', label: 'Recipient name', msg: 'Who is receiving the parcel?', test: filled },
+  );
+  if (international) {
+    rules.push({ id: 'st-phone', label: 'Recipient phone', msg: 'International carriers need a recipient phone for customs.', test: filled });
+  }
+  rules.push(
+    { id: 'st-street1', label: 'Recipient street address', msg: 'Add the street the parcel is going to.', test: filled },
+    { id: 'st-city', label: 'Recipient city', msg: 'Add the destination city.', test: filled },
+    { id: 'st-zip', label: 'Recipient postal code', msg: 'Add the destination postal or zip code.', test: filled },
+    { id: 'st-country', label: 'Recipient country', msg: 'Choose a country Shippo can rate to.', test: supported },
+    { id: 'sp-length', label: 'Parcel length', msg: 'Length has to be more than zero.', test: positive },
+    { id: 'sp-width', label: 'Parcel width', msg: 'Width has to be more than zero.', test: positive },
+    { id: 'sp-height', label: 'Parcel height', msg: 'Height has to be more than zero.', test: positive },
+    { id: 'sp-weight', label: 'Parcel weight', msg: 'Weight has to be more than zero.', test: positive },
+  );
+  // Customs splits the parcel weight across the copies inside it, and Shippo
+  // will not accept a copy lighter than 0.01. A box declared at less than that
+  // per copy is a weight that was mistyped, so it is caught on the form rather
+  // than as a 400 from the carrier after the publisher hits Calculate.
+  if (international) {
+    const qty = Math.max(1, parseInt(o.quantity, 10) || 1);
+    rules.push({
+      id: 'sp-weight',
+      label: 'Parcel weight',
+      msg: `Too light for ${qty} copies — customs needs at least ${(qty * 0.01).toFixed(2)} here.`,
+      test: (v) => (parseFloat(v) || 0) >= qty * 0.01
+    });
+  }
+  return rules;
+}
+
+/** The live state of the rate form: every rule, plus the ones failing now. */
+function shippoRateFormState() {
+  const originCode = normalizeCountryCode($('sf-country')?.value || '');
+  const destCode = normalizeCountryCode($('st-country')?.value || '');
+  const international = !!(originCode && destCode) && isInternationalShipment(originCode, destCode);
+  const rules = shippoRateRules({ international, quantity: $('sp-qty')?.value });
+  // A rule whose input is absent from the DOM is not a missing detail — it is a
+  // form that has not rendered — so it never counts against the publisher.
+  const missing = rules.filter(r => {
+    const el = $(r.id);
+    return !!el && !r.test(el.value, el);
+  });
+  return { rules, missing, international };
+}
+
+// The carrier tiles under "Get rates": whether each carrier is connected, the
+// cheapest price its last quote found, and the duties group only for parcels
+// leaving the sender's country. A price is kept with a snapshot of the form it
+// was quoted for, so it disappears as soon as the address or parcel changes.
+const _carrierTilePrices = {};
+
+function shippingFormFingerprint() {
+  const fields = document.querySelectorAll('#tab-shipping :is(input, select, textarea)[id]');
+  return JSON.stringify([...fields]
+    .filter(el => /^(sf|st|sp|cc)-/.test(el.id))
+    .map(el => [el.id, el.type === 'checkbox' ? el.checked : el.value]));
+}
+
+function setCarrierTilePrice(carrier, amounts, { currency = 'CAD', estimate = false, fingerprint } = {}) {
+  const valid = (amounts || []).map(Number).filter(n => Number.isFinite(n) && n > 0);
+  _carrierTilePrices[carrier] = valid.length
+    ? { amount: Math.min(...valid), currency, estimate, fingerprint: fingerprint ?? shippingFormFingerprint() }
+    : null;
+  renderCarrierTiles();
+}
+
+function carrierConnections(settings = TAX_CENTER.settings || {}) {
+  const cp = resolveCanadaPostCredentials(settings);
+  const cc = chitChatsAccount();
+  return {
+    shippo: !!String(settings.shippoKey || '').trim(),
+    canadapost: !!(cp.apiKey && cp.apiSecret) && settings.cpEnabled !== false,
+    chitchats: !!(cc.clientId && cc.token) && settings.ccEnabled !== false,
+  };
+}
+
+// The carriers whose current price is lowest, once at least two have been
+// quoted for this form. Only real quotes in the same currency are compared:
+// a Canada Post estimate is a guess, and CAD against USD is not a like-for-like
+// figure. Ties mark every carrier on the lowest price.
+function cheapestCarriers(fingerprint = shippingFormFingerprint()) {
+  const quoted = Object.entries(_carrierTilePrices)
+    .filter(([, p]) => p && p.fingerprint === fingerprint && !p.estimate && p.currency === 'CAD');
+  if (quoted.length < 2) return [];
+  const low = Math.min(...quoted.map(([, p]) => p.amount));
+  // ⚡ Bolt Optimization: Replace chained .filter().map() with a single imperative loop to eliminate intermediate array allocations
+  const cheapest = [];
+  for (const [key, p] of quoted) {
+    if (Math.abs(p.amount - low) < 0.005) {
+      cheapest.push(key);
+    }
+  }
+  return cheapest;
+}
+
+function renderCarrierTiles() {
+  const tiles = document.querySelectorAll('#tab-shipping .ship-carrier[data-carrier]');
+  if (!tiles.length) return;
+  const connected = carrierConnections();
+  const fingerprint = shippingFormFingerprint();
+  const cheapest = cheapestCarriers(fingerprint);
+  tiles.forEach(tile => {
+    const key = tile.dataset.carrier;
+    const off = !connected[key];
+    tile.classList.toggle('is-unconnected', off);
+    const status = tile.querySelector('.ship-carrier-status');
+    // Canada Post still answers without an account, from its estimate table.
+    if (status) status.textContent = !off ? ''
+      : key === 'canadapost' ? 'Not connected: rough estimates only'
+        : 'Not connected yet. Add it in Tax Centre, Integrations.';
+    const price = _carrierTilePrices[key];
+    const fresh = !!price && price.fingerprint === fingerprint;
+    const priceEl = tile.querySelector('.ship-carrier-price');
+    if (priceEl) priceEl.textContent = fresh
+      ? `${price.estimate ? 'About ' : 'From '}${price.amount.toFixed(2)} ${price.currency}`
+      : '';
+    const best = cheapest.includes(key);
+    tile.classList.toggle('is-cheapest', best);
+    const badge = tile.querySelector('.ship-carrier-badge');
+    if (badge) badge.hidden = !best;
+  });
+  const abroad = $('ship-abroad-group');
+  if (abroad) abroad.hidden = !shippoRateFormState().international;
+}
+
+/**
+ * The line above the Calculate button: what the form still needs, updated as it
+ * is typed, so nothing is discovered only after pressing the button.
+ */
+function renderShippoRateReadiness() {
+  const host = $('ship-rate-readiness');
+  if (!host) return;
+  renderCarrierTiles();
+  const { missing } = shippoRateFormState();
+  if (!missing.length) {
+    host.innerHTML = '<span class="pill green">✓ Ready to quote</span>'
+      + '<span class="ship-readiness-note">Sender, recipient and parcel are all filled in.</span>';
+    return;
+  }
+  const names = missing.map(r => r.label ?? 'A required detail');
+  const shown = names.slice(0, 3).join(' · ');
+  const rest = names.length > 3 ? ` · +${names.length - 3} more` : '';
+  host.innerHTML = `<span class="pill amber">● ${missing.length} still needed</span>`
+    + `<span class="ship-readiness-note">${escapeHtml(shown + rest)}</span>`;
+}
+
+/**
+ * Keeps the readiness line honest as the form is edited. Delegated from the tab
+ * itself and bound once, the same shape as bindDestinationVerificationWatchers —
+ * initShippingTab runs on every visit to the tab.
+ */
+function bindRateReadinessWatchers() {
+  const scope = $('tab-shipping');
+  if (!scope || scope.dataset.rateReadyWatch === 'true') return;
+  scope.dataset.rateReadyWatch = 'true';
+  scope.addEventListener('input', renderShippoRateReadiness);
+  scope.addEventListener('change', renderShippoRateReadiness);
+}
+
+async function calculateShippoRates() {
+  const shippoKey = TAX_CENTER.settings?.shippoKey || '';
+  if (!shippoKey) {
+    showToast('⚠️ Please configure your Shippo API Key first', 'warn');
+    return;
+  }
+
+  // Gather values
+  const sfName = $('sf-name').value.trim();
+  const sfCompany = $('sf-company').value.trim();
+  const sfPhone = $('sf-phone').value.trim();
+  const sfStreet1 = $('sf-street1').value.trim();
+  const sfStreet2 = $('sf-street2').value.trim();
+  const sfCity = $('sf-city').value.trim();
+  const sfState = $('sf-state').value.trim();
+  const sfZip = $('sf-zip').value.trim();
+  const sfCountry = $('sf-country').value;
+  const sfCountryCode = normalizeCountryCode(sfCountry);
+
+  const stName = $('st-name').value.trim();
+  const stCompany = $('st-company').value.trim();
+  const stPhone = $('st-phone').value.trim();
+  const stStreet1 = $('st-street1').value.trim();
+  const stStreet2 = $('st-street2').value.trim();
+  const stCity = $('st-city').value.trim();
+  const stState = $('st-state').value.trim();
+  const stZip = $('st-zip').value.trim();
+  const stCountry = $('st-country').value;
+  const stCountryCode = normalizeCountryCode(stCountry);
+
+  const spLength = parseFloat($('sp-length').value) || 0;
+  const spWidth = parseFloat($('sp-width').value) || 0;
+  const spHeight = parseFloat($('sp-height').value) || 0;
+  const spDimUnit = $('sp-dim-unit').value;
+  const spWeight = parseFloat($('sp-weight').value) || 0;
+  const spWeightUnit = $('sp-weight-unit').value;
+
+  // Validation — mark the exact boxes that are empty rather than naming a whole
+  // card and leaving the publisher to find them. Errors are cleared across the
+  // whole tab first so a rule that no longer applies (the phone fields, once a
+  // shipment stops being international) cannot leave a stale red box behind.
+  clearFieldErrors($('tab-shipping') || document);
+  const { rules, missing } = shippoRateFormState();
+  if (missing.length) {
+    validateFields(rules);
+    // validateFields focuses the first failure; centre it too, because on a
+    // phone the focused box can land under the sticky header.
+    const firstEl = $(missing[0].id);
+    const target = (firstEl && firstEl.closest && firstEl.closest('.form-group')) || firstEl;
+    if (target && target.scrollIntoView) {
+      try {
+        target.scrollIntoView({ behavior: _prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
+      } catch { /* older engines take no options object */ }
+    }
+    renderShippoRateReadiness();
+    showToast(missing.length === 1
+      ? `⚠️ ${missing[0].label} is still empty — it is highlighted below.`
+      : `⚠️ ${missing.length} details are still missing — starting with ${missing[0].label}.`, 'warn', 5000);
+    return;
+  }
+  renderShippoRateReadiness();
+  // The tile price belongs to the form as it was when the quote was asked for.
+  const quotedFor = shippingFormFingerprint();
+
+  const isInternational = isInternationalShipment(sfCountryCode, stCountryCode);
+
+  // Save Origin default if checked
+  if ($('ship-save-origin').checked) {
+    localStorage.setItem('lm-shippo-origin-name', sfName);
+    localStorage.setItem('lm-shippo-origin-company', sfCompany);
+    localStorage.setItem('lm-shippo-origin-phone', sfPhone);
+    localStorage.setItem('lm-shippo-origin-street1', sfStreet1);
+    localStorage.setItem('lm-shippo-origin-street2', sfStreet2);
+    localStorage.setItem('lm-shippo-origin-city', sfCity);
+    localStorage.setItem('lm-shippo-origin-state', sfState);
+    localStorage.setItem('lm-shippo-origin-zip', sfZip);
+    localStorage.setItem('lm-shippo-origin-country', sfCountryCode);
+  }
+
+  const placeholder = $('ship-results-placeholder');
+  const loading = $('ship-results-loading');
+  const list = $('ship-results-list');
+
+  if (placeholder) placeholder.style.display = 'none';
+  if (loading) loading.style.display = 'flex';
+  if (list) list.style.display = 'none';
+  renderShippingChargePrediction([]);
+
+  try {
+    const payload = {
+      address_from: {
+        name: sfName,
+        company: sfCompany,
+        phone: sfPhone,
+        street1: sfStreet1,
+        street2: sfStreet2,
+        city: sfCity,
+        state: sfState,
+        zip: sfZip,
+        country: sfCountryCode
+      },
+      address_to: {
+        name: stName,
+        company: stCompany,
+        phone: stPhone,
+        street1: stStreet1,
+        street2: stStreet2,
+        city: stCity,
+        state: stState,
+        zip: stZip,
+        country: stCountryCode
+      },
+      parcels: [{
+        length: spLength,
+        width: spWidth,
+        height: spHeight,
+        distance_unit: spDimUnit,
+        weight: spWeight,
+        mass_unit: spWeightUnit
+      }],
+      async: false
+    };
+
+    const selectedOrderNumber = normalizeShippingOrderNumber($('ship-prefill-dest')?.dataset.orderNumber);
+    if (selectedOrderNumber) payload.metadata = `order_number:${selectedOrderNumber.slice(0, 100)}`;
+
+    if (isInternational) {
+      payload.customs_declaration = buildShippoCustomsDeclaration({ sfName, sfCountryCode, stCountryCode, spWeight, spWeightUnit });
+    }
+
+    const resp = await fetch('https://api.goshippo.com/shipments/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `ShippoToken ${shippoKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (loading) loading.style.display = 'none';
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => null);
+      let errMsg = `Shippo API Error ${resp.status}`;
+      if (errData) {
+        if (typeof errData === 'string') {
+          errMsg += `: ${errData}`;
+        } else if (Array.isArray(errData)) {
+          errMsg += `: ${errData.join(', ')}`;
+        } else {
+          const errors = [];
+          for (const [key, val] of Object.entries(errData)) {
+            errors.push(`${key}: ${Array.isArray(val) ? val.join(', ') : JSON.stringify(val)}`);
+          }
+          errMsg += `<br><span style="font-size:var(--text-sm); font-weight:normal; display:block; margin-top:8px;">${errors.join('<br>')}</span>`;
+        }
+      }
+      if (list) {
+        list.innerHTML = `<div class="card" style="border-color:var(--red); background:var(--red-bg); padding:1rem; color:var(--red); font-size:var(--text-base); font-weight:600; line-height:1.45;">${errMsg}</div>`;
+        list.style.display = 'flex';
+      }
+      return;
+    }
+
+    const data = await resp.json();
+    const rates = data.rates || [];
+
+    if (rates.length === 0) {
+      if (list) {
+        list.innerHTML = renderShippoDiagnostics(data, 'Verify that the address locations are serviceable, package weight is correct, and at least one carrier account can rate this route.');
+        list.style.display = 'flex';
+      }
+      return;
+    }
+
+    renderShippingChargePrediction(rates);
+
+    // ⚡ Bolt Optimization: Use a single O(N) imperative loop to find cheapest and fastest rates instead of O(N log N) multiple sorts
+    let cheapestRate = null;
+    let minAmount = Infinity;
+    let fastestId = null;
+    let minDays = Infinity;
+
+    for (let i = 0; i < rates.length; i++) {
+      const r = rates[i];
+      const amount = parseFloat(r.amount);
+      if (amount < minAmount) {
+        minAmount = amount;
+        cheapestRate = r;
+      }
+
+      if (r.estimated_days != null) {
+        const days = parseInt(r.estimated_days);
+        if (days < minDays) {
+          minDays = days;
+          fastestId = r.object_id;
+        }
+      }
+    }
+
+    setCarrierTilePrice('shippo', cheapestRate ? [cheapestRate.amount] : [], {
+      currency: String(cheapestRate?.currency || 'CAD').toUpperCase(), fingerprint: quotedFor,
+    });
+
+    if (isInternational) {
+      calculateZonosDutiesHandler({ shippingAmount: cheapestRate ? parseFloat(cheapestRate.amount) : 15.00, carrierName: cheapestRate?.provider || '' }).catch(() => {});
+    }
+
+    const cheapestId = cheapestRate?.object_id;
+
+    if (list) {
+      const customerPaid = selectedOrderShippingPaid();
+      // Restore sorted rates for display in UI since we eliminated the explicit sort above
+      const ratesForDisplay = [...rates].sort((a, b) => parseFloat(a.amount) - parseFloat(b.amount));
+      const cadPrices = ratesForDisplay
+        .filter(r => String(r.currency || '').toUpperCase() === 'CAD')
+        .map(r => parseFloat(r.amount));
+      list.innerHTML = rateCoverageNoteHtml(cadPrices, customerPaid) + ratesForDisplay.map(r => {
+        const logoUrl = r.provider_image_75 || '';
+        const isCheapest = r.object_id === cheapestId;
+        const isFastest = r.object_id === fastestId && !isCheapest;
+
+        let badgesHtml = '';
+        if (isCheapest) badgesHtml += '<span class="rate-badge cheapest">Cheapest</span>';
+        if (isFastest) badgesHtml += '<span class="rate-badge fastest">Fastest</span>';
+        if (isCanadaPostRate(r)) badgesHtml += '<span class="rate-badge canada-post">Canada Post</span>';
+
+        const transitDays = r.estimated_days
+          ? `${r.estimated_days} ${parseInt(r.estimated_days) === 1 ? 'day' : 'days'}`
+          : '';
+        const transitInfo = [transitDays, r.duration_terms].filter(Boolean).join(' · ');
+
+        return `
+          <div class="rate-card">
+            <div class="rate-info">
+              <div class="rate-logo">
+                ${logoUrl ? `<img src="${logoUrl}" alt="${r.provider}">` : `<span style="font-size:var(--text-3xs); font-weight:700;">${r.provider.slice(0, 3)}</span>`}
+              </div>
+              <div class="rate-details">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span class="rate-carrier">${escapeHtml(r.provider)}</span>
+                  <div class="rate-badges">${badgesHtml}</div>
+                </div>
+                <div class="rate-service">${escapeHtml(r.servicelevel.name)}</div>
+                ${transitInfo ? `<div class="rate-transit">${escapeHtml(transitInfo)}</div>` : ''}
+              </div>
+            </div>
+            <div class="rate-price-area">
+              <div class="rate-price">${parseFloat(r.amount).toFixed(2)} ${escapeHtml(r.currency)}</div>
+              ${rateCoverageTagHtml(parseFloat(r.amount), customerPaid, r.currency)}
+              <button class="btn gold sm rate-buy-btn" type="button" onclick="buyShippoLabel('${r.object_id}', '${escapeHtml(r.provider)}', '${escapeHtml(r.servicelevel.name)}', ${parseFloat(r.amount)}, '${escapeHtml(r.currency)}')"><span aria-hidden="true">🏷️</span><span>Buy Label</span></button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      list.style.display = 'flex';
+    }
+
+  } catch (err) {
+    console.error(err);
+    if (loading) loading.style.display = 'none';
+    if (list) {
+      list.innerHTML = `<div class="card" style="border-color:var(--red); background:var(--red-bg); padding:1rem; color:var(--red); font-weight:600; font-size:var(--text-base);">❌ Error fetching rates: ${escapeHtml(err.message)}</div>`;
+      list.style.display = 'flex';
+    }
+  }
+}
+
+// Shipping-ledger rows identify an order by its id, or by its order number
+// for older sales saved before ids existed. Returns null when the book or
+// order is not loaded.
+function findShippingLedgerOrder(bookId, orderIdentifier) {
+  const hist = states[bookId]?.hist;
+  if (!hist) return null;
+  return hist.find(x => x.id === orderIdentifier || x.num === orderIdentifier) || null;
+}
+
+async function editPostageCost(bookId, orderIdentifier) {
+  const h = findShippingLedgerOrder(bookId, orderIdentifier);
+  if (!h) return;
+
+  const current = h.postagePaid || 0;
+  const input = prompt(`Enter postage cost (shipping cost you paid) for order ${h.num} (in CAD):`, current);
+  if (input === null) return;
+
+  const val = Number(input);
+  if (isNaN(val) || val < 0) {
+    showToast('Invalid postage cost amount', 'err');
+    return;
+  }
+
+  h.postagePaid = val;
+  h.manualPostagePaid = true;
+  await window.saveState(bookId);
+  showToast('Postage cost updated', 'ok');
+  renderShippingAnalysisHub();
+}
+
+async function unlinkManualPostage(bookId, orderIdentifier) {
+  const h = findShippingLedgerOrder(bookId, orderIdentifier);
+  if (!h) return;
+
+  delete h.postagePaid;
+  delete h.manualPostagePaid;
+  delete h.localPickup;
+  await window.saveState(bookId);
+  showToast('Manual postage cleared', 'ok');
+  renderShippingAnalysisHub();
+}
+
+async function dismissShippingAnalysisOrder(bookId, orderIdentifier) {
+  const h = findShippingLedgerOrder(bookId, orderIdentifier);
+  if (!h) return;
+
+  const ok = await confirmDialog(`Are you sure you want to dismiss order "${h.num}" from the shipping ledger and calculations? It will be hidden.`, {
+    danger: false,
+    okLabel: 'Dismiss Order'
+  });
+  if (!ok) return;
+
+  h.excludeFromShipping = true;
+  await window.saveState(bookId);
+  showToast('Order dismissed from shipping', 'ok');
+  renderShippingAnalysisHub();
+}
+
+// A local pick-up order never gets a label: the customer collects it in
+// person, so there is no postage to link. Recording it as a $0 manual postage
+// keeps every total and margin that already understands manual postage
+// correct, and the flag lets the row say *why* it is zero.
+async function markShippingOrderLocalPickup(bookId, orderIdentifier) {
+  const h = findShippingLedgerOrder(bookId, orderIdentifier);
+  if (!h) return;
+
+  h.localPickup = true;
+  delete h.pickupDeclined;
+  h.manualPostagePaid = true;
+  h.postagePaid = 0;
+  await window.saveState(bookId);
+  showToast(`Order ${h.num} marked as local pick-up`, 'ok');
+  renderShippingAnalysisHub();
+}
+
+// Orders whose checkout option says pick-up are treated as $0-postage
+// pick-ups in the hub without the owner clicking anything. Derived on the
+// in-memory copies, never saved, so an owner's own choice always wins.
+function applyAutoLocalPickups(orders) {
+  const linkedNumbers = new Set((TAX_CENTER.businessExpenses || [])
+    .filter(e => isPostageExpense(e) && e.shippingMatchStatus === 'matched')
+    .map(e => normalizeShippingOrderNumber(e.shippingOrderNumber))
+    .filter(Boolean));
+  orders.forEach((o, i) => {
+    orders[i] = withAutoLocalPickup(o, linkedNumbers.has(normalizeShippingOrderNumber(o.num)));
+  });
+}
+
+async function unmarkShippingOrderLocalPickup(bookId, orderIdentifier) {
+  const h = findShippingLedgerOrder(bookId, orderIdentifier);
+  if (!h) return;
+
+  delete h.localPickup;
+  if (h.manualPostagePaid && !Number(h.postagePaid)) {
+    delete h.postagePaid;
+    delete h.manualPostagePaid;
+  }
+  // Remembered so an order whose checkout option says pick-up is not
+  // re-recognised as one the next time the ledger draws.
+  h.pickupDeclined = true;
+  await window.saveState(bookId);
+  showToast(`Order ${h.num} is no longer a local pick-up`, 'ok');
+  renderShippingAnalysisHub();
+}
+
+async function restoreShippingAnalysisOrder(bookId, orderIdentifier) {
+  const h = findShippingLedgerOrder(bookId, orderIdentifier);
+  if (!h) return;
+
+  delete h.excludeFromShipping;
+  await window.saveState(bookId);
+  showToast('Order restored to shipping ledger', 'ok');
+  renderShippingAnalysisHub();
+}
+
+function toggleAllShipAnalysisOrders(checked) {
+  const checkboxes = document.querySelectorAll('.ship-order-checkbox');
+  checkboxes.forEach(cb => cb.checked = checked);
+  updateShipAnalysisBatchActionUI();
+}
+
+function updateShipAnalysisBatchActionUI() {
+  const checkboxes = document.querySelectorAll('.ship-order-checkbox:checked');
+  const batchActions = $('ship-analysis-batch-actions');
+  if (!batchActions) return;
+  if (checkboxes.length > 0) {
+    batchActions.style.display = 'flex';
+    $('ship-analysis-batch-count').textContent = checkboxes.length;
+  } else {
+    batchActions.style.display = 'none';
+    $('selectAllShipOrders').checked = false;
+  }
+}
+
+async function batchDismissShippingAnalysisOrders() {
+  const checkboxes = document.querySelectorAll('.ship-order-checkbox:checked');
+  if (checkboxes.length === 0) return;
+
+  const ok = await confirmDialog(`Are you sure you want to dismiss ${checkboxes.length} selected orders from the calculations?`, {
+    danger: false,
+    okLabel: 'Dismiss Selected'
+  });
+  if (!ok) return;
+
+  const updatesByBook = {};
+  checkboxes.forEach(cb => {
+    const [bookId, orderIdentifier] = cb.value.split('|');
+    const h = findShippingLedgerOrder(bookId, orderIdentifier);
+    if (h) {
+      h.excludeFromShipping = true;
+      updatesByBook[bookId] = true;
+    }
+  });
+
+  const promises = Object.keys(updatesByBook).map(bookId => window.saveState(bookId));
+  await Promise.all(promises);
+
+  showToast(`Dismissed ${checkboxes.length} orders`, 'ok');
+  renderShippingAnalysisHub();
+}
+
+let shipAnalysisBookFilter = 'all';
+let shipAnalysisMarginFilter = 'all';
+let shipAnalysisCarrierFilter = 'all';
+let shipAnalysisRegionFilter = 'all';
+let shipAnalysisWeightFilter = 'all';
+let shipAnalysisSearchQuery = '';
+let shipAnalysisRecentlySavedOrderId = '';
+let shipAnalysisCurrentPage = 1;
+const SHIP_ANALYSIS_PAGE_SIZE = 10;
+
+function toggleShipAnalysisCarrierFilter(carrier) {
+  shipAnalysisCarrierFilter = shipAnalysisCarrierFilter === carrier ? 'all' : carrier;
+  shipAnalysisCurrentPage = 1;
+  renderShippingAnalysisHub();
+}
+
+function toggleShipAnalysisRegionFilter(region) {
+  shipAnalysisRegionFilter = shipAnalysisRegionFilter === region ? 'all' : region;
+  shipAnalysisCurrentPage = 1;
+  renderShippingAnalysisHub();
+}
+
+function toggleShipAnalysisWeightFilter(weightBand) {
+  shipAnalysisWeightFilter = shipAnalysisWeightFilter === weightBand ? 'all' : weightBand;
+  shipAnalysisCurrentPage = 1;
+  renderShippingAnalysisHub();
+}
+
+function clearAllShipAnalysisFilters() {
+  shipAnalysisCarrierFilter = 'all';
+  shipAnalysisRegionFilter = 'all';
+  shipAnalysisWeightFilter = 'all';
+  shipAnalysisBookFilter = 'all';
+  shipAnalysisMarginFilter = 'all';
+  shipAnalysisSearchQuery = '';
+  shipAnalysisCurrentPage = 1;
+  const bSel = $('ship-analysis-book-filter');
+  if (bSel) bSel.value = 'all';
+  const sInput = $('ship-analysis-search');
+  if (sInput) sInput.value = '';
+  renderShippingAnalysisHub();
+}
+
+function changeShipAnalysisPage(page) {
+  shipAnalysisCurrentPage = page;
+  renderShippingAnalysisHub();
+}
+
+function onShipAnalysisBookFilterChange() {
+  const select = $('ship-analysis-book-filter');
+  if (select) {
+    shipAnalysisBookFilter = select.value;
+  }
+  shipAnalysisCurrentPage = 1;
+  renderShippingAnalysisHub();
+}
+
+function setShipAnalysisMarginFilter(val) {
+  shipAnalysisMarginFilter = val;
+  shipAnalysisCurrentPage = 1;
+  renderShippingAnalysisHub();
+}
+
+function onShipAnalysisSearch(val) {
+  shipAnalysisSearchQuery = String(val || '').trim().toLowerCase();
+  shipAnalysisCurrentPage = 1;
+  renderShippingAnalysisHub();
+}
+
+async function onInlinePostageChange(inputEl) {
+  const bookId = inputEl.dataset.bookId;
+  const orderIdentifier = inputEl.dataset.orderId;
+  const val = parseFloat(inputEl.value);
+
+  if (isNaN(val) || val < 0) {
+    showToast('Invalid postage cost amount', 'err');
+    // Restore previous value
+    renderShippingAnalysisHub();
+    return;
+  }
+
+  const h = findShippingLedgerOrder(bookId, orderIdentifier);
+  if (!h) return;
+
+  h.postagePaid = val;
+  h.manualPostagePaid = true;
+  await window.saveState(bookId);
+  
+  shipAnalysisRecentlySavedOrderId = orderIdentifier;
+  showToast(`Postage cost updated for Order #${h.num}`, 'ok');
+  renderShippingAnalysisHub();
+
+  setTimeout(() => {
+    shipAnalysisRecentlySavedOrderId = '';
+  }, 1500);
+}
+
+async function onInlineShippingPaidChange(inputEl) {
+  const bookId = inputEl.dataset.bookId;
+  const orderIdentifier = inputEl.dataset.orderId;
+  const val = parseFloat(inputEl.value);
+
+  if (isNaN(val) || val < 0) {
+    showToast('Invalid shipping paid amount', 'err');
+    renderShippingAnalysisHub();
+    return;
+  }
+
+  const h = findShippingLedgerOrder(bookId, orderIdentifier);
+  if (!h) return;
+
+  h.shippingPaid = val;
+  h.manualShippingPaid = true;
+  await window.saveState(bookId);
+  
+  shipAnalysisRecentlySavedOrderId = orderIdentifier;
+  showToast(`Customer paid amount updated for Order #${h.num}`, 'ok');
+  renderShippingAnalysisHub();
+
+  setTimeout(() => {
+    shipAnalysisRecentlySavedOrderId = '';
+  }, 1500);
+}
+
+async function unlinkManualShippingPaid(bookId, orderIdentifier) {
+  const h = findShippingLedgerOrder(bookId, orderIdentifier);
+  if (!h) return;
+
+  delete h.manualShippingPaid;
+  await window.saveState(bookId);
+  
+  showToast(`Cleared manual customer paid amount for Order #${h.num}`, 'ok');
+  renderShippingAnalysisHub();
+}
+
+async function confirmSuggestedShippoLink(orderNum, expenseKey) {
+  // By identity, not `ref`: the suggestion pool now includes counter receipts,
+  // which are created with a blank ref.
+  const expense = findPostageByKey(TAX_CENTER.businessExpenses || [], expenseKey);
+  if (!expense) {
+    showToast('That postage receipt was not found. Try re-syncing Shippo.', 'err');
+    return;
+  }
+  const label = String(expense.ref || '').replace('shippo:', '') || 'that receipt';
+  try {
+    await persistManualShippingLink(expense, orderNum, () => saveTaxCenter());
+    showToast(`Linked ${orderNum} to ${label} ✓`, 'success');
+    renderShippingAnalysisHub();
+
+    const row = document.getElementById(`shipping-ledger-row-${escapeHtml(orderNum)}`);
+    if (row) {
+      row.classList.add('flash-highlight');
+      setTimeout(() => row.classList.remove('flash-highlight'), 2000);
+    }
+  } catch (err) {
+    console.error('confirmSuggestedShippoLink failed', err);
+    showToast('Could not save link. Please try again.', 'err');
+  }
+}
+
+function openManualShippoLinkModal(orderNum) {
+  // Any unlinked postage receipt, not only a Shippo one. A counter receipt is
+  // the same kind of evidence and belongs in the same picker.
+  const unlinkedExpenses = (TAX_CENTER.businessExpenses || []).filter(e =>
+    isPostageExpense(e) && !isPostageLinked(e) && e.shippingMatchStatus !== 'dismissed'
+  );
+  // Best-first, so the surname the owner is looking for is usually the top row
+  // rather than something to hunt for in date order.
+  const order = getShippingReconciliationOrders().find(o =>
+    normalizeShippingOrderNumber(o.num) === normalizeShippingOrderNumber(orderNum));
+  const ranked = order
+    ? unlinkedExpenses
+      .map(e => ({ e, score: (suggestPostageMatches(e, [order], { limit: 1 })[0]?.score) ?? -1 }))
+      .sort((a, b) => b.score - a.score)
+    : unlinkedExpenses.map(e => ({ e, score: -1 }));
+
+  const rows = ranked.map(({ e, score }) => {
+    const reference = String(e.ref || '').replace(/^shippo:/, '') || 'No reference';
+    const amount = (Number(e.baseAmount) || Number(e.amount) || 0).toFixed(2);
+    const recipientRaw = postageRecipientName(e);
+    const recipient = escapeHtml(recipientRaw || 'Unknown recipient');
+    const date = escapeHtml(e.date || '—');
+    const hint = score >= 100
+      ? '<span class="manual-link-hint strong">Likely match</span>'
+      : score >= 65
+        ? '<span class="manual-link-hint">Possible match</span>'
+        : '';
+    return `
+      <tr class="shippo-link-row" data-key="${escapeHtml(postageExpenseKey(e))}" data-name="${escapeHtml(recipientRaw.toLowerCase())}">
+        <td class="mono">${escapeHtml(reference.slice(0, 20))}${reference.length > 20 ? '…' : ''}</td>
+        <td>${recipient}${hint}</td>
+        <td>${date}</td>
+        <td style="text-align:right; font-weight:600;">CA$${amount}</td>
+        <td style="text-align:right; width:60px;">
+          <button class="manual-link-btn" onclick="doManualShippoLink('${escapeHtml(orderNum)}', '${escapeHtml(postageExpenseKey(e))}')">Link</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const modalHtml = `
+    <div id="manual-link-modal-backdrop" class="manual-link-backdrop" onclick="if(event.target===this)closeManualShippoLinkModal()">
+      <div class="manual-link-modal">
+        <div class="manual-link-header">
+          <div>
+            <div class="manual-link-eyebrow">Link postage</div>
+            <div class="manual-link-title">Attach a paid receipt → <span>${escapeHtml(orderNum)}</span></div>
+          </div>
+          <button class="manual-link-close" onclick="closeManualShippoLinkModal()" aria-label="Close">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="manual-link-body">
+          <input type="text" class="manual-link-search" placeholder="Search by recipient surname…" oninput="filterManualShippoLinkRows(this.value)" />
+          ${rows ? `
+            <div class="manual-link-table-container">
+              <table class="manual-link-table">
+                <thead>
+                  <tr>
+                    <th>Shippo ID</th>
+                    <th>Recipient</th>
+                    <th>Date</th>
+                    <th style="text-align:right;">Amount</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="manual-link-modal-rows">
+                  ${rows}
+                </tbody>
+              </table>
+            </div>` : `<div class="manual-link-empty">Every postage receipt in your ledger is already linked to an order. Import from Shippo, or log a counter receipt in the Tax Centre, to see more here.</div>`}
+        </div>
+      </div>
+    </div>`;
+
+  const backdrop = document.createElement('div');
+  backdrop.innerHTML = modalHtml;
+  document.body.appendChild(backdrop.firstElementChild);
+}
+
+function filterManualShippoLinkRows(query) {
+  const tbody = $('manual-link-modal-rows');
+  if (!tbody) return;
+  const q = (query || '').toLowerCase().trim();
+  tbody.querySelectorAll('.shippo-link-row').forEach(row => {
+    const name = (row.dataset.name || '').toLowerCase();
+    row.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+}
+
+async function doManualShippoLink(orderNum, expenseKey) {
+  // Keyed by identity, not by `ref`: a counter receipt is created with an
+  // empty ref, so `e.ref === txRef` matched whichever ref-less expense came
+  // first — and linked that one's money to this order.
+  const expense = findPostageByKey(TAX_CENTER.businessExpenses || [], expenseKey);
+  if (!expense) {
+    showToast('Expense not found.', 'err');
+    return;
+  }
+  const label = String(expense.ref || '').replace('shippo:', '') || 'that receipt';
+  try {
+    await persistManualShippingLink(expense, orderNum, () => saveTaxCenter());
+    showToast(`Linked ${orderNum} to ${label} ✓`, 'success');
+    closeManualShippoLinkModal();
+    renderShippingAnalysisHub();
+
+    const row = document.getElementById(`shipping-ledger-row-${escapeHtml(orderNum)}`);
+    if (row) {
+      row.classList.add('flash-highlight');
+      setTimeout(() => row.classList.remove('flash-highlight'), 2000);
+    }
+  } catch (err) {
+    console.error('doManualShippoLink failed', err);
+    showToast('Could not save link. Please try again.', 'err');
+  }
+}
+
+// ── MATCHING COUNTER-BOUGHT POSTAGE TO ITS ORDER ────────────────────────
+//
+// Postage bought at a Canada Post counter arrives in the ledger as a plain
+// expense: a price, a date, a carrier order number, and a receipt PDF. The
+// name of the person it was posted to is on the receipt and nowhere else, so
+// nothing in the app could tie it to a sale — the order sat on "Needs link"
+// and its margin read as pure profit.
+//
+// This worklist closes that gap from the receipt's side. It lists every
+// unlinked postage cost, lets the owner put in the recipient and the tracking
+// number the receipt shows (or read them off the receipt with the AI scanner),
+// ranks the orders by surname, and links the two together with the tracking
+// number attached so the shipping ledger can show it.
+
+const POSTAGE_MATCH_DOM_PREFIX = 'pm-';
+
+function postageRowDomId(key, field) {
+  return `${POSTAGE_MATCH_DOM_PREFIX}${field}-${String(key).replace(/[^A-Za-z0-9_-]/g, '-')}`;
+}
+
+function findPostageExpense(key) {
+  return findPostageByKey(TAX_CENTER.businessExpenses || [], key);
+}
+
+/** Every postage cost still waiting to be tied to an order. */
+function unlinkedPostageExpenses() {
+  return (TAX_CENTER.businessExpenses || []).filter(expense =>
+    isPostageExpense(expense) && !isPostageLinked(expense) && expense.shippingMatchStatus !== 'dismissed'
+  );
+}
+
+/** Order numbers already carrying postage, so one label cannot claim two. */
+function ordersAlreadyCarryingPostage() {
+  return (TAX_CENTER.businessExpenses || [])
+    .filter(expense => isPostageExpense(expense) && isPostageLinked(expense))
+    .map(expense => expense.shippingOrderNumber);
+}
+
+function renderPostageMatchWorklist() {
+  const host = $('postage-match-list');
+  const count = $('postage-match-count');
+  if (!host) return;
+  if (isAuthor()) { host.innerHTML = ''; return; }
+
+  const expenses = unlinkedPostageExpenses();
+  if (count) count.textContent = `${expenses.length} to match`;
+
+  const autoBtn = $('postage-match-auto');
+  const orders = getShippingReconciliationOrders();
+  const taken = ordersAlreadyCarryingPostage();
+  const autoCount = autoMatchPostage(expenses, orders, { takenOrderNumbers: taken }).length;
+  if (autoBtn) {
+    autoBtn.disabled = autoCount === 0;
+    autoBtn.textContent = autoCount ? `Match ${autoCount} by name` : 'Nothing to auto-match';
+  }
+
+  // Both header buttons say how much they would actually do, so neither is a
+  // guess about whether pressing it is worth the wait or the API allowance.
+  const scanAllBtn = $('postage-match-scan-all');
+  if (scanAllBtn && !_postageBatchScan) {
+    const scanCount = (TAX_CENTER.settings?.geminiKey || TAX_CENTER.settings?.openRouterKey?.trim()) ? postageScanCandidates(expenses).length : 0;
+    scanAllBtn.disabled = scanCount === 0;
+    scanAllBtn.textContent = scanCount
+      ? `Read ${scanCount} receipt${scanCount === 1 ? '' : 's'}`
+      : ((TAX_CENTER.settings?.geminiKey || TAX_CENTER.settings?.openRouterKey?.trim()) ? 'Nothing left to read' : 'Add an AI key to read receipts');
+  }
+
+  if (!expenses.length) {
+    host.innerHTML = `<div class="postage-match-empty">
+      <span class="postage-match-empty-icon" aria-hidden="true">📮</span>
+      <div>
+        <strong>Every postage receipt is linked to an order.</strong>
+        <p>Log a counter receipt in the Tax Centre under Shipping &amp; Postage and it will appear here to match.</p>
+      </div>
+    </div>`;
+    return;
+  }
+
+  const canScan = !!(TAX_CENTER.settings?.geminiKey || TAX_CENTER.settings?.openRouterKey?.trim());
+
+  host.innerHTML = expenses.map(expense => {
+    const key = postageExpenseKey(expense);
+    const reference = String(expense.ref || '').replace(/^shippo:/, '');
+    const recipient = postageRecipientName(expense);
+    const tracking = normalizeTrackingNumber(expense.trackingNumber);
+    const matches = suggestPostageMatches(expense, orders, { takenOrderNumbers: taken, limit: 6 });
+    const best = matches[0];
+
+    const options = matches.map(match => {
+      const label = `${match.orderNumber} · ${match.orderName || 'Customer'}`;
+      return `<option value="${escapeHtml(match.orderNumber)}"${match === best ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+    }).join('');
+    // Every other order stays reachable below the ranked ones: a surname the
+    // matcher could not read must never become an order the owner cannot pick.
+    // ⚡ Bolt Optimization: Replace chained .filter().some().map().join() passes with O(1) Set lookups and a single imperative loop
+    const matchedOrderNumbers = new Set(matches.map(m => m.orderNumber));
+    const restParts = [];
+    for (const order of orders) {
+      const number = normalizeShippingOrderNumber(order.num);
+      if (!number || matchedOrderNumbers.has(number)) continue;
+      restParts.push(`<option value="${escapeHtml(number)}">${escapeHtml(number)} · ${escapeHtml(order.shipName || order.customer || 'Customer')}</option>`);
+    }
+    const rest = restParts.join('');
+
+    const tierPill = best
+      ? `<span class="postage-match-tier ${best.tier}">${best.tier === 'confident' ? 'Strong match' : best.tier === 'likely' ? 'Likely match' : 'Weak match'}</span>`
+      : '<span class="postage-match-tier none">No name match yet</span>';
+    const reason = best
+      ? `<span class="postage-match-reason">${escapeHtml(best.reason)}</span>`
+      : `<span class="postage-match-reason">${recipient
+        ? 'No order found for that name in the weeks around this receipt.'
+        : 'Add the recipient from the receipt and a match will be suggested.'}</span>`;
+
+    const receiptTarget = receiptLinkTarget(expense.receipt);
+    const receiptLink = receiptTarget.kind === 'local'
+      ? `<button type="button" class="postage-match-receipt" onclick="viewLocalReceipt('${escapeHtml(receiptTarget.path)}')">View receipt</button>`
+      : receiptTarget.kind === 'url'
+        ? `<a class="postage-match-receipt" href="${escapeHtml(receiptTarget.href)}" target="_blank" rel="noopener">View receipt</a>`
+        : '<span class="postage-match-noreceipt">No receipt attached</span>';
+
+    const scanBtn = (canScan && expense.receipt)
+      ? `<button type="button" class="btn sm ghost" id="${postageRowDomId(key, 'scan')}" onclick="scanPostageReceipt('${escapeHtml(key)}')" title="Read the recipient and tracking number off the receipt">✨ Read receipt</button>`
+      : '';
+
+    return `<div class="postage-match-row" data-key="${escapeHtml(key)}">
+      <div class="postage-match-cost">
+        <strong>${fmt(expense.amount || 0, expense.currency || 'CAD')}</strong>
+        <span>${escapeHtml(fmtD(expense.date) || expense.date || 'No date')}</span>
+        <span class="postage-match-desc">${escapeHtml(expense.desc || 'Postage')}</span>
+        <span class="postage-match-ref">${escapeHtml(reference || 'No reference')}</span>
+        ${receiptLink}
+      </div>
+
+      <div class="postage-match-fields">
+        <div class="postage-match-field">
+          <label for="${postageRowDomId(key, 'name')}">Recipient on receipt</label>
+          <input type="text" id="${postageRowDomId(key, 'name')}" value="${escapeHtml(recipient)}"
+            placeholder="e.g. Daniela Dawson" autocomplete="off" spellcheck="false"
+            oninput="onPostageRecipientInput('${escapeHtml(key)}')">
+        </div>
+        <div class="postage-match-field">
+          <label for="${postageRowDomId(key, 'track')}">Tracking number</label>
+          <input type="text" id="${postageRowDomId(key, 'track')}" value="${escapeHtml(formatTrackingNumber(tracking))}"
+            placeholder="e.g. LE 055 214 725 CA" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="postage-match-suggest">
+        ${tierPill}
+        ${reason}
+        <label class="sr-only" for="${postageRowDomId(key, 'order')}">Order for this postage</label>
+        <select id="${postageRowDomId(key, 'order')}" onchange="this.dataset.userPicked='1'">
+          <option value="">Select an order</option>
+          ${options}
+          ${rest ? `<optgroup label="All other orders">${rest}</optgroup>` : ''}
+        </select>
+      </div>
+
+      <div class="postage-match-actions">
+        ${scanBtn}
+        <button type="button" class="btn gold sm" onclick="linkPostageExpense('${escapeHtml(key)}')">Link postage</button>
+        <button type="button" class="btn sm ghost" onclick="dismissPostageExpense('${escapeHtml(key)}')" title="Hide this receipt from the list; it stays in your ledger" aria-label="Hide this receipt from the list; it stays in your ledger">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Re-rank as the owner types a surname, so the suggestion tracks what they are
+// entering instead of waiting for a save to catch up.
+let _postageRecipientDebounce = null;
+function onPostageRecipientInput(key) {
+  clearTimeout(_postageRecipientDebounce);
+  _postageRecipientDebounce = setTimeout(() => refreshPostageRowSuggestion(key), 220);
+}
+
+function refreshPostageRowSuggestion(key) {
+  const expense = findPostageExpense(key);
+  if (!expense) return;
+  const row = document.querySelector(`.postage-match-row[data-key="${CSS.escape(String(key))}"]`);
+  const select = $(postageRowDomId(key, 'order'));
+  if (!row || !select) return;
+
+  const typed = ($(postageRowDomId(key, 'name'))?.value || '').trim();
+  const matches = suggestPostageMatches(expense, getShippingReconciliationOrders(), {
+    takenOrderNumbers: ordersAlreadyCarryingPostage(),
+    recipientOverride: typed,
+    limit: 6,
+  });
+  const best = matches[0];
+
+  const tierEl = row.querySelector('.postage-match-tier');
+  if (tierEl) {
+    tierEl.className = `postage-match-tier ${best ? best.tier : 'none'}`;
+    tierEl.textContent = best
+      ? (best.tier === 'confident' ? 'Strong match' : best.tier === 'likely' ? 'Likely match' : 'Weak match')
+      : 'No name match yet';
+  }
+  const reasonEl = row.querySelector('.postage-match-reason');
+  if (reasonEl) {
+    reasonEl.textContent = best
+      ? best.reason
+      : (typed ? 'No order found for that name in the weeks around this receipt.' : 'Add the recipient from the receipt and a match will be suggested.');
+  }
+  // Only move the selection while it is still a suggestion. Once the owner has
+  // deliberately chosen an order, typing must not silently steer it elsewhere.
+  const untouched = select.dataset.userPicked !== '1';
+  if (untouched && best) select.value = best.orderNumber;
+}
+
+async function linkPostageExpense(key) {
+  const expense = findPostageExpense(key);
+  if (!expense) { showToast('That postage receipt was not found', 'err'); return; }
+
+  const orderNumber = normalizeShippingOrderNumber($(postageRowDomId(key, 'order'))?.value);
+  if (!orderNumber) { showToast('Choose the order this postage paid for', 'warn'); return; }
+
+  const recipientName = ($(postageRowDomId(key, 'name'))?.value || '').trim();
+  const trackingInput = ($(postageRowDomId(key, 'track'))?.value || '').trim();
+  const tracking = normalizeTrackingNumber(trackingInput);
+  if (trackingInput && tracking.length < 6) {
+    showToast('That tracking number looks too short — check it against the receipt', 'warn');
+    return;
+  }
+
+  const patch = postageLinkPatch(orderNumber, {
+    recipientName,
+    trackingNumber: tracking,
+    method: 'recipient-name',
+  });
+
+  // Snapshot every key the patch touches so a failed save leaves the receipt
+  // exactly as it was, rather than half-linked with no order behind it.
+  const keys = new Set([...Object.keys(patch), 'shippingSuggestedOrderNumber', 'shippingCandidateOrderNumbers']);
+  const prior = new Map(Array.from(keys).map(key => [
+    key, { present: Object.prototype.hasOwnProperty.call(expense, key), value: expense[key] },
+  ]));
+
+  Object.assign(expense, patch);
+  delete expense.shippingSuggestedOrderNumber;
+  delete expense.shippingCandidateOrderNumbers;
+
+  try {
+    await saveTaxCenter({ rethrow: true });
+  } catch (error) {
+    prior.forEach((snapshot, key) => {
+      if (snapshot.present) expense[key] = snapshot.value;
+      else delete expense[key];
+    });
+    console.error('Postage link save failed', error);
+    showToast('Could not save that link. Please try again.', 'err');
+    return;
+  }
+
+  // The tracking number belongs on the order too: that is where the customer
+  // record lives and where a "where is my book" email gets answered from.
+  if (tracking) await storeTrackingOnOrder(orderNumber, tracking, patch.trackingUrl || '');
+
+  renderPostageMatchWorklist();
+  renderShippingAnalysisHub();
+  renderTaxCenter();
+  showToast(`✓ ${fmt(expense.amount || 0, expense.currency || 'CAD')} postage linked to ${orderNumber}`);
+}
+
+/**
+ * Write the tracking number onto the website order's history entry.
+ *
+ * Best-effort by design: the postage link is already saved by this point, so a
+ * failure here must warn rather than roll the link back — the money is
+ * correctly attributed either way, and only the tracking display is missing.
+ */
+async function storeTrackingOnOrder(orderNumber, tracking, trackingUrl) {
+  const target = normalizeShippingOrderNumber(orderNumber);
+  let bookId = '';
+  Object.keys(states).forEach(id => {
+    (states[id]?.hist || []).forEach(entry => {
+      if (!entry || entry.voided) return;
+      if (normalizeShippingOrderNumber(entry.num) !== target) return;
+      entry.trackingNumber = tracking;
+      const carrier = carrierFromTracking(tracking);
+      if (carrier) entry.trackingCarrier = carrier;
+      const url = trackingUrl || trackingUrlFor(tracking, carrier);
+      if (url) entry.trackingUrl = url;
+      entry.shipped = true;
+      bookId = id;
+    });
+  });
+  if (!bookId) return;
+  try {
+    await saveState(bookId);
+  } catch (error) {
+    console.error('Tracking save on order failed', error);
+    showToast('Postage linked, but the tracking number did not save to the order', 'warn');
+  }
+}
+
+/**
+ * Link every receipt whose surname match is unambiguous, in one pass.
+ *
+ * autoMatchPostage() is deliberately strict — a confident top match, a clear
+ * gap to the runner-up, and no two receipts wanting the same order — so this
+ * button never has to guess. Anything it skips stays in the list.
+ */
+async function autoMatchPostageReceipts() {
+  const expenses = unlinkedPostageExpenses();
+  const proposals = autoMatchPostage(expenses, getShippingReconciliationOrders(), {
+    takenOrderNumbers: ordersAlreadyCarryingPostage(),
+  });
+  if (!proposals.length) {
+    showToast('No receipts match a single order clearly enough to link on their own', 'warn');
+    return;
+  }
+
+  const preview = proposals.slice(0, 6)
+    .map(({ expense, match }) => `• ${match.orderName || match.orderNumber} — ${fmt(expense.amount || 0, expense.currency || 'CAD')} → ${match.orderNumber}`)
+    .join('\n');
+  const more = proposals.length > 6 ? `\n…and ${proposals.length - 6} more` : '';
+  const accepted = await confirmDialog(
+    `Link ${proposals.length} postage receipt${proposals.length === 1 ? '' : 's'} to the order with the same name?\n\n${preview}${more}\n\nYou can unlink any of them afterwards.`,
+    { title: 'Match postage by name', okLabel: `Link ${proposals.length}` },
+  );
+  if (!accepted) return;
+
+  const applied = [];
+  proposals.forEach(({ expense, match }) => {
+    const snapshot = { ...expense };
+    Object.assign(expense, postageLinkPatch(match.orderNumber, {
+      recipientName: postageRecipientName(expense),
+      trackingNumber: expense.trackingNumber || '',
+      method: 'recipient-name-auto',
+    }));
+    applied.push({ expense, snapshot });
+  });
+
+  try {
+    await saveTaxCenter({ rethrow: true });
+  } catch (error) {
+    applied.forEach(({ expense, snapshot }) => {
+      Object.keys(expense).forEach(key => { if (!(key in snapshot)) delete expense[key]; });
+      Object.assign(expense, snapshot);
+    });
+    console.error('Auto-match save failed', error);
+    showToast('Could not save those links. Please try again.', 'err');
+    return;
+  }
+
+  for (const { expense, match } of applied) {
+    const tracking = normalizeTrackingNumber(expense.trackingNumber);
+    if (tracking) await storeTrackingOnOrder(match.orderNumber, tracking, expense.trackingUrl || '');
+  }
+
+  renderPostageMatchWorklist();
+  renderShippingAnalysisHub();
+  renderTaxCenter();
+  showToast(`✓ Linked ${applied.length} postage receipt${applied.length === 1 ? '' : 's'} by name`);
+}
+
+async function dismissPostageExpense(key) {
+  const expense = findPostageExpense(key);
+  if (!expense) return;
+  const hadStatus = Object.prototype.hasOwnProperty.call(expense, 'shippingMatchStatus');
+  const priorStatus = expense.shippingMatchStatus;
+  expense.shippingMatchStatus = 'dismissed';
+  try {
+    await saveTaxCenter({ rethrow: true });
+  } catch (error) {
+    if (hadStatus) expense.shippingMatchStatus = priorStatus;
+    else delete expense.shippingMatchStatus;
+    console.error('Postage dismiss failed', error);
+    showToast('Could not hide that receipt. Please try again.', 'err');
+    return;
+  }
+  renderPostageMatchWorklist();
+  showToast('Receipt hidden — it stays in your Shipping & Postage ledger');
+}
+
+/**
+ * Write what a scan read onto the receipt, and refresh its row.
+ *
+ * Deliberately saves. Filling the inputs and leaving it there was fine for one
+ * receipt the owner is looking at, but a fifteen-receipt batch that evaporates
+ * on refresh is worse than not offering the batch at all. Recording a name and
+ * a tracking number attributes no money — the link is still a separate,
+ * deliberate act — so persisting it costs nothing and survives a closed tab.
+ *
+ * Returns the list of field names actually written, so the caller can report
+ * what changed rather than claiming a blanket success.
+ */
+function applyScannedPostageFields(expense, fields) {
+  const patch = mergeScannedPostageFields(expense, fields);
+  const written = [];
+  if (patch.recipientName) written.push('recipient');
+  if (patch.trackingNumber) written.push('tracking');
+  if (!written.length) return { written, patch };
+  Object.assign(expense, patch);
+  return { written, patch };
+}
+
+/** Push a scanned expense's stored values back into its visible inputs. */
+function syncPostageRowInputs(key, expense) {
+  const nameEl = $(postageRowDomId(key, 'name'));
+  if (nameEl) nameEl.value = postageRecipientName(expense);
+  const trackEl = $(postageRowDomId(key, 'track'));
+  if (trackEl) trackEl.value = formatTrackingNumber(expense.trackingNumber || '');
+  refreshPostageRowSuggestion(key);
+}
+
+/**
+ * Read the recipient and tracking number off one receipt already on file.
+ *
+ * Fills and saves the two fields, then re-ranks the suggestion — but never
+ * links. A reader that misreads "DAWSON" must cost a correction, not money
+ * attributed to the wrong customer.
+ */
+async function scanPostageReceipt(key) {
+  const expense = findPostageExpense(key);
+  if (!expense) { showToast('That postage receipt was not found', 'err'); return; }
+  if (!expense.receipt) { showToast('There is no receipt attached to this expense', 'warn'); return; }
+
+  const btn = $(postageRowDomId(key, 'scan'));
+  const original = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Reading…'; }
+
+  try {
+    const fields = await readShippingFieldsFromReceipt(expense.receipt);
+    const snapshot = { ...expense };
+    const { written } = applyScannedPostageFields(expense, fields);
+
+    if (!written.length) {
+      showToast('Could not find a recipient or tracking number on that receipt — type them in instead', 'warn', 4200);
+      return;
+    }
+    try {
+      await saveTaxCenter({ rethrow: true });
+    } catch (error) {
+      Object.keys(expense).forEach(key => { if (!(key in snapshot)) delete expense[key]; });
+      Object.assign(expense, snapshot);
+      throw error;
+    }
+    syncPostageRowInputs(key, expense);
+    showToast(`✓ Read ${written.join(' and ')} from the receipt — check it, then link`);
+  } catch (error) {
+    console.error('Postage receipt scan failed', error);
+    showToast(`Could not read that receipt — ${error.message || error}`, 'err', 4600);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = original; }
+  }
+}
+
+// The in-flight batch, so the same button can cancel it. A stack of receipts
+// is a minute or more of API calls; without a way out, a batch started by
+// mistake has to be waited through or the tab closed.
+let _postageBatchScan = null;
+
+/**
+ * Read a whole stack of receipts in one pass.
+ *
+ * Sequential rather than parallel: these are the publisher's own rate-limited
+ * API credits, and fifteen simultaneous requests is how a batch gets throttled
+ * into failure halfway through. Each receipt is saved as it is read, so a
+ * cancel — or a failure on receipt twelve — keeps the eleven already done.
+ */
+async function scanAllPostageReceipts() {
+  if (_postageBatchScan) {
+    _postageBatchScan.cancelled = true;
+    showToast('Stopping after the receipt being read now…');
+    return;
+  }
+  if (!TAX_CENTER.settings?.geminiKey && !TAX_CENTER.settings?.openRouterKey?.trim()) {
+    showToast('Add your Gemini or OpenRouter key in the Tax Centre config to read receipts', 'warn', 4200);
+    return;
+  }
+
+  const candidates = postageScanCandidates(unlinkedPostageExpenses());
+  if (!candidates.length) {
+    const anyUnlinked = unlinkedPostageExpenses().length;
+    showToast(anyUnlinked
+      ? 'Every receipt here has already been read — nothing left to scan'
+      : 'No postage receipts are waiting to be matched', 'warn', 4200);
+    return;
+  }
+
+  const accepted = await confirmDialog(
+    `Read ${candidates.length} receipt${candidates.length === 1 ? '' : 's'} and fill in the recipient and tracking number on each?\n\n`
+    + 'This uses one AI read per receipt — Gemini first, then your OpenRouter backup if Gemini has run out — and takes a few seconds each. '
+    + 'Nothing is linked to an order — you still confirm every match afterwards.',
+    { title: 'Read all receipts', okLabel: `Read ${candidates.length}` },
+  );
+  if (!accepted) return;
+
+  const batch = { cancelled: false };
+  _postageBatchScan = batch;
+  const btn = $('postage-match-scan-all');
+  const original = btn ? btn.textContent : '';
+
+  let read = 0;
+  let blank = 0;
+  const failed = [];
+
+  try {
+    for (let i = 0; i < candidates.length; i++) {
+      if (batch.cancelled) break;
+      const expense = candidates[i];
+      const key = postageExpenseKey(expense);
+      if (btn) btn.textContent = `Reading ${i + 1} of ${candidates.length}… (tap to stop)`;
+
+      const row = document.querySelector(`.postage-match-row[data-key="${CSS.escape(key)}"]`);
+      if (row) row.classList.add('is-scanning');
+
+      try {
+        const fields = await readShippingFieldsFromReceipt(expense.receipt);
+        const { written } = applyScannedPostageFields(expense, fields);
+        if (written.length) { read++; syncPostageRowInputs(key, expense); }
+        else blank++;
+      } catch (error) {
+        console.error('Batch scan failed on', key, error);
+        failed.push(key);
+      } finally {
+        if (row) row.classList.remove('is-scanning');
+      }
+    }
+
+    // One save for the whole run rather than one per receipt: this is the
+    // publisher's Firestore write budget, and a batch of fifteen would
+    // otherwise be fifteen round trips for data that is only useful together.
+    if (read) {
+      try {
+        await saveTaxCenter({ rethrow: true });
+      } catch (error) {
+        console.error('Batch scan save failed', error);
+        showToast('Read the receipts, but could not save what they said. Please try again.', 'err', 4600);
+        return;
+      }
+    }
+  } finally {
+    _postageBatchScan = null;
+    if (btn) { btn.textContent = original; btn.disabled = false; }
+  }
+
+  renderPostageMatchWorklist();
+
+  const parts = [];
+  if (read) parts.push(`read ${read}`);
+  if (blank) parts.push(`${blank} had nothing readable`);
+  if (failed.length) parts.push(`${failed.length} could not be opened`);
+  if (batch.cancelled) parts.push('stopped early');
+  const tone = (failed.length || blank) ? 'warn' : 'ok';
+  showToast(
+    read
+      ? `✓ Receipts ${parts.join(', ')} — check the names, then Match by name`
+      : `No receipts could be read — ${parts.join(', ') || 'nothing to report'}`,
+    tone,
+    5200,
+  );
+}
+
+/** Add or correct a tracking number from the shipping ledger row. */
+async function promptLedgerTracking(key) {
+  const expense = findPostageExpense(key);
+  if (!expense) { showToast('That postage receipt was not found', 'err'); return; }
+  const entered = await promptDialog(
+    'Type the tracking number printed on the receipt or label.',
+    formatTrackingNumber(expense.trackingNumber || ''),
+    { title: 'Add tracking number', okLabel: 'Save', placeholder: 'e.g. LE 055 214 725 CA' },
+  );
+  if (entered === null) return;
+  const tracking = normalizeTrackingNumber(entered);
+  if (entered.trim() && tracking.length < 6) {
+    showToast('That tracking number looks too short — check it against the receipt', 'warn');
+    return;
+  }
+
+  const snapshot = {
+    trackingNumber: expense.trackingNumber, trackingCarrier: expense.trackingCarrier, trackingUrl: expense.trackingUrl,
+  };
+  if (tracking) {
+    const patch = postageLinkPatch(expense.shippingOrderNumber || '#NONE-0', { trackingNumber: tracking });
+    expense.trackingNumber = patch.trackingNumber;
+    if (patch.trackingCarrier) expense.trackingCarrier = patch.trackingCarrier;
+    if (patch.trackingUrl) expense.trackingUrl = patch.trackingUrl;
+  } else {
+    delete expense.trackingNumber; delete expense.trackingCarrier; delete expense.trackingUrl;
+  }
+
+  try {
+    await saveTaxCenter({ rethrow: true });
+  } catch (error) {
+    Object.assign(expense, snapshot);
+    console.error('Tracking save failed', error);
+    showToast('Could not save the tracking number. Please try again.', 'err');
+    return;
+  }
+  if (tracking && expense.shippingOrderNumber) {
+    await storeTrackingOnOrder(expense.shippingOrderNumber, tracking, expense.trackingUrl || '');
+  }
+  renderShippingAnalysisHub();
+  renderPostageMatchWorklist();
+  showToast(tracking ? '✓ Tracking number saved' : 'Tracking number cleared');
+}
+
+function closeManualShippoLinkModal() {
+  const el = $('manual-link-modal-backdrop');
+  if (el) el.remove();
+}
+
+async function unlinkShippoExpense(expenseKey) {
+  const expense = findPostageByKey(TAX_CENTER.businessExpenses || [], expenseKey);
+  if (!expense) {
+    showToast('Expense not found.', 'err');
+    return;
+  }
+  const label = String(expense.ref || '').replace('shippo:', '') || 'that receipt';
+
+  delete expense.shippingOrderNumber;
+  delete expense.shippingMatchMethod;
+  expense.shippingMatchStatus = 'unmatched';
+
+  try {
+    await saveTaxCenter();
+    showToast(`Unlinked ${label}`, 'ok');
+    renderShippingAnalysisHub();
+  } catch (err) {
+    console.error('unlinkShippoExpense failed', err);
+    showToast('Could not unlink. Please try again.', 'err');
+  }
+}
+
+function getShipRecoMode() {
+  return localStorage.getItem(`lm-ship-reco-mode-${shipAnalysisBookFilter}`) || 'blended';
+}
+
+function setShipRecoMode(val) {
+  localStorage.setItem(`lm-ship-reco-mode-${shipAnalysisBookFilter}`, val);
+}
+
+function getShipRecoPercentile() {
+  const val = localStorage.getItem(`lm-ship-reco-pct-${shipAnalysisBookFilter}`);
+  return val ? parseInt(val, 10) : 75;
+}
+
+function setShipRecoPercentile(val) {
+  localStorage.setItem(`lm-ship-reco-pct-${shipAnalysisBookFilter}`, val.toString());
+}
+
+function getShipWeightOverride() {
+  return localStorage.getItem(`lm-ship-weight-override-${shipAnalysisBookFilter}`) || 'default';
+}
+
+function setShipWeightOverride(val) {
+  localStorage.setItem(`lm-ship-weight-override-${shipAnalysisBookFilter}`, val);
+}
+
+function onShipInsightsToggle(isOpen) {
+  localStorage.setItem(`lm-ship-insights-open-${shipAnalysisBookFilter}`, isOpen ? 'true' : 'false');
+}
+
+function onShipRecoModeChange(val) {
+  setShipRecoMode(val);
+  renderShippingAnalysisHub();
+}
+
+function onShipRecoPercentileChange(val) {
+  setShipRecoPercentile(val);
+  renderShippingAnalysisHub();
+}
+
+function onShipRecoWeightSelectChange(val) {
+  if (val === 'custom') {
+    setShipWeightOverride('1.0');
+  } else {
+    setShipWeightOverride(val);
+  }
+  renderShippingAnalysisHub();
+}
+
+function onShipRecoCustomWeightChange(val) {
+  const parsed = Math.max(0.01, parseFloat(val) || 0.8);
+  setShipWeightOverride(parsed.toString());
+  renderShippingAnalysisHub();
+}
+
+function getPercentile(arr, pct) {
+  if (!arr || arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = Math.ceil((pct / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, idx)];
+}
+
+function getMean(arr) {
+  if (!arr || arr.length === 0) return 0;
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
+function getFallbackRates(region, w) {
+  // Canada Post Solutions for Small Business / Tracked Packet rates
+  if (w < 0.5) {
+    if (region === 'ON') return { base: 12.50, addon: 3.50 };
+    if (region === 'CA') return { base: 17.50, addon: 4.50 };
+    if (region === 'US') return { base: 18.00, addon: 5.00 };
+    return { base: 26.50, addon: 12.00 };
+  } else if (w <= 1) {
+    if (region === 'ON') return { base: 14.50, addon: 5.00 };
+    if (region === 'CA') return { base: 20.00, addon: 6.50 };
+    if (region === 'US') return { base: 22.50, addon: 8.50 };
+    return { base: 35.00, addon: 15.00 };
+  } else if (w <= 2) {
+    if (region === 'ON') return { base: 17.00, addon: 8.00 };
+    if (region === 'CA') return { base: 24.50, addon: 10.00 };
+    if (region === 'US') return { base: 27.00, addon: 12.00 };
+    return { base: 48.00, addon: 18.00 };
+  } else {
+    // For packages over 2 kg, Canada Post applies per-kg incremental rates above 2 kg
+    const extraKg = Math.ceil(w - 2);
+    if (region === 'ON') return { base: 21.00 + (extraKg - 1) * 2.50, addon: 10.00 };
+    if (region === 'CA') return { base: 29.50 + (extraKg - 1) * 3.50, addon: 12.50 };
+    if (region === 'US') return { base: 34.00 + (extraKg - 1) * 4.50, addon: 15.00 };
+    return { base: 65.00 + (extraKg - 1) * 8.00, addon: 22.00 };
+  }
+}
+
+function getSmartShippingRecommendations(allOrders, shippoExpenses, optWeightOverride) {
+  const activeBookId = shipAnalysisBookFilter;
+  let book = null;
+  if (activeBookId !== 'all') {
+    book = BOOK_LIST.find(b => b.id === activeBookId);
+  }
+  const bookWeightKg = getWeightInKg(1, book || BOOK_LIST[0]);
+  
+  const weightOverride = optWeightOverride || getShipWeightOverride();
+  let weightKg = bookWeightKg;
+  if (weightOverride === 'under_0.5') weightKg = 0.3;
+  else if (weightOverride === '0.5_1') weightKg = 0.8;
+  else if (weightOverride === '1_2') weightKg = 1.5;
+  else if (weightOverride === 'over_2') weightKg = 2.5;
+  else if (weightOverride !== 'default') {
+    weightKg = parseFloat(weightOverride) || bookWeightKg;
+  }
+  
+  let bandName = 'Under 0.5 kg';
+  if (weightKg >= 2) bandName = 'Over 2 kg';
+  else if (weightKg > 1) bandName = '1 - 2 kg';
+  else if (weightKg >= 0.5) bandName = '0.5 - 1 kg';
+
+
+  const regions = ['ON', 'CA', 'US', 'intl'];
+  const results = {};
+
+  regions.forEach(region => {
+    const regOrders = allOrders.filter(o => {
+      const bucket = shipmentRegion(o.shipCountry);
+      const province = String(o.shipProvince || o.shipState || '').trim().toUpperCase();
+      const isON = province === 'ON' || province === 'ONTARIO';
+
+      if (region === 'ON') return bucket === 'CA' && isON;
+      if (region === 'CA') return bucket === 'CA' && !isON;
+      if (region === 'US') return bucket === 'US';
+      return bucket === 'intl';
+    });
+
+    const values = [];
+    regOrders.forEach(o => {
+      const orderNumber = normalizeShippingOrderNumber(o.num);
+      const linked = orderNumber ? shippoExpenses.filter(e =>
+        e.shippingMatchStatus === 'matched' && normalizeShippingOrderNumber(e.shippingOrderNumber) === orderNumber
+      ) : [];
+      const hasPostage = linked.length > 0 || !!o.manualPostagePaid;
+      if (hasPostage) {
+        const cost = o.manualPostagePaid
+          ? (Number(o.postagePaid) || 0)
+          : linked.reduce((sum, e) => sum + (Number(e.baseAmount) || Number(e.amount) || 0), 0);
+        if (cost > 0) {
+          values.push({ cost, qty: o.qty || 1 });
+        }
+      }
+    });
+
+    const N = values.length;
+    // ⚡ Bolt Optimization: Replace chained .filter().map() with a single imperative loop to eliminate intermediate array allocations
+    const singleCosts = [];
+    for (const v of values) {
+      if (v.qty === 1) {
+        singleCosts.push(v.cost);
+      }
+    }
+    
+    const pctFn = typeof getShipRecoPercentile === 'function' ? getShipRecoPercentile : () => 75;
+    const pct = pctFn();
+
+    let avgBase = null;
+    let targetBase = null;
+    let avgInc = null;
+
+    if (singleCosts.length > 0) {
+      avgBase = getMean(singleCosts);
+      targetBase = getPercentile(singleCosts, pct);
+    } else if (values.length > 0) {
+      const perUnit = values.map(v => v.cost / v.qty);
+      avgBase = getMean(perUnit);
+      targetBase = getPercentile(perUnit, pct);
+    }
+
+    const multi = values.filter(v => v.qty > 1);
+    if (multi.length > 0 && avgBase !== null) {
+      const incs = multi.map(v => (v.cost - avgBase) / (v.qty - 1));
+      avgInc = getMean(incs.filter(c => c > 0));
+    }
+
+    const fallback = getFallbackRates(region, weightKg);
+    let recoBase = fallback.base;
+    let recoAddon = fallback.addon;
+    let confidence = 'Default';
+
+    const recoMode = getShipRecoMode();
+    if (recoMode === 'cpost') {
+      recoBase = fallback.base;
+      recoAddon = fallback.addon;
+      confidence = 'Canada Post';
+    } else {
+      if (N >= 5) {
+        recoBase = Math.round(targetBase);
+        recoAddon = avgInc !== null ? Math.max(2, Math.round(avgInc)) : Math.round(recoBase * 0.4);
+        confidence = 'High';
+      } else if (N > 0) {
+        const w = N / 5;
+        const baseBlend = avgBase * w + fallback.base * (1 - w);
+        const addBlend = (avgInc || fallback.addon) * w + fallback.addon * (1 - w);
+        recoBase = Math.round(baseBlend);
+        recoAddon = Math.round(addBlend);
+        confidence = 'Medium';
+      }
+    }
+
+    recoAddon = Math.max(1, recoAddon);
+
+    results[region] = {
+      recoBase,
+      recoAddon,
+      confidence,
+      N,
+      avgCost: N > 0 ? getMean(values.map(v => v.cost)) : null,
+      p90Cost: N > 0 ? getPercentile(values.map(v => v.cost), 90) : null
+    };
+  });
+
+  return { results, weightKg, bandName };
+}
+
+function updateManualShippingRates(region, type, val) {
+  const s = getState();
+  if (!s.shippingRates) {
+    s.shippingRates = {
+      ON: { base: 16.00, addon: 10.00 },
+      CA: { base: 20.00, addon: 10.00 },
+      US: { base: 25.00, addon: 10.00 },
+      intl: { base: 25.00, addon: 10.00 }
+    };
+  }
+  const floatVal = Math.max(0, parseFloat(val) || 0);
+  s.shippingRates[region][type] = floatVal;
+  saveState(activeBook);
+  renderShippingAnalysisHub();
+}
+
+function applySmartShippingRates(region, base, addon) {
+  const s = getState();
+  if (!s.shippingRates) {
+    s.shippingRates = {
+      ON: { base: 16.00, addon: 10.00 },
+      CA: { base: 20.00, addon: 10.00 },
+      US: { base: 25.00, addon: 10.00 },
+      intl: { base: 25.00, addon: 10.00 }
+    };
+  }
+  s.shippingRates[region].base = base;
+  s.shippingRates[region].addon = addon;
+  saveState(activeBook);
+  renderShippingAnalysisHub();
+  showToast(`Applied recommended rates for ${region === 'ON' ? 'Ontario' : region === 'CA' ? 'Rest of Canada' : region === 'US' ? 'United States' : 'International'}`);
+}
+
+// The weight bucket an order falls in: the rows of the weight-band table and
+// the values its weight filter toggles between.
+function shipAnalysisWeightBand(weightKg) {
+  if (weightKg < 0.5) return 'Under 0.5 kg';
+  if (weightKg <= 1) return '0.5 - 1 kg';
+  if (weightKg <= 2) return '1 - 2 kg';
+  return 'Over 2 kg';
+}
+
+// Whether one order passes the hub's margin, carrier, region and weight
+// filters. The P&L cards, the ledger and its CSV export all apply these, so
+// each screen counts the same orders. `linkedFor(orderNumber)` gives the
+// order's matched postage, `bookFor(id)` its book.
+function passesShipAnalysisFilters(o, linkedFor, bookFor) {
+  if (shipAnalysisMarginFilter !== 'all') {
+    const customerPaidBase = Number(o.shippingPaid) || 0;
+    const linked = linkedFor(normalizeShippingOrderNumber(o.num));
+
+    if (shipAnalysisMarginFilter === 'missing') {
+      if (customerPaidBase !== 0) return false;
+    } else {
+      const hasPostage = linked.length > 0 || !!o.manualPostagePaid;
+      if (!hasPostage) return false;
+
+      const postageCostCAD = o.manualPostagePaid
+        ? (Number(o.postagePaid) || 0)
+        : linked.reduce((sum, e) => sum + (Number(e.baseAmount) || Number(e.amount) || 0), 0);
+      const margin = customerPaidBase - postageCostCAD;
+
+      if (shipAnalysisMarginFilter === 'loss' && margin >= 0) return false;
+      if (shipAnalysisMarginFilter === 'profit' && margin < 0) return false;
+    }
+  }
+
+  if (shipAnalysisCarrierFilter !== 'all') {
+    const linked = linkedFor(normalizeShippingOrderNumber(o.num));
+    const carrier = o.manualPostagePaid
+      ? 'Manual Override'
+      : (linked.length > 0 ? parseCarrierInfo(linked[0].desc).provider : 'Unlinked');
+    if (carrier !== shipAnalysisCarrierFilter) return false;
+  }
+
+  if (shipAnalysisRegionFilter !== 'all') {
+    if (shipmentRegion(o.shipCountry) !== shipAnalysisRegionFilter) return false;
+  }
+
+  if (shipAnalysisWeightFilter !== 'all') {
+    const weightKg = getWeightInKg(o.qty || 1, bookFor(o.bookId));
+    if (shipAnalysisWeightBand(weightKg) !== shipAnalysisWeightFilter) return false;
+  }
+
+  return true;
+}
+
+function buildShippingPnLHtml(allOrders, relevantExpenses, shippoExpenses, bookFilterOptions, marginFilterOptions, isPub) {
+
+  // ⚡ Bolt Optimization: Pre-compute expenses grouped by order number to avoid O(N*M) lookups
+  const shippoExpensesByOrder = new Map();
+  (shippoExpenses || []).forEach(e => {
+    if (e.shippingMatchStatus === 'matched') {
+      const num = normalizeShippingOrderNumber(e.shippingOrderNumber);
+      if (num) {
+        if (!shippoExpensesByOrder.has(num)) shippoExpensesByOrder.set(num, []);
+        shippoExpensesByOrder.get(num).push(e);
+      }
+    }
+  });
+
+  const relevantExpensesByOrder = new Map();
+  (relevantExpenses || []).forEach(e => {
+    if (e.shippingMatchStatus === 'matched') {
+      const num = normalizeShippingOrderNumber(e.shippingOrderNumber);
+      if (num) {
+        if (!relevantExpensesByOrder.has(num)) relevantExpensesByOrder.set(num, []);
+        relevantExpensesByOrder.get(num).push(e);
+      }
+    }
+  });
+
+  // First book per id wins, as find() did.
+  const booksById = new Map();
+  for (const book of BOOK_LIST) if (!booksById.has(book.id)) booksById.set(book.id, book);
+  const linkedExpensesFor = (orderNumber) => (orderNumber && shippoExpensesByOrder.get(orderNumber)) || [];
+  const bookFor = (id) => booksById.get(id);
+
+  // Calculate dynamic counts for Margin Health filters based on active Book Filter (using allOrders)
+  let countAll = 0;
+  let countLoss = 0;
+  let countProfit = 0;
+  let countMissing = 0;
+  let countDismissed = 0;
+
+  allOrders.forEach(o => {
+    if (o.excludeFromShipping) {
+      countDismissed++;
+      return;
+    }
+    countAll++;
+
+    const customerPaidBase = Number(o.shippingPaid) || 0;
+    if (customerPaidBase === 0) {
+      countMissing++;
+    }
+
+    const orderNumber = normalizeShippingOrderNumber(o.num);
+    const linked = orderNumber ? (shippoExpensesByOrder.get(orderNumber) || []) : [];
+    const hasPostage = linked.length > 0 || !!o.manualPostagePaid;
+    if (hasPostage) {
+      const postageCostCAD = o.manualPostagePaid
+        ? (Number(o.postagePaid) || 0)
+        : linked.reduce((sum, e) => sum + (Number(e.baseAmount) || Number(e.amount) || 0), 0);
+      const margin = customerPaidBase - postageCostCAD;
+      if (margin < 0) {
+        countLoss++;
+      } else {
+        countProfit++;
+      }
+    }
+  });
+
+  // ── 1. Calculate P&L KPIs (Publisher view only) ──
+  let pnlHtml = '';
+
+  if (isPub) {
+    const activeOrders = allOrders.filter(o => !o.excludeFromShipping);
+
+    // Apply all interactive filters to compute current P&L totals
+    const kpiOrders = activeOrders.filter(o => passesShipAnalysisFilters(o, linkedExpensesFor, bookFor));
+
+    // ⚡ Bolt Optimization: Loop Fusion
+    // Combined multiple passes over kpiOrders into a single imperative loop
+    // to calculate totalShippingIncome, totalPostageCost, and markup stats simultaneously,
+    // avoiding multiple intermediate closures and reduce operations.
+    let totalShippingIncome = 0;
+    let totalPostageCost = 0;
+    let totalMarkupSum = 0;
+    let markupCount = 0;
+
+    for (const o of kpiOrders) {
+      const customerPaidBase = Number(o.shippingPaid) || 0;
+      totalShippingIncome += customerPaidBase;
+
+      const orderNumber = normalizeShippingOrderNumber(o.num);
+
+      // Calculate postage cost (relevant expenses)
+      const linkedRelevant = orderNumber ? (relevantExpensesByOrder.get(orderNumber) || []) : [];
+      let costRelevant = 0;
+      if (o.manualPostagePaid) {
+        costRelevant = Number(o.postagePaid) || 0;
+      } else {
+        for (const e of linkedRelevant) {
+          costRelevant += (Number(e.baseAmount) || Number(e.amount) || 0);
+        }
+      }
+      totalPostageCost += costRelevant;
+
+      // Calculate markup (shippo expenses)
+      const linkedShippo = orderNumber ? (shippoExpensesByOrder.get(orderNumber) || []) : [];
+      const hasPostageShippo = linkedShippo.length > 0 || !!o.manualPostagePaid;
+      if (hasPostageShippo) {
+        let costShippo = 0;
+        if (o.manualPostagePaid) {
+          costShippo = Number(o.postagePaid) || 0;
+        } else {
+          for (const e of linkedShippo) {
+            costShippo += (Number(e.baseAmount) || Number(e.amount) || 0);
+          }
+        }
+        if (costShippo > 0) {
+          totalMarkupSum += ((customerPaidBase - costShippo) / costShippo) * 100;
+          markupCount++;
+        }
+      }
+    }
+
+    const netMargin = totalShippingIncome - totalPostageCost;
+    const marginClass = netMargin > 0 ? 'positive' : netMargin < 0 ? 'negative' : 'neutral';
+
+    // Average markup calculation on linked orders
+    const avgMarkup = markupCount > 0 ? (totalMarkupSum / markupCount) : 0;
+    const avgMarkupText = markupCount > 0 ? `${avgMarkup > 0 ? '+' : ''}${avgMarkup.toFixed(1)}%` : '—';
+
+    const matchedOrderNumbers = new Set(
+      shippoExpenses
+        .filter(e => e.shippingMatchStatus === 'matched')
+        .map(e => normalizeShippingOrderNumber(e.shippingOrderNumber))
+        .filter(Boolean)
+    );
+    const unmatchedCount = kpiOrders.filter(o => {
+      if (o.manualPostagePaid) return false;
+      return !matchedOrderNumbers.has(normalizeShippingOrderNumber(o.num));
+    }).length;
+    const linkedOrderCount = kpiOrders.length - unmatchedCount;
+
+    pnlHtml = `
+      <section class="shipping-pnl-dashboard" aria-labelledby="shipping-pnl-title">
+        <header class="shipping-pnl-header">
+          <div>
+            <p class="shipping-pnl-eyebrow">Publisher finance</p>
+            <h2 id="shipping-pnl-title">Shipping performance</h2>
+            <p class="shipping-pnl-intro">Understand recovered shipping costs and resolve outstanding postage records.</p>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button class="btn sm gold" id="ship-bc-sync-btn" onclick="triggerBigCartelShippingSync()" style="height:38px; padding:0 16px; display:inline-flex; align-items:center; gap:6px; font-size:var(--text-sm); font-weight:700; border-radius:var(--r-pill); border:var(--stroke-hair) solid rgba(232, 64, 42,0.3); background:var(--gold-bg); color:var(--gold-text); cursor:pointer; transition:all 0.2s;">
+                <span>🔄</span> Sync Big Cartel Shipping
+              </button>
+              <a class="shipping-pnl-action" href="#shipping-pnl-ledger">Review reconciliation</a>
+            </div>
+            <div class="shipping-pnl-header-meta" style="margin-top: 4px;">
+              <span class="shipping-pnl-freshness">All recorded website orders</span>
+            </div>
+          </div>
+        </header>
+        <div class="shipping-pnl-toolbar">
+          <div class="toolbar-group">
+            <span class="toolbar-label">Book Filter</span>
+            <div class="pill-select-wrapper">
+              <select id="ship-analysis-book-filter" onchange="onShipAnalysisBookFilterChange()" class="pill-select-input">
+                ${bookFilterOptions}
+              </select>
+              <span class="pill-select-arrow">▼</span>
+            </div>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Margin Health</span>
+            <div class="filter-segmented-control">
+              <button type="button" class="filter-segmented-pill ${shipAnalysisMarginFilter === 'all' ? 'active' : ''}" onclick="setShipAnalysisMarginFilter('all')">
+                All <span class="filter-pill-badge">${countAll}</span>
+              </button>
+              <button type="button" class="filter-segmented-pill loss ${shipAnalysisMarginFilter === 'loss' ? 'active' : ''}" onclick="setShipAnalysisMarginFilter('loss')">
+                Losses <span class="filter-pill-badge">${countLoss}</span>
+              </button>
+              <button type="button" class="filter-segmented-pill profit ${shipAnalysisMarginFilter === 'profit' ? 'active' : ''}" onclick="setShipAnalysisMarginFilter('profit')">
+                Profitable <span class="filter-pill-badge">${countProfit}</span>
+              </button>
+              <button type="button" class="filter-segmented-pill missing ${shipAnalysisMarginFilter === 'missing' ? 'active' : ''}" onclick="setShipAnalysisMarginFilter('missing')">
+                Missing <span class="filter-pill-badge">${countMissing}</span>
+              </button>
+              <button type="button" class="filter-segmented-pill dismissed ${shipAnalysisMarginFilter === 'dismissed' ? 'active' : ''}" onclick="setShipAnalysisMarginFilter('dismissed')">
+                Dismissed <span class="filter-pill-badge">${countDismissed}</span>
+              </button>
+            </div>
+          </div>
+          <div class="toolbar-group search-group">
+            <span class="toolbar-label">Search</span>
+            <div style="position:relative; display:inline-flex; align-items:center;">
+              <input type="search" id="ship-analysis-search" placeholder="Order #, name..." value="${escapeHtml(shipAnalysisSearchQuery)}" oninput="onShipAnalysisSearch(this.value)" class="pill-search-input">
+              <span class="pill-search-icon">🔍</span>
+            </div>
+          </div>
+        </div>
+        <div class="shipping-pnl-kpis">
+          <article class="shipping-pnl-kpi">
+            <span class="shipping-pnl-kpi-label">Shipping revenue</span>
+            <strong>${totalShippingIncome.toFixed(2)} <small>CAD</small></strong>
+            <span>Customer-paid shipping</span>
+          </article>
+          <article class="shipping-pnl-kpi">
+            <span class="shipping-pnl-kpi-label">Postage cost</span>
+            <strong>${totalPostageCost.toFixed(2)} <small>CAD</small></strong>
+            <span>All imported Shippo labels</span>
+          </article>
+          <article class="shipping-pnl-kpi ${marginClass}">
+            <span class="shipping-pnl-kpi-label">Net margin</span>
+            <strong>${netMargin >= 0 ? '+' : ''}${netMargin.toFixed(2)} <small>CAD</small></strong>
+            <span>Revenue less actual postage</span>
+          </article>
+          <article class="shipping-pnl-kpi">
+            <span class="shipping-pnl-kpi-label">Link coverage</span>
+            <strong>${linkedOrderCount} <small>/ ${kpiOrders.length} orders</small></strong>
+            <span>${avgMarkupText} average markup on linked orders</span>
+          </article>
+        </div>
+        <section class="shipping-pnl-attention" aria-labelledby="shipping-pnl-attention-title">
+          <div>
+            <p class="shipping-pnl-eyebrow">Needs attention</p>
+            <h3 id="shipping-pnl-attention-title">Keep margins trustworthy</h3>
+          </div>
+          <div class="shipping-pnl-attention-item">
+            <strong>${unmatchedCount}</strong>
+            <span>Postage not linked</span>
+          </div>
+          <p>Unlinked orders show no settled postage or margin until a Shippo expense is matched.</p>
+          <a href="#shipping-pnl-ledger">View ledger</a>
+        </section>
+      </section>
+    `;
+  } else {
+    pnlHtml = `
+      <div class="shipping-pnl-dashboard" style="margin-bottom: var(--shipping-pnl-space-4); overflow: hidden;">
+        <header class="shipping-pnl-header" style="padding: var(--shipping-pnl-space-4) var(--shipping-pnl-space-5) var(--shipping-pnl-space-3);">
+          <div>
+            <span class="shipping-pnl-eyebrow" style="margin-bottom:4px;">Author finance</span>
+            <h2 style="font-size: 1.8rem;">Shipping performance</h2>
+          </div>
+        </header>
+        <div class="shipping-pnl-toolbar">
+          <div class="toolbar-group">
+            <span class="toolbar-label">Book Filter</span>
+            <div class="pill-select-wrapper">
+              <select id="ship-analysis-book-filter" onchange="onShipAnalysisBookFilterChange()" class="pill-select-input">
+                ${bookFilterOptions}
+              </select>
+              <span class="pill-select-arrow">▼</span>
+            </div>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">Margin Health</span>
+            <div class="filter-segmented-control">
+              <button type="button" class="filter-segmented-pill ${shipAnalysisMarginFilter === 'all' ? 'active' : ''}" onclick="setShipAnalysisMarginFilter('all')">
+                All <span class="filter-pill-badge">${countAll}</span>
+              </button>
+              <button type="button" class="filter-segmented-pill loss ${shipAnalysisMarginFilter === 'loss' ? 'active' : ''}" onclick="setShipAnalysisMarginFilter('loss')">
+                Losses <span class="filter-pill-badge">${countLoss}</span>
+              </button>
+              <button type="button" class="filter-segmented-pill profit ${shipAnalysisMarginFilter === 'profit' ? 'active' : ''}" onclick="setShipAnalysisMarginFilter('profit')">
+                Profitable <span class="filter-pill-badge">${countProfit}</span>
+              </button>
+              <button type="button" class="filter-segmented-pill missing ${shipAnalysisMarginFilter === 'missing' ? 'active' : ''}" onclick="setShipAnalysisMarginFilter('missing')">
+                Missing <span class="filter-pill-badge">${countMissing}</span>
+              </button>
+              <button type="button" class="filter-segmented-pill dismissed ${shipAnalysisMarginFilter === 'dismissed' ? 'active' : ''}" onclick="setShipAnalysisMarginFilter('dismissed')">
+                Dismissed <span class="filter-pill-badge">${countDismissed}</span>
+              </button>
+            </div>
+          </div>
+          <div class="toolbar-group search-group">
+            <span class="toolbar-label">Search</span>
+            <div style="position:relative; display:inline-flex; align-items:center;">
+              <input type="search" id="ship-analysis-search" placeholder="Order #, name..." value="${escapeHtml(shipAnalysisSearchQuery)}" oninput="onShipAnalysisSearch(this.value)" class="pill-search-input">
+              <span class="pill-search-icon">🔍</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+
+  return pnlHtml;
+}
+
+function buildShippingCarrierScorecardHtml(allOrders, relevantExpenses) {
+  // ── 2. Carrier Efficiency Scorecard ──
+  const carrierStats = {};
+  
+  // A. Process linked Shippo expenses
+  relevantExpenses.forEach(e => {
+    const { provider, service } = parseCarrierInfo(e.desc);
+    const cost = Number(e.baseAmount) || Number(e.amount) || 0;
+    if (!carrierStats[provider]) {
+      carrierStats[provider] = { count: 0, totalCost: 0, services: {} };
+    }
+    carrierStats[provider].count++;
+    carrierStats[provider].totalCost += cost;
+
+    if (!carrierStats[provider].services[service]) {
+      carrierStats[provider].services[service] = { count: 0, totalCost: 0 };
+    }
+    carrierStats[provider].services[service].count++;
+    carrierStats[provider].services[service].totalCost += cost;
+  });
+
+  // B. Process manual entries from active/relevant orders
+  allOrders.forEach(o => {
+    if (o.manualPostagePaid && !o.excludeFromShipping) {
+      const cost = Number(o.postagePaid) || 0;
+      const provider = 'Manual Override';
+      const service = 'Manual';
+      if (!carrierStats[provider]) {
+        carrierStats[provider] = { count: 0, totalCost: 0, services: {} };
+      }
+      carrierStats[provider].count++;
+      carrierStats[provider].totalCost += cost;
+
+      if (!carrierStats[provider].services[service]) {
+        carrierStats[provider].services[service] = { count: 0, totalCost: 0 };
+      }
+      carrierStats[provider].services[service].count++;
+      carrierStats[provider].services[service].totalCost += cost;
+    }
+  });
+
+  let carrierRows = '';
+  Object.keys(carrierStats).forEach(provider => {
+    const data = carrierStats[provider];
+    const avg = data.count > 0 ? (data.totalCost / data.count) : 0;
+    const isActive = (shipAnalysisCarrierFilter === provider);
+    const rowClass = isActive ? 'active-insight-row' : '';
+    carrierRows += `
+      <tr class="insight-clickable-row ${rowClass}" onclick="toggleShipAnalysisCarrierFilter('${escapeHtml(provider)}')" title="Click to filter ledger by ${escapeHtml(provider)}">
+        <td style="font-weight:600; color:var(--text2); display:flex; align-items:center; gap:8px;">
+          ${isActive ? '<span class="insight-active-dot"></span>' : ''}
+          ${escapeHtml(provider)}
+        </td>
+        <td style="text-align:center;">${data.count}</td>
+        <td style="text-align:right;">${data.totalCost.toFixed(2)} CAD</td>
+        <td style="text-align:right; font-weight:600;">${avg.toFixed(2)} CAD</td>
+      </tr>
+    `;
+  });
+
+  const carrierTableHtml = carrierRows
+    ? `
+      <table class="shipping-pnl-insight-table">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Carrier</th>
+            <th style="text-align:center; width:80px;">Shipments</th>
+            <th style="text-align:right; width:120px;">Total Cost</th>
+            <th style="text-align:right; width:120px;">Avg/Package</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${carrierRows}
+        </tbody>
+      </table>
+    `
+    : `<div class="empty-state" style="padding:1rem;">No carrier data logged.</div>`;
+
+
+  return carrierTableHtml;
+}
+
+function buildShippingRegionSplitHtml(allOrders, shippoExpenses) {
+  // ── 3. Domestic vs. International Margin Split ──
+  let caCount = 0, caRevenue = 0, caCost = 0;
+  let usCount = 0, usRevenue = 0, usCost = 0;
+  let intlCount = 0, intlRevenue = 0, intlCost = 0;
+
+  allOrders.forEach(o => {
+    if (o.excludeFromShipping) return;
+    const revenue = Number(o.shippingPaid) || 0;
+
+    const orderNumber = normalizeShippingOrderNumber(o.num);
+    const linked = orderNumber ? shippoExpenses.filter(e =>
+      e.shippingMatchStatus === 'matched' && normalizeShippingOrderNumber(e.shippingOrderNumber) === orderNumber
+    ) : [];
+    
+    const cost = o.manualPostagePaid
+      ? (Number(o.postagePaid) || 0)
+      : linked.reduce((sum, e) => sum + (Number(e.baseAmount) || Number(e.amount) || 0), 0);
+
+    const destRegion = shipmentRegion(o.shipCountry);
+
+    if (destRegion === 'CA') {
+      caCount++;
+      caRevenue += revenue;
+      caCost += cost;
+    } else if (destRegion === 'US') {
+      usCount++;
+      usRevenue += revenue;
+      usCost += cost;
+    } else {
+      intlCount++;
+      intlRevenue += revenue;
+      intlCost += cost;
+    }
+  });
+
+  const caMargin = caRevenue - caCost;
+  const usMargin = usRevenue - usCost;
+  const intlMargin = intlRevenue - intlCost;
+
+  const isCaActive = (shipAnalysisRegionFilter === 'CA');
+  const isUsActive = (shipAnalysisRegionFilter === 'US');
+  const isIntlActive = (shipAnalysisRegionFilter === 'intl');
+  const caRowClass = isCaActive ? 'active-insight-row' : '';
+  const usRowClass = isUsActive ? 'active-insight-row' : '';
+  const intlRowClass = isIntlActive ? 'active-insight-row' : '';
+
+  const splitTableHtml = `
+    <table class="shipping-pnl-insight-table">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Region</th>
+          <th style="text-align:center; width:70px;">Orders</th>
+          <th style="text-align:right; width:100px;">Charged</th>
+          <th style="text-align:right; width:100px;">Actual Cost</th>
+          <th style="text-align:right; width:100px;">Net Margin</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="insight-clickable-row ${caRowClass}" onclick="toggleShipAnalysisRegionFilter('CA')" title="Click to filter ledger by Canadian">
+          <td style="font-weight:600; color:var(--text2); display:flex; align-items:center; gap:8px;">
+            ${isCaActive ? '<span class="insight-active-dot"></span>' : ''}
+            🇨🇦 Canadian
+          </td>
+          <td style="text-align:center;">${caCount}</td>
+          <td style="text-align:right;">${caRevenue.toFixed(2)} CAD</td>
+          <td style="text-align:right;">${caCost.toFixed(2)} CAD</td>
+          <td style="text-align:right; font-weight:700; color:${caMargin >= 0 ? 'var(--green)' : 'var(--red)'};">${caMargin >= 0 ? '+' : ''}${caMargin.toFixed(2)} CAD</td>
+        </tr>
+        <tr class="insight-clickable-row ${usRowClass}" onclick="toggleShipAnalysisRegionFilter('US')" title="Click to filter ledger by USA">
+          <td style="font-weight:600; color:var(--text2); display:flex; align-items:center; gap:8px;">
+            ${isUsActive ? '<span class="insight-active-dot"></span>' : ''}
+            🇺🇸 USA
+          </td>
+          <td style="text-align:center;">${usCount}</td>
+          <td style="text-align:right;">${usRevenue.toFixed(2)} CAD</td>
+          <td style="text-align:right;">${usCost.toFixed(2)} CAD</td>
+          <td style="text-align:right; font-weight:700; color:${usMargin >= 0 ? 'var(--green)' : 'var(--red)'};">${usMargin >= 0 ? '+' : ''}${usMargin.toFixed(2)} CAD</td>
+        </tr>
+        <tr class="insight-clickable-row ${intlRowClass}" onclick="toggleShipAnalysisRegionFilter('intl')" title="Click to filter ledger by International">
+          <td style="font-weight:600; color:var(--text2); display:flex; align-items:center; gap:8px;">
+            ${isIntlActive ? '<span class="insight-active-dot"></span>' : ''}
+            🌍 International
+          </td>
+          <td style="text-align:center;">${intlCount}</td>
+          <td style="text-align:right;">${intlRevenue.toFixed(2)} CAD</td>
+          <td style="text-align:right;">${intlCost.toFixed(2)} CAD</td>
+          <td style="text-align:right; font-weight:700; color:${intlMargin >= 0 ? 'var(--green)' : 'var(--red)'};">${intlMargin >= 0 ? '+' : ''}${intlMargin.toFixed(2)} CAD</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+
+  return splitTableHtml;
+}
+
+function buildShippingWeightBandHtml(allOrders, shippoExpenses) {
+  // ── 4. Package Weight Band Cost Average ──
+  const weightBands = {
+    'Under 0.5 kg': { count: 0, totalCost: 0, totalRevenue: 0 },
+    '0.5 - 1 kg': { count: 0, totalCost: 0, totalRevenue: 0 },
+    '1 - 2 kg': { count: 0, totalCost: 0, totalRevenue: 0 },
+    'Over 2 kg': { count: 0, totalCost: 0, totalRevenue: 0 }
+  };
+
+  // ⚡ Bolt Optimization: this ran BOOK_LIST.find() and a shippoExpenses.filter()
+  // (each re-normalizing every expense's order number) once PER ORDER, i.e.
+  // O(orders × books + orders × expenses). Both allOrders and shippoExpenses cover
+  // the shop's full history and only grow over time, so building a book-by-id Map
+  // and a matched-expenses-by-order-number Map once up front turns this into a
+  // single O(orders + books + expenses) pass with O(1) lookups per order.
+  const bookById = new Map(BOOK_LIST.map(b => [b.id, b]));
+  const matchedExpensesByOrderNumber = new Map();
+  for (const e of shippoExpenses) {
+    if (e.shippingMatchStatus !== 'matched') continue;
+    const num = normalizeShippingOrderNumber(e.shippingOrderNumber);
+    if (!num) continue;
+    const bucket = matchedExpensesByOrderNumber.get(num);
+    if (bucket) bucket.push(e);
+    else matchedExpensesByOrderNumber.set(num, [e]);
+  }
+
+  allOrders.forEach(o => {
+    if (o.excludeFromShipping) return;
+    const book = bookById.get(o.bookId);
+    const weightKg = getWeightInKg(o.qty || 1, book);
+
+    const orderNumber = normalizeShippingOrderNumber(o.num);
+    const linked = orderNumber ? (matchedExpensesByOrderNumber.get(orderNumber) || []) : [];
+
+    const hasPostage = linked.length > 0 || !!o.manualPostagePaid;
+    if (hasPostage) {
+      const cost = o.manualPostagePaid
+        ? (Number(o.postagePaid) || 0)
+        : linked.reduce((sum, e) => sum + (Number(e.baseAmount) || Number(e.amount) || 0), 0);
+      
+      const revenue = Number(o.shippingPaid) || 0;
+
+      const band = shipAnalysisWeightBand(weightKg);
+
+      weightBands[band].count++;
+      weightBands[band].totalCost += cost;
+      weightBands[band].totalRevenue += revenue;
+    }
+  });
+
+  let weightRows = '';
+  Object.keys(weightBands).forEach(band => {
+    const data = weightBands[band];
+    const avg = data.count > 0 ? (data.totalCost / data.count) : 0;
+    const margin = data.totalRevenue - data.totalCost;
+    const isActive = (shipAnalysisWeightFilter === band);
+    const rowClass = isActive ? 'active-insight-row' : '';
+    weightRows += `
+      <tr class="insight-clickable-row ${rowClass}" onclick="toggleShipAnalysisWeightFilter('${band}')" title="Click to filter ledger by ${band}">
+        <td style="font-weight:600; color:var(--text2); display:flex; align-items:center; gap:8px;">
+          ${isActive ? '<span class="insight-active-dot"></span>' : ''}
+          ${band}
+        </td>
+        <td style="text-align:center;">${data.count}</td>
+        <td style="text-align:right;">${data.totalCost.toFixed(2)} CAD</td>
+        <td style="text-align:right; font-weight:600;">${avg.toFixed(2)} CAD</td>
+        <td style="text-align:right; font-weight:700; color:${margin >= 0 ? 'var(--green)' : 'var(--red)'};">${margin >= 0 ? '+' : ''}
+${margin.toFixed(2)} CAD</td>
+      </tr>
+    `;
+  });
+
+  const weightTableHtml = `
+    <table class="shipping-pnl-insight-table">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Weight Band</th>
+          <th style="text-align:center; width:65px;">Shipments</th>
+          <th style="text-align:right; width:90px;">Total Cost</th>
+          <th style="text-align:right; width:90px;">Avg Cost</th>
+          <th style="text-align:right; width:90px;">Net Margin</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${weightRows}
+      </tbody>
+    </table>
+  `;
+
+
+  return weightTableHtml;
+}
+
+// ─── Address verification from the shipping ledger ────────────────────────
+//
+// The same Shippo check as the Destination card, reachable from the worklist
+// where undeliverable addresses actually surface. Two differences from the
+// rate-form verifier, both because a ledger row is a stored order rather than
+// a scratch form:
+//
+//   1. The verdict is persisted on the history entry, so it survives a reload
+//      and the worklist can be worked through over days rather than in one
+//      sitting. persistableVerification decides what is small enough to store.
+//   2. Corrections write back to the order's own shipAddr* fields, which is
+//      what makes the fix stick — the rate form's copy is discarded on reload.
+//
+// A stored verdict is keyed to the address it was produced from, so editing an
+// order silently reverts it to unverified rather than leaving a stale ✓.
+
+/**
+ * A ledger order's address, with the country resolved to the ISO code Shippo's
+ * country_code enum requires.
+ *
+ * Orders store whatever the Gmail parser or Big Cartel gave them — "Canada",
+ * "United Kingdom" — while the Destination card normalizes on the way in. That
+ * asymmetry is what made the ledger verifier 422 on real orders. Every read of
+ * a ledger address goes through here so the signature that is stored, the one
+ * that is compared, and the one that is sent are the same string.
+ */
+function ledgerOrderAddress(order) {
+  const address = addressFromOrder(order);
+  address.country = normalizeCountryCode(address.country);
+  return address;
+}
+
+/** Finds the live history entry behind a ledger row. */
+function findLedgerOrder(bookId, orderIdentifier) {
+  const state = states[bookId];
+  if (!state || !Array.isArray(state.hist)) return null;
+  return state.hist.find(h => h.id === orderIdentifier || h.num === orderIdentifier) || null;
+}
+
+/**
+ * Verifies one order and writes the verdict onto it.
+ *
+ * `save` is opt-out so the batch path can persist every touched book once at
+ * the end rather than once per order — the same shape backfillShipping uses.
+ */
+async function verifyOrderAddressRecord(token, order, { save = true, bookId = '' } = {}) {
+  const address = ledgerOrderAddress(order);
+  const blocker = countryFallbackWarning(order.shipCountry, address.country)
+    || addressValidationBlocker(address);
+  if (blocker) return { skipped: true, blocker };
+
+  const result = await fetchShippoAddressVerification(token, address);
+  order.addrVerify = persistableVerification(result, addressSignature(address));
+  if (save && bookId) await saveState(bookId);
+  return { skipped: false, result };
+}
+
+async function verifyLedgerOrderAddress(bookId, orderIdentifier) {
+  const token = TAX_CENTER.settings?.shippoKey || '';
+  if (!token) {
+    showToast('⚠️ Please configure your Shippo API Key first', 'warn');
+    return;
+  }
+  const order = findLedgerOrder(bookId, orderIdentifier);
+  if (!order) { showToast('That order could not be found', 'err'); return; }
+
+  const cell = document.querySelector(`[data-verify-cell="${CSS.escape(`${bookId}|${orderIdentifier}`)}"]`);
+  if (cell) cell.innerHTML = '<span class="ship-verify-pill checking">Checking…</span>';
+
+  try {
+    const { skipped, blocker, result } = await verifyOrderAddressRecord(token, order, { save: true, bookId });
+    if (skipped) {
+      showToast(`⚠️ ${order.num || 'Order'}: ${blocker}`, 'warn', 6000);
+      renderShippingAnalysisHub();
+      return;
+    }
+    const verdict = verificationVerdict(result.status);
+    showToast(`${verdict.icon} ${order.num || 'Order'}: ${verdict.label}`, verdict.tone, result.status === 'valid' ? 4000 : 7000);
+  } catch (error) {
+    console.error('Ledger address verification failed', error);
+    showToast(`❌ Could not verify ${order.num || 'this order'}: ${error.message}`, 'err', 7000);
+  }
+  renderShippingAnalysisHub();
+}
+
+/**
+ * Verifies every selected row.
+ *
+ * Chunked rather than fired all at once: Shippo rate-limits, and a worklist
+ * selection can easily be fifty orders. Failures are counted and reported
+ * instead of aborting the run — one unreachable address should not cost the
+ * publisher the other forty-nine verdicts.
+ */
+async function batchVerifyLedgerAddresses() {
+  const token = TAX_CENTER.settings?.shippoKey || '';
+  if (!token) {
+    showToast('⚠️ Please configure your Shippo API Key first', 'warn');
+    return;
+  }
+
+  const selected = Array.from(document.querySelectorAll('.ship-order-checkbox:checked'))
+    .map(checkbox => {
+      const [bookId, orderIdentifier] = checkbox.value.split('|');
+      return { bookId, order: findLedgerOrder(bookId, orderIdentifier) };
+    })
+    .filter(entry => entry.order);
+  if (!selected.length) { showToast('Select the orders you want to verify first', 'warn'); return; }
+
+  const status = $('ship-analysis-batch-verify');
+  const priorLabel = status?.innerHTML;
+  if (status) { status.disabled = true; }
+
+  const touchedBooks = new Set();
+  let verified = 0;
+  let skipped = 0;
+  let failed = 0;
+  let undeliverable = 0;
+  const CHUNK_SIZE = 5;
+
+  for (let i = 0; i < selected.length; i += CHUNK_SIZE) {
+    if (status) status.innerHTML = `Verifying ${Math.min(i + CHUNK_SIZE, selected.length)}/${selected.length}…`;
+    const chunk = selected.slice(i, i + CHUNK_SIZE);
+    // Sequential by design: the awaits are the rate limiter.
+    const outcomes = await Promise.all(chunk.map(async ({ bookId, order }) => {
+      try {
+        const outcome = await verifyOrderAddressRecord(token, order, { save: false });
+        return { ...outcome, bookId };
+      } catch (error) {
+        console.warn(`Address verification failed for ${order.num}`, error);
+        return { failed: true, bookId };
+      }
+    }));
+    outcomes.forEach(outcome => {
+      if (outcome.failed) { failed++; return; }
+      if (outcome.skipped) { skipped++; return; }
+      verified++;
+      touchedBooks.add(outcome.bookId);
+      if (!isDeliverable(outcome.result)) undeliverable++;
+    });
+  }
+
+  try {
+    await Promise.all(Array.from(touchedBooks).map(bookId => saveState(bookId)));
+  } catch (error) {
+    console.error('Saving batch address verifications failed', error);
+    showToast('Verified, but the results could not be saved. Please try again.', 'err');
+  }
+
+  if (status) { status.disabled = false; status.innerHTML = priorLabel ?? '⌖ Verify addresses'; }
+
+  const notes = [
+    `Verified ${verified} address${verified === 1 ? '' : 'es'}`,
+    undeliverable ? `${undeliverable} undeliverable` : '',
+    skipped ? `${skipped} missing an address` : '',
+    failed ? `${failed} failed` : '',
+  ].filter(Boolean);
+  showToast(notes.join(' · '), undeliverable || failed ? 'warn' : 'ok', 7000);
+  renderShippingAnalysisHub();
+}
+
+/** Applies Shippo's standardized fields to the order record itself. */
+async function applyLedgerAddressCorrections(bookId, orderIdentifier) {
+  const order = findLedgerOrder(bookId, orderIdentifier);
+  const stored = order?.addrVerify;
+  if (!order || !stored?.corrections?.length) {
+    showToast('There are no corrections to apply for that order', 'warn');
+    return;
+  }
+  // The verdict is only about the address it was produced from. If the order
+  // was edited since, the stored corrections describe text that is no longer
+  // there, and applying them would reintroduce it.
+  if (!storedVerificationIsCurrent(stored, ledgerOrderAddress(order))) {
+    showToast('That address changed since it was checked — verify it again', 'warn');
+    renderShippingAnalysisHub();
+    return;
+  }
+
+  const preview = stored.corrections.map(c => `  ${c.label}: ${c.from || '—'} → ${c.to}`).join('\n');
+  const accepted = await confirmDialog(
+    `Apply Shippo's standardized address to ${order.num || 'this order'}?\n\n${preview}`,
+    { title: 'Apply address corrections', okLabel: 'Apply to order' },
+  );
+  if (!accepted) return;
+
+  const patch = orderAddressPatch(stored.corrections);
+  Object.assign(order, patch);
+  // The address now matches what Shippo recommended, so the verdict is re-pinned
+  // to it and the corrections are spent rather than offered again.
+  order.addrVerify = {
+    ...stored,
+    signature: addressSignature(ledgerOrderAddress(order)),
+    corrections: [],
+  };
+
+  try {
+    await saveState(bookId);
+  } catch (error) {
+    console.error('Saving corrected order address failed', error);
+    showToast('Could not save the corrected address. Please try again.', 'err');
+    return;
+  }
+  renderHist();
+  renderShippingAnalysisHub();
+  showToast(`✓ Updated ${Object.keys(patch).length} field${Object.keys(patch).length === 1 ? '' : 's'} on ${order.num || 'the order'}`);
+}
+
+/** The verify affordance for one ledger row: button, verdict pill, or both. */
+function renderLedgerVerifyCell(order) {
+  const key = `${order.bookId}|${order.id || order.num}`;
+  const args = `'${escapeHtml(order.bookId)}', '${escapeHtml(order.id || order.num)}'`;
+  const stored = order.addrVerify;
+  const address = ledgerOrderAddress(order);
+  const current = storedVerificationIsCurrent(stored, address);
+  // aria-label as well as title: the re-check control is a bare ↻ glyph, which
+  // a screen reader would otherwise announce as nothing useful.
+  const verifyBtn = (label, title) =>
+    `<button type="button" class="ship-verify-mini" onclick="verifyLedgerOrderAddress(${args})" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${escapeHtml(label)}</button>`;
+
+  // Always inside .ship-verify-cell: the Recipient cell styles bare <span>s as
+  // truncating block lines, which would flatten a pill into an ellipsised row.
+  if (order.localPickup) {
+    return `<div class="ship-verify-cell" data-verify-cell="${escapeHtml(key)}"><span class="ship-verify-pill none" title="Collected in person — no address needed">Local pick-up</span></div>`;
+  }
+  if (!address.street1) {
+    return `<div class="ship-verify-cell" data-verify-cell="${escapeHtml(key)}"><span class="ship-verify-pill none" title="This order has no street address to check">No address</span></div>`;
+  }
+
+  let body;
+  if (!stored || !current) {
+    body = verifyBtn(
+      stored ? '⌖ Re-verify address' : '⌖ Verify address',
+      stored ? 'The address changed since it was last checked' : 'Check this address with Shippo',
+    );
+  } else {
+    const verdict = verificationVerdict(stored.status);
+    const tone = { ok: 'ok', warn: 'warn', err: 'err' }[verdict.tone] || 'warn';
+    const reasons = (stored.reasons || []).map(reason => reason.description).join(' · ');
+    const pill = `<span class="ship-verify-pill ${tone}" title="${escapeHtml(reasons || verdict.summary)}">${escapeHtml(verdict.icon)} ${escapeHtml(verdict.label)}</span>`;
+    const fixBtn = stored.corrections?.length
+      ? `<button type="button" class="ship-verify-mini fix" onclick="applyLedgerAddressCorrections(${args})" aria-label="Apply ${stored.corrections.length} address correction${stored.corrections.length === 1 ? '' : 's'}" title="${escapeHtml(stored.corrections.map(c => `${c.label}: ${c.from || '—'} → ${c.to}`).join('\n'))}">Fix ${stored.corrections.length}</button>`
+      : '';
+    body = `${pill}${fixBtn}${verifyBtn('↻', 'Check this address with Shippo again')}`;
+  }
+  return `<div class="ship-verify-cell" data-verify-cell="${escapeHtml(key)}">${body}</div>`;
+}
+
+function buildShippingLedgerHtml(allOrders, shippoExpenses) {
+  // Index matched postage by order number and books by id once, so the
+  // filters and rows below don't rescan every expense (a regex each) and
+  // every book for each order. Buckets keep the expenses' original order and
+  // the first book with an id wins, exactly as the old filter()/find() did.
+  const matchedByOrder = new Map();
+  for (const e of shippoExpenses) {
+    if (e.shippingMatchStatus !== 'matched') continue;
+    const key = normalizeShippingOrderNumber(e.shippingOrderNumber);
+    if (!key) continue;
+    const bucket = matchedByOrder.get(key);
+    if (bucket) bucket.push(e); else matchedByOrder.set(key, [e]);
+  }
+  const linkedExpensesFor = (orderNumber) => (orderNumber && matchedByOrder.get(orderNumber)) || [];
+  const booksById = new Map();
+  for (const b of BOOK_LIST) if (!booksById.has(b.id)) booksById.set(b.id, b);
+  const bookFor = (id) => booksById.get(id);
+  // ── 5. Side-by-Side Shipping Ledger Pagination ──
+  // Apply all interactive filters before pagination
+  const filteredLedgerOrders = allOrders.filter(o => {
+    if (shipAnalysisMarginFilter === 'dismissed') return o.excludeFromShipping === true;
+    if (o.excludeFromShipping) return false;
+
+    return passesShipAnalysisFilters(o, linkedExpensesFor, bookFor);
+  }).filter(o => {
+    if (!shipAnalysisSearchQuery) return true;
+    const orderNum = String(o.num || '').toLowerCase();
+    const name = String(o.shipName || o.name || '').toLowerCase();
+    return orderNum.includes(shipAnalysisSearchQuery) || name.includes(shipAnalysisSearchQuery);
+  });
+
+  const totalOrders = filteredLedgerOrders.length;
+  const totalPages = Math.ceil(totalOrders / SHIP_ANALYSIS_PAGE_SIZE) || 1;
+  const currentPage = Math.min(shipAnalysisCurrentPage, totalPages);
+  const startIndex = (currentPage - 1) * SHIP_ANALYSIS_PAGE_SIZE;
+  const endIndex = Math.min(startIndex + SHIP_ANALYSIS_PAGE_SIZE, totalOrders);
+  const paginatedOrders = filteredLedgerOrders.slice(startIndex, endIndex);
+
+  let ledgerRowsHtml = '';
+  paginatedOrders.forEach(o => {
+    const orderNumber = normalizeShippingOrderNumber(o.num);
+    const linked = linkedExpensesFor(orderNumber);
+
+    const isLinked = linked.length > 0;
+    
+    // Find if there's a suggested match
+    const suggested = orderNumber ? (TAX_CENTER.businessExpenses || []).filter(e =>
+      String(e?.ref || '').startsWith('shippo:') &&
+      e.shippingMatchStatus !== 'matched' &&
+      normalizeShippingOrderNumber(e.shippingOrderNumber) === orderNumber
+    ) : [];
+    const isSuggested = suggested.length > 0;
+
+    const postageCostCAD = o.manualPostagePaid
+      ? (Number(o.postagePaid) || 0)
+      : linked.reduce((sum, e) => sum + (Number(e.baseAmount) || Number(e.amount) || 0), 0);
+
+    const customerPaidBase = (Number(o.shippingPaid) || 0);
+    const margin = customerPaidBase - postageCostCAD;
+
+    const isUndercharged = isLinked && (margin < 0);
+    const marginClass = margin >= 0 ? 'positive' : 'negative';
+
+    const status = o.excludeFromShipping
+      ? { label: 'Dismissed', className: 'neutral' }
+      : o.localPickup
+        ? { label: 'Local pick-up', className: 'matched' }
+      : o.manualPostagePaid
+        ? { label: 'Manual', className: 'matched' }
+        : (!isLinked && !isSuggested
+          ? { label: 'Needs link', className: 'needs-link' }
+          : isSuggested
+            ? { label: 'Suggested', className: 'suggested' }
+            : isUndercharged
+              ? { label: 'Undercharged', className: 'undercharged' }
+              : { label: 'Matched', className: 'matched' });
+
+    const book = bookFor(o.bookId);
+    const isSavedSuccess = (o.id === shipAnalysisRecentlySavedOrderId || o.num === shipAnalysisRecentlySavedOrderId);
+
+    let linkBtn = '';
+    let trackingLinkHtml = '';
+    let expenseRefHtml = '';
+
+    if (linked.length > 0) {
+      const primary = linked[0];
+      const parsedCarrier = parseCarrierInfo(primary.desc).provider;
+      // A tracking number stored on the expense wins over one scraped out of
+      // the description: the stored one was typed off the receipt or read from
+      // the label, while the scrape is a guess at a "#…" in free text.
+      const tracking = normalizeTrackingNumber(primary.trackingNumber)
+        || parseTrackingNumber(primary.desc)
+        || normalizeTrackingNumber(o.trackingNumber)
+        || '';
+      const carrier = primary.trackingCarrier || guessCarrier(tracking, primary.trackingUrl, parsedCarrier);
+      const url = primary.trackingUrl || trackingUrlFor(tracking, carrier) || '';
+      const refLabel = String(primary.ref || '').replace(/^shippo:/, '') || 'No reference';
+
+      // `local://…` is a path into the connected folder, not a URL. Rendering
+      // it as an href produced a link that looked ordinary and did nothing at
+      // all when clicked — which is every counter receipt, since those are
+      // saved to the folder rather than to a carrier's website.
+      const refTarget = receiptLinkTarget(primary.receipt);
+      const refLink = refTarget.kind === 'local'
+        ? `<button type="button" class="shipping-pnl-tracking-link as-link" onclick="viewLocalReceipt('${escapeHtml(refTarget.path)}')" title="Open the receipt saved in your folder">${escapeHtml(refLabel)}</button>`
+        : refTarget.kind === 'url'
+          ? `<a href="${escapeHtml(refTarget.href)}" target="_blank" rel="noopener" class="shipping-pnl-tracking-link" title="Open the label or receipt">${escapeHtml(refLabel)}</a>`
+          : `<div style="font-weight:600; color:var(--text);">${escapeHtml(refLabel)}</div>`;
+
+      expenseRefHtml = `
+        ${refLink}
+        <div style="font-size:var(--text-2xs); color:var(--text3); margin-top:2px;">
+          ${escapeHtml(primary.desc || 'Postage')}
+        </div>`;
+
+      if (tracking) {
+        const shown = formatTrackingNumber(tracking) || tracking;
+        trackingLinkHtml = url
+          ? `<a href="${escapeHtml(url)}" target="_blank" class="shipping-pnl-tracking-link">${escapeHtml(carrier || 'Tracking')}: ${escapeHtml(shown)}</a>`
+          : `${escapeHtml(carrier || 'Tracking')}: ${escapeHtml(shown)}`;
+      } else {
+        // Actionable rather than a dead dash: this is the one place the owner
+        // can put the number in, and every other row already offers it.
+        trackingLinkHtml = `<button class="btn sm ghost" style="font-size:var(--text-2xs); padding:3px 8px;" onclick="promptLedgerTracking('${escapeHtml(postageExpenseKey(primary))}')">+ Add tracking</button>`;
+      }
+    } else if (o.localPickup) {
+      expenseRefHtml = `<span style="color:var(--text3); font-style:italic;" title="${o.autoLocalPickup ? `Recognised from the checkout option “${escapeHtml(o.shippingMethod)}”` : 'Marked as picked up'}">Picked up in person${o.autoLocalPickup ? ' · from checkout' : ''}</span>`;
+      trackingLinkHtml = `<span style="color:var(--text3); font-style:italic;">—</span>`;
+    } else {
+      expenseRefHtml = `<span style="color:var(--text3); font-style:italic;">Unlinked</span>`;
+      trackingLinkHtml = `<span style="color:var(--text3); font-style:italic;">—</span>`;
+
+      if (isSuggested) {
+        const suggestedItem = suggested[0];
+        linkBtn = `
+          <button class="btn sm" onclick="confirmSuggestedShippoLink('${escapeHtml(o.num)}', '${escapeHtml(postageExpenseKey(suggestedItem))}')" style="font-size:var(--text-2xs); padding:3px 8px; background:var(--shipping-pnl-success); border-color:var(--shipping-pnl-success); color:var(--on-accent);">
+            Confirm Match
+          </button>`;
+      }
+    }
+
+    let actionBtn = '';
+    if (!o.excludeFromShipping && !isLinked && !isSuggested && !o.localPickup) {
+      actionBtn = `
+        <div style="margin-top:6px; display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+          <button class="btn sm" onclick="openManualShippoLinkModal('${escapeHtml(o.num)}')" style="font-size:var(--text-2xs); padding:3px 8px;">Link</button>
+          <button class="btn sm ghost" onclick="markShippingOrderLocalPickup('${escapeHtml(o.bookId)}', '${escapeHtml(o.id || o.num)}')" style="font-size:var(--text-2xs); padding:3px 8px; min-width:unset;" title="The customer collected this in person — no postage to link">Pick-up</button>
+          <button class="btn sm ghost" onclick="dismissShippingAnalysisOrder('${escapeHtml(o.bookId)}', '${escapeHtml(o.id || o.num)}')" style="font-size:var(--text-2xs); padding:3px 8px; color:var(--text3); min-width:unset;" title="Dismiss order from calculations">✕ Dismiss</button>
+        </div>`;
+    } else if (isLinked || o.manualPostagePaid) {
+      const mainBtn = o.localPickup
+        ? `<button class="btn sm ghost" onclick="unmarkShippingOrderLocalPickup('${escapeHtml(o.bookId)}', '${escapeHtml(o.id || o.num)}')" style="font-size:var(--text-2xs); padding:3px 8px; opacity:0.7;" title="This order was shipped after all">Not pick-up</button>`
+        : o.manualPostagePaid
+        ? `<button class="btn sm ghost" onclick="unlinkManualPostage('${escapeHtml(o.bookId)}', '${escapeHtml(o.id || o.num)}')" style="font-size:var(--text-2xs); padding:3px 8px; opacity:0.7;">Clear manual</button>`
+        : `<button class="btn sm ghost" onclick="unlinkShippoExpense('${escapeHtml(postageExpenseKey(linked[0]))}')" style="font-size:var(--text-2xs); padding:3px 8px; opacity:0.7;">Unlink</button>`;
+      const refundHtml = (!o.localPickup && !o.manualPostagePaid) ? labelRefundControlHtml(linked[0]) : '';
+      actionBtn = `
+        <div style="margin-top:6px; display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+          ${mainBtn}
+          ${refundHtml}
+          <button class="btn sm ghost" onclick="dismissShippingAnalysisOrder('${escapeHtml(o.bookId)}', '${escapeHtml(o.id || o.num)}')" style="font-size:var(--text-2xs); padding:3px 8px; color:var(--text3); min-width:unset;" title="Dismiss order from calculations">✕ Dismiss</button>
+        </div>`;
+    }
+
+    const checkboxHtml = !o.excludeFromShipping
+      ? `<label class="ship-check-hit"><input type="checkbox" class="ship-order-checkbox" value="${escapeHtml(o.bookId + '|' + (o.id || o.num))}" aria-label="Select order ${escapeHtml(o.num)}" onchange="updateShipAnalysisBatchActionUI()" /></label>`
+      : '';
+
+    ledgerRowsHtml += `
+      <tr id="shipping-ledger-row-${escapeHtml(o.num)}" class="shipping-pnl-ledger-row ${status.className}">
+        <td style="text-align: center; vertical-align: middle;">${checkboxHtml}</td>
+        <td class="shipping-pnl-order" data-label="Order">${escapeHtml(o.num)}</td>
+        <td class="shipping-pnl-recipient" data-label="Recipient">
+          <strong>${escapeHtml(o.shipName || o.name || 'Anonymous')}</strong>
+          <span>${escapeHtml(book?.title || 'Unknown book')} (qty: ${o.qty || 1})</span>
+          ${renderLedgerVerifyCell(o)}
+        </td>
+        <td data-label="Status">
+          <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
+            <span class="shipping-pnl-status ${status.className}">${escapeHtml(status.label)}</span>
+            ${linkBtn}
+          </div>
+        </td>
+        <td class="shipping-pnl-money" data-label="Customer paid">
+          <div style="display:flex; align-items:center; justify-content:flex-end; gap:6px;">
+            ${o.manualShippingPaid ? `<button class="btn sm ghost" onclick="unlinkManualShippingPaid('${escapeHtml(o.bookId)}', '${escapeHtml(o.id || o.num)}')" title="Clear manual override" aria-label="Clear manual shipping override" style="padding:0 4px; font-size:var(--text-2xs); opacity:0.6; min-width: unset; height: auto;">✕</button>` : ''}
+            <input type="number" inputmode="decimal" step="0.01" min="0" 
+              class="inline-postage-input" 
+              value="${(Number(o.shippingPaid) || 0).toFixed(2)}" 
+              data-book-id="${escapeHtml(o.bookId)}" 
+              data-order-id="${escapeHtml(o.id || o.num)}" 
+              onchange="onInlineShippingPaidChange(this)"
+            />
+            <span style="font-size:var(--text-2xs); color: var(--text3); font-weight: 600;">CAD</span>
+          </div>
+        </td>
+        <td class="shipping-pnl-money" data-label="Postage">
+          <div style="display:flex; align-items:center; justify-content:flex-end; gap:6px;">
+            <input type="number" inputmode="decimal" step="0.01" min="0" 
+              class="inline-postage-input ${isSavedSuccess ? 'saved-success' : ''}" 
+              value="${postageCostCAD.toFixed(2)}" 
+              data-book-id="${escapeHtml(o.bookId)}" 
+              data-order-id="${escapeHtml(o.id || o.num)}" 
+              onchange="onInlinePostageChange(this)"
+            />
+            <span style="font-size:var(--text-2xs); color: var(--text3); font-weight: 600;">CAD</span>
+          </div>
+        </td>
+        <td class="shipping-pnl-money ${marginClass}" data-label="Margin">
+          <strong>${margin >= 0 ? '+' : ''}${margin.toFixed(2)} CAD</strong>
+        </td>
+        <td class="shipping-pnl-reference" data-label="Shippo reference">
+          ${expenseRefHtml}
+          ${actionBtn}
+        </td>
+        <td class="shipping-pnl-tracking" data-label="Tracking">
+          ${trackingLinkHtml}
+        </td>
+      </tr>
+    `;
+  });
+
+  let paginationHtml = '';
+  if (totalPages > 1) {
+    let pageButtons = '';
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    for (let p = startPage; p <= endPage; p++) {
+      pageButtons += `
+        <button class="btn sm ${p === currentPage ? 'primary' : 'ghost'}" 
+                onclick="changeShipAnalysisPage(${p})" 
+                style="min-width:32px; padding:4px 8px;">${p}</button>
+      `;
+    }
+
+    paginationHtml = `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-top:var(--stroke-hair) solid var(--border); font-size:var(--text-sm); color:var(--text3); flex-wrap:wrap; gap:12px;">
+        <div>Showing ${startIndex + 1} - ${endIndex} of ${totalOrders} orders</div>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <button class="btn sm" onclick="changeShipAnalysisPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Prev</button>
+          ${pageButtons}
+          <button class="btn sm" onclick="changeShipAnalysisPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+        </div>
+      </div>
+    `;
+  }
+
+  const ledgerTableHtml = ledgerRowsHtml
+    ? `
+      <div class="shipping-pnl-table-wrap">
+        <div id="ship-analysis-batch-actions" style="display:none; padding:8px 12px; background:var(--card-bg); border-bottom:var(--stroke-hair) solid var(--border); align-items:center; justify-content:space-between; gap:12px;">
+          <span style="font-size:var(--text-sm); font-weight:600; color:var(--text);"><span id="ship-analysis-batch-count">0</span> orders selected</span>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn sm" id="ship-analysis-batch-verify" onclick="batchVerifyLedgerAddresses()" title="Check every selected address with Shippo">⌖ Verify addresses</button>
+            <button class="btn sm ghost" onclick="batchDismissShippingAnalysisOrders()" style="color:var(--text3); border:var(--stroke-hair) solid var(--border);">✕ Dismiss Selected</button>
+          </div>
+        </div>
+        <table class="shipping-pnl-ledger-table">
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;"><label class="ship-check-hit"><input type="checkbox" id="selectAllShipOrders" aria-label="Select all orders" onchange="toggleAllShipAnalysisOrders(this.checked)" /></label></th>
+              <th>Order</th>
+              <th>Recipient</th>
+              <th>Status</th>
+              <th>Customer paid</th>
+              <th>Postage</th>
+              <th>Margin</th>
+              <th>Shippo reference</th>
+              <th>Tracking</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ledgerRowsHtml}
+          </tbody>
+        </table>
+      </div>
+      ${paginationHtml}
+    `
+    : `<div class="shipping-pnl-empty">No direct website orders are available for shipping analysis yet.</div>`;
+
+  const hasActiveFilters = (shipAnalysisCarrierFilter !== 'all' || shipAnalysisRegionFilter !== 'all' || shipAnalysisWeightFilter !== 'all');
+  let activeFiltersBannerHtml = '';
+  if (hasActiveFilters) {
+    let filterBadges = '';
+    if (shipAnalysisCarrierFilter !== 'all') {
+      filterBadges += `
+        <span class="shipping-filter-badge">
+          Carrier: ${escapeHtml(shipAnalysisCarrierFilter)}
+          <span class="shipping-filter-badge-close" onclick="toggleShipAnalysisCarrierFilter('${escapeHtml(shipAnalysisCarrierFilter)}')" title="Remove filter">✕</span>
+        </span>
+      `;
+    }
+    if (shipAnalysisRegionFilter !== 'all') {
+      filterBadges += `
+        <span class="shipping-filter-badge">
+          Region: ${REGION_LABELS[shipAnalysisRegionFilter] || shipAnalysisRegionFilter}
+          <span class="shipping-filter-badge-close" onclick="toggleShipAnalysisRegionFilter('${shipAnalysisRegionFilter}')" title="Remove filter">✕</span>
+        </span>
+      `;
+    }
+    if (shipAnalysisWeightFilter !== 'all') {
+      filterBadges += `
+        <span class="shipping-filter-badge">
+          Weight: ${escapeHtml(shipAnalysisWeightFilter)}
+          <span class="shipping-filter-badge-close" onclick="toggleShipAnalysisWeightFilter('${escapeHtml(shipAnalysisWeightFilter)}')" title="Remove filter">✕</span>
+        </span>
+      `;
+    }
+
+    activeFiltersBannerHtml = `
+      <div class="shipping-active-filters-bar">
+        <span class="shipping-active-filters-label">Active Drill-down:</span>
+        <div class="shipping-active-filters-badges">
+          ${filterBadges}
+        </div>
+        <button class="btn sm ghost" onclick="clearAllShipAnalysisFilters()" style="color:var(--red); font-size:var(--text-xs); padding:2px 8px; border:var(--stroke-hair) solid var(--red); border-radius:var(--r2); background:transparent; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px; margin-left:auto;">
+          ✕ Clear All
+        </button>
+      </div>
+    `;
+  }
+
+
+  return { ledgerTableHtml, activeFiltersBannerHtml };
+}
+
+function buildShippingInsightsHtml(allOrders, shippoExpenses, carrierTableHtml, splitTableHtml, weightTableHtml) {
+  // Calculate smart shipping rate recommendations
+  const s = getState();
+  const recoData = getSmartShippingRecommendations(allOrders, shippoExpenses);
+  const targetRates = s.shippingRates || {
+    ON: { base: 16.00, addon: 10.00 },
+    CA: { base: 20.00, addon: 10.00 },
+    US: { base: 25.00, addon: 10.00 },
+    intl: { base: 25.00, addon: 10.00 }
+  };
+
+  const regionMeta = {
+    ON: { name: 'Ontario', icon: '🍁', key: 'ON' },
+    CA: { name: 'Rest of Canada', icon: '🇨🇦', key: 'CA' },
+    US: { name: 'United States', icon: '🇺🇸', key: 'US' },
+    intl: { name: 'International', icon: '🌐', key: 'intl' }
+  };
+
+  // What customers have actually been charged, from the orders themselves,
+  // beside the typed-in "current setup" — which can drift from the website.
+  const paidByRegion = {};
+  try {
+    shippingPriceCheck(websiteOrdersForPricing(), { today: today(), minOrders: 3 })
+      .forEach(r => { paidByRegion[r.region] = r; });
+  } catch (_) { /* a pricing hint must never stop the page drawing */ }
+
+  let columnsHtml = '';
+  Object.keys(regionMeta).forEach(key => {
+    const meta = regionMeta[key];
+    const data = recoData.results[key];
+    const paidInfo = paidByRegion[key];
+    const current = targetRates[key] || { base: 0, addon: 0 };
+    const currentBase = current.base;
+    const currentAddon = current.addon;
+    const recoBase = data.recoBase;
+    const recoAddon = data.recoAddon;
+
+    let statusBadgeHtml = '';
+    let borderStyle = 'border:var(--stroke-hair) solid var(--border);';
+    if (data.N === 0) {
+      statusBadgeHtml = `<span style="background:rgba(107,102,94,0.08); color:var(--text3); font-size:var(--text-2xs); font-weight:700; padding:2px 8px; border-radius:var(--r-pill); border:var(--stroke-hair) solid rgba(107,102,94,0.15);">Default</span>`;
+    } else if (currentBase < recoBase) {
+      statusBadgeHtml = `<span style="background:rgba(201,75,50,0.08); color:var(--red); font-size:var(--text-2xs); font-weight:700; padding:2px 8px; border-radius:var(--r-pill); border:var(--stroke-hair) solid rgba(201,75,50,0.15);">⚠️ Undercharged</span>`;
+      borderStyle = 'border:var(--stroke-hair) solid rgba(201,75,50,0.3); box-shadow:var(--elev-3);';
+    } else {
+      statusBadgeHtml = `<span style="background:rgba(29,122,74,0.08); color:var(--green); font-size:var(--text-2xs); font-weight:700; padding:2px 8px; border-radius:var(--r-pill); border:var(--stroke-hair) solid rgba(29,122,74,0.15);">✓ Optimized</span>`;
+    }
+
+    const confidenceColor = data.confidence === 'High' ? 'var(--green)' : data.confidence === 'Medium' ? 'var(--gold-text)' : 'var(--text3)';
+    const avgCostStr = data.avgCost !== null ? `$${data.avgCost.toFixed(2)} CAD` : '—';
+    const p90CostStr = data.p90Cost !== null ? `$${data.p90Cost.toFixed(2)} CAD` : '—';
+
+    columnsHtml += `
+      <div class="shipping-reco-col" style="background:var(--cream2); border-radius:var(--r2); padding:18px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden; min-height:330px; transition: all 0.2s ease-in-out; ${borderStyle}">
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h4 style="font-size:14px; font-weight:700; color:var(--text); margin:0; display:flex; align-items:center; gap:6px;">
+              <span style="font-size:16px;">${meta.icon}</span> ${meta.name}
+            </h4>
+            ${statusBadgeHtml}
+          </div>
+
+          <div style="background:var(--surface-card); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); padding:10px 12px; margin-bottom:14px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
+            <label style="font-size:var(--text-3xs); font-weight:700; letter-spacing: 0.05em; text-transform:uppercase; color:var(--text3); display:block; margin-bottom:4px;">Recommended Rate</label>
+            <div style="display:flex; justify-content:space-between; align-items:baseline;">
+              <span style="font-size:var(--text-lg); font-weight:800; color:var(--gold-text);">$${recoBase.toFixed(2)} <span style="font-size:var(--text-2xs); font-weight:400; color:var(--text3);">base</span></span>
+              <span style="font-size:var(--text-base); font-weight:600; color:var(--text2);">+$${recoAddon.toFixed(2)} <span style="font-size:var(--text-2xs); font-weight:400; color:var(--text3);">add-on</span></span>
+            </div>
+          </div>
+
+          <div style="font-size:var(--text-xs); color:var(--text3); margin-bottom:16px; line-height:1.7;">
+            <div style="display:flex; justify-content:space-between; border-bottom:var(--stroke-hair) dashed rgba(0,0,0,0.04); padding-bottom:3px;">
+              <span>Confidence:</span>
+              <span style="font-weight:700; color:${confidenceColor};">${data.confidence}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:var(--stroke-hair) dashed rgba(0,0,0,0.04); padding-bottom:3px; margin-top:3px;">
+              <span>Historical labels:</span>
+              <strong style="color:var(--text);">${data.N}</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:var(--stroke-hair) dashed rgba(0,0,0,0.04); padding-bottom:3px; margin-top:3px;">
+              <span>Avg postage cost:</span>
+              <strong style="color:var(--text);">${avgCostStr}</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; padding-bottom:3px; margin-top:3px;">
+              <span>90th percentile cost:</span>
+              <strong style="color:var(--text);">${p90CostStr}</strong>
+            </div>
+            ${paidInfo ? `
+            <div class="ship-reco-paid${paidInfo.undercharging ? ' is-short' : ''}">
+              <span>Customers actually paid:</span>
+              <strong class="tnum">$${paidInfo.typicalPaid.toFixed(2)}</strong>
+            </div>
+            ${paidInfo.undercharging ? `<p class="ship-reco-paid-note">About $${paidInfo.shortBy.toFixed(2)} less than a typical label to ${escapeHtml(REGION_NAMES[key])} over the last six months.</p>` : ''}` : ''}
+          </div>
+        </div>
+
+        <div style="border-top:var(--stroke-hair) solid var(--border); padding-top:12px; margin-top:auto;">
+          <label style="font-size:var(--text-3xs); font-weight:700; letter-spacing: 0.05em; text-transform:uppercase; color:var(--text3); display:block; margin-bottom:8px;">Current Store Setup</label>
+          <div style="display:flex; gap:6px; align-items:center; margin-bottom:10px;">
+            <div style="flex:1;">
+              <span style="font-size:var(--text-3xs); color:var(--text2); display:block; margin-bottom:2px;">Base ($)</span>
+              <input type="number" inputmode="decimal" step="0.50" min="0" value="${currentBase.toFixed(2)}" 
+                onblur="updateManualShippingRates('${meta.key}', 'base', this.value)"
+                style="width:100%; padding:6px 8px; font-size:var(--text-sm); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); text-align:right; font-family:var(--font-mono); outline:none;" />
+            </div>
+            <div style="flex:1;">
+              <span style="font-size:var(--text-3xs); color:var(--text2); display:block; margin-bottom:2px;">Add-on ($)</span>
+              <input type="number" inputmode="decimal" step="0.50" min="0" value="${currentAddon.toFixed(2)}" 
+                onblur="updateManualShippingRates('${meta.key}', 'addon', this.value)"
+                style="width:100%; padding:6px 8px; font-size:var(--text-sm); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); text-align:right; font-family:var(--font-mono); outline:none;" />
+            </div>
+          </div>
+          <button class="btn sm ghost" onclick="applySmartShippingRates('${meta.key}', ${recoBase}, ${recoAddon})" 
+            style="width:100%; font-size:var(--text-2xs); padding:4px; border-radius:var(--r); text-align:center; font-weight:600; display:flex; align-items:center; justify-content:center; gap:4px; height:28px; border:var(--stroke-hair) dashed var(--border); cursor:pointer;">
+            ⚡ Apply Recommended
+          </button>
+        </div>
+      </div>
+    `;
+  });
+
+  let bookOptionsHtml = '';
+  BOOK_LIST.forEach(b => {
+    const wStr = b.shipWeight ? `${b.shipWeight} ${b.shipWeightUnit || 'lb'}` : 'unknown';
+    bookOptionsHtml += `<option value="${escapeHtml(b.id)}">${escapeHtml(b.title)} (${wStr})</option>`;
+  });
+
+  // ── Render complete layout ──
+  const activeBookIdForWeight = shipAnalysisBookFilter;
+  const filteredBookForWeight = activeBookIdForWeight !== 'all' ? BOOK_LIST.find(b => b.id === activeBookIdForWeight) : null;
+  const bookWeightKg = getWeightInKg(1, filteredBookForWeight || BOOK_LIST[0]);
+  
+  const weightOverride = getShipWeightOverride();
+  const recoMode = getShipRecoMode();
+  const recoPercentile = getShipRecoPercentile();
+  const isInsightsOpen = localStorage.getItem(`lm-ship-insights-open-${shipAnalysisBookFilter}`) !== 'false';
+
+  let pctLabel = '75th';
+  if (recoPercentile === 90) pctLabel = '90th';
+  else if (recoPercentile === 50) pctLabel = '50th';
+
+  let explanationText = `Analyzes historical shipping labels and order quantities to calculate optimized rates. Base price targets the ${pctLabel} percentile of actual postage for outlier coverage; add-ons reflect average incremental weight costs.`;
+  if (recoMode === 'cpost') {
+    explanationText = `Using fixed Canada Post flat-rates. Risk profiles and statistical percentiles are inactive when not using blended history.`;
+  }
+
+  const sandboxHtml = `
+    <section class="shipping-reco-container" style="background:var(--cream2); border:var(--stroke-hair) solid var(--border); border-radius:var(--r3); padding:20px; margin:0 20px 20px 20px; box-shadow:var(--elev-3);">
+      <h3 style="font-family:var(--font-ui); font-size:var(--text-lg); color:var(--text); margin:0 0 6px; font-weight:700;">
+        🧪 Live Rate Simulation Sandbox
+      </h3>
+      <p style="font-size:var(--text-sm); color:var(--text3); margin:0 0 16px; line-height:1.5;">
+        Test how your current and recommended shipping rates perform against actual weight calculations and estimated postage costs.
+      </p>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:20px; align-items:start;">
+        <!-- Controls -->
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:var(--text-2xs); font-weight:700; text-transform:uppercase; color:var(--text3); margin-bottom:4px; display:block;">Select Book</label>
+            <select id="sim-book-select" onchange="updateShippingSimulation()" style="width:100%; padding:8px 12px; font-size:var(--text-sm); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); outline:none; font-weight:600; cursor:pointer;">
+              ${bookOptionsHtml}
+            </select>
+          </div>
+
+          <div style="display:flex; gap:12px;">
+            <div class="form-group" style="flex:1; margin:0;">
+              <label style="font-size:var(--text-2xs); font-weight:700; text-transform:uppercase; color:var(--text3); margin-bottom:4px; display:block;">Quantity</label>
+              <input type="number" inputmode="numeric" id="sim-qty-input" value="1" min="1" max="100" oninput="updateShippingSimulation()" style="width:100%; padding:8px 12px; font-size:var(--text-sm); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); outline:none; text-align:right; font-family:var(--font-mono);" />
+            </div>
+            <div class="form-group" style="flex:1; margin:0;">
+              <label style="font-size:var(--text-2xs); font-weight:700; text-transform:uppercase; color:var(--text3); margin-bottom:4px; display:block;">Destination</label>
+              <select id="sim-region-select" onchange="updateShippingSimulation()" style="width:100%; padding:8px 12px; font-size:var(--text-sm); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); outline:none; font-weight:600; cursor:pointer;">
+                <option value="ON">Ontario 🍁</option>
+                <option value="CA">Rest of Canada 🇨🇦</option>
+                <option value="US">United States 🇺🇸</option>
+                <option value="intl">International 🌐</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:12px;">
+            <div class="form-group" style="flex:1; margin:0;">
+              <label style="font-size:var(--text-2xs); font-weight:700; text-transform:uppercase; color:var(--text3); margin-bottom:4px; display:block;">Packaging Tare</label>
+              <select id="sim-tare-select" onchange="updateShippingSimulation()" style="width:100%; padding:8px 12px; font-size:var(--text-sm); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); outline:none; font-weight:600; cursor:pointer;">
+                <option value="0">None (0 g)</option>
+                <option value="0.05" selected>Bubble Mailer (+50 g)</option>
+                <option value="0.15">Cardboard Box (+150 g)</option>
+                <option value="0.30">Heavy Box (+300 g)</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1; margin:0;">
+              <label style="font-size:var(--text-2xs); font-weight:700; text-transform:uppercase; color:var(--text3); margin-bottom:4px; display:block;">
+                Manual Weight <span style="font-weight:400; text-transform:none; color:var(--text3);">(kg)</span>
+              </label>
+              <input type="number" inputmode="decimal" id="sim-weight-override" placeholder="Auto-calculated" step="0.05" min="0" oninput="updateShippingSimulation()" style="width:100%; padding:8px 12px; font-size:var(--text-sm); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); outline:none; text-align:right; font-family:var(--font-mono);" />
+            </div>
+          </div>
+
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:var(--text-2xs); font-weight:700; text-transform:uppercase; color:var(--text3); margin-bottom:4px; display:block;">
+              Custom Postage Override <span style="font-weight:400; text-transform:none; color:var(--text3);">(optional)</span>
+            </label>
+            <input type="number" inputmode="decimal" id="sim-postage-override" placeholder="Use default band fallback" step="0.50" min="0" oninput="updateShippingSimulation()" style="width:100%; padding:8px 12px; font-size:var(--text-sm); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); outline:none; text-align:right; font-family:var(--font-mono);" />
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div id="sim-results-panel" style="background:var(--surface-card); border:var(--stroke-hair) solid var(--border); border-radius:var(--r2); padding:16px; min-height:190px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:var(--elev-2);">
+          <!-- Will be populated dynamically via updateShippingSimulation() -->
+        </div>
+      </div>
+    </section>
+  `;
+
+  const insightsHtml = `
+    <details class="shipping-pnl-insights" ${isInsightsOpen ? 'open' : ''} ontoggle="onShipInsightsToggle(this.open)" style="margin-bottom: var(--shipping-pnl-space-4) !important;">
+      <summary>
+        <span>
+          <span class="shipping-pnl-eyebrow">Insights</span>
+          <strong>Smart rate recommendations and live simulation sandbox</strong>
+        </span>
+        <span class="shipping-pnl-disclosure">Show analysis ▼</span>
+      </summary>
+
+      <section class="shipping-reco-container" style="background:var(--surface-card); border:var(--stroke-hair) solid var(--border); border-radius:var(--r3); padding:20px; margin:20px; box-shadow:var(--elev-4);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h3 style="font-family:var(--font-display); font-size:20px; color:var(--text); margin:0; display:flex; align-items:center; gap:8px; font-weight:700;">
+              <span>🪄</span> Smart Shipping Rate Recommendations
+            </h3>
+            <p style="font-size:var(--text-sm); color:var(--text3); margin:4px 0 0; line-height:1.5; max-width:650px;">
+              ${explanationText}
+            </p>
+          </div>
+          <div style="background:var(--cream2); padding:8px 12px; border-radius:var(--r2); border:var(--stroke-hair) solid var(--border); font-size:var(--text-xs); color:var(--text2); display:flex; align-items:center; gap:12px; font-weight:600; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:4px;">
+              <span style="font-size:var(--text-base);">⚖️</span> Weight Profile:
+              <select id="ship-reco-weight-select" onchange="onShipRecoWeightSelectChange(this.value)" style="padding:4px 8px; font-size:var(--text-xs); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); outline:none; font-weight:600; cursor:pointer; margin-left:4px;">
+                <option value="default" ${weightOverride === 'default' ? 'selected' : ''}>Book Weight (${bookWeightKg.toFixed(2)} kg)</option>
+                <option value="under_0.5" ${weightOverride === 'under_0.5' ? 'selected' : ''}>Under 0.5 kg (0.3 kg)</option>
+                <option value="0.5_1" ${weightOverride === '0.5_1' ? 'selected' : ''}>0.5 - 1 kg (0.8 kg)</option>
+                <option value="1_2" ${weightOverride === '1_2' ? 'selected' : ''}>1 - 2 kg (1.5 kg)</option>
+                <option value="over_2" ${weightOverride === 'over_2' ? 'selected' : ''}>Over 2 kg (2.5 kg)</option>
+                <option value="custom" ${!['default','under_0.5','0.5_1','1_2','over_2'].includes(weightOverride) ? 'selected' : ''}>Custom Weight...</option>
+              </select>
+              <input id="ship-reco-custom-weight-input" type="number" inputmode="decimal" step="0.1" min="0.01" value="${!['default','under_0.5','0.5_1','1_2','over_2'].includes(weightOverride) ? parseFloat(weightOverride).toFixed(2) : bookWeightKg.toFixed(2)}" 
+                onchange="onShipRecoCustomWeightChange(this.value)"
+                style="display:${!['default','under_0.5','0.5_1','1_2','over_2'].includes(weightOverride) ? 'inline-block' : 'none'}; width:60px; padding:3px 6px; font-size:var(--text-xs); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); text-align:right; font-family:var(--font-mono); outline:none; margin-left:4px;" />
+              <span style="font-size:var(--text-xs); color:var(--text3); font-weight:400; margin-left:4px;">(${recoData.bandName})</span>
+            </div>
+            
+            <div style="border-left:var(--stroke-hair) solid var(--border); height:16px;"></div>
+            
+            <div style="display:flex; align-items:center; gap:4px;">
+              <span style="font-size:var(--text-base);">⚙️</span> Methodology:
+              <select id="ship-reco-mode-select" onchange="onShipRecoModeChange(this.value)" style="padding:4px 8px; font-size:var(--text-xs); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); outline:none; font-weight:600; cursor:pointer; margin-left:4px;">
+                <option value="blended" ${recoMode === 'blended' ? 'selected' : ''}>Blended (History + CP)</option>
+                <option value="cpost" ${recoMode === 'cpost' ? 'selected' : ''}>Canada Post Only</option>
+              </select>
+            </div>
+
+            <div style="border-left:var(--stroke-hair) solid var(--border); height:16px;"></div>
+
+            <div style="display:flex; align-items:center; gap:4px; opacity:${recoMode === 'cpost' ? '0.5' : '1'};">
+              <span style="font-size:var(--text-base);">🎯</span> Risk Profile:
+              <select id="ship-reco-percentile-select" onchange="onShipRecoPercentileChange(this.value)" ${recoMode === 'cpost' ? 'disabled' : ''} style="padding:4px 8px; font-size:var(--text-xs); border:var(--stroke-hair) solid var(--border); border-radius:var(--r); background:var(--surface-card); color:var(--text); outline:none; font-weight:600; cursor:${recoMode === 'cpost' ? 'not-allowed' : 'pointer'}; margin-left:4px;">
+                <option value="90" ${recoPercentile === 90 ? 'selected' : ''}>Conservative (90th %)</option>
+                <option value="75" ${recoPercentile === 75 ? 'selected' : ''}>Balanced (75th %)</option>
+                <option value="50" ${recoPercentile === 50 ? 'selected' : ''}>Aggressive (50th %)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="shipping-reco-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+          ${columnsHtml}
+        </div>
+      </section>
+
+      ${sandboxHtml}
+    </details>
+  `;
+
+  const statsHtml = `
+    <div class="shipping-pnl-insights" style="margin-bottom: var(--shipping-pnl-space-4) !important; padding: 0;">
+      <div class="shipping-pnl-insights-grid" style="border-top: none;">
+        <section class="shipping-pnl-insight-card">
+          <h3>📦 Carrier efficiency</h3>
+          ${carrierTableHtml}
+        </section>
+        <section class="shipping-pnl-insight-card">
+          <h3>🌎 Destination mix</h3>
+          ${splitTableHtml}
+        </section>
+        <section class="shipping-pnl-insight-card">
+          <h3>⚖️ Weight-band cost</h3>
+          ${weightTableHtml}
+        </section>
+      </div>
+    </div>
+  `;
+
+
+  return { insightsHtml, statsHtml };
+}
+
+function renderShippingAnalysisHub() {
+  const hub = $('ship-analysis-hub');
+  if (!hub) return;
+
+  const isPub = !isAuthor();
+
+  // 1. Gather all website orders matching the selected analysis book filter
+  const allOrders = [];
+  Object.keys(states).forEach(bookId => {
+    if (shipAnalysisBookFilter === 'all' || bookId === shipAnalysisBookFilter) {
+      const s = states[bookId];
+      if (s && Array.isArray(s.hist)) {
+        s.hist.forEach(h => {
+          if (h && h.chan === 'Website' && !h.voided) {
+            const dateMs = h.date ? new Date(h.date).getTime() : 0;
+            allOrders.push({ ...h, bookId, _dateMs: dateMs });
+          }
+        });
+      }
+    }
+  });
+
+  allOrders.sort((a, b) => b._dateMs - a._dateMs);
+  applyAutoLocalPickups(allOrders);
+
+  // 2. Gather every postage cost, whichever carrier it came from.
+  //
+  // This filter used to be `ref.startsWith('shippo:')`, which meant postage
+  // bought at a Canada Post counter and entered by hand was invisible to the
+  // whole hub: no cost against the order, a margin that read as pure profit,
+  // and an order stuck on "Needs link" forever. Every panel below reads from
+  // this one list, so widening it here is what lets a counter receipt appear
+  // in the P&L, the carrier scorecard, the ledger and the insights at once.
+  const shippoExpenses = (TAX_CENTER.businessExpenses || []).filter(isPostageExpense);
+  const relevantExpenses = (shipAnalysisBookFilter === 'all')
+    ? shippoExpenses
+    : (() => {
+        // ⚡ Bolt Optimization: Use Set instead of Array.prototype.some() for O(1) lookups
+        const validOrderNumbers = new Set(allOrders.map(o => normalizeShippingOrderNumber(o.num)));
+        return shippoExpenses.filter(e => {
+          const num = normalizeShippingOrderNumber(e.shippingOrderNumber);
+          return num && validOrderNumbers.has(num);
+        });
+      })();
+
+  // Build the book filter dropdown options
+  let bookFilterOptions = `<option value="all" ${shipAnalysisBookFilter === 'all' ? 'selected' : ''}>— All Books —</option>`;
+  BOOK_LIST.forEach(b => {
+    bookFilterOptions += `<option value="${b.id}" ${shipAnalysisBookFilter === b.id ? 'selected' : ''}>${escapeHtml(b.title)}</option>`;
+  });
+
+  let marginFilterOptions = `
+    <option value="all" ${shipAnalysisMarginFilter === 'all' ? 'selected' : ''}>— All Margins —</option>
+    <option value="loss" ${shipAnalysisMarginFilter === 'loss' ? 'selected' : ''}>Undercharged (Losses)</option>
+    <option value="profit" ${shipAnalysisMarginFilter === 'profit' ? 'selected' : ''}>Profitable</option>
+    <option value="missing" ${shipAnalysisMarginFilter === 'missing' ? 'selected' : ''}>Missing Cust. Paid</option>
+    <option value="dismissed" ${shipAnalysisMarginFilter === 'dismissed' ? 'selected' : ''}>Dismissed / Hidden</option>
+  `;
+
+
+  const pnlHtml = buildShippingPnLHtml(allOrders, relevantExpenses, shippoExpenses, bookFilterOptions, marginFilterOptions, isPub);
+  const carrierTableHtml = buildShippingCarrierScorecardHtml(allOrders, relevantExpenses);
+  const splitTableHtml = buildShippingRegionSplitHtml(allOrders, shippoExpenses);
+  const weightTableHtml = buildShippingWeightBandHtml(allOrders, shippoExpenses);
+  const { ledgerTableHtml, activeFiltersBannerHtml } = buildShippingLedgerHtml(allOrders, shippoExpenses);
+  const { insightsHtml, statsHtml } = buildShippingInsightsHtml(allOrders, shippoExpenses, carrierTableHtml, splitTableHtml, weightTableHtml);
+
+  hub.innerHTML = `
+    ${pnlHtml}
+    ${statsHtml}
+    <section class="postage-match" id="postage-match" aria-labelledby="postage-match-title">
+      <header class="shipping-pnl-section-header">
+        <div>
+          <p class="shipping-pnl-eyebrow">Postage receipts</p>
+          <h3 id="postage-match-title">Match a paid receipt to its order</h3>
+          <p class="postage-match-sub">Postage you bought at a counter has the customer's name on the receipt and nowhere else. Put the name in and the matching order is found for you — the tracking number goes on the order at the same time.</p>
+        </div>
+        <div class="postage-match-head-actions">
+          <span class="pill gray" id="postage-match-count">0 to match</span>
+          <button class="btn sm" type="button" id="postage-match-scan-all" onclick="scanAllPostageReceipts()">Read all receipts</button>
+          <button class="btn sm gold" type="button" id="postage-match-auto" onclick="autoMatchPostageReceipts()">Match by name</button>
+        </div>
+      </header>
+      <div id="postage-match-list" aria-live="polite"></div>
+    </section>
+    <section class="shipping-pnl-ledger" id="shipping-pnl-ledger" aria-labelledby="shipping-pnl-ledger-title">
+      <header class="shipping-pnl-section-header">
+        <div>
+          <p class="shipping-pnl-eyebrow">Reconciliation ledger</p>
+          <h3 id="shipping-pnl-ledger-title">Every order, clearly accounted for</h3>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+          <button class="btn sm gold" onclick="downloadFilteredShippingLedgerCSV()" style="font-size:var(--text-xs); padding:4px 10px; font-weight:600; cursor:pointer;">
+            📥 Export CSV
+          </button>
+          <p>Unlinked orders are kept distinct so zeroes never imply settled postage.</p>
+        </div>
+      </header>
+      ${activeFiltersBannerHtml}
+      ${ledgerTableHtml}
+    </section>
+    ${insightsHtml}
+  `;
+
+  // Rendered after the hub markup lands, because the worklist paints into a
+  // container the template above just created.
+  renderPostageMatchWorklist();
+  setTimeout(updateShippingSimulation, 50);
+}
+
+function updateShippingSimulation() {
+  const bookSelect = $('sim-book-select');
+  const qtyInput = $('sim-qty-input');
+  const regionSelect = $('sim-region-select');
+  const postageOverride = $('sim-postage-override');
+  const simResultsPanel = $('sim-results-panel');
+
+  if (!bookSelect || !qtyInput || !regionSelect || !simResultsPanel) return;
+
+  const bookId = bookSelect.value;
+  const qty = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+  const region = regionSelect.value;
+  const customPostage = postageOverride && postageOverride.value ? parseFloat(postageOverride.value) : null;
+
+  const book = BOOK_LIST.find(b => b.id === bookId);
+  if (!book) {
+    simResultsPanel.innerHTML = '<div style="color:var(--text3); font-style:italic;">Select a valid book to simulate.</div>';
+    return;
+  }
+
+  const weightOverrideInput = $('sim-weight-override');
+  const manualWeightKg = weightOverrideInput && weightOverrideInput.value !== '' ? parseFloat(weightOverrideInput.value) : null;
+
+  const tareSelect = $('sim-tare-select');
+  const tareKg = tareSelect ? (parseFloat(tareSelect.value) || 0) : 0;
+
+  const bookWeightKg = getWeightInKg(qty, book);
+  const calculatedActualWeightKg = bookWeightKg + tareKg;
+  const totalActualWeightKg = (manualWeightKg !== null && !isNaN(manualWeightKg) && manualWeightKg >= 0)
+    ? manualWeightKg
+    : calculatedActualWeightKg;
+
+  // Canada Post Volumetric Weight formula: (L x W x H in cm) / 5000
+  const lengthCm = Number(book.lengthCm || book.length) || 23;
+  const widthCm = Number(book.widthCm || book.width) || 15;
+  const singleThicknessCm = Number(book.thicknessCm || book.thickness || book.depth) || 2.0;
+  const totalHeightCm = singleThicknessCm * qty + (tareKg > 0 ? 1.5 : 0);
+  const volumetricWeightKg = (lengthCm * widthCm * totalHeightCm) / 5000;
+
+  // Canada Post charges based on the greater of actual physical weight or volumetric weight
+  const billedWeightKg = Math.max(totalActualWeightKg, volumetricWeightKg);
+  const billedWeightLbs = billedWeightKg * 2.20462;
+  const isVolumetricBilled = volumetricWeightKg > totalActualWeightKg;
+
+  let weightBandLabel = 'Under 0.5 kg';
+  if (billedWeightKg >= 2) weightBandLabel = 'Over 2 kg';
+  else if (billedWeightKg > 1) weightBandLabel = '1 - 2 kg';
+  else if (billedWeightKg >= 0.5) weightBandLabel = '0.5 - 1 kg';
+
+  // The panel shows the estimated postage for the simulated parcel. Two further
+  // blocks used to sit here computing the current store charge and a
+  // recommended charge, and nothing ever read either one — the comparison they
+  // were for was never wired into the markup. The recommended side scanned
+  // every book's full sales history and ran getSmartShippingRecommendations()
+  // on every keystroke in the simulator to produce a number that was discarded.
+  // Estimated Postage Cost
+  const fallback = getFallbackRates(region, billedWeightKg);
+  const estimatedPostage = fallback.base;
+  const postageCost = customPostage !== null && !isNaN(customPostage) ? customPostage : estimatedPostage;
+
+
+  const formatCcy = (val) => `$${val.toFixed(2)} CAD`;
+
+  simResultsPanel.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:12px; height:100%; justify-content:space-between;">
+      <div>
+        <!-- Billed Weight & Band Meta Bar -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:var(--stroke-hair) solid var(--border); padding-bottom:6px; flex-wrap:wrap; gap:6px;">
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span style="font-size:var(--text-2xs); font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.04em;">Canada Post Billed Weight</span>
+            <span style="background:var(--cream2); border:var(--stroke-hair) solid var(--border); border-radius:var(--r-pill); padding:2px 8px; font-size:var(--text-2xs); font-weight:700; color:var(--text2);">🏷️ Band: ${weightBandLabel}</span>
+            ${isVolumetricBilled
+              ? `<span style="background:rgba(232, 64, 42,0.15); border:var(--stroke-hair) solid var(--gold-line); border-radius:var(--r-pill); padding:2px 8px; font-size:var(--text-2xs); font-weight:700; color:var(--gold);" title="Volumetric weight exceeds actual weight (L x W x H / 5000)">📐 Volumetric Billed (${volumetricWeightKg.toFixed(2)} kg)</span>`
+              : `<span style="background:rgba(0,120,60,0.08); border:var(--stroke-hair) solid rgba(0,120,60,0.2); border-radius:var(--r-pill); padding:2px 8px; font-size:var(--text-2xs); font-weight:700; color:var(--green);">⚖️ Actual Weight</span>`
+            }
+          </div>
+          <span style="font-family:var(--font-mono); font-size:var(--text-sm); font-weight:700; color:var(--text);">${billedWeightKg.toFixed(3)} kg (${billedWeightLbs.toFixed(2)} lbs)</span>
+        </div>
+
+        <!-- HERO CARD: Est. Postage Cost (Primary Focal Point) -->
+        <div style="background:linear-gradient(135deg, rgba(26,77,46,0.07), rgba(26,77,46,0.02)); border:1.5px solid var(--green); border-radius:var(--r2); padding:16px; display:flex; justify-content:space-between; align-items:center; box-shadow:var(--elev-2);">
+          <div>
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+              <span style="font-size:var(--text-2xs); font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:var(--green);">Est. Postage Cost (${region})</span>
+              <span style="background:rgba(26,77,46,0.1); color:var(--green); font-size:var(--text-3xs); font-weight:700; padding:1px 6px; border-radius:var(--r-pill);">🚚 Tracked</span>
+            </div>
+            <div style="font-family:var(--font-mono); font-size:var(--text-2xl); font-weight:800; color:var(--text); line-height:1.1;">
+              ${formatCcy(postageCost)}
+            </div>
+            ${billedWeightKg < 0.5 && qty === 1
+              ? `<div style="color:var(--green); font-size:var(--text-2xs); font-weight:600; margin-top:6px; display:flex; gap:4px; align-items:center;">
+                   <span>💡</span> <span>Canada Post Lettermail eligible (if thickness &lt; 2cm).</span>
+                 </div>`
+              : ''
+            }
+          </div>
+          <div style="text-align:right;">
+            <span style="font-size:var(--text-2xs); color:var(--text3); display:block;">Carrier</span>
+            <strong style="font-size:var(--text-base); color:var(--text); font-weight:700;">Canada Post</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function downloadFilteredShippingLedgerCSV() {
+  // Same postage set the on-screen ledger uses. When this said `shippo:` and
+  // the hub said "every carrier", the exported CSV quietly disagreed with the
+  // table it was exported from — the worst kind of wrong number, because it is
+  // the one that gets sent to an accountant.
+  const shippoExpenses = (TAX_CENTER.businessExpenses || []).filter(isPostageExpense);
+  
+  // ⚡ Bolt Optimization: Pre-compute shippoExpenses by order number for O(1) lookups
+  // replacing repeated O(N) array traversals (filter) in the filter and aggregate loops below.
+  const shippoExpensesByOrder = new Map();
+  for (const e of shippoExpenses) {
+    if (e.shippingMatchStatus === 'matched') {
+      const num = normalizeShippingOrderNumber(e.shippingOrderNumber);
+      if (num) {
+        if (!shippoExpensesByOrder.has(num)) {
+          shippoExpensesByOrder.set(num, []);
+        }
+        shippoExpensesByOrder.get(num).push(e);
+      }
+    }
+  }
+
+  // Unmatched Shippo receipts that point at an order, and books by id, are
+  // looked up once here instead of rescanning every business expense (a
+  // regex each) and every book for each exported row. First book per id
+  // wins, as find() did.
+  const suggestedOrderNumbers = new Set();
+  for (const e of (TAX_CENTER.businessExpenses || [])) {
+    if (!String(e?.ref || '').startsWith('shippo:') || e.shippingMatchStatus === 'matched') continue;
+    const num = normalizeShippingOrderNumber(e.shippingOrderNumber);
+    if (num) suggestedOrderNumbers.add(num);
+  }
+  const booksById = new Map();
+  for (const book of BOOK_LIST) if (!booksById.has(book.id)) booksById.set(book.id, book);
+  const linkedExpensesFor = (orderNumber) => (orderNumber && shippoExpensesByOrder.get(orderNumber)) || [];
+  const bookFor = (id) => booksById.get(id);
+
+  const allOrders = [];
+  Object.keys(states).forEach(bookId => {
+    if (shipAnalysisBookFilter === 'all' || bookId === shipAnalysisBookFilter) {
+      const s = states[bookId];
+      if (s && Array.isArray(s.hist)) {
+        s.hist.forEach(h => {
+          if (h && h.chan === 'Website' && !h.voided) {
+            const dateMs = h.date ? new Date(h.date).getTime() : 0;
+            allOrders.push({ ...h, bookId, _dateMs: dateMs });
+          }
+        });
+      }
+    }
+  });
+
+  allOrders.sort((a, b) => b._dateMs - a._dateMs);
+  applyAutoLocalPickups(allOrders);
+
+  const filteredOrders = allOrders.filter(o => {
+    if (shipAnalysisMarginFilter === 'dismissed') return o.excludeFromShipping === true;
+    if (o.excludeFromShipping) return false;
+
+    return passesShipAnalysisFilters(o, linkedExpensesFor, bookFor);
+  });
+
+  if (filteredOrders.length === 0) {
+    showToast('No orders matching the active filters to export.', 'warn');
+    return;
+  }
+
+  let csv = 'Lyricalmyrical Book Shipping Reconciliation Report\n';
+  csv += 'Generated on: ' + today() + '\n';
+  csv += `Active Filters: Book: ${shipAnalysisBookFilter}, Margin: ${shipAnalysisMarginFilter}, Carrier: ${shipAnalysisCarrierFilter}, Region: ${shipAnalysisRegionFilter}, Weight Band: ${shipAnalysisWeightFilter}\n\n`;
+
+  const esc = csvCell;
+
+  csv += 'Order Number,Recipient,Book Title,Qty,Weight (kg),Status,Customer Paid (CAD),Postage Cost (CAD),Margin (CAD),Carrier,Region,Shippo Ref\n';
+
+  filteredOrders.forEach(o => {
+    const orderNumber = normalizeShippingOrderNumber(o.num);
+    const linked = orderNumber ? (shippoExpensesByOrder.get(orderNumber) || []) : [];
+
+    const postageCostCAD = o.manualPostagePaid
+      ? (Number(o.postagePaid) || 0)
+      : linked.reduce((sum, e) => sum + (Number(e.baseAmount) || Number(e.amount) || 0), 0);
+
+    const customerPaidBase = (Number(o.shippingPaid) || 0);
+    const margin = customerPaidBase - postageCostCAD;
+
+    const isLinked = linked.length > 0;
+    const isSuggested = !!orderNumber && suggestedOrderNumbers.has(orderNumber);
+    const isUndercharged = isLinked && (margin < 0);
+
+    const statusLabel = o.excludeFromShipping
+      ? 'Dismissed'
+      : o.localPickup
+        ? 'Local pick-up'
+      : o.manualPostagePaid
+        ? 'Manual'
+        : (!isLinked && !isSuggested
+          ? 'Needs link'
+          : isSuggested
+            ? 'Suggested'
+            : isUndercharged
+              ? 'Undercharged'
+              : 'Matched');
+
+    const book = booksById.get(o.bookId);
+    const weightKg = getWeightInKg(o.qty || 1, book);
+
+    const carrier = o.manualPostagePaid
+      ? 'Manual Override'
+      : (linked.length > 0 ? parseCarrierInfo(linked[0].desc).provider : 'Unlinked');
+    
+    const region = REGION_LABELS[shipmentRegion(o.shipCountry)];
+    const ref = linked.length > 0 ? linked[0].ref : (o.manualPostagePaid ? 'Manual Override' : 'Unlinked');
+
+    csv += `${esc(o.num)},${esc(o.shipName || o.name || 'Anonymous')},${esc(book?.title || 'Unknown book')},${o.qty || 1},${weightKg.toFixed(3)},${esc(statusLabel)},${customerPaidBase.toFixed(2)},${postageCostCAD.toFixed(2)},${margin.toFixed(2)},${esc(carrier)},${esc(region)},${esc(ref)}\n`;
+  });
+
+  downloadCsv(csv, `Lyrical_Shipping_Ledger_${today()}.csv`);
+  showToast('✓ Filtered shipping ledger CSV exported');
+}
+
+function parseCarrierInfo(desc) {
+  if (!desc || !desc.startsWith('Shipping Label:')) {
+    if (desc && desc.startsWith('Shippo shipping label')) {
+      return { provider: 'Shippo', service: 'Postage' };
+    }
+    // A carrier the owner typed into a counter-receipt description. Checked
+    // before the "Unknown" bail-out so hand-entered postage reaches the
+    // scorecard under its real carrier instead of being lumped in with
+    // everything unrecognised. Kept inline rather than in a shared helper
+    // because tests/shipping-analysis-hub.test.js extracts this function's
+    // source and evaluates it on its own.
+    const haystack = ` ${String(desc).toLowerCase()} `;
+    const named = [
+      ['canada post', 'Canada Post'], ['postes canada', 'Canada Post'], ['canadapost', 'Canada Post'],
+      ['purolator', 'Purolator'], ['fedex', 'FedEx'], ['usps', 'USPS'], ['dhl', 'DHL'],
+      ['ups ', 'UPS'], ['stallion', 'Stallion Express'], ['chit chats', 'Chit Chats'],
+    ].find(([needle]) => haystack.includes(needle));
+    if (named) return { provider: named[1], service: 'Postage' };
+    return { provider: 'Unknown', service: 'Unknown' };
+  }
+  const content = desc.replace('Shipping Label:', '').trim();
+  const lastParen = content.lastIndexOf('(');
+  const providerService = lastParen !== -1 ? content.slice(0, lastParen).trim() : content;
+  const spaceIdx = providerService.indexOf(' ');
+  if (spaceIdx === -1) return { provider: providerService, service: 'Standard' };
+  const provider = providerService.slice(0, spaceIdx).trim();
+  const service = providerService.slice(spaceIdx).trim();
+  return { provider, service };
+}
+
+function parseTrackingNumber(desc) {
+  if (!desc) return '';
+  const match = desc.match(/#([A-Za-z0-9\-_]+)/);
+  return match ? match[1] : '';
+}
+
+function guessCarrier(trackingNumber, trackingUrl, parsedCarrier) {
+  if (parsedCarrier && parsedCarrier !== 'Unknown' && parsedCarrier !== 'Shippo') {
+    return parsedCarrier;
+  }
+  const url = String(trackingUrl || '').toLowerCase();
+  if (url.includes('canadapost') || url.includes('canada-post')) return 'Canada Post';
+  if (url.includes('ups.com')) return 'UPS';
+  if (url.includes('fedex.com')) return 'FedEx';
+  if (url.includes('usps.com')) return 'USPS';
+  if (url.includes('dhl.com')) return 'DHL';
+
+  // The number's own shape, via the shared detector, so a Canada Post
+  // "LE 055 214 725 CA" is not reported as Shippo just because it arrived
+  // through a counter receipt rather than the API.
+  const byShape = carrierFromTracking(trackingNumber);
+  if (byShape) return byShape;
+
+  return parsedCarrier || 'Shippo';
+}
+
+function getWeightInLbs(qty, book) {
+  if (!book || !book.shipWeight) return 1.2 * qty;
+  const w = parseFloat(book.shipWeight) || 0;
+  const unit = (book.shipWeightUnit || 'lb').toLowerCase();
+  let weightInLbs = w * qty;
+  if (unit === 'oz') weightInLbs = weightInLbs / 16;
+  else if (unit === 'kg') weightInLbs = weightInLbs * 2.20462;
+  else if (unit === 'g') weightInLbs = weightInLbs / 453.592;
+  return weightInLbs;
+}
+
+function getWeightInKg(qty, book) {
+  const lbs = getWeightInLbs(qty, book);
+  return lbs * 0.45359237;
+}
+
+function updateShippoBaseSpecsFromInputs() {
+  shippoBaseSpecs.length = parseFloat($('sp-length').value) || 0;
+  shippoBaseSpecs.width = parseFloat($('sp-width').value) || 0;
+  shippoBaseSpecs.dim_unit = $('sp-dim-unit').value;
+  shippoBaseSpecs.weight_unit = $('sp-weight-unit').value;
+
+  const qty = Math.max(1, parseInt($('sp-qty').value) || 1);
+  const currentHeight = parseFloat($('sp-height').value) || 0;
+  const currentWeight = parseFloat($('sp-weight').value) || 0;
+
+  shippoBaseSpecs.height = currentHeight / qty;
+  shippoBaseSpecs.weight = currentWeight / qty;
+}
+
+/**
+ * Restack the box for `qty` copies: height and weight are per-copy figures held
+ * in shippoBaseSpecs and multiplied here, so the parcel grows with the order.
+ *
+ * Split out of onShippoQuantityChange so the automated prefill can set a
+ * quantity read off an order without also firing the toast that belongs to a
+ * publisher typing in the box themselves.
+ */
+function scaleShippoSpecsForQty(qty) {
+  const copies = Math.max(1, parseInt(qty, 10) || 1);
+  const heightInput = $('sp-height');
+  const weightInput = $('sp-weight');
+  if (heightInput) heightInput.value = parseFloat((shippoBaseSpecs.height * copies).toFixed(2));
+  if (weightInput) weightInput.value = parseFloat((shippoBaseSpecs.weight * copies).toFixed(2));
+  updateShippoCustomsTotalHint();
+  return copies;
+}
+
+function onShippoQuantityChange() {
+  const qty = scaleShippoSpecsForQty($('sp-qty')?.value);
+  showToast(`✓ Scaled specs for ${qty} ${qty === 1 ? 'copy' : 'copies'}`);
+}
+export {
+  setAsideLabelFromReview,
+  labelReviewEntries,
+  postageOrderChoices,
+  linkPostageToOrder,
+  findShippoReceipts,
+  _shippoDestMasterList,
+  getShippingReconciliationOrders,
+  renderOrderShippingSummary,
+  backfillShipping,
+  _toggleShippingPanel,
+  openLabelModal,
+  renderLabelCountryHint,
+  updateShippedStatusUI,
+  toggleShipped,
+  printShippingLabel,
+  shippingPurchaseRowPayload,
+  getShippoTxCost,
+  saveShippoLabelLocally,
+  fetchShippoTransactionsPageAPI,
+  fetchShippoObject,
+  fetchShippoContext,
+  renderShippingReconciliationWorklist,
+  autoLinkPostageForOrder,
+  clearShippingReconciliationList,
+  linkShippingExpense,
+  renderPostageMatchWorklist,
+  onPostageRecipientInput,
+  linkPostageExpense,
+  autoMatchPostageReceipts,
+  dismissPostageExpense,
+  scanPostageReceipt,
+  scanAllPostageReceipts,
+  promptLedgerTracking,
+  openRecoverWebsiteOrder,
+  onRecoverWebsiteOrderBookChange,
+  saveRecoverWebsiteOrder,
+  processShippoTxToExpense,
+  importShippoShippingFromApi,
+  openShippoLabel,
+  getBookPresetSpecs,
+  initShippingTab,
+  getFallbackShippingPhone,
+  renderCustomShippoDestPicker,
+  setShippoDestMenuOpenState,
+  toggleShippoDestDropdown,
+  setShippoDestCategoryFilter,
+  filterShippoDestMenu,
+  selectShippoDestCustomItem,
+  shipNextOrder,
+  applyBigCartelTracking,
+  closePurchasedLabelPanel,
+  closeLiveReadinessChecklist,
+  shipQueuedOrder,
+  renderBigCartelShipQueue,
+  hideQueuedOrder,
+  unhideQueuedOrder,
+  closeShipQueueCard,
+  toggleShipQueueHidden,
+  clearShippoDestSelection,
+  getRecentShippingOrders,
+  saveShippoApiKey,
+  editShippoApiKey,
+  onShippoPreFillDestChange,
+  onShippoBookPresetChange,
+  applyConfidentShippingLinks,
+  linkConfidentShippingMatchesNow,
+  openShippingReconciliationFromAlert,
+  openPostageAmountEditor,
+  discardImportedPostageExpense,
+  refreshShippoLabelsIfDue,
+  startShippoLabelWatch,
+  sweepCanadaPostShipments,
+  startCanadaPostSweep,
+  sweepShippingEmails,
+  startShippingEmailSweep,
+  startDeliveryWatch,
+  startOrderFollowups,
+  ordersWithLabels,
+  openShippingFromUnshippedAlert,
+  openShippingPricesFromAlert,
+  checkNewPostageLosses,
+  checkShippingPrices,
+  websiteOrdersForPricing,
+  repairInAppCanadaPostExpenses,
+  openShippingFromDeliveryAlert,
+  reconciliationBacklog,
+  applyOrderPrefill,
+  applyOrderParcelPlan,
+  autoQuoteEnabled,
+  setShippoAutoQuote,
+  onShippoAutoQuoteToggle,
+  renderOrderPrefillSummary,
+  scaleShippoSpecsForQty,
+  openSaveBookPresetModal,
+  confirmSaveBookPreset,
+  renderSaveBookPresetPreview,
+  isCanadaPostRate,
+  moneyAmount,
+  roundShippingCharge,
+  buildShippingChargePrediction,
+  renderShippingChargePrediction,
+  isInternationalShipment,
+  resolveShippoIncoterm,
+  renderShippoIncotermHint,
+  resolveBookPresetSpecs,
+  loadShippoIncotermPreference,
+  saveShippoIncotermPreference,
+  onShippoIncotermChange,
+  onShippoDestCountryChange,
+  updateShippoCustomsTotalHint,
+  readShippoCustomsValue,
+  buildShippoCustomsDeclaration,
+  shippoCustomsNetWeight,
+  collectShippoMessages,
+  renderShippoDiagnostics,
+  buyShippoLabel,
+  openBatchShipping,
+  checkBatchOrders,
+  buyBatchLabels,
+  toggleBatchRow,
+  openBatchRowInForm,
+  requestLabelRefund,
+  markLabelRefundArrived,
+  printBatchLabels,
+  calculateShippoRates,
+  setCarrierTilePrice,
+  renderCarrierTiles,
+  calculateZonosDutiesHandler,
+  renderZonosDutyCard,
+  onZonosDeclarationIdInput,
+  pasteZonosDeclarationId,
+  checkCanadaPostAccountAndPinHandler,
+  verifyShippedTrackingPinsHandler,
+  showArchivedCanadaPostLabels,
+  reprintArchivedCanadaPostLabel,
+  openZonosPrepayAppHandler,
+  calculateCanadaPostRatesHandler,
+  calculateChitChatsRatesHandler,
+  buyChitChatsLabelHandler,
+  checkChitChatsPurchaseHandler,
+  openChitChatsLabelHandler,
+  importChitChatsShippingHandler,
+  recoverChitChatsRecords,
+  renderCanadaPostRatesCard,
+  buyCanadaPostLabelHandler,
+  openCanadaPostPurchasedLabel,
+  showCanadaPostLabelModal,
+  retryFetchCanadaPostLabelArtifact,
+  closeCanadaPostLabelModal,
+  printCanadaPostLabelModal,
+  downloadCanadaPostLabelModal,
+  copyCanadaPostPin,
+  voidCanadaPostLabelAction,
+  checkLiveShippingReadinessHandler,
+  renderLiveReadinessChecklist,
+  renderZonosAccountKeyHint,
+  editPostageCost,
+  unlinkManualPostage,
+  dismissShippingAnalysisOrder,
+  markShippingOrderLocalPickup,
+  unmarkShippingOrderLocalPickup,
+  restoreShippingAnalysisOrder,
+  toggleAllShipAnalysisOrders,
+  updateShipAnalysisBatchActionUI,
+  batchDismissShippingAnalysisOrders,
+  toggleShipAnalysisCarrierFilter,
+  toggleShipAnalysisRegionFilter,
+  toggleShipAnalysisWeightFilter,
+  clearAllShipAnalysisFilters,
+  changeShipAnalysisPage,
+  onShipAnalysisBookFilterChange,
+  setShipAnalysisMarginFilter,
+  onShipAnalysisSearch,
+  onInlinePostageChange,
+  onInlineShippingPaidChange,
+  unlinkManualShippingPaid,
+  confirmSuggestedShippoLink,
+  openManualShippoLinkModal,
+  filterManualShippoLinkRows,
+  doManualShippoLink,
+  closeManualShippoLinkModal,
+  unlinkShippoExpense,
+  getShipRecoMode,
+  setShipRecoMode,
+  getShipRecoPercentile,
+  setShipRecoPercentile,
+  getShipWeightOverride,
+  setShipWeightOverride,
+  onShipInsightsToggle,
+  onShipRecoModeChange,
+  onShipRecoPercentileChange,
+  onShipRecoWeightSelectChange,
+  onShipRecoCustomWeightChange,
+  getPercentile,
+  getMean,
+  getFallbackRates,
+  getSmartShippingRecommendations,
+  updateManualShippingRates,
+  applySmartShippingRates,
+  buildShippingPnLHtml,
+  buildShippingCarrierScorecardHtml,
+  buildShippingRegionSplitHtml,
+  buildShippingWeightBandHtml,
+  buildShippingLedgerHtml,
+  buildShippingInsightsHtml,
+  renderShippingAnalysisHub,
+  updateShippingSimulation,
+  downloadFilteredShippingLedgerCSV,
+  parseCarrierInfo,
+  parseTrackingNumber,
+  guessCarrier,
+  getWeightInLbs,
+  getWeightInKg,
+  updateShippoBaseSpecsFromInputs,
+  onShippoQuantityChange,
+  verifyDestinationAddress,
+  applyVerifiedAddressCorrections,
+  dismissAddressVerification,
+  readShippoDestinationAddress,
+  renderDestinationVerification,
+  verifyLedgerOrderAddress,
+  batchVerifyLedgerAddresses,
+  applyLedgerAddressCorrections,
+  renderLedgerVerifyCell,
+};

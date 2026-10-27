@@ -1,0 +1,7 @@
+import type { AppUpdate } from "../appUpdates";
+
+export default {
+  id: "r2-downloads", date: "2026-10-10", title: "E-book downloads: limits, the right file, and the right people",
+  summary: "Each e-book on an order can now be downloaded 10 times (a forwarded email can no longer be used forever); Orders > open an order > More order actions > Reset download limits gives the buyer a fresh 10 if they need it. Every click makes a new short-lived link (15 minutes), and the file saves under the book's title with the right type (a PDF downloads instead of opening in the tab, an EPUB is recognised by e-reader apps). The confirmation email no longer says the links expire in 24 hours; it says what really happens. Pre-ordered e-books get no download button in the email until release; it says when they open, and the button appears in the customer's account and on Track my order. E-books inside a box set are now delivered (email, account and order tracking). Each digital edition can have its own file: Books > edit a book > Editions tab > turn on Digital edition > Upload this edition's file (an edition without its own file gets the book's main file). Downloads are refused for cancelled orders and while a payment dispute is open. Checked with local tests only; deploy the Functions with this frontend.",
+  links: [{ label: "Open Orders", tab: "orders" }, { label: "Open Books", tab: "catalog" }],
+} satisfies AppUpdate;

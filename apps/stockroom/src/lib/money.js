@@ -1,0 +1,435 @@
+// Pure helpers for currency formatting and payment math.
+// Kept dependency-free so they can be imported anywhere and unit-tested
+// without a DOM or Firestore stub.
+
+/** @typedef {import('../types/ledger').NumberLike} NumberLike */
+/** @typedef {import('../types/ledger').Payment} Payment */
+/** @typedef {import('../types/ledger').Book} Book */
+/** @typedef {import('../types/ledger').HistRow} HistRow */
+
+export const CURRENCY_SYMBOL_TO_CODE = {
+  '€': 'EUR',
+  '$': 'CAD',
+  'CA$': 'CAD',
+  'US$': 'USD',
+  '£': 'GBP',
+  '¥': 'JPY',
+  CHF: 'CHF',
+  // Mexican peso. Mexico writes the peso as a bare "$", which collides with the
+  // Canadian default above, so only the disambiguated forms map here — a bare
+  // "$" on a Mexican receipt still needs the code typed explicitly.
+  'MX$': 'MXN',
+  'MEX$': 'MXN',
+  '$MXN': 'MXN',
+};
+
+export const CODE_TO_SYMBOL = {
+  EUR: '€',
+  CAD: 'CA$',
+  USD: 'US$',
+  GBP: '£',
+  JPY: '¥',
+  CHF: 'CHF',
+  AUD: 'A$',
+  MXN: 'MX$',
+};
+
+export const getSym = (c) => CODE_TO_SYMBOL[c] || c;
+
+/** @param {unknown} cur @param {string} [fallback] @returns {string} */
+export function normalizeCurrencyCode(cur, fallback = 'CAD') {
+  const raw = String(cur || '').trim();
+  if (!raw) return fallback;
+  const upper = raw.toUpperCase();
+  if (CODE_TO_SYMBOL[upper]) return upper;
+  if (CURRENCY_SYMBOL_TO_CODE[raw]) return CURRENCY_SYMBOL_TO_CODE[raw];
+  if (upper === 'CA$' || upper === 'C$') return 'CAD';
+  if (upper === 'US$') return 'USD';
+  if (upper === 'MX$' || upper === 'MEX$' || upper === '$MXN') return 'MXN';
+  if (upper === '€' || upper === 'EUR') return 'EUR';
+  return /^[A-Z]{3}$/.test(upper) ? upper : fallback;
+}
+
+// A negative amount reads "-CA$138.69", sign first like fmtWhole; it used to
+// print "CA$-138.69". An amount that rounds to zero never shows a minus.
+/** @param {NumberLike} n @param {string} [cur] @returns {string} */
+export const fmt = (n, cur = '€') => {
+  const fixed = Number(n).toFixed(2);
+  const negative = fixed.startsWith('-') && Number(fixed) !== 0;
+  const digits = fixed.replace(/^-/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (negative ? '-' : '') + getSym(cur) + digits;
+};
+
+/** @param {NumberLike} n @param {string} [cur] @returns {string} */
+export const fmtWhole = (n, cur = '€') => {
+  const num = Math.round(Number(n) || 0);
+  const formatted = Math.abs(num).toLocaleString('en-US');
+  const sym = getSym(cur);
+  return num < 0 ? `-${sym}${formatted}` : `${sym}${formatted}`;
+};
+
+/** @param {NumberLike} n @returns {string} */
+export const fmtNum = (n) => Number(n).toFixed(2);
+
+// Round a currency amount to whole cents, killing binary floating-point drift
+// (e.g. 0.1 + 0.2 = 0.30000000000000004). Use this around any running total of
+// money so accumulated error can't grow as the number of transactions grows.
+/** @param {NumberLike} n @returns {number} */
+export const roundCents = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
+// Date.toLocaleDateString with options builds a fresh Intl.DateTimeFormat on
+// every call (~150x slower than reusing one), and fmtD runs once per row in the
+// sales, expense and invoice tables, so build the formatter once.
+const DATE_FMT_EN_GB = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+export const fmtD = (d) => {
+  if (!d || d === '—' || d === 'Invalid Date') return '—';
+  let dt = new Date(d);
+  if (isNaN(dt.getTime()) || (typeof d === 'string' && d.length === 10 && d.includes('-'))) {
+    const noon = new Date(d + 'T12:00:00');
+    if (!isNaN(noon.getTime())) dt = noon;
+  }
+  if (isNaN(dt.getTime())) return '—';
+  return DATE_FMT_EN_GB.format(dt);
+};
+
+/** @param {Book | null | undefined} book @returns {string} */
+export function getBookCurrencyCode(book) {
+  const c = (book && book.currency) || 'EUR';
+  return CURRENCY_SYMBOL_TO_CODE[c] || (String(c).length === 3 ? c : 'EUR');
+}
+
+// The only currencies offered in pickers. Older records may carry others
+// (GBP, AUD…); setSelectCurrency() keeps those editable without offering them
+// for new entries.
+export const PICKER_CURRENCIES = ['CAD', 'EUR', 'USD', 'MXN'];
+
+// Moves `code` to the front of a currency <select>, leaving any leading
+// non-currency choice (e.g. "Book currency") on top. Does not change the value.
+export function putCurrencyFirst(sel, code) {
+  if (!sel || !code) return;
+  const opts = Array.from(sel.options);
+  const first = opts.find((o) => o.value === code);
+  if (!first) return;
+  const anchor = opts.find((o) => !PICKER_CURRENCIES.includes(o.value));
+  if (anchor) anchor.after(first); else sel.prepend(first);
+}
+
+// Selects `code`, appending a one-off option when it is a legacy currency the
+// picker no longer lists, so editing an old record doesn't blank the field.
+export function setSelectCurrency(sel, code) {
+  if (!sel) return;
+  if (code && !Array.from(sel.options).some((o) => o.value === code)) {
+    const opt = document.createElement('option');
+    opt.value = code;
+    opt.textContent = code;
+    sel.appendChild(opt);
+  }
+  sel.value = code;
+}
+
+// The currency an entry's own amounts (price, convertedTotal, amountDue…) are
+// denominated in. Prefers the `cur` stamp written at entry time; falls back to
+// the book's current currency for legacy rows recorded before stamping existed.
+// That fallback is precisely what breaks when a book's currency is edited, so
+// anything relying on it should be restated via lib/currency-migration.js.
+/** @param {{ cur?: string } | null | undefined} entry @param {Book | null | undefined} book @returns {string} */
+export function entryNativeCode(entry, book) {
+  if (entry && entry.cur) return normalizeCurrencyCode(entry.cur, 'CAD');
+  return getBookCurrencyCode(book);
+}
+
+// `payment.convertedTotal` is denominated in the entry's OWN native currency —
+// frozen at the moment of sale — not in whatever the book's currency says
+// today. Reading it against the book's current currency is what turns a €32
+// sale into the nonsense line "Paid EUR 32.00 → CA$32.00" after a currency
+// change, so resolve the symbol from the entry's stamp when it has one.
+/** @param {Payment | null | undefined} payment @param {Book | null | undefined} book @param {{ cur?: string } | null} [entry] @returns {string} */
+export function paymentSummary(payment, book, entry = null) {
+  if (!payment || !payment.currency) return '';
+  const native = entryNativeCode(entry, book);
+  const amount = Number(payment.amount || 0);
+  const converted = Number(payment.convertedTotal || 0);
+  if (normalizeCurrencyCode(payment.currency, '') === native) {
+    return `Paid ${payment.currency} ${fmtNum(amount)}`;
+  }
+  // Rates arrive from FX APIs at full float precision; 4dp is the most anyone
+  // quotes and keeps the note from running to 16 digits.
+  const ratePart = payment.rate ? ` @ ${Number(payment.rate).toFixed(4)}` : '';
+  return `Paid ${payment.currency} ${fmtNum(amount)}${ratePart} → ${fmt(converted, native)}`;
+}
+
+/**
+ * @param {{ book: Book | null | undefined, qty: NumberLike, unitPrice: NumberLike, fxEnabled?: boolean,
+ *   fxCur?: string, fxAmt?: NumberLike, fxRate?: NumberLike }} sale
+ * @returns {{ currency: string, amount: number, rate: number | null, convertedTotal: number }}
+ */
+export function buildPaymentMeta({ book, qty, unitPrice, fxEnabled, fxCur, fxAmt, fxRate }) {
+  const total = (Number(qty) || 0) * (Number(unitPrice) || 0);
+  if (fxEnabled) {
+    return {
+      currency: fxCur || 'EUR',
+      amount: Number(fxAmt) || 0,
+      rate: (Number(fxRate) || 0) > 0 ? Number(fxRate) : null,
+      convertedTotal: total,
+    };
+  }
+  return {
+    currency: getBookCurrencyCode(book),
+    amount: total,
+    rate: null,
+    convertedTotal: total,
+  };
+}
+
+// The CAD value to record on a Sheets row for a sale, mirroring how the app
+// captures revenue at the moment of sale (a frozen figure that must not drift
+// as FX rates move later):
+//   • book sells in CAD             → the native total IS the CAD value
+//   • non-CAD book, paid in CAD     → the CAD cash collected is the value
+//   • anything else                 → '' (blank); the Sheets backend fills it
+//     from the stored converted total or a live FX lookup.
+// Returns a Number, or '' when the CAD value can't be determined client-side.
+/**
+ * @param {{ nativeCurrency?: string, totalNative?: import('../types/ledger').NumberLike,
+ *   payment?: import('../types/ledger').Payment | null }} [sale]
+ * @returns {number | ''}
+ */
+export function cadEquivalentForSale({ nativeCurrency, totalNative, payment } = {}) {
+  const native = normalizeCurrencyCode(nativeCurrency, 'CAD');
+  const total = Number(totalNative) || 0;
+  if (native === 'CAD') return total;
+  if (payment && normalizeCurrencyCode(payment.currency, '') === 'CAD' && Number(payment.amount)) {
+    return Number(payment.amount);
+  }
+  return '';
+}
+
+// The label stored on a sale when the artist collected the payment directly
+// (rather than it flowing to the publisher). Kept as a single source of truth
+// so detection doesn't rely on string literals scattered across the codebase.
+export const PAYMENT_TYPE_DIRECT_TO_ARTIST = 'Payment directly to artist';
+
+// True when a sale entry/payload represents cash the artist collected directly
+// and still owes the publisher their cut. Prefers the structured `directToArtist`
+// flag; falls back to the legacy paymentType / payment.type / notes text so
+// records created before the flag existed are still recognised.
+/** @param {HistRow | null | undefined} entry @returns {boolean} */
+export function isDirectToArtistSale(entry) {
+  if (!entry) return false;
+  if (entry.directToArtist === true) return true;
+  if (entry.paymentType === PAYMENT_TYPE_DIRECT_TO_ARTIST) return true;
+  if (entry.payment && entry.payment.type === PAYMENT_TYPE_DIRECT_TO_ARTIST) return true;
+  return (entry.notes || '').includes(PAYMENT_TYPE_DIRECT_TO_ARTIST);
+}
+
+// Amount of a direct-to-artist transfer, or null when the record doesn't carry
+// one it can be trusted for (missing/garbled total AND no usable qty × price).
+// Callers show "amount missing" instead of summing NaN into a banner or ledger.
+/** @param {{ total?: NumberLike | null, qty?: NumberLike | null, price?: NumberLike | null } | null | undefined} t @returns {number | null} */
+export function transferAmount(t) {
+  if (!t) return null;
+  const total = Number(t.total);
+  if (t.total !== '' && t.total != null && Number.isFinite(total)) return total;
+  const qty = Number(t.qty), price = Number(t.price);
+  if (t.qty != null && t.price != null && Number.isFinite(qty) && Number.isFinite(price)) return qty * price;
+  return null;
+}
+
+// Copies line for a transfer: "3×", or '' when the count wasn't recorded.
+export function transferQtyLabel(t) {
+  const qty = Number(t && t.qty);
+  return t && t.qty != null && t.qty !== '' && Number.isFinite(qty) ? `${qty}×` : '';
+}
+
+export function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+export function getContrastColor(hex) {
+  if (!hex) return 'var(--ink)';
+  const color = hex.charAt(0) === '#' ? hex.substring(1) : hex;
+  if (color.length !== 6) return 'var(--ink)';
+  const r = parseInt(color.substring(0, 2), 16);
+  const g = parseInt(color.substring(2, 4), 16);
+  const b = parseInt(color.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? 'var(--ink)' : '#ffffff';
+}
+
+export function lightenColor(hex, percent) {
+  if (!hex) return 'var(--gold3)';
+  const color = hex.charAt(0) === '#' ? hex.substring(1) : hex;
+  if (color.length !== 6) return 'var(--gold3)';
+  let r = parseInt(color.substring(0, 2), 16);
+  let g = parseInt(color.substring(2, 4), 16);
+  let b = parseInt(color.substring(4, 6), 16);
+
+  r = Math.min(255, Math.floor(r + (255 - r) * percent));
+  g = Math.min(255, Math.floor(g + (255 - g) * percent));
+  b = Math.min(255, Math.floor(b + (255 - b) * percent));
+
+  const rHex = r.toString(16).padStart(2, '0');
+  const gHex = g.toString(16).padStart(2, '0');
+  const bHex = b.toString(16).padStart(2, '0');
+  return `#${rHex}${gHex}${bHex}`;
+}
+
+export function darkenColor(hex, percent) {
+  if (!hex) return 'var(--ink)';
+  const color = hex.charAt(0) === '#' ? hex.substring(1) : hex;
+  if (color.length !== 6) return 'var(--ink)';
+  let r = parseInt(color.substring(0, 2), 16);
+  let g = parseInt(color.substring(2, 4), 16);
+  let b = parseInt(color.substring(4, 6), 16);
+
+  r = Math.max(0, Math.floor(r * (1 - percent)));
+  g = Math.max(0, Math.floor(g * (1 - percent)));
+  b = Math.max(0, Math.floor(b * (1 - percent)));
+
+  const rHex = r.toString(16).padStart(2, '0');
+  const gHex = g.toString(16).padStart(2, '0');
+  const bHex = b.toString(16).padStart(2, '0');
+  return `#${rHex}${gHex}${bHex}`;
+}
+
+/**
+ * A book's accent colour, adjusted so it stays readable as TEXT on the app's
+ * page/card surface.
+ *
+ * `onDark` is which surface it will sit on, and it inverts the whole rule.
+ * The light-mode job is "a pale accent would wash out, so darken it"; the
+ * dark-mode job is the exact opposite — a deep navy or maroon cover accent
+ * disappears against a near-black card and has to be LIGHTENED instead.
+ * Getting this wrong is silent: the text renders, it just cannot be read.
+ *
+ * Callers pass the resolved theme (see --book-accent-text in src/main.js),
+ * and must recompute when the theme changes — the value is baked into a custom
+ * property, so it does not follow the cascade on its own.
+ */
+export function getContrastSafeText(hex, onDark = false) {
+  if (!hex) return onDark ? 'var(--on-inverse)' : 'var(--ink)';
+  const color = hex.charAt(0) === '#' ? hex.substring(1) : hex;
+  if (color.length !== 6) return onDark ? 'var(--on-inverse)' : 'var(--ink)';
+  const r = parseInt(color.substring(0, 2), 16);
+  const g = parseInt(color.substring(2, 4), 16);
+  const b = parseInt(color.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+  if (onDark) {
+    // Lift anything that isn't already bright enough to read on charcoal. The
+    // threshold is higher than the light-mode one because mid-tones fail
+    // against near-black long before they fail against cream.
+    return luminance < 0.62 ? lightenColor(hex, 0.55) : hex;
+  }
+  if (luminance > 0.5) {
+    return darkenColor(hex, 0.35);
+  }
+  return hex;
+}
+
+/** WCAG relative luminance of a `#rrggbb` colour, or null if it isn't one. */
+function relativeLuminance(hex) {
+  const color = typeof hex === 'string' && hex.charAt(0) === '#' ? hex.substring(1) : hex;
+  if (typeof color !== 'string' || !/^[0-9a-f]{6}$/i.test(color)) return null;
+  const channel = (i) => {
+    const v = parseInt(color.substring(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+}
+
+/**
+ * The darkest step of night mode's paper (--paper3). A card is --paper, but the
+ * accent text also sits in recessed trays and on the cover's own 10% tint
+ * (a `.pill.gold`, the "stock is healthy" note), both darker than --paper —
+ * measuring against the darkest step keeps it clear of AA on all of them.
+ */
+export const PAPER_SURFACE = '#DED4BA';
+
+/**
+ * A book's accent colour as TEXT on night mode's paper objects.
+ *
+ * getContrastSafeText(hex, false) answers the same question for the light
+ * theme, but it only darkens covers brighter than 50% luminance — a mid-tone
+ * blue passes straight through and lands at 3.6:1 on paper. This measures the
+ * real WCAG ratio against the surface and darkens in small steps until the
+ * text clears AA, so it keeps as much of the cover's colour as it can.
+ * Invalid input (not `#rrggbb`) falls back to the ink.
+ */
+export function getPaperSafeText(hex, surface = PAPER_SURFACE) {
+  const bg = relativeLuminance(surface);
+  if (relativeLuminance(hex) === null || bg === null) return 'var(--ink)';
+  let text = hex.charAt(0) === '#' ? hex : `#${hex}`;
+  for (let i = 0; i < 20; i++) {
+    const fg = relativeLuminance(text);
+    if ((bg + 0.05) / (fg + 0.05) >= 4.5) return text;
+    text = darkenColor(text, 0.08);
+  }
+  return 'var(--ink)';
+}
+
+// The ink and white the app actually puts on a solid accent fill. --ink is
+// #100F0D in the light :root; white is --on-accent.
+const LABEL_INK = '#100F0D';
+const LABEL_WHITE = '#FFFFFF';
+const ratioOf = (a, b) => {
+  const x = relativeLuminance(a), y = relativeLuminance(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+};
+
+/**
+ * A book's accent colour as a SOLID FILL with a label on it — the gold
+ * buttons, the dashboard's lead KPI tile — and the label that goes with it.
+ *
+ * getContrastColor() picks ink or white by a perceived-brightness guess
+ * (luminance > 0.5), which is not the WCAG ratio and does not check the
+ * result. A mid-tone cover sits where NEITHER label clears AA: The Hound's
+ * #3a7cc8 measures 4.29:1 with white and 4.33:1 with ink, so every gold button
+ * in the app read below 4.5:1 whenever that book was open.
+ *
+ * This measures both labels for real. If one already clears 4.5:1 the cover
+ * colour is returned untouched. If neither does, the fill moves the least it
+ * can — darkened a few percent under a white label, or lightened under an ink
+ * one, whichever needs fewer steps — so the button still reads as the book's
+ * colour. Ties keep getContrastColor()'s historical label, so a cover that was
+ * already fine renders exactly as before.
+ *
+ * Returns { fill, label } where label is 'var(--ink)' or '#ffffff' — the same
+ * two values getContrastColor() hands out, so every consumer keeps working.
+ * Invalid input falls back to the flare fill with its ink.
+ */
+export function getAccentFillPair(hex) {
+  const fallback = { fill: 'var(--gold2)', label: 'var(--ink)' };
+  if (relativeLuminance(hex) === null) return fallback;
+  const base = hex.charAt(0) === '#' ? hex : `#${hex}`;
+  const toLabel = (c) => (c === LABEL_INK ? 'var(--ink)' : '#ffffff');
+  const historical = getContrastColor(base) === '#ffffff' ? LABEL_WHITE : LABEL_INK;
+
+  const passing = [LABEL_WHITE, LABEL_INK].filter(l => ratioOf(base, l) >= 4.5);
+  if (passing.length) {
+    const label = passing.includes(historical) ? historical : passing[0];
+    return { fill: base, label: toLabel(label) };
+  }
+
+  // Neither passes: walk each direction and keep the shorter walk.
+  const walk = (label, step) => {
+    let c = base;
+    for (let i = 1; i <= 30; i++) {
+      c = step(c);
+      if (ratioOf(c, label) >= 4.5) return { fill: c, label, steps: i };
+    }
+    return null;
+  };
+  const dark = walk(LABEL_WHITE, c => darkenColor(c, 0.04));
+  const light = walk(LABEL_INK, c => lightenColor(c, 0.06));
+  const options = [dark, light].filter(Boolean);
+  if (!options.length) return fallback;
+  options.sort((a, b) => a.steps - b.steps || (a.label === historical ? -1 : 1));
+  return { fill: options[0].fill, label: toLabel(options[0].label) };
+}
+
+

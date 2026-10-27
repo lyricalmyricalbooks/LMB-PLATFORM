@@ -1,0 +1,271 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { appSource } from './helpers/extract-decl.js';
+import { resolveCountryCode } from '../src/lib/countries.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+describe('Shippo Customs & Country Helpers', () => {
+  const mainJsPath = path.resolve(__dirname, '../src/main.js');
+  let normalizeCountryCode;
+  let isInternationalShipment;
+  let buildShippoCustomsDeclaration;
+  let readShippoCustomsValue;
+  let resolveShippoIncoterm;
+  let shippoCustomsNetWeight;
+
+  // We extract the functions statically so we don't have to load main.js's DOM dependencies
+  beforeEach(() => {
+    const mainContent = appSource;
+
+    // Extract helper functions
+    const normMatch = mainContent.match(/function normalizeCountryCode\(code\) \{([\s\S]+?)\n\}/);
+    const interMatch = mainContent.match(/function isInternationalShipment\(fromCountry, toCountry\) \{([\s\S]+?)\n\}/);
+    const readMatch = mainContent.match(/function readShippoCustomsValue\(id, fallback\) \{([\s\S]+?)\n\}/);
+    const declMatch = mainContent.match(/function buildShippoCustomsDeclaration\(\{ sfName, sfCountryCode, stCountryCode, spWeight, spWeightUnit \}\) \{([\s\S]+?)\n\}/);
+    const netWeightMatch = mainContent.match(/function shippoCustomsNetWeight\(parcelWeight, quantity\) \{([\s\S]+?)\n\}/);
+    const incotermMatch = mainContent.match(/function resolveShippoIncoterm\(destCountryCode\) \{([\s\S]+?)\n\}/);
+
+    expect(normMatch).not.toBeNull();
+    expect(interMatch).not.toBeNull();
+    expect(readMatch).not.toBeNull();
+    expect(declMatch).not.toBeNull();
+    expect(netWeightMatch).not.toBeNull();
+    expect(incotermMatch).not.toBeNull();
+
+    // Reconstruct them with new Function
+    normalizeCountryCode = new Function('resolveCountryCode', 'code',
+      normMatch[0] + '\nreturn normalizeCountryCode(code);'
+    ).bind(null, resolveCountryCode);
+    isInternationalShipment = new Function('resolveCountryCode', 'fromCountry', 'toCountry',
+      normMatch[0] + '\n' + interMatch[0] + '\nreturn isInternationalShipment(fromCountry, toCountry);'
+    ).bind(null, resolveCountryCode);
+    
+    // We will provide a custom $ function to the environment inside the Function call
+    readShippoCustomsValue = new Function('$', 'id', 'fallback', 
+      readMatch[0] + '\nreturn readShippoCustomsValue(id, fallback);'
+    );
+
+    shippoCustomsNetWeight = new Function('parcelWeight', 'quantity',
+      netWeightMatch[0] + '\nreturn shippoCustomsNetWeight(parcelWeight, quantity);'
+    );
+
+    resolveShippoIncoterm = new Function('$', 'normalizeCountryCode', 'destCountryCode',
+      incotermMatch[0] + '\nreturn resolveShippoIncoterm(destCountryCode);'
+    );
+
+    buildShippoCustomsDeclaration = new Function('$', 'normalizeCountryCode', 'readShippoCustomsValue', 'params',
+      `const { sfName, sfCountryCode, stCountryCode, spWeight, spWeightUnit } = params;\n` +
+      incotermMatch[0] + '\n' +
+      netWeightMatch[0] + '\n' +
+      declMatch[0] + '\n' +
+      `return buildShippoCustomsDeclaration({ sfName, sfCountryCode, stCountryCode, spWeight, spWeightUnit });`
+    );
+  });
+
+  describe('normalizeCountryCode', () => {
+    it('normalizes common country names and codes', () => {
+      expect(normalizeCountryCode('Canada')).toBe('CA');
+      expect(normalizeCountryCode('ca')).toBe('CA');
+      expect(normalizeCountryCode('USA')).toBe('US');
+      expect(normalizeCountryCode('united states')).toBe('US');
+      expect(normalizeCountryCode('united kingdom')).toBe('GB');
+      expect(normalizeCountryCode('GB')).toBe('GB');
+      expect(normalizeCountryCode('MX')).toBe('MX');
+      expect(normalizeCountryCode('Ukraine')).toBe('UA');
+      expect(normalizeCountryCode('ukraine')).toBe('UA');
+      expect(normalizeCountryCode('Poland')).toBe('PL');
+    });
+
+    it('returns two letter codes unmodified if they match regex', () => {
+      expect(normalizeCountryCode('JP')).toBe('JP');
+      expect(normalizeCountryCode('jp')).toBe('JP');
+      expect(normalizeCountryCode('FR')).toBe('FR');
+    });
+
+    it('returns US as fallback for null or empty values', () => {
+      expect(normalizeCountryCode(null)).toBe('US');
+      expect(normalizeCountryCode('')).toBe('US');
+      expect(normalizeCountryCode(undefined)).toBe('US');
+    });
+  });
+
+  describe('isInternationalShipment', () => {
+    it('correctly identifies international shipments', () => {
+      expect(isInternationalShipment('Canada', 'United States')).toBe(true);
+      expect(isInternationalShipment('CA', 'US')).toBe(true);
+      expect(isInternationalShipment('US', 'GB')).toBe(true);
+    });
+
+    it('correctly identifies domestic shipments', () => {
+      expect(isInternationalShipment('Canada', 'CA')).toBe(false);
+      expect(isInternationalShipment('Canada', 'canada')).toBe(false);
+      expect(isInternationalShipment('US', 'USA')).toBe(false);
+      expect(isInternationalShipment('GB', 'United Kingdom')).toBe(false);
+    });
+  });
+
+  describe('resolveShippoIncoterm', () => {
+    const withSelection = (value) => (id) => (id === 'sp-incoterm' ? { value } : undefined);
+
+    it('auto-selects DDP for US destinations', () => {
+      // Canada Post rejects DDU labels to the US after 2025-08-29, and only at
+      // purchase time — the rate call succeeds either way.
+      expect(resolveShippoIncoterm(withSelection('auto'), normalizeCountryCode, 'US')).toBe('DDP');
+      expect(resolveShippoIncoterm(withSelection('auto'), normalizeCountryCode, 'United States')).toBe('DDP');
+      expect(resolveShippoIncoterm(withSelection('auto'), normalizeCountryCode, 'usa')).toBe('DDP');
+    });
+
+    it('auto-selects DDU for non-US destinations', () => {
+      expect(resolveShippoIncoterm(withSelection('auto'), normalizeCountryCode, 'GB')).toBe('DDU');
+      expect(resolveShippoIncoterm(withSelection('auto'), normalizeCountryCode, 'Poland')).toBe('DDU');
+    });
+
+    it('honours an explicit override over the auto rule', () => {
+      expect(resolveShippoIncoterm(withSelection('DDU'), normalizeCountryCode, 'US')).toBe('DDU');
+      expect(resolveShippoIncoterm(withSelection('DAP'), normalizeCountryCode, 'GB')).toBe('DAP');
+    });
+
+    it('defaults to auto when the select is absent', () => {
+      const noSelect = () => undefined;
+      expect(resolveShippoIncoterm(noSelect, normalizeCountryCode, 'US')).toBe('DDP');
+      expect(resolveShippoIncoterm(noSelect, normalizeCountryCode, 'GB')).toBe('DDU');
+    });
+  });
+
+  describe('shippoCustomsNetWeight', () => {
+    it('splits the parcel weight across the copies rather than repeating it', () => {
+      // The bug: net_weight was the whole parcel weight, so Shippo's
+      // quantity x net_weight came to 3 x 3.60 = 10.8 lb in a 3.6 lb parcel and
+      // every multi-copy US order was rejected with a 400.
+      expect(shippoCustomsNetWeight(3.6, 3)).toBe('1.20');
+      expect(shippoCustomsNetWeight(1.2, 1)).toBe('1.20');
+      expect(shippoCustomsNetWeight(2, 4)).toBe('0.50');
+    });
+
+    it('never rounds the combined weight above the parcel weight', () => {
+      for (const [weight, qty] of [[1, 8], [1, 3], [2.5, 7], [0.9, 11], [4.75, 6]]) {
+        const combined = parseFloat(shippoCustomsNetWeight(weight, qty)) * qty;
+        expect(combined).toBeLessThanOrEqual(weight + 1e-9);
+      }
+    });
+
+    it('holds Shippo\'s 0.01 floor when the parcel weight is implausibly low', () => {
+      expect(shippoCustomsNetWeight(0.02, 50)).toBe('0.01');
+      expect(shippoCustomsNetWeight(0, 1)).toBe('0.01');
+      expect(shippoCustomsNetWeight('nonsense', 2)).toBe('0.01');
+    });
+  });
+
+  describe('buildShippoCustomsDeclaration', () => {
+    it('declares DDP on the customs declaration for US destinations', () => {
+      const mockElements = {
+        'sp-qty': '3',
+        'sp-customs-description': 'Novels',
+        'sp-customs-value': '25.00',
+        'sp-customs-hs': '490199',
+        'sp-incoterm': 'auto'
+      };
+      const mock$ = (id) => ({ value: mockElements[id] });
+      const customsValHelper = (id, fallback) => readShippoCustomsValue(mock$, id, fallback);
+
+      const decl = buildShippoCustomsDeclaration(mock$, normalizeCountryCode, customsValHelper, {
+        sfName: 'Alice Sender',
+        sfCountryCode: 'CA',
+        stCountryCode: 'US',
+        spWeight: 3.6,
+        spWeightUnit: 'lb'
+      });
+
+      expect(decl.incoterm).toBe('DDP');
+      // value_amount is a line total: 3 copies at 25.00 each.
+      expect(decl.items[0].value_amount).toBe('75.00');
+      expect(decl.items[0].quantity).toBe(3);
+      // net_weight is per copy: 3 x 1.20 is exactly the 3.6 lb parcel.
+      expect(decl.items[0].net_weight).toBe('1.20');
+    });
+
+    it('builds a valid customs declaration structure', () => {
+      const mockElements = {
+        'sp-qty': '2',
+        'sp-customs-description': 'Novels',
+        'sp-customs-value': '30.00',
+        'sp-customs-hs': '490199',
+        'sp-incoterm': 'auto'
+      };
+
+      const mock$ = (id) => ({ value: mockElements[id] });
+
+      const params = {
+        sfName: 'Alice Sender',
+        sfCountryCode: 'CA',
+        stCountryCode: 'GB',
+        spWeight: 1.5,
+        spWeightUnit: 'lb'
+      };
+
+      const customsValHelper = (id, fallback) => readShippoCustomsValue(mock$, id, fallback);
+
+      const decl = buildShippoCustomsDeclaration(mock$, normalizeCountryCode, customsValHelper, params);
+
+      expect(decl).toEqual({
+        certify: true,
+        certify_signer: 'Alice Sender',
+        contents_type: 'MERCHANDISE',
+        contents_explanation: 'Printed books',
+        non_delivery_option: 'RETURN',
+        incoterm: 'DDU',
+        eel_pfc: 'NOEEI_30_37_a',
+        items: [{
+          description: 'Novels',
+          quantity: 2,
+          net_weight: '0.75',
+          mass_unit: 'lb',
+          value_amount: '60.00',
+          value_currency: 'CAD',
+          origin_country: 'CA',
+          tariff_number: '490199'
+        }]
+      });
+    });
+
+    it('uses fallback values when element values are missing or invalid', () => {
+      const mockElements = {
+        'sp-qty': 'invalid',
+        'sp-customs-description': '',
+        'sp-customs-value': 'invalid',
+        'sp-customs-hs': '',
+        'sp-incoterm': 'auto'
+      };
+
+      const mock$ = (id) => ({ value: mockElements[id] });
+
+      const params = {
+        sfName: 'Bob Sender',
+        sfCountryCode: 'US',
+        stCountryCode: 'GB',
+        spWeight: 0.8,
+        spWeightUnit: 'oz'
+      };
+
+      const customsValHelper = (id, fallback) => readShippoCustomsValue(mock$, id, fallback);
+
+      const decl = buildShippoCustomsDeclaration(mock$, normalizeCountryCode, customsValHelper, params);
+
+      expect(decl.certify_signer).toBe('Bob Sender');
+      expect(decl.items[0]).toEqual({
+        description: 'Printed books',
+        quantity: 1,
+        net_weight: '0.80',
+        mass_unit: 'oz',
+        value_amount: '25.00',
+        value_currency: 'CAD',
+        origin_country: 'US',
+        tariff_number: '490199'
+      });
+    });
+  });
+});

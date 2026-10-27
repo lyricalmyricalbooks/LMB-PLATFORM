@@ -1,0 +1,18 @@
+# Bubblewrap writes the Android project and the signing key here. The key must never be committed:
+# keep it (and its passwords) in a password manager — losing it means you can't update the app.
+*.keystore
+*.jks
+*.apk
+*.aab
+app/
+gradle/
+build/
+.gradle/
+local.properties
+gradlew
+gradlew.bat
+build.gradle
+settings.gradle
+gradle.properties
+manifest-checksum.txt
+store_icon.png

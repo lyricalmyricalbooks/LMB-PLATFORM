@@ -1,0 +1,7 @@
+import type { AppUpdate } from "../appUpdates";
+
+export default {
+  id: "firebase-hosting-cutover", date: "2026-10-11", title: "The shop moves to its new address on Firebase Hosting",
+  summary: "This release makes lmb-test-shop.web.app the shop's address. The shop, its sitemap, search listings and the links in every email (order tracking, unsubscribe, cart reminders, back in stock, review requests and the Fulfil this order button) now use it. The old address, lyricalmyricalbooks.github.io/LyricalmyricalWebsite, sends every visitor to the same page at the new address, including links in emails customers already have. A shopper's bag and wishlist come along on their first visit, and a customer coming back from a card or PayPal payment still sees their order confirmation. Firebase Hosting also answers missing pages with a proper \"not found\" while still showing your own missing-page message. Because browsers keep sign-ins and cookie choices per address, you and your customers will sign in once more and see the cookie banner again. Releasing this needed the new address to be switched on and tried first; if the new address isn't serving the shop yet, this release stops before changing email links or the old address. Afterwards, add the new address to Google Search Console and Merchant Center (docs/FIREBASE_HOSTING.md lists the steps). Your shop's own domain can be added later with one setting.",
+  links: [{ label: "Open Payments", tab: "settings", settingsTab: "payments" }],
+} satisfies AppUpdate;

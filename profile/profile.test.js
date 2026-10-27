@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { profileProblems, profileScript, schema } from "./profile.js";
 
-const example = JSON.parse(readFileSync(new URL("./examples/lyricalmyrical.json", import.meta.url), "utf8"));
+const example = JSON.parse(readFileSync(new URL("./examples/test-shop.json", import.meta.url), "utf8"));
 
-test("your shop's profile passes", () => {
+test("the test shop profile passes", () => {
   assert.deepEqual(profileProblems(example), []);
 });
 

@@ -1,0 +1,97 @@
+/* Six Overview widgets added 19 October 2026 (OverviewNewSales.tsx): Sales calendar, Month goal, Days to ship,
+   Launch curves, Book of the week, Signed or not. Riso tokens only. */
+.rp-nw { padding: 14px 20px 16px; min-width: 0; }
+.rp-nw-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.rp-nw-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.rp-nw-big { font-family: var(--rp-font-mono); font-size: 26px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rp-nw-big small { font-family: var(--rp-font-body); font-size: var(--rp-text-sm); letter-spacing: 0; color: var(--rp-text-muted); font-weight: 400; }
+.rp-nw-foot { margin: 6px 0 0; }
+.rp-nw .rp-viz-cols, .rp-nw .rp-viz-rank-row { padding-left: 0; padding-right: 0; }
+
+/* Sales calendar: squares grow to fill the widget (aspect-ratio keeps them square); on narrow widgets the latest weeks show. */
+.rp-nw-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px 18px; margin: 0 0 12px; }
+.rp-nw-stats dt { font-size: var(--rp-text-3xs); font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.rp-nw-stats dd { margin: 2px 0 0; font-family: var(--rp-font-mono); font-size: 20px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp-nw-stats dd small { display: block; font-family: var(--rp-font-body); font-size: var(--rp-text-xs); color: var(--rp-text-muted); white-space: normal; }
+.rp-nw-cal { margin: 0; min-width: 0; }
+.rp-nw-cal-grid { display: grid; gap: 2px; width: 100%; max-width: calc(30px + 53 * 26px); }
+.rp-nw-cal-month { font-family: var(--rp-font-mono); font-size: 10px; color: var(--rp-text-subtle); white-space: nowrap; overflow: visible; line-height: 14px; min-width: 0; }
+.rp-nw-cal-day { font-family: var(--rp-font-mono); font-size: 10px; color: var(--rp-text-muted); align-self: center; line-height: 1; }
+.rp-nw-cal-cell { display: block; width: 100%; aspect-ratio: 1; min-width: 0; background: var(--rp-surface-inset); border: 1px solid var(--rp-divider); box-sizing: border-box; }
+.rp-nw-cal-key .rp-nw-cal-cell { width: 12px; height: 12px; aspect-ratio: auto; display: inline-block; vertical-align: -2px; margin-right: 4px; }
+.rp-nw-cal-cell[data-empty] { background: transparent; border-color: transparent; }
+.rp-nw-cal-cell[data-level="1"] { background: color-mix(in srgb, var(--rp-primary) 30%, var(--rp-surface)); border-color: transparent; }
+.rp-nw-cal-cell[data-level="2"] { background: color-mix(in srgb, var(--rp-primary) 55%, var(--rp-surface)); border-color: transparent; }
+.rp-nw-cal-cell[data-level="3"] { background: color-mix(in srgb, var(--rp-primary) 78%, var(--rp-surface)); border-color: transparent; }
+.rp-nw-cal-cell[data-level="4"] { background: var(--rp-primary); border-color: var(--rp-border-strong); }
+.rp-nw-cal-key { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+.rp-nw-cal-scale { display: flex; flex-wrap: wrap; gap: 4px 14px; font-family: var(--rp-font-mono); }
+.rp-nw-cal-scale > span { white-space: nowrap; }
+.rp-nw-cal-note { color: var(--rp-text-subtle); }
+.rp-nw .rp-viz-table { padding-left: 0; padding-right: 0; margin-top: 8px; }
+
+/* Days to ship: this week in flare, the rest ink; the slowest week named, not highlighted. */
+.rp-nw-ship { margin: 12px 0 0; }
+.rp-nw-ship-plot { position: relative; height: 130px; border-bottom: var(--rp-stroke) solid var(--rp-border-strong); padding-left: 30px; }
+.rp-nw-ship-grid { position: absolute; left: 0; right: 0; border-top: var(--rp-hair) dashed var(--rp-divider); }
+.rp-nw-ship-grid > span { position: absolute; left: 0; top: -7px; font-family: var(--rp-font-mono); font-size: 10px; color: var(--rp-text-subtle); background: var(--rp-surface); padding-right: 4px; }
+.rp-nw-ship-cols { position: relative; display: grid; gap: 4px; height: 100%; align-items: end; }
+.rp-nw-ship-col { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+.rp-nw-ship-bar { display: block; min-height: 2px; background: color-mix(in srgb, var(--rp-text) 55%, var(--rp-surface)); }
+.rp-nw-ship-col[data-latest] .rp-nw-ship-bar { background: var(--rp-primary); outline: var(--rp-hair) solid var(--rp-border-strong); }
+.rp-nw-ship-col[data-none] .rp-nw-ship-bar { background: transparent; border-top: var(--rp-hair) dotted var(--rp-border); }
+.rp-nw-ship-flag { position: absolute; left: 50%; transform: translateX(-50%); top: -2px; font-family: var(--rp-font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--rp-text-muted); white-space: nowrap; }
+.rp-nw-ship-labels { display: grid; gap: 4px; padding-left: 30px; margin-top: 4px; }
+.rp-nw-ship-labels > span { font-family: var(--rp-font-mono); font-size: 10px; color: var(--rp-text-subtle); white-space: nowrap; overflow: visible; text-align: center; min-width: 0; }
+
+/* Month goal */
+.rp-nw-goal { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.rp-nw-goal-text { flex: 1 1 200px; min-width: 0; }
+.rp-nw-goalform { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
+.rp-nw-ring { width: 128px; height: 128px; flex-shrink: 0; }
+.rp-nw-ring-track { fill: none; stroke: var(--rp-surface-inset); stroke-width: 14; }
+.rp-nw-ring-fill { fill: none; stroke: var(--rp-warning); stroke-width: 14; }
+.rp-nw-ring-fill[data-ahead] { stroke: var(--rp-primary); }
+.rp-nw-ring-pace { stroke: var(--rp-text); stroke-width: 2; stroke-dasharray: 3 2; }
+.rp-nw-ring-big { font-family: var(--rp-font-display); font-size: 26px; fill: var(--rp-text); text-anchor: middle; }
+.rp-nw-ring-small { font-family: var(--rp-font-mono); font-size: 9px; fill: var(--rp-text-muted); text-anchor: middle; text-transform: uppercase; letter-spacing: 0.1em; }
+
+/* Launch curves: drawn at the widget's real pixel width, so the lettering keeps its true size. */
+.rp-nw-launch { display: block; max-width: 100%; height: auto; overflow: visible; }
+.rp-nw-grid { stroke: var(--rp-divider); stroke-width: 1; }
+.rp-nw-axis { font-family: var(--rp-font-mono); font-size: 11px; fill: var(--rp-text-subtle); }
+.rp-nw-line { fill: none; stroke-width: 2.5; stroke: var(--rp-text); stroke-opacity: 0.4; stroke-linejoin: round; stroke-linecap: round; }
+.rp-nw-line[data-rank="0"] { stroke: var(--rp-primary); stroke-opacity: 1; stroke-width: 3; }
+.rp-nw-line[data-rank="1"] { stroke-opacity: 0.7; }
+.rp-nw-line[data-rank="2"] { stroke-opacity: 0.55; stroke-dasharray: 6 3; }
+.rp-nw-line[data-rank="3"] { stroke-opacity: 0.4; stroke-dasharray: 2 3; }
+.rp-nw-dot { fill: var(--rp-text); fill-opacity: 0.55; }
+.rp-nw-dot[data-rank="0"] { fill: var(--rp-primary); fill-opacity: 1; stroke: var(--rp-border-strong); stroke-width: 1; }
+.rp-nw-dot[data-rank="1"] { fill-opacity: 0.8; }
+.rp-nw-endlabel { font-family: var(--rp-font-body); font-size: 12px; font-weight: 600; fill: var(--rp-text-muted); }
+.rp-nw-endlabel[data-rank="0"] { fill: var(--rp-text); font-weight: 700; }
+.rp-nw-endval { font-family: var(--rp-font-mono); font-weight: 400; }
+.rp-nw-legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rp-nw-legend li { display: flex; align-items: center; gap: 8px; font-size: var(--rp-text-sm); min-width: 0; flex-wrap: wrap; }
+.rp-nw-legend-title { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.rp-nw-legend-val { margin-left: auto; font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+.rp-nw-key { width: 18px; height: 0; flex-shrink: 0; border-top: 3px solid color-mix(in srgb, var(--rp-text) 40%, transparent); }
+.rp-nw-key[data-rank="0"] { border-top: 3px solid var(--rp-primary); }
+.rp-nw-key[data-rank="1"] { border-top-color: color-mix(in srgb, var(--rp-text) 70%, transparent); }
+.rp-nw-key[data-rank="2"] { border-top: 3px dashed color-mix(in srgb, var(--rp-text) 55%, transparent); }
+.rp-nw-key[data-rank="3"] { border-top: 3px dotted color-mix(in srgb, var(--rp-text) 40%, transparent); }
+.rp-nw-unit { font-family: var(--rp-font-body); font-size: var(--rp-text-sm); color: var(--rp-text-muted); letter-spacing: 0; }
+
+/* Book of the week */
+.rp-nw-bow { display: flex; gap: 14px; align-items: flex-start; }
+.rp-nw-bow .rp-viz-cover { width: 72px; height: 100px; font-size: 22px; border-width: var(--rp-stroke); box-shadow: var(--rp-shadow-sm); }
+.rp-nw-bow-title { font-family: var(--rp-font-display); font-size: 22px; line-height: 1.05; text-transform: uppercase; margin: 8px 0 4px; overflow-wrap: anywhere; }
+.rp-nw-link { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; text-transform: inherit; cursor: pointer; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.rp-nw-link:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+
+@media (max-width: 767px) {
+  .rp-nw { padding: 12px 14px 14px; }
+  .rp-nw-big { font-size: 22px; }
+  .rp-nw-legend-val { flex-basis: 100%; margin-left: 26px; }
+}
+.rp-nw-bow .rp-viz-hero { margin-top: 6px; }

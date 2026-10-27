@@ -1,0 +1,71 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { expect, test } from 'vitest';
+
+// Resolved via __dirname rather than `new URL(..., import.meta.url)`: under the
+// jsdom test environment the global URL is jsdom's, and node:fs / fileURLToPath
+// reject a foreign URL object with "must be of scheme file". Passing a string
+// keeps node's own parser in play, and matches how the rest of tests/ does it.
+const styles = readFileSync(path.join(__dirname, '../src/style.css'), 'utf8').replace(/\r\n/g, '\n');
+const markup = readFileSync(path.join(__dirname, '../index.html'), 'utf8').replace(/\r\n/g, '\n');
+
+test('the primary KPI band fills its row however many tiles a book shows', () => {
+  // A fixed four-column band stranded the fifth tile (a profit-sharing book's
+  // "Publisher keeps") alone at quarter width on a second line. auto-fit is
+  // what stops that, so pin the track function rather than the whole rule.
+  const band = styles.match(/\.kpi-grid-primary\s*\{([\s\S]*?)\}/);
+  expect(band).not.toBeNull();
+  expect(band[1]).toMatch(/grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(180px,\s*1fr\)\)/);
+});
+
+test('exactly one dashboard KPI leads the band, at a larger size', () => {
+  const lead = styles.match(/\.kpi\.is-lead\s*\{([\s\S]*?)\}/);
+  expect(lead).not.toBeNull();
+  // The accent is spent as the lead's FILL and the lift goes a step beyond the
+  // supporting tiles' own offset. It used to be a 34%-transparent border, which
+  // stopped being visible at all once .kpi went from an ink block to a paper
+  // tile with a 2px ink outline over it.
+  expect(lead[1]).toMatch(/background:\s*var\(--book-accent/);
+  expect(lead[1]).toMatch(/box-shadow:\s*var\(--elev-4\)/);
+  // The figure on that fill takes the per-book contrast colour, or it lands
+  // accent-on-accent and disappears.
+  expect(styles).toMatch(
+    /\.kpi\.is-lead \.kpi-value[\s\S]*?\{color:var\(--book-accent-contrast/,
+  );
+
+  // The size step comes off the scale, never a one-off px value — --text-3xl
+  // clamps 28px→40px so the step survives the ≤480px .kpi-value drop to 22px.
+  const leadValue = styles.match(/\.kpi\.is-lead \.kpi-value\s*\{([\s\S]*?)\}/);
+  expect(leadValue).not.toBeNull();
+  expect(leadValue[1]).toMatch(/font-size:\s*var\(--text-3xl\)/);
+});
+
+test('the book accent marks the lead tile only, not the whole row', () => {
+  // The accent used to be a gradient hairline painted across every .kpi in a
+  // tab panel, which spent the colour on the entire band. It is the lead
+  // tile's fill now, and that hairline is gone with the dark tile it lifted.
+  expect(styles).toMatch(
+    /\.tab-panel \.kpi\.is-lead,\n\.tab-panel \.kpi\.is-lead:hover \{\n  background: var\(--book-accent/,
+  );
+  expect(styles).not.toMatch(/\.kpi[^\n]*::before/);
+
+  // A supporting tile's figure is TEXT on white paper, so it takes the
+  // contrast-safe ink grade — never the raw cover fill, which measured as low
+  // as 1.4:1 there for a pale cover.
+  const supporting = styles.match(/\.tab-panel \.kpi-value\.gold \{([\s\S]*?)\}/);
+  expect(supporting).not.toBeNull();
+  expect(supporting[1]).toMatch(/color:\s*var\(--book-accent-text,/);
+});
+
+test('only the lead figure carries the accent colour in the markup', () => {
+  const band = markup.match(/<div class="kpi-grid kpi-grid-primary">([\s\S]*?)\n\s*<\/div>\n\s*<details/);
+  expect(band).not.toBeNull();
+
+  // Exactly one tile is the lead, and it is the one holding the gold figure —
+  // .tab-panel .kpi-value.gold resolves to the book accent, so a second gold
+  // figure here would put the accent back on more than one thing.
+  expect(band[1].match(/class="kpi is-lead"/g)).toHaveLength(1);
+  expect(band[1].match(/class="kpi-value gold"/g)).toHaveLength(1);
+  expect(band[1]).toMatch(/class="kpi is-lead"[\s\S]*?class="kpi-value gold" id="d-stock"/);
+});

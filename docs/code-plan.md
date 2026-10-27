@@ -2,10 +2,13 @@
 
 The build plan turned into pull requests, in the order they get built. Written 27 October 2026.
 
-Each line is one small pull request. It names the repo, what it adds and the check that proves it works. Your live
-shop keeps working after every one: each new setting starts with today's Lyricalmyrical value.
+Each line is one small pull request. It names the repo, what it adds and the check that proves it works.
 
-Repos: **shop** = `LyricalmyricalWebsite`, **stockroom** = `lyrical-inventory`, **platform** = `LMB-PLATFORM` (this repo).
+**Your own website and stockroom are never changed by this plan** (decided 27 October 2026). `LyricalmyricalWebsite`
+and `lyrical-inventory` stay specific to Lyricalmyrical and must keep working in all circumstances. The product uses
+copies of them inside this repo, where Lyricalmyrical is taken out.
+
+Where each line happens: **shop** = `apps/shop/`, **stockroom** = `apps/stockroom/`, **platform** = the rest of this repo.
 
 Status: `done`, `open` (pull request up), `next`, or blank (not started).
 
@@ -14,7 +17,7 @@ Status: `done`, `open` (pull request up), `next`, or blank (not started).
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
 | 0.1 | platform | Waitlist page (`waitlist/index.html`) | no rival named (test) | done |
-| 0.2 | platform | Waitlist sign-up handler: checks the form, ignores bots, stores each email once (`waitlist/signup.js`) | handler tests with a fake store | open |
+| 0.2 | platform | Waitlist sign-up handler: checks the form, ignores bots, stores each email once (`waitlist/signup.js`) | handler tests with a fake store | done |
 | 0.3 | platform | Waitlist storage adapter and hosting, once Julian picks where sign-ups live | a test sign-up lands in the store | |
 | 0.4 | platform | Product name in the page, domain checked | name test | |
 
@@ -26,8 +29,9 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
-| 1.1 | platform | Profile format `profile/shop-profile.schema.json` and Lyricalmyrical's profile as the example | schema test | open |
-| 1.2 | shop | `src/lib/shopProfile.ts` reads `/shop-profile.js` at page open; Firebase settings, project id, region and bot-check key come from it, today's values as fallback | unit tests; existing smoke test | open |
+| 1.1 | platform | Profile format `profile/shop-profile.schema.json` and Lyricalmyrical's profile as the example | schema test | done |
+| 1.0 | shop, stockroom | Copy both apps into `apps/`, every live project id and key replaced by a made-up test project, both test suites in CI | `apps-isolation.test.js`; CI green | open |
+| 1.2 | shop | `src/lib/shopProfile.ts` reads `/shop-profile.js` at page open; Firebase settings, project id, region and bot-check key come from it (built once on your website, then undone there; the copy in `apps/shop` has it) | unit tests | done |
 | 1.3 | stockroom | `src/lib/shop-profile.js` reads the same file; `src/firebase.js` uses it; the `lyrical` data folder name kept in one constant | unit tests | |
 | 1.4 | shop | Server side: `functions/shopConfig.js` reads owner, sender, site address and plan from a server-only settings document, today's values as fallback; `index.js` stops naming them | function tests | |
 | 1.5 | shop, stockroom | A copy check: each app's copy of the profile format matches the platform's | test in each repo | |
@@ -46,7 +50,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
-| 1.11 | shop | `functions/payments/`: one module that makes Stripe clients and does refunds, payment lookups and reversal checks with the shop's own key; callers move to it one file at a time | payment tests with a fake Stripe | next |
+| 1.11 | shop | `functions/payments/`: one module that makes Stripe clients and does refunds, payment lookups and reversal checks with the shop's own key; callers move to it one file at a time | payment tests with a fake Stripe | |
 | 1.12 | shop | Checkout (`checkoutPayment.js`) and webhook setup (`checkoutAdmin.js`) go through the module | checkout tests | |
 | 1.13 | shop | `functions/email/`: one module for every send, same pattern | email tests | |
 
@@ -54,7 +58,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
-| 1.14 | shop | `shops/lyricalmyrical/`: profile, 20 old-address redirects, fallback email, starter words; `firebase.json` built from a template at deploy | built `firebase.json` equals today's | |
+| 1.14 | shop | Take Lyricalmyrical out of the copy: its redirects, fallback email, starter words and project ids go; `firebase.json` built from a template at deploy | no "lyricalmyrical" left (check 1.18) | |
 | 1.15 | shop | Site address and email links come from the profile (build scripts, server emails, `index.html`) | email link tests | |
 | 1.16 | shop | Shop name, wordmark and default words become theme and Text & labels defaults | Studio coverage checks | |
 | 1.17 | shop | Your one-offs become switches: legacy admin sign-in, Gmail receipt finder, GitHub Pages forwarding | tests | |
@@ -137,6 +141,7 @@ Gate: a month where every update reaches every shop with no checkout outage.
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
 - Customer-facing words never name a rival.
+- Never change `LyricalmyricalWebsite` or `lyrical-inventory` for the product. Only Julian's own requests change them.
 - Each app repo keeps its own rules: release notes in the shop, "What's new" lines in the stockroom.
 - Update the Status column here in the same pull request that finishes an item.
 
@@ -144,6 +149,5 @@ Gate: a month where every update reaches every shop with no checkout outage.
 
 - Where waitlist sign-ups are stored (blocks 0.3).
 - The product name ("Colophon" is a working name; blocks 0.4 and the repo renames).
-- Whether stockroom pull requests merge themselves once checks pass, like the shop and platform.
 - Stockroom data in the shop project: its own named database, or rules merged with the shop's (before 1.20).
 - Move your stockroom ledger into the shop project now, or keep the link to the old project until Phase 4 (before 1.21).

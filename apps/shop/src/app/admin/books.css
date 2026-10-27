@@ -1,0 +1,100 @@
+/* Admin › Books: catalog list (bk-*) and book editor layout additions (be-*). Tokens only (riso.css). */
+
+/* ── Book editor ─────────────────────────────────────────────────────── */
+.book-editor-riso .be-head-main { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 320px; }
+.book-editor-riso .be-id { text-transform: none; letter-spacing: 0; gap: 10px; }
+.book-editor-riso .be-dirty, .book-editor-riso .be-saved { font-family: var(--rp-font-body); font-size: var(--rp-text-sm); }
+.book-editor-riso .be-saved { color: var(--rp-text-muted); }
+.book-editor-riso .be-book-id { font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); color: var(--rp-text-subtle); letter-spacing: .04em; }
+.book-editor-riso .be-actions { margin-left: auto; }
+
+.book-editor-riso .be-tabs-narrow { display: none; }
+.book-editor-riso .be-tabs-narrow .rp-field { margin: 0; }
+
+/* Details › sub tabs (Basics · Publishing details · Book page rows · Customs). Hidden panels stay mounted. */
+.book-editor-riso .be-subtabs .rp-tabs { max-width: 100%; }
+.book-editor-riso .be-subpanel { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.book-editor-riso .be-subpanel[hidden] { display: none; }
+
+.book-editor-riso .be-problems { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.book-editor-riso .be-problems li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.book-editor-riso .be-problems li > span::before { content: "• "; }
+
+.book-editor-riso .be-detail-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto; gap: 12px; align-items: end; padding: 10px 0; border-bottom: var(--rp-hair) solid var(--rp-divider); }
+.book-editor-riso .be-detail-row:first-child { padding-top: 0; }
+.book-editor-riso .be-detail-row[data-hidden] > :not(.be-detail-row-tools) { opacity: .55; }
+.book-editor-riso .be-detail-row .rp-textarea { min-height: 46px; }
+.book-editor-riso .be-detail-row-tools { display: flex; gap: 4px; flex-wrap: wrap; padding-bottom: 4px; }
+.book-editor-riso .be-detail-row + .rp-btn { margin-top: 14px; }
+
+.book-editor-riso .be-more-info { margin: 4px 0 12px; }
+.book-editor-riso .be-more-info > summary { cursor: pointer; min-height: 32px; display: inline-flex; align-items: center; font: 600 var(--rp-text-sm) var(--rp-font-body); color: var(--rp-text); }
+.book-editor-riso .be-more-info > summary:focus-visible { outline: 3px solid var(--rp-primary); outline-offset: 2px; }
+.book-editor-riso .be-more-info > .be-note { margin-top: 4px; }
+
+.book-editor-riso .be-rail-summary { display: flex; flex-direction: column; gap: 8px; }
+.book-editor-riso .be-rail-facts { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.book-editor-riso .be-rail-publish { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; padding-top: 12px; border-top: var(--rp-hair) solid var(--rp-divider); }
+
+@media (max-width: 860px) {
+  /* One column: the section's form comes first, then Summary (status, schedule, featured), then the checklist. */
+  .book-editor-riso .be-body > .be-rail { display: contents; }
+  .book-editor-riso .be-body > .be-rail > .be-rail-card:first-child { order: 1; }
+  .book-editor-riso .be-body > .be-rail > .be-rail-card:last-child { order: 2; }
+  .book-editor-riso .be-rail-summary { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: start; }
+  .book-editor-riso .be-rail-cover { width: 76px; }
+  .book-editor-riso .be-rail-publish { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  .book-editor-riso .be-rail-publish > :last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 767px) {
+  .book-editor-riso .be-head { padding: 12px 16px; }
+  .book-editor-riso .be-head .rp-dialog-title { white-space: normal; max-width: none; font-size: 22px; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .book-editor-riso .be-head-main { flex-basis: 100%; }
+  .book-editor-riso .be-actions { width: 100%; justify-content: flex-end; }
+  .book-editor-riso .be-tabbar { padding: 12px 16px 0; overflow: visible; }
+  .book-editor-riso .be-tabs-wide { display: none; }
+  .book-editor-riso .be-tabs-narrow { display: block; }
+  .book-editor-riso .be-body { padding: 12px 16px 24px; gap: 14px; }
+  .book-editor-riso .be-alert { margin: 12px 16px 0; }
+  .book-editor-riso .be-detail-row { grid-template-columns: minmax(0, 1fr); }
+  .book-editor-riso .be-url-row { flex-wrap: wrap; }
+  .book-editor-riso .be-url-row > :first-child { flex-basis: 100%; }
+  .book-editor-riso .be-file { flex-wrap: wrap; }
+}
+@media (max-width: 520px) {
+  .book-editor-riso .be-rail-publish { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Catalog ─────────────────────────────────────────────────────────── */
+.bk-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.bk-toolbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.bk-count { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.bk-filter-toggle { display: none; }
+.bk-filters .rp-filter-bar { margin-bottom: 16px; }
+
+
+.bk-bulk { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: var(--rp-shadow); }
+.bk-bulk-count { margin-right: 4px; }
+.bk-bulk-sep { flex: 1 1 auto; }
+
+.bk-cards { display: none; list-style: none; margin: 0; padding: 0; }
+.bk-card { display: grid; grid-template-columns: auto 52px minmax(0, 1fr); gap: 12px; align-items: start; padding: 14px 16px; border-bottom: 1px solid var(--rp-divider); }
+.bk-card:last-child { border-bottom: 0; }
+.bk-card .rp-check { min-height: 44px; min-width: 32px; }
+.bk-card-cover { width: 52px; aspect-ratio: 5 / 7; object-fit: cover; border: 1px solid var(--rp-border-strong); background: var(--rp-surface-inset); display: block; }
+.bk-card-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.bk-card-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.bk-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: var(--rp-text-sm); }
+.bk-card-foot .rp-menu-wrap { margin-left: auto; }
+.bk-card-foot .rp-btn-ghost { padding-left: 4px; padding-right: 4px; }
+.bk-card-order { display: flex; align-items: center; gap: 4px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+
+@media (max-width: 767px) {
+  .bk-filter-toggle { display: inline-flex; }
+  .bk-filters[data-open="false"] .bk-filter-extra { display: none; }
+  .bk-filters .rp-filter-bar > * { flex: 1 1 100%; }
+  .bk-filters .rp-filter-bar .rp-field { width: 100%; }
+  .bk-table { display: none; }
+  .bk-cards { display: block; }
+  .bk-bulk { top: 0; }
+}

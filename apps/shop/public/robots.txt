@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /checkout
+Disallow: /account
+Disallow: /wishlist
+Disallow: /track
+
+Sitemap: https://lmb-test-shop.web.app/sitemap.xml

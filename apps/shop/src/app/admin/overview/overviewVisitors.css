@@ -1,0 +1,64 @@
+/* Overview › visitor widgets (OverviewVisitors.tsx). Riso tokens only, so night mode follows the tokens. The shared charts
+   (overviewViz.css) carry their own 20px side padding; the headline and source line use the same inset so everything lines up. */
+.rp-vw { display: flex; flex-direction: column; min-width: 0; }
+.rp-vw-top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 16px; padding: 14px 20px 6px; }
+.rp-vw-headline { margin: 0; flex: 1 1 22ch; min-width: 0; font-family: var(--rp-font-body); font-weight: 700; font-size: var(--rp-text-md);
+  line-height: 1.35; color: var(--rp-text); text-wrap: pretty; overflow-wrap: anywhere; }
+.rp-vw-chart { min-width: 0; }
+.rp-vw-foot { margin: 0; padding: 8px 20px 14px; border-top: var(--rp-hair) solid var(--rp-divider); font-family: var(--rp-font-mono);
+  font-size: var(--rp-text-2xs); letter-spacing: 0.02em; color: var(--rp-text-subtle); line-height: 1.5; overflow-wrap: anywhere; }
+.rp-vw-note, .rp-vw-quiet, .rp-vw-key { margin: 0; padding: 0 20px 12px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); line-height: 1.5; }
+.rp-vw-quiet { padding-top: 6px; }
+.rp-vw-more { display: block; padding: 0 20px 12px; font-size: var(--rp-text-xs); color: var(--rp-text-subtle); }
+.rp-vw-gap { padding: 10px 20px 0; margin: 0; }
+.rp-vw .rp-viz-eyebrow { padding-left: 20px; padding-right: 20px; }
+
+/* Sort toggle: two square pills, the chosen one in flare gold with ink text. */
+.rp-vw-seg { display: inline-flex; align-items: center; gap: 0; flex: 0 0 auto; }
+.rp-vw-seg-label { font-size: var(--rp-text-3xs); font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--rp-text-subtle); margin-right: 8px; }
+.rp-vw-seg button { min-height: 30px; padding: 0 12px; font: inherit; font-size: var(--rp-text-xs); font-weight: 700; color: var(--rp-text);
+  background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border-strong); cursor: pointer; }
+.rp-vw-seg button + button { border-left: 0; }
+.rp-vw-seg button[aria-pressed="true"] { background: var(--rp-primary); color: var(--rp-on-primary); }
+.rp-vw-seg button:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; position: relative; }
+@media (pointer: coarse) { .rp-vw-seg button { min-height: var(--rp-touch, 44px); } }
+
+/* 30-minute strip: 30 thin columns, no numbers on top (the headline says how many), a two-word time axis under it. */
+.rp-vw-minutes { padding-top: 6px; }
+.rp-vw-minutes .rp-viz-cols { padding-top: 0; padding-bottom: 0; }
+.rp-vw-minutes .rp-viz-cols-row { gap: 2px; }
+.rp-vw-minutes .rp-viz-col-num, .rp-vw-minutes .rp-viz-col-label { display: none; }
+.rp-vw-minutes .rp-viz-col-plot { height: 56px; }
+.rp-vw-minutes .rp-viz-col-bar { left: 0; right: 0; width: auto; }
+.rp-vw-axis { display: flex; justify-content: space-between; padding: 4px 20px 0; font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); color: var(--rp-text-subtle); }
+
+/* Key for the hatched "period before" bars. */
+.rp-vw-key { display: flex; align-items: center; gap: 8px; font-size: var(--rp-text-xs); padding-top: 4px; }
+.rp-vw-key-prev { display: inline-block; width: 18px; height: 10px; border: var(--rp-hair) solid var(--rp-border);
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--rp-text) 34%, transparent) 0 2px, transparent 2px 5px); }
+
+/* Heat grid fits a phone without its own sideways scroll. */
+.rp-vw-heat .rp-viz-heat { overflow-x: visible; }
+.rp-vw-heat .rp-viz-heat-grid { min-width: 0; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); }
+@media (max-width: 560px) {
+  .rp-vw-top, .rp-vw-foot, .rp-vw-note, .rp-vw-quiet, .rp-vw-key, .rp-vw-more, .rp-vw-gap, .rp-vw .rp-viz-eyebrow, .rp-vw-axis { padding-left: 14px; padding-right: 14px; }
+  .rp-vw .rp-viz-rank-row { padding-left: 14px; padding-right: 14px; }
+  .rp-vw-heat .rp-viz-heat { padding-left: 14px; padding-right: 14px; }
+  .rp-vw-heat .rp-viz-heat-grid { grid-template-columns: 28px repeat(24, minmax(0, 1fr)); gap: 1px; }
+  .rp-vw-headline { font-size: var(--rp-text-base); }
+}
+
+/* How visitors move (OverviewNavigation.tsx) */
+.rp-nav-follow { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 20px; }
+.rp-nav-pick { display: inline-flex; align-items: center; gap: 0; flex: 0 0 auto; }
+.rp-nav-pick .rp-select { min-height: 30px; width: auto; max-width: 200px; }
+.rp-nav-devices { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 20px; padding: 0 20px 8px; }
+@media (max-width: 767px) { .rp-nav-devices { padding: 0 14px 8px; } }
+
+/* The shop's own events (OverviewVisitorEvents.tsx): what to register in Google Analytics, and missing addresses. */
+.rp-ve-register { padding: 28px 20px; gap: 8px; }
+.rp-ve-register .rp-state-title { font-size: var(--rp-text-lg); }
+.rp-ve-defs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 2px 0; padding: 0; list-style: none; }
+.rp-ve-defs code, .rp-vw-quiet code { font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); padding: 2px 8px;
+  background: var(--rp-surface); color: var(--rp-text); border: var(--rp-hair) solid var(--rp-border-strong); }
+.rp-ve-path { font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); overflow-wrap: anywhere; }

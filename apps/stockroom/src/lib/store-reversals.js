@@ -1,0 +1,55 @@
+// Website orders the store refunded or cancelled after they were recorded.
+//
+// An order recorded in the ledger stayed a sale when the store later refunded
+// or cancelled it: its copies stayed "sold" and its money stayed in the
+// earnings. The storefront check already reads every order's status; this
+// decides which recorded orders the store has since reversed. Pure.
+
+import { bigCartelOrderNumber } from './bigcartel-ledger-gap.js';
+import { normalizeShippingOrderNumber } from './shipping-reconciliation.js';
+
+const clean = (value) => String(value ?? '').trim().toLowerCase();
+
+/** 'reversed' (cancelled or fully refunded), 'partial', or '' for a live order. */
+export function storeReversal(order = {}) {
+  const attr = order.attributes || {};
+  const status = clean(attr.status);
+  const payment = clean(attr.payment_status);
+  if (['cancelled', 'canceled', 'voided'].includes(status)) return 'reversed';
+  if (status === 'refunded' || payment === 'refunded') return 'reversed';
+  if (payment === 'partially_refunded' || payment === 'partially refunded' || status === 'partially_refunded') return 'partial';
+  return '';
+}
+
+/**
+ * The recorded website sales whose store order has since been reversed.
+ * `rows` are `{ bookId, entry }` ledger rows. A row already raised
+ * (`storeReversalNoted`) or already voided is left alone.
+ */
+export function storeReversalsToRaise(bcOrders = [], rows = []) {
+  // Keyed by normalized order number (what sameOrderNumber compares), so each
+  // ledger row is one lookup rather than a scan of every reversed order — the
+  // caller passes every history row of every book on each storefront check.
+  const reversed = new Map();
+  (Array.isArray(bcOrders) ? bcOrders : []).forEach(order => {
+    const kind = storeReversal(order);
+    const key = kind ? bigCartelOrderNumber(order) : '';
+    if (key && !reversed.has(key)) reversed.set(key, kind);
+  });
+  if (!reversed.size) return [];
+  const out = [];
+  (Array.isArray(rows) ? rows : []).forEach(({ bookId, entry }) => {
+    if (!entry || entry.voided || entry.chan !== 'Website' || !entry.sheetsId) return;
+    const kind = reversed.get(normalizeShippingOrderNumber(entry.num));
+    // A partial refund already raised must not hide the later full refund or
+    // cancellation: only a note for the same kind (or a full one) settles it.
+    const noted = entry.storeReversalNoted;
+    if (noted === true || noted === 'full') return;
+    if (noted === 'partial' && kind !== 'reversed') return;
+    if (kind) out.push({ bookId, sheetsId: entry.sheetsId || '', num: entry.num, qty: Number(entry.qty) || 0, full: kind === 'reversed' });
+  });
+  return out;
+}
+
+/** Where the reversals waiting for the publisher are kept in this browser. */
+export const STORE_REVERSAL_PENDING_KEY = 'lm-store-reversal-pending';

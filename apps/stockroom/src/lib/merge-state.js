@@ -1,0 +1,508 @@
+// Three-way merge for a book's synced state.
+//
+// Why this exists: _fbSave splits each book into per-part Firestore documents
+// and used to write every dirty part with a plain setDoc — a whole-array
+// replace. Each document carried a `ts`, but nothing ever read it back, so
+// there was no divergence check at all. Two devices editing the same book while
+// offline (the desktop at the shop and a laptop elsewhere — the app's actual
+// use case) both replayed their full local array on reconnect, and whichever
+// synced second silently erased the other's sales. Nothing surfaced: no error,
+// no conflict prompt, just a ledger quietly missing rows.
+//
+// The fix is a real three-way merge against the last-known-remote snapshot
+// (the base), which _fbSave already tracks per part in window._fsHashes. Kept
+// pure and DOM-/Firestore-free so the row-identity rules below — the fiddly
+// part — can be unit-tested directly.
+
+// Parts _fbSave breaks a state object into. Everything else is lumped into
+// `metadata`.
+//
+// Order matters: stitchState() below emits these keys in this sequence, and
+// _fbLoad/_fbWatch already stitch in exactly this order so that JSON.stringify
+// output stays byte-comparable against the stored per-part hashes. Reordering
+// would make every hash comparison report a false difference.
+export const LIST_PARTS = [
+  'hist', 'ledger', 'expenses', 'stores', 'artistTransfers', 'artistPayouts', 'artistReceivables', 'doneIds',
+];
+
+// Every document a book's state is stored as, in the order stitchState emits.
+// _fbLoad, _fbWatch, _fbDeleteBook and _fbMassMigrate each used to carry their
+// own literal copy of this list; a part added to LIST_PARTS but missed in one
+// of those copies would sync fine and then silently survive a book deletion or
+// get skipped by the migration.
+export const ALL_PARTS = ['metadata', ...LIST_PARTS];
+
+// The empty value a part takes when its document doesn't exist yet: metadata is
+// an object of scalars, every other part is a row list.
+export function emptyPart(name) {
+  return name === 'metadata' ? {} : [];
+}
+
+// Parts whose rows carry a stable `id` (minted as Date.now() at creation).
+/** Metadata string lists merged as a union (see mergeMetadata). */
+export const UNION_METADATA_KEYS = new Set(['discardedPostageRefs']);
+
+export const ID_KEYED_PARTS = new Set([
+  'ledger', 'expenses', 'stores', 'artistTransfers', 'artistPayouts', 'artistReceivables',
+]);
+
+// Metadata fields recomputed from hist/ledger by recomputeAfters(). Merging
+// them row-by-row is meaningless — they're outputs, not inputs — so the merge
+// carries local values through and main.js recomputes once the merge lands.
+export const DERIVED_METADATA_KEYS = new Set(['stock', 'sold', 'revenue', 'chStats']);
+
+// Monotonic counters: never take "the other side's" value, take the highest so
+// neither device reissues a number the other already used.
+export const COUNTER_METADATA_KEYS = new Set(['invoiceSeq']);
+
+// Key order varies between devices (spread order, JSON round-trips), so plain
+// JSON.stringify would report false differences. Sort keys at every level.
+export function stableStringify(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']';
+  const keys = Object.keys(value).sort();
+  return '{' + keys.map(k => JSON.stringify(k) + ':' + stableStringify(value[k])).join(',') + '}';
+}
+
+const same = (a, b) => stableStringify(a) === stableStringify(b);
+
+// Identity for a hist row. hist entries have no id field — they're
+// {num, chan, qty, price, after, notes, date, ...} — so rows minted before this
+// change can only be identified by content.
+//
+// `after` is deliberately excluded: it's a running balance recomputed by
+// recomputeAfters(), so including it would make every row downstream of an
+// insertion look like a different row. `sheetsId` is included and does most of
+// the work for imported rows — Big Cartel and Stripe entries mint it
+// deterministically from the order/charge number precisely so the same import
+// on two devices produces the same row.
+//
+// `uid` is honoured if a row carries one, but rows are deliberately NOT stamped
+// with one at creation. Imported rows already have deterministic cross-device
+// identity via sheetsId, and stamping a random uid over that would turn one
+// order imported on two devices into two rows — the opposite of the intent.
+// Rows with neither a uid nor a sheetsId (very old ones) are still matched by
+// content in the merge, so two devices editing one of those at the same time
+// keep both versions. Every row the app records now has a sheetsId, and the
+// merge matches those by it (mergeKeyFor below).
+function histContentKey(row) {
+  if (!row || typeof row !== 'object') return 'v:' + stableStringify(row);
+  if (row.uid) return 'uid:' + row.uid;
+  return 'c:' + stableStringify({
+    num: row.num ?? null,
+    chan: row.chan ?? null,
+    qty: row.qty ?? null,
+    price: row.price ?? null,
+    date: row.date ?? null,
+    notes: row.notes ?? null,
+    sheetsId: row.sheetsId ?? null,
+  });
+}
+
+function baseKeyFor(part, row) {
+  if (part === 'hist') return histContentKey(row);
+  if (ID_KEYED_PARTS.has(part)) {
+    if (row && typeof row === 'object' && row.id != null) return 'id:' + String(row.id);
+    return 'v:' + stableStringify(row); // legacy/id-less row — fall back to content
+  }
+  return 'v:' + stableStringify(row); // doneIds and other scalar lists
+}
+
+// Multiset keying: two rows that are genuinely identical (say, two separate
+// cash sales of one book at the same price on the same day, neither carrying an
+// order number) must stay two rows. Suffixing each duplicate with its
+// occurrence index keeps counts correct instead of collapsing them into one.
+export function keyRows(part, rows) {
+  const seen = new Map();
+  return (rows || []).map(row => {
+    const k = baseKeyFor(part, row);
+    const n = seen.get(k) || 0;
+    seen.set(k, n + 1);
+    return n === 0 ? k : `${k}#${n}`;
+  });
+}
+
+// The same keys as keyRows, indexed to their rows so a caller resolving many
+// stored keys (settlement links) does one lookup each instead of a scan of the
+// whole list. keyRows never repeats a key, so this matches keys.indexOf.
+export function rowsByKey(part, rows) {
+  const keys = keyRows(part, rows);
+  const map = new Map();
+  for (let i = 0; i < keys.length; i++) map.set(keys[i], rows[i]);
+  return map;
+}
+
+// A uid/id key names one specific row, so at most one can exist per side and
+// "present on both sides" means the same row. A content key only says "a row
+// that looks like this", so several may legitimately coexist and the sides have
+// to be reconciled by counting. The two need different merge arithmetic.
+function isStableKey(key) {
+  return key.startsWith('uid:') || key.startsWith('id:');
+}
+
+// Inside the merge only, a hist row carrying a sheetsId is that row wherever
+// it is, whatever else changed on it. Keyed by content, a sale corrected on one
+// device while the other voided it (or corrected it too) looked like two
+// different sales: both were kept, the sale counted twice, and the void was
+// undone. Found by the two-device test (tests/sync-two-devices-model.test.js).
+// keyRows/rowsByKey keep the content key: settlement links store those keys.
+function mergeKeyFor(part, row) {
+  if (part === 'hist' && row && typeof row === 'object' && !row.uid
+    && row.sheetsId != null && row.sheetsId !== '') return 'sid:' + String(row.sheetsId);
+  return baseKeyFor(part, row);
+}
+
+// The same hist row changed on both devices: each field takes the side that
+// changed it, so a void on one and a corrected note on the other both stick.
+// Only a field both sides changed differently is a clash (local wins).
+function mergeRowFields(base, local, remote) {
+  const out = {};
+  let clash = false;
+  for (const f of new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])) {
+    const has = (o) => Object.prototype.hasOwnProperty.call(o, f);
+    const b = base[f], l = local[f], r = remote[f];
+    let pick;
+    if (same(l, b) && has(local) === has(base)) pick = remote;
+    else if (same(r, b) && has(remote) === has(base)) pick = local;
+    else { pick = local; if (!same(l, r) || has(local) !== has(remote)) clash = true; }
+    if (has(pick)) out[f] = pick[f];
+  }
+  return { row: out, clash };
+}
+
+function groupRows(part, rows) {
+  const map = new Map();
+  (rows || []).forEach(row => {
+    const k = mergeKeyFor(part, row);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(row);
+  });
+  return map;
+}
+
+// hist reads newest-first (entries are unshifted), so a row arriving from
+// another device belongs at its date position rather than tacked on the end.
+// Everything else is append-ordered and keeps that.
+export function insertRow(part, rows, row) {
+  if (part !== 'hist') { rows.push(row); return; }
+  const date = row && row.date;
+  if (!date) { rows.push(row); return; }
+  const at = rows.findIndex(r => String(r && r.date || '') < String(date));
+  if (at === -1) rows.push(row); else rows.splice(at, 0, row);
+}
+
+// What the owner sets on a website-order row in this app; everything else on
+// it is the website's copy of the order.
+const WEBSITE_ROW_APP_FIELDS = ['notes', 'enteredBy'];
+const WEBSITE_ROW_TRACKING_FIELDS = ['trackingNumber', 'trackingCarrier', 'trackingUrl', 'trackingSource', 'carrier',
+  'shipped', 'shippedDate', 'trackingSimulated', 'postagePaid', 'declarationId', 'webBaselineTracking'];
+
+/**
+ * Both devices changed the same website-order row (src/lib/website-link.js).
+ * "Local wins" could put back an older copy of the order — a refund undone —
+ * so the side holding the newer website copy (`webSourceUpdatedAt`) wins,
+ * keeping this device's notes and any tracking it set itself. Null when the
+ * rule doesn't apply (not website rows, or no newer side), so the ordinary
+ * conflict handling runs.
+ */
+function resolveWebsiteRow(local, remote) {
+  if (!local || !remote || typeof local !== 'object' || typeof remote !== 'object') return null;
+  if (!local.webOrderId || local.webOrderId !== remote.webOrderId) return null;
+  const l = String(local.webSourceUpdatedAt || '');
+  const r = String(remote.webSourceUpdatedAt || '');
+  if (!r || r <= l) return null;
+  const out = { ...remote };
+  WEBSITE_ROW_APP_FIELDS.forEach(f => { if (Object.prototype.hasOwnProperty.call(local, f)) out[f] = local[f]; });
+  // A label bought here on this device: keep it unless the other side has its own.
+  const localTracking = String(local.trackingNumber || '').trim();
+  const websiteSent = new Set([remote.webTracking, local.webTracking, ...(remote.webTrackingSeen || []), ...(local.webTrackingSeen || [])]
+    .map(v => String(v || '').trim()).filter(Boolean));
+  if (localTracking && !websiteSent.has(localTracking)) {
+    WEBSITE_ROW_TRACKING_FIELDS.forEach(f => {
+      if (Object.prototype.hasOwnProperty.call(local, f)) out[f] = local[f]; else delete out[f];
+    });
+  }
+  return out;
+}
+
+/**
+ * Three-way merge of one list part.
+ *
+ * base   last state both sides agreed on (the last snapshot we read from the
+ *        server, tracked in window._fsHashes)
+ * remote what the server holds now
+ * local  what this device wants to write
+ *
+ * Add/remove are resolved against base so a row deleted on one side isn't
+ * resurrected by the other. When both sides changed the same row, local wins
+ * and the row is reported in `conflicts` — the write still goes through, but
+ * the caller can tell the user something was overwritten rather than pretending
+ * the merge was clean.
+ */
+export function mergeRows(part, base, remote, local, { baseKnown = true } = {}) {
+  const B = groupRows(part, base);
+  const R = groupRows(part, remote);
+  const L = groupRows(part, local);
+  const conflicts = [];
+
+  // Per key, work out which row versions survive and how many.
+  const survivors = new Map();
+  for (const key of new Set([...B.keys(), ...R.keys(), ...L.keys()])) {
+    const b = B.get(key) || [];
+    const r = R.get(key) || [];
+    const l = L.get(key) || [];
+
+    // Same row on both sides: keep whichever version actually changed, and only
+    // call it a conflict when both moved away from base.
+    const resolve = (lr, rr, br) => {
+      if (!lr) return rr;
+      if (!rr) return lr;
+      if (same(lr, rr)) return lr;
+      if (br && same(br, lr)) return rr;  // only remote edited
+      if (br && same(br, rr)) return lr;  // only local edited
+      const web = part === 'hist' ? resolveWebsiteRow(lr, rr) : null;
+      if (web) return web;
+      if (br && key.startsWith('sid:') && typeof br === 'object' && typeof lr === 'object' && typeof rr === 'object') {
+        const { row, clash } = mergeRowFields(br, lr, rr);
+        if (clash) conflicts.push({ part, key, local: lr, remote: rr });
+        return row;
+      }
+      conflicts.push({ part, key, local: lr, remote: rr });
+      return lr;                          // both edited — local wins, but loudly
+    };
+
+    if (isStableKey(key)) {
+      // Set semantics. A row known to base survives only while both sides still
+      // have it; a row absent from base is an addition from whichever side has
+      // it. Either way there is at most one.
+      const keep = b.length ? (l.length > 0 && r.length > 0) : (l.length > 0 || r.length > 0);
+      survivors.set(key, keep ? [resolve(l[0], r[0], b[0])] : []);
+      continue;
+    }
+
+    // Multiset semantics for content-keyed (legacy, uid-less) rows: counts are
+    // all we have to go on. Rows beyond the base count on each side are that
+    // side's additions and both sides' additions must survive — otherwise two
+    // devices each recording an indistinguishable cash sale would net one sale.
+    //
+    // Two cases call for the union of the sides' additions (the larger count)
+    // rather than their sum, because the "additions" on each side are very
+    // likely the SAME rows:
+    //  - the base is unknown (a change queued by an older build, or a part this
+    //    device never read). With nothing to subtract, every row on both sides
+    //    looks like an addition, and summing doubled the whole sales history.
+    //  - the row carries a sheetsId. Big Cartel and Stripe imports mint it from
+    //    the order or charge number so one order is one row on every device;
+    //    two devices recording the same charge must net one sale, not two.
+    // Union never drops a row either side holds, so nothing is lost.
+    const sample = l[0] || r[0] || b[0];
+    const imported = part === 'hist' && !!sample && typeof sample === 'object'
+      && sample.sheetsId != null && sample.sheetsId !== '';
+    const shared = Math.min(l.length, r.length, b.length);
+    const survivingBase = Math.max(
+      0,
+      b.length - Math.max(0, b.length - l.length) - Math.max(0, b.length - r.length),
+    );
+    const addedL = Math.max(0, l.length - b.length);
+    const addedR = Math.max(0, r.length - b.length);
+    const total = (!baseKnown || imported)
+      ? survivingBase + Math.max(addedL, addedR)
+      : survivingBase + addedL + addedR;
+
+    const candidates = [];
+    for (let i = 0; i < shared; i++) candidates.push(resolve(l[i], r[i], b[i]));
+    for (let i = shared; i < l.length; i++) candidates.push(l[i]);
+    for (let i = shared; i < r.length; i++) candidates.push(r[i]);
+    survivors.set(key, candidates.slice(0, total));
+  }
+
+  // Emit local rows first, in local order, so this device's view stays stable.
+  const out = [];
+  const used = new Map();
+  const take = (row, insert) => {
+    const key = mergeKeyFor(part, row);
+    const pool = survivors.get(key) || [];
+    const n = used.get(key) || 0;
+    if (n >= pool.length) return;          // budget spent — row didn't survive
+    used.set(key, n + 1);
+    if (insert) insertRow(part, out, pool[n]); else out.push(pool[n]);
+  };
+  (local || []).forEach(row => take(row, false));
+  // Then whatever the other device added, placed by date for hist.
+  (remote || []).forEach(row => take(row, true));
+
+  return { rows: out, conflicts };
+}
+
+// metadata is the leftover object: derived counters, config strings, and the
+// arrays that aren't split into their own documents (invoices, payoutRequests,
+// openCall). Merge it key by key so an invoice added on one device doesn't
+// vanish because the other device also touched an unrelated field.
+export function mergeMetadata(base, remote, local) {
+  const b = base && typeof base === 'object' ? base : {};
+  const r = remote && typeof remote === 'object' ? remote : {};
+  const l = local && typeof local === 'object' ? local : {};
+  const out = {};
+  const conflicts = [];
+
+  for (const key of new Set([...Object.keys(b), ...Object.keys(r), ...Object.keys(l)])) {
+    const hasR = Object.prototype.hasOwnProperty.call(r, key);
+    const hasL = Object.prototype.hasOwnProperty.call(l, key);
+    const hasB = Object.prototype.hasOwnProperty.call(b, key);
+
+    if (DERIVED_METADATA_KEYS.has(key)) { if (hasL) out[key] = l[key]; continue; }
+
+    if (COUNTER_METADATA_KEYS.has(key)) {
+      const nums = [b[key], r[key], l[key]].map(Number).filter(Number.isFinite);
+      if (nums.length) out[key] = Math.max(...nums);
+      continue;
+    }
+
+    // Lists that only ever grow (refs the owner discarded): keep everything
+    // either device added, or a discard made on one device is lost to a save
+    // from the other and the label is filed again.
+    if (UNION_METADATA_KEYS.has(key)) {
+      const lists = [r[key], l[key]].filter(Array.isArray);
+      if (lists.length) out[key] = [...new Set(lists.flat())];
+      continue;
+    }
+
+    if (!hasR && !hasL) continue;                    // removed on both sides
+    if (!hasR) { if (!hasB) out[key] = l[key]; continue; } // added locally / deleted remotely
+    if (!hasL) { if (!hasB) out[key] = r[key]; continue; } // added remotely / deleted locally
+
+    if (same(r[key], l[key])) { out[key] = l[key]; continue; }
+
+    // Object-arrays carrying ids merge row-wise; anything else is a scalar
+    // decision resolved against base.
+    if (Array.isArray(r[key]) && Array.isArray(l[key])) {
+      const listPart = ID_KEYED_PARTS.has(key) ? key : 'ledger'; // id-keyed semantics
+      const looksIdKeyed = [...r[key], ...l[key]]
+        .every(x => x && typeof x === 'object' && x.id != null);
+      if (looksIdKeyed) {
+        const m = mergeRows(listPart, Array.isArray(b[key]) ? b[key] : [], r[key], l[key]);
+        out[key] = m.rows;
+        m.conflicts.forEach(c => conflicts.push({ ...c, part: `metadata.${key}` }));
+        continue;
+      }
+    }
+
+    if (hasB && same(b[key], l[key])) { out[key] = r[key]; continue; } // only remote changed
+    if (hasB && same(b[key], r[key])) { out[key] = l[key]; continue; } // only local changed
+    out[key] = l[key];
+    conflicts.push({ part: `metadata.${key}`, key, local: l[key], remote: r[key] });
+  }
+
+  return { value: out, conflicts };
+}
+
+// The split/stitch pair _fbSave, _fbLoad and _fbWatch all rely on. Kept here so
+// the part list can't drift between the writer and the readers — a part missing
+// from one side would silently stop syncing.
+export function splitState(state) {
+  const rest = { ...(state && typeof state === 'object' ? state : {}) };
+  const parts = {};
+  for (const key of LIST_PARTS) {
+    parts[key] = Array.isArray(rest[key]) ? rest[key] : [];
+    delete rest[key];
+  }
+  parts.metadata = rest;
+  return parts;
+}
+
+// The per-part JSON a state is stored as — the same strings _fbSave writes and
+// keeps in window._fsHashes. A change queued on top of one that has since
+// uploaded uses this of that snapshot as its merge base.
+export function partHashesOf(state) {
+  const parts = splitState(state);
+  const out = {};
+  for (const name of Object.keys(parts)) out[name] = JSON.stringify(parts[name]);
+  return out;
+}
+
+export function stitchState(parts) {
+  const p = parts || {};
+  const out = { ...(p.metadata && typeof p.metadata === 'object' ? p.metadata : {}) };
+  // Fixed key order so JSON.stringify is stable across split→stitch round trips
+  // and hash comparisons don't report false differences.
+  for (const key of LIST_PARTS) out[key] = Array.isArray(p[key]) ? p[key] : [];
+  return out;
+}
+
+// Rebuilds the parts object from the raw per-part `data` strings a Firestore
+// read returned, filling in the empty default for any part with no document.
+//
+// _fbLoad and _fbWatch both read the whole `books/{id}/data` collection in one
+// round trip rather than eight per-document reads, which means neither of them
+// gets a snapshot per expected part any more — they get whichever documents
+// happen to exist. This turns that sparse set back into the full, fixed-order
+// parts object the rest of the sync path assumes.
+//
+// `raw` is keyed by part name; a key being ABSENT means "no document", which is
+// not the same as a document holding a bad value. A present-but-unparseable
+// part still throws, exactly as the per-document JSON.parse did, so a corrupt
+// document surfaces as a failed load instead of quietly reading as empty and
+// letting the next save treat real rows as deleted.
+//
+// Returns the parts object plus the names that actually had a stored document,
+// which is what the callers use to decide which merge-base hashes to advance.
+export function assembleParts(raw) {
+  const parts = {};
+  const present = [];
+  for (const name of ALL_PARTS) {
+    if (raw && Object.prototype.hasOwnProperty.call(raw, name)) {
+      parts[name] = JSON.parse(raw[name]);
+      present.push(name);
+    } else {
+      parts[name] = emptyPart(name);
+    }
+  }
+  return { parts, present };
+}
+
+// Dispatch for a single part name, so callers don't repeat the branch.
+// `opts.baseKnown` is false when the caller has no base for this part at all
+// (as opposed to a base that is genuinely empty); see mergeRows.
+export function mergePart(part, base, remote, local, opts = {}) {
+  if (part === 'metadata') return mergeMetadata(base, remote, local);
+  const { rows, conflicts } = mergeRows(
+    part,
+    Array.isArray(base) ? base : [],
+    Array.isArray(remote) ? remote : [],
+    Array.isArray(local) ? local : [],
+    opts,
+  );
+  return { value: rows, conflicts };
+}
+
+// Shared settings documents (the catalog, the Tax Centre with its expenses) are
+// single JSON blobs, loaded once at startup and written back whole. A device
+// that had been open a while wrote its stale copy over a book or a receipt
+// another device had added since. Merging key by key against the copy this
+// device last loaded keeps both: a book added on one device and a price changed
+// on the other both survive; the same entry changed on both keeps this device's
+// version (reported in `conflicts`).
+//
+// baseJson   the document as this device last loaded or wrote it (null if it
+//            never read one — then nothing is merged and local is written)
+// remoteJson the document as the server holds it now (null if none)
+// local      the value this device wants to write
+// Returns { value, merged, conflicts }; merged is false when the server still
+// matches the base, and value is then local unchanged.
+export function mergeSettingDoc(baseJson, remoteJson, local) {
+  if (baseJson == null || remoteJson == null || remoteJson === baseJson) {
+    return { value: local, merged: false, conflicts: [] };
+  }
+  let base;
+  let remote;
+  try {
+    base = JSON.parse(baseJson);
+    remote = JSON.parse(remoteJson);
+  } catch (_) {
+    return { value: local, merged: false, conflicts: [] };
+  }
+  const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  if (!isObj(base) || !isObj(remote) || !isObj(local)) return { value: local, merged: false, conflicts: [] };
+  const { value, conflicts } = mergeMetadata(base, remote, local);
+  return { value, merged: true, conflicts };
+}

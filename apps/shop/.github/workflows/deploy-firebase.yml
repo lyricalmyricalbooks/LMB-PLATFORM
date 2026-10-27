@@ -1,0 +1,129 @@
+name: Deploy Firebase (rules, indexes, functions)
+
+# The storefront workflow (deploy-pages.yml) ships the static frontend to Firebase Hosting (and the old address's
+# forwarding pages to GitHub Pages).
+# This one keeps the backend in sync: Firestore rules/indexes, Storage rules and Cloud Functions are deployed
+# whenever they change on main. It never deploys Hosting (`--only` below leaves it out); firebase.json is still
+# watched, so editing the hosting block redeploys the backend too (unchanged functions are skipped) and the
+# storefront waits for it.
+#
+# Requires a repository secret named FIREBASE_SERVICE_ACCOUNT containing the
+# JSON key of a service account with the "Firebase Admin" and "Cloud
+# Functions Developer" roles (Firebase console → Project settings →
+# Service accounts → Generate new private key).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firestore.indexes.json
+      - storage.rules
+      - firebase.json
+      - "functions/**"
+      - .github/workflows/deploy-firebase.yml
+      # Tests and notes are not deployed (firebase.json `functions.ignore`), so changing only them deploys nothing.
+      - "!functions/**/*.test.js"
+      - "!functions/**/*.test.ts"
+      - "!functions/**/*.fakes.mjs"
+      - "!functions/README.md"
+  workflow_dispatch:
+    inputs:
+      skip_site_check:
+        description: "Deploy even if the shop's address isn't answering (e.g. a Firebase Hosting outage)"
+        type: boolean
+        default: false
+
+# The CLI is pinned to an exact version: this job holds the Firebase Admin key, so a new release must not run
+# with it unreviewed. Bump the version here on purpose (and read the release notes) rather than via `latest`.
+env:
+  FIREBASE_TOOLS_VERSION: 15.32.1
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install function dependencies
+        run: npm ci
+        working-directory: functions
+
+      - name: Configure App Check rollout
+        env:
+          APP_CHECK_MODE: ${{ vars.APP_CHECK_MODE || 'monitor' }}
+        run: |
+          case "$APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
+          printf 'APP_CHECK_MODE=%s\n' "$APP_CHECK_MODE" > functions/.env.lmb-test-shop
+
+      # Links in emails (order tracking, unsubscribe, admin order links…) use SITE_URL: the repository variable once the
+      # shop has its own domain, else the code default in functions/index.js (Firebase Hosting).
+      - name: Shop address for email links
+        env:
+          CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          set -euo pipefail
+          # Hosts are case-insensitive; "Lyricalmyricalbooks.com" means lyricalmyricalbooks.com.
+          CUSTOM_SITE_URL="$(printf '%s' "$CUSTOM_SITE_URL" | tr '[:upper:]' '[:lower:]')"
+          url="${CUSTOM_SITE_URL%/}"
+          if [ -n "$url" ]; then
+            # Format, never GitHub Pages, and allowed by ALLOWED_ORIGINS (scripts/siteAddressCheck.mjs).
+            node scripts/siteAddressCheck.mjs "$url"
+            printf 'SITE_URL=%s\n' "$url" >> functions/.env.lmb-test-shop
+          else
+            url=$(node -e 'const s=require("fs").readFileSync("functions/index.js","utf8"); process.stdout.write(s.match(/SITE_URL \|\| "(https:\/\/[^"]+)"/)[1])')
+          fi
+          echo "SHOP_URL=$url" >> "$GITHUB_ENV"
+          echo "Email links will open $url"
+
+      # Never send customers to an address that isn't serving the shop (e.g. this change merged before Firebase Hosting
+      # was set up): the live site must answer with its published-content marker.
+      - name: Check the shop's address answers
+        if: ${{ !inputs.skip_site_check }}
+        run: |
+          marker=$(curl -fsS --max-time 30 "$SHOP_URL/seo-published-fingerprint.txt?check=$(date +%s)" || true)
+          if ! printf '%s' "$marker" | grep -Eq '^[a-f0-9]{64}$'; then
+            echo "::error::$SHOP_URL isn't serving the shop yet, so emails would link to a dead address. Publish the storefront there first (docs/FIREBASE_HOSTING.md), then re-run; or run this workflow by hand with skip_site_check during a hosting outage."
+            exit 1
+          fi
+
+      - name: Keep old function images from piling up (best effort)
+        # Without `--force` a non-interactive deploy exits non-zero when the Artifact Registry repository has no
+        # cleanup policy ("Functions successfully deployed but could not set up cleanup policy"). Set that one
+        # policy here with the narrow command instead of putting `--force` on the whole deploy. Needs the CI
+        # account to hold artifactregistry.repositories.update; if it cannot, run the same command once by hand.
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          [ -n "$FIREBASE_SERVICE_ACCOUNT" ] || exit 0
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" functions:artifacts:setpolicy \
+            --project lmb-test-shop --location us-central1 --days 3 --force --non-interactive
+
+      - name: Deploy to Firebase
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT secret is not set — backend NOT deployed. Add it in repo Settings → Secrets and actions."
+            exit 1
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          # No `--force`: it also deletes, unasked, indexes created in the console and functions missing from the
+          # repo. Without it the CLI keeps them and says what it left (delete deliberately with
+          # `firebase functions:delete` / by editing firestore.indexes.json).
+          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy \
+            --only firestore:rules,firestore:indexes,storage,functions \
+            --project lmb-test-shop \
+            --non-interactive

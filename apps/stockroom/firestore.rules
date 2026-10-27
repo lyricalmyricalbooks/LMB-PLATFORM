@@ -1,0 +1,217 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Publisher account — full read/write everywhere.
+    //
+    // email_verified as well as the address: the address alone only proves
+    // what the sign-in provider was TOLD, and a provider that doesn't verify
+    // addresses (were one ever enabled on this project) would let anyone claim
+    // this one. Google sign-in always verifies a Gmail address, so the
+    // publisher's own sign-in is unaffected.
+    function isPublisher() {
+      return request.auth != null
+        && request.auth.token.email == 'lyricalmyricalbooks@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    // Author→book ownership comes from the rules-readable map at
+    // settings/bookOwners ({ bookId: authorEmailLower }), maintained by the
+    // publisher client. The catalog itself is a stringified blob these rules
+    // can't parse, hence this companion map. A missing map or entry means the
+    // caller is not an author for that book, so write is denied.
+    function bookOwnerEmail(bookId) {
+      return exists(/databases/$(database)/documents/settings/bookOwners)
+        ? get(/databases/$(database)/documents/settings/bookOwners).data.get(bookId, '')
+        : '';
+    }
+    function isBookAuthor(bookId) {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() == bookOwnerEmail(bookId);
+    }
+
+    // Any actual author: the caller's lowercased address (dots swapped for
+    // commas, because Realtime Database keys cannot contain dots and both
+    // stores share one encoding) is a key in settings/bookOwners.authorEmails,
+    // written by the publisher client alongside the bookId map. A bare Google
+    // account that is not an author is NOT one, so it reads no settings.
+    function isAnyAuthor() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/settings/bookOwners)
+        && request.auth.token.email.lower().replace('\\.', ',')
+           in get(/databases/$(database)/documents/settings/bookOwners).data.get('authorEmails', {});
+    }
+
+    // Per-book data — readable ONLY by the publisher and the book's own author.
+    // A signed-in author must not be able to read another author's sales
+    // history, ledger, customers or payouts: authors are peers, not staff.
+    // The client already loads a single book in author mode (boot() →
+    // loadBook(ACTIVE_BOOK_FORCED)), so this matches what the app actually
+    // requests — it just stops the request working for anyone else.
+    // Publisher writes any part; the owning author may write the parts their
+    // consignment actions actually touch in one batch: confirmSale/
+    // confirmReturn/bulk-send in main.js update `stores` (outstanding/sold/
+    // amountOwed), `ledger` (the transaction row), `hist` (the order-history
+    // mirror) and `metadata` (book-level stock/sold/revenue/chStats) together.
+    // _fbSave commits all dirty parts as a single writeBatch, and Firestore
+    // rejects the WHOLE batch if any one document write is denied — so
+    // omitting any of these four here doesn't just block that field, it
+    // silently fails every consignment sale/return/shipment an author
+    // records (saveState treats permission-denied as retryable and queues it
+    // forever). Keep this list in sync with what those functions dirty.
+    match /books/{bookId} {
+      allow read: if isPublisher() || isBookAuthor(bookId);
+      allow write: if isPublisher();
+
+      match /data/{part} {
+        allow read: if isPublisher() || isBookAuthor(bookId);
+        allow write: if isPublisher()
+          || (isBookAuthor(bookId)
+              && (part == 'stores' || part == 'ledger' || part == 'hist' || part == 'metadata'));
+      }
+    }
+
+    // Author submissions — publisher reads/writes all; an author may only read
+    // and write submissions for their own book.
+    match /submissions/{bookId}/{type}/{subId} {
+      allow read, write: if isPublisher() || isBookAuthor(bookId);
+    }
+
+    // The ONLY settings documents a non-publisher may read — the ones an author
+    // session actually loads to render its own book:
+    //   modeFlags              which database each book lives in (_fbLoadModeFlags)
+    //   notifyEndpoint         where an author's submission sends the approval email
+    //   analyticsConfig        the web-analytics share link (loaded at sign-in)
+    //   catalog                book list, prices, author emails (loadCatalog)
+    //   paymentLinks           per-book payment links (syncCatalog / boot)
+    //   productionCosts        per-book costs the earnings tiers are built on
+    //   websitePaymentMethods  accepted payment methods per book
+    //
+    // This is an allowlist on purpose. It used to be a denylist of four secret
+    // docs, which meant every settings doc added since — the mailing list, the
+    // unsubscribe list, email campaigns, open-call contributors with their
+    // emails and notes — was readable by ANY signed-in Google account, author
+    // or not. A new settings doc is now publisher-only until someone decides
+    // otherwise here, so forgetting to update this list fails closed.
+    //
+    // Keep in step with the "$key" read rule under lyrical/settings in
+    // database.rules.json (tests/security-rules.test.js checks the two agree).
+    function isAuthorReadableSetting(name) {
+      return name in ['modeFlags', 'notifyEndpoint', 'analyticsConfig', 'catalog',
+                      'paymentLinks', 'productionCosts', 'websitePaymentMethods'];
+    }
+
+    // Global settings — only the publisher writes anything; everyone else reads
+    // just the allowlisted docs above.
+    match /settings/{document} {
+      allow read: if isPublisher()
+        || (isAnyAuthor() && isAuthorReadableSetting(document));
+      allow write: if isPublisher();
+    }
+
+    // System backup snapshots — one doc per backup (keeps the settings manifest
+    // small and avoids the 1 MiB per-document limit). Publisher only.
+    match /backups/{id} {
+      allow read, write: if isPublisher();
+    }
+
+    // Client error reports — window.onerror / unhandledrejection captures from
+    // main.js. Append-only: any signed-in user may file one (an author hitting
+    // a broken screen is worth knowing about too), but only the publisher can
+    // read or clear them, since a stack trace can name internal functions and
+    // the reporter's own email.
+    //
+    // Never updatable, and each row is size-capped so the collection can't be
+    // used as free storage. The client already caps itself at 25 reports per
+    // session and de-duplicates by signature; this is the backstop for a client
+    // that ignores those limits.
+    match /clientErrors/{id} {
+      allow read, delete: if isPublisher();
+      allow update: if false;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly([
+             'kind', 'message', 'stack', 'source', 'line',
+             'tab', 'role', 'book', 'online', 'build', 'ua', 'ts', 'email'
+           ])
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 500
+        && request.resource.data.stack.size() <= 2000
+        && request.resource.data.ua.size() <= 300;
+    }
+
+    // Email receipt inbox — draft expenses pushed by the Gmail add-on.
+    // The add-on writes via the owner's OAuth token (IAM, which bypasses these
+    // rules); the publisher client reads them live and deletes each one after
+    // importing it into the tax centre.
+    match /emailReceiptInbox/{document} {
+      allow read, write: if isPublisher();
+    }
+
+    // ── Website link (docs/website-link.md) ───────────────────────────────
+    // The shop's website writes these with the Admin SDK from its own Cloud
+    // Functions, which bypasses these rules; ownership of each field is by the
+    // contract. The rules below govern only the publisher's browser.
+
+    // Website orders inbox. The website owns `web`, `shipmentReply` and sets
+    // `pending`; the app may only record what it applied (`imported`), clear
+    // `pending`, and send a label (`app`). It never creates or deletes orders,
+    // and never rewrites the website's copy of one.
+    match /websiteOrders/{orderId} {
+      allow read: if isPublisher();
+      allow update: if isPublisher()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imported', 'pending', 'app'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['pending'])
+            || request.resource.data.pending == false);
+      allow create, delete: if false;
+    }
+
+    // The stock number the website follows, one document per inventory book.
+    // Written only by the publish transaction, from the server's saved books.
+    match /websiteStockFeed/{bookId} {
+      allow read: if isPublisher();
+      allow create, update: if isPublisher()
+        && request.resource.data.keys().hasOnly(['bookId', 'title', 'onHand', 'webCopies', 'base', 'derived', 'at', 'build'])
+        && request.resource.data.bookId == bookId
+        && request.resource.data.title is string
+        && request.resource.data.onHand is int && request.resource.data.onHand >= 0
+        && request.resource.data.webCopies is int && request.resource.data.webCopies >= 0
+        && request.resource.data.base is int
+        && request.resource.data.derived is bool
+        && request.resource.data.at is string
+        && request.resource.data.build is string;
+      allow delete: if isPublisher();
+    }
+
+    // todo = { at, items: [≤ 10] }.
+    function appTodoOk(data) {
+      return !('todo' in data)
+        || (data.todo is map
+            && data.todo.keys().hasOnly(['at', 'items'])
+            && (!('at' in data.todo) || data.todo.at is string)
+            && (!('items' in data.todo) || (data.todo.items is list && data.todo.items.size() <= 10)));
+    }
+
+    // linkRequests / dismissedShopBooks: maps of at most 300 website editions.
+    function linkMapOk(data, field) {
+      return !(field in data) || (data[field] is map && data[field].size() <= 300);
+    }
+
+    // websiteLink/website is the website's heartbeat and its to-do list, and
+    // websiteLink/catalog its books not in this app yet (both read-only here);
+    // websiteLink/app is this app's own status, its to-do list for the
+    // website, the books it asked the website to link and the ones the owner
+    // set aside ("One to-do list and new books" in docs/website-link.md).
+    match /websiteLink/{docId} {
+      allow read: if isPublisher();
+      allow create, update: if isPublisher() && docId == 'app'
+        && request.resource.data.keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks'])
+        && appTodoOk(request.resource.data)
+        && linkMapOk(request.resource.data, 'linkRequests')
+        && linkMapOk(request.resource.data, 'dismissedShopBooks');
+      allow delete: if false;
+    }
+  }
+}

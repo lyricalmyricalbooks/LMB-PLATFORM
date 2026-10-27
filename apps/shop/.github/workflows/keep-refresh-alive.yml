@@ -1,0 +1,37 @@
+name: Keep scheduled SEO refresh alive
+
+# deploy-pages.yml refreshes the prerendered storefront every 15 minutes from the published catalog. Shop content
+# is edited in Studio and the admin (Firestore), which is not repository activity, and GitHub disables scheduled
+# workflows in a public repository after 60 days without activity - silently, with no failed run.
+# Once a month this workflow asks GitHub to (re-)enable both scheduled workflows, which also restarts that
+# 60-day timer, and reports the state it found. It is itself scheduled, so it gets the same treatment.
+# See .github/CLAUDE.md > Deployment > "Scheduled refresh keep-alive".
+
+on:
+  schedule:
+    - cron: "41 5 3 * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Re-enable the scheduled workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          for workflow in deploy-pages.yml keep-refresh-alive.yml; do
+            state=$(gh api "repos/$REPO/actions/workflows/$workflow" --jq .state)
+            echo "$workflow was: $state"
+            if [ "$state" = "disabled_inactivity" ] || [ "$state" = "disabled_manually" ]; then
+              echo "::warning::$workflow was '$state' - the 15-minute refresh was not running. Re-enabling it."
+            fi
+            gh api -X PUT "repos/$REPO/actions/workflows/$workflow/enable"
+          done
