@@ -65,7 +65,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | 1.16 | shop | Shop name, wordmark and default words become theme and Text & labels defaults | Studio coverage checks | |
 | 1.17 | shop | Your one-offs become switches: legacy admin sign-in, Gmail receipt finder, GitHub Pages forwarding | tests | |
 | 1.18 | shop, stockroom | A check fails the build when a project id, email or "lyricalmyrical" is written in code outside `shops/` | the check itself | |
-| 1.19 | shop | Deploy workflow takes the project id as an input | workflow dry run | |
+| 1.19 | shop | Deploy workflow takes the project id as an input. Both `deploy-firebase.yml` and `deploy-pages.yml` have a `project` input (`workflow_dispatch`); a **Firebase project** step takes it, else the repository variable `FIREBASE_PROJECT_ID`, else the shop profile's `firebase.projectId`, and `scripts/deployProject.mjs` refuses a malformed id or any project other than the profile's (the pages built here call that one) before a key is used. Every `--project`, `functions/.env.<project>` and `GCLOUD_PROJECT` then uses `$FIREBASE_PROJECT`; neither workflow names `lmb-test-shop`. The input reaches the shell through `env`, never pasted into the script | workflow dry run (`scripts/deployProject.test.ts` runs each workflow's step script in bash with no input, the profile's project, another project and shell-breaking input) | open |
 
 ### 1E. Stockroom inside each shop's project
 

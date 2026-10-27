@@ -4,7 +4,12 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
 
 ## Deployment
 
-- **Frontend** → **Firebase Hosting** (`https://lmb-test-shop.web.app`, site at the root `/`) via
+- **Which project (plan 1.19).** Both deploy workflows name no project. A **Firebase project** step picks it: the
+  `project` input of a run started by hand, else the repository variable `FIREBASE_PROJECT_ID`, else the shop profile's
+  `firebase.projectId` (`public/shop-profile.js`). `scripts/deployProject.mjs` refuses a malformed id and any project
+  other than the profile's (the pages built here call that one), before a key is used, then sets `FIREBASE_PROJECT`;
+  every `--project`, `functions/.env.<project>` and `GCLOUD_PROJECT` uses it (`scripts/deployProject.test.ts`).
+- **Frontend** → **Firebase Hosting** (the profile's `https://<project>.web.app`, site at the root `/`) via
   `.github/workflows/deploy-pages.yml` (display name "Deploy storefront"; file name kept for `keep-refresh-alive.yml`) on push
   to `main` and every 15 minutes when published content changed. The cutover from GitHub Pages happened in October 2026
   (`docs/FIREBASE_HOSTING.md`). Jobs: `build-hosting` (no secrets; **Site address** step = repository variable `SITE_URL` or
@@ -37,7 +42,7 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
   hold the slot `"__SHOP_OWNER_EMAIL__"` (plan 1.14b), which `deployConfig.mjs` fills with the owner's address into
   `.deploy/` (git-ignored); unfilled, the owner address is locked out and only the Team owner role gets in. It never
   deploys Hosting. It appends `SITE_URL` (repository variable,
-  validated) and `SHOP_OWNER_EMAIL` to `functions/.env.lmb-test-shop` and, before deploying, checks that the email-link address answers with its
+  validated) and `SHOP_OWNER_EMAIL` to `functions/.env.<project>` and, before deploying, checks that the email-link address answers with its
   64-hex `seo-published-fingerprint.txt` (so emails never point at a dead address; manual runs can pass `skip_site_check`
   during a hosting outage).
 - **Firebase Hosting config** (`firebase.json` `hosting`): `cleanUrls` (prerendered `books/<slug>.html` answers at `/books/<slug>`),
