@@ -18,8 +18,9 @@ const folder = (url: string) => new URL(url).pathname.replace(/\/+$/, '') + '/';
 
 describe('one site address everywhere', () => {
   const viteBase = read('vite.config.ts').match(/SITE_BASE \?\? '([^']+)'/)?.[1];
-  const files = ['functions/index.js', 'vite.config.ts', 'scripts/generate-sitemap.mjs', 'scripts/prerender-storefront.mjs',
-    'scripts/check-published-change.mjs', 'scripts/carry-previous-assets.mjs', 'scripts/build-pages-redirect.mjs'];
+  const files = ['functions/index.js', 'vite.config.ts', 'scripts/carry-previous-assets.mjs', 'scripts/build-pages-redirect.mjs'];
+  // These read the address from the shop profile (scripts/shopProfile.mjs) instead of a default of their own.
+  const profileReaders = ['scripts/generate-sitemap.mjs', 'scripts/prerender-storefront.mjs', 'scripts/check-published-change.mjs'];
   const address = defaultUrl('functions/index.js');
 
   it('every SITE_URL default matches the Vite base', () => {
@@ -29,6 +30,11 @@ describe('one site address everywhere', () => {
 
   it('every SITE_URL default is the same address', () => {
     expect(new Set(files.map(defaultUrl)).size).toBe(1);
+  });
+
+  it('the shop profile holds that address, and the build scripts read it from there', () => {
+    expect(read('public/shop-profile.js')).toContain(`"siteUrl": "${address}"`);
+    for (const file of profileReaders) expect(read(file), file).toContain('await shopSiteUrl()');
   });
 
   it('the deploy workflows build for that address when no SITE_URL variable is set', () => {

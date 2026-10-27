@@ -5,9 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { sitemapArtifacts } from './sitemapData.mjs';
 import { readPublicStorefront, publishedFingerprint, effectivePublishedSettings } from './publicStorefrontData.mjs';
 import { llmsTxt } from './llmsTxt.mjs';
+import { shopSiteUrl } from './shopProfile.mjs';
 import { FEED_FILE, merchantFeedItems, merchantFeedXml } from '../src/app/features/site/merchantFeed.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
-const siteUrl = process.env.SITE_URL || 'https://lmb-test-shop.web.app';
+const siteUrl = await shopSiteUrl();
 const { books, pages, settings, reviews } = await readPublicStorefront();
 const indexed = sitemapArtifacts(siteUrl, books, pages, [], settings);
 // Keep noindex public listings crawlable so Google can read their robots tags.

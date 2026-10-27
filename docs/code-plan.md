@@ -30,8 +30,8 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
 | 1.1 | platform | Profile format `profile/shop-profile.schema.json` and Lyricalmyrical's profile as the example | schema test | done |
-| 1.0 | shop, stockroom | Copy both apps into `apps/`, every live project id and key replaced by a made-up test project, both test suites in CI | `apps-isolation.test.js`; CI green | open |
-| 1.2 | shop | `src/lib/shopProfile.ts` reads `/shop-profile.js` at page open; Firebase settings, project id, region and bot-check key come from it (built once on your website, then undone there; the copy in `apps/shop` has it) | unit tests | done |
+| 1.0 | shop, stockroom | Copy both apps into `apps/`, every live project id and key replaced by a made-up test project, both test suites in CI | `apps-isolation.test.js`; CI green | done |
+| 1.2 | shop | `src/lib/shopProfile.ts` reads `/shop-profile.js` at page open; Firebase settings, project id, region and bot-check key come from it (built once on your website, then undone there; the copy in `apps/shop` has it). The build scripts (sitemap, catalog file, publish check, prerender) read the same file | unit tests | done |
 | 1.3 | stockroom | `src/lib/shop-profile.js` reads the same file; `src/firebase.js` uses it; the `lyrical` data folder name kept in one constant | unit tests | |
 | 1.4 | shop | Server side: `functions/shopConfig.js` reads owner, sender, site address and plan from a server-only settings document, today's values as fallback; `index.js` stops naming them | function tests | |
 | 1.5 | shop, stockroom | A copy check: each app's copy of the profile format matches the platform's | test in each repo | |

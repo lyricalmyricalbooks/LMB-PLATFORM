@@ -44,3 +44,18 @@ test("no app copy has a default Firebase project", () => {
   const found = [...files("apps")].filter((path) => path.endsWith(".firebaserc"));
   assert.deepEqual(found, []);
 });
+
+// Nothing here may publish a site: no custom-domain file (GitHub Pages would claim that address) and no workflow in
+// the root folder, the only one GitHub runs, that deploys.
+test("no app copy claims a web address", () => {
+  const found = [...files("apps")].filter((path) => path.endsWith("/CNAME"));
+  assert.deepEqual(found, []);
+});
+
+test("no workflow deploys anything", () => {
+  const dir = ".github/workflows";
+  const deploys = readdirSync(dir).filter((name) =>
+    /firebase\s+deploy|deploy-pages|FirebaseExtended\/action-hosting-deploy|peaceiris\/actions-gh-pages/i.test(readFileSync(join(dir, name), "utf8")),
+  );
+  assert.deepEqual(deploys, []);
+});
