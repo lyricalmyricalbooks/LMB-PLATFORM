@@ -568,6 +568,14 @@ pages as drafts through `adminApi.createPage`, skipping any slug already in use,
 preset card shows "Comes with: …" (`data-preset-content`). `themeLibrary.test.ts` treats `content` as preset metadata, not
 design keys.
 
+**The theme check (27 October 2026, plan 1.24).** `studio/themeCheck.ts` `themeProblems(theme)` lists everything a
+theme sets that Studio can't edit afterwards: top-level keys outside metadata / `THEME_APPLIED_KEYS`, `global` keys
+without a Theme settings control (`copy` words must be Text & labels keys, `elementSchemes` parts need their scheme
+control), unknown palettes or home layouts, sections Studio can't add, section settings that aren't the section's own
+fields, block list or Style/Layout/Visibility fields, and unknown starter pages. `themeCheck.test.ts` runs it on every
+`THEME_LIBRARY` entry, so a new theme file fails CI until it passes. It found the hero's `height` (read by
+`HeroSection`, set by the Punk home layout) with no control; Hero Banner now has **Height**.
+
 ## Studio organization
 
 Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages

@@ -1351,6 +1351,19 @@ await check("a ready-made look offers its layout and starter pages after the loo
   await frame.locator("[data-section]").first().waitFor({ timeout: 10000 });
 });
 
+await check("the hero's Height control (found by the theme check) changes the hero in the preview", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Hero Banner/ }).first().click();
+  const height = page.getByLabel("Height", { exact: true });
+  await height.waitFor({ timeout: 5000 });
+  if (await height.inputValue() !== "") throw new Error("Height doesn't start at Full screen");
+  const preview = page.frames().find(f => /preview=true/.test(f.url()));
+  await preview.waitForSelector("section.h-screen", { timeout: 10000 });
+  await height.selectOption("small");
+  await preview.waitForSelector("section.min-h-\\[320px\\]", { timeout: 10000 });
+});
+
 await check("Schedule publishing saves a campaign in Toronto time and lists it, from the Publish dialog", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();
