@@ -31,7 +31,7 @@ export const REQUIRED_PLACEHOLDERS: Partial<Record<TemplateId, Record<string, st
 
 const SAMPLE: Record<string, string> = {
   book_titles: "Visions of Toronto", customer_name: "Julianne Smith", order_id: "LM-98241", tracking_carrier: "Canada Post", tracking_number: "123456789012",
-  total_price: "CA$45.00", payment_method: "Interac e-Transfer", email: "julianne.smith@gmail.com", status: "out for delivery",
+  total_price: "CA$45.00", payment_method: "Interac e-Transfer", email: "julianne@reader.example", status: "out for delivery",
   tracking_url: "#", cart_url: "#", order_url: "#", shipping_method: "Canada Post Expedited Parcel",
   delivery_estimate: "2-4 business days after dispatch", recipient_name: "Sam", sender_name: "Julianne", amount: "CA$50.00",
   code: "ABCD-EFGH-JKMN-PQRS", expires: "It never expires.", shop_url: "#", items_table: "",
