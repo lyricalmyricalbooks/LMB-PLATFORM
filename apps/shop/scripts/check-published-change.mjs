@@ -1,8 +1,9 @@
-import { appendFile, readFile } from 'node:fs/promises';
+import { appendFile } from 'node:fs/promises';
+import { shopProjectId, shopSiteUrl } from './shopProfile.mjs';
 import { readPublicStorefront, publishedFingerprint } from './publicStorefrontData.mjs';
 import { isFingerprint } from './assetManifest.mjs';
 import { STOREFRONT_DATA_FILE, markerNewerThanFile, readShippingProfiles, shippingProfilesDiffer } from './storefrontDataFile.mjs';
-const siteUrl = (process.env.SITE_URL || 'https://lmb-test-shop.web.app').replace(/\/$/, '');
+const siteUrl = await shopSiteUrl();
 const fingerprint = publishedFingerprint(await readPublicStorefront());
 let previous = '';
 try {
@@ -15,8 +16,7 @@ let changed = fingerprint !== previous;
 // changes nothing published still marks it out of date, so rebuild then too, or shoppers keep reading Firestore.
 if (!changed) {
   try {
-    const config = await readFile(new URL('../src/lib/firebaseApp.ts', import.meta.url), 'utf8');
-    const project = config.match(/projectId:\s*"([^"]+)"/)?.[1];
+    const project = await shopProjectId();
     const [fileResponse, markerResponse] = await Promise.all([
       fetch(`${siteUrl}/${STOREFRONT_DATA_FILE}?check=${Date.now()}`, { signal: AbortSignal.timeout(30000), cache: 'no-store' }),
       fetch(`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/settings/catalogVersion`, { signal: AbortSignal.timeout(30000) }),

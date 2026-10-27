@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { shopProjectId } from './shopProfile.mjs';
 import { saleActive, preorderDate } from '../src/app/features/site/merchantFeed.mjs';
 
 export function decodeValue(value = {}) {
@@ -15,9 +15,7 @@ async function publicRead(url) {
   return response.json();
 }
 export async function readPublicStorefront() {
-  const config = await readFile(new URL('../src/lib/firebaseApp.ts', import.meta.url), 'utf8');
-  const project = config.match(/projectId:\s*"([^"]+)"/)?.[1];
-  if (!project) throw new Error('Firebase project ID missing');
+  const project = await shopProjectId();
   const endpoint = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/`;
   const [books, pages, settings, reviews] = await Promise.all([readPublishedBooks(endpoint), readPublishedPages(endpoint), publicRead(endpoint + 'settings/website').then(decodeDocument), readApprovedReviews(endpoint)]);
   return { books, pages, settings, reviews };
