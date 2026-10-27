@@ -15,6 +15,9 @@
 //   SHOP_PAYMENT_PROVIDER which card payment provider the shop uses (functions/payments lists them; only "stripe" so
 //                        far). Unset or empty means "stripe". Any other name stops the functions from loading
 //                        (paymentProviderOf): a shop must never take payments through a provider it didn't choose
+//   SHOP_TEST_SHOP       "true" only on the platform's own test shop (docs/test-shop.md): its sandbox checkouts hold
+//                        stock like live ones, so the release check covers the hold. Anything else, or unset, is a
+//                        normal shop. Set by the platform, never by the shop owner
 
 const { PROVIDER_NAMES, DEFAULT_PROVIDER } = require("./payments");
 
@@ -26,6 +29,7 @@ const PLACEHOLDER = Object.freeze({
   extraOrigins: Object.freeze(["https://yourpress.github.io", "https://yourpress.example", "https://www.yourpress.example"]),
   project: "lmb-test-shop",
   paymentProvider: DEFAULT_PROVIDER,
+  testShop: false,
 });
 
 const EMAIL = /^[^\s@,<>"]+@[^\s@,<>"]+\.[^\s@,<>"]+$/;
@@ -68,6 +72,7 @@ function readShopConfig(env = {}) {
     siteUrl,
     siteHost: host.replace(/^www\./, ""),
     paymentProvider: paymentProviderOf(env.SHOP_PAYMENT_PROVIDER),
+    testShop: text(env.SHOP_TEST_SHOP).toLowerCase() === "true",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
   });
 }

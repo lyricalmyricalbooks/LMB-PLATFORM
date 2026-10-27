@@ -221,6 +221,10 @@ ignored. Dismiss hides one for the browser session until a new order joins it.
 - **Sandbox payments** (`session.livemode === false` / `stripeMode: "test"`, PayPal `paypalMode: "test"`) mark the
   order `isTest: true, sandboxPayment: true` and never touch stock, discount usage or revenue — on payment or refund
   (`functions/sandboxPayment.test.js`). `onOrderUpdated` still emails sandbox orders so the rehearsal covers email.
+  A sandbox checkout holds no stock, except on the platform's test shop (`SHOP_TEST_SHOP="true"` →
+  `shopConfig.testShop`, plan 1.31, `docs/test-shop.md` in the platform repo): there it holds stock like a live
+  checkout (same limits and sold-out answer), still without gift-card holds, and payment still takes no stock
+  (`functions/testShopHolds.test.js`).
 - **Stripe keys:** `SecretField` passes every edit up (clearing cancels), refuses wrong-slot keys
   (`stripeSecretKeyProblem`), and offers **Remove stored key** (`adminApi.removeStripeSecretKey`). Saves return
   true/false (`Dashboard.saveSection`), and saved secrets are scrubbed from screen state (`scrubSavedSecrets`).

@@ -92,7 +92,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | 1.28 | platform | `setup/` step runner: numbered steps, check-before-act, logged, resumes after a failure, dry-run mode | runner tests with fake steps | done |
 | 1.29 | platform | Steps 1–6 (registry, project, Firebase, services, database, web app and profile) using Google's APIs | dry run against the test shop | done |
 | 1.30 | platform | Steps 7–15 (rules, functions, pages, backup, private storage check, starter content, payments, email, shop check). The payments step takes the press's provider: Stripe built, Square planned (2.2b). A per-shop lock stops two runs overlapping. Open point: the shop copy's functions don't set a region yet (Firebase's default `us-central1`, and `us-central1` in its webhook and download links), so the step's `northamerica-northeast1` only takes effect once `apps/shop` reads it | dry run of all 15 steps; step and lock tests with fakes | done |
-| 1.31 | shop | Sandbox checkouts hold stock on shops the platform marks as test shops | checkout tests | |
+| 1.31 | shop | Sandbox checkouts hold stock on shops the platform marks as test shops (`SHOP_TEST_SHOP="true"` in the shop's functions env). Holds only: a sandbox payment still takes no stock and a refund puts none back, and setup doesn't write the flag yet | checkout tests | done |
 | 1.32 | platform | Create `platform-test` with the script; the release check (test card purchase, stock drop, email, refund) | the check passes | |
 
 ## Phase 2: the platform
