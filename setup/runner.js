@@ -131,12 +131,14 @@ async function runLocked({ shop, steps, registry, auditLog, dryRun, print, now, 
 
     const startedAt = now().toISOString();
     let status;
+    let detail;
     try {
       if (await step.check(ctx)) {
         status = "already-done";
       } else {
         print(`${label}: running`);
-        await step.act(ctx);
+        // A step may say what it wrote ({ detail }); it goes into the registry and audit log with the step's entry.
+        detail = (await step.act(ctx))?.detail;
         if (!(await step.check(ctx))) throw new Error("the step finished but its check still says it isn't done");
         status = "done";
       }
@@ -149,7 +151,10 @@ async function runLocked({ shop, steps, registry, auditLog, dryRun, print, now, 
     }
 
     // The registry only knows "done": whether the step acted this time is kept in the audit detail.
-    await record({ step: step.number, name: step.name, status: "done", acted: status === "done", startedAt, finishedAt: now().toISOString() });
+    await record({
+      step: step.number, name: step.name, status: "done", acted: status === "done", startedAt, finishedAt: now().toISOString(),
+      ...(detail === undefined ? {} : { detail }),
+    });
     print(`${label}: ${status === "done" ? "done" : "already done"}`);
     ran.push({ step: step.number, name: step.name, status });
   }
