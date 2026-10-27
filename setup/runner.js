@@ -10,6 +10,14 @@
 // records as done are not run again. Nothing here ever deletes a project: a failed step is retried, never undone.
 //
 // The registry and audit log are passed in (see fakes.js for their shape), so tests and dry runs never touch Google.
+//
+// One run per shop at a time: a real run takes the shop's lock in the registry before its first step, renews it before
+// each step and gives it back at the end. A second run on the same shop stops at once and changes nothing. A lock left
+// by a run that crashed lapses after `lockMinutes`; the next run then takes it over, which is safe because every step
+// checks before it acts. Dry runs take no lock (they write nothing) but say when a real run would be turned away.
+import { randomUUID } from "node:crypto";
+
+export const LOCK_MINUTES = 60;
 
 /** Checks a list of steps: numbered 1, 2, 3… with no gaps or repeats, each with a name, check and act. */
 export function stepProblems(steps) {
@@ -33,12 +41,35 @@ export function stepProblems(steps) {
  * - `already-done`: its check passed before it acted, so it did nothing.
  * - `done-before`: the registry records it as done in an earlier run, so it was not run again.
  * - `failed`: its check, its act, or the check after acting failed. The run stops here.
- * Dry runs use `would-run` instead of acting and write nothing.
+ * Dry runs use `would-run` instead of acting and write nothing. `locked: true` means another run held the shop, so this
+ * one stopped without acting or recording anything.
  */
-export async function runSteps({ shop, steps, registry, auditLog, dryRun = false, print = () => {}, now = () => new Date() }) {
+export async function runSteps({ shop, steps, registry, auditLog, dryRun = false, print = () => {}, now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES }) {
   const problems = stepProblems(steps);
   if (problems.length) throw new Error(`The setup steps have problems: ${problems.join("; ")}`);
   if (!shop?.shopId) throw new Error("The shop has no shopId");
+  const { shopId } = shop;
+
+  const lockFor = () => ({ runId, takenAt: now().toISOString(), expiresAt: new Date(now().getTime() + lockMinutes * 60_000).toISOString() });
+  if (dryRun) {
+    const held = await registry.readLock(shopId);
+    if (held && held.expiresAt > now().toISOString()) print(`Another run is working on ${shopId} until ${held.expiresAt}; a real run would be turned away.`);
+    return runLocked({ shop, steps, registry, auditLog, dryRun, print, now, renew: async () => true });
+  }
+  const lock = await registry.takeLock(shopId, lockFor());
+  if (!lock.taken) {
+    const error = `another run is working on ${shopId} until ${lock.expiresAt}; nothing was changed`;
+    print(`Stopped: ${error}.`);
+    return { ok: false, ran: [], locked: true, error };
+  }
+  try {
+    return await runLocked({ shop, steps, registry, auditLog, dryRun, print, now, renew: async () => (await registry.takeLock(shopId, lockFor())).taken });
+  } finally {
+    await registry.releaseLock(shopId, runId);
+  }
+}
+
+async function runLocked({ shop, steps, registry, auditLog, dryRun, print, now, renew }) {
   const { shopId } = shop;
 
   const history = [...((await registry.readSteps(shopId)) ?? [])];
@@ -88,6 +119,14 @@ export async function runSteps({ shop, steps, registry, auditLog, dryRun = false
       print(`${label}: ${status === "already-done" ? "already done, would skip" : "would run"}`);
       ran.push({ step: step.number, name: step.name, status });
       continue;
+    }
+
+    // Renewing the lock also proves no other run took it over (only possible after it lapsed). If one did, stop at
+    // once and write nothing: the other run owns the shop now.
+    if (!(await renew())) {
+      const error = `another run took over ${shopId} before step ${step.number}; stopped without changing anything more`;
+      print(`Stopped: ${error}.`);
+      return { ok: false, ran, locked: true, error };
     }
 
     const startedAt = now().toISOString();

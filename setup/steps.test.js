@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import vm from "node:vm";
 import { latestByStep, runSteps, stepProblems } from "./runner.js";
 import { REGION, SERVICES, firstSteps, projectDisplayName, shopProblems, shopProfile } from "./steps.js";
-import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry } from "./fakes.js";
+import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "./fakes.js";
 import { TEST_CONFIG, TEST_SHOP } from "./test-shop.js";
 import { dryRun } from "./dry-run.js";
 import { profileProblems } from "../profile/profile.js";
@@ -144,18 +144,20 @@ test("a profile that drifted from the web app is written again", async () => {
   assert.deepEqual(await registry.getProfile("lmb-test-shop"), profile);
 });
 
-test("the dry run for the test shop prints all six steps and changes nothing", async () => {
+test("the dry run for the test shop prints all fifteen steps and changes nothing", async () => {
   const google = fakeGoogle();
+  const services = fakeServices();
   const registry = fakeRegistry();
   const profileFiles = fakeProfileFiles();
   const lines = [];
-  const result = await dryRun({ google, registry, profileFiles, print: (line) => lines.push(line) });
+  const result = await dryRun({ google, services, registry, profileFiles, print: (line) => lines.push(line) });
   assert.equal(result.ok, true);
-  assert.equal(lines.length, 7);
+  assert.equal(lines.length, 16);
   assert.match(lines[0], /Dry run for lmb-test-shop/);
-  assert.deepEqual(result.ran.map((r) => r.status), Array(6).fill("would-run"));
+  assert.deepEqual(result.ran.map((r) => r.status), Array(15).fill("would-run"));
   assert.deepEqual(google.calls, []);
-  assert.equal(registry.shops.size + registry.profiles.size + profileFiles.files.size, 0);
+  assert.deepEqual(services.calls, []);
+  assert.equal(registry.shops.size + registry.profiles.size + registry.locks.size + profileFiles.files.size, 0);
 });
 
 test("bad sign-up details are refused before Google is asked anything", async () => {

@@ -18,6 +18,7 @@
 // /shop-profile.js that Hosting serves (read(shopId) -> text | null, write(shopId, text)).
 import { isDeepStrictEqual } from "node:util";
 import { profileProblems, profileScript } from "../profile/profile.js";
+import { paymentProblems } from "./payments.js";
 
 export const REGION = "northamerica-northeast1";
 export const WEB_APP_NAME = "Shop";
@@ -45,7 +46,7 @@ export const SERVICES = [
   "firebaserules.googleapis.com",
 ];
 
-const PLANS = { shop: { shop: true, stockroom: false }, stockroom: { shop: false, stockroom: true }, both: { shop: true, stockroom: true } };
+export const PLANS = { shop: { shop: true, stockroom: false }, stockroom: { shop: false, stockroom: true }, both: { shop: true, stockroom: true } };
 
 /** Problems with the sign-up details, in plain words. The shop id is also its Google Cloud project id. */
 export function shopProblems(shop) {
@@ -59,6 +60,8 @@ export function shopProblems(shop) {
   if (!(shop.plan in PLANS)) problems.push("the plan must be shop, stockroom or both");
   if (typeof shop.country !== "string" || !/^[A-Z]{2}$/.test(shop.country)) problems.push("the country must be a two-letter code like CA");
   if (typeof shop.currency !== "string" || !/^[A-Z]{3}$/.test(shop.currency)) problems.push("the currency must be a three-letter code like CAD");
+  if ("testMode" in shop && typeof shop.testMode !== "boolean") problems.push("test mode must be true or false");
+  problems.push(...paymentProblems(shop));
   return problems;
 }
 
