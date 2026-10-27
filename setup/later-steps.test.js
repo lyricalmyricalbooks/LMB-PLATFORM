@@ -79,13 +79,38 @@ test("the env file is what the shop's server code reads", () => {
     const [, key, value] = line.match(/^([A-Z_]+)="(.*)"$/);
     return [key, value];
   }));
-  assert.deepEqual(Object.keys(env), ["SHOP_OWNER_EMAIL", "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS"]);
+  assert.deepEqual(Object.keys(env), ["SHOP_OWNER_EMAIL", "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER", "SHOP_FUNCTIONS_REGION"]);
   const config = readShopConfig({ ...env, GCLOUD_PROJECT: ID });
   assert.equal(config.ownerEmail, "owner@example.com");
   assert.equal(config.senderName, "Moth Night Press and Co");
   assert.equal(config.senderEmail, "shops@example.com");
   assert.equal(config.siteUrl, `https://${ID}.web.app`);
   assert.ok(!config.allowedOrigins.some((origin) => origin.includes("yourpress")), "no placeholder addresses");
+  assert.equal(config.paymentProvider, "stripe");
+  assert.equal(env.SHOP_FUNCTIONS_REGION, "northamerica-northeast1");
+});
+
+const envOf = (text) => Object.fromEntries(text.trim().split("\n").map((line) => line.match(/^([A-Z_]+)="(.*)"$/).slice(1)));
+
+test("the env file names the press's chosen payment provider, and the shop refuses one it hasn't built", () => {
+  assert.equal(envOf(envFileText({ ...TEST_SHOP, paymentProvider: undefined }, TEST_CONFIG)).SHOP_PAYMENT_PROVIDER, "stripe");
+  assert.equal(envOf(envFileText({ ...TEST_SHOP, paymentProvider: "stripe" }, TEST_CONFIG)).SHOP_PAYMENT_PROVIDER, "stripe");
+  // Square passes the platform's list of providers but isn't built into the shop yet: the shop's server must refuse it
+  // when it reads the file, so the deploy stops before any shopper reaches checkout.
+  const square = envOf(envFileText({ ...TEST_SHOP, paymentProvider: "square" }, TEST_CONFIG));
+  assert.equal(square.SHOP_PAYMENT_PROVIDER, "square");
+  assert.throws(() => readShopConfig({ ...square, GCLOUD_PROJECT: ID }), /SHOP_PAYMENT_PROVIDER is "square", which this shop can't use yet/);
+});
+
+test("the env file names the region step 8 deploys the server code to", async () => {
+  assert.equal(envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, region: "europe-west1" })).SHOP_FUNCTIONS_REGION, "europe-west1");
+  const { services, run } = setup();
+  const result = await run();
+  assert.equal(result.ok, true, result.error);
+  const written = envOf(services.world.envFiles.get(ID));
+  const [deployed] = called(services, "deploy.functions");
+  assert.equal(written.SHOP_FUNCTIONS_REGION, "northamerica-northeast1");
+  assert.ok(deployed.includes(written.SHOP_FUNCTIONS_REGION), "the file and the deploy name the same region");
 });
 
 test("server code already in another region stops the run and is left alone", async () => {

@@ -38,7 +38,7 @@ the first presses; Phase 2 runs the same code from sign-up. Write the code once,
 | 5 | Create the Firestore database (region from country) and the Storage bucket | database exists | database and bucket exist |
 | 6 | Create the web app; write the shop profile (Firebase config, site address, bot-check key) to the registry and to a per-shop file Hosting serves | profile matches | shop can read its profile at page open |
 | 7 | Deploy security rules and indexes for the shop (and the stockroom when the plan includes it) | deployed version = release version | rules live |
-| 8 | Write the shop's server details to `functions/.env.<project id>` (`SHOP_OWNER_EMAIL`, `SHOP_SENDER_NAME`, `SHOP_SENDER_EMAIL`, `SHOP_SITE_URL`, `SHOP_EXTRA_ORIGINS`, even empty; read by `functions/shopConfig.js`), then deploy the shop's server code from the current release | deployed version = release version | functions live |
+| 8 | Write the shop's server details to `functions/.env.<project id>` (`SHOP_OWNER_EMAIL`, `SHOP_SENDER_NAME`, `SHOP_SENDER_EMAIL`, `SHOP_SITE_URL`, `SHOP_EXTRA_ORIGINS` even empty, `SHOP_PAYMENT_PROVIDER` from the press's choice, `SHOP_FUNCTIONS_REGION`; read by `functions/shopConfig.js`, which refuses a provider it hasn't built), then deploy the shop's server code from the current release | deployed version = release version | functions live |
 | 9 | Deploy the shop and stockroom pages from the current release | deployed version = release version | site answers on its Firebase address |
 | 10 | Grant the nightly backup its permission and run one backup | backup permission present | a backup file exists |
 | 11 | Check storage is private: an unsigned read of a test file is refused | a recent pass recorded | refused as expected |
