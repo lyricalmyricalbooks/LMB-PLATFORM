@@ -14,6 +14,7 @@ export const catKey = (cat: any, index: number) => `cat:${(typeof cat === "objec
 export const pageKey = (page: any) => `page:${page.id || page.slug}`;
 
 import { catName, categoryNames, normalizeCategories, parentOf, childCategories, bookInCategory } from "./categoryMembership.mjs";
+import { headerLayout } from "./headerLayout";
 export { catName, categoryNames, normalizeCategories, parentOf, childCategories, bookInCategory };
 const catId = (cat: any, index: number) => (typeof cat === "object" && cat?.id) || `cat-${index}`;
 
@@ -76,8 +77,11 @@ export function splitNavigation(items: NavItem[], design: any): { primary: NavIt
   return { primary: items.filter(item => !isSecondary(item)), secondary: items.filter(isSecondary) };
 }
 
-/** The default ("Reference") shop header: every layout except Studio › Catalog layout (advanced) › Layout = Modern. */
-export const usesReferenceHeader = (design: any) => design?.catalogLayoutStyle !== "modern";
+/**
+ * Whether the shop header draws its classic ("Reference") masthead: Header & announcement bar › Header layout, or, when
+ * that is left empty, every shop page layout except Modern (headerLayout.ts).
+ */
+export const usesReferenceHeader = (design: any) => headerLayout(design) === "classic";
 
 /** How many categories the Reference header's bar shows — Catalog layout (advanced) › "Max categories in the nav". */
 export const referenceCategoryLimit = (design: any) => Math.max(1, Math.min(12, Number(design?.referenceCategoryLimit ?? 1) || 1));

@@ -4,6 +4,7 @@ import { STATIC_SURFACES, writeDesignValue } from "../../features/site/designMod
 // shared SectionFieldEditor. Keys may be dotted paths (e.g. "social.instagram").
 
 import { FONT_SELECT_OPTIONS } from "../../features/site/fonts";
+import { HEADER_LAYOUT_OPTIONS } from "../../features/site/headerLayout";
 import { PHOTO_OUTLINE_OPTIONS, PHOTO_RATIO_OPTIONS } from "../../features/site/photoShapes";
 import { REGION_GROUPS, REGION_DEVICES, REGION_DEVICE_LABELS, REGION_SUFFIXES, regionKey, regionFieldDevice, type RegionDevice } from "../../features/site/storefrontRegions";
 import { ELEMENT_SCHEME_TARGETS } from "../../features/site/colorSchemes";
@@ -305,6 +306,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
     id: "header",
     title: "Header & announcement bar",
     fields: [
+      { key: "headerLayout", label: "Header layout on the shop pages (Classic = big masthead over a ruled category bar; Modern = logo, links and bag in one bar; empty = follows Shop page masthead & covers › Layout)", kind: "select", defaultValue: "", options: HEADER_LAYOUT_OPTIONS },
       { key: "headerStyle", label: "Header see-through amount (only while Header background colour is empty: full = nearly solid)", kind: "select", options: opts("minimal", "centered", "full") },
       { key: "showSecondaryNavigation", label: "Show publisher navigation row", kind: "toggle", defaultValue: true },
       { key: "logoPosition", label: "Logo alignment", kind: "select", options: opts("left", "center", "right") },
@@ -497,7 +499,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
     title: "Shop page masthead & covers",
     hint: "Masthead, grid and image details of the shop page.",
     fields: [
-      { key: "catalogLayoutStyle", label: "Layout", kind: "select", defaultValue: "reference", options: [{ value: "modern", label: "Modern" }, { value: "reference", label: "Reference" }] },
+      { key: "catalogLayoutStyle", label: "Layout (the shop page grid, and the header too unless Header & announcement bar › Header layout is set)", kind: "select", defaultValue: "reference", options: [{ value: "modern", label: "Modern" }, { value: "reference", label: "Reference" }] },
       { key: "catalogMastheadText", label: "Masthead text (replaces the wordmark)", kind: "text" },
       { key: "brandTransform", label: "Masthead text case", kind: "select", options: [{ value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "lowercase", label: "Lowercase" }, { value: "capitalize", label: "Capitalize" }] },
       { key: "catalogMastheadDesktop", label: "Masthead size (desktop)", kind: "range", defaultValue: 58, min: 28, max: 96, step: 1, suffix: "px" },

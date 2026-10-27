@@ -9,6 +9,15 @@ describe("the default (Reference) shop header", () => {
     expect(usesReferenceHeader({ catalogLayoutStyle: "modern" })).toBe(false);
   });
 
+  it("follows Header layout when it is set, whatever the shop page layout", () => {
+    expect(usesReferenceHeader({ headerLayout: "modern" })).toBe(false);
+    expect(usesReferenceHeader({ headerLayout: "modern", catalogLayoutStyle: "reference" })).toBe(false);
+    expect(usesReferenceHeader({ headerLayout: "classic", catalogLayoutStyle: "modern" })).toBe(true);
+    // An empty or unknown value keeps following the shop page layout, as every shop did before.
+    expect(usesReferenceHeader({ headerLayout: "", catalogLayoutStyle: "modern" })).toBe(false);
+    expect(usesReferenceHeader({ headerLayout: "fancy" })).toBe(true);
+  });
+
   it("shows the first N visible top-level categories (Max categories in the nav, default 1)", () => {
     const cats = [{ id: "a", name: "A" }, { id: "h", name: "Hidden", showInNav: false }, { id: "b", name: "B" }, { id: "c", name: "C", parentId: "a" }, { id: "d", name: "D" }];
     expect(referenceNavCategories(cats, {}).map(c => c.id)).toEqual(["a"]);
