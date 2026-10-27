@@ -43,7 +43,8 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | 1.6 | shop | `members` list and `functions/roles.js`, which copies each member's role onto their sign-in pass; the owner address stays owner | function tests | done |
 | 1.7 | shop | Rules check the role on the pass (owner, staff); the Team and secret keys are owner-only | rules emulator tests: owner, staff, stranger (CI job `shop-rules`) | done |
 | 1.8 | shop | Admin sign-in checks the role, not one address (`src/app/admin/api.ts`), and Settings › Team manages the list | admin tests | done |
-| 1.9 | stockroom | The three rule files check the role; per-book author access becomes the author role | rules tests | |
+| 1.9 | stockroom | The three rule files and the sign-in screen check the role: the owner address or the `owner` role, always with a verified email. Staff stay out of the stockroom (its settings hold secret keys and the books' money) | rules emulator tests: owner address, owner role, staff, unverified, author, stranger (CI job `stockroom-rules`) | done |
+| 1.9b | shop, stockroom | Per-book author access becomes an `author` role: Settings › Team gains the role, and the stockroom rules accept it where they now read the author list. The book-to-author list stays, since a role can't say which book | rules emulator tests | |
 | 1.10 | shop, stockroom | Remove the email fallback after one week on the live shop with no lock-outs | rules tests | |
 
 ### 1C. Money and email behind one door

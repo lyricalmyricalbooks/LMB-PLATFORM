@@ -101,16 +101,19 @@ describe('settings read access', () => {
 });
 
 describe('publisher identity', () => {
-  it('requires a verified email in Firestore and Storage rules', () => {
+  it('Firestore and Storage: the owner address or the owner role, always with a verified email', () => {
     for (const rules of [firestoreRules, storageRules]) {
       const fn = rules.match(/function isPublisher\(\)\s*\{([\s\S]*?)\}/);
       expect(fn).not.toBeNull();
-      expect(fn[1]).toContain(`request.auth.token.email == '${PUBLISHER}'`);
-      expect(fn[1]).toContain('request.auth.token.email_verified == true');
+      const body = fn[1].replace(/\s+/g, ' ');
+      expect(body).toContain('request.auth.token.email_verified == true');
+      expect(body).toContain(`(request.auth.token.email == '${PUBLISHER}' || request.auth.token.get('role', '') == 'owner')`);
+      // Staff are not publishers in the stockroom.
+      expect(body).not.toContain('staff');
     }
   });
 
-  it('requires a verified email everywhere the Realtime Database names the publisher', () => {
+  it('the Realtime Database uses the same check everywhere it names the publisher', () => {
     const exprs = [];
     const collect = (node) => {
       for (const [k, v] of Object.entries(node)) {
@@ -120,11 +123,11 @@ describe('publisher identity', () => {
     };
     collect(rtdbRules.rules);
     const naming = exprs.filter(e => e.includes(PUBLISHER));
-    expect(naming.length).toBeGreaterThan(0);
+    expect(naming.length).toBe(8);
+    const check = `(auth.token.email_verified === true && (auth.token.email === '${PUBLISHER}' || auth.token.role === 'owner'))`;
     for (const e of naming) {
-      const mentions = e.split(`auth.token.email === '${PUBLISHER}'`).length - 1;
-      const guarded = e.split(`(auth.token.email === '${PUBLISHER}' && auth.token.email_verified === true)`).length - 1;
-      expect(guarded, e).toBe(mentions);
+      expect(e.split(`auth.token.email === '${PUBLISHER}'`).length - 1, e).toBe(e.split(check).length - 1);
+      expect(e, e).not.toContain('staff');
     }
   });
 });

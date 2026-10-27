@@ -88,6 +88,35 @@ jobs:
           RULES_FILE: ${{ github.workspace }}/apps/shop/firestore.rules
         run: npx firebase emulators:exec --only firestore --project demo-rules "node firestore-rules-emulator.mjs"
 
+  # The stockroom copy's three rule files against the real rules engines (apps/stockroom/scripts/rules-emulator.mjs):
+  # who counts as the publisher (owner address or owner role, verified; not staff), and authors keep their own book.
+  stockroom-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Install the rules test packages
+        run: |
+          mkdir -p "$RUNNER_TEMP/stockroom-rules"
+          cd "$RUNNER_TEMP/stockroom-rules"
+          echo '{"type":"module","private":true}' > package.json
+          npm install --no-audit --no-fund @firebase/rules-unit-testing@6.0.0 firebase@13.1.0 firebase-tools@15.32.1
+          cp "$GITHUB_WORKSPACE/apps/stockroom/scripts/rules-emulator.mjs" .
+          R="$GITHUB_WORKSPACE/apps/stockroom"
+          echo "{\"firestore\":{\"rules\":\"$R/firestore.rules\"},\"database\":{\"rules\":\"$R/database.rules.json\"},\"storage\":{\"rules\":\"$R/storage.rules\"}}" > firebase.json
+      - name: Publisher, staff and author access behave as expected
+        working-directory: ${{ runner.temp }}/stockroom-rules
+        env:
+          RULES_DIR: ${{ github.workspace }}/apps/stockroom
+        run: npx firebase emulators:exec --only firestore,database,storage --project demo-stockroom "node rules-emulator.mjs"
+
   # The waitlist page's storage (waitlist/firestoreStore.js) against waitlist/firestore.rules in the Firestore emulator.
   waitlist-rules:
     runs-on: ubuntu-latest

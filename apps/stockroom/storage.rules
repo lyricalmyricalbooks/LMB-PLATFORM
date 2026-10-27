@@ -2,12 +2,13 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Same check as isPublisher() in firestore.rules, including email_verified
-    // (see the reason there).
+    // Same check as isPublisher() in firestore.rules: the owner address or the
+    // owner role, with email_verified (see the reasons there).
     function isPublisher() {
       return request.auth != null
-        && request.auth.token.email == 'owner@example.com'
-        && request.auth.token.email_verified == true;
+        && request.auth.token.email_verified == true
+        && (request.auth.token.email == 'owner@example.com'
+            || request.auth.token.get('role', '') == 'owner');
     }
 
     // Mirrors isBookAuthor() in firestore.rules, resolved cross-service against
