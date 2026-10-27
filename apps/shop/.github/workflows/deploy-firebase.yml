@@ -65,7 +65,7 @@ jobs:
           printf 'APP_CHECK_MODE=%s\n' "$APP_CHECK_MODE" > functions/.env.lmb-test-shop
 
       # Links in emails (order tracking, unsubscribe, admin order links…) use SITE_URL: the repository variable once the
-      # shop has its own domain, else the code default in functions/index.js (Firebase Hosting).
+      # shop has its own domain, else the project's own Firebase Hosting address (functions/shopConfig.js).
       - name: Shop address for email links
         env:
           CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
@@ -75,11 +75,11 @@ jobs:
           CUSTOM_SITE_URL="$(printf '%s' "$CUSTOM_SITE_URL" | tr '[:upper:]' '[:lower:]')"
           url="${CUSTOM_SITE_URL%/}"
           if [ -n "$url" ]; then
-            # Format, never GitHub Pages, and allowed by ALLOWED_ORIGINS (scripts/siteAddressCheck.mjs).
+            # Format, never GitHub Pages, and allowed by the Cloud Functions (scripts/siteAddressCheck.mjs).
             node scripts/siteAddressCheck.mjs "$url"
             printf 'SITE_URL=%s\n' "$url" >> functions/.env.lmb-test-shop
           else
-            url=$(node -e 'const s=require("fs").readFileSync("functions/index.js","utf8"); process.stdout.write(s.match(/SITE_URL \|\| "(https:\/\/[^"]+)"/)[1])')
+            url=$(GCLOUD_PROJECT=lmb-test-shop node -e 'process.stdout.write(require("./functions/shopConfig.js").readShopConfig(process.env).siteUrl)')
           fi
           echo "SHOP_URL=$url" >> "$GITHUB_ENV"
           echo "Email links will open $url"

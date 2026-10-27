@@ -33,7 +33,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | 1.0 | shop, stockroom | Copy both apps into `apps/`, every live project id and key replaced by a made-up test project, both test suites in CI | `apps-isolation.test.js`; CI green | done |
 | 1.2 | shop | `src/lib/shopProfile.ts` reads `/shop-profile.js` at page open; Firebase settings, project id, region and bot-check key come from it (built once on your website, then undone there; the copy in `apps/shop` has it). The build scripts (sitemap, catalog file, publish check, prerender) read the same file | unit tests | done |
 | 1.3 | stockroom | `src/lib/shop-profile.js` reads the same file (`public/shop-profile.js`, loaded before the app); `src/firebase.js` uses it; the `lyrical` data folder name kept in one constant (`DATA_ROOT`); the profile format gains an optional `firebase.databaseURL` | unit tests | done |
-| 1.4 | shop | Server side: `functions/shopConfig.js` reads owner, sender, site address and plan from a server-only settings document, today's values as fallback; `index.js` stops naming them | function tests | |
+| 1.4 | shop | Server side: `functions/shopConfig.js` reads owner, sender, site address and allowed web addresses from the shop project's own `functions/.env.<project id>` (written by the setup script), placeholders as fallback; `index.js`, `roles.js`, `shopSettings.js` and `searchConsole.js` stop naming them. Plan moves to 2.4 (billing). Firestore and Storage rules still name the owner address: 1.14b | function tests | done |
 | 1.5 | shop, stockroom | A copy check: each app's copy of the profile format matches the platform's | test in each repo | |
 
 ### 1B. Members and roles instead of one email (riskiest, most tested)
