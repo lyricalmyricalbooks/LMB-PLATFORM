@@ -24,6 +24,16 @@ const set = (el: HTMLInputElement | HTMLSelectElement, value: string) => act(asy
 afterEach(async () => { await act(async () => root?.unmount()); root = null; document.body.innerHTML = ""; });
 
 describe("Theme actions › Schedule publishing", () => {
+  it("shows and loads nothing while closed, then opens with the list and a fresh start time", async () => {
+    const a = api();
+    await mount({ api: a, open: false });
+    expect(document.body.querySelector("[role=dialog]")).toBeNull();
+    expect(a.list).not.toHaveBeenCalled();
+    await act(async () => { root!.render(h(StudioSchedule, { open: true, onClose: () => {}, draft: { draft: 1 }, savedThemes: [theme], askConfirm: async () => true, say: vi.fn(), api: a })); await new Promise(r => setTimeout(r, 0)); });
+    expect(document.body.querySelector("[role=dialog]")?.textContent).toContain("Schedule publishing");
+    expect(a.list).toHaveBeenCalledTimes(1);
+  });
+
   it("schedules a saved theme as a campaign in Toronto time", async () => {
     const a = api();
     await mount({ api: a, initialThemeId: "t1" });

@@ -39,7 +39,7 @@ export function StudioSchedule(p: Props) {
   const [unavailable, setUnavailable] = useState(false);
   const [source, setSource] = useState<string>("draft");
   const [kind, setKind] = useState<ScheduleKind>("publish");
-  const [start, setStart] = useState(inAnHour());
+  const [start, setStart] = useState(inAnHour);
   const [end, setEnd] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -60,6 +60,10 @@ export function StudioSchedule(p: Props) {
     setStart(inAnHour()); setEnd("");
     setTried(false); void load();
   }, [p.open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Closed: the dialog shows nothing, so skip the checks below. They measure the whole design and convert Toronto
+  // times, and Studio re-renders this on every edit.
+  if (!p.open) return null;
 
   const theme = source.startsWith("theme:") ? p.savedThemes.find(t => `theme:${t.id}` === source) : null;
   const design = theme ? theme.design : p.draft;
