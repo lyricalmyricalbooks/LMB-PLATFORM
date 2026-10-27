@@ -8,7 +8,16 @@ const { chargedRedemptions, readGiftCards, debitShortfall, writeGiftCardChange }
 const { discountUsedUp } = require("./paymentGuards");
 const { releaseStockForOrder } = require("./stockHolds");
 
-function createSettlement({ db, increment }) {
+// A sandbox (test-card) order whose payment took the books out of stock. That happens only on the platform's test
+// shop (shopConfig.testShop, plan 1.31b), so its release check can see stock drop and come back on refund. On every
+// other shop a sandbox payment never touches stock, so this is always false there.
+function sandboxStockTaken(order, testShop) {
+  return testShop === true && order?.sandboxPayment === true && order?.inventoryDecrementedAt != null;
+}
+
+// testShop: true only on the platform's test shop; its sandbox payments take stock like live ones (nothing else changes:
+// a sandbox payment there still counts no discount use, debits no gift card and records no revenue).
+function createSettlement({ db, increment, testShop = false }) {
   // Inside the payment transaction, after every read: takes the order's gift-card amounts off the
   // cards once. Returns false (and records giftCardConflict) when a card can no longer pay its part.
   function settleGiftCards(transaction, orderRef, orderId, order, cards, provider, now) {
@@ -31,7 +40,8 @@ function createSettlement({ db, increment }) {
   // provider: the name shown in the order's activity ("Stripe", "PayPal", "Checkout").
   // message:  the activity line for the payment.
   // receipt:  the provider's ids, written with the paid status (and kept when a gift card falls short).
-  // sandbox:  order => true for a test-mode payment: a paid test order that touches nothing real.
+  // sandbox:  order => true for a test-mode payment: a paid test order that touches nothing real (on the test shop it
+  //           takes stock, see createSettlement).
   // verify:   order => null to go ahead, or { reason, update? } to stop (written as is). Runs first,
   //           inside the transaction, so it also decides what a repeat on a paid order does.
   // Returns { paid: true } or { paid: false, reason: "missing" | "already-paid" | "gift-card-short" | <verify's reason> }.
@@ -56,7 +66,7 @@ function createSettlement({ db, increment }) {
       // Firestore transactions require all reads before any write.
       const test = !!sandbox(order);
       const items = order.items || [];
-      const takeStock = !test && order.inventoryDecrementedAt == null;
+      const takeStock = (!test || testShop === true) && order.inventoryDecrementedAt == null;
       const books = takeStock ? await readBooks(transaction, db, items) : new Map();
       const discountRef = !test && order.appliedDiscount?.id && order.discountUsageCountedAt == null
         ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
@@ -113,4 +123,4 @@ function createSettlement({ db, increment }) {
   return { settlePayment };
 }
 
-module.exports = { createSettlement };
+module.exports = { createSettlement, sandboxStockTaken };

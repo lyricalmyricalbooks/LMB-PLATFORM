@@ -38,6 +38,12 @@ describe("restockRefundedProblem", () => {
     expect(restockRefundedProblem(refunded({ paymentStatus: "paid" }))).toMatch(/Only a refunded order/);
     expect(restockRefundedProblem(refunded({ inventoryRestockedAt: "2026-10-11" }))).toMatch(/already back/);
     expect(restockRefundedProblem(refunded({ sandboxPayment: true }))).toMatch(/test payment/);
+    // Only the platform's test shop takes stock for a sandbox payment (stamped inventoryDecrementedAt), so only there
+    // can its books go back.
+    const takenOnTestShop = refunded({ sandboxPayment: true, inventoryDecrementedAt: "2026-10-27" });
+    expect(restockRefundedProblem(takenOnTestShop, null, { testShop: true })).toBe("");
+    expect(restockRefundedProblem(takenOnTestShop)).toMatch(/test payment/);
+    expect(restockRefundedProblem(refunded({ sandboxPayment: true }), null, { testShop: true })).toMatch(/test payment/);
     expect(restockRefundedProblem(refunded({ items: [{ id: "e", quantity: 1, format: "ebook" }] }))).toMatch(/no printed books/);
     expect(restockRefundedProblem(null)).toMatch(/not found/);
   });

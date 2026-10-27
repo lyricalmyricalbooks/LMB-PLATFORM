@@ -32,8 +32,10 @@ Runs automatically after each update reaches the test shop. Any failure stops th
 | 7 | Refund the order | Stripe shows the refund; stock goes back up |
 | 8 | Clean-up | test orders older than 7 days are deleted |
 
-Check 4 needs a change in the shop: sandbox checkouts skip holding stock today. The fix is to hold stock in sandbox
-only on shops the platform marks as test shops.
+Checks 4 and 7 rely on the shop's test-shop mark (`SHOP_TEST_SHOP="true"`, written by setup step 8 for this shop only,
+plan 1.31): here a sandbox checkout holds stock, a sandbox payment takes it and a refund puts it back, like a live
+sale. Every other shop's sandbox payments still leave stock alone. The stockroom count in check 4 comes from the
+inventory app link, which pushes sandbox orders only while its rehearsal setting is on.
 
 ## Where it runs
 
