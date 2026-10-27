@@ -5,10 +5,8 @@ The platform that creates and runs one Firebase copy per press shop. `apps/` hol
 ## Rules
 
 - **Never change Julian's own repos for the platform.** `LyricalmyricalWebsite` and `lyrical-inventory` must keep working in
-  all circumstances. Product work happens only in `apps/`. Outside `shops/`, `apps-isolation.test.js` fails the build on a
-  live Lyricalmyrical project id or key, on "lyricalmyrical" in code, on a real email address and on a Firebase project
-  that isn't the test shop's, the platform's or a made-up one. Use placeholders (`owner@example.com`, `*.example`,
-  `lmb-test-shop`, `yourpress.*`) and extend its lists only for a company sender or a made-up fixture.
+  all circumstances. Product work happens only in `apps/`. No live Lyricalmyrical project id or key may appear there
+  (`apps-isolation.test.js`).
 - **One copy per shop.** Never put two presses' data in one Firebase project or database.
 - **Platform keys stay here.** The Stripe platform key and the email sender key live only in `services/payments` and `services/email`. Never copy them into a shop project or into client code.
 - **Every step can be re-run.** Setup steps and data changes must be safe to run twice and must record what they did, per shop, in that shop's `audit-log` and in the shop registry.
