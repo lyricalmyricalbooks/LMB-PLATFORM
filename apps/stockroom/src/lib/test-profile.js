@@ -23,6 +23,8 @@
 // memory at the same time as test data. The flag lives in sessionStorage:
 // closing the tab (or the phone app) always comes back to the real books.
 
+import { shopProfile } from './shop-profile.js';
+
 export const TEST_PROFILE_FLAG = 'lm-test-profile';
 export const TEST_STORAGE_PREFIX = 'lm-test:';
 const SEEDED_KEY = 'lm-test-seeded';
@@ -106,7 +108,7 @@ const ALLOWED_HOSTS = new Set([
   'www.gstatic.com', 'cdnjs.cloudflare.com', 'cdn.jsdelivr.net',
   'fonts.googleapis.com', 'fonts.gstatic.com',
   'identitytoolkit.googleapis.com', 'securetoken.googleapis.com',
-  'apis.google.com', 'accounts.google.com', 'lmb-test-stockroom.firebaseapp.com',
+  'apis.google.com', 'accounts.google.com', shopProfile.firebase.authDomain,
   'open.er-api.com', 'api.frankfurter.dev',
   'api.github.com',
 ]);

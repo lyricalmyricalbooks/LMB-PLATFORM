@@ -24,7 +24,12 @@
         "projectId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$" },
         "storageBucket": { "type": "string", "minLength": 1 },
         "messagingSenderId": { "type": "string", "pattern": "^[0-9]+$" },
-        "appId": { "type": "string", "minLength": 1 }
+        "appId": { "type": "string", "minLength": 1 },
+        "databaseURL": {
+          "type": "string",
+          "pattern": "^https://[^/\\s]+/?$",
+          "description": "The stockroom's Realtime Database address. Missing: the project's default database address."
+        }
       }
     },
     "functionsRegion": { "type": "string", "pattern": "^[a-z]+-[a-z]+[0-9]$" },

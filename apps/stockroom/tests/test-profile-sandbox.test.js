@@ -148,6 +148,19 @@ describe('wiring', () => {
   const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
   const firebase = fs.readFileSync(path.join(root, 'src/firebase.js'), 'utf8');
 
+  it('loads the shop profile before the app', () => {
+    const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const profileAt = html.indexOf('<script defer src="%BASE_URL%shop-profile.js">');
+    expect(profileAt).toBeGreaterThan(0);
+    expect(profileAt).toBeLessThan(html.indexOf('<script type="module" src="/src/main.js">'));
+  });
+
+  it('takes its Firebase project and data folder from the shop profile', () => {
+    expect(firebase).toContain('const firebaseConfig = { ...shopProfile.firebase };');
+    expect(firebase).not.toMatch(/projectId\s*:/);
+    expect(firebase).not.toMatch(/['`]lyrical\//);
+  });
+
   it('isolates before anything else in the app runs', () => {
     const firstImport = main.split('\n').find(l => l.startsWith('import '));
     expect(firstImport).toContain('./test-profile-boot.js');
