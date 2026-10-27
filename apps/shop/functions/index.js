@@ -43,7 +43,7 @@ const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode,
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shared/shippingZones");
 const { emailIdentity, openClaims, limitReached } = require("./discountClaims");
-const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, failedRefundId } = require("./stripeRecovery");
+const { REQUIRED_WEBHOOK_EVENTS, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, failedRefundId } = require("./stripeRecovery");
 const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder } = require("./emailMoney");
 const { pendingRecord, confirmedRecord, confirmationEmail } = require("./newsletter");
 const { findByEmail: findByEmailData, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL } = require("./privacyData");
@@ -62,6 +62,7 @@ const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./a
 const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { checkoutPaymentActions } = require("./checkoutPayment");
+const { createPayments } = require("./payments");
 const { shippoEndpoints } = require("./shippoEndpoints");
 const { scheduledJobs } = require("./scheduledJobs");
 const { shopEmails } = require("./shopEmails");
@@ -259,96 +260,17 @@ async function readAdminSecret(id) {
   }
 }
 
-async function withPrivateStripeKeys(stripeSettings) {
-  const merged = { ...(stripeSettings || {}) };
-  const priv = await readAdminSecret("stripe");
-  if (priv.secretKey) merged.secretKey = priv.secretKey;
-  if (priv.testSecretKey) merged.testSecretKey = priv.testSecretKey;
-  return merged;
-}
-
-async function getStripeClientForMode(mode, stripeAccountId = null) {
-  const settingsDoc = await db.collection("settings").doc("website").get();
-  const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
-  const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
-  const stripeSecret = mode === "test"
-    ? stripeSettings.testSecretKey
-    : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
-
-  if (!stripeSecret) {
-    throw new Error(`Stripe ${mode === "test" ? "test" : "live"} secret key is not configured.`);
-  }
-
-  return {
-    stripe: new Stripe(stripeSecret),
-    requestOptions: stripeAccountId ? { stripeAccount: stripeAccountId } : {},
-  };
-}
-
-// The secret key for one Stripe mode, or "" when none is set (never throws).
-async function stripeSecretFor(mode) {
-  const settingsDoc = await db.collection("settings").doc("website").get();
-  const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
-  const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
-  if (mode === "test") return stripeSettings.testSecretKey || "";
-  try { return stripeSettings.secretKey || STRIPE_SECRET_KEY.value() || ""; } catch { return stripeSettings.secretKey || ""; }
-}
-
-async function shopTestMode() {
-  const settingsDoc = await db.collection("settings").doc("website").get();
-  return !!(settingsDoc.exists && settingsDoc.data()?.payments?.testMode);
-}
-
-// The shop's Stripe mode and both secret keys, read once for a whole sweep (the sweep asks Stripe about
-// many orders; each call used to read settings/website and adminSecrets/stripe again). Same keys as
-// shopTestMode/stripeSecretFor. Throws when either read fails, so the caller falls back to per-call reads
-// instead of running a whole sweep on a fallback key.
-async function readStripeKeys() {
-  const [settingsDoc, secretDoc] = await Promise.all([
-    db.collection("settings").doc("website").get(),
-    db.collection("adminSecrets").doc("stripe").get(),
-  ]);
-  const stripe = settingsDoc.exists ? settingsDoc.data()?.payments?.stripe || {} : {};
-  const priv = secretDoc.exists ? secretDoc.data() || {} : {};
-  let live = priv.secretKey || stripe.secretKey || "";
-  if (!live) { try { live = STRIPE_SECRET_KEY.value() || ""; } catch { live = ""; } }
-  return {
-    testMode: !!(settingsDoc.exists && settingsDoc.data()?.payments?.testMode),
-    secrets: { test: priv.testSecretKey || stripe.testSecretKey || "", live },
-    // A slow Stripe answer must not run the sweep past its 300 s limit: give up sooner, retry next sweep.
-    clientOptions: { timeout: 20 * 1000, maxNetworkRetries: 1 },
-  };
-}
+// Every Stripe client made with the shop's own key comes from functions/payments (code plan 1.11). These names stay
+// as before for the many callers (and for the handler tests that swap one out).
+const payments = createPayments({ db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret });
+const { withPrivateStripeKeys, getStripeClientForMode, stripeSecretFor, shopTestMode, readStripeKeys } = payments;
 
 // Asks Stripe (test and live accounts, the order's own mode first) for one of the
-// order's saved payments. Returns { found, mode } or null when no account knows it.
+// order's saved payments. Returns { intent | session, mode } or null when no account knows it.
 // Only a payment whose metadata/client_reference_id names this order counts.
 // `keys` (readStripeKeys) skips the settings reads; without it they are read here.
-async function retrieveOrderPayment(orderId, order, { paymentIntentId, sessionId } = {}, keys = null) {
-  const testMode = keys ? keys.testMode : await shopTestMode();
-  for (const mode of modesToTry(order, testMode)) {
-    const secret = keys ? keys.secrets[mode] : await stripeSecretFor(mode);
-    if (!secret) continue;
-    const stripe = keys ? new Stripe(secret, keys.clientOptions) : new Stripe(secret);
-    try {
-      if (paymentIntentId) {
-        const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
-        if (intent.metadata?.order_id !== orderId) return null;
-        return { intent, mode };
-      }
-      if (sessionId) {
-        const session = await stripe.checkout.sessions.retrieve(sessionId);
-        if (session.client_reference_id !== orderId) return null;
-        return { session, mode };
-      }
-      return null;
-    } catch (err) {
-      // Wrong account for this id: try the other one. Anything else is a real failure.
-      if (err?.code === "resource_missing" || err?.statusCode === 404 || err?.type === "StripeAuthenticationError") continue;
-      throw err;
-    }
-  }
-  return null;
+async function retrieveOrderPayment(orderId, order, ids = {}, keys = null) {
+  return payments.retrieveOrderPayment(orderId, order, ids, keys);
 }
 
 const ADMIN_TO = shopConfig.ownerEmail;
@@ -1752,10 +1674,10 @@ const lateSendEmail = (...args) => sendEmail(...args);
 
 const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTrackingLink, handleTrackOrder, handleOrderRequest } = orderRequestActions({
   db, admin, crypto, ADMIN_TO, LIMITS, RESEND_API_KEY, canViewOrder, cancelRefusal, chargedRedemptions,
-  checkStripeReversal, claimEmailSend, escapeHtml, getStripeClientForMode, hitLimit, intentAsSession,
+  checkStripeReversal, claimEmailSend, escapeHtml, hitLimit, intentAsSession,
   normMarketingEmail, orderActionBody, orderRequestIdentity, orderRequestKey, orderRequestProblem,
-  orderRequestRecord, publicErrorMessage, publicOrderView, readBody, recordStripeReconciliation,
-  releaseGiftCards, releaseStock, requireAdmin, retrieveOrderPayment, sendEmail: lateSendEmail, siteLink, stripePaymentTaken,
+  orderRequestRecord, payments, publicErrorMessage, publicOrderView, readBody, recordStripeReconciliation,
+  releaseGiftCards, releaseStock, requireAdmin, sendEmail: lateSendEmail, siteLink, stripePaymentTaken,
 });
 
 const { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin } = privacyActions({
@@ -2269,40 +2191,18 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
 // itself (the sweep keeps one schedule record, reversalSchedule.js) and the order is not written just to
 // stamp it; onChecked runs after the refund/dispute sync.
 async function checkStripeReversal(orderId, order, source, { keys = null, onChecked = null } = {}) {
-  const pi = String(order.stripePaymentIntentId || "");
-  if (!pi.startsWith("pi_")) return null;
-  const testMode = keys ? keys.testMode : await shopTestMode();
-  for (const mode of modesToTry(order, testMode)) {
-    const secret = keys ? keys.secrets[mode] : await stripeSecretFor(mode);
-    if (!secret) continue;
-    const stripe = keys ? new Stripe(secret, keys.clientOptions) : new Stripe(secret);
-    try {
-      const intent = await stripe.paymentIntents.retrieve(pi, { expand: ["latest_charge"] });
-      if (intent.metadata?.order_id !== orderId) return null;
-      const charge = intent.latest_charge && typeof intent.latest_charge === "object" ? intent.latest_charge : null;
-      if (!charge) return null;
-      let dispute = null;
-      if (charge.disputed) {
-        const list = await stripe.disputes.list({ payment_intent: pi, limit: 1 });
-        dispute = list.data[0] || null;
-      }
-      if (!onChecked) await db.collection("orders").doc(orderId).update({ stripeCheckedAt: new Date().toISOString() });
-      // A pending refund that moved no money: ask Stripe whether it failed (missed charge.refund.updated).
-      if (["refund_pending", "refunded"].includes(order.paymentStatus) && Number(charge.amount_refunded) === 0) {
-        const refunds = await stripe.refunds.list({ payment_intent: pi, limit: 10 });
-        const failed = failedRefundId(order, charge, refunds?.data || []);
-        if (failed) await revertFailedRefund(orderId, { refundId: failed === "unknown" ? null : failed, source, chargeUnrefunded: true });
-      }
-      const synced = await syncStripeReversal(orderId, { charge, dispute, source });
-      // Counted as checked only once anything Stripe showed has been applied, so a failed apply is retried.
-      if (onChecked) onChecked();
-      return synced;
-    } catch (err) {
-      if (err?.code === "resource_missing" || err?.statusCode === 404 || err?.type === "StripeAuthenticationError") continue;
-      throw err;
+  return payments.checkReversal(orderId, order, { keys }, async ({ charge, dispute, listRefunds }) => {
+    if (!onChecked) await db.collection("orders").doc(orderId).update({ stripeCheckedAt: new Date().toISOString() });
+    // A pending refund that moved no money: ask Stripe whether it failed (missed charge.refund.updated).
+    if (["refund_pending", "refunded"].includes(order.paymentStatus) && Number(charge.amount_refunded) === 0) {
+      const failed = failedRefundId(order, charge, await listRefunds());
+      if (failed) await revertFailedRefund(orderId, { refundId: failed === "unknown" ? null : failed, source, chargeUnrefunded: true });
     }
-  }
-  return null;
+    const synced = await syncStripeReversal(orderId, { charge, dispute, source });
+    // Counted as checked only once anything Stripe showed has been applied, so a failed apply is retried.
+    if (onChecked) onChecked();
+    return synced;
+  });
 }
 
 async function orderRequestIdentity(req) {
@@ -2333,25 +2233,8 @@ exports.stripeWebhook = onRequest(
       return;
     }
 
-    let testMode = false;
-    let stripeSecret = STRIPE_SECRET_KEY.value();
-    try {
-      const settingsDoc = await db.collection("settings").doc("website").get();
-      if (settingsDoc.exists) {
-        const settings = settingsDoc.data() || {};
-        testMode = settings.payments?.testMode || false;
-        const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
-        if (testMode && stripeSettings.testSecretKey) {
-          stripeSecret = stripeSettings.testSecretKey;
-        } else if (!testMode && stripeSettings.secretKey) {
-          stripeSecret = stripeSettings.secretKey;
-        }
-      }
-    } catch (dbErr) {
-      console.warn("Failed to load settings in webhook, falling back to env secret key:", dbErr);
-    }
-
-    const stripe = new Stripe(stripeSecret);
+    // The shop's key for its current mode, else the deployed secret (functions/payments).
+    const stripe = await payments.webhookClient();
     const sig = req.headers["stripe-signature"];
 
     // Test and live endpoints each sign with their own secret: accept the deployed
@@ -2361,16 +2244,7 @@ exports.stripeWebhook = onRequest(
     let deployedSecret = "";
     try { deployedSecret = STRIPE_WEBHOOK_SECRET.value(); } catch { /* not set */ }
     const secrets = signingSecrets(deployedSecret, savedSecrets.live, savedSecrets.test);
-    let event;
-    let lastError = null;
-    for (const secret of secrets) {
-      try {
-        event = stripe.webhooks.constructEvent(req.rawBody, sig, secret);
-        break;
-      } catch (err) {
-        lastError = err;
-      }
-    }
+    const { event, lastError } = payments.verifyWebhookEvent(stripe, req.rawBody, sig, secrets);
     if (!event) {
       const message = lastError?.message || "No webhook signing secret is configured.";
       console.error("Signature verification failed:", message);
@@ -2691,19 +2565,13 @@ exports.refundOrder = onBrowserRequest(
       }
       let outcome;
       if (provider === "stripe") {
-        const stripeMode = order.stripeMode === "test" ? "test" : "live";
-        const { stripe, requestOptions } = await getStripeClientForMode(stripeMode, order.stripeAccountId || null);
-        providerCalled = true;
-        const refund = await stripe.refunds.create({
-          payment_intent: order.stripePaymentIntentId,
-          ...(plan.kind === "partial" ? { amount: plan.amountMinor } : {}),
-          reason: "requested_by_customer",
+        outcome = await payments.refundPayment({
+          mode: order.stripeMode, accountId: order.stripeAccountId || null, paymentIntentId: order.stripePaymentIntentId,
+          amountMinor: plan.kind === "partial" ? plan.amountMinor : null,
           metadata: { order_id: orderId, admin_email: adminUser.email || "", reason: reasonText },
-        }, { ...requestOptions, idempotencyKey: plan.kind === "partial" ? partialRefundKey(orderId, plan.already, plan.amountMinor) : `order-refund-${orderId}-full${refundRetrySuffix(order)}` });
-        if (!["succeeded", "pending"].includes(refund.status)) {
-          throw new Error(`Stripe refund was not accepted (status: ${refund.status}).`);
-        }
-        outcome = { refundId: refund.id, amountMinor: refund.amount, currency: refund.currency, status: refund.status };
+          idempotencyKey: plan.kind === "partial" ? partialRefundKey(orderId, plan.already, plan.amountMinor) : `order-refund-${orderId}-full${refundRetrySuffix(order)}`,
+          onCalling: () => { providerCalled = true; },
+        });
       } else if (provider === "paypal") {
         const config = await getPayPalConfig();
         if (order.paypalMode === "test") config.testMode = true;

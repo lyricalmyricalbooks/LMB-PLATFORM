@@ -2,14 +2,14 @@
 // tracking and the emailed tracking link, a shopper's cancel/return request, and the admin's cancel-unpaid-order and
 // payment-problem-resolved actions. None marks an order paid: the Stripe webhook stays the only path that does. Moved
 // out of index.js as is (functions/CLAUDE.md › Cloud Functions › Action table): index.js passes in its own db, admin
-// SDK, Stripe helpers and guards, so the vm-based handler tests' fakes still apply.
+// SDK, its payments module (functions/payments) and guards, so the vm-based handler tests' fakes still apply.
 
 function orderRequestActions({
   db, admin, crypto, ADMIN_TO, LIMITS, RESEND_API_KEY, canViewOrder, cancelRefusal, chargedRedemptions,
-  checkStripeReversal, claimEmailSend, escapeHtml, getStripeClientForMode, hitLimit, intentAsSession,
+  checkStripeReversal, claimEmailSend, escapeHtml, hitLimit, intentAsSession,
   normMarketingEmail, orderActionBody, orderRequestIdentity, orderRequestKey, orderRequestProblem,
-  orderRequestRecord, publicErrorMessage, publicOrderView, readBody, recordStripeReconciliation,
-  releaseGiftCards, releaseStock, requireAdmin, retrieveOrderPayment, sendEmail, siteLink, stripePaymentTaken,
+  orderRequestRecord, payments, publicErrorMessage, publicOrderView, readBody, recordStripeReconciliation,
+  releaseGiftCards, releaseStock, requireAdmin, sendEmail, siteLink, stripePaymentTaken,
 }) {
   // Admin: cancel an unpaid order. Done in a transaction so an order that was paid a moment
   // ago (webhook) is refused instead of quietly hidden, then the payment the shopper may still
@@ -31,7 +31,7 @@ function orderRequestActions({
       let stripeCtx = null, intent = null, session = null;
       if (pre && !cancelRefusal(pre) && (intentId.startsWith("pi_") || sessionId.startsWith("cs_"))) {
         try {
-          stripeCtx = await getStripeClientForMode(pre.stripeMode === "test" ? "test" : "live", pre.stripeAccountId || null);
+          stripeCtx = await payments.getStripeClientForMode(pre.stripeMode === "test" ? "test" : "live", pre.stripeAccountId || null);
           if (intentId.startsWith("pi_")) intent = await stripeCtx.stripe.paymentIntents.retrieve(intentId, {}, stripeCtx.requestOptions);
           if (sessionId.startsWith("cs_")) session = await stripeCtx.stripe.checkout.sessions.retrieve(sessionId, {}, stripeCtx.requestOptions);
         } catch (err) {
@@ -155,7 +155,7 @@ function orderRequestActions({
         return;
       }
 
-      const found = await retrieveOrderPayment(orderId, saved, paymentIntentId ? { paymentIntentId } : { sessionId });
+      const found = await payments.retrieveOrderPayment(orderId, saved, paymentIntentId ? { paymentIntentId } : { sessionId });
       if (!found) { res.status(404).json({ error: "Payment not found" }); return; }
 
       if (found.intent) {
