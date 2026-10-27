@@ -226,7 +226,9 @@ ignored. Dismiss hides one for the browser session until a new order joins it.
   checkout (same limits and sold-out answer), still without gift-card holds (`functions/testShopHolds.test.js`). Its
   sandbox payments also take stock (`createSettlement({ testShop })`, stamped `inventoryDecrementedAt`), and full,
   partial and later "put the books back" refunds return it, only when that stamp is there (`sandboxStockTaken`);
-  discount use, gift cards and revenue stay untouched (`functions/sandboxPayment.test.js`, plan 1.31b). Not covered:
+  discount use, gift cards and revenue stay untouched (`functions/sandboxPayment.test.js`, plan 1.31b). The stockroom
+  link sends its paid sandbox orders as real orders (`pushKind({ testShop })`, `deps.testShop` in the jobs), so the
+  stockroom counts them and their refunds; other shops send them only as rehearsals (`web.test`), which it never counts. Not covered:
   a test-shop sandbox payment whose 30-minute hold expired skips the at-payment stock check (`reserveForConfirmedPayment`),
   so it can oversell instead of being refused.
 - **Stripe keys:** `SecretField` passes every edit up (clearing cancels), refuses wrong-slot keys

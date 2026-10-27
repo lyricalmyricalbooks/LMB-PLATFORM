@@ -55,6 +55,23 @@ describe("pushOrder", () => {
     expect(store.orders["T-1"].web.test).toBe(true);
     expect(db.docs["inventoryPushes/T-1"].data).toMatchObject({ test: true, net: {} });
   });
+  test("the platform test shop sends a paid sandbox order as a real sale, and its refund gives the copies back", async () => {
+    const db = fakeDb({ "orders/T-1": paidOrder({ isTest: true, sandboxPayment: true }) });
+    const store = fakeStore();
+    expect(await jobs.pushOrder(deps(db, store, { testShop: true }), "T-1", STATE)).toMatchObject({ status: "delivered", net: { hound: 2 } });
+    expect(store.orders["T-1"].web.test).toBe(false);
+    expect(db.docs["inventoryPushes/T-1"].data).toMatchObject({ test: false, net: { hound: 2 } });
+    await db.collection("orders").doc("T-1").set({ paymentStatus: "refunded", inventoryRestockedAt: "x", restockedItems: [{ id: "b1", quantity: 2 }] }, { merge: true });
+    await jobs.pushOrder(deps(db, store, { testShop: true }), "T-1", STATE);
+    expect(store.orders["T-1"].web).toMatchObject({ test: false, refundState: "full", books: { hound: { net: 0, restocked: 2 } } });
+  });
+  test("every other shop: a sandbox order is still skipped, or sent as a rehearsal that counts nothing", async () => {
+    const db = fakeDb({ "orders/T-1": paidOrder({ isTest: true, sandboxPayment: true }) });
+    const store = fakeStore();
+    expect((await jobs.pushOrder(deps(db, store, { testShop: false }), "T-1", STATE)).status).toBe("skipped");
+    await jobs.pushOrder(deps(db, store, { testShop: false }), "T-1", { ...STATE, rehearsalUntil: "2026-10-12T00:00:00Z" });
+    expect(db.docs["inventoryPushes/T-1"].data).toMatchObject({ test: true, net: {} });
+  });
 });
 
 describe("planStock / applyStock", () => {

@@ -43,6 +43,24 @@ describe("which orders count", () => {
     expect(pushKind(paid({ paymentStatus: "refunded" }), { startDay: "2027-01-01", record: { test: false } })).toBe("real");
     expect(pushKind(paid(), { startDay: "2027-01-01" })).toBe(null);
   });
+  test("pushKind: the platform test shop sends its paid sandbox orders as real ones; every other shop is unchanged", () => {
+    const sandbox = (extra = {}) => paid({ isTest: true, sandboxPayment: true, ...extra });
+    // Test shop: real, from the start day, like a real sale, and refunds keep following.
+    expect(pushKind(sandbox(), { startDay: "", testShop: true })).toBe("real");
+    expect(pushKind(sandbox(), { startDay: "", rehearsal: true, testShop: true })).toBe("real");
+    expect(pushKind(sandbox(), { startDay: "2027-01-01", testShop: true })).toBe(null);
+    expect(pushKind(sandbox({ paymentStatus: "unpaid" }), { testShop: true })).toBe(null);
+    expect(pushKind(sandbox({ paymentStatus: "refunded" }), { startDay: "2027-01-01", record: { test: false }, testShop: true })).toBe("real");
+    // One already sent as a rehearsal stays one; an admin test order (no sandbox payment) is never sent.
+    expect(pushKind(sandbox(), { record: { test: true }, testShop: true })).toBe("test");
+    expect(pushKind(paid({ isTest: true }), { rehearsal: true, testShop: true })).toBe(null);
+    // Every other shop: exactly as before.
+    for (const options of [{}, { testShop: false }]) {
+      expect(pushKind(sandbox(), { ...options, rehearsal: false })).toBe(null);
+      expect(pushKind(sandbox(), { ...options, rehearsal: true })).toBe("test");
+      expect(pushKind(sandbox(), { ...options, record: { test: true } })).toBe("test");
+    }
+  });
 });
 
 describe("orderFootprint", () => {

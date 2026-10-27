@@ -50,11 +50,18 @@ function countsForInventory(order, startDay) {
 /**
  * What kind of push an order needs: "real", "test" (a Stripe test-mode rehearsal order, only while
  * rehearsal is on) or null. An order already pushed keeps being pushed so refunds and dispatch follow.
+ * `testShop` (shopConfig.testShop, the platform's test shop only): its paid sandbox orders go as real
+ * orders from the start day, so the inventory app records them and its count drops, the same path a
+ * real sale takes (docs/test-shop.md check 4). A sandbox order already sent as a rehearsal stays one.
  */
-function pushKind(order, { startDay = "", rehearsal = false, record = null } = {}) {
+function pushKind(order, { startDay = "", rehearsal = false, record = null, testShop = false } = {}) {
   if (!order) return null;
   if (order.isTest === true) {
     if (record && record.test === true) return "test";
+    if (testShop === true && order.sandboxPayment === true) {
+      if (record) return "real";
+      return countsForInventory({ ...order, isTest: false }, startDay) ? "real" : null;
+    }
     return rehearsal && order.sandboxPayment === true && COUNTED_STATUSES.has(order.paymentStatus) ? "test" : null;
   }
   if (record && record.test !== true) return "real";

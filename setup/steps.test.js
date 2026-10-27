@@ -144,7 +144,7 @@ test("a profile that drifted from the web app is written again", async () => {
   assert.deepEqual(await registry.getProfile("lmb-test-shop"), profile);
 });
 
-test("the dry run for the test shop prints all fifteen steps and changes nothing", async () => {
+test("the dry run for the test shop prints all sixteen steps and changes nothing", async () => {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -152,9 +152,9 @@ test("the dry run for the test shop prints all fifteen steps and changes nothing
   const lines = [];
   const result = await dryRun({ google, services, registry, profileFiles, print: (line) => lines.push(line) });
   assert.equal(result.ok, true);
-  assert.equal(lines.length, 16);
+  assert.equal(lines.length, 17);
   assert.match(lines[0], /Dry run for lmb-test-shop/);
-  assert.deepEqual(result.ran.map((r) => r.status), Array(15).fill("would-run"));
+  assert.deepEqual(result.ran.map((r) => r.status), Array(16).fill("would-run"));
   assert.deepEqual(google.calls, []);
   assert.deepEqual(services.calls, []);
   assert.equal(registry.shops.size + registry.profiles.size + registry.locks.size + profileFiles.files.size, 0);

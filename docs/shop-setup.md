@@ -46,6 +46,7 @@ the first presses; Phase 2 runs the same code from sign-up. Write the code once,
 | 13 | Connect payments with the provider the press chose (Stripe now; Square planned, 2.2b): create the press's account through the payments service and save the provider and account ID | account ID saved and found at the provider | the press finishes sign-up from the admin's Connect button |
 | 14 | Email the owner their sign-in link (via the email service) | email logged as sent | email sent |
 | 15 | Run the shop check: home page, a book page, admin sign-in | — | all pass; registry `status: live` |
+| 16 | Test shop only: turn on its stockroom link (the shop's connection check, then sales sent from today) | link has a start day | link on |
 
 Steps 2–5 borrow the service list and backup permission from a public Firebase project factory
 (https://github.com/cilly-yllic/terraform-google-firebase-project-factory). Plain Node scripts using Google's APIs are
