@@ -28,17 +28,19 @@ function orderRequestActions({
       const pre = before.exists ? before.data() : null;
       const intentId = String(pre?.stripePaymentIntentId || "");
       const sessionId = String(pre?.stripeCheckoutSessionId || "");
-      let stripeCtx = null, intent = null, session = null;
+      // What the payment provider says about this order's unpaid attempt (functions/payments).
+      let account = null;
+      const found = {};
       if (pre && !cancelRefusal(pre) && (intentId.startsWith("pi_") || sessionId.startsWith("cs_"))) {
         try {
-          stripeCtx = await payments.getStripeClientForMode(pre.stripeMode === "test" ? "test" : "live", pre.stripeAccountId || null);
-          if (intentId.startsWith("pi_")) intent = await stripeCtx.stripe.paymentIntents.retrieve(intentId, {}, stripeCtx.requestOptions);
-          if (sessionId.startsWith("cs_")) session = await stripeCtx.stripe.checkout.sessions.retrieve(sessionId, {}, stripeCtx.requestOptions);
+          account = await payments.clientForMode(pre.stripeMode === "test" ? "test" : "live", pre.stripeAccountId || null);
+          await payments.readAttempt(account, { intentId, sessionId }, found);
         } catch (err) {
           if (!(err?.code === "resource_missing" || err?.statusCode === 404)) {
             return res.status(503).json({ error: "Couldn't check this payment with Stripe. Try again in a minute.", code: "stripe_unreachable" });
           }
         }
+        const { intent = null, session = null } = found;
         if (stripePaymentTaken(intent, session)) {
           await recordStripeReconciliation(orderId, { id: session?.id || null, payment_intent: intent?.id || session?.payment_intent || null }).catch(() => {});
           return res.status(409).json({ error: "Stripe shows this order as paid. Don't cancel it: resend the payment event from Stripe (Webhook health), then ship or refund it.", code: "paid_in_stripe" });
@@ -63,17 +65,9 @@ function orderRequestActions({
       // Best effort: stop a payment the shopper may still finish. A payment that slips through
       // anyway is recorded as "paid after cancelling" by the webhook, and the sweep still checks
       // cancelled orders with a Stripe payment.
-      const stopped = [];
+      let stopped = [];
       try {
-        if (stripeCtx) {
-          const { stripe, requestOptions } = stripeCtx;
-          if (session && session.status === "open") {
-            await stripe.checkout.sessions.expire(session.id, {}, requestOptions).then(() => stopped.push("checkout")).catch(() => {});
-          }
-          if (intent && ["requires_payment_method", "requires_confirmation", "requires_action"].includes(intent.status)) {
-            await stripe.paymentIntents.cancel(intent.id, {}, requestOptions).then(() => stopped.push("card")).catch(() => {});
-          }
-        }
+        if (account) stopped = await payments.stopAttempt(account, { intent: found.intent || null, session: found.session || null });
       } catch (err) {
         console.warn(`cancelOrder ${orderId}: could not stop the Stripe payment:`, err.message);
       }
@@ -155,7 +149,7 @@ function orderRequestActions({
         return;
       }
 
-      const found = await payments.retrieveOrderPayment(orderId, saved, paymentIntentId ? { paymentIntentId } : { sessionId });
+      const found = await payments.findOrderPayment(orderId, saved, paymentIntentId ? { paymentIntentId } : { sessionId });
       if (!found) { res.status(404).json({ error: "Payment not found" }); return; }
 
       if (found.intent) {

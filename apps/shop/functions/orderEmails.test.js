@@ -105,8 +105,8 @@ test('a sandbox order marks the shop email [TEST]', async () => {
 });
 
 test('the card payment asks Stripe for no receipt email', () => {
-  // The card payment step lives in checkoutPayment.js (moved out of index.js as is).
-  const payment = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'checkoutPayment.js'), 'utf8');
+  // The card payment intent is created by the Stripe payment provider (payments/stripe.js, createCardIntent).
+  const payment = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'payments', 'stripe.js'), 'utf8');
   const call = payment.slice(payment.indexOf('stripe.paymentIntents.create({'), payment.indexOf('metadata: { order_id: orderId, checkout: "payment_element" }'));
   expect(call.length).toBeGreaterThan(0);
   expect(call).not.toMatch(/^\s*receipt_email\s*:/m);
