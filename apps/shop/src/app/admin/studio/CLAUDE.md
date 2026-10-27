@@ -559,6 +559,14 @@ Shop page masthead & covers › Layout exactly as before, and picking one never 
 `features/site/headerLayout.ts` decides; `usesReferenceHeader` (navItems.ts) reads it, so StoreHeader and Menus ›
 Shop categories agree. Theme presets set only the shop page layout, so an owner's explicit header choice survives
 applying one. Product and other pages keep their own header for now.
+**Theme presets with content (27 October 2026, plan 1.23).** A library preset can hold section lists
+(`content.sections`, by template id from `PRESET_SECTION_TEMPLATES`; its `homeLayoutTemplate` counts as Home) and
+starter pages (`content.starterPages`, ids from `pageStarters.ts`). `studio/presetContent.ts` reads them. Applying a
+preset still changes only the look. Studio then asks (askConfirm with `presetContentSummary`) whether to use the
+content as well. Accepting replaces those templates' sections in the draft (undoable) and creates the missing starter
+pages as drafts through `adminApi.createPage`, skipping any slug already in use, so a re-run never doubles a page. The
+preset card shows "Comes with: …" (`data-preset-content`). `themeLibrary.test.ts` treats `content` as preset metadata, not
+design keys.
 
 ## Studio organization
 

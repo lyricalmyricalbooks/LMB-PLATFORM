@@ -40,6 +40,7 @@ import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
+import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections } from "./presetContent";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 import { StudioOutline, blockLabel } from "./StudioOutline";
@@ -743,7 +744,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (choice.home === "starter") { setTemplateId("heroPage"); setShowGlobal(false); }
     say("ok", "Brand kit applied to the draft — Publish to make it live.", undoAction());
   };
-  const applyLibraryTheme = (theme: any) => {
+  const applyLibraryTheme = async (theme: any) => {
     const palette = PALETTES.find((p: any) => p.id === theme.palettePreset);
     const base: Record<string, any> = {
       ...(palette ? { palettePreset: palette.id, primaryColor: palette.accent, backgroundColor: palette.bg, textColor: palette.text } : {}),
@@ -752,6 +753,34 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     for (const k of THEME_APPLIED_KEYS) if (theme[k] !== undefined) base[k] = theme[k];
     change((d) => applyThemeKeysToSurfaces(d, { ...base, ...(theme.global || {}), themeLibraryPreset: theme.id }, surfaceIds), { label: `Apply “${theme.name}” look` });
     say("ok", `“${theme.name}” applied to the draft (sections and text kept) — Publish to make it live.`, undoAction());
+    // A preset can also hold section lists and starter pages (presetContent.ts). They are offered, never applied with the
+    // look: Cancel keeps only the look.
+    if (!hasPresetContent(theme)) return;
+    const summary = presetContentSummary(designRef.current, theme, pages);
+    const ok = await askConfirm({
+      title: `Also use “${theme.name}” layout and starter pages?`,
+      message: `The look is in your draft. ${summary.join(". ")}. Cancel keeps only the look.`,
+      confirmLabel: "Use layout and pages",
+    });
+    if (!ok) return;
+    const sectionTemplates = Object.keys(presetSections(theme));
+    if (sectionTemplates.length) change((d) => applyPresetSections(d, theme, getSectionMeta), { label: `Use “${theme.name}” layout` });
+    let added = 0;
+    try {
+      // Each page saves straight away as a draft, like Pages › New page; a page whose address is taken is skipped, so
+      // trying again after an error never doubles one.
+      for (const page of presetPagesToAdd(theme, pages)) {
+        const created = await adminApi.createPage(page);
+        setPages((prev) => [...prev, created]);
+        added++;
+      }
+    } catch (err: any) {
+      say("err", friendlyError(err, "add the starter pages"));
+      return;
+    }
+    if (sectionTemplates.includes("heroPage")) { setTemplateId("heroPage"); setShowGlobal(false); }
+    const pagesNote = added ? ` ${added} draft page${added === 1 ? "" : "s"} added under Pages (not shown to shoppers until you publish them).` : "";
+    say("ok", `“${theme.name}” layout is in the draft — Publish to make it live.${pagesNote}`, sectionTemplates.length ? undoAction() : undefined);
   };
   // One My themes write at a time: a double-click on Duplicate would otherwise save from a stale list and leave an orphan copy.
   const themesBusyRef = useRef(false);

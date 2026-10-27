@@ -6,7 +6,8 @@ import { STYLE_GROUPS } from "./styleSchema";
 // changes on the storefront needs a Studio › Style control, or the merchant can see the effect
 // but has no way to adjust it after applying the theme.
 const controlled = new Set(STYLE_GROUPS.flatMap((g) => g.fields.map((f) => f.key)));
-const META = new Set(["id", "name", "mood", "global", "homeLayoutTemplate", "palettePreset"]);
+// `content` (sections and starter pages) is offered after the look, never applied as design keys (presetContent.ts).
+const META = new Set(["id", "name", "mood", "global", "homeLayoutTemplate", "palettePreset", "content"]);
 const LEGACY_UNAPPLIED = new Set(["fontSize", "cornerStyle", "animationLevel"]);
 
 describe("every theme-library design is editable in Studio", () => {
