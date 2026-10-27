@@ -29,6 +29,10 @@ on:
       - "!functions/README.md"
   workflow_dispatch:
     inputs:
+      project:
+        description: "Firebase project id to deploy to (empty: the repository variable FIREBASE_PROJECT_ID, else the shop profile's project). Must be the shop profile's project."
+        type: string
+        default: ""
       skip_site_check:
         description: "Deploy even if the shop's address isn't answering (e.g. a Firebase Hosting outage)"
         type: boolean
@@ -53,6 +57,19 @@ jobs:
         with:
           node-version: 22
 
+      # Which Firebase project this deploy goes to (plan 1.19): the `project` input of a run started by hand, else the
+      # repository variable FIREBASE_PROJECT_ID, else the shop profile's project (public/shop-profile.js). It must be the
+      # profile's project, which the shop's pages call; anything else, or a malformed id, stops here before any key is
+      # used (scripts/deployProject.mjs). The input reaches the shell through env, never pasted into the script.
+      - name: Firebase project
+        env:
+          PROJECT_INPUT: ${{ inputs.project || vars.FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          project="$(node scripts/deployProject.mjs "$PROJECT_INPUT")"
+          echo "FIREBASE_PROJECT=$project" >> "$GITHUB_ENV"
+          echo "Deploying to $project"
+
       - name: Install function dependencies
         run: npm ci
         working-directory: functions
@@ -62,7 +79,7 @@ jobs:
           APP_CHECK_MODE: ${{ vars.APP_CHECK_MODE || 'monitor' }}
         run: |
           case "$APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
-          printf 'APP_CHECK_MODE=%s\n' "$APP_CHECK_MODE" > functions/.env.lmb-test-shop
+          printf 'APP_CHECK_MODE=%s\n' "$APP_CHECK_MODE" > "functions/.env.$FIREBASE_PROJECT"
 
       # The functions run where the shop profile says (functionsRegion in public/shop-profile.js, which the shop's pages
       # also call): functions/shopConfig.js reads SHOP_FUNCTIONS_REGION for every function and for the links to them.
@@ -70,7 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           region="$(node scripts/shopProfile.mjs functionsRegion)"
-          printf 'SHOP_FUNCTIONS_REGION=%s\n' "$region" >> functions/.env.lmb-test-shop
+          printf 'SHOP_FUNCTIONS_REGION=%s\n' "$region" >> "functions/.env.$FIREBASE_PROJECT"
           echo "FUNCTIONS_REGION=$region" >> "$GITHUB_ENV"
           echo "Functions run in $region"
 
@@ -87,9 +104,9 @@ jobs:
           if [ -z "$url" ]; then url="$(node scripts/shopProfile.mjs siteUrl)"; fi
           # Format, never GitHub Pages, and allowed by the Cloud Functions (scripts/siteAddressCheck.mjs).
           node scripts/siteAddressCheck.mjs "$url"
-          printf 'SITE_URL=%s\n' "$url" >> functions/.env.lmb-test-shop
+          printf 'SITE_URL=%s\n' "$url" >> "functions/.env.$FIREBASE_PROJECT"
           # The address the Cloud Functions will put in emails, read the way they read it.
-          url=$(GCLOUD_PROJECT=lmb-test-shop SITE_URL="$url" node -e 'process.stdout.write(require("./functions/shopConfig.js").readShopConfig(process.env).siteUrl)')
+          url=$(GCLOUD_PROJECT="$FIREBASE_PROJECT" SITE_URL="$url" node -e 'process.stdout.write(require("./functions/shopConfig.js").readShopConfig(process.env).siteUrl)')
           echo "SHOP_URL=$url" >> "$GITHUB_ENV"
           echo "Email links will open $url"
 
@@ -100,8 +117,8 @@ jobs:
           SHOP_OWNER_EMAIL: ${{ vars.SHOP_OWNER_EMAIL }}
         run: |
           set -euo pipefail
-          node scripts/deployConfig.mjs --project lmb-test-shop
-          printf 'SHOP_OWNER_EMAIL=%s\n' "$SHOP_OWNER_EMAIL" >> functions/.env.lmb-test-shop
+          node scripts/deployConfig.mjs --project "$FIREBASE_PROJECT"
+          printf 'SHOP_OWNER_EMAIL=%s\n' "$SHOP_OWNER_EMAIL" >> "functions/.env.$FIREBASE_PROJECT"
 
       # Never send customers to an address that isn't serving the shop (e.g. this change merged before Firebase Hosting
       # was set up): the live site must answer with its published-content marker.
@@ -127,7 +144,7 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
           npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" functions:artifacts:setpolicy \
-            --project lmb-test-shop --location "$FUNCTIONS_REGION" --days 3 --force --non-interactive
+            --project "$FIREBASE_PROJECT" --location "$FUNCTIONS_REGION" --days 3 --force --non-interactive
 
       - name: Deploy to Firebase
         env:
@@ -145,5 +162,5 @@ jobs:
           npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy \
             --config firebase.deploy.json \
             --only firestore:rules,firestore:indexes,storage,functions \
-            --project lmb-test-shop \
+            --project "$FIREBASE_PROJECT" \
             --non-interactive
