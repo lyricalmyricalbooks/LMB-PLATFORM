@@ -9,7 +9,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const site = vi.hoisted(() => ({ data: {} as any }));
 vi.mock("./useSiteData", () => ({ useSiteData: () => site.data, useLiveDesign: () => site.data.settings?.design || {} }));
@@ -64,21 +64,35 @@ async function cardFor(book: any, design: any): Promise<string> {
   return html;
 }
 
+// Every design × book pair, in the order they were recorded.
+const CASES = Object.entries(DESIGNS).flatMap(([dn, design]) => Object.entries(BOOKS).map(([bn, book]) => ({ key: `${dn}:${bn}`, design, book })));
+
 async function renderAll() {
   const out: Record<string, string> = {};
-  for (const [dn, design] of Object.entries(DESIGNS)) for (const [bn, book] of Object.entries(BOOKS)) out[`${dn}:${bn}`] = await cardFor(book, design);
+  for (const { key, book, design } of CASES) out[key] = await cardFor(book, design);
   return out;
 }
 
+// One test per card. Each card is a full product page rendered by React's development build, which captures a stack
+// for every element it creates (React 19 owner stacks): about 100–500 ms of CPU per card. The 24 cards used to share a
+// single test and its 5 s budget (3.5–4.6 s alone), which a busy full-suite run pushed over the limit.
 describe("product page buy card parity", () => {
-  it("renders the same buy card as before it was made of blocks", async () => {
-    const now = await renderAll();
+  let recorded: Record<string, string> = {};
+
+  beforeAll(async () => {
     if (process.env.UPDATE_PRODUCT_CARD || !existsSync(FIXTURE)) {
-      writeFileSync(FIXTURE, JSON.stringify(now, null, 1) + "\n");
+      writeFileSync(FIXTURE, JSON.stringify(await renderAll(), null, 1) + "\n");
       if (!process.env.UPDATE_PRODUCT_CARD) throw new Error("fixture recorded for the first time — rerun");
     }
-    const recorded = JSON.parse(readFileSync(FIXTURE, "utf8"));
-    expect(Object.keys(now).sort()).toEqual(Object.keys(recorded).sort());
-    for (const key of Object.keys(recorded)) expect(now[key], key).toBe(recorded[key]);
+    recorded = JSON.parse(readFileSync(FIXTURE, "utf8"));
+    // Recording renders all 24 cards in this one hook, so it gets the time they take (only with UPDATE_PRODUCT_CARD).
+  }, process.env.UPDATE_PRODUCT_CARD ? 120_000 : undefined);
+
+  it("covers exactly the recorded cards", () => {
+    expect(CASES.map(c => c.key).sort()).toEqual(Object.keys(recorded).sort());
+  });
+
+  it.each(CASES)("renders the same buy card as before it was made of blocks ($key)", async ({ key, book, design }) => {
+    expect(await cardFor(book, design), key).toBe(recorded[key]);
   });
 });
