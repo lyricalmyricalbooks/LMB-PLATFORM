@@ -3223,7 +3223,7 @@ function initShippingTab() {
     if (bcOrders.length === 0) {
       const opt = document.createElement('option');
       opt.disabled = true;
-      opt.textContent = 'No Big Cartel orders found';
+      opt.textContent = 'No website orders found';
       bcGroup.appendChild(opt);
     } else {
       // Read once, not per order: without the Big Cartel tab opened first this
@@ -3392,7 +3392,7 @@ function renderCustomShippoDestPicker() {
 
     items.push({
       category: 'bc',
-      catLabel: 'Big Cartel',
+      catLabel: 'Website order',
       icon: '🛒',
       title: `Order #${o.id} · ${addrObj.name}`,
       sub: `${addrObj.street1 ? addrObj.street1 + ', ' : ''}${addrObj.city || 'Local'}${addrObj.state ? ', ' + addrObj.state : ''} ${addrObj.country}`,
@@ -3589,7 +3589,7 @@ function renderBigCartelShipQueue() {
     host.innerHTML = getBigCartelOrders().length ? `
       <div class="card ship-queue-card is-empty" role="status">
         <span aria-hidden="true">✓</span>
-        <span class="ship-queue-empty-text"><strong>All caught up.</strong> No Big Cartel orders are waiting to ship. ${shipQueueHiddenHtml()}</span>
+        <span class="ship-queue-empty-text"><strong>All caught up.</strong> No website orders are waiting to ship. ${shipQueueHiddenHtml()}</span>
         ${shipQueueCloseButton()}
       </div>` : '';
     return;
@@ -3619,7 +3619,7 @@ function renderBigCartelShipQueue() {
       <div class="ship-queue-head">
         <div>
           <h3 id="ship-queue-title" class="ship-queue-title">Ready to ship</h3>
-          <p class="ship-queue-sub">${queue.length} Big Cartel order${queue.length === 1 ? ' is' : 's are'} waiting for a parcel. Oldest first.</p>
+          <p class="ship-queue-sub">${queue.length} website order${queue.length === 1 ? ' is' : 's are'} waiting for a parcel. Oldest first.</p>
         </div>
         <div class="ship-queue-head-actions">
           <button class="btn gold ship-queue-start" type="button" onclick="shipQueuedOrder('${escapeHtml(queue[0].orderNumber)}')">
@@ -3639,7 +3639,7 @@ async function shipQueuedOrder(orderNumber) {
   const key = normalizeShippingOrderNumber(orderNumber);
   const idx = _shippoDestMasterList.findIndex(item => item.category === 'bc'
     && normalizeShippingOrderNumber(item.orderNumber) === key);
-  if (idx < 0) { showToast('That order is no longer in the list — refresh Big Cartel and try again', 'warn'); return; }
+  if (idx < 0) { showToast('That order is no longer in the list — refresh your orders and try again', 'warn'); return; }
   const panel = $('cp-purchased-label-panel');
   if (panel) { panel.innerHTML = ''; panel.style.display = 'none'; }
   $('custom-ship-dest-trigger')?.scrollIntoView({ behavior: _prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
