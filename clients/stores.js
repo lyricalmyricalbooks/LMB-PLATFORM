@@ -63,6 +63,15 @@ export function firestoreRepairs(firestore) {
   };
 }
 
+/** breaches/<id>: the breach register (control-room/breaches.js). Never deleted from here; kept at least two years. */
+export function firestoreBreaches(firestore) {
+  return {
+    get: (id) => firestore.get(`breaches/${id}`),
+    set: (id, entry) => firestore.set(`breaches/${id}`, entry),
+    list: async () => (await firestore.query("breaches", { limit: 5000 })).map((row) => row.data),
+  };
+}
+
 /** devices/<accountId>: { known: { <hash>: { firstSeenAt, lastSeenAt, browser } } } (accounts/devices.js). */
 export function firestoreDevices(firestore) {
   return {

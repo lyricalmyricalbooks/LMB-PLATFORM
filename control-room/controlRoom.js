@@ -19,6 +19,8 @@
 //                 needed to close a shop (closure.js)
 //   envFiles, deploy, build, email, squareAccount   optional: the emergency payments switch (emergencyPayments.js);
 //                 without envFiles, deploy and email it refuses
+//   breaches      optional: the breach register (breaches.js createBreachRegister)
+//   people        optional: controlRoomPeople() (people.js): the privacy contact shown with the register
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
@@ -94,7 +96,7 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, admins, now = () => new Date(),
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, admins, now = () => new Date(),
 }) {
   const at = () => now().toISOString();
 
@@ -266,6 +268,25 @@ export function createControlRoom({
       if (all !== true) await shopOr404(shopId);
       if (!paymentsSwitch) throw new ControlError(503, "The emergency payments switch isn't set up here, so nothing was moved.");
       return paymentsSwitch.move({ by, reason: why, to, shopId, all: all === true });
+    },
+
+    /** The breach register (plan 8.6): every entry, newest first, and who the privacy contact is. */
+    async breaches(claims) {
+      adminOf(claims, admins);
+      if (!breaches) return { breaches: [], privacyContact: people.privacyContact ?? null };
+      return { breaches: await breaches.list(), privacyContact: people.privacyContact ?? null };
+    },
+
+    async recordBreach(claims, details = {}) {
+      const by = adminOf(claims, admins);
+      if (!breaches) throw new ControlError(503, "The breach register isn't set up here, so nothing was written.");
+      return { breach: await breaches.record({ ...details, by }) };
+    },
+
+    async updateBreach(claims, { id, reportedToCommissioner, peopleTold, note } = {}) {
+      const by = adminOf(claims, admins);
+      if (!breaches) throw new ControlError(503, "The breach register isn't set up here, so nothing was written.");
+      return { breach: await breaches.update({ by, id, reportedToCommissioner, peopleTold, note }) };
     },
 
     /** The control room's switch button. */

@@ -32,6 +32,8 @@
   .switch { display: flex; gap: 8px; align-items: center; font: 14px "DM Mono", monospace; min-height: 44px; }
   .switch input { width: 22px; height: 22px; }
   h2 { font: 400 26px/1.15 Anton, Impact, sans-serif; text-transform: uppercase; margin: 24px 0 0; }
+  .field { display: grid; gap: 4px; font-weight: 600; }
+  .field input { font: inherit; font-weight: 400; border: 2px solid var(--ink); border-radius: 0; padding: 8px; min-height: 44px; background: var(--paper); color: var(--ink); }
   select { font: inherit; border: 2px solid var(--ink); border-radius: 0; padding: 8px; min-height: 44px; background: var(--paper); color: var(--ink); }
   textarea { font: inherit; border: 2px solid var(--ink); border-radius: 0; padding: 10px; min-height: 110px; background: var(--paper); color: var(--ink); resize: vertical; }
   .message { border-left: 4px solid var(--blue); padding-left: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -79,6 +81,18 @@
       <button type="button" data-status="cancelled" aria-pressed="false">Stopped</button>
     </div>
     <div id="recoveries" class="stack"></div>
+    <h2>Breach register</h2>
+    <p class="hint">Write down every privacy breach, even one that didn't need reporting. Entries are kept at least two years and can't be deleted here. <span id="privacy-contact"></span></p>
+    <form id="breach-form" class="card">
+      <label class="field">Day it was found <input type="date" name="foundOn" required></label>
+      <label class="field">What happened <textarea name="what" required maxlength="4000"></textarea></label>
+      <label class="field">Shops affected (shop ids, separated by commas; empty if none) <input name="shops"></label>
+      <label class="field">People affected (who, and about how many) <input name="people" required maxlength="1000"></label>
+      <label class="switch"><input type="checkbox" name="reportedToCommissioner"> Reported to the Privacy Commissioner</label>
+      <label class="switch"><input type="checkbox" name="peopleTold"> The people affected were told</label>
+      <div class="row"><button type="submit" class="primary">Write it in the register</button></div>
+    </form>
+    <div id="breaches" class="stack"></div>
   </section>
   <p id="status" role="status" aria-live="polite"></p>
 </main>

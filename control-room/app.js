@@ -53,6 +53,7 @@ async function load() {
     await loadRepairs();
     await loadTickets();
     await loadRecoveries();
+    await loadBreaches();
   } catch (failure) {
     status.textContent = failure.message;
   }
@@ -344,6 +345,67 @@ function recoveryCard(request) {
     el("div", { className: "message", textContent: request.details }),
     ...(request.history ?? []).map((h) => el("div", { className: "facts", textContent: `${when(h.at)} · ${h.what}${h.by ? ` · ${h.by}` : ""}${h.note ? ` · ${h.note}` : ""}${h.reason ? ` · ${h.reason}` : ""}` })),
     actions.childElementCount ? words : null,
+    actions.childElementCount ? actions : null);
+}
+
+// ── The breach register (control-room/breaches.js, plan 8.6): written down, marked reported or told, never deleted. ──
+async function loadBreaches() {
+  try {
+    const { breaches, privacyContact } = await api("POST", "/control/breaches");
+    $("#privacy-contact").textContent = privacyContact ? `Privacy contact: ${privacyContact}.` : "";
+    $("#breaches").replaceChildren(...(breaches.length ? breaches.map(breachCard) : [el("p", { textContent: "Nothing in the register." })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+$("#breach-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const value = (name) => form.elements.namedItem(name);
+  try {
+    await api("POST", "/control/breaches/record", {
+      foundOn: value("foundOn").value, what: value("what").value, people: value("people").value,
+      shops: value("shops").value.split(",").map((id) => id.trim()).filter(Boolean),
+      reportedToCommissioner: value("reportedToCommissioner").checked, peopleTold: value("peopleTold").checked,
+    });
+    form.reset();
+    status.textContent = "Written in the breach register.";
+    await loadBreaches();
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+});
+
+function breachCard(entry) {
+  const when = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const mark = (label, field) => {
+    const button = el("button", { type: "button", textContent: label });
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await api("POST", "/control/breaches/update", { id: entry.id, [field]: true });
+        await loadBreaches();
+      } catch (failure) {
+        status.textContent = failure.message;
+        button.disabled = false;
+      }
+    });
+    return button;
+  };
+  const actions = el("div", { className: "row" },
+    entry.reportedToCommissioner ? null : mark("Mark reported to the Commissioner", "reportedToCommissioner"),
+    entry.peopleTold ? null : mark("Mark people told", "peopleTold"));
+  return el("div", { className: `card ${entry.reportedToCommissioner && entry.peopleTold ? "ok" : "watch"}` },
+    el("div", { className: "row" }, el("strong", { textContent: `Found ${entry.foundOn}` }), el("span", { className: "pill", textContent: entry.id })),
+    el("div", { className: "message", textContent: entry.what }),
+    el("div", { className: "facts" },
+      el("span", { textContent: `people: ${entry.people}` }),
+      el("span", { textContent: `shops: ${entry.shops.join(", ") || "none"}` }),
+      el("span", { textContent: entry.reportedToCommissioner ? `reported ${when(entry.reportedAt)}` : "not reported to the Commissioner" }),
+      el("span", { textContent: entry.peopleTold ? `people told ${when(entry.toldAt)}` : "people not told" }),
+      el("span", { textContent: `kept until at least ${entry.keepUntil}` })),
+    ...entry.history.map((h) => el("div", { className: "facts", textContent: `${when(h.at)} · ${h.what} · ${h.by}${h.note ? ` · ${h.note}` : ""}` })),
     actions.childElementCount ? actions : null);
 }
 

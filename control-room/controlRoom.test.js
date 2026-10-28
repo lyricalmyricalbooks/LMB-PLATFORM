@@ -7,7 +7,9 @@ import assert from "node:assert/strict";
 import { ACT_AS_MINUTES, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
-import { fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
+import { fakeBreachStore, fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
+import { createBreachRegister, keepUntil } from "./breaches.js";
+import { controlRoomPeople } from "./people.js";
 import { createRepairQueue } from "./repairs.js";
 import { createSelfChecks } from "./selfChecks.js";
 import { createPaymentService } from "../services/payments/service.js";
@@ -51,19 +53,22 @@ async function world({ repairs } = {}) {
   const shopAccess = fakeShopAccess();
   const email = fakeEmail();
   const square = new Set();
+  const breachStore = fakeBreachStore();
   const built = [];
   const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
     registry, auditLog, profileFiles, publish, shopAccess, repairs, shopData: services.shopData,
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
+    breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
+    people: controlRoomPeople({}),
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: controlRoutes(room) });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const events = (shopId = ID) => [...(registry.events.get(shopId)?.values() ?? [])].filter((e) => e.source === "control-room");
-  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square };
+  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square, breachStore };
 }
 
 test("only platform admins get in; nobody is an admin unless the list says so", async () => {
@@ -328,4 +333,46 @@ test("emergency payments: every live shop to Square at once; refused when the sw
 
   const bare = createControlRoom({ registry: w.registry, auditLog: w.auditLog, profileFiles: w.profileFiles, publish: async () => ({ apps: [] }), admins: [ADMIN.email] });
   await assert.rejects(bare.movePayments(ADMIN, { shopId: ID, to: "own", reason: "the platform's Stripe account is paused" }), { status: 503 });
+});
+
+test("the breach register: admins only, every field required, kept two years with no way to delete, the shops' logs told", async () => {
+  const w = await world();
+  const good = { foundOn: "2026-10-27", what: "A support visit showed one press's order list to another press by mistake.", shops: [ID], people: "about 12 shoppers of the test press", reportedToCommissioner: false, peopleTold: false };
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/breaches")).status, 403);
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/breaches/record", good)).status, 403);
+  for (const wrong of [{ foundOn: "27/10/2026" }, { foundOn: "2026-10-29" }, { what: " " }, { people: "" }, { peopleTold: "no" }, { shops: ["no-such-shop"] }]) {
+    assert.equal((await w.ask(ADMIN, "POST", "/api/control/breaches/record", { ...good, ...wrong })).status, 400, JSON.stringify(wrong));
+  }
+  assert.equal(w.breachStore.rows.size, 0);
+
+  const recorded = await w.ask(ADMIN, "POST", "/api/control/breaches/record", good);
+  assert.equal(recorded.status, 200);
+  const entry = recorded.body.breach;
+  assert.deepEqual([entry.foundOn, entry.shops, entry.reportedToCommissioner, entry.peopleTold, entry.recordedBy, entry.keepUntil], ["2026-10-27", [ID], false, false, ADMIN.email, "2028-10-27"]);
+  const [logged] = w.events();
+  assert.deepEqual([logged.what, logged.breachId, logged.by], ["breach-recorded", entry.id, ADMIN.email]);
+  assert.equal(logged.people, undefined, "the shop's log names the entry, not its details");
+  assert.ok(w.auditLog.entries.get(ID).has(logged.id));
+
+  const updated = await w.ask(ADMIN, "POST", "/api/control/breaches/update", { id: entry.id, reportedToCommissioner: true, note: "Filed online, reference 123." });
+  assert.equal(updated.body.breach.reportedToCommissioner, true);
+  assert.deepEqual(updated.body.breach.history.map((h) => h.what), ["recorded", "reported to the Privacy Commissioner"]);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/breaches/update", { id: entry.id })).status, 400, "nothing to add");
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/breaches/update", { id: "nope", peopleTold: true })).status, 404);
+  // A mark can't be taken back.
+  await w.ask(ADMIN, "POST", "/api/control/breaches/update", { id: entry.id, reportedToCommissioner: false, note: "checking" });
+  assert.equal(w.breachStore.rows.get(entry.id).reportedToCommissioner, true);
+
+  const list = await w.ask(ADMIN, "POST", "/api/control/breaches");
+  assert.deepEqual([list.body.breaches.length, list.body.privacyContact], [1, "privacy@platform.example"]);
+  assert.ok(!Object.keys(controlRoutes(w.room)).some((route) => /delete|remove/.test(route)), "no route deletes an entry");
+  assert.equal(keepUntil("2028-02-29"), "2030-03-01");
+});
+
+test("the control room's people: a placeholder privacy contact, and nobody as admin address or backup person until set", () => {
+  assert.deepEqual(controlRoomPeople({}), { privacyContact: "privacy@platform.example", adminEmail: null, backupPerson: null });
+  assert.deepEqual(controlRoomPeople({ PLATFORM_DOMAIN: "colophon.example", PLATFORM_ADMIN_EMAIL: " Owner@Example.com ", PLATFORM_BACKUP_PERSON: "backup@example.com" }), {
+    privacyContact: "privacy@colophon.example", adminEmail: "owner@example.com", backupPerson: "backup@example.com",
+  });
+  assert.throws(() => controlRoomPeople({ PLATFORM_BACKUP_PERSON: "someone" }), /PLATFORM_BACKUP_PERSON is not an email address/);
 });

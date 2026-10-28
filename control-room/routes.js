@@ -10,6 +10,9 @@
 //   POST /api/control/reopen   { shopId, reason }: open them again
 //   POST /api/control/payments { shopId | all: true, to: "own" | "square" | "platform", reason }: the emergency
 //                              payments switch (plan 8.5)
+//   POST /api/control/breaches         the breach register and the privacy contact (plan 8.6)
+//   POST /api/control/breaches/record  { foundOn, what, shops, people, reportedToCommissioner, peopleTold }
+//   POST /api/control/breaches/update  { id, reportedToCommissioner?, peopleTold?, note? }
 
 export function controlRoutes(room) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
@@ -23,5 +26,8 @@ export function controlRoutes(room) {
     "POST /api/control/close": (claims, request) => room.closeShop(claims, body(request)),
     "POST /api/control/reopen": (claims, request) => room.reopenShop(claims, body(request)),
     "POST /api/control/payments": (claims, request) => room.movePayments(claims, body(request)),
+    "POST /api/control/breaches": (claims) => room.breaches(claims),
+    "POST /api/control/breaches/record": (claims, request) => room.recordBreach(claims, body(request)),
+    "POST /api/control/breaches/update": (claims, request) => room.updateBreach(claims, body(request)),
   };
 }
