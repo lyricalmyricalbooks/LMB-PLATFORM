@@ -6,6 +6,7 @@ export type ShortcutAction = "find" | "save" | "undo" | "redo" | "delete" | "dup
 
 /** "G then a letter" jumps to a Studio workspace (a two-key sequence, like Gmail or GitHub). */
 export const GO_KEYS = [
+  { key: "e", tab: "essentials", label: "Essentials" },
   { key: "l", tab: "sections", label: "Page layout" },
   { key: "t", tab: "style", label: "Theme settings" },
   { key: "x", tab: "text", label: "Text & labels" },

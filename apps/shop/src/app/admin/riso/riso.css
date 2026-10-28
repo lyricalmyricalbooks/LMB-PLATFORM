@@ -1340,6 +1340,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp:not(.studio-editor) .rp-nav-subitem:hover { background: var(--rp-rail-hover); color: var(--rp-on-inverse); }
 .rp:not(.studio-editor) .rp-nav-subitem[aria-current="page"] { background: transparent; color: var(--rp-on-inverse); font-weight: 600; }
 .rp:not(.studio-editor) .rp-nav-sublist { border-left-color: var(--rp-rail-line); }
+.rp-nav-subitem .rp-nav-badge { margin-left: auto; font: 400 12px/1 var(--rp-font-mono); color: inherit; }
+.rp:not(.studio-editor) .rp-nav-subitem .rp-nav-badge { color: var(--rp-primary); }
 .rp:not(.studio-editor) .rp-sidebar-foot { padding: 24px 0 0; border-top: 0; }
 .rp:not(.studio-editor) .rp-whats-new { margin: 0; padding: 12px; gap: 12px; min-height: 0; border: 0; border-top: 1px solid var(--rp-rail-line); background: transparent; color: var(--rp-on-inverse); }
 .rp:not(.studio-editor) .rp-whats-new:hover { background: var(--rp-rail-hover); }
