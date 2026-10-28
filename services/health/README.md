@@ -24,6 +24,9 @@ A check that can't be made ("couldn't check: …") counts as failing. Every chec
   keeps failing, and one note when it recovers. An alert that couldn't be sent is sent on the next run, and so is a
   recovery note.
 
+What each alert means and what to do about it is in `docs/run-book.md`; `runBook.test.js` fails when an alert has no
+section there.
+
 After each run the checks job also saves the public status summary (`status/publish.js`), which the status page shows.
 
 ## Every night (`nightly.js`)
