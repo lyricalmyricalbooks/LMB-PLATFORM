@@ -426,7 +426,9 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   A new book with two or more priced editions gets `variants` (`editionsFor`; price = cheapest, stock = sum); an existing
   book's editions are never changed (warning). Listings whose choices have no price per choice get a note, not
   made-up editions. `htmlToDescription` writes the description toolbar's formatting (`features/site/descriptionLinks.ts`).
-  `oldPaths` (per old line) holds the old shop's product addresses for the redirects of plan 3.2.
+  `oldPaths` (per old line) holds the old shop's product addresses. After the import saves, `importRedirects` (plan 3.2)
+  adds them to URL redirects as `/books/<id>` (ids survive renames), for created, updated and unchanged books; it never
+  replaces an existing redirect, skips the shop's own routes and stops at `MAX_REDIRECTS` with a reason.
 - **Customers:** Customers › **Bring customers over** (`ShopMoveDialogs.tsx`, lazy) → `readCustomerExport` →
   `planCustomerNotes` (merges into `customerNotes`; `MOVED_MARK` makes a re-run unchanged; tags capped by `parseTags`)
   and `newsletterJoiners` (said yes in the file, not subscribed, not in `marketing-optout`). Joiners are written only

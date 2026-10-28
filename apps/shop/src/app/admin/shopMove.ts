@@ -9,6 +9,7 @@
 import { metricWeightValue } from "../features/site/metricWeight";
 import { MAX_IMPORT_ROWS, parseCsv, parseMoney, planImport, validIsbn, type ImportOptions, type ImportPlan, type ImportRow } from "./catalogImport";
 import { parseTags } from "./customerInsights";
+import { MAX_REDIRECTS, normalizePath, redirectProblem, type Redirect } from "../features/site/redirects";
 
 /** Which shape an export has. Named after how its rows are laid out, not after who made it. */
 export type ExportShape =
@@ -339,6 +340,42 @@ export function planShopMove(text: string, books: any[], shopCategories: string[
     return next;
   });
   return { plan: { ...plan, rows }, moved, oldPaths };
+}
+
+// ── Old links (plan 3.2) ──────────────────────────────────────────
+
+export interface RedirectPlan {
+  /** The whole list to save: what was there, then the new links. */
+  items: Redirect[];
+  added: Redirect[];
+  /** Old addresses that already lead somewhere (left as the owner set them), or can't be used. */
+  skipped: { from: string; why: string }[];
+}
+
+/**
+ * Redirects so the old shop's product links open the same book here once the press's address points at this shop.
+ * Each book's link is its id (`/books/<id>`), which the book page always finds, even after the title changes.
+ * A redirect the owner already has is never replaced, so bringing the same file over twice adds nothing.
+ */
+export function importRedirects(existing: Redirect[], links: { oldPaths: string[]; bookId: string }[]): RedirectPlan {
+  const items = [...existing];
+  const added: Redirect[] = [];
+  const skipped: RedirectPlan["skipped"] = [];
+  for (const { oldPaths, bookId } of links) {
+    if (!bookId) continue;
+    const to = `/books/${encodeURIComponent(bookId)}`;
+    for (const path of oldPaths) {
+      const from = normalizePath(path);
+      const had = items.find(r => normalizePath(r.from) === from);
+      if (had) { if (had.to !== to) skipped.push({ from, why: `It already leads to ${had.to}.` }); continue; }
+      if (items.length >= MAX_REDIRECTS) { skipped.push({ from, why: `The shop holds up to ${MAX_REDIRECTS} old links.` }); continue; }
+      const why = redirectProblem({ from, to }, items);
+      if (why) { skipped.push({ from, why }); continue; }
+      const item = { from, to };
+      items.push(item); added.push(item);
+    }
+  }
+  return { items, added, skipped };
 }
 
 // ── Customers ─────────────────────────────────────────────────────
