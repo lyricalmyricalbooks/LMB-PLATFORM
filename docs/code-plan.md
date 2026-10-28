@@ -115,7 +115,7 @@ Gate: a press nobody has spoken to signs up, pays and takes an order with no hel
 | 2.9 | platform, shop | Custom domains from the shop's settings; Stripe payment domain registered by the platform |
 | 2.10 | shop | Go-live checklist; tax and shipping presets; Connect Stripe button |
 | 2.11 | platform | Self-checks after every change and a repair queue. **Status: open.** `control-room/selfChecks.js`: five checks (profile, profile file, release versions, service key, ended plan) run after a switch change, when the shop maker finishes, from Check now and on a daily sweep (`self-check.js`). A drifted profile file or a missing switch fixes itself (rewritten from the saved profile and published); anything else goes to `control-room/repairs.js`, one item per problem (counted, never duplicated, reopened when it comes back), closed by the check passing again or by a person with a note, and logged in the registry and the shop's audit log. The control room shows the queue and the five-minute health watch's failing checks. Proven by `control-room/selfChecks.test.js` against a test shop made by the real setup steps. Still to do: the schedules; the release runner and billing changes calling the checks |
-| 2.12 | shop | Theme wave 2; show which edits carried over after a theme switch |
+| 2.12 | shop | Theme wave 2; show which edits carried over after a theme switch. **Status: done.** Zine, Letterpress and Index looks with palettes and homepage layouts (checked by the readability and import checks); after Use this look, Themes lists the press's own style changes that carried over and those the look replaced, with Bring back for each or all (`studio/themeSwitch.ts`, `themeSwitch.test.ts`, Studio e2e) |
 
 ## Phase 3: easy switching
 

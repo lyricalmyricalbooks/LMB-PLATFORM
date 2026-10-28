@@ -44,6 +44,7 @@ import { applyPresetSections, hasPresetContent, presetContentSummary, presetPage
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY } from "./themeLibrary";
 import { themeLookKeys } from "./themeLook";
+import { bringBack, switchSummary, themeSwitchReport, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
 import { StudioOutline, blockLabel } from "./StudioOutline";
@@ -487,6 +488,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [historyPreview, setHistoryPreview] = useState<ThemeVersion | null>(null);
   // Studio › Themes › Preview: a whole theme shown in the canvas without touching the draft.
   const [themePreview, setThemePreview] = useState<{ id: string; label: string; design: any } | null>(null);
+  // The last theme switch's report (Themes › What carried over), kept until dismissed or another look replaces it.
+  const [switchReport, setSwitchReport] = useState<ThemeSwitchReport | null>(null);
   // Theme actions › Schedule publishing (3.5); a saved theme can be pre-selected from Themes.
   const [schedule, setSchedule] = useState<{ themeId: string | null } | null>(null);
   const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
@@ -749,8 +752,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const applyLibraryTheme = async (theme: any) => {
     // themeLook.ts: the palette's full colour set (cards, footer, bag, small print…), then the theme's own keys.
+    // What carried over (themeSwitch.ts): worked out from the draft as it is now, shown in Themes until dismissed.
+    const before = designRef.current;
+    const report = themeSwitchReport(before, applyThemeKeysToSurfaces(before, themeLookKeys(theme, before), surfaceIds), defaults, theme);
     change((d) => applyThemeKeysToSurfaces(d, themeLookKeys(theme, d), surfaceIds), { label: `Apply “${theme.name}” look` });
-    say("ok", `“${theme.name}” applied to the draft (sections and text kept) — Publish to make it live.`, undoAction());
+    setSwitchReport(report);
+    say("ok", `“${theme.name}” applied to the draft (sections and text kept). ${switchSummary(report)} Publish to make it live.`, undoAction());
     // A preset can also hold section lists and starter pages (presetContent.ts). They are offered, never applied with the
     // look: Cancel keeps only the look.
     if (!hasPresetContent(theme)) return;
@@ -779,6 +786,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (sectionTemplates.includes("heroPage")) { setTemplateId("heroPage"); setShowGlobal(false); }
     const pagesNote = added ? ` ${added} draft page${added === 1 ? "" : "s"} added under Pages (not shown to shoppers until you publish them).` : "";
     say("ok", `“${theme.name}” layout is in the draft — Publish to make it live.${pagesNote}`, sectionTemplates.length ? undoAction() : undefined);
+  };
+  /** Themes › What carried over › Bring back: put replaced edits back over the new look, as one undoable change. */
+  const bringBackEdits = (items: SwitchItem[]) => {
+    if (!items.length) return;
+    change((d) => bringBack(d, items), { label: items.length === 1 ? `Bring back ${items[0].label}` : `Bring back ${items.length} of my changes` });
+    const keys = new Set(items);
+    setSwitchReport((r) => r && { ...r, replaced: r.replaced.filter((i) => !keys.has(i)), kept: [...r.kept, ...items] });
+    say("ok", items.length === 1 ? `Brought back “${items[0].label}”.` : `Brought back ${items.length} of your changes.`, undoAction());
   };
   // One My themes write at a time: a double-click on Duplicate would otherwise save from a stale list and leave an orphan copy.
   const themesBusyRef = useRef(false);
@@ -2529,6 +2544,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onDownload={exportTheme} onSchedule={t => setSchedule({ themeId: t.id })}
                 onDelete={t => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}
                 onApplyPreset={preset => { setThemePreview(null); applyLibraryTheme(preset); }}
+                switchReport={switchReport && design.themeLibraryPreset === switchReport.themeId ? switchReport : null}
+                onBringBack={bringBackEdits} onDismissSwitch={() => setSwitchReport(null)}
                 links={{ create: (d, name, days) => adminApi.createPreviewLink(d, name, days), list: () => adminApi.listPreviewLinks(), revoke: token => adminApi.revokePreviewLink(token) }}
                 askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
             )}
