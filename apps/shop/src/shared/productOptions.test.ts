@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_VARIANTS,
+  adoptEditions,
   findVariant,
   isBookKind,
   optionCombinations,
@@ -115,6 +116,21 @@ describe("variants for options", () => {
     const { variants, removed } = variantsForOptions(options, withPicks, () => { throw new Error("no new ones"); });
     expect(variants.map((v) => v.id)).toEqual(["hc", "pb"]);
     expect(removed).toEqual([]);
+  });
+});
+
+describe("adopting today's editions", () => {
+  it("gives each edition its own name as its pick when one option lists the names", () => {
+    const options = [{ name: "Format", values: ["Hardcover", "paperback", "Signed"] }];
+    const adopted = adoptEditions(options, book.variants);
+    expect(adopted.map((v) => v.options)).toEqual([{ Format: "Hardcover" }, { Format: "paperback" }]);
+    let n = 0;
+    const { variants, removed } = variantsForOptions(options, adopted, () => ({ id: `new-${++n}`, stock: 0 }));
+    expect(variants.map((v) => [v.id, v.name])).toEqual([["hc", "Hardcover"], ["pb", "paperback"], ["new-1", "Signed"]]);
+    expect(removed).toEqual([]);
+  });
+  it("leaves editions alone for two or more options", () => {
+    expect(adoptEditions(productOptions(shirt), book.variants)).toEqual(book.variants);
   });
 });
 

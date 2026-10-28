@@ -129,6 +129,20 @@ export function variantsForOptions(
   return { variants, removed: (existing || []).filter((v) => !used.has(v)) };
 }
 
+/**
+ * Today's editions carry no picks. When the press's first option lists their names (Format: Hardcover, Paperback),
+ * each edition takes its own name as its pick, so it keeps its id, price and stock instead of being replaced.
+ */
+export function adoptEditions(options: ProductOption[], variants: OptionVariant[]): OptionVariant[] {
+  if (options.length !== 1) return variants || [];
+  const [option] = options;
+  return (variants || []).map((v) => {
+    if (v?.options && typeof v.options === "object" && Object.keys(v.options).length) return v;
+    const value = option.values.find((x) => sameWord(x, word(v?.name)));
+    return value ? { ...v, options: { [option.name]: value } } : v;
+  });
+}
+
 const sameCombo = (a: OptionPicks | null, b: OptionPicks) => !!a && Object.keys(b).every((k) => a[k] === b[k]);
 
 /** The variant matching every pick, or null while a pick is missing or no variant has that combination. */
