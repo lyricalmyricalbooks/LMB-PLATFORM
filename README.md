@@ -19,7 +19,8 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `setup/` | The shop maker. It creates a press's Firebase copy in numbered steps, each safe to re-run. |
 | `clients/` | The platform's real connections to Google (Firestore, the registry, sign-in for the test owner), each tested with a fake `fetch`. |
 | `release-check/` | The full purchase every update must pass on the test shop: buy, stock drop in the shop and stockroom, email, refund. |
-| `releases/` | Sends a new shop and stockroom version to every press, starting with a test shop. |
+| `releases/` | Notes on how a new shop and stockroom version reaches every press. |
+| `services/release-runner/` | Builds a release once and sends it to the test shop, then every other platform shop; stops and rolls back at the first failed check. |
 | `control-room/` | Platform admin: every shop's health, plan and version, plus a logged "act as this shop" button. |
 | `services/payments/` | The one service that holds the Stripe platform key. It handles checkout and Stripe events for all shops. |
 | `services/billing/` | Each press's Colophon plan (shop, stockroom or both) on the platform's own Stripe account: free trial with no card, card, cancel, plan changes and the billing emails. |

@@ -9,6 +9,7 @@ import { missingDatabase } from "./firestore.js";
 //   shops/{shopId}/releaseChecks/{runId}  one release check run
 //   shops/{shopId}/events/{id}            the payment service's changes to the row
 //   shops/{shopId}/files/{name}           per-shop files the release build copies in (clients/shop.js registryFiles)
+//   releases/{version}-{runId}            one release run, ring by ring (services/release-runner)
 //   shopLocks/{shopId}                    who is setting the shop up right now (setup/runner.js)
 // Audit log (the shop's own project): audit-log/{id}, written once the shop's database exists.
 //
@@ -56,6 +57,8 @@ export function firestoreRegistry(firestore, { now = () => new Date() } = {}) {
       return rows[0]?.data ?? null;
     },
     recordEvent: (shopId, entry) => firestore.set(`shops/${shopId}/events/${String(entry.id).replace(/[/]/g, "_")}`, entry),
+    listShops: async () => (await firestore.query("shops", { limit: 5000 })).map((row) => row.data),
+    recordRelease: (entry) => firestore.set(`releases/${entry.version}-${entry.runId}`, entry),
     async recordReleaseCheck(shopId, entry) {
       await firestore.set(`shops/${shopId}/releaseChecks/${entry.runId}`, { ...entry, recordedAt: stamp() });
     },
