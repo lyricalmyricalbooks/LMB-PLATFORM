@@ -17,7 +17,7 @@
 // needs every file hashed and uploaded; the command line does both the way the shop's own deploy workflow does. The
 // Hosting upload over REST (populateFiles, then the upload address) could not be confirmed from Google's docs from
 // here, so it is not hand-written. The command line signs in with the runner's application default credentials.
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { googleHttp, isNotFound } from "./http.js";
 
@@ -31,6 +31,11 @@ export const RELEASE_MESSAGE = /^lmb-release (\S+)$/;
 /** The stamp line the release build puts at the top of a shop's firestore.rules. */
 export const rulesStamp = ({ version, apps }) => `// lmb-release: ${JSON.stringify({ version, apps })}`;
 
+/** `text` with its stamp line (if any) replaced by the stamp for this release, so one shared build can be stamped per shop. */
+export function stampedRules(text, stamp) {
+  return `${stamp}\n${String(text).replace(/^\/\/ lmb-release: .*\r?\n/, "")}`;
+}
+
 /** The Hosting site of one app: the project's own default site for the shop, `<project>-stockroom` for the stockroom. */
 export const siteOf = (projectId, app) => (app === "shop" ? projectId : `${projectId}-${app}`);
 
@@ -41,15 +46,16 @@ export const siteOf = (projectId, app) => (app === "shop" ? projectId : `${proje
  * `firebase.deploy.json` and its rules with the owner filled in (plan 1.14b), so the shared build never holds one
  * shop's owner for another.
  */
-export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, writeText = writeFile }) {
+export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, writeText = writeFile, readText = (path) => readFile(path, "utf8") }) {
   const call = googleHttp({ fetch, token });
-  const firebase = async (version, app, args) => {
+  const firebase = async (version, app, args, prepare) => {
     const cwd = join(buildDir(version), "apps", app);
     const projectId = args[args.indexOf("--project") + 1];
     if (app === "shop") {
       if (typeof ownerEmailOf !== "function") throw new Error("the deploy client needs ownerEmailOf to fill in the shop's rules");
       await run("node", ["scripts/deployConfig.mjs", "--project", projectId], { cwd, env: { SHOP_OWNER_EMAIL: await ownerEmailOf(projectId) } });
     }
+    if (prepare) await prepare(cwd);
     await run("firebase", [...args, "--config", "firebase.deploy.json", "--non-interactive", "--force"], { cwd });
   };
 
@@ -108,8 +114,17 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, writeT
       throw new Error(`unknown deploy part ${part}`);
     },
     // The shop's rules and indexes, and the stockroom's when the plan has it (its own named database, plan 1.20).
+    // Each app's Firestore rules get the stamp line (this release, this shop's apps) just before they go out: the shop's
+    // from the per-shop copy deployConfig.mjs wrote to .deploy/, the stockroom's from its own firestore.rules.
     async rules(projectId, { version, apps }) {
-      for (const app of apps) await firebase(version, app, ["deploy", "--only", app === "shop" ? "firestore,storage" : "firestore", "--project", projectId]);
+      const stamp = rulesStamp({ version, apps });
+      for (const app of apps) {
+        const stampFile = async (cwd) => {
+          const path = join(cwd, app === "shop" ? ".deploy" : "", "firestore.rules");
+          await writeText(path, stampedRules(await readText(path), stamp));
+        };
+        await firebase(version, app, ["deploy", "--only", app === "shop" ? "firestore,storage" : "firestore", "--project", projectId], stampFile);
+      }
     },
     // The env file is written next to the functions' code for this one deploy, with the release stamped in.
     async functions(projectId, { version, region, envFile }) {

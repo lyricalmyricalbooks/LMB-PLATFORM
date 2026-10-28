@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deployClient, rulesStamp, siteOf } from "./deploy.js";
+import { deployClient, rulesStamp, siteOf, stampedRules } from "./deploy.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 
 const P = "lmb-test-shop";
@@ -18,6 +18,7 @@ function setup(script) {
     ownerEmailOf: async () => "owner@example.com",
     run: async (command, args, { cwd, env }) => void (command === "node" ? configs.push({ args, cwd, env }) : runs.push({ command, args, cwd })),
     writeText: async (path, text) => void written.set(path, text),
+    readText: async (path) => written.get(path) ?? "// lmb-release: {\"version\":\"0.9.0\",\"apps\":[\"shop\"]}\nrules_version = '2';\n",
   });
   return { fetch, deploy, runs, configs, written };
 }
@@ -65,8 +66,12 @@ test("the live pages' release comes from the latest Hosting release message", as
 });
 
 test("rules deploy each plan app's rules from the release's build folder, the shop's with its owner filled in", async () => {
-  const { deploy, runs, configs } = setup([]);
+  const { deploy, runs, configs, written } = setup([]);
   await deploy.rules(P, { version: "1.2.3", apps: ["shop", "stockroom"] });
+  const stamped = `${rulesStamp({ version: "1.2.3", apps: ["shop", "stockroom"] })}\nrules_version = '2';\n`;
+  assert.equal(written.get("/builds/1.2.3/apps/shop/.deploy/firestore.rules"), stamped, "the old stamp is replaced, not stacked");
+  assert.equal(written.get("/builds/1.2.3/apps/stockroom/firestore.rules"), stamped);
+  assert.equal(stampedRules("rules_version = '2';", "// lmb-release: {}"), "// lmb-release: {}\nrules_version = '2';");
   assert.deepEqual(configs, [{ args: ["scripts/deployConfig.mjs", "--project", P], cwd: "/builds/1.2.3/apps/shop", env: { SHOP_OWNER_EMAIL: "owner@example.com" } }]);
   assert.deepEqual(runs, [
     { command: "firebase", args: ["deploy", "--only", "firestore,storage", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/shop" },
