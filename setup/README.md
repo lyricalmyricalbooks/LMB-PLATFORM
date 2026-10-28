@@ -67,7 +67,7 @@ when what it finds is neither done nor untouched:
    9 too); rules for the wrong apps are deployed again.
 8. Write `functions/.env.<project id>` (`SHOP_OWNER_EMAIL`, `SHOP_SENDER_NAME`, `SHOP_SENDER_EMAIL`, `SHOP_SITE_URL`,
    `SHOP_EXTRA_ORIGINS` from the registry row's `domains` (the press's own addresses, `services/domains`; empty at first, so writing the file again never drops one), `SHOP_PAYMENT_PROVIDER` from the press's choice, `SHOP_FUNCTIONS_REGION`, `SHOP_TEST_SHOP` `"true"` only for the test shop and `"false"` for every other, `SHOP_STOCKROOM_DATABASE` (the stockroom's named database, where the shop's link to it reads and writes; plan 1.21), `SHOP_PAYMENT_MODE="platform"` and
-   `SHOP_PAYMENTS_SERVICE_URL` from `config.paymentsServiceUrl` (https), and `PLATFORM_EMAIL_URL` when `config.platformEmailUrl` is set: the shared email sender for shops without their own Gmail; `PLATFORM_DOMAINS_URL` when `config.platformDomainsUrl` is set). Before the deploy it gives the shop
+   `SHOP_PAYMENTS_SERVICE_URL` from `config.paymentsServiceUrl` (https), and `PLATFORM_EMAIL_URL` when `config.platformEmailUrl` is set: the shared email sender for shops without their own Gmail; `PLATFORM_DOMAINS_URL` when `config.platformDomainsUrl` is set; `PLATFORM_ACCOUNTING_URL` when `config.platformAccountingUrl` is set: the QuickBooks link). Before the deploy it gives the shop
    its **service key** (`serviceKey.js`): one random key per shop in the Functions secret `PLATFORM_SERVICE_KEY` of the
    shop's project (`google.secrets.latest` / `add`), its SHA-256 alone in the registry (`serviceKeyHash`). A re-run keeps
    a key the registry already knows ("kept"), records the hash of a key a halfway run left ("recorded"), and makes one

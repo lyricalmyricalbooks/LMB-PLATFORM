@@ -123,6 +123,13 @@ test("the env file names the platform's shared sender once there is one, and the
   assert.equal(readShopConfig({ GCLOUD_PROJECT: ID, PLATFORM_EMAIL_URL: "http://plain.example" }).platformEmailUrl, "");
 });
 
+test("the env file names the bookkeeping service once there is one, and the shop reads it", () => {
+  assert.equal(envOf(envFileText(TEST_SHOP, TEST_CONFIG)).PLATFORM_ACCOUNTING_URL, undefined);
+  const env = envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, platformAccountingUrl: "https://accounting.platform.example" }));
+  assert.equal(env.PLATFORM_ACCOUNTING_URL, "https://accounting.platform.example");
+  assert.equal(readShopConfig({ ...env, GCLOUD_PROJECT: ID }).platformAccountingUrl, "https://accounting.platform.example");
+});
+
 test("the env file carries the press's own addresses and the domain service, and running setup again keeps them", async () => {
   const env = envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, platformDomainsUrl: "https://domains.platform.example", extraOrigins: ["https://a.example", "https://b.example"] }));
   assert.equal(env.PLATFORM_DOMAINS_URL, "https://domains.platform.example");

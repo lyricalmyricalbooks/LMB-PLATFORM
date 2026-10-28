@@ -32,6 +32,8 @@
 //   PLATFORM_DOMAINS_URL the platform domain service's address (https, LMB-PLATFORM services/domains, plan 2.9). Set:
 //                        Settings › General › Your web address puts the shop on the press's own address. Unset: the
 //                        card says the platform's team sets addresses up.
+//   PLATFORM_ACCOUNTING_URL the platform bookkeeping service's address (https, LMB-PLATFORM services/accounting, plan
+//                        7.15). Set: Settings › Bookkeeping can connect QuickBooks. Unset: the page stays hidden.
 //   PLATFORM_EMAIL_URL   the platform email service's shop door (https). Set: when the shop hasn't connected its own
 //                        Gmail (or Gmail refuses a send) its emails go through the platform's shared sender, with the
 //                        shop's name and replies to the shop; Resend keys in the shop are no longer used. Unset: the
@@ -135,6 +137,7 @@ function readShopConfig(env = {}) {
     stockroomDatabase: DATABASE_ID.test(text(env.SHOP_STOCKROOM_DATABASE)) ? text(env.SHOP_STOCKROOM_DATABASE) : PLACEHOLDER.stockroomDatabase,
     platformEmailUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_EMAIL_URL)) ? text(env.PLATFORM_EMAIL_URL) : "",
     platformDomainsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_DOMAINS_URL)) ? text(env.PLATFORM_DOMAINS_URL).replace(/\/+$/, "") : "",
+    platformAccountingUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTING_URL)) ? text(env.PLATFORM_ACCOUNTING_URL).replace(/\/+$/, "") : "",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
     project: functionsProject,
     region,

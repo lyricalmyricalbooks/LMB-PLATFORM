@@ -489,3 +489,9 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
   readiness row ticks only once `paymentsReady` (cards and payouts). While something is past due, `cardAccountAlert`
   (adminAlerts.ts, action `cardAccount` → Settings › Payments › Ways to pay) puts a banner on every admin page; the
   Dashboard's 5-minute alert check reads the status for Stripe platform shops. The platform emails the owner once.
+- Settings › Bookkeeping (`BookkeepingSettings.tsx`, pure `bookkeeping.ts`, plan 7.16): Connect to QuickBooks in three
+  steps (sign in with Intuit, one line per day or every order, match taxes and five accounts), then last day sent, Send
+  again and Disconnect. Hidden unless `adminApi.bookkeeping("status")` says `enabled` (Dashboard asks once when
+  Settings opens and drops the menu entry with `withoutPages`). The button is text only ("Connect to QuickBooks"), as
+  Intuit asks; the admin has no French yet, so there is no French label. Tax names are each rate's `bookName` (plan 7.11)
+  or "Tax <place>" until then.

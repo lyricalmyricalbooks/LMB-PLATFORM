@@ -57,5 +57,6 @@ service's environment only. A shop in test mode uses a sandbox company; a live s
 
 - Hosting (one function in the platform project), the three Firestore stores (`accountingConnections`,
   `accountingStates`, `accountingSent`) and the nightly schedule.
-- The shop's nightly push: it needs the daily summary builder (plan 7.12) and payouts (plan 7.10).
+- The shop's nightly push and Send again's numbers: they need the daily summary builder (plan 7.12) and payouts (plan
+  7.10). The shop's Settings › Bookkeeping page (plan 7.16, `apps/shop/functions/bookkeeping.js`) is built.
 - Julian: the Intuit developer account, the app, its keys and Intuit's assessment (`docs/accounting.md`, Turning it on).

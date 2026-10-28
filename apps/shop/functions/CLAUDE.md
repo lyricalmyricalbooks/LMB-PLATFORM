@@ -826,6 +826,12 @@ platform shop: connect Square (or finish Stripe onboarding), the account's state
 now declares when that address is set. The service adds the address to `SHOP_EXTRA_ORIGINS` and redeploys the server
 code before Hosting serves it. In platform mode `payments.registerPaymentDomain` goes through the service
 (`account.paymentDomain`) instead of refusing.
+**Bookkeeping (28 October 2026, code plan 7.16).** `bookkeeping.js` (action `bookkeeping`, `step: "status" | "connect" |
+"options" | "save" | "resend" | "disconnect"`) passes Settings › Bookkeeping to the platform's bookkeeping service
+(`PLATFORM_ACCOUNTING_URL`, https, LMB-PLATFORM services/accounting; `withPlatformKey` declares the key when set). Unset:
+`status` answers `{ enabled: false }` and the page and its menu entry stay hidden; other steps 409 `not_available`. The
+currency sent is always the shop's (CAD). `resend` needs `buildDay(date)` (the daily summary, plan 7.12); until it is
+handed in, Send again answers 409 `not_ready`. The nightly push of days and payouts is not wired yet (needs 7.10, 7.12).
 Known gaps: gift cards with a card payment are refused for Square shops; a payment link doesn't expire with the stock
 hold; admin and email wording still says "Stripe" in places.
 **Card fees and payouts (28 October 2026, code plan 7.10).** Every paid card order keeps `fee`, `net`, `platformFee`,
