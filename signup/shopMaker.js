@@ -19,6 +19,9 @@
 //   repairs    optional: report({ shopId, check, problem, detail }); passed(shopId, check) (control-room/repairs.js)
 //   selfCheck  optional: check(shopId, { why }) (control-room/selfChecks.js): run once the shop is ready
 //   line       optional: the sign-up (signup.js), whose admitFromLine() lets presses over the daily cap in first
+//   billing    optional: { publishPlan(shopId) } (services/billing): once the shop's database exists, its plan is
+//              written there (the trial banner) and onto the registry row (the control room); the trial itself began
+//              at sign-up, before either place existed (plan 6.14)
 import { SignupError, personOf } from "./signup.js";
 
 export const AUTO_TRIES = 3;
@@ -69,7 +72,7 @@ export function shopFromSignup(row, { testMode }) {
   };
 }
 
-export function createShopMaker({ signups, run, registry, repairs = null, selfCheck = null, line = null, testMode = true, now = () => new Date() }) {
+export function createShopMaker({ signups, run, registry, repairs = null, selfCheck = null, line = null, billing = null, testMode = true, now = () => new Date() }) {
   const at = () => now().toISOString();
   const later = (minutes) => new Date(now().getTime() + minutes * 60_000).toISOString();
 
@@ -94,6 +97,16 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
       // Earlier trouble is over; then the self-checks look at the new shop (2.11). Their problems go to the repair
       // queue, never to the press's page, so they can't hold the press up.
       if (repairs?.passed) await repairs.passed(shopId, "shop-maker");
+      // The shop knows its plan from the first minute (plan 6.6). A snag here never holds the press up: it goes to the
+      // repair queue, and the next billing change or the closing sweep writes the plan again.
+      if (billing?.publishPlan) {
+        try {
+          await billing.publishPlan(shopId);
+          if (repairs?.passed) await repairs.passed(shopId, "shop-plan");
+        } catch (error) {
+          if (repairs) await repairs.report({ shopId, check: "shop-plan", problem: "the shop could not be given its plan", detail: error?.message ?? String(error) });
+        }
+      }
       if (selfCheck) {
         try {
           await selfCheck.check(shopId, { why: "the shop maker finished" });

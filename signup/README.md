@@ -73,6 +73,8 @@ shop's lock and logs every step, so a retry is simply another run.
 | `waiting` | "We couldn't finish <what the step does>. Nothing is lost: press Try again", plus automatic tries after 1, 5 and 15 minutes; after three, the repair queue hears about it |
 | `needs-help` | a step stopped for a person (setup's "a person decides" stops): no button, "we've been told", and the repair queue gets it |
 
+Once a shop is `ready`, the shop maker hands it its plan (`createShopMaker({ billing })` calls `billing.publishPlan`, plan 6.14): the trial that began at sign-up is written into the shop's own database (the trial banner) and onto the registry row (the control room). A snag there goes to the repair queue and never holds the press up.
+
 `POST /api/signup/retry { shopId }` is the **Try again** button: the shop's owner only, only when a retry can help, not
 within half a minute of the last try. It queues the shop for the next sweep. Each step's words for the press are in
 `STEP_WORDS`; no Google or step names reach the page.

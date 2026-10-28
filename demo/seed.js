@@ -92,9 +92,22 @@ export function demoShopDocs(photoFor) {
 }
 
 /**
- * Seeds everything once. `fetch` is the real fetch (or a fake in tests). Returns what was made, for the console.
+ * What a press that has just signed up has in its `firstWeek/start` (setup step 12 writes it from the sign-up answers,
+ * setup/later-steps.js): no look chosen and no step ticked, so the admin opens on Choose your look and then Set up your
+ * shop. "How do you sell today?" is "just starting out" and "What do you publish?" is books.
  */
-export async function seedDemo({ fetch, now = () => new Date() }) {
+export const NEW_PRESS_START = Object.freeze({ sellingToday: "starting", publishes: "books", country: "CA", plan: "both" });
+
+/** Starts the demo shop over as a brand-new press: writes `firstWeek/start` afresh, forgetting a look chosen before. */
+export async function startAsNewPress(shop, now = () => new Date()) {
+  await shop.set("firstWeek/start", { ...NEW_PRESS_START, createdAt: now().toISOString() });
+}
+
+/**
+ * Seeds everything once. `fetch` is the real fetch (or a fake in tests). `newPress` also starts the shop as a brand-new
+ * press (`startAsNewPress`), every time it is asked for. Returns what was made, for the console.
+ */
+export async function seedDemo({ fetch, now = () => new Date(), newPress = false }) {
   const owner = await ensureOwner(fetch);
 
   const books = testShopDocs().filter(({ path }) => path.startsWith("books/"));
@@ -109,6 +122,8 @@ export async function seedDemo({ fetch, now = () => new Date() }) {
   for (const { path, data } of demoShopDocs((id) => photos[id])) {
     if (await shop.create(path, { ...data, createdAt: now().toISOString() })) created.push(path);
   }
+
+  if (newPress) await startAsNewPress(shop, now);
 
   // The stockroom's books, in its own database, laid out as setup step 12 adds them (clients/shop.js addBooks). Not
   // through addBooks itself: the emulator never answers a read inside a REST transaction, and nothing else writes here
@@ -130,5 +145,5 @@ export async function seedDemo({ fetch, now = () => new Date() }) {
     await stockroomDb.set("settings/modeFlags", flags);
   }
 
-  return { ownerCreated: owner.created, created, stockroomAdded: stockroomAdded.map((book) => book.id) };
+  return { ownerCreated: owner.created, created, stockroomAdded: stockroomAdded.map((book) => book.id), newPress };
 }

@@ -8,7 +8,8 @@ import {
   profileScript, shopProfile, stockroomProfile, viteEnv,
 } from "./config.js";
 import { demoProfilePlugin } from "./serve.js";
-import { demoShopDocs, emulatorFetch, seedDemo } from "./seed.js";
+import { demoShopDocs, emulatorFetch, NEW_PRESS_START, seedDemo } from "./seed.js";
+import { PUBLISHES, QUESTION } from "../signup/form.js";
 import { coverSvg } from "./photos.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
 import { fakeEmulators } from "./fakeEmulators.js";
@@ -157,4 +158,33 @@ test("seeding twice changes nothing the second time", async () => {
   assert.deepEqual(again.stockroomAdded, []);
   assert.equal(again.ownerCreated, false);
   assert.deepEqual(emulators.docs, before);
+});
+
+test("--new-press starts the shop as a press that has just signed up, and only then", async () => {
+  // The answers are ones sign-up can give, so the admin reads them as it would for a real new press.
+  assert.ok(QUESTION.options.some((option) => option.id === NEW_PRESS_START.sellingToday));
+  assert.ok(PUBLISHES.options.some((option) => option.id === NEW_PRESS_START.publishes));
+  assert.equal(NEW_PRESS_START.welcome, undefined, "no look chosen yet, so the admin opens on Choose your look");
+  const now = () => new Date("2026-10-28T12:00:00Z");
+
+  const plain = fakeEmulators();
+  assert.equal((await seedDemo({ fetch: plain.fetch, now })).newPress, false);
+  assert.ok(!plain.docs.has("(default)/documents/firstWeek/start"), "a plain demo leaves the setup guide as it was");
+
+  const emulators = fakeEmulators();
+  const first = await seedDemo({ fetch: emulators.fetch, now, newPress: true });
+  assert.equal(first.newPress, true);
+  const written = emulators.docs.get("(default)/documents/firstWeek/start");
+  assert.equal(written.sellingToday.stringValue, "starting");
+  assert.equal(written.publishes.stringValue, "books");
+  assert.equal(written.plan.stringValue, "both");
+  assert.equal(written.welcome, undefined);
+
+  // The owner picked a look and ticked a step; adding --new-press again starts that story over, and a plain run keeps it.
+  emulators.docs.set("(default)/documents/firstWeek/start", { ...written, welcome: { mapValue: { fields: { theme: { stringValue: "press-riso" } } } } });
+  await seedDemo({ fetch: emulators.fetch, now });
+  assert.ok(emulators.docs.get("(default)/documents/firstWeek/start").welcome, "a run without the option leaves it");
+  await seedDemo({ fetch: emulators.fetch, now, newPress: true });
+  assert.equal(emulators.docs.get("(default)/documents/firstWeek/start").welcome, undefined);
+  for (const { url } of emulators.requests) assert.match(url, /^http:\/\/127\.0\.0\.1:(9099|9199|8080)\//);
 });
