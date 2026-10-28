@@ -20,6 +20,7 @@ Publish it (a deliberate step on the owner's machine, never from CI):
 `firebase deploy --only firestore:rules,hosting --project lmb-platform-prod` from this folder. There is no `.firebaserc`,
 so a deploy has to name the project.
 
-Before launch: pick the product name. "Colophon" is a working name.
+The product is called Colophon (`page.test.js` keeps the page on that name). Which domain to buy: run
+`node waitlist/domain-check.js` (it only reads, over RDAP) and see `docs/name-and-domain.md`.
 
 Copy rules: never name a rival shop platform; no prices or trial lengths until they are decided.

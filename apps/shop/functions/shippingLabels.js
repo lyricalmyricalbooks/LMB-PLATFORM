@@ -1,6 +1,7 @@
 // Admin › Orders › Buy label: createShippingLabel (Shippo rates, purchase, void and refund of a label). Moved out of
 // index.js as is (functions/CLAUDE.md › Cloud Functions › Action table). index.js passes in its own Firebase wrappers,
 // guards and Shippo helpers, so the vm-based handler tests' fakes still reach this code.
+const { withPlatformKey } = require("./platformKey");
 const { labelHandedOver, transactionRefundState, findLabelTransaction, refundEntry, openRefunds, REFUND_WINDOW_DAYS: LABEL_REFUND_WINDOW_DAYS } = require("./labelVoid");
 const { labelProblem, shippoTransactionOutcome, shippoDefiniteRefusal, terminal: terminalOrder } = require("./fulfillmentGuard");
 const { addressMissing } = require("./shared/addressRules");
@@ -11,7 +12,7 @@ const { needsCustoms, customsItems, customsDeclaration } = require("./customs");
 
 function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors, admin, requireAdmin, db, getShippoToken, callShippo, IS_EMULATOR, originAddress, getStateCode, getCountryCode }) {
   const createShippingLabel = onBrowserRequest(
-    { secrets: [SHIPPO_API_TOKEN] },
+    { secrets: withPlatformKey([SHIPPO_API_TOKEN]) },
     async (req, res) => {
       if (applyCors(req, res)) return;
 

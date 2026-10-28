@@ -15,19 +15,28 @@
 //   google.backups       hasPermission(projectId); grantPermission(projectId); latest(projectId) -> { name } | null;
 //                        run(projectId) -> { name }
 //   google.storageProbe  hasTestFile(projectId); writeTestFile(projectId); readUnsigned(projectId) -> { status }
+//   google.secrets       latest(projectId, name) -> value | null; add(projectId, name, value)   the shop's Functions
+//                        secrets (only PLATFORM_SERVICE_KEY, serviceKey.js)
 //   shopData    get(projectId, path) -> data | null; create(projectId, path, data)   create refuses a document that exists
 //   providers   payment providers by name (payments.js)
 //   email       wasSent(shopId, kind) -> boolean; send(shopId, { kind, to, pressName, links, idempotencyKey })
 //   siteCheck   get(url) -> { status, problems: [text] }
 //   inventoryLink  the shop's link to its stockroom, through the shop's own admin calls (functions/inventoryLinkAdmin.js):
-//                  state(projectId) -> { startDay?, connection? } | null; check(projectId) -> { ok, problem? } (op "check");
-//                  startSales(projectId, { startDay }) (op "startSales")
+//                  state(projectId) -> { startDay?, connection?, links? } | null (op "status");
+//                  check(projectId) -> { ok, problem? } (op "check"); startSales(projectId, { startDay }) (op "startSales");
+//                  saveLinks(projectId, links) -> { links, errors } (op "saveLinks": the whole map, checked by the shop)
+//   stockroom   the stockroom's own data: books(projectId) -> { [id]: book } (its catalogue);
+//               addBooks(projectId, [book]) adds the books its catalogue lacks and never changes one already there
 //
 // `config.release` is the release being set up: `{ version, starterContent(shop) -> [{ path, data }] }`. The starter
 // documents come from the release because the shop copy owns their shape. `config.senderEmail` is the platform address
-// shop email is sent from (the email service adds the press's name and reply-to).
+// shop email is sent from (the email service adds the press's name and reply-to). `config.paymentsServiceUrl` is the
+// platform payment service's address, which every shop's server code calls (payments through the platform, plan 2.2);
+// `config.stripePublishableKeys` ({ live, test }, public) go in the profile for the card form (payments.js).
 import { PLANS, REGION, firstSteps } from "./steps.js";
 import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
+import { ensureServiceKey, hasServiceKey } from "./serviceKey.js";
+import { testCatalogue } from "./test-catalogue.js";
 
 export const OWNER_WELCOME = "owner-welcome";
 
@@ -37,7 +46,7 @@ export function appsOf(shop) {
 }
 
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
-export function envFileText(shop, { senderEmail, region = REGION }) {
+export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "" }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
   const quote = (value) => `"${String(value).replace(/[\r\n"\\<>]+/g, " ").replace(/\s+/g, " ").trim()}"`;
   return [
@@ -50,11 +59,18 @@ export function envFileText(shop, { senderEmail, region = REGION }) {
     // The provider the press chose (payments.js). The shop's server refuses to start on a name it hasn't built, so a
     // provider step 1 let through but the release can't use stops at deploy instead of at a shopper's checkout.
     `SHOP_PAYMENT_PROVIDER=${quote(paymentProviderOf(shop))}`,
+    // Every shop the platform makes takes payments through the platform's payment service (plan 2.2), with no provider
+    // key of its own; the shop refuses to start in this mode without the service's address.
+    `SHOP_PAYMENT_MODE="platform"`,
+    `SHOP_PAYMENTS_SERVICE_URL=${quote(paymentsServiceUrl)}`,
     // Where the server code runs (step 8 deploys it there); the shop reads it for its function addresses.
     `SHOP_FUNCTIONS_REGION=${quote(region)}`,
     // "true" only for the platform's own test shop (docs/test-shop.md): its test-card checkouts then move stock like
     // real ones, for the release check. Every other shop gets "false", so the shop never guesses.
     `SHOP_TEST_SHOP=${quote(shop.testShop === true)}`,
+    // The platform email service's shop door (services/email/http.js): the backup sender for a shop that hasn't
+    // connected its own Gmail. Written only once the platform has one (config.platformEmailUrl).
+    ...(platformEmailUrl ? [`PLATFORM_EMAIL_URL=${quote(platformEmailUrl)}`] : []),
     "",
   ].join("\n");
 }
@@ -68,11 +84,12 @@ export function torontoDay(date) {
 export const needsStockroomLink = (shop) => shop.testShop === true && appsOf(shop).includes("shop") && appsOf(shop).includes("stockroom");
 
 /** Steps 7–16. */
-export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, registry, config, now = () => new Date() }) {
+export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, stockroom, registry, profileFiles, config, now = () => new Date() }) {
   const release = config?.release;
   if (typeof release?.version !== "string" || !release.version) throw new Error("config.release.version must name the release being set up");
   if (typeof release.starterContent !== "function") throw new Error("config.release.starterContent must list the starter documents");
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(config.senderEmail ?? "")) throw new Error("config.senderEmail must be the platform's sending address");
+  if (!/^https:\/\/[^/\s"]+(\/[^\s"]*)?$/.test(config.paymentsServiceUrl ?? "")) throw new Error("config.paymentsServiceUrl must be the payment service's https:// address");
   const region = config.region ?? REGION;
   const { version } = release;
 
@@ -84,7 +101,12 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     return true;
   };
   const sameApps = (a = [], b = []) => [...a].sort().join() === [...b].sort().join();
-  const starterDocs = (shop) => [{ path: `members/${shop.ownerEmail.toLowerCase()}`, data: { role: "owner", addedBy: "setup" } }, ...release.starterContent(shop)];
+  // The test shop also gets its starter catalogue (test-catalogue.js); its stockroom side and links are below.
+  const starterDocs = (shop) => [
+    { path: `members/${shop.ownerEmail.toLowerCase()}`, data: { role: "owner", addedBy: "setup" } },
+    ...release.starterContent(shop),
+    ...(needsStockroomLink(shop) ? testCatalogue(shop).shopDocs : []),
+  ];
   const pageUrls = async (shop) => {
     const urls = {};
     for (const app of appsOf(shop)) urls[app] = (await deploy.deployed(shop.shopId, `pages:${app}`))?.url;
@@ -109,12 +131,18 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         const deployed = await deploy.deployed(shop.shopId, "functions");
         // Functions in the wrong region can't be moved, and removing them is a person's call.
         if (deployed && deployed.region !== region) throw new Error(`the server code is in ${deployed.region}, not ${region}; a person decides how to move it`);
-        return isCurrent(deployed, "The server code") && (await envFiles.read(shop.shopId)) === envFileText(shop, { ...config, region });
+        return isCurrent(deployed, "The server code") && (await envFiles.read(shop.shopId)) === envFileText(shop, { ...config, region })
+          && (await hasServiceKey({ google, registry }, shop.shopId));
       },
       async act({ shop }) {
         const envFile = envFileText(shop, { ...config, region });
         if ((await envFiles.read(shop.shopId)) !== envFile) await envFiles.write(shop.shopId, envFile);
+        // The shop's key for the platform's payment and email services (serviceKey.js), before the deploy pins it. Never
+        // rotated once the shop has one.
+        const serviceKey = await ensureServiceKey({ google, registry }, shop.shopId);
         await deploy.functions(shop.shopId, { version, region, envFile });
+        // Logged with the step's entry in the registry and the shop's audit log (never the key itself).
+        return { detail: { serviceKey } };
       },
     },
     {
@@ -159,15 +187,51 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
       async check({ shop }) {
         // A document that is there counts, whatever it holds now: the press may already have changed it.
         for (const { path } of starterDocs(shop)) if (!(await shopData.get(shop.shopId, path))) return false;
-        return true;
+        if (!needsStockroomLink(shop)) return true;
+        // The test shop's catalogue: its stockroom books are there and each printed book is linked to one.
+        const { stockroomBooks, links } = testCatalogue(shop);
+        const have = (await stockroom.books(shop.shopId)) ?? {};
+        if (stockroomBooks.some((book) => !have[book.id])) return false;
+        const saved = (await inventoryLink.state(shop.shopId))?.links ?? {};
+        return links.every((link) => linkProblem(saved, link) === "linked");
       },
       async act({ shop }) {
+        const created = [];
         for (const { path, data } of starterDocs(shop)) {
-          if (!(await shopData.get(shop.shopId, path))) await shopData.create(shop.shopId, path, { ...data, createdAt: now().toISOString() });
+          if (!(await shopData.get(shop.shopId, path))) {
+            await shopData.create(shop.shopId, path, { ...data, createdAt: now().toISOString() });
+            created.push(path);
+          }
         }
+        if (!needsStockroomLink(shop)) return { detail: { created } };
+
+        const { stockroomBooks, links } = testCatalogue(shop);
+        const have = (await stockroom.books(shop.shopId)) ?? {};
+        const missing = stockroomBooks.filter((book) => !have[book.id]);
+        if (missing.length) await stockroom.addBooks(shop.shopId, missing);
+
+        const saved = (await inventoryLink.state(shop.shopId))?.links ?? {};
+        const toLink = [];
+        for (const link of links) {
+          const state = linkProblem(saved, link);
+          if (state === "linked") continue;
+          if (state !== "free") throw new Error(state);
+          toLink.push(link);
+        }
+        if (toLink.length) {
+          // The shop checks every link against both catalogues, so it must reach the stockroom first.
+          const { ok, problem } = await inventoryLink.check(shop.shopId);
+          if (!ok) throw new Error(`the shop can't reach its stockroom${problem ? ` (${problem})` : ""}, so its books can't be linked; a person checks the link`);
+          // The whole map is saved: the links already there are sent back unchanged.
+          const map = structuredClone(saved);
+          for (const { shopBookId, stockroomBookId } of toLink) map[shopBookId] = { ...(map[shopBookId] ?? {}), _: stockroomBookId };
+          const { errors = [] } = await inventoryLink.saveLinks(shop.shopId, map);
+          if (errors.length) throw new Error(`the shop refused the test books' links: ${errors.map((e) => `${e.bookId}: ${e.reason}`).join("; ")}`);
+        }
+        return { detail: { created, stockroomBooks: missing.map((book) => book.id), linked: toLink.map((link) => link.shopBookId) } };
       },
     },
-    shopOnly(connectPaymentsStep({ number: 13, registry, providers })),
+    shopOnly(connectPaymentsStep({ number: 13, registry, providers, profileFiles, config })),
     {
       number: 14,
       name: "Email the owner their sign-in link",
@@ -223,6 +287,15 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
       },
     },
   ];
+}
+
+// Whether one test-catalogue link is in the shop's saved links: "linked", "free" (nothing there yet) or, when the shop
+// book is linked elsewhere, the problem in words. Another link is the press's or a person's choice, never overwritten.
+function linkProblem(saved, { shopBookId, stockroomBookId }) {
+  const entry = saved?.[shopBookId];
+  if (!entry || !Object.values(entry).some(Boolean)) return "free";
+  if (entry._ === stockroomBookId) return "linked";
+  return `the shop book ${shopBookId} is already linked to another stockroom book; a person decides which link stays`;
 }
 
 // The stockroom alone takes no payments, so the payments step has nothing to do for it.

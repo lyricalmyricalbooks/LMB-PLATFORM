@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { db } from "../../lib/firebase";
 import { emailFunction } from "./notificationApi";
 import { plainError } from "./plainError";
+import type { SenderStatus } from "./senderStatus";
 import { GhostButton, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 
 type Check = { ok: boolean; message: string } | null;
@@ -11,7 +12,10 @@ type Check = { ok: boolean; message: string } | null;
 // Gmail app password for sending shop email. Stored in the admin-only adminSecrets/gmail doc
 // (firestore.rules), never in the publicly readable settings/* docs, and never shown again here.
 // `lastProblem` = Gmail refused the newest email in Recent deliveries (the backup sender was tried).
-export function GmailSendingCard({ lastProblem = null }: { lastProblem?: { at?: string; error: string } | null }) {
+// `sender` (senderStatus.ts): the address Gmail sends from, and the backup until Gmail is connected.
+export function GmailSendingCard({ lastProblem = null, sender = { gmailAddress: "", backup: null } }: { lastProblem?: { at?: string; error: string } | null; sender?: SenderStatus }) {
+  const gmailAddress = sender.gmailAddress || "your Gmail address";
+  const shared = sender.backup === "platform";
   const [stored, setStored] = useState<boolean | null>(null);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -39,7 +43,7 @@ export function GmailSendingCard({ lastProblem = null }: { lastProblem?: { at?: 
     setCheck(null);
     try {
       const result = await emailFunction({ action: "verifyGmail" });
-      setCheck(result.ok ? { ok: true, message: "Gmail accepted the app password. Shop emails will send from owner@example.com." } : { ok: false, message: result.error || "Gmail refused the app password." });
+      setCheck(result.ok ? { ok: true, message: `Gmail accepted the app password. Shop emails will send from ${gmailAddress}.` } : { ok: false, message: result.error || "Gmail refused the app password." });
     } catch (err: any) {
       setCheck({ ok: false, message: plainError(err, "Couldn't check the connection") });
     } finally {
@@ -66,7 +70,9 @@ export function GmailSendingCard({ lastProblem = null }: { lastProblem?: { at?: 
   const remove = async () => {
     const ok = await confirm({
       title: "Remove the Gmail app password?",
-      message: "Shop emails will fall back to Resend's test sender, which only reaches you, so customers stop getting order emails until you add a new password.",
+      message: shared
+        ? "Shop emails will go from the shared sending address instead, with your shop's name, and replies still come to you. You can connect Gmail again at any time."
+        : "Shop emails will fall back to Resend's test sender, which only reaches you, so customers stop getting order emails until you add a new password.",
       confirmLabel: "Remove password",
     });
     if (ok) await save("");
@@ -77,15 +83,20 @@ export function GmailSendingCard({ lastProblem = null }: { lastProblem?: { at?: 
   // One glance: is Gmail sending set up and working?
   const badge = readFailed ? <StatusBadge tone="neutral">Status unknown</StatusBadge>
     : stored === null ? <StatusBadge tone="neutral">Checking…</StatusBadge>
-    : !stored ? <StatusBadge tone="danger">Not set up</StatusBadge>
+    : !stored ? (shared ? <StatusBadge tone="neutral">Not connected</StatusBadge> : <StatusBadge tone="danger">Not set up</StatusBadge>)
     : check ? (check.ok ? <StatusBadge tone="success">Connected</StatusBadge> : <StatusBadge tone="danger">Not working</StatusBadge>)
     : lastProblem ? <StatusBadge tone="warning">Needs a check</StatusBadge>
     : <StatusBadge tone="success">Password saved</StatusBadge>;
   const tooShort = !!draft && !valid;
 
   return (
-    <SectionCard title="Gmail sending" actions={badge}
-      description="Sends from your Gmail with an app password.">
+    <SectionCard title="Send from your own Gmail" actions={badge}
+      description={`Receipts and customer emails come from ${gmailAddress}. Connect it with a Gmail app password.`}>
+      {shared && stored === false && (
+        <p role="status" className="rp-hint" style={{ margin: "0 0 12px" }}>
+          Until you connect Gmail, your emails go from a shared sending address with your shop's name on them, and replies come to you.
+        </p>
+      )}
       {lastProblem && stored && !check?.ok && (
         <p role="status" className="rp-hint" style={{ margin: "0 0 12px", padding: 12, border: "1px solid var(--rp-warning)", color: "var(--rp-warning)", background: "var(--rp-warning-tint)" }}>
           ! Gmail refused the last email{lastProblem.at ? ` (${new Date(lastProblem.at).toLocaleString()})` : ""}. Choose Check connection, and if it fails save a new app password. {lastProblem.error}
@@ -100,7 +111,7 @@ export function GmailSendingCard({ lastProblem = null }: { lastProblem?: { at?: 
         <details style={{ marginTop: 8 }}>
           <summary className="rp-label" style={{ cursor: "pointer", minHeight: 32, display: "inline-flex", alignItems: "center" }}>How to get an app password</summary>
           <ol className="rp-hint" style={{ margin: "8px 0 0", paddingLeft: 20, display: "grid", gap: 4 }}>
-            <li>Sign in to myaccount.google.com as owner@example.com.</li>
+            <li>Sign in to myaccount.google.com as {gmailAddress}.</li>
             <li>Open Security and make sure 2-Step Verification is on.</li>
             <li>Search for “App passwords”, create one called “Shop”, and copy the 16 letters.</li>
             <li>Paste them above and choose Save password. The shop checks it straight away.</li>
