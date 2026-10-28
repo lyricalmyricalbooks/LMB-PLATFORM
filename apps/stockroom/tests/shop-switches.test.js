@@ -139,3 +139,69 @@ describe('the Gmail order scan follows its switch', () => {
     expect(el('scan-btn').textContent).toBe('Scan Gmail');
   });
 });
+
+describe('the old shop system tab follows its switch', () => {
+  let app;
+  beforeAll(async () => {
+    app = await loadApp();
+  }, 30000);
+  afterEach(() => {
+    delete window.__SHOP_PROFILE__;
+  });
+
+  const el = (id) => document.getElementById(id);
+  const parts = () => [...document.querySelectorAll('[data-old-shop-sync]')];
+  const visibleText = (root) => {
+    const copy = root.cloneNode(true);
+    copy.querySelectorAll('[hidden]').forEach((node) => node.remove());
+    return copy.textContent;
+  };
+  const helpAnswer = () => [...document.querySelectorAll('details.help-q')]
+    .find((q) => q.querySelector('summary').textContent.includes('artists can'));
+
+  it('off: the sidebar and tab buttons, their badges and the Orders strip stay hidden', () => {
+    app.window.switchTab('dashboard');
+    expect(parts().length).toBeGreaterThan(6);
+    for (const part of parts()) expect(part.hidden).toBe(true);
+    for (const badge of document.querySelectorAll('.bc-gap-badge')) expect(badge.hidden).toBe(true);
+    expect(el('web-bc-gap-strip').hidden).toBe(true);
+  });
+
+  it('off: no rival is named in the help answer, Payments or Orders words a new shop sees', () => {
+    app.window.switchTab('website');
+    expect(visibleText(helpAnswer())).not.toMatch(/big cartel/i);
+    expect(visibleText(helpAnswer())).toContain('Shipping, Sheets and Backups');
+    expect(visibleText(document.querySelector('#tab-reconcile .section-subcopy'))).not.toMatch(/big cartel/i);
+    expect(visibleText(el('tab-website'))).not.toMatch(/big cartel/i);
+  });
+
+  it('off: a link to the tab lands on Website orders, and no check asks the old system', async () => {
+    const calls = [];
+    const realFetch = window.fetch;
+    window.fetch = (...args) => { calls.push(args); return realFetch(...args); };
+    const activePanel = () => document.querySelector('.tab-panel.active')?.id;
+    try {
+      app.window.switchTab('website');
+      const website = activePanel();
+      app.window.switchTab('dashboard');
+      app.window.switchTab('bigcartel');
+      expect(el('tab-bigcartel').classList.contains('active')).toBe(false);
+      expect(activePanel()).toBe(website);
+      expect(await app.window.checkBigCartelLedgerGaps({ silent: true })).toBeNull();
+      expect(await app.window.autoCheckBigCartelLedgerGaps()).toBeNull();
+      await app.window.refreshBigCartelOrdersIfDue({ force: true });
+    } finally {
+      window.fetch = realFetch;
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('on: the tab, its words and its buttons come back as before', () => {
+    window.__SHOP_PROFILE__ = profile({ oldShopSync: true });
+    app.window.switchTab('bigcartel');
+    for (const part of parts()) expect(part.hidden).toBe(false);
+    expect(el('tab-bigcartel').classList.contains('active')).toBe(true);
+    expect(visibleText(helpAnswer())).toContain('Shipping, Big Cartel, Sheets and Backups');
+    app.window.switchTab('dashboard');
+  });
+});

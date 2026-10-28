@@ -458,6 +458,7 @@ import {
 } from './features/taxcentre.js';
 import {
   reconcileApplyBigCartel,
+  applyOldShopSyncSwitch,
   autoCheckBigCartelLedgerGaps,
   startBigCartelOrderWatch,
   refreshBigCartelOrdersIfDue,
@@ -5839,6 +5840,9 @@ initPhoneFolds();
 
 
 export function switchTab(name) {
+  // The old shop system's tab is behind the oldShopSync switch: off, a stale link, notification or To-do fix that
+  // still points at it lands on Website orders instead (features/bigcartel.js).
+  if (!applyOldShopSyncSwitch() && name === 'bigcartel') name = 'website';
   // publisher-only tabs redirect authors to dashboard
   if (isAuthor() && PUBLISHER_ONLY_TABS.has(name)) name = 'dashboard';
   // publisher redirected away from author-only myqr tab

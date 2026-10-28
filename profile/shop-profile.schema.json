@@ -57,12 +57,13 @@
     "switches": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Features one press needed once that a new shop doesn't. Each is on only when true; missing means off. Setup writes all four as false.",
+      "description": "Features one press needed once that a new shop doesn't. Each is on only when true; missing means off. Setup writes all five as false.",
       "properties": {
         "legacyStockroomSignIn": { "type": "boolean", "description": "The shop's admin sign-in also signs into a separate stockroom project." },
         "githubPagesForwarding": { "type": "boolean", "description": "An old GitHub Pages address forwards visitors (and their bag) to the shop." },
         "gmailReceiptFinder": { "type": "boolean", "description": "The stockroom's Gmail receipt finder and Gmail import." },
-        "gmailOrderScan": { "type": "boolean", "description": "The stockroom's Orders screen reads order receipts from the publisher's Gmail through Apps Script." }
+        "gmailOrderScan": { "type": "boolean", "description": "The stockroom's Orders screen reads order receipts from the publisher's Gmail through Apps Script." },
+        "oldShopSync": { "type": "boolean", "description": "The stockroom's tab for the press's old shop system: order sync, the missing-orders check and its strip on Orders." }
       }
     },
     "payments": {

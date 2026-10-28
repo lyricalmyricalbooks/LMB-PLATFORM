@@ -196,7 +196,7 @@ test("a profile that drifted from the web app is written again", async () => {
   assert.deepEqual(await registry.getProfile("lmb-test-shop"), profile);
 });
 
-const ALL_OFF = { legacyStockroomSignIn: false, githubPagesForwarding: false, gmailReceiptFinder: false, gmailOrderScan: false };
+const ALL_OFF = { legacyStockroomSignIn: false, githubPagesForwarding: false, gmailReceiptFinder: false, gmailOrderScan: false, oldShopSync: false };
 
 test("a new shop's profile writes every switch down as off, and the audit log says so", async () => {
   const { registry, profileFiles, auditLog, run } = setup();
@@ -235,7 +235,7 @@ test("re-running the profile step keeps a switch someone turned on, and fills in
   assert.deepEqual((await registry.getProfile("lmb-test-shop")).switches, ALL_OFF);
 });
 
-test("shopProfile writes all four switches, keeping only true or false from what was saved", () => {
+test("shopProfile writes all five switches, keeping only true or false from what was saved", () => {
   const settings = { apiKey: "k", authDomain: "a", projectId: "lmb-test-shop", storageBucket: "b", messagingSenderId: "1", appId: "x" };
   assert.deepEqual(shopProfile(TEST_SHOP, settings).switches, ALL_OFF);
   assert.deepEqual(shopProfile(TEST_SHOP, settings, REGION, { githubPagesForwarding: true, gmailReceiptFinder: "yes", other: true }).switches,

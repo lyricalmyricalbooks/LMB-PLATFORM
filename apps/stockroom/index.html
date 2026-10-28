@@ -428,7 +428,7 @@
     <div class="o3-subgrouplabel">Data</div>
     <button type="button" class="snav" title="Shipping" onclick="switchTab('shipping')"><span class="snav-ic" data-ink="SH">📦</span><span class="snav-label">Shipping</span></button>
     <button type="button" class="snav" title="Sheets" onclick="switchTab('sheets')"><span class="snav-ic" data-ink="GS">⚙️</span><span class="snav-label">Sheets</span></button>
-    <button type="button" class="snav" id="sidebar-bigcartel-btn" title="Big Cartel" onclick="switchTab('bigcartel')"><span class="snav-ic" data-ink="BC">🏪</span><span class="snav-label">Big Cartel</span><span class="bc-gap-badge pill red" aria-label="orders missing from your ledger" hidden></span><span class="health-badge" data-health-badge="bigcartel" aria-label="Big Cartel is not answering" hidden></span></button>
+    <button type="button" class="snav" id="sidebar-bigcartel-btn" data-old-shop-sync hidden title="Big Cartel" onclick="switchTab('bigcartel')"><span class="snav-ic" data-ink="BC">🏪</span><span class="snav-label">Big Cartel</span><span class="bc-gap-badge pill red" aria-label="orders missing from your ledger" hidden></span><span class="health-badge" data-health-badge="bigcartel" aria-label="Big Cartel is not answering" hidden></span></button>
     <button type="button" class="snav" title="Backups" onclick="switchTab('backups')"><span class="snav-ic" data-ink="BK">💾</span><span class="snav-label">Backups</span></button>
     <button type="button" class="snav" title="Help" onclick="switchTab('help')"><span class="snav-ic" data-ink="?">❓</span><span class="snav-label">Help</span></button>
   </nav>
@@ -702,7 +702,7 @@
   <button class="tab-btn" onclick="switchTab('myqr')" id="myqr-tab-btn" style="display:none;"><span class="lead-emoji" aria-hidden="true">📲 </span>My QR Code</button>
   <button class="tab-btn" id="help-tab-btn" onclick="switchTab('help')"><span class="lead-emoji" aria-hidden="true">❓ </span>Help</button>
   <button class="tab-btn" id="shipping-tab-btn" onclick="switchTab('shipping')"><span class="lead-emoji" aria-hidden="true">📦 </span>Shipping Rates</button>
-  <button class="tab-btn" id="bigcartel-tab-btn" onclick="switchTab('bigcartel')">Big Cartel<span class="bc-gap-badge pill red" aria-label="orders missing from your ledger" hidden></span><span class="health-badge" data-health-badge="bigcartel" aria-label="Big Cartel is not answering" hidden></span></button>
+  <button class="tab-btn" id="bigcartel-tab-btn" data-old-shop-sync hidden onclick="switchTab('bigcartel')">Big Cartel<span class="bc-gap-badge pill red" aria-label="orders missing from your ledger" hidden></span><span class="health-badge" data-health-badge="bigcartel" aria-label="Big Cartel is not answering" hidden></span></button>
   <span class="tab-author" id="tab-author"></span>
   <span class="tab-updated" id="tab-updated"></span>
 </nav>
@@ -793,7 +793,7 @@
     </section>
     <section class="help-sec" id="help-press" data-audience="publisher">
       <h3 class="help-sec-title">Running the press</h3>
-      <details class="help-q"><summary>What can I see that artists can’t?</summary><div class="help-a"><p>Artists only see their own book and the everyday tabs: Dashboard, Manual entry, Consignment, History, Expenses and their QR code. You see every book, plus the business tabs — Website orders, Event POS, Payments, Tax Centre, Customers, Shipping, Big Cartel, Sheets and Backups.</p></div></details>
+      <details class="help-q"><summary>What can I see that artists can’t?</summary><div class="help-a"><p>Artists only see their own book and the everyday tabs: Dashboard, Manual entry, Consignment, History, Expenses and their QR code. You see every book, plus the business tabs — Website orders, Event POS, Payments, Tax Centre, Customers, Shipping, <span data-old-shop-sync hidden>Big Cartel, </span>Sheets and Backups.</p></div></details>
       <details class="help-q"><summary>How do I see exactly what an artist sees?</summary><div class="help-a"><p>Choose their book, then press <b>Author view</b> at the top of the screen. A note reminds you that you’re previewing. Press it again to get your full view back.</p></div></details>
       <details class="help-q"><summary>Where do I start each day?</summary><div class="help-a"><ol><li>Open <b>Dashboard</b> and read any <b>Action required</b> note first.</li><li>Open <b>Website orders</b> and apply the ones marked ready.</li><li>Check <b>To-do</b> for anything still waiting on you.</li></ol><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="todo">Open To-do →</button></p></div></details>
       <details class="help-q"><summary>How do I get to the website’s admin?</summary><div class="help-a"><p>Use the <b>Website · Inventory</b> switch: at the top of the left menu on a computer, the <b>Website ↗</b> button at the top of the screen on a phone or tablet, or the top of <b>More</b>. The red number on it is how many website orders are paid and not sent yet.</p><p>On a computer the website opens in its own tab, and pressing <b>Inventory</b> there brings you back to this tab — no pile of new tabs. A website sale in <b>History</b> has an <b>Open on the website</b> link that goes straight to that order, and the website’s orders link back here the same way.</p><p>It needs the internet: offline, the switch says so and opens nothing.</p></div></details>
@@ -1363,7 +1363,7 @@
          deleted, or older than the scan window. This strip is how the storefront
          gets to contradict it: renderBigCartelGapBadge() reveals it whenever the
          Big Cartel check finds a sale with no ledger row behind it. -->
-    <div class="bc-gap-strip" id="web-bc-gap-strip" role="status" hidden>
+    <div class="bc-gap-strip" id="web-bc-gap-strip" role="status" data-old-shop-sync-strip hidden>
       <span class="bc-gap-strip-icon" aria-hidden="true">⚠️</span>
       <span id="web-bc-gap-strip-text">Some Big Cartel orders are not in your ledger.</span>
       <button class="btn sm" type="button" onclick="switchTab('bigcartel')">Review them</button>
@@ -1446,8 +1446,8 @@
       <div class="sec-kicker"><span class="sec-kicker-dot"></span>Payments</div>
       <div class="section-hed sec-head-title">Stripe payments to reconcile</div>
       <p class="section-subcopy">
-        Pulls your recent Stripe payments and checks each one against your inventory. Invoices (INV-…), Big Cartel
-        orders, and SKU-tagged links match automatically — the rest land in a short worklist where you pick the book and log the sale.
+        Pulls your recent Stripe payments and checks each one against your inventory. Invoices (INV-…), <span data-old-shop-sync hidden>Big Cartel
+        orders, </span>and SKU-tagged links match automatically — the rest land in a short worklist where you pick the book and log the sale.
       </p>
     </div>
     <div class="sec-head-badges">
@@ -1489,7 +1489,7 @@
     <select id="recon-type" class="recon-mini" onchange="reconOnFilter()" title="Filter by type">
       <option value="all">All types</option>
       <option value="direct">Direct sale</option>
-      <option value="bigcartel">Big Cartel</option>
+      <option value="bigcartel" data-old-shop-sync hidden>Big Cartel</option>
       <option value="invoice">Invoice</option>
     </select>
     <select id="recon-sort" class="recon-mini" onchange="reconOnFilter()" title="Sort the worklist">
@@ -2366,7 +2366,7 @@
   <div class="g2" style="margin-bottom:12px;">
     <div class="form-group">
       <label for="rec-edit-desc">Description</label>
-      <input type="text" id="rec-edit-desc" placeholder="e.g. Big Cartel Website" oninput="updateRecurringPreview()">
+      <input type="text" id="rec-edit-desc" placeholder="e.g. Website hosting" oninput="updateRecurringPreview()">
     </div>
     <div class="form-group">
       <label for="rec-edit-vendor">Vendor <span class="tc-opt">optional</span></label>
@@ -3924,7 +3924,7 @@
                 </div>
                 <div class="custom-dest-chips" id="custom-ship-dest-chips">
                   <button type="button" class="dest-chip active" data-cat="all" onclick="setShippoDestCategoryFilter('all', event)">All</button>
-                  <button type="button" class="dest-chip" data-cat="bc" onclick="setShippoDestCategoryFilter('bc', event)"><span class="lead-emoji" aria-hidden="true">🛒 </span>Big Cartel</button>
+                  <button type="button" class="dest-chip" data-cat="bc" data-old-shop-sync hidden onclick="setShippoDestCategoryFilter('bc', event)"><span class="lead-emoji" aria-hidden="true">🛒 </span>Big Cartel</button>
                   <button type="button" class="dest-chip" data-cat="stores" onclick="setShippoDestCategoryFilter('stores', event)"><span class="lead-emoji" aria-hidden="true">🏬 </span>Stores</button>
                   <button type="button" class="dest-chip" data-cat="orders" onclick="setShippoDestCategoryFilter('orders', event)"><span class="lead-emoji" aria-hidden="true">📦 </span>Orders</button>
                 </div>
@@ -4966,7 +4966,7 @@
                 </div>
                 <pre id="gas-code" class="gas-code-pre">Loading the latest backend code…</pre>
               </div>
-              <div style="font-size:var(--text-sm);color:var(--text3);margin-top:10px;line-height:1.6;">This <span id="gas-script-ver">v29</span> script syncs inventory events, scans Big Cartel order emails, and captures customer-paid shipping as separate Sheets rows for later shipping/postage analysis.</div>
+              <div style="font-size:var(--text-sm);color:var(--text3);margin-top:10px;line-height:1.6;">This <span id="gas-script-ver">v29</span> script syncs inventory events, <span data-old-shop-sync hidden>scans Big Cartel order emails, </span>and captures customer-paid shipping as separate Sheets rows for later shipping/postage analysis.</div>
               <details style="margin-top:12px;font-size:var(--text-sm);color:var(--text3);line-height:1.6;border-top:var(--stroke-hair) dashed var(--border);padding-top:10px;">
                 <summary style="cursor:pointer;font-weight:700;color:var(--text2);">Optional: send "Email artist for payment" from the app, not your Gmail</summary>
                 <div style="margin-top:8px;">
