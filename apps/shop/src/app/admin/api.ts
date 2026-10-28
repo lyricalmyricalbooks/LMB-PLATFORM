@@ -6,7 +6,7 @@ import { discountRecord, discountUpdate } from "../../shared/discountRecord";
 import { check } from "../../shared/edge";
 import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
-import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
+import { REDIRECTS_COLLECTION, REDIRECTS_DOC, redirectPageIds, redirectsToPages, type Redirect } from "../features/site/redirects";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
@@ -667,9 +667,20 @@ export const adminApi = {
 
   // URL redirects (Settings › General): old address → new address, in the public, admin-written settings/redirects doc.
   getRedirects: publicApi.getRedirects,
+  // Plan 5.6: saved in numbered pages of 500 (`redirects/1`…, up to 5,000), filled in order, in one batch; pages past
+  // the end are cleared and the legacy settings/redirects doc is marked moved, so an older list never comes back.
   saveRedirects: async (items: Redirect[]): Promise<Redirect[]> => {
-    const clean = cleanRedirects(items);
-    await setDoc(doc(db, "settings", REDIRECTS_DOC), { items: clean, updatedAt: new Date().toISOString() });
+    const pages = redirectsToPages(items);
+    const clean = pages.flatMap(p => p.items);
+    const updatedAt = new Date().toISOString();
+    const batch = writeBatch(db);
+    for (const id of redirectPageIds()) {
+      const page = pages.find(p => p.id === id);
+      if (page) batch.set(doc(db, REDIRECTS_COLLECTION, id), { items: page.items, page: Number(id), updatedAt });
+      else batch.delete(doc(db, REDIRECTS_COLLECTION, id));
+    }
+    batch.set(doc(db, "settings", REDIRECTS_DOC), { items: [], paged: true, pages: pages.length, count: clean.length, updatedAt });
+    await batch.commit();
     await adminApi.recordAuditLog("settings", `Updated URL redirects (${clean.length})`);
     return clean;
   },

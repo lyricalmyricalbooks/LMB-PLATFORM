@@ -100,6 +100,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    // URL redirects in numbered pages of 500 (plan 5.6; features/site/redirects.ts): public like settings/redirects,
+    // written by the admin, pages 1 to 10 only.
+    match /redirects/{page} {
+      allow read: if true;
+      allow write: if isAdmin() && page in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+    }
     match /authors/{authorId} {
       allow read: if true;
       allow write: if isAdmin();
