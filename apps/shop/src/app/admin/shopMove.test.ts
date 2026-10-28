@@ -103,7 +103,7 @@ describe("products", () => {
 
   it("writes the shop's own import columns", () => {
     const text = movedBooksCsv(readProductExport(HANDLE_ROWS)!.books);
-    expect(text.split("\n")[0]).toBe("Title,Description,ISBN,SKU,Price,Sale price,Stock,Categories,Tags,Weight,Image URL,Extra image URLs");
+    expect(text.split("\n")[0]).toBe("Title,Description,ISBN,SKU,Price,Sale price,Stock,Categories,Tags,Weight,Image URL,Extra image URLs,SEO title,SEO description");
   });
 });
 
@@ -136,6 +136,47 @@ describe("planShopMove", () => {
     const again = planShopMove(PRODUCT_ID_ROWS, saved).plan;
     expect(again.counts.create).toBe(0);
     expect(again.counts.error).toBe(0);
+  });
+
+  it("today's headings and the older ones give the same plan for the same three-edition book (plan 7.2)", () => {
+    // The same book, exported under the older headings and under the ones product exports use today.
+    const OLD = csv([
+      ["Handle", "Title", "Body (HTML)", "Type", "Tags", "Option1 Name", "Option1 Value", "Variant SKU", "Variant Grams", "Variant Inventory Qty", "Variant Price", "Variant Compare At Price", "Variant Barcode", "Image Src", "Image Position", "Variant Image", "SEO Title", "SEO Description"],
+      ["fern-atlas", "Fern Atlas", "<p>Plants, <em>pressed</em>.</p>", "Book", "plants, art", "Edition", "Paperback", "FA-PB", "450", "10", "30.00", "", "", "https://cdn.example/fern-1.jpg", "1", "", "Fern Atlas, a pressed-plant book", "Ferns from three islands."],
+      ["fern-atlas", "", "", "", "", "", "Hardcover", "FA-HC", "700", "4", "50.00", "60.00", "", "https://cdn.example/fern-2.jpg", "2", "https://cdn.example/fern-hc.jpg", "", ""],
+      ["fern-atlas", "", "", "", "", "", "Signed", "FA-SG", "700", "0", "80.00", "", "", "", "", "", "", ""],
+    ]);
+    const NEW = csv([
+      ["Title", "URL handle", "Description", "Vendor", "Product category", "Type", "Tags", "Published on online store", "Status", "SKU", "Barcodes", "Option1 name", "Option1 value", "Price", "Compare-at price", "Inventory quantity", "Weight value (grams)", "Weight unit for display", "Product image URL", "Image position", "Variant image URL", "SEO title", "SEO description"],
+      ["Fern Atlas", "fern-atlas", "<p>Plants, <em>pressed</em>.</p>", "Moth Press", "Media > Books", "Book", "plants, art", "TRUE", "Active", "FA-PB", "", "Edition", "Paperback", "30.00", "", "10", "450", "g", "https://cdn.example/fern-1.jpg", "1", "", "Fern Atlas, a pressed-plant book", "Ferns from three islands."],
+      ["", "fern-atlas", "", "", "", "", "", "", "", "FA-HC", "", "", "Hardcover", "50.00", "60.00", "4", "700", "g", "https://cdn.example/fern-2.jpg", "2", "https://cdn.example/fern-hc.jpg", "", ""],
+      ["", "fern-atlas", "", "", "", "", "", "", "", "FA-SG", "", "", "Signed", "80.00", "", "0", "700", "g", "", "", "", "", ""],
+    ]);
+    const head = (text: string) => text.split("\n")[0].split(",");
+    expect(recognizeExport(head(NEW))).toBe("handle-rows");
+    const plain = (move: ReturnType<typeof planShopMove>) => ({
+      ...move,
+      plan: { ...move.plan, rows: move.plan.rows.map(r => ({ ...r, patch: { ...r.patch, variants: r.patch.variants?.map(({ id: _id, ...v }: any) => v), photos: r.patch.photos?.map(({ id: _id, ...p }: any) => p) } })) },
+    });
+    const before = plain(planShopMove(OLD, []));
+    const after = plain(planShopMove(NEW, []));
+    expect(after).toEqual(before);
+    const fern = after.plan.rows[0];
+    expect(fern.action).toBe("create");
+    expect(fern.patch.variants.map((v: any) => [v.name, v.price, v.stock, v.sku, v.weight, v.photoUrl])).toEqual([
+      ["Paperback", 30, 10, "FA-PB", "450 g", ""], ["Hardcover", 60, 4, "FA-HC", "700 g", "https://cdn.example/fern-hc.jpg"], ["Signed", 80, 0, "FA-SG", "700 g", ""],
+    ]);
+    expect(fern.patch).toMatchObject({ title: "Fern Atlas", description: "Plants, *pressed*.", tags: ["plants", "art"], metaTitle: "Fern Atlas, a pressed-plant book", metaDescription: "Ferns from three islands." });
+    expect(fern.patch.photos.map((p: any) => p.url)).toEqual(["https://cdn.example/fern-1.jpg", "https://cdn.example/fern-2.jpg", "https://cdn.example/fern-hc.jpg"]);
+    expect(after.oldPaths.get(2)).toEqual(["/products/fern-atlas"]);
+  });
+
+  it("a file with both Barcode and Barcodes reads Barcodes", () => {
+    const both = csv([
+      ["URL handle", "Title", "Price", "Barcode", "Barcodes"],
+      ["salt", "Salt", "18.00", "9780306406157", "9781861972712"],
+    ]);
+    expect(readProductExport(both)!.books[0].cells.ISBN).toBe("9781861972712");
   });
 
   it("any other spreadsheet goes to the plain import unchanged", () => {

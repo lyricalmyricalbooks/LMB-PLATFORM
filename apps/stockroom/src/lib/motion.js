@@ -1,5 +1,5 @@
 /**
- * Motion layer for the Lyrical design system.
+ * Motion layer for the Riso Press design system.
  *
  * The app re-renders large regions by assigning `innerHTML` (~237 call sites),
  * which repaints instantly with no visual continuity — a list can reorder,

@@ -56,6 +56,14 @@ test("switches are optional true/false values, and only the five known ones", ()
   assert.equal(schema.required.includes("switches"), false);
 });
 
+test("the press's name is optional text of up to 80 characters", () => {
+  assert.deepEqual(profileProblems({ ...example, name: "Moth Press" }), []);
+  assert.equal(schema.required.includes("name"), false);
+  assert.ok(profileProblems({ ...example, name: "" }).includes("profile.name is empty"));
+  assert.ok(profileProblems({ ...example, name: 7 }).includes("profile.name must be text"));
+  assert.ok(profileProblems({ ...example, name: "x".repeat(81) }).includes("profile.name is longer than 80 characters"));
+});
+
 test("the stockroom's own database and bucket are optional, and both are needed when given", () => {
   const { stockroom, ...withoutIt } = example;
   assert.deepEqual(profileProblems(withoutIt), []);

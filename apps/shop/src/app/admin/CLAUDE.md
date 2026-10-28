@@ -445,6 +445,11 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `oldPaths` (per old line) holds the old shop's product addresses. After the import saves, `importRedirects` (plan 3.2)
   adds them to URL redirects as `/books/<id>` (ids survive renames), for created, updated and unchanged books; it never
   replaces an existing redirect, skips the shop's own routes and stops at `MAX_REDIRECTS` with a reason.
+  **Plan 7.2:** `handle-rows` is read under the older headings (Handle, Variant Price, Image Src…) and today's (URL
+  handle, Price, Compare-at price, SKU, Barcodes, Inventory quantity, Product image URL, Image position, Weight value
+  (grams), Variant image URL); each field takes either (the `HANDLE`/`PRICE`/… lists). A file with both Barcode and
+  Barcodes reads Barcodes. SEO title / SEO description go to `metaTitle`/`metaDescription` (also plain Import CSV
+  columns). `shopMove.test.ts` proves one three-edition book gives the same plan in both layouts.
 - **Customers:** Customers › **Bring customers over** (`ShopMoveDialogs.tsx`, lazy) → `readCustomerExport` →
   `planCustomerNotes` (merges into `customerNotes`; `MOVED_MARK` makes a re-run unchanged; tags capped by `parseTags`)
   and `newsletterJoiners` (said yes in the file, not subscribed, not in `marketing-optout`). Joiners are written only

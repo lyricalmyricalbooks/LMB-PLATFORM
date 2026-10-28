@@ -243,7 +243,7 @@ import {
   postageTrackingIndex,
 } from '../lib/postage-intake.js';
 import { parseShippingEmail, shippingEmailQuery, trackingEmailQuery } from '../lib/shipping-email.js';
-import { readShopProfile, switchOn } from '../lib/shop-profile.js';
+import { fileStem, readShopProfile, switchOn } from '../lib/shop-profile.js';
 import {
   assessLiveShippingReadiness,
   inspectZonosAccountKey,
@@ -11568,7 +11568,7 @@ function downloadFilteredShippingLedgerCSV() {
     csv += `${esc(o.num)},${esc(o.shipName || o.name || 'Anonymous')},${esc(book?.title || 'Unknown book')},${o.qty || 1},${weightKg.toFixed(3)},${esc(statusLabel)},${customerPaidBase.toFixed(2)},${postageCostCAD.toFixed(2)},${margin.toFixed(2)},${esc(carrier)},${esc(region)},${esc(ref)}\n`;
   });
 
-  downloadCsv(csv, `Lyrical_Shipping_Ledger_${today()}.csv`);
+  downloadCsv(csv, `${fileStem()}_Shipping_Ledger_${today()}.csv`);
   showToast('✓ Filtered shipping ledger CSV exported');
 }
 

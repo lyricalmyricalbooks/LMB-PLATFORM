@@ -329,9 +329,9 @@
 <!-- APP LAUNCH SPLASH SCREEN (Covers the split-second auth connection flash) -->
 <div id="splash-screen" style="position: fixed; inset: 0; background: var(--ink); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.4s ease;">
   <div class="pw-logo" style="transform: scale(0.9); margin-bottom: 24px;" aria-hidden="true">
-    <div>Lyrical</div>
-    <div>Myrical</div>
-    <div class="pw-logo-outline">Books</div>
+    <div>Your</div>
+    <div>Press</div>
+    <div class="pw-logo-outline">Stockroom</div>
   </div>
   <div style="font-family:var(--font-ui); font-size:var(--text-xs); text-transform:uppercase; letter-spacing:0.18em; color:var(--gold3); animation: pulse-glow 2s infinite ease-in-out;">Connecting to database…</div>
 </div>
@@ -345,9 +345,9 @@
       <div class="pw-corner-label"><span class="wm">Your Press</span></div>
 
       <div class="pw-logo" aria-label="Your Press">
-        <div>Lyrical</div>
-        <div>Myrical</div>
-        <div class="pw-logo-outline">Books</div>
+        <div>Your</div>
+        <div>Press</div>
+        <div class="pw-logo-outline">Stockroom</div>
       </div>
 
       <div class="pw-tag-row">
@@ -2533,6 +2533,23 @@
   <div id="tc-preflight-content" style="margin-top:12px;">
     <!-- Populated by openTaxSeasonPreflightModal() -->
   </div>
+  <fieldset class="tc-ip-tax" style="margin:16px 0 0;padding:12px;border:var(--stroke-hair) solid var(--border);border-radius:var(--r2);">
+    <legend class="tc-form-label" style="padding:0 6px;">Tax on in-person sales</legend>
+    <div class="tc-form-hint" style="margin:0 0 8px;">Fair and in-person sales come out one line per day, the same lines and tax names as your shop's bookkeeping file.</div>
+    <div class="tc-form-grid">
+      <div class="tc-form-group">
+        <label class="tc-form-label" for="tc-ip-tax-rate">Rate (%)</label>
+        <input type="text" inputmode="decimal" id="tc-ip-tax-rate" class="tc-form-input" placeholder="13" autocomplete="off" data-on-input="taxExport.inPersonTaxInput" data-on-change="taxExport.inPersonTaxSave">
+      </div>
+      <div class="tc-form-group">
+        <label class="tc-form-label" for="tc-ip-tax-name">Name in your books</label>
+        <input type="text" id="tc-ip-tax-name" class="tc-form-input" maxlength="40" list="tc-ip-tax-names" autocomplete="off" data-on-input="taxExport.inPersonTaxInput" data-on-change="taxExport.inPersonTaxSave">
+        <datalist id="tc-ip-tax-names"></datalist>
+      </div>
+    </div>
+    <label class="toggle-row" style="margin-top:8px;"><input type="checkbox" id="tc-ip-tax-included" checked data-on-change="taxExport.inPersonTaxSave"> My prices already include this tax</label>
+    <div class="tc-form-hint" id="tc-ip-tax-hint" aria-live="polite" style="margin-top:6px;"></div>
+  </fieldset>
   <div class="modal-footer" style="justify-content:space-between;align-items:center;flex-wrap:wrap;">
     <button class="btn" type="button" onclick="attemptCloseModal('tc-preflight')">Cancel</button>
     <div style="display:flex;gap:8px;">
@@ -5780,7 +5797,7 @@
     <div style="font-size:var(--text-xs);color:var(--text3);line-height:1.6;margin-bottom:10px;">
       Paste a Stripe <strong>Restricted Key</strong> with write permissions on <em>Products</em>, <em>Prices</em>, and <em>Payment Links</em>.
       When you finalize an invoice, the app auto-creates a Stripe Payment Link with the <strong>exact amount owed</strong> — so a store can never accidentally pay the wrong quarter.
-      <a href="https://dashboard.stripe.com/apikeys/create?name=Lyrical%20Inv%20Pay%20Links&permissions[]=rak_payment_link_write&permissions[]=rak_product_write&permissions[]=rak_plan_write&permissions[]=rak_payment_links_write&permissions[]=rak_prices_write&permissions[]=rak_products_write" target="_blank" style="color:var(--gold-text);">Create a restricted key →</a>
+      <a href="https://dashboard.stripe.com/apikeys/create?name=Stockroom%20Pay%20Links&permissions[]=rak_payment_link_write&permissions[]=rak_product_write&permissions[]=rak_plan_write&permissions[]=rak_payment_links_write&permissions[]=rak_prices_write&permissions[]=rak_products_write" target="_blank" style="color:var(--gold-text);">Create a restricted key →</a>
     </div>
     <div class="form-group" style="margin-bottom:8px;"><label for="ivs-stripe-key">Stripe Restricted Key</label>
       <input id="ivs-stripe-key" type="password" placeholder="rk_live_… or rk_test_…" autocomplete="off">
@@ -6094,7 +6111,7 @@
         <label for="nb-accent">Project Accent Theme</label>
         <div class="accent-picker-wrap">
           <div class="accent-swatches" id="nb-accent-swatches" role="group" aria-label="Accent colour presets">
-            <button type="button" class="accent-swatch-btn" data-accent="#E8402A" data-name="Lyrical Gold" style="background:var(--gold);" onclick="selectBookAccentPreset('#E8402A')" title="Lyrical Gold" aria-label="Lyrical Gold accent color" aria-pressed="false"></button>
+            <button type="button" class="accent-swatch-btn" data-accent="#E8402A" data-name="Press Red" style="background:var(--gold);" onclick="selectBookAccentPreset('#E8402A')" title="Press Red" aria-label="Press Red accent color" aria-pressed="false"></button>
             <button type="button" class="accent-swatch-btn" data-accent="#10b981" data-name="Emerald" style="background:var(--emerald);" onclick="selectBookAccentPreset('#10b981')" title="Emerald" aria-label="Emerald accent color" aria-pressed="false"></button>
             <button type="button" class="accent-swatch-btn" data-accent="#6366f1" data-name="Indigo" style="background:var(--violet);" onclick="selectBookAccentPreset('#6366f1')" title="Indigo" aria-label="Indigo accent color" aria-pressed="false"></button>
             <button type="button" class="accent-swatch-btn" data-accent="#f59e0b" data-name="Warm Amber" style="background:var(--orange);" onclick="selectBookAccentPreset('#f59e0b')" title="Warm Amber" aria-label="Warm Amber accent color" aria-pressed="false"></button>
@@ -6106,7 +6123,7 @@
             <span class="accent-hex-display" id="nb-accent-hex">#E8402A</span>
           </div>
         </div>
-        <div class="accent-name-caption" id="nb-accent-name" aria-live="polite">Lyrical Gold</div>
+        <div class="accent-name-caption" id="nb-accent-name" aria-live="polite">Press Red</div>
       </div>
       <div class="form-group">
         <label for="nb-thresh">Low Stock Alert Threshold</label>
@@ -6640,9 +6657,9 @@
 <!-- FULLSCREEN UPDATING TRANSITION SCREEN -->
 <div id="updating-screen" class="updating-screen" aria-live="polite" aria-hidden="true">
   <div class="pw-logo updating-screen-logo" aria-hidden="true">
-    <div>Lyrical</div>
-    <div>Myrical</div>
-    <div class="pw-logo-outline">Books</div>
+    <div>Your</div>
+    <div>Press</div>
+    <div class="pw-logo-outline">Stockroom</div>
   </div>
   <div class="updating-screen-title">Updating Your Press Inventory…</div>
   <div class="updating-screen-copy">Polishing the latest version. This will take just a moment.</div>

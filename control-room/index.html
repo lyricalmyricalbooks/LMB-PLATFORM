@@ -54,6 +54,21 @@
   <section id="view-shops" class="stack" hidden>
     <div class="row"><span id="summary"></span> <button type="button" id="refresh">Refresh</button></div>
     <div id="shops" class="stack"></div>
+    <h2>Sign-ups and the waitlist</h2>
+    <p class="hint" id="waitlist-summary"></p>
+    <div id="making" class="stack"></div>
+    <div id="waitlist" class="stack"></div>
+    <form id="invite-form" class="row">
+      <label class="field">Invite someone not on the list <input type="email" name="email" required autocomplete="off" placeholder="name@press.example"></label>
+      <button type="submit">Send invite</button>
+    </form>
+    <h2>Platform settings</h2>
+    <p class="hint">Changes here reach sign-up and new plans at once, with no release. A new price is for new subscriptions only; presses already paying keep theirs.</p>
+    <form id="settings-form" class="card">
+      <div id="settings-fields" class="stack"></div>
+      <label class="field">Why are you changing this? (goes in the activity log) <input name="reason" required minlength="10" maxlength="500"></label>
+      <div class="row"><button type="submit" class="primary">Save settings</button> <span class="hint" id="settings-updated"></span></div>
+    </form>
     <h2>Emergency payments</h2>
     <p class="hint">Only if the platform's Stripe account is paused: move every live shop's card payments at once. Each press is emailed straight away. Move them back the same way.</p>
     <div id="all-payments"></div>
@@ -93,6 +108,13 @@
       <div class="row"><button type="submit" class="primary">Write it in the register</button></div>
     </form>
     <div id="breaches" class="stack"></div>
+    <h2>Activity log</h2>
+    <p class="hint">Everything anyone did in the control room, newest first. Kept for a year; nothing here can be changed.</p>
+    <form id="activity-form" class="row">
+      <label class="field">Only this shop (shop id, empty for all) <input name="shopId" autocomplete="off"></label>
+      <button type="submit">Show</button>
+    </form>
+    <div id="activity" class="stack"></div>
   </section>
   <section id="view-emergency" class="stack" hidden>
     <h2>Run book</h2>
