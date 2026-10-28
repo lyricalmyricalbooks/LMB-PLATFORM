@@ -478,3 +478,12 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
   when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`).
 - Settings › Payments › Card payments (`PlatformPaymentsCard.tsx`, plan 2.2b) replaces the Stripe keys card on platform
   shops.
+
+## Download for another shop system (28 October 2026, code plan 7.18)
+
+Settings › General › Backups & export › **Download for another shop system** (`BackupsExportCard.tsx`, pure builders in
+`shopExport.ts`). Books: one line per edition, extra photos on their own lines, in the older handle-rows headings
+because those are what `shopMove.ts` reads (`shopExport.test.ts` round-trips the file through `planShopMove`); move to
+the newer headings only together with shopMove. Gift cards stay out. Customers: buyers from orders plus newsletter
+sign-ups; "Accepts Email Marketing" is yes only for a current subscriber who has not opted out. Words on screen never
+name another system. The stockroom's matching stock file is `apps/stockroom/src/lib/stock-locations.js` (7.19).

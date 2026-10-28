@@ -694,6 +694,15 @@ registerActions({
     const e = (getState().expenses || []).find(x => String(x.id) === el.dataset.id);
     if (e) markExpenseReceived(e.id);
   },
+  // Backups › Open in a spreadsheet: the copies on hand, per place, in the layout another shop system reads
+  // (plan 7.19, lib/stock-locations.js). The practice book stays out.
+  'backups.stockLocations': () => {
+    const entries = Object.keys(BOOKS).filter(bid => !isTestBookId(bid))
+      .map(bid => ({ book: BOOKS[bid], state: states[bid] || defaultState(BOOKS[bid]) }));
+    if (!entries.length) { showToast('No books to list yet.', 'err'); return; }
+    downloadCsv(stockLocationsCsv(entries), `stock-counts-${today()}.csv`);
+    showToast(`✓ Stock counts for ${entries.length} book${entries.length === 1 ? '' : 's'} downloaded`, 'ok');
+  },
   // The money card's own buttons.
   'moneyCard.askPayLink': () => askAuthorForPayLink(),
   'moneyCard.setUpPayLink': () => goToPayLinkSetup(),
@@ -1111,6 +1120,7 @@ import { IN_PERSON_CHANNELS } from './lib/channel-mix.js';
 import { csvToObjects, toCsv } from './lib/csv.js';
 import { plainChanges, kindLabel, parseBuildDate, relativeWhen, dayHeading } from './lib/whats-new.js';
 import { downloadText, downloadCsv } from './lib/download.js';
+import { stockLocationsCsv } from './lib/stock-locations.js';
 import { OC_STAGES } from './lib/opencall.js';
 import { deriveOnHand, buildOrderTimeline, inventoryBreakdown, deduplicateDirectConsignmentSales, recalculateBookStatsFromHistory, orderStockPreview, orderStockPreviewCopy, deriveStockBreakdown, transferAuthorStock, isVoidStale } from './lib/inventory.js';
 import { fairSyncPill } from './lib/fair-mode.js';
