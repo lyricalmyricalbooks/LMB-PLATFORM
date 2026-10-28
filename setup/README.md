@@ -42,9 +42,13 @@ and dry runs; Google is never called from tests.
 3. Add Firebase to the project.
 4. Turn on the services in `SERVICES` (only the missing ones).
 5. Create the Firestore database (delete protection on) and the storage bucket in `northamerica-northeast1`. One in
-   another region stops the run, since neither can be moved.
+   another region stops the run, since neither can be moved. With the stockroom in the plan, also its own named
+   database `stockroom` (delete protection on) and bucket `<shop id>-stockroom` in the same region, and the project's
+   Realtime Database in `us-central1` (it has no Montréal location). One in the wrong place, or a bucket name another
+   project holds, stops the run too (plan 1.20).
 6. Create the web app ("Shop"), build the public profile from its settings, check it with `profile/profile.js`, and
-   save it to the registry and to the per-shop `/shop-profile.js` file (`profileFiles`). Every switch is written down,
+   save it to the registry and to the per-shop `/shop-profile.js` file (`profileFiles`). With the stockroom in the plan
+   the profile's `stockroom` block names its database and bucket. Every switch is written down,
    as `false` for a new shop; a re-run keeps a switch the saved profile already has. The step's audit entry carries
    the switches it wrote (`detail`; a step's `act` may return `{ detail }` and the runner records it).
 
@@ -129,6 +133,8 @@ Open points from 1.30:
   writes, for every function and the Stripe webhook and download links. The shop copy's `firebase.json` still names
   `nam5` for Firestore; that only matters if a deploy creates the database, and step 5 creates it first in
   `northamerica-northeast1`.
-- **Stockroom rules and Hosting site** depend on the open decision before 1.20 (own named database, or rules merged
-  with the shop's). The deploy client takes the list of apps and picks the site, so the steps don't change either way.
+- **Stockroom rules and Hosting site (1.20).** The stockroom deploys from its own config
+  (`apps/stockroom/scripts/deployConfig.mjs`): site `<shop id>-stockroom`, named database `stockroom`, bucket
+  `<shop id>-stockroom`, the project's Realtime Database. The deploy client creates that Hosting site before step 9's
+  first stockroom deploy. Step 11 checks the shop's bucket only; the stockroom's bucket has the same closed rules.
 - **Starter documents** come from the release, since the shop copy owns their shape (see 1.23 for theme presets).

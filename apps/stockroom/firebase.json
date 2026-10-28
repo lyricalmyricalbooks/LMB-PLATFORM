@@ -2,10 +2,60 @@
   "database": {
     "rules": "database.rules.json"
   },
-  "firestore": {
-    "rules": "firestore.rules"
-  },
-  "storage": {
-    "rules": "storage.rules"
+  "firestore": [
+    {
+      "database": "stockroom",
+      "rules": "firestore.rules"
+    }
+  ],
+  "storage": [
+    {
+      "bucket": "lmb-test-stockroom-stockroom",
+      "rules": "storage.rules"
+    }
+  ],
+  "hosting": {
+    "site": "lmb-test-stockroom-stockroom",
+    "public": "dist",
+    "ignore": [],
+    "cleanUrls": false,
+    "trailingSlash": false,
+    "headers": [
+      {
+        "regex": "^/assets/.+$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "regex": "^/(?:(?:[^/]+/)*(?:index\\.html)?|sw\\.js|sw-notify\\.js|registerSW\\.js|manifest\\.webmanifest|shop-profile\\.js|gas-code\\.txt)$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "regex": "^/.*$",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -71,7 +71,8 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
-| 1.20 | stockroom | Its own Hosting site in `firebase.json`; rules deploy with the release; GitHub Pages kept until the move | build test | |
+| 1.20 | stockroom | Its own Hosting site in `firebase.json`; rules deploy with the release; GitHub Pages kept until the move. Inside a shop's project the stockroom has its own named Firestore database `stockroom`, its own bucket and site (`<shop id>-stockroom`) and the project's Realtime Database; the profile format gains an optional `stockroom` block naming the database and bucket, and the stockroom opens them (`src/firebase.js`). `scripts/deployConfig.mjs --project <id>` writes `firebase.deploy.json` and `.deploy/` rules with the owner filled in (the three rule files now hold the `__SHOP_OWNER_EMAIL__` slot; Storage reads the author list from the stockroom database); `deploy-firebase.yml` (by hand) deploys rules, then pages. Setup step 5 creates the named database, bucket and Realtime Database when the plan has the stockroom; step 6 writes the `stockroom` block. Still to check on the test shop: Storage rules reading a named database (the emulator can't show it) | build test (`tests/deploy-config.test.js`, `npm run check:hosting` on the CI build), rules emulator with the slot filled (`stockroom-rules`), setup step tests | done |
+| 1.20b | stockroom, platform | The owner of a **stockroom-only** shop gets in. In a shop's project the stockroom knows the owner by the `owner` role the shop's server puts on the sign-in pass; a stockroom-only plan has no shop server, and the stockroom's sign-in screen compares against a placeholder address (`src/lib/publisher-access.js`). Either setup gives the owner the role another way, or the stockroom learns the owner's address safely (not from the public profile). Also check on the test shop that Storage rules can read the named `stockroom` database | rules emulator, sign-in tests | |
 | 1.21 | shop | Shop-to-stockroom link works inside one project; the second-project grant goes away (`inventoryLinkStore.js`) | link tests | |
 
 ### 1F. One designer for every theme
@@ -151,5 +152,5 @@ Gate: a month where every update reaches every shop with no checkout outage.
 ## Open decisions
 
 - ~~The product name~~: Colophon (Julian, 28 October 2026). Still open: which domain (`docs/name-and-domain.md`) and the repo renames.
-- Stockroom data in the shop project: its own named database, or rules merged with the shop's (before 1.20).
-- Move your stockroom ledger into the shop project now, or keep the link to the old project until Phase 4 (before 1.21).
+- ~~Stockroom data in the shop project~~: its own named database (Julian, 28 October 2026; 1.20).
+- ~~Move your stockroom ledger~~: new shops link inside one project; Julian's own ledger is never moved or touched (Julian, 28 October 2026; 1.21).

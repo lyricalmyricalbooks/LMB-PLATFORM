@@ -17,8 +17,10 @@ const without = (value: Record<string, any>, path: string[]) => {
 };
 
 describe("the shop reads the platform's profile format", () => {
-  it("accepts the platform's example as it is", () => {
-    expect(parseShopProfile(example)).toEqual(example);
+  it("accepts the platform's example, leaving out only where the stockroom keeps its data", () => {
+    // The `stockroom` block (plan 1.20) names the stockroom's own database and bucket; only the stockroom reads it.
+    const { stockroom: _stockroomOnly, ...shopPart } = example;
+    expect(parseShopProfile(example)).toEqual(shopPart);
   });
 
   it("its built-in profile and the file it serves are valid to the platform", () => {

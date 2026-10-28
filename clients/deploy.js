@@ -99,9 +99,10 @@ export function deployClient({ fetch, token, run, buildDir, writeText = writeFil
       if (app) return deployedPages(projectId, app);
       throw new Error(`unknown deploy part ${part}`);
     },
-    // The shop's rules and indexes, and the stockroom's when the plan has it (its own named database, plan 1.20).
+    // The shop's rules and indexes, and the stockroom's when the plan has it: its named database, its bucket and the
+    // Realtime Database, as its firebase.deploy.json names them (apps/stockroom/scripts/deployConfig.mjs, plan 1.20).
     async rules(projectId, { version, apps }) {
-      for (const app of apps) await firebase(version, app, ["deploy", "--only", app === "shop" ? "firestore,storage" : "firestore", "--project", projectId]);
+      for (const app of apps) await firebase(version, app, ["deploy", "--only", app === "shop" ? "firestore,storage" : "firestore,database,storage", "--project", projectId]);
     },
     // The env file is written next to the functions' code for this one deploy, with the release stamped in.
     async functions(projectId, { version, region, envFile }) {

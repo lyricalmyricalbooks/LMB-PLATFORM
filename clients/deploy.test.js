@@ -67,7 +67,7 @@ test("rules deploy each plan app's rules from the release's build folder", async
   await deploy.rules(P, { version: "1.2.3", apps: ["shop", "stockroom"] });
   assert.deepEqual(runs, [
     { command: "firebase", args: ["deploy", "--only", "firestore,storage", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/shop" },
-    { command: "firebase", args: ["deploy", "--only", "firestore", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/stockroom" },
+    { command: "firebase", args: ["deploy", "--only", "firestore,database,storage", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/stockroom" },
   ]);
 });
 
