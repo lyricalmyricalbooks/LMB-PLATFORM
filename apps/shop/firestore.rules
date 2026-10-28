@@ -110,11 +110,6 @@ service cloud.firestore {
       allow read: if isOwner() || (isAdmin() && docId == "stripeWebhookStatus");
       allow write: if isOwner();
     }
-    // The shop's key for the platform's services (plan 2.2), written by the platform's setup. Server only: not even
-    // the owner can read or change it from the page (Cloud Functions read it with the Admin SDK).
-    match /platformSecrets/{docId} {
-      allow read, write: if false;
-    }
     // The owner's Team list (Settings › Team): one document per person, named by their lower-case email.
     // functions/roles.js copies the role onto that person's sign-in pass. "author" is for the stockroom only: it is not
     // an admin role here (isAdmin above names owner and staff), so an author on the Team never opens the shop's admin.

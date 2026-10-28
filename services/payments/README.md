@@ -63,9 +63,17 @@ stable ids.
 service's environment only. A key in the wrong slot stops the service. A test fails if any code outside this folder
 names the platform key.
 
+## The shop side (2.2)
+
+A shop in platform mode (`SHOP_PAYMENT_MODE="platform"` and `SHOP_PAYMENTS_SERVICE_URL` in its functions env, both
+written by setup step 8) holds no Stripe key. `apps/shop/functions/payments/platform.js` sends each Stripe call here
+with the shop's key (the Functions secret `PLATFORM_SERVICE_KEY`, made by step 8 through `setup/serviceKey.js`; the
+registry keeps only its hash). The shop's webhook takes the forwarded event's id only and fetches the event again
+through `events.retrieve`; an event this service can't fetch changes nothing. The card form loads Stripe with the
+platform's publishable key and the press's account (`payments` in the shop profile, written by step 13).
+
 ## Not yet
 
 - Hosting: the handler runs nowhere yet. It becomes one function in the platform project, with the Connect webhook
   endpoint (`connect: true`) pointed at `/stripe/events`.
 - The real registry, audit log and account record (Firestore in the platform project and the shop's `audit-log`).
-- Each shop's service key (a secret in its project, hash in the registry): a setup step, with the shop side (2.2).

@@ -4,13 +4,11 @@
 //
 //   X-Shop-Id: <shop id>    Authorization: Bearer <service key>     body { op, mode, args }
 //
-// The key is kept in `platformSecrets/service` (`key`), a document no browser can read or write (firestore.rules); the
-// platform's setup writes it and keeps only its hash. The same key serves the platform's email service.
+// The key is the Functions secret PLATFORM_SERVICE_KEY (platformKey.js), written by the platform's setup, which keeps
+// only its hash. The same key serves the platform's email service.
 //
 // `platformStripeClient` gives stripe.js a Stripe-shaped client for one mode, so the provider's code (lookups, refunds,
 // checkout) runs unchanged; only the calls the service allows exist on it.
-
-const SERVICE_KEY_DOC = Object.freeze({ collection: "platformSecrets", doc: "service" });
 
 /** A refusal from the payment service, shaped like a Stripe error so stripe.js treats it the same way. */
 function serviceError(status, body) {
@@ -86,18 +84,17 @@ function platformStripeClient(call, mode) {
 /**
  * Everything stripe.js needs for platform mode.
  * @param {object} deps
- * @param {object} deps.db Firestore (platformSecrets/service)
  * @param {typeof fetch} deps.fetch
  * @param {string} deps.url the payment service's address
  * @param {string} deps.shopId
+ * @param {() => string} deps.serviceKey the shop's key, read at call time (platformKey.js platformServiceKey)
  */
-function createPlatformAccess({ db, fetch, url, shopId }) {
+function createPlatformAccess({ fetch, url, shopId, serviceKey }) {
   if (typeof url !== "string" || !/^https:\/\/[^/\s]+(\/[^\s]*)?$/.test(url)) {
     throw new Error("Payments through the platform need SHOP_PAYMENTS_SERVICE_URL (https://…) in the shop's functions/.env file.");
   }
   const readKey = async () => {
-    const snap = await db.collection(SERVICE_KEY_DOC.collection).doc(SERVICE_KEY_DOC.doc).get();
-    const value = snap.exists ? snap.data()?.key : "";
+    const value = typeof serviceKey === "function" ? serviceKey() : "";
     return typeof value === "string" ? value : "";
   };
   const call = createServiceCaller({ fetch, url: url.replace(/\/+$/, ""), shopId, readKey });
@@ -107,4 +104,4 @@ function createPlatformAccess({ db, fetch, url, shopId }) {
   };
 }
 
-module.exports = { createPlatformAccess, createServiceCaller, platformStripeClient, SERVICE_KEY_DOC };
+module.exports = { createPlatformAccess, createServiceCaller, platformStripeClient };

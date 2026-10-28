@@ -40,9 +40,9 @@ function fakeService({ testOnly = false, answers = {} } = {}) {
   return { fetch, calls, world };
 }
 
-function fakeDb({ website = {}, serviceKey = KEY } = {}) {
+function fakeDb({ website = {} } = {}) {
   const reads = [];
-  const docs = { "settings/website": website, "platformSecrets/service": serviceKey ? { key: serviceKey } : null };
+  const docs = { "settings/website": website };
   return {
     reads,
     collection: (name) => ({ doc: (id) => ({ async get() {
@@ -56,11 +56,11 @@ function fakeDb({ website = {}, serviceKey = KEY } = {}) {
 // The Stripe package must never be used in platform mode.
 class NoStripe { constructor() { throw new Error("platform mode made a Stripe client"); } }
 
-function make({ testMode = true, testOnly = false, serviceKey, answers } = {}) {
+function make({ testMode = true, testOnly = false, serviceKey = KEY, answers } = {}) {
   const service = fakeService({ testOnly, answers });
-  const db = fakeDb({ website: { payments: { testMode } }, serviceKey });
+  const db = fakeDb({ website: { payments: { testMode } } });
   const payments = createPayments({
-    provider: "stripe", mode: "platform", service: { url: `${URL_}/`, shopId: SHOP, fetch: service.fetch },
+    provider: "stripe", mode: "platform", service: { url: `${URL_}/`, shopId: SHOP, fetch: service.fetch, serviceKey: () => serviceKey },
     db, Stripe: NoStripe, liveSecretKey: { value: () => { throw new Error("no deployed key in platform mode"); } }, readAdminSecret: async () => ({}),
   });
   return { payments, service, db };
@@ -80,7 +80,6 @@ describe("payments through the platform", () => {
     expect(call.mode).toBe("test");
     expect(call.args.idempotencyKey).toBe("o1-card");
     expect(call.args.params).toMatchObject({ amount: 4000, currency: "cad", metadata: { order_id: "o1" } });
-    expect(db.reads).toContain("platformSecrets/service");
     expect(db.reads).not.toContain("adminSecrets/stripe");
   });
 

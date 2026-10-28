@@ -63,6 +63,7 @@ const { checkoutAdminActions } = require("./checkoutAdmin");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
 const { createEmail } = require("./email");
+const { createPlatformSender } = require("./email/platformSender");
 const { shippoEndpoints } = require("./shippoEndpoints");
 const { scheduledJobs } = require("./scheduledJobs");
 const { shopEmails } = require("./shopEmails");
@@ -86,7 +87,10 @@ const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, clea
 // Cost ceiling for every function (#147): an anonymous flood can scale a public endpoint or a
 // Firestore trigger only this far. A function that sets its own maxInstances overrides it.
 // Every function runs in the shop's own region (shopConfig.js SHOP_FUNCTIONS_REGION; us-central1 when unset).
-setGlobalOptions({ maxInstances: 10, region: require("./shopConfig").shopConfig.region });
+// On a shop that uses the platform's services (payments through the platform, its email sender), every function gets
+// the shop's platform key (platformKey.js); a function's own `secrets` list adds it again with withPlatformKey.
+const { usesPlatformServices, withPlatformKey, platformServiceKey } = require("./platformKey");
+setGlobalOptions({ maxInstances: 10, region: require("./shopConfig").shopConfig.region, ...(usesPlatformServices() ? { secrets: withPlatformKey([]) } : {}) });
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -272,7 +276,7 @@ async function readAdminSecret(id) {
 // call goes through the platform's payment service instead, as this shop (its project id is its registry id).
 const payments = createPayments({
   provider: shopConfig.paymentProvider, mode: shopConfig.paymentMode,
-  service: { url: shopConfig.paymentsServiceUrl, shopId: shopConfig.project },
+  service: { url: shopConfig.paymentsServiceUrl, shopId: shopConfig.project, serviceKey: platformServiceKey },
   db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret,
 });
 const { testMode: shopTestMode } = payments;
@@ -340,9 +344,14 @@ function orderRowsHtml(items = [], order = null) {
 
 // Every email the server sends goes through functions/email (code plan 1.13). `sendEmail` stays index.js's own name for
 // it (handler tests swap it out). resendSecretValue is a const further down, so it is read at send time.
+// On a platform shop (PLATFORM_EMAIL_URL set), the backup after the press's own Gmail is the platform's shared sender.
 const mailer = createEmail({
   db, crypto, Resend, nodemailer, ownerEmail: ADMIN_TO, senderName: shopConfig.senderName, senderEmail: shopConfig.senderEmail,
   readAdminSecret, resendSecretValue: () => resendSecretValue(), escapeHtml,
+  platformSender: shopConfig.platformEmailUrl
+    ? createPlatformSender({ url: shopConfig.platformEmailUrl, shopId: shopConfig.project, serviceKey: platformServiceKey,
+      fetch: (url, options) => fetchWithTimeout(url, options, 20000) })
+    : null,
 });
 const { logEmailAttempt } = mailer;
 
@@ -1300,7 +1309,7 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
 
 exports.createPayPalOrder = onBrowserRequest(
   // SHIPPO_API_TOKEN: live carrier rates are re-priced here; an undeclared secret reads as empty.
-  { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, SHIPPO_API_TOKEN, STRIPE_SECRET_KEY] },
+  { secrets: withPlatformKey([PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, SHIPPO_API_TOKEN, STRIPE_SECRET_KEY]) },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
@@ -1380,7 +1389,7 @@ exports.createPayPalOrder = onBrowserRequest(
 );
 
 exports.capturePayPalOrder = onBrowserRequest(
-  { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] },
+  { secrets: withPlatformKey([PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET]) },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
@@ -1421,7 +1430,7 @@ exports.capturePayPalOrder = onBrowserRequest(
 );
 
 exports.paypalWebhook = onRequest(
-  { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID] },
+  { secrets: withPlatformKey([PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID]) },
   async (req, res) => {
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
     try {
@@ -1544,7 +1553,7 @@ const { handleManualLocalOrder, handleUnsubscribe, handleCompleteFreeOrder, hand
 exports.createStripeCheckoutSession = onBrowserRequest(
   // SHIPPO_API_TOKEN: live carrier rates are re-priced here; STRIPE_WEBHOOK_SECRET: webhook health reports it.
   // RESEND_API_KEY: Admin › Gift cards emails codes through this function (Gmail first, Resend fallback).
-  { secrets: [STRIPE_SECRET_KEY, SHIPPO_API_TOKEN, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY] },
+  { secrets: withPlatformKey([STRIPE_SECRET_KEY, SHIPPO_API_TOKEN, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY]) },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") {
@@ -2045,7 +2054,7 @@ async function recordStripeReconciliation(orderId, session) {
 // 2. HTTP Endpoint: Stripe Payment Webhook (Secure)
 // ──────────────────────────────────────────────────────────────
 exports.stripeWebhook = onRequest(
-  { secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY] },
+  { secrets: withPlatformKey([STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY]) },
   async (req, res) => {
     if (req.method !== "POST") {
       res.status(405).send("Method Not Allowed");
@@ -2300,7 +2309,7 @@ exports.manageReturn = onBrowserRequest({}, async (req, res) => {
 });
 
 exports.refundOrder = onBrowserRequest(
-  { secrets: [STRIPE_SECRET_KEY, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] },
+  { secrets: withPlatformKey([STRIPE_SECRET_KEY, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET]) },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") {
@@ -2790,7 +2799,7 @@ async function checkAddressAfterPayment(event) {
   }
 }
 exports.onOrderUpdated = onDocumentUpdated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY, SHIPPO_API_TOKEN], timeoutSeconds: 120 },
+  { document: "orders/{orderId}", secrets: withPlatformKey([RESEND_API_KEY, SHIPPO_API_TOKEN]), timeoutSeconds: 120 },
   async event => {
     try { await handleOrderUpdated(event); }
     finally { await checkAddressAfterPayment(event); }
@@ -3453,7 +3462,7 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
 // 10. Order Created Trigger (New Order Admin Alert / Customer Manual Order Confirmation)
 // ──────────────────────────────────────────────────────────────
 exports.onOrderCreated = onDocumentCreated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
+  { document: "orders/{orderId}", secrets: withPlatformKey([RESEND_API_KEY]) },
   async event => {
     const order = event.data?.data() || {};
     const orderId = event.params.orderId;
@@ -3655,7 +3664,7 @@ async function sendRestockAlerts({ bookId, book, docs, deadline, released = fals
 }
 
 exports.onBookRestocked = onDocumentUpdated(
-  { document: "books/{bookId}", secrets: [RESEND_API_KEY], timeoutSeconds: 300 },
+  { document: "books/{bookId}", secrets: withPlatformKey([RESEND_API_KEY]), timeoutSeconds: 300 },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
@@ -3751,7 +3760,7 @@ exports.backInStockSweep = jobs.backInStockSweep;
 // 12. Low Stock Alerts: Email admin when product or variant stock drops below 3 or hits 0
 // ──────────────────────────────────────────────────────────────
 exports.onBookUpdated = onDocumentUpdated(
-  { document: "books/{bookId}", secrets: [RESEND_API_KEY] },
+  { document: "books/{bookId}", secrets: withPlatformKey([RESEND_API_KEY]) },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
@@ -3933,7 +3942,7 @@ async function checkLabelRefunds(now = Date.now()) {
 }
 
 exports.unpaidPaymentSweep = onSchedule(
-  { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY, SHIPPO_API_TOKEN] },
+  { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: withPlatformKey([STRIPE_SECRET_KEY, RESEND_API_KEY, SHIPPO_API_TOKEN]) },
   async () => {
     const runStartedAt = Date.now();
     // Studio 3.5: scheduled theme publishes and campaigns ride on this sweep (own try/catch: never blocks payments).

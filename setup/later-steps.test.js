@@ -8,6 +8,8 @@ import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices 
 import { TEST_CONFIG, TEST_SHOP } from "./test-shop.js";
 import { TEST_PRINTED_IDS, TEST_STOCK, testShopDocs } from "./test-catalogue.js";
 import { readShopConfig } from "../apps/shop/functions/shopConfig.js";
+import { hashServiceKey } from "../services/email/http.js";
+import { profileProblems } from "../profile/profile.js";
 
 const ID = TEST_SHOP.shopId;
 
@@ -104,6 +106,14 @@ test("the env file names the press's chosen payment provider, and the shop refus
   const square = envOf(envFileText({ ...TEST_SHOP, paymentProvider: "square" }, TEST_CONFIG));
   assert.equal(square.SHOP_PAYMENT_PROVIDER, "square");
   assert.throws(() => readShopConfig({ ...square, GCLOUD_PROJECT: ID }), /SHOP_PAYMENT_PROVIDER is "square", which this shop can't use yet/);
+});
+
+test("the env file names the platform's shared sender once there is one, and the shop reads it", () => {
+  assert.equal(envOf(envFileText(TEST_SHOP, TEST_CONFIG)).PLATFORM_EMAIL_URL, undefined);
+  const env = envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, platformEmailUrl: "https://email.platform.example/shop" }));
+  assert.equal(env.PLATFORM_EMAIL_URL, "https://email.platform.example/shop");
+  assert.equal(readShopConfig({ ...env, GCLOUD_PROJECT: ID }).platformEmailUrl, "https://email.platform.example/shop");
+  assert.equal(readShopConfig({ GCLOUD_PROJECT: ID, PLATFORM_EMAIL_URL: "http://plain.example" }).platformEmailUrl, "");
 });
 
 test("the env file names the region step 8 deploys the server code to", async () => {
@@ -444,5 +454,81 @@ test("missing release settings are refused", () => {
   assert.throws(() => laterSteps({ ...args, config: { ...TEST_CONFIG, release: undefined } }), /release\.version/);
   assert.throws(() => laterSteps({ ...args, config: { ...TEST_CONFIG, release: { version: "1" } } }), /starterContent/);
   assert.throws(() => laterSteps({ ...args, config: { ...TEST_CONFIG, senderEmail: "" } }), /senderEmail/);
+  assert.throws(() => laterSteps({ ...args, config: { ...TEST_CONFIG, paymentsServiceUrl: "http://payments.example" } }), /paymentsServiceUrl/);
   assert.equal(REGION, "northamerica-northeast1");
+});
+
+// ── The shop's service key and the profile's payments (plan 2.2) ────────────────────────────────────────────────────
+
+const secretsOf = (google) => google.world.secrets.get(`${ID} PLATFORM_SERVICE_KEY`) ?? [];
+
+test("step 8 gives the shop one service key as a Functions secret, with only its hash in the registry", async () => {
+  const { google, registry, auditLog, run } = setup();
+  assert.equal((await run()).ok, true);
+  const [key] = secretsOf(google);
+  assert.equal(secretsOf(google).length, 1);
+  assert.match(key, /^[0-9a-f]{64}$/);
+  const row = await registry.getShop(ID);
+  assert.equal(row.serviceKeyHash, hashServiceKey(key));
+  assert.ok(!JSON.stringify(row).includes(key), "the registry never holds the key");
+  const step8 = latestByStep(await registry.readSteps(ID))[8];
+  assert.deepEqual(step8.detail, { serviceKey: "created" });
+  assert.ok([...auditLog.entries.get(ID).values()].some((entry) => entry.step === 8 && entry.detail?.serviceKey === "created"));
+  assert.ok(!JSON.stringify([...auditLog.entries.get(ID).values()]).includes(key), "the audit log never holds the key");
+});
+
+test("re-running never rotates the shop's key", async () => {
+  const { google, registry, run, steps } = setup();
+  assert.equal((await run()).ok, true);
+  const before = (await registry.getShop(ID)).serviceKeyHash;
+  // Step 8 run again on purpose (as after a failed deploy): the key is kept.
+  const step8 = steps.find((step) => step.number === 8);
+  assert.equal(await step8.check({ shop: TEST_SHOP }), true);
+  assert.deepEqual(await step8.act({ shop: TEST_SHOP }), { detail: { serviceKey: "kept" } });
+  assert.equal(secretsOf(google).length, 1);
+  assert.equal((await registry.getShop(ID)).serviceKeyHash, before);
+});
+
+test("a run that stopped between the secret and the registry records the shop's key instead of making another", async () => {
+  const { google, registry, run } = setup({ failOnce: ["deploy.functions"] });
+  const first = await run();
+  assert.equal(first.failedStep, 8);
+  // The secret was written; now the registry loses the hash (as if its write had failed).
+  const [key] = secretsOf(google);
+  await registry.updateShop(ID, { serviceKeyHash: undefined });
+  assert.equal((await run()).ok, true);
+  assert.equal(secretsOf(google).length, 1, "no second key");
+  assert.equal((await registry.getShop(ID)).serviceKeyHash, hashServiceKey(key));
+});
+
+test("a shop whose secret is gone gets a new key and the registry its new hash", async () => {
+  const { google, registry, steps } = setup();
+  const step8 = steps.find((step) => step.number === 8);
+  await registry.createShop(ID, { shopId: ID, serviceKeyHash: hashServiceKey("an-old-key-that-the-shop-no-longer-has-0000") });
+  google.world.projects.set(ID, { projectId: ID });
+  assert.deepEqual(await step8.act({ shop: TEST_SHOP }), { detail: { serviceKey: "created" } });
+  assert.equal((await registry.getShop(ID)).serviceKeyHash, hashServiceKey(secretsOf(google)[0]));
+});
+
+test("step 13 writes the profile's payments: the platform takes them, on the press's account, with the platform's public keys", async () => {
+  const { registry, run } = setup();
+  assert.equal((await run()).ok, true);
+  const { accountId } = (await registry.getShop(ID)).payments;
+  const profile = await registry.getProfile(ID);
+  assert.deepEqual(profile.payments, { provider: "stripe", mode: "platform", stripe: { accountId, publishableKey: "pk_live_platformExample", testPublishableKey: "pk_test_platformExample" } });
+  assert.deepEqual(profileProblems(profile), []);
+});
+
+test("re-running step 6 keeps the profile's payments, and step 13 writes nothing new", async () => {
+  const { registry, run, steps, changes } = setup();
+  assert.equal((await run()).ok, true);
+  const profile = await registry.getProfile(ID);
+  const step6 = steps.find((step) => step.number === 6);
+  const step13 = steps.find((step) => step.number === 13);
+  assert.equal(await step6.check({ shop: TEST_SHOP }), true);
+  assert.equal(await step13.check({ shop: TEST_SHOP }), true);
+  const before = changes();
+  await step13.act({ shop: TEST_SHOP });
+  assert.equal(changes(), before);
+  assert.deepEqual(await registry.getProfile(ID), profile);
 });

@@ -15,8 +15,9 @@
 //   google.backups       hasPermission(projectId); grantPermission(projectId); latest(projectId) -> { name } | null;
 //                        run(projectId) -> { name }
 //   google.storageProbe  hasTestFile(projectId); writeTestFile(projectId); readUnsigned(projectId) -> { status }
-//   shopData    get(projectId, path) -> data | null; create(projectId, path, data)   create refuses a document that exists;
-//               set(projectId, path, data) writes it whatever is there (only the service key, serviceKey.js)
+//   google.secrets       latest(projectId, name) -> value | null; add(projectId, name, value)   the shop's Functions
+//                        secrets (only PLATFORM_SERVICE_KEY, serviceKey.js)
+//   shopData    get(projectId, path) -> data | null; create(projectId, path, data)   create refuses a document that exists
 //   providers   payment providers by name (payments.js)
 //   email       wasSent(shopId, kind) -> boolean; send(shopId, { kind, to, pressName, links, idempotencyKey })
 //   siteCheck   get(url) -> { status, problems: [text] }
@@ -45,7 +46,7 @@ export function appsOf(shop) {
 }
 
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
-export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION }) {
+export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "" }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
   const quote = (value) => `"${String(value).replace(/[\r\n"\\<>]+/g, " ").replace(/\s+/g, " ").trim()}"`;
   return [
@@ -67,6 +68,9 @@ export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = RE
     // "true" only for the platform's own test shop (docs/test-shop.md): its test-card checkouts then move stock like
     // real ones, for the release check. Every other shop gets "false", so the shop never guesses.
     `SHOP_TEST_SHOP=${quote(shop.testShop === true)}`,
+    // The platform email service's shop door (services/email/http.js): the backup sender for a shop that hasn't
+    // connected its own Gmail. Written only once the platform has one (config.platformEmailUrl).
+    ...(platformEmailUrl ? [`PLATFORM_EMAIL_URL=${quote(platformEmailUrl)}`] : []),
     "",
   ].join("\n");
 }
@@ -128,14 +132,17 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         // Functions in the wrong region can't be moved, and removing them is a person's call.
         if (deployed && deployed.region !== region) throw new Error(`the server code is in ${deployed.region}, not ${region}; a person decides how to move it`);
         return isCurrent(deployed, "The server code") && (await envFiles.read(shop.shopId)) === envFileText(shop, { ...config, region })
-          && (await hasServiceKey({ shopData, registry }, shop.shopId));
+          && (await hasServiceKey({ google, registry }, shop.shopId));
       },
       async act({ shop }) {
         const envFile = envFileText(shop, { ...config, region });
         if ((await envFiles.read(shop.shopId)) !== envFile) await envFiles.write(shop.shopId, envFile);
-        // The shop's key for the platform's payment and email services (serviceKey.js); kept when it already matches.
-        await ensureServiceKey({ shopData, registry, now }, shop.shopId);
+        // The shop's key for the platform's payment and email services (serviceKey.js), before the deploy pins it. Never
+        // rotated once the shop has one.
+        const serviceKey = await ensureServiceKey({ google, registry }, shop.shopId);
         await deploy.functions(shop.shopId, { version, region, envFile });
+        // Logged with the step's entry in the registry and the shop's audit log (never the key itself).
+        return { detail: { serviceKey } };
       },
     },
     {

@@ -15,6 +15,20 @@ jobs:
           node-version: 22
       - run: npm test
 
+  # The release check's browser driver against stand-in pages on the runner (release-check/local-proof.js): the
+  # purchase, the stockroom opened as the test owner, the admin and the refund. Never reaches a real shop.
+  release-check-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
+      - run: npx playwright install --with-deps chromium
+      - run: node release-check/local-proof.js
+
   # The platform's copy of the shop (apps/shop), with the same checks its original repo runs before merging.
   shop:
     runs-on: ubuntu-latest

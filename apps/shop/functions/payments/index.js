@@ -58,8 +58,9 @@ const INTERFACE = Object.freeze([
  * @param {object} deps.db Firestore
  * @param {(id: string) => Promise<object>} deps.readAdminSecret reads adminSecrets/<id>, {} when missing or unreadable
  * @param {string} [deps.mode] "own" (default) or "platform" (shopConfig.paymentMode)
- * @param {{ url: string, shopId: string, fetch?: typeof fetch }} [deps.service] platform mode: the payment service's
- *   address (shopConfig.paymentsServiceUrl) and this shop's id in the platform registry (shopConfig.project)
+ * @param {{ url: string, shopId: string, serviceKey: () => string, fetch?: typeof fetch }} [deps.service] platform mode:
+ *   the payment service's address (shopConfig.paymentsServiceUrl), this shop's id in the platform registry
+ *   (shopConfig.project) and its key (platformKey.js)
  * Stripe also takes `Stripe` (the lazy constructor) and `liveSecretKey` (the deployed STRIPE_SECRET_KEY secret).
  */
 function createPayments({ provider = DEFAULT_PROVIDER, mode = DEFAULT_MODE, service = null, ...deps }) {
@@ -67,7 +68,7 @@ function createPayments({ provider = DEFAULT_PROVIDER, mode = DEFAULT_MODE, serv
   if (!make) throw new Error(`Payment provider "${provider}" is not available. Choose one of: ${PROVIDER_NAMES.join(", ")}.`);
   if (!MODES.includes(mode)) throw new Error(`Payment mode "${mode}" is not available. Choose one of: ${MODES.join(", ")}.`);
   const platform = mode === "platform"
-    ? createPlatformAccess({ db: deps.db, fetch: service?.fetch || globalThis.fetch, url: service?.url, shopId: service?.shopId })
+    ? createPlatformAccess({ fetch: service?.fetch || globalThis.fetch, url: service?.url, shopId: service?.shopId, serviceKey: service?.serviceKey })
     : null;
   const impl = make({ ...deps, platform });
   const missing = INTERFACE.filter(name => typeof impl[name] !== "function");

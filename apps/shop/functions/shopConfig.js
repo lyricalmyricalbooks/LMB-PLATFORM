@@ -26,6 +26,11 @@
 //   SHOP_TEST_SHOP       "true" only on the platform's own test shop (docs/test-shop.md): its sandbox checkouts hold
 //                        stock like live ones, so the release check covers the hold. Anything else, or unset, is a
 //                        normal shop. Set by the platform, never by the shop owner
+//   PLATFORM_EMAIL_URL   the platform email service's shop door (https). Set: when the shop hasn't connected its own
+//                        Gmail (or Gmail refuses a send) its emails go through the platform's shared sender, with the
+//                        shop's name and replies to the shop; Resend keys in the shop are no longer used. Unset: the
+//                        shop's own Resend key, as before. The shop proves who it is with PLATFORM_SERVICE_KEY, read
+//                        at send time (email/platformSender.js), never from this file's frozen config
 
 const { PROVIDER_NAMES, DEFAULT_PROVIDER, MODES, DEFAULT_MODE } = require("./payments");
 
@@ -110,6 +115,7 @@ function readShopConfig(env = {}) {
     paymentMode: paymentModeOf(env.SHOP_PAYMENT_MODE),
     paymentsServiceUrl: paymentsServiceUrlOf(paymentModeOf(env.SHOP_PAYMENT_MODE), env.SHOP_PAYMENTS_SERVICE_URL),
     testShop: text(env.SHOP_TEST_SHOP).toLowerCase() === "true",
+    platformEmailUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_EMAIL_URL)) ? text(env.PLATFORM_EMAIL_URL) : "",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
     project: functionsProject,
     region,

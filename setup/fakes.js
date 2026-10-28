@@ -8,9 +8,10 @@
 // lapsed (expiresAt passed) or already this run's, and returns { taken: true } or { taken: false, runId, expiresAt }
 // (the real one does this in one Firestore transaction); `releaseLock(shopId, runId)` frees it only for the run that
 // holds it. The payment service also uses `findShopByPaymentAccount(provider, accountId)` (the row whose `payments`
-// names that account, or null) and `recordEvent(shopId, entry)` (its own changes, by entry id). Audit log:
-// `ready(shopId)` says whether the shop's database exists yet; `write(shopId, id, entry)` stores the entry under `id`,
-// replacing any entry with that id.
+// names that account, or null) and `recordEvent(shopId, entry)` (its own changes, by entry id). The release check keeps
+// its runs with `recordReleaseCheck(shopId, entry)` / `readReleaseChecks(shopId)`. Audit log: `ready(shopId)` says
+// whether the shop's database exists yet; `write(shopId, id, entry)` stores the entry under `id`, replacing any entry
+// with that id.
 
 export function fakeRegistry(seed = {}) {
   const steps = new Map(Object.entries(seed).map(([shopId, list]) => [shopId, [...list]]));
@@ -18,8 +19,18 @@ export function fakeRegistry(seed = {}) {
   const profiles = new Map();
   const locks = new Map();
   const events = new Map();
+  const releaseChecks = new Map();
   return {
     steps,
+    releaseChecks,
+    // Release check runs (release-check/runner.js), oldest first.
+    async recordReleaseCheck(shopId, entry) {
+      if (!releaseChecks.has(shopId)) releaseChecks.set(shopId, []);
+      releaseChecks.get(shopId).push(structuredClone(entry));
+    },
+    async readReleaseChecks(shopId) {
+      return structuredClone(releaseChecks.get(shopId) ?? []);
+    },
     shops,
     profiles,
     locks,
@@ -105,6 +116,8 @@ export function fakeGoogle({ failOnce = [] } = {}) {
   const world = {
     projects: new Map(), billing: new Map(), firebase: new Set(), apps: new Map(), services: new Map(), databases: new Map(), buckets: new Map(),
     backupPermission: new Set(), backups: new Map(), testFiles: new Set(),
+    // Each project's Functions secrets: "projectId NAME" -> list of versions, newest last.
+    secrets: new Map(),
     // What an unsigned read of the storage test file gets; 403 is private, as the shop's storage rules make it.
     unsignedReadStatus: 403,
   };
@@ -220,6 +233,14 @@ export function fakeGoogle({ failOnce = [] } = {}) {
       },
       readUnsigned: async (projectId) => ({ status: world.testFiles.has(projectId) ? world.unsignedReadStatus : 404 }),
     },
+    secrets: {
+      latest: async (projectId, name) => world.secrets.get(`${projectId} ${name}`)?.at(-1) ?? null,
+      async add(projectId, name, value) {
+        change("secrets.add", projectId, name);
+        needProject(projectId);
+        world.secrets.set(`${projectId} ${name}`, [...(world.secrets.get(`${projectId} ${name}`) ?? []), value]);
+      },
+    },
   };
 }
 
@@ -277,10 +298,6 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
       async create(projectId, path, data) {
         change("shopData.create", projectId, path);
         if (world.docs.has(key(projectId, path))) throw new Error(`${path} already exists`);
-        world.docs.set(key(projectId, path), structuredClone(data));
-      },
-      async set(projectId, path, data) {
-        change("shopData.set", projectId, path);
         world.docs.set(key(projectId, path), structuredClone(data));
       },
     },
