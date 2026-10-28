@@ -6,7 +6,9 @@ import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
-const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
+const {
+  getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, getMultiFactorResolver, multiFactor, TotpMultiFactorGenerator,
+} = await import(`${FIREBASE_SDK}/firebase-auth.js`);
 
 const auth = getAuth(initializeApp(PLATFORM_FIREBASE));
 const $ = (selector) => document.querySelector(selector);
@@ -52,16 +54,21 @@ async function load() {
   if (role === "backup") {
     status.textContent = "";
     $("#view-signin").hidden = true;
+    $("#view-code").hidden = true;
+    $("#view-setup").hidden = true;
     $("#view-shops").hidden = true;
     return;
   }
   try {
+    await loadToday();
     const { shops } = await api("GET", "/control/shops");
     const problems = shops.filter((s) => s.health.level === "problem").length;
     $("#summary").textContent = `${shops.length} shops · ${problems} with a problem`;
     $("#shops").replaceChildren(...(shops.length ? shops.map(card) : [el("p", { textContent: "No shops yet." })]));
     status.textContent = "";
     $("#view-signin").hidden = true;
+    $("#view-code").hidden = true;
+    $("#view-setup").hidden = true;
     $("#view-shops").hidden = false;
     await loadRepairs();
     await loadTickets();
@@ -72,7 +79,31 @@ async function load() {
     await loadActivity();
   } catch (failure) {
     status.textContent = failure.message;
+    // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
+    if (/two-step/.test(failure.message) && auth.currentUser && !multiFactor(auth.currentUser).enrolledFactors.length) await startTwoStepSetup();
   }
+}
+
+// ── Today (plan 9.2): the numbers, then what needs you, each linking to its place below. ──
+const money = (cents, currency) => new Intl.NumberFormat(undefined, { style: "currency", currency, currencyDisplay: "narrowSymbol" }).format(cents / 100);
+
+async function loadToday() {
+  const { counts, monthlyIncome, currency, needs } = await api("GET", "/control/today");
+  const tile = (value, words) => el("div", { className: "tile" }, el("strong", { textContent: String(value) }), el("span", { textContent: words }));
+  $("#today-numbers").replaceChildren(
+    tile(money(monthlyIncome, currency), "monthly income"),
+    tile(counts.live, "shops live"),
+    tile(counts.trial, "on a free trial"),
+    tile(counts.paying, "paying"),
+    tile(counts.signupsThisWeek, "signed up this week"),
+    tile(counts.failedPayments, "failed payments"),
+    tile(counts.paused, "paused"),
+    tile(counts.closed, "closed"),
+  );
+  $("#needs").replaceChildren(needs.length
+    ? el("div", { className: "card watch needs" }, el("strong", { textContent: "Needs you" }),
+      el("ul", {}, ...needs.map((need) => el("li", {}, el("a", { href: need.go, textContent: need.words })))))
+    : el("p", { className: "hint", textContent: "Nothing needs you right now." }));
 }
 
 function card(shop) {
@@ -500,12 +531,6 @@ async function loadEmergency() {
   return state;
 }
 
-$("#google").addEventListener("click", () => signInWithPopup(auth, new GoogleAuthProvider()).catch(() => { status.textContent = "Sign-in didn't finish."; }));
-$("#refresh").addEventListener("click", load);
-onAuthStateChanged(auth, (user) => {
-  if (user) load();
-  else { $("#view-signin").hidden = false; $("#view-shops").hidden = true; $("#view-emergency").hidden = true; }
-});
 
 // ── Sign-ups and the waitlist (plan 9.5): invite someone and they skip the daily line; Try again for a stuck shop. ──
 const when = (at) => (at ? new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "");
@@ -636,4 +661,91 @@ async function loadActivity() {
 $("#activity-form").addEventListener("submit", (event) => {
   event.preventDefault();
   loadActivity();
+});
+
+// ── Signing in (plan 9.1): Google, then a code from the authenticator app. The server refuses a sign-in without it. ──
+const showOnly = (id) => {
+  for (const view of ["#view-signin", "#view-code", "#view-setup", "#view-shops", "#view-emergency"]) $(view).hidden = view !== id;
+};
+let resolver = null;
+
+$("#google").addEventListener("click", async () => {
+  status.textContent = "";
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+  } catch (error) {
+    if (error?.code !== "auth/multi-factor-auth-required") {
+      status.textContent = "Sign-in didn't finish.";
+      return;
+    }
+    resolver = getMultiFactorResolver(auth, error);
+    showOnly("#view-code");
+    $("#code-form").code.focus();
+  }
+});
+
+$("#code-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const hint = resolver?.hints.find((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID);
+  if (!hint) {
+    status.textContent = "Your account has no authenticator app set up. Ask for help.";
+    return;
+  }
+  form.querySelector("button").disabled = true;
+  try {
+    await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(hint.uid, form.code.value.replace(/\s+/g, "")));
+    form.reset();
+    resolver = null;
+  } catch {
+    status.textContent = "That code didn't work. Codes change every 30 seconds: try the one on screen now.";
+  }
+  form.querySelector("button").disabled = false;
+});
+
+let setupSecret = null;
+async function startTwoStepSetup() {
+  try {
+    setupSecret = await TotpMultiFactorGenerator.generateSecret(await multiFactor(auth.currentUser).getSession());
+  } catch (error) {
+    status.textContent = error?.code === "auth/requires-recent-login"
+      ? "Sign in again, then set up two-step sign-in straight away."
+      : "Two-step sign-in can't be set up yet. It has to be turned on for the platform first (see control-room/README.md).";
+    return;
+  }
+  const link = setupSecret.generateQrCodeUrl(auth.currentUser.email, "Colophon control room");
+  $("#setup-key").textContent = setupSecret.secretKey.replace(/(.{4})/g, "$1 ").trim();
+  $("#setup-link").href = link;
+  try {
+    // qrcode-generator (loaded by index.html) draws the code as a picture; without it the key and link still work.
+    const qr = window.qrcode(0, "M");
+    qr.addData(link);
+    qr.make();
+    $("#setup-qr").replaceChildren(el("img", { src: qr.createDataURL(5, 2), alt: "Code to scan with your authenticator app" }));
+  } catch {
+    $("#setup-qr").textContent = "";
+  }
+  status.textContent = "";
+  showOnly("#view-setup");
+}
+
+$("#setup-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  form.querySelector("button").disabled = true;
+  try {
+    await multiFactor(auth.currentUser).enroll(TotpMultiFactorGenerator.assertionForEnrollment(setupSecret, form.code.value.replace(/\s+/g, "")), "Authenticator app");
+    form.reset();
+    await signOut(auth);
+    status.textContent = "Two-step sign-in is on. Sign in again with Google, then type the code from the app.";
+  } catch {
+    status.textContent = "That code didn't work. Codes change every 30 seconds: try the one on screen now.";
+  }
+  form.querySelector("button").disabled = false;
+});
+
+$("#refresh").addEventListener("click", load);
+onAuthStateChanged(auth, (user) => {
+  if (user) load();
+  else showOnly("#view-signin");
 });

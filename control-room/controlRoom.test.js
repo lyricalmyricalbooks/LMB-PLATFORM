@@ -4,8 +4,9 @@
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { ACT_AS_MINUTES, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth } from "./controlRoom.js";
+import { ACT_AS_MINUTES, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth, twoStepProblem } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
+import { platformRoutes } from "./platformControls.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
 import { fakeActivity, fakeBreachStore, fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
 import { createBreachRegister, keepUntil } from "./breaches.js";
@@ -31,7 +32,7 @@ import { TEST_CONFIG, TEST_SHOP } from "../setup/test-shop.js";
 
 const ID = TEST_SHOP.shopId;
 const envOf = (text) => Object.fromEntries(text.split("\n").filter(Boolean).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1).replace(/^"|"$/g, "")]));
-const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true };
+const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
 const PRESS = { uid: "uid-owner", email: "owner@example.com", email_verified: true };
 
 /** A pretend platform email service: what would be sent, by idempotency key (the real one sends each key once). */
@@ -191,7 +192,7 @@ test("the command line: same change and log, refuses without a name, a reason or
 
 test("the page: admins sign in with Google, every route is used, names are shown as text only", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
-  for (const path of Object.keys(controlRoutes({}))) assert.ok(app.includes(`"${path.split(" ")[1].replace("/api", "")}"`), path);
+  for (const path of [...Object.keys(controlRoutes({})), ...Object.keys(platformRoutes({}))]) assert.ok(app.includes(`"${path.split(" ")[1].replace("/api", "")}"`), path);
   for (const name of SWITCHES) assert.ok(app.includes(name), `words for ${name}`);
   assert.doesNotMatch(app, /innerHTML|insertAdjacentHTML|document\.write/);
 });
@@ -402,4 +403,30 @@ test("every logged control-room action also lands in the activity log, once (pla
   const entries = await w.activity.list();
   assert.deepEqual(entries.map((e) => e.what).sort(), ["act-as", "switch-set"]);
   assert.ok(entries.every((e) => e.shopId === ID && e.by === "admin@example.com" && e.keepUntil > e.at));
+});
+
+test("only Julian's listed address, with two-step sign-in in the last 12 hours, opens the control room (plan 9.1)", async () => {
+  const w = await world();
+  const { firebase: _, ...oneStep } = ADMIN;
+  const noStep = await w.ask(oneStep, "GET", "/api/control/shops");
+  assert.equal(noStep.status, 403);
+  assert.match(noStep.body.message, /two-step/);
+  const old = await w.ask({ ...ADMIN, auth_time: Math.floor(Date.now() / 1000) - 13 * 3600 }, "GET", "/api/control/shops");
+  assert.equal(old.status, 401);
+  assert.match(old.body.message, /Sign in again/);
+  // A stranger with two steps is still a stranger, and isn't told about two-step sign-in.
+  const stranger = await w.ask({ ...ADMIN, uid: "x", email: "someone@example.com" }, "GET", "/api/control/shops");
+  assert.equal(stranger.status, 403);
+  assert.doesNotMatch(stranger.body.message, /two-step/);
+  assert.equal((await w.ask(ADMIN, "GET", "/api/control/shops")).status, 200);
+  assert.equal(twoStepProblem({ firebase: { sign_in_second_factor: "phone" }, auth_time: 1000 }, 1000 * 1000 + SIGN_IN_HOURS * 3600_000), null);
+});
+
+test("Today reads every shop through the control room, admins only (plan 9.2)", async () => {
+  const w = await world();
+  const today = await w.ask(ADMIN, "GET", "/api/control/today");
+  assert.equal(today.status, 200);
+  assert.equal(today.body.counts.shops, 1);
+  assert.equal(today.body.currency, "CAD");
+  assert.equal((await w.ask(PRESS, "GET", "/api/control/today")).status, 403);
 });

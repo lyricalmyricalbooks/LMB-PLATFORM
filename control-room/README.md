@@ -1,8 +1,29 @@
 # Control room
 
 The platform's own admin (code plan 2.8; closing a shop, emergency payments, the breach register and the backup person
-are plan 8.4 to 8.7). Platform admins only: a confirmed email on `PLATFORM_ADMIN_EMAILS`
-(comma-separated). The list is empty unless it is set, so nobody is an admin by accident.
+are plan 8.4 to 8.7; the owner's controls are Phase 9). Platform admins only: a confirmed email on
+`PLATFORM_ADMIN_EMAILS` (comma-separated). The list is empty unless it is set, so nobody is an admin by accident.
+
+## Two-step sign-in (plan 9.1)
+
+Every control-room call, the support inbox's and account recovery's admin calls and the backup person's run book also
+need a sign-in that used a second step and is under 12 hours old (`controlRoom.js` `twoStepProblem`: the ID token's
+`firebase.sign_in_second_factor` and `auth_time`, both signed by Firebase). The page signs in with Google, then asks
+for the 6-digit code from an authenticator app. A listed admin who has no authenticator yet is shown a set-up screen
+(a code to scan, the key to type, then one code to confirm), and signs in again after it.
+
+Before it works, in the platform project (Julian's step): Authentication › Settings › **Multi-factor authentication**,
+turn on **Authenticator app (TOTP)** (this upgrades sign-in to Identity Platform, free at this size), then set
+`PLATFORM_ADMIN_EMAILS` to his address on the web door. Without that, the set-up screen says it isn't turned on yet.
+
+## Today (`today.js`, plan 9.2)
+
+The page opens on the numbers: monthly income, shops live, on a free trial, paying, signed up this week, failed
+payments, paused and closed, then **Needs you** (shops with a problem, failed plan payments, the repair queue, waiting
+support requests, recoveries to check, new shops stuck while being made), each a link to its place on the page. Income
+counts each paying shop at its plan price (`billing.amount` when billing keeps it, else today's price), less its own
+`billing.percentOff`; the test shop never counts. `GET /api/control/today`; give `createControlRoom` `settings`
+(`liveSettings`), `supportStore`, `recoveryStore` and `signups` for the full list.
 
 ## The page (`index.html`, `app.js`)
 
