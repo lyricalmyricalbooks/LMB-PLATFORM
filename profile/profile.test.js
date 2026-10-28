@@ -74,6 +74,22 @@ test("the shop and the stockroom know the same switches as the format", async ()
   assert.deepEqual(shop, names);
 });
 
+test("payments name the provider, the mode and only public payment-form ids", () => {
+  const platform = { provider: "stripe", mode: "platform", stripe: { accountId: "acct_1Moth", publishableKey: "pk_live_abc", testPublishableKey: "pk_test_abc" } };
+  assert.deepEqual(profileProblems({ ...example, payments: platform }), []);
+  assert.deepEqual(profileProblems({ ...example, payments: { provider: "stripe", mode: "own" } }), []);
+  assert.equal(schema.required.includes("payments"), false, "a shop on its own keys has none");
+  const problems = (payments) => profileProblems({ ...example, payments });
+  assert.ok(problems({ provider: "paypal", mode: "own" }).includes("profile.payments.provider has the wrong shape"));
+  assert.ok(problems({ provider: "stripe", mode: "shared" }).includes("profile.payments.mode has the wrong shape"));
+  assert.ok(problems({ provider: "stripe" }).includes("profile.payments.mode is missing"));
+  // A secret key in the publishable slot, or any secret at all, never reaches the page.
+  assert.ok(problems({ ...platform, stripe: { ...platform.stripe, publishableKey: "sk_live_abc" } }).includes("profile.payments.stripe.publishableKey has the wrong shape"));
+  assert.ok(problems({ ...platform, stripe: { ...platform.stripe, secretKey: "sk_live_abc" } }).includes("profile.payments.stripe.secretKey is not part of the profile"));
+  assert.ok(problems({ ...platform, feeBasisPoints: 250 }).includes("profile.payments.feeBasisPoints is not part of the profile"));
+  assert.ok(problems({ ...platform, stripe: { accountId: "acct_x y" } }).includes("profile.payments.stripe.accountId has the wrong shape"));
+});
+
 test("the served file sets the profile before the app starts", () => {
   const window = {};
   vm.runInNewContext(profileScript(example), { window });

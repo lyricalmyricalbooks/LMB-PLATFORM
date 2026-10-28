@@ -126,6 +126,8 @@ export function fakeGoogle({ failOnce = [] } = {}) {
   const world = {
     projects: new Map(), billing: new Map(), firebase: new Set(), apps: new Map(), services: new Map(), databases: new Map(), buckets: new Map(),
     backupPermission: new Set(), backups: new Map(), testFiles: new Set(),
+    // Each project's Functions secrets: "projectId NAME" -> list of versions, newest last.
+    secrets: new Map(),
     // The stockroom's own pieces (plan 1.20): named databases by "<project>/<database>", extra buckets by name, and
     // each project's default Realtime Database instance.
     namedDatabases: new Map(), extraBuckets: new Map(), realtimeDatabases: new Map(),
@@ -261,6 +263,14 @@ export function fakeGoogle({ failOnce = [] } = {}) {
         world.testFiles.add(projectId);
       },
       readUnsigned: async (projectId) => ({ status: world.testFiles.has(projectId) ? world.unsignedReadStatus : 404 }),
+    },
+    secrets: {
+      latest: async (projectId, name) => world.secrets.get(`${projectId} ${name}`)?.at(-1) ?? null,
+      async add(projectId, name, value) {
+        change("secrets.add", projectId, name);
+        needProject(projectId);
+        world.secrets.set(`${projectId} ${name}`, [...(world.secrets.get(`${projectId} ${name}`) ?? []), value]);
+      },
     },
   };
 }
