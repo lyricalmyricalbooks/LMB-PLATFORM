@@ -615,6 +615,15 @@ and 12 settings. The other workspaces sit under an "All settings" heading in the
 in Page layout (`startAt`) unless its query names a tab or is `FIRST_VISIT`; `StudioEditor.test.tsx`'s `mount()` does
 the same.
 
+**Theme wave 2 and what carried over (28 October 2026, plan 2.12).** New looks Zine, Letterpress and Index (palettes
+`photocopy`, `cotton`, `cobalt`; homepage layouts `press-zine` / `press-letterpress` / `press-index`). Use this look
+computes `themeSwitchReport(before, after, defaults, theme)` (`studio/themeSwitch.ts`) and Themes shows it at the top
+until Done or another look: an "own edit" is a Style control (every `STYLE_GROUPS` key once) whose value differs from
+both the starting design and the previous ready-made look out of the box, plus any page-only copy the look cleared.
+Kept / replaced lists use Studio's own labels; **Bring back** (one or all) writes the old values with `bringBack` as one
+undoable change. The panel hides when the draft's `themeLibraryPreset` no longer matches (Undo). Ready-made look
+drawings and Preview use `themedDesign`, so they show the palette's colours, not only `global`.
+
 ## Studio organization
 
 Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages

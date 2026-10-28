@@ -527,6 +527,18 @@
 .studio-theme-card > div { display: grid; gap: 4px; align-content: start; min-width: 0; font-size: 13px; }
 .studio-theme-card strong { overflow-wrap: anywhere; }
 .studio-theme-card small { font-size: 12px; color: var(--rp-text-subtle); }
+/* Themes › After switching (themeSwitch.ts): what carried over and what the new look replaced. */
+.studio-switch { display: grid; gap: 8px; padding: 10px; border: 2px solid var(--rp-border-strong); background: var(--rp-info-tint); }
+.studio-switch h4 { margin: 0; font-size: 12px; font-weight: 800; }
+.studio-switch .studio-hint { margin: 0; }
+.studio-switch-summary { margin: 0; font-size: 13px; font-weight: 700; line-height: 1.5; color: var(--rp-text); }
+.studio-switch-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.studio-switch-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; padding: 6px 8px; background: var(--rp-surface); border: 1px solid var(--rp-border); font-size: 12px; }
+.studio-switch-list li > button { grid-column: 1 / -1; justify-self: start; }
+.studio-switch-label { overflow-wrap: anywhere; }
+.studio-switch-values { display: inline-flex; align-items: center; gap: 4px; font-family: var(--rp-font-mono); font-size: 11px; color: var(--rp-text-muted); white-space: nowrap; }
+.studio-switch-swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid var(--rp-border-strong); vertical-align: middle; }
+.studio-switch-kept summary { cursor: pointer; font-size: 12px; font-weight: 700; min-height: 32px; display: flex; align-items: center; }
 .studio-theme-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .studio-theme-thumb { position: relative; height: 72px; overflow: hidden; border: 1px solid var(--rp-border-strong); padding: 6px; display: grid; align-content: start; gap: 2px; }
 .studio-theme-thumb > span:first-child { font-size: 18px; font-weight: 800; line-height: 1; }

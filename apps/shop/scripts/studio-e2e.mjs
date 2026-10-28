@@ -1392,6 +1392,41 @@ await check("a ready-made look offers its layout and starter pages after the loo
   await frame.locator("[data-section]").first().waitFor({ timeout: 10000 });
 });
 
+await check("switching looks lists what carried over, Bring back restores a replaced change, and Done closes the list", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  // An own edit in Essentials that Zine replaces (the title font), then open Themes.
+  const essentials = page.locator('[data-studio-panel="essentials"]');
+  await essentials.locator('[data-style-key="headingFont"] select').selectOption("Oswald");
+  await essentials.getByRole("button", { name: "Browse looks" }).click();
+  const panel = page.locator("[data-studio-panel='themes']");
+  const card = panel.locator("[data-theme-card='preset:press-zine']");
+  await card.getByRole("button", { name: "Use this look" }).click();
+  const ask = page.getByRole("dialog", { name: /Also use “Zine” layout and starter pages\?/ });
+  await ask.waitFor({ timeout: 5000 });
+  await ask.getByRole("button", { name: "Cancel" }).click();
+  const report = panel.locator("[data-switch-report]");
+  await report.waitFor({ timeout: 5000 });
+  const summary = await report.locator(".studio-switch-summary").innerText();
+  if (!/carried over|replaced nothing/.test(summary)) throw new Error(`summary reads "${summary}"`);
+  if (!/sections, menus and pages were not touched/.test(await report.innerText())) throw new Error("the list doesn't say sections and pages were kept");
+  const font = report.locator("[data-switch-replaced] li", { hasText: "Heading font" });
+  await font.waitFor({ timeout: 5000 });
+  if (!/Oswald/.test(await font.innerText())) throw new Error("the replaced title font doesn't show the press's own choice");
+  await font.getByRole("button", { name: /^Bring back / }).click();
+  await expectText(page, "Brought back");
+  await font.waitFor({ state: "detached", timeout: 5000 });
+  if (await essentials.count()) throw new Error("Essentials is still open behind Themes");
+  await page.getByRole("button", { name: "Essentials" }).first().click();
+  if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Oswald") throw new Error("Bring back didn't restore the title font");
+  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  // Switching to Index replaces the list with Index's own.
+  await panel.locator("[data-theme-card='preset:press-index']").getByRole("button", { name: "Use this look" }).click();
+  await page.getByRole("dialog", { name: /Also use “Index” layout/ }).getByRole("button", { name: "Cancel" }).click();
+  await report.getByText("After switching to Index").waitFor({ timeout: 5000 });
+  await report.getByRole("button", { name: "Done" }).click();
+  await report.waitFor({ state: "detached", timeout: 5000 });
+}, FIRST_VISIT);
+
 await check("the hero's Height control (found by the theme check) changes the hero in the preview", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();
