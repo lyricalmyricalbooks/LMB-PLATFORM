@@ -44,6 +44,16 @@ Square's API reference, version `2026-09-16` (`squareApi.js` lists every path).
   refund setting is off.
 - **Idempotency keys** are hashed with the shop id into 40 characters (Square allows 45 on refunds).
 
+## New accounts (7.8)
+
+`createAccount` makes each press's account with Standard's behaviour written as Stripe's controller settings
+(`controller`: losses `stripe`, fees paid by the `account`, requirements collected by `stripe`, the `full` Dashboard),
+not the deprecated `type: "standard"` ([Stripe's guide](https://docs.stripe.com/connect/migrate-to-controller-properties)).
+It fills in what the platform knows, because on these accounts that can only happen before the press's first visit:
+the country from sign-up, the shop's web address (`siteUrl`, else `https://<projectId>.web.app`), merchant category
+5942 "Book Stores" and "Books and printed matter". Accounts made earlier keep working untouched: Stripe gave them the
+same controller settings.
+
 ## Modes
 
 The registry row keeps `payments: { provider, accountId, mode }`, where `mode` is the mode the account was made in. An
