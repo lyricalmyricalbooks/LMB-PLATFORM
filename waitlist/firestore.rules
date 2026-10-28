@@ -1,6 +1,7 @@
 rules_version = '2';
-// The platform project's database. Today it only holds waitlist sign-ups, which the public page adds and nobody
-// else reads through the web: the owner reads them in the Firebase console. Every other path is closed.
+// The platform project's database. Through the web it holds waitlist sign-ups, which the public page adds and nobody
+// else reads (the owner reads them in the Firebase console), and the public status summary (status/), which anyone may
+// read and only the platform's own server writes. Every other path is closed.
 service cloud.firestore {
   match /databases/{database}/documents {
     function text(value, min, max) {
@@ -24,6 +25,11 @@ service cloud.firestore {
         && text(request.resource.data.firstSignedUpAt, 20, 30)
         && request.resource.data.lastSignedUpAt == request.resource.data.firstSignedUpAt
         && request.resource.data.signups == 1;
+    }
+
+    // status/publish.js writes it with the platform's token; it names no shop (status/summary.js).
+    match /publicStatus/current {
+      allow get: if true;
     }
 
     match /{document=**} {
