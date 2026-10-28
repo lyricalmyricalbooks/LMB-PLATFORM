@@ -3,6 +3,7 @@
 // must answer the shop's callers in the interface's (Stripe-shaped) words. Nothing reaches Square.
 import { describe, expect, test } from "vitest";
 import { createRequire } from "module";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const { createPayments } = require("./index.js");
@@ -326,7 +327,7 @@ describe("Square shop admin", () => {
 
   test("the functions load for a Square shop on the platform", () => {
     const { execFileSync } = require("node:child_process");
-    const dir = new URL("..", import.meta.url).pathname;
+    const dir = fileURLToPath(new URL("..", import.meta.url));
     const out = execFileSync(process.execPath, ["-e", "const f = require('./index.js'); process.stdout.write(String(Object.keys(f).length))"], {
       cwd: dir, env: { ...process.env, SHOP_PAYMENT_PROVIDER: "square", SHOP_PAYMENT_MODE: "platform", SHOP_PAYMENTS_SERVICE_URL: URL_ }, stdio: ["ignore", "pipe", "pipe"],
     });

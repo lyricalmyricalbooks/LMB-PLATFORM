@@ -2,6 +2,7 @@
 // goes first, the fallbacks, what is logged, the retry queue and the Gmail check. No network, no real keys.
 import { describe, expect, test, vi } from "vitest";
 import { createRequire } from "module";
+import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -247,7 +248,7 @@ describe("checkGmail", () => {
 
 describe("one door", () => {
   test("no other functions file opens a mail transport, makes a Resend client or sends through one itself", () => {
-    const dir = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
+    const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
     const offenders = fs.readdirSync(dir).filter((f) => f.endsWith(".js") && !f.includes(".test."))
       .filter((f) => /new Resend\(|\.createTransport\(\{|\.emails\.send\(|\.sendMail\(|collection\("emailLog"\)\.add\(/
         .test(fs.readFileSync(path.join(dir, f), "utf8").replace(/^\s*\/\/.*$/gm, "")));

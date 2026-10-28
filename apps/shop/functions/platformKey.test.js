@@ -2,12 +2,13 @@
 // services, and no function on a shop that doesn't (its deploy would otherwise ask for a secret it lacks).
 import { describe, expect, test } from "vitest";
 import { createRequire } from "module";
+import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
 const { usesPlatformServices, withPlatformKey, PLATFORM_SERVICE_KEY } = require("./platformKey.js");
-const dir = new URL(".", import.meta.url).pathname;
+const dir = fileURLToPath(new URL(".", import.meta.url));
 
 // Loads the functions as the deploy does and lists, per function, the secrets it declares.
 function secretsByFunction(env) {
