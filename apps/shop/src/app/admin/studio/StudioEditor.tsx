@@ -44,6 +44,7 @@ import { applyPresetSections, hasPresetContent, presetContentSummary, presetPage
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY } from "./themeLibrary";
 import { themeLookKeys } from "./themeLook";
+import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
 import { StudioOutline, blockLabel } from "./StudioOutline";
 import { StudioStructure } from "./StudioStructure";
@@ -851,6 +852,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (!file) return;
     const parsed = parseThemeFile(await file.text());
     if ("error" in parsed) { say("err", parsed.error); return; }
+    // Anything in the file Studio couldn't change afterwards is named before the theme is added (themeCheck.ts).
+    const problems = importedThemeProblems(parsed.design, Object.keys(defaults || {}));
+    if (problems.length) {
+      const ok = await askConfirm({
+        title: `Import “${parsed.name}” anyway?`,
+        message: `${problems.join(" ")} The rest of the theme works as usual. Import it to My themes anyway?`,
+        confirmLabel: "Import anyway",
+      });
+      if (!ok) { say("ok", `“${parsed.name}” was not imported.`); return; }
+    }
     await addTheme(parsed.name, parsed.design,
       parsed.strippedCustomCode?.length
         ? `Imported “${parsed.name}” into My themes without its custom code (${parsed.strippedCustomCode.join(", ")}). Add code yourself under Style › Custom code only if you trust it.`

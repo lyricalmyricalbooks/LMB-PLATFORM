@@ -1317,6 +1317,22 @@ await check("Workbench: W opens it, Changes jumps back through edits, Setup's Sh
   await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Theme" }).waitFor({ timeout: 5000 });
 });
 
+await check("importing a theme file warns in plain words about settings Studio can't change, and Cancel adds nothing", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const file = JSON.stringify({ kind: "press-theme", version: 1, name: "Odd one", design: { backgroundColor: "#ffffff", sparkleCursor: true, copy: { secretSlogan: "Hi" } } });
+  const input = page.locator('input[aria-label="Import a theme file"]');
+  await input.setInputFiles({ name: "odd.theme.json", mimeType: "application/json", buffer: Buffer.from(file) });
+  const dialog = page.getByRole("dialog");
+  await dialog.getByText("no control in Studio").first().waitFor({ timeout: 10000 });
+  await dialog.getByText("“sparkleCursor”").first().waitFor();
+  await dialog.getByText("“secretSlogan”").first().waitFor();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expectText(page, "“Odd one” was not imported.");
+  await input.setInputFiles({ name: "odd.theme.json", mimeType: "application/json", buffer: Buffer.from(file) });
+  await page.getByRole("button", { name: "Import anyway" }).click();
+  await expectText(page, "Imported “Odd one” into My themes.");
+}, "#designer?tab=themes");
+
 await check("Themes saves the draft as a theme, previews a look without changing the draft, and creates a share link", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Themes", exact: true }).click();
