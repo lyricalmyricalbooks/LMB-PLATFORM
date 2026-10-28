@@ -46,6 +46,15 @@ export const TEMPLATES = {
     });
   },
 
+  /** Sign-up and sign-in (signup/signup.js): a one-time link instead of a password. */
+  "sign-in-link": ({ link }, { settings }) => layout({
+    subject: `Your link to sign in to ${settings.platformName}`,
+    greeting: "Hello,",
+    paragraphs: [`Use the button below to sign in to ${settings.platformName}. The link works once and runs out after a short while.`, "If you didn't ask for it, you can ignore this email."],
+    buttons: [["Sign in", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   // ── Billing (services/billing), sent to the person who pays. `data`: { pressName, planName, price, date, link }. ──
 
   /** Three days before the trial ends. With no card yet, it asks for one; with a card, it says when the first charge is. */
