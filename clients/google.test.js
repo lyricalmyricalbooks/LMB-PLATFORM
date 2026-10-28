@@ -195,6 +195,23 @@ test("storage probe: the test file is written with the platform's token and read
   fetch.done();
 });
 
+test("hosting: a press's domain is added once and read back; a missing one is null", async () => {
+  const CD = `https://firebasehosting.googleapis.com/v1beta1/projects/${P}/sites/${P}/customDomains`;
+  const exists = { status: 409, json: { error: { code: 409, status: "ALREADY_EXISTS", message: "exists" } } };
+  const domain = { name: `projects/${P}/sites/${P}/customDomains/shop.mothpress.example`, hostState: "HOST_UNHOSTED" };
+  const { fetch, google } = clients([
+    { method: "GET", url: `${CD}/shop.mothpress.example`, ...notFound },
+    { method: "POST", url: `${CD}?customDomainId=shop.mothpress.example`, body: {}, json: { name: "operations/1" } },
+    { method: "POST", url: `${CD}?customDomainId=shop.mothpress.example`, body: {}, ...exists },
+    { method: "GET", url: `${CD}/shop.mothpress.example`, json: domain },
+  ]);
+  assert.equal(await google.hosting.getDomain(P, "shop.mothpress.example"), null);
+  await google.hosting.addDomain(P, "shop.mothpress.example");
+  await google.hosting.addDomain(P, "shop.mothpress.example");
+  assert.deepEqual(await google.hosting.getDomain(P, "shop.mothpress.example"), domain);
+  fetch.done();
+});
+
 test("secrets: a missing key is null; adding creates the secret once, then a version", async () => {
   const SM = `https://secretmanager.googleapis.com/v1/projects/${P}/secrets`;
   const value = "a".repeat(64);

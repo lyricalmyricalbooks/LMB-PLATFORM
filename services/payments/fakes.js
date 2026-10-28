@@ -24,7 +24,7 @@ export function fakeStripeFetch(answers = []) {
   const requests = [];
   const byKey = new Map();
   let next = 1;
-  const world = { accounts: new Map(), intents: new Map(), sessions: new Map(), events: new Map(), refunds: [] };
+  const world = { accounts: new Map(), intents: new Map(), sessions: new Map(), events: new Map(), refunds: [], paymentDomains: [] };
 
   const missing = (what) => ({ status: 404, body: { error: { type: "invalid_request_error", code: "resource_missing", message: `No such ${what}` } } });
 
@@ -73,6 +73,20 @@ export function fakeStripeFetch(answers = []) {
     }
     if (method === "GET" && (path === "/v1/refunds" || path === "/v1/disputes")) {
       return { status: 200, body: { object: "list", data: path === "/v1/refunds" ? world.refunds.filter((r) => r.account === account && r.payment_intent === params.payment_intent) : [] } };
+    }
+    if (path === "/v1/payment_method_domains" && method === "GET") {
+      return { status: 200, body: { object: "list", data: world.paymentDomains.filter((d) => d.account === account && d.domain_name === params.domain_name) } };
+    }
+    if (path === "/v1/payment_method_domains" && method === "POST") {
+      const domain = { id: `pmd_fake${next++}`, object: "payment_method_domain", domain_name: params.domain_name, enabled: params.enabled === "true", apple_pay: { status: "active" }, google_pay: { status: "active" }, account, validated: 0 };
+      world.paymentDomains.push(domain);
+      return { status: 200, body: domain };
+    }
+    if ((m = path.match(/^\/v1\/payment_method_domains\/(pmd_\w+)\/validate$/)) && method === "POST") {
+      const domain = world.paymentDomains.find((d) => d.id === m[1] && d.account === account);
+      if (!domain) return missing("payment_method_domain");
+      domain.validated += 1;
+      return { status: 200, body: domain };
     }
     if ((m = path.match(/^\/v1\/events\/(evt_\w+)$/))) {
       const event = world.events.get(m[1]);

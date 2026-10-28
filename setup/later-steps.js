@@ -37,6 +37,7 @@ import { PLANS, REGION, STOCKROOM_DATABASE, firstSteps } from "./steps.js";
 import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
 import { ensureServiceKey, hasServiceKey } from "./serviceKey.js";
 import { testCatalogue } from "./test-catalogue.js";
+import { domainOrigins } from "../services/domains/names.js";
 
 export const OWNER_WELCOME = "owner-welcome";
 
@@ -46,7 +47,7 @@ export function appsOf(shop) {
 }
 
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
-export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "" }) {
+export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "", extraOrigins = [] }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
   const quote = (value) => `"${String(value).replace(/[\r\n"\\<>]+/g, " ").replace(/\s+/g, " ").trim()}"`;
   return [
@@ -54,8 +55,9 @@ export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = RE
     `SHOP_SENDER_NAME=${quote(shop.pressName)}`,
     `SHOP_SENDER_EMAIL=${quote(senderEmail)}`,
     `SHOP_SITE_URL=${quote(`https://${shop.shopId}.web.app`)}`,
-    // Set even when empty: unset keeps the shop copy's placeholder addresses.
-    `SHOP_EXTRA_ORIGINS=""`,
+    // Set even when empty: unset keeps the shop copy's placeholder addresses. The press's own addresses (plan 2.9,
+    // services/domains, which rewrites this line when one is added) come from the registry row's `domains`.
+    `SHOP_EXTRA_ORIGINS=${quote(extraOrigins.join(","))}`,
     // The provider the press chose (payments.js). The shop's server refuses to start on a name it hasn't built, so a
     // provider step 1 let through but the release can't use stops at deploy instead of at a shopper's checkout.
     `SHOP_PAYMENT_PROVIDER=${quote(paymentProviderOf(shop))}`,
@@ -88,6 +90,8 @@ export const needsStockroomLink = (shop) => shop.testShop === true && appsOf(sho
 
 /** Steps 7–16. */
 export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, stockroom, registry, profileFiles, config, now = () => new Date() }) {
+  // The press's own web addresses (services/domains), so writing the server settings again never drops one.
+  const originsOf = async (shop) => domainOrigins((await registry.getShop(shop.shopId))?.domains);
   const release = config?.release;
   if (typeof release?.version !== "string" || !release.version) throw new Error("config.release.version must name the release being set up");
   if (typeof release.starterContent !== "function") throw new Error("config.release.starterContent must list the starter documents");
@@ -134,11 +138,11 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         const deployed = await deploy.deployed(shop.shopId, "functions");
         // Functions in the wrong region can't be moved, and removing them is a person's call.
         if (deployed && deployed.region !== region) throw new Error(`the server code is in ${deployed.region}, not ${region}; a person decides how to move it`);
-        return isCurrent(deployed, "The server code") && (await envFiles.read(shop.shopId)) === envFileText(shop, { ...config, region })
+        return isCurrent(deployed, "The server code") && (await envFiles.read(shop.shopId)) === envFileText(shop, { ...config, region, extraOrigins: await originsOf(shop) })
           && (await hasServiceKey({ google, registry }, shop.shopId));
       },
       async act({ shop }) {
-        const envFile = envFileText(shop, { ...config, region });
+        const envFile = envFileText(shop, { ...config, region, extraOrigins: await originsOf(shop) });
         if ((await envFiles.read(shop.shopId)) !== envFile) await envFiles.write(shop.shopId, envFile);
         // The shop's key for the platform's payment and email services (serviceKey.js), before the deploy pins it. Never
         // rotated once the shop has one.
