@@ -44,6 +44,7 @@ import { applyPresetSections, hasPresetContent, presetContentSummary, presetPage
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY } from "./themeLibrary";
 import { themeLookKeys } from "./themeLook";
+import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
 import { StudioOutline, blockLabel } from "./StudioOutline";
 import { StudioStructure } from "./StudioStructure";
 import { StudioElementInspector } from "./StudioElementInspector";
@@ -116,7 +117,7 @@ const isConnectedValue = (v: any) => isDynamic(v) || hasTokens(v);
 import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameSharedBlock, withCandidate } from "./sectionLibrary";
 import "./studio.css";
 
-type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
+type LeftTab = "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 /** `expect`: the design the toast's Undo belongs to (filled in once the change lands); see `undoAction`. */
 type ToastAction = { label: string; run: () => void; expect?: { present?: any; past?: any[] } };
 /** "ok" fades by itself (and waits while hovered or focused); "warn" and "err" stay until dismissed. */
@@ -417,7 +418,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Where you were last time (this browser): page, workspace, device, zoom.
   const uiKey = uiStateKey(import.meta.env.BASE_URL, auth.currentUser?.uid || "local-preview");
   const [remembered] = useState(() => ({ ...loadUiState(uiKey), ...(initialLocation || {}), ...(initialLocation?.templateId && !initialLocation.showGlobal ? { showGlobal: false } : {}) }));
-  const [leftTab, setLeftTab] = useState<LeftTab>((remembered.leftTab as LeftTab) || "sections");
+  const [leftTab, setLeftTab] = useState<LeftTab>((remembered.leftTab as LeftTab) || "essentials");
   const [templateId, setTemplateId] = useState(remembered.templateId || "heroPage");
   // Read by the preview message handler, which is not re-created on every page switch.
   const templateIdRef = useRef(templateId); templateIdRef.current = templateId;
@@ -2117,7 +2118,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "page") { setLeftTab("pages"); setOpenPage({ slug: t.slug, nonce: Date.now() }); }
   };
 
-  const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"], ["media", "Media"], ["themes", "Themes"]];
+  const sidebarTabs: [LeftTab, string][] = [["essentials", "Essentials"], ["sections", "Page layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"], ["media", "Media"], ["themes", "Themes"]];
   const q = copyFilter.trim().toLowerCase();
   const visibleStyleGroups = filterSettingGroups(STYLE_GROUPS, styleSearch, styleCategory);
   // Theme settings home: task headings over the same categories, with "changed" counts.
@@ -2147,13 +2148,34 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <div className="studio-panel-context">
             <strong>{panelTitle}</strong>
             <span>{leftTab === "sections" ? (showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label) + ` · ${sections.length} ${sections.length === 1 ? "section" : "sections"}` : `Previewing: ${showGlobal ? groupLabel(globalGroup) : template.label}`}</span>
-            <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
+            <small>{leftTab === "essentials" ? "The first things to set. Everything else is under All settings." : leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef} onScroll={e => { tabScroll.current[leftTab] = e.currentTarget.scrollTop; }}>
             {brandKit && <StudioBrandKit design={design} onPreview={setBrandChoice} onApply={applyBrandKit} onClose={() => setBrandKit(false)} />}
             <div hidden={brandKit}>
             <StudioTips forceOpen={tipsNonce} />
             {leftTab === "sections" && <PreviewClickHint />}
+            {leftTab === "essentials" && <div className="studio-essentials" data-studio-panel="essentials">
+              {ESSENTIALS.map(step => (
+                <section key={step.id} className="studio-essential" data-essential={step.id} aria-labelledby={`essential-${step.id}`}>
+                  <h3 id={`essential-${step.id}`}>{step.title}</h3>
+                  <p className="studio-hint">{step.hint}</p>
+                  {(step.copy || []).map(key => {
+                    const hit = essentialCopyField(key);
+                    return hit ? <StudioCopyField key={key} field={hit.field} design={design} settings={settings} aiWhere={hit.group} onChange={value => setCopy(key, value)} /> : null;
+                  })}
+                  {(step.style || []).map(key => {
+                    const hit = essentialStyleField(key);
+                    return hit ? renderStyleField(hit.group, hit.field) : null;
+                  })}
+                  {step.open && <button type="button" className={btn} onClick={() => {
+                    if (step.open!.tab === "sections") { setShowGlobal(false); setTemplateId("heroPage"); }
+                    selectRail(step.open!.tab);
+                  }}>{step.open.label}</button>}
+                </section>
+              ))}
+              <p className="studio-essentials-more">Everything else is under <b>All settings</b> in the bar on the left: every section, colour, font, word, menu and page.</p>
+            </div>}
             {leftTab === "sections" && adding !== null && (
               <StudioSectionLibrary registry={SECTION_REGISTRY} design={design}
                 surface={showGlobal ? globalGroup : template.id}
