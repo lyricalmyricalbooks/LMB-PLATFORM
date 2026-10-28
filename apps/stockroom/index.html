@@ -2533,6 +2533,23 @@
   <div id="tc-preflight-content" style="margin-top:12px;">
     <!-- Populated by openTaxSeasonPreflightModal() -->
   </div>
+  <fieldset class="tc-ip-tax" style="margin:16px 0 0;padding:12px;border:var(--stroke-hair) solid var(--border);border-radius:var(--r2);">
+    <legend class="tc-form-label" style="padding:0 6px;">Tax on in-person sales</legend>
+    <div class="tc-form-hint" style="margin:0 0 8px;">Fair and in-person sales come out one line per day, the same lines and tax names as your shop's bookkeeping file.</div>
+    <div class="tc-form-grid">
+      <div class="tc-form-group">
+        <label class="tc-form-label" for="tc-ip-tax-rate">Rate (%)</label>
+        <input type="text" inputmode="decimal" id="tc-ip-tax-rate" class="tc-form-input" placeholder="13" autocomplete="off" data-on-input="taxExport.inPersonTaxInput" data-on-change="taxExport.inPersonTaxSave">
+      </div>
+      <div class="tc-form-group">
+        <label class="tc-form-label" for="tc-ip-tax-name">Name in your books</label>
+        <input type="text" id="tc-ip-tax-name" class="tc-form-input" maxlength="40" list="tc-ip-tax-names" autocomplete="off" data-on-input="taxExport.inPersonTaxInput" data-on-change="taxExport.inPersonTaxSave">
+        <datalist id="tc-ip-tax-names"></datalist>
+      </div>
+    </div>
+    <label class="toggle-row" style="margin-top:8px;"><input type="checkbox" id="tc-ip-tax-included" checked data-on-change="taxExport.inPersonTaxSave"> My prices already include this tax</label>
+    <div class="tc-form-hint" id="tc-ip-tax-hint" aria-live="polite" style="margin-top:6px;"></div>
+  </fieldset>
   <div class="modal-footer" style="justify-content:space-between;align-items:center;flex-wrap:wrap;">
     <button class="btn" type="button" onclick="attemptCloseModal('tc-preflight')">Cancel</button>
     <div style="display:flex;gap:8px;">
