@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 // Built from parts so this file doesn't trip its own check.
 const LIVE = [
@@ -49,7 +49,7 @@ test("no app copy has a default Firebase project", () => {
 // Nothing here may publish a site: no custom-domain file (GitHub Pages would claim that address) and no workflow in
 // the root folder, the only one GitHub runs, that deploys.
 test("no app copy claims a web address", () => {
-  const found = [...files("apps")].filter((path) => path.endsWith("/CNAME"));
+  const found = [...files("apps")].filter((path) => basename(path) === "CNAME");
   assert.deepEqual(found, []);
 });
 

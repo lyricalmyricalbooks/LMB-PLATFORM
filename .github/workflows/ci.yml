@@ -94,6 +94,9 @@ jobs:
           node-version: 22
       - name: Platform tests
         run: npm test
+        env:
+          # Lists the failing tests again at the end, so they can be found in a long log.
+          NODE_OPTIONS: --test-reporter=spec
       - name: Shop packages
         working-directory: apps/shop
         run: pnpm install --frozen-lockfile

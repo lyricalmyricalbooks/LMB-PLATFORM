@@ -8,7 +8,7 @@
 // It works on a real shop, so it needs the platform's real clients and a person running it: the token comes from
 // `gcloud auth print-access-token`, and the Firebase command line uses the same signed-in account. It never runs by
 // itself and nothing in the tests runs it for real.
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { SWITCHES } from "../setup/steps.js";
 import { createControlRoom, profilePublisher } from "./controlRoom.js";
 
@@ -49,7 +49,7 @@ async function realClients(env) {
     import("../setup/real.js"), import("../release-check/run.js"), import("../services/release-runner/builder.js"), import("../services/release-runner/run.js"),
   ]);
   const run = commandRunner();
-  const builder = releaseBuilder({ run, root: env.RELEASE_BUILD_ROOT, source: new URL("..", import.meta.url).pathname });
+  const builder = releaseBuilder({ run, root: env.RELEASE_BUILD_ROOT, source: fileURLToPath(new URL("..", import.meta.url)) });
   const clients = realSetupClients({ fetch: globalThis.fetch, token: gcloudToken, run, buildDir: builder.dir });
   return { ...clients, build: (version) => builder.build(version) };
 }
