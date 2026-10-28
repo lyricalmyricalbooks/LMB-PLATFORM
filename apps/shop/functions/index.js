@@ -106,7 +106,7 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 // Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-const { adminRole, supportOf, syncMemberRole } = require("./roles");
+const { adminRole, booksReader, supportOf, syncMemberRole } = require("./roles");
 const { shopConfig, functionLink } = require("./shopConfig");
 
 // Who may call the functions from a browser: local dev, this shop's Hosting address and its own domain (shopConfig.js).
@@ -162,6 +162,26 @@ async function requireAdmin(req, res) {
   try {
     const decoded = await admin.auth().verifyIdToken(match[1]);
     if (!adminRole(decoded)) {
+      res.status(403).json({ error: "Admin access required" });
+      return null;
+    }
+    return decoded;
+  } catch (err) {
+    res.status(401).json({ error: "Invalid Authorization token" });
+    return null;
+  }
+}
+
+// The bookkeeper's reads (roles.js booksReader): the admin, or the Team's bookkeeper role. Only read-only actions use it.
+async function requireBooksReader(req, res) {
+  const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+  if (!match) {
+    res.status(401).json({ error: "Missing Authorization token" });
+    return null;
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    if (!booksReader(decoded)) {
       res.status(403).json({ error: "Admin access required" });
       return null;
     }
@@ -1499,7 +1519,7 @@ exports.paypalWebhook = onRequest(
 );
 
 const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, handleWebhookHealth, handleRegisterPaymentDomain, handlePlatformPayments } = checkoutAdminActions({
-  db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, inventoryLinkDeps,
+  db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, requireBooksReader, inventoryLinkDeps,
 });
 
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).

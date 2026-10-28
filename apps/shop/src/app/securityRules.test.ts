@@ -155,8 +155,20 @@ describe("firestore.rules round-2 security (#18, #111, #112)", () => {
 // and staff alone, so an author on the Team opens nothing here. scripts/firestore-rules-emulator.mjs checks the same.
 describe("Team roles", () => {
   const fn = (text: string, name: string) => text.match(new RegExp(`function ${name}\\(\\)\\s*\\{([\\s\\S]*?)\\n\\s*\\}`))?.[1] ?? "";
-  it("the Team accepts owner, staff and author", () => {
-    expect(block("members/{email}")).toContain('request.resource.data.role in ["owner", "staff", "author"]');
+  it("the Team accepts owner, staff, author and bookkeeper", () => {
+    expect(block("members/{email}")).toContain('request.resource.data.role in ["owner", "staff", "author", "bookkeeper"]');
+  });
+  it("the bookkeeper only ever reads: orders, gift cards and the daily figures, never a write", () => {
+    expect(fn(rules, "isOwner") + fn(rules, "isAdmin")).not.toMatch(/bookkeeper/);
+    const lines = rules.split("\n").filter((line) => line.includes("isBookkeeper()") && !line.includes("function"));
+    expect(lines.length).toBe(3);
+    for (const line of lines) expect(line).toMatch(/allow (read|get, list): if isAdmin\(\) \|\| isBookkeeper\(\)/);
+    expect(block("orders/{orderId}")).toContain("isBookkeeper()");
+    expect(block("giftCards/{cardId}")).toContain("isBookkeeper()");
+    expect(block("analytics/{docId}")).toContain("isBookkeeper()");
+    for (const path of ["customers/{customerId}", "settings/{docId}", "members/{email}", "books/{bookId}", "adminSecrets/{docId}", "newsletter/{docId}"]) {
+      expect(block(path), path).not.toContain("isBookkeeper");
+    }
   });
   it("an author never counts as an admin, in Firestore or Storage", () => {
     const firestoreAdmin = fn(rules, "isOwner") + fn(rules, "isAdmin");

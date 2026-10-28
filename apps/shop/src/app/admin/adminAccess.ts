@@ -8,8 +8,20 @@ import { supportOf } from "./supportSession";
 export type AdminRole = "owner" | "staff";
 export const ADMIN_ROLES: readonly AdminRole[] = ["owner", "staff"];
 // Every role the Team can give. "author" is for the stockroom only and never opens this admin (adminRoleOf ignores it).
-export type TeamRole = AdminRole | "author";
-export const TEAM_ROLES: readonly TeamRole[] = ["owner", "staff", "author"];
+// "bookkeeper" opens only the read-only Bookkeeping page (BookkeeperDesk.tsx, plan 7.17), never the admin itself.
+export type TeamRole = AdminRole | "author" | "bookkeeper";
+export const TEAM_ROLES: readonly TeamRole[] = ["owner", "staff", "author", "bookkeeper"];
+/** Who may sign in here: the admin roles, or the bookkeeper (who gets the Bookkeeping page instead of the admin). */
+export type SignInRole = AdminRole | "bookkeeper";
+
+/** True for a verified pass carrying the Team's bookkeeper role (functions/roles.js booksReader). */
+export function isBookkeeperPass(emailVerified: boolean, claims: Record<string, unknown> = {}): boolean {
+  return emailVerified && claims.role === "bookkeeper" && !supportOf(claims);
+}
+
+export function signInRoleOf(email: string | null | undefined, emailVerified: boolean, claims: Record<string, unknown> = {}): SignInRole | null {
+  return adminRoleOf(email, emailVerified, claims) ?? (isBookkeeperPass(emailVerified, claims) ? "bookkeeper" : null);
+}
 
 export function adminRoleOf(email: string | null | undefined, emailVerified: boolean, claims: Record<string, unknown> = {}): AdminRole | null {
   // Platform support (supportSession.ts) is staff while its visit lasts, with no email of its own.
@@ -40,15 +52,15 @@ async function answerOf(result: unknown): Promise<Record<string, unknown> | null
 /**
  * Asks the server to bring this person's pass up to date with the Team list (someone added before their first
  * sign-in has no role yet), learns the owner's address from its answer, then reads the role from a fresh pass.
- * A failed refresh still reads the current pass.
+ * A failed refresh still reads the current pass. A bookkeeper may sign in too (they get the Bookkeeping page).
  */
-export async function refreshAdminRole(user: SignedInUser, refresh: Refresh): Promise<AdminRole | null> {
+export async function refreshAdminRole(user: SignedInUser, refresh: Refresh): Promise<SignInRole | null> {
   try {
     const answer = await answerOf(await refresh(await user.getIdToken()));
     if (answer?.ownerEmail) rememberShopOwner(answer.ownerEmail, user.email);
   } catch { /* the pass as it is still decides */ }
   const { claims } = await user.getIdTokenResult(true);
-  return adminRoleOf(user.email, user.emailVerified, claims);
+  return signInRoleOf(user.email, user.emailVerified, claims);
 }
 
 // One refresh per page for a session that was restored (no sign-in popup), so the owner's address is known.

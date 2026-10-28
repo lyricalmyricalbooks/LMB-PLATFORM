@@ -478,3 +478,18 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
   when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`).
 - Settings › Payments › Card payments (`PlatformPaymentsCard.tsx`, plan 2.2b) replaces the Stripe keys card on platform
   shops.
+
+## Bookkeeper role (28 October 2026, code plan 7.17)
+
+Team role `bookkeeper` (Settings › Team, or the platform's account page): reads the money and changes nothing.
+- **Rules:** `isBookkeeper()` in `firestore.rules` (verified pass, `role == "bookkeeper"`) appears only in three read
+  rules: `orders` (get, list), `giftCards`, `analytics`. Never books, customers, newsletter, settings, keys, the Team or
+  any write (`securityRules.test.ts` and the emulator script check). `isAdmin()` never names it.
+- **Server:** `adminRole` ignores it, so every `requireAdmin` action refuses it. `requireBooksReader` (`roles.js`
+  `booksReader`) lets it in only to `platformPayments` step `status` (payouts on or paused, the fee); `connect` stays
+  admin-only.
+- **Admin:** `Dashboard` asks `adminApi.bookkeeperSignIn()` before setting `user`; a bookkeeper gets
+  `BookkeeperDesk.tsx` (period sales, tax and shipping collected, payouts, Orders and Sales report CSVs) and never the
+  admin shell, so none of the admin's reads run. `bookkeeping.ts` (pure) blanks shoppers' and gift card recipients'
+  email addresses in its downloads. A first sign-in learns the role after `login()` refreshes the pass (`onLogin`).
+- **Stockroom:** the same role reads the tax centre's key-free copy (`apps/stockroom/src/lib/bookkeeper-copy.js`).

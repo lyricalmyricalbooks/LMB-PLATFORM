@@ -11,6 +11,7 @@ const ROLE_WORDS: Record<TeamRole, { label: string; detail: string; added: strin
   staff: { label: "Staff", detail: "Can do everything in the admin except change the Team or the payment and email keys.", added: "can open the admin" },
   owner: { label: "Owner", detail: "Everything, including the Team, the payment and email keys, and the stockroom.", added: "can open the admin" },
   author: { label: "Author", detail: "Can't open this admin. In the stockroom, they see and update only the books that name them as the author.", added: "can open their books in the stockroom" },
+  bookkeeper: { label: "Bookkeeper", detail: "Reads the orders, sales, tax collected, payouts and bookkeeping downloads, and the stockroom's tax centre. Can't change anything, and doesn't see books, settings, the customer list or the Team.", added: "can read the shop's books" },
 };
 
 // Settings › Team. The owner adds people by their Google email; they sign in with that account.
@@ -96,6 +97,7 @@ export function TeamSettings() {
             <option value="staff">{ROLE_WORDS.staff.label}</option>
             <option value="owner">{ROLE_WORDS.owner.label}</option>
             <option value="author">{ROLE_WORDS.author.label}</option>
+            <option value="bookkeeper">{ROLE_WORDS.bookkeeper.label}</option>
           </SelectField>
           <PrimaryButton type="submit" disabled={busy === "add"}>{busy === "add" ? "Adding…" : "Add to Team"}</PrimaryButton>
         </form>

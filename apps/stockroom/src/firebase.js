@@ -11,6 +11,7 @@ import { adoptDecision, compareCopies, movedElsewhere } from './lib/storage-mode
 import { isTestProfileActive, installSandboxBackend } from './lib/test-profile.js';
 import { DATA_ROOT, shopProfile, stockroomBucketUrl, stockroomDatabaseId } from './lib/shop-profile.js';
 import { emulatorSettings } from './lib/emulators.js';
+import { BOOKKEEPER_COPY_KEY, bookkeeperCopyKey, bookkeeperTaxCopy } from './lib/bookkeeper-copy.js';
 
 // This shop's Firebase project comes from /shop-profile.js (src/lib/shop-profile.js).
 const firebaseConfig = { ...shopProfile.firebase };
@@ -860,6 +861,24 @@ async function writeMergedSetting(key, data) {
   return value;
 }
 
+// The bookkeeper's copy of the Tax Centre (lib/bookkeeper-copy.js): the expense fields only, saved after each Tax
+// Centre save when they changed. A failure here is logged and never fails the Tax Centre's own save: the copy catches
+// up on the next one.
+let _bookkeeperCopySaved = null;
+async function saveBookkeeperCopy(taxCenter) {
+  try {
+    const copy = bookkeeperTaxCopy(taxCenter);
+    const same = bookkeeperCopyKey(copy);
+    if (same === _bookkeeperCopySaved) return;
+    const row = { data: JSON.stringify(copy), ts: Date.now() };
+    if (window._useFirestoreGlobal()) await setDoc(doc(fs, 'settings', BOOKKEEPER_COPY_KEY), row);
+    else await set(ref(db, `${DATA_ROOT}/settings/${BOOKKEEPER_COPY_KEY}`), row);
+    _bookkeeperCopySaved = same;
+  } catch (e) {
+    console.warn('[FB] the bookkeeper\'s copy of the Tax Centre was not saved', e);
+  }
+}
+
 window._fbSaveSettings = async (key, data) => {
   // A Tax Centre still showing the device's copy from startup (main.js marks
   // it _preview) is not saved: it may be missing what another device added.
@@ -871,13 +890,15 @@ window._fbSaveSettings = async (key, data) => {
     await modeFlagsSettled();
     if (window._useFirestoreGlobal()) {
       if (MERGED_SETTINGS.has(key)) {
-        await writeMergedSetting(key, data);
+        const saved = await writeMergedSetting(key, data);
+        if (key === 'taxCenter') void saveBookkeeperCopy(saved);
         return true;
       }
       await setDoc(doc(fs, 'settings', key), { data: JSON.stringify(data), ts: Date.now() });
       return true;
     }
     await set(ref(db, `${DATA_ROOT}/settings/${key}`), { data: JSON.stringify(data), ts: Date.now() });
+    if (key === 'taxCenter') void saveBookkeeperCopy(data);
     return true;
   } catch (e) {
     console.error("fbSaveSettings failed", e);

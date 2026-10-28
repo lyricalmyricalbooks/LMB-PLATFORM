@@ -40,16 +40,25 @@ function make({ provider = "square", mode = "platform", answers } = {}) {
   const { handlePlatformPayments } = checkoutAdminActions({
     db: noDb, payments, ALLOWED_ORIGINS: [ORIGIN, "http://localhost:5173"],
     requireAdmin: async (req, res) => (req.admin ? { email: "owner@example.com" } : (res.status(403).json({ error: "Admin access required" }), null)),
+    requireBooksReader: async (req, res) => (req.admin || req.bookkeeper ? { email: "kit@example.com" } : (res.status(403).json({ error: "Admin access required" }), null)),
   });
-  const run = async (body, { admin = true } = {}) => {
+  const run = async (body, { admin = true, bookkeeper = false } = {}) => {
     const res = { statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; return this; } };
-    await handlePlatformPayments({ body, admin }, res);
+    await handlePlatformPayments({ body, admin, bookkeeper }, res);
     return res;
   };
   return { run, service };
 }
 
 describe("the admin's card account card", () => {
+  test("the bookkeeper reads the account's status (payouts, fee) but can't open the connect page", async () => {
+    const { run, service } = make();
+    expect((await run({ step: "status" }, { admin: false, bookkeeper: true })).statusCode).toBe(200);
+    expect((await run({ step: "connect", origin: ORIGIN }, { admin: false, bookkeeper: true })).statusCode).toBe(403);
+    expect((await run({ step: "status" }, { admin: false })).statusCode).toBe(403);
+    expect(service.calls.map((c) => c.op)).toEqual(["account.status"]);
+  });
+
   test("status asks the platform as this shop, with its key, and passes on the fee", async () => {
     const { run, service } = make();
     const res = await run({ step: "status" });
