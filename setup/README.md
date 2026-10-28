@@ -79,9 +79,8 @@ when what it finds is neither done nor untouched:
 13. **Connect payments with the press's chosen provider** (`shop.paymentProvider`, Stripe when none). `payments.js`
     lists the providers: Stripe is built; Square is planned (plan item 2.2b) and refused at step 1 until it is, so no
     project is made for a shop that can't take payments yet. Each provider is a client of the platform payment service
-    (`findAccount`, `createAccount`, shop id as the idempotency key; `services/payments/index.js` `setupClient` for
-    Stripe). The account id is saved in the registry row as `payments: { provider, accountId, mode }` (`mode`: the mode
-    the account was made in; the service refuses live payments on a test account). A registry that names another provider or another account, or an account the
+    (`findAccount`, `createAccount`, shop id as the idempotency key). The account id is saved in the registry row as
+    `payments: { provider, accountId }`. A registry that names another provider or another account, or an account the
     service can't find, stops the run. Skipped for a stockroom-only plan. No sign-up link is made here: they expire
     within minutes, so the admin's Connect button makes one (plan item 2.10).
 14. Email the owner their sign-in links through the email service, once (`wasSent`, and an idempotency key for retries).

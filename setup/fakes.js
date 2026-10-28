@@ -7,31 +7,29 @@
 // `readLock(shopId)` -> { runId, takenAt, expiresAt } | null; `takeLock(shopId, lock)` takes the lock when it is free,
 // lapsed (expiresAt passed) or already this run's, and returns { taken: true } or { taken: false, runId, expiresAt }
 // (the real one does this in one Firestore transaction); `releaseLock(shopId, runId)` frees it only for the run that
-// holds it. The payment service also uses `findShopByPaymentAccount(provider, accountId)` (the row whose `payments`
-// names that account, or null) and `recordEvent(shopId, entry)` (its own changes, by entry id). Audit log:
-// `ready(shopId)` says whether the shop's database exists yet; `write(shopId, id, entry)` stores the entry under `id`,
-// replacing any entry with that id.
+// holds it. `recordReleaseCheck(shopId, entry)` / `readReleaseChecks(shopId)` keep the release check's runs. Audit log: `ready(shopId)` says whether the shop's database exists yet; `write(shopId, id, entry)` stores
+// the entry under `id`, replacing any entry with that id.
 
 export function fakeRegistry(seed = {}) {
   const steps = new Map(Object.entries(seed).map(([shopId, list]) => [shopId, [...list]]));
   const shops = new Map();
   const profiles = new Map();
   const locks = new Map();
-  const events = new Map();
+  const releaseChecks = new Map();
   return {
     steps,
+    releaseChecks,
+    // Release check runs (release-check/runner.js), oldest first.
+    async recordReleaseCheck(shopId, entry) {
+      if (!releaseChecks.has(shopId)) releaseChecks.set(shopId, []);
+      releaseChecks.get(shopId).push(structuredClone(entry));
+    },
+    async readReleaseChecks(shopId) {
+      return structuredClone(releaseChecks.get(shopId) ?? []);
+    },
     shops,
     profiles,
     locks,
-    events,
-    async findShopByPaymentAccount(provider, accountId) {
-      const row = [...shops.values()].find((shop) => shop.payments?.provider === provider && shop.payments?.accountId === accountId);
-      return row ? structuredClone(row) : null;
-    },
-    async recordEvent(shopId, entry) {
-      if (!events.has(shopId)) events.set(shopId, new Map());
-      events.get(shopId).set(entry.id, structuredClone(entry));
-    },
     async getShop(shopId) {
       return shops.has(shopId) ? structuredClone(shops.get(shopId)) : null;
     },

@@ -51,5 +51,41 @@ the link on with sales sent from the day it runs. What the release check must st
 
 ## Where it runs
 
-A scheduled job in the platform project, written with Playwright (already used by the shop's checks). It also runs
-every 15 minutes between releases, to catch outages.
+The runner is `release-check/` (see its README): the eight checks above, in order, stopping at the first failure, with
+every run recorded in the registry and the test shop's audit log. It refuses any shop not marked as the test shop and in
+test mode. Later it runs as a scheduled job in the platform project, after each release reaches the test shop (plan 4.1)
+and every 15 minutes between releases (plan 4.3).
+
+What is proven so far, without Julian: the checks and the runner with a pretend shop (`npm test`), and the whole check
+in a real Chromium against stand-in pages on the CI machine (`release-check/local-proof.js`, CI job
+`release-check-browser`). The stand-in pages use the shop's own class names and field ids, but they are not the real
+shop, Stripe's real card form or Firebase's real sign-in.
+
+## Running it for real: what Julian does
+
+These steps need Julian's Google account. Nothing here touches his own shop, stockroom or Stripe account.
+
+1. **Make the platform project and the shops folder** in Google Cloud under the platform's organisation, with a
+   billing account for shops. Send the folder number and billing account id; they go in the shop maker's settings,
+   never in code.
+2. **Make one service account in the platform project for the release check**, and give it:
+   - "Service Account Token Creator" on itself, so it can sign the test owner's sign-in;
+   - "Firebase Authentication Admin" and "Cloud Datastore User" on the test shop's project, once it exists.
+   Send its address (it is `PLATFORM_SERVICE_ACCOUNT`).
+3. **Choose the test inbox**, a mailbox the platform owns that receives the test shop's order emails (it is
+   `RELEASE_INBOX`). The test shop's owner address is the one the shop maker is given for `platform-test`.
+4. **Create the test shop** with the shop maker once the real setup clients are in (plan item for the real clients):
+   shop id `platform-test`, plan "shop and stockroom", Stripe in test mode, marked as the test shop. Step 12 adds the
+   starter catalogue and links its books; step 16 turns the stockroom link on.
+5. **Connect Stripe's test mode** for the test shop's connected account (the payment service, plan 2.1). The release
+   check only ever uses Stripe's test card.
+6. **Run the check once by hand** on a machine signed in to gcloud as an account allowed on both projects, with Node 22
+   and Playwright:
+
+   ```bash
+   RELEASE_INBOX=<the test inbox> PLATFORM_SERVICE_ACCOUNT=<the service account> node release-check/run.js platform-test
+   ```
+
+   It prints each check as it passes. If one fails, it says which and why, and stops. Send the output either way.
+
+Until step 6 passes once, plan 1.32 stays open.

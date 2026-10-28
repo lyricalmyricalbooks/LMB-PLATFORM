@@ -5,18 +5,15 @@
 //
 // A provider client, one per provider, passed in as `providers[name]`:
 //
-//   findAccount(shopId)            -> { accountId, mode? } | null   the press's account the service already made, if any
-//   createAccount(shopId, details) -> { accountId, mode? }          details: { pressName, ownerEmail, country, currency, testMode }
-//
-// `mode` is the mode the account was made in ("live" or "test"); the payment service takes live payments only for an
-// account made live, so a press in test mode (and the test shop) can never take real money.
+//   findAccount(shopId)            -> { accountId } | null   the press's account the service already made, if any
+//   createAccount(shopId, details) -> { accountId }          details: { pressName, ownerEmail, country, currency, testMode }
 //
 // `createAccount` must be safe to repeat: the service sends the shop id as the provider's idempotency key, so a retry
 // after a lost answer finds the same account instead of making a second one. Nothing here can close or delete an
 // account. The press finishes signing up with the provider from their admin (the "Connect" button, plan item 2.10);
 // sign-up links expire within minutes, so none is made here.
 //
-// The registry row keeps `payments: { provider, accountId, mode }`; the service checks every call against it.
+// The registry row keeps `payments: { provider, accountId }`; the service checks every call against it.
 
 /** The payment providers a press can choose, and whether the shop maker can connect each one yet. */
 export const PAYMENT_PROVIDERS = Object.freeze({
@@ -91,8 +88,7 @@ export function connectPaymentsStep({ number = 13, registry, providers }) {
         testMode: shop.testMode === true,
       }));
       if (!account?.accountId) throw new Error(`${PAYMENT_PROVIDERS[provider].name} gave no account id`);
-      const mode = account.mode === "live" || account.mode === "test" ? account.mode : shop.testMode === true ? "test" : "live";
-      await registry.updateShop(shop.shopId, { payments: { provider, accountId: account.accountId, mode } });
+      await registry.updateShop(shop.shopId, { payments: { provider, accountId: account.accountId } });
     },
   };
 }
