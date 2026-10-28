@@ -1,11 +1,12 @@
 // Admin: the press's own web address (code plan 2.9), for Settings › General › Your web address. The platform's domain
 // service (LMB-PLATFORM services/domains, PLATFORM_DOMAINS_URL) does the work: it saves the address, lets it call this
 // shop's server code, asks Firebase Hosting to serve the shop there, and registers it for Apple Pay and Google Pay once
-// live. The shop proves who it is with its service key, like the payment and email services. Admin-only.
+// live. The shop proves who it is with its service key, like the payment and email services. Admin-only. Plan 5.9 adds
+// Make main (the address emails, links and Google use) and Remove; the service refuses removing the main address.
 //
-//   body { action: "customDomains", step: "list" | "add" | "check", domain? }
+//   body { action: "customDomains", step: "list" | "add" | "check" | "makeMain" | "remove", domain? }
 
-const STEPS = Object.freeze({ list: "domains.list", add: "domains.add", check: "domains.check" });
+const STEPS = Object.freeze({ list: "domains.list", add: "domains.add", check: "domains.check", makeMain: "domains.makeMain", remove: "domains.remove" });
 
 function customDomainActions({ url, shopId, serviceKey, requireAdmin, fetch = globalThis.fetch, timeoutMs = 30000 }) {
   async function handleCustomDomains(req, res) {

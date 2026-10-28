@@ -10,6 +10,9 @@ import { MAX_REDIRECTS, normalizePath, normalizeTarget, parseRedirectLines, redi
  * bookmarks, search results and printed links don't land on "page not found". Followed in the shopper's browser, and
  * only when the old address has no page of its own (a real page is never hijacked).
  */
+const LIMIT = MAX_REDIRECTS.toLocaleString("en");
+const SHOWN = 100;
+
 export function RedirectsCard() {
   const [items, setItems] = useState<Redirect[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -17,6 +20,7 @@ export function RedirectsCard() {
   const [to, setTo] = useState("");
   const [bulk, setBulk] = useState("");
   const [busy, setBusy] = useState(false);
+  const [find, setFind] = useState("");
   const [ask, confirmNode] = useConfirm();
 
   const load = async () => {
@@ -35,7 +39,7 @@ export function RedirectsCard() {
   const problem = from.trim() || to.trim() ? redirectProblem({ from, to }, items || []) : "";
   const add = async () => {
     if (!items || problem || !from.trim() || !to.trim()) return;
-    if (items.length >= MAX_REDIRECTS) { toast.error(`You can keep up to ${MAX_REDIRECTS} redirects.`); return; }
+    if (items.length >= MAX_REDIRECTS) { toast.error(`Your shop is full: it keeps up to ${LIMIT} redirects. Delete one you no longer need first.`); return; }
     if (await persist([...items, { from: normalizePath(from), to: normalizeTarget(to) }], "Redirect saved.")) { setFrom(""); setTo(""); }
   };
   const importBulk = async () => {
@@ -43,7 +47,7 @@ export function RedirectsCard() {
     const { added, skipped } = parseRedirectLines(bulk, items);
     if (!added.length) { toast.error(skipped.length ? `Nothing added. ${skipped[0].why}` : "Paste one redirect per line first."); return; }
     const room = MAX_REDIRECTS - items.length;
-    if (added.length > room) { toast.error(`Only ${room} more redirects fit (limit ${MAX_REDIRECTS}).`); return; }
+    if (added.length > room) { toast.error(`Only ${room.toLocaleString("en")} more redirect${room === 1 ? " fits" : "s fit"}: your shop keeps up to ${LIMIT}.`); return; }
     if (await persist([...items, ...added], `${added.length} redirect${added.length === 1 ? "" : "s"} added${skipped.length ? `, ${skipped.length} line${skipped.length === 1 ? "" : "s"} skipped` : ""}.`)) {
       setBulk(skipped.map(s => s.line).join("\n"));
     }
@@ -53,6 +57,11 @@ export function RedirectsCard() {
     const ok = await ask({ title: "Delete this redirect?", message: `${r.from} will show "page not found" again.`, confirmLabel: "Delete redirect" });
     if (ok) await persist(items.filter(x => x.from !== r.from), "Redirect deleted.");
   };
+
+  // Long lists (up to 5,000, plan 5.6) show the first SHOWN rows; the find box narrows them.
+  const needle = find.trim().toLowerCase();
+  const matching = items && needle ? items.filter(r => r.from.includes(needle) || r.to.toLowerCase().includes(needle)) : items || [];
+  const shown = matching.slice(0, SHOWN);
 
   return (
     <SectionCard title="URL redirects" description="Old links, new homes. Nothing breaks.">
@@ -67,9 +76,11 @@ export function RedirectsCard() {
           {problem && <p className="rp-hint" role="alert" style={{ margin: 0, color: "var(--rp-danger-text, inherit)" }}>{problem}</p>}
           <div><PrimaryButton onClick={add} disabled={busy || !!problem || !from.trim() || !to.trim()}>Add redirect</PrimaryButton></div>
 
+          <p className="rp-hint" style={{ margin: 0 }}>{items.length.toLocaleString("en")} of {LIMIT} redirects used.</p>
+          {items.length > SHOWN && <TextField label="Find a redirect" placeholder="/books/old-title" value={find} onChange={e => setFind(e.target.value)} hint={matching.length > SHOWN ? `Showing the first ${SHOWN} of ${matching.length.toLocaleString("en")}.` : undefined} />}
           <DataTable<Redirect>
-            caption="URL redirects" rows={items} rowKey={r => r.from}
-            empty={<p className="rp-hint" style={{ margin: 0, padding: "12px 0" }}>No redirects yet.</p>}
+            caption="URL redirects" rows={shown} rowKey={r => r.from}
+            empty={<p className="rp-hint" style={{ margin: 0, padding: "12px 0" }}>{needle && items.length ? "No redirect matches that." : "No redirects yet."}</p>}
             columns={[
               { key: "from", header: "Old address", lead: true, render: r => <code>{r.from}</code> },
               { key: "to", header: "Goes to", render: r => <code>{r.to}</code> },

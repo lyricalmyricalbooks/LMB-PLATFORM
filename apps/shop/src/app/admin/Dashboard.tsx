@@ -38,6 +38,7 @@ import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
+import { providerName } from "./providerWords";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -230,7 +231,7 @@ export function Dashboard() {
         .then(async (data) => {
           const failedParts: string[] = [];
           const [webhook, emailLog, backup, linkState, shopErrors, cardAccount] = await Promise.all([
-            adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push("the Stripe webhook status"); return null; }),
+            adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push(`the ${providerName()} webhook status`); return null; }),
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
             inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),
@@ -778,7 +779,7 @@ export function Dashboard() {
           </dl>
           <h3 className="rp-help-head">How things work</h3>
           <ul className="rp-help-list">
-            <li><strong>Payments:</strong> card (Stripe) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and e-Transfer orders wait as pending: open the order › <strong>More order actions</strong> › <strong>Payment received — mark paid</strong> once the money has arrived.</li>
+            <li><strong>Payments:</strong> card ({providerName()}) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and e-Transfer orders wait as pending: open the order › <strong>More order actions</strong> › <strong>Payment received — mark paid</strong> once the money has arrived.</li>
             <li><strong>Shop status</strong> (top bar): shows whether shoppers can buy. Open it to close the shop behind the “under construction” wall, or to open it again.</li>
             <li><strong>Design studio:</strong> changes are saved as a draft first; Publish when you're ready.</li>
             <li><strong>Bookmarks:</strong> the address bar keeps your place, so pages can be bookmarked or shared: <code>#orders/&lt;id&gt;</code>, <code>#customers?q=&lt;email&gt;</code>, <code>#settings/payments</code>, <code>#gift-cards</code>, <code>#designer</code>. Reload and Back/Forward return to the same page.</li>

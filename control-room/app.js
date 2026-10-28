@@ -61,6 +61,7 @@ async function load() {
   }
   try {
     await loadToday();
+    await loadTestShop();
     const { shops } = await api("GET", "/control/shops");
     allShops = shops;
     showShops();
@@ -156,6 +157,37 @@ function recordView(record) {
 // ── Today (plan 9.2): the numbers, then what needs you, each linking to its place below. ──
 const money = (cents, currency) => new Intl.NumberFormat(undefined, { style: "currency", currency, currencyDisplay: "narrowSymbol" }).format(cents / 100);
 
+// Your test shop (plan 9.10): the platform's own shop, only for you. Its storefront is behind the pause page.
+async function loadTestShop() {
+  const { testShop: shop } = await api("GET", "/control/test-shop");
+  const box = $("#test-shop");
+  if (!shop) {
+    box.replaceChildren(el("p", { className: "hint", textContent: "Your test shop isn't made yet. Until it is, run the demo on your computer to try everything." }));
+    return;
+  }
+  const check = shop.lastCheck
+    ? `Last release check: ${shop.lastCheck.ok ? "passed" : `failed${shop.lastCheck.failedCheck ? ` at check ${shop.lastCheck.failedCheck}` : ""}`}, ${new Date(shop.lastCheck.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`
+    : "No release check yet.";
+  const link = (href, words) => (href ? el("a", { href, target: "_blank", rel: "noopener", textContent: words }) : null);
+  const reset = el("button", { type: "button", textContent: "Reset the sample books", disabled: shop.status !== "live" });
+  reset.addEventListener("click", async () => {
+    if (!window.confirm("Put the test shop's sample books back to 5 copies each? Its orders and settings stay as they are.")) return;
+    reset.disabled = true;
+    try {
+      await api("POST", "/control/test-shop/reset", { shopId: shop.shopId });
+      status.textContent = "The sample books are back to 5 copies each.";
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    reset.disabled = false;
+  });
+  box.replaceChildren(
+    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] })),
+    el("p", { className: "hint", textContent: check }),
+    el("div", { className: "row" }, link(shop.storefrontUrl, "Open the storefront"), link(shop.adminUrl, "Open its admin"), reset),
+  );
+}
+
 async function loadToday() {
   const { counts, monthlyIncome, currency, needs } = await api("GET", "/control/today");
   const tile = (value, words) => el("div", { className: "tile" }, el("strong", { textContent: String(value) }), el("span", { textContent: words }));
@@ -176,20 +208,29 @@ async function loadToday() {
 }
 
 function card(shop) {
-  const act = el("button", { type: "button", textContent: "Act as this shop", disabled: shop.status !== "live" });
-  act.addEventListener("click", async () => {
-    const reason = askWhy(`Open ${shop.pressName}'s admin as support for 30 minutes.`);
+  // "View this shop" looks only (plan 9.8); "Make changes" asks a second time, because it can change the press's shop.
+  const actAs = (mode) => async (event) => {
+    const button = event.currentTarget;
+    const what = mode === "edit"
+      ? `Open ${shop.pressName}'s admin for 30 minutes WITH the power to change their shop.`
+      : `Open ${shop.pressName}'s admin for 30 minutes, looking only.`;
+    const reason = askWhy(what);
     if (!reason) return;
-    act.disabled = true;
+    if (mode === "edit" && !window.confirm(`Anything you change is changed in ${shop.pressName}'s real shop, and the press sees it in their log. Go on?`)) return;
+    button.disabled = true;
     try {
-      const { url } = await api("POST", "/control/act-as", { shopId: shop.shopId, reason });
+      const { url } = await api("POST", "/control/act-as", { shopId: shop.shopId, reason, mode });
       window.open(url, "_blank", "noopener");
-      status.textContent = `Logged. ${shop.pressName}'s admin opened in a new tab.`;
+      status.textContent = `Logged. ${shop.pressName}'s admin opened in a new tab${mode === "edit" ? ", able to make changes" : ", looking only"}.`;
     } catch (failure) {
       status.textContent = failure.message;
     }
-    act.disabled = false;
-  });
+    button.disabled = false;
+  };
+  const act = el("button", { type: "button", textContent: "View this shop", disabled: shop.status !== "live" });
+  act.addEventListener("click", actAs("view"));
+  const change = el("button", { type: "button", textContent: "Make changes", disabled: shop.status !== "live" });
+  change.addEventListener("click", actAs("edit"));
 
   // Self-checks now (2.11): what's off goes to the repair queue below.
   const check = el("button", { type: "button", textContent: "Check now", disabled: shop.status !== "live" });
@@ -269,7 +310,7 @@ function card(shop) {
     open.disabled = false;
   });
   return el("div", { className: `card ${shop.health.level}` },
-    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), open, act, check, closing),
+    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), open, act, change, check, closing),
     el("div", { className: "facts" },
       el("span", { textContent: shop.shopId }),
       el("span", { textContent: `plan: ${shop.plan ?? "?"}` }),
@@ -727,7 +768,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 // ── Activity log (plan 9.9): read only. ──
 const ACTIVITY_WORDS = {
   "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "switch-set": "set a switch",
-  "act-as": "opened the shop's admin as support", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
+  "act-as": "opened the shop's admin as support", "test-shop-reset": "reset the test shop's sample books", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again",
 };

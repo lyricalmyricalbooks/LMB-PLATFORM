@@ -31,7 +31,8 @@ const hasText = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 export function launchReadiness({ settings, books, shippingProfiles, emailLog, orders, platformCards = platformCardsProvider(), platformAccount }: ReadinessInput): ReadinessItem[] {
   const items: ReadinessItem[] = [];
   const payments = settings?.payments || {};
-  const stripe = payments.stripe || {};
+  // The shop's own Stripe keys count only when the platform doesn't take its cards (a Square shop never reads them).
+  const stripe = platformCards ? {} : payments.stripe || {};
 
   // Cards through Colophon: no keys to check, only whether the press's own account is connected and can take cards.
   if (platformCards) {
@@ -68,11 +69,11 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   if (stripe.connected) {
     const secretStored = payments.testMode ? (stripe.testSecretKeyStored || stripe.testSecretKey) : (stripe.secretKeyStored || stripe.secretKey);
     items.push(secretStored
-      ? { id: "stripe-secret", label: "Stripe secret key is stored privately", detail: "Kept in the admin-only store.", status: "ok", tab: "payments", action: "Open Payments" }
+      ? { id: "stripe-secret", label: "Stripe secret key is stored privately", detail: "Kept in the admin-only store.", status: "ok", tab: "payments", action: "Open Payments" } // Stripe shops only (own keys)
       : payments.testMode
         // Test mode has no fallback key: sandbox checkout cannot work without one.
-        ? { id: "stripe-secret", label: "Stripe test secret key is missing", detail: "Sandbox checkout fails without it. Add your sk_test_… key in Payments.", status: "block", tab: "payments", action: "Open Payments" }
-        : { id: "stripe-secret", label: "No Stripe secret key entered here", detail: "Fine only if the STRIPE_SECRET_KEY Functions secret is set — use Payments › Test connection to confirm.", status: "warn", tab: "payments", action: "Open Payments" });
+        ? { id: "stripe-secret", label: "Stripe test secret key is missing", detail: "Sandbox checkout fails without it. Add your sk_test_… key in Payments.", status: "block", tab: "payments", action: "Open Payments" } // Stripe shops only (own keys)
+        : { id: "stripe-secret", label: "No Stripe secret key entered here", detail: "Fine only if the STRIPE_SECRET_KEY Functions secret is set — use Payments › Test connection to confirm.", status: "warn", tab: "payments", action: "Open Payments" }); // Stripe shops only (own keys)
   }
 
   // Catalogue

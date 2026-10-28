@@ -40,9 +40,9 @@ export function testSaleSteps({ payments, orders = [], webhook = null, emailLog 
   }
   return [
     { id: "testMode", label: "Switch on test mode", howTo: "Test mode on, then save.", done: testMode || !!order, link: "payments" },
-    { id: "testKey", label: "Store a Stripe test secret key", howTo: "Paste sk_test_… under Stripe › Test keys.", done: keyStored, link: "payments" },
+    { id: "testKey", label: "Store a Stripe test secret key", howTo: "Paste sk_test_… under Stripe › Test keys.", done: keyStored, link: "payments" }, // Stripe shops only (own keys)
     { id: "order", label: "Place a test order on the shop", howTo: "Card 4242 4242 4242 4242, any future date, any CVC.", done: !!order, link: "storefront" },
-    { id: "webhook", label: "Stripe confirms the payment", howTo: "It turns paid. Stuck? Check webhook below.", done: !!order && !!testWebhookAt && Date.parse(testWebhookAt) >= Date.parse(order.createdAt || ""), link: "payments" },
+    { id: "webhook", label: "Stripe confirms the payment", howTo: "It turns paid. Stuck? Check webhook below.", done: !!order && !!testWebhookAt && Date.parse(testWebhookAt) >= Date.parse(order.createdAt || ""), link: "payments" }, // Stripe shops only (own keys)
     { id: "email", label: "The customer gets “Order confirmed”", howTo: "See Email sender › Deliveries.", done: confirmed, link: "notifications" },
     { id: "refund", label: "Refund the test order", howTo: "Refund it from Orders.", done: !!refunded, link: "orders" },
     { id: "liveMode", label: "Switch test mode off again", howTo: "Test mode off, so real cards work.", done: !testMode && !!refunded, link: "payments" },

@@ -35,7 +35,12 @@ Plain HTML and browser JavaScript, like the sign-up page; sign in with Google.
   - **Problem**: the last release check failed, a live shop has no saved profile, or something is in the repair queue.
   - **Look**: not live yet, the plan is paused or ended, or the test shop was never checked.
   - **OK**: none of these.
-- **Act as this shop**: a 30-minute support sign-in to the shop's admin. It asks why first.
+- **Your test shop** (plan 9.10): a card at the top with the platform's own test shop, its last release check, links to
+  its storefront and admin, and **Reset the sample books** (the five sample books and the shipping zone go back to 5
+  copies each; logged; only the test shop). Until the test shop exists, the card says to use the demo.
+- **View this shop**: a 30-minute support sign-in to the shop's admin that only looks (plan 9.8). It asks why first.
+  The shop's rules and server refuse anything it tries to change, and the admin shows "viewing only".
+- **Make changes**: the same visit with staff access. It asks why, then asks a second time.
   - Who, why and until when go in the registry and in the shop's own audit log before the sign-in is made.
   - If the log can't be written, there is no sign-in.
 - **Switches** (`setup/steps.js` `SWITCHES`): a box for each. It asks why, then changes the switch the same way as the
@@ -93,7 +98,9 @@ platform's one web door with `routes: controlRoutes(room)`:
 | Route | What |
 | --- | --- |
 | `GET /api/control/shops` | every shop, its health and switches |
-| `POST /api/control/act-as` | `{ shopId, reason }` -> `{ url, expiresAt }` |
+| `GET /api/control/test-shop` | `{ testShop }`: the test shop's card, or null |
+| `POST /api/control/test-shop/reset` | `{ shopId }` -> `{ shopId, reset }` |
+| `POST /api/control/act-as` | `{ shopId, reason, mode? }` (`"view"`, the default, or `"edit"`) -> `{ url, expiresAt, mode }` |
 | `POST /api/control/switch` | `{ shopId, name, on, reason }` |
 
 ## The support sign-in (`supportAccess.js`)

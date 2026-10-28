@@ -198,12 +198,11 @@ export const ARTICLES = Object.freeze([
   {
     id: "email-sender",
     topic: "Selling",
-    question: "Can order emails come from my own Gmail address?",
+    question: "Which address do my order emails come from?",
     answer: [
-      "Yes. Open Settings › Email sender and find Send from your own Gmail. Paste an app password from your Google account there.",
-      "The steps to get an app password are under How to get an app password on the same page. Until you do this, emails still go out from us for you.",
+      "Order emails go out from us under your press's name, and when a shopper replies, the reply comes to you.",
+      "Sending from your own address comes with connecting your own web address. There is nothing to set up and no password to find.",
     ],
-    where: ["Settings › Email sender"],
     plans: ["shop"],
   },
   {

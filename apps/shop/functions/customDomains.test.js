@@ -45,9 +45,24 @@ describe("the admin's web address card", () => {
     expect(calls.map((c) => [c.op, c.args])).toEqual([["domains.list", {}], ["domains.check", { domain: "shop.mothpress.example" }]]);
   });
 
+  test("Make main and Remove (plan 5.9) map to the service's calls, as this shop", async () => {
+    const { run, calls } = make();
+    await run({ step: "makeMain", domain: "shop.mothpress.example" });
+    await run({ step: "remove", domain: "old.mothpress.example" });
+    expect(calls.map((c) => [c.op, c.args])).toEqual([["domains.makeMain", { domain: "shop.mothpress.example" }], ["domains.remove", { domain: "old.mothpress.example" }]]);
+    expect(calls.every((c) => c.headers["X-Shop-Id"] === "moth-press")).toBe(true);
+  });
+
+  test("the service refusing to remove the main address keeps its plain words", async () => {
+    const refused = make({ answer: () => ({ ok: false, status: 409, json: async () => ({ error: { code: "is_main", message: "This is your shop's main address. Make another address main first, then remove this one." } }) }) });
+    const res = await refused.run({ step: "remove", domain: "shop.mothpress.example" });
+    expect([res.statusCode, res.body.code]).toEqual([409, "is_main"]);
+    expect(res.body.error).toMatch(/Make another address main first/);
+  });
+
   test("only an admin may ask; an unknown step, a shop without the service or without its key is refused before anything is sent", async () => {
     expect((await make().run({ step: "list" }, { admin: false })).statusCode).toBe(403);
-    expect((await make().run({ step: "remove" })).statusCode).toBe(400);
+    expect((await make().run({ step: "delete" })).statusCode).toBe(400);
     const noService = make({ url: "" });
     const res = await noService.run({ step: "list" });
     expect([res.statusCode, res.body.code]).toEqual([409, "not_available"]);

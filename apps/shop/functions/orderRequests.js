@@ -5,6 +5,7 @@
 // SDK, its payments module (functions/payments) and guards, so the vm-based handler tests' fakes still apply.
 
 const { isPaymentId, isCheckoutId } = require("./payments/ids");
+const { providerName } = require("./payments");
 
 function orderRequestActions({
   db, admin, crypto, ADMIN_TO, LIMITS, RESEND_API_KEY, canViewOrder, cancelRefusal, chargedRedemptions,
@@ -13,6 +14,8 @@ function orderRequestActions({
   orderRequestRecord, payments, publicErrorMessage, publicOrderView, readBody, recordStripeReconciliation,
   releaseGiftCards, releaseStock, requireAdmin, sendEmail, siteLink, stripePaymentTaken,
 }) {
+  // The shop's card payment company, in the words the admin sees (code plan 5.2).
+  const CARD = providerName(payments.provider);
   // Admin: cancel an unpaid order. Done in a transaction so an order that was paid a moment
   // ago (webhook) is refused instead of quietly hidden, then the payment the shopper may still
   // be completing is stopped (Stripe PaymentIntent cancelled / Checkout Session expired).
@@ -39,13 +42,13 @@ function orderRequestActions({
           await payments.readAttempt(account, { intentId, sessionId }, found);
         } catch (err) {
           if (!(err?.code === "resource_missing" || err?.statusCode === 404)) {
-            return res.status(503).json({ error: "Couldn't check this payment with Stripe. Try again in a minute.", code: "stripe_unreachable" });
+            return res.status(503).json({ error: `Couldn't check this payment with ${CARD}. Try again in a minute.`, code: "stripe_unreachable" });
           }
         }
         const { intent = null, session = null } = found;
         if (stripePaymentTaken(intent, session)) {
           await recordStripeReconciliation(orderId, { id: session?.id || null, payment_intent: intent?.id || session?.payment_intent || null }).catch(() => {});
-          return res.status(409).json({ error: "Stripe shows this order as paid. Don't cancel it: resend the payment event from Stripe (Webhook health), then ship or refund it.", code: "paid_in_stripe" });
+          return res.status(409).json({ error: `${CARD} shows this order as paid. Don't cancel it: resend the payment event from ${CARD} (Webhook health), then ship or refund it.`, code: "paid_in_stripe" });
         }
       }
       const order = await db.runTransaction(async tx => {

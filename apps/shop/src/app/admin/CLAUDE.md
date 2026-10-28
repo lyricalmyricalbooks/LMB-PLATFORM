@@ -431,6 +431,14 @@ stored in the public, admin-written `settings/redirects` doc (`{ items: [{from, 
 `NotFoundPage`, `BookDetail` with no book, `PageView` with no page — through `useMissingRedirect` (reads
 `publicApi.getRedirects`, never in the Studio preview, keeps the shopper's query, stops after `MAX_REDIRECT_HOPS`), so a real
 page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-visible words, so no Text & labels entry.
+**Pages of 500 (plan 5.6):** up to `MAX_REDIRECTS` 5,000, saved as `redirects/1` … `redirects/10` (`{ items, page }`,
+public read, admin write of ids 1–10 only in `firestore.rules`). `saveRedirects` writes every page or clears it in one
+batch (`redirectsToPages`, filled in order) and marks the old `settings/redirects` doc `paged: true` with no items; every
+reader goes through `redirectsFromStore` (`publicApi.getRedirects`, which the admin, the storefront and the prerendered
+pages all use): pages by number, else the old doc's list while it was never moved, so older shops keep working until their
+first save. Checks use a `RedirectIndex` map so a 5,000 list stays quick. The import says "Your shop is full" when it runs
+out of room (`importRedirects` `full`, `oldLinksMessage`); the card shows "N of 5,000 used" and a find box past 100 rows.
+Tests: `redirects.test.ts`, `redirectPagesApi.test.ts` (499/500/501/5,000, migration), `scripts/firestore-rules-emulator.mjs`.
 
 ## Bring your shop with you (28 October 2026)
 
@@ -499,7 +507,9 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   give search engines (Text & labels › `seoReturnDays`, 0 = no returns after shipping). `withStarter` re-reads the draft
   and keeps any saved words. The card says "A starting point, not legal advice"; the four texts await a lawyer's read.
 - Settings › General › Your web address (`CustomDomainCard.tsx`, plan 2.9) shows the older "Domain & visibility" field
-  when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`).
+  when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`). Plan 5.9: "Your main address" line, **Make main** on
+  a live address and **Remove** on any address but the main one, each behind a confirm (`domainActions` in
+  `customDomains.ts`; `CustomDomainCard.test.tsx`). Going back to the shop's own address is a button under the main line.
 - Settings › Payments › Card payments (`PlatformPaymentsCard.tsx`, plan 2.2b) replaces the Stripe keys card on platform
   shops.
 - **What Stripe still needs (plan 7.9):** `account.status` carries `needs: [{ words, pastDue }]` (plain words made by

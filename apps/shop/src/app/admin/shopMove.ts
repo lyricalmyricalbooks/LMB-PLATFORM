@@ -9,7 +9,7 @@
 import { metricWeightValue } from "../features/site/metricWeight";
 import { MAX_IMPORT_ROWS, parseCsv, parseMoney, planImport, validIsbn, type ImportOptions, type ImportPlan, type ImportRow } from "./catalogImport";
 import { parseTags } from "./customerInsights";
-import { MAX_REDIRECTS, normalizePath, redirectProblem, type Redirect } from "../features/site/redirects";
+import { addToIndex, MAX_REDIRECTS, normalizePath, redirectIndex, redirectProblemIn, type Redirect } from "../features/site/redirects";
 
 /** Which shape an export has. Named after how its rows are laid out, not after who made it. */
 export type ExportShape =
@@ -367,7 +367,22 @@ export interface RedirectPlan {
   added: Redirect[];
   /** Old addresses that already lead somewhere (left as the owner set them), or can't be used. */
   skipped: { from: string; why: string }[];
+  /** Old addresses left out because the shop already keeps MAX_REDIRECTS old links (also listed in `skipped`). */
+  full: number;
 }
+
+/** The line under a finished import about the old shop's links, in the owner's words. */
+export function oldLinksMessage(links: { added: number; skipped: number; full: number; failed: boolean }): string {
+  if (links.failed) return "The old shop links couldn't be saved. Import the same file again to retry; books already saved show as unchanged.";
+  const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+  let text = `${links.added} old shop link${plural(links.added, " now leads", "s now lead")} to ${plural(links.added, "its book", "their books")} (Settings › General › URL redirects).`;
+  if (links.skipped) text += ` ${links.skipped} already led somewhere else and ${plural(links.skipped, "was", "were")} left as ${plural(links.skipped, "it was", "they were")}.`;
+  if (links.full) text += ` Your shop is full: it keeps up to ${MAX_REDIRECTS.toLocaleString("en")} old links, so ${links.full.toLocaleString("en")} more ${plural(links.full, "wasn't", "weren't")} added. Delete old links you no longer need in URL redirects to make room.`;
+  return text;
+}
+
+/** What the owner reads when the shop's old-link list is full. */
+export const REDIRECTS_FULL_WHY = `Your shop is full: it keeps up to ${MAX_REDIRECTS.toLocaleString("en")} old links, so this one wasn't added.`;
 
 /**
  * Redirects so the old shop's product links open the same book here once the press's address points at this shop.
@@ -378,21 +393,27 @@ export function importRedirects(existing: Redirect[], links: { oldPaths: string[
   const items = [...existing];
   const added: Redirect[] = [];
   const skipped: RedirectPlan["skipped"] = [];
+  let full = 0;
+  const index = redirectIndex(items);
+  const saved = new Map<string, string>(); // normalised old address → its destination exactly as saved
+  for (const r of items) { const f = normalizePath(r.from); if (!saved.has(f)) saved.set(f, r.to); }
   for (const { oldPaths, bookId } of links) {
     if (!bookId) continue;
     const to = `/books/${encodeURIComponent(bookId)}`;
     for (const path of oldPaths) {
       const from = normalizePath(path);
-      const had = items.find(r => normalizePath(r.from) === from);
-      if (had) { if (had.to !== to) skipped.push({ from, why: `It already leads to ${had.to}.` }); continue; }
-      if (items.length >= MAX_REDIRECTS) { skipped.push({ from, why: `The shop holds up to ${MAX_REDIRECTS} old links.` }); continue; }
-      const why = redirectProblem({ from, to }, items);
+      const had = saved.get(from);
+      if (had !== undefined) { if (had !== to) skipped.push({ from, why: `It already leads to ${had}.` }); continue; }
+      // New links fill the list in order (saved as pages of 500, plan 5.6) until it is full.
+      if (items.length >= MAX_REDIRECTS) { skipped.push({ from, why: REDIRECTS_FULL_WHY }); full += 1; continue; }
+      const why = redirectProblemIn({ from, to }, index);
       if (why) { skipped.push({ from, why }); continue; }
       const item = { from, to };
       items.push(item); added.push(item);
+      addToIndex(index, item); saved.set(from, to);
     }
   }
-  return { items, added, skipped };
+  return { items, added, skipped, full };
 }
 
 // ── Customers ─────────────────────────────────────────────────────

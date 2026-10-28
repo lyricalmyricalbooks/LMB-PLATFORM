@@ -10,14 +10,15 @@ const block = (name: string) => {
 describe("admin-only customer data rules", () => {
   it("customerNotes are admin-only with a bounded shape", () => {
     const b = block("customerNotes");
-    expect(b).toMatch(/allow read, delete: if isAdmin\(\);/);
+    expect(b).toMatch(/allow read: if isAdminReader\(\);/);
+    expect(b).toMatch(/allow delete: if isAdmin\(\);/);
     expect(b).toMatch(/allow create, update: if isAdmin\(\)/);
     expect(b).toMatch(/hasOnly\(\["email", "note", "tags", "updatedAt"\]\)/);
     expect(b).not.toMatch(/if true/);
   });
   it("the first-week checklist is admin-only with a bounded shape (plan 3.3)", () => {
     const b = block("firstWeek");
-    expect(b).toMatch(/allow read: if isAdmin\(\);/);
+    expect(b).toMatch(/allow read: if isAdminReader\(\);/);
     expect(b).toMatch(/hasOnly\(\["sellingToday", "publishes", "country", "plan", "done", "hiddenAt", "welcome", "progress", "createdAt", "updatedAt"\]\)/);
     // The sign-up answers are the platform's: the admin can add ticks, the welcome and progress, never change them.
     expect(b).toMatch(/request\.resource\.data\.get\("sellingToday", null\) == resource\.data\.get\("sellingToday", null\)/);
@@ -26,7 +27,7 @@ describe("admin-only customer data rules", () => {
   });
   it("marketing opt-outs are readable by the admin and never writable from a browser", () => {
     const b = block("marketing-optout");
-    expect(b).toMatch(/allow read: if isAdmin\(\);/);
+    expect(b).toMatch(/allow read: if isAdminReader\(\);/);
     expect(b).toMatch(/allow write: if false;/);
   });
 });
