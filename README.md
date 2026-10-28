@@ -22,6 +22,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `releases/` | Sends a new shop and stockroom version to every press, starting with a test shop. |
 | `control-room/` | Platform admin: every shop's health, plan and version, plus a logged "act as this shop" button. |
 | `services/payments/` | The one service that holds the Stripe platform key. It handles checkout and Stripe events for all shops. |
+| `services/billing/` | Each press's Colophon plan (shop, stockroom or both) on the platform's own Stripe account: free trial with no card, card, cancel, plan changes and the billing emails. |
 | `services/email/` | The one service that holds the email sender key. |
 | `signup/` | Sign-up, plan choice and billing. |
 | `waitlist/` | The public waitlist page. |
