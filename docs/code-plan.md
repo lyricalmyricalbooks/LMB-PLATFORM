@@ -84,7 +84,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | 1.23 | shop | A theme preset can hold section lists and starter pages, not only colours and fonts. Offered after the look, never applied with it; pages are added as drafts only when missing (`studio/presetContent.ts`) | preset tests (`presetContent.test.ts`); Studio check | done |
 | 1.24 | shop | Check: a theme file only uses settings that have a Studio control (`studio/themeCheck.ts`, run on every theme-library entry; found and fixed the hero's Height) | the check (`themeCheck.test.ts`) | done |
 | 1.25 | shop | Check: every section and book page block draws under every theme and stays readable. Apply now writes the palette's full colour set (`studio/themeLook.ts`); faint words have a readable floor; four looks fixed | the check (`themeReadability.test.tsx`) | done |
-| 1.26 | shop | Theme wave 1: Riso, Broadsheet, Imprint; admin themes Riso Press and Paper (all admin colours in one file) | theme checks | |
+| 1.26 | shop | Theme wave 1: Riso, Broadsheet, Imprint; admin themes Riso Press and Paper (all admin colours in one file). Riso (Paper and Noir) was already in; Broadsheet and Imprint added with palettes and homepage layouts; every admin colour is a token in `riso/adminThemes.css`, Paper chosen in the avatar menu | theme checks (`themeCheck`, `themeReadability.test.tsx`, `riso/adminThemes.test.ts`) | done |
 | 1.27 | shop | Studio opens in Essentials; everything else under All settings; five-item admin menu | Studio checks | |
 
 ### 1G. The setup script and the test shop
