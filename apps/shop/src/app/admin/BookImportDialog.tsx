@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
 import { importTemplateCsv, IMPORT_COLUMNS, type ImportPlan, type ImportRow } from "./catalogImport";
-import { planShopMove, SHAPE_WORDS, type ProductMove } from "./shopMove";
+import { importRedirects, planShopMove, SHAPE_WORDS, type ProductMove } from "./shopMove";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { Dialog, PrimaryButton, SecondaryButton, SelectField, StatusBadge, type BadgeTone } from "./riso/components";
 import { normalizeCategories } from "../features/site/navItems";
@@ -11,6 +11,7 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const SHOWN_ROWS = 150;
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
+type LinkResult = { added: number; skipped: number; failed: boolean };
 
 const ACTION: Record<ImportRow["action"], { tone: BadgeTone; text: string }> = {
   create: { tone: "info", text: "New book (draft)" },
@@ -37,6 +38,8 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   // Set when the file is an export from another shop (plan 3.1): it was read and translated first.
   const [moved, setMoved] = useState<ProductMove | null>(null);
+  const [oldPaths, setOldPaths] = useState<Map<number, string[]>>(new Map());
+  const [links, setLinks] = useState<LinkResult | null>(null);
   const [readError, setReadError] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -49,12 +52,12 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
   const replan = (src: typeof source, mode: "leave" | "set") => {
     if (!src) return;
     const next = planShopMove(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles, linkedBookIds: src.linkedBookIds });
-    setPlan(next.plan); setMoved(next.moved);
+    setPlan(next.plan); setMoved(next.moved); setOldPaths(next.oldPaths);
   };
 
   async function choose(file: File | undefined) {
     if (!file) return;
-    setReadError(""); setPlan(null); setMoved(null); setResults(null); setFileName(file.name);
+    setReadError(""); setPlan(null); setMoved(null); setOldPaths(new Map()); setLinks(null); setResults(null); setFileName(file.name);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and import them one at a time."); return; }
     try {
       const [text, settings, profiles, links] = await Promise.all([file.text(), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => []), inventoryLinkApi.links().catch(() => ({}))]);
@@ -75,21 +78,39 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
     const byId = new Map(books.map(b => [b.id, b]));
     const done: Result[] = [];
     const created: string[] = [];
+    // Plan 3.2: each saved book's old shop addresses, so old product links keep working.
+    const linked: { oldPaths: string[]; bookId: string }[] = [];
     // One at a time: a catalog of a few hundred books imports in seconds, and a failure stops nothing else.
     for (const row of work) {
       try {
         if (row.action === "create") {
           const saved = await adminApi.createBook(row.patch);
           created.push(saved.id);
+          if (oldPaths.has(row.line)) linked.push({ oldPaths: oldPaths.get(row.line)!, bookId: saved.id });
         } else {
           const loaded = byId.get(row.bookId);
           await adminApi.updateBook(row.bookId!, { title: loaded?.title, ...row.patch }, loaded);
+          if (oldPaths.has(row.line)) linked.push({ oldPaths: oldPaths.get(row.line)!, bookId: row.bookId! });
         }
         done.push({ line: row.line, title: row.title, ok: true });
       } catch (err: any) {
         done.push({ line: row.line, title: row.title, ok: false, message: err?.message || "Not saved" });
       }
       setProgress(done.length);
+    }
+    // Books that were already up to date still get their old links.
+    for (const row of plan?.rows || []) if (row.action === "unchanged" && row.bookId && oldPaths.has(row.line)) linked.push({ oldPaths: oldPaths.get(row.line)!, bookId: row.bookId });
+    if (linked.length) {
+      try {
+        const next = importRedirects(await adminApi.getRedirects(), linked);
+        if (next.added.length) {
+          await adminApi.saveRedirects(next.items);
+          await adminApi.recordAuditLog("catalog", `Old shop links: ${next.added.length} now lead to the imported books`).catch(() => {});
+        }
+        setLinks({ added: next.added.length, skipped: next.skipped.length, failed: false });
+      } catch {
+        setLinks({ added: 0, skipped: 0, failed: true });
+      }
     }
     setResults(done);
     setBusy(false);
@@ -155,6 +176,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
                 <option value="set">Set stock to the file's numbers</option>
               </SelectField>
               {moved && <p className="rp-hint" style={{ margin: 0 }}>Read as {SHAPE_WORDS[moved.shape]}: {moved.books.length} product{moved.books.length === 1 ? "" : "s"}. Line numbers are the old file's.</p>}
+              {moved && oldPaths.size > 0 && <p className="rp-hint" style={{ margin: 0 }}>Links to these books on your old shop will open them here once your address points at this shop. They are added to Settings › General › URL redirects.</p>}
               {moved && moved.notices.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{n}</p>)}
               {!moved && plan.ignoredColumns.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Ignored columns: {plan.ignoredColumns.join(", ")}.</p>}
               <ol aria-label="Import preview" style={{ margin: 0, padding: 0, listStyle: "none", maxHeight: 380, overflow: "auto", borderTop: "1px solid var(--rp-border)" }}>
@@ -187,6 +209,11 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
           {failed.length > 0 && <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             {failed.map(r => <li key={r.line}>Line {r.line} · {r.title}: {r.message}. Import the file again to retry; rows already saved show as unchanged.</li>)}
           </ul>}
+          {links && <p className="rp-hint" style={{ margin: 0 }}>
+            {links.failed
+              ? "The old shop links couldn't be saved. Import the same file again to retry; books already saved show as unchanged."
+              : `${links.added} old shop link${links.added === 1 ? " now leads" : "s now lead"} to ${links.added === 1 ? "its book" : "their books"} (Settings › General › URL redirects).${links.skipped ? ` ${links.skipped} already led somewhere else and ${links.skipped === 1 ? "was" : "were"} left as ${links.skipped === 1 ? "it was" : "they were"}.` : ""}`}
+          </p>}
           {(plan?.counts.create || 0) > 0 && <p className="rp-hint" style={{ margin: 0 }}>New books are drafts and are now selected in the catalog. Choose <strong>Publish</strong> to review and put them on sale.</p>}
         </div>}
       </div>

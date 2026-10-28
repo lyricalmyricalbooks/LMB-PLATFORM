@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { findRedirect, MAX_REDIRECTS } from "../features/site/redirects";
 import {
-  htmlToDescription, MOVED_MARK, movedBooksCsv, newsletterJoiners, planCustomerNotes, planShopMove, readCustomerExport,
+  htmlToDescription, importRedirects, MOVED_MARK, movedBooksCsv, newsletterJoiners, planCustomerNotes, planShopMove, readCustomerExport,
   readProductExport, recognizeExport, SHAPE_WORDS,
 } from "./shopMove";
 
@@ -141,6 +142,41 @@ describe("planShopMove", () => {
     const { plan, moved } = planShopMove("Title,Price\nA book,12\n", []);
     expect(moved).toBeNull();
     expect(plan.counts.create).toBe(1);
+  });
+});
+
+describe("old shop links (plan 3.2)", () => {
+  it("each imported book's old addresses lead to its page by id, which survives a title change", () => {
+    const { oldPaths } = planShopMove(HANDLE_ROWS, []);
+    const { items, added, skipped } = importRedirects([], [{ oldPaths: oldPaths.get(2)!, bookId: "abc123" }]);
+    expect(added).toEqual([{ from: "/products/moth-songs", to: "/books/abc123" }]);
+    expect(items).toEqual(added);
+    expect(skipped).toEqual([]);
+    expect(findRedirect(items, "/products/Moth-Songs/?variant=1")).toBe("/books/abc123");
+  });
+
+  it("keeps the owner's own redirects, and a second import adds nothing", () => {
+    const mine = [{ from: "/products/moth-songs", to: "/page/moths" }];
+    const first = importRedirects(mine, [{ oldPaths: ["/products/moth-songs", "/products/salt"], bookId: "b1" }]);
+    expect(first.items[0]).toEqual(mine[0]);
+    expect(first.added).toEqual([{ from: "/products/salt", to: "/books/b1" }]);
+    expect(first.skipped).toEqual([{ from: "/products/moth-songs", why: "It already leads to /page/moths." }]);
+    const again = importRedirects(first.items, [{ oldPaths: ["/products/salt"], bookId: "b1" }]);
+    expect(again.added).toEqual([]);
+    expect(again.skipped).toEqual([]);
+  });
+
+  it("both of a product page's possible addresses are covered, and the shop's own routes are never claimed", () => {
+    const { oldPaths } = planShopMove(PRODUCT_ID_ROWS, []);
+    expect(importRedirects([], [{ oldPaths: oldPaths.get(2)!, bookId: "t" }]).added.map(r => r.from)).toEqual(["/shop/p/tide-tables", "/shop/tide-tables"]);
+    expect(importRedirects([], [{ oldPaths: ["/checkout/x"], bookId: "t" }]).skipped).toHaveLength(1);
+  });
+
+  it("stops at the redirect list's limit instead of failing the save", () => {
+    const full = Array.from({ length: MAX_REDIRECTS }, (_, i) => ({ from: `/old/${i}`, to: "/" + i }));
+    const next = importRedirects(full, [{ oldPaths: ["/products/one-more"], bookId: "b" }]);
+    expect(next.added).toEqual([]);
+    expect(next.skipped[0].why).toContain(String(MAX_REDIRECTS));
   });
 });
 
