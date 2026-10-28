@@ -240,12 +240,29 @@ export const TEMPLATES = {
     });
   },
 
-  /** The press changed plan. */
-  "plan-changed": ({ planName, price, link }, { settings, pressName }) => layout({
+  /**
+   * The press changed plan. `prorated`: the new plan costs more and opens an app now, so the next bill is adjusted.
+   * `closing`, `date`, `now`: an app the new plan drops ("the stockroom"), closing at the end of the paid month or, in
+   * the trial, at once; its download is kept 90 days (code plan 6.11).
+   */
+  "plan-changed": ({ planName, price, link, prorated = true, closing, date, now }, { settings, pressName }) => layout({
     subject: `${pressName} is now on the ${planName} plan`,
     greeting: "Hello,",
-    paragraphs: [`${pressName} is now on the ${planName} plan, ${price} a month. Your next bill is adjusted for the part of the month on each plan.`],
+    paragraphs: [
+      `${pressName} is now on the ${planName} plan, ${price} a month.${prorated ? " Your next bill is adjusted for the part of the month on each plan." : ""}`,
+      closing ? (now ? `Your plan no longer has ${closing}, so it is closed now.` : `Your plan no longer has ${closing}. It stays open until ${date}, the end of the month you've paid for, then closes.`) : "",
+      closing ? "You can download everything in it for 90 days after it closes. Change plan again before then to keep it." : "",
+    ].filter(Boolean),
     buttons: [["See your plan", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** The card on file runs out within a month (code plan 6.12). Sent once per card. `data`: { card, month, date, link }. */
+  "card-expiring": ({ card, date, month, link }, { settings, pressName }) => layout({
+    subject: `Your card for ${pressName} runs out soon`,
+    greeting: "Hello,",
+    paragraphs: [`The ${card || "card"} you pay for ${pressName} with runs out ${month ? `at the end of ${month}` : `on ${date}`}.`, "Add your new card before then so your shop stays open without a break."],
+    buttons: [["Update your card", safeLink(link)]],
     footer: signOff(settings),
   }),
 

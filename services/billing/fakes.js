@@ -1,5 +1,6 @@
 // In-memory stand-ins for billing's tests: its stores, and a pretend Stripe Billing behind `fetch` (products, prices,
-// customers, subscriptions with trials that pause without a card, setup-mode Checkout, invoices). Nothing reaches Stripe.
+// customers, subscriptions with trials that pause without a card, setup-mode Checkout, cards, invoices with PDFs, plan
+// change previews and Stripe Tax's switches). Nothing reaches Stripe.
 import { formPairs } from "../payments/fakes.js";
 
 export function fakeBillingStores() {
@@ -33,7 +34,8 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
   const requests = [];
   const byKey = new Map();
   let next = 1;
-  const world = { products: new Map(), prices: new Map(), customers: new Map(), subscriptions: new Map(), sessions: new Map(), setupIntents: new Map(), invoices: new Map() };
+  const world = { products: new Map(), prices: new Map(), customers: new Map(), subscriptions: new Map(), sessions: new Map(), setupIntents: new Map(), invoices: new Map(), paymentMethods: new Map() };
+  const MONTH = 30 * 86400;
   const missing = (what) => ({ status: 404, body: { error: { type: "invalid_request_error", code: "resource_missing", message: `No such ${what}` } } });
   const ok = (body) => ({ status: 200, body: structuredClone(body) });
   const subBody = (sub) => ({ ...sub, items: { data: [{ id: sub.itemId, price: { id: sub.price }, current_period_end: sub.periodEnd }] } });
@@ -51,8 +53,17 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       return ok(world.products.get(p.id));
     }
     if (method === "POST" && path === "/v1/prices") {
-      const price = { id: `price_${next++}`, product: p.product, unit_amount: Number(p.unit_amount), currency: p.currency, lookup_key: p.lookup_key, active: true, interval: p["recurring[interval]"] };
+      const price = { id: `price_${next++}`, product: p.product, unit_amount: Number(p.unit_amount), currency: p.currency, lookup_key: p.lookup_key, active: true, interval: p["recurring[interval]"], tax_behavior: p.tax_behavior ?? "unspecified" };
       world.prices.set(price.id, price);
+      return ok(price);
+    }
+    if ((m = path.match(/^\/v1\/prices\/(price_\w+)$/)) && method === "POST") {
+      const price = world.prices.get(m[1]);
+      if (!price) return missing("price");
+      if (p.tax_behavior) {
+        if (price.tax_behavior !== "unspecified") return { status: 400, body: { error: { type: "invalid_request_error", message: "tax_behavior can only be set once" } } };
+        price.tax_behavior = p.tax_behavior;
+      }
       return ok(price);
     }
     if (method === "POST" && path === "/v1/customers") {
@@ -64,6 +75,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       const customer = world.customers.get(m[1]);
       if (!customer) return missing("customer");
       customer.defaultCard = p["invoice_settings[default_payment_method]"];
+      if (p["address[country]"]) customer.address = { country: p["address[country]"], postal_code: p["address[postal_code]"] ?? null };
       return ok(customer);
     }
     if (method === "POST" && path === "/v1/subscriptions") {
@@ -101,6 +113,11 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
           sub.price = p["items[0][price]"];
         }
         if (p["metadata[lmb_plan]"]) sub.metadata.lmb_plan = p["metadata[lmb_plan]"];
+        if (p["automatic_tax[enabled]"]) {
+          // Like Stripe: Stripe Tax needs to know where the customer is.
+          if (!world.customers.get(sub.customer)?.address?.country) return { status: 400, body: { error: { type: "invalid_request_error", code: "customer_tax_location_invalid", message: "no address" } } };
+          sub.automatic_tax = { enabled: p["automatic_tax[enabled]"] === "true" };
+        }
       }
       return ok(subBody(sub));
     }
@@ -113,6 +130,28 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       return ok(session);
     }
     if ((m = path.match(/^\/v1\/setup_intents\/(seti_\w+)$/))) return world.setupIntents.has(m[1]) ? ok(world.setupIntents.get(m[1])) : missing("setup_intent");
+    if ((m = path.match(/^\/v1\/payment_methods\/(pm_\w+)$/)) && method === "GET") {
+      return ok(world.paymentMethods.get(m[1]) ?? { id: m[1], type: "card", card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2030 }, billing_details: { address: { country: "CA", postal_code: "M5V 2T6" } } });
+    }
+    if (method === "GET" && path === "/v1/invoices") {
+      const list = [...world.invoices.values()].filter((invoice) => invoice.subscription === p.subscription).sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
+      return ok({ object: "list", data: list.slice(0, Number(p.limit ?? 10)) });
+    }
+    if (method === "POST" && path === "/v1/invoices/create_preview") {
+      // The prorated part of a move: the rest of the month at the new price, less the rest at the old one.
+      const sub = world.subscriptions.get(p.subscription);
+      if (!sub) return missing("subscription");
+      const from = world.prices.get(sub.price);
+      const to = world.prices.get(p["subscription_details[items][0][price]"]);
+      if (!from || !to) return missing("price");
+      const left = Math.max(0, sub.periodEnd - Number(p["subscription_details[proration_date]"] ?? clock())) / MONTH;
+      const lines = [
+        { amount: -Math.round(from.unit_amount * left), proration: true },
+        { amount: Math.round(to.unit_amount * left), proration: true },
+        { amount: to.unit_amount, proration: false },
+      ];
+      return ok({ object: "invoice", currency: to.currency, lines: { data: lines }, amount_due: lines.reduce((sum, line) => sum + line.amount, 0) });
+    }
     if ((m = path.match(/^\/v1\/invoices\/(in_\w+)\/pay$/))) {
       const invoice = world.invoices.get(m[1]);
       if (!invoice) return missing("invoice");
@@ -152,5 +191,23 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
     return structuredClone(session);
   };
   const subscription = (id) => subBody(world.subscriptions.get(id));
-  return { fetch, requests, world, endTrial, completeSetup, subscription };
+  /** A month is paid: the trial (if any) is over and the subscription is active for the next 30 days. */
+  const payMonth = (id) => {
+    const sub = world.subscriptions.get(id);
+    sub.status = "active";
+    sub.trial_end = null;
+    sub.periodEnd = clock() + MONTH;
+    return subBody(sub);
+  };
+  /** An invoice Stripe made for a subscription, with its PDF and page. */
+  const addInvoice = (subscriptionId, fields = {}) => {
+    const id = `in_${next++}`;
+    const invoice = {
+      id, object: "invoice", subscription: subscriptionId, number: `COL-${String(next).padStart(4, "0")}`, status: "paid", currency: "cad", total: 3900, tax: 0, created: clock(),
+      invoice_pdf: `https://pay.stripe.example/invoice/${id}/pdf`, hosted_invoice_url: `https://invoice.stripe.example/${id}`, ...fields,
+    };
+    world.invoices.set(id, invoice);
+    return invoice;
+  };
+  return { fetch, requests, world, endTrial, completeSetup, subscription, payMonth, addInvoice };
 }

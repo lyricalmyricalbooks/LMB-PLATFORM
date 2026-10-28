@@ -8,7 +8,15 @@
 // - cardLink: a Stripe Checkout page in setup mode to add or change the card. When it completes, the card becomes the
 //   default for the customer and the subscription, and a paused subscription resumes.
 // - cancel / keep: cancel at the end of the period already paid for (or the trial), and undo that.
-// - changePlan: move a shop to another plan, prorated.
+// - changePlan: move a shop to another plan (code plan 6.11). A plan that opens a new app is prorated at once; a plan
+//   that drops an app keeps it open to the end of the month already paid for, then closes it (its download is kept 90
+//   days); during the trial, or while nothing is paid, the change takes effect at once. `changePlan({ preview: true })`
+//   says what would change and the prorated amount, changing nothing.
+// - invoices: the plan's invoices with Stripe's own PDF links (6.12).
+// - closeDroppedApps / cardExpiryReminders: daily sweeps. The first closes an app a plan dropped once its paid month
+//   ends; the second emails a month before the card on file runs out, once per card (6.12).
+// - tax: with `tax` on (BILLING_TAX, read in index.js), prices are "plus tax" and Stripe Tax adds the tax from the
+//   first charge after a card (and so an address) is on file (6.12). Off by default.
 // - handleEvent: Stripe's events for the platform account, checked by signature, each handled once. They keep the
 //   shop's billing state in step and send the emails: trial ending, card needed, payment failed, cancelled, ended.
 //
@@ -26,8 +34,10 @@
 //   registry        getShop(shopId) -> row | null; updateShop(shopId, fields); recordEvent(shopId, entry)
 //   auditLog        ready(shopId); write(shopId, id, entry)
 //   email           sendPlatform({ kind, to, data, idempotencyKey, shopId }) (services/email)
+//   closeApp        optional: closeApp({ shopId, app, closedAt, downloadUntil }), takes a dropped app's pages down. The
+//                   registry row's `closedApps` is written either way and is what the shop maker reads.
 import { verifySignature } from "../payments/stripeSignature.js";
-import { isPlan, planPrice } from "./plans.js";
+import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
 
 /** What each Stripe subscription status means for the shop: open, paused (a card fixes it) or closed. */
 export const ACCESS = Object.freeze({
@@ -43,6 +53,16 @@ export const ACCESS = Object.freeze({
 });
 
 const ENDED = new Set(["canceled", "incomplete_expired"]);
+// Statuses with a month already paid for: a plan that drops an app keeps it open to the end of that month.
+const PAID = new Set(["active", "past_due"]);
+const DAY = 86400_000;
+/** How long the download of a closed app is kept (code plan 6.11, the same 90 days as a closed shop). */
+export const DOWNLOAD_DAYS = 90;
+/** How long before a card runs out the press is told (code plan 6.12). */
+export const CARD_WARNING_DAYS = 30;
+/** The apps, in words, for the page and the emails. */
+export const APP_NAMES = Object.freeze({ shop: "the shop", stockroom: "the stockroom" });
+const APPS = Object.keys(APP_NAMES);
 const iso = (seconds) => (Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toISOString() : null);
 
 /** A date the way the emails say it: "14 November 2026", Toronto time. */
@@ -70,6 +90,20 @@ export function fromSubscription(sub) {
   };
 }
 
+/** The plan that opens exactly these apps (the registry's `plan` says what is open). */
+export function planOpening(apps) {
+  return PLAN_IDS.find((plan) => APPS.every((app) => PLAN_APPS[plan][app] === apps.includes(app))) ?? null;
+}
+
+/** The last moment a card works: the end of its expiry month, in UTC. */
+export function cardEnds({ expMonth, expYear }) {
+  if (!Number.isInteger(expMonth) || !Number.isInteger(expYear)) return null;
+  return new Date(Date.UTC(expYear, expMonth, 1) - 1).toISOString();
+}
+
+const moneyText = (cents, currency) =>
+  new Intl.NumberFormat("en-CA", { style: "currency", currency: currency.toUpperCase(), currencyDisplay: "narrowSymbol" }).format(cents / 100);
+
 export class BillingError extends Error {
   constructor(status, message) {
     super(message);
@@ -77,7 +111,7 @@ export class BillingError extends Error {
   }
 }
 
-export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], now = () => Date.now() }) {
+export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, now = () => Date.now() }) {
   if (mode !== "test" && mode !== "live") throw new Error('billing mode must be "test" or "live"');
   const at = () => new Date(now()).toISOString();
   const call = (method, path, options) => stripe.call(mode, method, path, options);
@@ -98,7 +132,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     await subscriptions.set(shopId, row);
     if (await registry.getShop(shopId)) {
       const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
-      await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, updatedAt: row.updatedAt } });
+      await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing: row.appsClosing ?? null, updatedAt: row.updatedAt } });
     }
     if (what) await logChange(shopId, what, { status: row.status, plan: row.plan, access: row.access });
     return row;
@@ -116,6 +150,10 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     if (priceIds.has(price.lookupKey)) return priceIds.get(price.lookupKey);
     const found = await call("GET", "/v1/prices", { params: { lookup_keys: [price.lookupKey], active: true, limit: 1 } });
     let id = found?.data?.[0]?.id;
+    // "Plus tax": a price made before tax was turned on says so once (Stripe lets an unset tax behaviour be set once).
+    if (id && tax && (found.data[0].tax_behavior ?? "unspecified") === "unspecified") {
+      await call("POST", `/v1/prices/${id}`, { params: { tax_behavior: "exclusive" } });
+    }
     if (!id) {
       try {
         await call("GET", `/v1/products/${price.productId}`);
@@ -127,7 +165,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         });
       }
       const made = await call("POST", "/v1/prices", {
-        params: { product: price.productId, currency: price.currency, unit_amount: price.amount, recurring: { interval: "month" }, lookup_key: price.lookupKey, nickname: `${price.name} monthly`, metadata: { lmb_plan: plan } },
+        params: { product: price.productId, currency: price.currency, unit_amount: price.amount, recurring: { interval: "month" }, lookup_key: price.lookupKey, nickname: `${price.name} monthly`, metadata: { lmb_plan: plan }, ...(tax ? { tax_behavior: "exclusive" } : {}) },
         idempotencyKey: `price-${price.lookupKey}`,
       });
       id = made.id;
@@ -166,6 +204,56 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const fields = fromSubscription(sub);
     if (!fields.plan) delete fields.plan;
     return save(shopId, fields, what);
+  }
+
+  /** What a move to `plan` would do: the apps it adds and closes, when, and whether it is prorated. */
+  function planMove(row, plan) {
+    const open = APPS.filter((app) => PLAN_APPS[row.plan]?.[app] || row.appsClosing?.apps?.includes(app));
+    const wanted = APPS.filter((app) => PLAN_APPS[plan][app]);
+    const adds = wanted.filter((app) => !open.includes(app));
+    const closes = open.filter((app) => !PLAN_APPS[plan][app]);
+    // A trial, or a plan with nothing paid (paused, waiting for a first payment): the change takes effect at once.
+    const immediate = !PAID.has(row.status);
+    const closesAt = closes.length ? (immediate ? at() : row.currentPeriodEnd) : null;
+    const price = planPrice(plan, settings);
+    const higher = row.plan ? price.amount > planPrice(row.plan, settings).amount : false;
+    return {
+      plan, planName: price.name, price: price.priceText, from: row.plan, adds, closes, immediate, closesAt,
+      downloadUntil: closesAt ? new Date(Date.parse(closesAt) + DOWNLOAD_DAYS * DAY).toISOString() : null,
+      prorate: !immediate && adds.length > 0 && higher,
+      // Until a dropped app closes, the shop keeps it: the registry's plan says what is open.
+      openPlan: planOpening(immediate ? wanted : [...new Set([...wanted, ...closes])]),
+    };
+  }
+
+  /** What Stripe would charge now for moving to `plan`: the prorated lines of a preview invoice. */
+  async function prorated(row, plan) {
+    const preview = await call("POST", "/v1/invoices/create_preview", {
+      params: {
+        customer: row.customerId,
+        subscription: row.subscriptionId,
+        subscription_details: { items: [{ id: row.itemId, price: await ensurePrice(plan) }], proration_behavior: "create_prorations", proration_date: Math.floor(now() / 1000) },
+      },
+    });
+    const lines = preview?.lines?.data ?? [];
+    const amount = lines.filter((line) => line.proration || line.parent?.subscription_item_details?.proration).reduce((sum, line) => sum + (line.amount ?? 0), 0);
+    return { amount, text: moneyText(Math.max(0, amount), preview?.currency ?? settings.currency) };
+  }
+
+  /** Closes apps a plan dropped: recorded on the billing row, the registry and the logs; the pages taken down. */
+  async function closeApps(shopId, apps) {
+    const row = await subscriptions.get(shopId);
+    const closedApps = { ...(row?.closedApps ?? {}) };
+    const closedAt = at();
+    const downloadUntil = new Date(now() + DOWNLOAD_DAYS * DAY).toISOString();
+    for (const app of apps) {
+      if (closedApps[app]) continue;
+      closedApps[app] = { closedAt, downloadUntil };
+      if (closeApp) await closeApp({ shopId, app, closedAt, downloadUntil });
+    }
+    const saved = await save(shopId, { appsClosing: null, closedApps }, null);
+    await logChange(shopId, "app-closed", { apps, downloadUntil });
+    return saved;
   }
 
   return {
@@ -247,34 +335,110 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     },
 
     /**
-     * Moves the shop to another plan, prorated. The registry row's `plan` changes too, so the next run of the shop
-     * maker adds the app the new plan brings (an app the plan drops is left in place, with its data).
+     * Moves the shop to another plan (code plan 6.11). A plan that opens an app the shop doesn't have yet, for more
+     * money, is prorated at once. A plan that drops an app keeps it open to the end of the month already paid for and
+     * then closes it (closeDroppedApps), with its download kept 90 days; the new price starts with the next month.
+     * During the trial, or while nothing is paid, the change takes effect at once. The registry row's `plan` says what
+     * is open, so the next run of the shop maker adds the app the new plan brings.
+     *
+     * `preview: true` changes nothing and answers what would change: the apps added and closed, when, and the
+     * prorated amount Stripe would charge now.
      */
-    async changePlan({ shopId, plan }) {
+    async changePlan({ shopId, plan, preview = false }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       const row = await rowFor(shopId);
       if (ENDED.has(row.status)) throw new BillingError(409, "This plan has ended; start a new one instead.");
+      const move = planMove(row, plan);
+      if (preview) return { ...move, prorated: move.prorate ? await prorated(row, plan) : null };
       if (row.plan === plan) return { ...row, changed: false };
       const changes = (row.planChanges ?? 0) + 1;
       const sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, {
-        params: { items: [{ id: row.itemId, price: await ensurePrice(plan) }], proration_behavior: "create_prorations", metadata: { lmb_plan: plan } },
+        params: {
+          items: [{ id: row.itemId, price: await ensurePrice(plan) }],
+          proration_behavior: move.prorate ? "create_prorations" : "none",
+          metadata: { lmb_plan: plan },
+          ...(tax && row.hasCard ? { automatic_tax: { enabled: true } } : {}),
+        },
         idempotencyKey: `plan-${shopId}-${changes}-${plan}`,
       });
-      const saved = await save(shopId, { ...fromSubscription(sub), plan, planChanges: changes }, "plan-changed");
-      if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan });
-      await notify(shopId, "plan-changed", {}, `${shopId}/plan/${changes}`);
+      const closedApps = { ...(row.closedApps ?? {}) };
+      for (const app of move.adds) delete closedApps[app];
+      const appsClosing = move.closes.length && !move.immediate ? { apps: move.closes, at: move.closesAt, downloadUntil: move.downloadUntil } : null;
+      let saved = await save(shopId, { ...fromSubscription(sub), plan, planChanges: changes, appsClosing, closedApps }, "plan-changed");
+      if (move.immediate && move.closes.length) saved = await closeApps(shopId, move.closes);
+      if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan: move.openPlan, closedApps: saved.closedApps ?? {} });
+      const closing = move.closes.length ? { closing: move.closes.map((app) => APP_NAMES[app]).join(" and "), date: dateText(move.closesAt), now: move.immediate } : {};
+      await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing }, `${shopId}/plan/${changes}`);
       return { ...saved, changed: true };
     },
 
-    /** The shop's plan as the account page shows it. */
+    /** The plan's invoices, newest first, each with Stripe's own PDF and page (code plan 6.12). */
+    async invoices(shopId) {
+      const row = await subscriptions.get(shopId);
+      if (!row?.subscriptionId) return [];
+      const list = await call("GET", "/v1/invoices", { params: { subscription: row.subscriptionId, limit: 24 } });
+      return (list?.data ?? [])
+        .filter((invoice) => invoice.status !== "draft")
+        .map((invoice) => ({
+          id: invoice.id,
+          number: invoice.number ?? "",
+          date: iso(invoice.created),
+          amount: moneyText(invoice.total ?? invoice.amount_due ?? 0, invoice.currency ?? settings.currency),
+          tax: invoice.tax ? moneyText(invoice.tax, invoice.currency ?? settings.currency) : "",
+          status: invoice.status,
+          pdfUrl: httpsOrNull(invoice.invoice_pdf),
+          pageUrl: httpsOrNull(invoice.hosted_invoice_url),
+        }));
+    },
+
+    /** The shop's plan as the Plan & billing page shows it. */
     async status(shopId) {
       const row = await subscriptions.get(shopId);
       if (!row) return null;
       const price = row.plan ? planPrice(row.plan, settings) : null;
+      const ended = ENDED.has(row.status);
+      const trialDaysLeft = row.status === "trialing" && row.trialEnd ? Math.max(0, Math.ceil((Date.parse(row.trialEnd) - now()) / DAY)) : null;
+      const nextPaymentAt = ended || row.cancelAtPeriodEnd || !row.hasCard ? null : row.status === "trialing" ? row.trialEnd : PAID.has(row.status) ? row.currentPeriodEnd : null;
       return {
-        plan: row.plan, planName: price?.name ?? "", price: price?.priceText ?? "", status: row.status, access: row.access,
-        trialEnd: row.trialEnd, currentPeriodEnd: row.currentPeriodEnd, cancelAtPeriodEnd: row.cancelAtPeriodEnd, hasCard: row.hasCard,
+        plan: row.plan, planName: price?.name ?? "", price: price?.priceText ?? "", plusTax: tax, status: row.status, access: row.access,
+        trialEnd: row.trialEnd, trialDaysLeft, currentPeriodEnd: row.currentPeriodEnd, nextPaymentAt, cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+        hasCard: row.hasCard, card: row.hasCard && row.card ? { brand: row.card.brand, last4: row.card.last4, expMonth: row.card.expMonth, expYear: row.card.expYear, words: cardWords(row.card) } : null,
+        appsClosing: row.appsClosing ?? null, closedApps: row.closedApps ?? {},
+        plans: PLAN_IDS.map((id) => { const p = planPrice(id, settings); return { plan: id, name: p.name, price: p.priceText, apps: APPS.filter((app) => PLAN_APPS[id][app]) }; }),
       };
+    },
+
+    /**
+     * The daily sweep for 6.11: an app a plan dropped closes once the month already paid for ends. Safe to repeat: a
+     * closed app is not closed again.
+     */
+    async closeDroppedApps() {
+      const closed = [];
+      for (const row of await subscriptions.list()) {
+        if (!row.appsClosing?.apps?.length || Date.parse(row.appsClosing.at) > now()) continue;
+        const saved = await closeApps(row.shopId, row.appsClosing.apps);
+        if (await registry.getShop(row.shopId)) await registry.updateShop(row.shopId, { plan: row.plan, closedApps: saved.closedApps });
+        closed.push({ shopId: row.shopId, apps: row.appsClosing.apps });
+      }
+      return closed;
+    },
+
+    /**
+     * The daily sweep for 6.12: a month before the card on file runs out, the person who pays is emailed, once per
+     * card (a new card gets its own email when its time comes).
+     */
+    async cardExpiryReminders() {
+      const sent = [];
+      for (const row of await subscriptions.list()) {
+        if (ENDED.has(row.status) || row.cancelAtPeriodEnd || !row.hasCard || !row.card?.id) continue;
+        const ends = cardEnds(row.card);
+        if (!ends || Date.parse(ends) - now() > CARD_WARNING_DAYS * DAY || Date.parse(ends) < now()) continue;
+        if (row.cardWarned === row.card.id) continue;
+        await notify(row.shopId, "card-expiring", { card: cardWords(row.card), date: dateText(ends), month: new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(ends)) }, `${row.customerId}/card-expiring/${row.card.id}`);
+        await save(row.shopId, { cardWarned: row.card.id }, "card-expiring-sent");
+        sent.push(row.shopId);
+      }
+      return sent;
     },
 
     /**
@@ -346,8 +510,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const intent = await call("GET", `/v1/setup_intents/${intentId}`);
         const card = typeof intent.payment_method === "string" ? intent.payment_method : intent.payment_method?.id;
         if (!card) return "no card";
-        await call("POST", `/v1/customers/${row.customerId}`, { params: { invoice_settings: { default_payment_method: card } } });
-        let sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { default_payment_method: card } });
+        const method = await call("GET", `/v1/payment_methods/${card}`);
+        const address = method?.billing_details?.address;
+        // With tax on, the card's billing address is where Stripe Tax places the press, so it goes on the customer first.
+        const located = tax && address?.country;
+        await call("POST", `/v1/customers/${row.customerId}`, { params: { invoice_settings: { default_payment_method: card }, ...(located ? { address: plainAddress(address) } : {}) } });
+        let sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { default_payment_method: card, ...(located ? { automatic_tax: { enabled: true } } : {}) } });
         // A trial that ended without a card paused the plan: the card opens the shop again, billed from today.
         if (sub.status === "paused") sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}/resume`, { params: { billing_cycle_anchor: "now" }, idempotencyKey: `resume-${event.id}` });
         // A plan started again without a trial waits for its first payment: pay it with the new card.
@@ -356,6 +524,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           await call("POST", `/v1/invoices/${invoice}/pay`, { params: { payment_method: card }, idempotencyKey: `pay-${event.id}` });
           sub = await call("GET", `/v1/subscriptions/${row.subscriptionId}`);
         }
+        const details = method?.card ?? {};
+        await save(shopId, { card: { id: card, brand: details.brand ?? "card", last4: details.last4 ?? "", expMonth: details.exp_month ?? null, expYear: details.exp_year ?? null } }, null);
         await sync(shopId, sub, "card-added");
         return "card added";
       }
@@ -363,4 +533,19 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         return "not handled";
     }
   }
+}
+
+const httpsOrNull = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);
+
+/** The parts of a Stripe address the customer takes, without empty ones. */
+function plainAddress(address) {
+  return Object.fromEntries(["line1", "line2", "city", "state", "postal_code", "country"].filter((part) => address[part]).map((part) => [part, address[part]]));
+}
+
+const BRANDS = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover", jcb: "JCB", diners: "Diners Club", unionpay: "UnionPay" };
+
+/** "Visa ending 4242", for the page and the emails. */
+export function cardWords(card) {
+  const brand = BRANDS[card?.brand] ?? "Card";
+  return card?.last4 ? `${brand} ending ${card.last4}` : brand;
 }
