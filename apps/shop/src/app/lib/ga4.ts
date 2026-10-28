@@ -155,7 +155,7 @@ export function ga4PdpInteract(action: PdpAction, extra: Params = {}) {
 }
 
 /** The book page's tab ids, in the names the reports read. */
-export const pdpTabName = (id: string) => (id === "specs" ? "details" : id === "reviews" ? "reviews" : id === "policies" ? "shipping_returns" : id === "artist" ? "artist_bio" : "description");
+export const pdpTabName = (id: string) => (id === "specs" ? "details" : id === "reviews" ? "reviews" : id === "policies" ? "shipping_returns" : id === "artist" ? "artist_bio" : id === "size" ? "size_guide" : "description");
 
 /** A missing page was shown (call only once the shop data is fresh): once per address per session. */
 export function ga4PageNotFound() {

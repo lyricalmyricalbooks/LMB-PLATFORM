@@ -23,7 +23,7 @@ import { SectionPageContext } from "../../components/sectionCopy";
 import { useMissingRedirect } from "./useMissingRedirect";
 import { getCopy } from "./storeCopy";
 import { OptionPicker, variantBuyable } from "./OptionPicker";
-import { findVariant, picksPossible, productOptions, usesOptionPicker, variantPicks, type OptionPicks } from "../../../shared/productOptions";
+import { findVariant, isBookKind, picksPossible, productKind, productOptions, usesOptionPicker, variantPicks, type OptionPicks } from "../../../shared/productOptions";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
 import { comingSoonActive } from "./comingSoon";
 import { designNumber } from "./designNumber";
@@ -193,6 +193,7 @@ export default function BookDetail() {
   const ruledCls               = storefrontDesign.pdpRuledEveryLine === true ? " fm-pdp-desc-ruled" : "";
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
   const showPdpArtistBio       = storefrontDesign.showPdpArtistBio !== false;
+  const showPdpSizeGuide       = storefrontDesign.showPdpSizeGuide !== false;
 
   // Autonomy controls for book detail page
   const showAmbientGlow        = storefrontDesign.showAmbientGlow        ?? settings?.design?.showAmbientGlow        ?? true;
@@ -259,7 +260,7 @@ export default function BookDetail() {
   const productDescriptionStyle = storefrontDesign.productDescriptionStyle || settings?.design?.productDescriptionStyle || "plain";
 
   // Tab & Accordion states
-  const [detailsTab, setDetailsTab] = useState<"description" | "artist" | "specs" | "policies" | "reviews">("description");
+  const [detailsTab, setDetailsTab] = useState<"description" | "artist" | "size" | "specs" | "policies" | "reviews">("description");
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({
     description: true,
     specs: false,
@@ -728,7 +729,7 @@ export default function BookDetail() {
   const specRows = shownDetailRows(bk, (key) => getCopy(settings?.design, key), {
     showEditionFacts: storefrontDesign.showPdpEditionDetails !== false,
     edition: selectedVariant?.name,
-  }).map((r) => ({ ...r, icon: SPEC_ICONS[r.key] || <BookOpen size={11} /> }));
+  }).map((r) => ({ ...r, icon: SPEC_ICONS[r.key] || (isBookKind(productKind(bk)) ? <BookOpen size={11} /> : <Package size={11} />) }));
   // Books › edit › Search (SEO) › Artist links: the artist's own website, a normal followed link (Studio › Style ›
   // Book page · photos & layout › Show artist website links; label Text & labels › Product page › specArtistLinks).
   const artistLinks = storefrontDesign.showPdpArtistLinks !== false ? creatorLinks(bk) : [];
@@ -760,9 +761,13 @@ export default function BookDetail() {
   // Shipping & returns tab (off by default): the shop's own policies from Settings › General › Store policies.
   const policyEntries = showPdpPolicyTab && regionVisible(regionDesign, "productPolicies") ? pdpPolicyEntries(settings?.policies, book, selectedVariant) : [];
   const artistBio = showPdpArtistBio && regionVisible(regionDesign, "productArtistBio") && typeof bk.artistBio === "string" ? bk.artistBio.trim() : "";
-  const detailTabs: { id: "description" | "artist" | "specs" | "policies" | "reviews"; label: string }[] = orderTabs([
+  // Size guide tab (plan 10.3): the product's own size guide, written in the product editor, with its picture if chosen.
+  const sizeGuide = showPdpSizeGuide && regionVisible(regionDesign, "productSizeGuide") && typeof bk.sizeChart === "string" ? bk.sizeChart.trim() : "";
+  const sizeGuidePhoto = showPdpSizeGuide && regionVisible(regionDesign, "productSizeGuide") && typeof bk.sizeChartPhoto === "string" ? bk.sizeChartPhoto.trim() : "";
+  const detailTabs: { id: "description" | "artist" | "size" | "specs" | "policies" | "reviews"; label: string }[] = orderTabs([
     ...(regionVisible(regionDesign, "productDescription") ? [{ id: "description" as const, label: getCopy(settings?.design, "tabDescription") }] : []),
     ...(artistBio ? [{ id: "artist" as const, label: getCopy(settings?.design, "tabArtistBio") }] : []),
+    ...(sizeGuide || sizeGuidePhoto ? [{ id: "size" as const, label: getCopy(settings?.design, "tabSizeGuide") }] : []),
     ...(hasSpecs ? [{ id: "specs" as const, label: getCopy(settings?.design, productDetailsLayout === "accordions" ? "tabSpecs" : "tabDetails") }] : []),
     ...(policyEntries.length ? [{ id: "policies" as const, label: getCopy(settings?.design, "tabShippingReturns") }] : []),
     ...(regionVisible(regionDesign, "productReviews") ? [{ id: "reviews" as const, label: getCopy(settings?.design, "tabReviews") }] : []),
@@ -782,6 +787,11 @@ export default function BookDetail() {
       <div {...regionProps("productDescription")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}>{bk.description ? <DescriptionFold design={settings?.design} look={storefrontDesign} text={bk.description}><DescriptionText text={bk.description} /></DescriptionFold> : getCopy(settings?.design, "noDescription")}</div>
     ) : id === "artist" ? (
       <div {...regionProps("productArtistBio")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}><DescriptionText text={artistBio} /></div>
+    ) : id === "size" ? (
+      <div {...regionProps("productSizeGuide")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line flex flex-col gap-4`}>
+        {sizeGuide && <div><DescriptionText text={sizeGuide} /></div>}
+        {sizeGuidePhoto && <img loading="lazy" src={sizeGuidePhoto} alt={getCopy(settings?.design, "tabSizeGuide")} className="max-w-full h-auto" />}
+      </div>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : id === "policies" ? (
       <div {...regionProps("productPolicies")} className="fm-pdp-policies flex flex-col gap-5 text-left">
         {policyEntries.map((e) => (

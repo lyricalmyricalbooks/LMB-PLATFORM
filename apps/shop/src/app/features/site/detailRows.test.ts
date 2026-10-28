@@ -32,3 +32,22 @@ describe("book page detail rows", () => {
     expect(shownDetailRows(book, label, { edition: "Signed" })[0].value).toBe("Signed");
   });
 });
+
+describe("details for products that aren't books (plan 10.3)", () => {
+  const label = (key: string) => key;
+  it("keeps a book's rows exactly as before", () => {
+    const book = { format: "Paperback", isbn: "978", pageCount: 120, subtitle: "Zoe Moss", material: "paper" };
+    expect(editorDetailRows(book).map((r) => r.key)).toEqual(["specEdition", "specPages", "specPublisher", "specPublished", "specFormat", "specLanguage", "specDimensions", "specIsbn", "specWeight"]);
+    expect(shownDetailRows(book, label).map((r) => r.key)).toEqual(["specPages", "specFormat", "specIsbn"]);
+  });
+  it("shows a shirt's brand, material and care, never book rows or its size as an edition", () => {
+    const shirt = { kind: "clothing", subtitle: "North Label", material: "Cotton", care: "Wash cold", format: "Paperback", isbn: "978", weight: "200" };
+    expect(shownDetailRows(shirt, label, { edition: "M / Black" }).map((r) => [r.key, r.value])).toEqual([
+      ["specWeight", "200 g"], ["specBrand", "North Label"], ["specMaterial", "Cotton"], ["specCare", "Wash cold"],
+    ]);
+  });
+  it("drops saved book rows from a product that is no longer a book", () => {
+    const rows = editorDetailRows({ kind: "jewelry", detailRows: [{ key: "specIsbn", label: "Code" }, { key: "custom:1", label: "Stone", value: "Opal" }] });
+    expect(rows.map((r) => r.key)).toEqual(["custom:1", "specLanguage", "specDimensions", "specWeight", "specBrand", "specMaterial", "specCare"]);
+  });
+});

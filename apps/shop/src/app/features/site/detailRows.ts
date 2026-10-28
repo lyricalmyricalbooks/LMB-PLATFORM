@@ -6,22 +6,37 @@
 // No `detailRows` = the original order, then the older `extraDetails` rows.
 
 import { metricWeight } from "./metricWeight";
+import { isBookKind, productKind } from "../../../shared/productOptions";
 
 export type DetailRow = { key: string; label?: string; value?: string; hidden?: boolean };
 export type ShownRow = { key: string; label: string; value: string; builtin: boolean };
 
-/** Built-in rows in their original order; `edition` rows follow Studio's "Show edition details". */
-export const BUILTIN_DETAILS: { key: string; name: string; edition?: boolean }[] = [
-  { key: "specEdition", name: "Edition", edition: true },
-  { key: "specPages", name: "Pages", edition: true },
-  { key: "specPublisher", name: "Publisher", edition: true },
-  { key: "specPublished", name: "Publication date", edition: true },
-  { key: "specFormat", name: "Format" },
+/**
+ * Built-in rows in their original order; `edition` rows follow Studio's "Show edition details". `books` rows belong to
+ * books (plan 10.3) and `goods` rows to everything else (a shirt's brand, material and care), so a books shop's list is
+ * unchanged and a shirt never shows an ISBN or page count.
+ */
+export const BUILTIN_DETAILS: { key: string; name: string; edition?: boolean; books?: boolean; goods?: boolean }[] = [
+  { key: "specEdition", name: "Edition", edition: true, books: true },
+  { key: "specPages", name: "Pages", edition: true, books: true },
+  { key: "specPublisher", name: "Publisher", edition: true, books: true },
+  { key: "specPublished", name: "Publication date", edition: true, books: true },
+  { key: "specFormat", name: "Format", books: true },
   { key: "specLanguage", name: "Language" },
   { key: "specDimensions", name: "Dimensions" },
-  { key: "specIsbn", name: "ISBN" },
+  { key: "specIsbn", name: "ISBN", books: true },
   { key: "specWeight", name: "Weight" },
+  { key: "specBrand", name: "Brand or maker", goods: true },
+  { key: "specMaterial", name: "Material", goods: true },
+  { key: "specCare", name: "Care", goods: true },
 ];
+
+/** The built-in rows that fit this product's kind. */
+export function builtinDetailsFor(book: any) {
+  const books = isBookKind(productKind(book));
+  return BUILTIN_DETAILS.filter((b) => (books ? !b.goods : !b.books));
+}
+const fits = (book: any, key: string) => builtinDetailsFor(book).some((b) => b.key === key);
 const BUILTIN = new Set(BUILTIN_DETAILS.map((b) => b.key));
 export const isBuiltinDetail = (key: string) => BUILTIN.has(key);
 
@@ -40,6 +55,9 @@ export function builtinDetailValue(book: any, key: string, edition?: string): st
     case "specDimensions": return text(b.dimensions);
     case "specIsbn": return text(b.isbn);
     case "specWeight": return metricWeight(text(b.weight));
+    case "specBrand": return text(b.brand) || text(b.subtitle);
+    case "specMaterial": return text(b.material);
+    case "specCare": return text(b.care);
     default: return "";
   }
 }
@@ -53,13 +71,14 @@ function cleanRows(raw: unknown): DetailRow[] {
 /** The list the book editor shows: the saved list, plus any built-in row it doesn't mention yet. */
 export function editorDetailRows(book: any): DetailRow[] {
   const saved = cleanRows(book?.detailRows);
+  const builtins = builtinDetailsFor(book);
   if (saved.length) {
     const seen = new Set(saved.map((r) => r.key));
-    return [...saved, ...BUILTIN_DETAILS.filter((b) => !seen.has(b.key)).map((b) => ({ key: b.key, label: "", value: "", hidden: false }))];
+    return [...saved.filter((r) => !isBuiltinDetail(r.key) || fits(book, r.key)), ...builtins.filter((b) => !seen.has(b.key)).map((b) => ({ key: b.key, label: "", value: "", hidden: false }))];
   }
   const extras = Array.isArray(book?.extraDetails) ? book.extraDetails : [];
   return [
-    ...BUILTIN_DETAILS.map((b) => ({ key: b.key, label: "", value: "", hidden: false })),
+    ...builtins.map((b) => ({ key: b.key, label: "", value: "", hidden: false })),
     ...extras.filter((r: any) => r && (r.label || r.value)).map((r: any, i: number) => ({ key: `custom:${i + 1}`, label: String(r.label || ""), value: String(r.value || ""), hidden: false })),
   ];
 }

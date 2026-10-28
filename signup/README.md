@@ -16,7 +16,7 @@ is loaded from Google, at one fixed version (`config.js`), for sign-in only.
    **Change**; checked against the registry and other sign-ups as they type, `POST /api/signup/address`, same rules as
    the shop id: 6 to 30 lowercase letters, digits and hyphens, starting with a letter), the plan (shop, stockroom or
    both, with prices from the settings), the country (it sets the shop's starting currency), "How do you sell today?"
-   and "What do you publish?" (books, zines, comics, prints, a mix), each with **Skip this question**, and the terms
+   and "What do you sell?" (books, zines, comics, art and prints, a mix, clothing, shoes, jewelry, music or something else; plan 10.1), each with **Skip this question**, and the terms
    tick box. No card is asked for.
 3. **Making your shop**: each shop in the making with plain words, the way in once it's ready, and a **Try again**
    button when the shop maker hit a snag (2.6).
@@ -43,7 +43,7 @@ behind `/api` in the platform project:
   trial that failed to start is started on the next try, for the same shop.
 - One account can start up to five shops this way.
 - The terms (plan 6.2): no sign-up without the tick and today's version (`terms/terms.js`). The row keeps
-  `{ termsVersion, termsAcceptedAt }` from the first sign-up; a re-run never changes it. "What do you publish?" is kept as
+  `{ termsVersion, termsAcceptedAt }` from the first sign-up; a re-run never changes it. "What do you sell?" is kept as
   `publishes` and travels with the shop (`shopFromSignup` › `publishes`, read by the welcome screen, 6.3).
 
 ## The daily cap and invites (plan 6.13)

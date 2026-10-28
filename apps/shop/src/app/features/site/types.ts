@@ -12,6 +12,8 @@ export type Variant = {
   photoUrl?: string;
   sku?: string;
   weight?: string;
+  /** The variant's picks for a product with options (plan 10.2), e.g. { Size: "M", Colour: "Black" }. */
+  options?: Record<string, string>;
 };
 
 export type Book = {
@@ -23,6 +25,15 @@ export type Book = {
   creatorLinks?: { name: string; url: string }[];
   /** Books › edit › Details › Artist bio: shown in the book page's Artist bio tab. */
   artistBio?: string;
+  /** What the product is (plan 10.3, src/shared/productOptions.ts): none = a printed book. */
+  kind?: string;
+  /** Options such as Size and Colour (plan 10.2); each variant carries its picks. */
+  options?: { name: string; values: string[] }[];
+  /** Products that aren't books: material, care and a size guide (text and/or a picture) for the Size guide tab. */
+  material?: string;
+  care?: string;
+  sizeChart?: string;
+  sizeChartPhoto?: string;
   id: string;
   title: string;
   subtitle?: string;
