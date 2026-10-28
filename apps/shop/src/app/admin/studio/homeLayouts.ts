@@ -116,6 +116,39 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "press-chapbook",
+    name: "Chapbook",
+    description: "A short welcome, a featured collection of poems, every chapbook in four columns and a mailing list.",
+    sections: [
+      { type: "TextContentSection", settings: { title: "{{shop.name}}", content: "<p>Small books of poems, sewn by hand.</p>", align: "center" } },
+      { type: "BookSpotlightSection", settings: { eyebrow: "NEW POEMS" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "All chapbooks" } },
+      { type: "NewsletterSection", settings: { title: "A poem now and then", description: "New chapbooks and readings, a few times a year." } },
+    ],
+  },
+  {
+    id: "press-archive",
+    name: "Archive",
+    description: "A catalogue: the collections first, then every title in a square grid, and a note on how to visit.",
+    sections: [
+      { type: "CollectionListSection", settings: { title: "Collections", columns: 3 } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Holdings" } },
+      { type: "TextContentSection", settings: { title: "About the archive", content: "<p>Every title is catalogued here. Write to us with questions about an edition.</p>" } },
+      { type: "NewsletterSection", settings: { title: "New acquisitions", description: "An email when new titles join the archive." } },
+    ],
+  },
+  {
+    id: "press-poster",
+    name: "Poster",
+    description: "A loud front page: a scrolling headline, new books on big covers, the full list and a sign-up.",
+    sections: [
+      { type: "MarqueeSection", settings: { text: "NEW BOOKS  /  SIGNED COPIES  /  OUT NOW", separator: "●", speed: 30, fontSize: 14, bold: true, fontWeight: 700, letterSpacing: 0.08, uppercase: true } },
+      { type: "ProductCoverCarouselSection", settings: { title: "Out now", tagline: "Books worth pinning to the wall." } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Everything" } },
+      { type: "NewsletterSection", settings: { title: "Don't miss the next one", description: "One email per new book." } },
+    ],
+  },
+  {
     id: "press-about",
     name: "About page",
     description: "Jumbo centered headline, ephemera object row, 'Why this exists' columns and a photo + contact block — apply on an About page template.",
