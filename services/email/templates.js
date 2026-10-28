@@ -55,6 +55,27 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /**
+   * The health run's alert to the platform's own address (services/health). `data`: { pressName, shopId, check,
+   * state: "failing" | "still-failing" | "recovered", detail, since }.
+   */
+  "health-alert": ({ shopId, check, state, detail, since }, { settings, pressName }) => {
+    const what = { pages: "pages", checkout: "checkout", webhook: "payment events", backup: "backups" }[check];
+    if (!what) throw new Error(`the health alert names no known check (${check})`);
+    const words = {
+      failing: [`${what} failing`, `The ${what} check for ${pressName} started failing at ${since}.`],
+      "still-failing": [`${what} still failing`, `The ${what} check for ${pressName} has been failing since ${since}.`],
+      recovered: [`${what} working again`, `The ${what} check for ${pressName} passes again.`],
+    }[state];
+    if (!words) throw new Error(`the health alert has no known state (${state})`);
+    return layout({
+      subject: `${pressName} (${shopId}): ${words[0]}`,
+      greeting: "",
+      paragraphs: [words[1], ...(detail && state !== "recovered" ? [`What the check saw: ${detail}`] : [])],
+      footer: `${settings.platformName} health checks`,
+    });
+  },
+
   // ── Billing (services/billing), sent to the person who pays. `data`: { pressName, planName, price, date, link }. ──
 
   /** Three days before the trial ends. With no card yet, it asks for one; with a card, it says when the first charge is. */
