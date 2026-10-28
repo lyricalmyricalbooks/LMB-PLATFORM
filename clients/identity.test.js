@@ -60,3 +60,10 @@ test("Google's own message comes through when a call is refused", async () => {
   const fetch = scriptedFetch([{ ...signJwt("u1"), status: 403, json: { error: { code: 403, status: "PERMISSION_DENIED", message: "Permission 'iam.serviceAccounts.signJwt' denied" } } }]);
   await assert.rejects(identityClient({ fetch, token, now: () => NOW }).customToken(SA, "u1"), /iam.serviceAccounts.signJwt' denied/);
 });
+
+test("a custom token can carry claims (a support visit) on the person's pass", async () => {
+  const claims = { support: { by: "admin@example.com", reason: "help with tax", until: IAT + 1800 } };
+  const fetch = scriptedFetch([{ ...signJwt("colophon-support"), body: { payload: JSON.stringify({ iss: SA, sub: SA, aud: CUSTOM_TOKEN_AUDIENCE, iat: IAT, exp: IAT + 3600, uid: "colophon-support", claims }) } }]);
+  assert.equal(await identityClient({ fetch, token, now: () => NOW }).customToken(SA, "colophon-support", claims), "signed.jwt");
+  fetch.done();
+});

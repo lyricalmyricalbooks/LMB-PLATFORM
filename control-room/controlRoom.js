@@ -12,7 +12,7 @@
 //   profileFiles  read(shopId); write(shopId, text): the shop's /shop-profile.js as the platform keeps it
 //   publish       (shopId) -> { apps }: puts the saved /shop-profile.js live (profilePublisher below)
 //   shopAccess    supportSignIn(shopId, { by, reason, minutes }) -> { url }: a short sign-in to the shop's admin for
-//                 support. The shop side of it is not built yet (README "Not yet").
+//                 support (supportAccess.js; the shop copy shows a banner and treats it as staff until it ends).
 //   repairs       optional: open(shopId) -> [{ problem }] (the repair queue, plan 2.11)
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";

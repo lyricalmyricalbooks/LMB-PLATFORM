@@ -9,6 +9,8 @@
 //   GET  /api/signup         the signed-in person's shops in the making (signed in)
 //
 // Later items add their routes through `routes` (the shop maker's "try again", accounts, invites).
+// `onSignedIn(claims, request)` sees every signed-in call (the new-device alerts, accounts/devices.js); a failure there
+// is logged and never stops the call.
 import { planList } from "../services/billing/plans.js";
 import { SignupError } from "./signup.js";
 
@@ -17,15 +19,24 @@ const header = (headers, name) => {
   return typeof found?.[1] === "string" ? found[1] : "";
 };
 
-export function createApi({ signup, verifyIdToken, settings, routes = {} }) {
+export function createApi({ signup, verifyIdToken, settings, routes = {}, onSignedIn, log = console.error }) {
   const claimsOf = async (request) => {
     const token = header(request.headers, "authorization").replace(/^Bearer\s+/i, "");
     if (!token) throw new SignupError(401, "Sign in first.");
+    let claims;
     try {
-      return await verifyIdToken(token);
+      claims = await verifyIdToken(token);
     } catch {
       throw new SignupError(401, "Your sign-in has run out. Sign in again.");
     }
+    if (onSignedIn) {
+      try {
+        await onSignedIn(claims, request);
+      } catch (error) {
+        log(`onSignedIn failed: ${error?.message ?? error}`);
+      }
+    }
+    return claims;
   };
 
   const table = {

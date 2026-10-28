@@ -14,8 +14,22 @@ const normEmail = v => String(v || "").trim().toLowerCase();
 const memberId = email => normEmail(email);
 const isRole = v => ROLES.includes(v);
 
+/**
+ * Platform support on this pass ("act as this shop" in the platform's control room): { by, reason, until } while it
+ * lasts, else null. Only a custom sign-in token can carry it, and only the platform makes those for a shop on it; the
+ * platform logs each one in the shop's audit log first. `until` is in seconds. Same check as isSupport() in the rules.
+ */
+function supportOf(token, nowMs = Date.now()) {
+  const support = token?.support;
+  if (token?.firebase?.sign_in_provider !== "custom" || !support || typeof support !== "object") return null;
+  if (typeof support.until !== "number" || support.until * 1000 <= nowMs) return null;
+  return { by: String(support.by ?? ""), reason: String(support.reason ?? ""), until: support.until };
+}
+
 /** The admin role on a verified sign-in pass: "owner", "staff", or null for everyone else (authors included). */
 function adminRole(token) {
+  // Platform support gets staff access: never the Team, billing or secret keys.
+  if (supportOf(token)) return "staff";
   if (!token || token.email_verified !== true) return null;
   if (OWNER_EMAILS.includes(normEmail(token.email))) return "owner";
   return ADMIN_ROLES.includes(token.role) ? token.role : null;
@@ -59,4 +73,4 @@ async function syncMemberRole({ auth, db, email }) {
   return { status: "updated", role };
 }
 
-module.exports = { OWNER_EMAILS, ROLES, ADMIN_ROLES, adminRole, memberId, memberProblem, syncMemberRole };
+module.exports = { OWNER_EMAILS, ROLES, ADMIN_ROLES, adminRole, supportOf, memberId, memberProblem, syncMemberRole };
