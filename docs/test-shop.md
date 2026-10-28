@@ -44,8 +44,9 @@ the link on with sales sent from the day it runs. What the release check must st
   online and signed in (`runWebsiteImport` in `apps/stockroom/src/features/website-link.js`). There is no button to
   press, and nothing is brought in while no one has it open. So the check signs in to the stockroom page as the test
   owner and waits for the order to come in before reading the count.
-- **Linked books.** Only books linked to a stockroom book are counted. The starter catalogue (plan 1.32) must link
-  its three stocked books, or the check links them once through the shop's admin.
+- **Linked books.** Only books linked to a stockroom book are counted. Setup step 12 gives the test shop its starter
+  catalogue (`setup/test-catalogue.js`): the three stocked books are created in the stockroom too (5 printed, none
+  sold) and each is linked to its shop book through the shop's own link. A re-run adds only what is missing.
 - **Shipping** a test order from the stockroom stays a dry run: the shop reports what it would do and changes nothing.
 
 ## Where it runs
