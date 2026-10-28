@@ -8,9 +8,10 @@
 // lapsed (expiresAt passed) or already this run's, and returns { taken: true } or { taken: false, runId, expiresAt }
 // (the real one does this in one Firestore transaction); `releaseLock(shopId, runId)` frees it only for the run that
 // holds it. The payment service also uses `findShopByPaymentAccount(provider, accountId)` (the row whose `payments`
-// names that account, or null) and `recordEvent(shopId, entry)` (its own changes, by entry id). Audit log:
-// `ready(shopId)` says whether the shop's database exists yet; `write(shopId, id, entry)` stores the entry under `id`,
-// replacing any entry with that id.
+// names that account, or null) and `recordEvent(shopId, entry)` (its own changes, by entry id). The release check keeps
+// its runs with `recordReleaseCheck(shopId, entry)` / `readReleaseChecks(shopId)`. Audit log: `ready(shopId)` says
+// whether the shop's database exists yet; `write(shopId, id, entry)` stores the entry under `id`, replacing any entry
+// with that id.
 
 export function fakeRegistry(seed = {}) {
   const steps = new Map(Object.entries(seed).map(([shopId, list]) => [shopId, [...list]]));
@@ -18,8 +19,18 @@ export function fakeRegistry(seed = {}) {
   const profiles = new Map();
   const locks = new Map();
   const events = new Map();
+  const releaseChecks = new Map();
   return {
     steps,
+    releaseChecks,
+    // Release check runs (release-check/runner.js), oldest first.
+    async recordReleaseCheck(shopId, entry) {
+      if (!releaseChecks.has(shopId)) releaseChecks.set(shopId, []);
+      releaseChecks.get(shopId).push(structuredClone(entry));
+    },
+    async readReleaseChecks(shopId) {
+      return structuredClone(releaseChecks.get(shopId) ?? []);
+    },
     shops,
     profiles,
     locks,

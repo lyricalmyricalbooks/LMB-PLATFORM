@@ -129,7 +129,11 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
       },
       async act({ shop }) {
         const { shopId, pressName, ownerEmail, plan, country, currency } = shop;
-        await registry.createShop(shopId, { shopId, projectId: shopId, pressName, ownerEmail, plan, country, currency, region, status: "creating", createdAt: now().toISOString() });
+        // The test marks live in the registry, where only the platform can change them (docs/test-shop.md).
+        await registry.createShop(shopId, {
+          shopId, projectId: shopId, pressName, ownerEmail, plan, country, currency, region,
+          testMode: shop.testMode === true, testShop: shop.testShop === true, status: "creating", createdAt: now().toISOString(),
+        });
       },
     },
     {
