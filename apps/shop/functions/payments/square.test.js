@@ -60,6 +60,7 @@ function fakeService({ live = false } = {}) {
     if (op === "square.refunds.retrieve") return world.refunds.has(args.id) ? reply(200, { ...world.refunds.get(args.id) }) : missing();
     if (op === "square.refunds.forPayment") return reply(200, { data: [...world.refunds.values()].filter((r) => r.paymentId === args.paymentId) });
     if (op === "square.disputes.forPayment") return reply(200, { data: world.disputes.filter((d) => d.paymentId === args.paymentId) });
+    if (op === "square.payouts.retrieve") return args.id === "po_1" ? reply(200, { id: "po_1", status: world.payoutStatus || "PAID", arrivalDate: "2026-10-31", amountMinor: 3814, currency: "CAD" }) : missing();
     return reply(400, { error: { code: "bad_request", message: `unknown call ${op}` } });
   };
   return { fetch, calls, world };
@@ -286,6 +287,17 @@ describe("Square webhook deliveries", () => {
     service.world.refunds.get("RFD1").status = "FAILED";
     const failed = await payments.verifyWebhookEvent(null, delivery({ type: "refund.updated", data: { type: "refund", id: "RFD1" } }));
     expect(failed.event).toMatchObject({ type: "charge.refund.updated", data: { object: { id: "RFD1", status: "failed", payment_intent: "sqpay_PAY1" } } });
+  });
+
+  test("a paid payout is fetched from Square again and becomes payout.paid; any other payout state changes nothing (7.10)", async () => {
+    const { payments, service } = await paidShop();
+    const payoutDelivery = (type = "payout.paid", id = "po_1") => delivery({ type, data: { type: "payout", id, object: { payout: { id, status: "PAID" } } } });
+    expect((await payments.verifyWebhookEvent(null, payoutDelivery())).event).toMatchObject({
+      type: "payout.paid", livemode: false, data: { object: { id: "po_1", object: "payout", status: "paid", arrival_date: "2026-10-31" } },
+    });
+    service.world.payoutStatus = "SENT";
+    expect((await payments.verifyWebhookEvent(null, payoutDelivery())).event.type).toBe("square.payout.updated");
+    expect((await payments.verifyWebhookEvent(null, payoutDelivery("payout.paid", "po_nobody"))).event).toBeNull();
   });
 
   test("disputes: only one Square lists for that payment counts; closed states close it", async () => {

@@ -27,6 +27,8 @@ import { feeFor, feeSummary, takesFee } from "./fees.js";
 /** What the platform asks a press to allow (the minimum Square lists for app fees, plus locations and disputes). */
 export const SQUARE_SCOPES = Object.freeze([
   "MERCHANT_PROFILE_READ", "PAYMENTS_READ", "PAYMENTS_WRITE", "PAYMENTS_WRITE_ADDITIONAL_RECIPIENTS", "ORDERS_READ", "ORDERS_WRITE", "DISPUTES_READ",
+  // Each order's payout and the fees in it (code plan 7.10): the Payouts API, and its payout.paid event.
+  "PAYOUTS_READ", "SETTLEMENTS_READ",
 ]);
 
 const STATE_MS = 15 * 60 * 1000;
@@ -61,6 +63,8 @@ export function refundedFee(payment, amountMinor) {
 export const squareKey = (shopId, key) => createHash("sha256").update(`${shopId}/${key}`).digest("hex").slice(0, 40);
 
 const money = (m) => (m && Number.isInteger(m.amount) ? m.amount : 0);
+// Square's processing fees on a payment or refund (a refund's are fee adjustments, usually below 0).
+const processingFee = (fees) => (Array.isArray(fees) ? fees.reduce((sum, f) => sum + money(f?.amount_money), 0) : 0);
 
 export function paymentShape(payment, referenceId = null) {
   return {
@@ -71,6 +75,7 @@ export function paymentShape(payment, referenceId = null) {
     currency: payment.amount_money?.currency ?? null,
     refundedMinor: money(payment.refunded_money),
     appFeeMinor: money(payment.app_fee_money),
+    processingFeeMinor: processingFee(payment.processing_fee),
     orderId: payment.order_id ?? null,
     referenceId,
     refundIds: Array.isArray(payment.refund_ids) ? payment.refund_ids : [],
@@ -86,10 +91,41 @@ export function refundShape(refund) {
     amountMinor: money(refund.amount_money),
     currency: refund.amount_money?.currency ?? null,
     appFeeMinor: money(refund.app_fee_money),
+    processingFeeMinor: processingFee(refund.processing_fee),
     paymentId: refund.payment_id ?? null,
     orderId: refund.order_id ?? null,
     reason: refund.reason ?? null,
     createdAt: refund.created_at ?? null,
+  };
+}
+
+/** A payout: when it reaches the press's bank (`arrivalDate`, YYYY-MM-DD) and how much. */
+export function payoutShape(payout) {
+  return {
+    id: payout.id,
+    status: payout.status ?? null,
+    arrivalDate: payout.arrival_date ?? null,
+    amountMinor: money(payout.amount_money),
+    currency: payout.amount_money?.currency_code ?? null,
+    locationId: payout.location_id ?? null,
+  };
+}
+
+/**
+ * One line of a payout (Square's PayoutEntry): a charge (gross above 0, its fee taken) or a refund (below 0, with any
+ * fee returned), each naming its payment. Other kinds keep their type and no payment.
+ */
+export function payoutEntryShape(entry) {
+  return {
+    id: entry.id,
+    type: entry.type ?? null,
+    paymentId: entry.type_charge_details?.payment_id ?? entry.type_refund_details?.payment_id ?? null,
+    refundId: entry.type_refund_details?.refund_id ?? null,
+    grossMinor: money(entry.gross_amount_money),
+    feeMinor: money(entry.fee_amount_money),
+    netMinor: money(entry.net_amount_money),
+    currency: entry.gross_amount_money?.currency_code ?? entry.net_amount_money?.currency_code ?? null,
+    effectiveAt: entry.effective_at ?? null,
   };
 }
 
@@ -111,6 +147,7 @@ export const SQUARE_OP_NAMES = Object.freeze([
   "square.payments.retrieve", "square.payments.cancel",
   "square.refunds.create", "square.refunds.retrieve", "square.refunds.forPayment",
   "square.disputes.forPayment",
+  "square.payouts.retrieve", "square.payouts.entries",
 ]);
 
 /**
@@ -273,6 +310,17 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       for (const id of ids) refunds.push(refundShape((await square.call(mode, "GET", `/v2/refunds/${idOf(id, "refund")}`, { accessToken: token })).refund));
       return { data: refunds };
     },
+    async "square.payouts.retrieve"(row, mode, token, args) {
+      const { payout } = await square.call(mode, "GET", `/v2/payouts/${idOf(args.id, "payout")}`, { accessToken: token });
+      return payoutShape(payout);
+    },
+    // Every line of one payout, a page (up to 100) at a time; `cursor` from the last answer for the next page.
+    async "square.payouts.entries"(row, mode, token, args) {
+      if (args.cursor !== undefined && !(typeof args.cursor === "string" && /^[^\s]{1,2048}$/.test(args.cursor))) throw bad("the cursor must be the one Square gave");
+      const query = { limit: 100, ...(args.cursor !== undefined ? { cursor: args.cursor } : {}) };
+      const answer = await square.call(mode, "GET", `/v2/payouts/${idOf(args.id, "payout")}/payout-entries`, { accessToken: token, query });
+      return { data: (answer.payout_entries ?? []).map(payoutEntryShape), cursor: answer.cursor || null };
+    },
     async "square.disputes.forPayment"(row, mode, token, args) {
       const paymentId = idOf(args.paymentId, "payment");
       const found = [];
@@ -399,8 +447,10 @@ export function createSquareService({ square, registry, tokens, states, deliver,
         }
         return { status: 200, body: { disconnected: row.shopId } };
       }
-      // Only payments, refunds and disputes mean anything to a shop; the rest would be refused there and sent again.
-      if (!["payment", "refund", "dispute"].includes(event.data?.type)) return { status: 200, body: { ignored: "not a payment, refund or dispute" } };
+      // Only payments, refunds, disputes and payouts (each order's fees and payout, 7.10) mean anything to a shop; the
+      // rest would be refused there and sent again.
+      const wanted = ["payment", "refund", "dispute"].includes(event.data?.type) || (event.data?.type === "payout" && event.type === "payout.paid");
+      if (!wanted) return { status: 200, body: { ignored: "not a payment, refund, dispute or paid payout" } };
       const result = await deliver(row, rawBody, "square");
       if (result.status >= 200 && result.status < 300) return { status: 200, body: { forwarded: row.shopId } };
       console.error(`Square event ${event.event_id} for ${row.shopId} wasn't taken (${result.status}${result.error ? `: ${result.error}` : ""})`);

@@ -16,6 +16,7 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
   const world = {
     merchants: new Map(), codes: new Map(), tokens: new Map(), refreshTokens: new Map(),
     links: new Map(), orders: new Map(), payments: new Map(), refunds: new Map(), disputes: [], byKey: new Map(), revoked: [],
+    payouts: new Map(),
   };
   const nowIso = () => "2026-10-28T12:00:00Z";
 
@@ -41,6 +42,19 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
     const dispute = { id: `DSP${next++}`, state: "EVIDENCE_REQUIRED", reason: "NO_KNOWLEDGE", amount_money: { ...payment.amount_money }, disputed_payment: { payment_id: paymentId }, due_at: "2026-11-10T00:00:00Z", created_at: nowIso(), location_id: payment.location_id, merchant: payment.merchant };
     world.disputes.push(dispute);
     return dispute;
+  };
+
+  // A payout to the merchant's bank, with its lines (Square's PayoutEntry shape).
+  world.payout = (merchantId, entries, fields = {}) => {
+    const id = `po_fake-${next++}`;
+    const currency = entries[0]?.gross_amount_money?.currency_code ?? "CAD";
+    const amount = entries.reduce((sum, e) => sum + (e.net_amount_money?.amount ?? 0), 0);
+    world.payouts.set(id, {
+      payout: { id, status: "PAID", arrival_date: "2026-10-30", amount_money: { amount, currency_code: currency }, location_id: world.merchants.get(merchantId)?.location.id, type: "BATCH", created_at: nowIso(), ...fields },
+      entries: entries.map((e, i) => ({ id: `${id}-e${i}`, payout_id: id, effective_at: nowIso(), ...e })),
+      merchant: merchantId,
+    });
+    return id;
   };
 
   const clean = ({ merchant: _merchant, ...rest }) => rest;
@@ -134,6 +148,14 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
     if ((m = path.match(/^\/v2\/refunds\/([^/]+)$/)) && method === "GET") {
       const refund = world.refunds.get(m[1]);
       return mine(refund) ? { status: 200, body: { refund: clean(refund) } } : notFound("Refund");
+    }
+    if ((m = path.match(/^\/v2\/payouts\/([^/]+)(\/payout-entries)?$/)) && method === "GET") {
+      const found = world.payouts.get(m[1]);
+      if (!mine(found)) return notFound("Payout");
+      if (!m[2]) return { status: 200, body: { payout: found.payout } };
+      // Two to a page, so the shop's paging is exercised.
+      const start = query.cursor ? Number(query.cursor) : 0;
+      return { status: 200, body: { payout_entries: found.entries.slice(start, start + 2), ...(start + 2 < found.entries.length ? { cursor: String(start + 2) } : {}) } };
     }
     if (path === "/v2/disputes" && method === "GET") {
       const all = world.disputes.filter((d) => d.merchant === merchantId && (!query.location_id || d.location_id === query.location_id));

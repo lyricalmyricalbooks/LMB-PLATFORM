@@ -53,7 +53,7 @@ export class ServiceError extends Error {
 }
 
 const ACCOUNT_ID = /^acct_[A-Za-z0-9]+$/;
-const ids = { pi: /^pi_[A-Za-z0-9_]+$/, cs: /^cs_[A-Za-z0-9_]+$/, evt: /^evt_[A-Za-z0-9_]+$/ };
+const ids = { pi: /^pi_[A-Za-z0-9_]+$/, cs: /^cs_[A-Za-z0-9_]+$/, evt: /^evt_[A-Za-z0-9_]+$/, po: /^po_[A-Za-z0-9_]+$/, txn: /^txn_[A-Za-z0-9_]+$/ };
 
 // Parameters that would move money anywhere but the press's own account, or set the platform's fee. A shop never
 // sets them: the service adds the fee itself, and any of these from a shop is refused, at any depth.
@@ -93,10 +93,30 @@ const expandOnly = (params, allowed) => {
   if (!Array.isArray(out.expand) || !out.expand.every((item) => allowed.includes(item))) throw bad(`only ${allowed.join(", ") || "nothing"} can be expanded`);
   return out;
 };
+const limitOk = (limit) => {
+  if (limit !== undefined && !(Number.isInteger(limit) && limit >= 1 && limit <= 100)) throw bad("limit must be 1 to 100");
+};
 const listParams = (params) => {
   const out = only(params, ["payment_intent", "limit"]);
   idFor("pi", out.payment_intent);
-  if (out.limit !== undefined && !(Number.isInteger(out.limit) && out.limit >= 1 && out.limit <= 100)) throw bad("limit must be 1 to 100");
+  limitOk(out.limit);
+  return out;
+};
+// A payment's refunds, with each one's balance transaction when asked (its fee and net, code plan 7.10).
+const refundListParams = (params) => {
+  const out = only(params, ["payment_intent", "limit", "expand"]);
+  idFor("pi", out.payment_intent);
+  limitOk(out.limit);
+  if (out.expand !== undefined) expandOnly({ expand: out.expand }, ["data.balance_transaction"]);
+  return out;
+};
+// What one payout paid in (code plan 7.10): its balance transactions, page by page, with each one's charge or refund.
+const payoutListParams = (params) => {
+  const out = only(params, ["payout", "limit", "starting_after", "expand"]);
+  idFor("po", out.payout);
+  limitOk(out.limit);
+  if (out.starting_after !== undefined) idFor("txn", out.starting_after);
+  if (out.expand !== undefined) expandOnly({ expand: out.expand }, ["data.source"]);
   return out;
 };
 
@@ -120,15 +140,17 @@ function sessionAmount(params) {
 /** The Stripe calls a shop may ask for. Each names Stripe's path and checks the shop's parameters. */
 const SHOP_OPS = Object.freeze({
   "paymentIntents.create": { method: "POST", path: () => "/v1/payment_intents", create: "top" },
-  "paymentIntents.retrieve": { method: "GET", path: (a) => `/v1/payment_intents/${idFor("pi", a.id)}`, params: (p) => expandOnly(p, ["latest_charge"]) },
+  // latest_charge.balance_transaction: the charge's fee and net, once Stripe has them (code plan 7.10).
+  "paymentIntents.retrieve": { method: "GET", path: (a) => `/v1/payment_intents/${idFor("pi", a.id)}`, params: (p) => expandOnly(p, ["latest_charge", "latest_charge.balance_transaction"]) },
   "paymentIntents.cancel": { method: "POST", path: (a) => `/v1/payment_intents/${idFor("pi", a.id)}/cancel`, params: (p) => only(p, []) },
   "checkout.sessions.create": { method: "POST", path: () => "/v1/checkout/sessions", create: "payment_intent_data" },
   "checkout.sessions.retrieve": { method: "GET", path: (a) => `/v1/checkout/sessions/${idFor("cs", a.id)}`, params: (p) => expandOnly(p, []) },
   "checkout.sessions.expire": { method: "POST", path: (a) => `/v1/checkout/sessions/${idFor("cs", a.id)}/expire`, params: (p) => only(p, []) },
   "refunds.create": { method: "POST", path: () => "/v1/refunds", refund: true },
-  "refunds.list": { method: "GET", path: () => "/v1/refunds", params: listParams },
+  "refunds.list": { method: "GET", path: () => "/v1/refunds", params: refundListParams },
   "disputes.list": { method: "GET", path: () => "/v1/disputes", params: listParams },
   "events.retrieve": { method: "GET", path: (a) => `/v1/events/${idFor("evt", a.id)}`, params: (p) => only(p, []) },
+  "balanceTransactions.list": { method: "GET", path: () => "/v1/balance_transactions", params: payoutListParams },
 });
 
 export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink", "account.connectLink", "account.paymentDomain", ...SQUARE_OP_NAMES]);

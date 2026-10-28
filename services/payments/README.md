@@ -15,7 +15,11 @@ an injected `fetch`, and tests use a pretend Stripe (`fakes.js`).
 
 A shop asks for one of a fixed list of calls (`SHOP_OP_NAMES` in `service.js`): card payments and Checkout Sessions
 (create, read, cancel/expire), refunds (create, list), disputes (list), an event (read again), the account's state and
-Stripe's sign-up link. Ids and parameters are checked; anything that would move money elsewhere (`transfer_data`,
+Stripe's sign-up link, and for each order's real fee and payout (7.10): a payment's charge and refunds with their
+balance transactions (`expand`), and a payout's balance transactions (`balanceTransactions.list`, by `payout`, paged).
+Square shops get the same through `square.payouts.retrieve` / `square.payouts.entries` and the processing fees on
+`square.payments.retrieve` and refunds; Square's `payout.paid` is passed on (permissions `PAYOUTS_READ`,
+`SETTLEMENTS_READ`). Ids and parameters are checked; anything that would move money elsewhere (`transfer_data`,
 `on_behalf_of`, an application fee…) is refused, and the idempotency key is scoped to the shop.
 
 Passed-on events carry no signature. The shop believes nothing in them: it fetches the event again through `/shop`
