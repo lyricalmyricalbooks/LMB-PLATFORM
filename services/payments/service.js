@@ -11,6 +11,10 @@
 //                                   (`events.retrieve`), which only reaches its own account.
 //   findAccount / createAccount     the shop maker's step 13 (setup/payments.js), inside the platform.
 //
+// A shop whose registry `payments.provider` is "square" (code plan 2.2b) gets the Square calls instead (square.js):
+// `square.*`, `account.status` and `account.connectLink`, plus `squareOAuth` (Square sends the press back there) and
+// `squareEvent` (Square's events, one address per environment).
+//
 // The service never writes a shop's database: the shop decides what an event means for its orders and stock. It keeps
 // the shop row's `payments` in the registry up to date (the account's state), and logs each change to the registry and
 // the shop's audit log.
@@ -22,8 +26,12 @@
 //   auditLog   write(shopId, id, entry) (the shop's own audit-log collection)
 //   accounts   the service's own record of accounts it made: get(shopId) -> { provider, accountId, mode } | null;
 //              set(shopId, row)
-//   deliver    (row, rawBody) -> { status } posts an event to the shop's webhook (httpDeliver below)
+//   deliver    (row, rawBody, provider) -> { status } posts an event to the shop's webhook (httpDeliver below)
+//   squareApi  createSquareApi(...) from squareApi.js, with `tokens` and `states` (square.js); optional: without it
+//              Square shops are refused
 import { StripeApiError } from "./stripeApi.js";
+import { SquareApiError } from "./squareApi.js";
+import { createSquareService, SQUARE_OP_NAMES } from "./square.js";
 import { verifySignature } from "./stripeSignature.js";
 import { feeFor, feeForShop, feeSummary, takesFee } from "./fees.js";
 import { serviceKeyMatches } from "../email/http.js";
@@ -117,7 +125,7 @@ const SHOP_OPS = Object.freeze({
   "events.retrieve": { method: "GET", path: (a) => `/v1/events/${idFor("evt", a.id)}`, params: (p) => only(p, []) },
 });
 
-export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink"]);
+export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink", "account.connectLink", ...SQUARE_OP_NAMES]);
 
 /** Where a shop's server code receives Stripe events (the shop's `stripeWebhook` function, apps/shop functionLink). */
 export function shopWebhookUrl(row) {
@@ -128,14 +136,14 @@ export function shopWebhookUrl(row) {
 
 /** The default `deliver`: posts the event to the shop's webhook with an injected fetch. */
 export function httpDeliver(fetch, { timeoutMs = 20000 } = {}) {
-  return async (row, rawBody) => {
+  return async (row, rawBody, provider = "stripe") => {
     const url = shopWebhookUrl(row);
     if (!url) return { status: 0, error: "the registry has no webhook address for this shop" };
     try {
       const response = await fetch(url, {
         method: "POST",
         // No signature: the shop fetches the event again from the service before believing any of it.
-        headers: { "Content-Type": "application/json", "X-Platform-Event": "stripe" },
+        headers: { "Content-Type": "application/json", "X-Platform-Event": provider === "square" ? "square" : "stripe" },
         body: rawBody,
         signal: AbortSignal.timeout(timeoutMs),
       });
@@ -160,6 +168,7 @@ export function shopHosts(row) {
 
 export function errorAnswer(err) {
   if (err instanceof ServiceError) return { status: err.status, body: { error: { type: "platform_error", code: err.code, message: err.message } } };
+  if (err instanceof SquareApiError) return { status: err.statusCode, body: { error: { type: "square_error", code: err.code, param: err.field, message: err.message } } };
   if (err instanceof StripeApiError) return { status: err.statusCode, body: { error: { type: err.type, code: err.code, param: err.param, message: err.message } } };
   console.error("Payment service error:", err);
   return { status: 500, body: { error: { type: "platform_error", code: "internal", message: "The payment service had a problem. Try again." } } };
@@ -175,7 +184,7 @@ const header = (headers, name) => {
  * @param {object} deps see the header comment
  * @param {{ webhookSecrets: { live: string[], test: string[] }, fee: object }} deps.config readServiceConfig()
  */
-export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, now = () => Date.now() }) {
+export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, now = () => Date.now() }) {
   const { webhookSecrets } = config;
   const iso = () => new Date(now()).toISOString();
 
@@ -187,7 +196,12 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     await auditLog.write(shopId, id, full);
   }
 
-  // The shop a call comes from: its service key must match the registry, and it must have a Stripe account there.
+  const square = squareApi
+    ? createSquareService({ square: squareApi, registry, tokens, states, deliver, config, logChange, shopHosts, now, refuse: (status, code, message) => new ServiceError(status, code, message) })
+    : null;
+
+  // The shop a call comes from: its service key must match the registry, and it must have a Stripe account there (or
+  // be a Square shop: its account comes later, through Connect Square).
   async function provenShop(headers) {
     const shopId = header(headers, "x-shop-id");
     const key = header(headers, "authorization").replace(/^Bearer\s+/i, "");
@@ -196,6 +210,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     if (!row || !serviceKeyMatches(key, row.serviceKeyHash)) throw new ServiceError(401, "unknown_shop", "This shop can't use the platform's payments.");
     if (row.status === "abandoned") throw new ServiceError(403, "shop_closed", "This shop is closed.");
     const payments = row.payments;
+    if (payments?.provider === "square") return row;
     if (payments?.provider !== "stripe" || !ACCOUNT_ID.test(payments.accountId ?? "")) {
       throw new ServiceError(409, "no_account", "This shop has no Stripe account with the platform yet.");
     }
@@ -271,6 +286,10 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     if (!plainObject(args)) throw bad("args must be an object");
     let fee;
     try { fee = feeForShop(row, config.fee); } catch (err) { throw new ServiceError(500, "fee_setting", `The shop's platform fee setting is wrong: ${err.message}`); }
+    if (row.payments.provider === "square") {
+      if (!square) throw new ServiceError(503, "square_not_ready", "The platform's Square connection isn't set up yet.");
+      return square.runShopOp(row, body, fee);
+    }
     if (name === "account.status") return accountStatus(row, fee);
     if (name === "account.onboardingLink") return onboardingLink(row, args);
     const op = typeof name === "string" && Object.hasOwn(SHOP_OPS, name) ? SHOP_OPS[name] : null;
@@ -343,6 +362,25 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       console.error(`Stripe event ${event.id} for ${row.shopId} wasn't taken (${result.status}${result.error ? `: ${result.error}` : ""})`);
       return { status: 502, body: { error: "The shop didn't take the event; Stripe will send it again." } };
     },
+
+    /** Square sends the press back here after Connect Square (GET /square/oauth). */
+    async squareOAuth(query) {
+      if (!square) return { status: 503, body: { error: "The platform's Square connection isn't set up yet." } };
+      try {
+        return await square.oauthCallback(query);
+      } catch (err) {
+        return errorAnswer(err);
+      }
+    },
+
+    /** Square's events for one environment ("live" or "test"). Answers 2xx only once the shop has the event. */
+    async squareEvent(mode, headers, rawBody) {
+      if (!square) return { status: 503, body: { error: "The platform's Square connection isn't set up yet." } };
+      return square.squareEvent(mode, headers, rawBody, header);
+    },
+
+    /** Step 13 for a Square shop: the account the press connected through Connect Square, or null before then. */
+    findSquareAccount: (shopId) => (square ? square.findAccount(shopId) : Promise.resolve(null)),
 
     // ── The shop maker's step 13 (setup/payments.js provider client) ────────────────────────────────────────────
 

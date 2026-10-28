@@ -1,11 +1,11 @@
 # Website ↔ inventory app link
 
 The shop (this repo, Firebase project `lmb-test-shop`) and the inventory app
-(`lyricalmyricalbooks/LMB-PLATFORM (apps/stockroom)`, Firebase project `lmb-test-stockroom`) exchange
+(`lyricalmyricalbooks/LMB-PLATFORM (apps/stockroom)`, its own named database in the shop's Firebase project; plan 1.21) exchange
 three things:
 
 1. **Website sales → inventory app.** Each paid website order (and every later refund or
-   dispatch) is written to an inbox, `websiteOrders/{orderId}`, in the **inventory** project.
+   dispatch) is written to an inbox, `websiteOrders/{orderId}`, in the **inventory app's** database.
    The inventory app turns it into ledger rows through its own save path.
 2. **Inventory count → website.** After each saved change, the inventory app publishes
    `websiteStockFeed/{inventoryBookId}`. Once the owner has applied a first preview and switched on
@@ -25,18 +25,21 @@ three things:
 
 ## Transport
 
-Website Cloud Functions open a second Admin SDK app:
-`initializeApp({ projectId: "lmb-test-stockroom" }, "inventory")` (`functions/inventoryLinkStore.js`).
+The inventory app lives in the shop's own Firebase project, in its own named Firestore database (`stockroom`;
+plan 1.21). Website Cloud Functions open it on the project's own Admin SDK app:
+`getFirestore(admin.app(), "stockroom")` (`functions/inventoryLinkStore.js`; the name comes from
+`SHOP_STOCKROOM_DATABASE`, which the platform's setup writes).
 
-- **Credentials.** It uses the Functions' default service account
-  (`<project-number>-compute@developer.gserviceaccount.com`). The owner grants that account
-  **Cloud Datastore User** on `lmb-test-stockroom` once.
-- **Rules.** The Admin SDK bypasses the inventory project's rules. Ownership of each field is
+- **Credentials.** The Functions' default service account already reaches every database in its own project, so there
+  is nothing to grant. If someone removes that access, the admin panel says so and shows how to give it back
+  (**Cloud Datastore User** on the shop's own project). A shop without the stockroom answers "not set up yet".
+- **Never the shop's data.** The link opens only the named database, never `(default)`.
+- **Rules.** The Admin SDK bypasses the inventory app's rules. Ownership of each field is
   therefore by convention, listed below.
 - **Inventory app access.** The inventory app (browser, signed in as the publisher) reads and
   writes these documents under its own `firestore.rules`.
 
-## Documents in the inventory project
+## Documents in the inventory app's database
 
 ### `websiteOrders/{orderId}`
 
@@ -233,7 +236,7 @@ the inventory app shows it only in a publisher session, never in author view). I
 `src/app/admin/appSwitch.ts` and the app's `src/lib/app-switch.js`; change both together.
 
 - **Addresses.** Website admin: `https://lmb-test-shop.web.app/admin`, an order is `#orders/<orderId>`. Inventory
-  app: `https://lmb-test-stockroom.web.app/`, a website order is `#website-order=<orderId>` (URL-encoded).
+  app: `https://<project id>-stockroom.web.app/` (its own Hosting site in the shop's project), a website order is `#website-order=<orderId>` (URL-encoded).
   When the inventory app was opened from the website, it sends its deep links to the website origin it came from.
 - **Tabs.** The website admin's tab is named `lm-website-admin`, the inventory app's `lm-inventory-app`. A click on the
   other app goes, in order, to the tab this page opened before, else `window.open("", <other name>)` (which also finds the

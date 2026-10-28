@@ -16,9 +16,10 @@ import { inventoryApi } from "./inventoryApi";
 import { waitingReaders, wakesRestockEmails } from "./inventoryInsights";
 
 const PROBLEM_WORDS: Record<string, string> = {
-  "not-granted": "Google Cloud hasn't given the website access to the inventory app yet. Follow the steps above, then check again.",
-  "api-disabled": "The inventory app's database isn't switched on for outside access. Check that the inventory app still opens normally, then try again.",
-  unreachable: "The inventory app's database didn't answer. Try again in a minute.",
+  "no-stockroom": "This shop doesn't have the stockroom yet, so there is nothing to link. Once the stockroom is part of your plan, check again.",
+  "not-granted": "Google Cloud has stopped letting this shop reach its own stockroom. Follow the steps above to give its access back, then check again.",
+  "api-disabled": "The stockroom's database isn't switched on. Check that the stockroom still opens normally, then try again.",
+  unreachable: "The stockroom's database didn't answer. Try again in a minute.",
 };
 
 const editionName = (e: { title: string; edition: string }) => (e.edition ? `${e.title} — ${e.edition}` : e.title);
@@ -324,34 +325,34 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
     <div className="rp-stack">
       {confirmNode}
       <SectionCard title="Connect"
-        description="One-time access, given in Google Cloud."
+        description="The stockroom is part of this shop, so there is nothing to grant: check once to start."
         actions={<StatusBadge tone={connection.ok ? "success" : "warning"}>{connection.ok ? "Connected" : "Not connected yet"}</StatusBadge>}>
-        <details className="rp-howto" open={!connection.ok}>
-        <summary>{connection.ok ? "How it was set up" : "Set it up · 5 minutes, once"}</summary>
-        <ol style={{ margin: "6px 0 4px", paddingLeft: 20, display: "grid", gap: 10, listStyle: "decimal" }}>
-          <li>
-            Copy this address:{" "}
-            {serviceAccount
-              ? <><code className="rp-mono" style={{ overflowWrap: "anywhere" }}>{serviceAccount}</code>{" "}
-                  <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={async () => {
-                    try {
-                      if (!navigator.clipboard?.writeText) throw new Error("no clipboard");
-                      await navigator.clipboard.writeText(serviceAccount);
-                      toast("Address copied.");
-                    } catch { toast("Couldn't copy automatically. Select the address and copy it yourself.", { tone: "warn" }); }
-                  }}>Copy</SecondaryButton></>
-              : <span className="rp-hint">it appears here once the updated website is live.</span>}
-          </li>
-          <li>
-            Open Google Cloud, signed in as owner@example.com:{" "}
-            <a className="rp-link" href={IAM_URL} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-              Inventory app permissions <ExternalLink size={12} aria-hidden /><span className="rp-sr-only"> (opens in a new tab)</span>
-            </a>
-          </li>
-          <li>Press <strong>Grant access</strong>, paste the address under <strong>New principals</strong>, pick the role <strong>Cloud Datastore User</strong>, then press <strong>Save</strong>.</li>
-          <li>Come back here and press <strong>Check connection</strong>.</li>
-        </ol>
-        </details>
+        {/* Only when someone removed the shop's own access to its project (plan 1.21: one project, no second grant). */}
+        {!connection.ok && connection.problem === "not-granted" && (
+          <ol style={{ margin: "6px 0 4px", paddingLeft: 20, display: "grid", gap: 10, listStyle: "decimal" }}>
+            <li>
+              Copy this address:{" "}
+              {serviceAccount
+                ? <><code className="rp-mono" style={{ overflowWrap: "anywhere" }}>{serviceAccount}</code>{" "}
+                    <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={async () => {
+                      try {
+                        if (!navigator.clipboard?.writeText) throw new Error("no clipboard");
+                        await navigator.clipboard.writeText(serviceAccount);
+                        toast("Address copied.");
+                      } catch { toast("Couldn't copy automatically. Select the address and copy it yourself.", { tone: "warn" }); }
+                    }}>Copy</SecondaryButton></>
+                : <span className="rp-hint">it appears here once the updated website is live.</span>}
+            </li>
+            <li>
+              Open{" "}
+              <a className="rp-link" href={IAM_URL} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                this shop's permissions in Google Cloud <ExternalLink size={12} aria-hidden /><span className="rp-sr-only"> (opens in a new tab)</span>
+              </a>
+            </li>
+            <li>Find the address, or press <strong>Grant access</strong> and paste it under <strong>New principals</strong>; give it the role <strong>Cloud Datastore User</strong>, then press <strong>Save</strong>.</li>
+            <li>Come back here and press <strong>Check connection</strong>.</li>
+          </ol>
+        )}
         {!connection.ok && connection.problem && <p className="rp-hint" role="status" style={{ marginTop: 12 }}>{PROBLEM_WORDS[connection.problem] || connection.error}</p>}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginTop: 16 }}>
           <PrimaryButton disabled={!!busy} onClick={check}>{busy === "check" ? "Checking…" : "Check connection"}</PrimaryButton>

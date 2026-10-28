@@ -33,7 +33,7 @@
 // shop email is sent from (the email service adds the press's name and reply-to). `config.paymentsServiceUrl` is the
 // platform payment service's address, which every shop's server code calls (payments through the platform, plan 2.2);
 // `config.stripePublishableKeys` ({ live, test }, public) go in the profile for the card form (payments.js).
-import { PLANS, REGION, firstSteps } from "./steps.js";
+import { PLANS, REGION, STOCKROOM_DATABASE, firstSteps } from "./steps.js";
 import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
 import { ensureServiceKey, hasServiceKey } from "./serviceKey.js";
 import { testCatalogue } from "./test-catalogue.js";
@@ -68,6 +68,9 @@ export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = RE
     // "true" only for the platform's own test shop (docs/test-shop.md): its test-card checkouts then move stock like
     // real ones, for the release check. Every other shop gets "false", so the shop never guesses.
     `SHOP_TEST_SHOP=${quote(shop.testShop === true)}`,
+    // The stockroom's named database in this project (step 5), where the shop's link to it reads and writes
+    // (apps/shop/functions/inventoryLinkStore.js, plan 1.21). Written for every shop so the server never guesses.
+    `SHOP_STOCKROOM_DATABASE=${quote(STOCKROOM_DATABASE)}`,
     // The platform email service's shop door (services/email/http.js): the backup sender for a shop that hasn't
     // connected its own Gmail. Written only once the platform has one (config.platformEmailUrl).
     ...(platformEmailUrl ? [`PLATFORM_EMAIL_URL=${quote(platformEmailUrl)}`] : []),

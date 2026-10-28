@@ -104,6 +104,22 @@ test("a deploy that throws is rolled back too; with no earlier release a person 
   assert.match(first.shops[0].error, /no earlier release to go back to, so a person looks at it/);
 });
 
+test("data changes run before the new server code; a failed one stops the release and rolls the shop back", async () => {
+  const good = await setup();
+  await good.run("1.1.0");
+  const order = good.world.calls.filter(([kind, id]) => id === "press-bravo" && kind !== "pages").map(([kind]) => kind);
+  assert.deepEqual(order, ["rules", "migrate", "functions"]);
+  const stockroomOnly = await setup({ rows: [TEST, row("press-stockroom", { plan: "stockroom" })] });
+  await stockroomOnly.run("1.1.0");
+  assert.ok(!stockroomOnly.world.calls.some(([kind, id]) => kind === "migrate" && id === "press-stockroom"), "a stockroom-only shop has no shop data");
+
+  const bad = await setup({ broken: { "1.1.0": { "lmb-test-shop": "migrate" } } });
+  const result = await bad.run("1.1.0");
+  assert.equal(result.shops[0].status, "rolled-back");
+  assert.match(result.shops[0].error, /the deploy failed: data change 0003-x failed/);
+  assert.ok(!bad.world.calls.some(([kind, , version]) => kind === "functions" && version === "1.1.0"), "the new server code never went out");
+});
+
 test("a rollback that fails too is said plainly", async () => {
   const { run } = await setup({ broken: { "1.1.0": { "*": "check" }, "1.0.0": { "*": "pages" } } });
   const result = await run("1.1.0");
