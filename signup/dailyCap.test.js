@@ -119,16 +119,14 @@ test("the shop maker's sweep lets the line in first, so a shop let in is made in
   assert.deepEqual(made, ["press-number-2-abcde"]);
 });
 
-test("the live settings default to sign-up closed, 10 shops a day, no founding price and no pay as you sell", async () => {
-  assert.deepEqual(await liveSettings({ env: {} }), { signupOpen: false, signupDailyCap: 10, foundingOffer: { percentOff: 0, presses: 25 }, payAsYouSell: { basisPoints: 0 } });
-  const set = await liveSettings({ env: { SIGNUP_OPEN: "on", SIGNUP_DAILY_CAP: "3", FOUNDING_PERCENT_OFF: "25", PAY_AS_YOU_SELL_BASIS_POINTS: "200" } });
-  assert.equal(set.signupOpen, true);
-  assert.equal(set.signupDailyCap, 3);
-  assert.equal(set.foundingOffer.percentOff, 25);
-  assert.equal(set.payAsYouSell.basisPoints, 200);
-  assert.equal((await liveSettings({ env: { SIGNUP_DAILY_CAP: "lots" } })).signupDailyCap, 10);
-  assert.equal((await liveSettings({ env: { SIGNUP_OPEN: "on" }, store: { get: async () => ({ signupOpen: false }) } })).signupOpen, false, "the control room's value wins");
-  assert.equal((await liveSettings({ env: {}, store: { get: async () => { throw new Error("offline"); } } })).signupOpen, false);
+test("sign-up reads the control room's live settings: closed and 10 shops a day unless changed", async () => {
+  const base = await liveSettings({ env: {} });
+  assert.equal(base.signupOpen, false);
+  assert.equal(base.signupDailyCap, 10);
+  const saved = { get: async () => ({ values: { signupOpen: true, signupDailyCap: 3 } }) };
+  const changed = await liveSettings({ env: {}, store: saved });
+  assert.equal(changed.signupOpen, true, "the control room's value wins");
+  assert.equal(changed.signupDailyCap, 3);
 });
 
 test("the page tells a press in line the same words and keeps checking", () => {

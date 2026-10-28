@@ -67,6 +67,31 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The control room's waitlist invite (plan 9.5): the person may start their shop now, past the daily line. */
+  "waitlist-invite": ({ link }, { settings }) => layout({
+    subject: `Your ${settings.platformName} shop is ready to start`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Thanks for joining the ${settings.platformName} waitlist. Your place has come up: you can start your shop now.`,
+      `Sign up with this email address. The first ${settings.trialDays ?? 14} days are free and no card is needed.`,
+    ],
+    buttons: [["Start your shop", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A change to the press's per-order fee (plan 9.6), sent 30 days before it starts. */
+  "platform-fee-changing": ({ fromPercent, toPercent, startsOn, refunded, link }, { settings, pressName }) => layout({
+    subject: `A change to ${pressName}'s fee on each order`,
+    greeting: "Hello,",
+    paragraphs: [
+      `From ${startsOn}, ${settings.platformName}'s fee on each order ${pressName} takes will be ${toPercent}% (it is ${fromPercent}% now).`,
+      refunded ? "When you refund an order, the fee is refunded with it." : "When you refund an order, the fee is not refunded.",
+      "Nothing changes before that date. Reply to this email if you have a question.",
+    ],
+    buttons: [["See your plan", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /**
    * The health run's alert to the platform's own address (services/health). `data`: { pressName, shopId, check,
    * state: "failing" | "still-failing" | "recovered", detail, since }.

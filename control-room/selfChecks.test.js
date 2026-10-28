@@ -21,7 +21,7 @@ import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices 
 import { TEST_CONFIG, TEST_SHOP } from "../setup/test-shop.js";
 
 const ID = TEST_SHOP.shopId;
-const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true };
+const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
 
 async function world() {
   const google = fakeGoogle();

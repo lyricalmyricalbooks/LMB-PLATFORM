@@ -56,9 +56,8 @@ An email invited from the control room (`invites`: `isInvited(email)`, `markUsed
 `waitlist/invites.js`) skips the cap and the line, doesn't count towards the cap, and an invite that arrives while the
 press waits lets it straight in on its next visit.
 
-`live.js` stands in for the control room's `liveSettings({ env, store })` (services/settings.js) until that is merged:
-`SIGNUP_OPEN` (off), `SIGNUP_DAILY_CAP` (10), `FOUNDING_PERCENT_OFF` (0) / `FOUNDING_PRESSES` (25),
-`PAY_AS_YOU_SELL_BASIS_POINTS` (0). Swap the import when the real one lands.
+Sign-up reads the control room's `liveSettings({ env, store })` (services/settings.js) through `live.js`: whether sign-up
+is open, the daily cap, the founding offer and pay as you sell, with the control room's saved changes on top.
 
 ## The shop maker from sign-up (`shopMaker.js`, plan 2.6)
 

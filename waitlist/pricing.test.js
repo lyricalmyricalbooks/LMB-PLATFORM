@@ -48,7 +48,7 @@ test("switched off (the default), the page asks nothing of the plans and stays t
 });
 
 test("switched on, the three plans and prices come from the settings, free for 14 days, with Start your free trial", async () => {
-  const answer = await plansAnswer({ SIGNUP_OPEN: "on", PLAN_PRICE_SHOP: "3100", TRIAL_DAYS: "14" });
+  const answer = await plansAnswer({ SIGNUP_OPEN: "true", PLAN_PRICE_SHOP: "3100", TRIAL_DAYS: "14", FOUNDING_PERCENT_OFF: "0", PAY_AS_YOU_SELL_BASIS_POINTS: "0" });
   const view = pricingView(answer);
   assert.deepEqual(view.plans.map((p) => [p.plan, p.name, p.priceText]), [["shop", "Shop", "$31.00"], ["stockroom", "Stockroom", "$19.00"], ["both", "Shop and stockroom", "$39.00"]]);
   assert.equal(view.trial, "Free for 14 days, no card needed.");
@@ -67,7 +67,7 @@ test("switched on, the three plans and prices come from the settings, free for 1
 });
 
 test("the founding price shows only when the offer is set", async () => {
-  const view = pricingView(await plansAnswer({ SIGNUP_OPEN: "on", FOUNDING_PERCENT_OFF: "25", FOUNDING_PRESSES: "25" }));
+  const view = pricingView(await plansAnswer({ SIGNUP_OPEN: "true", FOUNDING_PERCENT_OFF: "25", FOUNDING_PRESSES: "25", PAY_AS_YOU_SELL_BASIS_POINTS: "0" }));
   assert.equal(view.founding, "Founding presses: 25% off for as long as you stay, for the first 25 presses.");
   assert.deepEqual(view.plans.map((p) => p.foundingPriceText), ["$21.75", "$14.25", "$29.25"]);
   const doc = fakeDocument();
@@ -77,14 +77,14 @@ test("the founding price shows only when the offer is set", async () => {
 });
 
 test("pay as you sell shows under the plans with a website, capped at the plan's price, and hides at 0", async () => {
-  const view = pricingView(await plansAnswer({ SIGNUP_OPEN: "on", PAY_AS_YOU_SELL_BASIS_POINTS: "200" }));
+  const view = pricingView(await plansAnswer({ SIGNUP_OPEN: "true", PAY_AS_YOU_SELL_BASIS_POINTS: "200" }));
   assert.deepEqual(view.plans.map((p) => p.payAsYouSell), [
     "or 2% of your website sales, never more than $29.00 a month",
     null,
     "or 2% of your website sales, never more than $39.00 a month",
   ]);
-  assert.equal(pricingView(await plansAnswer({ SIGNUP_OPEN: "on", PAY_AS_YOU_SELL_BASIS_POINTS: "250" })).plans[0].payAsYouSell, "or 2.5% of your website sales, never more than $29.00 a month");
-  assert.ok(pricingView(await plansAnswer({ SIGNUP_OPEN: "on", PAY_AS_YOU_SELL_BASIS_POINTS: "0" })).plans.every((p) => p.payAsYouSell === null));
+  assert.equal(pricingView(await plansAnswer({ SIGNUP_OPEN: "true", PAY_AS_YOU_SELL_BASIS_POINTS: "250" })).plans[0].payAsYouSell, "or 2.5% of your website sales, never more than $29.00 a month");
+  assert.ok(pricingView(await plansAnswer({ SIGNUP_OPEN: "true", PAY_AS_YOU_SELL_BASIS_POINTS: "0" })).plans.every((p) => p.payAsYouSell === null));
 });
 
 test("a live-settings failure reads as closed, never as an error", async () => {

@@ -1,8 +1,29 @@
 # Control room
 
 The platform's own admin (code plan 2.8; closing a shop, emergency payments, the breach register and the backup person
-are plan 8.4 to 8.7). Platform admins only: a confirmed email on `PLATFORM_ADMIN_EMAILS`
-(comma-separated). The list is empty unless it is set, so nobody is an admin by accident.
+are plan 8.4 to 8.7; the owner's controls are Phase 9). Platform admins only: a confirmed email on
+`PLATFORM_ADMIN_EMAILS` (comma-separated). The list is empty unless it is set, so nobody is an admin by accident.
+
+## Two-step sign-in (plan 9.1)
+
+Every control-room call, the support inbox's and account recovery's admin calls and the backup person's run book also
+need a sign-in that used a second step and is under 12 hours old (`controlRoom.js` `twoStepProblem`: the ID token's
+`firebase.sign_in_second_factor` and `auth_time`, both signed by Firebase). The page signs in with Google, then asks
+for the 6-digit code from an authenticator app. A listed admin who has no authenticator yet is shown a set-up screen
+(a code to scan, the key to type, then one code to confirm), and signs in again after it.
+
+Before it works, in the platform project (Julian's step): Authentication › Settings › **Multi-factor authentication**,
+turn on **Authenticator app (TOTP)** (this upgrades sign-in to Identity Platform, free at this size), then set
+`PLATFORM_ADMIN_EMAILS` to his address on the web door. Without that, the set-up screen says it isn't turned on yet.
+
+## Today (`today.js`, plan 9.2)
+
+The page opens on the numbers: monthly income, shops live, on a free trial, paying, signed up this week, failed
+payments, paused and closed, then **Needs you** (shops with a problem, failed plan payments, the repair queue, waiting
+support requests, recoveries to check, new shops stuck while being made), each a link to its place on the page. Income
+counts each paying shop at its plan price (`billing.amount` when billing keeps it, else today's price), less its own
+`billing.percentOff`; the test shop never counts. `GET /api/control/today`; give `createControlRoom` `settings`
+(`liveSettings`), `supportStore`, `recoveryStore` and `signups` for the full list.
 
 ## The page (`index.html`, `app.js`)
 
@@ -177,6 +198,32 @@ The access is sealed: it opens for 12 hours only with a reason, and only after t
 emailed (`backup-access-used`). Platform admins see the same run book under their list and use it without a seal
 (logged, not emailed). Routes: `GET /api/control/emergency`, `POST /api/control/emergency/open`, `/pause-releases`,
 `/resume-releases`, `/roll-back`, `/status-note` (`emergencyRoutes`, added to the web door beside `controlRoutes`).
+
+## Platform settings, the waitlist and the activity log (`platformControls.js`, `activity.js`, plan 9.4, 9.5, 9.9)
+
+`createPlatformControls({ admins, settingsStore, env, activity, waitlist, invites, signups })`, added to the web door
+with `routes: platformRoutes(controls)`. Platform admins only.
+
+- **Platform settings**: sign-up open or waitlist only, new shops a day, the three plan prices, trial days, the founding
+  offer (percent off, how many presses) and pay as you sell (share of each website sale). Saved as
+  `platformState/settings` `{ values: { path: value }, updatedAt, updatedBy }`; `services/settings.js` `liveSettings`
+  puts them on top of the environment, so sign-up and billing read them with no release. Only real changes are kept: a
+  value equal to the environment's is dropped. A new price is a new Stripe price (billing's lookup keys), so presses
+  already paying keep theirs.
+- **Sign-ups and the waitlist**: the waitlist newest first, **Invite** (emails `waitlist-invite` once and writes
+  `invites/<id>`, which sign-up's daily cap checks with `waitlist/invites.js` `isInvited`), and shops being made with
+  **Try again**, which also restarts a stop that needed a person.
+- **Activity log**: every control-room action, the shop ones too (`controlRoom.js` `log` writes there when given
+  `activity`), as `controlActivity/<id>`, kept a year, read only.
+
+| Route | What |
+| --- | --- |
+| `GET /api/control/settings` | the editable settings, their values and the environment's |
+| `POST /api/control/settings` | `{ values: { path: value }, reset?: [path], reason }` |
+| `GET /api/control/waitlist` | the waitlist and the shops being made |
+| `POST /api/control/invite` | `{ email }` |
+| `POST /api/control/retry` | `{ shopId, reason }`: make a stopped shop again |
+| `POST /api/control/activity` | `{ shopId?, limit? }` |
 
 ## Not yet
 

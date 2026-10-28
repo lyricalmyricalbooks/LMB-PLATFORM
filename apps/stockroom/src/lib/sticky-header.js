@@ -1,5 +1,5 @@
 /**
- * Sticky-offset publisher for the Lyrical design system.
+ * Sticky-offset publisher for the Riso Press design system.
  *
  * The ledgers in this app are long — Order History pages 50 rows at a time and
  * the consignment and tax ledgers run to hundreds — but `.tbl` headers scroll

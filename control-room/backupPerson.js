@@ -13,6 +13,7 @@
 // state (clients/stores.js firestorePlatformState: get, set, log), email (services/email sendPlatform), registry and
 // auditLog (a roll back is also written in the shop's own history), now.
 import { createHash } from "node:crypto";
+import { twoStepProblem } from "./controlRoom.js";
 
 export const SEAL_HOURS = 12;
 export const MIN_REASON = 10;
@@ -38,9 +39,13 @@ export function createBackupAccess({ people = {}, admins = [], runBook, state, e
   function roleOf(claims) {
     if (!claims?.uid) throw new EmergencyError(401, "Sign in first.");
     const who = String(claims.email ?? "").toLowerCase();
-    if (claims.email_verified === true && people.backupPerson && who === people.backupPerson) return { role: "backup", by: who };
-    if (claims.email_verified === true && admins.includes(who)) return { role: "admin", by: who };
-    throw new EmergencyError(403, "This is for the platform's admins and its backup person only.");
+    const role = claims.email_verified === true && people.backupPerson && who === people.backupPerson ? "backup"
+      : claims.email_verified === true && admins.includes(who) ? "admin" : null;
+    if (!role) throw new EmergencyError(403, "This is for the platform's admins and its backup person only.");
+    // Two steps, signed in within 12 hours, for the backup person too (plan 9.1).
+    const problem = twoStepProblem(claims, now().getTime());
+    if (problem) throw new EmergencyError(problem.status, problem.message);
+    return { role, by: who };
   }
 
   const reasonOf = (reason) => {

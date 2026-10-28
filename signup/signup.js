@@ -14,7 +14,7 @@
 //   throttle   count(key, sinceIso) -> number; add(key, atIso)
 //   invites    optional: isInvited(email) -> boolean; markUsed(email, shopId) (the control room's waitlist invites,
 //              waitlist/invites.js createInvites)
-//   live       optional: () -> liveSettings (the daily cap, `signupDailyCap`); live.js until services/settings.js has it
+//   live       optional: () -> liveSettings (the daily cap, `signupDailyCap`; services/settings.js)
 //
 // Daily cap (plan 6.13): at most `signupDailyCap` new shops start each Toronto day. A press over the cap is put "in-line"
 // (its trial doesn't start, so no days are lost) and `admitFromLine()` (run by the shop maker's sweep) lets the oldest
