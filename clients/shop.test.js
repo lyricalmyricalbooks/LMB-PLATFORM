@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { firestoreClient } from "./firestore.js";
 import { inventoryLinkClient, registryFiles, shopDataClient, siteCheckClient, stockroomClient } from "./shop.js";
-import { firestoreAccounts, firestoreDevices, firestoreRecoveries, firestoreSentLog, firestoreSupport } from "./stores.js";
+import { firestoreAccounts, firestoreDevices, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreSupport } from "./stores.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 
 const P = "lmb-test-shop";
@@ -129,6 +129,20 @@ test("the support store filters by status or email and sorts and counts here", a
   assert.deepEqual(await support.list({ status: "open" }), [{ status: "open" }]);
   assert.deepEqual((await support.listByEmail("ada@moth.example")).map((t) => t.updatedAt), ["2", "1"]);
   assert.equal(await support.countSince("ada@moth.example", "2026-10-28"), 1);
+  fetch.done();
+});
+
+test("the repair store lists by shop and status with equality filters only", async () => {
+  const R = "https://firestore.googleapis.com/v1/projects/lmb-platform-prod/databases/(default)/documents";
+  const doc = (id, fields) => ({ document: { name: `projects/lmb-platform-prod/databases/(default)/documents/repairs/${id}`, fields } });
+  const eq = (field, value) => ({ fieldFilter: { field: { fieldPath: field }, op: "EQUAL", value: str(value) } });
+  const fetch = scriptedFetch([
+    { method: "POST", url: `${R}:runQuery`, body: { structuredQuery: { from: [{ collectionId: "repairs" }], where: { compositeFilter: { op: "AND", filters: [eq("shopId", "moth-press"), eq("status", "open")] } }, limit: 1000 } }, json: [doc("a", { status: str("open") })] },
+    { method: "POST", url: `${R}:runQuery`, body: { structuredQuery: { from: [{ collectionId: "repairs" }], where: eq("status", "fixed"), limit: 1000 } }, json: [] },
+  ]);
+  const repairs = firestoreRepairs(firestoreClient({ fetch, token, projectId: "lmb-platform-prod" }));
+  assert.deepEqual(await repairs.list({ shopId: "moth-press", status: "open" }), [{ status: "open" }]);
+  assert.deepEqual(await repairs.list({ status: "fixed" }), []);
   fetch.done();
 });
 
