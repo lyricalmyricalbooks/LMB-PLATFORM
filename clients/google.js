@@ -218,11 +218,14 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
         const days = (listing.prefixes ?? []).filter((p) => /^backups\/\d{4}-\d{2}-\d{2}\/$/.test(p)).sort();
         return days.length ? { name: days.at(-1) } : null;
       },
-      async run(projectId) {
+      // `database` names another of the project's databases (the stockroom's, plan 1.20); its export goes next to the
+      // shop's, as backups/<day>/<database>-export.
+      async run(projectId, { database = "(default)" } = {}) {
         const bucket = await needBucket(projectId);
         const folder = `backups/${today()}/`;
-        const operation = await call("POST", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/(default):exportDocuments`, {
-          body: { outputUriPrefix: `gs://${bucket}/${folder}export`, collectionIds: [] },
+        const out = database === "(default)" ? "export" : `${database}-export`;
+        const operation = await call("POST", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/${database}:exportDocuments`, {
+          body: { outputUriPrefix: `gs://${bucket}/${folder}${out}`, collectionIds: [] },
         });
         await wait(operation, FIRESTORE_ADMIN);
         return { name: folder };

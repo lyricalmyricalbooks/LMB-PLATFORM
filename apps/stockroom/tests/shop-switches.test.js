@@ -85,3 +85,57 @@ describe('the Gmail receipt finder follows its switch', () => {
     expect(shown('email-panel-direct')).toBe(true);
   });
 });
+
+describe('the Gmail order scan follows its switch', () => {
+  let app;
+  beforeAll(async () => {
+    app = await loadApp();
+  }, 30000);
+  afterEach(() => {
+    delete window.__SHOP_PROFILE__;
+  });
+
+  const el = (id) => document.getElementById(id);
+  const scanParts = () => [...document.querySelectorAll('[data-gmail-order-scan]')];
+  const websiteWords = () => document.querySelector('[data-no-gmail-order-scan]');
+
+  it('off: Orders shows the website words, with no Gmail scan, buttons, tiles or queue', () => {
+    app.window.renderOrders();
+    expect(scanParts().length).toBeGreaterThan(4);
+    for (const part of scanParts()) expect(part.hidden).toBe(true);
+    for (const id of ['scan-btn', 'backfill-shipping-btn', 'orders-list', 'web-orders-status', 'apply-all-btn']) {
+      expect(el(id).closest('[hidden]'), id).not.toBeNull();
+    }
+    expect(websiteWords().hidden).toBe(false);
+    expect(websiteWords().textContent).toContain('arrive here by themselves');
+  });
+
+  it('off: no rival is named in the Orders words a new shop sees', () => {
+    app.window.renderOrders();
+    const shown = [...document.querySelectorAll('.web-orders-hero p')].filter((p) => !p.closest('[hidden]'));
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.map((p) => p.textContent).join(' ')).not.toMatch(/big cartel/i);
+  });
+
+  it('off: Scan Gmail and Backfill shipping info refuse without reading anything', async () => {
+    const calls = [];
+    const realFetch = window.fetch;
+    window.fetch = (...args) => { calls.push(args); return realFetch(...args); };
+    try {
+      await app.window.fetchOrders();
+      await app.window.backfillShipping();
+    } finally {
+      window.fetch = realFetch;
+    }
+    expect(calls).toEqual([]);
+    expect(el('scan-btn').disabled).toBe(false);
+  });
+
+  it('on: the scan screen comes back as before', () => {
+    window.__SHOP_PROFILE__ = profile({ gmailOrderScan: true });
+    app.window.renderOrders();
+    for (const part of scanParts()) expect(part.hidden).toBe(false);
+    expect(websiteWords().hidden).toBe(true);
+    expect(el('scan-btn').textContent).toBe('Scan Gmail');
+  });
+});

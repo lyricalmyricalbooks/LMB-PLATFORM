@@ -242,6 +242,7 @@ import {
   postageTrackingIndex,
 } from '../lib/postage-intake.js';
 import { parseShippingEmail, shippingEmailQuery, trackingEmailQuery } from '../lib/shipping-email.js';
+import { readShopProfile, switchOn } from '../lib/shop-profile.js';
 import {
   assessLiveShippingReadiness,
   inspectZonosAccountKey,
@@ -338,6 +339,8 @@ function renderOrderShippingSummary(order) {
 }
 
 async function backfillShipping() {
+  // Reads the publisher's Gmail, so it follows the gmailOrderScan switch like Scan Gmail (plan 1.17).
+  if (!switchOn('gmailOrderScan', readShopProfile())) return;
   const log = 'log-web';
   const btn = $('backfill-shipping-btn');
   if (!sheetsUrl) {

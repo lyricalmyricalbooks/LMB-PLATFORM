@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control room · Colophon</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600&family=DM+Mono&display=swap">
+<style>
+  :root { --paper: #f4efe6; --ink: #1d1a17; --pink: #ff48b0; --blue: #0078bf; --yellow: #ffe800; --green: #00a95c; --muted: #5a534c; --danger: #c2261d; }
+  @media (prefers-color-scheme: dark) { :root { --paper: #23201d; --ink: #f1ebe1; --muted: #b9b0a5; --danger: #ff7a70; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.5 Archivo, system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 32px 16px 64px; }
+  .mark { font: 14px "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { font: 400 clamp(32px, 7vw, 52px)/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 8px 0 16px; }
+  section[hidden] { display: none; }
+  button { font: inherit; font-weight: 600; border: 2px solid var(--ink); border-radius: 0; padding: 8px 12px; min-height: 44px; background: var(--paper); color: var(--ink); cursor: pointer; }
+  button:disabled { opacity: .6; cursor: default; }
+  .primary { background: var(--yellow); color: #1d1a17; box-shadow: 4px 4px 0 var(--ink); }
+  .stack { display: grid; gap: 16px; }
+  .card { border: 2px solid var(--ink); padding: 16px; display: grid; gap: 10px; }
+  .card.problem { box-shadow: 4px 4px 0 var(--danger); }
+  .card.watch { box-shadow: 4px 4px 0 var(--yellow); }
+  .card.ok { box-shadow: 4px 4px 0 var(--green); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .row > strong { flex: 1 1 220px; font-size: 19px; overflow-wrap: anywhere; }
+  .facts { font: 14px "DM Mono", monospace; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .pill { font: 13px "DM Mono", monospace; text-transform: uppercase; border: 2px solid var(--ink); padding: 2px 8px; }
+  ul { margin: 0; padding-left: 20px; }
+  .switch { display: flex; gap: 8px; align-items: center; font: 14px "DM Mono", monospace; min-height: 44px; }
+  .switch input { width: 22px; height: 22px; }
+  h2 { font: 400 26px/1.15 Anton, Impact, sans-serif; text-transform: uppercase; margin: 24px 0 0; }
+  textarea { font: inherit; border: 2px solid var(--ink); border-radius: 0; padding: 10px; min-height: 110px; background: var(--paper); color: var(--ink); resize: vertical; }
+  .message { border-left: 4px solid var(--blue); padding-left: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .message.from-support { border-left-color: var(--pink); }
+  .filters button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  #status { min-height: 1.5em; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark">Colophon</div>
+  <h1>Control room</h1>
+  <section id="view-signin" class="stack">
+    <p>For platform admins only.</p>
+    <button type="button" id="google" class="primary">Sign in with Google</button>
+  </section>
+  <section id="view-shops" class="stack" hidden>
+    <div class="row"><span id="summary"></span> <button type="button" id="refresh">Refresh</button></div>
+    <div id="shops" class="stack"></div>
+    <h2>Support requests</h2>
+    <div class="row filters" id="ticket-filters" role="group" aria-label="Which requests">
+      <button type="button" data-status="open" aria-pressed="true">Waiting</button>
+      <button type="button" data-status="answered" aria-pressed="false">Answered</button>
+      <button type="button" data-status="closed" aria-pressed="false">Closed</button>
+    </div>
+    <div id="tickets" class="stack"></div>
+    <h2>Account recovery</h2>
+    <p>People who lost the email address their account uses. Approve only once you've checked it's them; the move then waits three days for the old address to object, and you make it by hand (accounts/README.md, "Recovery: applying").</p>
+    <div class="row filters" id="recovery-filters" role="group" aria-label="Which recovery requests">
+      <button type="button" data-status="waiting" aria-pressed="true">To check</button>
+      <button type="button" data-status="approved" aria-pressed="false">Approved, waiting</button>
+      <button type="button" data-status="applied" aria-pressed="false">Moved</button>
+      <button type="button" data-status="denied" aria-pressed="false">Denied</button>
+      <button type="button" data-status="cancelled" aria-pressed="false">Stopped</button>
+    </div>
+    <div id="recoveries" class="stack"></div>
+  </section>
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

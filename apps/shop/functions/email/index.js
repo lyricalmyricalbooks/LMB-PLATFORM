@@ -127,7 +127,7 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
     if (gmailPass) {
       try {
         if (html && !/<html[\s>]/i.test(html)) {
-          html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
+          html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme, shopName: fromName });
         }
           const transport = nodemailer.createTransport({ service: "gmail", auth: { user: ownerEmail, pass: gmailPass }, ...GMAIL_TIMEOUTS });
         const info = await transport.sendMail({
@@ -209,7 +209,7 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
     // Every email gets the Riso Press shell (light/dark, accent and logo from Notifications › Email branding);
     // templates from compileEmailTemplate are already full documents.
     if (html && !/<html[\s>]/i.test(html)) {
-      html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
+      html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme, shopName: fromName });
     }
 
     // If using a Resend onboarding key, force the sender to onboarding@resend.dev

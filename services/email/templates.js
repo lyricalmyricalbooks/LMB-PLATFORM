@@ -55,6 +55,27 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /**
+   * The health run's alert to the platform's own address (services/health). `data`: { pressName, shopId, check,
+   * state: "failing" | "still-failing" | "recovered", detail, since }.
+   */
+  "health-alert": ({ shopId, check, state, detail, since }, { settings, pressName }) => {
+    const what = { pages: "pages", checkout: "checkout", webhook: "payment events", backup: "backups" }[check];
+    if (!what) throw new Error(`the health alert names no known check (${check})`);
+    const words = {
+      failing: [`${what} failing`, `The ${what} check for ${pressName} started failing at ${since}.`],
+      "still-failing": [`${what} still failing`, `The ${what} check for ${pressName} has been failing since ${since}.`],
+      recovered: [`${what} working again`, `The ${what} check for ${pressName} passes again.`],
+    }[state];
+    if (!words) throw new Error(`the health alert has no known state (${state})`);
+    return layout({
+      subject: `${pressName} (${shopId}): ${words[0]}`,
+      greeting: "",
+      paragraphs: [words[1], ...(detail && state !== "recovered" ? [`What the check saw: ${detail}`] : [])],
+      footer: `${settings.platformName} health checks`,
+    });
+  },
+
   /** An owner invited someone to their shop's team (accounts/accounts.js). */
   "invite": ({ pressName, invitedBy, roleWords, link, days }, { settings }) => layout({
     subject: `You're invited to join ${pressName} on ${settings.platformName}`,
@@ -65,6 +86,36 @@ export const TEMPLATES = {
       "If you weren't expecting it, you can ignore this email.",
     ],
     buttons: [["Accept the invite", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  // ── Support (services/support). `data`: { pressName, ticketId, subject, body, from?, followUp? }. ──
+
+  /** To the person who asked: we have it. Their own words are repeated so they can check them. */
+  "support-received": ({ ticketId, subject, body }, { settings }) => layout({
+    subject: `We have your request: ${subject}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Thanks for writing to ${settings.platformName} support. A person reads every request, and you'll get the answer by email.`,
+      `Your request (number ${ticketId}):`,
+      body,
+    ],
+    footer: signOff(settings),
+  }),
+
+  /** To the platform's support address: a new request, or more words on one. */
+  "support-new": ({ ticketId, subject, body, from, followUp }, { settings, pressName }) => layout({
+    subject: `${followUp ? "More on" : "New request"} ${ticketId}: ${subject}`,
+    greeting: "",
+    paragraphs: [`From ${from}${pressName ? ` (${pressName})` : ""}:`, body, "Answer it in the control room, under Support, so the press gets it by email."],
+    footer: `${settings.platformName} support inbox`,
+  }),
+
+  /** To the person who asked: the team's answer. */
+  "support-reply": ({ ticketId, subject, body }, { settings }) => layout({
+    subject: `Re: ${subject}`,
+    greeting: "Hello,",
+    paragraphs: [body, `This answers your request number ${ticketId}. Add to it from your account page if you need more help.`],
     footer: signOff(settings),
   }),
 
@@ -126,6 +177,92 @@ export const TEMPLATES = {
     greeting: "Hello,",
     paragraphs: [`${pressName} is now on the ${planName} plan, ${price} a month. Your next bill is adjusted for the part of the month on each plan.`],
     buttons: [["See your plan", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  // ── Account safety (accounts/devices.js, accounts/recovery.js). Recovery `data`: { requestId, oldEmail, newEmail,
+  //    holdUntil, reason?, by? }. The account page is settings.platformUrl + /accounts/. ──
+
+  /** The account was used from a device it hasn't been used from before. `data`: { browser, at }. */
+  "new-device": ({ browser, at }, { settings }) => layout({
+    subject: `New sign-in to your ${settings.platformName} account`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your ${settings.platformName} account was just used from a device it hasn't been used from before: ${browser}, at ${at} (UTC).`,
+      "If that was you, there's nothing to do.",
+      "If it wasn't, sign out everywhere by changing your Google password or the password of the email address you sign in with, then reply to this email so we can help.",
+    ],
+    buttons: [["Open your account", safeLink(`${settings.platformUrl}/accounts/`)]],
+    footer: signOff(settings),
+  }),
+
+  /** To the old address: someone asked to move this account away from it. */
+  "recovery-asked": ({ newEmail }, { settings }) => layout({
+    subject: `Someone asked to move your ${settings.platformName} account`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Someone signed in as ${newEmail} asked us to move the ${settings.platformName} account that uses this email address to theirs, saying they've lost access to this one.`,
+      "A person on our team checks every request before anything moves, and nothing moves for at least three days after that.",
+      "If this wasn't you, sign in to your account page and choose Stop this request.",
+    ],
+    buttons: [["Open your account", safeLink(`${settings.platformUrl}/accounts/`)]],
+    footer: signOff(settings),
+  }),
+
+  /** To the person asking: we have it. Never says whether the old address has an account. */
+  "recovery-received": ({ oldEmail }, { settings }) => layout({
+    subject: "We have your request to move your account",
+    greeting: "Hello,",
+    paragraphs: [
+      `We'll look at your request to move the account that used ${oldEmail}. A person checks every request, so it can take a few days, and we may write to ask you something.`,
+      "For your safety we also let the old address know.",
+    ],
+    footer: signOff(settings),
+  }),
+
+  /** To the support address: a request to review in the control room. */
+  "recovery-new": ({ requestId, oldEmail, newEmail, accountFound, shopCount }, { settings }) => layout({
+    subject: `Account recovery to review: ${requestId}`,
+    greeting: "",
+    paragraphs: [
+      `${newEmail} asks to move the account that uses ${oldEmail}.`,
+      accountFound ? `That address has an account and owns ${shopCount} shop(s).` : "No account uses that address.",
+      "Review it in the control room, under Account recovery.",
+    ],
+    footer: `${settings.platformName} account recovery`,
+  }),
+
+  /** The request was stopped, by the old owner or by the person asking. */
+  "recovery-stopped": ({ requestId, by }, { settings }) => layout({
+    subject: `Account recovery request ${requestId} was stopped`,
+    greeting: "Hello,",
+    paragraphs: [`The request to move a ${settings.platformName} account (${requestId}) was stopped by ${by}. Nothing has moved.`],
+    footer: signOff(settings),
+  }),
+
+  /** Approved: the move waits until holdUntil, so the old owner can still stop it. */
+  "recovery-approved": ({ oldEmail, newEmail, holdUntil }, { settings }) => layout({
+    subject: "Your account move is approved and waiting",
+    greeting: "Hello,",
+    paragraphs: [
+      `We've approved moving the ${settings.platformName} account that uses ${oldEmail} to ${newEmail}.`,
+      `It will move after ${holdUntil} (UTC). Until then, the owner of ${oldEmail} can stop it from their account page.`,
+    ],
+    buttons: [["Open your account", safeLink(`${settings.platformUrl}/accounts/`)]],
+    footer: signOff(settings),
+  }),
+
+  "recovery-denied": ({ oldEmail, reason }, { settings }) => layout({
+    subject: "We couldn't move your account",
+    greeting: "Hello,",
+    paragraphs: [`We couldn't move the account that uses ${oldEmail}.`, reason, "Reply to this email if you can tell us more."],
+    footer: signOff(settings),
+  }),
+
+  "recovery-applied": ({ oldEmail, newEmail }, { settings }) => layout({
+    subject: `Your ${settings.platformName} account has moved`,
+    greeting: "Hello,",
+    paragraphs: [`The ${settings.platformName} account that used ${oldEmail} now signs in with ${newEmail}.`, "If you didn't expect this, reply to this email at once."],
     footer: signOff(settings),
   }),
 };

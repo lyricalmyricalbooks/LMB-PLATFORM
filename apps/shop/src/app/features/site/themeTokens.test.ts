@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  faintFloor,
   hexToRgbTriplet,
   buildStorefrontTokenVars,
   RISO_STOREFRONT_CSS,
@@ -83,9 +84,20 @@ describe("buildStorefrontTokenVars", () => {
   });
 });
 
+describe("faintFloor (plan 1.25)", () => {
+  it("is low on a dark page and higher on a light one, so faint words still read at 3:1", () => {
+    const dark = faintFloor("#ffffff", "#000000");
+    const light = faintFloor("#000000", "#faf6ec");
+    expect(dark).toBeGreaterThan(0);
+    expect(dark).toBeLessThan(0.5);
+    expect(light).toBeGreaterThan(dark);
+    expect(buildStorefrontTokenVars({ backgroundColor: "#faf6ec", textColor: "#000000" })).toContain(`--fg-faint: ${light};`);
+  });
+});
+
 describe("STOREFRONT_TOKEN_CSS", () => {
   it("remaps the Tailwind alpha utilities onto the token layer", () => {
-    expect(STOREFRONT_TOKEN_CSS).toContain(".text-white\\/40{color:rgba(var(--fg-rgb), 0.4);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain(".text-white\\/40{color:rgba(var(--fg-rgb), max(0.4, var(--fg-faint, 0)));}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".bg-white\\/\\[0\\.03\\]{background-color:rgba(var(--surface-rgb), 0.03);}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".bg-black\\/70{background-color:rgba(var(--overlay-rgb), 0.7);}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".border-white\\/\\[0\\.08\\]{border-color:rgba(var(--border-rgb), 0.08);}");

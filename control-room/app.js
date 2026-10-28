@@ -1,0 +1,238 @@
+// The control room page (control-room/index.html): every shop with its plan, version, health and switches, an
+// "Act as this shop" button, a switch for each feature, and the support requests to answer. Plain browser JavaScript with no framework, like the
+// sign-up page. The server (control-room/routes.js) checks that the person is a platform admin, and asks for a reason
+// that goes in the shop's log.
+import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
+import { deviceId } from "../signup/device.js";
+
+const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
+const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
+
+const auth = getAuth(initializeApp(PLATFORM_FIREBASE));
+const $ = (selector) => document.querySelector(selector);
+const status = $("#status");
+
+function el(tag, props = {}, ...children) {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...children.filter(Boolean));
+  return node;
+}
+
+async function api(method, path, body) {
+  const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}`, "X-Device-Id": deviceId() } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const answer = await response.json().catch(() => ({ ok: false, message: "The platform didn't answer. Try again." }));
+  if (!response.ok || answer.ok === false) throw new Error(answer.message || "Something went wrong.");
+  return answer;
+}
+
+const askWhy = (what) => (window.prompt(`${what}\n\nWhy? This goes in the shop's log (at least 10 characters).`) ?? "").trim();
+const LEVEL = { problem: "Problem", watch: "Look", ok: "OK" };
+const SWITCH_WORDS = {
+  legacyStockroomSignIn: "Old stockroom sign-in",
+  githubPagesForwarding: "Forward the old GitHub Pages address",
+  gmailReceiptFinder: "Find receipts in Gmail",
+  gmailOrderScan: "Scan Gmail for order receipts",
+};
+
+async function load() {
+  status.textContent = "Loading…";
+  try {
+    const { shops } = await api("GET", "/control/shops");
+    const problems = shops.filter((s) => s.health.level === "problem").length;
+    $("#summary").textContent = `${shops.length} shops · ${problems} with a problem`;
+    $("#shops").replaceChildren(...(shops.length ? shops.map(card) : [el("p", { textContent: "No shops yet." })]));
+    status.textContent = "";
+    $("#view-signin").hidden = true;
+    $("#view-shops").hidden = false;
+    await loadTickets();
+    await loadRecoveries();
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+function card(shop) {
+  const act = el("button", { type: "button", textContent: "Act as this shop", disabled: shop.status !== "live" });
+  act.addEventListener("click", async () => {
+    const reason = askWhy(`Open ${shop.pressName}'s admin as support for 30 minutes.`);
+    if (!reason) return;
+    act.disabled = true;
+    try {
+      const { url } = await api("POST", "/control/act-as", { shopId: shop.shopId, reason });
+      window.open(url, "_blank", "noopener");
+      status.textContent = `Logged. ${shop.pressName}'s admin opened in a new tab.`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    act.disabled = false;
+  });
+
+  const switches = shop.switches
+    ? el("div", { className: "row" }, ...Object.entries(shop.switches).map(([name, on]) => {
+      const box = el("input", { type: "checkbox", checked: on });
+      box.addEventListener("change", async () => {
+        const reason = askWhy(`Turn "${SWITCH_WORDS[name] ?? name}" ${box.checked ? "on" : "off"} for ${shop.pressName}. Its pages are deployed again.`);
+        if (!reason) { box.checked = !box.checked; return; }
+        box.disabled = true;
+        try {
+          await api("POST", "/control/switch", { shopId: shop.shopId, name, on: box.checked, reason });
+          status.textContent = `${SWITCH_WORDS[name] ?? name} is ${box.checked ? "on" : "off"} for ${shop.pressName}.`;
+        } catch (failure) {
+          box.checked = !box.checked;
+          status.textContent = failure.message;
+        }
+        box.disabled = false;
+      });
+      return el("label", { className: "switch" }, box, SWITCH_WORDS[name] ?? name);
+    }))
+    : null;
+
+  return el("div", { className: `card ${shop.health.level}` },
+    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), act),
+    el("div", { className: "facts" },
+      el("span", { textContent: shop.shopId }),
+      el("span", { textContent: `plan: ${shop.plan ?? "?"}` }),
+      el("span", { textContent: `version: ${shop.version ?? "none yet"}` }),
+      el("span", { textContent: `status: ${shop.status ?? "?"}` }),
+      shop.access ? el("span", { textContent: `billing: ${shop.access}` }) : null,
+      shop.testShop ? el("span", { textContent: "test shop" }) : null),
+    shop.health.reasons.length ? el("ul", {}, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
+    switches);
+}
+
+// ── Support requests (services/support): answer, and the press gets it by email; close when done. ──
+let ticketStatus = "open";
+for (const button of document.querySelectorAll("#ticket-filters button")) {
+  button.addEventListener("click", () => {
+    ticketStatus = button.dataset.status;
+    for (const other of document.querySelectorAll("#ticket-filters button")) other.setAttribute("aria-pressed", String(other === button));
+    loadTickets();
+  });
+}
+
+async function loadTickets() {
+  try {
+    const { tickets } = await api("POST", "/control/support", { status: ticketStatus });
+    $("#tickets").replaceChildren(...(tickets.length ? tickets.map(ticketCard) : [el("p", { textContent: "Nothing here." })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+function ticketCard(ticket) {
+  const when = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const answer = el("textarea", { maxLength: 5000 });
+  answer.setAttribute("aria-label", `Answer to ${ticket.email}`);
+  const send = el("button", { type: "button", className: "primary", textContent: "Send the answer" });
+  send.addEventListener("click", async () => {
+    send.disabled = true;
+    try {
+      await api("POST", "/control/support/answer", { id: ticket.id, body: answer.value });
+      status.textContent = `Answer emailed to ${ticket.email}.`;
+      await loadTickets();
+    } catch (failure) {
+      status.textContent = failure.message;
+      send.disabled = false;
+    }
+  });
+  const close = el("button", { type: "button", textContent: "Close", disabled: ticket.status === "closed" });
+  close.addEventListener("click", async () => {
+    close.disabled = true;
+    try {
+      await api("POST", "/control/support/close", { id: ticket.id });
+      status.textContent = `Request ${ticket.id} closed.`;
+      await loadTickets();
+    } catch (failure) {
+      status.textContent = failure.message;
+      close.disabled = false;
+    }
+  });
+  return el("div", { className: "card" },
+    el("div", { className: "row" }, el("strong", { textContent: ticket.subject }), el("span", { className: "pill", textContent: ticket.status })),
+    el("div", { className: "facts" },
+      el("span", { textContent: ticket.id }), el("span", { textContent: ticket.email }),
+      ticket.pressName ? el("span", { textContent: `${ticket.pressName} (${ticket.shopId})` }) : null,
+      el("span", { textContent: `opened ${when(ticket.openedAt)}` })),
+    ...ticket.messages.map((m) => el("div", { className: `message from-${m.from}` },
+      el("div", { className: "facts", textContent: `${m.from === "press" ? ticket.email : m.by} · ${when(m.at)}` }),
+      el("div", { textContent: m.body }))),
+    answer, el("div", { className: "row" }, send, close));
+}
+
+// ── Account recovery (accounts/recovery.js): check, approve or deny; after the wait, move it by hand and record it. ──
+let recoveryStatus = "waiting";
+for (const button of document.querySelectorAll("#recovery-filters button")) {
+  button.addEventListener("click", () => {
+    recoveryStatus = button.dataset.status;
+    for (const other of document.querySelectorAll("#recovery-filters button")) other.setAttribute("aria-pressed", String(other === button));
+    loadRecoveries();
+  });
+}
+
+async function loadRecoveries() {
+  try {
+    const { requests } = await api("POST", "/control/recovery", { status: recoveryStatus });
+    $("#recoveries").replaceChildren(...(requests.length ? requests.map(recoveryCard) : [el("p", { textContent: "Nothing here." })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+function recoveryCard(request) {
+  const when = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const decide = async (button, path, body, done) => {
+    button.disabled = true;
+    try {
+      await api("POST", path, { id: request.id, ...body });
+      status.textContent = done;
+      await loadRecoveries();
+    } catch (failure) {
+      status.textContent = failure.message;
+      button.disabled = false;
+    }
+  };
+  const words = el("textarea", { maxLength: 2000 });
+  words.setAttribute("aria-label", `Note or reason for request ${request.id}`);
+  const actions = el("div", { className: "row" });
+  if (request.status === "waiting") {
+    const approve = el("button", { type: "button", className: "primary", textContent: "Approve (note how you checked)" });
+    approve.addEventListener("click", () => decide(approve, "/control/recovery/approve", { note: words.value }, `Approved. Both addresses are told; it can be moved after three days.`));
+    actions.append(approve);
+  }
+  if (request.status === "waiting" || request.status === "approved") {
+    const deny = el("button", { type: "button", textContent: "Deny (the reason is emailed)" });
+    deny.addEventListener("click", () => decide(deny, "/control/recovery/deny", { reason: words.value }, `Denied, and ${request.requesterEmail} is told why.`));
+    actions.append(deny);
+  }
+  let byHand = null;
+  if (request.status === "approved") {
+    byHand = el("input", { type: "checkbox" });
+    const apply = el("button", { type: "button", className: "primary", textContent: "Record as moved", disabled: Date.now() < Date.parse(request.holdUntil) });
+    apply.addEventListener("click", () => decide(apply, "/control/recovery/apply", { doneByHand: byHand.checked }, `Recorded. Both addresses are told the account has moved.`));
+    actions.append(el("label", { className: "switch" }, byHand, "I've moved it by hand"), apply);
+  }
+  return el("div", { className: "card" },
+    el("div", { className: "row" }, el("strong", { textContent: `${request.oldEmail} → ${request.requesterEmail}` }), el("span", { className: "pill", textContent: request.status })),
+    el("div", { className: "facts" },
+      el("span", { textContent: request.id }),
+      el("span", { textContent: request.accountId ? "the old address has an account" : "no account uses the old address" }),
+      el("span", { textContent: `shops: ${(request.shops ?? []).join(", ") || "none"}` }),
+      el("span", { textContent: `asked ${when(request.askedAt)}` }),
+      request.holdUntil ? el("span", { textContent: `can move after ${when(request.holdUntil)}` }) : null),
+    el("div", { className: "message", textContent: request.details }),
+    ...(request.history ?? []).map((h) => el("div", { className: "facts", textContent: `${when(h.at)} · ${h.what}${h.by ? ` · ${h.by}` : ""}${h.note ? ` · ${h.note}` : ""}${h.reason ? ` · ${h.reason}` : ""}` })),
+    actions.childElementCount ? words : null,
+    actions.childElementCount ? actions : null);
+}
+
+$("#google").addEventListener("click", () => signInWithPopup(auth, new GoogleAuthProvider()).catch(() => { status.textContent = "Sign-in didn't finish."; }));
+$("#refresh").addEventListener("click", load);
+onAuthStateChanged(auth, (user) => {
+  if (user) load();
+  else { $("#view-signin").hidden = false; $("#view-shops").hidden = true; }
+});

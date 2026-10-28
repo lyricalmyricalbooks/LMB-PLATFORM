@@ -25,7 +25,7 @@ describe("surface logo design resolution", () => {
     });
   });
 
-  it("leaves logo text absent so LogoMark produces its F✶M fallback", () => {
+  it("leaves logo text absent so LogoMark falls back to the site name", () => {
     const heroLogo = resolveLogoDesign(undefined, [{}]);
     const catalogLogo = resolveLogoDesign(undefined, [undefined, {}]);
 

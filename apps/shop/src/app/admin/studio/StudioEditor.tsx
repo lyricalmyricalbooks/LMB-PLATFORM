@@ -42,7 +42,8 @@ import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections } from "./presetContent";
 import { applyThemeKeysToSurfaces } from "../themeScope";
-import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
+import { THEME_LIBRARY } from "./themeLibrary";
+import { themeLookKeys } from "./themeLook";
 import { StudioOutline, blockLabel } from "./StudioOutline";
 import { StudioStructure } from "./StudioStructure";
 import { StudioElementInspector } from "./StudioElementInspector";
@@ -745,13 +746,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     say("ok", "Brand kit applied to the draft — Publish to make it live.", undoAction());
   };
   const applyLibraryTheme = async (theme: any) => {
-    const palette = PALETTES.find((p: any) => p.id === theme.palettePreset);
-    const base: Record<string, any> = {
-      ...(palette ? { palettePreset: palette.id, primaryColor: palette.accent, backgroundColor: palette.bg, textColor: palette.text } : {}),
-      themeStyle: "default",
-    };
-    for (const k of THEME_APPLIED_KEYS) if (theme[k] !== undefined) base[k] = theme[k];
-    change((d) => applyThemeKeysToSurfaces(d, { ...base, ...(theme.global || {}), themeLibraryPreset: theme.id }, surfaceIds), { label: `Apply “${theme.name}” look` });
+    // themeLook.ts: the palette's full colour set (cards, footer, bag, small print…), then the theme's own keys.
+    change((d) => applyThemeKeysToSurfaces(d, themeLookKeys(theme, d), surfaceIds), { label: `Apply “${theme.name}” look` });
     say("ok", `“${theme.name}” applied to the draft (sections and text kept) — Publish to make it live.`, undoAction());
     // A preset can also hold section lists and starter pages (presetContent.ts). They are offered, never applied with the
     // look: Cancel keeps only the look.

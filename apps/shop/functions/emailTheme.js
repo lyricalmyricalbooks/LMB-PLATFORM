@@ -56,13 +56,15 @@ function risoize(html, accent, theme) {
     .replace(/background:\s*#fff(fff)?\b/gi, `background:${p.card}`);
 }
 
-function risoLayout(inner, { logoUrl = "", accent = "", theme = "light", year = new Date().getFullYear() } = {}) {
+// shopName: the shop's own name (the server's {{shop_name}}), escaped; it heads the email and signs the footer.
+function risoLayout(inner, { logoUrl = "", accent = "", theme = "light", year = new Date().getFullYear(), shopName = "" } = {}) {
   const a = risoAccent(accent);
   const p = risoPalette(theme);
   const logo = safeLogoUrl(logoUrl);
+  const name = String(shopName || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const masthead = logo
-    ? `<img src="${logo}" alt="Your Press" style="max-height:44px;width:auto;display:block;" />`
-    : `<div style="font-family:${FONT_DISPLAY};font-size:30px;line-height:1;letter-spacing:0.01em;text-transform:uppercase;color:${p.text};">Your Press</div>`;
+    ? `<img src="${logo}" alt="${name}" style="max-height:44px;width:auto;display:block;" />`
+    : `<div style="font-family:${FONT_DISPLAY};font-size:30px;line-height:1;letter-spacing:0.01em;text-transform:uppercase;color:${p.text};">${name}</div>`;
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -84,7 +86,7 @@ function risoLayout(inner, { logoUrl = "", accent = "", theme = "light", year = 
     <div style="padding:28px 32px 18px;border-bottom:2px solid ${p.rule};">${masthead}</div>
     <div style="padding:28px 32px;font-size:15px;line-height:1.6;color:${p.text};">${risoize(inner, a, theme)}</div>
     <div style="padding:16px 32px;border-top:2px solid ${p.rule};background:${p.sunken};font-family:${FONT_MONO};font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:${p.subtle};">
-      &copy; ${year} Your Press<!--fm-footer-extra-->
+      &copy; ${year} ${name}<!--fm-footer-extra-->
     </div>
   </div>
 </body>

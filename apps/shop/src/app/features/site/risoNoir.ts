@@ -42,7 +42,7 @@ export const RISO_NOIR_TOKENS: Record<string, any> = {
   cartDrawerBg: "#000000", cartDrawerText: "#ffffff", cartDrawerMuted: "rgba(255,255,255,0.64)",
   cartDrawerSurface: "#0d0d0d", cartDrawerBorder: "#ffffff", pageChromeStyle: "theme",
   navStyle: "default", wordmarkStyle: "two-part",
-  wordmarkPrimary: "Your", wordmarkSecondary: "Press", wordmarkSecondaryMuted: false,
+  wordmarkSecondaryMuted: false,
   wordmarkSize: 1.8, wordmarkWeight: 400, logoColor: "#ffffff",
   // Catalog.
   // Clean grid by default: no heading, category chips, search/sort bar or result count (all switchable on).

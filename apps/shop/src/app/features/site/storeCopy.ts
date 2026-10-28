@@ -1,6 +1,7 @@
 import { AppVerificationError } from "../../../lib/appVerification";
 import { withFeatureCopy } from "./extras/featureKit";
 import { STOREFRONT_FEATURES } from "./extras/registry";
+import { DEFAULT_SHOP_NAME } from "./shopIdentity";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Store copy — single source of truth for shopper-facing text.
@@ -41,9 +42,9 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "draftPreviewNoStudio", label: "Draft preview banner (Studio closed)", multiline: true, default: "Studio isn't open in this browser, so this tab shows your live shop. Open Studio and press View website to see your draft.", hint: "Only you see this, in the tab Studio's View website button opens." },
       { key: "draftPreviewHide", label: "Draft preview banner: hide button", default: "Hide" },
       { key: "googleSiteVerification", label: "Google Search Console verification token", default: "", hint: "Paste the content value from Google’s HTML verification tag. This public token is included in page metadata." },
-      { key: "siteName", label: "Site name", default: "Your Press", hint: "Used as {name} in the browser-tab title, share previews and search results." },
+      { key: "siteName", label: "Site name", default: DEFAULT_SHOP_NAME, hint: "Your shop's name. The wordmark, footer, checkout, copyright line and every sentence that says {name} follow it." },
       { key: "siteDefaultTitle", label: "Home page title (browser tab / Google)", default: "{name} — Independent Publishing House", hint: "Use {name} for the site name." },
-      { key: "siteDefaultDescription", label: "Default description (Google / social previews)", default: "{name} is an independent publishing house based in Toronto, specializing in photography and art books, photobooks and artists' books.", multiline: true, hint: "Use {name} for the site name." },
+      { key: "siteDefaultDescription", label: "Default description (Google / social previews)", default: "{name} is an independent publishing house of photography and art books, photobooks and artists' books.", multiline: true, hint: "Use {name} for the site name." },
       { key: "seoTopics", label: "What the shop publishes (for search engines, comma-separated)", multiline: true, default: "Art books, Photography books, Photobooks, Artists' books, Zines", hint: "Told to Google as the subjects the shop knows about (structured data on the home page). Not shown on the page. Blank = left out." },
       { key: "seoProfiles", label: "Other places the shop is listed (for search engines, one link per line)", multiline: true, default: "", hint: "Links to the press's own profiles elsewhere (Goodreads, Open Library, Wikidata, Bluesky, YouTube…). Google uses them, with the social links in Style › Footer & social links, to connect them all to this shop. Not shown on the page. Only https links count." },
       { key: "seoReturnDays", label: "Returns window on book listings (for search engines, days)", default: "0", hint: "Told to Google on every book page, for its product listings. Not shown on the page. Blank = left out. 0 = no returns once a book has shipped (what the Returns policy page says). A number = days a shopper has to send a book back by mail. Uses the country in Settings › General › Location; change it when the Returns policy changes." },
@@ -175,13 +176,13 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
         key: "footerAbout",
         label: "About blurb",
         default:
-          "An independent publishing house based in Toronto, specializing in contemporary photography and art books.",
+          "An independent publishing house specializing in contemporary photography and art books.",
         multiline: true,
       },
       { key: "footerExploreHeading", label: "Explore group heading", default: "Explore" },
       { key: "footerConnectHeading", label: "Participate & connect group heading", default: "Participate & connect" },
       { key: "footerNavHeading", label: "Navigation heading", default: "Navigate" },
-      { key: "footerWordmark", label: "Footer wordmark (single-line style)", default: "YOUR PRESS" },
+      { key: "footerWordmark", label: "Footer wordmark (single-line style)", default: "{name}", hint: "Shown in capitals. {name} is the site name." },
       { key: "footerLinkShop", label: "Link: Shop", default: "Shop" },
       { key: "footerLinkTrack", label: "Link: Track order", default: "Track Order" },
       { key: "footerLinkInstagram", label: "Link: Instagram", default: "Instagram" },
@@ -205,8 +206,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       {
         key: "footerCopyright",
         label: "Copyright line",
-        default: "© {year} Your Press · All rights reserved",
-        hint: "Use {year} for the current year.",
+        default: "© {year} {name} · All rights reserved",
+        hint: "Use {year} for the current year and {name} for the site name.",
       },
     ],
   },
@@ -363,14 +364,14 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "pageHomeLink", label: "Header 'home' link", default: "HOME" },
       {
         key: "historyBody",
-        label: "History of LM — body",
-        default: "Your Press is an independent publishing house based in Toronto, with roots in Italy. We specialize in photography and art books, bringing artists, images, and ideas together through carefully made printed editions.",
+        label: "About the press — body",
+        default: "{name} is an independent publishing house. We specialize in photography and art books, bringing artists, images, and ideas together through carefully made printed editions.",
         multiline: true,
       },
       {
         key: "historySubtext",
         label: "History of LM — text underneath",
-        default: "Independent publishing between Toronto and Italy — photography, art, and books made to last.",
+        default: "Independent publishing — photography, art, and books made to last.",
         multiline: true,
       },
       { key: "notFoundCode", label: "404 number", default: "404" },
@@ -381,8 +382,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
   {
     group: "Loading screen",
     fields: [
-      { key: "loadingAria", label: "Accessible label", default: "Loading Your Press" },
-      { key: "loadingTag", label: "Sticker tag", default: "Toronto · Est. independently" },
+      { key: "loadingAria", label: "Accessible label", default: "Loading {name}" },
+      { key: "loadingTag", label: "Sticker tag", default: "Est. independently" },
       { key: "loadingWordmarkA", label: "Wordmark (first part)", default: "Lyrical" },
       { key: "loadingWordmarkB", label: "Wordmark (accent part)", default: "myrical" },
       { key: "loadingSub", label: "Subline", default: "Books / printed matter" },
@@ -403,7 +404,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "ucEmail", label: "Contact email (leave empty to hide the button)", default: "" },
       { key: "ucButton", label: "Contact button", default: "Get in touch" },
       { key: "ucAdmin", label: "Admin button", default: "Admin" },
-      { key: "ucFootnote", label: "Footnote", default: "Your Press — printed matter" },
+      { key: "ucFootnote", label: "Footnote", default: "{name} — printed matter" },
     ],
   },
   {
@@ -435,7 +436,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "maintenanceTag", label: "Sticker tag", default: "Back soon" },
       { key: "maintenanceTitle", label: "Heading", default: "Under maintenance" },
       { key: "maintenanceMessage", label: "Default message (if none set in Settings)", default: "We are updating our archive. Please check back soon.", multiline: true },
-      { key: "maintenanceFooter", label: "Footer line", default: "Your Press · Toronto" },
+      { key: "maintenanceFooter", label: "Footer line", default: "{name}" },
       { key: "maintenanceAdmin", label: "Admin link label", default: "Admin console" },
     ],
   },
@@ -462,10 +463,10 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "currencyLabel", label: "Currency selector label", default: "CURRENCY" },
       { key: "ariaCurrency", label: "Currency selector (read aloud by screen readers, not shown)", default: "Select currency" },
       { key: "ariaThemeToggle", label: "Light/dark toggle (read aloud by screen readers, not shown)", default: "Toggle theme" },
-      { key: "logoAlt", label: "Logo image — alt text / screen-reader label", default: "Your Press logo" },
+      { key: "logoAlt", label: "Logo image — alt text / screen-reader label", default: "{name} logo" },
       { key: "ariaPrevSlide", label: "Previous slide (read aloud by screen readers, not shown)", default: "Previous slide" },
       { key: "ariaNextSlide", label: "Next slide (read aloud by screen readers, not shown)", default: "Next slide" },
-      { key: "poweredBy", label: "Powered-by line", default: "Powered by Your Press" },
+      { key: "poweredBy", label: "Powered-by line", default: "Powered by {name}" },
     ],
   },
   {
@@ -473,9 +474,9 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
     fields: [
       { key: "collectionBack", label: "Collection: back link", default: "Catalogue" },
       { key: "collectionEyebrow", label: "Collection: header label", default: "Collection" },
-      { key: "collectionIntroPublications", label: "Collection intro: Publications (/collections/publications)", multiline: true, default: "Every publication from {name} in one place: photobooks, art books, artists' books and zines by contemporary photographers and artists. {name} is an independent publishing house based in Toronto with roots in Italy, specializing in photography and art books.", hint: "Shown under the heading when the category has no description in Navigation › Shop categories. Blank = no intro. {name} is the site name." },
-      { key: "collectionIntroBooks", label: "Collection intro: Books (/collections/books)", multiline: true, default: "Photobooks, art books and artists' books published by {name}, an independent publishing house based in Toronto with roots in Italy. The list brings together contemporary photographers and artists in hardcover and paperback editions.", hint: "Shown under the heading when the category has no description in Navigation › Shop categories. Blank = no intro. {name} is the site name." },
-      { key: "collectionIntroZines", label: "Collection intro: Zines (/collections/zines)", multiline: true, default: "Zines and small-format publications from {name}, the independent Toronto press with roots in Italy. They are shorter and more experimental than our books, and some are made together with other independent publishers and magazines.", hint: "Shown under the heading when the category has no description in Navigation › Shop categories. Blank = no intro. {name} is the site name." },
+      { key: "collectionIntroPublications", label: "Collection intro: Publications (/collections/publications)", multiline: true, default: "Every publication from {name} in one place: photobooks, art books, artists' books and zines by contemporary photographers and artists. {name} is an independent publishing house specializing in photography and art books.", hint: "Shown under the heading when the category has no description in Navigation › Shop categories. Blank = no intro. {name} is the site name." },
+      { key: "collectionIntroBooks", label: "Collection intro: Books (/collections/books)", multiline: true, default: "Photobooks, art books and artists' books published by {name}, an independent publishing house. The list brings together contemporary photographers and artists in hardcover and paperback editions.", hint: "Shown under the heading when the category has no description in Navigation › Shop categories. Blank = no intro. {name} is the site name." },
+      { key: "collectionIntroZines", label: "Collection intro: Zines (/collections/zines)", multiline: true, default: "Zines and small-format publications from {name}, an independent press. They are shorter and more experimental than our books, and some are made together with other independent publishers and magazines.", hint: "Shown under the heading when the category has no description in Navigation › Shop categories. Blank = no intro. {name} is the site name." },
       { key: "breadcrumbAria", label: "Breadcrumb (read aloud by screen readers, not shown)", default: "Breadcrumb" },
       { key: "breadcrumbHome", label: "Breadcrumb: Home", default: "Home" },
       { key: "breadcrumbCollections", label: "Breadcrumb: Collections", default: "Collections" },
@@ -779,7 +780,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
   {
     group: "Checkout",
     fields: [
-      { key: "coBrand", label: "Header brand name", default: "Your Press" },
+      { key: "coBrand", label: "Header brand name", default: "{name}" },
       { key: "coReturn", label: "Back link (opens the bag; phones show only the arrow)", default: "Back to bag" },
       { key: "coSecure", label: "Secure label", default: "Secure checkout" },
       { key: "coProgressAria", label: "Progress (read aloud by screen readers, not shown)", default: "Checkout progress" },
@@ -849,7 +850,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "coTrust3", label: "Trust badge 3", default: "Privacy protected" },
       { key: "coSummary", label: "Order slip heading", default: "Order slip" },
       { key: "coLineQty", label: "Order slip: copies of a book", default: "Qty {count}", hint: "Use {count} for the number." },
-      { key: "coSlipFooter", label: "Order slip footer", default: "Packed by hand · ships from Toronto", hint: "Leave blank to hide." },
+      { key: "coSlipFooter", label: "Order slip footer", default: "Packed by hand", hint: "Leave blank to hide." },
       { key: "coAddressEnter", label: "Address suggestions: key hint on the highlighted row", default: "Enter" },
       { key: "coDiscount", label: "Discount placeholder", default: "Discount code" },
       { key: "coDiscountRemove", label: "Remove discount (read aloud by screen readers, not shown)", default: "Remove discount" },
@@ -1021,7 +1022,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "reviewsRetry", label: "Reviews couldn't load: Try again button", default: "Try again" },
       { key: "reviewsMoreError", label: "More reviews couldn't load", default: "More reviews couldn't be loaded. Please try again." },
       { key: "reviewsAuthor", label: "Review author credit", default: "— {author}", hint: "Use {author} for the reviewer name." },
-      { key: "reviewsReply", label: "Store reply label", default: "Reply from Your Press" },
+      { key: "reviewsReply", label: "Store reply label", default: "Reply from {name}" },
       { key: "reviewsVerified", label: "Verified purchase badge", default: "Verified purchase", hint: "Shown on reviews whose writer bought the book here." },
       { key: "reviewsFeatured", label: "Featured review label", default: "Featured review", hint: "Shown on reviews you pin to the top in Admin › Reviews." },
       { key: "reviewsThanks", label: "Submitted message", default: "Thanks — your review has been submitted for moderation." },

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BookOpen, LogIn } from "lucide-react";
 import { adminApi } from "./api";
 import { PrimaryButton } from "./riso/components";
 import { loginErrorMessage } from "./loginError";
+import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 
 interface LoginProps {
   onLogin: (token: string) => void;
@@ -18,6 +19,14 @@ function shopHref() {
 export function Login({ onLogin }: LoginProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // The shop's own name (plan 1.16), read from the public settings; nothing is shown until it arrives.
+  const [name, setName] = useState("");
+  useEffect(() => {
+    let live = true;
+    Promise.resolve(adminApi.getPublicSettings?.()).then((s) => { if (live) setName(shopNameFromSettings(s)); }).catch(() => { if (live) setName(shopNameFromSettings(null)); });
+    return () => { live = false; };
+  }, []);
+  const words = wordmarkWords(name);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -38,7 +47,7 @@ export function Login({ onLogin }: LoginProps) {
         <div className="rp-card rp-login-card">
           <div className="rp-login-brand">
             <span className="rp-brand-mark rp-login-mark"><BookOpen size={24} aria-hidden /></span>
-            <h1 className="rp-page-title rp-login-title">Lyrical<span>myrical</span></h1>
+            <h1 className="rp-page-title rp-login-title">{words.first}{words.rest ? <span> {words.rest}</span> : null}</h1>
             <p className="rp-wordmark-sub">Publishing House · Admin</p>
           </div>
           <p className="rp-card-desc rp-login-lede">

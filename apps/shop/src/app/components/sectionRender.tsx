@@ -3,7 +3,7 @@ import { sectionSpacingCss } from "./sectionSpacing";
 import { sectionStepCss } from "../features/site/designTokens";
 import { backgroundImageCss } from "../features/site/backgroundSources";
 import { entranceTiming, sectionMotionCss, wantsReveal } from "./sectionMotion";
-import { Component, useEffect, useRef, useState, type ReactNode } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
 import { m } from "motion/react";
 import { useNavigate } from "react-router";
@@ -16,6 +16,7 @@ import { resolveSectionSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { SectionDesignContext, useSectionPage } from "./sectionCopy";
 import { HTML_SETTING_KEYS, resolveDynamicSettings } from "../features/site/dynamicSources";
+import { shopName } from "../features/site/shopIdentity";
 import { sectionsSurface } from "../features/site/templateAlternates";
 import { SectionPriorityContext, sectionHasPriority } from "./ResponsiveImage";
 import {
@@ -294,7 +295,10 @@ export function SectionList({
   design,
 }: SectionListProps) {
   const list = (sections || []).filter((section: any) => section.visible !== false && sectionInWindow(section));
-  const pageContext = useSectionPage();
+  const page = useSectionPage();
+  // `{{shop.name}}` in any section field is the site name (Text & labels › Site & sharing, plan 1.16).
+  const name = shopName(design);
+  const pageContext = useMemo(() => ({ ...page, shop: { name } }), [page, name]);
   const preview = typeof window !== "undefined" && window.location.search.includes("preview=true");
   // Style › Layout & spacing › "Draw sections lower on the page only when shoppers scroll near them" (Phase 4):
   // sections from the third on use CSS content-visibility, so the browser skips laying them out until they come near

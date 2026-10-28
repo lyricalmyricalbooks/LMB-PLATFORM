@@ -15,6 +15,9 @@ settings (`../signup/config.js`) and sign-in.
 - **An invite link** (`/accounts/?invite=…`): the page keeps the invite while the person signs in, then accepts it.
   An emailed sign-in link brings them back here (`page: "accounts"` on `POST /api/signin-link`).
 
+- **Get help from Colophon**: a request to the platform team (`services/support/`), about one of the person's shops or
+  none, and every earlier request with its answers. Answers also come by email; the person can add to a request.
+
 ## Roles
 
 The shop's own roles (`apps/shop/functions/roles.js`), named in `roles.js`:
@@ -55,9 +58,58 @@ to the platform's one web door: `createApi({ …, routes: accountRoutes(accounts
 - Every invite, acceptance, role change and removal is logged in the registry and the shop's audit log.
 - The invite email comes from the platform (`services/email`, kind `invite`).
 
+## New-device alerts (`devices.js`)
+
+Every platform page (sign-up, this page, the control room) keeps a random device id in the browser
+(`signup/device.js`) and sends it with each signed-in call as `X-Device-Id`. The web door (`signup/api.js`
+`onSignedIn`) hands each signed-in call to `deviceWatch`:
+
+- The first device an account is used from is remembered without an email.
+- Each later new device emails the account's address once (kind `new-device`): the browser in plain words and the time.
+- Only a hash of the device id is kept (`devices/<accountId>` in the platform project), with when it was first and last
+  seen. Last-seen is written at most hourly. The 50 most recent devices are kept.
+- A call without a device id counts as one device of its own, so leaving the header off doesn't hide a sign-in.
+- A failure here is logged and never stops the call.
+
+## Account recovery (`recovery.js`, `recoveryRoutes.js`)
+
+For someone who has lost the email address their account uses. Nothing moves on a request alone.
+
+1. **Ask.** Signed in with the new address, the person names the old one and says how we can check it's them
+   (**Lost access to the email your shops use?** on this page). The old address is emailed at once
+   (`recovery-asked`); the person asking gets a copy (`recovery-received`); the support address gets a note
+   (`recovery-new`). The person asking is never told whether the old address has an account. Three requests a week
+   per person; asking twice for the same address gives the same request.
+2. **Stop.** The old address's owner sees a warning at the top of this page with **Stop this request**, any time before
+   the move. The person asking can withdraw.
+3. **Check.** A platform admin approves (with a note on how they checked) or denies (with the reason the person is
+   sent) from the control room's **Account recovery**. Approving starts a 72-hour wait, and both addresses are told.
+4. **Move.** After the wait, the admin moves the account by hand (below), ticks **I've moved it by hand** and records
+   it. Both addresses are told. The shops the old address owns are looked up again at this point.
+
+Every step is kept on the request (`recoveries/<id>`) and logged in the registry and the audit log of each shop the
+old address owns.
+
+### Recovery: applying
+
+Until the move is automatic (`recoveryByHand` stands in for it), the admin does this, in order:
+
+1. In the platform project's Firebase Authentication, change the account's email (the request's account id) to the
+   new address, and mark it confirmed. If the new address already has its own account, move the shops to that one
+   instead and leave the old account alone.
+2. In the registry, set `ownerEmail` to the new address on each shop the old address owns, and update the platform's
+   `memberships` rows for the old address.
+3. In each of those shops' own databases, add `members/<new address>` as owner, then remove `members/<old address>`.
+4. Redeploy each of those shops' rules and settings file at their current release (`services/release-runner`), so the
+   new owner address is the one the shop trusts.
+5. Record it in the control room (**I've moved it by hand**, then **Record as moved**).
+
 ## Not yet
 
 - The real stores (Firestore in the platform project: `memberships`, `invites`) and the real `shopData` writes into
   each shop's project.
+- Moving a recovered account automatically (`applyRecovery` is `recoveryByHand` for now).
+- Wiring the device and recovery stores (`clients/stores.js` `firestoreDevices`, `firestoreRecoveries`) and the
+  Firebase account lookup (`findAccount`) into the hosted web door.
 - People the owner adds in the shop's own admin (Settings › Team) are not copied back here yet, so they don't see that
   shop in the switcher until they are invited from this page.

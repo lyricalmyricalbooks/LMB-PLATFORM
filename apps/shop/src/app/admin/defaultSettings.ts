@@ -1,5 +1,6 @@
 import { CATEGORIES } from "../features/site/constants";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../features/site/risoNoir";
+import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 
 /** The shop's settings before the owner has changed anything (merged under `settings/website`). */
 export const defaultSettings = (): any => ({
@@ -10,8 +11,8 @@ export const defaultSettings = (): any => ({
   maintenance: { enabled: false, message: "WE ARE UPDATING OUR ARCHIVE. PLEASE CHECK BACK SOON." },
   domain: { subdomain: "yourpress", custom: "yourpress.example" },
   info: { 
-    name: "Your Press", 
-    description: "Your Press is an independent publishing house based in Toronto with roots in Italy, specializing in publishing photography and art books, photobooks and artists' books.",
+    name: DEFAULT_SHOP_NAME,
+    description: "An independent publishing house of photography and art books, photobooks and artists' books.",
     website: "https://yourpress.example"
   },
   inventory: { tracking: true, overselling: false },
@@ -164,7 +165,7 @@ export const defaultSettings = (): any => ({
         {
           id: "default-slide-1",
           imageUrl: "https://images.unsplash.com/photo-1513001900722-370f803f498d?w=1600&h=900&fit=crop",
-          title: "F✶M",
+          title: DEFAULT_SHOP_NAME,
           subtitle: "PHOTOGRAPHY & ART BOOKS",
           ctaText: "ENTER SHOP",
           ctaLink: "/shop"
