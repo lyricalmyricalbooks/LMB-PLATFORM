@@ -4,10 +4,11 @@
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { ACT_AS_MINUTES, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth } from "./controlRoom.js";
+import { ACT_AS_MINUTES, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth, twoStepProblem } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
+import { platformRoutes } from "./platformControls.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
-import { fakeBreachStore, fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
+import { fakeActivity, fakeBreachStore, fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
 import { createBreachRegister, keepUntil } from "./breaches.js";
 import { controlRoomPeople } from "./people.js";
 import { createRepairQueue } from "./repairs.js";
@@ -31,7 +32,7 @@ import { TEST_CONFIG, TEST_SHOP } from "../setup/test-shop.js";
 
 const ID = TEST_SHOP.shopId;
 const envOf = (text) => Object.fromEntries(text.split("\n").filter(Boolean).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1).replace(/^"|"$/g, "")]));
-const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true };
+const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
 const PRESS = { uid: "uid-owner", email: "owner@example.com", email_verified: true };
 
 /** A pretend platform email service: what would be sent, by idempotency key (the real one sends each key once). */
@@ -55,6 +56,7 @@ async function world({ repairs, newsletters } = {}) {
   const square = new Set();
   const breachStore = fakeBreachStore();
   const built = [];
+  const activity = fakeActivity();
   const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
@@ -62,13 +64,14 @@ async function world({ repairs, newsletters } = {}) {
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
     breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
     people: controlRoomPeople({}),
+    activity,
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: controlRoutes(room) });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const events = (shopId = ID) => [...(registry.events.get(shopId)?.values() ?? [])].filter((e) => e.source === "control-room");
-  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square, breachStore };
+  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square, breachStore, activity };
 }
 
 test("only platform admins get in; nobody is an admin unless the list says so", async () => {
@@ -189,7 +192,7 @@ test("the command line: same change and log, refuses without a name, a reason or
 
 test("the page: admins sign in with Google, every route is used, names are shown as text only", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
-  for (const path of Object.keys(controlRoutes({}))) assert.ok(app.includes(`"${path.split(" ")[1].replace("/api", "")}"`), path);
+  for (const path of [...Object.keys(controlRoutes({})), ...Object.keys(platformRoutes({}))]) assert.ok(app.includes(`"${path.split(" ")[1].replace("/api", "")}"`), path);
   for (const name of SWITCHES) assert.ok(app.includes(name), `words for ${name}`);
   assert.doesNotMatch(app, /innerHTML|insertAdjacentHTML|document\.write/);
 });
@@ -391,4 +394,39 @@ test("a paused newsletter is turned back on by a platform admin only, with a rea
   assert.deepEqual(calls, [{ shopId: ID, by: "admin@example.com", reason: "the press cleaned its list" }]);
   assert.ok(w.events().some((e) => e.what === "newsletter-resumed" && e.by === "admin@example.com"));
   assert.equal((await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "the press cleaned its list" })).status, 409);
+});
+
+test("every logged control-room action also lands in the activity log, once (plan 9.9)", async () => {
+  const w = await world();
+  await w.room.switch(ADMIN, { shopId: ID, name: SWITCHES[0], on: true, reason: "the press asked for it" });
+  await w.room.actAs(ADMIN, { shopId: ID, reason: "help with their tax settings" });
+  const entries = await w.activity.list();
+  assert.deepEqual(entries.map((e) => e.what).sort(), ["act-as", "switch-set"]);
+  assert.ok(entries.every((e) => e.shopId === ID && e.by === "admin@example.com" && e.keepUntil > e.at));
+});
+
+test("only Julian's listed address, with two-step sign-in in the last 12 hours, opens the control room (plan 9.1)", async () => {
+  const w = await world();
+  const { firebase: _, ...oneStep } = ADMIN;
+  const noStep = await w.ask(oneStep, "GET", "/api/control/shops");
+  assert.equal(noStep.status, 403);
+  assert.match(noStep.body.message, /two-step/);
+  const old = await w.ask({ ...ADMIN, auth_time: Math.floor(Date.now() / 1000) - 13 * 3600 }, "GET", "/api/control/shops");
+  assert.equal(old.status, 401);
+  assert.match(old.body.message, /Sign in again/);
+  // A stranger with two steps is still a stranger, and isn't told about two-step sign-in.
+  const stranger = await w.ask({ ...ADMIN, uid: "x", email: "someone@example.com" }, "GET", "/api/control/shops");
+  assert.equal(stranger.status, 403);
+  assert.doesNotMatch(stranger.body.message, /two-step/);
+  assert.equal((await w.ask(ADMIN, "GET", "/api/control/shops")).status, 200);
+  assert.equal(twoStepProblem({ firebase: { sign_in_second_factor: "phone" }, auth_time: 1000 }, 1000 * 1000 + SIGN_IN_HOURS * 3600_000), null);
+});
+
+test("Today reads every shop through the control room, admins only (plan 9.2)", async () => {
+  const w = await world();
+  const today = await w.ask(ADMIN, "GET", "/api/control/today");
+  assert.equal(today.status, 200);
+  assert.equal(today.body.counts.shops, 1);
+  assert.equal(today.body.currency, "CAD");
+  assert.equal((await w.ask(PRESS, "GET", "/api/control/today")).status, 403);
 });
