@@ -22,6 +22,8 @@ import { TemplateSections, GlobalSections } from "../../components/sectionRender
 import { SectionPageContext } from "../../components/sectionCopy";
 import { useMissingRedirect } from "./useMissingRedirect";
 import { getCopy } from "./storeCopy";
+import { OptionPicker, variantBuyable } from "./OptionPicker";
+import { findVariant, picksPossible, productOptions, usesOptionPicker, variantPicks, type OptionPicks } from "../../../shared/productOptions";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
 import { comingSoonActive } from "./comingSoon";
 import { designNumber } from "./designNumber";
@@ -146,6 +148,8 @@ export default function BookDetail() {
   const [addOnPicks, setAddOnPicks]   = useState<AddOnPicks>({});
   const [addOnError, setAddOnError]   = useState("");
   const [editionError, setEditionError] = useState("");
+  // Option buttons (plan 10.2): the shopper's picks so far, for a product saved with options (Size, Colour).
+  const [optionPicks, setOptionPicks] = useState<OptionPicks>({});
   const emptyGift: GiftCardDetails = { recipientName: "", recipientEmail: "", senderName: "", message: "" };
   const [giftForm, setGiftForm]       = useState<GiftCardDetails>(emptyGift);
   const [giftError, setGiftError]     = useState("");
@@ -237,7 +241,12 @@ export default function BookDetail() {
   // Keyed on the book's id: a background catalog refresh hands us a new book
   // object, and that must not snap the shopper's chosen edition back to the first.
   useEffect(() => {
-    if (book?.variants && book.variants.length > 0) {
+    if (book && usesOptionPicker(book)) {
+      // A product with options starts on its first combination that can be bought (else the first one).
+      const first = editionDropdown && book.variants!.length > 1 ? null : (book.variants!.find(variantBuyable) || book.variants![0]);
+      setSelectedVariant(first);
+      setOptionPicks(variantPicks(first, productOptions(book)) || {});
+    } else if (book?.variants && book.variants.length > 0) {
       setSelectedVariant(editionDropdown && book.variants.length > 1 ? null : book.variants[0]);
     } else {
       setSelectedVariant(null);
@@ -511,11 +520,28 @@ export default function BookDetail() {
     }, 0);
   };
 
+  // The "choose first" message: the first option still to pick for a product with options, else the edition one.
+  const missingChoiceMessage = () => {
+    const missing = book && usesOptionPicker(book) ? productOptions(book).find((o) => !optionPicks[o.name]) : undefined;
+    return missing ? getCopy(settings?.design, "pdpOptionMissing", { option: missing.name }) : getCopy(settings?.design, "pdpEditionMissing");
+  };
+  // A pick keeps the shopper's other picks when that combination exists, else starts over from this pick.
+  const pickOption = (name: string, value: string) => {
+    if (!book) return;
+    const kept = { ...optionPicks, [name]: value };
+    const next = picksPossible(book, kept) ? kept : { [name]: value };
+    const variant = findVariant(book, next);
+    if ((variant?.id || null) !== (selectedVariant?.id || null)) ga4PdpInteract("edition_switch");
+    setOptionPicks(next);
+    setSelectedVariant(variant);
+    setEditionError("");
+  };
+
   const handleAddToCart = () => {
     // While "Added" shows, a second tap must not add another copy.
     if (!book || added) return;
     if (book.variants?.length && !selectedVariant) {
-      setEditionError(getCopy(settings?.design, "pdpEditionMissing"));
+      setEditionError(missingChoiceMessage());
       document.getElementById("pdp-edition-select")?.focus();
       return;
     }
@@ -541,7 +567,7 @@ export default function BookDetail() {
   const handleBuyNow = () => {
     if (!book || isOutOfStock) return;
     if (book.variants?.length && !selectedVariant) {
-      setEditionError(getCopy(settings?.design, "pdpEditionMissing"));
+      setEditionError(missingChoiceMessage());
       document.getElementById("pdp-edition-select")?.focus();
       return;
     }
@@ -561,7 +587,7 @@ export default function BookDetail() {
     if (!book || !bundleBook || isOutOfStock) return;
     // Same rule as Add to bag: a book sold in editions needs one picked first.
     if (book.variants?.length && !selectedVariant) {
-      setEditionError(getCopy(settings?.design, "pdpEditionMissing"));
+      setEditionError(missingChoiceMessage());
       document.getElementById("pdp-edition-select")?.focus();
       return;
     }
@@ -1031,6 +1057,13 @@ export default function BookDetail() {
       }
       case "formats": {
         if (!(book.variants && book.variants.length > 0)) return null;
+        if (usesOptionPicker(book)) {
+          return <Fragment key={block.id}>
+                  <div className="w-full" data-studio-target="style:productCard|copy:Product page" data-studio-label="Option choices">
+                    <OptionPicker design={settings?.design} product={book} picks={optionPicks} onPick={pickOption} error={editionError} align={productAlignment === "center" ? "center" : "start"} />
+                  </div>
+          </Fragment>;
+        }
         return <Fragment key={block.id}>
                   {book.variants && book.variants.length > 0 && (
                     <div className={`flex flex-col gap-2.5 w-full ${productAlignment === "center" ? "items-center" : "items-start"}`} data-studio-target="style:productCard|copy:Product page" data-studio-label="Edition choices">
