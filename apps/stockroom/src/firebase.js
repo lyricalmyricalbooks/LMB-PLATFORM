@@ -303,6 +303,18 @@ window._fbDeleteReceipt = async (url) => {
 // AUTH
 // ─────────────────────────────────────────────
 window._fbSignInWithGoogle = () => signInWithPopup(auth, googleProvider);
+// Asks the rules whether the signed-in account is the publisher (firestore.rules publisherCheck): true when the
+// server allows the read, false when it refuses, null when it can't be asked (offline, or no answer in time).
+window._fbAskRulesIfPublisher = async (waitMs = 6000) => {
+  let timer;
+  const late = new Promise(resolve => { timer = setTimeout(() => resolve(null), waitMs); });
+  const ask = getDocFromServer(doc(fs, 'publisherCheck', 'me')).then(() => true, err => (err?.code === 'permission-denied' ? false : null));
+  try {
+    return await Promise.race([ask, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
 window._fbSignOut = () => signOut(auth);
 window._fbOnAuthStateChanged = (cb) => onAuthStateChanged(auth, cb);
 // The signed-in user's ID token, for the Apps Script webhook (see lib/gas-auth.js).
