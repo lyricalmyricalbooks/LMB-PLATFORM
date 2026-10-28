@@ -1,4 +1,6 @@
 export const FEED_FILE: string;
+export const UNNAMED_SHOP: string;
+export function feedShopName(settings: any): string;
 export interface MerchantFeedItem {
   id: string; groupId: string; title: string; description: string; link: string; image: string; additionalImages: string[];
   price: string; salePrice: string; saleDates: string; availability: "in_stock" | "out_of_stock" | "preorder" | "backorder";

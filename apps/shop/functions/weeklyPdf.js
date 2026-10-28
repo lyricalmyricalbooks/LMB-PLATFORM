@@ -2,6 +2,7 @@
 // analytics (figures from weeklySummary.js weeklyHighlights). Written by hand with the PDF's built-in Helvetica
 // fonts, so it needs no package and no network. Pure: buildWeeklyPdf(highlights) → Buffer.
 const zlib = require("zlib");
+const { DEFAULT_SHOP_NAME } = require("./shared/shopIdentity");
 
 // Riso Press colours (functions/emailTheme.js RISO light), as PDF 0–1 RGB.
 const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
@@ -78,7 +79,7 @@ function canvas() {
 }
 
 /** Assembles pages (arrays of drawing ops) into a PDF file. */
-function writePdf(pages, { title = "Weekly highlights" } = {}) {
+function writePdf(pages, { title = "Weekly highlights", producer = DEFAULT_SHOP_NAME } = {}) {
   const objects = [];
   const add = body => { objects.push(body); return objects.length; };
   const catalog = add(null), pagesObj = add(null);
@@ -91,7 +92,7 @@ function writePdf(pages, { title = "Weekly highlights" } = {}) {
   });
   objects[catalog - 1] = `<< /Type /Catalog /Pages ${pagesObj} 0 R >>`;
   objects[pagesObj - 1] = `<< /Type /Pages /Kids [${kids.map(k => `${k} 0 R`).join(" ")}] /Count ${kids.length} >>`;
-  const info = add(`<< /Title ${pdfString(title)} /Producer (Your Press) >>`);
+  const info = add(`<< /Title ${pdfString(title)} /Producer ${pdfString(producer)} >>`);
 
   const chunks = [Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n", "latin1")];
   let offset = chunks[0].length;
@@ -130,7 +131,7 @@ const DEVICE_NAMES = { mobile: "Phones", tablet: "Tablets", desktop: "Computers"
 // ── Building blocks ──
 function header(c, h, page, pages) {
   c.rect(0, 0, PAGE_W, PAGE_H, { fill: C.paper });
-  c.text("YOUR PRESS", M, M + 10, { size: 9, bold: true, color: C.muted });
+  c.text(fit((h.shopName || DEFAULT_SHOP_NAME).toUpperCase(), 9, PAGE_W - 2 * M - 80, true), M, M + 10, { size: 9, bold: true, color: C.muted });
   c.text(`Page ${page} of ${pages}`, PAGE_W - M, M + 10, { size: 9, color: C.muted, align: "right" });
   c.text(page === 1 ? "Weekly highlights" : "Weekly highlights, continued", M, M + 44, { size: page === 1 ? 30 : 20, bold: true });
   const range = `${dayWords(h.week.start, { weekday: "long", day: "numeric", month: "long" })} to ${dayWords(h.week.end, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`;
@@ -315,8 +316,10 @@ function pageTwo(h) {
 }
 
 /** The two-page highlights PDF for weeklyHighlights() output. */
-function buildWeeklyPdf(highlights) {
-  return writePdf([pageOne(highlights), pageTwo(highlights)], { title: `Weekly highlights, week of ${dayWords(highlights.week.start)}` });
+/** The PDF, headed with the press's own name (plan 5.8; pressName, else the placeholder for an unnamed shop). */
+function buildWeeklyPdf(highlights, { shopName = "" } = {}) {
+  const h = { ...highlights, shopName: String(shopName || "").trim() || DEFAULT_SHOP_NAME };
+  return writePdf([pageOne(h), pageTwo(h)], { title: `Weekly highlights, week of ${dayWords(h.week.start)}`, producer: h.shopName });
 }
 
 const weeklyPdfName = week => `press-weekly-highlights-${week.start}.pdf`;

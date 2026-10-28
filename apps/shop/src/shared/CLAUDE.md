@@ -21,7 +21,8 @@ here once, as a TypeScript module, instead of a hand-kept mirror pair with a par
   checkout form's no-postcode list). Local pickup and delivery (`localFulfillment`: quotes,
   settings check, the server's choice check and physical subtotal; the config types now live here and `types.ts`
   re-exports them). Discount categories (`discountCategories`: which books a category discount covers, plus the
-  Discounts screen's category choices).
+  Discounts screen's category choices). The shop's name (`shopIdentity`, plan 5.8: `shopName`, `pressName` for the
+  server; `features/site/shopIdentity.ts` re-exports it).
 - `src/app/features/site/merchantFeed.mjs` keeps its own small copy of the pre-order date check because plain Node build
   scripts can't import TypeScript; `features/site/merchantFeed.test.ts` guards it.
 

@@ -166,6 +166,7 @@ function shopEmails({
         try {
           const out = await require("./messageReply").handleMessageReply(body, {
             db, sendEmail, secret: RESEND_API_KEY.value(), adminEmail: adminUser.email || "",
+            setupName: require("./shopConfig").shopConfig.senderName,
           });
           res.status(out.status).json(out.json);
         } catch (err) {

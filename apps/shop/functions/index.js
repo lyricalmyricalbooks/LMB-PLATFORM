@@ -32,6 +32,7 @@ const { checkoutRate } = require("./checkoutRate");
 const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./liveRateExtra");
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./shared/addressRules");
+const { pressName } = require("./shared/shopIdentity");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./shared/discountCategories");
@@ -2631,11 +2632,11 @@ async function loadNotificationSettings() {
   // Emails to the shop itself (Settings › Notifications › Emails to the shop). On unless switched off;
   // an older saved new_order_admin.enabled is honoured too.
   // {{shop_name}} in every email (plan 1.16): Settings › Email sender name, else the shop's name, else the deploy's.
-  merged.shopName = shopConfig.senderName;
+  // Plan 5.8: else Text & labels › Site name (pressName), never the placeholder for a named shop.
+  merged.shopName = pressName(null, shopConfig.senderName);
   try {
     const website = (await db.collection("settings").doc("website").get()).data() || {};
-    const own = [website.communications?.fromName, website.info?.name].map((v) => String(v || "").trim()).find(Boolean);
-    if (own) merged.shopName = own;
+    merged.shopName = String(website.communications?.fromName || "").trim() || pressName(website, shopConfig.senderName);
   } catch (err) {
     console.warn("Failed to load the shop name for emails, using the deploy's:", err);
   }
@@ -3331,7 +3332,9 @@ async function sendWeeklySummary(nowMs = Date.now()) {
     .catch(err => console.warn("Weekly summary: book titles unavailable:", err.message));
   let attachments = [];
   try {
-    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles }));
+    // Headed with the press's own name (Text & labels › Site name, plan 5.8).
+    const website = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
+    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles }), { shopName: pressName(website, shopConfig.senderName) });
     attachments = [{ filename: weeklyPdfName(week), content: pdf, contentType: "application/pdf" }];
   } catch (err) {
     console.error("Weekly summary PDF failed; sending the email without it:", err);
