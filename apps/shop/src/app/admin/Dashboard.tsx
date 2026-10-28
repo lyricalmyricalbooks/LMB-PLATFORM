@@ -32,6 +32,9 @@ import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "
 import { WhatsNew } from "./WhatsNew";
 import { applyAdminLook, nextAdminLook, readAdminLook, type AdminLookId } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
+import { PlanBannerBar, PlanDesk } from "./PlanParts";
+import { planLocked } from "./platformPlan";
+import { usePlatformPlan } from "./platformPlanApi";
 import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
@@ -85,6 +88,9 @@ export function Dashboard() {
   const [bookkeeper, setBookkeeper] = useState<{ email: string | null } | null>(null);
   // Platform support signed in from the platform's control room (supportSession.ts); null for everyone else.
   const [supportVisit, setSupportVisit] = useState<SupportVisit | null>(null);
+  // The shop's plan on the platform (platform/plan, plan 6.6): banners, and a paused or closed plan opens on Plan &
+  // billing only (PlanDesk). Followed live, so a card added on Plan & billing opens the admin again by itself.
+  const { plan: platformPlan } = usePlatformPlan(!!user);
   const [loading, setLoading] = useState(true);
   const [editingBook, setEditingBook] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -447,6 +453,11 @@ export function Dashboard() {
     return <BookkeeperDesk email={bookkeeper.email} appearance={adminTheme === "dark" ? "dark" : "light"} />;
   }
 
+  // A paused or closed plan: Plan & billing and the downloads only, until the plan is open again (plan 6.7).
+  if (user && planLocked(platformPlan ?? null)) {
+    return <PlanDesk plan={platformPlan!} email={user.email ?? null} appearance={adminTheme === "dark" ? "dark" : "light"} />;
+  }
+
   if (!user) {
     // A first sign-in learns its role only after the server updates the pass (adminApi.login), so look again then.
     return <Login onLogin={() => {
@@ -575,7 +586,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications"));
+  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -734,6 +745,7 @@ export function Dashboard() {
         }
       >
         <SupportBanner visit={supportVisit} onSignOut={() => { void adminApi.logout(); }} />
+        <PlanBannerBar plan={platformPlan} />
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
         {!ownMasthead && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}

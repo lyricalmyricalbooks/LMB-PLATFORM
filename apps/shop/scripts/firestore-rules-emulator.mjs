@@ -347,6 +347,39 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("author can't change settings", assertFails(setDoc(doc(author, "settings/website"), { x: 1 })));
 }
 
+// The shop's plan on the platform (plan 6.6, 6.7): platform/plan is the shop's admins' to read, platform/status is
+// public, and no browser writes either (the owner included). New orders on a paused plan are refused by the server
+// (functions/planPause.test.js): the guest order rule is at the 1000-expression limit and doesn't read the status.
+{
+  const owner = env.authenticatedContext("o1", { email: "owner@example.com", email_verified: true }).firestore();
+  const staff = env.authenticatedContext("s1", { email: "sam@press.test", email_verified: true, role: "staff" }).firestore();
+  const bookkeeper = env.authenticatedContext("k1", { email: "kit@press.test", email_verified: true, role: "bookkeeper" }).firestore();
+  const reader = env.authenticatedContext("u1", { email: "reader@example.com", email_verified: true }).firestore();
+  const setStatus = (access) => env.withSecurityRulesDisabled((ctx) => Promise.all([
+    setDoc(doc(ctx.firestore(), "platform/status"), { access, updatedAt: "2027-01-01T00:00:00.000Z" }),
+    setDoc(doc(ctx.firestore(), "platform/plan"), { state: access === "open" ? "trial" : access, access, hasCard: false, link: "https://platform.example/account/billing?shop=x" }),
+  ]));
+  await setStatus("paused");
+  await check("owner reads the plan", assertSucceeds(getDoc(doc(owner, "platform/plan"))));
+  await check("staff reads the plan", assertSucceeds(getDoc(doc(staff, "platform/plan"))));
+  await check("bookkeeper can't read the plan", assertFails(getDoc(doc(bookkeeper, "platform/plan"))));
+  await check("a shopper can't read the plan", assertFails(getDoc(doc(reader, "platform/plan"))));
+  await check("anon can't read the plan", assertFails(getDoc(doc(anon, "platform/plan"))));
+  await check("anon reads the shop's status", assertSucceeds(getDoc(doc(anon, "platform/status"))));
+  await check("owner can't write the plan", assertFails(setDoc(doc(owner, "platform/plan"), { state: "active", access: "open" })));
+  await check("owner can't open the shop's status", assertFails(setDoc(doc(owner, "platform/status"), { access: "open" })));
+  await check("owner can't delete the status", assertFails(deleteDoc(doc(owner, "platform/status"))));
+  await check("staff can't write the plan", assertFails(setDoc(doc(staff, "platform/plan"), { state: "active" })));
+  await check("anon can't write the status", assertFails(setDoc(doc(anon, "platform/status"), { access: "open" })));
+  await check("no other platform document", assertFails(setDoc(doc(owner, "platform/other"), { x: 1 })));
+  await setStatus("closed");
+  await check("anon reads a closed shop's status", assertSucceeds(getDoc(doc(anon, "platform/status"))));
+  await check("owner can't reopen a closed shop", assertFails(setDoc(doc(owner, "platform/status"), { access: "open" }, { merge: true })));
+  await setStatus("open");
+  await check("owner reads an open plan", assertSucceeds(getDoc(doc(owner, "platform/plan"))));
+  await env.withSecurityRulesDisabled((ctx) => Promise.all([deleteDoc(doc(ctx.firestore(), "platform/status")), deleteDoc(doc(ctx.firestore(), "platform/plan"))]));
+}
+
 await env.cleanup();
 console.log(failures ? `${failures} FAILED` : "ALL OK");
 process.exit(failures ? 1 : 0);

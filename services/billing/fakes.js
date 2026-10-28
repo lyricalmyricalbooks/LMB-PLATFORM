@@ -86,6 +86,13 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       world.subscriptions.set(id, sub);
       return ok(subBody(sub));
     }
+    // Cancel now (the closing sweep's endPlan).
+    if ((m = path.match(/^\/v1\/subscriptions\/(sub_\w+)$/)) && method === "DELETE") {
+      const sub = world.subscriptions.get(m[1]);
+      if (!sub) return missing("subscription");
+      sub.status = "canceled";
+      return ok(subBody(sub));
+    }
     if ((m = path.match(/^\/v1\/subscriptions\/(sub_\w+)(\/resume)?$/))) {
       const sub = world.subscriptions.get(m[1]);
       if (!sub) return missing("subscription");

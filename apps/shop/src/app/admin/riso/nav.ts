@@ -1,6 +1,6 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
-  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Wallet,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 
@@ -23,6 +23,8 @@ export const NAV: NavEntry[] = [
     // One email page: templates, shop alerts, Gmail sending, sender details and recent deliveries.
     { id: "notifications", label: "Email sender", icon: Mail },
     { id: "team", label: "Team", icon: UserPlus },
+    // The shop's plan on the platform (plan 6.6): what it is, trial days left, next payment; changes on Plan & billing.
+    { id: "plan", label: "Plan", icon: Wallet },
   ] },
 ];
 
@@ -39,7 +41,7 @@ export const MENU: { label: string; icon: NavEntry["icon"]; pages: string[] }[] 
   { label: "Orders", icon: ShoppingCart, pages: ["orders", "customers", "discounts", "giftCards", "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews"] },
   { label: "Design", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
-  { label: "Settings", icon: Settings, pages: ["general", "shipping", "payments", "taxes", "notifications", "team"].map((id) => SETTINGS_ITEM_PREFIX + id) },
+  { label: "Settings", icon: Settings, pages: ["general", "shipping", "payments", "taxes", "notifications", "team", "plan"].map((id) => SETTINGS_ITEM_PREFIX + id) },
 ];
 
 /** Every page with its menu id and label, in NAV order. */

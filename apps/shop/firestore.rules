@@ -35,6 +35,17 @@ service cloud.firestore {
         && request.auth.token.get("role", "") == "bookkeeper";
     }
 
+    // The shop's plan on the platform (code plan 6.6, 6.7). The platform writes platform/plan (admin-only: state,
+    // trial end, next payment, card) and platform/status (public: only `access`) with its own access, which these
+    // rules don't govern; no browser may write either, the owner included. A paused or closed plan stops new orders on
+    // the server (functions/shopSettings.js planPaused, in priceOrder, which every checkout and order path goes
+    // through). The guest order rule below doesn't read the status too: it sits at the rules engine's limit of 1000
+    // expressions (a free order already reaches it), and an unpaid order record can't be paid without that server.
+    match /platform/{docId} {
+      allow read: if docId == 'status' || (docId == 'plan' && isAdmin());
+      allow write: if false;
+    }
+
     // Short optional text: missing/null, or a string no longer than n.
     function shortText(v, n) {
       return v == null || (v is string && v.size() <= n);

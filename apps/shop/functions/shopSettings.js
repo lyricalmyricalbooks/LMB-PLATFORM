@@ -39,6 +39,17 @@ function checkoutClosed(settings) {
 }
 
 /**
+ * The shop's plan on the platform is paused or closed (code plan 6.7): the public platform/status document the platform
+ * writes ({ access: "open" | "paused" | "closed" }; services/billing/shopPlan.js in the platform repo). No new orders
+ * then, whatever the owner's own settings say, and no practice order either. A shop with no such document isn't on a
+ * plan and is never paused by it; any access but "open" counts as paused.
+ */
+function planPaused(status) {
+  if (!status || typeof status !== "object" || status.access === undefined) return false;
+  return status.access !== "open";
+}
+
+/**
  * Settings › General › Store status is not Open: checkout is paused for maintenance, or the under construction wall
  * hides the shop. The shop is private then; practice orders (practiceCheckout.js) work only in this state.
  */
@@ -84,4 +95,4 @@ function backupStatusRecord({ ok, day, at, operation = "", error = "", previous 
   return record;
 }
 
-module.exports = { ORIGIN_FALLBACK, shopOrigin, checkoutClosed, shopPrivate, dailyDigestEnabled, backupOutcome, backupStatusRecord };
+module.exports = { ORIGIN_FALLBACK, shopOrigin, checkoutClosed, planPaused, shopPrivate, dailyDigestEnabled, backupOutcome, backupStatusRecord };

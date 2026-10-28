@@ -12,6 +12,7 @@ import { platformSettings } from "../settings.js";
 import { createBilling } from "./billing.js";
 
 export { createBilling, ACCESS, BillingError, dateText, fromSubscription } from "./billing.js";
+export { shopPlanCopies, planDocument, PLAN_DOC, STATUS_DOC } from "./shopPlan.js";
 export { planList, planPrice, PLAN_IDS, PLAN_APPS, isPlan } from "./plans.js";
 
 export function readBillingConfig(env = {}) {
@@ -21,7 +22,7 @@ export function readBillingConfig(env = {}) {
   return { mode, webhookSecrets };
 }
 
-export function createBillingFromEnv({ env = process.env, fetch = globalThis.fetch, customers, subscriptions, events, registry, auditLog, email, now }) {
+export function createBillingFromEnv({ env = process.env, fetch = globalThis.fetch, customers, subscriptions, events, registry, auditLog, email, shopPlan, now }) {
   const { mode, webhookSecrets } = readBillingConfig(env);
-  return createBilling({ stripe: platformBillingStripe({ env, fetch }), mode, settings: platformSettings(env), customers, subscriptions, events, registry, auditLog, email, webhookSecrets, now });
+  return createBilling({ stripe: platformBillingStripe({ env, fetch }), mode, settings: platformSettings(env), customers, subscriptions, events, registry, auditLog, email, shopPlan, webhookSecrets, now });
 }
