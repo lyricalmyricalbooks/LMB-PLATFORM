@@ -1,0 +1,73 @@
+name: Deploy to a shop's Firebase project (rules and Hosting)
+
+# Plan 1.20: inside a shop's project the stockroom has its own Hosting site (<project id>-stockroom), its own named
+# Firestore database and bucket, and the project's Realtime Database, each with its own rules
+# (scripts/deployConfig.mjs). Its rules deploy with the release, together with its pages, so a release never ships
+# pages that expect rules the project doesn't have yet.
+#
+# Run by hand only. GitHub Pages (deploy.yml) keeps serving the stockroom until a shop moves to its Hosting site; the
+# platform's setup and release runner deploy new shops through the same two commands below.
+#
+# Requires the repository secret FIREBASE_SERVICE_ACCOUNT (a service account of the shop's project with the Firebase
+# Admin role) and the repository variable SHOP_OWNER_EMAIL (the owner's sign-in address, the same one the shop's
+# Cloud Functions use). public/shop-profile.js must be the shop's own profile, naming the stockroom's database and bucket.
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Firebase project id to deploy to. Must be the project public/shop-profile.js names."
+        type: string
+        required: true
+
+# Pinned: this job holds the project's admin key. Bump on purpose, after reading the release notes.
+env:
+  FIREBASE_TOOLS_VERSION: 15.32.1
+
+concurrency:
+  group: stockroom-firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npm run check:hosting
+
+      # Fills the owner into the rules and names the stockroom's own site, database and bucket. Refuses (and writes
+      # nothing) without a valid owner, for another project than the profile's, or a profile without the stockroom's
+      # own database and bucket. The input reaches the shell through env, never pasted into the script.
+      - name: Deploy files for this shop
+        env:
+          PROJECT: ${{ inputs.project }}
+          SHOP_OWNER_EMAIL: ${{ vars.SHOP_OWNER_EMAIL }}
+        run: |
+          set -euo pipefail
+          node scripts/deployConfig.mjs --project "$PROJECT"
+          echo "FIREBASE_PROJECT=$PROJECT" >> "$GITHUB_ENV"
+
+      - name: Deploy rules, then pages
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT secret is not set; nothing deployed."
+            exit 1
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy --config firebase.deploy.json \
+            --only firestore:rules,database,storage --project "$FIREBASE_PROJECT" --non-interactive
+          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy --config firebase.deploy.json \
+            --only hosting --project "$FIREBASE_PROJECT" --non-interactive

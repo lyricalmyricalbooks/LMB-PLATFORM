@@ -16,16 +16,23 @@ import { ref as fileRef, uploadString, getBytes } from "firebase/storage";
 
 const dir = process.env.RULES_DIR || new URL("..", import.meta.url).pathname;
 const hostPort = (v, fallback) => { const [h, p] = (v || fallback).split(":"); return { host: h, port: Number(p) }; };
+const OWNER = "owner@example.com";
+// The rules hold a slot for the owner's address, filled per shop at deploy (scripts/deployConfig.mjs); filled the same
+// way here. A rules file without the slot would mean the deploy step can't name the owner, so that fails at once.
+const rules = (file) => {
+  const text = readFileSync(join(dir, file), "utf8");
+  if (!text.includes("__SHOP_OWNER_EMAIL__")) throw new Error(`${file} has no owner slot`);
+  return text.replaceAll("__SHOP_OWNER_EMAIL__", OWNER);
+};
 const env = await initializeTestEnvironment({
   projectId: "demo-stockroom",
-  firestore: { rules: readFileSync(join(dir, "firestore.rules"), "utf8"), ...hostPort(process.env.FIRESTORE_EMULATOR_HOST, "127.0.0.1:8080") },
-  database: { rules: readFileSync(join(dir, "database.rules.json"), "utf8"), ...hostPort(process.env.FIREBASE_DATABASE_EMULATOR_HOST, "127.0.0.1:9000") },
-  storage: { rules: readFileSync(join(dir, "storage.rules"), "utf8"), ...hostPort(process.env.FIREBASE_STORAGE_EMULATOR_HOST, "127.0.0.1:9199") },
+  firestore: { rules: rules("firestore.rules"), ...hostPort(process.env.FIRESTORE_EMULATOR_HOST, "127.0.0.1:8080") },
+  database: { rules: rules("database.rules.json"), ...hostPort(process.env.FIREBASE_DATABASE_EMULATOR_HOST, "127.0.0.1:9000") },
+  storage: { rules: rules("storage.rules"), ...hostPort(process.env.FIREBASE_STORAGE_EMULATOR_HOST, "127.0.0.1:9199") },
 });
 let failures = 0;
 async function check(name, p) { try { await p; console.log("ok  ", name); } catch (e) { failures++; console.log("FAIL", name, e.message); } }
 
-const OWNER = "owner@example.com";
 const AUTHOR = "author@example.com";
 await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(ctx.firestore(), "settings/bookOwners"), { b1: AUTHOR, authorEmails: { "author@example,com": true } });

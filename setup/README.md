@@ -42,9 +42,13 @@ and dry runs; Google is never called from tests.
 3. Add Firebase to the project.
 4. Turn on the services in `SERVICES` (only the missing ones).
 5. Create the Firestore database (delete protection on) and the storage bucket in `northamerica-northeast1`. One in
-   another region stops the run, since neither can be moved.
+   another region stops the run, since neither can be moved. With the stockroom in the plan, also its own named
+   database `stockroom` (delete protection on) and bucket `<shop id>-stockroom` in the same region, and the project's
+   Realtime Database in `us-central1` (it has no Montréal location). One in the wrong place, or a bucket name another
+   project holds, stops the run too (plan 1.20).
 6. Create the web app ("Shop"), build the public profile from its settings, check it with `profile/profile.js`, and
-   save it to the registry and to the per-shop `/shop-profile.js` file (`profileFiles`). Every switch is written down,
+   save it to the registry and to the per-shop `/shop-profile.js` file (`profileFiles`). With the stockroom in the plan
+   the profile's `stockroom` block names its database and bucket. Every switch is written down,
    as `false` for a new shop; a re-run keeps a switch the saved profile already has. The step's audit entry carries
    the switches it wrote (`detail`; a step's `act` may return `{ detail }` and the runner records it).
 
@@ -93,8 +97,33 @@ when what it finds is neither done nor untouched:
 
 Dry run for the test shop: `node setup/dry-run.js` (pretend Google and services, changes nothing).
 
-Not yet: the real clients (Google, deploys, registry, audit log, payment and email services) and a command that runs
-against them; the bot-check key in the profile (left out, so the app's build setting is used); a book page in the shop
+## Real clients (`real.js`)
+
+`realSetupClients({ fetch, token, run, buildDir, paymentService, emailService, serviceAccount })` gives the steps their
+real clients, all from `clients/` (each tested there with a fake `fetch` that checks the exact requests):
+
+| Steps reach | Real client | Google API (from its discovery document) |
+| --- | --- | --- |
+| `google.projects`, `google.billing` | `clients/google.js` | Resource Manager v3, Cloud Billing v1 |
+| `google.firebase` | `clients/google.js` | Firebase Management v1beta1 (add Firebase, web apps, their settings) |
+| `google.services` | `clients/google.js` | Service Usage v1 (batches of 20) |
+| `google.firestore`, `google.storage` | `clients/google.js` | Firestore Admin v1, Firebase Storage v1beta (default bucket) |
+| `google.backups` | `clients/google.js` | IAM policy on the project (the functions' account gets `roles/datastore.importExportAdmin`), Cloud Storage (latest `backups/<day>/`), Firestore export |
+| `google.storageProbe` | `clients/google.js` | Cloud Storage upload; the unsigned read goes to the address the shop's pages read files from |
+| `deploy` | `clients/deploy.js` | Reads what is live over REST (rules stamp, functions' `SHOP_RELEASE_VERSION`, Hosting release message); deploys with the Firebase command line in the release's build folder |
+| `envFiles`, `profileFiles` | `clients/shop.js` | Registry documents `shops/<id>/files/<name>`, copied into each shop's deploy by the release build |
+| `shopData`, `stockroom` | `clients/shop.js` | Firestore: the shop's database, the stockroom's named database `stockroom` (plan 1.20) |
+| `inventoryLink` | `clients/shop.js` | The shop's own link admin call, as the test owner (`clients/identity.js`); test shop only |
+| `siteCheck` | `clients/shop.js` | A plain GET |
+| `registry`, `auditLog` | `clients/registry.js` | Firestore in the platform project, and the shop's `audit-log` |
+| `providers.stripe`, `email` | `services/payments`, `services/email` | The services themselves; their stores are `clients/stores.js` |
+
+Two things are not hand-written over REST: deploying Cloud Functions and uploading Hosting files. Both go through the
+Firebase command line, as the shop's own deploy workflow does. Functions need their source built and uploaded, and the
+Hosting upload address could not be confirmed from Google's docs from here.
+
+Not yet: a command that runs the shop maker against the real clients (it needs the platform project and its account,
+Julian's step 1–2 in `docs/test-shop.md`); the bot-check key in the profile (left out, so the app's build setting is used); a book page in the shop
 check (a new press has no books; the test shop's starter catalogue now has five, so the release check's book page
 can use one).
 
@@ -104,6 +133,8 @@ Open points from 1.30:
   writes, for every function and the Stripe webhook and download links. The shop copy's `firebase.json` still names
   `nam5` for Firestore; that only matters if a deploy creates the database, and step 5 creates it first in
   `northamerica-northeast1`.
-- **Stockroom rules and Hosting site** depend on the open decision before 1.20 (own named database, or rules merged
-  with the shop's). The deploy client takes the list of apps and picks the site, so the steps don't change either way.
+- **Stockroom rules and Hosting site (1.20).** The stockroom deploys from its own config
+  (`apps/stockroom/scripts/deployConfig.mjs`): site `<shop id>-stockroom`, named database `stockroom`, bucket
+  `<shop id>-stockroom`, the project's Realtime Database. The deploy client creates that Hosting site before step 9's
+  first stockroom deploy. Step 11 checks the shop's bucket only; the stockroom's bucket has the same closed rules.
 - **Starter documents** come from the release, since the shop copy owns their shape (see 1.23 for theme presets).

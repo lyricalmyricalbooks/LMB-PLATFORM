@@ -23,7 +23,8 @@ const rtdbRules = JSON.parse(
   read('database.rules.json').split('\n').map(l => l.replace(/^\s*\/\/.*$/, '')).join('\n')
 );
 
-const PUBLISHER = 'owner@example.com';
+// The rules never name the owner: deployConfig.mjs fills this slot per shop at deploy (plan 1.20).
+const PUBLISHER = '__SHOP_OWNER_EMAIL__';
 
 // Loaded by an author session to render its own book (see firestore.rules).
 const AUTHOR_READS = [

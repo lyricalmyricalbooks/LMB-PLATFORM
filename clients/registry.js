@@ -7,6 +7,8 @@ import { missingDatabase } from "./firestore.js";
 //   shops/{shopId}/profile/current        the shop's public profile
 //   shops/{shopId}/steps/{id}             one setup step outcome; `recordedAt` keeps their order
 //   shops/{shopId}/releaseChecks/{runId}  one release check run
+//   shops/{shopId}/events/{id}            the payment service's changes to the row
+//   shops/{shopId}/files/{name}           per-shop files the release build copies in (clients/shop.js registryFiles)
 //   shopLocks/{shopId}                    who is setting the shop up right now (setup/runner.js)
 // Audit log (the shop's own project): audit-log/{id}, written once the shop's database exists.
 //
@@ -47,6 +49,13 @@ export function firestoreRegistry(firestore, { now = () => new Date() } = {}) {
       const held = await tx.get(`shopLocks/${shopId}`);
       if (held?.runId === runId) tx.remove(`shopLocks/${shopId}`);
     }),
+    // The payment service: the shop whose registry row names this account, and its own logged changes.
+    async findShopByPaymentAccount(provider, accountId) {
+      const rows = await firestore.query("shops", { where: [["payments.provider", "==", provider], ["payments.accountId", "==", accountId]], limit: 2 });
+      if (rows.length > 1) throw new Error(`two shops name the ${provider} account ${accountId}; a person checks the registry`);
+      return rows[0]?.data ?? null;
+    },
+    recordEvent: (shopId, entry) => firestore.set(`shops/${shopId}/events/${String(entry.id).replace(/[/]/g, "_")}`, entry),
     async recordReleaseCheck(shopId, entry) {
       await firestore.set(`shops/${shopId}/releaseChecks/${entry.runId}`, { ...entry, recordedAt: stamp() });
     },

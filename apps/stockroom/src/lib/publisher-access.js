@@ -2,6 +2,8 @@
 // database.rules.json, or the publisher screens would open for an account the backend then refuses.
 // The owner address, or the "owner" role the shop's server copies onto the sign-in pass from the owner's
 // Team list. Staff are not publishers here (the stockroom holds secret keys and the books' money).
+// The rules hold a slot for the owner address, filled per shop at deploy (scripts/deployConfig.mjs); OWNER_EMAIL below
+// is the placeholder, so in a shop's project the owner gets in through the owner role.
 
 export const OWNER_EMAIL = 'owner@example.com';
 

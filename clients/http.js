@@ -25,7 +25,8 @@ export const isAlreadyExists = (error) => error instanceof GoogleError && error.
  */
 export function googleHttp({ fetch, token }) {
   if (typeof fetch !== "function") throw new Error("googleHttp needs a fetch");
-  return async function call(method, url, { body, query, auth = true, headers = {} } = {}) {
+  // `raw` sends text or bytes as they are (with `contentType`), for uploads; `body` is sent as JSON.
+  return async function call(method, url, { body, raw, contentType = "application/octet-stream", query, auth = true, headers = {} } = {}) {
     const target = new URL(url);
     for (const [key, value] of Object.entries(query ?? {})) {
       if (value === undefined || value === null) continue;
@@ -36,8 +37,15 @@ export function googleHttp({ fetch, token }) {
       if (typeof token !== "function") throw new Error("this call needs a token()");
       sent.Authorization = `Bearer ${await token()}`;
     }
-    if (body !== undefined) sent["Content-Type"] = "application/json";
-    const response = await fetch(target.toString(), { method, headers: sent, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    let payload;
+    if (raw !== undefined) {
+      sent["Content-Type"] = contentType;
+      payload = raw;
+    } else if (body !== undefined) {
+      sent["Content-Type"] = "application/json";
+      payload = JSON.stringify(body);
+    }
+    const response = await fetch(target.toString(), { method, headers: sent, ...(payload === undefined ? {} : { body: payload }) });
     const text = await response.text();
     let parsed = {};
     if (text) {
