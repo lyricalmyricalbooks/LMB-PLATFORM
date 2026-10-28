@@ -173,6 +173,7 @@ const PRESS_EMAILS = {
   "card-needed": [{ link: LINK }],
   "newsletter-paused": [{ problems: ["3 people marked it as spam (1.5%)", "12 addresses bounced (6%)"], days: 7 }],
   "own-email-paused": [{ domain: "yourpress.example" }],
+  "domain-live": [{ domain: "yourpress.example", link: SHOP_LINKS.shopAdmin }],
   "payment-failed": [{ ...BILLING }, { ...BILLING, nextTry: null }],
   "subscription-cancelled": [{ ...BILLING }],
   "subscription-ended": [{ ...BILLING }],

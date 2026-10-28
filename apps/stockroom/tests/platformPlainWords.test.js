@@ -191,7 +191,7 @@ describe('a stockroom run by Colophon: the words the code writes', () => {
     const source = [
       "const a = 'Add your Stripe key first';",
       "const b = `Saved <b data-key=\"${id}\">${name}</b> to your books`;",
-      "const c = 'lyrical-root'; const d = 'click';",
+      "const c = 'root-folder'; const d = 'click';",
       "console.warn('Could not read the key');",
       "const e = 'Paste the key here'; // Own-account shops only: shown to a press on its own accounts",
     ].join('\n');
