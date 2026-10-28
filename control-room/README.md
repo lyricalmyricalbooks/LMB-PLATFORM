@@ -48,6 +48,13 @@ platform's one web door with `routes: controlRoutes(room)`:
 | `POST /api/control/act-as` | `{ shopId, reason }` -> `{ url, expiresAt }` |
 | `POST /api/control/switch` | `{ shopId, name, on, reason }` |
 
+## Support requests
+
+The page's **Support requests** lists the requests presses send from their account page (`services/support/`):
+waiting, answered or closed. **Send the answer** emails it to the press and keeps it on the request; **Close** files
+it. The calls are `POST /api/control/support`, `/api/control/support/answer` and `/api/control/support/close`
+(`services/support/routes.js`).
+
 ## Not yet
 
 - **The shop side of "act as this shop"** (`shopAccess.supportSignIn`). It needs:

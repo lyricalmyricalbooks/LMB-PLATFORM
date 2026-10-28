@@ -1,6 +1,6 @@
 // Firestore stores for the platform services' own records, in the platform project, with the shapes of their fakes:
-// the email service's sent log (services/email/fakes.js `fakeSentLog`) and the payment service's account record
-// (services/payments/fakes.js `fakeAccounts`).
+// the email service's sent log (services/email/fakes.js `fakeSentLog`), the payment service's account record
+// (services/payments/fakes.js `fakeAccounts`) and the support inbox (services/support/fakes.js `fakeSupportStore`).
 
 /** emailSent/<key>: { shopId, kind, status, at, … }. */
 export function firestoreSentLog(firestore) {
@@ -28,5 +28,24 @@ export function firestoreAccounts(firestore) {
   return {
     get: (shopId) => firestore.get(`paymentAccounts/${shopId}`),
     set: (shopId, record) => firestore.set(`paymentAccounts/${shopId}`, record),
+  };
+}
+
+/**
+ * support/<id>: one help request with all its messages (services/support/inbox.js). Queries use equality filters only,
+ * which need no extra index; sorting and the date compare happen here, which suits a support inbox's size.
+ */
+export function firestoreSupport(firestore) {
+  const rows = async (where, limit) => (await firestore.query("support", { where, limit })).map((row) => row.data);
+  return {
+    get: (id) => firestore.get(`support/${id}`),
+    put: (id, ticket) => firestore.set(`support/${id}`, ticket),
+    list: ({ status, limit = 200 }) => rows([["status", "==", status]], limit),
+    async listByEmail(email) {
+      return (await rows([["email", "==", email]], 500)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+    },
+    async countSince(email, since) {
+      return (await rows([["email", "==", email]], 500)).filter((t) => t.openedAt >= since).length;
+    },
   };
 }
