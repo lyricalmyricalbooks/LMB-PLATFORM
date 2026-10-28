@@ -1,7 +1,7 @@
 import { describe, test, expect, vi } from 'vitest';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { adminRole, memberProblem, syncMemberRole, OWNER_EMAILS } = require('./roles');
+const { adminRole, memberProblem, supportOf, syncMemberRole, OWNER_EMAILS } = require('./roles');
 
 const OWNER = OWNER_EMAILS[0];
 
@@ -23,6 +23,22 @@ describe('adminRole', () => {
   });
   test('an author on the Team never opens the admin', () => {
     expect(adminRole({ email: 'ana@press.test', email_verified: true, role: 'author' })).toBeNull();
+  });
+});
+
+describe('platform support', () => {
+  const later = Math.floor(Date.now() / 1000) + 600;
+  const pass = (support, provider = 'custom') => ({ uid: 'colophon-support', firebase: { sign_in_provider: provider }, support });
+  test('a support sign-in from the platform is staff until its time runs out', () => {
+    expect(adminRole(pass({ by: 'admin@platform.example', reason: 'help with tax', until: later }))).toBe('staff');
+    expect(supportOf(pass({ by: 'admin@platform.example', reason: 'help with tax', until: later }))).toEqual({ by: 'admin@platform.example', reason: 'help with tax', until: later });
+    expect(adminRole(pass({ by: 'a', until: Math.floor(Date.now() / 1000) - 1 }))).toBeNull();
+  });
+  test('only a custom sign-in can carry it, and it is never owner', () => {
+    expect(adminRole(pass({ until: later }, 'google.com'))).toBeNull();
+    expect(adminRole(pass({ until: String(later) }))).toBeNull();
+    expect(adminRole(pass(null))).toBeNull();
+    expect(adminRole({ ...pass({ until: later }), email: OWNER, email_verified: true, role: 'owner' })).toBe('staff');
   });
 });
 

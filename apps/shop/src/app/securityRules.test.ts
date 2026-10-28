@@ -168,3 +168,20 @@ describe("Team roles", () => {
     expect(read("functions/roles.js")).toMatch(/const ADMIN_ROLES = \["owner", "staff"\];/);
   });
 });
+
+// Platform support ("act as this shop", functions/roles.js supportOf): staff access until its time, and only from a
+// custom sign-in token, which only the platform can make. scripts/firestore-rules-emulator.mjs checks the same.
+describe("Platform support", () => {
+  const fn = (text: string, name: string) => text.match(new RegExp(`function ${name}\\(\\)\\s*\\{([\\s\\S]*?)\\n\\s*\\}`))?.[1] ?? "";
+  it("needs a custom sign-in and runs out, in Firestore and Storage", () => {
+    for (const text of [rules, read("storage.rules")]) {
+      const body = fn(text, "isSupport");
+      expect(body).toContain('request.auth.token.firebase.sign_in_provider == "custom"');
+      expect(body).toContain("request.time.toMillis() < request.auth.token.support.until * 1000");
+      expect(fn(text, "isAdmin")).toContain("isSupport()");
+    }
+  });
+  it("is never the owner", () => {
+    expect(fn(rules, "isOwner")).not.toContain("isSupport");
+  });
+});

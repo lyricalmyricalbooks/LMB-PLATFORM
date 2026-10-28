@@ -12,8 +12,19 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && (request.auth.token.email == "__SHOP_OWNER_EMAIL__" || request.auth.token.get("role", "") == "owner");
     }
+    // Platform support ("act as this shop" in the platform's control room): a sign-in the platform makes for this shop
+    // only, logged in the shop's audit log first, with the same access as staff until its "until" time (seconds).
+    // Only a custom sign-in token can carry it, and only the platform can make one (functions/roles.js supportOf).
+    function isSupport() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == "custom"
+        && request.auth.token.get("support", null) is map
+        && request.auth.token.support.get("until", 0) is number
+        && request.time.toMillis() < request.auth.token.support.until * 1000;
+    }
     function isAdmin() {
       return isOwner()
+        || isSupport()
         || (request.auth != null && request.auth.token.email_verified == true && request.auth.token.get("role", "") == "staff");
     }
 
