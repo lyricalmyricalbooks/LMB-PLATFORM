@@ -1,4 +1,4 @@
-// Sign-up screen 2 (code plan 6.2): the web address preview with Change, "What do you publish?" and the terms tick box.
+// Sign-up screen 2 (code plan 6.2): the web address preview with Change, "What do you sell?" and the terms tick box.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -77,9 +77,10 @@ test("sign-up refuses an address that clashes or has bad characters, and keeps a
   assert.equal(stores.signups.rows.size, 1);
 });
 
-test("What do you publish? is skippable, and the answer travels with the shop", async () => {
+test("What do you sell? is skippable, and the answer travels with the shop", async () => {
   const { ask, stores } = make();
-  assert.deepEqual(PUBLISHES.options.map((o) => o.id), ["books", "zines", "comics", "prints", "mix"]);
+  assert.deepEqual(PUBLISHES.options.map((o) => o.id), ["books", "zines", "comics", "prints", "mix", "clothing", "shoes", "jewelry", "music", "other"]);
+  assert.equal(PUBLISHES.label, "What do you sell?");
   await ask("POST", "/api/signup", { ...details, publishes: "zines" });
   const row = stores.signups.rows.get("moth-press-k3f9q");
   assert.equal(row.publishes, "zines");

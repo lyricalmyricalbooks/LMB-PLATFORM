@@ -6,6 +6,7 @@
 // order, open your shop. Gmail is not a step: platform email works from the start and Gmail stays in Settings.
 
 import type { ReadinessItem } from "./launchReadiness";
+import { firstProductWords } from "./sells";
 
 /** The sign-up answers (signup/form.js QUESTION.options). Anything else, or none, gets the general order. */
 export type SellingToday = "starting" | "fairs" | "online" | "shops" | "spreadsheet";
@@ -22,7 +23,7 @@ export interface WelcomeDone {
 
 export interface FirstWeekDoc {
   sellingToday?: string | null;
-  /** "What do you publish?" from sign-up (plan 6.2): books, zines, comics, prints or mix; null when skipped. */
+  /** "What do you sell?" from sign-up (plans 6.2 and 10.1, sells.ts SELLS); null when skipped. */
   publishes?: string | null;
   /** The country the press signed up from (two letters), for the shipping starter. */
   country?: string | null;
@@ -147,6 +148,7 @@ export function firstWeekSteps(doc: FirstWeekDoc, facts: FirstWeekFacts): FirstW
   return ORDER[answer].map(entry => {
     const id: StepId = entry === "books" ? FIRST_BOOK[answer] : entry;
     const words = { ...WORDS[id] };
+    if (id === "add-books") Object.assign(words, firstProductWords(doc.publishes));
     if (id === "shipping") words.why = `${words.why} ${shippingStarterWords(doc.country ?? facts.settings?.country)}`;
     if (id === "payments" && facts.platform === "square") words.why = "Connect your Square account, so card payments go straight to you. Square's own page asks for your details.";
     if (id === "look" && doc.welcome && !facts.settings?.design?.themeBase?.id) words.why = "Your look is saved as a draft. Open Design and press Publish so shoppers see it.";

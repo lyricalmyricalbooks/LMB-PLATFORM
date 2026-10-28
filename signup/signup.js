@@ -22,7 +22,7 @@
 // and doesn't count towards it.
 //
 // Screen 2 (plan 6.2): the press may choose its web address (`checkAddress` rules, free in the registry and among
-// sign-ups), answers "What do you publish?" (skippable) and ticks the terms box. The terms' version and the date are
+// sign-ups), answers "What do you sell?" (skippable) and ticks the terms box. The terms' version and the date are
 // stored on the sign-up row once (terms/terms.js acceptanceRecord); signing up again keeps the first agreement.
 import { createHash, randomBytes } from "node:crypto";
 import { ADDRESS_SUFFIX, checkAddress, checkSignup, isEmail, slugFromPressName } from "./form.js";

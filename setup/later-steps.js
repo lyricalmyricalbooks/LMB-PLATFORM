@@ -49,7 +49,7 @@ export function appsOf(shop) {
 /** The sign-up answer for the first-week list (signup/form.js QUESTION ids), or null when skipped or unknown. */
 export const sellingToday = (shop) => (typeof shop.sellingToday === "string" && /^[a-z]{2,20}$/.test(shop.sellingToday) ? shop.sellingToday : null);
 
-/** "What do you publish?" (signup/form.js, plan 6.2), for the theme suggestions (plan 6.3), or null when skipped. */
+/** "What do you sell?" (signup/form.js, plans 6.2 and 10.1), for the theme suggestions (6.3) and the kind of new products, or null when skipped. */
 export const publishes = (shop) => (typeof shop.publishes === "string" && /^[a-z]{2,20}$/.test(shop.publishes) ? shop.publishes : null);
 
 /** The country the press signed up from (two capital letters), for the setup guide's shipping starter, or null. */

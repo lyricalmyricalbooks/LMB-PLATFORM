@@ -66,7 +66,7 @@ export function shopFromSignup(row, { testMode }) {
     paymentProvider: row.paymentProvider ?? "stripe",
     // The sign-up question's answer (form.js QUESTION), or null when skipped: it shapes the first-week list (3.3).
     sellingToday: row.answer ?? null,
-    // "What do you publish?" (form.js PUBLISHES, plan 6.2), or null when skipped: it suggests the shop's look (6.3).
+    // "What do you sell?" (form.js PUBLISHES, plans 6.2 and 10.1), or null when skipped: it suggests the shop's look (6.3) and starts its products as that kind.
     publishes: row.publishes ?? null,
     testMode: testMode === true,
   };

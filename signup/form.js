@@ -29,19 +29,26 @@ export const COUNTRIES = Object.freeze({
 });
 
 /**
- * "What do you publish?" (plan 6.2), also skippable. The answer travels with the shop (`shopFromSignup` › `publishes`)
- * and suggests a look on the shop's welcome screen (6.3).
+ * "What do you sell?" (plan 6.2, widened beyond books by plan 10.1), also skippable. The answer travels with the shop
+ * (`shopFromSignup` › `publishes`, the field's first name, kept so older shops and links still read it). The shop uses
+ * it to suggest a look (6.3), to start new products as that kind and to word the setup guide (apps/shop
+ * src/app/admin/sells.ts). The first five ids are the old publishing answers and keep their meaning.
  */
 export const PUBLISHES = Object.freeze({
   id: "publishes",
-  label: "What do you publish?",
-  hint: "Optional. We'll suggest a look for your shop.",
+  label: "What do you sell?",
+  hint: "Optional. We'll suggest a look and set up your shop for it.",
   options: Object.freeze([
     Object.freeze({ id: "books", label: "Books" }),
     Object.freeze({ id: "zines", label: "Zines" }),
     Object.freeze({ id: "comics", label: "Comics" }),
-    Object.freeze({ id: "prints", label: "Prints" }),
+    Object.freeze({ id: "prints", label: "Art and prints" }),
     Object.freeze({ id: "mix", label: "A mix" }),
+    Object.freeze({ id: "clothing", label: "Clothing" }),
+    Object.freeze({ id: "shoes", label: "Shoes" }),
+    Object.freeze({ id: "jewelry", label: "Jewelry" }),
+    Object.freeze({ id: "music", label: "Music" }),
+    Object.freeze({ id: "other", label: "Something else" }),
   ]),
 });
 

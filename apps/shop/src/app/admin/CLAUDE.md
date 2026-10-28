@@ -499,6 +499,14 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   "progress" ...])`, the four sign-up fields never change from the admin, `welcome`/`progress` shapes checked. The
   Overview's "designer" link opens Settings › Design (Dashboard maps it like general/notifications/taxes).
 
+- **What you sell** (plan 10.1, `sells.ts`): sign-up's "What do you sell?" (`firstWeek/start` › `publishes`). Book
+  answers (books, zines, comics, mix), a skipped or unknown one change nothing. Any other answer: Choose your look's
+  suggestions for it (`chooseLook.ts` SUGGESTED, keys in the form's order, checked by `setup/later-steps.test.js`),
+  starter Text & labels words put in the draft by `applyChosenLook` under the owner's own (`withStarterWords`), new
+  products start as `startingKind` (BookEditor, also in `initialData` so it isn't an unsaved edit) and the guide's
+  first-product step. A new shopper word with "book" in it needs a starter word in `sells.ts` (or `BOOK_ONLY_COPY`
+  when it only shows for books); `sells.test.ts` fails otherwise.
+
 ## Going live on Colophon (28 October 2026, code plan 2.10)
 
 - `launchReadiness` takes `platformCards` (default `platformCardsProvider()` from the shop profile) and `platformAccount`
