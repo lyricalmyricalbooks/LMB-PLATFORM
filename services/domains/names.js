@@ -40,3 +40,29 @@ export function withExtraOrigins(text, origins) {
   if (/^SHOP_EXTRA_ORIGINS=.*$/m.test(text)) return text.replace(/^SHOP_EXTRA_ORIGINS=.*$/m, line);
   return `${text.replace(/\n?$/, "\n")}${line}\n`;
 }
+
+/** The address Firebase gives every shop (`<project id>.web.app`). It always works and is never removed. */
+export function ownAddress(row) {
+  return `${row?.projectId ?? row?.shopId}.web.app`;
+}
+
+/**
+ * The shop's main address (plan 5.9): registry `mainDomain` when it is one of the shop's `domains`, else its own
+ * web.app address. Emails, links, the sitemap and Apple Pay / Google Pay follow it (`SHOP_SITE_URL`, the profile's
+ * `siteUrl`). Setup steps 6 and 8 write it from the registry, so running setup again keeps the press's choice.
+ */
+export function mainAddress(row) {
+  const main = normalDomain(row?.mainDomain ?? "");
+  const domains = Array.isArray(row?.domains) ? row.domains : [];
+  return main && domains.some((d) => normalDomain(d?.name) === main) ? main : ownAddress(row);
+}
+
+/** `https://` + the main address: the shop's site address. */
+export const siteUrlOf = (row) => `https://${mainAddress(row)}`;
+
+/** The env file with SHOP_SITE_URL set to `url` (setup/later-steps.js envFileText writes the line). */
+export function withSiteUrl(text, url) {
+  const line = `SHOP_SITE_URL="${url}"`;
+  if (/^SHOP_SITE_URL=.*$/m.test(text)) return text.replace(/^SHOP_SITE_URL=.*$/m, line);
+  return `${text.replace(/\n?$/, "\n")}${line}\n`;
+}

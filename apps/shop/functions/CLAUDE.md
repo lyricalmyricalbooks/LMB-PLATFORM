@@ -835,7 +835,9 @@ platform shop: connect Square (or finish Stripe onboarding), the account's state
 `not_available` and the admin shows the older "for your records" field) with the service key, which `withPlatformKey`
 now declares when that address is set. The service adds the address to `SHOP_EXTRA_ORIGINS` and redeploys the server
 code before Hosting serves it. In platform mode `payments.registerPaymentDomain` goes through the service
-(`account.paymentDomain`) instead of refusing.
+(`account.paymentDomain`) instead of refusing. Plan 5.9 adds `step: "makeMain" | "remove"` (`domains.makeMain`,
+`domains.remove`): the main address becomes `SHOP_SITE_URL` (emails, order links) and the profile's `siteUrl`, written and
+redeployed by the service; the service refuses removing the main address or the shop's own web.app one.
 **Bookkeeping (28 October 2026, code plan 7.16).** `quickbooksLink.js` (action `bookkeeping`, `step: "status" | "connect" |
 "options" | "save" | "resend" | "disconnect"`) passes Settings › Bookkeeping to the platform's bookkeeping service
 (`PLATFORM_ACCOUNTING_URL`, https, LMB-PLATFORM services/accounting; `withPlatformKey` declares the key when set). Unset:
@@ -853,8 +855,17 @@ restocked on refund (`sandboxTakesStock` in settlePayment.js, as on the test sho
 (`body.practice` or an earlier practice attempt) gets 409 `practice_ended` rather than a live charge. Exports also skip
 unpaid practice orders. The storefront's hint (`src/app/lib/practiceHint.ts`) only lets the owner's browser past the
 store-status page; it decides nothing. Tested in `practiceCheckout.test.js` with a fake service for both providers.
-Known gaps: gift cards with a card payment are refused for Square shops; admin and email wording still says "Stripe" in
-places.
+Known gap: gift cards with a card payment are refused for Square shops.
+**The provider's own name (28 October 2026, code plan 5.2).** A Square shop never says "Stripe" to the press or the
+shopper. The server names the provider with `providerName(payments.provider)` from `payments/index.js`, kept as `CARD`
+in index.js and orderRequests.js. That covers order activity lines, refund, dispute and alert messages, and the admin's
+new-order emails (a card order's stored `paymentMethod: "Stripe"` shows as `paymentMethodLabel`). `fulfillmentGuard.js`
+reads the provider from shopConfig. The admin and storefront use the same rule, `providerName()` in
+`src/lib/shopProfile.ts`, read from the profile's `payments`. On a Stripe shop every word is unchanged.
+`src/app/admin/providerWording.test.ts` checks two things:
+- **A Square profile.** The order list, alerts, Ready to sell, payment checks and test-sale steps say Square.
+- **Every shown word.** It reads each string in the admin screens and in these server files. A remaining "Stripe" must
+  sit on a line marked `Stripe shops only`, or be the stored value compared or listed.
 **Square pages close with the stock hold (28 October 2026, code plan 5.1).** `paymentPages.js`. When a Square link opens,
 checkoutPayment.js saves `openedPage(order, session)` on the order: `paymentPages` (each page's `id`, `closesAt`, later
 `closedAt`/`closed`), `paymentPageClosesAt` (the latest) and `paymentPageCloseDue` (the earliest still open; null when
