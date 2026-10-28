@@ -61,6 +61,7 @@ const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./a
 const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
+const { googleConnectActions } = require("./googleConnect");
 const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
@@ -1529,6 +1530,9 @@ const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, h
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
 const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
 
+// Connect Google: one sign-in, through the platform's Google link (googleConnect.js, plan 6.17).
+const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+
 // Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
 const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
 
@@ -1562,6 +1566,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   registerPaymentDomain: handleRegisterPaymentDomain,
   platformPayments: handlePlatformPayments,
   customDomains: handleCustomDomains,
+  googleConnect: handleGoogleConnect,
   practiceCheckout: handlePracticeCheckout,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,

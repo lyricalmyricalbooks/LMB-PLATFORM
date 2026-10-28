@@ -4,7 +4,7 @@ import { db, auth } from "../../lib/firebase";
 import toast from "react-hot-toast";
 import { placeItemsTable, risoButton, risoLayout, safeLogoUrl } from "./emailTheme";
 import { orderPreviewVars, previewItemsTable } from "./emailPreviewData";
-import { GmailSendingCard } from "./GmailSendingCard";
+import { GmailSendingCard, PlatformSenderCard } from "./GmailSendingCard";
 import { useSenderStatus } from "./senderStatus";
 import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
 import { fillSample, insertAt, PLACEHOLDERS, problemTemplates, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
@@ -634,7 +634,9 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
 
       <TabPanel tabId="email-setup" active={view === "email-setup"}>
       <div className="rp-stack">
-      <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} sender={senderStatus} />
+      {/* Plan 6.18: a shop run by Colophon sends through Colophon (or its own address once ready), so the Gmail app
+          password panel is hidden there. */}
+      {senderStatus.backup === "platform" ? <PlatformSenderCard /> : <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} sender={senderStatus} />}
 
       <div id="email-sender" style={{ scrollMarginTop: 16 }} />
       <SectionCard title="Email sender" description="Who it's from. Where replies go.">
