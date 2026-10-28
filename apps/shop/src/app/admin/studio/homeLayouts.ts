@@ -83,6 +83,39 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "press-zine",
+    name: "Zine",
+    description: "A zine table: a ticker of news, the latest issues, a short note on how they're made and a mailing list.",
+    sections: [
+      { type: "MarqueeSection", settings: { text: "NEW ISSUE OUT NOW  /  MAIL ORDER  /  TRADES WELCOME", separator: "★", speed: 28, fontSize: 12, bold: true, fontWeight: 700, letterSpacing: 0.12, uppercase: true } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Latest issues" } },
+      { type: "TextContentSection", settings: { title: "Made by hand", content: "<p>Photocopied, folded and stapled in small runs. When a run is gone, it's gone.</p>" } },
+      { type: "NewsletterSection", settings: { title: "Get the next issue", description: "A short email when something new is printed." } },
+    ],
+  },
+  {
+    id: "press-letterpress",
+    name: "Letterpress",
+    description: "A quiet title page, one book in the spotlight, the books in print and news from the press.",
+    sections: [
+      { type: "TextContentSection", settings: { title: "{{shop.name}}", content: "<p>Books set, printed and bound with care.</p>", align: "center" } },
+      { type: "BookSpotlightSection", settings: { eyebrow: "NEW FROM THE PRESS" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Books in print" } },
+      { type: "NewsletterSection", settings: { title: "News from the press", description: "New books and readings, a few times a year." } },
+    ],
+  },
+  {
+    id: "press-index",
+    name: "Index",
+    description: "An art-book index: new titles in a row, every title in a tight grid, the collections and a mailing list.",
+    sections: [
+      { type: "ProductCoverCarouselSection", settings: { title: "New titles", tagline: "Art books and editions." } },
+      { type: "ProductShowcaseGridSection", settings: { title: "All titles" } },
+      { type: "CollectionListSection", settings: { title: "Series", columns: 3 } },
+      { type: "NewsletterSection", settings: { title: "New titles by email", description: "One email per new title. Unsubscribe any time." } },
+    ],
+  },
+  {
     id: "press-about",
     name: "About page",
     description: "Jumbo centered headline, ephemera object row, 'Why this exists' columns and a photo + contact block — apply on an About page template.",

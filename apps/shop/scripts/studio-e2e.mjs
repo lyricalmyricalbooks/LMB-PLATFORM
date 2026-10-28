@@ -1376,6 +1376,35 @@ await check("a ready-made look offers its layout and starter pages after the loo
   await frame.locator("[data-section]").first().waitFor({ timeout: 10000 });
 });
 
+await check("switching looks lists what carried over, Bring back restores a replaced change, and Done closes the list", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const panel = page.locator("[data-studio-panel='themes']");
+  const card = panel.locator("[data-theme-card='preset:press-zine']");
+  await card.getByRole("button", { name: "Use this look" }).click();
+  const ask = page.getByRole("dialog", { name: /Also use “Zine” layout and starter pages\?/ });
+  await ask.waitFor({ timeout: 5000 });
+  await ask.getByRole("button", { name: "Cancel" }).click();
+  const report = panel.locator("[data-switch-report]");
+  await report.waitFor({ timeout: 5000 });
+  const summary = await report.locator(".studio-switch-summary").innerText();
+  if (!/carried over|replaced nothing/.test(summary)) throw new Error(`summary reads "${summary}"`);
+  if (!/sections, menus and pages were not touched/.test(await report.innerText())) throw new Error("the list doesn't say sections and pages were kept");
+  const replaced = report.locator("[data-switch-replaced] li");
+  const before = await replaced.count();
+  if (before > 0) {
+    await replaced.first().getByRole("button", { name: /^Bring back / }).click();
+    await expectText(page, "Brought back");
+    const after = await report.locator("[data-switch-replaced] li").count();
+    if (after !== before - 1) throw new Error(`Bring back left ${after} of ${before} replaced changes`);
+  }
+  // Switching to Index replaces the list with Index's own.
+  await panel.locator("[data-theme-card='preset:press-index']").getByRole("button", { name: "Use this look" }).click();
+  await page.getByRole("dialog", { name: /Also use “Index” layout/ }).getByRole("button", { name: "Cancel" }).click();
+  await report.getByText("After switching to Index").waitFor({ timeout: 5000 });
+  await report.getByRole("button", { name: "Done" }).click();
+  await report.waitFor({ state: "detached", timeout: 5000 });
+}, "#designer?tab=themes");
+
 await check("the hero's Height control (found by the theme check) changes the hero in the preview", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();

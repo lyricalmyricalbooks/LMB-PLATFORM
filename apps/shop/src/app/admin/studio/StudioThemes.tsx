@@ -9,6 +9,64 @@ import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, StatusBadge } from 
 import { withRisoNoirDefault } from "../../features/site/risoNoir";
 import { PRESET_SECTION_TEMPLATES, hasPresetContent, presetSections, presetStarterPages, type PresetContent } from "./presetContent";
 import type { SavedTheme } from "./savedThemes";
+import { themedDesign } from "./themeLook";
+import { switchSummary, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
+
+const COLOR = /^(#[0-9a-f]{3,8}|rgba?\(.*\))$/i;
+/** A setting's value as the owner would describe it: a swatch for a colour, On/Off, or the words themselves. */
+function SwitchValue({ value }: { value: any }) {
+  if (value === undefined || value === null || value === "") return <em>default</em>;
+  if (typeof value === "boolean") return <>{value ? "On" : "Off"}</>;
+  const text = typeof value === "object" ? "custom" : String(value);
+  if (COLOR.test(text)) return <span className="studio-switch-swatch" style={{ background: text }} role="img" aria-label={`colour ${text}`} />;
+  return <>{text.length > 28 ? `${text.slice(0, 27)}…` : text}</>;
+}
+
+/** Themes › What carried over: the press's own style edits after switching looks, with Bring back for each replaced one. */
+function SwitchReportPanel({ report, onBringBack, onDismiss }: { report: ThemeSwitchReport; onBringBack: (items: SwitchItem[]) => void; onDismiss: () => void }) {
+  return (
+    <section className="studio-switch" data-switch-report aria-labelledby="studio-switch-title">
+      <div className="studio-themes-head">
+        <h3 id="studio-switch-title">After switching to {report.themeName}</h3>
+        <SecondaryButton size="sm" onClick={onDismiss}>Done</SecondaryButton>
+      </div>
+      <p className="studio-switch-summary" role="status">{switchSummary(report)}</p>
+      <p className="studio-hint">
+        Your sections, menus and pages were not touched{report.wordsKept ? `, and all ${report.wordsKept} label${report.wordsKept === 1 ? "" : "s"} you rewrote in Text & labels stayed` : ""}.
+      </p>
+      {report.replaced.length > 0 && <>
+        <div className="studio-themes-head">
+          <h4>Replaced by the new look</h4>
+          {report.replaced.length > 1 && <SecondaryButton size="sm" onClick={() => onBringBack(report.replaced)}>Bring all back</SecondaryButton>}
+        </div>
+        <ul className="studio-switch-list" data-switch-replaced>
+          {report.replaced.map((item) => (
+            <li key={`${item.surface || ""}:${item.key}`}>
+              <span className="studio-switch-label">{item.label}</span>
+              <span className="studio-switch-values">
+                <span title="Yours"><SwitchValue value={item.before} /></span> <span aria-hidden>→</span> <span className="sr-only">now</span> <span title="Now"><SwitchValue value={item.after} /></span>
+              </span>
+              <SecondaryButton size="sm" aria-label={`Bring back ${item.label}`} onClick={() => onBringBack([item])}>Bring back</SecondaryButton>
+            </li>
+          ))}
+        </ul>
+      </>}
+      {report.kept.length > 0 && (
+        <details className="studio-switch-kept">
+          <summary>Carried over ({report.kept.length})</summary>
+          <ul className="studio-switch-list" data-switch-kept>
+            {report.kept.map((item) => (
+              <li key={`${item.surface || ""}:${item.key}`}>
+                <span className="studio-switch-label">{item.label}</span>
+                <span className="studio-switch-values"><SwitchValue value={item.before} /></span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
+}
 
 /** "Home layout · About, Contact pages" for a preset card. */
 const presetContentLabel = (preset: any) => [
@@ -58,6 +116,10 @@ type Props = {
   onDelete: (t: SavedTheme) => void;
   onSchedule?: (t: SavedTheme) => void;
   onApplyPreset: (preset: any) => void;
+  /** The last switch to a ready-made look (themeSwitch.ts), or null. */
+  switchReport?: ThemeSwitchReport | null;
+  onBringBack?: (items: SwitchItem[]) => void;
+  onDismissSwitch?: () => void;
   links: PreviewLinkApi;
   askConfirm: (opts: { title: string; message: string; confirmLabel?: string }) => Promise<boolean>;
   say: (kind: "ok" | "err", text: string) => void;
@@ -113,6 +175,8 @@ export function StudioThemes(p: Props) {
 
   return (
     <div className="studio-themes" data-studio-panel="themes">
+      {p.switchReport && p.onBringBack && p.onDismissSwitch &&
+        <SwitchReportPanel report={p.switchReport} onBringBack={p.onBringBack} onDismiss={p.onDismissSwitch} />}
       <section className="studio-themes-current">
         <h3>Live now</h3>
         <article className="studio-theme-card" data-theme-card="live">
@@ -179,7 +243,8 @@ export function StudioThemes(p: Props) {
         <p className="studio-hint">A look sets colours, fonts and print details; your sections, words and menus stay. Some looks also come with a layout and starter pages: Studio offers those after the look, and you can skip them.</p>
         <div className="studio-theme-grid">
           {p.presets.map(preset => {
-            const look = { ...p.design, ...(preset.global || {}) };
+            // Exactly what Use this look would write (palette colours included), so the drawing and Preview match it.
+            const look = themedDesign(preset, p.design);
             return (
               <article key={preset.id} className="studio-theme-card" data-theme-card={`preset:${preset.id}`}>
                 <ThemeThumb design={look} label={preset.name} />
