@@ -387,7 +387,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     description: "Screenshot-style masthead plus configurable product grid.",
     category: "Commerce",
     defaults: {
-      title: "Your Press",
+      title: "{{shop.name}}",
       navText: "Products · About · Project Submissions · Contact",
       cartLabel: "Cart",
       cartTotalText: "CA$130.00",
@@ -575,8 +575,8 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     description: "Full-height hero that auto-cycles through your book covers with a serif wordmark overlay.",
     category: "Commerce",
     defaults: {
-      title: "Your Press",
-      tagline: "An independent publishing house based in Toronto, specializing in contemporary photography and art books.",
+      title: "{{shop.name}}",
+      tagline: "An independent publishing house specializing in contemporary photography and art books.",
       titleItalic: true,
       productSource: "all",
       manualSlugs: "",
@@ -649,9 +649,9 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
       align: "center",
       gap: 24,
       items: [
-        { kind: "spine", label: "YOUR PRESS", color: "#A855F7", rotation: -2 },
+        { kind: "spine", label: "{{shop.name}}", color: "#A855F7", rotation: -2 },
         { kind: "negative", label: "", color: "#d97706", rotation: 1 },
-        { kind: "seal", label: "LM", color: "#9a2c3c", rotation: -3 },
+        { kind: "seal", label: "★", color: "#9a2c3c", rotation: -3 },
         { kind: "ribbon", label: "", color: "#A855F7", rotation: 2 },
         { kind: "sticker", label: "ISBN 978-1-00-000000-0", color: "#f3f1ee", rotation: -4 },
       ],

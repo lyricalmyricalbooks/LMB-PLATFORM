@@ -34,6 +34,9 @@ Rules:
 - Anything triggered by a shop's own database (order to stockroom, catalog markers) stays in the shop's functions.
   Database triggers can't fire across projects.
 - Email works the same way, in `services/email/`, holding the sender key.
+- A press may choose Square instead (2.2b): the same service holds the platform's Square applications and each press's
+  sealed tokens, takes Square's events at one address per Square environment, and answers a Square shop's calls on that
+  press's own Square account. The fee is Square's application fee, with the same settings.
 
 ## What changes in the shop repo
 

@@ -104,7 +104,7 @@ describe('Phone polish sweep (round 4)', () => {
     });
 
     it('explains why Apply all is greyed out, under the button', () => {
-      expect(html).toMatch(/<p class="apply-all-hint" id="apply-all-hint">Scan Gmail first to find new orders\.<\/p>/);
+      expect(html).toMatch(/<p class="apply-all-hint" id="apply-all-hint" data-gmail-order-scan hidden>Scan Gmail first to find new orders\.<\/p>/);
       expect(main).toMatch(/function setApplyAllHint\(text\)/);
       expect(main).toMatch(/setApplyAllHint\(canApply \? '' : /);
     });

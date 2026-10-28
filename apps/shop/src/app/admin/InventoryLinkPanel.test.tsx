@@ -37,17 +37,37 @@ const mount = async (onStockChanged = vi.fn()) => {
 const button = (label: string) => [...document.querySelectorAll("button")].find((b) => b.textContent?.includes(label)) as HTMLButtonElement;
 
 describe("InventoryLinkPanel", () => {
-  it("starts at the connection step with the address to grant", async () => {
+  it("starts at the connection step with nothing to grant: the stockroom is in this shop's project (plan 1.21)", async () => {
     link.status.mockResolvedValue(status({}));
     await mount();
     const text = document.body.textContent || "";
     expect(text).toContain("Not connected yet");
-    expect(text).toContain("123-compute@developer.gserviceaccount.com");
-    expect(text).toContain("Cloud Datastore User");
+    expect(text).toContain("nothing to grant");
+    expect(text).not.toContain("Cloud Datastore User");
+    expect(text).not.toContain("123-compute@developer.gserviceaccount.com");
     expect(text).toContain("Connect first");
     await act(async () => { button("Check connection").click(); });
     await flush();
     expect(link.check).toHaveBeenCalled();
+  });
+
+  it("shows how to give access back only when the shop's own project refuses it", async () => {
+    link.status.mockResolvedValue(status({ connection: { ok: false, problem: "not-granted" } }));
+    await mount();
+    const text = document.body.textContent || "";
+    expect(text).toContain("123-compute@developer.gserviceaccount.com");
+    expect(text).toContain("Cloud Datastore User");
+    expect(text).toContain("stopped letting this shop reach its own stockroom");
+    const permissions = [...document.querySelectorAll("a")].find((a) => a.textContent?.includes("this shop's permissions"));
+    expect(permissions?.getAttribute("href")).toContain("iam?project=lmb-test-shop");
+  });
+
+  it("says plainly when the shop has no stockroom yet", async () => {
+    link.status.mockResolvedValue(status({ connection: { ok: false, problem: "no-stockroom" } }));
+    await mount();
+    const text = document.body.textContent || "";
+    expect(text).toContain("doesn't have the stockroom yet");
+    expect(text).not.toContain("Cloud Datastore User");
   });
 
   it("suggests and saves book matches once connected", async () => {

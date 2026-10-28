@@ -100,6 +100,26 @@ await check("extra fields, bad plans, long text and a doctored count are refused
   assert.equal((await post(id, base)).status, 200);
 });
 
+await check("anyone can read the public status, nobody can write it from the web", async () => {
+  const seeded = await fetch(`${docs}/publicStatus?documentId=current`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...asOwner },
+    body: JSON.stringify({ fields: { overall: str("working") } }),
+  });
+  assert.equal(seeded.status, 200);
+  const read = await fetch(`${docs}/publicStatus/current`);
+  assert.equal(read.status, 200);
+  assert.equal((await read.json()).fields.overall.stringValue, "working");
+  const write = await fetch(`${docs}/publicStatus/current`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { overall: str("most") } }),
+  });
+  assert.equal(write.status, 403);
+  assert.equal((await fetch(`${docs}/publicStatus`)).status, 403, "the collection can't be listed");
+  assert.equal((await fetch(`${docs}/publicStatus/other`)).status, 403);
+});
+
 await check("everything outside the waitlist is closed", async () => {
   const write = await fetch(`${docs}/settings?documentId=site`, {
     method: "POST",

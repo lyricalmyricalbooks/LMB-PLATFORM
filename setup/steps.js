@@ -93,7 +93,7 @@ export function projectDisplayName(shop) {
 
 // Features one press needed once (profile/shop-profile.schema.json `switches`). A new shop gets every one written down
 // as off; a value already in the shop's saved profile is kept, so re-running setup never turns one back off.
-export const SWITCHES = Object.freeze(["legacyStockroomSignIn", "githubPagesForwarding", "gmailReceiptFinder"]);
+export const SWITCHES = Object.freeze(["legacyStockroomSignIn", "githubPagesForwarding", "gmailReceiptFinder", "gmailOrderScan"]);
 
 /** All the switches, off unless `saved` (the switches in the shop's saved profile) has them as true or false. */
 export function shopSwitches(saved) {

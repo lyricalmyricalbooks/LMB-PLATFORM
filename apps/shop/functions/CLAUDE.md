@@ -832,6 +832,19 @@ attachments, and the log says so. `senderStatus()` (`sendTestEmail` action `send
 the Gmail address and the backup. The card is "Send from your own Gmail" and hides the Resend fields when the backup is
 the platform (`src/app/admin/senderStatus.ts`). With `PLATFORM_EMAIL_URL` unset, everything works as before.
 
+## Data changes (28 October 2026, platform plan 4.2)
+
+`functions/migrations/`: numbered data changes, each run once per shop. `list.js` holds them in order
+(`0001-short-name`, no gaps; `listProblems` and the tests refuse a gap or a bad name). `runner.js` `runMigrations`
+runs the pending ones in order under a lock, and stops at the first failure; the next run starts there. What ran is
+kept in `systemStatus/migrations` (`applied`, `running`, `failed`; admin-readable, no browser writes), and each change
+adds a plain-words Activity logs entry (type `settings`, actor "Shop updates"; the error stays in a field, not the
+message). `run.js --project <id> [--release <v>] [--dry-run]` runs them with application default credentials; the
+platform's release runner calls it before it deploys new server code. A change must be safe to run twice (look before
+writing), is only ever appended and never edited after release, and must leave data the previous release's code can
+still use, since a failed release is rolled back by putting the old code back. The test runs every listed change twice
+on an empty shop and expects the same result. The list is empty today.
+
 ## Platform support visits (28 October 2026, code plan 2.8)
 
 "Act as this shop" in the platform's control room logs the visit in this shop's `auditLog` first. It then opens

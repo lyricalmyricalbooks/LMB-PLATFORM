@@ -62,6 +62,13 @@ The shop copy does the rest (`apps/shop/functions/CLAUDE.md` › Platform suppor
 - the admin takes the token out of the address and shows a banner with who, why and until when;
 - it signs out at the end.
 
+## Support requests
+
+The page's **Support requests** lists the requests presses send from their account page (`services/support/`):
+waiting, answered or closed. **Send the answer** emails it to the press and keeps it on the request; **Close** files
+it. The calls are `POST /api/control/support`, `/api/control/support/answer` and `/api/control/support/close`
+(`services/support/routes.js`).
+
 ## Not yet
 
 - **The repair queue** (`repairs.open`, plan 2.11).

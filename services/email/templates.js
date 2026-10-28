@@ -55,6 +55,27 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /**
+   * The health run's alert to the platform's own address (services/health). `data`: { pressName, shopId, check,
+   * state: "failing" | "still-failing" | "recovered", detail, since }.
+   */
+  "health-alert": ({ shopId, check, state, detail, since }, { settings, pressName }) => {
+    const what = { pages: "pages", checkout: "checkout", webhook: "payment events", backup: "backups" }[check];
+    if (!what) throw new Error(`the health alert names no known check (${check})`);
+    const words = {
+      failing: [`${what} failing`, `The ${what} check for ${pressName} started failing at ${since}.`],
+      "still-failing": [`${what} still failing`, `The ${what} check for ${pressName} has been failing since ${since}.`],
+      recovered: [`${what} working again`, `The ${what} check for ${pressName} passes again.`],
+    }[state];
+    if (!words) throw new Error(`the health alert has no known state (${state})`);
+    return layout({
+      subject: `${pressName} (${shopId}): ${words[0]}`,
+      greeting: "",
+      paragraphs: [words[1], ...(detail && state !== "recovered" ? [`What the check saw: ${detail}`] : [])],
+      footer: `${settings.platformName} health checks`,
+    });
+  },
+
   /** An owner invited someone to their shop's team (accounts/accounts.js). */
   "invite": ({ pressName, invitedBy, roleWords, link, days }, { settings }) => layout({
     subject: `You're invited to join ${pressName} on ${settings.platformName}`,
@@ -65,6 +86,36 @@ export const TEMPLATES = {
       "If you weren't expecting it, you can ignore this email.",
     ],
     buttons: [["Accept the invite", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  // ── Support (services/support). `data`: { pressName, ticketId, subject, body, from?, followUp? }. ──
+
+  /** To the person who asked: we have it. Their own words are repeated so they can check them. */
+  "support-received": ({ ticketId, subject, body }, { settings }) => layout({
+    subject: `We have your request: ${subject}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Thanks for writing to ${settings.platformName} support. A person reads every request, and you'll get the answer by email.`,
+      `Your request (number ${ticketId}):`,
+      body,
+    ],
+    footer: signOff(settings),
+  }),
+
+  /** To the platform's support address: a new request, or more words on one. */
+  "support-new": ({ ticketId, subject, body, from, followUp }, { settings, pressName }) => layout({
+    subject: `${followUp ? "More on" : "New request"} ${ticketId}: ${subject}`,
+    greeting: "",
+    paragraphs: [`From ${from}${pressName ? ` (${pressName})` : ""}:`, body, "Answer it in the control room, under Support, so the press gets it by email."],
+    footer: `${settings.platformName} support inbox`,
+  }),
+
+  /** To the person who asked: the team's answer. */
+  "support-reply": ({ ticketId, subject, body }, { settings }) => layout({
+    subject: `Re: ${subject}`,
+    greeting: "Hello,",
+    paragraphs: [body, `This answers your request number ${ticketId}. Add to it from your account page if you need more help.`],
     footer: signOff(settings),
   }),
 

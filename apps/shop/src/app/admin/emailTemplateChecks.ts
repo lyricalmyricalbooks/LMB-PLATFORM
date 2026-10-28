@@ -4,6 +4,8 @@
  * mirror of REQUIRED_PLACEHOLDERS is functions/emailOutbox.js (parity checked in emailTemplateChecks.test.ts).
  */
 
+import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
+
 export type TemplateId =
   | "order_confirmation" | "order_pending_payment" | "shipping_confirmation" | "abandoned_cart" | "order_cancelled"
   | "order_refunded" | "customer_welcome" | "delivery_update" | "contact_reply" | "gift_card" | "review_request";
@@ -11,17 +13,17 @@ export type TemplateId =
 export type TemplateFields = { subject: string; body: string; buttonText: string; signoff: string; enabled?: boolean };
 
 export const PLACEHOLDERS: Record<TemplateId, string[]> = {
-  order_confirmation: ["customer_name", "order_id", "order_url", "items_table", "total_price", "shipping_method", "delivery_estimate"],
-  order_pending_payment: ["customer_name", "order_id", "total_price", "payment_method", "items_table"],
-  shipping_confirmation: ["customer_name", "order_id", "tracking_carrier", "tracking_number", "tracking_url"],
-  abandoned_cart: ["customer_name", "cart_url", "items_table"],
-  order_cancelled: ["customer_name", "order_id"],
-  order_refunded: ["customer_name", "order_id", "total_price"],
-  customer_welcome: ["customer_name", "email"],
-  delivery_update: ["customer_name", "order_id", "status", "tracking_carrier", "tracking_number", "tracking_url"],
-  contact_reply: ["customer_name", "email"],
-  review_request: ["customer_name", "order_id", "book_titles", "items_table"],
-  gift_card: ["recipient_name", "sender_name", "amount", "code", "message", "expires", "shop_url"],
+  order_confirmation: ["customer_name", "order_id", "order_url", "items_table", "total_price", "shipping_method", "delivery_estimate", "shop_name"],
+  order_pending_payment: ["customer_name", "order_id", "total_price", "payment_method", "items_table", "shop_name"],
+  shipping_confirmation: ["customer_name", "order_id", "tracking_carrier", "tracking_number", "tracking_url", "shop_name"],
+  abandoned_cart: ["customer_name", "cart_url", "items_table", "shop_name"],
+  order_cancelled: ["customer_name", "order_id", "shop_name"],
+  order_refunded: ["customer_name", "order_id", "total_price", "shop_name"],
+  customer_welcome: ["customer_name", "email", "shop_name"],
+  delivery_update: ["customer_name", "order_id", "status", "tracking_carrier", "tracking_number", "tracking_url", "shop_name"],
+  contact_reply: ["customer_name", "email", "shop_name"],
+  review_request: ["customer_name", "order_id", "book_titles", "items_table", "shop_name"],
+  gift_card: ["recipient_name", "sender_name", "amount", "code", "message", "expires", "shop_url", "shop_name"],
 };
 
 /** A line the server adds back when an edit drops it — without it the email is useless. */
@@ -34,7 +36,7 @@ const SAMPLE: Record<string, string> = {
   total_price: "CA$45.00", payment_method: "Interac e-Transfer", email: "julianne@reader.example", status: "out for delivery",
   tracking_url: "#", cart_url: "#", order_url: "#", shipping_method: "Canada Post Expedited Parcel",
   delivery_estimate: "2-4 business days after dispatch", recipient_name: "Sam", sender_name: "Julianne", amount: "CA$50.00",
-  code: "ABCD-EFGH-JKMN-PQRS", expires: "It never expires.", shop_url: "#", items_table: "",
+  code: "ABCD-EFGH-JKMN-PQRS", expires: "It never expires.", shop_url: "#", items_table: "", shop_name: DEFAULT_SHOP_NAME,
 };
 
 const TOKEN = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;

@@ -134,6 +134,11 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profil
         await firebase(version, app, ["deploy", "--only", app === "shop" ? "firestore,storage" : "firestore,database,storage", "--project", projectId], stampFile);
       }
     },
+    // The shop's pending data changes (apps/shop/functions/migrations, plan 4.2), run from the release's build before its
+    // server code goes out. Each is recorded in the shop, so this does nothing when there is nothing new.
+    async migrate(projectId, { version }) {
+      await run("node", ["functions/migrations/run.js", "--project", projectId, "--release", version], { cwd: join(buildDir(version), "apps", "shop") });
+    },
     // The env file is written next to the functions' code for this one deploy, with the release stamped in.
     async functions(projectId, { version, region, envFile }) {
       const dir = join(buildDir(version), "apps", "shop", "functions");

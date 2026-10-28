@@ -575,6 +575,29 @@ control), unknown palettes or home layouts, sections Studio can't add, section s
 fields, block list or Style/Layout/Visibility fields, and unknown starter pages. `themeCheck.test.ts` runs it on every
 `THEME_LIBRARY` entry, so a new theme file fails CI until it passes. It found the hero's `height` (read by
 `HeroSection`, set by the Punk home layout) with no control; Hero Banner now has **Height**.
+**The shop's name is a default (28 October 2026, plan 1.16).** The name is typed once: Text & labels › Site & sharing ›
+**Site name** (`siteName`, default `DEFAULT_SHOP_NAME` in `features/site/shopIdentity.ts`, the only file that may spell
+the placeholder; `shopIdentity.test.ts` scans `src`). Copy that mentions the press uses `{name}` (footer wordmark,
+copyright, logo alt, checkout brand, loading, maintenance, review replies, about lines). The wordmark's unset words are
+the name's first word and the rest (`wordmarkWords`; LogoMark and StoreFooter), `logoText` falls back to the name, and
+no theme or the Riso Noir defaults set `wordmarkPrimary/Secondary`, `logoText` or `catalogMastheadText`. Section text can
+say `{{shop.name}}` or connect to **Shop › Shop name** (`dynamicSources.ts`; `SectionList` puts `shop` in the context);
+renderer fallbacks use `fb(key, useShopName())`. The admin rail, top bar and sign-in show `shopNameFromSettings`
+(Settings › General store name, else the site name). Emails: every template knows `{{shop_name}}` (server
+`loadNotificationSettings` → Email sender name, else store name, else `SHOP_SENDER_NAME`), and `risoLayout` takes
+`shopName`. Still naming the placeholder: plain-Node build scripts and a few server fallbacks (newsletter, customs
+signer, weekly PDF, AI writer prompt).
+
+**Every theme stays readable (28 October 2026, plan 1.25).** Themes › Apply writes `themeLookKeys(theme, design)`
+(`studio/themeLook.ts`): a palette theme sets the brand kit's full colour set (`paletteKeys` + `readableExtras`: cards,
+raised buy box, footer, bag, small print, scrim), then `THEME_APPLIED_KEYS`, then `global`. `paletteKeys` small print
+reads at 4.5:1 on the raised surface. Faint `text-white/NN` classes are floored at `--fg-faint` (`faintFloor` in
+`features/site/themeTokens.ts`, 3:1 on the page). `themeReadability.test.tsx` applies the starting look and every
+`THEME_LIBRARY` entry, checks each colour pair (`themeColourPairs`, 4.5:1 body / 3:1 large), draws every
+`SECTION_REGISTRY` section, the theme's preset layout and a book page with every buy-box block, and walks the markup
+(`markupProblems`: class colours via `colorUtilityCss`, inline styles, translucent layers, tint overlays). A new theme,
+section or block is covered automatically; fix the colour, never loosen the check. Section fallbacks use tokens
+(`var(--bg-color)`, `var(--surface-2)`, `--fg-rgb`), never a fixed colour.
 
 ## Studio organization
 

@@ -1,5 +1,5 @@
 // The control room page (control-room/index.html): every shop with its plan, version, health and switches, an
-// "Act as this shop" button and a switch for each feature. Plain browser JavaScript with no framework, like the
+// "Act as this shop" button, a switch for each feature, and the support requests to answer. Plain browser JavaScript with no framework, like the
 // sign-up page. The server (control-room/routes.js) checks that the person is a platform admin, and asks for a reason
 // that goes in the shop's log.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
@@ -35,6 +35,7 @@ const SWITCH_WORDS = {
   legacyStockroomSignIn: "Old stockroom sign-in",
   githubPagesForwarding: "Forward the old GitHub Pages address",
   gmailReceiptFinder: "Find receipts in Gmail",
+  gmailOrderScan: "Scan Gmail for order receipts",
 };
 
 async function load() {
@@ -47,6 +48,7 @@ async function load() {
     status.textContent = "";
     $("#view-signin").hidden = true;
     $("#view-shops").hidden = false;
+    await loadTickets();
   } catch (failure) {
     status.textContent = failure.message;
   }
@@ -99,6 +101,65 @@ function card(shop) {
       shop.testShop ? el("span", { textContent: "test shop" }) : null),
     shop.health.reasons.length ? el("ul", {}, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
     switches);
+}
+
+// ── Support requests (services/support): answer, and the press gets it by email; close when done. ──
+let ticketStatus = "open";
+for (const button of document.querySelectorAll(".filters button")) {
+  button.addEventListener("click", () => {
+    ticketStatus = button.dataset.status;
+    for (const other of document.querySelectorAll(".filters button")) other.setAttribute("aria-pressed", String(other === button));
+    loadTickets();
+  });
+}
+
+async function loadTickets() {
+  try {
+    const { tickets } = await api("POST", "/control/support", { status: ticketStatus });
+    $("#tickets").replaceChildren(...(tickets.length ? tickets.map(ticketCard) : [el("p", { textContent: "Nothing here." })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+function ticketCard(ticket) {
+  const when = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const answer = el("textarea", { maxLength: 5000 });
+  answer.setAttribute("aria-label", `Answer to ${ticket.email}`);
+  const send = el("button", { type: "button", className: "primary", textContent: "Send the answer" });
+  send.addEventListener("click", async () => {
+    send.disabled = true;
+    try {
+      await api("POST", "/control/support/answer", { id: ticket.id, body: answer.value });
+      status.textContent = `Answer emailed to ${ticket.email}.`;
+      await loadTickets();
+    } catch (failure) {
+      status.textContent = failure.message;
+      send.disabled = false;
+    }
+  });
+  const close = el("button", { type: "button", textContent: "Close", disabled: ticket.status === "closed" });
+  close.addEventListener("click", async () => {
+    close.disabled = true;
+    try {
+      await api("POST", "/control/support/close", { id: ticket.id });
+      status.textContent = `Request ${ticket.id} closed.`;
+      await loadTickets();
+    } catch (failure) {
+      status.textContent = failure.message;
+      close.disabled = false;
+    }
+  });
+  return el("div", { className: "card" },
+    el("div", { className: "row" }, el("strong", { textContent: ticket.subject }), el("span", { className: "pill", textContent: ticket.status })),
+    el("div", { className: "facts" },
+      el("span", { textContent: ticket.id }), el("span", { textContent: ticket.email }),
+      ticket.pressName ? el("span", { textContent: `${ticket.pressName} (${ticket.shopId})` }) : null,
+      el("span", { textContent: `opened ${when(ticket.openedAt)}` })),
+    ...ticket.messages.map((m) => el("div", { className: `message from-${m.from}` },
+      el("div", { className: "facts", textContent: `${m.from === "press" ? ticket.email : m.by} · ${when(m.at)}` }),
+      el("div", { textContent: m.body }))),
+    answer, el("div", { className: "row" }, send, close));
 }
 
 $("#google").addEventListener("click", () => signInWithPopup(auth, new GoogleAuthProvider()).catch(() => { status.textContent = "Sign-in didn't finish."; }));

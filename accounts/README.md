@@ -15,6 +15,9 @@ settings (`../signup/config.js`) and sign-in.
 - **An invite link** (`/accounts/?invite=…`): the page keeps the invite while the person signs in, then accepts it.
   An emailed sign-in link brings them back here (`page: "accounts"` on `POST /api/signin-link`).
 
+- **Get help from Colophon**: a request to the platform team (`services/support/`), about one of the person's shops or
+  none, and every earlier request with its answers. Answers also come by email; the person can add to a request.
+
 ## Roles
 
 The shop's own roles (`apps/shop/functions/roles.js`), named in `roles.js`:
