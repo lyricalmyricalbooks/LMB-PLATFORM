@@ -34,3 +34,29 @@ export function fakeShopData() {
     remove: async (projectId, path) => void docs.delete(`${projectId} ${path}`),
   };
 }
+
+/** The devices store (accounts/devices.js), like clients/stores.js `firestoreDevices`. */
+export function fakeDeviceStore() {
+  const rows = new Map();
+  return {
+    rows,
+    get: async (accountId) => structuredClone(rows.get(accountId) ?? null),
+    set: async (accountId, row) => void rows.set(accountId, structuredClone(row)),
+  };
+}
+
+/** The recovery requests store (accounts/recovery.js), like clients/stores.js `firestoreRecoveries`. */
+export function fakeRecoveryStore() {
+  const rows = new Map();
+  const all = () => [...rows.values()].map((r) => structuredClone(r));
+  const newestFirst = (a, b) => (a.askedAt < b.askedAt ? 1 : -1);
+  return {
+    rows,
+    get: async (id) => structuredClone(rows.get(id) ?? null),
+    put: async (id, row) => void rows.set(id, structuredClone(row)),
+    list: async ({ status, limit = 200 }) => all().filter((r) => r.status === status).slice(0, limit),
+    listByRequester: async (email) => all().filter((r) => r.requesterEmail === email).sort(newestFirst),
+    listByOld: async (email) => all().filter((r) => r.oldEmail === email).sort(newestFirst),
+    countSince: async (email, since) => all().filter((r) => r.requesterEmail === email && r.askedAt >= since).length,
+  };
+}
