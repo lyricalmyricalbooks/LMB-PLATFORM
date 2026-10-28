@@ -37,6 +37,8 @@ function tokenColor(el: HTMLElement, cssValue: string) {
  */
 export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   publishableKey: string;
+  /** The press's connected account when the platform takes the payments (shop profile `payments`, plan 2.2). */
+  stripeAccount?: string;
   amountCents: number;
   currency: string;
   loadingText: string;
@@ -56,7 +58,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   accentColor?: string;
   fieldRadius?: number;
   style?: React.CSSProperties;
-}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, expressText, showExpress = true, expressEnabled = true, onExpressConfirm, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style }, ref) {
+}>(function StripeCardForm({ publishableKey, stripeAccount, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, expressText, showExpress = true, expressEnabled = true, onExpressConfirm, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const expressHost = useRef<HTMLDivElement>(null);
   const expressCallbacks = useRef({ expressEnabled, onExpressConfirm });
@@ -99,7 +101,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
     const deadline = setTimeout(fail, 20000);
     (async () => {
       try {
-        const stripe = await loadStripe(publishableKey);
+        const stripe = await loadStripe(publishableKey, stripeAccount ? { stripeAccount } : undefined);
         if (cancelled || failed || !host.current) return;
         if (!stripe) { fail(); return; }
         const el = host.current;
@@ -186,7 +188,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
     return () => { cancelled = true; clearTimeout(deadline); cleanup?.(); elementsRef.current = null; stripeRef.current = null; applied.current = null; };
     // amount/currency changes are pushed with elements.update below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publishableKey, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style?.background, showExpress]);
+  }, [publishableKey, stripeAccount, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style?.background, showExpress]);
 
   useEffect(() => {
     // During a payment attempt the server's amount stays in place (setAmount).

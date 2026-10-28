@@ -6,6 +6,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { createEmailService, cleanName, fromLine } from "./index.js";
 import { resendClient, RESEND_EMAILS_URL } from "./resend.js";
 import { handleShopEmail, hashServiceKey, serviceKeyMatches } from "./http.js";
+import { TEMPLATES } from "./templates.js";
 import { fakeResendFetch, fakeSentLog } from "./fakes.js";
 import { fakeRegistry } from "../../setup/fakes.js";
 import { OWNER_WELCOME } from "../../setup/later-steps.js";
@@ -175,4 +176,18 @@ test("service keys are compared by hash and refuse short or malformed values", (
   assert.equal(serviceKeyMatches(SHOP_KEY, hashServiceKey(SHOP_KEY)), true);
   assert.equal(serviceKeyMatches("short", hashServiceKey("short")), false);
   assert.equal(serviceKeyMatches(SHOP_KEY, "nothex"), false);
+});
+
+test("every billing email renders for the press, links to the account page and escapes the press's name", () => {
+  const settings = { platformName: "Colophon" };
+  const data = { planName: "Shop and stockroom", price: "$39.00", date: "14 November 2026", nextTry: "17 November 2026", link: "https://platform.example/account/billing?shop=moth-press" };
+  for (const kind of ["sign-in-link", "trial-ending", "card-needed", "payment-failed", "subscription-cancelled", "subscription-ended", "plan-changed"]) {
+    for (const hasCard of [false, true]) {
+      const parts = TEMPLATES[kind]({ ...data, hasCard }, { settings, pressName: "Moth <b>Press</b>" });
+      assert.ok(parts.subject && parts.text && parts.html, kind);
+      assert.match(parts.html, /href="https:\/\/platform\.example\/account\/billing\?shop=moth-press"/, kind);
+      assert.doesNotMatch(parts.html, /<b>Press/, kind);
+    }
+  }
+  assert.throws(() => TEMPLATES["card-needed"]({ link: "http://x.example" }, { settings, pressName: "P" }), /https/);
 });

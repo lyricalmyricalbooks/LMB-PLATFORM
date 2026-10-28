@@ -394,7 +394,8 @@ describe("provider choice", () => {
 
   test("callers get exactly the provider interface, nothing provider-only", () => {
     const payments = createPayments(deps());
-    expect(Object.keys(payments).sort()).toEqual(["provider", ...INTERFACE].sort());
+    expect(Object.keys(payments).sort()).toEqual(["mode", "provider", ...INTERFACE].sort());
+    expect(payments.mode).toBe("own");
     for (const name of INTERFACE) expect(typeof payments[name], name).toBe("function");
     expect(payments.withPrivateStripeKeys).toBeUndefined();
     expect(Object.isFrozen(payments)).toBe(true);

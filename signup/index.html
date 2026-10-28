@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Start your free trial · Colophon</title>
+<meta name="description" content="Start a shop, a stockroom or both for your press. Free for 14 days, no card needed.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600&family=DM+Mono&display=swap">
+<style>
+  :root { --paper: #f4efe6; --ink: #1d1a17; --pink: #ff48b0; --blue: #0078bf; --yellow: #ffe800; --muted: #5a534c; --danger: #c2261d; }
+  @media (prefers-color-scheme: dark) { :root { --paper: #23201d; --ink: #f1ebe1; --muted: #b9b0a5; --danger: #ff7a70; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 18px/1.55 Archivo, system-ui, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 40px 16px 64px; }
+  .mark { font: 14px "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { font: 400 clamp(36px, 8vw, 60px)/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 12px 0 12px; }
+  h2 { font: 400 26px/1.15 Anton, Impact, sans-serif; text-transform: uppercase; margin: 0 0 8px; }
+  .lead { font-size: 20px; margin: 0 0 24px; }
+  section[hidden] { display: none; }
+  form, .stack { display: grid; gap: 16px; }
+  label, legend { display: grid; gap: 4px; font: 13px "DM Mono", monospace; text-transform: uppercase; }
+  fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; }
+  input, select, button { font: inherit; font-size: 17px; border: 2px solid var(--ink); border-radius: 0; padding: 12px; background: var(--paper); color: var(--ink); min-height: 48px; }
+  button { cursor: pointer; font-weight: 600; }
+  .primary { background: var(--yellow); color: #1d1a17; box-shadow: 4px 4px 0 var(--ink); }
+  .primary:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+  .ghost { background: transparent; border-color: transparent; text-decoration: underline; padding: 8px 4px; min-height: 44px; justify-self: start; }
+  button:disabled { opacity: .6; cursor: default; }
+  .or { font: 13px "DM Mono", monospace; text-transform: uppercase; color: var(--muted); text-align: center; }
+  .choices { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .choice { position: relative; display: block; border: 2px solid var(--ink); padding: 14px; cursor: pointer; font: inherit; text-transform: none; }
+  .choice input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .choice:has(input:checked) { box-shadow: 4px 4px 0 var(--blue); background: color-mix(in srgb, var(--yellow) 30%, var(--paper)); }
+  .choice:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .choice strong { display: block; font-size: 18px; }
+  .choice span { color: var(--muted); font-size: 15px; }
+  .answers .choice { padding: 10px 14px; }
+  .hint { color: var(--muted); font-size: 15px; margin: 0; text-transform: none; font-family: Archivo, system-ui, sans-serif; }
+  .error { color: var(--danger); font-weight: 600; font-size: 15px; margin: 0; text-transform: none; font-family: Archivo, system-ui, sans-serif; }
+  .card { border: 2px solid var(--ink); padding: 18px; box-shadow: 4px 4px 0 var(--pink); display: grid; gap: 8px; }
+  #status { min-height: 1.5em; font-weight: 600; }
+  .note { font: 13px "DM Mono", monospace; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark">Colophon</div>
+  <h1>Start your free trial</h1>
+  <p class="lead">A shop, a stockroom or both for your press. Free for <span data-trial-days>14</span> days. No card needed.</p>
+
+  <!-- 1. Sign in: an email link or Google. No password to remember. -->
+  <section id="view-signin" class="stack" aria-labelledby="signin-title">
+    <h2 id="signin-title">Sign in</h2>
+    <button type="button" id="google" class="primary">Continue with Google</button>
+    <p class="or">or</p>
+    <form id="link-form" novalidate>
+      <label>Email<input name="email" type="email" autocomplete="email" required></label>
+      <p class="error" id="link-error" role="alert" hidden></p>
+      <button type="submit" class="primary">Email me a sign-in link</button>
+    </form>
+  </section>
+
+  <section id="view-check" class="stack" hidden aria-labelledby="check-title">
+    <h2 id="check-title">Check your email</h2>
+    <p>We sent a sign-in link to <strong id="check-email"></strong>. Open it on this device to carry on.</p>
+    <button type="button" class="ghost" id="check-again">Use another email</button>
+  </section>
+
+  <!-- 2. About your press: its name, the plan, where it is, and one question it can skip. -->
+  <section id="view-details" hidden aria-labelledby="details-title">
+    <form id="details-form" novalidate>
+      <h2 id="details-title">About your press</h2>
+      <label>Press name<input name="pressName" autocomplete="organization" maxlength="80" required></label>
+      <p class="error" data-problem="pressName" role="alert" hidden></p>
+      <fieldset>
+        <legend>What do you need?</legend>
+        <div class="choices" id="plans"></div>
+        <p class="error" data-problem="plan" role="alert" hidden></p>
+      </fieldset>
+      <label>Where is your press?<select name="country" id="country"></select></label>
+      <p class="error" data-problem="country" role="alert" hidden></p>
+      <fieldset class="answers">
+        <legend id="question-label"></legend>
+        <p class="hint" id="question-hint"></p>
+        <div class="choices" id="answers"></div>
+        <button type="button" class="ghost" id="skip">Skip this question</button>
+      </fieldset>
+      <button type="submit" class="primary">Start my free trial</button>
+      <p class="note">No card needed now. We'll remind you before the trial ends, and you can cancel at any time.</p>
+    </form>
+  </section>
+
+  <!-- 3. The shop is being made: progress, then the way in, or a plain "try again". -->
+  <section id="view-making" class="stack" hidden aria-labelledby="making-title">
+    <h2 id="making-title">Making your shop</h2>
+    <div id="shops" class="stack"></div>
+  </section>
+
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

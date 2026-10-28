@@ -297,7 +297,7 @@ test('gift card actions in the wrong shape are refused before a card is read (sr
 // ── Fault 148 ────────────────────────────────────────────────────────────────────────────
 test('fault 148: createPayPalOrder is bound to the Stripe secret its paid-twice guard reads', () => {
   const block = source.slice(source.indexOf('exports.createPayPalOrder'), source.indexOf('async (req, res)', source.indexOf('exports.createPayPalOrder')));
-  expect(block).toMatch(/secrets: \[[^\]]*STRIPE_SECRET_KEY/);
+  expect(block).toMatch(/secrets: withPlatformKey\(\[[^\]]*STRIPE_SECRET_KEY/);
 });
 
 // ── Fault 41 ─────────────────────────────────────────────────────────────────────────────

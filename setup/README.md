@@ -66,8 +66,13 @@ when what it finds is neither done nor untouched:
 7. Deploy the rules and indexes for the plan's apps. Another release already live stops the run (this applies to 8 and
    9 too); rules for the wrong apps are deployed again.
 8. Write `functions/.env.<project id>` (`SHOP_OWNER_EMAIL`, `SHOP_SENDER_NAME`, `SHOP_SENDER_EMAIL`, `SHOP_SITE_URL`,
-   `SHOP_EXTRA_ORIGINS` set empty, `SHOP_PAYMENT_PROVIDER` from the press's choice, `SHOP_FUNCTIONS_REGION`, `SHOP_TEST_SHOP` `"true"` only for the test shop and `"false"` for every other, `SHOP_STOCKROOM_DATABASE` (the stockroom's named database, where the shop's link to it reads and writes; plan 1.21), and `PLATFORM_EMAIL_URL` when `config.platformEmailUrl` is set: the shared email sender for shops without their own Gmail), then deploy the server code with the region passed explicitly
-   (`northamerica-northeast1`). Server code already in another region stops the run. Skipped for a stockroom-only plan.
+   `SHOP_EXTRA_ORIGINS` set empty, `SHOP_PAYMENT_PROVIDER` from the press's choice, `SHOP_FUNCTIONS_REGION`, `SHOP_TEST_SHOP` `"true"` only for the test shop and `"false"` for every other, `SHOP_STOCKROOM_DATABASE` (the stockroom's named database, where the shop's link to it reads and writes; plan 1.21), `SHOP_PAYMENT_MODE="platform"` and
+   `SHOP_PAYMENTS_SERVICE_URL` from `config.paymentsServiceUrl` (https), and `PLATFORM_EMAIL_URL` when `config.platformEmailUrl` is set: the shared email sender for shops without their own Gmail). Before the deploy it gives the shop
+   its **service key** (`serviceKey.js`): one random key per shop in the Functions secret `PLATFORM_SERVICE_KEY` of the
+   shop's project (`google.secrets.latest` / `add`), its SHA-256 alone in the registry (`serviceKeyHash`). A re-run keeps
+   a key the registry already knows ("kept"), records the hash of a key a halfway run left ("recorded"), and makes one
+   only when the secret has none ("created"); the audit entry says which, never the key. Then it deploys the server
+   code with the region passed explicitly (`northamerica-northeast1`). Server code already in another region stops the run. Skipped for a stockroom-only plan.
 9. Deploy the pages of each app in the plan. The deploy client picks the Hosting site and returns its address.
 10. Give the nightly backup its permission and make the first backup.
 11. Write a test file, then read it without signing in: refused passes; a read that works stops the run (the shop's
@@ -86,7 +91,10 @@ when what it finds is neither done nor untouched:
     (`findAccount`, `createAccount`, shop id as the idempotency key; `services/payments/index.js` `setupClient` for
     Stripe). The account id is saved in the registry row as `payments: { provider, accountId, mode }` (`mode`: the mode
     the account was made in; the service refuses live payments on a test account). A registry that names another provider or another account, or an account the
-    service can't find, stops the run. Skipped for a stockroom-only plan. No sign-up link is made here: they expire
+    service can't find, stops the run. The step also writes `payments` into the shop profile (`/shop-profile.js`:
+    provider, mode `platform`, the account id and the platform's publishable keys from `config.stripePublishableKeys`,
+    all public), so the card form loads on the press's account; step 6 keeps it on a re-run. Skipped for a
+    stockroom-only plan. No sign-up link is made here: they expire
     within minutes, so the admin's Connect button makes one (plan item 2.10).
 14. Email the owner their sign-in links through the email service, once (`wasSent`, and an idempotency key for retries).
 15. Check the home page, `/admin` and `/shop-profile.js` (and the stockroom page) answer, then mark the registry row

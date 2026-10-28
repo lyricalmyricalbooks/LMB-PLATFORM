@@ -10,7 +10,7 @@ import { createPaymentService, shopWebhookUrl, SHOP_OP_NAMES } from "./service.j
 import { handlePayments } from "./http.js";
 import { createPaymentsFromEnv, setupClient } from "./index.js";
 import { fakeAccounts, fakeDeliver, fakeStripeFetch } from "./fakes.js";
-import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
+import { fakeAuditLog, fakeProfileFiles, fakeRegistry } from "../../setup/fakes.js";
 import { connectPaymentsStep } from "../../setup/payments.js";
 import { hashServiceKey } from "../email/http.js";
 
@@ -163,6 +163,16 @@ test("with a fee set, the platform adds it to card payments and Checkout Session
   });
   assert.equal(stripe.requests[0].params.application_fee_amount, "100");
   assert.equal(stripe.requests[1].params["payment_intent_data[application_fee_amount]"], "100");
+});
+
+test("a Checkout Session Stripe may discount later takes no fee, so the fee can never exceed what is charged", async () => {
+  const { call, stripe } = await world({ env: { PLATFORM_FEE_BASIS_POINTS: "250" } });
+  const line_items = [{ quantity: 1, price_data: { currency: "cad", unit_amount: 4000, product_data: { name: "Book" } } }];
+  const coupon = await call("checkout.sessions.create", { params: { line_items, discounts: [{ coupon: "HALF" }] }, idempotencyKey: "a" });
+  const codes = await call("checkout.sessions.create", { params: { line_items, allow_promotion_codes: true }, idempotencyKey: "b" });
+  assert.deepEqual([coupon.status, codes.status], [200, 200]);
+  assert.equal(stripe.requests[0].params["payment_intent_data[application_fee_amount]"], undefined);
+  assert.equal(stripe.requests[1].params["payment_intent_data[application_fee_amount]"], undefined);
 });
 
 test("a shop's own fee setting wins over the platform default", async () => {
@@ -324,12 +334,15 @@ test("events go to the shop's own webhook address", () => {
 test("setup's step 13 makes one Standard account through the service, saved with its mode and logged", async () => {
   const { service, registry, auditLog, stripe, accounts } = await world({ row: shopRow({ payments: undefined }) });
   const shop = { shopId: SHOP, pressName: "Moth Press", ownerEmail: "owner@example.com", country: "CA", currency: "CAD", testMode: false, plan: "shop" };
-  const step = connectPaymentsStep({ registry, providers: { stripe: setupClient(service) } });
+  const profileFiles = fakeProfileFiles();
+  await registry.saveProfile(SHOP, { ...JSON.parse(readFileSync("profile/examples/test-shop.json", "utf8")), shopId: SHOP });
+  const step = connectPaymentsStep({ registry, providers: { stripe: setupClient(service) }, profileFiles, config: { stripePublishableKeys: { live: "pk_live_platformExample" } } });
   assert.equal(await step.check({ shop }), false);
   await step.act({ shop });
   assert.equal(await step.check({ shop }), true);
   const { payments } = await registry.getShop(SHOP);
   assert.deepEqual(payments, { provider: "stripe", accountId: "acct_fake1", mode: "live" });
+  assert.deepEqual((await registry.getProfile(SHOP)).payments, { provider: "stripe", mode: "platform", stripe: { accountId: "acct_fake1", publishableKey: "pk_live_platformExample" } });
   const create = stripe.requests.find((r) => r.path === "/v1/accounts");
   assert.equal(create.params.type, "standard");
   assert.equal(create.params.default_currency, "cad");

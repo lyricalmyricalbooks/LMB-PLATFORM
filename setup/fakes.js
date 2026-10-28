@@ -9,7 +9,8 @@
 // (the real one does this in one Firestore transaction); `releaseLock(shopId, runId)` frees it only for the run that
 // holds it. The payment service also uses `findShopByPaymentAccount(provider, accountId)` (the row whose `payments`
 // names that account, or null) and `recordEvent(shopId, entry)` (its own changes, by entry id). The release check keeps
-// its runs with `recordReleaseCheck(shopId, entry)` / `readReleaseChecks(shopId)`. Audit log: `ready(shopId)` says
+// its runs with `recordReleaseCheck(shopId, entry)` / `readReleaseChecks(shopId)`; the release runner reads `listShops()`
+// and writes `recordRelease(entry)`. Audit log: `ready(shopId)` says
 // whether the shop's database exists yet; `write(shopId, id, entry)` stores the entry under `id`, replacing any entry
 // with that id.
 
@@ -20,6 +21,7 @@ export function fakeRegistry(seed = {}) {
   const locks = new Map();
   const events = new Map();
   const releaseChecks = new Map();
+  const releases = new Map();
   return {
     steps,
     releaseChecks,
@@ -27,6 +29,14 @@ export function fakeRegistry(seed = {}) {
     async recordReleaseCheck(shopId, entry) {
       if (!releaseChecks.has(shopId)) releaseChecks.set(shopId, []);
       releaseChecks.get(shopId).push(structuredClone(entry));
+    },
+    // Every shop row, for the release runner's rings and the health checks.
+    async listShops() {
+      return [...shops.values()].map((row) => structuredClone(row));
+    },
+    releases,
+    async recordRelease(entry) {
+      releases.set(`${entry.version}-${entry.runId}`, structuredClone(entry));
     },
     async readReleaseChecks(shopId) {
       return structuredClone(releaseChecks.get(shopId) ?? []);
@@ -116,6 +126,8 @@ export function fakeGoogle({ failOnce = [] } = {}) {
   const world = {
     projects: new Map(), billing: new Map(), firebase: new Set(), apps: new Map(), services: new Map(), databases: new Map(), buckets: new Map(),
     backupPermission: new Set(), backups: new Map(), testFiles: new Set(),
+    // Each project's Functions secrets: "projectId NAME" -> list of versions, newest last.
+    secrets: new Map(),
     // The stockroom's own pieces (plan 1.20): named databases by "<project>/<database>", extra buckets by name, and
     // each project's default Realtime Database instance.
     namedDatabases: new Map(), extraBuckets: new Map(), realtimeDatabases: new Map(),
@@ -251,6 +263,14 @@ export function fakeGoogle({ failOnce = [] } = {}) {
         world.testFiles.add(projectId);
       },
       readUnsigned: async (projectId) => ({ status: world.testFiles.has(projectId) ? world.unsignedReadStatus : 404 }),
+    },
+    secrets: {
+      latest: async (projectId, name) => world.secrets.get(`${projectId} ${name}`)?.at(-1) ?? null,
+      async add(projectId, name, value) {
+        change("secrets.add", projectId, name);
+        needProject(projectId);
+        world.secrets.set(`${projectId} ${name}`, [...(world.secrets.get(`${projectId} ${name}`) ?? []), value]);
+      },
     },
   };
 }

@@ -172,7 +172,12 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
       if (html && !/<html[\s>]/i.test(html)) {
         html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
       }
-      const key = queueId || crypto.randomBytes(12).toString("hex");
+      // A queued email keeps its queue id across every retry. Any other email gets a key made from what it is (who,
+      // subject, kind, order, words) and the hour, so a caller that tries the same email again soon after a partial
+      // send reaches only the recipients still missing it; the same email sent on purpose later is a new email.
+      const key = queueId || crypto.createHash("sha256")
+        .update(JSON.stringify([recipientList, subject, String(queue || ""), aboutOrder.orderId || "", String(sourceHtml || ""), Math.floor(Date.now() / 3_600_000)]))
+        .digest("hex").slice(0, 32);
       const platformLog = { from: "platform", keySource: "platform" };
       let firstId = null;
       try {

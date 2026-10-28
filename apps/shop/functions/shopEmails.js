@@ -4,6 +4,7 @@
 // table): index.js passes in its own Firebase wrappers, db, email module (functions/email) and email helpers, so the vm-based handler
 // tests' fakes still apply, and keeps each `exports.<name> =` line.
 
+const { withPlatformKey } = require("./platformKey");
 function shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
@@ -29,7 +30,7 @@ function shopEmails({
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   const onContactMessage = onDocumentCreated(
-    { document: "contactMessages/{messageId}", secrets: [RESEND_API_KEY] },
+    { document: "contactMessages/{messageId}", secrets: withPlatformKey([RESEND_API_KEY]) },
     async event => {
       const m = event.data?.data() || {};
       if (!m.email || !m.message) return;
@@ -97,7 +98,7 @@ function shopEmails({
   );
 
   const onCustomerCreated = onDocumentCreated(
-    { document: "customers/{customerId}", secrets: [RESEND_API_KEY] },
+    { document: "customers/{customerId}", secrets: withPlatformKey([RESEND_API_KEY]) },
     async event => {
       const customer = event.data?.data() || {};
       if (!customer.email) return;
@@ -148,7 +149,7 @@ function shopEmails({
   // 11. HTTP Endpoint: Send Test Email (Admin Secure)
   // ──────────────────────────────────────────────────────────────
   const sendTestEmail = onBrowserRequest(
-    { secrets: [RESEND_API_KEY] },
+    { secrets: withPlatformKey([RESEND_API_KEY]) },
     async (req, res) => {
       if (applyCors(req, res)) return;
       if (req.method !== "POST") {
