@@ -393,12 +393,77 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
     return stopped;
   }
 
+  // ── Fees and payouts (code plan 7.10; orderMoney.js keeps them on the order) ─────────────────────────────────
+
+  // One balance transaction as a part of an order's money: everything Stripe took (its fee and Colophon's application
+  // fee, `fee_details`), what is left for the press (net), in the transaction's currency with the rate Stripe used.
+  const partFrom = (txn) => ({
+    fee: txn.fee,
+    net: txn.net,
+    platformFee: (txn.fee_details || []).filter(d => d?.type === "application_fee").reduce((sum, d) => sum + (Number.isInteger(d.amount) ? d.amount : 0), 0),
+    currency: txn.currency,
+    exchangeRate: txn.exchange_rate ?? null,
+  });
+  const objectOf = (value) => (value && typeof value === "object" ? value : null);
+  const idOf = (value) => (typeof value === "string" ? value : value?.id || null);
+
+  // The order's charge and refunds as Stripe has them now: { parts: { charge, <refund id>… } }, or null. The charge's
+  // part is left out until Stripe has its balance transaction (the payout brings it later).
+  async function paymentMoney(orderId, order, { keys = null } = {}) {
+    const pi = String(order.stripePaymentIntentId || "");
+    if (!pi.startsWith("pi_")) return null;
+    return inOrderAccounts(order, keys, async stripe => {
+      const intent = await stripe.paymentIntents.retrieve(pi, { expand: ["latest_charge.balance_transaction"] });
+      if (intent.metadata?.order_id !== orderId) return null;
+      const charge = objectOf(intent.latest_charge);
+      const parts = {};
+      const txn = objectOf(charge?.balance_transaction);
+      if (txn) parts.charge = partFrom(txn);
+      if (charge && charge.amount_refunded > 0) {
+        const refunds = await stripe.refunds.list({ payment_intent: pi, limit: 100, expand: ["data.balance_transaction"] });
+        for (const refund of refunds?.data || []) {
+          const refundTxn = objectOf(refund.balance_transaction);
+          if (refund.id && refundTxn) parts[refund.id] = partFrom(refundTxn);
+        }
+      }
+      return { parts };
+    });
+  }
+
+  const CHARGE_TYPES = new Set(["charge", "payment"]);
+  const REFUND_TYPES = new Set(["refund", "payment_refund"]);
+
+  // What one payout paid in: { payout: { id, date }, lines: [{ paymentId, key, part }] }, one line per charge ("charge")
+  // and refund (its id), read 100 at a time. `date` is the day the payout reached the bank (Stripe's arrival_date).
+  async function payoutMoney({ mode, payoutId, accountId = null, arrivalDate = null }) {
+    if (!/^po_[A-Za-z0-9_]+$/.test(String(payoutId || ""))) throw new Error("A Stripe payout id is needed.");
+    const { stripe, requestOptions } = await getStripeClientForMode(mode === "test" ? "test" : "live", accountId);
+    const lines = [];
+    let after = null;
+    for (let page = 0; page < 100; page += 1) {
+      const list = await stripe.balanceTransactions.list({ payout: payoutId, limit: 100, expand: ["data.source"], ...(after ? { starting_after: after } : {}) }, requestOptions);
+      const data = list?.data || [];
+      for (const txn of data) {
+        const source = objectOf(txn.source);
+        const paymentId = idOf(source?.payment_intent);
+        if (!paymentId) continue;
+        if (CHARGE_TYPES.has(txn.type)) lines.push({ paymentId, key: "charge", part: partFrom(txn) });
+        else if (REFUND_TYPES.has(txn.type) && source.id) lines.push({ paymentId, key: source.id, part: partFrom(txn) });
+      }
+      if (!list?.has_more || !data.length) break;
+      after = data[data.length - 1].id;
+    }
+    const date = Number.isFinite(arrivalDate) ? new Date(arrivalDate * 1000).toISOString().slice(0, 10) : null;
+    return { payout: { id: payoutId, date }, lines };
+  }
+
   return {
     id: "stripe",
     // The provider interface (payments/index.js), under its provider-neutral names.
     testMode: shopTestMode, readKeys: readStripeKeys, clientForMode: getStripeClientForMode,
     findOrderPayment: retrieveOrderPayment, readAttempt, stopAttempt, checkReversal, refund: refundPayment,
     webhookClient, verifyWebhookEvent, forCheckout, deployedLiveKey, checkKey, webhookEndpoints, registerPaymentDomain,
+    paymentMoney, payoutMoney,
     // Stripe-only helpers, for this provider's own tests.
     withPrivateStripeKeys, stripeSecretFor, inOrderAccounts,
   };
