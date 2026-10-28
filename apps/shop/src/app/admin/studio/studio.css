@@ -238,6 +238,7 @@
 /* Studio 2.0 · editor frame: icon rail, resizable panels, zoomable canvas */
 .studio-rail { flex: 0 0 76px; display: flex; flex-direction: column; gap: 4px; padding: 8px 6px; border-right: 1px solid var(--rp-border); background: var(--rp-surface); overflow-y: auto; }
 .studio-rail button { display: grid; justify-items: center; gap: 4px; min-height: 58px; padding: 8px 2px; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--rp-text-muted); border: 1px solid transparent; }
+.studio-rail-section { display: block; margin: 8px 0 2px; padding: 6px 2px 0; border-top: 1px solid var(--rp-border); font-size: 9px; font-weight: 800; line-height: 1.2; letter-spacing: .04em; text-align: center; text-transform: uppercase; color: var(--rp-text-subtle); }
 .studio-rail button:hover { background: var(--rp-surface-2); color: var(--rp-text); }
 .studio-rail button[aria-pressed=true] { background: var(--rp-primary-tint); color: var(--rp-primary-text); border-color: var(--rp-primary); box-shadow: inset 3px 0 var(--rp-primary); }
 .studio-panels { flex: 1; min-width: 0; }
@@ -263,6 +264,7 @@
   .studio-workspace > .studio-sidebar, .studio-workspace > .studio-canvas, .studio-workspace > .studio-inspector { flex: 1 1 auto; min-height: 0; }
   .studio-rail { flex-direction: row; flex: none; width: 100%; min-width: 0; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--rp-border); padding: 4px; }
   .studio-rail button { min-width: 64px; min-height: 52px; }
+  .studio-rail-section { margin: 0 4px; padding: 0 6px; border-top: 0; border-left: 1px solid var(--rp-border); align-self: center; white-space: nowrap; }
   .studio-editor:not([data-mobile-panel=outline]) .studio-rail { display: none; }
 }
 .studio-shortcuts { display: grid; gap: 16px; }
@@ -694,3 +696,11 @@
 .studio-structure-actions button:hover, .studio-structure-actions button:focus-visible { text-decoration-thickness: 2px; }
 @media (pointer: coarse) { .studio-structure-actions button { min-height: 32px; padding: 0 2px; } }
 .studio-field-note { display: block; margin-top: 4px; font-size: 11px; line-height: 1.4; color: var(--rp-text-subtle); }
+
+/* Essentials (plan 1.27): the first settings, one short card per step. */
+.studio-essentials { display: grid; gap: 12px; padding: 12px 16px 24px; }
+.studio-essential { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--rp-border); background: var(--rp-surface); }
+.studio-essential h3 { margin: 0; font-size: 14px; font-weight: 800; color: var(--rp-text); }
+.studio-essential > .studio-hint { margin: 0; font-size: 12px; line-height: 1.45; color: var(--rp-text-subtle); }
+.studio-essential > button { justify-self: start; }
+.studio-essentials-more { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--rp-text-subtle); }

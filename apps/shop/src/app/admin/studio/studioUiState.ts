@@ -11,7 +11,7 @@ export type StudioUiState = {
   workbenchOpen?: boolean; workbenchTab?: "health" | "changes" | "setup"; phoneSeen?: boolean;
 };
 
-const TABS = new Set(["sections", "style", "text", "menus", "pages", "media", "themes"]);
+const TABS = new Set(["essentials", "sections", "style", "text", "menus", "pages", "media", "themes"]);
 const DEVICES = new Set(["desktop", "tablet", "mobile"]);
 const ZOOMS = new Set<Zoom>(["fit", 100, 75, 50]);
 const text = (v: any) => (typeof v === "string" && v.length < 200 ? v : undefined);
