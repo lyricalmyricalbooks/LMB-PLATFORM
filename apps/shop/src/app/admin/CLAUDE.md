@@ -100,6 +100,12 @@ and checks words against their backgrounds (4.5:1) in all four combinations. A n
 for every look. `--rp-legacy-*` are the old day-only utility remaps in `adminCompat.css`; inline colours in admin TSX
 (email previews, photo crop) are not covered yet.
 
+**Five-item menu (28 October 2026, plan 1.27):** the rail shows `MENU` from `riso/nav.ts`: Home, Orders (orders,
+customers, discounts, gift cards, messages), Books (books, inventory, reviews), Design, Settings (the Settings pages).
+`sidebarItems` turns it into five `NavEntry`s whose id is their first page; the item holding the current page
+(`menuItemFor`) lists its pages under it with their own counts, and its badge is their sum. NAV still lists every page
+for titles, search and routes; `nav.test.ts` checks every page sits in exactly one item.
+
 **Pressroom (22 October 2026, the owner's concept A, https://claude.ai/artifact/AR9vcvX5mR5JNCDHeBpFte):** the last layer of
 `riso.css` ("Pressroom") restyles the whole admin: cream page, 232px ink rail (`--rp-rail*`; "Website admin" under the wordmark, 16px line icons in one column (faint, label colour on hover/current), active item
 cream, `data-nav` on each item, Orders badge red), 64px top bar with a hairline (search, "Shop open" as glyph + word, round
