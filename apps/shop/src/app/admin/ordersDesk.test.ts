@@ -104,3 +104,12 @@ describe("list row: books, cover and refunds", () => {
     expect(rowStatus({ paymentStatus: "refunded", status: "cancelled" })).toMatchObject({ tone: "danger", text: "Refunded" });
   });
 });
+
+describe("a Square payment made after checkout closed (code plan 5.1)", () => {
+  const late = (extra: any = {}) => ({ id: "o9", paymentStatus: "unpaid", items: [], paymentMismatch: { paidAfterHold: true, provider: "square" }, ...extra });
+  it("says it was refunded automatically, and warns only while the refund hasn't been made", () => {
+    expect(rowStatus(late())).toEqual({ tone: "warning", text: "◷ Paid after checkout closed — refunded" });
+    expect(rowStatus(late({ lateRefundPending: true }))).toEqual({ tone: "danger", text: "⚠ Paid after checkout closed — refund not made yet" });
+    expect(rowStatus(late({ paymentMismatch: { paidAfterHold: true, resolvedAt: "2026-10-28T12:40:00Z" } })).text).not.toMatch(/checkout closed/);
+  });
+});

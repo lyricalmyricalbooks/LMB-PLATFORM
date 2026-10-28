@@ -76,6 +76,7 @@ const { orderRequestActions } = require("./orderRequests");
 const { shippingLabelEndpoints } = require("./shippingLabels");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
+const { createPaymentPages, paidAfterHold } = require("./paymentPages");
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./shared/preorder");
 const { check: checkBody } = require("./shared/edge");
 const { orderActionBody, refundOrderBody } = require("./shared/orderActions");
@@ -310,6 +311,9 @@ const payments = createPayments({
   db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret,
 });
 const { testMode: shopTestMode } = payments;
+// Square payment pages close when their stock hold ends, and a payment made after that is refunded in full (code plan
+// 5.1, paymentPages.js). The email is the press's own "Order refunded" one (sendLateRefundEmail, below).
+const paymentPages = createPaymentPages({ db, payments, releaseStock, sendLateRefundEmail: (...args) => sendLateRefundEmail(...args) });
 
 // Asks the payment provider (test and live accounts, the order's own mode first) for one of the
 // order's saved payments. Returns { intent | session, mode } or null when no account knows it.
@@ -1644,11 +1648,34 @@ function inventoryLinkDeps() {
 // one, that the server itself fetched from Stripe or received in a signed
 // webhook — never browser data. The amount and currency must match the payment
 // this order was created for.
+// The shopper's email for a payment refunded because it arrived after the checkout closed (paymentPages.js): the press's
+// own "Order refunded" email (Settings › Notifications) with one plain paragraph saying why. Sent once per payment.
+async function sendLateRefundEmail(orderId, order, { amountMinor, currency, paymentIntentId }) {
+  const to = order.customer?.email;
+  const notificationSettings = await loadNotificationSettings();
+  if (!to || notificationSettings.order_refunded?.enabled === false) return;
+  const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
+    customer_name: order.customer?.name || "there",
+    order_id: order.orderId || orderId,
+    total_price: refundAmountText({ refund: { amount: Number(amountMinor || 0) / 100, currency: String(currency || "").toUpperCase() } }),
+    button_url: await orderTrackUrl(orderId, order),
+  }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">Your payment reached us after the checkout had closed, so the books were no longer set aside for you and this order wasn't placed. We've refunded the full amount. You're welcome to order again.</p>`);
+  await sendOrderEmailOnce(orderId, `latePaymentRefund_${paymentIntentId}`, {
+    to, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+  });
+}
+
 const STRIPE_WEBHOOK_AUTHORITY = Symbol("verified Stripe webhook");
 async function markStripeOrderPaid(orderId, session, opts = {}) {
     if (opts.authority !== STRIPE_WEBHOOK_AUTHORITY) throw new Error("Stripe orders require a verified webhook.");
     let duplicateAlert = null;
     const initialOrder = await db.collection("orders").doc(orderId).get();
+    // A Square payment made after the order's payment page should have closed (its stock hold had ended): never marked
+    // paid, no stock taken, refunded in full and the shopper told (paymentPages.js, code plan 5.1).
+    if (initialOrder.exists && paidAfterHold(initialOrder.data(), session)) {
+      await paymentPages.refundLatePayment(orderId, session);
+      return false;
+    }
     if (initialOrder.exists) {
       const initial = initialOrder.data();
       const amountCheck = paidAmountCheck(initial, session.amount_total, session.currency);
@@ -4013,6 +4040,16 @@ async function checkLabelRefunds(now = Date.now()) {
   }
   return { checked, settled };
 }
+
+// Square payment pages close when their stock hold ends; late refunds that failed are tried again (code plan 5.1,
+// paymentPages.js). Stripe's own Checkout Sessions expire by themselves, so a Stripe shop has nothing to do here.
+exports.paymentPageSweep = onSchedule(
+  { schedule: "every 5 minutes", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
+  async () => {
+    if (payments.provider !== "square") return;
+    const result = await paymentPages.closeDuePages();
+    if (result.closed || result.refunded) console.log("paymentPageSweep:", result);
+  });
 
 exports.unpaidPaymentSweep = onSchedule(
   { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: withPlatformKey([STRIPE_SECRET_KEY, RESEND_API_KEY, SHIPPO_API_TOKEN]) },

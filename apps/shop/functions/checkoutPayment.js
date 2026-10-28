@@ -4,6 +4,7 @@
 // marks a card order paid (only stripeWebhook does). Moved out of index.js as is (functions/CLAUDE.md › Cloud Functions
 // › Action table): index.js passes in its own db, payments module (functions/payments), pricing and stock helpers, so
 // the vm-based handler tests' fakes still apply.
+const { openedPage } = require("./paymentPages");
 
 function checkoutPaymentActions({
   ALLOWED_ORIGINS, canViewOrder, checkoutCurrencyOf, checkoutRefusal, clientIpOf, completeOrderWithoutCard,
@@ -389,7 +390,9 @@ function checkoutPaymentActions({
       }, { idempotencyKey: `cs-${orderId}-${checkoutCurrency}-${sessionAmount}-${embedded ? "e" : "h"}-${sessionMinute}` });
 
       // Save the session now so a missed webhook can still be recovered from the order alone.
-      await orderRef.update({ stripeCheckoutSessionId: session.id, updatedAt: new Date().toISOString() });
+      // A Square page has no closing time of its own: the order keeps when it closes (with the stock hold), and
+      // paymentPageSweep closes it then (paymentPages.js, code plan 5.1). Stripe sessions add nothing here.
+      await orderRef.update({ stripeCheckoutSessionId: session.id, ...(openedPage(order, session) || {}), updatedAt: new Date().toISOString() });
 
       res.status(200).json({
         sessionId: session.id,
