@@ -72,6 +72,7 @@ export function LogoMark({ design, defaultText }: { design?: any; defaultText?: 
       return (
         <span
           className="fm-logo fm-logo-tint"
+          role="img"
           aria-label={getCopy(design, "logoAlt")}
           style={{
             display: "inline-block",

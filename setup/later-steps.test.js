@@ -131,6 +131,10 @@ test("the env file carries the press's own addresses and the domain service, and
   assert.equal(config.platformDomainsUrl, "https://domains.platform.example");
   assert.ok(config.allowedOrigins.includes("https://b.example"));
   assert.equal(envOf(envFileText(TEST_SHOP, TEST_CONFIG)).PLATFORM_DOMAINS_URL, undefined);
+  // The accounts door (plan 5.11), the same way: written only once the platform has one.
+  const withAccounts = envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, platformAccountsUrl: "https://accounts.platform.example/" }));
+  assert.equal(readShopConfig({ ...withAccounts, GCLOUD_PROJECT: ID }).platformAccountsUrl, "https://accounts.platform.example");
+  assert.equal(envOf(envFileText(TEST_SHOP, TEST_CONFIG)).PLATFORM_ACCOUNTS_URL, undefined);
 
   // The domain service saved an address; step 8 done again (a repair) writes it too, so nothing drops.
   const { services, registry, steps, run } = setup();

@@ -55,6 +55,43 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** Sign-up's daily cap (signup/signup.js admitFromLine, plan 6.13): the press waited in line and its shop is starting. */
+  "shop-starting": ({ pressName, link }, { settings }) => layout({
+    subject: `Your shop is starting on ${settings.platformName}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Thanks for waiting. We've started making ${pressName || "your shop"}, and your free trial starts today. No card needed.`,
+      "It takes a few minutes. We'll email you the way in as soon as it's ready.",
+    ],
+    buttons: [["See how it's going", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** The control room's waitlist invite (plan 9.5): the person may start their shop now, past the daily line. */
+  "waitlist-invite": ({ link }, { settings }) => layout({
+    subject: `Your ${settings.platformName} shop is ready to start`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Thanks for joining the ${settings.platformName} waitlist. Your place has come up: you can start your shop now.`,
+      `Sign up with this email address. The first ${settings.trialDays ?? 14} days are free and no card is needed.`,
+    ],
+    buttons: [["Start your shop", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A change to the press's per-order fee (plan 9.6), sent 30 days before it starts. */
+  "platform-fee-changing": ({ fromPercent, toPercent, startsOn, refunded, link }, { settings, pressName }) => layout({
+    subject: `A change to ${pressName}'s fee on each order`,
+    greeting: "Hello,",
+    paragraphs: [
+      `From ${startsOn}, ${settings.platformName}'s fee on each order ${pressName} takes will be ${toPercent}% (it is ${fromPercent}% now).`,
+      refunded ? "When you refund an order, the fee is refunded with it." : "When you refund an order, the fee is not refunded.",
+      "Nothing changes before that date. Reply to this email if you have a question.",
+    ],
+    buttons: [["See your plan", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /**
    * The health run's alert to the platform's own address (services/health). `data`: { pressName, shopId, check,
    * state: "failing" | "still-failing" | "recovered", detail, since }.
@@ -215,12 +252,29 @@ export const TEMPLATES = {
     });
   },
 
-  /** The press changed plan. */
-  "plan-changed": ({ planName, price, link }, { settings, pressName }) => layout({
+  /**
+   * The press changed plan. `prorated`: the new plan costs more and opens an app now, so the next bill is adjusted.
+   * `closing`, `date`, `now`: an app the new plan drops ("the stockroom"), closing at the end of the paid month or, in
+   * the trial, at once; its download is kept 90 days (code plan 6.11).
+   */
+  "plan-changed": ({ planName, price, link, prorated = true, closing, date, now }, { settings, pressName }) => layout({
     subject: `${pressName} is now on the ${planName} plan`,
     greeting: "Hello,",
-    paragraphs: [`${pressName} is now on the ${planName} plan, ${price} a month. Your next bill is adjusted for the part of the month on each plan.`],
+    paragraphs: [
+      `${pressName} is now on the ${planName} plan, ${price} a month.${prorated ? " Your next bill is adjusted for the part of the month on each plan." : ""}`,
+      closing ? (now ? `Your plan no longer has ${closing}, so it is closed now.` : `Your plan no longer has ${closing}. It stays open until ${date}, the end of the month you've paid for, then closes.`) : "",
+      closing ? "You can download everything in it for 90 days after it closes. Change plan again before then to keep it." : "",
+    ].filter(Boolean),
     buttons: [["See your plan", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** The card on file runs out within a month (code plan 6.12). Sent once per card. `data`: { card, month, date, link }. */
+  "card-expiring": ({ card, date, month, link }, { settings, pressName }) => layout({
+    subject: `Your card for ${pressName} runs out soon`,
+    greeting: "Hello,",
+    paragraphs: [`The ${card || "card"} you pay for ${pressName} with runs out ${month ? `at the end of ${month}` : `on ${date}`}.`, "Add your new card before then so your shop stays open without a break."],
+    buttons: [["Update your card", safeLink(link)]],
     footer: signOff(settings),
   }),
 

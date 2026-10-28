@@ -2,7 +2,7 @@
   "packageId": "example.press.inventory",
   "host": "yourpress.github.io",
   "name": "Your Press Inventory",
-  "launcherName": "Lyrical Inv",
+  "launcherName": "Stockroom",
   "display": "standalone",
   "themeColor": "#100F0D",
   "themeColorDark": "#100F0D",

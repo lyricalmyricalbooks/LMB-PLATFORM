@@ -103,7 +103,7 @@ describe('POS Subtabs & Fair Print Kit Workspace Integration', () => {
           <span class="fk-book-meta">Jane Doe</span>
         </div>
         <div class="fk-book" id="card-2">
-          <label class="fk-book-title">Lyrical Essays</label>
+          <label class="fk-book-title">Moth Essays</label>
           <span class="fk-book-meta">John Smith</span>
         </div>
       </div>

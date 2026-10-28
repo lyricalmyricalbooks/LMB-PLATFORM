@@ -255,6 +255,9 @@ function createSquareProvider({ db, platform = null }) {
           livemode,
           amount_total: payment.totalMinor,
           currency: lower(payment.currency),
+          // When the shopper paid (Square's own time), so a payment made after the stock hold ended is told apart
+          // from one whose event was only slow to arrive (paymentPages.js).
+          paid_at: payment.createdAt || null,
         };
         return { id, type: "checkout.session.completed", livemode, data: { object: session } };
       }
@@ -342,7 +345,9 @@ function createSquareProvider({ db, platform = null }) {
           },
           idempotencyKey,
         });
-        return { id: squareCheckoutId(made.id), object: "checkout.session", url: made.url, client_secret: null, status: "open" };
+        // A Square payment link has no closing time of its own: the shop closes the page itself when the stock hold
+        // ends (paymentPages.js), when a Stripe Checkout Session with the same `expires_at` would expire.
+        return { id: squareCheckoutId(made.id), object: "checkout.session", url: made.url, client_secret: null, status: "open", expires_at: Number.isFinite(params.expires_at) ? params.expires_at : null };
       },
     };
   }

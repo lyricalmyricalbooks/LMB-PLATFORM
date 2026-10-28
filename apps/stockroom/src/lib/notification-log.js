@@ -35,7 +35,7 @@ export function notificationSource(entry = {}) {
   if (id.includes('store') || id.includes('order') || id.includes('bigcartel')) return 'Website orders';
   if (id.includes('market')) return 'Market sales';
   if (id.includes('invoice')) return 'Invoices';
-  return 'Lyrical Inventory';
+  return 'Stockroom';
 }
 
 function store() {

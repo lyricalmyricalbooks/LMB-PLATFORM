@@ -178,7 +178,7 @@ export default defineConfig({
       },
       manifest: {
         name: 'Your Press Inventory',
-        short_name: 'Lyrical-Inv',
+        short_name: 'Stockroom',
         description: 'Inventory management for Your Press',
         // id and scope pin the app's identity to this folder. The Android app
         // (android/twa-manifest.json) opens this same address, and an installed

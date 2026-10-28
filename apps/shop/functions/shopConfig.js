@@ -40,6 +40,9 @@
 //                        shop's name and replies to the shop; Resend keys in the shop are no longer used. Unset: the
 //                        shop's own Resend key, as before. The shop proves who it is with PLATFORM_SERVICE_KEY, read
 //                        at send time (email/platformSender.js), never from this file's frozen config
+//   PLATFORM_ACCOUNTS_URL the platform accounts' shop door (https, LMB-PLATFORM accounts/teamSync.js, plan 5.11). Set:
+//                        each change in Settings › Team tells the platform, which re-reads this shop's Team list so
+//                        the people on it see the shop in the platform's account switcher. Unset: nothing is sent
 
 const { PROVIDER_NAMES, DEFAULT_PROVIDER, MODES, DEFAULT_MODE } = require("./payments");
 
@@ -139,6 +142,7 @@ function readShopConfig(env = {}) {
     platformEmailUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_EMAIL_URL)) ? text(env.PLATFORM_EMAIL_URL) : "",
     platformDomainsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_DOMAINS_URL)) ? text(env.PLATFORM_DOMAINS_URL).replace(/\/+$/, "") : "",
     platformGoogleUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_GOOGLE_URL)) ? text(env.PLATFORM_GOOGLE_URL).replace(/\/+$/, "") : "",
+    platformAccountsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTS_URL)) ? text(env.PLATFORM_ACCOUNTS_URL).replace(/\/+$/, "") : "",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
     project: functionsProject,
     region,

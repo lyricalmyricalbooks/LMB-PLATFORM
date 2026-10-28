@@ -836,8 +836,29 @@ restocked on refund (`sandboxTakesStock` in settlePayment.js, as on the test sho
 (`body.practice` or an earlier practice attempt) gets 409 `practice_ended` rather than a live charge. Exports also skip
 unpaid practice orders. The storefront's hint (`src/app/lib/practiceHint.ts`) only lets the owner's browser past the
 store-status page; it decides nothing. Tested in `practiceCheckout.test.js` with a fake service for both providers.
-Known gaps: gift cards with a card payment are refused for Square shops; a payment link doesn't expire with the stock
-hold; admin and email wording still says "Stripe" in places.
+Known gaps: gift cards with a card payment are refused for Square shops; admin and email wording still says "Stripe" in
+places.
+**Square pages close with the stock hold (28 October 2026, code plan 5.1).** `paymentPages.js`. When a Square link opens,
+checkoutPayment.js saves `openedPage(order, session)` on the order: `paymentPages` (each page's `id`, `closesAt`, later
+`closedAt`/`closed`), `paymentPageClosesAt` (the latest) and `paymentPageCloseDue` (the earliest still open; null when
+none is open). The page closes when a Stripe session would expire: `square.js` passes the caller's `expires_at` back on the
+session. The scheduled `paymentPageSweep` runs every 5 minutes on Square shops only. It queries
+`paymentPageCloseDue <= now` and closes each due page through the payments module (`readAttempt`, then `stopAttempt`,
+which is the platform's `square.checkout.delete`). It leaves a page alone when it was paid on; the event settles that.
+A page that won't close is tried again, then left with a note after a day. Once the order's last page closes unpaid,
+its hold is released.
+- **Late payments.** Square's paid event now carries `paid_at`, Square's own payment time. Before anything else,
+  `markStripeOrderPaid` asks `paidAfterHold(order, session)`: was this paid after `paymentPageClosesAt`, on an unpaid,
+  uncancelled order? A slow event for a payment made in time is not late.
+- **What happens to a late payment** (`refundLatePayment`): it is never marked paid and never touches stock, discounts or
+  gift cards. It is recorded like Stripe's paid-after-cancel: the receipt ids (unless the order already names a payment),
+  `paymentMismatch.paidAfterHold`, `latePayments[<payment id>]` and an activity line. Then it is refunded in full
+  (`payments.refund`, no amount, key `late-<order>-<payment>`), and the shopper gets the press's "Order refunded" email
+  with one paragraph on why (`sendLateRefundEmail`, claimed once per payment).
+- **A failed refund** keeps `lateRefundPending: true` and the error. The webhook answers 500, so the event comes again,
+  and the sweep retries too.
+- **Clearing the problem.** The refund's own `charge.refunded` clears the mismatch, as for a Stripe refund.
+- **Tests:** `paymentPages.test.js` (fake platform service and Firestore) and the service's `square.test.js` (5.1 case).
 **Card fees and payouts (28 October 2026, code plan 7.10).** Every paid card order keeps `fee`, `net`, `platformFee`,
 `payoutId`, `payoutDate` and `moneyParts` (`orderMoney.js`; cents in the order's currency; the bookkeeping of 7.11 to
 7.15 reads these names). Providers answer `paymentMoney(orderId, order)` (Stripe: the charge's balance transaction and
@@ -872,6 +893,12 @@ address) still goes first, and a shop whose Gmail works never reaches the platfo
 attachments, and the log says so. `senderStatus()` (`sendTestEmail` action `senderStatus`) tells Settings › Email sender
 the Gmail address and the backup. The card is "Send from your own Gmail" and hides the Resend fields when the backup is
 the platform (`src/app/admin/senderStatus.ts`). With `PLATFORM_EMAIL_URL` unset, everything works as before.
+
+**Team in the platform's account switcher (28 October 2026, code plan 5.11).** With `PLATFORM_ACCOUNTS_URL`
+(`shopConfig.platformAccountsUrl`, setup step 8) set, the `syncMemberRole` trigger, after updating the sign-in pass,
+POSTs `<url>/team-changed` with `X-Shop-Id` and the service key and an empty body (`teamNotice.js`). The platform then
+re-reads this shop's `members` itself (LMB-PLATFORM `accounts/teamSync.js`), so the notice carries no team data. It
+never throws; a missed notice is caught up by the platform's own sync. Unset: nothing is sent.
 
 ## Data changes (28 October 2026, platform plan 4.2)
 
