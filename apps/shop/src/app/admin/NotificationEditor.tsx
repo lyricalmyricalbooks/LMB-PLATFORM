@@ -9,7 +9,7 @@ import { useSenderStatus } from "./senderStatus";
 import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
 import { fillSample, insertAt, PLACEHOLDERS, problemTemplates, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
 import { adminApi } from "./api";
-import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
+import { DEFAULT_SHOP_NAME, pressName } from "../features/site/shopIdentity";
 import { useSettingsDirty } from "./settingsDirty";
 import { resendKeyProblem } from "./privateKeys";
 import { senderOf, senderProblems, withSender, type Sender } from "./senderSettings";
@@ -243,6 +243,8 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const [comms, setComms] = useState<Record<string, any> | null>(null);
   const [sender, setSender] = useState<Sender>({ fromName: "", replyTo: "", fromEmail: "" });
   const [senderSaved, setSenderSaved] = useState<Sender>({ fromName: "", replyTo: "", fromEmail: "" });
+  // The name emails use when Sender name is empty: the shop's Site name, like the server (plan 5.8).
+  const [shopNameDefault, setShopNameDefault] = useState(() => pressName(null));
   const [senderError, setSenderError] = useState("");
   const [savingSender, setSavingSender] = useState(false);
   const [group, setGroup] = useState<string>("orders");
@@ -280,7 +282,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   useEffect(() => {
     adminApi.getPublicSettings().then((st: any) => {
       const found = senderOf(st?.communications);
-      setComms(st?.communications || {}); setSender(found); setSenderSaved(found);
+      setComms(st?.communications || {}); setSender(found); setSenderSaved(found); setShopNameDefault(pressName(st));
     }).catch(() => setSenderError("The saved sender details couldn't be loaded, so they can't be changed right now. Reload the page to try again."));
     loadSettings();
     loadDeliveries();
@@ -515,7 +517,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const setShopAlert = (patch: Record<string, unknown>) => setData((prev) => ({ ...prev, ...patch }));
   const enabled = activeTab === "review_request" ? currentTemplate.enabled === true : currentTemplate.enabled !== false;
   // The shop name in the preview: the saved sender name, which the server reads first (loadNotificationSettings).
-  const previewShopName = (senderSaved.fromName || "").trim() || DEFAULT_SHOP_NAME;
+  const previewShopName = (senderSaved.fromName || "").trim() || shopNameDefault;
   const subjectPreview = fillSample(activeTab, currentTemplate.subject || DEFAULT_SETTINGS[activeTab].subject, { shop_name: previewShopName, ...orderPreviewVars((recentOrders || []).find((o) => o.id === previewOrderId)) });
   const badColor = !!data.brand?.brandColor && !/^#[0-9a-f]{3,8}$/i.test(data.brand.brandColor.trim());
   const problems = templateProblems(activeTab, currentTemplate);
@@ -639,7 +641,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       <div id="email-sender" style={{ scrollMarginTop: 16 }} />
       <SectionCard title="Email sender" description="Who it's from. Where replies go.">
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-          <TextField label="Sender name" value={sender.fromName} placeholder={DEFAULT_SHOP_NAME} error={senderIssues.fromName}
+          <TextField label="Sender name" value={sender.fromName} placeholder={shopNameDefault} error={senderIssues.fromName}
             onChange={(e) => setSender(prev => ({ ...prev, fromName: e.target.value }))} />
           <TextField label="Reply-to address" type="email" value={sender.replyTo} placeholder="owner@example.com" error={senderIssues.replyTo}
             hint="Blank = the sending address."

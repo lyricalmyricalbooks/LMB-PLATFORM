@@ -109,6 +109,16 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
 
 **Email sending:** `sendEmail` sends through Gmail SMTP (nodemailer, account `owner@example.com`) first, because the shop has no Resend-verified domain. The Gmail app password is entered in Settings › Notifications › **Gmail sending** (`admin/GmailSendingCard.tsx`) and stored in the admin-only `adminSecrets/gmail` doc (never in public `settings/*`). If it is unset or Gmail fails, sending falls back to Resend (`onboarding@resend.dev` only reaches the account owner).
 
+**The press's name (plan 5.8, 28 October 2026):** server code never types the placeholder name. It names the press with
+`pressName(settings, shopConfig.senderName)` from `shared/shopIdentity` (generated from `src/shared/shopIdentity.ts`):
+Text & labels › Site name in the published design, else Settings › General › Store name (the starting placeholder
+there counts as unset), else `SHOP_SENDER_NAME`; the placeholder only for a shop with no name at all. Emails prefer
+Settings › Email sender › Sender name, then `pressName`: the From line and frame (`email/index.js`), `{{shop_name}}`
+(`loadNotificationSettings`), newsletter confirmation and consent, message replies, gift cards issued in the admin, the
+label sender and customs signer (`shopOrigin`), the Monday PDF and the Stripe webhook's label. The build's Google feed
+and `llms.txt` use `feedShopName` in `features/site/merchantFeed.mjs` (same order; `merchantFeed.mjs` can't import TS).
+`functions/pressName.test.js` renders each one for a named shop and fails on the placeholder.
+
 Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
 `SHIPPO_API_TOKEN`) are stored as Firebase Functions secrets, not in the repo.
 
