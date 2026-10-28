@@ -28,6 +28,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `services/payments/` | The one service that holds the Stripe platform key. It handles checkout and Stripe events for all shops. |
 | `services/billing/` | Each press's Colophon plan (shop, stockroom or both) on the platform's own Stripe account: free trial with no card, card, cancel, plan changes and the billing emails. |
 | `services/email/` | The one service that holds the email sender key. |
+| `services/domains/` | A press's own web address from their shop's settings: saved, allowed to call the shop's server code, served by Firebase Hosting, then registered for Apple Pay and Google Pay. |
 | `signup/` | Sign-up, plan choice and billing. |
 | `accounts/` | One sign-in for every shop a person belongs to: the shop switcher, and invites with a role for each shop's team. |
 | `waitlist/` | The public waitlist page. |

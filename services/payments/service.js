@@ -10,6 +10,9 @@
 //                                   trusts nothing in what it receives: it fetches the event again through shopCall
 //                                   (`events.retrieve`), which only reaches its own account.
 //   findAccount / createAccount     the shop maker's step 13 (setup/payments.js), inside the platform.
+//   registerPaymentDomain(shopId, domain)  the domain service (services/domains, plan 2.9), inside the platform: a
+//                                   shop's web address registered with Stripe for Apple Pay and Google Pay on the press's
+//                                   account. The shop's admin asks for the same through shopCall (`account.paymentDomain`).
 //
 // A shop whose registry `payments.provider` is "square" (code plan 2.2b) gets the Square calls instead (square.js):
 // `square.*`, `account.status` and `account.connectLink`, plus `squareOAuth` (Square sends the press back there) and
@@ -125,7 +128,7 @@ const SHOP_OPS = Object.freeze({
   "events.retrieve": { method: "GET", path: (a) => `/v1/events/${idFor("evt", a.id)}`, params: (p) => only(p, []) },
 });
 
-export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink", "account.connectLink", ...SQUARE_OP_NAMES]);
+export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink", "account.connectLink", "account.paymentDomain", ...SQUARE_OP_NAMES]);
 
 /** Where a shop's server code receives Stripe events (the shop's `stripeWebhook` function, apps/shop functionLink). */
 export function shopWebhookUrl(row) {
@@ -281,9 +284,31 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     return { url: link.url, expiresAt: link.expires_at };
   }
 
+  // Apple Pay and Google Pay show only on web addresses registered with Stripe for the account that takes the payment.
+  // Only the shop's own addresses (shopHosts). Safe to repeat: an address already registered is checked again
+  // (validate), never added twice; the idempotency key holds the shop and the address.
+  async function paymentDomain(row, domain) {
+    const name = typeof domain === "string" ? domain.trim().toLowerCase() : "";
+    if (!name || !shopHosts(row).has(name)) throw bad("the domain must be one of the shop's own addresses");
+    if (row.payments?.provider === "square") return { provider: "square", needed: false };
+    const mode = row.payments.mode === "live" ? "live" : "test";
+    const account = row.payments.accountId;
+    const found = await stripe.call(mode, "GET", "/v1/payment_method_domains", { params: { domain_name: name, limit: 1 }, account });
+    const existing = Array.isArray(found?.data) ? found.data.find((d) => d?.domain_name === name) : null;
+    if (existing) return stripe.call(mode, "POST", `/v1/payment_method_domains/${encodeURIComponent(existing.id)}/validate`, { account });
+    const created = await stripe.call(mode, "POST", "/v1/payment_method_domains", {
+      params: { domain_name: name, enabled: true },
+      account,
+      idempotencyKey: `${row.shopId}/payment-domain/${name}`,
+    });
+    await logChange(row.shopId, `payment-domain-${name}`, { kind: "payments.payment-domain", domain: name, mode });
+    return created;
+  }
+
   async function runShopOp(row, body) {
     const { op: name, args = {} } = body;
     if (!plainObject(args)) throw bad("args must be an object");
+    if (name === "account.paymentDomain") return paymentDomain(row, args.domain);
     let fee;
     try { fee = feeForShop(row, config.fee); } catch (err) { throw new ServiceError(500, "fee_setting", `The shop's platform fee setting is wrong: ${err.message}`); }
     if (row.payments.provider === "square") {
@@ -381,6 +406,16 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
 
     /** Step 13 for a Square shop: the account the press connected through Connect Square, or null before then. */
     findSquareAccount: (shopId) => (square ? square.findAccount(shopId) : Promise.resolve(null)),
+
+    /** The domain service (plan 2.9): registers a shop's address for Apple Pay and Google Pay once it is live. */
+    async registerPaymentDomain(shopId, domain) {
+      const row = await registry.getShop(shopId);
+      if (!row) throw new ServiceError(404, "unknown_shop", `${shopId} isn't in the registry`);
+      if (row.payments?.provider !== "square" && !ACCOUNT_ID.test(row.payments?.accountId ?? "")) {
+        throw new ServiceError(409, "no_account", "This shop has no Stripe account with the platform yet.");
+      }
+      return paymentDomain(row, domain);
+    },
 
     // ── The shop maker's step 13 (setup/payments.js provider client) ────────────────────────────────────────────
 

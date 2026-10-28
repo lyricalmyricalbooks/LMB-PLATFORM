@@ -60,6 +60,7 @@ const { cleanReport, recordClientError } = require("./clientErrors");
 const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./addressLookup");
 const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
+const { customDomainActions } = require("./customDomains");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
 const { isPaymentId, isCheckoutId } = require("./payments/ids");
@@ -1501,6 +1502,9 @@ const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, h
   db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, inventoryLinkDeps,
 });
 
+// The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
+const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+
 // Handler tests replace sendEmail after loading index.js; this keeps the moved handlers on the current one.
 const lateSendEmail = (...args) => sendEmail(...args);
 
@@ -1530,6 +1534,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   trackingLink: handleTrackingLink,
   registerPaymentDomain: handleRegisterPaymentDomain,
   platformPayments: handlePlatformPayments,
+  customDomains: handleCustomDomains,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,
   inventoryLink: handleInventoryLinkAdmin,

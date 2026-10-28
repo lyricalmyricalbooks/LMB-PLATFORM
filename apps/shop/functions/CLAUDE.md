@@ -820,6 +820,12 @@ Card orders keep `paymentMethod: "Stripe"` (the rules and the server know cards 
 treats "square" as a provider. The admin's **Card payments** card (`PlatformPaymentsCard.tsx`, action
 `platformPayments` with `step: "status" | "connect"` in `checkoutAdmin.js`) replaces the Stripe keys card on every
 platform shop: connect Square (or finish Stripe onboarding), the account's state and Colophon's fee next to payouts.
+**Your web address (28 October 2026, code plan 2.9).** `customDomains.js` (action `customDomains`, `step: "list" |
+"add" | "check"`) passes the admin's request to the platform's domain service (`PLATFORM_DOMAINS_URL`, https; unset: 409
+`not_available` and the admin shows the older "for your records" field) with the service key, which `withPlatformKey`
+now declares when that address is set. The service adds the address to `SHOP_EXTRA_ORIGINS` and redeploys the server
+code before Hosting serves it. In platform mode `payments.registerPaymentDomain` goes through the service
+(`account.paymentDomain`) instead of refusing.
 Known gaps: gift cards with a card payment are refused for Square shops; a payment link doesn't expire with the stock
 hold; admin and email wording still says "Stripe" in places.
 

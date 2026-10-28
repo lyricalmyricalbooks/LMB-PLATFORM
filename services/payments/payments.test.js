@@ -267,12 +267,28 @@ test("Stripe's sign-up link only sends the press back to the shop's own addresse
 
 test("every call a shop can make is listed", () => {
   assert.deepEqual([...SHOP_OP_NAMES].sort(), [
-    "account.onboardingLink", "account.status", "checkout.sessions.create", "checkout.sessions.expire", "checkout.sessions.retrieve", "disputes.list",
+    "account.onboardingLink", "account.paymentDomain", "account.status", "checkout.sessions.create", "checkout.sessions.expire", "checkout.sessions.retrieve", "disputes.list",
     "events.retrieve", "paymentIntents.cancel", "paymentIntents.create", "paymentIntents.retrieve", "refunds.create", "refunds.list",
     // Square shops (square.js, plan 2.2b)
     "account.connectLink", "square.checkout.create", "square.checkout.delete", "square.checkout.retrieve", "square.disputes.forPayment",
     "square.payments.cancel", "square.payments.retrieve", "square.refunds.create", "square.refunds.forPayment", "square.refunds.retrieve",
   ].sort());
+});
+
+test("a shop's own address is registered for Apple Pay and Google Pay on its account, once; any other is refused", async () => {
+  const { stripe, call, service, registry } = await world({ row: shopRow({ domains: [{ name: "shop.mothpress.example" }] }) });
+  const first = await call("account.paymentDomain", { domain: "Shop.MothPress.example" });
+  assert.equal(first.status, 200);
+  assert.equal(first.body.apple_pay.status, "active");
+  const again = await service.registerPaymentDomain(SHOP, "shop.mothpress.example");
+  assert.equal(again.id, first.body.id);
+  assert.equal(stripe.world.paymentDomains.length, 1, "never added twice");
+  assert.equal(stripe.world.paymentDomains[0].validated, 1, "the second time checks it again");
+  assert.equal(stripe.world.paymentDomains[0].account, "acct_moth");
+  assert.ok([...registry.events.get(SHOP).values()].some((e) => e.kind === "payments.payment-domain"));
+  for (const domain of ["evil.example", "", 42]) assert.equal((await call("account.paymentDomain", { domain })).status, 400, String(domain));
+  assert.equal((await call("account.paymentDomain", { domain: `${SHOP}.web.app` })).status, 200, "the shop's own Firebase address counts");
+  await assert.rejects(service.registerPaymentDomain("nobody", "shop.mothpress.example"), /isn't in the registry/);
 });
 
 // ── The one Stripe events address ─────────────────────────────────────────────────────────────────────────────────

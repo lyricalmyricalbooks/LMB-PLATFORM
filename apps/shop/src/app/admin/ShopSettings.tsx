@@ -14,6 +14,7 @@ import { paymentHealth } from "./paymentHealth";
 import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PlatformPaymentsCard } from "./PlatformPaymentsCard";
+import { CustomDomainCard } from "./CustomDomainCard";
 import { shopProfile } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
@@ -284,11 +285,13 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="gs-domain">
+          <CustomDomainCard fallback={
           <SectionCard title="Domain & visibility" description="For your records.">
             <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="yourpress.example"
               hint="Doesn't move the shop. The domain is already live."
               onChange={(e) => set("domain", { custom: e.target.value })} />
           </SectionCard>
+          } />
         </SettingsAnchor>
       </SettingsGroup>
 

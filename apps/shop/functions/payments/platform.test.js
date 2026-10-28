@@ -144,12 +144,14 @@ describe("payments through the platform", () => {
     await expect(offline("refunds.create", "live", {})).rejects.toMatchObject({ type: "api_connection_error", statusCode: 502 });
   });
 
-  test("the admin's key and webhook tools have nothing to do; payment domains are the platform's", async () => {
-    const { payments } = make();
+  test("the admin's key and webhook tools have nothing to do; payment domains go through the service", async () => {
+    const domain = { id: "pmd_1", domain_name: "shop.example", apple_pay: { status: "active" }, google_pay: { status: "active" } };
+    const { payments, service } = make({ answers: { "account.paymentDomain": () => ({ ok: true, status: 200, json: async () => domain }) } });
     expect(payments.deployedLiveKey()).toBe("");
     expect(await payments.checkKey("sk_live_x")).toMatchObject({ ok: false });
     expect(await payments.webhookEndpoints()).toEqual({ mode: "test", endpoints: null });
-    await expect(payments.registerPaymentDomain("shop.example")).rejects.toThrow(/platform registers/);
+    expect(await payments.registerPaymentDomain("shop.example")).toEqual(domain);
+    expect(service.calls.at(-1)).toMatchObject({ op: "account.paymentDomain", args: { domain: "shop.example" } });
   });
 });
 
