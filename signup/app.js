@@ -3,6 +3,7 @@
 // own browser library is loaded from Google for sign-in only. Every check the page makes, the server makes again.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "./config.js";
 import { COUNTRIES, PLAN_CHOICES, QUESTION, checkSignup, isEmail } from "./form.js";
+import { deviceId } from "./device.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const {
@@ -26,7 +27,7 @@ async function api(method, path, body) {
   const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
   const response = await fetch(`${API_BASE}${path}`, {
     method,
-    headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}`, "X-Device-Id": deviceId() } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const answer = await response.json().catch(() => ({ ok: false, message: "We couldn't reach Colophon. Check your connection and try again." }));

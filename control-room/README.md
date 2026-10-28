@@ -55,6 +55,15 @@ waiting, answered or closed. **Send the answer** emails it to the press and keep
 it. The calls are `POST /api/control/support`, `/api/control/support/answer` and `/api/control/support/close`
 (`services/support/routes.js`).
 
+## Account recovery
+
+**Account recovery** lists requests from people who lost the email address their account uses
+(`accounts/recovery.js`): to check, approved and waiting, moved, denied or stopped. Each shows what the person wrote,
+whether the old address has an account and which shops it owns. **Approve** needs a note on how you checked; **Deny**
+needs the reason the person is sent. An approved request can be recorded as moved only after its 72-hour wait, and only
+with **I've moved it by hand** ticked: the steps are in `accounts/README.md`, "Recovery: applying". The calls are
+`POST /api/control/recovery`, `/approve`, `/deny` and `/apply` (`accounts/recoveryRoutes.js`).
+
 ## Not yet
 
 - **The shop side of "act as this shop"** (`shopAccess.supportSignIn`). It needs:
