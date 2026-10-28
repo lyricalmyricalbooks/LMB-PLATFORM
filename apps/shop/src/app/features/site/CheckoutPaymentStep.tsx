@@ -9,14 +9,14 @@ import { SectionHead } from "./CheckoutFields";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
 
-export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoice, formatPrice, finalTotal, payTabs, stripeOption, hasStripe, hasPaypal, isCompleting, selectedPaymentMethod, setSelectedPaymentMethod, enabledManualMethods, hasCodeBoxes, codeBoxes, holdIssues, notice, noticeRef, catalogState, termsRequired, termsAccepted, setTermsAccepted, termsError, policyLinks, payDisabled, paymentLabel, payLabel, payTotal, checkoutPolicies }: {
+export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoice, formatPrice, finalTotal, payTabs, stripeOption, hasStripe, hasPaypal, isCompleting, selectedPaymentMethod, setSelectedPaymentMethod, enabledManualMethods, hasCodeBoxes, codeBoxes, holdIssues, notice, noticeRef, catalogState, termsRequired, termsAccepted, setTermsAccepted, termsError, policyLinks, payDisabled, payLabel, payTotal, checkoutPolicies }: {
   c: Copy; mark: (key: string) => string | null; checkoutDesign: any; needsDeliveryChoice: boolean;
   formatPrice: (priceInCAD: number) => string; finalTotal: number; payTabs: boolean; stripeOption: React.ReactNode;
   hasStripe: boolean; hasPaypal: boolean; isCompleting: boolean; selectedPaymentMethod: string; setSelectedPaymentMethod: (method: string) => void;
   enabledManualMethods: any[]; hasCodeBoxes: boolean; codeBoxes: React.ReactNode; holdIssues: HoldWarning[];
   notice: null | { tone: "error" | "info"; text: string }; noticeRef: React.RefObject<HTMLDivElement | null>;
   catalogState: "loading" | "ready" | "failed"; termsRequired: boolean; termsAccepted: boolean; setTermsAccepted: (accepted: boolean) => void;
-  termsError: boolean; policyLinks: React.ReactNode; payDisabled: boolean; paymentLabel: string; payLabel: string; payTotal: string; checkoutPolicies: string[];
+  termsError: boolean; policyLinks: React.ReactNode; payDisabled: boolean; payLabel: string; payTotal: string; checkoutPolicies: string[];
 }) {
   return (
     <section className="fm-co-section">
@@ -75,11 +75,13 @@ export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoi
           {termsError && <p id="checkout-terms-error" className="mt-1 text-xs" style={{ color: "var(--danger, #b4271a)" }}>{c("coErrTerms")}</p>}
         </div>
       )}
-      <button type="submit" disabled={payDisabled} aria-label={isCompleting ? undefined : paymentLabel}
+      {/* The button's name is its visible words (accessibility check, plan 8.8): the space between them is ignored by
+          the flex layout but read out, so "Pay now $20.00" is both what shoppers see and what a screen reader says. */}
+      <button type="submit" disabled={payDisabled}
         className={`fm-co-paybtn fm-co-paybtn-main${isCompleting ? " fm-co-paybtn-busy" : ""}`}>
         {isCompleting
           ? <><Loader2 size={20} className="animate-spin" aria-hidden="true" /> {c("coProcessing")}</>
-          : <><span>{payLabel}</span>{payTotal && <span translate="no">{payTotal}</span>}</>}
+          : <><span>{payLabel}</span>{payTotal && <>{" "}<span translate="no">{payTotal}</span></>}</>}
       </button>
       {c("coGuarantee") && (
         <p {...regionProps("checkoutPromise")} className="fm-co-note text-center">{c("coGuarantee")}</p>

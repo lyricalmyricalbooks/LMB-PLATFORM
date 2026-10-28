@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 // Settings pages read like the Masthead: a heading and at most one short line, never a paragraph (owner, 22 October 2026).
 const FILES = ["ShopSettings", "NotificationEditor", "TaxesSettings", "LocalFulfillmentSettings", "OwnVisitsCard", "GoogleAnalyticsCard",
-  "ClarityCard", "SearchConsoleCard", "RedirectsCard", "AiWriterCard", "PrivacyRequestsCard", "BackupsExportCard", "GmailSendingCard", "AddressFinderCard"];
+  "ClarityCard", "SearchConsoleCard", "RedirectsCard", "AiWriterCard", "PrivacyRequestsCard", "BackupsExportCard", "GmailSendingCard", "AddressFinderCard", "BookkeepingSettings"];
 const MAX = 70;
 
 describe("Settings card wording", () => {

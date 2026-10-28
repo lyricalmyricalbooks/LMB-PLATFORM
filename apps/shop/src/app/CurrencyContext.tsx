@@ -178,7 +178,7 @@ export function CurrencySelector({ label = "CURRENCY", ariaLabel = "Select curre
 
   return (
     <div className="flex items-center gap-1.5 bg-current/[0.05] hover:bg-current/[0.1] border border-current/[0.05] rounded-full px-3 py-1.5 transition-all text-current opacity-70 hover:opacity-100 group relative">
-      <span className="text-[8px] font-black tracking-widest uppercase opacity-60">{label}</span>
+      <span className="text-[8px] font-black tracking-widest uppercase">{label}</span>
       <div className="flex items-center gap-1">
         <select
           value={currency}

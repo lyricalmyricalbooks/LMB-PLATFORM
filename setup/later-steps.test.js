@@ -4,7 +4,7 @@ import { latestByStep, runSteps, stepProblems } from "./runner.js";
 import { REGION, shopProblems } from "./steps.js";
 import { readFileSync } from "node:fs";
 import { OWNER_WELCOME, appsOf, envFileText, laterSteps, needsStockroomLink, privateStart, publishes, sellingToday, shopSteps, torontoDay } from "./later-steps.js";
-import { QUESTION } from "../signup/form.js";
+import { PUBLISHES, QUESTION } from "../signup/form.js";
 import { PAYMENT_PROVIDERS, paymentProblems } from "./payments.js";
 import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "./fakes.js";
 import { TEST_CONFIG, TEST_SHOP } from "./test-shop.js";
@@ -123,6 +123,13 @@ test("the env file names the platform's shared sender once there is one, and the
   assert.equal(readShopConfig({ GCLOUD_PROJECT: ID, PLATFORM_EMAIL_URL: "http://plain.example" }).platformEmailUrl, "");
 });
 
+test("the env file names the bookkeeping service once there is one, and the shop reads it", () => {
+  assert.equal(envOf(envFileText(TEST_SHOP, TEST_CONFIG)).PLATFORM_ACCOUNTING_URL, undefined);
+  const env = envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, platformAccountingUrl: "https://accounting.platform.example" }));
+  assert.equal(env.PLATFORM_ACCOUNTING_URL, "https://accounting.platform.example");
+  assert.equal(readShopConfig({ ...env, GCLOUD_PROJECT: ID }).platformAccountingUrl, "https://accounting.platform.example");
+});
+
 test("the env file carries the press's own addresses and the domain service, and running setup again keeps them", async () => {
   const env = envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, platformDomainsUrl: "https://domains.platform.example", extraOrigins: ["https://a.example", "https://b.example"] }));
   assert.equal(env.PLATFORM_DOMAINS_URL, "https://domains.platform.example");
@@ -131,6 +138,10 @@ test("the env file carries the press's own addresses and the domain service, and
   assert.equal(config.platformDomainsUrl, "https://domains.platform.example");
   assert.ok(config.allowedOrigins.includes("https://b.example"));
   assert.equal(envOf(envFileText(TEST_SHOP, TEST_CONFIG)).PLATFORM_DOMAINS_URL, undefined);
+  // The accounts door (plan 5.11), the same way: written only once the platform has one.
+  const withAccounts = envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, platformAccountsUrl: "https://accounts.platform.example/" }));
+  assert.equal(readShopConfig({ ...withAccounts, GCLOUD_PROJECT: ID }).platformAccountsUrl, "https://accounts.platform.example");
+  assert.equal(envOf(envFileText(TEST_SHOP, TEST_CONFIG)).PLATFORM_ACCOUNTS_URL, undefined);
 
   // The domain service saved an address; step 8 done again (a repair) writes it too, so nothing drops.
   const { services, registry, steps, run } = setup();
@@ -634,4 +645,11 @@ test("the shop's first-week list knows every sign-up answer", () => {
   const source = readFileSync(new URL("../apps/shop/src/app/admin/firstWeek.ts", import.meta.url), "utf8");
   const listed = JSON.parse(source.match(/SELLING_TODAY: readonly SellingToday\[\] = (\[[^\]]*\])/)[1]);
   assert.deepEqual(listed, QUESTION.options.map((option) => option.id));
+});
+
+test("Choose your look suggests themes for every publishing answer", () => {
+  const source = readFileSync(new URL("../apps/shop/src/app/admin/chooseLook.ts", import.meta.url), "utf8");
+  const block = source.match(/const SUGGESTED[^{]*\{([\s\S]*?)\n\};/)[1];
+  const keys = [...block.matchAll(/^\s+([a-z]+):/gm)].map((m) => m[1]).filter((k) => k !== "general");
+  assert.deepEqual(keys, PUBLISHES.options.map((option) => option.id));
 });

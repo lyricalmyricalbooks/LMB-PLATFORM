@@ -1133,7 +1133,7 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { DEFAULT_SHOP_PROFILE, readShopProfile, switchOn } from './lib/shop-profile.js';
+import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, switchOn } from './lib/shop-profile.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 
 
@@ -3719,7 +3719,7 @@ export let notifyUrl = localStorage.getItem('lm-notify-url') || '';
 // The Apps Script `scriptVersion` the client expects. Bump this (and the value
 // in apps-script/Code.gs) whenever Code.gs gains behaviour that needs a fresh
 // deploy — the connection card flags any older deployed version as outdated.
-export const EXPECTED_SCRIPT_VERSION = 'v58';
+export const EXPECTED_SCRIPT_VERSION = 'v59';
 // What the connected spreadsheet last told us it was running. Null until a
 // version check has actually answered — an unknown version is not a mismatch,
 // so the To-do list stays quiet rather than inventing a problem.
@@ -14297,7 +14297,7 @@ document.addEventListener('visibilitychange', () => {
 // ── DATA BACKUPS & PORTABILITY
 function backupFileName() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `lyrical-backup-${stamp}.json`;
+  return `${fileStem({ lower: true })}-backup-${stamp}.json`;
 }
 
 async function openBackupHandleDb() {
@@ -15106,7 +15106,7 @@ function exportAllToCSV() {
 
   if (rows.length === 1) { showToast('No records to export', 'warn'); return; }
 
-  downloadCsv(toCsv(rows), `lyrical-records-export-${today()}.csv`);
+  downloadCsv(toCsv(rows), `${fileStem({ lower: true })}-records-export-${today()}.csv`);
   showToast('✓ CSV Export downloaded');
 }
 
@@ -16198,6 +16198,7 @@ function showApp(role, bookId) {
 
 // The app's frame for a role, without loading anything (boot does that).
 function showAppShell(role, bookId) {
+  _appShellShown = true;
   $('pw-gate').style.display = 'none';
   $('pw-app').style.display = '';
   if (role === 'author' || IS_AUTHOR_MODE) {
@@ -17427,7 +17428,7 @@ function toggleStripePaidNotify() {
 async function sendTestDeviceNotification() {
   const sent = await notifyDevice({
     title: 'Notifications are working',
-    body: 'This is how news from Lyrical Inventory will look on this device.',
+    body: 'This is how news from Stockroom will look on this device.',
     tag: 'lm-test',
     force: true,
   });
@@ -19286,23 +19287,13 @@ async function initStartup() {
     };
     try {
       if (!user) {
-        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-          console.log('[Dev Bypass] Localhost/dev environment detected, bypassing login gate as publisher.');
-          window.IS_PUBLISHER = true;
-          IS_AUTHOR_MODE = false;
-          try {
-            await loadCatalog();
-          } catch (e) {
-            setBooks({ ...DEFAULT_BOOKS });
-          }
-          loadAuthorViewOverrides();
-          showApp('publisher', null);
-          checkAppUpdate();
-          dismissSplash();
-          return;
-        }
-        // Not logged in (or just signed out by the no-access branch below, whose message must survive)
-        setupGate(_pendingGateMsg);
+        // Signed out, or a sign-in that has ended: the sign-in screen, never the
+        // dashboard. (There used to be a shortcut here that opened the publisher's
+        // dashboard on localhost with nobody signed in; with no account every read
+        // is refused, so it showed an empty stockroom that looked like lost data.)
+        // The no-access branch below signs out with a message that must survive.
+        const ended = _appShellShown && !_pendingGateMsg;
+        setupGate(_pendingGateMsg, ended ? SIGN_IN_ENDED_MSG : null);
         const err = document.getElementById('pw-err');
         if (err) err.textContent = '';
         dismissSplash();
@@ -19328,6 +19319,7 @@ async function initStartup() {
         window.IS_PUBLISHER = false;
         IS_AUTHOR_MODE = false;
         await window._fbLoadModeFlags();
+        _appShellShown = true;
         const { showBookkeeperView } = await import('./features/bookkeeper-view.js');
         await showBookkeeperView({ email: user.email, loadSettings: window._fbLoadSettings, onSignOut: () => window._fbSignOut() });
         dismissSplash();
@@ -19513,7 +19505,13 @@ function startupCachedGlobalMode() {
 }
 
 let _pendingGateMsg = null;
-function setupGate(errMsg) {
+// Whether this page has shown the app (a session, or the startup preview), so a
+// later "nobody signed in" means the sign-in ended rather than never happened.
+let _appShellShown = false;
+export const SIGN_IN_PROMPT = 'Sign in to see your stockroom.';
+export const SIGN_IN_ENDED_MSG = 'Your sign-in has ended, so your stockroom is hidden until you sign in again. Nothing was lost.';
+// errMsg: a refusal, in red. note: a calm line (the sign-in ended).
+function setupGate(errMsg, note = null) {
   document.getElementById('bookkeeper-view')?.remove();
   $('pw-gate').style.display = '';
   $('pw-app').style.display = 'none';
@@ -19521,8 +19519,10 @@ function setupGate(errMsg) {
   document.querySelector('#pw-gate .wm').textContent = 'Your Press';
   const desc = document.getElementById('gate-desc');
   if (desc) {
-    desc.style.display = errMsg ? 'block' : 'none';
-    desc.innerHTML = errMsg ? `<span style="color:var(--red);font-weight:600;">${escapeHtml(errMsg)}</span>` : '';
+    desc.style.display = 'block';
+    desc.innerHTML = (errMsg ? `<span class="gate-desc-err" style="color:var(--red);font-weight:600;">${escapeHtml(errMsg)}</span><br>` : '')
+      + (note ? `<span class="gate-desc-note">${escapeHtml(note)}</span><br>` : '')
+      + `<span class="gate-desc-lead">${escapeHtml(SIGN_IN_PROMPT)}</span>`;
   }
 }
 

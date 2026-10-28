@@ -11,6 +11,7 @@ import { fakePlatformEmail } from "../services/billing/fakes.js";
 import { platformSettings } from "../services/settings.js";
 import { fakeRegistry } from "../setup/fakes.js";
 import { shopProblems } from "../setup/steps.js";
+import { TERMS_VERSION } from "../terms/terms.js";
 
 const ADA = { uid: "uid-ada", email: "Ada@Example.com", email_verified: true, name: "Ada" };
 
@@ -32,7 +33,7 @@ function make() {
   return { stores, registry, email, trials, signup, ask };
 }
 
-const details = { pressName: "Moth Press", plan: "both", country: "CA" };
+const details = { pressName: "Moth Press", plan: "both", country: "CA", termsAccepted: true, termsVersion: TERMS_VERSION };
 
 test("signing up starts the free trial with no card and queues a shop the shop maker accepts", async () => {
   const { ask, trials, stores } = make();
@@ -89,7 +90,7 @@ test("missing details come back field by field in plain words", async () => {
   const { ask } = make();
   const answer = await ask("POST", "/api/signup", { pressName: " ", plan: "gold", country: "ZZ" }, ADA);
   assert.equal(answer.status, 400);
-  assert.deepEqual(Object.keys(answer.body.problems).sort(), ["country", "plan", "pressName"]);
+  assert.deepEqual(Object.keys(answer.body.problems).sort(), ["country", "plan", "pressName", "terms"]);
 });
 
 test("a shop id taken in the registry is skipped, and an account has a limit on new shops", async () => {

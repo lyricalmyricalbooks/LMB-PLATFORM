@@ -34,6 +34,7 @@ import { getBookCurrencyCode, getSym, roundCents } from '../lib/money.js';
 import { deriveOnHand, deriveStockBreakdown, recordInventoryDisposal } from '../lib/inventory.js';
 import { createInventoryDisposalExpense, createSection10Adjustment, inventoryAdjustmentCsvRows } from '../lib/inventory-adjustment.js';
 import { consignmentSyncPayload } from '../lib/consignment.js';
+import { fileStem } from '../lib/shop-profile.js';
 
 function calculateInventoryValuationData() {
   const items = [];
@@ -389,7 +390,7 @@ function downloadInventoryValuationCSV() {
     adjustmentRows.forEach(row => { csv += row.map(csvCell).join(',') + '\n'; });
   }
 
-  downloadCsv(csv, `Lyrical_Inventory_Valuation_${today()}.csv`);
+  downloadCsv(csv, `${fileStem()}_Inventory_Valuation_${today()}.csv`);
   showToast('✓ Comprehensive Inventory Valuation CSV exported');
 }
 

@@ -445,6 +445,11 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `oldPaths` (per old line) holds the old shop's product addresses. After the import saves, `importRedirects` (plan 3.2)
   adds them to URL redirects as `/books/<id>` (ids survive renames), for created, updated and unchanged books; it never
   replaces an existing redirect, skips the shop's own routes and stops at `MAX_REDIRECTS` with a reason.
+  **Plan 7.2:** `handle-rows` is read under the older headings (Handle, Variant Price, Image Src…) and today's (URL
+  handle, Price, Compare-at price, SKU, Barcodes, Inventory quantity, Product image URL, Image position, Weight value
+  (grams), Variant image URL); each field takes either (the `HANDLE`/`PRICE`/… lists). A file with both Barcode and
+  Barcodes reads Barcodes. SEO title / SEO description go to `metaTitle`/`metaDescription` (also plain Import CSV
+  columns). `shopMove.test.ts` proves one three-edition book gives the same plan in both layouts.
 - **Customers:** Customers › **Bring customers over** (`ShopMoveDialogs.tsx`, lazy) → `readCustomerExport` →
   `planCustomerNotes` (merges into `customerNotes`; `MOVED_MARK` makes a re-run unchanged; tags capped by `parseTags`)
   and `newsletterJoiners` (said yes in the file, not subscribed, not in `marketing-optout`). Joiners are written only
@@ -504,6 +509,12 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   readiness row ticks only once `paymentsReady` (cards and payouts). While something is past due, `cardAccountAlert`
   (adminAlerts.ts, action `cardAccount` → Settings › Payments › Ways to pay) puts a banner on every admin page; the
   Dashboard's 5-minute alert check reads the status for Stripe platform shops. The platform emails the owner once.
+- Settings › Bookkeeping (`BookkeepingSettings.tsx`, pure `quickbooksLink.ts`, plan 7.16): Connect to QuickBooks in three
+  steps (sign in with Intuit, one line per day or every order, match taxes and five accounts), then last day sent, Send
+  again and Disconnect. Hidden unless `adminApi.bookkeeping("status")` says `enabled` (Dashboard asks once when
+  Settings opens and drops the menu entry with `withoutPages`). The button is text only ("Connect to QuickBooks"), as
+  Intuit asks; the admin has no French yet, so there is no French label. Tax names are each rate's `bookName` (plan 7.11)
+  or "Tax <place>" until then.
 
 
 ## Bookkeeper role (28 October 2026, code plan 7.17)

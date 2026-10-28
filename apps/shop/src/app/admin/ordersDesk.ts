@@ -101,6 +101,7 @@ export function attentionReason(o: any): string {
 /** One short status line for a list row: what the shop does next. */
 export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "success" | "neutral"; text: string } {
   const q = queueOf(o);
+  if (o.paymentMismatch?.paidAfterHold && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return o.lateRefundPending ? { tone: "danger", text: "⚠ Paid after checkout closed — refund not made yet" } : { tone: "warning", text: "◷ Paid after checkout closed — refunded" };
   if (o.paymentMismatch?.paidAfterCancel && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Paid after cancelling — refund" };
   if (o.paymentMismatch && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Payment doesn't match" };
   if (o.giftCardConflict && !o.giftCardConflict.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Gift card couldn't cover its part" };

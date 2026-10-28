@@ -6,7 +6,9 @@ import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
-const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
+const {
+  getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, getMultiFactorResolver, multiFactor, TotpMultiFactorGenerator,
+} = await import(`${FIREBASE_SDK}/firebase-auth.js`);
 
 const auth = getAuth(initializeApp(PLATFORM_FIREBASE));
 const $ = (selector) => document.querySelector(selector);
@@ -52,24 +54,125 @@ async function load() {
   if (role === "backup") {
     status.textContent = "";
     $("#view-signin").hidden = true;
+    $("#view-code").hidden = true;
+    $("#view-setup").hidden = true;
     $("#view-shops").hidden = true;
     return;
   }
   try {
+    await loadToday();
     const { shops } = await api("GET", "/control/shops");
-    const problems = shops.filter((s) => s.health.level === "problem").length;
-    $("#summary").textContent = `${shops.length} shops · ${problems} with a problem`;
-    $("#shops").replaceChildren(...(shops.length ? shops.map(card) : [el("p", { textContent: "No shops yet." })]));
+    allShops = shops;
+    showShops();
     status.textContent = "";
     $("#view-signin").hidden = true;
+    $("#view-code").hidden = true;
+    $("#view-setup").hidden = true;
     $("#view-shops").hidden = false;
     await loadRepairs();
     await loadTickets();
     await loadRecoveries();
     await loadBreaches();
+    await loadWaitlist();
+    await loadEverySwitch();
+    await loadSettings();
+    await loadActivity();
   } catch (failure) {
     status.textContent = failure.message;
+    // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
+    if (/two-step/.test(failure.message) && auth.currentUser && !multiFactor(auth.currentUser).enrolledFactors.length) await startTwoStepSetup();
   }
+}
+
+// ── Shops: search and filters (plan 9.3), over the list already loaded. ──
+let allShops = [];
+function showShops() {
+  const form = $("#shop-filters");
+  const words = form.q.value.trim().toLowerCase();
+  const shown = allShops.filter((shop) => (!words || [shop.pressName, shop.shopId, shop.ownerEmail].some((v) => String(v ?? "").toLowerCase().includes(words)))
+    && (!form.health.value || shop.health.level === form.health.value)
+    && (!form.plan.value || shop.plan === form.plan.value)
+    && (!form.billing.value || shop.billingStatus === form.billing.value));
+  const problems = allShops.filter((s) => s.health.level === "problem").length;
+  $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
+  $("#shops").replaceChildren(...(shown.length ? shown.map(card) : [el("p", { textContent: allShops.length ? "No shop matches." : "No shops yet." })]));
+}
+$("#shop-filters").addEventListener("input", showShops);
+$("#shop-filters").addEventListener("submit", (event) => event.preventDefault());
+
+// ── One shop's record (plan 9.3) and its per-order fee (plan 9.6). ──
+const BILLING_WORDS = { trialing: "free trial", active: "paying", past_due: "payment failing, being retried", paused: "paused", unpaid: "paused, unpaid", incomplete: "waiting for a first payment", canceled: "ended", incomplete_expired: "ended" };
+const percent = (basisPoints) => `${basisPoints / 100}%`;
+const dateOnly = (at) => (at ? new Date(at).toLocaleDateString(undefined, { dateStyle: "medium" }) : "");
+
+function feeForm(record) {
+  const form = el("form", { className: "stack" },
+    el("p", { className: "hint", textContent: `Fee on each order now: ${percent(record.fee.basisPoints)}, ${record.fee.refunded ? "given back with a refund" : "kept on a refund"}. The platform's normal fee: ${percent(record.fee.defaults.basisPoints)}.${record.fee.next ? ` Changing to ${percent(record.fee.next.basisPoints)} on ${dateOnly(record.fee.next.from)} (the press was emailed).` : ""}` }),
+    el("label", { className: "field" }, "New fee on each order (%)", el("input", { type: "number", name: "percent", min: "0", max: "100", step: "0.01", required: true, value: String((record.fee.next ?? record.fee).basisPoints / 100), inputMode: "decimal" })),
+    el("label", { className: "switch" }, el("input", { type: "checkbox", name: "refunded", checked: (record.fee.next ?? record.fee).refunded }), "Give the fee back when an order is refunded"),
+    el("label", { className: "field" }, "Why? (goes in the shop's log)", el("input", { name: "reason", required: true, minLength: 10, maxLength: 500 })),
+    el("p", { className: "hint", textContent: "The press is emailed now and the new fee starts in 30 days. Setting today's fee again cancels a change that hasn't started." }),
+    el("div", { className: "row" }, el("button", { type: "submit", textContent: "Change the fee" })));
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = form.querySelector("button");
+    button.disabled = true;
+    try {
+      const done = await api("POST", "/control/fee", { shopId: record.shopId, basisPoints: Math.round(Number(form.percent.value) * 100), refunded: form.refunded.checked, reason: form.reason.value });
+      status.textContent = !done.changed ? "That's already the fee, so nothing changed."
+        : done.cancelled ? `${record.pressName}: the waiting fee change is cancelled.`
+          : `${record.pressName}: emailed. The new fee starts on ${dateOnly(done.next.from)}.`;
+      form.replaceWith(feeForm(await api("POST", "/control/shop", { shopId: record.shopId })));
+    } catch (failure) {
+      status.textContent = failure.message;
+      button.disabled = false;
+    }
+  });
+  return form;
+}
+
+function recordView(record) {
+  const billing = record.billing;
+  const line = (label, value) => (value ? el("li", {}, el("strong", { textContent: `${label}: ` }), value) : null);
+  const connections = record.connections;
+  return el("div", { className: "stack record" },
+    el("ul", {},
+      line("Owner", record.ownerEmail),
+      line("Started", dateOnly(record.createdAt)),
+      line("Address", record.siteUrl),
+      line("Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan),
+      line("Payments", connections.payments ? `${connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"),
+      line("Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map((d) => `${d.name} (${d.state})`).join(", ") : "the shop's own .web.app address"),
+      line("Google", connections.google ? Object.entries(connections.google).filter(([k, v]) => v && !["steps", "connectedAt"].includes(k)).map(([k]) => k).join(", ") || "not connected" : "not connected"),
+      line("Version", record.version ?? "none yet")),
+    el("strong", { textContent: "Setup" }),
+    record.setup.length ? el("ul", {}, ...record.setup.map((step) => el("li", { textContent: `${step.step}. ${step.name ?? ""} ${step.ok ? "done" : `stopped: ${step.error}`}` }))) : el("p", { className: "hint", textContent: "No setup steps yet." }),
+    el("strong", { textContent: "Fee on each order" }),
+    feeForm(record),
+    el("strong", { textContent: "Control-room history" }),
+    record.history.length ? el("ul", {}, ...record.history.map((e) => el("li", { textContent: `${when(e.at)} · ${e.by ?? "the platform"} ${ACTIVITY_WORDS[e.what] ?? e.what}${e.detail?.reason ? ` (${e.detail.reason})` : ""}` }))) : el("p", { className: "hint", textContent: "Nothing yet." }));
+}
+
+// ── Today (plan 9.2): the numbers, then what needs you, each linking to its place below. ──
+const money = (cents, currency) => new Intl.NumberFormat(undefined, { style: "currency", currency, currencyDisplay: "narrowSymbol" }).format(cents / 100);
+
+async function loadToday() {
+  const { counts, monthlyIncome, currency, needs } = await api("GET", "/control/today");
+  const tile = (value, words) => el("div", { className: "tile" }, el("strong", { textContent: String(value) }), el("span", { textContent: words }));
+  $("#today-numbers").replaceChildren(
+    tile(money(monthlyIncome, currency), "monthly income"),
+    tile(counts.live, "shops live"),
+    tile(counts.trial, "on a free trial"),
+    tile(counts.paying, "paying"),
+    tile(counts.signupsThisWeek, "signed up this week"),
+    tile(counts.failedPayments, "failed payments"),
+    tile(counts.paused, "paused"),
+    tile(counts.closed, "closed"),
+  );
+  $("#needs").replaceChildren(needs.length
+    ? el("div", { className: "card watch needs" }, el("strong", { textContent: "Needs you" }),
+      el("ul", {}, ...needs.map((need) => el("li", {}, el("a", { href: need.go, textContent: need.words })))))
+    : el("p", { className: "hint", textContent: "Nothing needs you right now." }));
 }
 
 function card(shop) {
@@ -146,8 +249,27 @@ function card(shop) {
     }))
     : null;
 
+  const open = el("button", { type: "button", textContent: "Open record", "aria-expanded": "false" });
+  const recordSlot = el("div");
+  open.addEventListener("click", async () => {
+    if (open.getAttribute("aria-expanded") === "true") {
+      recordSlot.replaceChildren();
+      open.setAttribute("aria-expanded", "false");
+      open.textContent = "Open record";
+      return;
+    }
+    open.disabled = true;
+    try {
+      recordSlot.replaceChildren(recordView(await api("POST", "/control/shop", { shopId: shop.shopId })));
+      open.setAttribute("aria-expanded", "true");
+      open.textContent = "Close record";
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    open.disabled = false;
+  });
   return el("div", { className: `card ${shop.health.level}` },
-    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), act, check, closing),
+    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), open, act, check, closing),
     el("div", { className: "facts" },
       el("span", { textContent: shop.shopId }),
       el("span", { textContent: `plan: ${shop.plan ?? "?"}` }),
@@ -159,7 +281,8 @@ function card(shop) {
       shop.paymentsMoved ? el("span", { textContent: `cards: ${PAYMENT_WORDS[shop.paymentsMoved.to]}` }) : null),
     shop.health.reasons.length ? el("ul", {}, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
     switches,
-    shop.status === "live" ? moveCards : null);
+    shop.status === "live" ? moveCards : null,
+    recordSlot);
 }
 
 // ── The emergency payments switch (plan 8.5): if the platform's Stripe is paused, move a shop, or every shop. ──
@@ -401,6 +524,9 @@ $("#breach-form").addEventListener("submit", async (event) => {
     form.reset();
     status.textContent = "Written in the breach register.";
     await loadBreaches();
+    await loadWaitlist();
+    await loadSettings();
+    await loadActivity();
   } catch (failure) {
     status.textContent = failure.message;
   }
@@ -494,9 +620,269 @@ async function loadEmergency() {
   return state;
 }
 
-$("#google").addEventListener("click", () => signInWithPopup(auth, new GoogleAuthProvider()).catch(() => { status.textContent = "Sign-in didn't finish."; }));
+
+// ── Sign-ups and the waitlist (plan 9.5): invite someone and they skip the daily line; Try again for a stuck shop. ──
+const when = (at) => (at ? new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "");
+
+async function invite(address, button) {
+  if (button) button.disabled = true;
+  try {
+    const { email, sent } = await api("POST", "/control/invite", { email: address });
+    await loadWaitlist();
+    status.textContent = sent ? `Invite sent to ${email}.` : `${email} was already invited. Nothing new was sent.`;
+  } catch (failure) {
+    status.textContent = failure.message;
+    if (button) button.disabled = false;
+  }
+}
+
+async function loadWaitlist() {
+  try {
+    const { waiting, people, inTheMaking } = await api("GET", "/control/waitlist");
+    $("#waitlist-summary").textContent = `${waiting} waiting on the list · ${inTheMaking.length} shop${inTheMaking.length === 1 ? "" : "s"} being made`;
+    $("#making").replaceChildren(...inTheMaking.map((shop) => {
+      const retry = el("button", { type: "button", textContent: "Try again", hidden: ["queued", "making"].includes(shop.status) });
+      retry.addEventListener("click", async () => {
+        const reason = askWhy(`Try making ${shop.pressName} again.`);
+        if (!reason) return;
+        retry.disabled = true;
+        try {
+          await api("POST", "/control/retry", { shopId: shop.shopId, reason });
+          status.textContent = `${shop.pressName}: trying again.`;
+          await loadWaitlist();
+        } catch (failure) {
+          status.textContent = failure.message;
+          retry.disabled = false;
+        }
+      });
+      return el("div", { className: `card ${shop.canRetry || shop.status === "failed" ? "problem" : "watch"}` },
+        el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: shop.status }), retry),
+        el("div", { className: "facts" }, el("span", { textContent: shop.shopId }), el("span", { textContent: shop.ownerEmail ?? "" }), el("span", { textContent: `started ${when(shop.createdAt)}` })),
+        shop.message ? el("p", { className: "hint", textContent: shop.message }) : null);
+    }));
+    $("#waitlist").replaceChildren(...(people.length ? people.map((person) => {
+      const button = el("button", { type: "button", textContent: person.invited ? "Invited" : "Invite", disabled: person.invited });
+      button.addEventListener("click", () => invite(person.email, button));
+      return el("div", { className: "card" },
+        el("div", { className: "row" }, el("strong", { textContent: person.press || person.name || person.email }), button),
+        el("div", { className: "facts" }, el("span", { textContent: person.email }), el("span", { textContent: `wants: ${person.plan}` }), el("span", { textContent: `joined ${when(person.joinedAt)}` })));
+    }) : [el("p", { textContent: "Nobody is on the waitlist yet." })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+$("#invite-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  await invite(form.email.value, form.querySelector("button"));
+  form.reset();
+});
+
+// ── Platform settings (plan 9.4): sign-up, the daily cap, prices, trial, founding offer, pay as you sell. ──
+// Money shows in dollars and the pay-as-you-sell share as a percent; the server keeps cents and hundredths of a percent.
+const toShown = (field, value) => (field.kind === "cents" ? (value / 100).toFixed(2) : field.kind === "basisPoints" ? String(value / 100) : String(value));
+const fromShown = (field, text) => (field.kind === "cents" || field.kind === "basisPoints" ? Math.round(Number(text) * 100) : Number(text));
+let settingsFields = [];
+
+async function loadSettings() {
+  try {
+    const { fields, values, defaults, updatedAt, updatedBy } = await api("GET", "/control/settings");
+    settingsFields = fields;
+    $("#settings-fields").replaceChildren(...fields.map((field) => {
+      const changed = values[field.path] !== defaults[field.path];
+      const note = changed ? el("span", { className: "hint", textContent: ` (normally ${field.kind === "yesNo" ? (defaults[field.path] ? "on" : "off") : toShown(field, defaults[field.path])})` }) : null;
+      if (field.kind === "yesNo") {
+        return el("label", { className: "switch" }, el("input", { type: "checkbox", name: field.path, checked: values[field.path] }), field.label, note);
+      }
+      const unit = field.kind === "cents" ? " ($)" : field.kind === "basisPoints" ? " (%)" : "";
+      const step = field.kind === "whole" ? "1" : "0.01";
+      return el("label", { className: "field" }, `${field.label}${unit}`, note,
+        el("input", { type: "number", name: field.path, value: toShown(field, values[field.path]), step, min: toShown(field, field.min), max: toShown(field, field.max), required: true, inputMode: "decimal" }));
+    }));
+    $("#settings-updated").textContent = updatedAt ? `Last changed ${when(updatedAt)} by ${updatedBy}` : "Nothing changed yet: these are the platform's defaults.";
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+$("#settings-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = Object.fromEntries(settingsFields.map((field) => [field.path, field.kind === "yesNo" ? form.elements[field.path].checked : fromShown(field, form.elements[field.path].value)]));
+  const button = form.querySelector("button[type=submit]");
+  button.disabled = true;
+  try {
+    const { changed } = await api("POST", "/control/settings", { values, reason: form.reason.value });
+    form.reason.value = "";
+    await loadSettings();
+    await loadActivity();
+    status.textContent = changed.length ? `Saved: ${changed.map((c) => settingsFields.find((f) => f.path === c.path)?.label ?? c.path).join("; ")}.` : "Nothing had changed, so nothing was saved.";
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+  button.disabled = false;
+});
+
+// ── Activity log (plan 9.9): read only. ──
+const ACTIVITY_WORDS = {
+  "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "switch-set": "set a switch",
+  "act-as": "opened the shop's admin as support", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
+  "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
+  "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again",
+};
+
+async function loadActivity() {
+  try {
+    const shopId = $("#activity-form").shopId.value.trim();
+    const { entries } = await api("POST", "/control/activity", shopId ? { shopId } : {});
+    $("#activity").replaceChildren(...(entries.length ? entries.map((entry) => el("div", { className: "card" },
+      el("div", { className: "row" }, el("strong", { textContent: `${entry.by ?? "the platform"} ${ACTIVITY_WORDS[entry.what] ?? entry.what}` }), entry.shopId ? el("span", { className: "pill", textContent: entry.shopId }) : null),
+      el("div", { className: "facts" }, el("span", { textContent: when(entry.at) }),
+        entry.detail?.reason ? el("span", { textContent: `why: ${entry.detail.reason}` }) : null,
+        ...(entry.detail?.changes ?? []).map((c) => el("span", { textContent: `${c.path}: ${c.from} → ${c.to}` })),
+        entry.detail?.email ? el("span", { textContent: entry.detail.email }) : null)))
+      : [el("p", { textContent: "Nothing yet." })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+$("#activity-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  loadActivity();
+});
+
+// ── Signing in (plan 9.1): Google, then a code from the authenticator app. The server refuses a sign-in without it. ──
+const showOnly = (id) => {
+  for (const view of ["#view-signin", "#view-code", "#view-setup", "#view-shops", "#view-emergency"]) $(view).hidden = view !== id;
+};
+let resolver = null;
+
+$("#google").addEventListener("click", async () => {
+  status.textContent = "";
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+  } catch (error) {
+    if (error?.code !== "auth/multi-factor-auth-required") {
+      status.textContent = "Sign-in didn't finish.";
+      return;
+    }
+    resolver = getMultiFactorResolver(auth, error);
+    showOnly("#view-code");
+    $("#code-form").code.focus();
+  }
+});
+
+$("#code-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const hint = resolver?.hints.find((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID);
+  if (!hint) {
+    status.textContent = "Your account has no authenticator app set up. Ask for help.";
+    return;
+  }
+  form.querySelector("button").disabled = true;
+  try {
+    await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(hint.uid, form.code.value.replace(/\s+/g, "")));
+    form.reset();
+    resolver = null;
+  } catch {
+    status.textContent = "That code didn't work. Codes change every 30 seconds: try the one on screen now.";
+  }
+  form.querySelector("button").disabled = false;
+});
+
+let setupSecret = null;
+async function startTwoStepSetup() {
+  try {
+    setupSecret = await TotpMultiFactorGenerator.generateSecret(await multiFactor(auth.currentUser).getSession());
+  } catch (error) {
+    status.textContent = error?.code === "auth/requires-recent-login"
+      ? "Sign in again, then set up two-step sign-in straight away."
+      : "Two-step sign-in can't be set up yet. It has to be turned on for the platform first (see control-room/README.md).";
+    return;
+  }
+  const link = setupSecret.generateQrCodeUrl(auth.currentUser.email, "Colophon control room");
+  $("#setup-key").textContent = setupSecret.secretKey.replace(/(.{4})/g, "$1 ").trim();
+  $("#setup-link").href = link;
+  try {
+    // qrcode-generator (loaded by index.html) draws the code as a picture; without it the key and link still work.
+    const qr = window.qrcode(0, "M");
+    qr.addData(link);
+    qr.make();
+    $("#setup-qr").replaceChildren(el("img", { src: qr.createDataURL(5, 2), alt: "Code to scan with your authenticator app" }));
+  } catch {
+    $("#setup-qr").textContent = "";
+  }
+  status.textContent = "";
+  showOnly("#view-setup");
+}
+
+$("#setup-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  form.querySelector("button").disabled = true;
+  try {
+    await multiFactor(auth.currentUser).enroll(TotpMultiFactorGenerator.assertionForEnrollment(setupSecret, form.code.value.replace(/\s+/g, "")), "Authenticator app");
+    form.reset();
+    await signOut(auth);
+    status.textContent = "Two-step sign-in is on. Sign in again with Google, then type the code from the app.";
+  } catch {
+    status.textContent = "That code didn't work. Codes change every 30 seconds: try the one on screen now.";
+  }
+  form.querySelector("button").disabled = false;
+});
+
 $("#refresh").addEventListener("click", load);
 onAuthStateChanged(auth, (user) => {
   if (user) load();
-  else { $("#view-signin").hidden = false; $("#view-shops").hidden = true; $("#view-emergency").hidden = true; }
+  else showOnly("#view-signin");
 });
+
+// ── Switches for every shop (plan 9.7): one switch for every live shop at once, and what new shops start with. ──
+async function loadEverySwitch() {
+  try {
+    const { switches } = await api("GET", "/control/new-shop-switches");
+    $("#every-switch").replaceChildren(...Object.entries(switches).map(([name, startsOn]) => {
+      const words = SWITCH_WORDS[name] ?? name;
+      const button = (on) => {
+        const b = el("button", { type: "button", textContent: on ? "On for every shop" : "Off for every shop" });
+        b.addEventListener("click", async () => {
+          const reason = askWhy(`Turn "${words}" ${on ? "on" : "off"} for every live shop. Each shop's pages are deployed again.`);
+          if (!reason) return;
+          b.disabled = true;
+          try {
+            const { shops } = await api("POST", "/control/switch-all", { name, on, reason });
+            const failed = shops.filter((s) => s.error);
+            await load();
+            status.textContent = `${words}: ${shops.length - failed.length} shop${shops.length - failed.length === 1 ? "" : "s"} done.${failed.length ? ` Not done: ${failed.map((s) => `${s.shopId} (${s.error})`).join("; ")}` : ""}`;
+          } catch (failure) {
+            status.textContent = failure.message;
+          }
+          b.disabled = false;
+        });
+        return b;
+      };
+      const box = el("input", { type: "checkbox", checked: startsOn });
+      box.addEventListener("change", async () => {
+        const reason = askWhy(`New shops start with "${words}" ${box.checked ? "on" : "off"}.`);
+        if (!reason) {
+          box.checked = !box.checked;
+          return;
+        }
+        try {
+          await api("POST", "/control/new-shop-switches", { name, on: box.checked, reason });
+          status.textContent = `New shops start with ${words} ${box.checked ? "on" : "off"}.`;
+        } catch (failure) {
+          status.textContent = failure.message;
+          box.checked = !box.checked;
+        }
+      });
+      return el("div", { className: "card" }, el("div", { className: "row" }, el("strong", { textContent: words }), button(true), button(false)),
+        el("label", { className: "switch" }, box, "New shops start with it on"));
+    }));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}

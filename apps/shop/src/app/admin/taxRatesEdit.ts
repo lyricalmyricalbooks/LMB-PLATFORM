@@ -1,8 +1,10 @@
-// Settings › Taxes (pure, tested). The stored shape is unchanged — settings.taxes.rates is a list of
-// { country, region, rate } with rate as the text the owner typed ("13") — because the server's
-// matchTaxRate (functions/index.js) and the checkout mirror (features/site/taxRate.ts) read it.
+// Settings › Taxes (pure, tested). settings.taxes.rates is a list of { country, region, rate } with rate as the
+// text the owner typed ("13") — the server's matchTaxRate (functions/index.js) and the checkout mirror
+// (features/site/taxRate.ts) read it — plus an optional bookName, the tax's name in the press's books (plan 7.11,
+// src/shared/taxBooks.ts; blank = the suggested name).
+import { TAX_BOOK_NAME_MAX } from "../../shared/taxBooks";
 
-export type TaxRate = { country: string; region: string; rate: string };
+export type TaxRate = { country: string; region: string; rate: string; bookName?: string };
 
 const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
 
@@ -23,6 +25,12 @@ export function taxRateProblem(draft: { country?: string; region?: string; rate?
 }
 
 /** The row to store: trimmed, rate kept as text with no trailing junk. */
-export function cleanTaxRate(draft: { country?: string; region?: string; rate?: string }): TaxRate {
-  return { country: String(draft.country ?? "").trim(), region: String(draft.region ?? "").trim(), rate: String(Number(String(draft.rate ?? "").trim())) };
+export function cleanTaxRate(draft: { country?: string; region?: string; rate?: string; bookName?: string }): TaxRate {
+  const bookName = cleanBookName(draft.bookName);
+  return { country: String(draft.country ?? "").trim(), region: String(draft.region ?? "").trim(), rate: String(Number(String(draft.rate ?? "").trim())), ...(bookName ? { bookName } : {}) };
+}
+
+/** A typed name in the books: trimmed, single spaces, at most 40 characters ("" = use the suggestion). */
+export function cleanBookName(name: unknown): string {
+  return String(name ?? "").replace(/\s+/g, " ").trim().slice(0, TAX_BOOK_NAME_MAX);
 }

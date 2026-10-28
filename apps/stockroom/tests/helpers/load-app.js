@@ -132,8 +132,10 @@ const settle = async (rounds = 5) => {
  *                                holds when the app starts
  * @param {object}  [opts.user]   sign in as this account instead of the
  *                                publisher ({ email, uid, emailVerified })
+ * @param {boolean} [opts.signedOut] start with nobody signed in: the app's
+ *                                startup runs with no account and no book loads
  */
-export async function loadApp({ books = [makeBook()], states: initialStates = {}, quiet = true, overrides = {}, storage = {}, user = null } = {}) {
+export async function loadApp({ books = [makeBook()], states: initialStates = {}, quiet = true, overrides = {}, storage = {}, user = null, signedOut = false } = {}) {
   // The app narrates freely to the console (failed FX lookups with no network,
   // retries, …). That's expected under test and buries a real failure, so by
   // default it is captured into `app.logs` instead of printed.
@@ -187,10 +189,13 @@ export async function loadApp({ books = [makeBook()], states: initialStates = {}
   Object.assign(window, overrides);
 
   // Sign in as the publisher: runs the real startup path against the fakes.
-  await (user ? signInAs(user) : signInAsPublisher());
-  await vi.waitFor(() => {
-    for (const b of books) if (!main.states[b.id]) throw new Error(`book ${b.id} not loaded yet`);
-  }, { timeout: 10000, interval: 10 });
+  if (signedOut) await signInAs(null);
+  else {
+    await (user ? signInAs(user) : signInAsPublisher());
+    await vi.waitFor(() => {
+      for (const b of books) if (!main.states[b.id]) throw new Error(`book ${b.id} not loaded yet`);
+    }, { timeout: 10000, interval: 10 });
+  }
   await settle(10);
   // Boot writes nothing a suite should have to account for.
   cloud.saves.length = 0;

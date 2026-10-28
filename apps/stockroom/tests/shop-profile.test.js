@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import vm from 'vm';
 import served from '../public/shop-profile.js?raw';
 import databaseRules from '../database.rules.json?raw';
-import { DATA_ROOT, DEFAULT_SHOP_PROFILE, parseShopProfile, readShopProfile, stockroomBucketUrl, stockroomDatabaseId } from '../src/lib/shop-profile.js';
+import { DATA_ROOT, DEFAULT_SHOP_PROFILE, fileStem, parseShopProfile, readShopProfile, stockroomBucketUrl, stockroomDatabaseId } from '../src/lib/shop-profile.js';
 
 const good = () => ({
   version: 1,
@@ -86,5 +86,25 @@ describe('shop profile', () => {
   it('the data folder is the one the database rules guard', () => {
     expect(DATA_ROOT).toBe('lyrical');
     expect(databaseRules).toMatch(new RegExp(`"rules":\\s*\\{\\s*"${DATA_ROOT}":`));
+  });
+});
+
+describe('download file names (plan 7.3)', () => {
+  it("start with the press's name from the profile, or Stockroom when it names none", () => {
+    expect(fileStem({}, { name: 'Moth Press' })).toBe('Moth_Press');
+    expect(fileStem({ lower: true }, { name: 'Moth Press' })).toBe('moth-press');
+    expect(fileStem({}, { name: 'Éditions du Lièvre & Co.' })).toBe('Editions_du_Lievre_Co');
+    expect(fileStem({}, { name: '鳥' })).toBe('Stockroom');
+    expect(fileStem({}, DEFAULT_SHOP_PROFILE)).toBe('Stockroom');
+    expect(fileStem({ lower: true }, DEFAULT_SHOP_PROFILE)).toBe('stockroom');
+    expect(fileStem({}, { name: 'A'.repeat(60) })).toHaveLength(40);
+  });
+
+  it('keeps the name only when it is short text', () => {
+    const base = { ...DEFAULT_SHOP_PROFILE };
+    expect(parseShopProfile({ ...base, name: 'Moth Press' }).name).toBe('Moth Press');
+    expect(parseShopProfile(base).name).toBeUndefined();
+    expect(parseShopProfile({ ...base, name: '' })).toBeNull();
+    expect(parseShopProfile({ ...base, name: 'x'.repeat(81) })).toBeNull();
   });
 });
