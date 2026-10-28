@@ -21,7 +21,8 @@ export const DAY_COLUMNS_BEFORE_TAX = Object.freeze(['Date', 'Sales before tax',
 export const DAY_COLUMNS_AFTER_TAX = Object.freeze(['Card fees', 'Net', 'Currency']);
 
 /** The names offered for a tax, the shop's list (TAX_BOOK_NAMES in taxBooks.ts). */
-export const TAX_BOOK_NAMES = Object.freeze(['GST', 'HST ON', 'HST NS', 'HST NB', 'HST NL', 'HST PE', 'PST BC', 'PST MB', 'PST SK', 'QST', 'Exempt', 'Sales tax']);
+// Manitoba's provincial tax is the retail sales tax (RST), as in the shop (plan 5.10).
+export const TAX_BOOK_NAMES = Object.freeze(['GST', 'HST ON', 'HST NS', 'HST NB', 'HST NL', 'HST PE', 'PST BC', 'PST SK', 'RST MB', 'QST', 'GST + PST BC', 'GST + PST SK', 'GST + RST MB', 'GST + QST', 'Exempt', 'Sales tax']);
 
 const CANADA = {
   AB: 'alberta', BC: 'british columbia', MB: 'manitoba', NB: 'new brunswick', NL: 'newfoundland and labrador',
@@ -29,7 +30,8 @@ const CANADA = {
   QC: 'quebec', SK: 'saskatchewan', YT: 'yukon',
 };
 const HST = new Set(['ON', 'NS', 'NB', 'NL', 'PE']);
-const PST = new Set(['BC', 'MB', 'SK']);
+/** The provincial sales tax's name in each province that has one apart from GST. */
+const PROVINCIAL = { BC: 'PST BC', SK: 'PST SK', MB: 'RST MB' };
 const clean = (v) => String(v ?? '').trim();
 
 function canadaCode(region) {
@@ -54,7 +56,7 @@ export function suggestedTaxBookName(rate) {
     if (percent === 5) return 'GST';
     if (HST.has(code)) return `HST ${code}`;
     if (code === 'QC') return percent === 9.975 ? 'QST' : 'GST + QST';
-    if (PST.has(code)) return percent <= 7 ? `PST ${code}` : `GST + PST ${code}`;
+    if (PROVINCIAL[code]) return percent <= 7 ? PROVINCIAL[code] : `GST + ${PROVINCIAL[code]}`;
     return code ? `Tax ${code}` : 'Sales tax';
   }
   const place = clean(rate.region) || clean(rate.country);

@@ -492,7 +492,11 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
   connected and can take cards) and none of the key, deployment or Hosting rows: Colophon deploys its shops.
 - Settings › Taxes › Start from a preset (`taxPresets.ts`): `applyTaxPreset` adds a rate only for a province with none
   (country and region compared without case), in the draft. Rates are as of October 2026 and the card says "Not tax
-  advice". Shipping presets are the new-profile starters (`shippingProfileStarters.ts`).
+  advice". Shipping presets are the new-profile starters (`shippingProfileStarters.ts`). Plan 5.10: four Canadian presets
+  (printed books, e-books, other goods, other goods with provincial sales tax). One rate per place covers the whole order, so
+  each is for one kind of goods and a provincial rate is GST plus PST/RST/QST in one (book names `GST + PST BC`,
+  `GST + PST SK`, `GST + RST MB`, `GST + QST` from `shared/taxBooks.ts`). How each tax treats printed books and e-books,
+  with the official sources, is in the header of `taxPresets.ts`. No US states.
 - Settings › General › Store policies › Start from our wording (`starterPolicies.ts`, plan 7.5): shown only under an
   empty policy; fills it with the shop name, Location address, contact email and the returns window book pages already
   give search engines (Text & labels › `seoReturnDays`, 0 = no returns after shipping). `withStarter` re-reads the draft
