@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { POLICY_KEYS, POLICY_TITLES, policySlug, type PolicyKey } from "../features/site/policyPages";
+import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
+import { STARTER_POLICY_NOTE, starterFacts, withStarter } from "./starterPolicies";
 import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
@@ -126,13 +127,6 @@ export function ShopSettings({
     </div>
   );
 }
-const POLICY_STARTERS: Record<PolicyKey, string> = {
-  shipping: "We process orders within 1–3 business days of payment. Carrier transit time is additional and shown at checkout for your destination and selected service.\n\nYou will receive an email with tracking once your order ships. Digital titles are available to download immediately after payment.",
-  returns: "Once an order has shipped it can't be returned. Until it ships, you can ask to cancel it from the order tracking page (the link is in your order confirmation email).\n\nIf your book arrives damaged or incorrect, contact us within 30 days of delivery and we will replace it or refund you.\n\nDigital downloads are non-refundable once accessed, unless the file is faulty.",
-  privacy: "We collect only what we need to fulfil your order and, if you opt in, send you our newsletter: your name, email, shipping address and order details.\n\nPayments are processed by Stripe; we never see or store your card number. We do not sell your personal information. You can ask us to delete your data at any time.",
-  terms: "By placing an order you agree that the details you provide are accurate and that you are authorised to use the payment method.\n\nPrices are shown in Canadian dollars unless stated otherwise. We may cancel and refund an order if a title is unavailable or a pricing error occurred.",
-};
-
 // SaveBar names the cards that have unsaved edits, not the settings keys behind them.
 export const GENERAL_SECTION_TITLES: Record<string, string> = {
   maintenance: "Store status", stockHolds: "Checkout stock holds", info: "Store identity", domain: "Domain & visibility", location: "Location", policies: "Store policies",
@@ -275,12 +269,16 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                       hint={text.trim() ? `Live at /page/${policySlug(k)}` : "Hidden until it has text."}
                       onChange={(e) => set("policies", { [k]: e.target.value })} />
                     {!text.trim() && (
-                      <SecondaryButton size="sm" onClick={() => set("policies", { [k]: POLICY_STARTERS[k] })}>Insert starter text</SecondaryButton>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>
+                        {/* Reads the latest saved policy again so a click can never replace words typed meanwhile. */}
+                        <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev)) } }))}>Start from our wording</SecondaryButton>
+                        <span className="rp-hint">Filled with your shop name, address and returns window. {STARTER_POLICY_NOTE}</span>
+                      </div>
                     )}
                   </div>
                 );
               })}
-              <p className="rp-hint" style={{ margin: 0 }}>Starter text is a sketch, not legal advice.</p>
+              <p className="rp-hint" style={{ margin: 0 }}>Our wording is {STARTER_POLICY_NOTE.toLowerCase()} Read it through and change anything that isn't true for your shop before you save.</p>
             </div>
           </SectionCard>
         </SettingsAnchor>

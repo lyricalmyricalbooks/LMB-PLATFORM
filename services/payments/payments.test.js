@@ -29,11 +29,25 @@ const ENV = {
 function shopRow(fields = {}) {
   return {
     shopId: SHOP, projectId: SHOP, pressName: "Moth Press", ownerEmail: "owner@example.com", region: "northamerica-northeast1",
-    status: "live", serviceKeyHash: hashServiceKey(KEY), payments: { provider: "stripe", accountId: "acct_moth", mode: "live" }, ...fields,
+    status: "live", serviceKeyHash: hashServiceKey(KEY), payments: { provider: "stripe", accountId: "acct_moth", mode: "live", chargesEnabled: true }, ...fields,
   };
 }
 
-async function world({ env = {}, row = shopRow(), deliverStatus = 200 } = {}) {
+// The email service's platform door: one email per idempotency key, like the real one's sent log.
+function fakeEmail({ fail = false } = {}) {
+  const sent = new Map();
+  return {
+    sent,
+    fail,
+    async sendPlatform(message) {
+      if (this.fail) throw new Error("Resend is down");
+      if (!sent.has(message.idempotencyKey)) sent.set(message.idempotencyKey, message);
+      return { id: "email_1" };
+    },
+  };
+}
+
+async function world({ env = {}, row = shopRow(), deliverStatus = 200, email = null } = {}) {
   const stripe = fakeStripeFetch();
   const registry = fakeRegistry();
   if (row) await registry.createShop(row.shopId, row);
@@ -41,7 +55,7 @@ async function world({ env = {}, row = shopRow(), deliverStatus = 200 } = {}) {
   const accounts = fakeAccounts();
   const { deliver, delivered } = fakeDeliver(deliverStatus);
   const config = readServiceConfig({ ...ENV, ...env });
-  const service = createPaymentService({ stripe: createStripeApi({ fetch: stripe.fetch, keys: config.keys }), registry, auditLog, accounts, deliver, config, now: () => NOW });
+  const service = createPaymentService({ stripe: createStripeApi({ fetch: stripe.fetch, keys: config.keys }), registry, auditLog, accounts, deliver, config, email, now: () => NOW });
   const call = (op, args = {}, mode = "live", headers = { "X-Shop-Id": SHOP, Authorization: `Bearer ${KEY}` }) => service.shopCall({ headers, body: { op, mode, args } });
   return { stripe, registry, auditLog, accounts, delivered, service, call };
 }
@@ -132,12 +146,34 @@ test("only a shop with its own service key gets in, with one answer for every re
 });
 
 test("a closed shop, one without a Stripe account, or a Square shop without the platform's Square app, is refused before Stripe is asked", async () => {
-  for (const [row, status, code] of [[shopRow({ status: "abandoned" }), 403, "shop_closed"], [shopRow({ payments: undefined }), 409, "no_account"], [shopRow({ payments: { provider: "square", accountId: "L1" } }), 503, "square_not_ready"]]) {
+  const closure = { by: "admin@example.com", reason: "sold stolen cards", at: "2026-10-28T12:00:00Z" };
+  for (const [row, status, code] of [[shopRow({ status: "abandoned" }), 403, "shop_closed"], [shopRow({ closure }), 403, "shop_closed"], [shopRow({ payments: undefined }), 409, "no_account"], [shopRow({ payments: { provider: "square", accountId: "L1" } }), 503, "square_not_ready"]]) {
     const { call, stripe } = await world({ row });
     const answer = await call("paymentIntents.create", intentArgs());
     assert.deepEqual([answer.status, answer.body.error.code], [status, code]);
     assert.equal(stripe.requests.length, 0);
   }
+});
+
+test("a new press takes no real money until Stripe has checked them; test payments and lookups still work", async () => {
+  const fresh = { provider: "stripe", accountId: "acct_moth", mode: "live" };
+  const { call, stripe, registry } = await world({ row: shopRow({ payments: fresh }) });
+  stripe.world.accounts.set("acct_moth", { id: "acct_moth", charges_enabled: false, payouts_enabled: false, details_submitted: true });
+  for (const op of ["paymentIntents.create", "checkout.sessions.create"]) {
+    const answer = await call(op, op === "paymentIntents.create" ? intentArgs() : { params: { mode: "payment" }, idempotencyKey: "order1-session" });
+    assert.deepEqual([answer.status, answer.body.error.code], [403, "not_checked"], op);
+  }
+  assert.ok(!stripe.requests.some((r) => r.method === "POST"), "nothing was created at Stripe");
+  assert.equal((await call("paymentIntents.create", intentArgs(), "test")).status, 200, "a test payment needs no check");
+
+  // Stripe says yes (here without the account.updated event ever arriving): the next payment goes through, and the
+  // answer is kept so Stripe isn't asked again.
+  stripe.world.accounts.get("acct_moth").charges_enabled = true;
+  assert.equal((await call("paymentIntents.create", intentArgs())).status, 200);
+  assert.equal((await registry.getShop(SHOP)).payments.chargesEnabled, true);
+  const asked = stripe.requests.filter((r) => r.method === "GET").length;
+  assert.equal((await call("paymentIntents.create", intentArgs({ metadata: { order_id: "order2" } }))).status, 200);
+  assert.equal(stripe.requests.filter((r) => r.method === "GET").length, asked);
 });
 
 // ── Shop calls: checkout ──────────────────────────────────────────────────────────────────────────────────────────
@@ -252,7 +288,30 @@ test("account status tells the press what Stripe still needs, and the platform f
   const { call, stripe } = await world({ env: { PLATFORM_FEE_BASIS_POINTS: "150" } });
   stripe.world.accounts.set("acct_moth", { id: "acct_moth", charges_enabled: true, payouts_enabled: false, details_submitted: true, requirements: { currently_due: ["external_account"] } });
   const answer = await call("account.status");
-  assert.deepEqual(answer.body, { accountId: "acct_moth", mode: "live", chargesEnabled: true, payoutsEnabled: false, detailsSubmitted: true, requirementsDue: 1, platformFee: { percent: 1.5, refundedWithRefunds: true } });
+  assert.deepEqual(answer.body, {
+    accountId: "acct_moth", mode: "live", chargesEnabled: true, payoutsEnabled: false, detailsSubmitted: true, requirementsDue: 1, platformFee: { percent: 1.5, refundedWithRefunds: true },
+    needs: [{ words: "your bank details", pastDue: false }], deadline: null, pastDue: false, disabledReason: null,
+  });
+});
+
+test("what Stripe needs is told in plain words, past due first, each once, with the deadline", async () => {
+  const { call, stripe } = await world();
+  const deadline = Math.floor(Date.parse("2026-11-12T17:00:00Z") / 1000);
+  stripe.world.accounts.set("acct_moth", {
+    id: "acct_moth", charges_enabled: true, payouts_enabled: false, details_submitted: true,
+    requirements: { currently_due: ["individual.dob.day", "individual.dob.month", "external_account", "person_1AbC.verification.document", "company.verification.document", "something.new"], past_due: ["external_account"], current_deadline: deadline, disabled_reason: "requirements.past_due" },
+  });
+  const { body } = await call("account.status");
+  assert.deepEqual(body.needs, [
+    { words: "your bank details", pastDue: true },
+    { words: "your date of birth", pastDue: false },
+    { words: "a photo of your ID", pastDue: false },
+    { words: "a document showing your business is registered", pastDue: false },
+    { words: "a few more details", pastDue: false },
+  ]);
+  assert.equal(body.deadline, "2026-11-12T17:00:00.000Z");
+  assert.equal(body.pastDue, true);
+  assert.equal(body.disabledReason, "requirements.past_due");
 });
 
 test("Stripe's sign-up link only sends the press back to the shop's own addresses", async () => {
@@ -265,13 +324,40 @@ test("Stripe's sign-up link only sends the press back to the shop's own addresse
   }
 });
 
+test("a shop reads its payments' fees and what each payout paid in, on its own account only (7.10)", async () => {
+  const { call, stripe } = await world();
+  stripe.world.balanceTransactions.push(
+    { account: "acct_moth", payout: "po_1", id: "txn_1", type: "charge", fee: 146, net: 3854 },
+    { account: "acct_moth", payout: "po_1", id: "txn_2", type: "refund", fee: 0, net: -1000 },
+    { account: "acct_other", payout: "po_1", id: "txn_3", type: "charge", fee: 1, net: 1 },
+  );
+  const first = await call("balanceTransactions.list", { params: { payout: "po_1", limit: 1, expand: ["data.source"] } });
+  assert.equal(first.status, 200);
+  assert.deepEqual(first.body.data.map((t) => t.id), ["txn_1"]);
+  assert.equal(first.body.has_more, true);
+  const next = await call("balanceTransactions.list", { params: { payout: "po_1", limit: 100, starting_after: "txn_1" } });
+  assert.deepEqual(next.body.data.map((t) => t.id), ["txn_2"], "another account's transactions never show");
+  const sent = stripe.requests.find((r) => r.path === "/v1/balance_transactions");
+  assert.equal(sent.headers["Stripe-Account"], "acct_moth");
+  assert.deepEqual(sent.params["expand[]"], ["data.source"]);
+  for (const params of [{}, { payout: "acct_x" }, { payout: "po_1", type: "charge" }, { payout: "po_1", expand: ["data.source.customer"] }, { payout: "po_1", starting_after: "ch_1" }, { payout: "po_1", limit: 1000 }]) {
+    assert.equal((await call("balanceTransactions.list", { params })).status, 400, JSON.stringify(params));
+  }
+  // A charge's and refunds' balance transactions come with the lookups that already exist.
+  assert.equal((await call("paymentIntents.retrieve", { id: "pi_x", params: { expand: ["latest_charge.balance_transaction"] } })).status, 404, "allowed, and Stripe answers");
+  assert.equal((await call("refunds.list", { params: { payment_intent: "pi_x", limit: 100, expand: ["data.balance_transaction"] } })).status, 200);
+  assert.equal((await call("refunds.list", { params: { payment_intent: "pi_x", expand: ["data.charge"] } })).status, 400);
+  assert.equal((await call("disputes.list", { params: { payment_intent: "pi_x", expand: ["data.balance_transaction"] } })).status, 400);
+});
+
 test("every call a shop can make is listed", () => {
   assert.deepEqual([...SHOP_OP_NAMES].sort(), [
-    "account.onboardingLink", "account.paymentDomain", "account.status", "checkout.sessions.create", "checkout.sessions.expire", "checkout.sessions.retrieve", "disputes.list",
+    "account.onboardingLink", "account.paymentDomain", "account.status", "balanceTransactions.list", "checkout.sessions.create", "checkout.sessions.expire", "checkout.sessions.retrieve", "disputes.list",
     "events.retrieve", "paymentIntents.cancel", "paymentIntents.create", "paymentIntents.retrieve", "refunds.create", "refunds.list",
     // Square shops (square.js, plan 2.2b)
     "account.connectLink", "square.checkout.create", "square.checkout.delete", "square.checkout.retrieve", "square.disputes.forPayment",
     "square.payments.cancel", "square.payments.retrieve", "square.refunds.create", "square.refunds.forPayment", "square.refunds.retrieve",
+    "square.payouts.entries", "square.payouts.retrieve",
   ].sort());
 });
 
@@ -331,9 +417,61 @@ test("the account's state is kept in the registry and logged once, in the regist
   await service.stripeEvent(signed(event).headers, signed(event).raw);
   await service.stripeEvent(signed({ ...event, id: "evt_5" }).headers, signed({ ...event, id: "evt_5" }).raw);
   const payments = (await registry.getShop(SHOP)).payments;
-  assert.deepEqual({ ...payments, stateAt: undefined }, { provider: "stripe", accountId: "acct_moth", mode: "live", chargesEnabled: true, payoutsEnabled: true, detailsSubmitted: true, stateAt: undefined });
+  assert.deepEqual({ ...payments, stateAt: undefined }, { provider: "stripe", accountId: "acct_moth", mode: "live", chargesEnabled: true, payoutsEnabled: true, detailsSubmitted: true, pastDue: false, stateAt: undefined });
   assert.deepEqual([...registry.events.get(SHOP).keys()], ["payments-account-evt_4"], "an unchanged state is not logged again");
   assert.equal(auditLog.entries.get(SHOP).get("payments-account-evt_4").kind, "payments.account-updated");
+});
+
+test("a requirement past its deadline emails the owner once, with the admin's address, never Stripe's link", async () => {
+  const email = fakeEmail();
+  const { service, registry, auditLog } = await world({ email, row: shopRow({ siteUrl: "https://shop.mothpress.example/" }) });
+  const account = (requirements, extra = {}) => ({ id: "acct_moth", charges_enabled: true, payouts_enabled: false, details_submitted: true, requirements, ...extra });
+  const send = (id, object) => {
+    const event = { id, livemode: true, account: "acct_moth", type: "account.updated", data: { object } };
+    return service.stripeEvent(signed(event).headers, signed(event).raw);
+  };
+
+  // Due, not yet past due: nothing is sent.
+  assert.equal((await send("evt_d1", account({ currently_due: ["external_account"], past_due: [] }))).status, 200);
+  assert.equal(email.sent.size, 0);
+  assert.equal((await registry.getShop(SHOP)).payments.pastDue, false);
+
+  // Past due: one email; the same state again (a new event, or Stripe resending this one) sends nothing more.
+  const pastDue = account({ currently_due: ["external_account"], past_due: ["external_account"] });
+  assert.equal((await send("evt_d2", pastDue)).status, 200);
+  assert.equal((await send("evt_d3", pastDue)).status, 200);
+  assert.equal((await send("evt_d2", pastDue)).status, 200);
+  assert.equal(email.sent.size, 1);
+  const [message] = email.sent.values();
+  assert.equal(message.kind, "payments-past-due");
+  assert.equal(message.to, "owner@example.com");
+  assert.deepEqual(message.data, { pressName: "Moth Press", provider: "Stripe", needs: ["your bank details"], link: "https://shop.mothpress.example/admin#settings/payments/methods" });
+  const payments = (await registry.getShop(SHOP)).payments;
+  assert.equal(payments.pastDue, true);
+  assert.equal(payments.pastDueSince, new Date(NOW).toISOString());
+  assert.equal(payments.pastDueEmailedAt, new Date(NOW).toISOString());
+  assert.equal(auditLog.entries.get(SHOP).get(`payments-past-due-emailed-acct_moth-${payments.pastDueSince}`).kind, "payments.past-due-emailed");
+
+  // Done: the flags go, so a later past-due requirement emails again.
+  await send("evt_d4", account({ currently_due: [], past_due: [] }, { payouts_enabled: true }));
+  const done = (await registry.getShop(SHOP)).payments;
+  assert.equal(done.pastDue, false);
+  assert.equal(done.pastDueSince, undefined);
+  assert.equal(done.pastDueEmailedAt, undefined);
+  assert.equal(done.payoutsEnabled, true);
+});
+
+test("when the past-due email can't be sent, Stripe is told to send the event again, and the retry sends it", async () => {
+  const email = fakeEmail({ fail: true });
+  const { service, registry, delivered } = await world({ email });
+  const event = { id: "evt_p1", livemode: true, account: "acct_moth", type: "account.updated", data: { object: { id: "acct_moth", charges_enabled: false, payouts_enabled: false, details_submitted: true, requirements: { past_due: ["tos_acceptance.date"] } } } };
+  assert.equal((await service.stripeEvent(signed(event).headers, signed(event).raw)).status, 502);
+  assert.equal(delivered.length, 0);
+  assert.equal((await registry.getShop(SHOP)).payments.pastDueEmailedAt, undefined);
+  email.fail = false;
+  assert.equal((await service.stripeEvent(signed(event).headers, signed(event).raw)).status, 200);
+  assert.deepEqual([...email.sent.values()].map((m) => m.data.needs), [["your agreement to Stripe's terms"]]);
+  assert.ok((await registry.getShop(SHOP)).payments.pastDueEmailedAt);
 });
 
 test("a press disconnecting their Stripe account is recorded", async () => {
@@ -363,7 +501,18 @@ test("setup's step 13 makes one Standard account through the service, saved with
   assert.deepEqual(payments, { provider: "stripe", accountId: "acct_fake1", mode: "live" });
   assert.deepEqual((await registry.getProfile(SHOP)).payments, { provider: "stripe", mode: "platform", stripe: { accountId: "acct_fake1", publishableKey: "pk_live_platformExample" } });
   const create = stripe.requests.find((r) => r.path === "/v1/accounts");
-  assert.equal(create.params.type, "standard");
+  // Standard's behaviour, written as Stripe's controller settings, not the deprecated account type.
+  assert.equal(create.params.type, undefined);
+  assert.equal(create.params["controller[losses][payments]"], "stripe");
+  assert.equal(create.params["controller[fees][payer]"], "account");
+  assert.equal(create.params["controller[requirement_collection]"], "stripe");
+  assert.equal(create.params["controller[stripe_dashboard][type]"], "full");
+  // Filled in so Stripe asks the press less.
+  assert.equal(create.params.country, "CA");
+  assert.equal(create.params["business_profile[url]"], `https://${SHOP}.web.app`);
+  assert.equal(create.params["business_profile[mcc]"], "5942");
+  assert.equal(create.params["business_profile[product_description]"], "Books and printed matter");
+  assert.equal(create.params["business_profile[name]"], "Moth Press");
   assert.equal(create.params.default_currency, "cad");
   assert.equal(create.params["metadata[lmb_shop_id]"], SHOP);
   assert.equal(create.headers["Idempotency-Key"], `lmb-account-${SHOP}-live`);

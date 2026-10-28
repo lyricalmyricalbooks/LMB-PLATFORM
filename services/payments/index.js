@@ -16,8 +16,9 @@ export { feeFor, feeForShop, readFeeSettings } from "./fees.js";
  *   record of the accounts it made (service.js has the shapes)
  * @param {object} [deps.squareTokens] the presses' sealed Square tokens; deps.squareStates Connect Square's one-use states
  *   (square.js has the shapes; both platform-project collections in the real service)
+ * @param {object} [deps.email] the email service (services/email), for the owner's one past-due email (7.9)
  */
-export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts, squareTokens = null, squareStates = null, now }) {
+export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts, squareTokens = null, squareStates = null, email = null, now }) {
   const config = readServiceConfig(env);
   const squareReady = Boolean((config.square.apps.live || config.square.apps.test) && squareTokens && squareStates);
   return createPaymentService({
@@ -28,6 +29,7 @@ export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts
     accounts,
     deliver: httpDeliver(fetch),
     config,
+    email,
     now,
   });
 }
