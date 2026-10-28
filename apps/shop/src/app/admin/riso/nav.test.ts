@@ -54,7 +54,7 @@ describe("the five-item admin menu (plan 1.27)", () => {
     const hidden = withoutPages(items, new Set([SETTINGS_ITEM_PREFIX + "bookkeeping"]));
     const settings = hidden.find((i) => i.label === "Settings")!;
     expect(settings.children?.map((c) => c.id)).not.toContain(SETTINGS_ITEM_PREFIX + "bookkeeping");
-    expect(settings.children).toHaveLength(6);
+    expect(settings.children).toHaveLength(7);
     expect(withoutPages(items, new Set())).toBe(items);
   });
 
