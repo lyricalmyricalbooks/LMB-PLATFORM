@@ -34,11 +34,14 @@
 //              Square shops are refused
 //   email      sendPlatform(message) (services/email); optional: emails the owner once when a requirement on their
 //              Stripe account goes past its deadline (code plan 7.9)
+//   feeLedger  the pay-as-you-sell ledger store (payAsYouSell.js, code plan 6.19); optional: without it a shop on pay
+//              as you sell takes no fee (and it is logged), never the wrong one
 import { StripeApiError } from "./stripeApi.js";
 import { SquareApiError } from "./squareApi.js";
 import { createSquareService, SQUARE_OP_NAMES } from "./square.js";
 import { verifySignature } from "./stripeSignature.js";
 import { feeFor, feeForShop, feeSummary, takesFee } from "./fees.js";
+import { activeTerms, createFeeLedger, intentBooksMinor, sessionBooksMinor } from "./payAsYouSell.js";
 import { accountNeeds } from "./requirements.js";
 import { serviceKeyMatches } from "../email/http.js";
 
@@ -229,9 +232,34 @@ const header = (headers, name) => {
  * @param {object} deps see the header comment
  * @param {{ webhookSecrets: { live: string[], test: string[] }, fee: object }} deps.config readServiceConfig()
  */
-export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, email = null, now = () => Date.now() }) {
+export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, email = null, feeLedger = null, now = () => Date.now() }) {
   const { webhookSecrets } = config;
   const iso = () => new Date(now()).toISOString();
+  const ledger = feeLedger ? createFeeLedger({ store: feeLedger, now }) : null;
+
+  // Pay as you sell (6.19): the terms in force for this shop now, or null when it pays monthly.
+  function termsFor(row) {
+    try { return activeTerms(row, now()); } catch (err) { throw new ServiceError(500, "fee_setting", `The shop's pay-as-you-sell setting is wrong: ${err.message}`); }
+  }
+
+  // The fee on one checkout under pay as you sell: a share of its books, within what is left of the month's cap.
+  // Answers { feeMinor, ref } (ref: the ledger entry to link the provider's ids to), or { feeMinor: 0 } when nothing
+  // can be counted safely.
+  async function payAsYouSellFee(row, terms, { key, booksMinor, currency }) {
+    if (!ledger) {
+      console.error(`${row.shopId} is on pay as you sell but the service has no fee ledger: no fee taken`);
+      return { feeMinor: 0, ref: null };
+    }
+    if (booksMinor === null) {
+      console.warn(`${row.shopId}: a checkout without a known book total takes no pay-as-you-sell fee`);
+      return { feeMinor: 0, ref: null };
+    }
+    if (String(currency ?? "").toUpperCase() !== terms.currency) {
+      console.warn(`${row.shopId}: a checkout in ${String(currency).slice(0, 3)} takes no pay-as-you-sell fee (the cap is in ${terms.currency})`);
+      return { feeMinor: 0, ref: null };
+    }
+    return ledger.hold(row.shopId, terms, { key, booksMinor });
+  }
 
   // Every change the service makes is written down twice: the registry's history for the shop, and the shop's own
   // audit log. Stable ids, so writing the same change twice keeps one entry.
@@ -269,7 +297,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
   }
 
   const square = squareApi
-    ? createSquareService({ square: squareApi, registry, tokens, states, deliver, config, logChange, shopHosts, now, refuse: (status, code, message) => new ServiceError(status, code, message) })
+    ? createSquareService({ square: squareApi, registry, tokens, states, deliver, config, logChange, shopHosts, now, refuse: (status, code, message) => new ServiceError(status, code, message), payAsYouSell: { termsFor, fee: payAsYouSellFee, ledger } })
     : null;
 
   // The shop a call comes from: its service key must match the registry, and it must have a Stripe account there (or
@@ -408,17 +436,65 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     const mode = modeFor(row, body.mode);
     if (op.create && mode === "live") await liveChargesAllowed(row);
     const path = op.path(args);
-    let params;
-    if (op.create) params = createParams(op.create, args.params, fee);
-    else if (op.refund) params = refundParams(args.params, fee);
-    else params = op.params(args.params);
     let idempotencyKey = null;
     if (op.create || op.refund) {
       if (typeof args.idempotencyKey !== "string" || !args.idempotencyKey || args.idempotencyKey.length > 200) throw bad("an idempotency key is needed");
       // Scoped to the shop, so two shops' keys can never meet.
       idempotencyKey = `${row.shopId}/${args.idempotencyKey}`;
     }
-    return stripe.call(mode, op.method, path, { params, account: row.payments.accountId, idempotencyKey });
+    // Pay as you sell replaces the shop's usual fee, and always gives the fee back with a refund.
+    const terms = op.create || op.refund ? termsFor(row) : null;
+    let params;
+    let held = null;
+    if (op.create && terms) {
+      createParams(op.create, args.params, { basisPoints: 0 });
+      const top = op.create === "top";
+      held = await payAsYouSellFee(row, terms, {
+        key: idempotencyKey,
+        booksMinor: top ? intentBooksMinor(args.params) : sessionBooksMinor(args.params),
+        currency: top ? args.params.currency : args.params.line_items?.[0]?.price_data?.currency,
+      });
+      params = withFee(op.create, args.params, held.feeMinor);
+    } else if (op.create) params = createParams(op.create, args.params, fee);
+    else if (op.refund) params = refundParams(args.params, terms ? { ...fee, refunded: true } : fee);
+    else params = op.params(args.params);
+    const answer = await stripe.call(mode, op.method, path, { params, account: row.payments.accountId, idempotencyKey });
+    if (held?.ref && held.feeMinor > 0) await ledger.link(row.shopId, [answer?.id, answer?.payment_intent], held.ref);
+    return answer;
+  }
+
+  // Pay as you sell: the parameters with the fee the ledger worked out (none when it is 0).
+  function withFee(where, params, applicationFee) {
+    if (!applicationFee) return params;
+    if (where === "top") return { ...params, application_fee_amount: applicationFee };
+    return { ...params, payment_intent_data: { ...(params.payment_intent_data ?? {}), application_fee_amount: applicationFee } };
+  }
+
+  // Pay as you sell: a connected account's event that pays, ends or refunds a checkout with a fee (6.19). Every step
+  // sets a state rather than adding to one, so the same event twice changes nothing.
+  async function ledgerEvent(row, event) {
+    if (!ledger) return;
+    const object = event.data?.object ?? {};
+    const shopId = row.shopId;
+    switch (event.type) {
+      case "payment_intent.succeeded":
+        await ledger.paid(shopId, object.id, { feeMinor: Number.isInteger(object.application_fee_amount) ? object.application_fee_amount : undefined });
+        return;
+      case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded":
+        if (object.payment_status === "paid") await ledger.paid(shopId, object.id, { alsoIds: [typeof object.payment_intent === "string" ? object.payment_intent : object.payment_intent?.id] });
+        return;
+      case "checkout.session.expired":
+      case "payment_intent.canceled":
+        await ledger.released(shopId, object.id);
+        return;
+      case "charge.refunded": {
+        const intent = typeof object.payment_intent === "string" ? object.payment_intent : object.payment_intent?.id;
+        await ledger.refunded(shopId, intent, { sourceId: object.id, refundedMinor: object.amount_refunded, totalMinor: object.amount });
+        return;
+      }
+      default:
+    }
   }
 
   return {
@@ -478,6 +554,15 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       if (event.type === "account.application.deauthorized" && mode === row.payments.mode && !row.payments.disconnectedAt) {
         await registry.updateShop(row.shopId, { payments: { ...row.payments, disconnectedAt: iso() } });
         await logChange(row.shopId, `payments-disconnected-${event.id}`, { kind: "payments.disconnected", accountId: event.account });
+      }
+
+      if (mode === row.payments.mode) {
+        try {
+          await ledgerEvent(row, event);
+        } catch (err) {
+          console.error(`Stripe event ${event.id} for ${row.shopId} wasn't counted for pay as you sell: ${err?.message || err}`);
+          return { status: 500, body: { error: "The event couldn't be counted; Stripe will send it again." } };
+        }
       }
 
       const result = await deliver(row, rawBody);

@@ -6,7 +6,7 @@ import { sitemapArtifacts } from './sitemapData.mjs';
 import { readPublicStorefront, publishedFingerprint, effectivePublishedSettings } from './publicStorefrontData.mjs';
 import { llmsTxt } from './llmsTxt.mjs';
 import { shopSiteUrl } from './shopProfile.mjs';
-import { FEED_FILE, merchantFeedItems, merchantFeedXml } from '../src/app/features/site/merchantFeed.mjs';
+import { FEED_FILE, feedShopName, merchantFeedItems, merchantFeedXml } from '../src/app/features/site/merchantFeed.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const siteUrl = await shopSiteUrl();
 const { books, pages, settings, reviews } = await readPublicStorefront();
@@ -21,8 +21,8 @@ for (const directory of ['dist', 'public']) {
 writeFileSync(resolve(root, 'dist/prerender-routes.xml'), rendered.xml);
 writeFileSync(resolve(root, 'dist/seo-published-fingerprint.txt'), publishedFingerprint({ books, pages, settings, reviews }) + '\n');
 // Google Merchant Center fetches this file (Books › Google Shopping feed shows its address).
-const design = effectivePublishedSettings(settings).design || {};
-const shopName = (typeof design.copy?.siteName === 'string' && design.copy.siteName.trim()) || (typeof design.siteName === 'string' && design.siteName.trim()) || 'Your Press';
+// The press's own name (Text & labels › Site name, plan 5.8), never the placeholder for a named shop.
+const shopName = feedShopName(effectivePublishedSettings(settings));
 const feed = merchantFeedItems(siteUrl, books, { shopName });
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist', FEED_FILE), merchantFeedXml(siteUrl, feed.items, { shopName }));

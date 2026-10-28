@@ -55,6 +55,18 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** Sign-up's daily cap (signup/signup.js admitFromLine, plan 6.13): the press waited in line and its shop is starting. */
+  "shop-starting": ({ pressName, link }, { settings }) => layout({
+    subject: `Your shop is starting on ${settings.platformName}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Thanks for waiting. We've started making ${pressName || "your shop"}, and your free trial starts today. No card needed.`,
+      "It takes a few minutes. We'll email you the way in as soon as it's ready.",
+    ],
+    buttons: [["See how it's going", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The control room's waitlist invite (plan 9.5): the person may start their shop now, past the daily line. */
   "waitlist-invite": ({ link }, { settings }) => layout({
     subject: `Your ${settings.platformName} shop is ready to start`,

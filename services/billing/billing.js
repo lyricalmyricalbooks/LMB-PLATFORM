@@ -38,6 +38,7 @@
 //                   registry row's `closedApps` is written either way and is what the shop maker reads.
 import { verifySignature } from "../payments/stripeSignature.js";
 import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
+import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 
 /** What each Stripe subscription status means for the shop: open, paused (a card fixes it) or closed. */
 export const ACCESS = Object.freeze({
@@ -129,6 +130,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   async function save(shopId, fields, what) {
     const before = (await subscriptions.get(shopId)) ?? {};
     const row = { ...before, ...fields, shopId, updatedAt: at() };
+    // A press paying as they sell (6.19, paymentWay.js) has no subscription running, and the shop stays open.
+    row.access = payAsYouSellAccess(row, now(), row.access) ?? row.access;
     await subscriptions.set(shopId, row);
     if (await registry.getShop(shopId)) {
       const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
@@ -405,6 +408,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         hasCard: row.hasCard, card: row.hasCard && row.card ? { brand: row.card.brand, last4: row.card.last4, expMonth: row.card.expMonth, expYear: row.card.expYear, words: cardWords(row.card) } : null,
         appsClosing: row.appsClosing ?? null, closedApps: row.closedApps ?? {},
         plans: PLAN_IDS.map((id) => { const p = planPrice(id, settings); return { plan: id, name: p.name, price: p.priceText, apps: APPS.filter((app) => PLAN_APPS[id][app]) }; }),
+        paymentWay: currentPaymentWay(row, now()),
       };
     },
 
@@ -483,6 +487,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const known = shopId ? await subscriptions.get(shopId) : null;
         if (!known || known.subscriptionId !== object.id) return "not ours";
         const saved = await sync(shopId, object, event.type.replace("customer.subscription.", "stripe-"));
+        // Paying as they sell: the subscription ending is the switch itself, and no card is asked for.
+        if (saved.paymentWay === "payAsYouSell") return saved.status;
         if (event.type === "customer.subscription.trial_will_end") {
           await notify(shopId, "trial-ending", { date: dateText(saved.trialEnd), hasCard: saved.hasCard }, event.id);
         } else if (event.type === "customer.subscription.paused") {

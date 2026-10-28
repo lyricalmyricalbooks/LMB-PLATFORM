@@ -7,6 +7,23 @@
 import { resolveProductRoutes } from './productRouteData.mjs';
 
 export const FEED_FILE = 'google-merchant-feed.xml';
+
+// What a shop is called before its owner names it. src/shared/shopIdentity.ts DEFAULT_SHOP_NAME; this plain build
+// script can't import TypeScript, so merchantFeed.test.ts checks the two agree.
+export const UNNAMED_SHOP = 'Your Press';
+const ownName = (value) => {
+  const name = typeof value === 'string' ? value.trim() : '';
+  return name && name !== UNNAMED_SHOP ? name : '';
+};
+
+/**
+ * The press's name for the feed and llms.txt (plan 5.8), same order as the server's pressName: Text & labels ›
+ * Site name in the published design, else Settings › General › Store name; the placeholder only for an unnamed shop.
+ */
+export function feedShopName(settings) {
+  const design = settings?.design || {};
+  return ownName(design.copy?.siteName) || ownName(design.siteName) || ownName(settings?.info?.name) || UNNAMED_SHOP;
+}
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 export const shopDate = (now = new Date()) =>
@@ -124,7 +141,7 @@ const money = n => `${n.toFixed(2)} CAD`;
  * The feed's items, plus the published books left out and why (shown in the admin panel).
  * `books` = the whole catalog; only books shoppers can buy today are listed.
  */
-export function merchantFeedItems(siteUrl, books, { shopName = 'Your Press', now = new Date() } = {}) {
+export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now = new Date() } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const byId = new Map(books.map(b => [b.id, b]));
   const live = books.filter(b => isLive(b, now));
@@ -193,7 +210,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = 'Your Press', now
 const xml = value => String(value).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '')
   .replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]);
 
-export function merchantFeedXml(siteUrl, items, { shopName = 'Your Press' } = {}) {
+export function merchantFeedXml(siteUrl, items, { shopName = UNNAMED_SHOP } = {}) {
   const tag = (name, value) => (value === '' || value === undefined || value === null ? '' : `\n      <${name}>${xml(value)}</${name}>`);
   const body = items.map(item => '    <item>'
     + tag('g:id', item.id) + tag('g:item_group_id', item.groupId) + tag('title', item.title) + tag('description', item.description)

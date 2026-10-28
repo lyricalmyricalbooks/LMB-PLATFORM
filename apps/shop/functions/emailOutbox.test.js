@@ -296,6 +296,22 @@ describe("admin actions (Settings › Notifications)", () => {
   });
 });
 
+describe("{{shop_name}} in every email template (plan 5.8)", () => {
+  test("is the press's Site name even when the Store name was never changed from the placeholder", async () => {
+    const app = harness({ docs: { settings: { website: { payments: {}, design: { copy: { siteName: "Salt Hymns Press" } }, info: { name: "Your Press" } }, notifications: {} } } });
+    const settings = await app.exports.__defaults();
+    expect(settings.shopName).toBe("Salt Hymns Press");
+    const gift = app.exports.__compile("gift_card", settings, { recipient_name: "Sam", code: "ABCD-EFGH" });
+    expect(JSON.stringify(gift)).toContain("Salt Hymns Press");
+    expect(JSON.stringify(gift)).not.toMatch(/your press/i);
+  });
+
+  test("Settings › Email sender › Sender name still wins", async () => {
+    const app = harness({ docs: { settings: { website: { payments: {}, design: { copy: { siteName: "Salt Hymns Press" } }, communications: { fromName: "The Salt desk" } }, notifications: {} } } });
+    expect((await app.exports.__defaults()).shopName).toBe("The Salt desk");
+  });
+});
+
 test("templates: spaced placeholders fill, button links must be web links, the gift-card code survives an edit", async () => {
   const app = harness();
   const settings = await app.exports.__defaults();

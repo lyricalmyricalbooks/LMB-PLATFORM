@@ -109,6 +109,16 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
 
 **Email sending:** `sendEmail` sends through Gmail SMTP (nodemailer, account `owner@example.com`) first, because the shop has no Resend-verified domain. The Gmail app password is entered in Settings › Notifications › **Gmail sending** (`admin/GmailSendingCard.tsx`) and stored in the admin-only `adminSecrets/gmail` doc (never in public `settings/*`). If it is unset or Gmail fails, sending falls back to Resend (`onboarding@resend.dev` only reaches the account owner).
 
+**The press's name (plan 5.8, 28 October 2026):** server code never types the placeholder name. It names the press with
+`pressName(settings, shopConfig.senderName)` from `shared/shopIdentity` (generated from `src/shared/shopIdentity.ts`):
+Text & labels › Site name in the published design, else Settings › General › Store name (the starting placeholder
+there counts as unset), else `SHOP_SENDER_NAME`; the placeholder only for a shop with no name at all. Emails prefer
+Settings › Email sender › Sender name, then `pressName`: the From line and frame (`email/index.js`), `{{shop_name}}`
+(`loadNotificationSettings`), newsletter confirmation and consent, message replies, gift cards issued in the admin, the
+label sender and customs signer (`shopOrigin`), the Monday PDF and the Stripe webhook's label. The build's Google feed
+and `llms.txt` use `feedShopName` in `features/site/merchantFeed.mjs` (same order; `merchantFeed.mjs` can't import TS).
+`functions/pressName.test.js` renders each one for a named shop and fails on the placeholder.
+
 Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
 `SHIPPO_API_TOKEN`) are stored as Firebase Functions secrets, not in the repo.
 
@@ -828,6 +838,13 @@ code before Hosting serves it. In platform mode `payments.registerPaymentDomain`
 (`account.paymentDomain`) instead of refusing. Plan 5.9 adds `step: "makeMain" | "remove"` (`domains.makeMain`,
 `domains.remove`): the main address becomes `SHOP_SITE_URL` (emails, order links) and the profile's `siteUrl`, written and
 redeployed by the service; the service refuses removing the main address or the shop's own web.app one.
+**Bookkeeping (28 October 2026, code plan 7.16).** `quickbooksLink.js` (action `bookkeeping`, `step: "status" | "connect" |
+"options" | "save" | "resend" | "disconnect"`) passes Settings › Bookkeeping to the platform's bookkeeping service
+(`PLATFORM_ACCOUNTING_URL`, https, LMB-PLATFORM services/accounting; `withPlatformKey` declares the key when set). Unset:
+`status` answers `{ enabled: false }` and the page and its menu entry stay hidden; other steps 409 `not_available`. The
+currency sent is always the shop's (CAD). `resend` sends `buildDay(date)`: index.js reads every order (a refund can land
+on an older one) and `dayFromOrders` picks the day from `shared/bookkeeping`'s `dailyBookkeeping` (Toronto days, zeros
+on a quiet day); without `buildDay`, 409 `not_ready`. The nightly push of days and payouts is not wired yet (needs 7.10).
 **Practice orders (28 October 2026, code plan 7.6).** `practiceCheckout.js` (action `practiceCheckout`, `step: "status" |
 "start" | "stop"`) lets the owner of a private platform shop (`shopPrivate`: maintenance on or the wall up) start one hour of
 practice; the flag is the server-only `systemStatus/practiceCheckout` (`{ uid, until }`). `handleStripeCheckout` asks
@@ -838,8 +855,29 @@ restocked on refund (`sandboxTakesStock` in settlePayment.js, as on the test sho
 (`body.practice` or an earlier practice attempt) gets 409 `practice_ended` rather than a live charge. Exports also skip
 unpaid practice orders. The storefront's hint (`src/app/lib/practiceHint.ts`) only lets the owner's browser past the
 store-status page; it decides nothing. Tested in `practiceCheckout.test.js` with a fake service for both providers.
-Known gaps: gift cards with a card payment are refused for Square shops; a payment link doesn't expire with the stock
-hold; admin and email wording still says "Stripe" in places.
+Known gaps: gift cards with a card payment are refused for Square shops; admin and email wording still says "Stripe" in
+places.
+**Square pages close with the stock hold (28 October 2026, code plan 5.1).** `paymentPages.js`. When a Square link opens,
+checkoutPayment.js saves `openedPage(order, session)` on the order: `paymentPages` (each page's `id`, `closesAt`, later
+`closedAt`/`closed`), `paymentPageClosesAt` (the latest) and `paymentPageCloseDue` (the earliest still open; null when
+none is open). The page closes when a Stripe session would expire: `square.js` passes the caller's `expires_at` back on the
+session. The scheduled `paymentPageSweep` runs every 5 minutes on Square shops only. It queries
+`paymentPageCloseDue <= now` and closes each due page through the payments module (`readAttempt`, then `stopAttempt`,
+which is the platform's `square.checkout.delete`). It leaves a page alone when it was paid on; the event settles that.
+A page that won't close is tried again, then left with a note after a day. Once the order's last page closes unpaid,
+its hold is released.
+- **Late payments.** Square's paid event now carries `paid_at`, Square's own payment time. Before anything else,
+  `markStripeOrderPaid` asks `paidAfterHold(order, session)`: was this paid after `paymentPageClosesAt`, on an unpaid,
+  uncancelled order? A slow event for a payment made in time is not late.
+- **What happens to a late payment** (`refundLatePayment`): it is never marked paid and never touches stock, discounts or
+  gift cards. It is recorded like Stripe's paid-after-cancel: the receipt ids (unless the order already names a payment),
+  `paymentMismatch.paidAfterHold`, `latePayments[<payment id>]` and an activity line. Then it is refunded in full
+  (`payments.refund`, no amount, key `late-<order>-<payment>`), and the shopper gets the press's "Order refunded" email
+  with one paragraph on why (`sendLateRefundEmail`, claimed once per payment).
+- **A failed refund** keeps `lateRefundPending: true` and the error. The webhook answers 500, so the event comes again,
+  and the sweep retries too.
+- **Clearing the problem.** The refund's own `charge.refunded` clears the mismatch, as for a Stripe refund.
+- **Tests:** `paymentPages.test.js` (fake platform service and Firestore) and the service's `square.test.js` (5.1 case).
 **Card fees and payouts (28 October 2026, code plan 7.10).** Every paid card order keeps `fee`, `net`, `platformFee`,
 `payoutId`, `payoutDate` and `moneyParts` (`orderMoney.js`; cents in the order's currency; the bookkeeping of 7.11 to
 7.15 reads these names). Providers answer `paymentMoney(orderId, order)` (Stripe: the charge's balance transaction and

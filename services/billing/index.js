@@ -15,6 +15,7 @@ import { createBilling } from "./billing.js";
 
 export { createBilling, ACCESS, APP_NAMES, BillingError, CARD_WARNING_DAYS, DOWNLOAD_DAYS, cardEnds, cardWords, dateText, fromSubscription, planOpening } from "./billing.js";
 export { planList, planPrice, PLAN_IDS, PLAN_APPS, isPlan } from "./plans.js";
+export { createPaymentWay, currentPaymentWay, payAsYouSellTerms, paymentWayRoutes, paymentWayView, PAYMENT_WAYS } from "./paymentWay.js";
 
 export function readBillingConfig(env = {}) {
   const mode = (env.BILLING_MODE ?? "test").trim() || "test";

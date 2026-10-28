@@ -47,6 +47,33 @@ makes a new Stripe price; presses on the old one stay there until moved on purpo
 What each Stripe status means for the shop (`ACCESS`): trialing, active and past_due (Stripe retrying a declined
 payment) keep it **open**; paused, incomplete and unpaid **pause** it; canceled and incomplete_expired **close** it.
 
+## Two ways to pay (6.19)
+
+`paymentWay.js`: **monthly** (the plan's price) or **pay as you sell** (a share of each website sale, taken with the sale
+by services/payments, never more in a billing month than the plan's monthly price; no card needed). For the Shop and
+Shop-and-stockroom plans; the stockroom alone stays monthly, refused in plain words.
+
+| Switch | When | What happens in Stripe |
+| --- | --- | --- |
+| to pay as you sell, in the trial | at once; fees start when the trial ends | cancelled at the trial's end |
+| to pay as you sell, paying monthly | from the end of the month already paid for | cancelled at the period end |
+| to pay as you sell, paused for a card | at once, and the shop opens | the waiting plan ends now |
+| to monthly, before pay as you sell started | at once | the cancel is undone |
+| to monthly, paying as they sell | from the next billing month | a new plan, free until then, that asks for a card then and pauses without one |
+
+The billing record keeps `paymentWay`, `paymentWayFrom` and the terms; the registry row gets `payAsYouSell: { basisPoints,
+capMinor, currency, from, until }` (what services/payments reads), fixed when the press chooses. A shop that pays as it
+sells stays open with no subscription (`paymentWayState.js`, used by `save()`), and its subscription ending sends no
+ending, trial or card email. `status()` adds `paymentWay` (the way in force now).
+
+Settings: `liveSettings().payAsYouSell.basisPoints` (200 = 2%; 0 closes the option to new choices) and the founding
+offer (`foundingOffer.percentOff`, 25), which takes its share off both the percentage and the cap for a founding press
+(`founding: true` on the registry row or billing record). Both are read through services/settings.js `liveSettings`.
+
+For the Plan & billing page's `payment-way` section: `paymentWayView(status, settings)` gives the words and the button
+("Switch to pay as you sell" / "Switch to monthly"), and `paymentWayRoutes({ paymentWay, settings, ownerOnly })` the two
+calls (`POST /api/billing/payment-way`, `POST /api/billing/payment-way/switch`).
+
 ## Events and emails
 
 `handleEvent` takes the platform account's own Stripe events (a separate endpoint from the Connect one), checks the
@@ -79,5 +106,7 @@ The Plan & billing page and its calls (`/api/billing/*`, owner only) live in `ac
 
 - Hosting (one function in the platform project) and the Stripe endpoint for the platform account's events.
 - The real stores (Firestore in the platform project): `billingCustomers`, `billingSubscriptions`, `billingEvents`.
+- Stripe's customer portal for past invoices (needs its settings made in Stripe first).
+- Leaving the platform while paying as you sell (no subscription to cancel): the 6.8 closing timeline handles it.
 - The scheduled function that runs `closeDroppedApps` and `cardExpiryReminders` daily, and a real `closeApp`.
 - Pausing a shop's pages when its plan pauses or closes: the shop reads `billing.access` from the registry later (2.11).

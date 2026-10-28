@@ -22,6 +22,7 @@ import { mediaApi } from "./mediaApi";
 import { auditLog } from "./auditLog";
 import type { PlatformPaymentsAnswer } from "./platformPayments";
 import type { DomainCheck, DomainList, DomainStep } from "./customDomains";
+import type { BookkeepingOptions, BookkeepingSave, BookkeepingStatus } from "./quickbooksLink";
 /** Cache-Control for uploaded shop pictures (mirrors functions/imageCopies.js IMMUTABLE). */
 export const PUBLIC_FILE_CACHE = "public, max-age=31536000, immutable";
 
@@ -1251,6 +1252,21 @@ export const adminApi = {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw Object.assign(new Error(result.error || "Couldn't reach your web addresses."), { code: result.code });
     return result as DomainList & DomainCheck;
+  },
+
+  // Settings › Bookkeeping (plan 7.16): the QuickBooks link, through the platform's bookkeeping service. A shop without
+  // it answers status { enabled: false } and refuses the other steps with code "not_available".
+  bookkeeping: async (step: "status" | "connect" | "options" | "save" | "resend" | "disconnect", args: Partial<BookkeepingSave> & { returnUrl?: string; date?: string } = {}) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "bookkeeping", step, ...args }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(result.error || "Couldn't reach your bookkeeping link."), { code: result.code });
+    return result as BookkeepingStatus & BookkeepingOptions & { url?: string; results?: { kind: string; ref: string; outcome: string; message?: string }[]; stopped?: string };
   },
 
   // Deletes a stored PayPal client secret (admin-only adminSecrets/paypal). Live then falls back to the Functions secret.

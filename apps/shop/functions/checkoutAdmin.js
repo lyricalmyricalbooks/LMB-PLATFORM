@@ -3,11 +3,24 @@
 // none creates or marks a payment. Moved out of index.js as is (functions/CLAUDE.md › Cloud Functions › Action table):
 // index.js passes in its own db, payments module (functions/payments), secrets and guards, so the vm-based handler tests' fakes still apply.
 
+const { pressName } = require("./shared/shopIdentity");
+const { shopConfig } = require("./shopConfig");
+
 function checkoutAdminActions({
   db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS,
   webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret,
   readBody, requireAdmin, requireBooksReader = requireAdmin, inventoryLinkDeps,
 }) {
+  // The press's own name (Text & labels › Site name; plan 5.8) for a gift card's "from" and the webhook's label.
+  async function pressNameNow() {
+    try {
+      return pressName((await db.collection("settings").doc("website").get()).data() || {}, shopConfig.senderName);
+    } catch (err) {
+      console.warn("The shop's name could not be read:", err?.message || err);
+      return pressName(null, shopConfig.senderName);
+    }
+  }
+
   // Admin: "Test connection" — does each saved Stripe secret key work, which Stripe
   // account and mode is it, and do the publishable keys match their mode?
   async function handleVerifyStripeKeys(req, res) {
@@ -84,7 +97,7 @@ function checkoutAdminActions({
           last4: "", initialMinor: amountMinor, balanceMinor: amountMinor, currency: "CAD", enabled: true,
           ...(expiresOn ? { expiresOn } : {}),
           recipientEmail, recipientName: String(body.recipientName || "").trim().slice(0, 100),
-          senderName: String(body.senderName || "Your Press").trim().slice(0, 100),
+          senderName: String(body.senderName || "").trim().slice(0, 100) || (await pressNameNow()).slice(0, 100),
           message: String(body.message || "").trim().slice(0, 300), note: String(body.note || "").trim().slice(0, 500),
           source: "admin", issuedBy: actor, holds: {},
           history: [{ type: "issued", minor: amountMinor, actor, at: now }],
@@ -190,7 +203,7 @@ function checkoutAdminActions({
           const created = await endpoints.create({
             url: STRIPE_WEBHOOK_URL,
             enabled_events: REQUIRED_WEBHOOK_EVENTS,
-            description: "Your Press shop orders (created by Admin › Payments)",
+            description: `${(await pressNameNow()).slice(0, 80)} shop orders (created by Admin › Payments)`,
           });
           await db.collection("adminSecrets").doc("stripeWebhook").set({ [mode]: created.secret, [`${mode}EndpointId`]: created.id, updatedAt: new Date().toISOString() }, { merge: true });
           // A fresh endpoint with a known secret: older signature failures no longer apply.
