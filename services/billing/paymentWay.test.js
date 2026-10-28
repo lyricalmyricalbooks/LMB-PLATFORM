@@ -3,12 +3,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createBilling, dateText } from "./billing.js";
-import { createPaymentWay, liveSettings, payAsYouSellTerms, paymentWayRoutes, paymentWayView } from "./paymentWay.js";
+import { createPaymentWay, payAsYouSellTerms, paymentWayRoutes, paymentWayView } from "./paymentWay.js";
 import { fakeBillingStores, fakeBillingStripe, fakePlatformEmail } from "./fakes.js";
 import { createStripeApi } from "../payments/stripeApi.js";
 import { signatureHeader } from "../payments/stripeSignature.js";
 import { fakeFeeLedgerStore } from "../payments/feeLedgerFakes.js";
-import { platformSettings } from "../settings.js";
+import { liveSettings, platformSettings } from "../settings.js";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
 
 const SECRET = "whsec_billing_test";
@@ -44,7 +44,7 @@ const charged = (w) => w.stripe.requests.filter((r) => /\/v1\/invoices\/.+\/pay$
 
 test("the terms: 2% and the plan's price as the cap; the founding offer takes 25% off both; the stockroom alone is refused", async () => {
   const settings = platformSettings({});
-  const live = await liveSettings();
+  const live = await liveSettings({ env: {} });
   assert.deepEqual(live.payAsYouSell, { basisPoints: 200 });
   assert.deepEqual(payAsYouSellTerms({ plan: "shop", settings, live }), { basisPoints: 200, capMinor: 2900, currency: "CAD" });
   assert.deepEqual(payAsYouSellTerms({ plan: "both", settings, live }), { basisPoints: 200, capMinor: 3900, currency: "CAD" });

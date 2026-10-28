@@ -18,9 +18,10 @@
 // Settings: `liveSettings().payAsYouSell.basisPoints` (default 200 = 2%; 0 closes the option to new choices) and the
 // founding offer (`foundingOffer.percentOff`, default 25), which takes its share off both the percentage and the cap for
 // a founding press (the registry row's or billing record's `founding: true`). The cap is the plan's monthly price.
+// Both come from services/settings.js `liveSettings({ env, store })`.
 import { ACCESS, BillingError, dateText } from "./billing.js";
 import { planPrice } from "./plans.js";
-import { priceText } from "../settings.js";
+import { liveSettings, priceText } from "../settings.js";
 import { PAY_AS_YOU_SELL_PLANS, billingMonth, createFeeLedger } from "../payments/payAsYouSell.js";
 import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 
@@ -29,21 +30,6 @@ export { currentPaymentWay, payAsYouSellAccess };
 export const PAYMENT_WAYS = Object.freeze(["monthly", "payAsYouSell"]);
 
 const ENDED = new Set(["canceled", "incomplete_expired"]);
-
-const DEFAULT_LIVE = Object.freeze({ payAsYouSell: Object.freeze({ basisPoints: 200 }), foundingOffer: Object.freeze({ percentOff: 25 }) });
-
-/**
- * The control room's settings this needs, with their defaults. A stand-in with the same name and shape as
- * services/settings.js's `liveSettings({ env, store })` (owned by the control-room work) until that is on main; `store`
- * may hold the control room's saved values (`get()` -> partial settings).
- */
-export async function liveSettings({ store = null } = {}) {
-  const saved = (await store?.get?.()) ?? {};
-  return {
-    payAsYouSell: { ...DEFAULT_LIVE.payAsYouSell, ...(saved.payAsYouSell ?? {}) },
-    foundingOffer: { ...DEFAULT_LIVE.foundingOffer, ...(saved.foundingOffer ?? {}) },
-  };
-}
 
 /** "2%" or "1.5%" for a share in hundredths of a percent. */
 export const percentText = (basisPoints) => `${Number((basisPoints / 100).toFixed(2))}%`;
@@ -116,7 +102,7 @@ export function paymentWayView(status, settings) {
  * @param {object} deps.billing createBilling(...) for its status and prices
  * @param {object} [deps.feeLedger] the pay-as-you-sell ledger store (services/payments/payAsYouSell.js), for the month's
  *   fees so far
- * @param {() => Promise<object>} [deps.live] the control room's settings (liveSettings above by default)
+ * @param {() => Promise<object>} [deps.live] the control room's settings (services/settings.js liveSettings by default)
  */
 export function createPaymentWay({ stripe, mode = "test", settings, customers, subscriptions, registry, auditLog, billing, feeLedger = null, live = () => liveSettings(), now = () => Date.now() }) {
   const at = () => new Date(now()).toISOString();

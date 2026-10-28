@@ -13,7 +13,7 @@ import { createBilling } from "./billing.js";
 
 export { createBilling, ACCESS, BillingError, dateText, fromSubscription } from "./billing.js";
 export { planList, planPrice, PLAN_IDS, PLAN_APPS, isPlan } from "./plans.js";
-export { createPaymentWay, currentPaymentWay, liveSettings, payAsYouSellTerms, paymentWayRoutes, paymentWayView, PAYMENT_WAYS } from "./paymentWay.js";
+export { createPaymentWay, currentPaymentWay, payAsYouSellTerms, paymentWayRoutes, paymentWayView, PAYMENT_WAYS } from "./paymentWay.js";
 
 export function readBillingConfig(env = {}) {
   const mode = (env.BILLING_MODE ?? "test").trim() || "test";

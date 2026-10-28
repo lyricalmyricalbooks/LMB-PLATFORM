@@ -54,8 +54,7 @@ ending, trial or card email. `status()` adds `paymentWay` (the way in force now)
 
 Settings: `liveSettings().payAsYouSell.basisPoints` (200 = 2%; 0 closes the option to new choices) and the founding
 offer (`foundingOffer.percentOff`, 25), which takes its share off both the percentage and the cap for a founding press
-(`founding: true` on the registry row or billing record). Until services/settings.js has `liveSettings`, paymentWay.js
-has a stand-in with the same name and defaults.
+(`founding: true` on the registry row or billing record). Both are read through services/settings.js `liveSettings`.
 
 For the Plan & billing page's `payment-way` section: `paymentWayView(status, settings)` gives the words and the button
 ("Switch to pay as you sell" / "Switch to monthly"), and `paymentWayRoutes({ paymentWay, settings, ownerOnly })` the two
