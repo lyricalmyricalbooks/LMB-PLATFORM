@@ -9,20 +9,34 @@
 //   domains.check { domain }     reads Google's state: the DNS records the press still has to add or remove, then
 //                                securing (the certificate), then live. Once live, the address is registered with
 //                                Stripe for Apple Pay and Google Pay on the press's account (services/payments)
+//   domains.makeMain { domain }  makes a working address the shop's main one (plan 5.9): emails and links
+//                                (SHOP_SITE_URL, server code redeployed), the profile's siteUrl (canonical links, the
+//                                sitemap, the Google feed; pages redeployed) and Apple Pay / Google Pay on it. The
+//                                shop's own web.app address (or an empty domain) makes that one main again
+//   domains.remove { domain }    takes an address off the shop: Hosting stops serving it, the registry drops it, and
+//                                it no longer calls the server code. Refused for the main address (make another main
+//                                first), so the shop always keeps a working main address; its web.app one is never
+//                                removed
 //
 // The order matters: the address may call the server code before Hosting serves the shop there, so shoppers never
 // meet a shop whose checkout is refused. Every step is safe to repeat; each change is logged in the registry and the
-// shop's audit log. Nothing here removes an address (a person does that for now).
+// shop's audit log. Every call acts only on the calling shop's own registry row and project (its service key), so no
+// shop can remove or take over another shop's address.
 //
 // Clients passed in:
 //   registry   getShop(shopId), updateShop(shopId, fields), listShops(), recordEvent(shopId, entry)
 //   auditLog   write(shopId, id, entry)
-//   hosting    getDomain(projectId, domain) -> CustomDomain | null; addDomain(projectId, domain) (clients/google.js)
+//   registry   also getProfile(shopId) / saveProfile(shopId, profile): the shop profile (setup step 6)
+//   hosting    getDomain(projectId, domain) -> CustomDomain | null; addDomain(projectId, domain);
+//              removeDomain(projectId, domain) (clients/google.js)
 //   envFiles   read(shopId) / write(shopId, text): the shop's saved server settings (setup step 8)
-//   deploy     deployed(shopId, "functions") -> { version, region } | null; functions(shopId, { version, region, envFile })
+//   profileFiles read(shopId) / write(shopId, text): the /shop-profile.js the shop's pages ship with (setup step 6)
+//   deploy     deployed(shopId, "functions" | "pages:shop") -> { version, region? } | null;
+//              functions(shopId, { version, region, envFile }); pages(shopId, { version, app })
 //   payments   registerPaymentDomain(shopId, domain) (services/payments/service.js); optional
 import { serviceKeyMatches } from "../email/http.js";
-import { domainOrigins, domainProblem, MAX_DOMAINS, normalDomain, withExtraOrigins } from "./names.js";
+import { profileScript } from "../../profile/profile.js";
+import { domainOrigins, domainProblem, mainAddress, MAX_DOMAINS, normalDomain, ownAddress, siteUrlOf, withExtraOrigins, withSiteUrl } from "./names.js";
 
 export class DomainError extends Error {
   constructor(status, code, message) {
@@ -53,7 +67,7 @@ export function domainState(found) {
   return { state, records };
 }
 
-export function createDomainService({ registry, auditLog, hosting, envFiles, deploy, payments = null, platformDomain, now = () => Date.now() }) {
+export function createDomainService({ registry, auditLog, hosting, envFiles, profileFiles, deploy, payments = null, platformDomain, now = () => Date.now() }) {
   const iso = () => new Date(now()).toISOString();
 
   async function logChange(shopId, id, entry) {
@@ -76,22 +90,48 @@ export function createDomainService({ registry, auditLog, hosting, envFiles, dep
     await registry.updateShop(shopId, { domains });
   }
 
-  // The shop's server code must accept calls from every address the shop has (shopConfig.js allowedOrigins).
-  async function allowOrigins(row) {
+  // The shop's server code accepts calls from every address the shop has (shopConfig.js allowedOrigins) and links to
+  // its main address (SHOP_SITE_URL: emails, order links). Redeployed at the version the shop runs when either changes.
+  async function syncServer(row) {
     const text = await envFiles.read(row.shopId);
     if (!text) return false; // setup step 8 writes it, with the registry's addresses
-    const next = withExtraOrigins(text, domainOrigins(domainsOf(row)));
+    const next = withSiteUrl(withExtraOrigins(text, domainOrigins(domainsOf(row))), siteUrlOf(row));
     if (next === text) return false;
-    await envFiles.write(row.shopId, next);
     const live = await deploy.deployed(row.shopId, "functions");
-    // Not deployed yet: the shop's first deploy ships the file as it is now.
+    // Not deployed yet: the shop's first deploy ships the file as it is now. The file is saved after the deploy, so a
+    // deploy that fails leaves it as it was and the next call deploys again.
     if (live?.version) await deploy.functions(row.shopId, { version: live.version, region: live.region ?? row.region, envFile: next });
+    await envFiles.write(row.shopId, next);
+    return true;
+  }
+
+  // The shop's pages link to the main address (profile `siteUrl`: canonical links, the sitemap, the Google feed). The
+  // profile is shipped with the pages, so they are deployed again at the version the shop runs.
+  async function syncProfile(row) {
+    const saved = await registry.getProfile(row.shopId);
+    if (!saved) return false; // setup step 6 writes it, with the registry's main address
+    const siteUrl = siteUrlOf(row);
+    const script = (await profileFiles.read(row.shopId)) ?? "";
+    const profile = { ...saved, siteUrl };
+    if (saved.siteUrl === siteUrl && script === profileScript(profile)) return false;
+    // The pages deploy ships the saved file, so it is written first; the registry's copy is saved last, so a deploy
+    // that fails is tried again by the next call.
+    await profileFiles.write(row.shopId, profileScript(profile));
+    const live = await deploy.deployed(row.shopId, "pages:shop");
+    if (live?.version) await deploy.pages(row.shopId, { version: live.version, app: "shop" });
+    await registry.saveProfile(row.shopId, profile);
     return true;
   }
 
   async function list(shopId) {
     const row = await rowOf(shopId);
-    return { domains: domainsOf(row).map(({ name, state, addedAt, paymentDomainAt }) => ({ name, state: state ?? "connecting", addedAt, paymentDomainAt: paymentDomainAt ?? null })), max: MAX_DOMAINS };
+    const main = mainAddress(row);
+    return {
+      domains: domainsOf(row).map(({ name, state, addedAt, paymentDomainAt }) => ({ name, state: state ?? "connecting", addedAt, paymentDomainAt: paymentDomainAt ?? null, main: name === main })),
+      own: ownAddress(row),
+      main,
+      max: MAX_DOMAINS,
+    };
   }
 
   async function check(shopId, domain) {
@@ -135,23 +175,72 @@ export function createDomainService({ registry, auditLog, hosting, envFiles, dep
       await registry.updateShop(shopId, { domains: [...domains, { name, state: "connecting", addedAt: iso() }] });
       await logChange(shopId, `domain-added-${name}`, { kind: "domains.added", domain: name });
     }
-    if (await allowOrigins(await rowOf(shopId))) {
+    if (await syncServer(await rowOf(shopId))) {
       await logChange(shopId, `domain-origins-${name}`, { kind: "domains.server-allowed", domain: name });
     }
     await hosting.addDomain(projectOf(row), name);
     return check(shopId, name);
   }
 
+  async function makeMain(shopId, domain) {
+    const row = await rowOf(shopId);
+    let name = normalDomain(domain ?? "");
+    if (name === `${projectOf(row)}.firebaseapp.com`) name = ownAddress(row);
+    let paymentDomain = null;
+    if (name && name !== ownAddress(row)) {
+      if (!domainsOf(row).some((d) => d.name === name)) throw new DomainError(404, "unknown_domain", "That address isn't connected to this shop.");
+      // Only an address that works now: a fresh look at Google's state, which also registers it for Apple Pay and Google Pay.
+      const found = await check(shopId, name);
+      if (found.state !== "live") throw new DomainError(409, "not_live", "This address isn't working yet. Make it your main address once it shows as Live.");
+      paymentDomain = found.paymentDomain;
+    } else {
+      name = ownAddress(row);
+    }
+    const mainDomain = name === ownAddress(row) ? null : name;
+    if ((row.mainDomain ?? null) !== mainDomain) {
+      await registry.updateShop(shopId, { mainDomain });
+      await logChange(shopId, `domain-main-${name}-${iso()}`, { kind: "domains.main", domain: name });
+    }
+    // Repeated every time, so a half-finished earlier call (settings saved, deploy failed) is completed.
+    const fresh = await rowOf(shopId);
+    if (await syncServer(fresh)) await logChange(shopId, `domain-site-url-${name}-${iso()}`, { kind: "domains.server-site-url", domain: name });
+    if (await syncProfile(fresh)) await logChange(shopId, `domain-profile-${name}-${iso()}`, { kind: "domains.profile-site-url", domain: name });
+    return { ...(await list(shopId)), paymentDomain };
+  }
+
+  async function remove(shopId, domain) {
+    const name = normalDomain(domain);
+    const row = await rowOf(shopId);
+    if (name === ownAddress(row) || name === `${projectOf(row)}.firebaseapp.com`) throw new DomainError(400, "own_address", "This is the address your shop came with. It always works and can't be removed.");
+    const entry = domainsOf(row).find((d) => d.name === name);
+    if (!entry) {
+      // Gone already (or never this shop's): only bring the server settings up to date, in case an earlier remove
+      // stopped before redeploying. Nothing of another shop's is touched.
+      await syncServer(row);
+      throw new DomainError(404, "unknown_domain", "That address isn't connected to this shop.");
+    }
+    if (mainAddress(row) === name) throw new DomainError(409, "is_main", "This is your shop's main address. Make another address main first, then remove this one.");
+    await hosting.removeDomain(projectOf(row), name);
+    await registry.updateShop(shopId, { domains: domainsOf(row).filter((d) => d.name !== name) });
+    await logChange(shopId, `domain-removed-${name}-${iso()}`, { kind: "domains.removed", domain: name });
+    await syncServer(await rowOf(shopId));
+    return { removed: name, ...(await list(shopId)) };
+  }
+
   const OPS = {
     "domains.list": (shopId) => list(shopId),
     "domains.add": (shopId, args) => add(shopId, args.domain),
     "domains.check": (shopId, args) => check(shopId, args.domain),
+    "domains.makeMain": (shopId, args) => makeMain(shopId, args.domain),
+    "domains.remove": (shopId, args) => remove(shopId, args.domain),
   };
 
   return {
     list,
     add,
     check,
+    makeMain,
+    remove,
 
     /** The shop's door: `X-Shop-Id` + `Authorization: Bearer <service key>`, body { op, args }. */
     async shopCall({ headers, body } = {}) {

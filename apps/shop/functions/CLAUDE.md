@@ -835,7 +835,9 @@ platform shop: connect Square (or finish Stripe onboarding), the account's state
 `not_available` and the admin shows the older "for your records" field) with the service key, which `withPlatformKey`
 now declares when that address is set. The service adds the address to `SHOP_EXTRA_ORIGINS` and redeploys the server
 code before Hosting serves it. In platform mode `payments.registerPaymentDomain` goes through the service
-(`account.paymentDomain`) instead of refusing.
+(`account.paymentDomain`) instead of refusing. Plan 5.9 adds `step: "makeMain" | "remove"` (`domains.makeMain`,
+`domains.remove`): the main address becomes `SHOP_SITE_URL` (emails, order links) and the profile's `siteUrl`, written and
+redeployed by the service; the service refuses removing the main address or the shop's own web.app one.
 **Bookkeeping (28 October 2026, code plan 7.16).** `quickbooksLink.js` (action `bookkeeping`, `step: "status" | "connect" |
 "options" | "save" | "resend" | "disconnect"`) passes Settings › Bookkeeping to the platform's bookkeeping service
 (`PLATFORM_ACCOUNTING_URL`, https, LMB-PLATFORM services/accounting; `withPlatformKey` declares the key when set). Unset:

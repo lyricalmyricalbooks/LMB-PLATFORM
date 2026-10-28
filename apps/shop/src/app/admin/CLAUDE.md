@@ -492,7 +492,9 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
   give search engines (Text & labels › `seoReturnDays`, 0 = no returns after shipping). `withStarter` re-reads the draft
   and keeps any saved words. The card says "A starting point, not legal advice"; the four texts await a lawyer's read.
 - Settings › General › Your web address (`CustomDomainCard.tsx`, plan 2.9) shows the older "Domain & visibility" field
-  when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`).
+  when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`). Plan 5.9: "Your main address" line, **Make main** on
+  a live address and **Remove** on any address but the main one, each behind a confirm (`domainActions` in
+  `customDomains.ts`; `CustomDomainCard.test.tsx`). Going back to the shop's own address is a button under the main line.
 - Settings › Payments › Card payments (`PlatformPaymentsCard.tsx`, plan 2.2b) replaces the Stripe keys card on platform
   shops.
 - **What Stripe still needs (plan 7.9):** `account.status` carries `needs: [{ words, pastDue }]` (plain words made by

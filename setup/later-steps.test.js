@@ -154,6 +154,27 @@ test("the env file carries the press's own addresses and the domain service, and
   assert.equal(await step8.check({ shop: TEST_SHOP }), true);
 });
 
+test("the press's main address (plan 5.9) is the site address in the env file and the profile, and a re-run keeps it", async () => {
+  const { services, registry, steps, run } = setup();
+  assert.equal((await run()).ok, true);
+  assert.equal(envOf(services.world.envFiles.get(ID)).SHOP_SITE_URL, `https://${ID}.web.app`);
+  await registry.updateShop(ID, { domains: [{ name: "shop.mothpress.example", state: "live" }], mainDomain: "shop.mothpress.example" });
+  const step6 = steps.find((step) => step.number === 6);
+  const step8 = steps.find((step) => step.number === 8);
+  assert.equal(await step8.check({ shop: TEST_SHOP }), false);
+  await step8.act({ shop: TEST_SHOP });
+  assert.equal(envOf(services.world.envFiles.get(ID)).SHOP_SITE_URL, "https://shop.mothpress.example");
+  assert.equal(await step6.check({ shop: TEST_SHOP }), false);
+  await step6.act({ shop: TEST_SHOP });
+  assert.equal((await registry.getProfile(ID)).siteUrl, "https://shop.mothpress.example");
+  assert.equal(await step6.check({ shop: TEST_SHOP }), true);
+  assert.equal(await step8.check({ shop: TEST_SHOP }), true);
+  // A main address no longer among the shop's addresses never sticks.
+  await registry.updateShop(ID, { domains: [] });
+  await step8.act({ shop: TEST_SHOP });
+  assert.equal(envOf(services.world.envFiles.get(ID)).SHOP_SITE_URL, `https://${ID}.web.app`);
+});
+
 test("the env file names the region step 8 deploys the server code to", async () => {
   assert.equal(envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, region: "europe-west1" })).SHOP_FUNCTIONS_REGION, "europe-west1");
   const { services, run } = setup();

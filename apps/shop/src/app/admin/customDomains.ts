@@ -2,9 +2,18 @@
 
 export type DnsRecord = { action: "add" | "remove"; host: string; type: string; value: string };
 export type DomainState = "connecting" | "waiting_dns" | "securing" | "live" | "conflict" | "missing";
-export type DomainEntry = { name: string; state: DomainState; addedAt?: string; paymentDomainAt?: string | null };
+export type DomainEntry = { name: string; state: DomainState; addedAt?: string; paymentDomainAt?: string | null; main?: boolean };
 export type DomainCheck = { name: string; state: DomainState; records: DnsRecord[]; paymentDomain?: "registered" | "not_yet" | "failed" };
-export type DomainList = { domains: DomainEntry[]; max: number };
+/** `own` is the address the shop came with; `main` the one emails, links and Google use (plan 5.9). */
+export type DomainList = { domains: DomainEntry[]; max: number; own?: string; main?: string; removed?: string };
+export type DomainStep = "list" | "add" | "check" | "makeMain" | "remove";
+
+/** What the press can do with one address (plan 5.9): only a live one becomes main; the main one is never removed. */
+export function domainActions(entry: DomainEntry, main: string | undefined): { canMakeMain: boolean; canRemove: boolean; note: string } {
+  const isMain = entry.name === main;
+  if (isMain) return { canMakeMain: false, canRemove: false, note: "This is your main address. To remove it, make another address main first." };
+  return { canMakeMain: entry.state === "live", canRemove: true, note: entry.state === "live" ? "" : "Once it shows as Live, you can make it your main address." };
+}
 
 type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 
