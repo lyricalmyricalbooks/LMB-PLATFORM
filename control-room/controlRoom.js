@@ -13,7 +13,8 @@
 //   publish       (shopId) -> { apps }: puts the saved /shop-profile.js live (profilePublisher below)
 //   shopAccess    supportSignIn(shopId, { by, reason, minutes }) -> { url }: a short sign-in to the shop's admin for
 //                 support. The shop side of it is not built yet (README "Not yet").
-//   repairs       optional: open(shopId) -> [{ problem }] (the repair queue, plan 2.11)
+//   repairs       optional: the repair queue (repairs.js): open(shopId), list({ status }), markFixed(id, { by, note })
+//   selfCheck     optional: the self-checks (selfChecks.js): check(shopId, { why }), run after every change here
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
@@ -57,6 +58,10 @@ export function shopHealth({ row, profile, checks = [], repairs = [] }) {
   if (row.billing?.access === "paused") watch.push("the plan is paused until a card is added");
   if (row.billing?.access === "closed") watch.push("the plan has ended");
   for (const repair of repairs) problems.push(`in the repair queue: ${repair.problem}`);
+  // The five-minute watch (services/health) keeps its latest results on the row.
+  for (const [name, result] of Object.entries(row.health?.checks ?? {})) {
+    if (result && result.ok === false) problems.push(`the ${name} check is failing${result.detail ? `: ${result.detail}` : ""}`);
+  }
   return { level: problems.length ? "problem" : watch.length ? "watch" : "ok", reasons: [...problems, ...watch] };
 }
 
@@ -80,7 +85,7 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
   };
 }
 
-export function createControlRoom({ registry, auditLog, profileFiles, publish, shopAccess, repairs, admins, now = () => new Date() }) {
+export function createControlRoom({ registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, admins, now = () => new Date() }) {
   const at = () => now().toISOString();
 
   // Every control-room action is logged in the registry and, once the shop's database exists, in its own audit log.
@@ -125,7 +130,9 @@ export function createControlRoom({ registry, auditLog, profileFiles, publish, s
     // The log entry comes before the pages go live, so a change that reaches a shop is always on record.
     await log(shopId, "switch-set", { by, switch: name, from, to: on, reason: why });
     const { apps } = await publish(shopId);
-    return { shopId, switch: name, from, to: on, changed: from !== on, published: apps };
+    // Self-checks after every change (2.11): anything off goes to the repair queue.
+    const checked = selfCheck ? await selfCheck.check(shopId, { why: `switch ${name} ${on ? "on" : "off"}` }) : null;
+    return { shopId, switch: name, from, to: on, changed: from !== on, published: apps, ...(checked ? { selfCheck: { ok: checked.ok, results: checked.results } } : {}) };
   }
 
   return {
@@ -171,6 +178,31 @@ export function createControlRoom({ registry, auditLog, profileFiles, publish, s
       await log(shopId, "act-as", { by, reason: why, expiresAt });
       const { url } = await shopAccess.supportSignIn(shopId, { by, reason: why, minutes: ACT_AS_MINUTES });
       return { shopId, url, expiresAt };
+    },
+
+    /** The repair queue: open items (or fixed ones), newest first. */
+    async repairs(claims, { status = "open" } = {}) {
+      adminOf(claims, admins);
+      if (!repairs) return { repairs: [] };
+      if (!["open", "fixed"].includes(status)) throw new ControlError(400, "Choose open or fixed.");
+      return { repairs: await repairs.list({ status }) };
+    },
+
+    /** A person marks a repair fixed, with what they did. */
+    async markFixed(claims, { id, note } = {}) {
+      const by = adminOf(claims, admins);
+      if (!repairs) throw new ControlError(404, "There's no repair queue.");
+      const item = await repairs.markFixed(id, { by, note: typeof note === "string" ? note.trim() : "" });
+      if (!item) throw new ControlError(404, "That repair isn't there.");
+      return { repair: item };
+    },
+
+    /** Runs the self-checks for one shop now (the page's "Check now"). */
+    async checkNow(claims, { shopId } = {}) {
+      const by = adminOf(claims, admins);
+      if (!selfCheck) throw new ControlError(404, "The self-checks aren't set up.");
+      await shopOr404(shopId);
+      return selfCheck.check(shopId, { why: `asked by ${by}` });
     },
 
     /** The control room's switch button. */

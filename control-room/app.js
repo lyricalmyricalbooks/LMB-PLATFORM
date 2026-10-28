@@ -48,6 +48,7 @@ async function load() {
     status.textContent = "";
     $("#view-signin").hidden = true;
     $("#view-shops").hidden = false;
+    await loadRepairs();
     await loadTickets();
   } catch (failure) {
     status.textContent = failure.message;
@@ -68,6 +69,24 @@ function card(shop) {
       status.textContent = failure.message;
     }
     act.disabled = false;
+  });
+
+  // Self-checks now (2.11): what's off goes to the repair queue below.
+  const check = el("button", { type: "button", textContent: "Check now", disabled: shop.status !== "live" });
+  check.addEventListener("click", async () => {
+    check.disabled = true;
+    try {
+      const { ok, results } = await api("POST", "/control/check", { shopId: shop.shopId });
+      const fixed = results.filter((r) => r.fixed).length;
+      const failing = results.filter((r) => !r.ok).length;
+      await load();
+      status.textContent = ok
+        ? `${shop.pressName}: every self-check passes${fixed ? ` (${fixed} fixed itself)` : ""}.`
+        : `${shop.pressName}: ${failing} problem${failing === 1 ? "" : "s"} sent to the repair queue.`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    check.disabled = false;
   });
 
   const switches = shop.switches
@@ -91,7 +110,7 @@ function card(shop) {
     : null;
 
   return el("div", { className: `card ${shop.health.level}` },
-    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), act),
+    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), act, check),
     el("div", { className: "facts" },
       el("span", { textContent: shop.shopId }),
       el("span", { textContent: `plan: ${shop.plan ?? "?"}` }),
@@ -101,6 +120,52 @@ function card(shop) {
       shop.testShop ? el("span", { textContent: "test shop" }) : null),
     shop.health.reasons.length ? el("ul", {}, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
     switches);
+}
+
+// ── The repair queue (control-room/repairs.js): mark an item fixed once a person has dealt with it. ──
+let repairStatus = "open";
+for (const button of document.querySelectorAll(".repair-filters button")) {
+  button.addEventListener("click", () => {
+    repairStatus = button.dataset.status;
+    for (const other of document.querySelectorAll(".repair-filters button")) other.setAttribute("aria-pressed", String(other === button));
+    loadRepairs();
+  });
+}
+
+async function loadRepairs() {
+  try {
+    const { repairs } = await api("POST", "/control/repairs", { status: repairStatus });
+    const empty = repairStatus === "open" ? "Nothing to fix." : "Nothing fixed yet.";
+    $("#repairs").replaceChildren(...(repairs.length ? repairs.map(repairCard) : [el("p", { textContent: empty })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+function repairCard(item) {
+  const when = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const done = el("button", { type: "button", className: "primary", textContent: "Mark fixed", hidden: item.status !== "open" });
+  done.addEventListener("click", async () => {
+    const note = (window.prompt("What did you do? It goes in the shop's log.") ?? "").trim();
+    if (!note) return;
+    done.disabled = true;
+    try {
+      await api("POST", "/control/repairs/fixed", { id: item.id, note });
+      await load();
+      status.textContent = "Marked fixed.";
+    } catch (failure) {
+      status.textContent = failure.message;
+      done.disabled = false;
+    }
+  });
+  return el("div", { className: `card ${item.status === "open" ? "problem" : "ok"}` },
+    el("div", { className: "row" }, el("strong", { textContent: item.problem }), el("span", { className: "pill", textContent: item.check }), done),
+    el("div", { className: "facts" },
+      el("span", { textContent: item.shopId }),
+      el("span", { textContent: `seen ${item.count} time${item.count === 1 ? "" : "s"}, last ${when(item.lastSeenAt)}` }),
+      item.fixedAt ? el("span", { textContent: `fixed ${when(item.fixedAt)} by ${item.fixedBy}` }) : null),
+    item.detail ? el("p", { className: "hint", textContent: item.detail }) : null,
+    item.note ? el("p", { className: "hint", textContent: `Note: ${item.note}` }) : null);
 }
 
 // ── Support requests (services/support): answer, and the press gets it by email; close when done. ──

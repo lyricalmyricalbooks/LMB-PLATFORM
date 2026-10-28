@@ -1,6 +1,7 @@
 // Firestore stores for the platform services' own records, in the platform project, with the shapes of their fakes:
 // the email service's sent log (services/email/fakes.js `fakeSentLog`), the payment service's account record
-// (services/payments/fakes.js `fakeAccounts`) and the support inbox (services/support/fakes.js `fakeSupportStore`).
+// (services/payments/fakes.js `fakeAccounts`), the support inbox (services/support/fakes.js `fakeSupportStore`) and the
+// repair queue (control-room/fakes.js `fakeRepairStore`).
 
 /** emailSent/<key>: { shopId, kind, status, at, … }. */
 export function firestoreSentLog(firestore) {
@@ -46,6 +47,18 @@ export function firestoreSupport(firestore) {
     },
     async countSince(email, since) {
       return (await rows([["email", "==", email]], 500)).filter((t) => t.openedAt >= since).length;
+    },
+  };
+}
+
+/** repairs/<id>: one problem for a person (control-room/repairs.js). Equality filters only, no extra index. */
+export function firestoreRepairs(firestore) {
+  return {
+    get: (id) => firestore.get(`repairs/${id}`),
+    set: (id, item) => firestore.set(`repairs/${id}`, item),
+    async list({ shopId, status }) {
+      const where = [...(shopId ? [["shopId", "==", shopId]] : []), ...(status ? [["status", "==", status]] : [])];
+      return (await firestore.query("repairs", { where, limit: 1000 })).map((row) => row.data);
     },
   };
 }
