@@ -117,6 +117,15 @@ describe('bookkeeper settings reads (plan 7.17)', () => {
     expect(expr).toContain("auth.token.email_verified === true && auth.token.role === 'bookkeeper' && $key.matches(/^(modeFlags|taxCentreForBookkeeper)$/)");
     for (const key of PUBLISHER_ONLY) expect(BOOKKEEPER_READS.includes(key), key).toBe(false);
   });
+  it('starts before any publisher data loads, and the Tax Centre save keeps the copy up to date', () => {
+    const main = read('src/main.js');
+    const bookkeeper = main.indexOf('isBookkeeperPass(user, await readPassClaims(user))');
+    expect(bookkeeper).toBeGreaterThan(-1);
+    expect(bookkeeper).toBeLessThan(main.indexOf('const flagsLoaded = window._fbLoadModeFlags();'));
+    const firebase = read('src/firebase.js');
+    expect(firebase.match(/if \(key === 'taxCenter'\) void saveBookkeeperCopy\(/g)).toHaveLength(2);
+  });
+
   it('the bookkeeper writes nothing: no write rule names the role', () => {
     for (const line of firestoreRules.split('\n').filter(l => /allow [^:]*(write|create|update|delete)/.test(l))) {
       expect(line).not.toContain('isBookkeeper');

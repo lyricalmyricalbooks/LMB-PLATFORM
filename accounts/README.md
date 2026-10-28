@@ -25,7 +25,7 @@ The shop's own roles (`apps/shop/functions/roles.js`), named in `roles.js`:
 | Role | Can use |
 | --- | --- |
 | Owner | everything, including billing and the team |
-| Staff | the shop's admin, without billing, secret keys or the team |
+| Staff | the shop's admin, without billing, payment and email connections, or the team |
 | Author | their own books, in the stockroom only |
 | Bookkeeper | reads orders, sales, tax collected, payouts and the bookkeeping downloads (the admin's Bookkeeping page), and the stockroom's tax centre expenses; changes nothing, and sees no books, settings, customer list or team |
 

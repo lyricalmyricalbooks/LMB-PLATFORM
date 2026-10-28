@@ -8,10 +8,10 @@ import { teamApi, teamEmail, teamMemberProblem, type TeamMember } from "./teamAp
 
 // Admin-only words (the Studio rule covers shopper-facing words).
 const ROLE_WORDS: Record<TeamRole, { label: string; detail: string; added: string }> = {
-  staff: { label: "Staff", detail: "Can do everything in the admin except change the Team or the payment and email keys.", added: "can open the admin" },
-  owner: { label: "Owner", detail: "Everything, including the Team, the payment and email keys, and the stockroom.", added: "can open the admin" },
+  staff: { label: "Staff", detail: "Can do everything in the admin except change the Team or the payment and email connections.", added: "can open the admin" },
+  owner: { label: "Owner", detail: "Everything, including the Team, the payment and email connections, and the stockroom.", added: "can open the admin" },
   author: { label: "Author", detail: "Can't open this admin. In the stockroom, they see and update only the books that name them as the author.", added: "can open their books in the stockroom" },
-  bookkeeper: { label: "Bookkeeper", detail: "Reads the orders, sales, tax collected, payouts and bookkeeping downloads, and the stockroom's tax centre. Can't change anything, and doesn't see books, settings, the customer list or the Team.", added: "can read the shop's books" },
+  bookkeeper: { label: "Bookkeeper", detail: "Reads the orders, sales, tax collected, payouts and bookkeeping downloads, and the stockroom's tax centre. Can't change anything, and doesn't see books, settings, the customer list or the Team.", added: "can read the shop's sales and tax" },
 };
 
 // Settings › Team. The owner adds people by their Google email; they sign in with that account.

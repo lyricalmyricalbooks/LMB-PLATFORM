@@ -1,13 +1,8 @@
 // Plan 7.17: the bookkeeper's read-only tax centre. The copy they read carries the expenses and nothing else
 // (settings/taxCenter also holds AI keys), and their screen offers no way to change anything.
 import { describe, it, expect } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { baseAmountOf, bookkeeperCopyKey, bookkeeperTaxCopy, copyYears, isBookkeeperPass, yearCsv, yearSummary } from '../src/lib/bookkeeper-copy.js';
 import { bookkeeperViewHtml } from '../src/features/bookkeeper-view.js';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const TAX_CENTER = {
   settings: { baseCurrency: 'CAD', geminiKey: 'secret-gemini', claudeKey: 'secret-claude', rates: { USD: 1.37 } },
@@ -74,14 +69,5 @@ describe("the bookkeeper's sign-in and screen", () => {
 
   it('says plainly when the press has not saved a copy yet', () => {
     expect(bookkeeperViewHtml(null, '', 'kit@press.test')).toContain('Nothing to show yet');
-  });
-
-  it('starts before any publisher data loads, and the Tax Centre save keeps the copy up to date', () => {
-    const main = fs.readFileSync(path.join(root, 'src/main.js'), 'utf8');
-    const bookkeeper = main.indexOf('isBookkeeperPass(user, await readPassClaims(user))');
-    expect(bookkeeper).toBeGreaterThan(-1);
-    expect(bookkeeper).toBeLessThan(main.indexOf('const flagsLoaded = window._fbLoadModeFlags();'));
-    const firebase = fs.readFileSync(path.join(root, 'src/firebase.js'), 'utf8');
-    expect(firebase.match(/if \(key === 'taxCenter'\) void saveBookkeeperCopy\(/g)).toHaveLength(2);
   });
 });

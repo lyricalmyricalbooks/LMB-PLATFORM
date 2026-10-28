@@ -8,7 +8,7 @@ export const ROLE_NAMES = Object.freeze({ owner: "Owner", staff: "Staff", author
 /** What each role can do, for the page. */
 export const ROLE_HINTS = Object.freeze({
   owner: "Everything, including billing and the team.",
-  staff: "The shop's admin, but not billing, secret keys or the team.",
+  staff: "The shop's admin, but not billing, payment and email connections, or the team.",
   author: "Only their own books, in the stockroom.",
   bookkeeper: "Reads orders, sales, tax, payouts and the stockroom's tax centre. Can't change anything.",
 });
@@ -16,7 +16,7 @@ export const ROLE_HINTS = Object.freeze({
 /** The same, as the invite email puts it: "… invited you to join the team for <press>, as <words>." */
 export const ROLE_WORDS = Object.freeze({
   owner: "an owner, with everything including billing and the team",
-  staff: "staff, with the shop's admin but not billing, secret keys or the team",
+  staff: "staff, with the shop's admin but not billing, payment and email connections, or the team",
   author: "an author, with your own books in the stockroom",
   bookkeeper: "the bookkeeper, reading the shop's orders, sales, tax and payouts without changing anything",
 });
