@@ -25,6 +25,7 @@ export const DEFAULT_SHOP_PROFILE = Object.freeze({
   functionsRegion: 'us-central1',
   siteUrl: 'https://lmb-test-stockroom.web.app',
   apps: Object.freeze({ shop: false, stockroom: true }),
+  stockroom: Object.freeze({ firestoreDatabase: 'stockroom', storageBucket: 'lmb-test-stockroom-stockroom' }),
 });
 
 /**
@@ -39,6 +40,22 @@ export const SHOP_SWITCHES = Object.freeze(['legacyStockroomSignIn', 'githubPage
 
 const FIREBASE_KEYS = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
 const text = (value) => typeof value === 'string' && value.trim() !== '';
+// The format's patterns for the stockroom's own named database and bucket (profile/shop-profile.schema.json).
+const DATABASE_ID = /^[a-z][a-z0-9-]{2,61}[a-z0-9]$/;
+const BUCKET = /^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$/;
+
+/**
+ * Where this stockroom's data lives in its project (plan 1.20): `{ firestoreDatabase, storageBucket }` when the profile
+ * names the stockroom's own database and bucket, null when it uses the project's defaults, undefined when the block is
+ * there but broken (the whole profile is then refused).
+ */
+function stockroomPlace(value) {
+  if (value === undefined) return null;
+  if (!value || typeof value !== 'object') return undefined;
+  const keys = Object.keys(value);
+  if (keys.length !== 2 || !DATABASE_ID.test(value.firestoreDatabase ?? '') || !BUCKET.test(value.storageBucket ?? '')) return undefined;
+  return { firestoreDatabase: value.firestoreDatabase, storageBucket: value.storageBucket };
+}
 
 /**
  * Checks a profile the page was handed. All or nothing: a profile with any problem is ignored as a whole.
@@ -53,6 +70,8 @@ export function parseShopProfile(value) {
   if (firebase.databaseURL !== undefined && !/^https:\/\/[^/\s]+\/?$/.test(firebase.databaseURL)) return null;
   const apps = value.apps;
   if (!apps || typeof apps.shop !== 'boolean' || typeof apps.stockroom !== 'boolean') return null;
+  const place = stockroomPlace(value.stockroom);
+  if (place === undefined) return null;
   // Only the switches turned on are kept; an unknown name or a non-true value is simply off.
   const switches = value.switches && typeof value.switches === 'object' ? value.switches : {};
   const on = SHOP_SWITCHES.filter((name) => switches[name] === true);
@@ -66,8 +85,19 @@ export function parseShopProfile(value) {
     functionsRegion: value.functionsRegion,
     siteUrl: value.siteUrl,
     apps: { shop: apps.shop, stockroom: apps.stockroom },
+    ...(place ? { stockroom: place } : {}),
     ...(on.length ? { switches: Object.fromEntries(on.map((name) => [name, true])) } : {}),
   };
+}
+
+/** The named Firestore database the stockroom uses, or undefined for the project's default one. */
+export function stockroomDatabaseId(profile = shopProfile) {
+  return profile?.stockroom?.firestoreDatabase;
+}
+
+/** The storage bucket the stockroom uses (`gs://…`), or undefined for the project's default one. */
+export function stockroomBucketUrl(profile = shopProfile) {
+  return profile?.stockroom?.storageBucket ? `gs://${profile.stockroom.storageBucket}` : undefined;
 }
 
 /** Whether the profile turns this one-off on. Anything but `true` is off. */

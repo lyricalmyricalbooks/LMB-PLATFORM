@@ -52,6 +52,19 @@ test("switches are optional true/false values, and only the three known ones", (
   assert.equal(schema.required.includes("switches"), false);
 });
 
+test("the stockroom's own database and bucket are optional, and both are needed when given", () => {
+  const { stockroom, ...withoutIt } = example;
+  assert.deepEqual(profileProblems(withoutIt), []);
+  assert.equal(schema.required.includes("stockroom"), false);
+  assert.ok(profileProblems({ ...example, stockroom: { firestoreDatabase: "stockroom" } }).includes("profile.stockroom.storageBucket is missing"));
+  assert.ok(profileProblems({ ...example, stockroom: { ...stockroom, storageBucket: undefined } }).length);
+  for (const bad of ["(default)", "Stockroom", "st", "-stockroom", "stockroom-"]) {
+    assert.ok(profileProblems({ ...example, stockroom: { ...stockroom, firestoreDatabase: bad } }).includes("profile.stockroom.firestoreDatabase has the wrong shape"), bad);
+  }
+  assert.ok(profileProblems({ ...example, stockroom: { ...stockroom, storageBucket: "gs://x" } }).length);
+  assert.ok(profileProblems({ ...example, stockroom: { ...stockroom, extra: "x" } }).includes("profile.stockroom.extra is not part of the profile"));
+});
+
 test("the shop and the stockroom know the same switches as the format", async () => {
   const names = Object.keys(schema.properties.switches.properties);
   const { SHOP_SWITCHES: stockroom } = await import("../apps/stockroom/src/lib/shop-profile.js");
