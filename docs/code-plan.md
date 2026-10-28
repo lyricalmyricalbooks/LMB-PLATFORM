@@ -382,10 +382,11 @@ variants stubbed in the sample content.
 | 10.11 | shop | **Shelf** | same | |
 | 10.12 | shop | The remaining chosen templates, one pull request each | same | |
 
-## Phase 11: one admin look (planned 28 October 2026)
+## Phase 11: one look for the admin, emails and documents (planned 28 October 2026)
 
 Julian (28 October 2026): the stockroom's admin and the website's admin should look the same, using the website admin
-theme (Pressroom, with the Riso Press and Paper looks) everywhere. Full plan, rules and risks: `docs/admin-look-plan.md`.
+theme (Pressroom, with the Riso Press and Paper looks) everywhere, and the same goes for the emails, invoices and
+every other document. Full plan, rules and risks: `docs/admin-look-plan.md`.
 Product work happens only in `apps/`.
 
 | # | Repo | Pull request | Status |
@@ -399,6 +400,14 @@ Product work happens only in `apps/`.
 | 11.7 | shop, stockroom | One saved look choice for both apps | |
 | 11.8 | shop, stockroom | Same sign-in, help, What's new and app switch | |
 | 11.9 | stockroom | Delete the old styles and names; token check at zero; guides and design-system page updated | |
+| 11.10 | shop, stockroom, platform | One place for the press's name, logo, address, tax number and accent, read by every email and document | |
+| 11.11 | shop, platform | Shared email kit; shop and platform emails use it; the admin preview draws from it | |
+| 11.12 | shop, platform | Redesign each email in one pass, figures unchanged | |
+| 11.13 | shop, stockroom | Shared document kit (page frame, details, line table, totals, footer, print rules) | |
+| 11.14 | stockroom | Invoices, payment reminders, receipts and point-of-sale receipts on the kit | |
+| 11.15 | shop, stockroom | Packing and shipping printouts, customs forms, fair kit, valuation and tax reports, weekly PDF on the kit | |
+| 11.16 | shop, stockroom | Gallery of every email and document with sample data in each admin | |
+| 11.17 | shop, stockroom, platform | Remove old per-document styles; a check fails on a stray colour or font | |
 
 ## Rules for every pull request
 

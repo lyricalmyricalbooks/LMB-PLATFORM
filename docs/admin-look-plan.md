@@ -1,7 +1,8 @@
-# One admin look for the website and the stockroom
+# One look for the admin, the emails and every document
 
 Written 28 October 2026 at Julian's request: "I want the admin section of the inventory and the admin of the website to
-be the same. Use the website admin theme for everything."
+be the same. Use the website admin theme for everything." Extended the same day: "This should include redesigning the
+emails, the invoices, etc. We want to make everything consistent."
 
 Work happens only in `apps/shop` and `apps/stockroom` (and a new shared folder). Julian's own `LyricalmyricalWebsite` and
 `lyrical-inventory` are never touched.
@@ -59,6 +60,60 @@ Each step is its own pull request that merges once checks pass, and the stockroo
 | 11.7 | **One look choice for both apps.** Saved with the person's account in the shop's project, read by both apps; falls back to the browser when offline | Choose Paper once, both apps follow | Rules tests for the saved choice; a test that both apps read it |
 | 11.8 | **One product.** Same sign-in screen, same help, What's new and app switch; the switch shows which app you are in | Moving between apps feels like moving between two rooms of one shop | App switch tests (already exist) extended; screenshot of both rails side by side |
 | 11.9 | **Finish.** Delete the old stockroom styles and the old token names; the token check gets a limit of zero; update both apps' guides and the Riso Press design system page | Nothing visible. No leftover old look | The checks at zero; both guides updated |
+
+## Emails and documents: the same system, not a second one
+
+Everything a person receives or prints from Colophon should look like it came from the same place as the admin. What
+exists today (found by searching the code; step 11.1 makes the list complete):
+
+| Piece | Where it is made | Look today |
+| --- | --- | --- |
+| Order, shipping, return, gift card and other shop emails | `apps/shop/functions/email/` and `emailTheme.js` (mirrored for the admin preview in `admin/emailTheme.ts`) | Riso Press, newsprint or black, one accent colour the press can set |
+| Platform emails: sign-up, trial tips, billing, closing notices | `services/email/templates.js` (`layout`) | Its own layout, separate from the shop's |
+| Invoices (create, print, save as PDF, payment reminders) | stockroom `features/invoices.js`, `lib/payment-reminders.js` | Its own invoice template and settings |
+| Receipts and expense receipts | stockroom `features/receipts.js`, `lib/expense-receipts.js` | Its own layout |
+| Point-of-sale receipts, fair kit sheets, stock valuation report, packing and shipping printouts, customs forms, tax centre reports | stockroom `pos.js`, `fair-kit.js`, `inventory-valuation.js`, `shipping.js`, `taxcentre.js`; website admin order pages | Each opens its own print window with its own styles |
+| Weekly summary PDF and other server-made PDFs | `apps/shop/functions` | Its own styles |
+| Checkout order slip and order tracking page | shop storefront | Follows the storefront theme (a shopper-facing look, not the admin look) |
+
+**What "consistent" means here**
+
+1. **One document kit** in the shared folder: a page frame (logo and press name at top, title, reference number, date), a
+   details block, a table for lines, a totals block, a notes and terms footer, and one set of print rules (paper size,
+   margins, page breaks, black-and-white safe). Every printed or saved document is built from it.
+2. **One email kit** in the shared folder: one layout, one button, one table, one set of heading and footer rules, written
+   once and used by the shop's emails and the platform's emails. Each press still sets its own logo and accent colour. The
+   dark and light email themes stay.
+3. **The press's identity comes from one place.** Name, logo, address, tax number and accent colour are read from the same
+   shop settings for admin, emails, invoices and receipts, so changing the logo changes all of them.
+4. **Words and numbers.** Same date format, same money format, same wording for the same thing (an "order" is never an
+   "invoice" in one place and a "sale" in another).
+5. **Numbers never change.** Restyling a document must not change a total, tax line or rounding. Every document test
+   compares the figures before and after.
+6. **Works in the real world.** Emails render in Gmail, Apple Mail and Outlook (inline styles, no web-only tricks); fonts
+   fall back to safe ones; every email has a plain-text version; documents print cleanly in black and white.
+
+**Steps** (after 11.5, since they reuse the shared pieces)
+
+| # | Step | What changes for Julian | Proven by |
+| --- | --- | --- | --- |
+| 11.10 | **Press identity in one place.** One function reads name, logo, address, tax number and accent for every email and document, in both apps | Change the logo once, it changes everywhere | Tests: each output reads the same identity |
+| 11.11 | **The email kit.** Shared layout, button, table, footer; the shop's emails and the platform's emails both use it; the admin email preview draws from it | Every email looks like one family, from sign-up to a shipping notice | Parity test between the admin preview and the sent email (exists today, extended); Gmail, Apple Mail and Outlook sample checks; plain-text version present |
+| 11.12 | **Redesign each email** in one pass, in a sensible order: order confirmation, shipped, refund, gift card, back in stock, then sign-up, trial and billing. Same facts, clearer layout, the same words as the admin | Each email redrawn and checked | A figures test per email (same totals as before); every email shown in a preview page for review |
+| 11.13 | **The document kit.** Shared page frame, details block, line table, totals block, footer and print rules | Nothing visible yet | Print-to-PDF snapshots of a sample document; black-and-white check |
+| 11.14 | **Invoices and receipts** first (they carry money): the invoice, payment reminder, receipt and point-of-sale receipt move onto the kit; the invoice settings page uses the shared pieces | Invoices and receipts match the emails and the admin | Totals, tax and rounding tests unchanged; golden-file test per document |
+| 11.15 | **The rest of the documents:** packing and shipping printouts, customs forms, fair kit sheets, valuation and tax reports, the weekly summary PDF | Every printout is one family | Per-document figure tests; a list in step 11.1 with each one ticked off |
+| 11.16 | **A document and email gallery** in each admin (Settings › Design): every email and document with sample data, light and dark, so a press (and Julian) can see them all in one place | One page to review everything | A test that every template is listed and renders without errors |
+| 11.17 | **Finish.** Remove the old per-document styles; a check fails the build if an email or document has a colour or font outside the kit | No stray old look | The check at zero |
+
+**Extra risks**
+
+- **Customs forms and tax reports are official layouts.** They keep the fields and order the authorities expect; only
+  fonts, colours and spacing change. 11.1 marks which documents have a fixed layout.
+- **Email clients differ.** The kit is tested in the three biggest clients; anything that breaks in one is fixed in the kit,
+  not in one email.
+- **A press with a custom invoice template.** Their saved invoice settings (wording, terms, numbering, logo) keep working;
+  only the look underneath changes.
 
 ## Risks and how they are handled
 
