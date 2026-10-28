@@ -107,3 +107,10 @@ LMB-PLATFORM's `npm run demo` (`docs/demo-shop.md`) runs the stockroom against t
 turns that on only when the build has `VITE_FIREBASE_EMULATORS=true` **and** the profile's project starts with `demo-`;
 `src/firebase.js` then connects the Realtime Database, Auth, Storage and Firestore to them. Off for every real build
 (`tests/emulators.test.js`).
+
+## Download file names
+Every download starts with `fileStem()` from `src/lib/shop-profile.js`: the press's name from the shop profile's
+optional `name` ("Moth_Press_Tax_Report_2026.csv", or `fileStem({ lower: true })` for "moth-press-customers-….csv"),
+or "Stockroom" when the profile names none. Never type one press's name into a file name or label: the platform's
+`apps-isolation.test.js` fails on it. The stockroom's own ids keep their old word on purpose (the `DATA_ROOT` database
+folder, the Apps Script `service` ids, browser-storage keys): renaming them would orphan saved data and deployed scripts.

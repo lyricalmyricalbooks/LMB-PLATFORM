@@ -10,6 +10,8 @@
 export type ShopProfile = {
   version: 1;
   shopId: string;
+  /** The press's name as given at sign-up (the shop's own name lives in its settings). */
+  name?: string;
   firebase: {
     apiKey: string;
     authDomain: string;
@@ -117,9 +119,11 @@ export function parseShopProfile(value: unknown): ShopProfile | null {
   const on = SHOP_SWITCHES.filter(name => profile.switches && typeof profile.switches === "object" && profile.switches[name] === true);
   const payments = parseShopPayments(profile.payments);
   if (payments === null) return null;
+  if (profile.name !== undefined && (typeof profile.name !== "string" || !profile.name.length || profile.name.length > 80)) return null;
   return {
     version: 1,
     shopId: profile.shopId,
+    ...(profile.name !== undefined ? { name: profile.name } : {}),
     firebase: Object.fromEntries(FIREBASE_KEYS.map(key => [key, firebase[key]])) as ShopProfile["firebase"],
     functionsRegion: profile.functionsRegion,
     siteUrl: profile.siteUrl,

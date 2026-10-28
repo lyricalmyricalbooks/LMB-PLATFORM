@@ -1,7 +1,8 @@
 # Shop profile
 
 The one written format the shop and the stockroom agree on. Everything that differs between shops and is safe to be
-public: Firebase web settings, functions region, the shop's address, the bot-protection site key, which apps are on,
+public: the press's name (optional, for the stockroom's download file names), Firebase web settings, functions region,
+the shop's address, the bot-protection site key, which apps are on,
 and the `switches` for features one press needed once (`legacyStockroomSignIn`, `githubPagesForwarding`,
 `gmailReceiptFinder`, `gmailOrderScan`, `oldShopSync`; optional, on only when `true`; setup writes all five as `false`), and `payments`: the provider,
 `own` or `platform` mode, and the public ids the card form needs (for Stripe through the platform: the press's
