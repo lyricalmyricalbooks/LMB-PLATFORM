@@ -33,7 +33,21 @@ function shopRow(fields = {}) {
   };
 }
 
-async function world({ env = {}, row = shopRow(), deliverStatus = 200 } = {}) {
+// The email service's platform door: one email per idempotency key, like the real one's sent log.
+function fakeEmail({ fail = false } = {}) {
+  const sent = new Map();
+  return {
+    sent,
+    fail,
+    async sendPlatform(message) {
+      if (this.fail) throw new Error("Resend is down");
+      if (!sent.has(message.idempotencyKey)) sent.set(message.idempotencyKey, message);
+      return { id: "email_1" };
+    },
+  };
+}
+
+async function world({ env = {}, row = shopRow(), deliverStatus = 200, email = null } = {}) {
   const stripe = fakeStripeFetch();
   const registry = fakeRegistry();
   if (row) await registry.createShop(row.shopId, row);
@@ -41,7 +55,7 @@ async function world({ env = {}, row = shopRow(), deliverStatus = 200 } = {}) {
   const accounts = fakeAccounts();
   const { deliver, delivered } = fakeDeliver(deliverStatus);
   const config = readServiceConfig({ ...ENV, ...env });
-  const service = createPaymentService({ stripe: createStripeApi({ fetch: stripe.fetch, keys: config.keys }), registry, auditLog, accounts, deliver, config, now: () => NOW });
+  const service = createPaymentService({ stripe: createStripeApi({ fetch: stripe.fetch, keys: config.keys }), registry, auditLog, accounts, deliver, config, email, now: () => NOW });
   const call = (op, args = {}, mode = "live", headers = { "X-Shop-Id": SHOP, Authorization: `Bearer ${KEY}` }) => service.shopCall({ headers, body: { op, mode, args } });
   return { stripe, registry, auditLog, accounts, delivered, service, call };
 }
@@ -274,7 +288,30 @@ test("account status tells the press what Stripe still needs, and the platform f
   const { call, stripe } = await world({ env: { PLATFORM_FEE_BASIS_POINTS: "150" } });
   stripe.world.accounts.set("acct_moth", { id: "acct_moth", charges_enabled: true, payouts_enabled: false, details_submitted: true, requirements: { currently_due: ["external_account"] } });
   const answer = await call("account.status");
-  assert.deepEqual(answer.body, { accountId: "acct_moth", mode: "live", chargesEnabled: true, payoutsEnabled: false, detailsSubmitted: true, requirementsDue: 1, platformFee: { percent: 1.5, refundedWithRefunds: true } });
+  assert.deepEqual(answer.body, {
+    accountId: "acct_moth", mode: "live", chargesEnabled: true, payoutsEnabled: false, detailsSubmitted: true, requirementsDue: 1, platformFee: { percent: 1.5, refundedWithRefunds: true },
+    needs: [{ words: "your bank details", pastDue: false }], deadline: null, pastDue: false, disabledReason: null,
+  });
+});
+
+test("what Stripe needs is told in plain words, past due first, each once, with the deadline", async () => {
+  const { call, stripe } = await world();
+  const deadline = Math.floor(Date.parse("2026-11-12T17:00:00Z") / 1000);
+  stripe.world.accounts.set("acct_moth", {
+    id: "acct_moth", charges_enabled: true, payouts_enabled: false, details_submitted: true,
+    requirements: { currently_due: ["individual.dob.day", "individual.dob.month", "external_account", "person_1AbC.verification.document", "company.verification.document", "something.new"], past_due: ["external_account"], current_deadline: deadline, disabled_reason: "requirements.past_due" },
+  });
+  const { body } = await call("account.status");
+  assert.deepEqual(body.needs, [
+    { words: "your bank details", pastDue: true },
+    { words: "your date of birth", pastDue: false },
+    { words: "a photo of your ID", pastDue: false },
+    { words: "a document showing your business is registered", pastDue: false },
+    { words: "a few more details", pastDue: false },
+  ]);
+  assert.equal(body.deadline, "2026-11-12T17:00:00.000Z");
+  assert.equal(body.pastDue, true);
+  assert.equal(body.disabledReason, "requirements.past_due");
 });
 
 test("Stripe's sign-up link only sends the press back to the shop's own addresses", async () => {
@@ -353,9 +390,61 @@ test("the account's state is kept in the registry and logged once, in the regist
   await service.stripeEvent(signed(event).headers, signed(event).raw);
   await service.stripeEvent(signed({ ...event, id: "evt_5" }).headers, signed({ ...event, id: "evt_5" }).raw);
   const payments = (await registry.getShop(SHOP)).payments;
-  assert.deepEqual({ ...payments, stateAt: undefined }, { provider: "stripe", accountId: "acct_moth", mode: "live", chargesEnabled: true, payoutsEnabled: true, detailsSubmitted: true, stateAt: undefined });
+  assert.deepEqual({ ...payments, stateAt: undefined }, { provider: "stripe", accountId: "acct_moth", mode: "live", chargesEnabled: true, payoutsEnabled: true, detailsSubmitted: true, pastDue: false, stateAt: undefined });
   assert.deepEqual([...registry.events.get(SHOP).keys()], ["payments-account-evt_4"], "an unchanged state is not logged again");
   assert.equal(auditLog.entries.get(SHOP).get("payments-account-evt_4").kind, "payments.account-updated");
+});
+
+test("a requirement past its deadline emails the owner once, with the admin's address, never Stripe's link", async () => {
+  const email = fakeEmail();
+  const { service, registry, auditLog } = await world({ email, row: shopRow({ siteUrl: "https://shop.mothpress.example/" }) });
+  const account = (requirements, extra = {}) => ({ id: "acct_moth", charges_enabled: true, payouts_enabled: false, details_submitted: true, requirements, ...extra });
+  const send = (id, object) => {
+    const event = { id, livemode: true, account: "acct_moth", type: "account.updated", data: { object } };
+    return service.stripeEvent(signed(event).headers, signed(event).raw);
+  };
+
+  // Due, not yet past due: nothing is sent.
+  assert.equal((await send("evt_d1", account({ currently_due: ["external_account"], past_due: [] }))).status, 200);
+  assert.equal(email.sent.size, 0);
+  assert.equal((await registry.getShop(SHOP)).payments.pastDue, false);
+
+  // Past due: one email; the same state again (a new event, or Stripe resending this one) sends nothing more.
+  const pastDue = account({ currently_due: ["external_account"], past_due: ["external_account"] });
+  assert.equal((await send("evt_d2", pastDue)).status, 200);
+  assert.equal((await send("evt_d3", pastDue)).status, 200);
+  assert.equal((await send("evt_d2", pastDue)).status, 200);
+  assert.equal(email.sent.size, 1);
+  const [message] = email.sent.values();
+  assert.equal(message.kind, "payments-past-due");
+  assert.equal(message.to, "owner@example.com");
+  assert.deepEqual(message.data, { pressName: "Moth Press", provider: "Stripe", needs: ["your bank details"], link: "https://shop.mothpress.example/admin#settings/payments/methods" });
+  const payments = (await registry.getShop(SHOP)).payments;
+  assert.equal(payments.pastDue, true);
+  assert.equal(payments.pastDueSince, new Date(NOW).toISOString());
+  assert.equal(payments.pastDueEmailedAt, new Date(NOW).toISOString());
+  assert.equal(auditLog.entries.get(SHOP).get(`payments-past-due-emailed-acct_moth-${payments.pastDueSince}`).kind, "payments.past-due-emailed");
+
+  // Done: the flags go, so a later past-due requirement emails again.
+  await send("evt_d4", account({ currently_due: [], past_due: [] }, { payouts_enabled: true }));
+  const done = (await registry.getShop(SHOP)).payments;
+  assert.equal(done.pastDue, false);
+  assert.equal(done.pastDueSince, undefined);
+  assert.equal(done.pastDueEmailedAt, undefined);
+  assert.equal(done.payoutsEnabled, true);
+});
+
+test("when the past-due email can't be sent, Stripe is told to send the event again, and the retry sends it", async () => {
+  const email = fakeEmail({ fail: true });
+  const { service, registry, delivered } = await world({ email });
+  const event = { id: "evt_p1", livemode: true, account: "acct_moth", type: "account.updated", data: { object: { id: "acct_moth", charges_enabled: false, payouts_enabled: false, details_submitted: true, requirements: { past_due: ["tos_acceptance.date"] } } } };
+  assert.equal((await service.stripeEvent(signed(event).headers, signed(event).raw)).status, 502);
+  assert.equal(delivered.length, 0);
+  assert.equal((await registry.getShop(SHOP)).payments.pastDueEmailedAt, undefined);
+  email.fail = false;
+  assert.equal((await service.stripeEvent(signed(event).headers, signed(event).raw)).status, 200);
+  assert.deepEqual([...email.sent.values()].map((m) => m.data.needs), [["your agreement to Stripe's terms"]]);
+  assert.ok((await registry.getShop(SHOP)).payments.pastDueEmailedAt);
 });
 
 test("a press disconnecting their Stripe account is recorded", async () => {

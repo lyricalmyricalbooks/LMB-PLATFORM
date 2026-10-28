@@ -183,6 +183,26 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /**
+   * The press's card account has a detail past Stripe's deadline, so Stripe has paused cards or payouts (code plan 7.9;
+   * services/payments). Sent once each time it happens. `data`: { provider, needs: plain words, link: the shop's admin }.
+   * Never Stripe's own sign-up link: that one works once, for a few minutes, and must not be emailed.
+   */
+  "payments-past-due": ({ provider = "Stripe", needs = [], link }, { settings, pressName }) => {
+    if (!Array.isArray(needs) || !needs.length) throw new Error("the past-due email names nothing that is needed");
+    const what = needs.length === 1 ? needs[0] : `${needs.slice(0, -1).join(", ")} and ${needs[needs.length - 1]}`;
+    return layout({
+      subject: `${provider} has paused payments for ${pressName}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `${provider} still needs ${what} for ${pressName}, and the deadline has passed, so it has paused card payments or payouts until it has them.`,
+        `Open your shop's admin and press Continue with ${provider} under Payments. It takes a few minutes.`,
+      ],
+      buttons: [["Open Payments", safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
+
   /** The press changed plan. */
   "plan-changed": ({ planName, price, link }, { settings, pressName }) => layout({
     subject: `${pressName} is now on the ${planName} plan`,

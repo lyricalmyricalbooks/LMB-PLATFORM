@@ -482,3 +482,10 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
   when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`).
 - Settings › Payments › Card payments (`PlatformPaymentsCard.tsx`, plan 2.2b) replaces the Stripe keys card on platform
   shops.
+- **What Stripe still needs (plan 7.9):** `account.status` carries `needs: [{ words, pastDue }]` (plain words made by
+  the platform, `services/payments/requirements.js`), `deadline` and `pastDue`. `needsLine` (platformPayments.ts) says it
+  ("Stripe needs your bank details by 12 November."); the card shows it above one **Continue with Stripe** button that
+  asks for a fresh Stripe page on every press (Stripe's links work once and are never emailed). The `card-account`
+  readiness row ticks only once `paymentsReady` (cards and payouts). While something is past due, `cardAccountAlert`
+  (adminAlerts.ts, action `cardAccount` → Settings › Payments › Ways to pay) puts a banner on every admin page; the
+  Dashboard's 5-minute alert check reads the status for Stripe platform shops. The platform emails the owner once.

@@ -75,9 +75,18 @@ The press sees the fee with their payout state (`account.status` returns `platfo
 ## What it keeps
 
 The service never writes a shop's database. It writes the registry row's `payments` (the account's state from
-`account.updated`: charges, payouts, details submitted; `disconnectedAt` when a press disconnects) and its own record of
+`account.updated`: charges, payouts, details submitted, `pastDue`; `disconnectedAt` when a press disconnects) and its own record of
 the accounts it made (`accounts`). Each change is logged in the registry (`recordEvent`) and the shop's audit log, with
 stable ids.
+
+## What Stripe still needs (7.9)
+
+`account.status` adds `needs: [{ words, pastDue }]` (Stripe's `requirements.past_due` and `currently_due` in plain
+words, `requirements.js`, past due first, each once), `deadline` (`current_deadline`, ISO) and `pastDue`. When an
+`account.updated` turns past due, the row gets `pastDueSince`, and with the `email` client (services/email
+`sendPlatform`) the owner gets one `payments-past-due` email linking to their admin's Payments page, never Stripe's own
+link; then `pastDueEmailedAt`. Both clear once nothing is past due. A failed send answers 502, so Stripe sends the event
+again; the email's idempotency key holds `pastDueSince`, so a retry never sends twice.
 
 ## Files
 
