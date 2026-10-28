@@ -6,7 +6,8 @@ import { discountLabel, giftCardPaid, issuedGiftCards, lineDetailsSummary } from
 
 export const EXTRA_HEADERS = ["DiscountLabel", "GiftCardPaid", "GiftCardsUsed", "GiftCardsSold", "LineExtras"];
 
-const keptOrders = (orders: any[], paidOnly: boolean) => orders.filter((o) => o.isTest !== true
+// Test and practice orders (plan 7.6; a practice order is marked before it is paid) never reach an export.
+const keptOrders = (orders: any[], paidOnly: boolean) => orders.filter((o) => o.isTest !== true && o.practiceOrder !== true
   && (!paidOnly || ["paid", "refunded", "refund_pending"].includes(o.paymentStatus)));
 
 function cell(v: any) {
