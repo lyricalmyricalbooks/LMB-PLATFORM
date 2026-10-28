@@ -2,7 +2,8 @@
 // email link) and sees every shop they belong to, with their role in each, and a switcher that takes them to that
 // shop's admin or stockroom. Owners invite people by email with a role.
 //
-// Roles are the shop's own (apps/shop/functions/roles.js): `owner` and `staff` open the shop's admin; `author` opens the
+// Roles are the shop's own (apps/shop/functions/roles.js): `owner` and `staff` open the shop's admin; `bookkeeper` opens
+// its read-only Bookkeeping page (or the stockroom's tax centre when there is no admin); `author` opens the
 // stockroom's pages for their own books only. A role given here is written to the shop's own `members/<email>`
 // document, which the shop copies onto the person's sign-in pass, so the shop's rules stay the one judge of access.
 //
@@ -115,7 +116,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       const person = await ownerOnly(claims, shopId);
       const to = normal(address);
       if (!EMAIL.test(to) || to.length > 254) throw new SignupError(400, "Enter the email address to invite.", { email: "Enter the email address to invite." });
-      if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff or author.", { role: "Choose a role." });
+      if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff, author or bookkeeper.", { role: "Choose a role." });
       const shopRow = await registry.getShop(shopId);
       // The shop's own owner address always counts as owner in the shop (apps/shop/functions/roles.js); it needs no invite.
       if (to === normal(shopRow?.ownerEmail)) throw new SignupError(409, "That's the shop's own owner address. It always has full access.");
@@ -176,7 +177,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
     async setRole(claims, { shopId, email: address, role }) {
       const person = await ownerOnly(claims, shopId);
       const who = normal(address);
-      if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff or author.");
+      if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff, author or bookkeeper.");
       const member = await memberships.get(shopId, who);
       if (!member) throw new SignupError(404, "That person isn't on the team.");
       if (member.role === role) return { email: who, role, changed: false };
