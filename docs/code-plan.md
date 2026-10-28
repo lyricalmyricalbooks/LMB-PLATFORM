@@ -19,7 +19,7 @@ Status: `done`, `open` (pull request up), `next`, or blank (not started).
 | 0.1 | platform | Waitlist page (`waitlist/index.html`) | no rival named (test) | done |
 | 0.2 | platform | Waitlist sign-up handler: checks the form, ignores bots, stores each email once (`waitlist/signup.js`) | handler tests with a fake store | done |
 | 0.3 | platform | Waitlist storage adapter and hosting: sign-ups go straight from the page to Firestore in the platform project `lmb-platform-prod` (Montréal), add-only rules (`waitlist/firestoreStore.js`, `firestore.rules`, `firebase.json`) | a test sign-up lands in the emulator; rules refuse reads, edits and doctored records (`waitlist-rules` job) | done |
-| 0.4 | platform | Product name in the page, domain checked | name test | |
+| 0.4 | platform | Product name in the page, domain checked. The name is Colophon (Julian, 28 October 2026): title, description, header and footer of `waitlist/index.html`, the same as `services/settings.js`; "working name" is gone. `waitlist/domain-check.js` checks which colophon names are registered, over RDAP (read only, never buys); the build machine's network blocks the registries, so Julian runs it (`docs/name-and-domain.md` lists the candidates). Nothing registered | name test (`waitlist/page.test.js`), checker tests with a fake registry | done (domain: Julian runs the check and buys one) |
 
 ## Phase 1: make it anyone's shop
 
@@ -151,6 +151,6 @@ Gate: a month where every update reaches every shop with no checkout outage.
 
 ## Open decisions
 
-- The product name ("Colophon" is a working name; blocks 0.4 and the repo renames).
+- ~~The product name~~: Colophon (Julian, 28 October 2026). Still open: which domain (`docs/name-and-domain.md`) and the repo renames.
 - ~~Stockroom data in the shop project~~: its own named database (Julian, 28 October 2026; 1.20).
 - ~~Move your stockroom ledger~~: new shops link inside one project; Julian's own ledger is never moved or touched (Julian, 28 October 2026; 1.21).
