@@ -166,6 +166,10 @@ npm run logs
   the Functions on the Firebase emulators (project `demo-colophon-test`). `src/lib/emulators.ts` switches Firestore, Firestore Lite,
   Auth, Storage and the Functions address to the emulators only when the build has `VITE_FIREBASE_EMULATORS=true` **and** the
   profile's project starts with `demo-`; App Check is then skipped. Off for every real build (`emulators.test.ts`).
+- **Accessibility (plan 8.8):** root CI job `shop-accessibility` runs `pnpm run test:a11y` (`scripts/a11y-check.mjs`):
+  axe-core 4.14.0 (WCAG 2.1 A/AA) in Chromium over every `THEME_LIBRARY` theme and the starting look, on home, a book
+  page and checkout, through `a11y-fixture.html` (sample books, shop data never answered). Known problems sit in
+  `scripts/a11y-baseline.json` (`<theme> <page> <rule>`: nodes); more fails, `--update` only lowers it. Fix, never raise.
 - **Studio fixture:** `pnpm dev` then open `/studio-fixture.html` — the real Studio with in-memory data
   (`studio/fixture/fakeStudioApi.ts`; writes are recorded in `window.__studioFixture.calls`, nothing reaches
   Firestore). `pnpm run test:studio` drives it in Chromium (`CHROMIUM_PATH` to reuse an installed browser,
