@@ -1,0 +1,47 @@
+// The payment service, put together from its environment (config.js) and the clients it is handed. The function that
+// hosts it (platform project, not built yet) calls this once and routes requests to `handlePayments` (http.js).
+import { readServiceConfig } from "./config.js";
+import { createStripeApi } from "./stripeApi.js";
+import { createPaymentService, httpDeliver } from "./service.js";
+import { createSquareApi } from "./squareApi.js";
+
+export { handlePayments } from "./http.js";
+export { feeFor, feeForShop, readFeeSettings } from "./fees.js";
+
+/**
+ * @param {object} deps
+ * @param {object} deps.env the service's environment (process.env); the only place the platform keys are read
+ * @param {typeof fetch} deps.fetch for Stripe and for passing events on to shops
+ * @param {object} deps.registry the shop registry; deps.auditLog each shop's audit log; deps.accounts the service's
+ *   record of the accounts it made (service.js has the shapes)
+ * @param {object} [deps.squareTokens] the presses' sealed Square tokens; deps.squareStates Connect Square's one-use states
+ *   (square.js has the shapes; both platform-project collections in the real service)
+ */
+export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts, squareTokens = null, squareStates = null, now }) {
+  const config = readServiceConfig(env);
+  const squareReady = Boolean((config.square.apps.live || config.square.apps.test) && squareTokens && squareStates);
+  return createPaymentService({
+    ...(squareReady ? { squareApi: createSquareApi({ fetch, apps: config.square.apps }), tokens: squareTokens, states: squareStates } : {}),
+    stripe: createStripeApi({ fetch, keys: config.keys }),
+    registry,
+    auditLog,
+    accounts,
+    deliver: httpDeliver(fetch),
+    config,
+    now,
+  });
+}
+
+/**
+ * The Stripe client for the platform's own billing (services/billing): the presses' Colophon subscriptions, charged on
+ * the platform's own Stripe account, not on a connected one. The platform key is still read only here.
+ */
+export function platformBillingStripe({ env, fetch }) {
+  return createStripeApi({ fetch, keys: readServiceConfig(env).keys });
+}
+
+/** The shop maker's Stripe client (setup/payments.js `providers.stripe`), backed by the service. */
+export const setupClient = (service) => ({
+  findAccount: (shopId) => service.findAccount(shopId),
+  createAccount: (shopId, details) => service.createAccount(shopId, details),
+});

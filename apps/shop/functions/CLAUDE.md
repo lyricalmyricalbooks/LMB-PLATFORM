@@ -796,6 +796,18 @@ unsure, `createCardIntent`, `createCheckoutSession`), and for Settings › Payme
   built) makes `shopConfig.js` throw a plain message, so the functions refuse to load instead of quietly taking
   payments through Stripe (`paymentProviderOf`; payments.test.js loads index.js with `square` to prove it).
 
+**Platform mode (28 October 2026, code plan 2.2).** `SHOP_PAYMENT_MODE` (`own`, the default, or `platform`; anything
+else makes `shopConfig.js` throw) picks how the provider reaches Stripe. In `platform` mode the shop holds no Stripe key:
+`payments/platform.js` gives `stripe.js` a Stripe-shaped client whose calls go to the platform's payment service
+(`SHOP_PAYMENTS_SERVICE_URL`, https, required) with `X-Shop-Id` and `Authorization: Bearer <PLATFORM_SERVICE_KEY>`. The
+service makes them on the press's own connected account. Key checks, webhook endpoint lists and payment-domain
+registration are the platform's job there. `verifyWebhookEvent` is async in both modes: in platform mode it reads only
+the forwarded event's id and fetches the event again through the service, so an unsigned forwarded body can't change an
+order (tested). `platformKey.js` holds the secret: `withPlatformKey([...])` adds `PLATFORM_SERVICE_KEY` to every
+function's `secrets` list (and the global options) on a shop that uses a platform service, and to none otherwise;
+`platformKey.test.js` fails when a functions file declares a bare `secrets: [` list. The card form gets the platform's
+publishable key and the press's account from the shop profile's `payments` (`platformStripe` in `src/lib/shopProfile.ts`).
+
 ## Email module (27 October 2026, code plan 1.13)
 
 `functions/email/index.js` (`createEmail`) is the one door for every email the server sends, built like the payments
@@ -809,3 +821,26 @@ saved, then Resend with the sandbox retry; logs every attempt; parks a failed `q
 (`sendQueuedEmail`), the claims (`sendOrderEmailOnce`) and every template. `email/email.test.js` (fake Firestore, Gmail
 and Resend) pins the send paths and fails when another functions file opens a mail transport, makes a Resend client,
 sends through one or writes `emailLog` itself.
+
+**Platform shared sender (28 October 2026, code plan 2.3b).** When the shop's functions env has `PLATFORM_EMAIL_URL`
+(`shopConfig.platformEmailUrl`, written by platform setup step 8), the backup after Gmail is the platform's email service
+(`email/platformSender.js`, POST with `X-Shop-Id` and `Authorization: Bearer $PLATFORM_SERVICE_KEY`, read at send time),
+never the shop's own Resend key. It makes one request per recipient, with the idempotency key `<key>:<address>`, where the key is the queue id, or for an unqueued email a hash of its recipients, subject, kind, order, words and the hour, so a retry after a partial send never doubles an email (tested).
+A `retryable: false` refusal is logged once and never queued; anything else is queued as before. Gmail (the press's own
+address) still goes first, and a shop whose Gmail works never reaches the platform (tested). The shared sender sends no
+attachments, and the log says so. `senderStatus()` (`sendTestEmail` action `senderStatus`) tells Settings › Email sender
+the Gmail address and the backup. The card is "Send from your own Gmail" and hides the Resend fields when the backup is
+the platform (`src/app/admin/senderStatus.ts`). With `PLATFORM_EMAIL_URL` unset, everything works as before.
+
+## Data changes (28 October 2026, platform plan 4.2)
+
+`functions/migrations/`: numbered data changes, each run once per shop. `list.js` holds them in order
+(`0001-short-name`, no gaps; `listProblems` and the tests refuse a gap or a bad name). `runner.js` `runMigrations`
+runs the pending ones in order under a lock, and stops at the first failure; the next run starts there. What ran is
+kept in `systemStatus/migrations` (`applied`, `running`, `failed`; admin-readable, no browser writes), and each change
+adds a plain-words Activity logs entry (type `settings`, actor "Shop updates"; the error stays in a field, not the
+message). `run.js --project <id> [--release <v>] [--dry-run]` runs them with application default credentials; the
+platform's release runner calls it before it deploys new server code. A change must be safe to run twice (look before
+writing), is only ever appended and never edited after release, and must leave data the previous release's code can
+still use, since a failed release is rolled back by putting the old code back. The test runs every listed change twice
+on an empty shop and expects the same result. The list is empty today.

@@ -52,6 +52,19 @@ test("switches are optional true/false values, and only the three known ones", (
   assert.equal(schema.required.includes("switches"), false);
 });
 
+test("the stockroom's own database and bucket are optional, and both are needed when given", () => {
+  const { stockroom, ...withoutIt } = example;
+  assert.deepEqual(profileProblems(withoutIt), []);
+  assert.equal(schema.required.includes("stockroom"), false);
+  assert.ok(profileProblems({ ...example, stockroom: { firestoreDatabase: "stockroom" } }).includes("profile.stockroom.storageBucket is missing"));
+  assert.ok(profileProblems({ ...example, stockroom: { ...stockroom, storageBucket: undefined } }).length);
+  for (const bad of ["(default)", "Stockroom", "st", "-stockroom", "stockroom-"]) {
+    assert.ok(profileProblems({ ...example, stockroom: { ...stockroom, firestoreDatabase: bad } }).includes("profile.stockroom.firestoreDatabase has the wrong shape"), bad);
+  }
+  assert.ok(profileProblems({ ...example, stockroom: { ...stockroom, storageBucket: "gs://x" } }).length);
+  assert.ok(profileProblems({ ...example, stockroom: { ...stockroom, extra: "x" } }).includes("profile.stockroom.extra is not part of the profile"));
+});
+
 test("the shop and the stockroom know the same switches as the format", async () => {
   const names = Object.keys(schema.properties.switches.properties);
   const { SHOP_SWITCHES: stockroom } = await import("../apps/stockroom/src/lib/shop-profile.js");
@@ -59,6 +72,22 @@ test("the shop and the stockroom know the same switches as the format", async ()
   const shopSource = readFileSync(new URL("../apps/shop/src/lib/shopProfile.ts", import.meta.url), "utf8");
   const shop = shopSource.match(/SHOP_SWITCHES = \[([^\]]+)\]/)[1].match(/"(\w+)"/g).map((name) => name.slice(1, -1));
   assert.deepEqual(shop, names);
+});
+
+test("payments name the provider, the mode and only public payment-form ids", () => {
+  const platform = { provider: "stripe", mode: "platform", stripe: { accountId: "acct_1Moth", publishableKey: "pk_live_abc", testPublishableKey: "pk_test_abc" } };
+  assert.deepEqual(profileProblems({ ...example, payments: platform }), []);
+  assert.deepEqual(profileProblems({ ...example, payments: { provider: "stripe", mode: "own" } }), []);
+  assert.equal(schema.required.includes("payments"), false, "a shop on its own keys has none");
+  const problems = (payments) => profileProblems({ ...example, payments });
+  assert.ok(problems({ provider: "paypal", mode: "own" }).includes("profile.payments.provider has the wrong shape"));
+  assert.ok(problems({ provider: "stripe", mode: "shared" }).includes("profile.payments.mode has the wrong shape"));
+  assert.ok(problems({ provider: "stripe" }).includes("profile.payments.mode is missing"));
+  // A secret key in the publishable slot, or any secret at all, never reaches the page.
+  assert.ok(problems({ ...platform, stripe: { ...platform.stripe, publishableKey: "sk_live_abc" } }).includes("profile.payments.stripe.publishableKey has the wrong shape"));
+  assert.ok(problems({ ...platform, stripe: { ...platform.stripe, secretKey: "sk_live_abc" } }).includes("profile.payments.stripe.secretKey is not part of the profile"));
+  assert.ok(problems({ ...platform, feeBasisPoints: 250 }).includes("profile.payments.feeBasisPoints is not part of the profile"));
+  assert.ok(problems({ ...platform, stripe: { accountId: "acct_x y" } }).includes("profile.payments.stripe.accountId has the wrong shape"));
 });
 
 test("the served file sets the profile before the app starts", () => {

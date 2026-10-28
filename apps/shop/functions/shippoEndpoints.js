@@ -3,6 +3,7 @@
 // (functions/CLAUDE.md › Cloud Functions › Action table): index.js passes in its own Firebase wrappers, db, guards and
 // Shippo helpers, so the vm-based handler tests' fakes still apply, and keeps each `exports.<name> =` line.
 
+const { withPlatformKey } = require("./platformKey");
 function shippoEndpoints({
   onBrowserRequest, onRequest, db, applyCors, requireAdmin, hitLimit, LIMITS, IS_EMULATOR, RESEND_API_KEY,
   SHIPPO_API_TOKEN, SHIPPO_CONFIG_DOC, ADDRESS_ACTIONS, FALLBACK_COPY_GRAMS, addressKeyProblem, addressMissing,
@@ -17,7 +18,7 @@ function shippoEndpoints({
   // "live" or "test" from the key's own prefix (shippo_live_… / shippo_test_…); null when it is neither.
   const shippoKeyMode = key => /^shippo_live_/.test(String(key || "")) ? "live" : /^shippo_test_/.test(String(key || "")) ? "test" : null;
 
-  const getShippoConfig = onBrowserRequest({ secrets: [SHIPPO_API_TOKEN] }, async (req, res) => {
+  const getShippoConfig = onBrowserRequest({ secrets: withPlatformKey([SHIPPO_API_TOKEN]) }, async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") {
       res.status(405).send("Method Not Allowed");
@@ -95,7 +96,7 @@ function shippoEndpoints({
   });
 
   const getShippoRates = onBrowserRequest(
-    { secrets: [SHIPPO_API_TOKEN] },
+    { secrets: withPlatformKey([SHIPPO_API_TOKEN]) },
     async (req, res) => {
       if (applyCors(req, res)) return;
 
@@ -295,7 +296,7 @@ function shippoEndpoints({
   const SHOP_WIDE_REQUEST = { headers: { "x-forwarded-for": "shop-wide" } };
 
   const validateAddress = onBrowserRequest(
-    { secrets: [SHIPPO_API_TOKEN] },
+    { secrets: withPlatformKey([SHIPPO_API_TOKEN]) },
     async (req, res) => {
       if (applyCors(req, res)) return;
 
@@ -387,7 +388,7 @@ function shippoEndpoints({
   // 12. HTTP Endpoint: Shippo Webhook Status Updates (Carrier Integration)
   // ──────────────────────────────────────────────────────────────
   const shippoWebhook = onRequest(
-    { secrets: [RESEND_API_KEY, SHIPPO_API_TOKEN] },
+    { secrets: withPlatformKey([RESEND_API_KEY, SHIPPO_API_TOKEN]) },
     async (req, res) => {
       if (req.method !== "POST") {
         res.status(405).send("Method Not Allowed");

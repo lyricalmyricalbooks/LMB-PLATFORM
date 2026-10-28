@@ -12,8 +12,11 @@ another admin call takes it from its own small file the same way. `adminApiImpor
 The shop and the inventory app (`lyricalmyricalbooks/LMB-PLATFORM (apps/stockroom)`, Firebase project `lmb-test-stockroom`) share sales
 and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory repo's `docs/website-link.md` — change both).
 **The inventory app is the master count** for every linked edition; nothing here is a payment path.
-- **Transport:** Functions open a second Admin SDK app on `lmb-test-stockroom` (`functions/inventoryLinkStore.js`, the only code
-  that touches it) with their own service account, which the owner grants **Cloud Datastore User** there once.
+- **Transport (plan 1.21):** the inventory app lives in this shop's project, in its own named Firestore database
+  (`stockroom`, `SHOP_STOCKROOM_DATABASE` in `functions/shopConfig.js`). Functions open it on the project's own Admin app
+  (`functions/inventoryLinkStore.js`, the only code that touches it; never `(default)`), so nothing is granted. The Connect
+  card shows the grant steps only for `not-granted` (access removed); `no-stockroom` means the shop has no stockroom yet.
+  `IAM_URL` and `INVENTORY_APP_URL` (`<project>-stockroom.web.app`) come from the shop profile.
 - **Sales → app:** `onOrderInventoryPush` (any write to `orders/{id}`) and the 5-minute `inventoryLinkSweep` write
   `websiteOrders/{orderId}` in the inventory project. `functions/inventoryLink.js` `orderFootprint` counts physical copies of
   linked editions per order (box sets as their parts, minus `restockedItems`/`partialRestockedItems`), never what `writeStock`

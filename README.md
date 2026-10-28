@@ -17,14 +17,20 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | --- | --- |
 | `apps/` | Copies of the shop and the stockroom for the platform. Julian's own repos are never changed. |
 | `setup/` | The shop maker. It creates a press's Firebase copy in numbered steps, each safe to re-run. |
-| `releases/` | Sends a new shop and stockroom version to every press, starting with a test shop. |
-| `control-room/` | Platform admin: every shop's health, plan and version, plus a logged "act as this shop" button. |
+| `clients/` | The platform's real connections to Google (Firestore, the registry, sign-in for the test owner), each tested with a fake `fetch`. |
+| `release-check/` | The full purchase every update must pass on the test shop: buy, stock drop in the shop and stockroom, email, refund. |
+| `releases/` | Notes on how a new shop and stockroom version reaches every press. |
+| `services/health/` | Checks every shop's pages, checkout, payment events and backups every five minutes, emails the platform when one fails, and backs up what the shops don't each night. |
+| `services/release-runner/` | Builds a release once and sends it to the test shop, then every other platform shop; stops and rolls back at the first failed check. |
+| `control-room/` | Platform admin: every shop's health, plan, version and switches, a logged "act as this shop" button, and a command to turn one shop switch on or off. |
 | `services/payments/` | The one service that holds the Stripe platform key. It handles checkout and Stripe events for all shops. |
+| `services/billing/` | Each press's Colophon plan (shop, stockroom or both) on the platform's own Stripe account: free trial with no card, card, cancel, plan changes and the billing emails. |
 | `services/email/` | The one service that holds the email sender key. |
 | `signup/` | Sign-up, plan choice and billing. |
+| `accounts/` | One sign-in for every shop a person belongs to: the shop switcher, and invites with a role for each shop's team. |
 | `waitlist/` | The public waitlist page. |
 | `profile/` | The shop profile format: what differs between shops, read by both apps when the page opens. |
-| `docs/` | Decisions and plans: `code-plan.md` (the build order, one pull request per line), `shop-setup.md`, `payments.md`, `test-shop.md`, `decisions.md`. |
+| `docs/` | Decisions and plans: `code-plan.md` (the build order, one pull request per line), `shop-setup.md`, `payments.md`, `test-shop.md`, `name-and-domain.md`, `decisions.md`. |
 
 The plan behind all of this is the "Press platform build plan" doc.
 
