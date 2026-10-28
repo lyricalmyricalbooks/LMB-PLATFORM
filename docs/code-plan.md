@@ -151,6 +151,16 @@ tests. Nothing here deploys, touches a live project or changes `LyricalmyricalWe
 demo mode (built in another thread) is not part of this batch. Rows marked *waits on Julian* start only after his answer;
 the rest run in the order listed, one pull request each, merged when every check is green.
 
+### 5.0 First: take the last of one press out of the stockroom copy
+
+Found by the local demo (28 October 2026). These run before everything else in Phase 5. Saving the demo's data between
+runs is already part of the demo (`npm run demo`), so it isn't a row here.
+
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 5.0 | stockroom | A new shop's stockroom starts empty. `src/main.js` still has five built-in books from one press (real titles, real author names and per-book author passwords); a new shop starts with no books and the first-run screen says "Add your first book". The splash screen and sign-in logo (`index.html`, a three-line wordmark) show the shop's own name from the profile instead | stockroom tests: a fresh profile has no books and no author passwords; splash and sign-in show the profile's name | |
+| 5.0b | platform | The copy check catches names split across lines or tags, so the 5.0 wordmark can't come back: `apps-isolation.test.js` also reads each HTML file with its tags removed and its words joined, and fails on a built-in book list carrying author passwords | the check, plus a probe that a split wordmark fails it | |
+
 ### 5A. Money: close the Square gaps first
 
 | # | Repo | Pull request | Proven by | Status |
