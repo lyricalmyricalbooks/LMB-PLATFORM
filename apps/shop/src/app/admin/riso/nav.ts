@@ -30,16 +30,37 @@ export const NAV: NavEntry[] = [
 export const SETTINGS_ITEM_PREFIX = "settings/";
 
 /**
- * The sidebar list: every Settings page is its own top-level item (no fold-out), under a small
- * "Settings" heading. NAV itself keeps the nested shape that page titles and admin search read.
+ * The admin menu (plan 1.27): five items. Each opens its first page; the item holding the page you are on lists its
+ * other pages under it. NAV keeps every page (titles, admin search and routes read it); this only groups them.
+ * A page's id here is its module id, or `settings/<page>` for a Settings page.
  */
-export function sidebarItems(nav: NavEntry[]): NavEntry[] {
+export const MENU: { label: string; icon: NavEntry["icon"]; pages: string[] }[] = [
+  { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", "customers", "discounts", "giftCards", "messages"] },
+  { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews"] },
+  { label: "Design", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
+  { label: "Settings", icon: Settings, pages: ["general", "shipping", "payments", "taxes", "notifications", "team"].map((id) => SETTINGS_ITEM_PREFIX + id) },
+];
+
+/** Every page with its menu id and label, in NAV order. */
+export function navPages(nav: NavEntry[]): { id: string; label: string }[] {
   return nav.flatMap((entry) => entry.children
-    ? entry.children.map((child, i) => ({
-      id: SETTINGS_ITEM_PREFIX + child.id, label: child.label, icon: child.icon || entry.icon, group: entry.id,
-      ...(i === 0 ? { section: entry.label } : {}),
-    }))
-    : [entry]);
+    ? entry.children.map((child) => ({ id: SETTINGS_ITEM_PREFIX + child.id, label: child.label }))
+    : [{ id: entry.id, label: entry.label }]);
+}
+
+/** The five menu items. An item's id is its first page; an item with more than one page lists them as children. */
+export function sidebarItems(nav: NavEntry[]): NavEntry[] {
+  const labels = new Map(navPages(nav).map((p) => [p.id, p.label]));
+  return MENU.map((group) => ({
+    id: group.pages[0], label: group.label, icon: group.icon,
+    ...(group.pages.length > 1 ? { children: group.pages.map((id) => ({ id, label: labels.get(id) || id })) } : {}),
+  }));
+}
+
+/** The menu item (its id) that holds a page. */
+export function menuItemFor(page: string): string {
+  return MENU.find((group) => group.pages.includes(page))?.pages[0] ?? page;
 }
 
 export const PAGE_COPY: Record<string, { title: string; description: string }> = {

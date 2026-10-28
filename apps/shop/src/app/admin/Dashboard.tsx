@@ -33,7 +33,7 @@ import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
-import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
+import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
@@ -488,12 +488,8 @@ export function Dashboard() {
     setSidebarOpen(false);
     return true;
   };
-  const goToChild = async (_parent: string, child: string) => {
-    if (child !== navChild && !(await leaveSettings())) return;
-    setActiveTab("settings");
-    setSettingsTab(child);
-    setSidebarOpen(false);
-  };
+  // A menu page: a module id, or `settings/<page>` (riso/nav.ts).
+  const openMenuPage = (id: string) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); };
 
   // Shipping/Payments can also be entered as top-level tabs by ShopSettings.
   const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview" : activeTab;
@@ -634,14 +630,17 @@ export function Dashboard() {
             items={sidebarItems(NAV).map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
               // Privacy requests are handled in Settings › General.
-              const badge = n.id === "orders" ? ordersBadge : n.id === "reviews" ? otherBadges.pendingReviews
-                : n.id === "messages" ? otherBadges.unreadMessages : n.id === SETTINGS_ITEM_PREFIX + "general" ? otherBadges.openPrivacyRequests : undefined;
-              return badge === undefined ? n : { ...n, badge: badge || 0 };
+              const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
+                : id === "messages" ? otherBadges.unreadMessages : id === SETTINGS_ITEM_PREFIX + "general" ? otherBadges.openPrivacyRequests : undefined;
+              // Five menu items (plan 1.27): an item shows the sum of its pages' counts, each page its own.
+              const pages = n.children ? n.children.map((c) => ({ ...c, badge: badgeFor(c.id) || 0 })) : undefined;
+              const badge = pages ? pages.reduce((sum, c) => sum + c.badge, 0) : badgeFor(n.id);
+              return { ...n, ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
             })}
-            activeId={showEditor ? null : navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
-            activeChildId={navChild}
-            onSelect={(id) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); }}
-            onSelectChild={goToChild}
+            activeId={showEditor ? null : menuItemFor(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive)}
+            activeChildId={navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
+            onSelect={openMenuPage}
+            onSelectChild={(_item, page) => openMenuPage(page)}
             top={<AppSwitcher onSwitch={() => setSidebarOpen(false)} />}
             brand={
               <a className="rp-brand-link" href="#overview" aria-label="Website admin: go to Overview"

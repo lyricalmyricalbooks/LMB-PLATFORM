@@ -3,10 +3,10 @@
 
 export type StudioLocation = {
   templateId?: string; showGlobal?: boolean; productSlug?: string; collectionSlug?: string;
-  leftTab?: "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes"; device?: "desktop" | "tablet" | "mobile";
+  leftTab?: "essentials" | "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes"; device?: "desktop" | "tablet" | "mobile";
 };
 
-const TABS = new Set(["sections", "style", "text", "menus", "pages", "media", "themes"]);
+const TABS = new Set(["essentials", "sections", "style", "text", "menus", "pages", "media", "themes"]);
 // The old Shared layout tab became Page layout's Header / Footer groups (Studio 2.0 · 1.5).
 const RETIRED_TABS: Record<string, StudioLocation["leftTab"]> = { shared: "sections" };
 const DEVICES = new Set(["desktop", "tablet", "mobile"]);
