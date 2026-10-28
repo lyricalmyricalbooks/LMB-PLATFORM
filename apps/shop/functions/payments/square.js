@@ -314,6 +314,9 @@ function createSquareProvider({ db, platform = null }) {
   async function forCheckout(settings) {
     const mode = settings.payments?.testMode ? "test" : "live";
     return {
+      // Square's page takes the rest after the shop's gift cards (code plan 5.3): the checkout passes their share as
+      // `gift_card_minor`, which the page shows as a "Gift card" discount. Stripe's hosted page has no such line.
+      giftCardsOnHostedPage: true,
       async settlePreviousIntent(intentId) {
         if (!isSquarePaymentId(intentId)) return "cleared";
         const previous = intentFrom(await call("square.payments.retrieve", mode, { id: squareIdOf(intentId) }), mode);
@@ -340,6 +343,7 @@ function createSquareProvider({ db, platform = null }) {
             currency,
             lineItems,
             ...(params.customer_email ? { buyerEmail: params.customer_email } : {}),
+            ...(Number.isInteger(params.gift_card_minor) && params.gift_card_minor > 0 ? { giftCardMinor: params.gift_card_minor } : {}),
             redirectUrl,
             note: `Order ${params.client_reference_id}`,
           },

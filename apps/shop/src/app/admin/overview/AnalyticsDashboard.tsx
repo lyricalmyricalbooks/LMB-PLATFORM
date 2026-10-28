@@ -29,6 +29,7 @@ import { readinessSummary } from "../launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
 import { SetupStart } from "./SetupStart";
+import { ConnectGoogleCard } from "../ConnectGoogleCard";
 import { GOOGLE_PARTS, OverviewMarketing, type GaState } from "./OverviewMarketing";
 import { FoundOnGoogleCard } from "./OverviewMarketingExtras";
 import { OverviewCustomers } from "./OverviewCustomers";
@@ -556,6 +557,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
       <SetupStart books={stock.books} orders={allOrders.orders} readiness={readiness}
         settings={launch.parts ? launch.parts.settings : launch.error ? null : undefined}
         onOpen={tab => setActiveTab?.(tab)} onSetWall={onSetWall} onRetrySettings={refresh} />
+      {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected. */}
+      <ConnectGoogleCard variant="prompt" />
       <OverviewBoard store={boards.store} setStore={boards.setStore} saveState={boards.saveState} saveError={boards.saveError}
         onRetrySave={boards.retrySave} renderWidget={renderWidget} header={header} />
     </>

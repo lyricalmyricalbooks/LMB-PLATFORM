@@ -12,6 +12,8 @@ import { BarRow, DrillList, SPLIT, StatRow, Trend, money, percent } from "./Over
 import { Funnel, RankBars, Stack } from "./OverviewViz";
 import { CampaignsCard, CheckoutJourneyCard, FoundOnGoogleCard, LandingSalesCard, PageSpeedCard, SetUpLine, useFirstOfKind } from "./OverviewMarketingExtras";
 import type { Ga4Range } from "../googleAnalytics";
+import { ConnectGoogleCard } from "../ConnectGoogleCard";
+import { useGoogleConnect } from "../googleConnect";
 
 const since = (key: string | null) => (key ? new Date(`${key}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null);
 const NOT_YET = (what: string) => <EmptyState icon="⏳" title="Not recorded yet" description={`${what} start counting once shoppers visit the updated storefront. Until then there is nothing to show — not even zero.`} />;
@@ -78,6 +80,8 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
   const gaAsked = !only || only === "gaKpis" || gaPanel;
   // On the board only the first Google Analytics widget explains the connection; the others say so in one line.
   const gaPitch = useFirstOfKind("googleAnalytics", !!only && gaAsked && ga.status === "off");
+  // A shop run by Colophon connects Google with one sign-in (plan 6.17) instead of the Analytics setup steps.
+  const colophonGoogle = useGoogleConnect().mode !== "own";
   const t = report?.totals;
   const engagedRate = num(t?.current?.engagementRate) * 100;
   const visitorType = (key: string) => num(report?.visitorType?.find(r => r.newVsReturning === key)?.activeUsers);
@@ -138,10 +142,11 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
           </div>}
         </>
       )}
-      {gaAsked && ga.status === "off" && !gaPitch && (
+      {gaAsked && ga.status === "off" && colophonGoogle && (!only || gaPitch) && <ConnectGoogleCard variant="prompt" />}
+      {gaAsked && ga.status === "off" && !colophonGoogle && !gaPitch && (
         <SectionCard title="Google Analytics"><SetUpLine needs="Google Analytics" onSetUp={setActiveTab ? () => setActiveTab("general") : undefined} /></SectionCard>
       )}
-      {gaAsked && ga.status === "off" && gaPitch && (
+      {gaAsked && ga.status === "off" && !colophonGoogle && gaPitch && (
         <SectionCard title="Connect Google Analytics" description="See where visitors come from (search, social, email, other sites), which pages they land on, how long they stay, their countries and devices — and how many are on the site right now."
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("general")}>Set up Google Analytics</SecondaryButton>}>
           <p className="rp-hint" style={{ margin: 0 }}>Until it is connected, visit figures come from the shop's own simple counter. Setup is in Settings › General › Google Analytics and takes about five minutes.</p>

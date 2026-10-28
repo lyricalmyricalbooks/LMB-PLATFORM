@@ -1,6 +1,6 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
-  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 
@@ -25,6 +25,8 @@ export const NAV: NavEntry[] = [
     { id: "team", label: "Team", icon: UserPlus },
     // The QuickBooks link (plan 7.16); hidden unless the platform's bookkeeping link is on (`withoutPages`).
     { id: "bookkeeping", label: "Bookkeeping", icon: Calculator },
+    // The shop's plan on the platform (plan 6.6): what it is, trial days left, next payment; changes on Plan & billing.
+    { id: "plan", label: "Plan", icon: Wallet },
   ] },
 ];
 
@@ -41,7 +43,7 @@ export const MENU: { label: string; icon: NavEntry["icon"]; pages: string[] }[] 
   { label: "Orders", icon: ShoppingCart, pages: ["orders", "customers", "discounts", "giftCards", "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews"] },
   { label: "Design", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
-  { label: "Settings", icon: Settings, pages: ["general", "shipping", "payments", "taxes", "notifications", "team", "bookkeeping"].map((id) => SETTINGS_ITEM_PREFIX + id) },
+  { label: "Settings", icon: Settings, pages: ["general", "shipping", "payments", "taxes", "notifications", "team", "bookkeeping", "plan"].map((id) => SETTINGS_ITEM_PREFIX + id) },
 ];
 
 /** Every page with its menu id and label, in NAV order. */

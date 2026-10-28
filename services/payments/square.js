@@ -208,7 +208,7 @@ export function createSquareService({ square, registry, tokens, states, deliver,
 
   function checkoutParams(row, params, fee, payAsYouSellFeeMinor = null) {
     if (!params || typeof params !== "object") throw bad("parameters are needed");
-    const { referenceId, currency, lineItems, buyerEmail, redirectUrl, note } = params;
+    const { referenceId, currency, lineItems, buyerEmail, redirectUrl, note, giftCardMinor = 0 } = params;
     if (typeof referenceId !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(referenceId)) throw bad("referenceId (the shop's order id, at most 40 letters) is needed");
     const upper = String(currency ?? "").toUpperCase();
     if (!CURRENCY.test(upper)) throw bad("currency must be a three-letter code");
@@ -223,18 +223,25 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       total += unitAmountMinor * quantity;
       return { name: name.trim(), quantity: String(quantity), base_price_money: { amount: unitAmountMinor, currency: upper } };
     });
-    if (total < 1) throw bad("the order must charge something");
+    // Gift cards the shop already holds pay first (code plan 5.3): Square's order carries them as one order-wide discount
+    // named "Gift card", so the page, the receipt and the payment show only what is left for the card.
+    if (!Number.isInteger(giftCardMinor) || giftCardMinor < 0) throw bad("giftCardMinor must be a whole number");
+    const net = total - giftCardMinor;
+    if (net < 1) throw bad("the order must charge something");
     let url;
     try { url = new URL(redirectUrl); } catch { throw bad("redirectUrl must be an address"); }
     if (url.protocol !== "https:" || !shopHosts(row).has(url.hostname.toLowerCase())) throw bad("redirectUrl must be one of the shop's own addresses");
     // Pay as you sell (6.19) worked its fee out already; Square's own cap still applies.
     const appFee = payAsYouSellFeeMinor !== null
-      ? Math.min(payAsYouSellFeeMinor, squareFee(total, upper, { basisPoints: 10000 }))
-      : takesFee(fee) ? squareFee(total, upper, fee) : 0;
+      ? Math.min(payAsYouSellFeeMinor, squareFee(net, upper, { basisPoints: 10000 }))
+      : takesFee(fee) ? squareFee(net, upper, fee) : 0;
     return {
-      total,
+      total: net,
       body: {
-        order: { location_id: row.payments.locationId, reference_id: referenceId, line_items: lines },
+        order: {
+          location_id: row.payments.locationId, reference_id: referenceId, line_items: lines,
+          ...(giftCardMinor > 0 ? { discounts: [{ uid: "gift-card", name: "Gift card", type: "FIXED_AMOUNT", amount_money: { amount: giftCardMinor, currency: upper }, scope: "ORDER" }] } : {}),
+        },
         checkout_options: {
           redirect_url: url.toString(), allow_tipping: false, ask_for_shipping_address: false,
           ...(appFee > 0 ? { app_fee_money: { amount: appFee, currency: upper } } : {}),
@@ -244,6 +251,15 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       },
     };
   }
+
+  // The books a pay-as-you-sell fee is taken on, never more than the card pays (as Stripe's lmb_books_minor is capped
+  // by the amount): a gift card's share was the shop's money already.
+  const checkoutBooksMinor = (params) => {
+    const books = squareBooksMinor(params.lineItems);
+    if (books === null) return null;
+    const lines = params.lineItems.reduce((sum, line) => sum + line.unitAmountMinor * line.quantity, 0);
+    return Math.min(books, lines - (params.giftCardMinor || 0));
+  };
 
   const keyFrom = (row, args) => {
     if (typeof args.idempotencyKey !== "string" || !args.idempotencyKey || args.idempotencyKey.length > 200) throw bad("an idempotency key is needed");
@@ -257,7 +273,7 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       checkoutParams(row, args.params, { basisPoints: 0 });
       const terms = payAsYouSell?.termsFor(row) ?? null;
       const held = terms
-        ? await payAsYouSell.fee(row, terms, { key: keyFrom(row, args), booksMinor: squareBooksMinor(args.params.lineItems), currency: args.params.currency })
+        ? await payAsYouSell.fee(row, terms, { key: keyFrom(row, args), booksMinor: checkoutBooksMinor(args.params), currency: args.params.currency })
         : null;
       const { body } = checkoutParams(row, args.params, fee, held ? held.feeMinor : null);
       const created = await square.call(mode, "POST", "/v2/online-checkout/payment-links", { accessToken: token, body: { idempotency_key: keyFrom(row, args), ...body } });

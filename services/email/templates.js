@@ -1,6 +1,7 @@
 // The words of every email the platform sends, by kind. Each template takes the email's data plus `{ settings, pressName }`
 // and returns { subject, text, html }. Every value from a press or a person is escaped in the HTML, and links must be
 // https. Customer-facing words: name the product (settings.platformName), never a rival.
+import { closingTemplates } from "./closingTemplates.js";
 
 export const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -186,6 +187,18 @@ export const TEMPLATES = {
       `We paused ${pressName}'s newsletter. In the last ${days} days, ${problems.join(" and ")}.`,
       "When that happens, email providers start sending everyone's mail to spam, so we stop it early. Your receipts, order emails and shipping notices still go out as normal.",
       "To start again, send only to people who asked for your newsletter, and remove addresses that bounced. Then reply to this email and we'll turn it back on.",
+    ],
+    footer: signOff(settings),
+  }),
+
+  /** The press's own domain stopped passing the sending check (ownDomain.js, plan 6.18): Colophon's sender meanwhile. */
+  "own-email-paused": ({ domain }, { settings, pressName }) => layout({
+    subject: `${pressName}'s emails are coming from ${settings.platformName} for now`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your shop's emails were coming from orders@${domain}, but that address stopped working for sending. Something changed where you bought ${domain}.`,
+      `So nothing gets lost, your receipts and order emails now come from ${settings.platformName}'s address with ${pressName}'s name on them, and replies still reach you.`,
+      `When the address works again, your emails switch back to orders@${domain} by themselves. If you moved ${domain} to another company, reply to this email and we'll help.`,
     ],
     footer: signOff(settings),
   }),
@@ -422,6 +435,9 @@ export const TEMPLATES = {
       footer: signOff(settings),
     });
   },
+
+  // Closing a shop (code plan 6.8): shop-closed, shop-deletion-warning, shop-deleted.
+  ...closingTemplates({ layout, safeLink, signOff }),
 };
 
 /** Problems with a free-form email a shop asks to send (its own order and account emails), in plain words. */

@@ -13,7 +13,7 @@ describe("admin navigation", () => {
 
   it("keeps nested Settings navigation (general, shipping, payments, taxes, design, notifications, email sender, team)", () => {
     const settings = NAV.find((n) => n.id === "settings");
-    expect(settings?.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "designer", "notifications", "team", "bookkeeping"]);
+    expect(settings?.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "designer", "notifications", "team", "bookkeeping", "plan"]);
     // Notifications and Email sender are one page, listed once as "Email sender".
     expect(settings?.children?.find((c) => c.id === "notifications")?.label).toBe("Email sender");
   });
@@ -46,7 +46,7 @@ describe("the five-item admin menu (plan 1.27)", () => {
     const orders = items.find((i) => i.label === "Orders")!;
     expect(orders.children?.map((c) => c.label)).toEqual(["Orders", "Customers", "Discounts", "Gift cards", "Messages"]);
     const settings = items.find((i) => i.label === "Settings")!;
-    expect(settings.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "notifications", "team", "bookkeeping"].map((id) => SETTINGS_ITEM_PREFIX + id));
+    expect(settings.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "notifications", "team", "bookkeeping", "plan"].map((id) => SETTINGS_ITEM_PREFIX + id));
     expect(items.find((i) => i.label === "Design")!.children).toBeUndefined();
   });
 
@@ -54,7 +54,7 @@ describe("the five-item admin menu (plan 1.27)", () => {
     const hidden = withoutPages(items, new Set([SETTINGS_ITEM_PREFIX + "bookkeeping"]));
     const settings = hidden.find((i) => i.label === "Settings")!;
     expect(settings.children?.map((c) => c.id)).not.toContain(SETTINGS_ITEM_PREFIX + "bookkeeping");
-    expect(settings.children).toHaveLength(6);
+    expect(settings.children).toHaveLength(7);
     expect(withoutPages(items, new Set())).toBe(items);
   });
 

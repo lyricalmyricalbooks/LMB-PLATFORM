@@ -96,9 +96,13 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
       const key = `${merchantId}/${body.idempotency_key}`;
       if (body.idempotency_key && world.byKey.has(key)) return world.byKey.get(key);
       if (body.order.location_id !== merchant.location.id) return notFound("Location");
-      const total = body.order.line_items.reduce((sum, line) => sum + line.base_price_money.amount * Number(line.quantity), 0);
+      const lines = body.order.line_items.reduce((sum, line) => sum + line.base_price_money.amount * Number(line.quantity), 0);
+      // Order-wide fixed discounts (a gift card's share, code plan 5.3) come off the total, as Square's own orders do.
+      const discounts = body.order.discounts ?? [];
+      const off = discounts.reduce((sum, d) => sum + (d.scope === "ORDER" && d.type === "FIXED_AMOUNT" ? d.amount_money.amount : 0), 0);
+      const total = lines - off;
       const currency = body.order.line_items[0].base_price_money.currency;
-      const order = { id: `ORD${next++}`, location_id: body.order.location_id, reference_id: body.order.reference_id, line_items: body.order.line_items, total_money: { amount: total, currency }, state: "OPEN", tenders: [], merchant: merchantId };
+      const order = { id: `ORD${next++}`, location_id: body.order.location_id, reference_id: body.order.reference_id, line_items: body.order.line_items, ...(discounts.length ? { discounts, total_discount_money: { amount: off, currency } } : {}), total_money: { amount: total, currency }, state: "OPEN", tenders: [], merchant: merchantId };
       world.orders.set(order.id, order);
       const link = { id: `LNK${next++}`, version: 1, order_id: order.id, url: `https://square.link/u/fake${next}`, long_url: `https://checkout.square.site/fake${next}`, created_at: nowIso(), merchant: merchantId, app_fee_money: body.checkout_options?.app_fee_money ?? null, checkout_options: body.checkout_options, pre_populated_data: body.pre_populated_data };
       world.links.set(link.id, link);

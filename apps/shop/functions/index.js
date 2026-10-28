@@ -63,6 +63,7 @@ const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./a
 const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
+const { googleConnectActions } = require("./googleConnect");
 const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink");
 const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
@@ -88,7 +89,7 @@ const { GIFT_CARD_BODIES } = require("./shared/giftCardActions");
 const digitalDelivery = require("./digitalDelivery");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { paypalCredentials } = require("./paypalCredentials");
-const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
+const { shopOrigin, checkoutClosed, planPaused, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
 const { runInBatches, backupFoldersToPrune } = require("./sweepLimits");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
@@ -1080,6 +1081,11 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   }
   if (!items.length) throw new PricingError("Order has no items.");
 
+  // The plan is paused or closed (plan 6.7): every checkout path is priced here, so this stops them all, practice
+  // orders too (their settings don't carry the plan).
+  if (planPaused((await db.collection("platform").doc("status").get()).data())) {
+    throw new PricingError("This shop is taking a short break, so it can't take orders right now. Please check back soon.", "shop_paused");
+  }
   const settings = knownSettings || (await db.collection("settings").doc("website").get()).data() || {};
   // Settings › General › Store status › Maintenance: every checkout path is priced here, so this stops them all.
   if (checkoutClosed(settings)) throw new PricingError("The shop is paused for maintenance, so checkout is closed for now. Please try again soon.", "store_closed");
@@ -1555,6 +1561,9 @@ const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, h
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
 const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
 
+// Connect Google: one sign-in, through the platform's Google link (googleConnect.js, plan 6.17).
+const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+
 // Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
 // Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).
 const { handleBookkeeping } = bookkeepingActions({
@@ -1594,6 +1603,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   registerPaymentDomain: handleRegisterPaymentDomain,
   platformPayments: handlePlatformPayments,
   customDomains: handleCustomDomains,
+  googleConnect: handleGoogleConnect,
   bookkeeping: handleBookkeeping,
   practiceCheckout: handlePracticeCheckout,
   webhookHealth: handleWebhookHealth,

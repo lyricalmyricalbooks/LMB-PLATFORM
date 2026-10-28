@@ -74,6 +74,59 @@ For the Plan & billing page's `payment-way` section: `paymentWayView(status, set
 ("Switch to pay as you sell" / "Switch to monthly"), and `paymentWayRoutes({ paymentWay, settings, ownerOnly })` the two
 calls (`POST /api/billing/payment-way`, `POST /api/billing/payment-way/switch`).
 
+## The shop's own copy of its plan (6.6, 6.7)
+
+`shopPlan.js`. Pass `shopPlan: shopPlanCopies({ shopData, stockroomData, registry })` to `createBilling` (or
+`createBillingFromEnv`) and every saved change writes, into the shop's own database:
+
+| Document | Who reads it | What it holds |
+| --- | --- | --- |
+| `platform/plan` | the shop's admins only | `plan`, `state` (trial, active, payment-problem, paused, closed), `access`, `trialEnd`, `nextPaymentAt`, `hasCard`, `cancelAtPeriodEnd`, `endsAt`, `paymentWay` (the way in force now), `link` (this shop's Plan & billing page), `closing` (`stage`, `closedAt`, `downloadUntil`, `deleteAfter`) |
+| `platform/status` | everyone | `access` only: the storefront's break page and the order refusal read it |
+
+A plan with the stockroom gets the same `platform/plan` in the stockroom's database once `stockroomData.ready(shopId)`.
+The shops' rules let no browser write either one. Nothing is written before the shop's database exists
+(`auditLog.ready`); the shop maker calls `billing.publishPlan(shopId)` once it does (not wired yet).
+
+What each app does with it:
+
+- **Shop admin**: the trial banner ("Free trial: 9 days left. Add a card"), the payment-problem banner and Settings ›
+  Plan, all linking to the Plan & billing page. Paused or closed, the admin opens on Plan & billing only (with the
+  downloads).
+- **Storefront**: paused or closed, a fixed "taking a short break" page the owner can't turn off or reword.
+- **Shop server**: `priceOrder`, which every checkout goes through, refuses orders while `platform/status` isn't open.
+- **Stockroom**: paused or closed, it opens read-only (its rules refuse every change, and the app says so first).
+
+A card added to a paused plan resumes it in Stripe; the event saves the row, which rewrites both copies at once, so the
+shop opens again within a minute.
+
+## Closing a shop (6.8)
+
+`closing.js`: `createClosingSweep({ registry, auditLog, billing, email, projects, hooks, settings, now }).sweep()`, run
+daily. Fakes for tests: `closingFakes.js` (`fakeProjects`, `fakeStockroomData`).
+
+1. **Paused** (`access: "paused"`): the sweep marks the day. A card in the next 60 days opens the shop again and clears
+   the timeline.
+2. **Closed** after 60 days paused, or at once when the plan ended (`access: "closed"`): `billing.endPlan` ends the
+   Stripe plan (so no card can bill a closed shop), `shop-closed` is emailed with the last download day, the plan copy is
+   rewritten (closed page, admin on Plan & billing with "Download everything", stockroom read-only), then the `onClose`
+   hooks run. Download for 90 days.
+3. **Warnings**: `shop-deletion-warning` 30 and 7 days before `deleteAfter`, one a run. A warning sent late pushes
+   `deleteAfter` back, so the press always gets its full notice.
+4. **Deleted** on `deleteAfter`, only with both warnings sent at least 30 and 7 days earlier (`deletionAllowed`, checked
+   again right before the call): the `beforeDelete` hooks, then `projects.deleteProject(projectId)` (the injected client;
+   the registry row's `projectId`, else its `shopId`), then `shop-deleted`.
+
+The registry row's `closing`: `{ stage: "paused" | "closed" | "deleted", pausedAt, closedAt, downloadUntil, deleteAfter,
+warned30At, warned7At, hooks: { onClose, beforeDelete }, deletedAt, problem }`. Every step is recorded there and in the
+registry's events (and the shop's audit log while its database exists), and is safe to run twice. A deleted shop is never
+touched again.
+
+**Hooks**, for the Google teardown (6.20): `hooks: { onClose: [fn], beforeDelete: [fn] }`, none by default. Each `fn(shop,
+{ at })` gets the registry row with its `closing`. They run until all have succeeded (each must be safe to run twice).
+A `beforeDelete` that throws or answers `{ refused: true }` stops the deletion; the reason goes in `closing.problem`
+and the next run tries again.
+
 ## Events and emails
 
 `handleEvent` takes the platform account's own Stripe events (a separate endpoint from the Connect one), checks the
@@ -89,7 +142,7 @@ so Stripe sends it again.
 | `invoice.payment_failed` | logged, shop stays open | `payment-failed`, with the amount and the next try |
 | `checkout.session.completed` (setup) | card attached, plan resumed or paid | none |
 
-Cancelling sends `subscription-cancelled`; changing plan sends `plan-changed` (with what closes and when); the card sweep sends `card-expiring`. Emails link to the platform's account
+Cancelling sends `subscription-cancelled`; changing plan sends `plan-changed` (with what closes and when); the card sweep sends `card-expiring`; the closing sweep sends `shop-closed`, `shop-deletion-warning` and `shop-deleted`. Emails link to the platform's account
 page (`<PLATFORM_URL>/account/billing?shop=<id>`), never to a Stripe page, since those expire.
 
 Every change is kept in the billing store, copied to the shop's registry row (`billing: { plan, status, access, trialEnd,
@@ -107,6 +160,8 @@ The Plan & billing page and its calls (`/api/billing/*`, owner only) live in `ac
 - Hosting (one function in the platform project) and the Stripe endpoint for the platform account's events.
 - The real stores (Firestore in the platform project): `billingCustomers`, `billingSubscriptions`, `billingEvents`.
 - Stripe's customer portal for past invoices (needs its settings made in Stripe first).
-- Leaving the platform while paying as you sell (no subscription to cancel): the 6.8 closing timeline handles it.
+- Leaving the platform while paying as you sell (no subscription to cancel): the closing sweep closes a shop once its
+  access is `closed`, but nothing sets that for a press paying as it sells yet.
 - The scheduled function that runs `closeDroppedApps` and `cardExpiryReminders` daily, and a real `closeApp`.
-- Pausing a shop's pages when its plan pauses or closes: the shop reads `billing.access` from the registry later (2.11).
+- The scheduled function that runs the closing sweep daily, the real `projects` client, and the shop maker calling
+  `publishPlan` once a new shop's database exists.

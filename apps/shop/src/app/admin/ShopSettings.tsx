@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
@@ -22,6 +22,8 @@ import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
 import { AiWriterCard } from "./AiWriterCard";
 import { GoogleAnalyticsCard } from "./GoogleAnalyticsCard";
+import { ConnectGoogleCard } from "./ConnectGoogleCard";
+import { useGoogleConnect } from "./googleConnect";
 import { ClarityCard } from "./ClarityCard";
 import { OwnVisitsCard } from "./OwnVisitsCard";
 import { SearchConsoleCard } from "./SearchConsoleCard";
@@ -34,6 +36,7 @@ import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
 const MAX_LIVE_RATE_EXTRA = 50;
 import { TeamSettings } from "./TeamSettings";
 import { BookkeepingSettings } from "./BookkeepingSettings";
+import { PlanSettings } from "./PlanParts";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { ShopErrorsCard } from "./ShopErrorsCard";
@@ -123,6 +126,7 @@ export function ShopSettings({
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "team" && <TeamSettings />}
           {activeTab === "bookkeeping" && <BookkeepingSettings taxRates={settings.taxes?.rates || []} />}
+          {activeTab === "plan" && <PlanSettings />}
           {/* Communications was retired: its links open Notifications. */}
           {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} subTab={subTab} onSubTabChange={onSubTabChange} />}
         </m.div>
@@ -298,9 +302,10 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
 
       <SettingsGroup id="gs-visitors" active={view === "gs-visitors"}>
         <SettingsAnchor id="gs-own-visits"><OwnVisitsCard /></SettingsAnchor>
-        <SettingsAnchor id="gs-analytics"><GoogleAnalyticsCard /></SettingsAnchor>
+        {/* Plan 6.17: a shop run by Colophon connects Google with one sign-in; other shops keep the older cards. */}
+        <SettingsAnchor id="gs-analytics"><ConnectGoogleCard fallback={<GoogleAnalyticsCard />} /></SettingsAnchor>
         <SettingsAnchor id="gs-clarity"><ClarityCard /></SettingsAnchor>
-        <SettingsAnchor id="gs-search-console"><SearchConsoleCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-search-console"><OwnKeysOnly><SearchConsoleCard /></OwnKeysOnly></SettingsAnchor>
         <SettingsAnchor id="gs-redirects"><RedirectsCard /></SettingsAnchor>
       </SettingsGroup>
 
@@ -1803,3 +1808,7 @@ export function SecretField({ label, placeholder, stored, onCommit, validate, on
   );
 }
 
+/** Shown only on a shop that isn't run by Colophon: a Colophon shop's Google parts are in Connect Google. */
+function OwnKeysOnly({ children }: { children: ReactNode }) {
+  return useGoogleConnect().mode === "own" ? <>{children}</> : null;
+}

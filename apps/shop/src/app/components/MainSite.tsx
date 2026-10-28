@@ -11,6 +11,8 @@ import { aspectRatioValue } from "../features/site/imageAspect";
 import { getFilteredItems, getPublishedBooks, resolveLogoDesign, resolveLogoPosition } from "../features/site/selectors";
 import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
+import { useShopBreak } from "../features/site/useShopBreak";
+import { SHOP_BREAK_WORDS, type ShopBreak } from "../features/site/shopBreak";
 import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { wantsHome } from "../features/site/homeLink";
@@ -106,10 +108,14 @@ function SkeletonImage({ src, srcSet, sizes, alt, className, style, frameStyle, 
 // ──────────────────────────────
 // Maintenance splash
 // ──────────────────────────────
-function MaintenancePage({ message, design }: { message?: string; design?: any }) {
+// With `onBreak` (the plan is paused or closed, plan 6.7) it shows the platform's locked words (shopBreak.ts) in the
+// shop's own look: the owner can't change them or turn the page off.
+const LOCKED_KEYS: Record<string, "tag" | "title" | "message" | "footer"> = { maintenanceTag: "tag", maintenanceTitle: "title", maintenanceMessage: "message", maintenanceFooter: "footer" };
+function MaintenancePage({ message, design, onBreak }: { message?: string; design?: any; onBreak?: ShopBreak | null }) {
   const debug = typeof window !== "undefined" && window.location.search.includes("debug=true");
   const adminPath = debug ? "/admin?debug=true" : "/admin";
-  const c = (key: string) => getCopy(design, key);
+  const locked = onBreak ? SHOP_BREAK_WORDS[onBreak] : null;
+  const c = (key: string) => (locked && LOCKED_KEYS[key] ? locked[LOCKED_KEYS[key]] : getCopy(design, key));
 
   return (
     <div data-fm-store data-studio-target="copy:Maintenance page" data-studio-label="Maintenance page" className="fm-page min-h-screen text-white flex flex-col items-center justify-center gap-6 text-center px-6">
@@ -119,7 +125,7 @@ function MaintenancePage({ message, design }: { message?: string; design?: any }
       </span>
       <h1 className="text-5xl md:text-7xl uppercase leading-none">{c("maintenanceTitle")}</h1>
       <p className="text-white/60 text-sm max-w-sm leading-relaxed">
-        {message || c("maintenanceMessage")}
+        {(!locked && message) || c("maintenanceMessage")}
       </p>
       <div className="mt-4 flex flex-col items-center gap-6">
         <p className="text-[9px] tracking-[0.4em] text-white/40 uppercase">{c("maintenanceFooter")}</p>
@@ -381,6 +387,8 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
   const { formatBookPrice, convertPrice } = useCurrency();
   const { addToCart } = useCart();
   const { books, settings, pages, loading, loadError, retry } = useSiteData();
+  // The plan is paused or closed (plan 6.7): the fixed break page, whatever the owner's own settings say.
+  const shopBreak = useShopBreak();
 
   // Auto-open catalog view when the editor previews the shop tab
   const isCatalogPreview = window.location.search.includes("catalog=true");
@@ -717,6 +725,9 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
       <BootSplash />
     );
   }
+
+  // A paused or closed plan comes first: no practice order or setting steps past it.
+  if (shopBreak) return <MaintenancePage design={activeDesign} onBreak={shopBreak} />;
 
   // Maintenance mode gate. The owner's practice order (plan 7.6) steps past it in their own browser; the server still
   // keeps checkout closed to everyone else.

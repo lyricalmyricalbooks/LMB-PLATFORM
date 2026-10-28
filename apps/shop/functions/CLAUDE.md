@@ -612,7 +612,8 @@ one copy with the shop, and `functions/giftCards.js` (codes, holds, debit/credit
   verified PayPal capture, `completeOrderWithoutCard`), once (`giftCardsDebitedAt`); a short balance records
   `giftCardConflict` and leaves the order unpaid (Needs attention). A full refund credits it back once
   (`giftCardsRestoredAt`) and disables cards the order bought (`giftCardsVoidedAt`). Orders a gift card fully covers
-  use the free path (`completeFreeOrder`); manual payments refuse gift cards; hosted Stripe sessions refuse them.
+  use the free path (`completeFreeOrder`); manual payments refuse gift cards; hosted Stripe sessions refuse them
+  (Square's page takes them: *Gift card plus card on Square shops*, code plan 5.3).
   Shopper balance check: `validateDiscountCode` `{ action: "giftCardBalance" }` (rate limited). Admin actions:
   `createStripeCheckoutSession` `{ action: "giftCardAdmin", op: issue|setEnabled|adjust|resend }` (`requireAdmin`).
   Deploy `firestore.rules` and Functions with the frontend.
@@ -855,7 +856,15 @@ restocked on refund (`sandboxTakesStock` in settlePayment.js, as on the test sho
 (`body.practice` or an earlier practice attempt) gets 409 `practice_ended` rather than a live charge. Exports also skip
 unpaid practice orders. The storefront's hint (`src/app/lib/practiceHint.ts`) only lets the owner's browser past the
 store-status page; it decides nothing. Tested in `practiceCheckout.test.js` with a fake service for both providers.
-Known gap: gift cards with a card payment are refused for Square shops.
+**Gift card plus card on Square shops (28 October 2026, code plan 5.3).** As on a Stripe shop's card form, the gift card
+pays first and the card the rest. Square's checkout object says `giftCardsOnHostedPage: true`, so `handleStripeCheckout`
+lets gift cards through on the hosted path and sends their share as `gift_card_minor`. The order's `expectedAmountMinor`
+is the card's share only (`chargeMinor`: the lines less the gift cards; every line on Stripe's hosted page, which still
+refuses gift cards). `services/payments` adds the share to Square's order as one `ORDER`-scope `FIXED_AMOUNT` discount
+named "Gift card", and takes the platform fee on the rest (a pay-as-you-sell fee's books are capped by it, as Stripe's
+`lmb_books_minor` is). Nothing else changed: the paid event settles only that amount and debits the gift card once;
+`refundPlan` stops partial refunds at the card payment; a full refund refunds the card, then restores the gift card
+(`applyOrderRefund`). Tested in `squareGiftCards.test.js` (index.js loaded as a Square shop against a fake service).
 **The provider's own name (28 October 2026, code plan 5.2).** A Square shop never says "Stripe" to the press or the
 shopper. The server names the provider with `providerName(payments.provider)` from `payments/index.js`, kept as `CARD`
 in index.js and orderRequests.js. That covers order activity lines, refund, dispute and alert messages, and the admin's
