@@ -212,6 +212,17 @@ test("hosting: a press's domain is added once and read back; a missing one is nu
   fetch.done();
 });
 
+test("hosting: removing a press's domain deletes it, and one already gone is fine", async () => {
+  const CD = `https://firebasehosting.googleapis.com/v1beta1/projects/${P}/sites/${P}/customDomains`;
+  const { fetch, google } = clients([
+    { method: "DELETE", url: `${CD}/shop.mothpress.example`, json: { name: "operations/2" } },
+    { method: "DELETE", url: `${CD}/shop.mothpress.example`, ...notFound },
+  ]);
+  await google.hosting.removeDomain(P, "shop.mothpress.example");
+  await google.hosting.removeDomain(P, "shop.mothpress.example");
+  fetch.done();
+});
+
 test("secrets: a missing key is null; adding creates the secret once, then a version", async () => {
   const SM = `https://secretmanager.googleapis.com/v1/projects/${P}/secrets`;
   const value = "a".repeat(64);

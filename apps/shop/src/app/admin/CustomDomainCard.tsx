@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { adminApi } from "./api";
-import { ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField } from "./riso/components";
+import { DestructiveButton, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { describeDomain, recordHostLabel, type DomainCheck, type DomainEntry } from "./customDomains";
+import { describeDomain, domainActions, recordHostLabel, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
 
 // Settings › General › Your web address (plan 2.9): put the shop on the press's own address through Colophon. A shop
-// without the platform's domain service shows `fallback` (the older "for your records" field) instead.
+// without the platform's domain service shows `fallback` (the older "for your records" field) instead. Plan 5.9: each
+// address can be removed (never the main one), and a live one made the main address emails, links and Google use.
 export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
   const [domains, setDomains] = useState<DomainEntry[] | null>(null);
   const [max, setMax] = useState(3);
@@ -14,6 +15,17 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState<string | null>("list");
+  const [own, setOwn] = useState("");
+  const [main, setMain] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirm, confirmNode] = useConfirm();
+
+  const takeList = (answer: DomainList) => {
+    setDomains(answer.domains || []);
+    setMax(answer.max || 3);
+    setOwn(answer.own || "");
+    setMain(answer.main || answer.own || "");
+  };
 
   const check = async (name: string) => {
     setBusy(name);
@@ -34,8 +46,7 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
     setError(null);
     try {
       const answer = await adminApi.customDomains("list");
-      setDomains(answer.domains || []);
-      setMax(answer.max || 3);
+      takeList(answer);
       setBusy(null);
       // Fresh DNS records for every address that isn't live yet.
       for (const d of answer.domains || []) if (d.state !== "live") await check(d.name);
@@ -65,6 +76,52 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
     }
   };
 
+  const makeMain = async (name: string) => {
+    if (busy) return;
+    const back = name === own;
+    const ok = await confirm({
+      title: back ? `Go back to ${name}?` : `Make ${name} your main address?`,
+      message: back
+        ? "Emails, links and Google will use the address your shop came with again. Your other addresses keep working."
+        : "Emails, links in them and Google will use this address from now on. Your other addresses keep working.",
+      confirmLabel: back ? "Use this address" : "Make main",
+    });
+    if (!ok) return;
+    setBusy(`main:${name}`);
+    setError(null);
+    setNotice(null);
+    try {
+      takeList(await adminApi.customDomains("makeMain", name));
+      setNotice(`${name} is now your main address. It can take a few minutes to show everywhere.`);
+    } catch (err: any) {
+      setError(friendlyError(err, `make ${name} your main address`));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = async (name: string) => {
+    if (busy) return;
+    const ok = await confirm({
+      title: `Remove ${name}?`,
+      message: "Your shop stops opening at this address, and links to it stop working. Your main address isn't affected. You can add it again later.",
+      confirmLabel: "Remove address",
+    });
+    if (!ok) return;
+    setBusy(`remove:${name}`);
+    setError(null);
+    setNotice(null);
+    try {
+      takeList(await adminApi.customDomains("remove", name));
+      setChecks((c) => { const next = { ...c }; delete next[name]; return next; });
+      setNotice(`${name} was removed from your shop.`);
+    } catch (err: any) {
+      setError(friendlyError(err, `remove ${name}`));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   if (unavailable) return <>{fallback}</>;
 
   return (
@@ -76,16 +133,32 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
           <ErrorState title="Couldn't load your web addresses" description={error || undefined} onRetry={load} />
         ) : (
           <>
+            {main && (
+              <div className="rp-stack" style={{ gap: 4 }} data-domain-main>
+                <p style={{ margin: 0 }}>Your main address: <strong style={{ overflowWrap: "anywhere" }}>{main}</strong></p>
+                <p className="rp-hint" style={{ margin: 0 }}>Emails, the links in them and Google use your main address.</p>
+                {own && main !== own && (
+                  <div className="rp-card-actions">
+                    <SecondaryButton size="sm" disabled={!!busy} busy={busy === `main:${own}`} onClick={() => makeMain(own)}>Go back to {own}</SecondaryButton>
+                  </div>
+                )}
+              </div>
+            )}
             {domains.length === 0 && <p className="rp-hint" style={{ margin: 0 }}>No address of your own yet. Buy one from any domain seller, then add it here.</p>}
             {domains.map((d) => {
               const found = checks[d.name];
-              const info = describeDomain(found?.state ?? d.state);
+              const state = found?.state ?? d.state;
+              const info = describeDomain(state);
               const records = found?.records ?? [];
+              const actions = domainActions({ ...d, state }, main);
               return (
-                <div key={d.name} className="rp-card" style={{ padding: 16, boxShadow: "none" }}>
+                <div key={d.name} className="rp-card" style={{ padding: 16, boxShadow: "none" }} data-domain={d.name}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
                     <strong style={{ overflowWrap: "anywhere" }}>{d.name}</strong>
-                    <StatusBadge tone={info.tone}>{info.label}</StatusBadge>
+                    <span style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {d.name === main && <StatusBadge tone="info">Main address</StatusBadge>}
+                      <StatusBadge tone={info.tone}>{info.label}</StatusBadge>
+                    </span>
                   </div>
                   <p className="rp-hint" style={{ margin: "8px 0 0" }}>{info.text}</p>
                   {records.length > 0 && (
@@ -110,11 +183,18 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                       {found?.paymentDomain === "failed" ? "Apple Pay and Google Pay will be turned on here at the next check." : "Apple Pay and Google Pay work on this address."}
                     </p>
                   )}
-                  {(found?.state ?? d.state) !== "live" && (
-                    <div className="rp-card-actions">
+                  {actions.note && <p className="rp-hint" style={{ margin: "8px 0 0" }}>{actions.note}</p>}
+                  {(state !== "live" || actions.canMakeMain || actions.canRemove) && <div className="rp-card-actions">
+                    {state !== "live" && (
                       <SecondaryButton size="sm" disabled={!!busy} onClick={() => check(d.name)}>{busy === d.name ? "Checking…" : "Check again"}</SecondaryButton>
-                    </div>
-                  )}
+                    )}
+                    {actions.canMakeMain && (
+                      <SecondaryButton size="sm" disabled={!!busy} busy={busy === `main:${d.name}`} onClick={() => makeMain(d.name)}>Make main</SecondaryButton>
+                    )}
+                    {actions.canRemove && (
+                      <DestructiveButton size="sm" disabled={!!busy} busy={busy === `remove:${d.name}`} onClick={() => remove(d.name)}>Remove</DestructiveButton>
+                    )}
+                  </div>}
                 </div>
               );
             })}
@@ -128,10 +208,12 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                 </div>
               </div>
             )}
+            {notice && <p role="status" style={{ margin: 0 }}>{notice}</p>}
             {error && <p role="alert" style={{ margin: 0, color: "var(--rp-danger)" }}>{error}</p>}
           </>
         )}
       </div>
+      {confirmNode}
     </SectionCard>
   );
 }
