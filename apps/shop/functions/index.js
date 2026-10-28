@@ -268,8 +268,13 @@ async function readAdminSecret(id) {
 }
 
 // The shop's card payment provider (Stripe unless its shopConfig names another) is reached only through
-// functions/payments (code plans 1.11-1.12; the provider interface is listed there).
-const payments = createPayments({ provider: shopConfig.paymentProvider, db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret });
+// functions/payments (code plans 1.11-1.12; the provider interface is listed there). In platform mode (plan 2.2) every
+// call goes through the platform's payment service instead, as this shop (its project id is its registry id).
+const payments = createPayments({
+  provider: shopConfig.paymentProvider, mode: shopConfig.paymentMode,
+  service: { url: shopConfig.paymentsServiceUrl, shopId: shopConfig.project },
+  db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret,
+});
 const { testMode: shopTestMode } = payments;
 
 // Asks the payment provider (test and live accounts, the order's own mode first) for one of the
@@ -2058,7 +2063,8 @@ exports.stripeWebhook = onRequest(
     let deployedSecret = "";
     try { deployedSecret = STRIPE_WEBHOOK_SECRET.value(); } catch { /* not set */ }
     const secrets = signingSecrets(deployedSecret, savedSecrets.live, savedSecrets.test);
-    const { event, lastError } = payments.verifyWebhookEvent(client, req.rawBody, sig, secrets);
+    // Awaited: in platform mode the event is fetched again through the payment service before anything trusts it.
+    const { event, lastError } = await payments.verifyWebhookEvent(client, req.rawBody, sig, secrets);
     if (!event) {
       const message = lastError?.message || "No webhook signing secret is configured.";
       console.error("Signature verification failed:", message);

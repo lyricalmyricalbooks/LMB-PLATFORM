@@ -83,8 +83,11 @@ export function shopSwitches(saved) {
   return Object.fromEntries(SWITCHES.map((name) => [name, typeof saved?.[name] === "boolean" ? saved[name] : false]));
 }
 
-/** The public shop profile for this shop, from its web app's settings and the switches it already has. */
-export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches = undefined) {
+/**
+ * The public shop profile for this shop, from its web app's settings and the switches it already has. `savedPayments`
+ * (the saved profile's `payments`, written by step 13 once the press's account exists) is kept as it is.
+ */
+export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches = undefined, savedPayments = undefined) {
   const { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId } = webAppConfig;
   return {
     version: 1,
@@ -94,6 +97,7 @@ export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches =
     siteUrl: `https://${projectId}.web.app`,
     apps: { ...PLANS[shop.plan] },
     switches: shopSwitches(savedSwitches),
+    ...(savedPayments ? { payments: savedPayments } : {}),
   };
 }
 
@@ -201,7 +205,7 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
         const settings = await webAppConfig(shop.shopId);
         if (!settings) return false;
         const saved = await registry.getProfile(shop.shopId);
-        const profile = shopProfile(shop, settings, region, saved?.switches);
+        const profile = shopProfile(shop, settings, region, saved?.switches, saved?.payments);
         return isDeepStrictEqual(saved, profile) && (await profileFiles.read(shop.shopId)) === profileScript(profile);
       },
       async act({ shop }) {
@@ -211,7 +215,7 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
           settings = await google.firebase.getWebAppConfig(shop.shopId, appId);
         }
         const saved = await registry.getProfile(shop.shopId);
-        const profile = shopProfile(shop, settings, region, saved?.switches);
+        const profile = shopProfile(shop, settings, region, saved?.switches, saved?.payments);
         const problems = profileProblems(profile);
         if (problems.length) throw new Error(`the shop profile has problems: ${problems.join("; ")}`);
         await registry.saveProfile(shop.shopId, profile);

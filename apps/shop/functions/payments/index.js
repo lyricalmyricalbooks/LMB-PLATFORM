@@ -2,6 +2,11 @@
 // file talks to the provider. Each shop chooses its provider (shopConfig.paymentProvider, from SHOP_PAYMENT_PROVIDER in
 // the shop's functions/.env.<project id>; default "stripe"). Stripe is the only provider so far.
 //
+// Each shop also chooses a mode (shopConfig.paymentMode, SHOP_PAYMENT_MODE; code plan 2.2): "own" (default) uses the
+// shop's own keys; "platform" sends every call through the platform's payment service on the press's connected account
+// (platform.js), with no provider key in the shop at all. The interface is the same in both modes, except that in
+// platform mode verifyWebhookEvent returns a promise (it fetches the event again); callers await it.
+//
 // The provider interface: every provider returns an object with these (payments.test.js checks each one has them).
 // "account" is the opaque value clientForMode returns; callers only hand it back.
 //
@@ -33,10 +38,13 @@
 // is one file beside stripe.js implementing the same names, added to PROVIDERS below.
 
 const { createStripeProvider } = require("./stripe");
+const { createPlatformAccess } = require("./platform");
 
 const PROVIDERS = Object.freeze({ stripe: createStripeProvider });
 const PROVIDER_NAMES = Object.freeze(Object.keys(PROVIDERS));
 const DEFAULT_PROVIDER = "stripe";
+const MODES = Object.freeze(["own", "platform"]);
+const DEFAULT_MODE = "own";
 
 const INTERFACE = Object.freeze([
   "testMode", "readKeys", "clientForMode", "findOrderPayment", "readAttempt", "stopAttempt", "checkReversal", "refund",
@@ -49,15 +57,22 @@ const INTERFACE = Object.freeze([
  * @param {string} [deps.provider] the shop's provider (shopConfig.paymentProvider); default "stripe"
  * @param {object} deps.db Firestore
  * @param {(id: string) => Promise<object>} deps.readAdminSecret reads adminSecrets/<id>, {} when missing or unreadable
+ * @param {string} [deps.mode] "own" (default) or "platform" (shopConfig.paymentMode)
+ * @param {{ url: string, shopId: string, fetch?: typeof fetch }} [deps.service] platform mode: the payment service's
+ *   address (shopConfig.paymentsServiceUrl) and this shop's id in the platform registry (shopConfig.project)
  * Stripe also takes `Stripe` (the lazy constructor) and `liveSecretKey` (the deployed STRIPE_SECRET_KEY secret).
  */
-function createPayments({ provider = DEFAULT_PROVIDER, ...deps }) {
+function createPayments({ provider = DEFAULT_PROVIDER, mode = DEFAULT_MODE, service = null, ...deps }) {
   const make = PROVIDERS[provider];
   if (!make) throw new Error(`Payment provider "${provider}" is not available. Choose one of: ${PROVIDER_NAMES.join(", ")}.`);
-  const impl = make(deps);
+  if (!MODES.includes(mode)) throw new Error(`Payment mode "${mode}" is not available. Choose one of: ${MODES.join(", ")}.`);
+  const platform = mode === "platform"
+    ? createPlatformAccess({ db: deps.db, fetch: service?.fetch || globalThis.fetch, url: service?.url, shopId: service?.shopId })
+    : null;
+  const impl = make({ ...deps, platform });
   const missing = INTERFACE.filter(name => typeof impl[name] !== "function");
   if (missing.length) throw new Error(`Payment provider "${provider}" is missing: ${missing.join(", ")}.`);
-  return Object.freeze({ provider: impl.id, ...Object.fromEntries(INTERFACE.map(name => [name, impl[name]])) });
+  return Object.freeze({ provider: impl.id, mode, ...Object.fromEntries(INTERFACE.map(name => [name, impl[name]])) });
 }
 
-module.exports = { createPayments, PROVIDER_NAMES, DEFAULT_PROVIDER, INTERFACE };
+module.exports = { createPayments, PROVIDER_NAMES, DEFAULT_PROVIDER, MODES, DEFAULT_MODE, INTERFACE };

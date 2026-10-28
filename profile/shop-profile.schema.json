@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/lyricalmyricalbooks/LMB-PLATFORM/profile/shop-profile.schema.json",
   "title": "Shop profile (public part)",
-  "description": "What differs between shops and is safe for anyone to read. Hosting serves it as /shop-profile.js; the shop and the stockroom read it when the page opens. Plan, test mode, Stripe account and sender domain are NOT here: they live in server-only documents and the platform registry.",
+  "description": "What differs between shops and is safe for anyone to read. Hosting serves it as /shop-profile.js; the shop and the stockroom read it when the page opens. Plan, test mode, secret keys and sender domain are NOT here: they live in server-only documents and the platform registry. The payment form's public ids are (payments): the page needs them to show the card form.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "shopId", "firebase", "functionsRegion", "siteUrl", "apps"],
@@ -52,6 +52,27 @@
         "legacyStockroomSignIn": { "type": "boolean", "description": "The shop's admin sign-in also signs into a separate stockroom project." },
         "githubPagesForwarding": { "type": "boolean", "description": "An old GitHub Pages address forwards visitors (and their bag) to the shop." },
         "gmailReceiptFinder": { "type": "boolean", "description": "The stockroom's Gmail receipt finder and Gmail import." }
+      }
+    },
+    "payments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "mode"],
+      "description": "How the shop takes card payments, and the public ids its payment form needs. Missing: the shop's own keys in its settings (mode own). Setup writes it once the press's account exists (step 13). The server never trusts it: the platform's payment service acts only on the account the registry lists for the shop.",
+      "properties": {
+        "provider": { "type": "string", "pattern": "^(stripe|square)$", "description": "Which provider takes the payments. The shop's server reads the same choice from SHOP_PAYMENT_PROVIDER." },
+        "mode": { "type": "string", "pattern": "^(own|platform)$", "description": "own: the shop's own keys, in its settings. platform: through the platform's payment service, on the press's connected account." },
+        "stripe": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["accountId"],
+          "description": "Stripe in platform mode: the press's connected account and the platform's publishable keys, public by design.",
+          "properties": {
+            "accountId": { "type": "string", "pattern": "^acct_[A-Za-z0-9]+$" },
+            "publishableKey": { "type": "string", "pattern": "^pk_live_[A-Za-z0-9]+$" },
+            "testPublishableKey": { "type": "string", "pattern": "^pk_test_[A-Za-z0-9]+$" }
+          }
+        }
       }
     }
   }

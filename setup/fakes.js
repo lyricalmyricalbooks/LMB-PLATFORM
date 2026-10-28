@@ -279,6 +279,10 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
         if (world.docs.has(key(projectId, path))) throw new Error(`${path} already exists`);
         world.docs.set(key(projectId, path), structuredClone(data));
       },
+      async set(projectId, path, data) {
+        change("shopData.set", projectId, path);
+        world.docs.set(key(projectId, path), structuredClone(data));
+      },
     },
     providers: {
       stripe: {

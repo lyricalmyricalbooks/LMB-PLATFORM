@@ -80,7 +80,7 @@ test("the env file is what the shop's server code reads", () => {
     const [, key, value] = line.match(/^([A-Z_]+)="(.*)"$/);
     return [key, value];
   }));
-  assert.deepEqual(Object.keys(env), ["SHOP_OWNER_EMAIL", "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER", "SHOP_FUNCTIONS_REGION", "SHOP_TEST_SHOP"]);
+  assert.deepEqual(Object.keys(env), ["SHOP_OWNER_EMAIL", "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER", "SHOP_PAYMENT_MODE", "SHOP_PAYMENTS_SERVICE_URL", "SHOP_FUNCTIONS_REGION", "SHOP_TEST_SHOP"]);
   const config = readShopConfig({ ...env, GCLOUD_PROJECT: ID });
   assert.equal(config.ownerEmail, "owner@example.com");
   assert.equal(config.senderName, "Moth Night Press and Co");
@@ -88,6 +88,9 @@ test("the env file is what the shop's server code reads", () => {
   assert.equal(config.siteUrl, `https://${ID}.web.app`);
   assert.ok(!config.allowedOrigins.some((origin) => origin.includes("yourpress")), "no placeholder addresses");
   assert.equal(config.paymentProvider, "stripe");
+  // Every platform shop takes payments through the payment service, with no provider key of its own (plan 2.2).
+  assert.equal(config.paymentMode, "platform");
+  assert.equal(config.paymentsServiceUrl, "https://payments.platform.example");
   assert.equal(env.SHOP_FUNCTIONS_REGION, "northamerica-northeast1");
 });
 
@@ -403,17 +406,17 @@ test("payments with no connection for the chosen provider stop at step 13", asyn
 
 test("an account the payment service already made is saved, not made again", async () => {
   const { services, registry, run } = setup();
-  services.world.accounts.stripe.set(ID, "acct_fake_existing");
+  services.world.accounts.stripe.set(ID, "acct_fakeExisting");
   assert.equal((await run()).ok, true);
   assert.deepEqual(called(services, "stripe.createAccount"), []);
-  assert.deepEqual((await registry.getShop(ID)).payments, { provider: "stripe", accountId: "acct_fake_existing", mode: "test" });
+  assert.deepEqual((await registry.getShop(ID)).payments, { provider: "stripe", accountId: "acct_fakeExisting", mode: "test" });
 });
 
 test("payments that disagree with the registry stop for a person", async () => {
   const cases = [
     [{ provider: "square", accountId: "sq_fake" }, null, /on square, but the shop chose stripe/],
-    [{ provider: "stripe", accountId: "acct_fake_a" }, "acct_fake_b", /name different accounts/],
-    [{ provider: "stripe", accountId: "acct_fake_gone" }, null, /can't find it/],
+    [{ provider: "stripe", accountId: "acct_fakeA" }, "acct_fakeB", /name different accounts/],
+    [{ provider: "stripe", accountId: "acct_fakeGone" }, null, /can't find it/],
   ];
   for (const [saved, found, reason] of cases) {
     const { services, registry, run } = setup();
