@@ -92,6 +92,24 @@ function card(shop) {
     check.disabled = false;
   });
 
+  // Close for abuse (plan 8.4): checkout and pages close; the shop's pause page shows instead. Reversible.
+  const closing = el("button", { type: "button", textContent: shop.closed ? "Open this shop again" : "Close this shop" });
+  closing.addEventListener("click", async () => {
+    const reason = askWhy(shop.closed
+      ? `Open ${shop.pressName}'s checkout and pages again.`
+      : `Close ${shop.pressName}'s checkout and pages for abuse. Shoppers see the shop's pause page until you open it again.`);
+    if (!reason) return;
+    closing.disabled = true;
+    try {
+      await api("POST", shop.closed ? "/control/reopen" : "/control/close", { shopId: shop.shopId, reason });
+      await load();
+      status.textContent = `${shop.pressName} is ${shop.closed ? "open again" : "closed"}. It's in the shop's log.`;
+    } catch (failure) {
+      status.textContent = failure.message;
+      closing.disabled = false;
+    }
+  });
+
   const switches = shop.switches
     ? el("div", { className: "row" }, ...Object.entries(shop.switches).map(([name, on]) => {
       const box = el("input", { type: "checkbox", checked: on });
@@ -113,14 +131,15 @@ function card(shop) {
     : null;
 
   return el("div", { className: `card ${shop.health.level}` },
-    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), act, check),
+    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), act, check, closing),
     el("div", { className: "facts" },
       el("span", { textContent: shop.shopId }),
       el("span", { textContent: `plan: ${shop.plan ?? "?"}` }),
       el("span", { textContent: `version: ${shop.version ?? "none yet"}` }),
       el("span", { textContent: `status: ${shop.status ?? "?"}` }),
       shop.access ? el("span", { textContent: `billing: ${shop.access}` }) : null,
-      shop.testShop ? el("span", { textContent: "test shop" }) : null),
+      shop.testShop ? el("span", { textContent: "test shop" }) : null,
+      shop.closed ? el("span", { textContent: `closed by ${shop.closed.by}` }) : null),
     shop.health.reasons.length ? el("ul", {}, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
     switches);
 }

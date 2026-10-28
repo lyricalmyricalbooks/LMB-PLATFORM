@@ -7,7 +7,11 @@ import assert from "node:assert/strict";
 import { ACT_AS_MINUTES, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
-import { fakeRepairQueue, fakeShopAccess } from "./fakes.js";
+import { fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
+import { createRepairQueue } from "./repairs.js";
+import { createSelfChecks } from "./selfChecks.js";
+import { createPaymentService } from "../services/payments/service.js";
+import { hashServiceKey } from "../services/email/http.js";
 import { MAX_MINUTES, SUPPORT_UID, supportAccess } from "./supportAccess.js";
 import { createApi } from "../signup/api.js";
 import { fakeVerifyIdToken } from "../signup/fakes.js";
@@ -38,7 +42,7 @@ async function world({ repairs } = {}) {
   const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
-    registry, auditLog, profileFiles, publish, shopAccess, repairs, admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
+    registry, auditLog, profileFiles, publish, shopAccess, repairs, shopData: services.shopData, admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: controlRoutes(room) });
@@ -186,4 +190,58 @@ test("the real support sign-in: a token for the support account with who, why an
   // Never longer than the sign-in token itself lasts.
   assert.equal((await access.supportSignIn(ID, { by: ADMIN.email, reason: "long one", minutes: 600 })).until, now().getTime() / 1000 + MAX_MINUTES * 60);
   await assert.rejects(supportAccess({ identity, registry: w.registry }).supportSignIn(ID, { by: ADMIN.email, reason: "r" }), /service account/);
+});
+
+test("close a shop for abuse: admins only, a reason, logged first, checkout and pages closed; opening it again puts things back", async () => {
+  const w = await world();
+  const settingsKey = `${ID} settings/website`;
+  w.services.world.docs.set(settingsKey, { shopName: "Test Press", maintenance: { enabled: false, message: "Back after the fair" } });
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/close", { shopId: ID, reason: "selling stolen card numbers" })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/close", { shopId: ID, reason: "spam" })).status, 400);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/close", { shopId: "no-such-shop", reason: "selling stolen card numbers" })).status, 404);
+  assert.equal(w.events().length, 0);
+
+  const closed = await w.ask(ADMIN, "POST", "/api/control/close", { shopId: ID, reason: "selling stolen card numbers" });
+  assert.equal(closed.status, 200);
+  assert.equal(closed.body.changed, true);
+  // The shop's own pause: its server closes checkout and its pages show the press's pause words.
+  assert.deepEqual(w.services.world.docs.get(settingsKey), { shopName: "Test Press", maintenance: { enabled: true, message: "Back after the fair" } });
+  const row = await w.registry.getShop(ID);
+  assert.deepEqual([row.closure.by, row.closure.reason], [ADMIN.email, "selling stolen card numbers"]);
+  const [entry] = w.events();
+  assert.deepEqual([entry.what, entry.by, entry.reason], ["shop-closed", ADMIN.email, "selling stolen card numbers"]);
+  assert.ok(w.auditLog.entries.get(ID).has(entry.id), "in the shop's own audit log too");
+  const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
+  assert.equal(listed.closed.reason, "selling stolen card numbers");
+  assert.match(listed.health.reasons.join(" "), /closed by the platform on 2026-10-28: selling stolen card numbers/);
+
+  // The platform's payment service refuses the shop while it is closed, whatever its own settings say.
+  const key = "shop-service-key-test-shop-0123456789abcdef";
+  await w.registry.updateShop(ID, { serviceKeyHash: hashServiceKey(key), payments: { provider: "stripe", accountId: "acct_test", mode: "test" } });
+  const payments = createPaymentService({ stripe: { call: async () => assert.fail("Stripe was asked") }, registry: w.registry, auditLog: w.auditLog, accounts: {}, deliver: async () => ({ status: 200 }), config: { webhookSecrets: { live: [], test: [] }, fee: { basisPoints: 0, refunded: true } } });
+  const refused = await payments.shopCall({ headers: { "X-Shop-Id": ID, Authorization: `Bearer ${key}` }, body: { op: "paymentIntents.create", mode: "test", args: {} } });
+  assert.deepEqual([refused.status, refused.body.error.code], [403, "shop_closed"]);
+
+  // Closing twice changes nothing.
+  assert.equal((await w.room.closeShop(ADMIN, { shopId: ID, reason: "selling stolen card numbers again" })).changed, false);
+
+  // A press who turns the pause off finds it back on after the next self-check.
+  const checks = createSelfChecks({ registry: w.registry, profileFiles: w.profileFiles, deploy: w.services.deploy, publish: async () => ({ apps: [] }), repairs: createRepairQueue({ store: fakeRepairStore(), registry: w.registry, auditLog: w.auditLog }), shopData: w.services.shopData });
+  w.services.world.docs.set(settingsKey, { shopName: "Test Press", maintenance: { enabled: false, message: "" } });
+  const result = await checks.check(ID);
+  assert.deepEqual(result.results.find((r) => r.check === "closed"), { check: "closed", ok: true, fixed: "turned the shop's pause page on again" });
+  assert.equal(w.services.world.docs.get(settingsKey).maintenance.enabled, true);
+
+  // Opening again: the pause goes back to how the press had it, and the payment service lets the shop in.
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/reopen", { shopId: ID, reason: "x" })).status, 400);
+  w.services.world.docs.set(settingsKey, { shopName: "Test Press", maintenance: { enabled: true, message: "" } });
+  const opened = await w.ask(ADMIN, "POST", "/api/control/reopen", { shopId: ID, reason: "the press proved the cards were theirs" });
+  assert.equal(opened.status, 200);
+  assert.deepEqual(w.services.world.docs.get(settingsKey), { shopName: "Test Press", maintenance: { enabled: false, message: "Back after the fair" } });
+  const after = await w.registry.getShop(ID);
+  assert.equal(after.closure, null);
+  assert.deepEqual([after.lastClosure.reopenedBy, after.lastClosure.reopenReason], [ADMIN.email, "the press proved the cards were theirs"]);
+  assert.deepEqual(w.events().map((e) => e.what), ["shop-closed", "shop-reopened"]);
+  const allowed = await payments.shopCall({ headers: { "X-Shop-Id": ID, Authorization: `Bearer ${key}` }, body: { op: "account.status", mode: "test", args: {} } }).catch((e) => e);
+  assert.notEqual(allowed.body?.error?.code, "shop_closed");
 });
