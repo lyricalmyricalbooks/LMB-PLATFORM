@@ -1,6 +1,7 @@
 {
   "version": 1,
   "shopId": "lmb-test-shop",
+  "name": "Test Press",
   "firebase": {
     "apiKey": "AIzaTestShopKeyNotReal00000000000000000",
     "authDomain": "lmb-test-shop.firebaseapp.com",

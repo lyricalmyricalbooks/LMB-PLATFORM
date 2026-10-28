@@ -445,6 +445,11 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `oldPaths` (per old line) holds the old shop's product addresses. After the import saves, `importRedirects` (plan 3.2)
   adds them to URL redirects as `/books/<id>` (ids survive renames), for created, updated and unchanged books; it never
   replaces an existing redirect, skips the shop's own routes and stops at `MAX_REDIRECTS` with a reason.
+  **Plan 7.2:** `handle-rows` is read under the older headings (Handle, Variant Price, Image Src…) and today's (URL
+  handle, Price, Compare-at price, SKU, Barcodes, Inventory quantity, Product image URL, Image position, Weight value
+  (grams), Variant image URL); each field takes either (the `HANDLE`/`PRICE`/… lists). A file with both Barcode and
+  Barcodes reads Barcodes. SEO title / SEO description go to `metaTitle`/`metaDescription` (also plain Import CSV
+  columns). `shopMove.test.ts` proves one three-edition book gives the same plan in both layouts.
 - **Customers:** Customers › **Bring customers over** (`ShopMoveDialogs.tsx`, lazy) → `readCustomerExport` →
   `planCustomerNotes` (merges into `customerNotes`; `MOVED_MARK` makes a re-run unchanged; tags capped by `parseTags`)
   and `newsletterJoiners` (said yes in the file, not subscribed, not in `marketing-optout`). Joiners are written only
@@ -505,3 +510,12 @@ Team role `bookkeeper` (Settings › Team, or the platform's account page): read
   admin shell, so none of the admin's reads run. `bookkeeping.ts` (pure) blanks shoppers' and gift card recipients'
   email addresses in its downloads. A first sign-in learns the role after `login()` refreshes the pass (`onLogin`).
 - **Stockroom:** the same role reads the tax centre's key-free copy (`apps/stockroom/src/lib/bookkeeper-copy.js`).
+
+## Download for another shop system (28 October 2026, code plan 7.18)
+
+Settings › General › Backups & export › **Download for another shop system** (`BackupsExportCard.tsx`, pure builders in
+`shopExport.ts`). Books: one line per edition, extra photos on their own lines, in the older handle-rows headings
+because those are what `shopMove.ts` reads (`shopExport.test.ts` round-trips the file through `planShopMove`); move to
+the newer headings only together with shopMove. Gift cards stay out. Customers: buyers from orders plus newsletter
+sign-ups; "Accepts Email Marketing" is yes only for a current subscriber who has not opted out. Words on screen never
+name another system. The stockroom's matching stock file is `apps/stockroom/src/lib/stock-locations.js` (7.19).

@@ -28,11 +28,14 @@ function sources(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+// Another press's wordmark, built from parts so this file doesn't name it.
+const OTHER_MARKS = new RegExp(`Your Press|YOUR PRESS|F✶M|${["Lyr", "ical"].join("")}<(em|span)>`);
+
 describe("the shop's name is a Studio default, not built into the site (plan 1.16)", () => {
   it("no file but shopIdentity.ts writes the placeholder name or another press's mark", () => {
     const offenders = sources(SRC)
       .filter((file) => !file.endsWith("shopIdentity.ts"))
-      .filter((file) => /Your Press|YOUR PRESS|F✶M|Lyrical<(em|span)>/.test(readFileSync(file, "utf8")))
+      .filter((file) => OTHER_MARKS.test(readFileSync(file, "utf8")))
       .map((file) => relative(SRC, file));
     expect(offenders).toEqual([]);
   });
@@ -41,7 +44,7 @@ describe("the shop's name is a Studio default, not built into the site (plan 1.1
     const siteName = COPY_SCHEMA.flatMap((g: any) => g.fields).find((f: any) => f.key === "siteName");
     expect(siteName.default).toBe(DEFAULT_SHOP_NAME);
     const design = { copy: { siteName: "Salt Hymns Press" } };
-    for (const key of ["footerWordmark", "footerCopyright", "logoAlt", "coBrand", "reviewsReply", "poweredBy", "loadingAria", "maintenanceFooter"]) {
+    for (const key of ["footerWordmark", "footerCopyright", "logoAlt", "coBrand", "reviewsReply", "poweredBy", "loadingAria", "loadingWordmarkA", "maintenanceFooter"]) {
       expect(getCopy(design, key), key).toContain("Salt Hymns Press");
       expect(getCopy(design, key), key).not.toContain(DEFAULT_SHOP_NAME);
     }

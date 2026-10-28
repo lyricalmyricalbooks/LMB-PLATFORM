@@ -147,6 +147,22 @@ describe("launchReadiness on a shop whose cards go through Colophon (plan 2.10)"
     expect(status(launchReadiness({ ...base, platformCards: "stripe", platformAccount: null }), "card-account")).toBe("warn");
   });
 
+  it("never shows a platform shop a deployment, hosting or console-link row, whatever its card account says (plan 7.1)", () => {
+    const accounts = [undefined, null, { provider: "square", connected: false }, { provider: "stripe", detailsSubmitted: true, chargesEnabled: true }] as const;
+    for (const platformCards of ["stripe", "square"] as const) {
+      for (const platformAccount of accounts) {
+        for (const settings of [platformSettings, { ...platformSettings, payments: { testMode: true } }, {}]) {
+          const items = launchReadiness({ ...base, settings, platformCards, platformAccount: platformAccount as any });
+          const where = `${platformCards} ${JSON.stringify(platformAccount)} ${JSON.stringify(settings.payments)}`;
+          expect(items.map(i => i.id), where).not.toEqual(expect.arrayContaining(["deployment"]));
+          expect(items.map(i => i.id), where).not.toEqual(expect.arrayContaining(["hosting"]));
+          expect(items.filter(i => i.href), where).toEqual([]);
+          expect(items.map(i => `${i.label} ${i.detail} ${i.action}`).join(" "), where).not.toMatch(/firebase|github|deploy|console/i);
+        }
+      }
+    }
+  });
+
   it("says what Stripe still needs with its deadline, blocks when it is past due, and ticks once cards and payouts work", () => {
     const deadline = "2026-11-12T17:00:00.000Z";
     const card = (account: object) => launchReadiness({ ...base, platformCards: "stripe", platformAccount: { provider: "stripe", detailsSubmitted: true, ...account } }).find(i => i.id === "card-account")!;

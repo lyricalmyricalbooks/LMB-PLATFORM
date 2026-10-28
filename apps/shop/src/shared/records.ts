@@ -3,6 +3,8 @@
 // screens read most, typed as the server writes them; every other field stays open (`any`), so older records and
 // fields added later still read. Admin screens type their order and book lists with these instead of `Record<string, any>`.
 
+import type { TaxLine } from "./taxBooks";
+
 type Open = { [field: string]: any };
 
 /** One bought line of an order (the server's priced item, minus its shipping profile). */
@@ -38,6 +40,8 @@ export type OrderRecord = Open & {
   discount?: number;
   shipping?: number;
   tax?: number;
+  /** The tax split by each rate's name in the books, cents (plan 7.11; older orders have none). */
+  taxLines?: TaxLine[];
   total?: number;
   giftCardAmount?: number;
   appliedDiscount?: any;

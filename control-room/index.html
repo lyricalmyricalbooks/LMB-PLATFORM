@@ -20,6 +20,8 @@
   button:disabled { opacity: .6; cursor: default; }
   .primary { background: var(--yellow); color: #1d1a17; box-shadow: 4px 4px 0 var(--ink); }
   .stack { display: grid; gap: 16px; }
+  .stack > *, .card > * { min-width: 0; }
+  input, select, textarea { max-width: 100%; }
   .card { border: 2px solid var(--ink); padding: 16px; display: grid; gap: 10px; }
   .card.problem { box-shadow: 4px 4px 0 var(--danger); }
   .card.watch { box-shadow: 4px 4px 0 var(--yellow); }
@@ -29,7 +31,7 @@
   .facts { font: 14px "DM Mono", monospace; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .pill { font: 13px "DM Mono", monospace; text-transform: uppercase; border: 2px solid var(--ink); padding: 2px 8px; }
   ul { margin: 0; padding-left: 20px; }
-  .switch { display: flex; gap: 8px; align-items: center; font: 14px "DM Mono", monospace; min-height: 44px; }
+  .switch { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 14px "DM Mono", monospace; min-height: 44px; }
   .switch input { width: 22px; height: 22px; }
   h2 { font: 400 26px/1.15 Anton, Impact, sans-serif; text-transform: uppercase; margin: 24px 0 0; }
   .field { display: grid; gap: 4px; font-weight: 600; }
@@ -41,6 +43,13 @@
   .filters button[aria-pressed="true"], .repair-filters button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
   .hint { color: var(--muted); font-size: 15px; margin: 0; }
   #status { min-height: 1.5em; font-weight: 600; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .tile { border: 2px solid var(--ink); padding: 12px; display: grid; gap: 2px; }
+  .tile strong { font: 400 30px/1.1 Anton, Impact, sans-serif; }
+  .tile span { font: 13px "DM Mono", monospace; text-transform: uppercase; color: var(--muted); }
+  .needs a { color: inherit; font-weight: 600; }
+  .qr { width: 220px; max-width: 100%; background: #fff; border: 2px solid var(--ink); }
+  .qr img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 </style>
 </head>
 <body>
@@ -48,12 +57,51 @@
   <div class="mark">Colophon</div>
   <h1>Control room</h1>
   <section id="view-signin" class="stack">
-    <p>For platform admins only.</p>
+    <p>For platform admins only. You'll need the code from your authenticator app too.</p>
     <button type="button" id="google" class="primary">Sign in with Google</button>
   </section>
+  <section id="view-code" class="stack" hidden>
+    <form id="code-form" class="card">
+      <label class="field">The 6-digit code from your authenticator app <input name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></label>
+      <div class="row"><button type="submit" class="primary">Sign in</button></div>
+    </form>
+  </section>
+  <section id="view-setup" class="stack" hidden>
+    <h2>Set up two-step sign-in</h2>
+    <p>The control room asks for a code from an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password…) every time you sign in, so nobody gets in with your Google password alone.</p>
+    <ol>
+      <li>Open the app on your phone and add an account by scanning this code. On the phone itself, <a id="setup-link" href="#">tap here to add it</a> instead.</li>
+      <li>Or type this key into the app: <code id="setup-key" class="mark"></code></li>
+      <li>Type the 6-digit code the app shows.</li>
+    </ol>
+    <div id="setup-qr" class="qr"></div>
+    <form id="setup-form" class="card">
+      <label class="field">The 6-digit code <input name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></label>
+      <div class="row"><button type="submit" class="primary">Turn on two-step sign-in</button></div>
+    </form>
+  </section>
   <section id="view-shops" class="stack" hidden>
+    <h2>Today</h2>
+    <div id="today-numbers" class="tiles"></div>
+    <div id="needs" class="stack"></div>
+    <h2>Shops</h2>
     <div class="row"><span id="summary"></span> <button type="button" id="refresh">Refresh</button></div>
     <div id="shops" class="stack"></div>
+    <h2>Sign-ups and the waitlist</h2>
+    <p class="hint" id="waitlist-summary"></p>
+    <div id="making" class="stack" tabindex="-1"></div>
+    <div id="waitlist" class="stack"></div>
+    <form id="invite-form" class="row">
+      <label class="field">Invite someone not on the list <input type="email" name="email" required autocomplete="off" placeholder="name@press.example"></label>
+      <button type="submit">Send invite</button>
+    </form>
+    <h2>Platform settings</h2>
+    <p class="hint">Changes here reach sign-up and new plans at once, with no release. A new price is for new subscriptions only; presses already paying keep theirs.</p>
+    <form id="settings-form" class="card">
+      <div id="settings-fields" class="stack"></div>
+      <label class="field">Why are you changing this? (goes in the activity log) <input name="reason" required minlength="10" maxlength="500"></label>
+      <div class="row"><button type="submit" class="primary">Save settings</button> <span class="hint" id="settings-updated"></span></div>
+    </form>
     <h2>Emergency payments</h2>
     <p class="hint">Only if the platform's Stripe account is paused: move every live shop's card payments at once. Each press is emailed straight away. Move them back the same way.</p>
     <div id="all-payments"></div>
@@ -93,6 +141,13 @@
       <div class="row"><button type="submit" class="primary">Write it in the register</button></div>
     </form>
     <div id="breaches" class="stack"></div>
+    <h2>Activity log</h2>
+    <p class="hint">Everything anyone did in the control room, newest first. Kept for a year; nothing here can be changed.</p>
+    <form id="activity-form" class="row">
+      <label class="field">Only this shop (shop id, empty for all) <input name="shopId" autocomplete="off"></label>
+      <button type="submit">Show</button>
+    </form>
+    <div id="activity" class="stack"></div>
   </section>
   <section id="view-emergency" class="stack" hidden>
     <h2>Run book</h2>
@@ -101,6 +156,7 @@
   </section>
   <p id="status" role="status" aria-live="polite"></p>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script type="module" src="./app.js"></script>
 </body>
 </html>
