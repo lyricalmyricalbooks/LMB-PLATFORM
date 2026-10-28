@@ -141,7 +141,7 @@ function shortNameHit(text) {
 test("nothing outside shops/ names one press by its short name (plan 7.3)", () => {
   const hits = [];
   for (const [path, text] of TEXT) {
-    if (path === join("apps", "README.md") || CHECKERS.has(path) || LOCKFILES.test(path)) continue;
+    if (path === "apps/README.md" || CHECKERS.has(path) || LOCKFILES.test(path)) continue;
     const hit = shortNameHit(path.startsWith("apps/") ? text : codeOf(path, text));
     if (hit) hits.push(`${path}: ${hit}`);
   }
