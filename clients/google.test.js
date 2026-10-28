@@ -106,6 +106,41 @@ test("storage: the default bucket is read and made through Firebase Storage", as
   fetch.done();
 });
 
+test("storage: the stockroom's own bucket is ours, someone else's, or missing; made with uniform access and added to Firebase", async () => {
+  const GCS = "https://storage.googleapis.com/storage/v1";
+  const name = `${P}-stockroom`;
+  const { fetch, google } = clients([
+    { method: "GET", url: `${GCS}/b/${name}`, ...notFound },
+    { method: "POST", url: `${GCS}/b?project=${P}`, body: { name, location: "northamerica-northeast1", iamConfiguration: { uniformBucketLevelAccess: { enabled: true } } }, json: { name } },
+    { method: "POST", url: `https://firebasestorage.googleapis.com/v1beta/projects/${P}/buckets/${name}:addFirebase`, body: {}, json: { name: `projects/${P}/buckets/${name}` } },
+    { method: "GET", url: `${GCS}/b/${name}`, json: { name, location: "NORTHAMERICA-NORTHEAST1", projectNumber: "123456789012" } },
+    firebaseProject,
+    { method: "GET", url: `${GCS}/b/${name}`, json: { name, location: "US", projectNumber: "999" } },
+    firebaseProject,
+    { method: "GET", url: `${GCS}/b/${name}`, status: 403, json: { error: { code: 403, message: "no access" } } },
+  ]);
+  assert.equal(await google.storage.getBucket(P, name), null);
+  await google.storage.createBucket(P, { name, location: "northamerica-northeast1" });
+  assert.deepEqual(await google.storage.getBucket(P, name), { name, location: "NORTHAMERICA-NORTHEAST1", project: P });
+  assert.deepEqual(await google.storage.getBucket(P, name), { name, location: "US", project: null });
+  assert.deepEqual(await google.storage.getBucket(P, name), { name, location: "", project: null });
+  fetch.done();
+});
+
+test("realtime database: the default instance is found across locations, and made in the location asked", async () => {
+  const RTDB = "https://firebasedatabase.googleapis.com/v1beta";
+  const { fetch, google } = clients([
+    { method: "GET", url: `${RTDB}/projects/${P}/locations/-/instances`, json: {} },
+    { method: "POST", url: `${RTDB}/projects/${P}/locations/us-central1/instances?databaseId=${P}-default-rtdb`, body: { type: "DEFAULT_DATABASE" }, json: { name: `projects/123/locations/us-central1/instances/${P}-default-rtdb`, type: "DEFAULT_DATABASE" } },
+    { method: "GET", url: `${RTDB}/projects/${P}/locations/-/instances`, json: { instances: [{ name: "projects/123/locations/europe-west1/instances/extra", type: "USER_DATABASE" }], nextPageToken: "n" } },
+    { method: "GET", url: `${RTDB}/projects/${P}/locations/-/instances?pageToken=n`, json: { instances: [{ name: `projects/123/locations/us-central1/instances/${P}-default-rtdb`, type: "DEFAULT_DATABASE" }] } },
+  ]);
+  assert.equal(await google.realtimeDatabase.getInstance(P), null);
+  await google.realtimeDatabase.createInstance(P, { location: "us-central1" });
+  assert.deepEqual(await google.realtimeDatabase.getInstance(P), { name: `${P}-default-rtdb`, location: "us-central1" });
+  fetch.done();
+});
+
 test("backups: the functions' account gets the export role once, keeping every other binding", async () => {
   const member = "serviceAccount:123456789012-compute@developer.gserviceaccount.com";
   const policy = { version: 1, etag: "e1", bindings: [{ role: "roles/owner", members: ["user:owner@example.com"] }] };

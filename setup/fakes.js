@@ -116,6 +116,9 @@ export function fakeGoogle({ failOnce = [] } = {}) {
   const world = {
     projects: new Map(), billing: new Map(), firebase: new Set(), apps: new Map(), services: new Map(), databases: new Map(), buckets: new Map(),
     backupPermission: new Set(), backups: new Map(), testFiles: new Set(),
+    // The stockroom's own pieces (plan 1.20): named databases by "<project>/<database>", extra buckets by name, and
+    // each project's default Realtime Database instance.
+    namedDatabases: new Map(), extraBuckets: new Map(), realtimeDatabases: new Map(),
     // What an unsigned read of the storage test file gets; 403 is private, as the shop's storage rules make it.
     unsignedReadStatus: 403,
   };
@@ -190,11 +193,13 @@ export function fakeGoogle({ failOnce = [] } = {}) {
       },
     },
     firestore: {
-      getDatabase: async (projectId) => world.databases.get(projectId) ?? null,
-      async createDatabase(projectId, { locationId }) {
-        change("firestore.createDatabase", projectId);
+      getDatabase: async (projectId, databaseId = "(default)") =>
+        (databaseId === "(default)" ? world.databases.get(projectId) : world.namedDatabases.get(`${projectId}/${databaseId}`)) ?? null,
+      async createDatabase(projectId, { databaseId = "(default)", locationId }) {
+        change("firestore.createDatabase", projectId, databaseId);
         needProject(projectId);
-        world.databases.set(projectId, { locationId });
+        if (databaseId === "(default)") world.databases.set(projectId, { locationId });
+        else world.namedDatabases.set(`${projectId}/${databaseId}`, { locationId });
       },
     },
     storage: {
@@ -203,6 +208,22 @@ export function fakeGoogle({ failOnce = [] } = {}) {
         change("storage.createDefaultBucket", projectId);
         needProject(projectId);
         world.buckets.set(projectId, { name: `${projectId}.firebasestorage.app`, location: location.toUpperCase() });
+      },
+      // Bucket names are shared by everyone on Google Cloud; `project` says whose a bucket is.
+      getBucket: async (projectId, name) => world.extraBuckets.get(name) ?? null,
+      async createBucket(projectId, { name, location }) {
+        change("storage.createBucket", projectId, name);
+        needProject(projectId);
+        if (world.extraBuckets.has(name)) throw new Error(`the bucket name ${name} is taken`);
+        world.extraBuckets.set(name, { name, location: location.toUpperCase(), project: projectId });
+      },
+    },
+    realtimeDatabase: {
+      getInstance: async (projectId) => world.realtimeDatabases.get(projectId) ?? null,
+      async createInstance(projectId, { location }) {
+        change("realtimeDatabase.createInstance", projectId);
+        needProject(projectId);
+        world.realtimeDatabases.set(projectId, { name: `${projectId}-default-rtdb`, location });
       },
     },
     backups: {

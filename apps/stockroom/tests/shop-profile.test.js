@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import vm from 'vm';
 import served from '../public/shop-profile.js?raw';
 import databaseRules from '../database.rules.json?raw';
-import { DATA_ROOT, DEFAULT_SHOP_PROFILE, parseShopProfile, readShopProfile } from '../src/lib/shop-profile.js';
+import { DATA_ROOT, DEFAULT_SHOP_PROFILE, parseShopProfile, readShopProfile, stockroomBucketUrl, stockroomDatabaseId } from '../src/lib/shop-profile.js';
 
 const good = () => ({
   version: 1,
@@ -45,6 +45,30 @@ describe('shop profile', () => {
     ]) {
       expect(parseShopProfile(broken)).toBeNull();
       expect(readShopProfile(broken)).toBe(DEFAULT_SHOP_PROFILE);
+    }
+    warn.mockRestore();
+  });
+
+  it("uses the stockroom's own database and bucket when the profile names them (plan 1.20)", () => {
+    const place = { firestoreDatabase: 'stockroom', storageBucket: 'moth-press-stockroom' };
+    const profile = parseShopProfile({ ...good(), stockroom: place });
+    expect(profile.stockroom).toEqual(place);
+    expect(stockroomDatabaseId(profile)).toBe('stockroom');
+    expect(stockroomBucketUrl(profile)).toBe('gs://moth-press-stockroom');
+    // Without the block: the project's default database and bucket, as for a stockroom in a project of its own.
+    const plain = parseShopProfile(good());
+    expect(plain.stockroom).toBeUndefined();
+    expect(stockroomDatabaseId(plain)).toBeUndefined();
+    expect(stockroomBucketUrl(plain)).toBeUndefined();
+  });
+
+  it('refuses the whole profile when the stockroom block is broken', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const stockroom of [null, 'stockroom', {}, { firestoreDatabase: 'stockroom' },
+      { firestoreDatabase: '(default)', storageBucket: 'b-stockroom' },
+      { firestoreDatabase: 'stockroom', storageBucket: 'gs://b-stockroom' },
+      { firestoreDatabase: 'stockroom', storageBucket: 'b-stockroom', extra: 1 }]) {
+      expect(parseShopProfile({ ...good(), stockroom }), JSON.stringify(stockroom)).toBeNull();
     }
     warn.mockRestore();
   });
