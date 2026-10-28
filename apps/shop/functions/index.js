@@ -227,9 +227,11 @@ exports.refreshMyRole = onBrowserRequest(async (req, res) => {
     res.status(401).json({ error: "Sign in first." });
     return;
   }
-  // Platform support (roles.js supportOf) has no Team entry to sync: staff until its time runs out.
-  if (supportOf(decoded)) {
-    res.json({ role: "staff", support: true, ownerEmail: shopConfig.ownerEmail });
+  // Platform support (roles.js supportOf) has no Team entry to sync: staff until its time runs out. A "view" visit
+  // (plan 9.8) opens the admin to look only: the rules and every admin action refuse its changes.
+  const support = supportOf(decoded);
+  if (support) {
+    res.json({ role: "staff", support: true, viewOnly: support.mode !== "edit", ownerEmail: shopConfig.ownerEmail });
     return;
   }
   if (decoded.email_verified !== true) {

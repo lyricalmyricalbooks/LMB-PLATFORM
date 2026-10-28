@@ -20,7 +20,8 @@ describe("platform support visits", () => {
 
   it("is staff while it lasts, only from a custom sign-in, and never owner", () => {
     const visit = claims({ by: "admin@platform.example", reason: "help with tax", until: later });
-    expect(supportOf(visit)).toEqual({ by: "admin@platform.example", reason: "help with tax", until: later });
+    expect(supportOf(visit)).toEqual({ by: "admin@platform.example", reason: "help with tax", until: later, mode: "view" });
+    expect(supportOf(claims({ by: "a", until: later, mode: "edit" }))?.mode).toBe("edit");
     expect(adminRoleOf(null, false, visit)).toBe("staff");
     expect(adminRoleOf(null, false, claims({ until: later - 1200 }))).toBeNull();
     expect(adminRoleOf(null, false, claims({ until: later }, "google.com"))).toBeNull();
@@ -39,10 +40,17 @@ describe("platform support visits", () => {
   });
 
   it("the banner says who, why and that the visit is logged, with a way out", () => {
-    const html = renderToStaticMarkup(createElement(SupportBanner, { visit: { by: "admin@platform.example", reason: "help with tax", until: later }, onSignOut: () => {} }));
+    const html = renderToStaticMarkup(createElement(SupportBanner, { visit: { by: "admin@platform.example", reason: "help with tax", until: later, mode: "edit" }, onSignOut: () => {} }));
     expect(html).toContain("admin@platform.example is signed in until");
+    expect(html).not.toContain("viewing only");
     expect(html).toContain("Why: help with tax. This visit is in your shop&#x27;s log.");
     expect(html).toContain("Sign out");
     expect(renderToStaticMarkup(createElement(SupportBanner, { visit: null, onSignOut: () => {} }))).toBe("");
+  });
+
+  it("a view visit says it only looks", () => {
+    const html = renderToStaticMarkup(createElement(SupportBanner, { visit: { by: "a", reason: "", until: later, mode: "view" }, onSignOut: () => {} }));
+    expect(html).toContain("viewing only");
+    expect(html).toContain("nothing in your shop can be changed");
   });
 });

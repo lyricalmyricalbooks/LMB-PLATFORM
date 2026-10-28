@@ -4,7 +4,7 @@ import { orderAccessHeaders, savedOrderAccess } from "./orderAccessClient";
 import { defaultSettings } from "../admin/defaultSettings";
 import { withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Page } from "../features/site/types";
-import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
+import { REDIRECTS_COLLECTION, REDIRECTS_DOC, redirectsFromStore, type Redirect } from "../features/site/redirects";
 
 /**
  * The shopper-side reads the storefront needs to render. Kept apart from `admin/api.ts` so the public
@@ -78,11 +78,18 @@ export const publicApi = {
     return snap.exists() ? snap.data() : null;
   },
 
-  // URL redirects (Settings › General): read only when a shopper lands on a missing page; one small public doc.
+  // URL redirects (Settings › General): read only when a shopper lands on a missing page. The numbered pages
+  // (`redirects/1`…) and the legacy `settings/redirects` doc, combined by `redirectsFromStore` (plan 5.6).
   getRedirects: async (): Promise<Redirect[]> => {
-    const { doc, getDoc, liteDb } = await lite();
-    const snap = await getDoc(doc(liteDb, "settings", REDIRECTS_DOC));
-    return cleanRedirects(snap.exists() ? (snap.data() as any).items : []);
+    const { collection, doc, getDoc, getDocs, liteDb } = await lite();
+    const [legacy, pages] = await Promise.all([
+      getDoc(doc(liteDb, "settings", REDIRECTS_DOC)),
+      getDocs(collection(liteDb, REDIRECTS_COLLECTION)),
+    ]);
+    return redirectsFromStore({
+      legacy: legacy.exists() ? (legacy.data() as any) : null,
+      pages: pages.docs.map(d => ({ id: d.id, items: (d.data() as any).items })),
+    });
   },
 
   getPublishedPages: async (): Promise<Page[]> => {
