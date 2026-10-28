@@ -5,6 +5,7 @@
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { isEmail } from "../signup/form.js";
 import { ROLES, ROLE_HINTS, ROLE_NAMES } from "./roles.js";
+import { deviceId } from "../signup/device.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const {
@@ -33,7 +34,7 @@ async function api(method, path, body) {
   const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
   const response = await fetch(`${API_BASE}${path}`, {
     method,
-    headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}`, "X-Device-Id": deviceId() } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const answer = await response.json().catch(() => ({ ok: false, message: "We couldn't reach Colophon. Check your connection and try again." }));
@@ -107,6 +108,7 @@ async function loadShops() {
   } else {
     list.replaceChildren(...shops.map(shopCard));
   }
+  await loadRecoveryAlerts().catch(() => {});
   show("shops");
 }
 
@@ -270,6 +272,92 @@ $("#help-form").addEventListener("submit", async (event) => {
     form.reset();
     delete form.dataset.requestId;
     await loadTickets();
+  } catch (failure) {
+    const problems = failure.problems ?? {};
+    for (const [field, words] of Object.entries(problems)) {
+      const p = form.querySelector(`[data-problem="${field}"]`);
+      if (p) { p.textContent = words; p.hidden = false; }
+    }
+    if (!Object.keys(problems).length) status.textContent = failure.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+// ── Account recovery (accounts/recovery.js) ──
+const RECOVERY_WORDS = { waiting: "Waiting for a person to check", approved: "Approved, waiting", denied: "Not moved", cancelled: "Stopped by the old address", withdrawn: "You withdrew it", applied: "Moved" };
+const day = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+$("#open-recovery").addEventListener("click", () => openRecovery().catch((failure) => { status.textContent = failure.message; }));
+$("#recovery-back").addEventListener("click", () => loadShops().catch((failure) => { status.textContent = failure.message; }));
+
+/** Someone asked to move THIS account away: say so first, with a way to stop it. */
+async function loadRecoveryAlerts() {
+  const { againstMe } = await api("GET", "/recovery/mine");
+  $("#recovery-alerts").replaceChildren(...againstMe.map((request) => {
+    const stop = el("button", { type: "button", className: "primary", textContent: "Stop this request" });
+    stop.addEventListener("click", async () => {
+      stop.disabled = true;
+      try {
+        await api("POST", "/recovery/cancel", { id: request.id });
+        status.textContent = "Stopped. Nothing has moved, and we've told our team.";
+        await loadRecoveryAlerts();
+      } catch (failure) {
+        status.textContent = failure.message;
+        stop.disabled = false;
+      }
+    });
+    const waiting = request.holdUntil ? ` It's approved and moves after ${day(request.holdUntil)} unless you stop it.` : "";
+    return el("div", { className: "card warning", role: "alert" },
+      el("strong", { textContent: "Someone asked to move your account" }),
+      el("p", { style: "margin:0", textContent: `${request.requesterEmail} asked on ${day(request.askedAt)} to move this account to their address.${waiting} If that wasn't you, stop it.` }),
+      el("div", { className: "row" }, stop));
+  }));
+}
+
+async function openRecovery() {
+  await loadRecoveries();
+  show("recovery");
+}
+
+async function loadRecoveries() {
+  const { asked } = await api("GET", "/recovery/mine");
+  $("#recoveries").replaceChildren(...(asked.length ? asked.map(recoveryCard) : [el("p", { className: "empty", textContent: "No requests yet." })]));
+}
+
+function recoveryCard(request) {
+  const card = el("div", { className: "card" },
+    el("div", { className: "row" }, el("strong", { textContent: request.oldEmail }), el("span", { className: "pill", textContent: RECOVERY_WORDS[request.status] ?? request.status })),
+    el("p", { className: "hint", textContent: `Asked ${day(request.askedAt)}${request.holdUntil && request.status === "approved" ? ` · moves after ${day(request.holdUntil)}` : ""}` }),
+    request.reason ? el("p", { style: "margin:0", textContent: request.reason }) : null);
+  if (request.status === "waiting" || request.status === "approved") {
+    const withdraw = el("button", { type: "button", className: "ghost", textContent: "Withdraw this request" });
+    withdraw.addEventListener("click", async () => {
+      withdraw.disabled = true;
+      try {
+        await api("POST", "/recovery/cancel", { id: request.id });
+        status.textContent = "Withdrawn.";
+        await loadRecoveries();
+      } catch (failure) {
+        status.textContent = failure.message;
+        withdraw.disabled = false;
+      }
+    });
+    card.append(withdraw);
+  }
+  return card;
+}
+
+$("#recovery-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const button = form.querySelector("button[type=submit]");
+  for (const p of form.querySelectorAll("[data-problem]")) p.hidden = true;
+  button.disabled = true;
+  try {
+    await api("POST", "/recovery/ask", { oldEmail: form.oldEmail.value, details: form.details.value });
+    status.textContent = "Sent. We've emailed you a copy, and a person will look at it.";
+    form.reset();
+    await loadRecoveries();
   } catch (failure) {
     const problems = failure.problems ?? {};
     for (const [field, words] of Object.entries(problems)) {
