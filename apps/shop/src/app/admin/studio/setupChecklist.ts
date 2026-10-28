@@ -54,7 +54,7 @@ export function setupChecklist(i: SetupInput): SetupItem[] {
       done: filled(copy.siteDefaultTitle) && filled(copy.siteDefaultDescription), go: { kind: "target", target: "copy:Site & sharing" } },
     { id: "home", title: "Build your Home page", detail: "At least two sections on Home (or turn Home off to open on the catalog).",
       done: d.showHero === false || homeSections.length >= 2, go: { kind: "tab", tab: "sections" } },
-    { id: "policies", title: "Write your shop policies", detail: `Shipping, returns, privacy and terms (${writtenPolicies} of ${POLICY_KEYS.length} written). Write them in Admin › Settings › General › Store policies.`,
+    { id: "policies", title: "Write your shop policies", detail: `Shipping, returns, privacy and terms (${writtenPolicies} of ${POLICY_KEYS.length} written). Write them, or start from our wording, in Admin › Settings › General › Store policies.`,
       done: writtenPolicies === POLICY_KEYS.length },
     { id: "phone", title: "Look at your shop on a phone", detail: "Most shoppers visit on a phone. Switch the preview to phone size.",
       done: Boolean(i.phoneChecked), go: { kind: "device", device: "mobile" } },
