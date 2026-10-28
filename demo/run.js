@@ -4,7 +4,9 @@
 // (`npm run demo -- --fresh` starts again from the starter catalogue).
 //
 // Options: --fresh (forget the saved demo data first), --no-functions (leave the shop's server code out),
-// --sample-press <public host> (the sample press on a server: read-only, no server code, fresh every night; hosted.js).
+// --new-press (start the shop as a press that has just signed up: the admin opens on Choose your look, then Set up your
+// shop; each time it is added it starts that story again), --sample-press <public host> (the sample press on a server:
+// read-only, no server code, fresh every night; hosted.js).
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -336,8 +338,10 @@ async function main() {
   stockroomKeeper = keeper;
 
   say("Filling the demo shop with its books…");
-  const seeded = await seedDemo({ fetch });
+  const seeded = await seedDemo({ fetch, newPress: argv.includes("--new-press") });
   say(`  ${seeded.created.length ? `Added ${seeded.created.length} shop documents` : "The shop's books were already there"}; ${seeded.stockroomAdded.length ? `added ${seeded.stockroomAdded.length} stockroom books` : "the stockroom's books were already there"}.`);
+
+  if (seeded.newPress) say("  Set up as a brand-new press: the admin opens on Choose your look, then Set up your shop.");
 
   say("Starting the shop and the stockroom…");
   await Promise.all([

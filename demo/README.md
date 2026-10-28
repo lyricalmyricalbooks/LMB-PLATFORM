@@ -3,13 +3,23 @@
 `npm run demo` runs the platform's test shop on one computer. It uses the Firebase Local Emulator Suite, with the
 made-up project `demo-colophon-test`. The plain-words guide for the owner is [docs/demo-shop.md](../docs/demo-shop.md).
 
+| Command | What it does |
+| --- | --- |
+| `npm run demo` | The test shop, its admin, Studio and the stockroom. Keeps what you change. |
+| `npm run demo -- --fresh` | The same, from the starter books. |
+| `npm run demo -- --new-press` | The same, set up as a press that has just signed up: the admin opens on Choose your look, then Set up your shop. Add it again to start that story over. |
+| `npm run demo -- --no-functions` | The same without the shop's server code. |
+
+The platform's own sign-up, account and billing pages run on made-up data with `npm run walkthrough` instead
+(`walkthrough/README.md`); they need no emulators.
+
 | File | What it does |
 | --- | --- |
 | `run.js` | The command. It checks Node and Java, installs packages the first time, writes `.demo/`, starts the emulators, seeds them, starts both apps and prints the addresses. Ctrl+C stops everything and saves the shop's and the stockroom's data. |
 | `config.js` | The fixed settings: project, ports, demo owner, both shop profiles, the emulator config and the rules filled in for the demo owner. |
 | `keepDatabase.js` | Saves the stockroom's own Firestore database to `.demo/stockroom-data.json` (every few seconds and at Ctrl+C) and writes it back on the next start: the emulators' export keeps only the default database. |
 | `keep-check.js` | The CI check for that against the real emulators: start, write to the stockroom, Ctrl+C, start again, find it. |
-| `seed.js` | Fills the emulators: the test catalogue (`setup/test-catalogue.js`) with covers, the settings, the Team entry, the stockroom's books, and the demo owner with the `owner` role. Safe to run again. |
+| `seed.js` | Fills the emulators: the test catalogue (`setup/test-catalogue.js`) with covers, the settings, the Team entry, the stockroom's books, and the demo owner with the `owner` role. Safe to run again. With `--new-press` it also writes `firstWeek/start` (the sign-up answers, no look chosen, no step ticked) so the admin opens on Choose your look and then Set up your shop; it does so every time the option is given. |
 | `serve.js` | Starts one app's own Vite with the demo profile at `/shop-profile.js`. |
 | `photos.js` | The placeholder covers. |
 | `hosted.js` | The sample press (`npm run demo -- --sample-press <host>`): read-only rules, no server code, the notice bar, what the gate refuses, the nightly reset time. |

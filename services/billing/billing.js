@@ -135,13 +135,17 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     // A press paying as they sell (6.19, paymentWay.js) has no subscription running, and the shop stays open.
     row.access = payAsYouSellAccess(row, now(), row.access) ?? row.access;
     await subscriptions.set(shopId, row);
-    if (await registry.getShop(shopId)) {
-      const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
-      await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing: row.appsClosing ?? null, updatedAt: row.updatedAt } });
-    }
+    await mirror(shopId, row);
     await copyToShop(shopId, row);
     if (what) await logChange(shopId, what, { status: row.status, plan: row.plan, access: row.access });
     return row;
+  }
+
+  // The copy on the registry row, once the row exists (the sign-up's trial starts before the shop maker makes it).
+  async function mirror(shopId, row) {
+    if (!(await registry.getShop(shopId))) return;
+    const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing: row.appsClosing ?? null, updatedAt: row.updatedAt } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
@@ -272,10 +276,15 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     ensurePrice,
     ensureCustomer,
 
-    /** Writes the shop's copy of its plan again (the shop maker once the database exists; the closing sweep). */
+    /**
+     * Writes the shop's copy of its plan again (the shop maker once the database exists; the closing sweep), and the
+     * registry row's copy for the control room: a trial that began at sign-up has neither until the shop exists.
+     */
     async publishPlan(shopId) {
       const row = await subscriptions.get(shopId);
-      return row ? copyToShop(shopId, row) : null;
+      if (!row) return null;
+      await mirror(shopId, row);
+      return copyToShop(shopId, row);
     },
 
     /**

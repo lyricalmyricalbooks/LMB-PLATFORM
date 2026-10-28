@@ -66,6 +66,20 @@ the shop's and the stockroom's data on the way out, so your changes are still th
 
 To start over from the starter books, run `npm run demo -- --fresh`.
 
+## See it as a brand-new press
+
+A press that has just signed up opens its admin on **Choose your look** (pick a look for the shop), and then **Set up
+your shop** (the list of first steps). To see the demo shop that way, run:
+
+```
+npm run demo -- --new-press
+```
+
+It sets the demo shop up as if its owner had just answered the sign-up questions ("just starting out", publishing
+books), with no look chosen and no step ticked. Open the admin and sign in as the demo owner. Add `--new-press` again
+whenever you want to go through it from the start; without it, the demo keeps what you did. To also forget the books
+and everything else, use both: `npm run demo -- --fresh --new-press`.
+
 ## What doesn't work on your computer
 
 - **Paying.** The checkout opens and works out shipping, but its Pay step says no payment method is available. Card
@@ -162,3 +176,26 @@ pages are unchanged. App Check is skipped in demo mode.
 Tests: `demo/sample-press.test.js`. On 28 October 2026 it was also run against the real emulators: the read-only rules
 loaded, a visitor's write was refused, the owner pass and the clear address were refused at the gate, and a change was
 gone after a reset. The database emulator couldn't start in that sandbox, for the plain demo too.
+
+## The sign-up, account and billing pages (no emulators needed)
+
+`npm run walkthrough` starts a small server on your computer with the platform's own pages on made-up data: the waitlist
+page with the plans, the sign-up page, the account page and each shop's **Plan & billing** page. It needs only Node.js,
+no Java and no download, and it starts in a second. It prints the addresses to open:
+
+```
+npm run walkthrough
+```
+
+- **Sign up** (`/signup/`): "Continue with Google" signs in as a made-up new press, **newcomer@example.com**. Fill in
+  the form and watch the shop being made. Then open the account page to see it.
+- **Account** (`/account/`): signs in as **owner@example.com**, who has two made-up presses, Moth Press (on its free
+  trial) and Paper Wasp Press (paused until a card is added).
+- **Plan & billing** (`/account/billing?shop=moth-press` and `?shop=paper-wasp`): the plan, the card, changing plan,
+  invoices and cancelling. **Add a card** opens a stand-in card page; press its button to add a test card. No money
+  moves.
+- **Waitlist** (`/waitlist/`): the page with the plans and **Start your free trial**.
+- Add `?as=name@example.com` to any address to be a different made-up person.
+
+The address `/` shows only the words "Start page coming". Everything made here is forgotten when you press **Ctrl+C**.
+`npm run walkthrough -- --port 5190` uses another port if 5180 is taken.
