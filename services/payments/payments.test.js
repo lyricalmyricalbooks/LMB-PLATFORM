@@ -131,8 +131,8 @@ test("only a shop with its own service key gets in, with one answer for every re
   assert.equal(stripe.requests.length, 0);
 });
 
-test("a closed shop, or one without a Stripe account, is refused before Stripe is asked", async () => {
-  for (const [row, status, code] of [[shopRow({ status: "abandoned" }), 403, "shop_closed"], [shopRow({ payments: undefined }), 409, "no_account"], [shopRow({ payments: { provider: "square", accountId: "L1" } }), 409, "no_account"]]) {
+test("a closed shop, one without a Stripe account, or a Square shop without the platform's Square app, is refused before Stripe is asked", async () => {
+  for (const [row, status, code] of [[shopRow({ status: "abandoned" }), 403, "shop_closed"], [shopRow({ payments: undefined }), 409, "no_account"], [shopRow({ payments: { provider: "square", accountId: "L1" } }), 503, "square_not_ready"]]) {
     const { call, stripe } = await world({ row });
     const answer = await call("paymentIntents.create", intentArgs());
     assert.deepEqual([answer.status, answer.body.error.code], [status, code]);
@@ -269,7 +269,10 @@ test("every call a shop can make is listed", () => {
   assert.deepEqual([...SHOP_OP_NAMES].sort(), [
     "account.onboardingLink", "account.status", "checkout.sessions.create", "checkout.sessions.expire", "checkout.sessions.retrieve", "disputes.list",
     "events.retrieve", "paymentIntents.cancel", "paymentIntents.create", "paymentIntents.retrieve", "refunds.create", "refunds.list",
-  ]);
+    // Square shops (square.js, plan 2.2b)
+    "account.connectLink", "square.checkout.create", "square.checkout.delete", "square.checkout.retrieve", "square.disputes.forPayment",
+    "square.payments.cancel", "square.payments.retrieve", "square.refunds.create", "square.refunds.forPayment", "square.refunds.retrieve",
+  ].sort());
 });
 
 // ── The one Stripe events address ─────────────────────────────────────────────────────────────────────────────────
