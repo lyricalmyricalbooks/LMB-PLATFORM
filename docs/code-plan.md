@@ -346,6 +346,42 @@ stays off. Nothing here changes `LyricalmyricalWebsite` or `lyrical-inventory`, 
 | 9.10 | platform | **Your test shop.** A permanent shop only Julian reaches: the platform's test shop (1.32, `platform-test`), its owner Julian's admin address, its storefront behind the pause page so only he sees it, kept out of search engines. A card at the top of the control room opens its storefront and admin, shows the last release check and **Reset the sample books**. It lives in its own project inside the platform's folder, not in the waitlist's project: a shop needs its own database, rules and server code. Until it exists, `npm run demo` is the test shop on his computer | control-room tests: the card finds the test shop, reset is admin only and logged | **Code done; *switched on by Julian*** (the 1.32 steps make `platform-test`). The card (`GET /api/control/test-shop`) shows the test shop, its last release check and links to its storefront and admin, or says to use the demo until it exists. **Reset the sample books** (`POST /api/control/test-shop/reset`) puts the five sample books and the shipping zone back to how setup made them, refuses any other shop, and is logged. Its stockroom counts are left alone. |
 | 9.11 | platform | **One walkthrough, as the owner and as a press** (Julian, 28 October 2026: "at the end I want to have this all linked so I can walk through everything as the platform owner and as a customer"). One command starts every page together with pretend payment and email accounts: the waitlist, sign-up, plan choice, the theme welcome, the setup guide, an import, the shop and its admin, the stockroom, Plan & billing (changing plans), the account page, and for the owner the control room and the test shop. It opens a start page of links with a test sign-in for each role. Hosted on the platform's own project once hosting is set up; on his computer until then. Built last, after the Phase 5 to 8 rows it links land | a CI check that starts it and opens every link on the start page as each role with no page error | |
 
+## Phase 10: beyond books, and full templates (planned 28 October 2026)
+
+Julian (28 October 2026): the platform is for **any merchandise** (shirts, shoes, jewelry, anything), not only books. The
+shop and stockroom must keep working exactly as they do for books. This phase widens the product, then builds full
+website templates that suit both. Product work happens only in `apps/`. Nothing here changes `LyricalmyricalWebsite` or
+`lyrical-inventory`. The shop's code calls products "books" in places (`books` collection, `Book` type, "book page"); keep
+those names inside the code and change only what a press sees.
+
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 10.1 | platform, shop | **What a press sells.** Sign-up's "What do you publish?" becomes "What do you sell?" (books, apparel, jewelry, art and prints, music, other, several). The answer sets starter words (Text & labels: "book" becomes "product", "author" becomes "brand or maker"), the default catalog fields and the suggested looks. A books press sees today's words unchanged | signup test: the answer travels; word tests: books shop unchanged, apparel shop has no "book" or "author" anywhere shoppers read | |
+| 10.2 | shop | **Variants: size, colour and more.** A product can have up to three options (size, colour, material, or the press's own names) and each combination has its own price, SKU, photo and stock. Books keep their formats as the one option. Shoppers pick options on the product page and in the bag; checkout, holds and the webhook count stock per combination, on the server | server tests (`priceOrder`, holds, webhook) per variant; shop tests; existing book orders price the same | |
+| 10.3 | shop | **Product fields beyond books.** Optional fields per product type (brand, material, care, size chart, weight, dimensions) next to the book fields (author, ISBN, pages). A product shows only the fields it has. Size chart as a table or picture on the product page, editable in Studio | catalog tests; Studio coverage (every shopper-facing word editable) | |
+| 10.4 | shop | **Shipping and tax by product kind.** Weight and package size per variant feed live rates; a "kind" (printed book, e-book, clothing, jewelry, other) picks the tax preset and shipping profile, replacing the books-only presets. Clothing size and shoe size never change the tax | shipping and tax tests per kind; `taxPresets.test.ts` | |
+| 10.5 | stockroom | **Stockroom for any item.** Items with variants (grid of size by colour), SKUs and barcodes (not only ISBN), cost and price per variant, low-stock level per variant, buying from suppliers, counts per location. The ledger rules stay: integer cents, append-only. A books-only press sees today's screens | ledger and stock tests per variant; `ledger-auditor` rules unchanged; offline queue test | |
+| 10.6 | shop, stockroom | **Link and import for variants.** The shop-to-stockroom link matches by variant SKU; the product import reads the common product-file layouts including options and variant rows; the exports write them (extends 7.18, 7.19) | link and import tests with a clothing file and a book file | |
+| 10.7 | shop | **Sample content that is not only books.** The demo shop, every theme preview and the empty-shop starter show a mix: a shirt with sizes, a pair of shoes, a ring, a print, a book. Starter pages (shipping, returns, size guide) suit physical goods | theme readability test draws a variant product; preview tests | |
+| 10.8 | platform | Words on the website, pricing page, sign-up and help say "products" and "merchandise" where they said "books"; help articles for variants and size charts | `help/help.test.js` | |
+
+### 10B. Full website templates (replaces the earlier plan for ten lighter themes)
+
+Julian (28 October 2026): not more variations of the current looks. **Whole templates built from the ground up**, each its
+own design system (header, product cards, product page, footer, buttons, type, colour rules), working fully with the
+website designer and theme picker. Design previews were approved first (Colophon Template Previews, two pages). Chosen so
+far: **Marquee** (loud ruled masthead, cover wall, stickers) and **Shelf** (colour-block hero, overlapping shelf of
+products, pill buttons). Salon, Atlas, Mosaic, Spine, Arch and Feature are options waiting for Julian's pick. Every
+template must look right for any product (a shirt, a ring, a book), not only books, so build after 10.2 and 10.3 or with
+variants stubbed in the sample content.
+
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 10.9 | shop | **Template foundation.** A template is a theme with its own `themeStyle` and scoped stylesheet, header and footer layouts, card and product-page variants and a home layout, defined as ordinary design settings so every part stays editable in Studio. It appears as a card in the theme picker with a preview | `themeCheck`, `themeReadability`, `themeImportCheck`, Studio coverage tests pass for it | |
+| 10.10 | shop | **Marquee** | the same checks, accessibility check over the template (8.8), Studio e2e | |
+| 10.11 | shop | **Shelf** | same | |
+| 10.12 | shop | The remaining chosen templates, one pull request each | same | |
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
