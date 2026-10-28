@@ -48,6 +48,20 @@ platform's one web door with `routes: controlRoutes(room)`:
 | `POST /api/control/act-as` | `{ shopId, reason }` -> `{ url, expiresAt }` |
 | `POST /api/control/switch` | `{ shopId, name, on, reason }` |
 
+## The support sign-in (`supportAccess.js`)
+
+`supportAccess({ identity, registry, serviceAccount })` is the real `shopAccess`. It makes a custom sign-in token in the
+shop's project for the support account `colophon-support`, carrying `support: { by, reason, until }` (an hour at
+most). Then it opens `<site>/admin/#support=<token>`. The platform's service account signs the token through IAM
+(`clients/identity.js`); there is no key file.
+
+The shop copy does the rest (`apps/shop/functions/CLAUDE.md` › Platform support visits):
+
+- it treats the visit as **staff**, never owner, until `until`;
+- its rules check the same time;
+- the admin takes the token out of the address and shows a banner with who, why and until when;
+- it signs out at the end.
+
 ## Support requests
 
 The page's **Support requests** lists the requests presses send from their account page (`services/support/`):
@@ -55,10 +69,18 @@ waiting, answered or closed. **Send the answer** emails it to the press and keep
 it. The calls are `POST /api/control/support`, `/api/control/support/answer` and `/api/control/support/close`
 (`services/support/routes.js`).
 
+## Account recovery
+
+**Account recovery** lists requests from people who lost the email address their account uses
+(`accounts/recovery.js`): to check, approved and waiting, moved, denied or stopped. Each shows what the person wrote,
+whether the old address has an account and which shops it owns. **Approve** needs a note on how you checked; **Deny**
+needs the reason the person is sent. An approved request can be recorded as moved only after its 72-hour wait, and only
+with **I've moved it by hand** ticked: the steps are in `accounts/README.md`, "Recovery: applying". The calls are
+`POST /api/control/recovery`, `/approve`, `/deny` and `/apply` (`accounts/recoveryRoutes.js`).
+
 ## Not yet
 
-- **The shop side of "act as this shop"** (`shopAccess.supportSignIn`). It needs:
-  - a function in the shop copy that makes a short, support-only sign-in;
-  - a banner in the admin while support is signed in.
 - **The repair queue** (`repairs.open`, plan 2.11).
 - **Hosting** the page and the `/api` function.
+- **Permissions:** the platform's service account needs permission to manage each shop's users. It already has it as
+  owner of the projects it makes.

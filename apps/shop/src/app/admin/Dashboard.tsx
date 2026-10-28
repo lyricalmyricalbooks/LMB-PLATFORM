@@ -27,6 +27,8 @@ import {
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
+import { SupportBanner } from "./SupportBanner";
+import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
@@ -75,6 +77,8 @@ export function Dashboard() {
   const [boot] = useState(readBootRoute);
   const [activeTab, setActiveTab] = useState(boot.tab);
   const [user, setUser] = useState<any>(null);
+  // Platform support signed in from the platform's control room (supportSession.ts); null for everyone else.
+  const [supportVisit, setSupportVisit] = useState<SupportVisit | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingBook, setEditingBook] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -292,9 +296,13 @@ export function Dashboard() {
       return;
     }
 
+    // A #support= link from the platform's control room signs support in (supportSession.ts).
+    void adminApi.startSupportVisit();
     const unsubscribe = adminApi.onAuthStateChange((u) => {
       setUser(u);
+      setSupportVisit(null);
       if (!u) { setLoading(false); return; }
+      void adminApi.supportVisit().then(setSupportVisit).catch(() => setSupportVisit(null));
       loadSettings();
       // The server tells the admin the owner's address (lib/ownerDevice.ts); wait for it, briefly, so the owner's own
       // orders stay out of the first figures. Offline, the admin opens anyway after a few seconds.
@@ -686,6 +694,7 @@ export function Dashboard() {
           </Topbar>
         }
       >
+        <SupportBanner visit={supportVisit} onSignOut={() => { void adminApi.logout(); }} />
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
         {!ownMasthead && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}

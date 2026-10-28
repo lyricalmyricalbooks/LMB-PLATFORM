@@ -179,6 +179,92 @@ export const TEMPLATES = {
     buttons: [["See your plan", safeLink(link)]],
     footer: signOff(settings),
   }),
+
+  // ── Account safety (accounts/devices.js, accounts/recovery.js). Recovery `data`: { requestId, oldEmail, newEmail,
+  //    holdUntil, reason?, by? }. The account page is settings.platformUrl + /accounts/. ──
+
+  /** The account was used from a device it hasn't been used from before. `data`: { browser, at }. */
+  "new-device": ({ browser, at }, { settings }) => layout({
+    subject: `New sign-in to your ${settings.platformName} account`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your ${settings.platformName} account was just used from a device it hasn't been used from before: ${browser}, at ${at} (UTC).`,
+      "If that was you, there's nothing to do.",
+      "If it wasn't, sign out everywhere by changing your Google password or the password of the email address you sign in with, then reply to this email so we can help.",
+    ],
+    buttons: [["Open your account", safeLink(`${settings.platformUrl}/accounts/`)]],
+    footer: signOff(settings),
+  }),
+
+  /** To the old address: someone asked to move this account away from it. */
+  "recovery-asked": ({ newEmail }, { settings }) => layout({
+    subject: `Someone asked to move your ${settings.platformName} account`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Someone signed in as ${newEmail} asked us to move the ${settings.platformName} account that uses this email address to theirs, saying they've lost access to this one.`,
+      "A person on our team checks every request before anything moves, and nothing moves for at least three days after that.",
+      "If this wasn't you, sign in to your account page and choose Stop this request.",
+    ],
+    buttons: [["Open your account", safeLink(`${settings.platformUrl}/accounts/`)]],
+    footer: signOff(settings),
+  }),
+
+  /** To the person asking: we have it. Never says whether the old address has an account. */
+  "recovery-received": ({ oldEmail }, { settings }) => layout({
+    subject: "We have your request to move your account",
+    greeting: "Hello,",
+    paragraphs: [
+      `We'll look at your request to move the account that used ${oldEmail}. A person checks every request, so it can take a few days, and we may write to ask you something.`,
+      "For your safety we also let the old address know.",
+    ],
+    footer: signOff(settings),
+  }),
+
+  /** To the support address: a request to review in the control room. */
+  "recovery-new": ({ requestId, oldEmail, newEmail, accountFound, shopCount }, { settings }) => layout({
+    subject: `Account recovery to review: ${requestId}`,
+    greeting: "",
+    paragraphs: [
+      `${newEmail} asks to move the account that uses ${oldEmail}.`,
+      accountFound ? `That address has an account and owns ${shopCount} shop(s).` : "No account uses that address.",
+      "Review it in the control room, under Account recovery.",
+    ],
+    footer: `${settings.platformName} account recovery`,
+  }),
+
+  /** The request was stopped, by the old owner or by the person asking. */
+  "recovery-stopped": ({ requestId, by }, { settings }) => layout({
+    subject: `Account recovery request ${requestId} was stopped`,
+    greeting: "Hello,",
+    paragraphs: [`The request to move a ${settings.platformName} account (${requestId}) was stopped by ${by}. Nothing has moved.`],
+    footer: signOff(settings),
+  }),
+
+  /** Approved: the move waits until holdUntil, so the old owner can still stop it. */
+  "recovery-approved": ({ oldEmail, newEmail, holdUntil }, { settings }) => layout({
+    subject: "Your account move is approved and waiting",
+    greeting: "Hello,",
+    paragraphs: [
+      `We've approved moving the ${settings.platformName} account that uses ${oldEmail} to ${newEmail}.`,
+      `It will move after ${holdUntil} (UTC). Until then, the owner of ${oldEmail} can stop it from their account page.`,
+    ],
+    buttons: [["Open your account", safeLink(`${settings.platformUrl}/accounts/`)]],
+    footer: signOff(settings),
+  }),
+
+  "recovery-denied": ({ oldEmail, reason }, { settings }) => layout({
+    subject: "We couldn't move your account",
+    greeting: "Hello,",
+    paragraphs: [`We couldn't move the account that uses ${oldEmail}.`, reason, "Reply to this email if you can tell us more."],
+    footer: signOff(settings),
+  }),
+
+  "recovery-applied": ({ oldEmail, newEmail }, { settings }) => layout({
+    subject: `Your ${settings.platformName} account has moved`,
+    greeting: "Hello,",
+    paragraphs: [`The ${settings.platformName} account that used ${oldEmail} now signs in with ${newEmail}.`, "If you didn't expect this, reply to this email at once."],
+    footer: signOff(settings),
+  }),
 };
 
 /** Problems with a free-form email a shop asks to send (its own order and account emails), in plain words. */

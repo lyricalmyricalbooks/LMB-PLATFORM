@@ -3,6 +3,7 @@
 // person can really read and write; this only decides whether the admin opens for them.
 // The owner address isn't built into the page (lib/ownerDevice.ts): the server tells the admin after sign-in.
 import { isShopOwner, rememberShopOwner, shopOwnerEmail } from "../lib/ownerDevice";
+import { supportOf } from "./supportSession";
 
 export type AdminRole = "owner" | "staff";
 export const ADMIN_ROLES: readonly AdminRole[] = ["owner", "staff"];
@@ -11,6 +12,8 @@ export type TeamRole = AdminRole | "author";
 export const TEAM_ROLES: readonly TeamRole[] = ["owner", "staff", "author"];
 
 export function adminRoleOf(email: string | null | undefined, emailVerified: boolean, claims: Record<string, unknown> = {}): AdminRole | null {
+  // Platform support (supportSession.ts) is staff while its visit lasts, with no email of its own.
+  if (supportOf(claims)) return "staff";
   if (!emailVerified) return null;
   if (isShopOwner(email)) return "owner";
   return ADMIN_ROLES.includes(claims.role as AdminRole) ? (claims.role as AdminRole) : null;

@@ -3,11 +3,19 @@ service firebase.storage {
   match /b/{bucket}/o {
     // Same admin check as firestore.rules (functions/roles.js): the owner address or a Team role on the pass.
     // The owner address is filled in at deploy by scripts/deployConfig.mjs (see firestore.rules).
-    function isAdmin() {
+    // Platform support, as in firestore.rules isSupport(): staff access until its "until" time, custom sign-in only.
+    function isSupport() {
       return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == "custom"
+        && request.auth.token.get("support", null) is map
+        && request.auth.token.support.get("until", 0) is number
+        && request.time.toMillis() < request.auth.token.support.until * 1000;
+    }
+    function isAdmin() {
+      return isSupport() || (request.auth != null
         && request.auth.token.email_verified == true
         && (request.auth.token.email == "__SHOP_OWNER_EMAIL__"
-          || request.auth.token.get("role", "") in ["owner", "staff"]);
+          || request.auth.token.get("role", "") in ["owner", "staff"]));
     }
     match /products/{allPaths=**} {
       allow read: if true;

@@ -298,6 +298,16 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("author can't read the Team", assertFails(getDocs(collection(author, "members"))));
   await check("author can't promote themselves", assertFails(setDoc(doc(author, "members/ana@press.test"), { role: "owner" })));
   await check("author can't read webhook status", assertFails(getDoc(doc(author, "adminSecrets/stripeWebhookStatus"))));
+  // Platform support ("act as this shop", functions/roles.js supportOf): staff access until its time, custom sign-in only.
+  const inTen = Math.floor(Date.now() / 1000) + 600;
+  const support = env.authenticatedContext("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "admin@platform.example", reason: "help", until: inTen } }).firestore();
+  const lateSupport = env.authenticatedContext("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "a", until: inTen - 1200 } }).firestore();
+  const fakeSupport = env.authenticatedContext("g1", { email: "x@press.test", email_verified: true, firebase: { sign_in_provider: "google.com" }, support: { until: inTen } }).firestore();
+  await check("support reads a draft book", assertSucceeds(getDoc(doc(support, "books/draft"))));
+  await check("support can't read the Team", assertFails(getDocs(collection(support, "members"))));
+  await check("support can't read keys", assertFails(getDoc(doc(support, "adminSecrets/stripe"))));
+  await check("support after its time can't", assertFails(getDoc(doc(lateSupport, "books/draft"))));
+  await check("a Google sign-in can't claim support", assertFails(getDoc(doc(fakeSupport, "books/draft"))));
   await check("author can't change settings", assertFails(setDoc(doc(author, "settings/website"), { x: 1 })));
 }
 

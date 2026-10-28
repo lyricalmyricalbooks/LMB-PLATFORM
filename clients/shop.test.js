@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { firestoreClient } from "./firestore.js";
 import { inventoryLinkClient, registryFiles, shopDataClient, siteCheckClient, stockroomClient } from "./shop.js";
-import { firestoreAccounts, firestoreSentLog, firestoreSupport } from "./stores.js";
+import { firestoreAccounts, firestoreDevices, firestoreRecoveries, firestoreSentLog, firestoreSupport } from "./stores.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 
 const P = "lmb-test-shop";
@@ -129,5 +129,32 @@ test("the support store filters by status or email and sorts and counts here", a
   assert.deepEqual(await support.list({ status: "open" }), [{ status: "open" }]);
   assert.deepEqual((await support.listByEmail("ada@moth.example")).map((t) => t.updatedAt), ["2", "1"]);
   assert.equal(await support.countSince("ada@moth.example", "2026-10-28"), 1);
+  fetch.done();
+});
+
+test("the device and recovery stores keep their fakes' shape", async () => {
+  const R = "https://firestore.googleapis.com/v1/projects/lmb-platform-prod/databases/(default)/documents";
+  const doc = (id, fields) => ({ document: { name: `projects/lmb-platform-prod/databases/(default)/documents/recoveries/${id}`, fields } });
+  const query = (field, value) => ({ structuredQuery: { from: [{ collectionId: "recoveries" }], where: { fieldFilter: { field: { fieldPath: field }, op: "EQUAL", value: str(value) } }, limit: 200 } });
+  const asked = [doc("a", { askedAt: str("2026-10-20") }), doc("b", { askedAt: str("2026-10-28") })];
+  const fetch = scriptedFetch([
+    { method: "GET", url: `${R}/devices/uid-ada`, ...notFound },
+    { method: "PATCH", url: `${R}/devices/uid-ada`, body: { fields: { known: { mapValue: { fields: {} } } } }, json: {} },
+    { method: "GET", url: `${R}/recoveries/abc123`, json: { fields: { status: str("waiting") } } },
+    { method: "POST", url: `${R}:runQuery`, body: query("status", "waiting"), json: [doc("a", { status: str("waiting") })] },
+    { method: "POST", url: `${R}:runQuery`, body: query("requesterEmail", "ada@moth.example"), json: asked },
+    { method: "POST", url: `${R}:runQuery`, body: query("oldEmail", "old@moth.example"), json: asked },
+    { method: "POST", url: `${R}:runQuery`, body: query("requesterEmail", "ada@moth.example"), json: asked },
+  ]);
+  const db = firestoreClient({ fetch, token, projectId: "lmb-platform-prod" });
+  const devices = firestoreDevices(db);
+  assert.equal(await devices.get("uid-ada"), null);
+  await devices.set("uid-ada", { known: {} });
+  const recoveries = firestoreRecoveries(db);
+  assert.deepEqual(await recoveries.get("abc123"), { status: "waiting" });
+  assert.deepEqual(await recoveries.list({ status: "waiting" }), [{ status: "waiting" }]);
+  assert.deepEqual((await recoveries.listByRequester("ada@moth.example")).map((r) => r.askedAt), ["2026-10-28", "2026-10-20"]);
+  assert.deepEqual((await recoveries.listByOld("old@moth.example")).map((r) => r.askedAt), ["2026-10-28", "2026-10-20"]);
+  assert.equal(await recoveries.countSince("ada@moth.example", "2026-10-25"), 1);
   fetch.done();
 });

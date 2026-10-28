@@ -41,10 +41,13 @@ export function identityClient({ fetch, token, now = () => new Date() }) {
     return { uid: made.localId, email, created: true };
   }
 
-  /** A custom sign-in token for `uid`, signed by `serviceAccount` through IAM (no key file anywhere). */
-  async function customToken(serviceAccount, uid) {
+  /**
+   * A custom sign-in token for `uid`, signed by `serviceAccount` through IAM (no key file anywhere). `claims` are
+   * added to the person's sign-in pass (control-room/supportAccess.js uses them for a support visit).
+   */
+  async function customToken(serviceAccount, uid, claims = undefined) {
     const iat = Math.floor(now().getTime() / 1000);
-    const payload = { iss: serviceAccount, sub: serviceAccount, aud: CUSTOM_TOKEN_AUDIENCE, iat, exp: iat + 3600, uid };
+    const payload = { iss: serviceAccount, sub: serviceAccount, aud: CUSTOM_TOKEN_AUDIENCE, iat, exp: iat + 3600, uid, ...(claims ? { claims } : {}) };
     const { signedJwt } = await call("POST", `${IAM_CREDENTIALS}/projects/-/serviceAccounts/${encodeURIComponent(serviceAccount)}:signJwt`, { body: { payload: JSON.stringify(payload) } });
     if (!signedJwt) throw new Error("IAM gave no signed token");
     return signedJwt;
