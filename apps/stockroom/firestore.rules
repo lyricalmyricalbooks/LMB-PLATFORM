@@ -124,11 +124,27 @@ service cloud.firestore {
                       'paymentLinks', 'productionCosts', 'websitePaymentMethods'];
     }
 
+    // The bookkeeper (plan 7.17): the "bookkeeper" role the shop's server copies
+    // onto the sign-in pass from the owner's Team list, with a verified email.
+    // It reads the Tax Centre's bookkeeper copy (expenses only: the real
+    // taxCenter document also holds AI keys, see src/lib/bookkeeper-copy.js)
+    // and the mode flags that say which database holds it. Nothing else, and
+    // never a write.
+    function isBookkeeper() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.get('role', '') == 'bookkeeper';
+    }
+    function isBookkeeperReadableSetting(name) {
+      return name in ['modeFlags', 'taxCentreForBookkeeper'];
+    }
+
     // Global settings — only the publisher writes anything; everyone else reads
     // just the allowlisted docs above.
     match /settings/{document} {
       allow read: if isPublisher()
-        || (isAnyAuthor() && isAuthorReadableSetting(document));
+        || (isAnyAuthor() && isAuthorReadableSetting(document))
+        || (isBookkeeper() && isBookkeeperReadableSetting(document));
       allow write: if isPublisher();
     }
 

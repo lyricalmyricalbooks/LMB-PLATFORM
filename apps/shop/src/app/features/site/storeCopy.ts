@@ -892,6 +892,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "coPrivacyNote", label: "Payment privacy note", multiline: true, default: "Card details go straight to the payment provider" },
       { key: "coPackedNote", label: "Reassurance text", default: "You’ll receive an order confirmation and shipping updates by email." },
       { key: "coTestMode", label: "Test-mode banner", default: "Test mode is active. No real charges will be made." },
+      { key: "coPracticeMode", label: "Practice-order banner (only the owner sees it)", multiline: true, default: "Practice order: only you can see this, and nothing is charged. Pay with the test card {card}, any future date and any security code.", hint: "Use {card} for the test card number." },
       { key: "coThanks", label: "Thank-you heading", default: "Thank You" },
       { key: "coAccountTitle", label: "Thank-you: account box heading", default: "Keep track of this order" },
       { key: "coAccountText", label: "Thank-you: account box text", default: "Sign in with {email} to follow your delivery, re-download e-books and check out faster next time." },

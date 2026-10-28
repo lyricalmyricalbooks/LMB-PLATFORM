@@ -91,7 +91,7 @@ export const orderApi = {
       "Source", "Medium", "Campaign", "ReferringPage", "LandingPage",
     ];
     const money = (v: any) => (v === undefined || v === null || v === "" ? "" : (Number(v) || 0).toFixed(2));
-    const kept = orders.filter(o => o.isTest !== true
+    const kept = orders.filter(o => o.isTest !== true && o.practiceOrder !== true
       && (!paidOnly || ["paid", "refunded", "refund_pending"].includes(o.paymentStatus)));
     const rows = kept.map(o => {
       const address = o.customer?.address || o.customer?.billingAddress || {};

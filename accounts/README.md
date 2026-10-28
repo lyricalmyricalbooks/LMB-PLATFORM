@@ -8,8 +8,8 @@ sees every shop they belong to. Owners invite people by email with a role.
 Plain HTML and browser JavaScript, no framework and no build step, like the sign-up page. It reuses the sign-up page's
 settings (`../signup/config.js`) and sign-in.
 
-- **Choose a shop**: each shop with the person's role. **Open** goes to the shop's admin, or to the stockroom for an
-  author. A paused or closed plan and a shop still being made are shown in words.
+- **Choose a shop**: each shop with the person's role. **Open** goes to the shop's admin (a bookkeeper sees only its
+  Bookkeeping page there), or to the stockroom for an author. A paused or closed plan and a shop still being made are shown in words.
 - **Team** (owners only): the people and their roles, invites waiting to be accepted, and **Invite someone** with a
   role. A role changes from its menu; **Remove** asks first.
 - **An invite link** (`/accounts/?invite=…`): the page keeps the invite while the person signs in, then accepts it.
@@ -25,8 +25,9 @@ The shop's own roles (`apps/shop/functions/roles.js`), named in `roles.js`:
 | Role | Can use |
 | --- | --- |
 | Owner | everything, including billing and the team |
-| Staff | the shop's admin, without billing, secret keys or the team |
+| Staff | the shop's admin, without billing, payment and email connections, or the team |
 | Author | their own books, in the stockroom only |
+| Bookkeeper | reads orders, sales, tax collected, payouts and the bookkeeping downloads (the admin's Bookkeeping page), and the stockroom's tax centre expenses; changes nothing, and sees no books, settings, customer list or team |
 
 The shop decides access, not the platform. Accepting an invite writes the person's `members/<email>` document in the
 shop's own database, which the shop copies onto their sign-in; changing a role rewrites it, and removing someone deletes

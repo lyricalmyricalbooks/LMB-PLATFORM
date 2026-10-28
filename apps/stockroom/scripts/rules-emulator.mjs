@@ -41,6 +41,9 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(ctx.firestore(), "books/b2/data/ledger"), { rows: [] });
   await set(ref(ctx.database(), "lyrical/settings/bookOwners"), { b1: AUTHOR, authorEmails: { "author@example,com": true } });
   await set(ref(ctx.database(), "lyrical/settings/taxCenter"), { geminiKey: "secret" });
+  await setDoc(doc(ctx.firestore(), "settings/taxCentreForBookkeeper"), { data: "{}", ts: 1 });
+  await setDoc(doc(ctx.firestore(), "settings/modeFlags"), { data: "{}", ts: 1 });
+  await set(ref(ctx.database(), "lyrical/settings/taxCentreForBookkeeper"), { data: "{}", ts: 1 });
   await set(ref(ctx.database(), "lyrical/books/b1"), { data: "{}", ts: 1 });
   await set(ref(ctx.database(), "lyrical/books/b2"), { data: "{}", ts: 1 });
   await uploadString(fileRef(ctx.storage(), "receipts/b2/r.pdf"), "x", "raw", { contentType: "application/pdf" });
@@ -55,6 +58,7 @@ const shutOut = {
   "owner role, unverified": env.authenticatedContext("u-second-unv", { email: "second@example.com", email_verified: false, role: "owner" }),
   "staff role": env.authenticatedContext("u-staff", { email: "staff@example.com", email_verified: true, role: "staff" }),
   "made-up role": env.authenticatedContext("u-odd", { email: "odd@example.com", email_verified: true, role: "publisher" }),
+  "bookkeeper role": env.authenticatedContext("u-books", { email: "books@example.com", email_verified: true, role: "bookkeeper" }),
   "author of b1": env.authenticatedContext("u-author", { email: AUTHOR, email_verified: true }),
   "author of b1 with the author role": env.authenticatedContext("u-author-role", { email: AUTHOR, email_verified: true, role: "author" }),
   "author role, no book": env.authenticatedContext("u-role-only", { email: "newauthor@example.com", email_verified: true, role: "author" }),
@@ -115,6 +119,21 @@ await check("author role reads no backups (Firestore)", assertFails(getDoc(doc(r
 const roleUnverified = shutOut["author role, unverified"];
 await check("unverified author role reads no catalog setting (Firestore)", assertFails(getDoc(doc(roleUnverified.firestore(), "settings/catalog"))));
 await check("unverified author role reads no catalog setting (Database)", assertFails(get(ref(roleUnverified.database(), "lyrical/settings/catalog"))));
+// The bookkeeper role from the shop's Team list (plan 7.17): reads the Tax Centre's bookkeeper copy (no keys) and the
+// mode flags, in either database. Never the real Tax Centre (it is in shutOut above), a book, a receipt or any write.
+const bookkeeper = shutOut["bookkeeper role"];
+await check("bookkeeper reads the tax centre copy (Firestore)", assertSucceeds(getDoc(doc(bookkeeper.firestore(), "settings/taxCentreForBookkeeper"))));
+await check("bookkeeper reads the mode flags (Firestore)", assertSucceeds(getDoc(doc(bookkeeper.firestore(), "settings/modeFlags"))));
+await check("bookkeeper reads the tax centre copy (Database)", assertSucceeds(get(ref(bookkeeper.database(), "lyrical/settings/taxCentreForBookkeeper"))));
+await check("bookkeeper can't change the copy (Firestore)", assertFails(setDoc(doc(bookkeeper.firestore(), "settings/taxCentreForBookkeeper"), { data: "{}", ts: 2 })));
+await check("bookkeeper can't change the copy (Database)", assertFails(set(ref(bookkeeper.database(), "lyrical/settings/taxCentreForBookkeeper"), { data: "{}", ts: 2 })));
+await check("bookkeeper reads no catalog (Firestore)", assertFails(getDoc(doc(bookkeeper.firestore(), "settings/catalog"))));
+await check("bookkeeper reads no book (Firestore)", assertFails(getDoc(doc(bookkeeper.firestore(), "books/b1/data/ledger"))));
+await check("bookkeeper reads no backups (Firestore)", assertFails(getDoc(doc(bookkeeper.firestore(), "backups/x"))));
+const unverifiedBookkeeper = env.authenticatedContext("u-books-unv", { email: "books@example.com", email_verified: false, role: "bookkeeper" });
+await check("unverified bookkeeper reads no copy (Firestore)", assertFails(getDoc(doc(unverifiedBookkeeper.firestore(), "settings/taxCentreForBookkeeper"))));
+await check("unverified bookkeeper reads no copy (Database)", assertFails(get(ref(unverifiedBookkeeper.database(), "lyrical/settings/taxCentreForBookkeeper"))));
+
 // Not checked: an author's own receipts. storage.rules finds the author through Firestore (firestore.get), and the
 // Storage emulator refused that lookup in testing with the old rules as well as the new ones.
 

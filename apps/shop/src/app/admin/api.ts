@@ -65,7 +65,7 @@ import {
 } from "firebase/auth";
 import { db, auth, googleProvider } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import { currentAdminRole, ensureShopOwnerKnown, refreshAdminRole } from "./adminAccess";
+import { currentAdminRole, ensureShopOwnerKnown, isBookkeeperPass, refreshAdminRole } from "./adminAccess";
 import { startSupportVisit, supportOf } from "./supportSession";
 import { publicApi } from "../lib/publicApi";
 import { defaultSettings } from "./defaultSettings";
@@ -109,6 +109,13 @@ const refreshMyRole = (token: string) => functionFetch("refreshMyRole", { method
 export const adminApi = {
   /** The signed-in person's admin role; a restored session learns the owner's address first (one server call). */
   myRole: () => currentAdminRole(auth.currentUser, refreshMyRole),
+  /** The signed-in bookkeeper ({ email }) when the pass is the Team's bookkeeper role, else null: they get the
+   *  Bookkeeping page, not the admin. */
+  bookkeeperSignIn: async (): Promise<{ email: string | null } | null> => {
+    const user = auth.currentUser;
+    if (!user) return null;
+    return isBookkeeperPass(user.emailVerified, (await user.getIdTokenResult()).claims) ? { email: user.email ?? null } : null;
+  },
   /** Learns the owner's address for a restored session, so the owner's own orders stay out of the figures. */
   learnShopOwner: () => ensureShopOwnerKnown(auth.currentUser, refreshMyRole),
 

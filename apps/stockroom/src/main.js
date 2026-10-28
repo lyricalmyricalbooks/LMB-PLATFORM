@@ -11,7 +11,8 @@ import './styles/phone.css';
 // The Riso phone redesign sits on top of the phone layer above.
 import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
-import { isPublisherUser } from './lib/publisher-access.js';
+import { isPublisherUser, readPassClaims } from './lib/publisher-access.js';
+import { isBookkeeperPass } from './lib/bookkeeper-copy.js';
 import { foldFooterActions, initPhoneLayouts } from './lib/phone-layout.js';
 import { createPhonePageMemory, initPhoneWorkspace, observeSidebarBadges } from './lib/phone-workspace.js';
 const phonePages = createPhonePageMemory(window);
@@ -19296,6 +19297,17 @@ async function initStartup() {
       // On a device that has opened the app before: show the copy this device
       // already holds while the server is asked.
       const publisherAccount = await isPublisherUser(user, { askRules: window._fbAskRulesIfPublisher });
+      // The shop Team's bookkeeper (plan 7.17) gets only the tax centre's expenses, read only
+      // (features/bookkeeper-view.js); no book, catalogue or setting of the publisher's is loaded.
+      if (!publisherAccount && isBookkeeperPass(user, await readPassClaims(user))) {
+        window.IS_PUBLISHER = false;
+        IS_AUTHOR_MODE = false;
+        await window._fbLoadModeFlags();
+        const { showBookkeeperView } = await import('./features/bookkeeper-view.js');
+        await showBookkeeperView({ email: user.email, loadSettings: window._fbLoadSettings, onSignOut: () => window._fbSignOut() });
+        dismissSplash();
+        return;
+      }
       if (cachedGlobal === true) {
         showStartupPreview(user, publisherAccount)
           .then(shown => { if (shown) dismissSplash(); })
@@ -19477,6 +19489,7 @@ function startupCachedGlobalMode() {
 
 let _pendingGateMsg = null;
 function setupGate(errMsg) {
+  document.getElementById('bookkeeper-view')?.remove();
   $('pw-gate').style.display = '';
   $('pw-app').style.display = 'none';
   document.querySelector('#gate-sub').textContent = 'inventory app';
