@@ -34,7 +34,7 @@ import {
 import { BOOKS, BOOK_LIST, states, defaultState } from '../core/store.js';
 import { ensurePdfJs } from './invoices.js';
 import { dropFilesIntoInput, setDropzoneDrag } from '../lib/dropzone.js';
-import { TC_CATEGORIES, _tcOpenTripName, openArtistPayoutEditor } from './tax-entries.js';
+import { TC_CATEGORIES, _tcOpenTripName, fillInPersonTaxFields, openArtistPayoutEditor } from './tax-entries.js';
 import {
   _localReceiptCell,
   clearReceiptScanReview,
@@ -3288,6 +3288,7 @@ function openTaxSeasonPreflightModal() {
 
   const fixBtn = $('tc-preflight-fix-btn');
   if (fixBtn) fixBtn.style.display = missingReceipts > 0 ? '' : 'none';
+  fillInPersonTaxFields();
 
   openM('tc-preflight');
 }

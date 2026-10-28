@@ -24,6 +24,21 @@ const STEPS = Object.freeze({
 
 // The shop charges in Canadian dollars (Settings › Payments › Currency).
 const SHOP_CURRENCY = "CAD";
+const { dailyBookkeeping } = require("./shared/bookkeeping");
+
+/**
+ * One day's numbers for Send again, built from the shop's orders with the same rules as the monthly bookkeeping file.
+ * A day with no sales or refunds sends zeros, so QuickBooks matches the shop.
+ * @param {object[]} orders every order (a refund can land on an older order)
+ * @param {string} date YYYY-MM-DD in the shop's time zone
+ */
+function dayFromOrders(orders, date, timeZone = "America/Toronto") {
+  const found = dailyBookkeeping(orders, { month: date.slice(0, 7), currency: SHOP_CURRENCY, timeZone }).find((d) => d.date === date);
+  return found || {
+    date, salesCents: 0, shippingCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
+    refundsCents: 0, taxes: {}, feesCents: 0, netCents: 0, currency: SHOP_CURRENCY,
+  };
+}
 
 /**
  * @param {object} deps
@@ -97,4 +112,4 @@ function bookkeepingActions({ url, shopId, serviceKey, requireAdmin, buildDay = 
   return { handleBookkeeping };
 }
 
-module.exports = { bookkeepingActions, STEPS, SHOP_CURRENCY };
+module.exports = { bookkeepingActions, dayFromOrders, STEPS, SHOP_CURRENCY };

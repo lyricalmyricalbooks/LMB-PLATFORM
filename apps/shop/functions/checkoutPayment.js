@@ -11,7 +11,7 @@ function checkoutPaymentActions({
   loadHoldLimits, normMarketingEmail, optOutId, orderRequestIdentity, orderRequestKey, priceOrder,
   PricingError, publicErrorMessage, readAdminSecret, recalculateOrder, refusePreviousAttemptPaid, releaseStock,
   releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, payments,
-  stripeIntentKey, testShop = false, tokenMatches,
+  stripeIntentKey, testShop = false, tokenMatches, practiceFor = async () => null,
 }) {
   // A manual payment method (Settings › Payments › Manual methods) for pickup, local delivery, shipped or e-book
   // orders: priced from the catalog, stock held, and the order created pending until the shop marks it paid.
@@ -161,11 +161,20 @@ function checkoutPaymentActions({
         return;
       }
 
+      // A practice order (practiceCheckout.js, plan 7.6): the owner's own checkout on a private platform shop, decided
+      // here from the server's flag and the owner's sign-in. It is priced with checkout open and test mode on. A
+      // checkout that expected practice (the browser says so, or an earlier attempt was one) never goes on for real.
+      const practice = await practiceFor(req);
+      if (!practice && (req.body.practice === true || order.practiceOrder === true)) {
+        res.status(409).json({ error: "The practice order has ended. Start a new one from Settings › Payments.", code: "practice_ended" });
+        return;
+      }
+
       // 1–4. Server pricing: catalog items, add-ons, box sets, discount (code or automatic),
       //      shipping, tax and gift cards. Client-supplied prices are never trusted.
       let priced;
       try {
-        priced = await priceOrder(order, { orderId });
+        priced = await priceOrder(order, { orderId, ...(practice ? { settings: practice.settings } : {}) });
       } catch (pricingErr) {
         if (pricingErr instanceof PricingError) return res.status(400).json({ error: pricingErr.message, ...(pricingErr.code ? { code: pricingErr.code } : {}) });
         throw pricingErr;
@@ -289,12 +298,14 @@ function checkoutPaymentActions({
         shippingEstimate,
         fulfillment,
         tax: taxCost,
+        taxLines: priced.taxLines,
         giftCardAmount,
         giftCardRedemptions,
         total: finalTotal,
         checkoutCurrency: checkoutCurrency.toUpperCase(),
         exchangeRate: exchangeRate,
         stripeMode: testMode ? "test" : "live",
+        ...(practice ? { practiceOrder: true } : {}),
         clientIp: clientIp,
         ipCountry: ipCountry || null,
         ipCountryMatchesShipping: ipCountryMatchesShipping,
@@ -303,8 +314,9 @@ function checkoutPaymentActions({
 
       // Sandbox sessions rehearse payment only; they do not reserve or consume live stock or gift cards. On a shop the
       // platform marks as a test shop (shopConfig.testShop), a sandbox session holds the stock like a live one, so the
-      // release check exercises the hold; its gift cards are still not held, and payment still takes no stock.
-      if (!testMode || testShop) {
+      // release check exercises the hold; its gift cards are still not held, and payment still takes no stock. A practice
+      // order holds stock the same way.
+      if (!testMode || testShop || practice) {
         try {
           await reserveCheckout(orderId, items, order, testMode ? [] : giftCardRedemptions, testMode, req);
         } catch (holdErr) {

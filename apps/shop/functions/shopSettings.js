@@ -38,6 +38,14 @@ function checkoutClosed(settings) {
   return settings?.maintenance?.enabled === true;
 }
 
+/**
+ * Settings › General › Store status is not Open: checkout is paused for maintenance, or the under construction wall
+ * hides the shop. The shop is private then; practice orders (practiceCheckout.js) work only in this state.
+ */
+function shopPrivate(settings) {
+  return checkoutClosed(settings) || settings?.design?.showUnderConstruction === true;
+}
+
 /** Settings › Notifications › Shop alerts › Daily "orders needing you" email (on unless switched off). */
 function dailyDigestEnabled(notificationSettings) {
   return notificationSettings?.shopAlerts?.dailyOrderDigest !== false;
@@ -76,4 +84,4 @@ function backupStatusRecord({ ok, day, at, operation = "", error = "", previous 
   return record;
 }
 
-module.exports = { ORIGIN_FALLBACK, shopOrigin, checkoutClosed, dailyDigestEnabled, backupOutcome, backupStatusRecord };
+module.exports = { ORIGIN_FALLBACK, shopOrigin, checkoutClosed, shopPrivate, dailyDigestEnabled, backupOutcome, backupStatusRecord };

@@ -489,9 +489,34 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
   readiness row ticks only once `paymentsReady` (cards and payouts). While something is past due, `cardAccountAlert`
   (adminAlerts.ts, action `cardAccount` → Settings › Payments › Ways to pay) puts a banner on every admin page; the
   Dashboard's 5-minute alert check reads the status for Stripe platform shops. The platform emails the owner once.
-- Settings › Bookkeeping (`BookkeepingSettings.tsx`, pure `bookkeeping.ts`, plan 7.16): Connect to QuickBooks in three
+- Settings › Bookkeeping (`BookkeepingSettings.tsx`, pure `quickbooksLink.ts`, plan 7.16): Connect to QuickBooks in three
   steps (sign in with Intuit, one line per day or every order, match taxes and five accounts), then last day sent, Send
   again and Disconnect. Hidden unless `adminApi.bookkeeping("status")` says `enabled` (Dashboard asks once when
   Settings opens and drops the menu entry with `withoutPages`). The button is text only ("Connect to QuickBooks"), as
   Intuit asks; the admin has no French yet, so there is no French label. Tax names are each rate's `bookName` (plan 7.11)
   or "Tax <place>" until then.
+
+
+## Bookkeeper role (28 October 2026, code plan 7.17)
+
+Team role `bookkeeper` (Settings › Team, or the platform's account page): reads the money and changes nothing.
+- **Rules:** `isBookkeeper()` in `firestore.rules` (verified pass, `role == "bookkeeper"`) appears only in three read
+  rules: `orders` (get, list), `giftCards`, `analytics`. Never books, customers, newsletter, settings, keys, the Team or
+  any write (`securityRules.test.ts` and the emulator script check). `isAdmin()` never names it.
+- **Server:** `adminRole` ignores it, so every `requireAdmin` action refuses it. `requireBooksReader` (`roles.js`
+  `booksReader`) lets it in only to `platformPayments` step `status` (payouts on or paused, the fee); `connect` stays
+  admin-only.
+- **Admin:** `Dashboard` asks `adminApi.bookkeeperSignIn()` before setting `user`; a bookkeeper gets
+  `BookkeeperDesk.tsx` (period sales, tax and shipping collected, payouts, Orders and Sales report CSVs) and never the
+  admin shell, so none of the admin's reads run. `bookkeeping.ts` (pure) blanks shoppers' and gift card recipients'
+  email addresses in its downloads. A first sign-in learns the role after `login()` refreshes the pass (`onLogin`).
+- **Stockroom:** the same role reads the tax centre's key-free copy (`apps/stockroom/src/lib/bookkeeper-copy.js`).
+
+## Download for another shop system (28 October 2026, code plan 7.18)
+
+Settings › General › Backups & export › **Download for another shop system** (`BackupsExportCard.tsx`, pure builders in
+`shopExport.ts`). Books: one line per edition, extra photos on their own lines, in the older handle-rows headings
+because those are what `shopMove.ts` reads (`shopExport.test.ts` round-trips the file through `planShopMove`); move to
+the newer headings only together with shopMove. Gift cards stay out. Customers: buyers from orders plus newsletter
+sign-ups; "Accepts Email Marketing" is yes only for a current subscriber who has not opted out. Words on screen never
+name another system. The stockroom's matching stock file is `apps/stockroom/src/lib/stock-locations.js` (7.19).

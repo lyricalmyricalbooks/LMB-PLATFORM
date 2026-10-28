@@ -304,6 +304,36 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("author can't read the Team", assertFails(getDocs(collection(author, "members"))));
   await check("author can't promote themselves", assertFails(setDoc(doc(author, "members/ana@press.test"), { role: "owner" })));
   await check("author can't read webhook status", assertFails(getDoc(doc(author, "adminSecrets/stripeWebhookStatus"))));
+  // The bookkeeper role (plan 7.17): reads orders, gift cards and the daily figures; never books, customers, settings,
+  // keys or the Team, and never writes anything.
+  await env.withSecurityRulesDisabled(async ctx => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "orders/BK-1"), { orderId: "BK-1", paymentStatus: "paid", total: 20, tax: 2, customer: { name: "Rae", email: "rae@press.test" }, createdAt: "2026-02-01" });
+    await setDoc(doc(db, "giftCards/g1"), { last4: "AB12", balanceMinor: 2500 });
+    await setDoc(doc(db, "customers/c1"), { email: "rae@press.test" });
+    await setDoc(doc(db, "settings/website"), { storeName: "Press" });
+  });
+  const bookkeeper = env.authenticatedContext("k1", { email: "kit@press.test", email_verified: true, role: "bookkeeper" }).firestore();
+  const unverifiedBookkeeper = env.authenticatedContext("k2", { email: "kit@press.test", email_verified: false, role: "bookkeeper" }).firestore();
+  await check("owner adds a bookkeeper", assertSucceeds(setDoc(doc(owner, "members/kit@press.test"), { role: "bookkeeper" })));
+  await check("bookkeeper reads an order", assertSucceeds(getDoc(doc(bookkeeper, "orders/BK-1"))));
+  await check("bookkeeper lists orders", assertSucceeds(getDocs(query(collection(bookkeeper, "orders"), orderBy("createdAt", "desc")))));
+  await check("bookkeeper reads a gift card balance", assertSucceeds(getDoc(doc(bookkeeper, "giftCards/g1"))));
+  await check("bookkeeper reads the daily figures", assertSucceeds(getDoc(doc(bookkeeper, "analytics/seeded"))));
+  await check("unverified bookkeeper reads no order", assertFails(getDoc(doc(unverifiedBookkeeper, "orders/BK-1"))));
+  await check("bookkeeper can't change an order", assertFails(setDoc(doc(bookkeeper, "orders/BK-1"), { paymentStatus: "refunded" }, { merge: true })));
+  await check("bookkeeper can't delete an order", assertFails(deleteDoc(doc(bookkeeper, "orders/BK-1"))));
+  await check("bookkeeper can't create an order as admin", assertFails(setDoc(doc(bookkeeper, "orders/BK-2"), { orderId: "BK-2", paymentStatus: "paid", total: 1 })));
+  await check("bookkeeper reads no draft book", assertFails(getDoc(doc(bookkeeper, "books/draft"))));
+  await check("bookkeeper writes no book", assertFails(setDoc(doc(bookkeeper, "books/pub"), { status: "published", title: "Changed" })));
+  await check("bookkeeper reads no customer list", assertFails(getDocs(collection(bookkeeper, "customers"))));
+  await check("bookkeeper reads no newsletter list", assertFails(getDocs(collection(bookkeeper, "newsletter"))));
+  await check("bookkeeper can't change settings", assertFails(setDoc(doc(bookkeeper, "settings/website"), { storeName: "Mine" })));
+  await check("bookkeeper reads no keys", assertFails(getDoc(doc(bookkeeper, "adminSecrets/stripe"))));
+  await check("bookkeeper reads no Team", assertFails(getDocs(collection(bookkeeper, "members"))));
+  await check("bookkeeper can't promote themselves", assertFails(setDoc(doc(bookkeeper, "members/kit@press.test"), { role: "owner" })));
+  await check("bookkeeper writes no discount", assertFails(setDoc(doc(bookkeeper, "discounts/x"), { code: "FREE" })));
+  await check("bookkeeper writes no audit log", assertFails(setDoc(doc(bookkeeper, "audit-log/x"), { action: "x" })));
   // Platform support ("act as this shop", functions/roles.js supportOf): staff access until its time, custom sign-in only.
   const inTen = Math.floor(Date.now() / 1000) + 600;
   const support = env.authenticatedContext("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "admin@platform.example", reason: "help", until: inTen } }).firestore();

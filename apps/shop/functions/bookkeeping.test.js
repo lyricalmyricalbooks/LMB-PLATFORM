@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const { bookkeepingActions } = require("./bookkeeping.js");
+const { bookkeepingActions, dayFromOrders } = require("./bookkeeping.js");
 const { readShopConfig } = require("./shopConfig.js");
 const { usesPlatformServices } = require("./platformKey.js");
 
@@ -88,5 +88,18 @@ describe("the admin's Bookkeeping page", () => {
     expect(on.platformAccountingUrl).toBe("https://accounting.platform.example");
     expect(usesPlatformServices(on)).toBe(true);
     expect(readShopConfig({ GCLOUD_PROJECT: "lmb-test-shop", PLATFORM_ACCOUNTING_URL: "http://plain.example" }).platformAccountingUrl).toBe("");
+  });
+
+  test("send again's numbers come from the orders, in the shop's time zone, with zeros on a quiet day", () => {
+    const orders = [
+      { id: "a", paymentStatus: "paid", paidAt: "2026-10-27T15:00:00Z", subtotal: 40, shipping: 10, tax: 6.5, total: 56.5 },
+      // 01:00 UTC on the 28th is still the 27th in Toronto
+      { id: "b", paymentStatus: "paid", paidAt: "2026-10-28T01:00:00Z", subtotal: 20, total: 20 },
+      { id: "c", paymentStatus: "paid", paidAt: "2026-10-27T15:00:00Z", subtotal: 99, total: 99, isTest: true },
+    ];
+    const day = dayFromOrders(orders, "2026-10-27");
+    expect(day).toMatchObject({ date: "2026-10-27", salesCents: 6000, shippingCents: 1000, netCents: 7650, currency: "CAD" });
+    expect(Object.values(day.taxes)).toEqual([650]);
+    expect(dayFromOrders(orders, "2026-10-20")).toMatchObject({ date: "2026-10-20", salesCents: 0, netCents: 0, taxes: {} });
   });
 });

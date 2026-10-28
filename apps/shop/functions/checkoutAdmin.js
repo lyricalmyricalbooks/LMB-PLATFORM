@@ -6,7 +6,7 @@
 function checkoutAdminActions({
   db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS,
   webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret,
-  readBody, requireAdmin, inventoryLinkDeps,
+  readBody, requireAdmin, requireBooksReader = requireAdmin, inventoryLinkDeps,
 }) {
   // Admin: "Test connection" — does each saved Stripe secret key work, which Stripe
   // account and mode is it, and do the publishable keys match their mode?
@@ -271,12 +271,14 @@ function checkoutAdminActions({
   // page that connects it (Square's sign-in, or Stripe's onboarding), coming back to this admin. Only for a shop whose
   // payments run through the platform; the platform's service checks every address again.
   async function handlePlatformPayments(req, res) {
-    if (!await requireAdmin(req, res)) return;
+    const step = req.body?.step;
+    // The account's status (payouts on or paused, the fee) is also the bookkeeper's to read (roles.js booksReader);
+    // connecting the account stays admin-only.
+    if (!await (step === "status" ? requireBooksReader : requireAdmin)(req, res)) return;
     if (!payments.account) {
       res.status(409).json({ error: "This shop takes card payments with its own keys, not through the platform.", code: "own_keys" });
       return;
     }
-    const step = req.body?.step;
     try {
       if (step === "status") {
         res.json({ provider: payments.provider, ...await payments.account.status() });

@@ -36,6 +36,7 @@ const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = re
 const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./shared/discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./shared/discountMath");
+const { taxLinesFor } = require("./shared/taxBooks");
 const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, giftCardDetails } = require("./shared/promotions");
 const { expiryChange } = require("./giftCards");
 const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, chargedRedemptions, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
@@ -61,7 +62,8 @@ const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./a
 const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
-const { bookkeepingActions } = require("./bookkeeping");
+const { bookkeepingActions, dayFromOrders } = require("./bookkeeping");
+const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
 const { isPaymentId, isCheckoutId } = require("./payments/ids");
@@ -97,8 +99,9 @@ setGlobalOptions({ maxInstances: 10, region: require("./shopConfig").shopConfig.
 
 admin.initializeApp();
 const db = admin.firestore();
-// On the platform's test shop only (shopConfig.testShop), sandbox payments take stock and their refunds put it back.
-const { createSettlement, sandboxStockTaken } = require("./settlePayment");
+// On the platform's test shop (shopConfig.testShop) and for practice orders (plan 7.6), sandbox payments take stock and
+// their refunds put it back.
+const { createSettlement, sandboxStockTaken, sandboxTakesStock } = require("./settlePayment");
 const { recordOrderMoney, recordPayout } = require("./orderMoney");
 const { settlePayment } = createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n), testShop: require("./shopConfig").shopConfig.testShop });
 
@@ -108,7 +111,7 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 // Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-const { adminRole, supportOf, syncMemberRole } = require("./roles");
+const { adminRole, booksReader, supportOf, syncMemberRole } = require("./roles");
 const { shopConfig, functionLink } = require("./shopConfig");
 
 // Who may call the functions from a browser: local dev, this shop's Hosting address and its own domain (shopConfig.js).
@@ -164,6 +167,26 @@ async function requireAdmin(req, res) {
   try {
     const decoded = await admin.auth().verifyIdToken(match[1]);
     if (!adminRole(decoded)) {
+      res.status(403).json({ error: "Admin access required" });
+      return null;
+    }
+    return decoded;
+  } catch (err) {
+    res.status(401).json({ error: "Invalid Authorization token" });
+    return null;
+  }
+}
+
+// The bookkeeper's reads (roles.js booksReader): the admin, or the Team's bookkeeper role. Only read-only actions use it.
+async function requireBooksReader(req, res) {
+  const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+  if (!match) {
+    res.status(401).json({ error: "Missing Authorization token" });
+    return null;
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    if (!booksReader(decoded)) {
       res.status(403).json({ error: "Admin access required" });
       return null;
     }
@@ -864,13 +887,15 @@ function taxCollectionOn(settings) {
   return settings?.taxes?.collect !== false;
 }
 
+// Returns the tax charged and its split by each rate's name in the books (`taxLines`, cents; src/shared/taxBooks.ts).
 function authoritativeTax(items, discountAmount, discount, booksById, settings, order, fulfillment) {
   // Settings › Taxes › "Collect sales tax" off: no tax on any order. Rates stay saved for turning it back on.
-  if (!taxCollectionOn(settings)) return 0;
+  if (!taxCollectionOn(settings)) return { tax: 0, taxLines: [] };
   const rates = settings.taxes?.rates || [];
   const discountedPhysical = discountedPhysicalSubtotal(items, discountAmount, discount, booksById);
   const taxableTotal = Math.max(0, items.reduce((sum, item) => sum + item.price * item.quantity, 0) - discountAmount);
   const address = order.customer?.address || {};
+  const charged = parts => ({ tax: parts.reduce((sum, part) => sum + part.amount, 0), taxLines: taxLinesFor(parts) });
   if (fulfillment?.method === 'pickup') {
     const pickup = fulfillment.address;
     // Pickup limited to an area collects the shopper's address instead of a separate billing location.
@@ -879,14 +904,17 @@ function authoritativeTax(items, discountAmount, discount, booksById, settings, 
     if (!billing || !billing.country || !billing.state) throw new Error('Billing country and province or state are required for pickup.');
     const physicalRate = matchTaxRate(rates, pickup.country, pickup.state);
     const digitalRate = matchTaxRate(rates, billing.country, billing.state);
-    return discountedPhysical * (Number(physicalRate?.rate || 0) / 100) + (taxableTotal - discountedPhysical) * (Number(digitalRate?.rate || 0) / 100);
+    return charged([
+      { rate: physicalRate, amount: discountedPhysical * (Number(physicalRate?.rate || 0) / 100) },
+      { rate: digitalRate, amount: (taxableTotal - discountedPhysical) * (Number(digitalRate?.rate || 0) / 100) },
+    ]);
   }
   const basis = Object.keys(address).length ? address : order.customer?.billingAddress || {};
   if (!basis.country) throw new Error('Destination country is required for tax.');
   const taxRate = matchTaxRate(rates, basis.country, basis.state);
   // Not silent: a country with rates but none for this province is flagged in Ready to sell.
   if (!taxRate && taxableTotal > 0 && rates.length) console.warn(`No tax rate matches ${basis.country}/${basis.state || "-"}; charging no tax.`);
-  return taxableTotal * (Number(taxRate?.rate || 0) / 100);
+  return charged([{ rate: taxRate, amount: taxableTotal * (Number(taxRate?.rate || 0) / 100) }]);
 }
 
 function itemWeightGrams(book, variant) {
@@ -1122,9 +1150,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     throw new PricingError(err.message, err.code === "shipping_rates_changed" ? err.code : undefined);
   }
   const shipping = shipResult.cost;
-  let tax;
+  let tax, taxLines;
   try {
-    tax = authoritativeTax(taxable, discount, verifiedDiscount, booksById, settings, order, shipResult.fulfillment);
+    ({ tax, taxLines } = authoritativeTax(taxable, discount, verifiedDiscount, booksById, settings, order, shipResult.fulfillment));
   } catch (err) {
     throw new PricingError(err.message);
   }
@@ -1154,7 +1182,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   return {
     items, booksById, settings, testMode, subtotal, discount, appliedDiscount, verifiedDiscount,
     shipping, shippingMethod: shipResult.method || null, shippingEstimate: shipResult.estimate || null, fulfillment: shipResult.fulfillment || null,
-    tax, giftCardAmount, giftCardRedemptions: redemptions, total, testCardUsed,
+    tax, taxLines, giftCardAmount, giftCardRedemptions: redemptions, total, testCardUsed,
   };
 }
 
@@ -1166,7 +1194,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency, orderId = "")
   const convertedTotal = Math.round(total * exchangeRate * 100) / 100;
   const update = {
     items: items.map(({ shippingProfileId, ...item }) => item), subtotal, discount, appliedDiscount,
-    shipping, tax, total, checkoutCurrency: checkoutCurrency.toUpperCase(), exchangeRate,
+    shipping, tax, taxLines: priced.taxLines, total, checkoutCurrency: checkoutCurrency.toUpperCase(), exchangeRate,
     giftCardAmount: priced.giftCardAmount, giftCardRedemptions: priced.giftCardRedemptions,
     ...(priced.shippingMethod ? { shippingMethod: priced.shippingMethod } : {}),
     shippingEstimate: priced.shippingEstimate,
@@ -1253,10 +1281,11 @@ async function reserveForConfirmedPayment(orderId, provider, paymentId) {
   const snap = await ref.get();
   if (!snap.exists) return true;
   const order = snap.data();
-  // A sandbox payment takes no stock, so it needs none, except on the platform's test shop (shopConfig.testShop), where
-  // it takes stock like a live one and so is checked like one: sold out after its hold lapsed = not marked paid.
+  // A sandbox payment takes no stock, so it needs none, except on the platform's test shop (shopConfig.testShop) and for
+  // a practice order (sandboxTakesStock), where it takes stock like a live one and so is checked like one: sold out
+  // after its hold lapsed = not marked paid.
   const sandbox = order.paypalMode === "test" || order.stripeMode === "test";
-  if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || (sandbox && !shopConfig.testShop)) return true;
+  if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || (sandbox && !sandboxTakesStock(order, shopConfig.testShop))) return true;
   try {
     await reserveStock(db, orderId, order.items || [], Date.now(), holdOwner(order));
     return true;
@@ -1501,15 +1530,20 @@ exports.paypalWebhook = onRequest(
 );
 
 const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, handleWebhookHealth, handleRegisterPaymentDomain, handlePlatformPayments } = checkoutAdminActions({
-  db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, inventoryLinkDeps,
+  db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, requireBooksReader, inventoryLinkDeps,
 });
 
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
 const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
 
 // Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (bookkeeping.js, plan 7.16).
-// Send again waits for the daily summary (plan 7.12), which hands in `buildDay`.
-const { handleBookkeeping } = bookkeepingActions({ url: shopConfig.platformAccountingUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+// Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).
+const { handleBookkeeping } = bookkeepingActions({
+  url: shopConfig.platformAccountingUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
+  buildDay: async (date) => dayFromOrders((await db.collection("orders").get()).docs.map((d) => ({ id: d.id, ...d.data() })), date),
+});
+// Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
+const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
 
 // Handler tests replace sendEmail after loading index.js; this keeps the moved handlers on the current one.
 const lateSendEmail = (...args) => sendEmail(...args);
@@ -1542,6 +1576,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   platformPayments: handlePlatformPayments,
   customDomains: handleCustomDomains,
   bookkeeping: handleBookkeeping,
+  practiceCheckout: handlePracticeCheckout,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,
   inventoryLink: handleInventoryLinkAdmin,
@@ -1563,7 +1598,7 @@ const { handleManualLocalOrder, handleUnsubscribe, handleCompleteFreeOrder, hand
   loadHoldLimits, normMarketingEmail, optOutId, orderRequestIdentity, orderRequestKey, priceOrder,
   PricingError, publicErrorMessage, readAdminSecret, recalculateOrder, refusePreviousAttemptPaid, releaseStock,
   releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, payments,
-  stripeIntentKey, testShop: shopConfig.testShop, tokenMatches,
+  stripeIntentKey, testShop: shopConfig.testShop, tokenMatches, practiceFor,
 });
 
 // ──────────────────────────────────────────────────────────────
@@ -1631,8 +1666,8 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
     if (initialOrder.exists) {
       const initial = initialOrder.data();
       const amountCheck = paidAmountCheck(initial, session.amount_total, session.currency);
-      // Sandbox payments skip the stock check, except on the test shop (see reserveForConfirmedPayment).
-      if (amountCheck.ok && ((session.livemode !== false && initial.stripeMode !== "test") || shopConfig.testShop)
+      // Sandbox payments skip the stock check, except on the test shop and for practice orders (see reserveForConfirmedPayment).
+      if (amountCheck.ok && ((session.livemode !== false && initial.stripeMode !== "test") || sandboxTakesStock(initial, shopConfig.testShop))
           && initial.paymentStatus !== "paid" && initial.status !== "cancelled"
           && !await reserveForConfirmedPayment(orderId, "Stripe", typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id)) return false;
     }

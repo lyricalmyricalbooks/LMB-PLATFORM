@@ -4,7 +4,7 @@ import { ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, 
 import {
   ACCOUNT_PARTS, CONNECT_LABEL, STYLE_CHOICES, bookkeepingError, connectOutcome, currentStep, endsText, firstMatches, lastSentText, saveProblem,
   shopTaxNames, yesterday, type AccountPart, type BookkeepingOptions, type BookkeepingStatus, type BookkeepingStyle,
-} from "./bookkeeping";
+} from "./quickbooksLink";
 
 type Props = {
   taxRates: { country?: string; region?: string; rate?: string; bookName?: string }[];
