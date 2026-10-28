@@ -40,11 +40,14 @@ The registry row's `google` also holds `accountEmail`, `connectedAt`, `closedAt`
 The press's own Analytics, Search Console, Merchant Center, Drive, YouTube, Calendar, Business Profile and Ads accounts
 are never deleted, so their history leaves with them.
 
-**Plugging it into the closing sweep.** `createGoogleLink(...).teardown` gives `teardownOnClose(shop)` and
-`teardownBeforeDelete(shop)`. Pass them as the sweep's `onClose` and `beforeDelete` hooks. `teardownBeforeDelete`
-refuses (`{ refused: true }`, nothing deleted) unless the registry row shows the deletion is due:
+**Plugging it into the closing sweep (`closing.js`).** `googleClosing({ teardown, registry, shopFirebase })` gives the
+two things the hosted sweep is built with: `hooks` (`onClose` runs the closing steps; `beforeDelete` runs the deletion
+steps) and `projects` (the sweep's project deleter, which skips a project the teardown has already deleted):
+`createClosingSweep({ ..., hooks: google.hooks, projects: google.projects })`. `teardownBeforeDelete` refuses
+(`{ refused: true }`, nothing deleted) unless the registry row shows the deletion is due:
 `closing: { closedAt, deleteAfter, warned30At, warned7At }`, with both emails sent and `deleteAfter` passed
-(`deletionDue`).
+(`deletionDue`). A failed deletion step refuses too, so the sweep tries again on its next run; a failed closing step is
+recorded and shown in the control room with Run again, and never holds up the timeline.
 
 ## The control room (`status.js`)
 
@@ -64,7 +67,7 @@ The shop's calls: `google.status`, `google.connectLink { returnUrl, extras }`, `
 
 ## Files
 
-- `connect.js`, `teardown.js`, `status.js`, `record.js`: the jobs and how they record.
+- `connect.js`, `teardown.js`, `status.js`, `record.js`: the jobs and how they record. `closing.js`: the teardown as the closing sweep's hooks.
 - `service.js`, `http.js`: the doors. `index.js`: `createGoogleLink(...)` puts it all together.
 - `googleApi.js`: the Google client. `endpoints.js`: every Google address and permission, with its reference page.
 - `tokens.js`: the press's tokens, sealed with `../services/payments/tokenSeal.js` (key `GOOGLE_TOKEN_KEY`) and bound
@@ -95,4 +98,5 @@ live in this service's environment only.
 - Hosting (one function in the platform project) and the Firestore stores `googleConnections` and `googleStates`.
 - The real `shopFirebase` client (Admin SDK writes into the shop's project, the verification file on its Hosting, and
   project deletion), and the nightly Drive backup and the calendar's events on the website.
-- Adding and removing records through the registrar's Allow window (plan 6.15, `domainsCall`).
+- Hosting the domain service, so `domainsCall` reaches `applyRecords` / `removeRecords` / `removeDomain` for real (plan
+  6.15 built them in `services/domains`; teardown passes `deleting: true`).

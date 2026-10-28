@@ -90,7 +90,7 @@ describe('firebase.deploy.json', () => {
       expect(existsSync(join(root, CONFIG_FILE))).toBe(false);
       expect(existsSync(join(root, OUT_DIR))).toBe(false);
       const written = writeDeployFiles({ root, projectId: 'moth-press', owner: 'o@press.test', profile: profile() });
-      expect(written.sort()).toEqual([CONFIG_FILE, ...RULE_FILES.map((f) => `${OUT_DIR}/${f}`)].sort());
+      expect(written.sort()).toEqual([CONFIG_FILE, ...RULE_FILES.map((f) => join(OUT_DIR, f))].sort());
       const config = JSON.parse(readFileSync(join(root, CONFIG_FILE), 'utf8'));
       for (const path of [config.firestore[0].rules, config.storage[0].rules, config.database.rules]) {
         expect(readFileSync(join(root, path), 'utf8')).toContain('o@press.test');

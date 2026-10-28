@@ -71,6 +71,8 @@ import { describedAlt } from "../features/site/photoAlt";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
 import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
+import { ProductOptionsEditor } from "./ProductOptionsEditor";
+import { adoptEditions, usesOptionPicker, variantsForOptions, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
 import { DescriptionText } from "../features/site/DescriptionText";
@@ -823,6 +825,29 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       }]
     }));
   };
+
+  // Options (plan 10.2): one edition per combination, keeping the price and stock of editions that already had one.
+  const applyOptions = async (options: ProductOption[]) => {
+    const usdRate = rates.USD || 0.73;
+    const eurRate = rates.EUR || 0.67;
+    let n = (formData.variants || []).length;
+    const fresh = () => {
+      const price = Number(formData.retailPrice) || 0;
+      n += 1;
+      return { id: crypto.randomUUID(), price, usdPrice: Number((price * usdRate).toFixed(2)), eurPrice: Number((price * eurRate).toFixed(2)),
+        stock: 0, stockLevel: 0, photoUrl: "", sku: `${formData.sku || "SKU"}-${n}`, weight: formData.weight || "" };
+    };
+    const { variants, removed } = variantsForOptions(options, adoptEditions(options, formData.variants || []), fresh);
+    if (removed.length) {
+      const names = removed.map((v: any) => v.name ? `“${v.name}”` : "an unnamed edition").join(", ");
+      const ok = await askConfirm({ title: removed.length === 1 ? "Remove 1 edition?" : `Remove ${removed.length} editions?`, confirmLabel: "Make the editions",
+        message: `${names} ${removed.length === 1 ? "doesn't match" : "don't match"} any combination of these options, so ${removed.length === 1 ? "it" : "they"} will be removed when you save, with ${removed.length === 1 ? "its" : "their"} stock. Shoppers will no longer be able to buy ${removed.length === 1 ? "it" : "them"}.` });
+      if (!ok) return;
+    }
+    setFormData((prev: any) => ({ ...prev, options, variants }));
+  };
+  const clearOptions = () => setFormData((prev: any) => ({ ...prev, options: [] }));
+  const optionsOn = usesOptionPicker(formData);
 
   const updateVariant = (id: string, field: string, value: any) => {
     setFormData((prev: any) => ({
@@ -1632,10 +1657,11 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             </>
           )}
 
+          {shownTab === "editions" && !giftCard && <ProductOptionsEditor form={formData} onApply={(o) => void applyOptions(o)} onClear={clearOptions} />}
           {shownTab === "editions" && (
             <SectionCard title={giftCard ? "Gift card amounts" : "Editions & pricing"}
               description={giftCard ? "Each edition is an amount, e.g. CA$25. Shoppers pick one; the card is worth what they pay. Every amount must be more than $0." : "Sell multiple formats or special editions of the same book. Base price and stock are replaced by these."}
-              actions={<button type="button" onClick={giftCard ? () => set("variants", [...(formData.variants || []), { ...giftAmount(0), name: "", price: "" }]) : addVariant} className="rp-btn rp-btn-primary rp-btn-sm"><Plus size={14} aria-hidden /> {giftCard ? "Add amount" : "Add edition"}</button>}>
+              actions={optionsOn && !giftCard ? undefined : <button type="button" onClick={giftCard ? () => set("variants", [...(formData.variants || []), { ...giftAmount(0), name: "", price: "" }]) : addVariant} className="rp-btn rp-btn-primary rp-btn-sm"><Plus size={14} aria-hidden /> {giftCard ? "Add amount" : "Add edition"}</button>}>
               {giftCard && (
                 <div className="be-inline-actions" role="group" aria-label="Quick add amounts">
                   <span className="be-label-xs">Quick add:</span>
@@ -1654,7 +1680,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     <legend>{giftCard ? "Amount" : "Edition"} {i + 1}{v.name ? ` — ${v.name}` : ""}</legend>
                     <div className="be-variant-tools">
                       {!giftCard && stockBadge(num((v as any).stockLevel ?? v.stock))}
-                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => duplicateVariant(v.id)}><Copy size={13} aria-hidden /> Duplicate</button>
+                      {!optionsOn && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => duplicateVariant(v.id)}><Copy size={13} aria-hidden /> Duplicate</button>}
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => void removeVariant(v.id)} aria-label={`Remove ${giftCard ? "amount" : "edition"} ${v.name || i + 1}`}><Trash2 size={13} aria-hidden /> Remove</button>
                     </div>
                     {giftCard ? (
@@ -1665,7 +1691,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     </div>
                     ) : (
                     <div className="be-grid be-grid-4">
-                      <div className="be-span-2"><TextField label="Edition name" placeholder="e.g. Signed Collector's Copy" value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)} /></div>
+                      <div className="be-span-2"><TextField label="Edition name" placeholder="e.g. Signed Collector's Copy" value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)}
+                        readOnly={optionsOn} hint={optionsOn ? "Made from the options above." : undefined} /></div>
                       <TextField label="SKU" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
                       <WeightField label="Weight" value={v.weight || ""} onChange={(w) => updateVariant(v.id, "weight", w)} />
                       <TextField label="Price (CAD)" type="number" min={0} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />

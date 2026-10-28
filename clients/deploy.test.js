@@ -1,9 +1,12 @@
 import { test } from "node:test";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { deployClient, rulesStamp, siteOf, stampedRules } from "./deploy.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 
 const P = "lmb-test-shop";
+// The build folder is joined the way the system does it (backslashes on Windows).
+const B = (path) => join("/builds", path);
 const RULES = "https://firebaserules.googleapis.com/v1";
 const FN = `https://cloudfunctions.googleapis.com/v2/projects/${P}/locations/-/functions`;
 const notFound = { status: 404, json: { error: { code: 404, status: "NOT_FOUND", message: "not found" } } };
@@ -70,28 +73,28 @@ test("rules deploy each plan app's rules from the release's build folder, with t
   const { deploy, runs, configs, written } = setup([]);
   await deploy.rules(P, { version: "1.2.3", apps: ["shop", "stockroom"] });
   const stamped = `${rulesStamp({ version: "1.2.3", apps: ["shop", "stockroom"] })}\nrules_version = '2';\n`;
-  assert.equal(written.get("/builds/1.2.3/apps/shop/.deploy/firestore.rules"), stamped, "the old stamp is replaced, not stacked");
-  assert.equal(written.get("/builds/1.2.3/apps/stockroom/.deploy/firestore.rules"), stamped);
-  assert.equal(written.get("/builds/1.2.3/apps/stockroom/public/shop-profile.js"), "window.__SHOP_PROFILE__={}", "the stockroom's deployConfig reads its database and bucket from the shop's profile");
+  assert.equal(written.get(B("1.2.3/apps/shop/.deploy/firestore.rules")), stamped, "the old stamp is replaced, not stacked");
+  assert.equal(written.get(B("1.2.3/apps/stockroom/.deploy/firestore.rules")), stamped);
+  assert.equal(written.get(B("1.2.3/apps/stockroom/public/shop-profile.js")), "window.__SHOP_PROFILE__={}", "the stockroom's deployConfig reads its database and bucket from the shop's profile");
   assert.equal(stampedRules("rules_version = '2';", "// lmb-release: {}"), "// lmb-release: {}\nrules_version = '2';");
-  assert.deepEqual(configs, ["shop", "stockroom"].map((app) => ({ args: ["scripts/deployConfig.mjs", "--project", P], cwd: `/builds/1.2.3/apps/${app}`, env: { SHOP_OWNER_EMAIL: "owner@example.com" } })));
+  assert.deepEqual(configs, ["shop", "stockroom"].map((app) => ({ args: ["scripts/deployConfig.mjs", "--project", P], cwd: B(`1.2.3/apps/${app}`), env: { SHOP_OWNER_EMAIL: "owner@example.com" } })));
   assert.deepEqual(runs, [
-    { command: "firebase", args: ["deploy", "--only", "firestore,storage", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/shop" },
-    { command: "firebase", args: ["deploy", "--only", "firestore,database,storage", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/stockroom" },
+    { command: "firebase", args: ["deploy", "--only", "firestore,storage", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: B("1.2.3/apps/shop") },
+    { command: "firebase", args: ["deploy", "--only", "firestore,database,storage", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: B("1.2.3/apps/stockroom") },
   ]);
 });
 
 test("data changes run from the release's build of the shop, for that shop", async () => {
   const { deploy, configs } = setup([]);
   await deploy.migrate(P, { version: "1.2.3" });
-  assert.deepEqual(configs, [{ args: ["functions/migrations/run.js", "--project", P, "--release", "1.2.3"], cwd: "/builds/1.2.3/apps/shop", env: undefined }]);
+  assert.deepEqual(configs, [{ args: ["functions/migrations/run.js", "--project", P, "--release", "1.2.3"], cwd: B("1.2.3/apps/shop"), env: undefined }]);
 });
 
 test("server code is deployed with its env file and the release stamped in, then its region is checked", async () => {
   const fn = (region) => ({ functions: [{ name: `projects/${P}/locations/${region}/functions/f`, serviceConfig: { environmentVariables: { SHOP_RELEASE_VERSION: "1.2.3" } } }] });
   const { deploy, runs, written } = setup([{ method: "GET", url: FN, json: fn("northamerica-northeast1") }, { method: "GET", url: FN, json: fn("us-central1") }]);
   await deploy.functions(P, { version: "1.2.3", region: "northamerica-northeast1", envFile: 'SHOP_OWNER_EMAIL="owner@example.com"\n' });
-  assert.equal(written.get(`/builds/1.2.3/apps/shop/functions/.env.${P}`), 'SHOP_OWNER_EMAIL="owner@example.com"\nSHOP_RELEASE_VERSION="1.2.3"\n');
+  assert.equal(written.get(B(`1.2.3/apps/shop/functions/.env.${P}`)), 'SHOP_OWNER_EMAIL="owner@example.com"\nSHOP_RELEASE_VERSION="1.2.3"\n');
   assert.deepEqual(runs[0].args.slice(0, 5), ["deploy", "--only", "functions", "--project", P]);
   await assert.rejects(deploy.functions(P, { version: "1.2.3", region: "northamerica-northeast1", envFile: "" }), /went to us-central1/);
 });
@@ -106,9 +109,9 @@ test("pages: the stockroom gets its own site once; the deploy is stamped with th
   assert.deepEqual(await deploy.pages(P, { version: "1.2.3", app: "stockroom" }), { url: `https://${P}-stockroom.web.app` });
   await deploy.pages(P, { version: "1.2.3", app: "stockroom" });
   assert.deepEqual(await deploy.pages(P, { version: "1.2.3", app: "shop" }), { url: `https://${P}.web.app` });
-  assert.equal(written.get("/builds/1.2.3/apps/shop/dist/shop-profile.js"), "window.__SHOP_PROFILE__={}");
-  assert.equal(written.get("/builds/1.2.3/apps/stockroom/dist/shop-profile.js"), "window.__SHOP_PROFILE__={}");
-  assert.deepEqual(runs.map((r) => [r.cwd, r.args.at(6)]), [["/builds/1.2.3/apps/stockroom", "lmb-release 1.2.3"], ["/builds/1.2.3/apps/stockroom", "lmb-release 1.2.3"], ["/builds/1.2.3/apps/shop", "lmb-release 1.2.3"]]);
+  assert.equal(written.get(B("1.2.3/apps/shop/dist/shop-profile.js")), "window.__SHOP_PROFILE__={}");
+  assert.equal(written.get(B("1.2.3/apps/stockroom/dist/shop-profile.js")), "window.__SHOP_PROFILE__={}");
+  assert.deepEqual(runs.map((r) => [r.cwd, r.args.at(6)]), [[B("1.2.3/apps/stockroom"), "lmb-release 1.2.3"], [B("1.2.3/apps/stockroom"), "lmb-release 1.2.3"], [B("1.2.3/apps/shop"), "lmb-release 1.2.3"]]);
   assert.equal(siteOf(P, "shop"), P);
   fetch.done();
 });

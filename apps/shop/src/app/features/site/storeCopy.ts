@@ -279,6 +279,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "bookFormatLabel", label: "Format selector label", default: "Format / Edition" },
       { key: "pdpEditionChoose", label: "Edition drop-down · prompt", default: "Choose an edition" },
       { key: "pdpEditionMissing", label: "Edition drop-down · nothing chosen message", default: "Please choose an edition first." },
+      { key: "pdpOptionMissing", label: "Option choices · nothing chosen message", default: "Please choose a {option} first.", hint: "Shown on products with options (size, colour). Use {option} for the option's name." },
       { key: "pdpEditionSoldOut", label: "Edition drop-down · sold-out note", default: "Sold out" },
       { key: "quickAddButton", label: "Shop grid quick add button", default: "Add to bag" },
       { key: "quickAddChoose", label: "Shop grid quick add · books with options", default: "Choose options" },

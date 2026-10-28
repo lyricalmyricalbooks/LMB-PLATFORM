@@ -18,6 +18,8 @@ import { createOwnDomainSender } from "../services/email/ownDomain.js";
 import { createEmailService } from "../services/email/index.js";
 import { fakeResendDomains, fakeResendFetch, fakeSentLog } from "../services/email/fakes.js";
 import { unseal } from "../services/payments/tokenSeal.js";
+import { createClosingSweep, DOWNLOAD_DAYS } from "../services/billing/closing.js";
+import { googleClosing } from "./closing.js";
 
 const SHOP = "moth-press";
 const KEY = "shop-service-key-moth-press-0123456789abcdef";
@@ -364,7 +366,7 @@ test("deletion waits for the closing dates and both emails, then takes the addre
   // Closing hadn't run yet, so it runs first.
   assert.deepEqual(done.steps.map((s) => s.step), ["stopFeed", "stopTag", "stopGmail", "stopExtras", "giveBackAccess", "removeDomain", "deleteFirebase"]);
   assert.ok(done.steps.every((s) => s.state === "done"), JSON.stringify(done.steps));
-  assert.ok(t.domains.calls.some(([op, , args]) => op === "removeDomain" && args.domain === "shop.mothpress.example"));
+  assert.ok(t.domains.calls.some(([op, , args]) => op === "removeDomain" && args.domain === "shop.mothpress.example" && args.deleting === true));
   assert.equal(t.resendDomains.domains.size, 0);
   assert.equal((await t.shopRow()).emailSender, null);
   assert.equal(t.shopFirebase.docs.get(SHOP).deleted, true);
@@ -452,4 +454,69 @@ test("a Gmail email keeps its headers on one line each", () => {
   const raw = Buffer.from(rawEmail({ from: '"Moth" <owner@example.com>', to: "a@example.com\r\nBcc: x@example.com", subject: "Hi", text: "Hello" }), "base64url").toString("utf8");
   assert.match(raw, /^To: a@example.com Bcc: x@example.com\r$/m);
   assert.ok(!/^Bcc:/m.test(raw));
+});
+
+// ---- On the closing sweep's timeline (6.8 + 6.20) ----
+
+/** The real closing sweep (services/billing/closing.js) with the Google teardown as its hooks and project deleter. */
+async function onTimeline(t) {
+  const sent = [];
+  const sweep = createClosingSweep({
+    registry: t.registry, auditLog: t.auditLog,
+    billing: { endPlan: async () => {}, publishPlan: async () => {} },
+    email: { sendPlatform: async (message) => void sent.push(message) },
+    ...googleClosing({ teardown: t.link.teardown, registry: t.registry, shopFirebase: t.shopFirebase }),
+    settings: { platformUrl: "https://platform.example" }, now: t.now,
+  });
+  await t.registry.updateShop(SHOP, { billing: { access: "closed" } });
+  const daily = async (days) => { for (let i = 0; i < days; i++) { t.tick(DAY); await sweep.sweep(); } };
+  return { sweep, sent, daily };
+}
+
+test("the closing sweep stops Google at closing and deletes the project once, only after both warning emails", async () => {
+  const t = await connected();
+  const s = await onTimeline(t);
+  await s.sweep.sweep();
+  const closed = (await t.shopRow()).closing;
+  assert.equal(closed.stage, "closed");
+  assert.ok(closed.hooks.onClose);
+  assert.ok((await t.shopRow()).google.closedAt, "the closing steps ran");
+  assert.equal(t.shopFirebase.docs.get(SHOP).analytics.ga4MeasurementId, "");
+  assert.equal(t.google.world.properties.size, 1, "the press's Analytics stays theirs");
+
+  for (let day = 1; day < DOWNLOAD_DAYS; day++) {
+    await s.daily(1);
+    assert.equal(t.shopFirebase.docs.get(SHOP).deleted, false, `deleted early on day ${day}`);
+    assert.ok(!t.domains.calls.some(([op]) => op === "removeDomain"), `address taken off early on day ${day}`);
+  }
+  await s.daily(1);
+  const row = await t.shopRow();
+  assert.equal(row.closing.stage, "deleted");
+  assert.deepEqual(s.sent.map((m) => m.kind), ["shop-closed", "shop-deletion-warning", "shop-deletion-warning", "shop-deleted"]);
+  assert.ok(t.domains.calls.some(([op, , args]) => op === "removeDomain" && args.domain === "shop.mothpress.example"));
+  assert.equal(t.shopFirebase.calls.filter((c) => c[0] === "deleteProject").length, 1, "deleted once, by the teardown");
+  assert.ok(row.google.firebaseDeletedAt);
+  assert.equal(t.google.world.merchantAccounts.size, 1);
+});
+
+test("a closing step that fails is shown with Run again and never holds up the timeline; a failed deletion waits a day", async () => {
+  const t = await setup();
+  const s = await onTimeline(t);
+  await s.sweep.sweep();
+  // Never connected: closing has nothing of Google's to stop and still counts as done.
+  assert.ok((await t.shopRow()).closing.hooks.onClose);
+
+  const deleteProject = t.shopFirebase.deleteProject;
+  t.shopFirebase.deleteProject = async () => { throw new Error("Google didn't answer (pretend error)"); };
+  await s.daily(DOWNLOAD_DAYS);
+  let row = await t.shopRow();
+  assert.equal(row.closing.stage, "closed");
+  assert.match(row.closing.problem, /beforeDelete: Google deleteFirebase/);
+  assert.equal((row.google.steps ?? []).find((x) => x.step === "deleteFirebase").state, "failed");
+
+  t.shopFirebase.deleteProject = deleteProject;
+  await s.daily(1);
+  row = await t.shopRow();
+  assert.equal(row.closing.stage, "deleted");
+  assert.equal(t.shopFirebase.docs.get(SHOP).deleted, true);
 });

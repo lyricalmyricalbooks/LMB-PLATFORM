@@ -175,7 +175,7 @@ describe("one implementation", () => {
     const p = join(dir, n);
     return statSync(p).isDirectory() ? (n === "admin" ? [] : files(p)) : /\.tsx$/.test(n) && !/\.test\./.test(n) ? [p] : [];
   });
-  const sources = files(ROOT).map((file) => ({ file: file.slice(ROOT.length + 1), text: readFileSync(file, "utf8") }));
+  const sources = files(ROOT).map((file) => ({ file: file.slice(ROOT.length + 1).replace(/\\/g, "/"), text: readFileSync(file, "utf8") }));
   it("renders the storefront header and footer only from StoreHeader / StoreFooter (checkout keeps its own)", () => {
     expect(sources.filter((s) => /<header\s+data-section="navigation"/.test(s.text)).map((s) => s.file)).toEqual(["features/site/StoreHeader.tsx"]);
     expect(sources.filter((s) => /regionProps\("footerPanel"\)/.test(s.text)).map((s) => s.file)).toEqual(["features/site/StoreFooter.tsx"]);
