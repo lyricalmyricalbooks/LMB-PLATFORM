@@ -12,9 +12,12 @@ is loaded from Google, at one fixed version (`config.js`), for sign-in only.
 
 1. **Sign in**: Continue with Google, or an emailed sign-in link. No password. The link email comes from the platform
    (`notifications@`, signed Colophon) through `services/email`, not from Firebase's own sender.
-2. **About your press**: press name, the plan (shop, stockroom or both, with prices from the settings), the country (it
-   sets the shop's starting currency), and "How do you sell today?" with a **Skip this question** button. No card is
-   asked for.
+2. **About your press**: press name, the shop's web address (a preview made from the name, `<address>.web.app`, with
+   **Change**; checked against the registry and other sign-ups as they type, `POST /api/signup/address`, same rules as
+   the shop id: 6 to 30 lowercase letters, digits and hyphens, starting with a letter), the plan (shop, stockroom or
+   both, with prices from the settings), the country (it sets the shop's starting currency), "How do you sell today?"
+   and "What do you publish?" (books, zines, comics, prints, a mix), each with **Skip this question**, and the terms
+   tick box. No card is asked for.
 3. **Making your shop**: each shop in the making with plain words, the way in once it's ready, and a **Try again**
    button when the shop maker hit a snag (2.6).
 
@@ -27,7 +30,8 @@ behind `/api` in the platform project:
 
 | Route | Who | What |
 | --- | --- | --- |
-| `GET /api/plans` | anyone | the plans, prices, trial length and product name |
+| `GET /api/plans` | anyone | the plans, prices, trial length and product name; `signupOpen`, the founding price (only when `foundingOffer.percentOff` is set), pay as you sell under the shop and both plans (only when `payAsYouSell.basisPoints` is over 0, capped at the plan's price) and the terms version |
+| `POST /api/signup/address` | signed in | `{ pressName? , address? }`: the web address preview, free or not, with plain words |
 | `POST /api/signin-link` | anyone | emails a sign-in link; the same answer for any address; five an hour per address |
 | `POST /api/signup` | signed in, confirmed email | starts the trial (services/billing) and queues the shop |
 | `GET /api/signup` | signed in | the person's shops in the making |
@@ -38,6 +42,23 @@ behind `/api` in the platform project:
 - Signing up again for the same press (a double click, a lost answer) gives back the same shop and the same trial; a
   trial that failed to start is started on the next try, for the same shop.
 - One account can start up to five shops this way.
+- The terms (plan 6.2): no sign-up without the tick and today's version (`terms/terms.js`). The row keeps
+  `{ termsVersion, termsAcceptedAt }` from the first sign-up; a re-run never changes it. "What do you publish?" is kept as
+  `publishes` and travels with the shop (`shopFromSignup` › `publishes`, read by the welcome screen, 6.3).
+
+## The daily cap and invites (plan 6.13)
+
+At most `signupDailyCap` new shops (live settings, default 10) start each Toronto day. A press over the cap gets status
+`in-line` and the words "We're making a few shops a day. You're next in line, and we'll email you when yours starts."
+Its trial doesn't start while it waits, so no free days are lost. `admitFromLine()` (called first by the shop maker's
+`sweep`, given `line: signup`) lets the oldest in as room opens, starts the trial and sends `shop-starting` once.
+An email invited from the control room (`invites`: `isInvited(email)`, `markUsed(email, shopId)`, from
+`waitlist/invites.js`) skips the cap and the line, doesn't count towards the cap, and an invite that arrives while the
+press waits lets it straight in on its next visit.
+
+`live.js` stands in for the control room's `liveSettings({ env, store })` (services/settings.js) until that is merged:
+`SIGNUP_OPEN` (off), `SIGNUP_DAILY_CAP` (10), `FOUNDING_PERCENT_OFF` (0) / `FOUNDING_PRESSES` (25),
+`PAY_AS_YOU_SELL_BASIS_POINTS` (0). Swap the import when the real one lands.
 
 ## The shop maker from sign-up (`shopMaker.js`, plan 2.6)
 
@@ -47,6 +68,7 @@ shop's lock and logs every step, so a retry is simply another run.
 
 | Status | What the press sees |
 | --- | --- |
+| `in-line` | over the daily cap: "You're next in line"; the page checks every minute |
 | `queued`, `making` | progress; the page checks every few seconds |
 | `ready` | the way into the admin; the welcome email is on its way (setup step 14) |
 | `waiting` | "We couldn't finish <what the step does>. Nothing is lost: press Try again", plus automatic tries after 1, 5 and 15 minutes; after three, the repair queue hears about it |
