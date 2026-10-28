@@ -7,6 +7,7 @@ import {
   AlertTriangle, BookOpen, Check, ChevronDown, ChevronRight, CircleDashed, CreditCard, Gift, Globe, Hourglass, Inbox, LayoutGrid, Lock,
   Minus, Package, Percent, RotateCw, Search, Tag, Truck, Waves, X,
 } from "lucide-react";
+import "./adminThemes.css";
 import "./riso.css";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 export { useFocusTrap };

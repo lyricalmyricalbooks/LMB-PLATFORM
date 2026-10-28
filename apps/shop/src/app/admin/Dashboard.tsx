@@ -4,7 +4,7 @@ import { isShopOwner, markOwnerDeviceOnSignIn } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import {
-  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Sun, Moon, ChevronDown,
+  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Sun, Moon, ChevronDown, Palette,
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -27,6 +27,7 @@ import {
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
+import { applyAdminLook, nextAdminLook, readAdminLook, type AdminLookId } from "./riso/adminLook";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
@@ -272,6 +273,18 @@ export function Dashboard() {
     return localStorage.getItem("adminThemeReso") || "light";
   });
 
+  // The admin look (Riso Press or Paper, adminThemes.css), a per-browser choice like the appearance above.
+  const [adminLook, setAdminLook] = useState<AdminLookId>(() => {
+    const look = readAdminLook();
+    applyAdminLook(look, false);
+    return look;
+  });
+  const switchLook = () => {
+    const next = nextAdminLook(adminLook).id;
+    setAdminLook(next);
+    applyAdminLook(next);
+  };
+
   const toggleTheme = () => {
     const newTheme = adminTheme === "dark" ? "light" : "dark";
     setAdminTheme(newTheme);
@@ -512,6 +525,7 @@ export function Dashboard() {
     { key: "site", label: "View site", icon: <Globe size={16} aria-hidden />, run: openSite },
     { key: "help", label: "Help & shortcuts", icon: <HelpCircle size={16} aria-hidden />, run: () => setHelpOpen(true) },
     { key: "theme", label: adminTheme === "light" ? "Dark appearance" : "Light appearance", icon: adminTheme === "light" ? <Moon size={16} aria-hidden /> : <Sun size={16} aria-hidden />, run: toggleTheme },
+    { key: "look", label: nextAdminLook(adminLook).label, icon: <Palette size={16} aria-hidden />, run: switchLook },
     { key: "logout", label: loggingOut ? "Logging out…" : "Log out", icon: <LogOut size={16} aria-hidden />, run: handleLogout, tone: "danger" as const, busy: loggingOut },
   ];
   const accountMenuItems = (close: () => void) => accountActions.map((a) => (
