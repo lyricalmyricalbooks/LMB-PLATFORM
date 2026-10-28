@@ -33,9 +33,10 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root?.unmount()); host.remove(); restore(); });
 
-async function mount() {
+// Studio opens in Essentials (plan 1.27); these tests start in Page layout unless a test says otherwise.
+async function mount(initialLocation?: Record<string, unknown>) {
   root = createRoot(host);
-  await act(async () => { root.render(h(StudioEditor, { settings: fixture.settings, onExit: () => {} })); });
+  await act(async () => { root.render(h(StudioEditor, { settings: fixture.settings, initialLocation: initialLocation ?? { leftTab: "sections" }, onExit: () => {} })); });
   await act(async () => { await new Promise(r => setTimeout(r, 0)); });
 }
 
@@ -72,6 +73,13 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(dialog?.querySelectorAll(".studio-shortcuts kbd").length).toBeGreaterThan(10);
   });
 
+  it("opens in Essentials the first time, with the shop's name as its first setting (plan 1.27)", async () => {
+    localStorage.clear();
+    await mount({});
+    expect(buttons("Essentials")[0].getAttribute("aria-pressed")).toBe("true");
+    expect(host.querySelector('[data-studio-panel="essentials"] [data-copy-key="siteName"]')).toBeTruthy();
+  });
+
   it("switching page keeps the open workspace and is remembered next time", async () => {
     await mount();
     await click(buttons("Theme settings")[0]);
@@ -80,7 +88,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(buttons("Theme settings")[0].getAttribute("aria-pressed")).toBe("true");
     expect(buttons("Page to edit")[0].textContent).toContain("Night Pages");
     act(() => root.unmount());
-    await mount();
+    await mount({});
     expect(buttons("Page to edit")[0].textContent).toContain("Night Pages");
     expect(buttons("Theme settings")[0].getAttribute("aria-pressed")).toBe("true");
   });
@@ -374,7 +382,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     const stale = JSON.parse(JSON.stringify(fixture.settings));
     fixture.settings.design = { ...fixture.settings.design, accentColor: "#abcdef", scheduledMarker: "live-now" }; // a scheduled go-live
     root = createRoot(host);
-    await act(async () => { root.render(h(StudioEditor, { settings: { ...stale, draftDesign: fixture.settings.draftDesign }, onExit: () => {} })); });
+    await act(async () => { root.render(h(StudioEditor, { settings: { ...stale, draftDesign: fixture.settings.draftDesign }, initialLocation: { leftTab: "sections" }, onExit: () => {} })); });
     await act(async () => { await new Promise(r => setTimeout(r, 0)); });
     await click(buttons("Add section")[0]);
     await click(buttons(/^Newsletter/)[0]);

@@ -48,12 +48,73 @@ platform's one web door with `routes: controlRoutes(room)`:
 | `POST /api/control/act-as` | `{ shopId, reason }` -> `{ url, expiresAt }` |
 | `POST /api/control/switch` | `{ shopId, name, on, reason }` |
 
+## The support sign-in (`supportAccess.js`)
+
+`supportAccess({ identity, registry, serviceAccount })` is the real `shopAccess`. It makes a custom sign-in token in the
+shop's project for the support account `colophon-support`, carrying `support: { by, reason, until }` (an hour at
+most). Then it opens `<site>/admin/#support=<token>`. The platform's service account signs the token through IAM
+(`clients/identity.js`); there is no key file.
+
+The shop copy does the rest (`apps/shop/functions/CLAUDE.md` › Platform support visits):
+
+- it treats the visit as **staff**, never owner, until `until`;
+- its rules check the same time;
+- the admin takes the token out of the address and shows a banner with who, why and until when;
+- it signs out at the end.
+
 ## Support requests
 
 The page's **Support requests** lists the requests presses send from their account page (`services/support/`):
 waiting, answered or closed. **Send the answer** emails it to the press and keeps it on the request; **Close** files
 it. The calls are `POST /api/control/support`, `/api/control/support/answer` and `/api/control/support/close`
 (`services/support/routes.js`).
+
+## Self-checks after every change (`selfChecks.js`, plan 2.11)
+
+After the platform changes a shop, these look at the shop as the platform left it. They run:
+
+- after a switch change;
+- when the shop maker finishes;
+- from **Check now** on the page;
+- on the daily sweep (`self-check.js`).
+
+| Check | Passes when | On failure |
+| --- | --- | --- |
+| profile | a live shop has a saved profile with no problems, and every switch is written down | a missing switch is written down as off and published (what setup does); anything else goes to the repair queue |
+| profile-file | the `/shop-profile.js` the platform keeps matches the saved profile | rewritten from the saved profile, and the pages are deployed again at their release |
+| release | the rules, the server code and every app's pages are on the release the registry records | repair queue |
+| service-key | a shop with a shop app has its service key, and it matches the registry's hash | repair queue |
+| plan | a shop whose plan has ended is not still marked live | repair queue (a person decides) |
+
+- **Fixes:** a fix is tried once and the check runs again. A fix that fails goes to the queue with what went wrong.
+- **One check failing doesn't stop the others.** A check that can't be made ("couldn't check: …") counts as failing.
+- **Logging:** each run is a registry event (`self-check`).
+- **What else watches the shops:** `services/health` watches every five minutes whether the pages, checkout, payment
+  events and backups work. Its failing checks also show in the control room's health.
+
+```bash
+RELEASE_BUILD_ROOT=/var/lmb/builds node control-room/self-check.js [<shop id>]   # one shop, or every live shop
+```
+
+## The repair queue (`repairs.js`)
+
+Each item is one problem for one shop that needs a person. The shop maker reports steps that keep failing or stop
+for a person; the self-checks report the rest.
+
+- **No duplicates.** The same problem again counts on the open item and doesn't add a new one. A problem that comes
+  back after it was fixed reopens the same item, so its history stays in one place.
+- **Closing:**
+  - a check that passes again closes its own items ("fixed itself"), and the shop maker closes its own when the
+    shop is ready;
+  - a person can **Mark fixed** with a note.
+- **Logging:** each item opened or closed is in the registry and the shop's audit log.
+- **Storage:** items live in `repairs/<id>` in the platform project (`clients/stores.js` `firestoreRepairs`).
+
+| Route | What |
+| --- | --- |
+| `POST /api/control/repairs` | `{ status: "open" \| "fixed" }` |
+| `POST /api/control/repairs/fixed` | `{ id, note }` |
+| `POST /api/control/check` | `{ shopId }`: run the self-checks now |
 
 ## Account recovery
 
@@ -66,8 +127,8 @@ with **I've moved it by hand** ticked: the steps are in `accounts/README.md`, "R
 
 ## Not yet
 
-- **The shop side of "act as this shop"** (`shopAccess.supportSignIn`). It needs:
-  - a function in the shop copy that makes a short, support-only sign-in;
-  - a banner in the admin while support is signed in.
-- **The repair queue** (`repairs.open`, plan 2.11).
+- **Schedules:** the daily self-check sweep and the shop maker's sweep (Cloud Scheduler in the platform project).
+- **More callers:** the release runner and billing changes don't run the self-checks yet; the daily sweep covers them.
 - **Hosting** the page and the `/api` function.
+- **Permissions:** the platform's service account needs permission to manage each shop's users. It already has it as
+  owner of the projects it makes.

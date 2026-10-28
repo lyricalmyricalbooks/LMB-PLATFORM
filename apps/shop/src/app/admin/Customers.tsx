@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Download, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { copyText } from "./clipboard";
@@ -16,6 +16,8 @@ import {
 const money = (n: number) => `CA$${n.toFixed(2)}`;
 const TONE: Record<CustomerSegment, BadgeTone> = { vip: "primary", "vip-lapsed": "danger", returning: "success", new: "info", "at-risk": "warning" };
 const CONSENT_TONE: Record<Consent, BadgeTone> = { subscribed: "success", "opted-out": "danger", none: "neutral" };
+// Opened rarely, so it loads only when asked for (plan 3.1).
+const CustomerMoveDialog = lazy(() => import("./ShopMoveDialogs").then(m => ({ default: m.CustomerMoveDialog })));
 const PAGE_SIZE = 25;
 type Note = { note: string; tags: string[] };
 type Draft = { note: string; tags: string; loaded: boolean };
@@ -49,6 +51,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const [open, setOpen] = useState<CustomerRow | null>(null);
   const [detailTab, setDetailTab] = useState<CustomerTab>("cust-summary");
   const [exportOpen, setExportOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   const [consent, setConsent] = useState<{ subscribed: Set<string>; optedOutHashes: Set<string> | null } | null>(null);
   const [hashes, setHashes] = useState<Map<string, string>>(new Map());
   const [notes, setNotes] = useState<Map<string, Note>>(new Map());
@@ -232,8 +235,10 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
           </SelectField>
         )}
         {filtered && <GhostButton onClick={clearFilters}>Clear filters</GhostButton>}
+        <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoveOpen(true)}>Bring customers over</SecondaryButton>
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
       </FilterBar>
+      {moveOpen && <Suspense fallback={null}><CustomerMoveDialog onClose={() => setMoveOpen(false)} onDone={() => { loadNotes(); adminApi.getMarketingConsent().then(setConsent).catch(() => {}); }} /></Suspense>}
       <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off.`}>
         <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
           empty={all.length === 0

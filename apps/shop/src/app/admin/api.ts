@@ -65,6 +65,7 @@ import {
 import { db, auth, googleProvider } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { currentAdminRole, ensureShopOwnerKnown, refreshAdminRole } from "./adminAccess";
+import { startSupportVisit, supportOf } from "./supportSession";
 import { publicApi } from "../lib/publicApi";
 import { defaultSettings } from "./defaultSettings";
 import { signIntoLegacyStockroom } from "./legacySignIn";
@@ -134,6 +135,11 @@ export const adminApi = {
   },
 
   logout: () => signOut(auth),
+
+  /** Platform support: signs in with a #support= link from the platform's control room (supportSession.ts). */
+  startSupportVisit: () => startSupportVisit(auth),
+  /** The support visit on the current sign-in, or null for everyone else. */
+  supportVisit: async () => supportOf((await auth.currentUser?.getIdTokenResult())?.claims),
 
   onAuthStateChange: (callback: (user: any) => void) => {
     return onAuthStateChanged(auth, callback);
@@ -1885,6 +1891,17 @@ export const adminApi = {
     };
   },
 
+  // Your first week (plan 3.3): admin-only `firstWeek/start`, written once by the platform's setup with the sign-up
+  // answer. Null when the shop has none (the Overview then shows no list).
+  getFirstWeek: async () => {
+    const snap = await getDoc(doc(db, "firstWeek", "start"));
+    return snap.exists() ? (snap.data() as import("./firstWeek").FirstWeekDoc) : null;
+  },
+  /** Ticks a step by hand (`done.<id>`), or hides the list (`hiddenAt`). Merges, so nothing else changes. */
+  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string }) => {
+    await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
+  },
+
   // Private per-customer notes and tags (admin-only `customerNotes/{sha256(lowercased email)}`).
   listCustomerNotes: async () => {
     const snap = await getDocs(query(collection(db, "customerNotes"), limit(10000)));
@@ -1892,6 +1909,21 @@ export const adminApi = {
   },
   saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[] }) => {
     await setDoc(doc(db, "customerNotes", id), { ...data, updatedAt: new Date().toISOString() });
+  },
+  /**
+   * Customers › Bring customers over (plan 3.1): adds one address the owner confirmed agreed to marketing email at their
+   * old shop. Never touches an address already on the list (pending, confirmed or imported), so a re-run changes nothing.
+   * Returns false when it was already there.
+   */
+  addImportedSubscriber: async (email: string, consentText: string) => {
+    const id = String(email || "").trim().toLowerCase();
+    return runTransaction(db, async tx => {
+      const ref = doc(db, "newsletter", id);
+      if ((await tx.get(ref)).exists()) return false;
+      const now = new Date().toISOString();
+      tx.set(ref, { email: id, status: "imported", source: "import", requestedAt: now, subscribedAt: now, consentText });
+      return true;
+    });
   },
 
   // "Notify me when back in stock" sign-ups (admin-only per firestore.rules): demand the Overview shows beside reprints.

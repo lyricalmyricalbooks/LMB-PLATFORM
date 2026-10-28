@@ -12,8 +12,19 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && (request.auth.token.email == "__SHOP_OWNER_EMAIL__" || request.auth.token.get("role", "") == "owner");
     }
+    // Platform support ("act as this shop" in the platform's control room): a sign-in the platform makes for this shop
+    // only, logged in the shop's audit log first, with the same access as staff until its "until" time (seconds).
+    // Only a custom sign-in token can carry it, and only the platform can make one (functions/roles.js supportOf).
+    function isSupport() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == "custom"
+        && request.auth.token.get("support", null) is map
+        && request.auth.token.support.get("until", 0) is number
+        && request.time.toMillis() < request.auth.token.support.until * 1000;
+    }
     function isAdmin() {
       return isOwner()
+        || isSupport()
         || (request.auth != null && request.auth.token.email_verified == true && request.auth.token.get("role", "") == "staff");
     }
 
@@ -254,6 +265,15 @@ service cloud.firestore {
       // Written only by Functions (unsubscribe link / privacy erase); the admin reads it to see consent.
       allow read: if isAdmin();
       allow write: if false;
+    }
+    match /firstWeek/{docId} {
+      // Overview › Your first week (plan 3.3): the sign-up answer, written once by the platform's setup (Admin SDK),
+      // and the steps the owner ticked or hiding the list. Admin only.
+      allow read: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(["sellingToday", "plan", "done", "hiddenAt", "createdAt", "updatedAt"])
+        && (!("done" in request.resource.data) || request.resource.data.done is map && request.resource.data.done.size() <= 20)
+        && (!("hiddenAt" in request.resource.data) || request.resource.data.hiddenAt is string);
     }
     match /customerNotes/{noteId} {
       // Private notes + tags per customer (id = sha256 of the lowercased email). Admin only.

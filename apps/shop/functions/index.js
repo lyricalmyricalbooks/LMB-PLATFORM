@@ -105,7 +105,7 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 // Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-const { adminRole, syncMemberRole } = require("./roles");
+const { adminRole, supportOf, syncMemberRole } = require("./roles");
 const { shopConfig, functionLink } = require("./shopConfig");
 
 // Who may call the functions from a browser: local dev, this shop's Hosting address and its own domain (shopConfig.js).
@@ -190,6 +190,11 @@ exports.refreshMyRole = onBrowserRequest(async (req, res) => {
   } catch { decoded = null; }
   if (!decoded) {
     res.status(401).json({ error: "Sign in first." });
+    return;
+  }
+  // Platform support (roles.js supportOf) has no Team entry to sync: staff until its time runs out.
+  if (supportOf(decoded)) {
+    res.json({ role: "staff", support: true, ownerEmail: shopConfig.ownerEmail });
     return;
   }
   if (decoded.email_verified !== true) {

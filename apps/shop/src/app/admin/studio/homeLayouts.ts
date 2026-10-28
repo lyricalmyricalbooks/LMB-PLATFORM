@@ -13,7 +13,7 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     name: "Riso Noir",
     description: "Black-and-white print-shop homepage: cover carousel, flare marquee, product grid, print-room notes and newsletter.",
     sections: [
-      { type: "ProductCoverCarouselSection", settings: { title: "Books for looking / books for keeping", tagline: "Independent photography and art publishing from Toronto." } },
+      { type: "ProductCoverCarouselSection", settings: { title: "Books for looking / books for keeping", tagline: "Independent books, printed in small runs." } },
       { type: "MarqueeSection", settings: { text: "SMALL RUNS  /  LOUD INK  /  INDEPENDENT PUBLISHING", separator: "✦", speed: 28, fontSize: 13, bold: true, fontWeight: 900, letterSpacing: 0.18, uppercase: true, background: "#e8402a", color: "#100f0d" } },
       { type: "ProductShowcaseGridSection", settings: { title: "Fresh off the press" } },
       { type: "StaffNotesTableSection", settings: { title: "From the print room", backgroundColor: "#0d0d0d" } },
@@ -25,7 +25,7 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     name: "Riso",
     description: "A print-led storefront with a bold cover carousel, overprint-colored marquee, catalog grid and editorial notes.",
     sections: [
-      { type: "ProductCoverCarouselSection", settings: { title: "Books for looking / books for keeping", tagline: "Independent photography and art publishing from Toronto." } },
+      { type: "ProductCoverCarouselSection", settings: { title: "Books for looking / books for keeping", tagline: "Independent books, printed in small runs." } },
       { type: "MarqueeSection", settings: { text: "SMALL RUNS  /  LOUD INK  /  INDEPENDENT PUBLISHING", separator: "✦", speed: 28, fontSize: 13, bold: true, fontWeight: 900, letterSpacing: 0.18, uppercase: true, background: "#100f0d", color: "#faf6ec" } },
       { type: "ProductShowcaseGridSection", settings: { title: "Fresh off the press" } },
       { type: "StaffNotesTableSection", settings: { title: "From the print room", backgroundColor: "#f0e9da" } },
@@ -60,6 +60,29 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "press-broadsheet",
+    name: "Broadsheet",
+    description: "A newspaper front page: a lead book, a ruled ticker, this week's titles in columns, reviews and a subscribe box.",
+    sections: [
+      { type: "BookSpotlightSection", settings: { eyebrow: "LEAD STORY" } },
+      { type: "MarqueeSection", settings: { text: "NEW TITLES  /  REVIEWS  /  EVENTS  /  BACKLIST", separator: "■", speed: 32, fontSize: 12, bold: true, fontWeight: 700, letterSpacing: 0.16, uppercase: true, background: "#141414", color: "#f4f1ea" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "This week's titles" } },
+      { type: "PraiseQuotesSection", settings: { title: "The reviews" } },
+      { type: "NewsletterSection", settings: { title: "Subscribe to the edition", description: "New titles and events, once a week. Unsubscribe any time." } },
+    ],
+  },
+  {
+    id: "press-imprint",
+    name: "Imprint",
+    description: "A publisher's list: a quiet welcome, the books in three columns, praise for the list and a letter from the press.",
+    sections: [
+      { type: "TextContentSection", settings: { title: "{{shop.name}}", content: "<p>Books we publish, in the order we love them.</p>", align: "center" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "The list" } },
+      { type: "PraiseQuotesSection", settings: { title: "Praise for the list" } },
+      { type: "NewsletterSection", settings: { title: "Letters from the press", description: "New books and readings, a few times a year." } },
+    ],
+  },
+  {
     id: "press-about",
     name: "About page",
     description: "Jumbo centered headline, ephemera object row, 'Why this exists' columns and a photo + contact block — apply on an About page template.",
@@ -74,7 +97,7 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
       ] } },
       { type: "ImageWithTextSection", settings: {
         eyebrow: "CONTACT", title: "Got a manuscript, a proposal, or a question about an order?",
-        body: "Toronto, Canada", ctaText: "Email us", ctaUrl: "mailto:owner@example.com", layout: "image-left",
+        body: "Write to us and we'll answer within a few days.", ctaText: "Email us", ctaUrl: "mailto:owner@example.com", layout: "image-left",
       } },
     ],
   },

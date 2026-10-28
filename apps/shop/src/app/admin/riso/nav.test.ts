@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./nav";
+import { MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, navPages, sidebarItems } from "./nav";
 
 describe("admin navigation", () => {
   it("lists the primary modules in order", () => {
@@ -26,23 +26,35 @@ describe("admin navigation", () => {
   });
 });
 
-describe('sidebar items', () => {
+describe("the five-item admin menu (plan 1.27)", () => {
   const items = sidebarItems(NAV);
-  const settings = NAV.find(n => n.id === 'settings')!;
 
-  it('puts every Settings page in the main list, in order, under one Settings heading', () => {
-    const flat = items.filter(i => i.id.startsWith(SETTINGS_ITEM_PREFIX));
-    expect(flat.map(i => i.id)).toEqual(settings.children!.map(c => SETTINGS_ITEM_PREFIX + c.id));
-    expect(flat.map(i => i.label)).toEqual(settings.children!.map(c => c.label));
-    expect(flat.filter(i => i.section).map(i => i.section)).toEqual(['Settings']);
-    expect(flat[0].section).toBe('Settings');
+  it("has five items: Home, Orders, Books, Design and Settings", () => {
+    expect(items.map((i) => i.label)).toEqual(["Home", "Orders", "Books", "Design", "Settings"]);
+    expect(MENU).toHaveLength(5);
+    for (const i of items) expect(typeof i.icon === "function" || typeof i.icon === "object").toBe(true);
   });
 
-  it('has no fold-out entries left and keeps every other page, each with an icon', () => {
-    expect(items.some(i => i.children)).toBe(false);
-    expect(items.some(i => i.id === 'settings')).toBe(false);
-    for (const n of NAV.filter(n => !n.children)) expect(items.map(i => i.id)).toContain(n.id);
-    for (const i of items) expect(typeof i.icon === 'function' || typeof i.icon === 'object').toBe(true);
-    expect(new Set(items.map(i => i.id)).size).toBe(items.length);
+  it("holds every admin page exactly once, and each item opens its first page", () => {
+    const pages = MENU.flatMap((g) => g.pages);
+    expect(new Set(pages).size).toBe(pages.length);
+    expect([...pages].sort()).toEqual(navPages(NAV).map((p) => p.id).sort());
+    for (const [i, g] of MENU.entries()) expect(items[i].id).toBe(g.pages[0]);
+  });
+
+  it("lists an item's pages under it with their own names", () => {
+    const orders = items.find((i) => i.label === "Orders")!;
+    expect(orders.children?.map((c) => c.label)).toEqual(["Orders", "Customers", "Discounts", "Gift cards", "Messages"]);
+    const settings = items.find((i) => i.label === "Settings")!;
+    expect(settings.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "notifications", "team"].map((id) => SETTINGS_ITEM_PREFIX + id));
+    expect(items.find((i) => i.label === "Design")!.children).toBeUndefined();
+  });
+
+  it("finds the item that holds a page", () => {
+    expect(menuItemFor("customers")).toBe("orders");
+    expect(menuItemFor("reviews")).toBe("catalog");
+    expect(menuItemFor(SETTINGS_ITEM_PREFIX + "team")).toBe(SETTINGS_ITEM_PREFIX + "general");
+    expect(menuItemFor(SETTINGS_ITEM_PREFIX + "designer")).toBe(SETTINGS_ITEM_PREFIX + "designer");
+    expect(menuItemFor("overview")).toBe("overview");
   });
 });

@@ -7,6 +7,7 @@ import {
   AlertTriangle, BookOpen, Check, ChevronDown, ChevronRight, CircleDashed, CreditCard, Gift, Globe, Hourglass, Inbox, LayoutGrid, Lock,
   Minus, Package, Percent, RotateCw, Search, Tag, Truck, Waves, X,
 } from "lucide-react";
+import "./adminThemes.css";
 import "./riso.css";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 export { useFocusTrap };
@@ -39,7 +40,7 @@ export function AppShell({ appearance = "light", sidebar, topbar, children, main
 
 export type NavEntry = {
   id: string; label: string; icon: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
-  children?: Array<{ id: string; label: string; icon?: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }> }>;
+  children?: Array<{ id: string; label: string; icon?: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }>; badge?: number }>;
   /** A small group heading shown above this item (e.g. "Settings"). */
   section?: string;
   /** Count of things waiting on this page (e.g. orders to ship); hidden at 0. */
@@ -95,7 +96,9 @@ export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, 
                             type="button" className="rp-nav-subitem"
                             aria-current={activeChildId === c.id ? "page" : undefined}
                             onClick={() => onSelectChild(item.id, c.id)}
-                          >{c.label}</button>
+                          >{c.label}{!!c.badge && (
+                            <span className="rp-nav-badge" aria-label={`${c.badge} need attention`}>{c.badge > 99 ? "99+" : c.badge}</span>
+                          )}</button>
                         </li>
                       ))}
                     </ul>

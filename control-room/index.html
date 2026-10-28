@@ -35,7 +35,8 @@
   textarea { font: inherit; border: 2px solid var(--ink); border-radius: 0; padding: 10px; min-height: 110px; background: var(--paper); color: var(--ink); resize: vertical; }
   .message { border-left: 4px solid var(--blue); padding-left: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .message.from-support { border-left-color: var(--pink); }
-  .filters button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .filters button[aria-pressed="true"], .repair-filters button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .hint { color: var(--muted); font-size: 15px; margin: 0; }
   #status { min-height: 1.5em; font-weight: 600; }
 </style>
 </head>
@@ -50,6 +51,13 @@
   <section id="view-shops" class="stack" hidden>
     <div class="row"><span id="summary"></span> <button type="button" id="refresh">Refresh</button></div>
     <div id="shops" class="stack"></div>
+    <h2>Repair queue</h2>
+    <p class="hint">Problems the self-checks and the shop maker found that need a person. A check that passes again closes its own.</p>
+    <div class="row repair-filters" role="group" aria-label="Which repairs">
+      <button type="button" data-status="open" aria-pressed="true">To fix</button>
+      <button type="button" data-status="fixed" aria-pressed="false">Fixed</button>
+    </div>
+    <div id="repairs" class="stack"></div>
     <h2>Support requests</h2>
     <div class="row filters" id="ticket-filters" role="group" aria-label="Which requests">
       <button type="button" data-status="open" aria-pressed="true">Waiting</button>

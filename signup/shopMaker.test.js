@@ -16,7 +16,7 @@ import { TEST_CONFIG } from "../setup/test-shop.js";
 
 const ADA = { uid: "uid-ada", email: "owner@example.com", email_verified: true };
 
-async function make({ failOnce = [], google = fakeGoogle({ failOnce }) } = {}) {
+async function make({ failOnce = [], google = fakeGoogle({ failOnce }), selfCheck = null, passed = null } = {}) {
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const now = () => new Date(clock);
   const stores = fakeSignupStores();
@@ -27,7 +27,8 @@ async function make({ failOnce = [], google = fakeGoogle({ failOnce }) } = {}) {
     shop, registry, auditLog: fakeAuditLog(), now,
     steps: shopSteps({ ...services, google, registry, profileFiles: fakeProfileFiles(), config: TEST_CONFIG }),
   });
-  const maker = createShopMaker({ signups: stores.signups, run, registry, repairs: { report: async (r) => void reported.push(r) }, now });
+  const repairs = { report: async (r) => void reported.push(r), ...(passed ? { passed } : {}) };
+  const maker = createShopMaker({ signups: stores.signups, run, registry, repairs, selfCheck, now });
   const signup = createSignup({
     ...stores, registry, email: fakePlatformEmail(), auth: fakeAuth(), settings: platformSettings({}), now, suffix: () => "abcde",
     billing: { startTrial: async () => ({ status: "trialing", trialEnd: null }) },
@@ -121,4 +122,17 @@ test("every setup step has words for the press, and person-stops are told apart 
   assert.equal(retryable("the database is in us-east1, not northamerica-northeast1"), false);
   assert.equal(retryable("the registry has x on square, but the shop chose stripe; a person decides which one stays"), false);
   assert.deepEqual(shopFromSignup({ shopId: "x", pressName: "P", ownerEmail: "o@example.com", plan: "shop", country: "CA", currency: "CAD" }, { testMode: false }).testMode, false);
+  assert.equal(shopFromSignup({ shopId: "x", plan: "shop", answer: "fairs" }, { testMode: true }).sellingToday, "fairs");
+  assert.equal(shopFromSignup({ shopId: "x", plan: "shop", answer: null }, { testMode: true }).sellingToday, null);
+});
+
+test("a shop that becomes ready closes its shop-maker repairs and gets its self-checks; a failing check never holds it up", async () => {
+  const passed = [];
+  const checked = [];
+  const selfCheck = { check: async (shopId, { why }) => { checked.push([shopId, why]); throw new Error("pretend check trouble"); } };
+  const { maker, stores, shopId } = await make({ selfCheck, passed: async (id, check) => { passed.push([id, check]); return 1; } });
+  assert.deepEqual(await maker.sweep(), [{ shopId, status: "ready" }]);
+  assert.deepEqual(passed, [[shopId, "shop-maker"]]);
+  assert.deepEqual(checked, [[shopId, "the shop maker finished"]]);
+  assert.equal(stores.signups.rows.get(shopId).status, "ready");
 });

@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { latestByStep, runSteps, stepProblems } from "./runner.js";
 import { REGION, shopProblems } from "./steps.js";
-import { OWNER_WELCOME, appsOf, envFileText, laterSteps, needsStockroomLink, shopSteps, torontoDay } from "./later-steps.js";
+import { readFileSync } from "node:fs";
+import { OWNER_WELCOME, appsOf, envFileText, laterSteps, needsStockroomLink, sellingToday, shopSteps, torontoDay } from "./later-steps.js";
+import { QUESTION } from "../signup/form.js";
 import { PAYMENT_PROVIDERS, paymentProblems } from "./payments.js";
 import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "./fakes.js";
 import { TEST_CONFIG, TEST_SHOP } from "./test-shop.js";
@@ -564,4 +566,32 @@ test("re-running step 6 keeps the profile's payments, and step 13 writes nothing
   await step13.act({ shop: TEST_SHOP });
   assert.equal(changes(), before);
   assert.deepEqual(await registry.getProfile(ID), profile);
+});
+
+test("the sign-up answer is written once for the first-week list, and the owner's ticks are kept on a re-run", async () => {
+  const shop = { ...TEST_SHOP, sellingToday: "online" };
+  const { services, run } = setup({ shop });
+  assert.equal((await run()).ok, true);
+  assert.deepEqual(services.world.docs.get(`${ID} firstWeek/start`).sellingToday, "online");
+  assert.equal(services.world.docs.get(`${ID} firstWeek/start`).plan, shop.plan);
+  services.world.docs.set(`${ID} firstWeek/start`, { sellingToday: "online", done: { look: "2026-10-28" } });
+  assert.equal((await run()).ok, true);
+  assert.deepEqual(services.world.docs.get(`${ID} firstWeek/start`).done, { look: "2026-10-28" });
+});
+
+test("a skipped or unknown answer is written as none, and a stockroom-only shop gets no first-week list", async () => {
+  assert.equal(sellingToday({ sellingToday: "Through <b>" }), null);
+  assert.equal(sellingToday({}), null);
+  const { services, run } = setup({ shop: { ...TEST_SHOP, sellingToday: undefined } });
+  assert.equal((await run()).ok, true);
+  assert.equal(services.world.docs.get(`${ID} firstWeek/start`).sellingToday, null);
+  const only = setup({ shop: { ...TEST_SHOP, plan: "stockroom" } });
+  assert.equal((await only.run()).ok, true);
+  assert.equal(only.services.world.docs.has(`${ID} firstWeek/start`), false);
+});
+
+test("the shop's first-week list knows every sign-up answer", () => {
+  const source = readFileSync(new URL("../apps/shop/src/app/admin/firstWeek.ts", import.meta.url), "utf8");
+  const listed = JSON.parse(source.match(/SELLING_TODAY: readonly SellingToday\[\] = (\[[^\]]*\])/)[1]);
+  assert.deepEqual(listed, QUESTION.options.map((option) => option.id));
 });

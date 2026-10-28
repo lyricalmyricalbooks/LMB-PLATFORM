@@ -90,6 +90,22 @@ square corners, 2px ink outlines on objects and hairlines inside lists, flat off
 shadows by day, warm-grey night mode, Anton / Archivo / DM Mono, status = glyph + word.
 If tokens change there, update `riso.css` to match.
 
+**Admin themes and colours (28 October 2026, plan 1.26):** every admin colour is a `--rp-*` token in
+`riso/adminThemes.css`, once per admin look × appearance: **Riso Press** (default, the values above) and **Paper** (white
+paper, graphite ink, calm blue primary, 4–8px corners, soft shadows only in Studio). The look is a per-browser choice in
+the avatar menu ("Paper look" / "Riso Press look", `riso/adminLook.ts`, `localStorage.adminLook`) and sits on
+`<html data-admin-look="paper">`, so portalled dialogs follow it; appearance stays on each `.rp` root. `riso.css`,
+`adminCompat.css`, `studio.css` and every other admin stylesheet name no colour: `riso/adminThemes.test.ts` fails on one
+and checks words against their backgrounds (4.5:1) in all four combinations. A new colour is a new token with a value
+for every look. `--rp-legacy-*` are the old day-only utility remaps in `adminCompat.css`; inline colours in admin TSX
+(email previews, photo crop) are not covered yet.
+
+**Five-item menu (28 October 2026, plan 1.27):** the rail shows `MENU` from `riso/nav.ts`: Home, Orders (orders,
+customers, discounts, gift cards, messages), Books (books, inventory, reviews), Design, Settings (the Settings pages).
+`sidebarItems` turns it into five `NavEntry`s whose id is their first page; the item holding the current page
+(`menuItemFor`) lists its pages under it with their own counts, and its badge is their sum. NAV still lists every page
+for titles, search and routes; `nav.test.ts` checks every page sits in exactly one item.
+
 **Pressroom (22 October 2026, the owner's concept A, https://claude.ai/artifact/AR9vcvX5mR5JNCDHeBpFte):** the last layer of
 `riso.css` ("Pressroom") restyles the whole admin: cream page, 232px ink rail (`--rp-rail*`; "Website admin" under the wordmark, 16px line icons in one column (faint, label colour on hover/current), active item
 cream, `data-nav` on each item, Orders badge red), 64px top bar with a hairline (search, "Shop open" as glyph + word, round
@@ -415,3 +431,36 @@ stored in the public, admin-written `settings/redirects` doc (`{ items: [{from, 
 `NotFoundPage`, `BookDetail` with no book, `PageView` with no page — through `useMissingRedirect` (reads
 `publicApi.getRedirects`, never in the Studio preview, keeps the shopper's query, stops after `MAX_REDIRECT_HOPS`), so a real
 page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-visible words, so no Text & labels entry.
+
+## Bring your shop with you (28 October 2026)
+
+Plan 3.1. `shopMove.ts` (pure) reads another shop system's export. **The words a press sees never name another shop
+system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); code names shapes by row layout:
+`handle-rows`, `product-id-rows`, `parent-rows`, `listing-rows`, recognised by headings only (`recognizeExport`).
+- **Books:** `BookImportDialog` calls `planShopMove`, which translates a recognised export into Import CSV's own columns
+  (`movedBooksCsv`) and runs `planImport`, so every catalogImport safety rule holds. Row lines are the old file's.
+  A new book with two or more priced editions gets `variants` (`editionsFor`; price = cheapest, stock = sum); an existing
+  book's editions are never changed (warning). Listings whose choices have no price per choice get a note, not
+  made-up editions. `htmlToDescription` writes the description toolbar's formatting (`features/site/descriptionLinks.ts`).
+  `oldPaths` (per old line) holds the old shop's product addresses. After the import saves, `importRedirects` (plan 3.2)
+  adds them to URL redirects as `/books/<id>` (ids survive renames), for created, updated and unchanged books; it never
+  replaces an existing redirect, skips the shop's own routes and stops at `MAX_REDIRECTS` with a reason.
+- **Customers:** Customers › **Bring customers over** (`ShopMoveDialogs.tsx`, lazy) → `readCustomerExport` →
+  `planCustomerNotes` (merges into `customerNotes`; `MOVED_MARK` makes a re-run unchanged; tags capped by `parseTags`)
+  and `newsletterJoiners` (said yes in the file, not subscribed, not in `marketing-optout`). Joiners are written only
+  after the owner ticks the permission box, through `adminApi.addImportedSubscriber` (transaction; never touches an
+  existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). Imported customers appear in the
+  list once they order (the list is built from orders).
+- **Photos** stay on the old shop's addresses until plan 3.1b copies them into the shop's own storage.
+
+## Your first week (28 October 2026)
+
+Plan 3.3. Overview › **Your first week** (`overview/FirstWeekCard.tsx`, above the board) lists steps shaped by the
+sign-up answer, read from the admin-only `firstWeek/start` (`adminApi.getFirstWeek`), which the platform's setup step 12
+writes once (`sellingToday`, `plan`). No document, no list: shops made before this, or by hand, never see it.
+`firstWeek.ts` (pure) orders the steps per answer (`ORDER`; unknown or skipped answers get `general`) and works out
+"done" from the books and `launchReadiness` items (`shipping`, `payments` ok); `MANUAL` steps are ticked by the owner
+(`updateFirstWeek({ done: { id: at } })`, merged). Hide this list writes `hiddenAt`. `SELLING_TODAY` must list the
+sign-up form's answers (`signup/form.js` QUESTION; a root test checks). Firestore rule `firstWeek`: admin only,
+`hasOnly(["sellingToday", "plan", "done", "hiddenAt", "createdAt", "updatedAt"])`. The Overview's "designer" link
+opens Settings › Design (Dashboard maps it like general/notifications/taxes).

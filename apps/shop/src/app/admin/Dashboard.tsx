@@ -4,7 +4,7 @@ import { isShopOwner, markOwnerDeviceOnSignIn } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import {
-  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Sun, Moon, ChevronDown,
+  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Sun, Moon, ChevronDown, Palette,
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -27,10 +27,13 @@ import {
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
+import { applyAdminLook, nextAdminLook, readAdminLook, type AdminLookId } from "./riso/adminLook";
+import { SupportBanner } from "./SupportBanner";
+import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
-import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
+import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
@@ -75,6 +78,8 @@ export function Dashboard() {
   const [boot] = useState(readBootRoute);
   const [activeTab, setActiveTab] = useState(boot.tab);
   const [user, setUser] = useState<any>(null);
+  // Platform support signed in from the platform's control room (supportSession.ts); null for everyone else.
+  const [supportVisit, setSupportVisit] = useState<SupportVisit | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingBook, setEditingBook] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -272,6 +277,18 @@ export function Dashboard() {
     return localStorage.getItem("adminThemeReso") || "light";
   });
 
+  // The admin look (Riso Press or Paper, adminThemes.css), a per-browser choice like the appearance above.
+  const [adminLook, setAdminLook] = useState<AdminLookId>(() => {
+    const look = readAdminLook();
+    applyAdminLook(look, false);
+    return look;
+  });
+  const switchLook = () => {
+    const next = nextAdminLook(adminLook).id;
+    setAdminLook(next);
+    applyAdminLook(next);
+  };
+
   const toggleTheme = () => {
     const newTheme = adminTheme === "dark" ? "light" : "dark";
     setAdminTheme(newTheme);
@@ -292,9 +309,13 @@ export function Dashboard() {
       return;
     }
 
+    // A #support= link from the platform's control room signs support in (supportSession.ts).
+    void adminApi.startSupportVisit();
     const unsubscribe = adminApi.onAuthStateChange((u) => {
       setUser(u);
+      setSupportVisit(null);
       if (!u) { setLoading(false); return; }
+      void adminApi.supportVisit().then(setSupportVisit).catch(() => setSupportVisit(null));
       loadSettings();
       // The server tells the admin the owner's address (lib/ownerDevice.ts); wait for it, briefly, so the owner's own
       // orders stay out of the first figures. Offline, the admin opens anyway after a few seconds.
@@ -467,12 +488,8 @@ export function Dashboard() {
     setSidebarOpen(false);
     return true;
   };
-  const goToChild = async (_parent: string, child: string) => {
-    if (child !== navChild && !(await leaveSettings())) return;
-    setActiveTab("settings");
-    setSettingsTab(child);
-    setSidebarOpen(false);
-  };
+  // A menu page: a module id, or `settings/<page>` (riso/nav.ts).
+  const openMenuPage = (id: string) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); };
 
   // Shipping/Payments can also be entered as top-level tabs by ShopSettings.
   const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview" : activeTab;
@@ -512,6 +529,7 @@ export function Dashboard() {
     { key: "site", label: "View site", icon: <Globe size={16} aria-hidden />, run: openSite },
     { key: "help", label: "Help & shortcuts", icon: <HelpCircle size={16} aria-hidden />, run: () => setHelpOpen(true) },
     { key: "theme", label: adminTheme === "light" ? "Dark appearance" : "Light appearance", icon: adminTheme === "light" ? <Moon size={16} aria-hidden /> : <Sun size={16} aria-hidden />, run: toggleTheme },
+    { key: "look", label: nextAdminLook(adminLook).label, icon: <Palette size={16} aria-hidden />, run: switchLook },
     { key: "logout", label: loggingOut ? "Logging out…" : "Log out", icon: <LogOut size={16} aria-hidden />, run: handleLogout, tone: "danger" as const, busy: loggingOut },
   ];
   const accountMenuItems = (close: () => void) => accountActions.map((a) => (
@@ -536,7 +554,7 @@ export function Dashboard() {
     switch (activeTab) {
       case "overview":
       case "analytics":
-        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} />;
+        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
       case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
@@ -612,14 +630,17 @@ export function Dashboard() {
             items={sidebarItems(NAV).map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
               // Privacy requests are handled in Settings › General.
-              const badge = n.id === "orders" ? ordersBadge : n.id === "reviews" ? otherBadges.pendingReviews
-                : n.id === "messages" ? otherBadges.unreadMessages : n.id === SETTINGS_ITEM_PREFIX + "general" ? otherBadges.openPrivacyRequests : undefined;
-              return badge === undefined ? n : { ...n, badge: badge || 0 };
+              const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
+                : id === "messages" ? otherBadges.unreadMessages : id === SETTINGS_ITEM_PREFIX + "general" ? otherBadges.openPrivacyRequests : undefined;
+              // Five menu items (plan 1.27): an item shows the sum of its pages' counts, each page its own.
+              const pages = n.children ? n.children.map((c) => ({ ...c, badge: badgeFor(c.id) || 0 })) : undefined;
+              const badge = pages ? pages.reduce((sum, c) => sum + c.badge, 0) : badgeFor(n.id);
+              return { ...n, ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
             })}
-            activeId={showEditor ? null : navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
-            activeChildId={navChild}
-            onSelect={(id) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); }}
-            onSelectChild={goToChild}
+            activeId={showEditor ? null : menuItemFor(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive)}
+            activeChildId={navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
+            onSelect={openMenuPage}
+            onSelectChild={(_item, page) => openMenuPage(page)}
             top={<AppSwitcher onSwitch={() => setSidebarOpen(false)} />}
             brand={
               <a className="rp-brand-link" href="#overview" aria-label="Website admin: go to Overview"
@@ -686,6 +707,7 @@ export function Dashboard() {
           </Topbar>
         }
       >
+        <SupportBanner visit={supportVisit} onSignOut={() => { void adminApi.logout(); }} />
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
         {!ownMasthead && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
