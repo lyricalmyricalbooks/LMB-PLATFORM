@@ -1883,6 +1883,21 @@ export const adminApi = {
   saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[] }) => {
     await setDoc(doc(db, "customerNotes", id), { ...data, updatedAt: new Date().toISOString() });
   },
+  /**
+   * Customers › Bring customers over (plan 3.1): adds one address the owner confirmed agreed to marketing email at their
+   * old shop. Never touches an address already on the list (pending, confirmed or imported), so a re-run changes nothing.
+   * Returns false when it was already there.
+   */
+  addImportedSubscriber: async (email: string, consentText: string) => {
+    const id = String(email || "").trim().toLowerCase();
+    return runTransaction(db, async tx => {
+      const ref = doc(db, "newsletter", id);
+      if ((await tx.get(ref)).exists()) return false;
+      const now = new Date().toISOString();
+      tx.set(ref, { email: id, status: "imported", source: "import", requestedAt: now, subscribedAt: now, consentText });
+      return true;
+    });
+  },
 
   // "Notify me when back in stock" sign-ups (admin-only per firestore.rules): demand the Overview shows beside reprints.
   getStockAlerts: async () => {

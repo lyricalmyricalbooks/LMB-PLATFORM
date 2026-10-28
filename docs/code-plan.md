@@ -121,14 +121,15 @@ Gate: a press nobody has spoken to signs up, pays and takes an order with no hel
 
 Gate: a press moves over in an afternoon without a call.
 
-| # | Repo | Pull request |
-| --- | --- | --- |
-| 3.1 | shop | Import books, photos, editions and customers from common shop exports and spreadsheets |
-| 3.2 | shop | Old product links keep working (redirects from the import) |
-| 3.3 | shop | First-week checklist shaped by the sign-up answer |
-| 3.4 | platform | Help articles for the top 20 questions |
-| 3.5 | shop | Theme wave 3; a press's edits stored apart from the theme they started from |
-| 3.6 | platform | The five-person first-hour test, and fixes for the top three stalls |
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 3.1 | shop | Import books, photos, editions and customers from common shop exports and spreadsheets. `admin/shopMove.ts` recognises four export shapes by their headings only (one line per edition grouped by Handle; a product line then its options; products with variation lines pointing at a Parent; listings with numbered photo columns) and translates them into Books › Import CSV's own columns, so the same preview and safety rules apply (matched by ISBN, SKU, title; new books are drafts; never publishes; stock only on request for existing books). New books sold in several versions are created with their editions; existing books keep theirs (a warning says so). HTML descriptions become the editor's formatting. Any other spreadsheet goes to the plain import unchanged. Customers › Bring customers over turns a customer list into private notes and tags (kept, merged, marked so a re-run changes nothing) and adds newsletter subscribers only for customers the file says agreed, who aren't on the list or opted out, and only after the owner ticks that they have permission (`newsletter` status `imported`, with the consent text). Customer-facing words never name another shop system (a test checks). Still open: photos stay on the old shop's address until copied into the shop's own storage (3.1b); old addresses are kept per book for 3.2 | `shopMove.test.ts`, `catalogImport.test.ts` | done |
+| 3.1b | shop | Copy imported photos into the shop's own storage, so they survive the old shop closing | | |
+| 3.2 | shop | Old product links keep working (redirects from the import) | | |
+| 3.3 | shop | First-week checklist shaped by the sign-up answer | | |
+| 3.4 | platform | Help articles for the top 20 questions | | |
+| 3.5 | shop | Theme wave 3; a press's edits stored apart from the theme they started from | | |
+| 3.6 | platform | The five-person first-hour test, and fixes for the top three stalls | | |
 
 ## Phase 4: running many shops
 
