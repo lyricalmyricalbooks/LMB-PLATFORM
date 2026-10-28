@@ -83,4 +83,13 @@ function createPayments({ provider = DEFAULT_PROVIDER, mode = DEFAULT_MODE, serv
   return Object.freeze({ provider: impl.id, mode, account: platform ? platform.account : null, ...Object.fromEntries(INTERFACE.map(name => [name, impl[name]])) });
 }
 
-module.exports = { createPayments, PROVIDER_NAMES, DEFAULT_PROVIDER, MODES, DEFAULT_MODE, INTERFACE };
+/**
+ * The name a press or shopper sees for the company taking the shop's card payments (code plan 5.2): "Square" for a
+ * Square shop, "Stripe" otherwise. The shop's admin and storefront use the same rule (src/lib/shopProfile.ts
+ * `providerName`, from the shop profile's `payments`, which platform setup writes with the same provider).
+ */
+function providerName(provider) {
+  return provider === "square" ? "Square" : "Stripe";
+}
+
+module.exports = { createPayments, providerName, PROVIDER_NAMES, DEFAULT_PROVIDER, MODES, DEFAULT_MODE, INTERFACE };

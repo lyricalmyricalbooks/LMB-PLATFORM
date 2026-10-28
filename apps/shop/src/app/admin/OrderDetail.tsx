@@ -31,6 +31,7 @@ import { usePhone } from "./usePhone";
 import { inventoryOrderUrl, orderInInventoryApp, useInventoryLink } from "./appSwitch";
 import { InventoryOrderLink } from "./AppSwitcher";
 import toast from "react-hot-toast";
+import { providerDashboardUrl, providerName } from "./providerWords";
 import {
   ActionMenu,
   Checkbox,
@@ -200,12 +201,12 @@ export function OrderDetail({
       const report = await adminApi.recheckStripePayment(orderId);
       const fresh = await adminApi.getOrderById(orderId);
       if (fresh) setOrder(fresh);
-      if (fresh?.paymentStatus === "refunded" && before !== "refunded") toast.success("Stripe shows this payment was refunded — order updated and stock returned.");
-      else if (fresh?.paymentStatus === "paid" && before === "unpaid") toast.success("Stripe confirmed the payment — order marked paid.");
-      else if (fresh?.paymentMismatch && fresh?.paymentStatus !== "paid") toast.error("Stripe's amount doesn't match this order. Review it in Stripe before fulfilling.");
-      else if (manual) toast((report as any).awaitingWebhook ? "Stripe received payment. The order is awaiting its verified webhook; review Webhook health before shipping." : fresh?.paymentStatus === "paid" ? "Order payment was confirmed by the webhook." : "Stripe has not confirmed this payment yet.");
+      if (fresh?.paymentStatus === "refunded" && before !== "refunded") toast.success(`${providerName()} shows this payment was refunded — order updated and stock returned.`);
+      else if (fresh?.paymentStatus === "paid" && before === "unpaid") toast.success(`${providerName()} confirmed the payment — order marked paid.`);
+      else if (fresh?.paymentMismatch && fresh?.paymentStatus !== "paid") toast.error(`${providerName()}'s amount doesn't match this order. Review it in ${providerName()} before fulfilling.`);
+      else if (manual) toast((report as any).awaitingWebhook ? `${providerName()} received payment. The order is awaiting its verified webhook; review Webhook health before shipping.` : fresh?.paymentStatus === "paid" ? "Order payment was confirmed by the webhook." : `${providerName()} has not confirmed this payment yet.`);
     } catch (err: any) {
-      if (manual) toast.error(plainError(err, "Couldn't reach Stripe"));
+      if (manual) toast.error(plainError(err, `Couldn't reach ${providerName()}`));
     } finally {
       setCheckingPayment(false);
     }
@@ -498,7 +499,7 @@ export function OrderDetail({
         });
         toast.success(result?.provider === "manual"
           ? `Partial refund of ${formatMinor(plan.minor, plan.currency)} recorded. Send the money back the way the customer paid.`
-          : `${result?.provider === "paypal" ? "PayPal" : "Stripe"} partial refund of ${formatMinor(plan.minor, plan.currency)} ${result?.status === "pending" ? "started" : "made"}. The order stays paid.`);
+          : `${result?.provider === "paypal" ? "PayPal" : providerName()} partial refund of ${formatMinor(plan.minor, plan.currency)} ${result?.status === "pending" ? "started" : "made"}. The order stays paid.`);
         await loadOrder();
         return;
       }
@@ -513,7 +514,7 @@ export function OrderDetail({
           ? "Order refunded. The gift card balance was put back — nothing else to send."
           : result?.provider === "manual"
           ? (giftPaid ? "Order marked as refunded and the gift card balance was put back. Send back only the part the customer paid another way." : "Order marked as refunded. Send the money back the way the customer paid.")
-          : `${result?.provider === "paypal" ? "PayPal" : "Stripe"} refund ${pending ? "started — the order updates when it completes" : "issued and order cancelled"}`,
+          : `${result?.provider === "paypal" ? "PayPal" : providerName()} refund ${pending ? "started — the order updates when it completes" : "issued and order cancelled"}`,
       );
       loadOrder();
     } catch (err: any) {
@@ -925,8 +926,8 @@ export function OrderDetail({
                     ? "The customer paid after the books stopped being set aside, so this order wasn't placed. The shop is refunding the full payment by itself; it tries again every few minutes. Mark it here only if you refund it yourself."
                     : "The customer paid after the books stopped being set aside, so this order wasn't placed and no stock was taken. The full payment was refunded automatically. This note clears when the refund goes through.")
                   : order.paymentMismatch.paidAfterCancel
-                  ? "The customer paid after this order was cancelled. Refund the payment in Stripe or PayPal, then mark it here."
-                  : "The amount taken doesn't match this order. Refund or correct it in Stripe or PayPal, then mark it here."}
+                  ? `The customer paid after this order was cancelled. Refund the payment in ${providerName()} or PayPal, then mark it here.`
+                  : `The amount taken doesn't match this order. Refund or correct it in ${providerName()} or PayPal, then mark it here.`}
               </p>
               <SecondaryButton disabled={working} onClick={() => setConfirmAction("mismatch")}>Mark refunded</SecondaryButton>
             </SectionCard>
@@ -944,12 +945,12 @@ export function OrderDetail({
             <SectionCard title="Payment disputed">
               <p className="fw-summary">
                 The customer's bank opened a chargeback ({String(order.disputeStatus).replace(/_/g, " ")}). The money is held until the bank decides.
-                Packing, labels and dispatch are blocked until it is settled. Answer it in Stripe with your evidence (order details, tracking, messages) before its deadline.
+                Packing, labels and dispatch are blocked until it is settled. Answer it in {providerName()} with your evidence (order details, tracking, messages) before its deadline.
               </p>
               {order.stripePaymentIntentId && (
                 <div className="fw-actions">
-                  <a className="rp-btn rp-btn-secondary rp-btn-sm" href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}${order.disputeId ? `disputes/${order.disputeId}` : `payments/${order.stripePaymentIntentId}`}`} target="_blank" rel="noopener noreferrer">
-                    Open in Stripe <ExternalLink size={12} aria-hidden />
+                  <a className="rp-btn rp-btn-secondary rp-btn-sm" href={providerDashboardUrl(order, order.disputeId ? `disputes/${order.disputeId}` : `payments/${order.stripePaymentIntentId}`)} target="_blank" rel="noopener noreferrer">
+                    Open in {providerName()} <ExternalLink size={12} aria-hidden />
                   </a>
                 </div>
               )}
@@ -957,13 +958,13 @@ export function OrderDetail({
           )}
           {Array.isArray(order.duplicatePayments) && order.duplicatePayments.length > 0 && (
             <SectionCard title="Paid twice">
-              <p className="fw-summary">Stripe took more than one payment for this order. Keep the first and refund the extra in the Stripe Dashboard:</p>
+              <p className="fw-summary">{providerName()} took more than one payment for this order. Keep the first and refund the extra in the {providerName()} Dashboard:</p>
               <ul className="fw-summary">
                 {order.duplicatePayments.map((d: any, i: number) => {
                   const id = String(d?.paymentIntentId || d?.id || d || "");
                   return (
                     <li key={i}>
-                      <a href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}payments/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" className="rp-mono">{id}</a>
+                      <a href={providerDashboardUrl(order, `payments/${encodeURIComponent(id)}`)} target="_blank" rel="noopener noreferrer" className="rp-mono">{id}</a>
                       {d?.amountMinor != null ? ` · ${formatMinor(Number(d.amountMinor), d.currency || "CAD")}` : ""}
                     </li>
                   );
@@ -983,7 +984,7 @@ export function OrderDetail({
             <SectionCard title="Gift card couldn't cover its part">
               <p className="fw-summary">
                 The customer's payment arrived, but a gift card on this order no longer had enough balance (it may have been spent in another checkout, disabled or expired), so the order was not marked paid.
-                Check the card in Gift cards, then refund the payment in Stripe or PayPal, or contact the customer to settle the difference. Don't ship until this is sorted.
+                Check the card in Gift cards, then refund the payment in {providerName()} or PayPal, or contact the customer to settle the difference. Don't ship until this is sorted.
               </p>
               {(order.giftCardRedemptions || []).length > 0 && (
                 <div className="fw-actions">
@@ -992,7 +993,7 @@ export function OrderDetail({
                   ))}
                 </div>
               )}
-              <p className="fw-summary">A full refund in Stripe clears this by itself. If you settled it another way, mark it here.</p>
+              <p className="fw-summary">A full refund in {providerName()} clears this by itself. If you settled it another way, mark it here.</p>
               <SecondaryButton disabled={working} onClick={() => setConfirmAction("giftConflict")}>Mark resolved</SecondaryButton>
             </SectionCard>
           )}
@@ -1149,7 +1150,7 @@ export function OrderDetail({
             {hasStripePayment(order) && (
               <div className="fw-actions">
                 <SecondaryButton size="sm" disabled={checkingPayment} onClick={() => checkStripePayment(true)}>
-                  {checkingPayment ? "Checking with Stripe…" : "Sync with Stripe"}
+                  {checkingPayment ? `Checking with ${providerName()}…` : `Sync with ${providerName()}`}
                 </SecondaryButton>
               </div>
             )}
@@ -1157,11 +1158,11 @@ export function OrderDetail({
               <div className="fw-actions">
                 <a
                   className="rp-btn rp-btn-secondary rp-btn-sm"
-                  href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}payments/${order.stripePaymentIntentId}`}
+                  href={providerDashboardUrl(order, `payments/${order.stripePaymentIntentId}`)}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  View payment in Stripe <ExternalLink size={12} aria-hidden />
+                  View payment in {providerName()} <ExternalLink size={12} aria-hidden />
                 </a>
               </div>
             )}
@@ -1636,8 +1637,8 @@ export function OrderDetail({
         title="Refund this order?"
         confirmLabel="Refund order"
         message={refundAmountPlan().partial
-          ? `Refund ${formatMinor(refundAmountPlan().minor, refundAmountPlan().currency)} of this order${isManualPayment ? " (recorded only — send the money back yourself)" : order.paypalCaptureId ? " through PayPal" : " through Stripe"}? The order stays paid.${Object.values(refundRestockLines).some((q) => q > 0) ? ` ${Object.values(refundRestockLines).reduce((a, b) => a + b, 0)} ticked cop${Object.values(refundRestockLines).reduce((a, b) => a + b, 0) === 1 ? "y goes" : "ies go"} back to stock.` : " Nothing is restocked."} This can't be undone.`
-          : `${formatMinor(refundableMinor(order), chargedOf(order).currency)} — ${isManualPayment ? "Refund this paid manual order?" : order.paypalCaptureId ? "Refund this paid order through PayPal?" : "Refund this paid order through Stripe?"}${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`}
+          ? `Refund ${formatMinor(refundAmountPlan().minor, refundAmountPlan().currency)} of this order${isManualPayment ? " (recorded only — send the money back yourself)" : order.paypalCaptureId ? " through PayPal" : ` through ${providerName()}`}? The order stays paid.${Object.values(refundRestockLines).some((q) => q > 0) ? ` ${Object.values(refundRestockLines).reduce((a, b) => a + b, 0)} ticked cop${Object.values(refundRestockLines).reduce((a, b) => a + b, 0) === 1 ? "y goes" : "ies go"} back to stock.` : " Nothing is restocked."} This can't be undone.`
+          : `${formatMinor(refundableMinor(order), chargedOf(order).currency)} — ${isManualPayment ? "Refund this paid manual order?" : order.paypalCaptureId ? "Refund this paid order through PayPal?" : `Refund this paid order through ${providerName()}?`}${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`}
         onConfirm={handleRefund}
         onCancel={() => setConfirming(null)}
       />
@@ -1653,7 +1654,7 @@ export function OrderDetail({
         open={confirmAction === "mismatch"}
         title="Mark this payment refunded?"
         confirmLabel="Mark refunded"
-        message="Only continue after you've refunded the unexpected payment in Stripe or PayPal. This clears the warning from Needs attention; it does not send any money."
+        message={`Only continue after you've refunded the unexpected payment in ${providerName()} or PayPal. This clears the warning from Needs attention; it does not send any money.`}
         onConfirm={runConfirmed}
         onCancel={() => setConfirmAction(null)}
       />
@@ -1756,7 +1757,7 @@ export function OrderDetail({
         open={confirming === "cancel"}
         title="Cancel this unpaid order?"
         confirmLabel="Cancel order"
-        message="No Stripe refund will be created."
+        message={`No ${providerName()} refund will be created.`}
         onConfirm={handleCancelUnpaid}
         onCancel={() => setConfirming(null)}
       />

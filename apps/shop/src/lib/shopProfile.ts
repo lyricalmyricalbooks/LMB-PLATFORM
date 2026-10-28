@@ -164,6 +164,16 @@ export function paysOnSquare(profile: ShopProfile = shopProfile): boolean {
 }
 
 /**
+ * The company that takes this shop's card payments, as every press- and shopper-facing word names it (code plan 5.2):
+ * "Square" on a Square shop, "Stripe" otherwise. Read from the profile's `payments` (or given a provider id, as the
+ * platform's payment status names it). The server uses the same rule (functions/payments/index.js `providerName`).
+ */
+export function providerName(source: ShopProfile | string | null | undefined = shopProfile): "Square" | "Stripe" {
+  if (typeof source === "string") return source === "square" ? "Square" : "Stripe";
+  return source && typeof source === "object" && paysOnSquare(source) ? "Square" : "Stripe";
+}
+
+/**
  * The Stripe card form's settings when the platform takes the payments: the platform's publishable key for the shop's
  * current mode and the press's account. null when the shop uses its own keys (the settings' keys apply).
  */
