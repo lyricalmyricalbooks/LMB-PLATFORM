@@ -415,3 +415,22 @@ stored in the public, admin-written `settings/redirects` doc (`{ items: [{from, 
 `NotFoundPage`, `BookDetail` with no book, `PageView` with no page — through `useMissingRedirect` (reads
 `publicApi.getRedirects`, never in the Studio preview, keeps the shopper's query, stops after `MAX_REDIRECT_HOPS`), so a real
 page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-visible words, so no Text & labels entry.
+
+## Bring your shop with you (28 October 2026)
+
+Plan 3.1. `shopMove.ts` (pure) reads another shop system's export. **The words a press sees never name another shop
+system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); code names shapes by row layout:
+`handle-rows`, `product-id-rows`, `parent-rows`, `listing-rows`, recognised by headings only (`recognizeExport`).
+- **Books:** `BookImportDialog` calls `planShopMove`, which translates a recognised export into Import CSV's own columns
+  (`movedBooksCsv`) and runs `planImport`, so every catalogImport safety rule holds. Row lines are the old file's.
+  A new book with two or more priced editions gets `variants` (`editionsFor`; price = cheapest, stock = sum); an existing
+  book's editions are never changed (warning). Listings whose choices have no price per choice get a note, not
+  made-up editions. `htmlToDescription` writes the description toolbar's formatting (`features/site/descriptionLinks.ts`).
+  `oldPaths` (per old line) holds the old shop's product addresses for the redirects of plan 3.2.
+- **Customers:** Customers › **Bring customers over** (`ShopMoveDialogs.tsx`, lazy) → `readCustomerExport` →
+  `planCustomerNotes` (merges into `customerNotes`; `MOVED_MARK` makes a re-run unchanged; tags capped by `parseTags`)
+  and `newsletterJoiners` (said yes in the file, not subscribed, not in `marketing-optout`). Joiners are written only
+  after the owner ticks the permission box, through `adminApi.addImportedSubscriber` (transaction; never touches an
+  existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). Imported customers appear in the
+  list once they order (the list is built from orders).
+- **Photos** stay on the old shop's addresses until plan 3.1b copies them into the shop's own storage.
