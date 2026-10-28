@@ -63,6 +63,7 @@ import {
   seedSeenOrders,
 } from '../lib/order-watch.js';
 import { escapeHtml } from '../lib/html.js';
+import { readShopProfile, switchOn } from '../lib/shop-profile.js';
 import { legacyCopy } from '../lib/clipboard.js';
 import { pushAppAlert } from '../lib/app-alert.js';
 import { logNotification } from '../lib/notification-log.js';
@@ -1572,6 +1573,7 @@ function persistBcGapCache() {
 }
 
 async function checkBigCartelLedgerGaps({ silent = false } = {}) {
+  if (!oldShopSyncOn()) return null;
   if (_bcGapChecking) return _bcGapResult;
   const config = await loadBigCartelConfig();
   if (!bigCartelConfigured(config)) {
@@ -1653,6 +1655,7 @@ async function checkBigCartelLedgerGaps({ silent = false } = {}) {
  * badge before anyone thinks to look.
  */
 async function autoCheckBigCartelLedgerGaps() {
+  if (!applyOldShopSyncSwitch()) return null;
   const cached = readBcGapCache();
   if (cached?.result && (Date.now() - cached.checkedAt) < BC_GAP_MAX_AGE_MS) {
     // Restored whole, counts included, so the summary line still reports what
@@ -2050,6 +2053,7 @@ function reviewNewOrdersFromAlert(event) {
  * is mid-check does not queue a second identical request behind it.
  */
 async function refreshBigCartelOrdersIfDue({ force = false } = {}) {
+  if (!oldShopSyncOn()) return;
   const config = await loadBigCartelConfig().catch(() => null);
   const ready = bigCartelConfigured(config) && !!sheetsUrl;
   const { online, visible } = browserWatchState();
@@ -2091,7 +2095,7 @@ async function refreshBigCartelOrdersIfDue({ force = false } = {}) {
  * and picked up again after the signal came back (online).
  */
 function startBigCartelOrderWatch() {
-  if (_bcWatchStarted || typeof window === 'undefined') return;
+  if (_bcWatchStarted || typeof window === 'undefined' || !oldShopSyncOn()) return;
   _bcWatchStarted = true;
   // Seeded from when the storefront was actually last asked, not from now: the
   // boot check is often served from a cache hours old, and starting the clock
@@ -2109,8 +2113,27 @@ function bigCartelOrdersToReview() {
   return pendingGaps(_bcGapResult).length;
 }
 
+// Plan 1.21c: this whole tab is one press's old shop system, so it follows the shop profile's oldShopSync switch and
+// is off for a new shop. Off, its sidebar and tab buttons, its help words, the missing-orders strip on Orders and the
+// order watch stay away, and nothing on screen names the other system.
+function oldShopSyncOn() {
+  // Read from the page's profile each time (cheap), so the answer is never a stale copy.
+  return switchOn('oldShopSync', readShopProfile());
+}
+
+/** Shows the old shop system's buttons and words when the switch is on; hides them, badges and strip too, when off. */
+function applyOldShopSyncSwitch(on = oldShopSyncOn()) {
+  if (typeof document === 'undefined') return on;
+  for (const el of document.querySelectorAll('[data-old-shop-sync]')) el.hidden = !on;
+  if (!on) {
+    for (const el of document.querySelectorAll('.bc-gap-badge, [data-old-shop-sync-strip]')) el.hidden = true;
+  }
+  return on;
+}
+
 /** The count badge on the Big Cartel tab button and the Website orders strip. */
 function renderBigCartelGapBadge() {
+  if (!applyOldShopSyncSwitch()) return;
   const total = pendingGaps(_bcGapResult).length
     + (_bcGapConflicts?.renumber?.length || 0)
     + (_bcGapConflicts?.duplicate?.length || 0);
@@ -2766,6 +2789,8 @@ const bigCartelActions = {
 };
 
 export {
+  oldShopSyncOn,
+  applyOldShopSyncSwitch,
   bigCartelActions,
   addBigCartelOrderToLedger,
   announceNewBigCartelOrders,

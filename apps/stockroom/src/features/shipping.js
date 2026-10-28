@@ -81,6 +81,7 @@ import {
   getBigCartelIncluded,
   getBigCartelOrders,
   hydrateShippingDestinationPhone,
+  oldShopSyncOn,
   refreshBigCartelOrdersIfDue,
 } from './bigcartel.js';
 import { renderTaxCenter, saveTaxCenter } from './taxcentre.js';
@@ -9941,7 +9942,7 @@ function buildShippingPnLHtml(allOrders, relevantExpenses, shippoExpenses, bookF
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
             <div style="display:flex; align-items:center; gap:8px;">
-              <button class="btn sm gold" id="ship-bc-sync-btn" onclick="triggerBigCartelShippingSync()" style="height:38px; padding:0 16px; display:inline-flex; align-items:center; gap:6px; font-size:var(--text-sm); font-weight:700; border-radius:var(--r-pill); border:var(--stroke-hair) solid rgba(232, 64, 42,0.3); background:var(--gold-bg); color:var(--gold-text); cursor:pointer; transition:all 0.2s;">
+              <button class="btn sm gold" id="ship-bc-sync-btn" data-old-shop-sync${oldShopSyncOn() ? '' : ' hidden'} onclick="triggerBigCartelShippingSync()" style="height:38px; padding:0 16px; display:inline-flex; align-items:center; gap:6px; font-size:var(--text-sm); font-weight:700; border-radius:var(--r-pill); border:var(--stroke-hair) solid rgba(232, 64, 42,0.3); background:var(--gold-bg); color:var(--gold-text); cursor:pointer; transition:all 0.2s;">
                 <span>🔄</span> Sync Big Cartel Shipping
               </button>
               <a class="shipping-pnl-action" href="#shipping-pnl-ledger">Review reconciliation</a>

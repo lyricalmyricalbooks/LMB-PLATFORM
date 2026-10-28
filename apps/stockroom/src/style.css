@@ -4054,6 +4054,9 @@ option,optgroup{background-color:var(--surface-raised);color:var(--content-prima
   color: var(--content-muted);
 }
 .apply-all-hint[hidden] { display: none; }
+/* The old shop system's parts (oldShopSync switch). Buttons and chips set their own display, which beats the UA's
+   [hidden] rule, and the author/publisher toggle writes display back on the tab buttons. */
+[data-old-shop-sync][hidden] { display: none !important; }
 .add-store-more {
   font-size: var(--text-2xs);
   color: var(--content-muted);

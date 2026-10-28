@@ -39,12 +39,14 @@ test("bad shapes are refused", () => {
   assert.deepEqual(profileProblems(null), ["the profile is not an object"]);
 });
 
-test("switches are optional true/false values, and only the four known ones", () => {
-  const all = { legacyStockroomSignIn: false, githubPagesForwarding: true, gmailReceiptFinder: false, gmailOrderScan: false };
+test("switches are optional true/false values, and only the five known ones", () => {
+  const all = { legacyStockroomSignIn: false, githubPagesForwarding: true, gmailReceiptFinder: false, gmailOrderScan: false, oldShopSync: false };
   assert.deepEqual(profileProblems({ ...example, switches: all }), []);
   assert.deepEqual(profileProblems({ ...example, switches: {} }), []);
   assert.deepEqual(profileProblems({ ...example, switches: { gmailReceiptFinder: true } }), []);
   assert.deepEqual(profileProblems({ ...example, switches: { gmailOrderScan: true } }), []);
+  assert.deepEqual(profileProblems({ ...example, switches: { oldShopSync: true } }), []);
+  assert.ok(profileProblems({ ...example, switches: { oldShopSync: "on" } }).includes("profile.switches.oldShopSync must be true or false"));
   assert.ok(profileProblems({ ...example, switches: { gmailOrderScan: 1 } }).includes("profile.switches.gmailOrderScan must be true or false"));
   assert.ok(profileProblems({ ...example, switches: { gmailReceiptFinder: "yes" } }).includes("profile.switches.gmailReceiptFinder must be true or false"));
   assert.ok(profileProblems({ ...example, switches: { somethingElse: true } }).includes("profile.switches.somethingElse is not part of the profile"));

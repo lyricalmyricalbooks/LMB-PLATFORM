@@ -35,10 +35,12 @@ export const DEFAULT_SHOP_PROFILE = Object.freeze({
  *   gmailReceiptFinder      Tax Centre › Email Receipt Import's Gmail Finder and Gmail Import tabs (src/features/receipts.js)
  *   gmailOrderScan          Orders › Scan Gmail and Backfill shipping info: order receipts read from Gmail through Apps
  *                           Script (src/main.js fetchOrders, src/features/shipping.js backfillShipping)
+ *   oldShopSync             the tab for the press's old shop system, its missing-orders check, the Orders strip and the
+ *                           order watch (src/features/bigcartel.js applyOldShopSyncSwitch). Off, nothing names it.
  *   legacyStockroomSignIn   the shop's admin also signs into a separate stockroom project (read by the shop)
  *   githubPagesForwarding   an old GitHub Pages address forwards to the shop (read by the shop)
  */
-export const SHOP_SWITCHES = Object.freeze(['legacyStockroomSignIn', 'githubPagesForwarding', 'gmailReceiptFinder', 'gmailOrderScan']);
+export const SHOP_SWITCHES = Object.freeze(['legacyStockroomSignIn', 'githubPagesForwarding', 'gmailReceiptFinder', 'gmailOrderScan', 'oldShopSync']);
 
 const FIREBASE_KEYS = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
 const text = (value) => typeof value === 'string' && value.trim() !== '';

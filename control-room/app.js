@@ -37,6 +37,7 @@ const SWITCH_WORDS = {
   githubPagesForwarding: "Forward the old GitHub Pages address",
   gmailReceiptFinder: "Find receipts in Gmail",
   gmailOrderScan: "Scan Gmail for order receipts",
+  oldShopSync: "Old shop system tab and missing-orders check",
 };
 
 async function load() {

@@ -44,8 +44,9 @@ export type ShopPayments = {
  *   githubPagesForwarding   an old GitHub Pages address forwards to the shop and hands over the bag (movedState.ts)
  *   gmailReceiptFinder      the stockroom's Gmail receipt finder (read by the stockroom; listed here so both agree)
  *   gmailOrderScan          the stockroom's Orders screen scans Gmail for order receipts (read by the stockroom)
+ *   oldShopSync             the stockroom's tab for the press's old shop system (read by the stockroom)
  */
-export const SHOP_SWITCHES = ["legacyStockroomSignIn", "githubPagesForwarding", "gmailReceiptFinder", "gmailOrderScan"] as const;
+export const SHOP_SWITCHES = ["legacyStockroomSignIn", "githubPagesForwarding", "gmailReceiptFinder", "gmailOrderScan", "oldShopSync"] as const;
 export type ShopSwitch = (typeof SHOP_SWITCHES)[number];
 
 /** Whether the profile turns this one-off on. Anything but `true` is off. */
