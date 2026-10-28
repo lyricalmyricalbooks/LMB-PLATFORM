@@ -144,6 +144,48 @@ Gate: a month where every update reaches every shop with no checkout outage.
 | 4.4 | platform | Status page and support inbox. **Status: open (code done; hosting needs Julian).** Built: `status/`, a public page showing per part (pages, checkout, payments, backups) how many shops it works for, never naming one, from one public document the health run publishes (rules and emulator check in `waitlist/`); `services/support/`, help requests from the account page (only for shops the person is on), answered and closed from the control room, every answer emailed and kept. Proven by `status/status.test.js` and `services/support/support.test.js`. Still to do: a Hosting site for the status page and the web door's hosting (Julian); bringing email replies into requests |
 | 4.5 | platform | New-device alerts and the account recovery review queue. **Status: open (code done; hosting needs Julian).** Built: `accounts/devices.js`, an email the first time an account is used from a new device (the web door's `onSignedIn`; every platform page sends a random device id); `accounts/recovery.js`, requests to move an account from a lost email address: the old address is told at once and can stop it, a platform admin approves or denies in the control room, a 72-hour wait follows, and the move is made by hand and recorded, all logged per shop. Proven by `accounts/safety.test.js` and the store checks in `clients/shop.test.js`. Still to do: making the move automatic; the web door's hosting with the real stores and Firebase account lookup (Julian) |
 
+## Phase 5: overnight batch 2 (planned 28 October 2026)
+
+Steps that need no accounts, credentials, hosting or Julian's hands: known gaps from Phases 2 and 3, hardening and
+tests. Nothing here deploys, touches a live project or changes `LyricalmyricalWebsite` or `lyrical-inventory`. The local
+demo mode (built in another thread) is not part of this batch. Rows marked *waits on Julian* start only after his answer;
+the rest run in the order listed, one pull request each, merged when every check is green.
+
+### 5A. Money: close the Square gaps first
+
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 5.1 | shop, platform | A Square payment page closes when its stock hold ends, so two shoppers can't both pay for the last copy. The hold sweep that releases stock also cancels the shop's open Square payment link through `functions/payments/` (and `services/payments` for platform shops); a payment that still arrives after the hold is refunded in full with a plain-words email, like a late Stripe payment | payment tests with a fake Square: hold ends → link cancelled; late payment → refund and stock untouched | |
+| 5.2 | shop | A Square shop never says "Stripe": order history, order detail, refunds, the payments panel, Ready to sell, receipt and refund emails and help text name the shop's own provider (one `providerName()` read from the profile's `payments` field). Test: no shopper- or press-visible "Stripe" on a Square shop | provider-wording test over admin screens and email templates; existing Stripe tests unchanged | |
+| 5.3 | shop, platform | Gift card plus card on Square shops. *Waits on Julian (question 1).* Either: the gift card pays first and Square takes the rest, refunds going back to each in turn; or: Square shops hide "pay part with a gift card" with a plain note until later | checkout and refund tests with a fake Square | |
+| 5.4 | platform | Per-shop fee in the control room. The fee already works (`services/payments/fees.js`, registry `platformFee`); a platform admin can now see and set one shop's fee and refund rule there, every change in that shop's `audit-log` and the control room's own log. *Waits on Julian (question 2)* for whether the press is emailed and how much notice | control-room tests: admin only, bad value refused, change logged, re-run does nothing | |
+
+### 5B. Bringing a shop over
+
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 5.5 | shop | Pictures inside book descriptions are copied into the shop's own storage too. `runPhotoImport` also reads each description's `<img>` addresses, copies them with the same safety rules, and rewrites the description in a transaction (old address kept in `importedFrom`) | `functions/photoImport.test.js`: description pictures copied, rewritten once, re-run does nothing, private address refused | |
+| 5.6 | shop | Old product links past 500. Redirects are stored in numbered pages of 500 (`redirects/1`, `redirects/2`…), up to 5,000, read the same way by the shop, the prerender and the hosting file; the import fills pages in order and says plainly when a shop is full | redirects tests at 499, 500, 501 and 5,000; book page still found after a rename | |
+| 5.7 | shop | Photo copy looks up a host once: the download connects to the checked address itself, closing the gap where a name could change its answer between the check and the download | photo-import test with a fake lookup that changes its answer | |
+
+### 5C. Press's name, web addresses and taxes
+
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 5.8 | shop | The press's own name in every server email and the product feed: newsletters, message replies, customs forms, the weekly report, the Google product feed and checkout sender default read Text & labels › Site name, never "Your Press" | a test that renders each email and the feed with a named shop and finds no placeholder | |
+| 5.9 | platform, shop | Remove a web address, and choose the shop's main address. `services/domains` gains remove and make-main (the shop's own key only; never the last working address); the main address becomes the shop's site address for emails, links, the sitemap and Stripe's payment domain; Settings shows both buttons. Built and tested only; it goes live with the service | domains tests with fakes; shop settings test | |
+| 5.10 | shop | More tax presets. *Waits on Julian (question 3)*: Canada's provincial sales taxes (PST in BC, Saskatchewan and Manitoba; QST in Quebec), with or without US states. Each preset says "not tax advice", as now | presets tests: each province's total rate on a printed book and an e-book | |
+
+### 5D. Accounts, onboarding and docs
+
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 5.11 | platform, shop | People added in the shop's own Settings › Team show up in the account switcher, and removing them there removes them in both places (the 2.7 "still to do") | accounts tests with fake stores: add, change role, remove from either side | |
+| 5.12 | platform | Sign-up, account and help pages pass a phone-width and plain-words check: loading, empty and error states on every screen, readable colours, buttons big enough to tap, keyboard use. A browser check takes a screenshot of each at phone and desktop width in CI | the new browser check (pretend data only) | |
+| 5.13 | platform | One end-to-end test of the whole platform with fakes: sign up → trial starts → shop maker runs the setup steps in dry run → owner opens the account page → control room sees the shop → a failed step retries. Catches two services disagreeing about a field | the test itself, in root `npm test` | |
+| 5.14 | platform | A short run book for Julian in plain words: what each alert means and what to do, how to pause a shop, refund a press's fee, restore a backup and stop a release | doc test: every alert name in `services/health` has a section | |
+| 5.15 | platform | Tidy the plan: row 1.30's open point is done (the shop's functions run in its own region since 1.15); mark it, and check every "still to do" in Phases 2 to 4 against the code | — | |
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
