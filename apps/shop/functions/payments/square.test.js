@@ -130,7 +130,7 @@ describe("Square checkout", () => {
     const { payments, service } = make();
     const card = await payments.forCheckout({ payments: { testMode: true } });
     const session = await card.createCheckoutSession(sessionParams(), { idempotencyKey: "cs-order1-cad-5000-h-1" });
-    expect(session).toEqual({ id: "sqlink_LNK1", object: "checkout.session", url: "https://square.link/u/1", client_secret: null, status: "open" });
+    expect(session).toEqual({ id: "sqlink_LNK1", object: "checkout.session", url: "https://square.link/u/1", client_secret: null, status: "open", expires_at: 1900000000 });
     const [call] = service.calls;
     expect(call.op).toBe("square.checkout.create");
     expect(call.mode).toBe("test");
@@ -257,7 +257,7 @@ describe("Square webhook deliveries", () => {
     expect(event).toEqual({
       id: "sq_6a8f5f28-54a1-4eb0-a98a-3111513fd4fc", type: "checkout.session.completed", livemode: false,
       // The amount is Square's (5000), not the delivery's (1), and the order keeps its saved link.
-      data: { object: { id: "sqlink_LNK1", client_reference_id: "order1", status: "complete", payment_status: "paid", payment_intent: "sqpay_PAY1", livemode: false, amount_total: 5000, currency: "cad" } },
+      data: { object: { id: "sqlink_LNK1", client_reference_id: "order1", status: "complete", payment_status: "paid", payment_intent: "sqpay_PAY1", livemode: false, amount_total: 5000, currency: "cad", paid_at: null } },
     });
   });
 
