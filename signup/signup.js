@@ -17,6 +17,8 @@ import { checkSignup, isEmail, slugFromPressName } from "./form.js";
 
 export const MAX_SHOPS_PER_ACCOUNT = 5;
 export const LINKS_PER_HOUR = 5;
+/** The platform pages a sign-in link may bring the person back to. */
+export const SIGN_IN_PAGES = Object.freeze(["signup", "accounts"]);
 
 export class SignupError extends Error {
   constructor(status, message, problems) {
@@ -53,7 +55,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
      * Emails a sign-in link from the platform (not from a stranger's address). The answer is the same whether or not
      * the address has an account, and an address gets at most five links an hour.
      */
-    async sendSignInLink({ email: address }) {
+    async sendSignInLink({ email: address, page }) {
       if (!isEmail(address)) throw new SignupError(400, "Enter your email address.", { email: "Enter your email address." });
       const to = address.trim().toLowerCase();
       const key = `signin/${createHash("sha256").update(to).digest("hex").slice(0, 32)}`;
@@ -62,7 +64,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         throw new SignupError(429, "We've sent a few links already. Check your inbox (and spam), or try again in an hour.");
       }
       await throttle.add(key, at());
-      const link = await auth.signInLink(to, { url: `${settings.platformUrl}/signup/?finish=1` });
+      const link = await auth.signInLink(to, { url: `${settings.platformUrl}/${SIGN_IN_PAGES.includes(page) ? page : "signup"}/?finish=1` });
       await email.sendPlatform({ kind: "sign-in-link", to, data: { link }, idempotencyKey: `${key}/${at()}` });
       return { ok: true };
     },

@@ -55,6 +55,19 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** An owner invited someone to their shop's team (accounts/accounts.js). */
+  "invite": ({ pressName, invitedBy, roleWords, link, days }, { settings }) => layout({
+    subject: `You're invited to join ${pressName} on ${settings.platformName}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `${invitedBy} invited you to join the team for ${pressName}, as ${roleWords}.`,
+      `Accept with the button below and sign in with this email address. The invite works for ${days} days.`,
+      "If you weren't expecting it, you can ignore this email.",
+    ],
+    buttons: [["Accept the invite", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   // ── Billing (services/billing), sent to the person who pays. `data`: { pressName, planName, price, date, link }. ──
 
   /** Three days before the trial ends. With no card yet, it asks for one; with a card, it says when the first charge is. */
