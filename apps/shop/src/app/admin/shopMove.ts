@@ -58,7 +58,7 @@ function columns(headings: string[]) {
 
 export function recognizeExport(headings: string[]): ExportShape | null {
   const { has } = columns(headings);
-  if (has("Handle", "Title", "Variant Price")) return "handle-rows";
+  if (has("Handle", "Title", "Variant Price") || has("URL handle", "Title", "Price")) return "handle-rows";
   if (has("Product ID [Non Editable]", "Variant ID [Non Editable]", "Title", "Price")) return "product-id-rows";
   if (has("Type", "Parent", "Name", "Regular price")) return "parent-rows";
   if (has("TITLE", "PRICE", "QUANTITY", "IMAGE1")) return "listing-rows";
@@ -145,11 +145,25 @@ function book(line: number, cells: Record<string, string>, editions: MovedEditio
   return { line, cells: out, editions: [], oldPaths, notes };
 }
 
+// One line per edition comes in two sets of headings: the older one (Handle, Variant Price, Image Src…) and the one
+// exports use today (URL handle, Price, Product image URL…; the list and its source are in the research notes of
+// 28 October 2026, "Moving in"). Each name below is read under either heading; old files keep working.
+const HANDLE = ["Handle", "URL handle"];
+const PRICE = ["Variant Price", "Price"];
+const WAS_PRICE = ["Variant Compare At Price", "Compare-at price"];
+const SKU = ["Variant SKU", "SKU"];
+const STOCK = ["Variant Inventory Qty", "Inventory quantity"];
+const GRAMS = ["Variant Grams", "Weight value (grams)"];
+const PHOTO = ["Image Src", "Product image URL"];
+const EDITION_PHOTO = ["Variant Image", "Variant image URL"];
+
 function fromHandleRows(table: string[][]): MovedBook[] {
   const c = columns(table[0]);
+  // "Barcode" became "Barcodes"; a file that has both is read from Barcodes.
+  const BARCODE = c.has("Barcodes") ? ["Barcodes"] : ["Variant Barcode", "Barcode"];
   const groups = new Map<string, { line: number; rows: string[][] }>();
   table.slice(1).forEach((row, i) => {
-    const handle = c.get(row, "Handle").toLowerCase();
+    const handle = c.get(row, ...HANDLE).toLowerCase();
     if (!handle) return;
     if (!groups.has(handle)) groups.set(handle, { line: i + 2, rows: [] });
     groups.get(handle)!.rows.push(row);
@@ -159,13 +173,13 @@ function fromHandleRows(table: string[][]): MovedBook[] {
     const editions: MovedEdition[] = [];
     const photos: { at: number; url: string }[] = [];
     rows.forEach((r, i) => {
-      const src = c.get(r, "Image Src");
+      const src = c.get(r, ...PHOTO);
       if (src) photos.push({ at: Number(c.get(r, "Image Position")) || 1000 + i, url: src });
-      if (!c.get(r, "Variant Price") && !c.get(r, "Variant SKU") && !c.get(r, "Option1 Value")) return;
+      if (!c.get(r, ...PRICE) && !c.get(r, ...SKU) && !c.get(r, "Option1 Value")) return;
       const name = ["Option1 Value", "Option2 Value", "Option3 Value"].map(n => c.get(r, n)).filter(v => v && v.toLowerCase() !== "default title").join(" / ");
-      const p = prices(c.get(r, "Variant Price"), c.get(r, "Variant Compare At Price"), true);
-      const variantImage = c.get(r, "Variant Image");
-      editions.push({ name, ...p, stock: count(c.get(r, "Variant Inventory Qty")), sku: c.get(r, "Variant SKU"), weight: grams(c.get(r, "Variant Grams")), photoUrl: https(variantImage) });
+      const p = prices(c.get(r, ...PRICE), c.get(r, ...WAS_PRICE), true);
+      const variantImage = c.get(r, ...EDITION_PHOTO);
+      editions.push({ name, ...p, stock: count(c.get(r, ...STOCK)), sku: c.get(r, ...SKU), weight: grams(c.get(r, ...GRAMS)), photoUrl: https(variantImage) });
       if (variantImage) photos.push({ at: 2000 + i, url: variantImage });
     });
     const cells: Record<string, string> = { Title: c.get(head, "Title") };
@@ -175,8 +189,11 @@ function fromHandleRows(table: string[][]): MovedBook[] {
     if (tags.length) cells.Tags = tags.join(";");
     const type = c.get(head, "Type", "Product Type");
     if (type) cells.Categories = type;
-    const barcode = editions.length === 1 ? c.get(rows.find(r => c.get(r, "Variant Barcode")) || head, "Variant Barcode") : "";
+    const barcode = editions.length === 1 ? c.get(rows.find(r => c.get(r, ...BARCODE)) || head, ...BARCODE) : "";
     if (barcode && validIsbn(barcode)) cells.ISBN = barcode;
+    const seoTitle = c.get(head, "SEO title"), seoDescription = c.get(head, "SEO description");
+    if (seoTitle) cells["SEO title"] = seoTitle;
+    if (seoDescription) cells["SEO description"] = seoDescription;
     return book(line, cells, editions, photos.sort((a, b) => a.at - b.at).map(p => p.url), [`/products/${handle}`]);
   });
 }
@@ -292,7 +309,7 @@ export function readProductExport(text: string): ProductMove | null {
   return { shape, books, problems, notices };
 }
 
-const LABELS = ["Title", "Description", "ISBN", "SKU", "Price", "Sale price", "Stock", "Categories", "Tags", "Weight", "Image URL", "Extra image URLs"];
+const LABELS = ["Title", "Description", "ISBN", "SKU", "Price", "Sale price", "Stock", "Categories", "Tags", "Weight", "Image URL", "Extra image URLs", "SEO title", "SEO description"];
 const csvCell = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
 /** The products as a spreadsheet in this shop's own import columns, one line per book. */

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { csvCell } from '../src/lib/csv.js';
 import { inventoryAdjustmentCsvRows } from '../src/lib/inventory-adjustment.js';
 import { deriveStockBreakdown } from '../src/lib/inventory.js';
+import { fileStem } from '../src/lib/shop-profile.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -97,7 +98,7 @@ describe('Robust Inventory Valuation Suite & CSV Export', () => {
     // column assertions below are exactly what it is responsible for getting
     // right, so stubbing it would test nothing.
     const factory = new Function(
-      'today', 'BOOK_LIST', 'states', 'defaultState', 'getBookCurrencyCode', '_fxRateCache', 'csvCell', 'downloadCsv', 'showToast', 'TAX_CENTER', 'inventoryAdjustmentCsvRows', 'deriveStockBreakdown',
+      'today', 'BOOK_LIST', 'states', 'defaultState', 'getBookCurrencyCode', '_fxRateCache', 'csvCell', 'downloadCsv', 'showToast', 'TAX_CENTER', 'inventoryAdjustmentCsvRows', 'deriveStockBreakdown', 'fileStem',
       `
         function isTestBook() { return false; }
         function calculateInventoryValuationData() { ${calcMatch[1]} }
@@ -106,13 +107,13 @@ describe('Robust Inventory Valuation Suite & CSV Export', () => {
     );
 
     const exportFn = factory(
-      mockToday, mockBookList, mockStates, mockDefaultState, mockGetBookCurrencyCode, mockFxRateCache, csvCell, mockDownloadCsv, mockShowToast, { businessExpenses: [] }, inventoryAdjustmentCsvRows, deriveStockBreakdown
+      mockToday, mockBookList, mockStates, mockDefaultState, mockGetBookCurrencyCode, mockFxRateCache, csvCell, mockDownloadCsv, mockShowToast, { businessExpenses: [] }, inventoryAdjustmentCsvRows, deriveStockBreakdown, fileStem
     );
 
     exportFn();
 
     expect(downloadTriggered).toBe(true);
-    expect(downloadFileName).toBe('Lyrical_Inventory_Valuation_2026-07-14.csv');
+    expect(downloadFileName).toBe('Stockroom_Inventory_Valuation_2026-07-14.csv');
     expect(toastMessage).toContain('Comprehensive Inventory Valuation CSV exported');
 
     const lines = createdBlobContent.split('\n');

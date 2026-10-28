@@ -109,6 +109,8 @@ export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches =
   return {
     version: 1,
     shopId: shop.shopId,
+    // The press's name: the stockroom starts its download file names with it (plan 7.3).
+    name: shop.pressName.trim().slice(0, 80),
     firebase: { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId },
     functionsRegion: region,
     siteUrl: `https://${projectId}.web.app`,

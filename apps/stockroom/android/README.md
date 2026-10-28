@@ -83,7 +83,7 @@ The easiest route needs no software installed:
 2. Choose **Package for stores → Android → Generate package**, then
    **Options**, and enter the values from `twa-manifest.json`:
    - Package ID: `example.press.inventory`
-   - App name: `Your Press Inventory`, launcher name: `Lyrical Inv`
+   - App name: `Your Press Inventory`, launcher name: `Stockroom`
    - Version code `1`, version name `1.0.0`
    - Signing key: **Create new**
 3. Download the zip. It contains the `.aab` file you upload to Play, an

@@ -32,6 +32,12 @@
         }
       }
     },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "The press's name as given at sign-up. Optional. The stockroom starts its download file names with it; the shop's own name lives in its settings."
+    },
     "functionsRegion": { "type": "string", "pattern": "^[a-z]+-[a-z]+[0-9]$" },
     "siteUrl": { "type": "string", "pattern": "^https://[^/\\s]+$", "description": "The shop's address, no trailing slash." },
     "appCheckSiteKey": { "type": "string", "description": "Bot-protection site key. Empty or missing: the app's build setting is used." },

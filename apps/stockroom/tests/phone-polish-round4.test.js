@@ -58,7 +58,7 @@ describe('Phone polish sweep (round 4)', () => {
     });
 
     it('gives every swatch a visible name and shows the chosen one under the row', () => {
-      expect(html).toMatch(/id="nb-accent-name" aria-live="polite">Lyrical Gold</);
+      expect(html).toMatch(/id="nb-accent-name" aria-live="polite">Press Red</);
       expect(main).toMatch(/nameEl\.textContent = matchedName \|\| 'Custom colour'/);
       expect(main).toMatch(/\(btn\.dataset\.accent \|\| ''\)\.toLowerCase\(\) === wanted/);
     });

@@ -242,6 +242,12 @@ test("shopProfile writes all five switches, keeping only true or false from what
     { ...ALL_OFF, githubPagesForwarding: true });
 });
 
+test("shopProfile carries the press's name for the stockroom's file names (plan 7.3)", () => {
+  const settings = { apiKey: "k", authDomain: "a", projectId: "lmb-test-shop", storageBucket: "b", messagingSenderId: "1", appId: "x" };
+  assert.equal(shopProfile({ ...TEST_SHOP, pressName: "  Moth Press " }, settings).name, "Moth Press");
+  assert.equal(shopProfile({ ...TEST_SHOP, pressName: "x".repeat(90) }, settings).name.length, 80);
+});
+
 test("the dry run for the test shop prints all sixteen steps and changes nothing", async () => {
   const google = fakeGoogle();
   const services = fakeServices();
