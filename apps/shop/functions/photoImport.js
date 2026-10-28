@@ -12,7 +12,9 @@
 // old address. Addresses that can't be read are remembered and retried after a week. Each run that copies anything
 // leaves one line in the shop's audit log. Only https addresses on public host names are fetched (never an IP
 // address, an internal name or a name that points at a private address; redirects are checked hop by hop), only
-// pictures are kept, nothing over 20 MB is read, and the 20-second limit covers the whole download.
+// pictures are kept, nothing over 20 MB is read, and the 20-second limit covers the whole download. Each host name is
+// looked up once (plan 5.7): the download connects to the very address that was checked (`pinnedFetch`), still sending
+// the host name for https (SNI and Host), so a name can't change its answer between the check and the download.
 //
 // Pictures inside a book's description (plan 5.5): an imported description can carry `<img src="…">` tags pointing
 // at the old shop. Those addresses are copied with the same rules and the same file names, and the description is
@@ -117,12 +119,76 @@ function privateAddress(address) {
 
 const defaultLookup = (host) => require("dns").promises.lookup(host, { all: true, verbatim: true });
 
-/** Refuses an address that isn't public https, or whose host name points at a private address. */
+/**
+ * Refuses an address that isn't public https, or whose host name points at a private address. Returns the checked
+ * address `{ address, family }` the download must connect to.
+ */
 async function checkAddress(url, lookup) {
   if (!publicHttps(url)) throw new Error("moved to an address that isn't allowed");
   const found = await lookup(new URL(url).hostname);
   const list = Array.isArray(found) ? found : [found];
   if (!list.length || list.some(r => privateAddress(r?.address))) throw new Error("the address points inside a private network");
+  const { address, family } = list[0];
+  return { address, family: family === 6 || String(address).includes(":") ? 6 : 4 };
+}
+
+/**
+ * A `fetch` for one GET that connects only to `address` (the one `checkAddress` approved) and never looks the name up
+ * again. The URL's host name still goes in the TLS handshake (SNI, so the certificate is checked against it) and in
+ * the Host header. No connection pooling, no redirects followed. Answers with the parts of a fetch response
+ * `copyPhoto` reads: `ok`, `status`, `headers.get` and a `body.getReader()`.
+ */
+function pinnedFetch(url, { signal, address, request = require("https").request } = {}) {
+  if (!address?.address || privateAddress(address.address)) return Promise.reject(new Error("no checked address to connect to"));
+  const u = new URL(url);
+  if (u.protocol !== "https:") return Promise.reject(new Error("moved to an address that isn't allowed"));
+  const family = address.family === 6 ? 6 : 4;
+  const lookup = (_host, opts, cb) => {
+    const done = typeof opts === "function" ? opts : cb;
+    if (opts && typeof opts === "object" && opts.all) done(null, [{ address: address.address, family }]);
+    else done(null, address.address, family);
+  };
+  return new Promise((resolve, reject) => {
+    let req;
+    try {
+      req = request({
+        protocol: "https:",
+        hostname: u.hostname,
+        port: u.port || 443,
+        path: `${u.pathname}${u.search}`,
+        method: "GET",
+        servername: u.hostname,
+        headers: { host: u.host, accept: "image/*" },
+        lookup,
+        agent: false,
+        signal,
+      }, res => {
+        const chunks = res[Symbol.asyncIterator]();
+        const status = res.statusCode || 0;
+        resolve({
+          ok: status >= 200 && status < 300,
+          status,
+          headers: {
+            get(name) {
+              const v = res.headers?.[String(name).toLowerCase()];
+              return v === undefined ? null : Array.isArray(v) ? v.join(", ") : String(v);
+            },
+          },
+          body: {
+            getReader: () => ({
+              async read() {
+                const { done, value } = await chunks.next();
+                return done ? { done: true, value: undefined } : { done: false, value: new Uint8Array(value) };
+              },
+              async cancel() { res.destroy(); },
+            }),
+          },
+        });
+      });
+    } catch (err) { reject(err); return; }
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 /** Reads the body, stopping as soon as it passes `MAX_BYTES` (whether or not the size was declared). */
@@ -153,8 +219,8 @@ const MAX_REDIRECTS = 3;
 /**
  * Downloads one old address and saves it in this bucket. Returns the new download address. Redirects are followed by
  * hand (at most three), each new address checked before it is requested, and the time limit covers reading the body.
- * Known gap: the host name is looked up here and again by `fetch`, so a name that changes its answer in between could
- * still reach a private address.
+ * Each hop's host name is looked up once: `fetch` is handed the checked `address` and must connect to it (the real
+ * one is `pinnedFetch`), so a name that changes its answer after the check can't reach a private address.
  */
 async function copyPhoto({ bucket, bucketName, url, fetch, lookup = defaultLookup, timeoutMs = FETCH_TIMEOUT_MS }) {
   const again = await existingCopy(bucket, bucketName, url);
@@ -166,9 +232,10 @@ async function copyPhoto({ bucket, bucketName, url, fetch, lookup = defaultLooku
     let current = url;
     let res;
     for (let hop = 0; ; hop += 1) {
-      await checkAddress(current, lookup);
-      res = await fetch(current, { redirect: "manual", signal: controller.signal });
+      const address = await checkAddress(current, lookup);
+      res = await fetch(current, { redirect: "manual", signal: controller.signal, address });
       if (![301, 302, 303, 307, 308].includes(res.status)) break;
+      try { await res.body?.getReader?.()?.cancel?.(); } catch { /* nothing to free */ }
       const next = res.headers?.get?.("location");
       if (!next || hop >= MAX_REDIRECTS) throw new Error("too many moves");
       current = new URL(next, current).href;
@@ -311,4 +378,4 @@ async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeo
   return { found, done, books, failed: failures, pending };
 }
 
-module.exports = { publicHttps, privateAddress, needsImport, descriptionImages, rewriteDescription, importedBase, copyPhoto, swapPhotos, runPhotoImport, MAX_BYTES };
+module.exports = { publicHttps, privateAddress, pinnedFetch, needsImport, descriptionImages, rewriteDescription, importedBase, copyPhoto, swapPhotos, runPhotoImport, MAX_BYTES };
