@@ -472,17 +472,32 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   list once they order (the list is built from orders).
 - **Photos** stay on the old shop's addresses until plan 3.1b copies them into the shop's own storage.
 
-## Your first week (28 October 2026)
+## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 
-Plan 3.3. Overview › **Your first week** (`overview/FirstWeekCard.tsx`, above the board) lists steps shaped by the
-sign-up answer, read from the admin-only `firstWeek/start` (`adminApi.getFirstWeek`), which the platform's setup step 12
-writes once (`sellingToday`, `plan`). No document, no list: shops made before this, or by hand, never see it.
-`firstWeek.ts` (pure) orders the steps per answer (`ORDER`; unknown or skipped answers get `general`) and works out
-"done" from the books and `launchReadiness` items (`shipping`, `payments` ok); `MANUAL` steps are ticked by the owner
-(`updateFirstWeek({ done: { id: at } })`, merged). Hide this list writes `hiddenAt`. `SELLING_TODAY` must list the
-sign-up form's answers (`signup/form.js` QUESTION; a root test checks). Firestore rule `firstWeek`: admin only,
-`hasOnly(["sellingToday", "plan", "done", "hiddenAt", "createdAt", "updatedAt"])`. The Overview's "designer" link
-opens Settings › Design (Dashboard maps it like general/notifications/taxes).
+Both read the admin-only `firstWeek/start` (`adminApi.getFirstWeek`) that the platform's setup step 12 writes once
+(`sellingToday`, `publishes`, `country`, `plan`). No document, nothing shown: shops made before this, or by hand, never
+see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `AnalyticsDashboard`) picks which:
+- **Choose your look** (`overview/ChooseLookWelcome.tsx`, pure parts in `chooseLook.ts`, lazy-loaded): while
+  `welcome` is unset and the plan has a shop. A gallery of every `THEME_LIBRARY` theme (name, mood, three swatches,
+  `LookPicture`: a small drawing in the theme's own colours and type with the press's name in the header; Preview opens
+  it at phone or desktop width), two or three suggested per `publishes` (`SUGGESTED`). Use this look runs
+  `applyChosenLook`: `openWorkspace` → Studio's `applyLook` (so `themeBase` is stored, as Studio › Themes does) →
+  `saveDraft`, retried once on a conflict; then `updateFirstWeek({ welcome: { theme, at, skipped? } })`. Skip takes the
+  first suggestion. The look goes into the **draft**; the guide's look step ticks once the published design has a
+  `themeBase`. The preview is drawn, not a screenshot, so every theme has one by construction (`chooseLook.test.ts`).
+- **Set up your shop** (`overview/SetupGuideCard.tsx`, pure `firstWeek.ts`): eight steps per answer (`ORDER`; the first-
+  book step is `bring-books`, `import-spreadsheet` or `add-books`): logo, look, books, shipping (starter words per
+  country, `shippingStarterWords`), Get paid (`card-account` ok on platform shops, plan 7.9; the payment checks on own
+  keys), web address (custom domain, or the owner ticks "Keep the free address"), practice order (an `isTest` paid or
+  refunded order, plan 7.6; done once the shop is open), Open your shop (no wall, no maintenance). Gmail is never a
+  step. Three open steps show (`guideParts`), the rest under **Later**, done ones under **Done**. **Open your shop**
+  runs `openBlockers` (Ready to sell's `block` rows) and, when none, Dashboard's `toggleUnderConstruction(false)`
+  (passed down as `onSetWall`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
+  for the platform's trial emails (plan 6.10, `services/trial-tips`).
+- `SELLING_TODAY` must list the sign-up form's answers and `StepId` must match `help/articles.js` `CHECKLIST_ANSWERS`
+  (root tests check both). Firestore rule `firstWeek`: admin only, `hasOnly([... "publishes", "country", "welcome",
+  "progress" ...])`, the four sign-up fields never change from the admin, `welcome`/`progress` shapes checked. The
+  Overview's "designer" link opens Settings › Design (Dashboard maps it like general/notifications/taxes).
 
 ## Going live on Colophon (28 October 2026, code plan 2.10)
 

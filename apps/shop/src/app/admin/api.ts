@@ -1942,14 +1942,17 @@ export const adminApi = {
     };
   },
 
-  // Your first week (plan 3.3): admin-only `firstWeek/start`, written once by the platform's setup with the sign-up
-  // answer. Null when the shop has none (the Overview then shows no list).
+  // Set up your shop (plan 6.9, was Your first week 3.3): admin-only `firstWeek/start`, written once by the platform's
+  // setup with the sign-up answers. Null when the shop has none (the Overview then shows no welcome and no guide).
   getFirstWeek: async () => {
     const snap = await getDoc(doc(db, "firstWeek", "start"));
     return snap.exists() ? (snap.data() as import("./firstWeek").FirstWeekDoc) : null;
   },
-  /** Ticks a step by hand (`done.<id>`), or hides the list (`hiddenAt`). Merges, so nothing else changes. */
-  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string }) => {
+  /**
+   * Ticks a step by hand (`done.<id>`), hides the guide (`hiddenAt`), records Choose your look (`welcome`, plan 6.3) or
+   * the guide's progress for the trial emails (`progress`, plan 6.10). Merges, so nothing else changes.
+   */
+  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
     await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
   },
 
