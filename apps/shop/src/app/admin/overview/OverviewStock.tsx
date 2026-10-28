@@ -11,7 +11,7 @@ import { isSoldOut, stockRowLabel, trackedStockRows } from "../stockRules";
 import { DrillList, ROW, SPLIT, StatRow, money, shopWhen, type DrillItem } from "./OverviewParts";
 import { countsByDay } from "./overviewDrill";
 import { sharedLoad } from "./overviewShared";
-import { useSharedLeadDays } from "./OverviewNewLive";
+import { useSharedLeadDays } from "./OverviewNewLive.tsx";
 
 export const LOW_STOCK = 5;
 

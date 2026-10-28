@@ -2,7 +2,7 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, expect, it, vi } from "vitest";
-import { AdminAlerts } from "./AdminAlerts";
+import { AdminAlerts } from "./AdminAlerts.tsx";
 import type { AdminAlert } from "./adminAlerts";
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 

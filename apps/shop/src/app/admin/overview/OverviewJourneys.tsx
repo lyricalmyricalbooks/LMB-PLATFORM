@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingState, SecondaryButton } from "../riso/components";
 import { RankBars, type RankRow } from "./OverviewViz";
-import { Frame, NotConnected, NotYet } from "./OverviewVisitors";
+import { Frame, NotConnected, NotYet } from "./OverviewVisitors.tsx";
 import type { Book } from "./overviewInsights";
 import {
   exitRows, exitsHeadline, fetchJourneys, journeyFoot, journeyRows, journeysHeadline, journeyWindow, pathWords, type JourneyAnswer,

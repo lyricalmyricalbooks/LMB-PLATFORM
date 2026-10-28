@@ -4,7 +4,7 @@ import { bestSellers, formatMix, topCountries, totals, unitsById, type Book, typ
 import { categoryBreakdown, categoryNames, weekdayMix, type Daily } from "./overviewTraffic";
 import { discountPerformance } from "../discountPerformance";
 import { hourHeatmap, operations } from "./overviewCohorts";
-import { OrdersDrill } from "./OverviewDrill";
+import { OrdersDrill } from "./OverviewDrill.tsx";
 import {
   copiesOf, discountedOrders, ordersInCategory, giftCardOrders, hoursToShip, ordersInCurrency, ordersOnWeekday, ordersPaidBy, ordersToCountry, ordersWithBook,
   ordersWithCode, ordersWithFormat, refundedOrders, shipTimeText, shippedSlowestFirst,

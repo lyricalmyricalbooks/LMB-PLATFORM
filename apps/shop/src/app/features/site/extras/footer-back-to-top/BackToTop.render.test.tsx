@@ -4,7 +4,7 @@
 import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
-import { BackToTop } from "./BackToTop";
+import { BackToTop } from "./BackToTop.tsx";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | null = null; let el: HTMLElement | null = null;

@@ -3,7 +3,7 @@ import { Funnel, RankBars, type RankRow } from "./OverviewViz";
 import type { GaState } from "./OverviewMarketing";
 import type { Book } from "./overviewInsights";
 import type { WidgetConfig } from "./overviewBoard";
-import { Frame, NeedsUpdate, NotAnswered, NotConnected, NotYet, OWN_HOSTS } from "./OverviewVisitors";
+import { Frame, NeedsUpdate, NotAnswered, NotConnected, NotYet, OWN_HOSTS } from "./OverviewVisitors.tsx";
 import { deviceSteps, followPage, landingJourneys, listClicks, pageMoves, type PageLink } from "./overviewNavigation";
 
 // Overview › Visitors › how visitors move (20 October 2026): four widgets from the Google Analytics report's 5th batch

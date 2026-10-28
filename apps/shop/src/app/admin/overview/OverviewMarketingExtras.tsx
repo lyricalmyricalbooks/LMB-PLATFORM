@@ -8,7 +8,7 @@ import {
 } from "./overviewSignals";
 import { googleAnalyticsApi, type Ga4Range, type SearchConsoleAnswer, type SearchRow } from "../googleAnalytics";
 import { BarRow, DrillList, StatRow, Trend, money, percent } from "./OverviewParts";
-import { OrdersDrill } from "./OverviewDrill";
+import { OrdersDrill } from "./OverviewDrill.tsx";
 import { countsByDay } from "./overviewDrill";
 import { isRealPaidOrder } from "./overviewInsights";
 import { sharedLoad } from "./overviewShared";
