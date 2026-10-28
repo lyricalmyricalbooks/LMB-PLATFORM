@@ -14,5 +14,9 @@
   "apps": {
     "shop": true,
     "stockroom": true
+  },
+  "stockroom": {
+    "firestoreDatabase": "stockroom",
+    "storageBucket": "lmb-test-shop-stockroom"
   }
 }

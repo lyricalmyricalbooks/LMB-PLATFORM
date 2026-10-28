@@ -16,5 +16,9 @@ window.__SHOP_PROFILE__ = {
   "apps": {
     "shop": false,
     "stockroom": true
+  },
+  "stockroom": {
+    "firestoreDatabase": "stockroom",
+    "storageBucket": "lmb-test-stockroom-stockroom"
   }
 };

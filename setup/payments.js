@@ -5,15 +5,25 @@
 //
 // A provider client, one per provider, passed in as `providers[name]`:
 //
-//   findAccount(shopId)            -> { accountId } | null   the press's account the service already made, if any
-//   createAccount(shopId, details) -> { accountId }          details: { pressName, ownerEmail, country, currency, testMode }
+//   findAccount(shopId)            -> { accountId, mode? } | null   the press's account the service already made, if any
+//   createAccount(shopId, details) -> { accountId, mode? }          details: { pressName, ownerEmail, country, currency, testMode }
+//
+// `mode` is the mode the account was made in ("live" or "test"); the payment service takes live payments only for an
+// account made live, so a press in test mode (and the test shop) can never take real money.
 //
 // `createAccount` must be safe to repeat: the service sends the shop id as the provider's idempotency key, so a retry
 // after a lost answer finds the same account instead of making a second one. Nothing here can close or delete an
 // account. The press finishes signing up with the provider from their admin (the "Connect" button, plan item 2.10);
 // sign-up links expire within minutes, so none is made here.
 //
-// The registry row keeps `payments: { provider, accountId }`; the service checks every call against it.
+// The registry row keeps `payments: { provider, accountId, mode }`; the service checks every call against it.
+//
+// The step also writes the shop profile's `payments` (code plan 2.2): the shop takes payments through the platform
+// ("platform" mode), and its card form needs the press's account and the platform's publishable keys on the page
+// (`config.stripePublishableKeys: { live, test }`, both public). The profile is saved to the registry and to the
+// per-shop /shop-profile.js, like step 6.
+import { isDeepStrictEqual } from "node:util";
+import { profileProblems, profileScript } from "../profile/profile.js";
 
 /** The payment providers a press can choose, and whether the shop maker can connect each one yet. */
 export const PAYMENT_PROVIDERS = Object.freeze({
@@ -39,11 +49,30 @@ export function paymentProblems(shop) {
   return [];
 }
 
+/** The profile's `payments` for a shop on the platform's payments, with this account. */
+export function profilePayments(provider, accountId, publishableKeys = {}) {
+  if (provider !== "stripe") return { provider, mode: "platform" };
+  const stripe = { accountId };
+  if (publishableKeys.live) stripe.publishableKey = publishableKeys.live;
+  if (publishableKeys.test) stripe.testPublishableKey = publishableKeys.test;
+  return { provider, mode: "platform", stripe };
+}
+
 /**
- * Step 13: create the press's account with their chosen provider (through the payment service) and save its id in the
- * registry. `providers` maps a provider name to its client; only the ones built so far are passed.
+ * Step 13: create the press's account with their chosen provider (through the payment service), save its id in the
+ * registry and write the profile's `payments`. `providers` maps a provider name to its client; only the ones built so
+ * far are passed. `profileFiles` and `config.stripePublishableKeys` as in steps.js and the header above.
  */
-export function connectPaymentsStep({ number = 13, registry, providers }) {
+export function connectPaymentsStep({ number = 13, registry, providers, profileFiles, config = {} }) {
+  const publishableKeys = config.stripePublishableKeys ?? {};
+  // The saved profile with this account's payments, and whether the profile and its file already say so.
+  const profileFor = async (shop, provider, accountId) => {
+    const saved = await registry.getProfile(shop.shopId);
+    if (!saved) throw new Error(`${shop.shopId} has no saved profile; step 6 writes it first`);
+    const profile = { ...saved, payments: profilePayments(provider, accountId, publishableKeys) };
+    const written = isDeepStrictEqual(saved, profile) && (await profileFiles.read(shop.shopId)) === profileScript(profile);
+    return { profile, written };
+  };
   const clientFor = (shop) => {
     const provider = paymentProviderOf(shop);
     const problems = paymentProblems(shop);
@@ -75,8 +104,9 @@ export function connectPaymentsStep({ number = 13, registry, providers }) {
     number,
     name: "Connect the press's payments",
     async check({ shop }) {
-      const { saved, found } = await compare(shop);
-      return Boolean(saved && found);
+      const { provider, saved, found } = await compare(shop);
+      if (!(saved && found)) return false;
+      return (await profileFor(shop, provider, saved.accountId)).written;
     },
     async act({ shop }) {
       const { provider, client, found } = await compare(shop);
@@ -88,7 +118,21 @@ export function connectPaymentsStep({ number = 13, registry, providers }) {
         testMode: shop.testMode === true,
       }));
       if (!account?.accountId) throw new Error(`${PAYMENT_PROVIDERS[provider].name} gave no account id`);
-      await registry.updateShop(shop.shopId, { payments: { provider, accountId: account.accountId } });
+      const mode = account.mode === "live" || account.mode === "test" ? account.mode : shop.testMode === true ? "test" : "live";
+      const saved = (await registry.getShop(shop.shopId))?.payments;
+      const payments = { provider, accountId: account.accountId, mode };
+      // Kept as it is when it already says so: the payment service adds the account's state to it.
+      if (!(saved && saved.provider === provider && saved.accountId === account.accountId && saved.mode === mode)) {
+        await registry.updateShop(shop.shopId, { payments: { ...(saved ?? {}), ...payments } });
+      }
+      const { profile, written } = await profileFor(shop, provider, account.accountId);
+      if (!written) {
+        const problems = profileProblems(profile);
+        if (problems.length) throw new Error(`the shop profile has problems: ${problems.join("; ")}`);
+        await registry.saveProfile(shop.shopId, profile);
+        await profileFiles.write(shop.shopId, profileScript(profile));
+      }
+      return { detail: { payments: profile.payments } };
     },
   };
 }

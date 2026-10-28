@@ -1,5 +1,6 @@
 // The shop's one door for email (code plan 1.13): every email the server sends goes through `send` here, which tries
-// Gmail (when an app password is saved) and then Resend, logs every attempt to emailLog and parks an important email
+// Gmail (when an app password is saved) and then the backup (the platform's shared sender on a platform shop, else
+// Resend), logs every attempt to emailLog and parks an important email
 // that both refuse in the retry queue (emailOutbox). `checkGmail` is Settings › Email sender › Check connection.
 // Moved out of index.js as is; built the same way as functions/payments: index.js passes in its own db, lazy Resend and
 // nodemailer, secrets and helpers, so the vm-based handler tests' fakes still apply and nothing here loads a mail
@@ -28,8 +29,11 @@ const GMAIL_TIMEOUTS = { connectionTimeout: 15000, greetingTimeout: 15000, socke
  * @param {(id: string) => Promise<object>} deps.readAdminSecret
  * @param {() => string} deps.resendSecretValue the deployed RESEND_API_KEY, "" when not declared
  * @param {(value: unknown) => string} deps.escapeHtml
+ * @param {{ send: Function } | null} [deps.platformSender] the platform's shared sender (email/platformSender.js). When
+ *   given, it replaces Resend as the backup: Gmail (the press's own address) still goes first, and a shop whose Gmail
+ *   works never reaches it. Null: the shop's own Resend key, as before.
  */
-function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, senderEmail, readAdminSecret, resendSecretValue, escapeHtml }) {
+function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, senderEmail, readAdminSecret, resendSecretValue, escapeHtml, platformSender = null }) {
   // Admin-only delivery log (firestore.rules: emailLog is readable by the admin, writable by no client).
   // Shown in Admin › Notifications so failed sends are visible instead of only in Functions logs.
   async function logEmailAttempt(entry) {
@@ -141,7 +145,7 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
         gmailProblem = `Gmail SMTP rejected the send (${err?.message || err}). Re-enter the Gmail app password in Settings › Notifications › Gmail sending.`;
         // Not a failure yet: Resend below may still deliver it. Only the final outcome counts as "failed".
         await logEmailAttempt({ to: recipients, subject, status: "fallback", from: ownerEmail, keySource: "gmail", ...okExtra,
-          error: `${gmailProblem} Trying the backup sender (Resend).` });
+          error: `${gmailProblem} Trying the backup sender (${platformSender ? "the platform's shared sender" : "Resend"}).` });
       }
     }
     const fail = async (message, extra = {}) => {
@@ -160,6 +164,41 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
       await logEmailAttempt({ to: recipients, subject, status: "failed", error, from: fromEmail, keySource, ...(queue ? { kind: String(queue) } : {}), ...aboutOrder, ...extra });
       throw thrown;
     };
+
+    // Platform shops: the backup is the platform's shared sender (the shop's name, the platform's address, replies to
+    // the shop), never a Resend key in this shop. One request per recipient, each with its own idempotency key, so a
+    // retry after a partial send never doubles an email.
+    if (platformSender) {
+      if (html && !/<html[\s>]/i.test(html)) {
+        html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
+      }
+      // A queued email keeps its queue id across every retry. Any other email gets a key made from what it is (who,
+      // subject, kind, order, words) and the hour, so a caller that tries the same email again soon after a partial
+      // send reaches only the recipients still missing it; the same email sent on purpose later is a new email.
+      const key = queueId || crypto.createHash("sha256")
+        .update(JSON.stringify([recipientList, subject, String(queue || ""), aboutOrder.orderId || "", String(sourceHtml || ""), Math.floor(Date.now() / 3_600_000)]))
+        .digest("hex").slice(0, 32);
+      const platformLog = { from: "platform", keySource: "platform" };
+      let firstId = null;
+      try {
+        for (const address of recipientList) {
+          const { id } = await platformSender.send({ kind: queue || "shop-email", to: address, subject, html: withFooter(html), idempotencyKey: `${key}:${address}` });
+          firstId = firstId || id || null;
+        }
+      } catch (err) {
+        const message = err?.message || String(err);
+        // A refusal no retry can fix (the service said so) is logged once and never queued.
+        if (err?.permanent && !outboxId) {
+          await logEmailAttempt({ to: recipients, subject, status: "failed", error: gmailProblem ? `${message} (${gmailProblem})` : message, permanent: true,
+            ...(queue ? { kind: String(queue) } : {}), ...aboutOrder, ...platformLog });
+          throw Object.assign(new Error(message), { permanent: true });
+        }
+        await fail(message, platformLog);
+      }
+      await logEmailAttempt({ to: recipients, subject, status: "sent", id: firstId, ...okExtra, ...platformLog,
+        ...(attachments.length ? { note: "The shared sender sends no attachments, so this email went without its file." } : {}) });
+      return { id: firstId };
+    }
 
     if (!apiKey || apiKey === "dummy_value" || !apiKey.startsWith("re_")) {
       await fail(explainEmailError("Missing API key", { fromEmail }));
@@ -263,7 +302,16 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
     }
   }
 
-  return { send, logEmailAttempt, enqueueEmail, checkGmail };
+  // Settings › Email sender › Gmail sending: which address Gmail sends from, whether a password is saved, and what
+  // happens without one ("platform": the platform's shared sender with the shop's name; "resend": the shop's own key).
+  async function senderStatus() {
+    let gmailSaved = false;
+    try { gmailSaved = Boolean(String((await db.collection("adminSecrets").doc("gmail").get()).data()?.appPassword || "").trim()); }
+    catch (err) { console.warn("senderStatus: could not read the app password:", err.message); }
+    return { ok: true, gmailAddress: ownerEmail, gmailSaved, backup: platformSender ? "platform" : "resend" };
+  }
+
+  return { send, logEmailAttempt, enqueueEmail, checkGmail, senderStatus };
 }
 
 module.exports = { createEmail };

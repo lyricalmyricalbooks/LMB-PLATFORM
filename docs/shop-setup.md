@@ -35,14 +35,14 @@ the first presses; Phase 2 runs the same code from sign-up. Write the code once,
 | 2 | Create the Google Cloud project in the `shops` folder, link billing | project exists | project active and billed |
 | 3 | Add Firebase to the project | Firebase already added | Firebase project ready |
 | 4 | Turn on services: Firestore, Storage, Auth, Functions, Hosting, Cloud Build, Artifact Registry, Eventarc, Scheduler, Secret Manager, App Check, IAM | each service on | all listed services on |
-| 5 | Create the Firestore database (region from country) and the Storage bucket | database exists | database and bucket exist |
+| 5 | Create the Firestore database (region from country) and the Storage bucket; with the stockroom in the plan, also its own named database `stockroom`, its bucket `<shop id>-stockroom` and the Realtime Database (us-central1, the only nearby choice) | database exists | databases and buckets exist |
 | 6 | Create the web app; write the shop profile (Firebase config, site address, bot-check key) to the registry and to a per-shop file Hosting serves | profile matches | shop can read its profile at page open |
 | 7 | Deploy security rules and indexes for the shop (and the stockroom when the plan includes it) | deployed version = release version | rules live |
 | 8 | Write the shop's server details to `functions/.env.<project id>` (`SHOP_OWNER_EMAIL`, `SHOP_SENDER_NAME`, `SHOP_SENDER_EMAIL`, `SHOP_SITE_URL`, `SHOP_EXTRA_ORIGINS` even empty, `SHOP_PAYMENT_PROVIDER` from the press's choice, `SHOP_FUNCTIONS_REGION`, `SHOP_TEST_SHOP` `"true"` only for the platform test shop and `"false"` otherwise; read by `functions/shopConfig.js`, which refuses a provider it hasn't built), then deploy the shop's server code from the current release | deployed version = release version | functions live |
 | 9 | Deploy the shop and stockroom pages from the current release | deployed version = release version | site answers on its Firebase address |
 | 10 | Grant the nightly backup its permission and run one backup | backup permission present | a backup file exists |
 | 11 | Check storage is private: an unsigned read of a test file is refused | a recent pass recorded | refused as expected |
-| 12 | Write starter content and settings (theme, currency, shipping zone, owner as admin member) | settings doc exists | admin opens with the setup checklist |
+| 12 | Write starter content and settings (theme, currency, shipping zone, owner as admin member); the test shop also gets its starter catalogue, with its three stocked books in the stockroom and linked | settings doc exists | admin opens with the setup checklist |
 | 13 | Connect payments with the provider the press chose (Stripe now; Square planned, 2.2b): create the press's account through the payments service and save the provider and account ID | account ID saved and found at the provider | the press finishes sign-up from the admin's Connect button |
 | 14 | Email the owner their sign-in link (via the email service) | email logged as sent | email sent |
 | 15 | Run the shop check: home page, a book page, admin sign-in | — | all pass; registry `status: live` |
@@ -60,10 +60,9 @@ build:
 - Shop: the Firebase config in `src/lib/firebaseApp.ts`, the project ID in `src/app/lib/functionsBase.ts`, the site
   address in `vite.config.ts`, and the bot-check key in `src/lib/appCheck.ts`.
 - Stockroom: the Firebase config in `src/firebase.js`, and hosting moves from GitHub Pages to each shop's Firebase
-  Hosting.
+  Hosting (its own site `<shop id>-stockroom`, built by `apps/stockroom/scripts/deployConfig.mjs`, plan 1.20).
 
 ## Open questions
 
-- Does the stockroom get its own named database in the shop project, or share the shop's rules file?
 - Who pays for each shop project: one platform billing account, with the cost in the subscription price (assumed here)?
 - Region choice for presses outside North America.
