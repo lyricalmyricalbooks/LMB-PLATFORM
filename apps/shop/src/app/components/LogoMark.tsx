@@ -1,5 +1,6 @@
 import type React from "react";
 import { getCopy } from "../features/site/storeCopy";
+import { shopName, wordmarkWords } from "../features/site/shopIdentity";
 // ──────────────────────────────
 // Brand logo (image, tinted image, or wordmark text)
 //
@@ -7,7 +8,7 @@ import { getCopy } from "../features/site/storeCopy";
 //   - logoUrl    : uploaded logo image
 //   - logoTint   : recolor the image with logoColor (best for single-color logos)
 //   - logoColor  : color applied to the wordmark text, or the tinted image
-//   - logoText   : wordmark text shown when no image is uploaded
+//   - logoText   : wordmark text shown when no image is uploaded (empty = the site name)
 //   - logoHeight : rendered height in px (clamped 20–64)
 // ──────────────────────────────
 // Second-word styling shared by the header wordmark and footer brand: an explicit
@@ -31,12 +32,15 @@ export function logoHoverCss(design: any): string {
     + `${on.map((x) => `${x}-tint`).join(",")}{background-color:${color}!important;}`;
 }
 
-export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defaultText?: string }) {
+export function LogoMark({ design, defaultText }: { design?: any; defaultText?: string }) {
   const height = Math.max(20, Math.min(64, design?.logoHeight ?? 24));
   const logoColor = design?.logoColor;
-  const text = design?.logoText ?? defaultText;
+  // Unset words follow Text & labels › Site & sharing › Site name (plan 1.16).
+  const name = shopName(design);
+  const text = design?.logoText ?? defaultText ?? name;
+  const words = wordmarkWords(name);
 
-  // Two-part wordmark ("Your Press"): both words share the same
+  // Two-part wordmark (the site name's first word, then the rest): both words share the same
   // size and (heading) font; the second word can be muted.
   if (design?.wordmarkStyle === "two-part") {
     const size = design?.wordmarkSize ?? 1.75;
@@ -53,9 +57,9 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
           ...(logoColor ? { color: logoColor } : {}),
         }}
       >
-        <span data-studio-style-text="wordmarkPrimary">{design?.wordmarkPrimary ?? "Your"}</span>
+        <span data-studio-style-text="wordmarkPrimary">{design?.wordmarkPrimary ?? words.first}</span>
         <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(design, 0.56)}>
-          {design?.wordmarkSecondary ?? "Books"}
+          {design?.wordmarkSecondary ?? words.rest}
         </span>
       </span>
     );

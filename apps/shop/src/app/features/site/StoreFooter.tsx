@@ -5,6 +5,7 @@ import { POLICY_KEYS, policySlug, policyTitle } from "./policyPages";
 import { DEFAULT_SOCIAL } from "./constants";
 import { contentMaxWidth } from "./headerNav";
 import { getCopy, shopCopyFallback } from "./storeCopy";
+import { shopName, wordmarkWords } from "./shopIdentity";
 import { resolveFooterBadges } from "./paymentBadges";
 import { PAYMENT_ICONS } from "./paymentIcons";
 import { regionProps } from "./storefrontRegions";
@@ -35,6 +36,8 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
   ] as const).map(([key, Icon, linkKey, ariaKey]) => ({ key, Icon, linkKey, ariaKey, url: String(social?.[key] || "").trim() }))
     .filter((s) => /^https?:\/\//i.test(s.url));
   const d = rawDesign;
+  // Unset wordmark words follow Text & labels › Site & sharing › Site name, like the header's (LogoMark).
+  const nameWords = wordmarkWords(shopName(d));
   const grouped = d.footerNavigationLayout !== "columns";
   const policyKeys = POLICY_KEYS.filter(k => (settings?.policies as any)?.[k]?.trim());
   const fourCol = d?.footerLayout === "4col";
@@ -81,10 +84,10 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
           )}
           {footerLogoSrc && footerLogoMode === "image" ? null : d?.wordmarkStyle === "two-part" ? (
             <p className="text-white text-xl" style={{ fontFamily: wordmarkFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
-              <span data-studio-style-text="wordmarkPrimary">{d.wordmarkPrimary ?? "Your"}</span> <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary ?? "Books"}</span>
+              <span data-studio-style-text="wordmarkPrimary">{d.wordmarkPrimary ?? nameWords.first}</span> <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary ?? nameWords.rest}</span>
             </p>
           ) : (
-            <p className="text-white font-bold tracking-widest text-xs"><span data-studio-copy="footerWordmark">{getCopy(settings?.design, "footerWordmark")}</span></p>
+            <p className="text-white font-bold tracking-widest text-xs uppercase"><span data-studio-copy="footerWordmark">{getCopy(settings?.design, "footerWordmark")}</span></p>
           )}
           {/* A blank line is hidden (data-empty) so it can't push a centred logo off centre. */}
           <p className="leading-relaxed max-w-xs" data-empty={footerAbout.trim() ? undefined : ""}>

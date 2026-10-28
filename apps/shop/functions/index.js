@@ -1,5 +1,5 @@
 /**
- * Firebase Cloud Functions for Your Press
+ * Firebase Cloud Functions for the shop
  *
  *   1. createStripeCheckoutSession (HTTP) -> Secure session creation
  *   2. stripeWebhook (HTTP)               -> Secure payment webhook
@@ -2480,70 +2480,70 @@ const DEFAULT_NOTIFICATIONS = {
     subject: "Order confirmed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your purchase! We've received your order and are preparing it for shipment. We will send you another email when it has shipped.",
     buttonText: "View your order",
-    signoff: "Thanks,\nThe Your Press team",
+    signoff: "Thanks,\nThe {{shop_name}} team",
     enabled: true
   },
   shipping_confirmation: {
     subject: "Your order is on the way!",
     body: "Hi {{customer_name}},\n\nGood news! Your order {{order_id}} has shipped with {{tracking_carrier}} and is on its way.\n\nTracking number: {{tracking_number}}\n\nUse the button below to follow your parcel on the carrier's website.",
     buttonText: "Track your shipment",
-    signoff: "Best,\nThe Your Press team",
+    signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
   abandoned_cart: {
     subject: "Did you forget something?",
     body: "Hi {{customer_name}},\n\nWe noticed you left some items in your cart. We've saved them for you, so you can easily complete your purchase whenever you're ready!",
     buttonText: "Resume purchase",
-    signoff: "Thanks,\nThe Your Press team",
+    signoff: "Thanks,\nThe {{shop_name}} team",
     enabled: true
   },
   order_cancelled: {
     subject: "Order cancelled: {{order_id}}",
     body: "Hi {{customer_name}},\n\nYour order has been cancelled and you will not be charged. If you have any questions, please contact us.",
     buttonText: "",
-    signoff: "Best,\nThe Your Press team",
+    signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
   order_pending_payment: {
     subject: "Order received — payment needed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your order! It is reserved for you, but it is not paid yet. Please pay {{total_price}} by {{payment_method}} using the instructions below. We'll confirm by email as soon as your payment arrives and then prepare your order.",
     buttonText: "View your order",
-    signoff: "Thanks,\nThe Your Press team",
+    signoff: "Thanks,\nThe {{shop_name}} team",
     enabled: true
   },
   order_refunded: {
     subject: "Order refunded: {{order_id}}",
     body: "Hi {{customer_name}},\n\nWe have successfully refunded {{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
     buttonText: "",
-    signoff: "Best,\nThe Your Press team",
+    signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
   customer_welcome: {
-    subject: "Welcome to Your Press!",
-    body: "Hi {{customer_name}},\n\nThank you for creating an account with Your Press! You can now log in to view your orders, save shipping addresses, and download digital library books.",
+    subject: "Welcome to {{shop_name}}!",
+    body: "Hi {{customer_name}},\n\nThank you for creating an account with {{shop_name}}! You can now log in to view your orders, save shipping addresses, and download digital library books.",
     buttonText: "Go to your account",
-    signoff: "Warmly,\nThe Your Press team",
+    signoff: "Warmly,\nThe {{shop_name}} team",
     enabled: true
   },
   contact_reply: {
     subject: "We got your message",
-    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Your Press! We've received your message and will reply as soon as we can.",
+    body: "Hi {{customer_name}},\n\nThanks for getting in touch with {{shop_name}}! We've received your message and will reply as soon as we can.",
     buttonText: "",
-    signoff: "Warmly,\nThe Your Press team",
+    signoff: "Warmly,\nThe {{shop_name}} team",
     enabled: true
   },
   gift_card: {
     subject: "You've received a {{amount}} gift card",
-    body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for Your Press.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter it in the Gift card box at checkout. {{expires}}",
+    body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for {{shop_name}}.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter it in the Gift card box at checkout. {{expires}}",
     buttonText: "Shop now",
-    signoff: "Happy reading,\nThe Your Press team",
+    signoff: "Happy reading,\nThe {{shop_name}} team",
     enabled: true
   },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
     buttonText: "Track shipment",
-    signoff: "Best,\nThe Your Press team",
+    signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   }
 };
@@ -2569,6 +2569,15 @@ async function loadNotificationSettings() {
   }
   // Emails to the shop itself (Settings › Notifications › Emails to the shop). On unless switched off;
   // an older saved new_order_admin.enabled is honoured too.
+  // {{shop_name}} in every email (plan 1.16): Settings › Email sender name, else the shop's name, else the deploy's.
+  merged.shopName = shopConfig.senderName;
+  try {
+    const website = (await db.collection("settings").doc("website").get()).data() || {};
+    const own = [website.communications?.fromName, website.info?.name].map((v) => String(v || "").trim()).find(Boolean);
+    if (own) merged.shopName = own;
+  } catch (err) {
+    console.warn("Failed to load the shop name for emails, using the deploy's:", err);
+  }
   merged.shopAlerts = {
     newOrder: dbSettings.shopAlerts?.newOrder ?? (dbSettings.new_order_admin?.enabled !== false),
     shipped: dbSettings.shopAlerts?.shipped !== false,
@@ -2672,6 +2681,9 @@ function getTrackingUrl(carrier, trackingNum, customUrl) {
 
 function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   const brand = settings.brand || {};
+  // {{shop_name}} is known to every email; a caller's own value wins.
+  const shopName = String(settings.shopName || shopConfig.senderName || "");
+  vars = { shop_name: shopName, ...vars };
   const logoUrl = brand.logoUrl || "";
   const brandColor = brand.brandColor || "#e8402a";
   
@@ -2717,7 +2729,7 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
     ${itemsTableHtml}
     ${additionalSection || ""}
     <p style="margin-top:30px;font-weight:600;">${signoffHtml}</p>
-  `, { logoUrl, accent: brandColor, theme: brand.emailTheme });
+  `, { logoUrl, accent: brandColor, theme: brand.emailTheme, shopName });
 
   return { subject, html };
 }

@@ -29,6 +29,7 @@ import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "
 import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
+import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 
@@ -250,6 +251,8 @@ export function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [originalSettings, setOriginalSettings] = useState<any>(null);
+  // The rail's wordmark: the shop's own name (plan 1.16), first word then the rest in italics.
+  const brandWords = wordmarkWords(shopNameFromSettings(settings));
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
   const [showLogs, setShowLogs] = useState(false);
@@ -622,7 +625,7 @@ export function Dashboard() {
               <a className="rp-brand-link" href="#overview" aria-label="Website admin: go to Overview"
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
                 <span className="rp-brand-text">
-                  <span className="rp-wordmark">Lyrical<em>myrical</em></span>
+                  <span className="rp-wordmark">{brandWords.first}{brandWords.rest ? <em> {brandWords.rest}</em> : null}</span>
                   <span className="rp-wordmark-sub">Website admin</span>
                 </span>
               </a>
@@ -642,7 +645,7 @@ export function Dashboard() {
               <Menu size={20} aria-hidden />
             </IconButton>
             {/* Phones: the wordmark sits in the top bar (the rail is a drawer there). */}
-            <a className="rp-topbar-wordmark" href="#overview" onClick={(e) => { e.preventDefault(); void goTo("overview"); }}>Your Press</a>
+            <a className="rp-topbar-wordmark" href="#overview" onClick={(e) => { e.preventDefault(); void goTo("overview"); }}>{shopNameFromSettings(settings)}</a>
             <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} shortcut={!showEditor && !(activeTab === "settings" && settingsTab === "designer")}
               appBooks={appSearch.books} appConnected={appSearch.connected} request={searchRequest}
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}

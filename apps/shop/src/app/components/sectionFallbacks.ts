@@ -2,9 +2,12 @@
 // A section's own Content fields always win; these only fill in fields that were never set.
 // (Clearing a settings-level field on purpose leaves it blank — see SectionComponents.)
 // admin/sectionFallbacks.test.ts checks that every settings-level key has a Content field.
+import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
+
+// `{name}` is the site name (Text & labels › Site & sharing › Site name, plan 1.16).
 export const SECTION_FALLBACKS: Record<string, string> = {
   "CompositionSection.block.text": "Button",
-  "HeroSection.title": "Your Press",
+  "HeroSection.title": "{name}",
   "HeroSection.subtitle": "Photography & Art Books",
   "HeroSection.ctaText": "Explore",
   "ImageBannerSection.title": "Stories worth keeping",
@@ -28,12 +31,12 @@ export const SECTION_FALLBACKS: Record<string, string> = {
   "CollectionListSection.item.title": "Collection",
   "FeaturedProductSection.eyebrow": "Featured",
   "FeaturedProductSection.ctaText": "View product",
-  "ProductGridHeaderSection.title": "Your Press",
+  "ProductGridHeaderSection.title": "{name}",
   "ProductGridHeaderSection.cartLabel": "Cart",
   "ProductGridHeaderSection.cartTotalText": "CA$130.00",
   "ProductGridHeaderSection.navText": "Products · About · Project Submissions · Contact",
   "ProductGridHeaderSection.saleLabel": "On sale",
-  "ProductCoverCarouselSection.title": "Your Press",
+  "ProductCoverCarouselSection.title": "{name}",
   "StaffNotesTableSection.colTitleLabel": "TITLE",
   "StaffNotesTableSection.colCategoryLabel": "CATEGORY",
   "StaffNotesTableSection.colFormatLabel": "FORMAT",
@@ -84,4 +87,5 @@ export const SECTION_FALLBACKS: Record<string, string> = {
   "StickyAddToBagSection.addedText": "Added to your bag",
 };
 
-export const fb = (key: string): string => SECTION_FALLBACKS[key] ?? "";
+/** A fallback word; `{name}` in it is the site name (pass it from `useShopName()`, else the placeholder name). */
+export const fb = (key: string, name: string = DEFAULT_SHOP_NAME): string => (SECTION_FALLBACKS[key] ?? "").replace(/\{name\}/g, name);
