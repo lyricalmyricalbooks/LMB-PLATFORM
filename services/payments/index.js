@@ -3,6 +3,7 @@
 import { readServiceConfig } from "./config.js";
 import { createStripeApi } from "./stripeApi.js";
 import { createPaymentService, httpDeliver } from "./service.js";
+import { createSquareApi } from "./squareApi.js";
 
 export { handlePayments } from "./http.js";
 export { feeFor, feeForShop, readFeeSettings } from "./fees.js";
@@ -13,10 +14,14 @@ export { feeFor, feeForShop, readFeeSettings } from "./fees.js";
  * @param {typeof fetch} deps.fetch for Stripe and for passing events on to shops
  * @param {object} deps.registry the shop registry; deps.auditLog each shop's audit log; deps.accounts the service's
  *   record of the accounts it made (service.js has the shapes)
+ * @param {object} [deps.squareTokens] the presses' sealed Square tokens; deps.squareStates Connect Square's one-use states
+ *   (square.js has the shapes; both platform-project collections in the real service)
  */
-export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts, now }) {
+export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts, squareTokens = null, squareStates = null, now }) {
   const config = readServiceConfig(env);
+  const squareReady = Boolean((config.square.apps.live || config.square.apps.test) && squareTokens && squareStates);
   return createPaymentService({
+    ...(squareReady ? { squareApi: createSquareApi({ fetch, apps: config.square.apps }), tokens: squareTokens, states: squareStates } : {}),
     stripe: createStripeApi({ fetch, keys: config.keys }),
     registry,
     auditLog,
