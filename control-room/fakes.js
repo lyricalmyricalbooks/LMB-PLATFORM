@@ -15,6 +15,17 @@ export function fakeShopAccess() {
   };
 }
 
+/** The repair queue's store, in memory (clients/stores.js `firestoreRepairs` is the real one). */
+export function fakeRepairStore() {
+  const rows = new Map();
+  return {
+    rows,
+    get: async (id) => structuredClone(rows.get(id) ?? null),
+    set: async (id, item) => void rows.set(id, structuredClone(item)),
+    list: async ({ shopId, status } = {}) => structuredClone([...rows.values()].filter((r) => (!shopId || r.shopId === shopId) && (!status || r.status === status))),
+  };
+}
+
 /** A pretend repair queue with open items by shop. */
 export function fakeRepairQueue(open = {}) {
   return { open: async (shopId) => structuredClone(open[shopId] ?? []) };

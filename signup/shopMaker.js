@@ -16,7 +16,8 @@
 //   signups    get / set / list (signup/fakes.js)
 //   run        (shop) -> runSteps result: { ok, ran, failedStep?, error?, locked? } (setup/runner.js with shopSteps)
 //   registry   getProfile(shopId) -> profile | null (for the shop's address once it's ready)
-//   repairs    optional: report({ shopId, check, problem, detail }) (control-room/repairs.js, 2.11)
+//   repairs    optional: report({ shopId, check, problem, detail }); passed(shopId, check) (control-room/repairs.js)
+//   selfCheck  optional: check(shopId, { why }) (control-room/selfChecks.js): run once the shop is ready
 import { SignupError, personOf } from "./signup.js";
 
 export const AUTO_TRIES = 3;
@@ -63,7 +64,7 @@ export function shopFromSignup(row, { testMode }) {
   };
 }
 
-export function createShopMaker({ signups, run, registry, repairs = null, testMode = true, now = () => new Date() }) {
+export function createShopMaker({ signups, run, registry, repairs = null, selfCheck = null, testMode = true, now = () => new Date() }) {
   const at = () => now().toISOString();
   const later = (minutes) => new Date(now().getTime() + minutes * 60_000).toISOString();
 
@@ -85,6 +86,14 @@ export function createShopMaker({ signups, run, registry, repairs = null, testMo
     if (result.ok) {
       const profile = await registry.getProfile(shopId);
       row = { ...row, status: "ready", readyAt: at(), siteUrl: profile?.siteUrl ?? `https://${shopId}.web.app`, failedStep: null, error: null };
+      // Earlier trouble is over; then the self-checks look at the new shop (2.11). Their problems go to the repair
+      // queue, never to the press's page, so they can't hold the press up.
+      if (repairs?.passed) await repairs.passed(shopId, "shop-maker");
+      if (selfCheck) {
+        try {
+          await selfCheck.check(shopId, { why: "the shop maker finished" });
+        } catch { /* the daily sweep checks it again */ }
+      }
     } else if (result.locked) {
       // Another run holds the shop (only after a crash, until its lock lapses): look again shortly.
       row = { ...row, status: "waiting", attempts: attempts - 1, nextTryAt: later(BACKOFF_MINUTES[0]), message: "Still working on it. We'll carry on in a minute.", canRetry: false };

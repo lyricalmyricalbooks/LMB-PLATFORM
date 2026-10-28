@@ -90,6 +90,16 @@ square corners, 2px ink outlines on objects and hairlines inside lists, flat off
 shadows by day, warm-grey night mode, Anton / Archivo / DM Mono, status = glyph + word.
 If tokens change there, update `riso.css` to match.
 
+**Admin themes and colours (28 October 2026, plan 1.26):** every admin colour is a `--rp-*` token in
+`riso/adminThemes.css`, once per admin look × appearance: **Riso Press** (default, the values above) and **Paper** (white
+paper, graphite ink, calm blue primary, 4–8px corners, soft shadows only in Studio). The look is a per-browser choice in
+the avatar menu ("Paper look" / "Riso Press look", `riso/adminLook.ts`, `localStorage.adminLook`) and sits on
+`<html data-admin-look="paper">`, so portalled dialogs follow it; appearance stays on each `.rp` root. `riso.css`,
+`adminCompat.css`, `studio.css` and every other admin stylesheet name no colour: `riso/adminThemes.test.ts` fails on one
+and checks words against their backgrounds (4.5:1) in all four combinations. A new colour is a new token with a value
+for every look. `--rp-legacy-*` are the old day-only utility remaps in `adminCompat.css`; inline colours in admin TSX
+(email previews, photo crop) are not covered yet.
+
 **Pressroom (22 October 2026, the owner's concept A, https://claude.ai/artifact/AR9vcvX5mR5JNCDHeBpFte):** the last layer of
 `riso.css` ("Pressroom") restyles the whole admin: cream page, 232px ink rail (`--rp-rail*`; "Website admin" under the wordmark, 16px line icons in one column (faint, label colour on hover/current), active item
 cream, `data-nav` on each item, Orders badge red), 64px top bar with a hairline (search, "Shop open" as glyph + word, round
