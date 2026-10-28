@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import { getCopy } from "../features/site/storeCopy";
+import { shopName } from "../features/site/shopIdentity";
 import type { DynamicContext } from "../features/site/dynamicSources";
 
 // Section renderers are pure (no data hooks), so the page's design travels down by context:
@@ -10,6 +11,11 @@ export const SectionDesignContext = createContext<any>(null);
 /** The page design (or null) — e.g. the shop's categories for a "Which books: category" source. */
 export function useSectionDesign(): any {
   return useContext(SectionDesignContext);
+}
+
+/** The shop's name for section fallbacks and words (Text & labels › Site & sharing › Site name). */
+export function useShopName(): string {
+  return shopName(useContext(SectionDesignContext));
 }
 
 export function useSectionCopy() {

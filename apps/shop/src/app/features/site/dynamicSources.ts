@@ -7,8 +7,9 @@ import type { BookFieldDef } from "./bookFields";
 import { slugify } from "./storeMenu";
 import { descriptionPlainText } from "./descriptionLinks";
 
-export type DynamicContext = { book?: any; category?: any; page?: any };
-export type DynamicSource = { path: string; label: string; group: "Book" | "Category" | "Page"; kind: "text" | "image" | "link" };
+/** `shop` is the shop itself on every page: its name is Text & labels › Site & sharing › Site name (plan 1.16). */
+export type DynamicContext = { book?: any; category?: any; page?: any; shop?: { name?: string } };
+export type DynamicSource = { path: string; label: string; group: "Book" | "Category" | "Page" | "Shop"; kind: "text" | "image" | "link" };
 
 export const BUILT_IN_SOURCES: DynamicSource[] = [
   { path: "book.title", label: "Title", group: "Book", kind: "text" },
@@ -28,6 +29,7 @@ export const BUILT_IN_SOURCES: DynamicSource[] = [
   { path: "category.image", label: "Picture", group: "Category", kind: "image" },
   { path: "category.url", label: "Collection link", group: "Category", kind: "link" },
   { path: "page.title", label: "Title", group: "Page", kind: "text" },
+  { path: "shop.name", label: "Shop name", group: "Shop", kind: "text" },
 ];
 
 /** Built-in sources plus one per custom book field. */
@@ -78,6 +80,7 @@ export function readSource(path: string, ctx: DynamicContext): string {
     return "";
   }
   if (group === "page") return key === "title" ? str(ctx.page?.title) : "";
+  if (group === "shop") return key === "name" ? str(ctx.shop?.name) : "";
   return "";
 }
 

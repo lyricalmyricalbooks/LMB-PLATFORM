@@ -12,7 +12,7 @@ import { resolveSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { fb } from "./sectionFallbacks";
 import { submitContactMessage } from "../features/site/contactMessages";
-import { useSectionCopy, useSectionDesign, useSectionPage } from "./sectionCopy";
+import { useSectionCopy, useSectionDesign, useSectionPage, useShopName } from "./sectionCopy";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { slugify } from "../features/site/storeMenu";
 import { pickBook, sectionBookQuery, selectBooks } from "../features/site/merchandising";
@@ -325,6 +325,7 @@ function StyledImage({ src, alt = "", settings, fieldKey, className = "", imgCla
 // ──────────────────────────────
 
 export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
+  const name = useShopName();
   const heightCls =
     settings.height === "full"
       ? "h-screen min-h-[600px]"
@@ -367,7 +368,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
             style={{ ...(settings.titleItalic ? { fontStyle: "italic" } : {}), ...hStyle(settings) }}
             data-theme-field="title"
           >
-            {settings.title ?? fb("HeroSection.title")}
+            {settings.title ?? fb("HeroSection.title", name)}
           </h1>
           <p
             className="text-sm md:text-md tracking-[0.3em] font-medium text-white/70 uppercase mb-10"
@@ -1251,6 +1252,7 @@ function GrainOverlay({ opacity }: { opacity?: number }) {
 }
 
 export function ProductGridHeaderSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const name = useShopName();
   const { formatBookPrice } = useCurrency();
   const candidates = useSectionBooks(books, settings);
   const limit = Math.max(1, Math.min(24, settings.productLimit ?? 6));
@@ -1284,7 +1286,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
               data-theme-field="title"
               style={{ fontSize: `clamp(${settings.mastheadMobile ?? 38}px, 5vw, ${settings.mastheadDesktop ?? 58}px)`, ...hStyle(settings) }}
             >
-              {settings.title ?? fb("ProductGridHeaderSection.title")}
+              {settings.title ?? fb("ProductGridHeaderSection.title", name)}
             </h2>
             <p className="text-lg md:text-2xl font-black whitespace-nowrap" data-theme-field="cartTotalText">
               {settings.cartLabel ?? fb("ProductGridHeaderSection.cartLabel")} | {settings.cartTotalText ?? fb("ProductGridHeaderSection.cartTotalText")}
@@ -1363,6 +1365,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
 
 export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any) {
   const sc = useSectionCopy();
+  const name = useShopName();
   const covers = useSectionBooks(books, settings)
     .map((book: any) => ({ id: book.id || productSlug(book), url: book.photos?.[0]?.url, title: book.title }))
     .filter((c: any) => !!c.url)
@@ -1447,7 +1450,7 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
           }}
           data-theme-field="title"
         >
-          {settings.title ?? fb("ProductCoverCarouselSection.title")}
+          {settings.title ?? fb("ProductCoverCarouselSection.title", name)}
         </h1>
         {settings.tagline && (
           <p className="mt-3.5 text-[15px] max-w-lg" style={{ ...bStyle(settings), color: settings.taglineColor || "rgba(255,255,255,0.88)" }} data-theme-field="tagline">

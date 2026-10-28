@@ -107,7 +107,7 @@ const REVIEW_REQUEST_TEMPLATE = {
   subject: "How are you finding your book?",
   body: "Hi {{customer_name}},\n\nWe hope your books from order {{order_id}} arrived safely. If you have a moment, we'd love to hear what you think — a short review helps other readers find their next book. Each title below opens its page, where the review form is.",
   buttonText: "Write a review",
-  signoff: "Thanks for reading,\nThe Your Press team",
+  signoff: "Thanks for reading,\nThe {{shop_name}} team",
   enabled: false,
   delayDays: 14,
 };
