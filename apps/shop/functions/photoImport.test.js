@@ -264,3 +264,67 @@ describe("copyPhoto hardening", () => {
     expect(privateAddress("2606:4700::1111")).toBe(false);
   });
 });
+
+describe("pictures inside book descriptions (plan 5.5)", () => {
+  const { descriptionImages } = require("./photoImport");
+  const IN_TEXT = "https://cdn.oldshop.example/files/spread.jpg?v=2&size=big";
+  const ESCAPED = IN_TEXT.replace(/&/g, "&amp;");
+  const description = `<p>A riso book.</p><img alt="Spread" src="${ESCAPED}"><p>Also</p><img src='${OLD_B}' width="300"><img src="${OWN}">`;
+
+  it("finds the old addresses of description pictures, decoded, and skips ones already in this bucket", () => {
+    expect(descriptionImages(description, BUCKET)).toEqual([IN_TEXT, OLD_B]);
+    expect(descriptionImages("No pictures here", BUCKET)).toEqual([]);
+    expect(descriptionImages(undefined, BUCKET)).toEqual([]);
+    expect(descriptionImages(`<img data-src="${OLD_A}" src="${OLD_B}">`, BUCKET)).toEqual([OLD_B]);
+    expect(descriptionImages('<img src="http://cdn.oldshop.example/a.jpg"><img src="https://10.0.0.1/b.jpg">', BUCKET)).toEqual([]);
+  });
+
+  it("copies description pictures, rewrites the description once and keeps each old address", async () => {
+    const db = fakeDb({ desc: { title: "Desc", description, photos: [{ url: OLD_B }] } });
+    const bucket = fakeBucket();
+    const { fetch, calls } = fakeFetch({ [IN_TEXT]: { type: "image/jpeg" }, [OLD_B]: { type: "image/png" } });
+    const result = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
+    // OLD_B is both a photo and a description picture: one download, counted once.
+    expect(result).toMatchObject({ found: 2, done: 2, books: 1, failed: 0, pending: 0 });
+    expect(calls.sort()).toEqual([IN_TEXT, OLD_B].sort());
+    expect(bucket.store.size).toBe(2);
+    const saved = db.docs.get("books/desc");
+    expect(saved.description).not.toContain("cdn.oldshop.example");
+    expect(saved.description).toContain('<p>A riso book.</p><img alt="Spread" src="https://firebasestorage.googleapis.com/');
+    expect(saved.description).toContain(`<img src="${OWN}">`);
+    expect(saved.description).toContain('width="300"');
+    expect(saved.description.match(/products%2Fimported%2F/g)).toHaveLength(2);
+    expect(saved.description).toContain("alt=media&amp;token=");
+    expect(saved.descriptionImages.map(d => d.importedFrom)).toEqual([IN_TEXT, OLD_B]);
+    for (const d of saved.descriptionImages) expect(saved.description).toContain(d.url.replace(/&/g, "&amp;"));
+    expect(saved.photos[0]).toMatchObject({ importedFrom: OLD_B, url: saved.descriptionImages[1].url });
+  });
+
+  it("does nothing on a re-run: no download, no rewrite, no new audit line", async () => {
+    const db = fakeDb({ desc: { description } });
+    const bucket = fakeBucket();
+    const { fetch, calls } = fakeFetch({ [IN_TEXT]: { type: "image/jpeg" }, [OLD_B]: { type: "image/png" } });
+    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
+    const after = structuredClone(db.docs.get("books/desc"));
+    calls.length = 0;
+    const later = Date.now() + 2 * 24 * 3600_000;
+    const again = await runPhotoImport({ db, bucket, fetch, deadline: later + 60_000, now: later, log: quiet, lookup: publicLookup });
+    expect(again).toMatchObject({ found: 0, done: 0 });
+    expect(calls).toEqual([]);
+    expect(db.docs.get("books/desc")).toEqual(after);
+    expect(after.descriptionImages).toHaveLength(2);
+    expect(db.audit).toHaveLength(1);
+  });
+
+  it("refuses a description picture whose name points at a private address, and leaves the description alone", async () => {
+    const db = fakeDb({ desc: { description: `<img src="${OLD_A}">` } });
+    const bucket = fakeBucket();
+    const { fetch, calls } = fakeFetch({ [OLD_A]: { type: "image/jpeg" } });
+    const result = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: async () => [{ address: "10.0.0.7", family: 4 }] });
+    expect(result).toMatchObject({ found: 1, done: 0, failed: 1 });
+    expect(calls).toEqual([]);
+    expect(bucket.store.size).toBe(0);
+    expect(db.docs.get("books/desc")).toEqual({ description: `<img src="${OLD_A}">` });
+    expect(Object.values(db.docs.get("systemStatus/photoImport").failed)[0].reason).toBe("the address points inside a private network");
+  });
+});
