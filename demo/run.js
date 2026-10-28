@@ -6,21 +6,26 @@
 // Options: --fresh (forget the saved demo data first), --no-functions (leave the shop's server code out),
 // --sample-press <public host> (the sample press on a server: read-only, no server code, fresh every night; hosted.js).
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   addresses, DEMO_OWNER, DEMO_PROJECT, demoRules, emulatorConfig, FIREBASE_TOOLS, firebaseRc, javaMajor, PORTS,
-  profileScript, shopProfile, stockroomProfile, url, viteEnv,
+  profileScript, shopProfile, stockroomProfile, STOCKROOM_DATABASE, url, viteEnv,
 } from "./config.js";
 import { seedDemo } from "./seed.js";
 import { INTERNAL_PORTS, msUntilReset, RESET_HOUR, sampleEmulatorConfig, sampleProfileScript, sampleRules, sampleViteEnv } from "./hosted.js";
 import { startGate } from "./gate.js";
+import { keepDatabase } from "./keepDatabase.js";
 import { resetSamplePress } from "./reset.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const WORK = join(ROOT, ".demo");
 const DATA = join(WORK, "data");
+// The emulators' own export (DATA) keeps only the default Firestore database; the stockroom's is saved here instead
+// (keepDatabase.js). Outside DATA, which the export replaces whole.
+const STOCKROOM_SAVE = join(WORK, "stockroom-data.json");
+const SAVE_EVERY_MS = 10_000;
 const WINDOWS = process.platform === "win32";
 const MIN_JAVA = 21; // firebase-tools 15's Firestore emulator needs Java 21 or newer.
 
@@ -155,10 +160,22 @@ function startApp(name, folder, port, profileFile) {
 }
 
 let stopping = false;
+// Set once the emulators are up (main): saves the stockroom's database.
+let stockroomKeeper = null;
+
 function stopAll(code = 0, { byCtrlC = false } = {}) {
   if (stopping) return;
   stopping = true;
   say("\nStopping the demo and saving its data…");
+  // The stockroom's database first, while the emulators still answer (on Windows they got the same Ctrl+C, but stop
+  // only after their own export). A save that can't finish keeps the copy from the last few seconds.
+  // Before they start, stop at once: the callers that then exit (stopWith) must not leave the emulators running.
+  if (!stockroomKeeper) return stopChildren(code, { byCtrlC });
+  const giveUp = new Promise((resolve) => setTimeout(() => resolve(false), 10_000).unref());
+  Promise.race([stockroomKeeper.save(), giveUp]).then(() => stopChildren(code, { byCtrlC }));
+}
+
+function stopChildren(code, { byCtrlC }) {
   for (const child of children) {
     if (!WINDOWS) {
       try {
@@ -208,8 +225,8 @@ function printWelcome(withFunctions) {
   say("    No shop data leaves this computer, and no real Google account is used.");
   if (!withFunctions) say("  - The shop's server code is off, so shipping prices, order tools and the Team list don't work either.");
   say("");
-  say("Press Ctrl+C here to stop. Changes to the shop are kept for next time (the stockroom starts again from its");
-  say("starter books each time); `npm run demo -- --fresh` starts the shop over too.");
+  say("Press Ctrl+C here to stop. Changes to the shop and the stockroom are kept for next time;");
+  say("`npm run demo -- --fresh` starts both over from the starter books.");
 }
 
 // The sample press's apps, built once for its public host with each app's own Vite.
@@ -277,7 +294,10 @@ async function main() {
   say("Starting the demo shop (project demo-colophon-test, local only)…");
   checkTools();
   ensurePackages(withFunctions);
-  if (argv.includes("--fresh")) rmSync(DATA, { recursive: true, force: true });
+  if (argv.includes("--fresh")) {
+    rmSync(DATA, { recursive: true, force: true });
+    rmSync(STOCKROOM_SAVE, { force: true });
+  }
   if (await hubSays()) stopWith("The Firebase emulators are already running (another demo window?). Stop that one first with Ctrl+C.");
 
   process.on("SIGINT", () => stopAll(0, { byCtrlC: true }));
@@ -303,6 +323,18 @@ async function main() {
     }
   });
 
+  const keeper = keepDatabase({ fetch, base: url(PORTS.firestore), projectId: DEMO_PROJECT, database: STOCKROOM_DATABASE, file: STOCKROOM_SAVE });
+  try {
+    const restored = await keeper.restore();
+    if (restored) say(`Brought back the stockroom as you left it (${restored} documents).`);
+  } catch (error) {
+    // Kept aside, so the saves that follow don't write over it.
+    renameSync(STOCKROOM_SAVE, `${STOCKROOM_SAVE}.not-restored`);
+    say(`The stockroom's saved copy couldn't be brought back, so it starts from its starter books (${error?.message ?? error}).`);
+    say(`The copy is kept in .demo/stockroom-data.json.not-restored.`);
+  }
+  stockroomKeeper = keeper;
+
   say("Filling the demo shop with its books…");
   const seeded = await seedDemo({ fetch });
   say(`  ${seeded.created.length ? `Added ${seeded.created.length} shop documents` : "The shop's books were already there"}; ${seeded.stockroomAdded.length ? `added ${seeded.stockroomAdded.length} stockroom books` : "the stockroom's books were already there"}.`);
@@ -313,6 +345,10 @@ async function main() {
     startApp("stockroom", "apps/stockroom", PORTS.stockroom, "stockroom-profile.js"),
   ]);
   printWelcome(withFunctions);
+  // Saved every few seconds too: on Windows, Ctrl+C stops the emulators at the same moment as this window.
+  setInterval(() => {
+    if (!stopping) keeper.save();
+  }, SAVE_EVERY_MS).unref();
 }
 
 main().catch((error) => {

@@ -151,3 +151,20 @@ jobs:
           java-version: 21
       - name: A sign-up lands, and nothing else gets through
         run: npx -y firebase-tools@15.32.1 emulators:exec --only firestore --project demo-waitlist "node firestore-emulator.mjs"
+
+  # Plan 5.0e: the local demo (`npm run demo`) keeps the stockroom's own database between runs. Starts the real demo,
+  # writes to the stockroom's database, stops it with Ctrl+C, starts it again and finds the change (demo/keep-check.js).
+  demo-keeps-stockroom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: A stockroom change survives Ctrl+C and a fresh start
+        run: node demo/keep-check.js
