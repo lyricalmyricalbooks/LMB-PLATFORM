@@ -1,4 +1,4 @@
-/* Your Press Inventory — Unified Backend (v58)
+/* Your Press Inventory — Unified Backend (v59)
  * Features:
  *  1. Gmail scanner for Big Cartel order emails, including customer-paid shipping
  *  2. Sheets sync with:
@@ -291,6 +291,10 @@
  *      owner and sender addresses, links and the shop name are neutral
  *      placeholders until each press's own settings replace them. Bump flags
  *      v57-and-older as outdated so the publisher redeploys.
+ *  57. v59: the last of one press's name leaves the script: the web lookup
+ *      introduces itself as StockroomProxy and the AI helper's requests are
+ *      titled "Stockroom". Bump flags v58-and-older as outdated so the
+ *      publisher redeploys.
  */
 
 const HEADERS = [
@@ -354,8 +358,8 @@ function doGet(e) {
   const receiptModel = receiptProps.getProperty('GEMINI_MODEL') || 'gemini-2.5-flash';
   const receiptModelValid = /^[a-zA-Z0-9.-]+$/.test(receiptModel);
   return jsonOut_({
-    service: 'lyrical-sheets-webhook-v58',
-    scriptVersion: 'v58',
+    service: 'lyrical-sheets-webhook-v59',
+    scriptVersion: 'v59',
     capabilities: { reset: true, voidDeletes: true, providerEmail: true, invoiceColumn: true, getBookData: true, captureThread: true, openCallIntake: true, bounceDetection: true, senderAlias: true, mailQuota: true, ocSchedule: true, batchSync: true, bigCartelShipping: true, proxyBigCartel: true, batchEmailContent: true, cheapReceiptList: true, proxyCanadaPost: true, proxyChitChats: true, proxyZonos: true, canadaPostTracking: true, canadaPostOAuth: true, canadaPostRefund: true, graphicalEmails: true, authorPaymentEmails: true, dateOrderedRows: true, receiptExtraction: true, receiptSelfTest: true, receiptDailySweep: true, receiptBackupAi: true, pruneOrphans: true, expenseRows: true, pruneDuplicates: true, renameBook: true, deferSummary: true },
     receiptAi: {
       geminiApiKey: !!receiptProps.getProperty('GEMINI_API_KEY'),
@@ -1168,7 +1172,7 @@ function doPost(e) {
         const username = d.username;
         const password = d.password;
         const method = d.method || 'GET';
-        const userAgent = d.userAgent || 'LyricalInventoryProxy/1.0 (owner@example.com)';
+        const userAgent = d.userAgent || 'StockroomProxy/1.0 (owner@example.com)';
 
         if (!url || !url.startsWith('https://api.bigcartel.com/')) {
           return jsonOut_({ error: 'invalid API url' });
@@ -3358,7 +3362,7 @@ function receiptBackupRead_(backup, request) {
   if (hasPdf) body.plugins = [{ id: 'file-parser', pdf: { engine: 'cloudflare-ai' } }];
   var response = UrlFetchApp.fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-    headers: { Authorization: 'Bearer ' + backup.key, 'X-OpenRouter-Title': 'Lyrical Inventory' },
+    headers: { Authorization: 'Bearer ' + backup.key, 'X-OpenRouter-Title': 'Stockroom' },
     payload: JSON.stringify(body)
   });
   var status = response.getResponseCode();

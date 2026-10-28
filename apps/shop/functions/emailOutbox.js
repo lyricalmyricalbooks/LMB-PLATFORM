@@ -3,6 +3,8 @@
 // here and unpaidPaymentSweep (every 15 minutes) tries again on a widening schedule, so a
 // temporary outage or a key the owner fixes later never loses an order confirmation.
 
+const { DEFAULT_SHOP_NAME } = require("./shared/shopIdentity");
+
 const MINUTE = 60 * 1000;
 // Wait before each retry: 15 min, 30 min, 1 h, 2 h, 4 h, 8 h, 12 h — about 28 hours in all.
 const RETRY_DELAYS_MS = [15, 30, 60, 120, 240, 480, 720].map(m => m * MINUTE);
@@ -29,9 +31,10 @@ function cleanSubject(subject) {
   return String(subject ?? "").replace(/[\r\n]+/g, " ").trim().slice(0, 250);
 }
 
-// Sender display name for a mail header (no quotes, angle brackets or newlines).
+// Sender display name for a mail header (no quotes, angle brackets or newlines). Callers pass the press's name
+// (shared/shopIdentity pressName); the placeholder is only for a shop with no name at all.
 function cleanFromName(name) {
-  return String(name ?? "").replace(/[\r\n"<>]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Your Press";
+  return String(name ?? "").replace(/[\r\n"<>]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || DEFAULT_SHOP_NAME;
 }
 
 // When the next try is due after `attempts` failed tries (ISO), or null once the queue gives up.

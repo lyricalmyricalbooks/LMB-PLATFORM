@@ -1,5 +1,10 @@
 // The control room's calls on the platform's one web door (signup/api.js `routes`). Platform admins only.
 //
+//   GET  /api/control/today    the numbers, monthly income and what needs a person (plan 9.2)
+//   POST /api/control/shop     { shopId }: one shop's record (9.3)
+//   POST /api/control/fee      { shopId, basisPoints, refunded, reason }: the shop's per-order fee, 30 days' notice (9.6)
+//   POST /api/control/switch-all  { name, on, reason }: one switch for every live shop (9.7)
+//   GET/POST /api/control/new-shop-switches  the switches new shops start with (9.7)
 //   GET  /api/control/shops    every shop: plan, version, health, switches
 //   POST /api/control/act-as   { shopId, reason } -> { url, expiresAt }: logged before the sign-in is made
 //   POST /api/control/switch   { shopId, name, on, reason }: one switch, then the shop's profile is re-published
@@ -18,7 +23,15 @@
 export function controlRoutes(room) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
   return {
+    "GET /api/control/today": (claims) => room.today(claims),
+    "POST /api/control/shop": (claims, request) => room.shop(claims, body(request)),
+    "POST /api/control/fee": (claims, request) => room.setFee(claims, body(request)),
+    "POST /api/control/switch-all": (claims, request) => room.switchAll(claims, body(request)),
+    "GET /api/control/new-shop-switches": (claims) => room.newShopSwitches(claims),
+    "POST /api/control/new-shop-switches": (claims, request) => room.setNewShopSwitch(claims, body(request)),
     "GET /api/control/shops": (claims) => room.shops(claims),
+    "GET /api/control/test-shop": (claims) => room.testShop(claims),
+    "POST /api/control/test-shop/reset": (claims, request) => room.resetTestShop(claims, body(request)),
     "POST /api/control/act-as": (claims, request) => room.actAs(claims, body(request)),
     "POST /api/control/switch": (claims, request) => room.switch(claims, body(request)),
     "POST /api/control/repairs": (claims, request) => room.repairs(claims, body(request)),

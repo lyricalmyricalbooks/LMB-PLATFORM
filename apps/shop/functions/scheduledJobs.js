@@ -245,8 +245,9 @@ function scheduledJobs({
       // Plan 3.1b: photos still on an old shop's address come into this bucket first, so the copies below pick them
       // up (functions/photoImport.js). Safe to re-run; logged in audit-log when anything was copied.
       try {
-        const { runPhotoImport } = require("./photoImport");
-        const imported = await runPhotoImport({ db, bucket, fetch: globalThis.fetch, deadline: start + 90_000 });
+        const { runPhotoImport, pinnedFetch } = require("./photoImport");
+        // pinnedFetch connects to the address the import checked, never a second lookup of the name (plan 5.7).
+        const imported = await runPhotoImport({ db, bucket, fetch: pinnedFetch, deadline: start + 90_000 });
         if (imported.found) console.log("storageImageSweep: imported photos", imported);
       } catch (err) { console.error("storageImageSweep: imported photos failed:", err.message); }
       try {

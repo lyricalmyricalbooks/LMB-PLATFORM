@@ -918,9 +918,13 @@ export function OrderDetail({
         />
         <aside className="rp-stack fw-aside" aria-label="Order summary">
           {order.paymentMismatch && !order.paymentMismatch.resolvedAt && order.paymentStatus !== "paid" && (
-            <SectionCard title={order.paymentMismatch.paidAfterCancel ? "Paid after cancelling" : "Payment doesn't match"}>
+            <SectionCard title={order.paymentMismatch.paidAfterHold ? "Paid after checkout closed" : order.paymentMismatch.paidAfterCancel ? "Paid after cancelling" : "Payment doesn't match"}>
               <p className="fw-summary">
-                {order.paymentMismatch.paidAfterCancel
+                {order.paymentMismatch.paidAfterHold
+                  ? (order.lateRefundPending
+                    ? "The customer paid after the books stopped being set aside, so this order wasn't placed. The shop is refunding the full payment by itself; it tries again every few minutes. Mark it here only if you refund it yourself."
+                    : "The customer paid after the books stopped being set aside, so this order wasn't placed and no stock was taken. The full payment was refunded automatically. This note clears when the refund goes through.")
+                  : order.paymentMismatch.paidAfterCancel
                   ? "The customer paid after this order was cancelled. Refund the payment in Stripe or PayPal, then mark it here."
                   : "The amount taken doesn't match this order. Refund or correct it in Stripe or PayPal, then mark it here."}
               </p>

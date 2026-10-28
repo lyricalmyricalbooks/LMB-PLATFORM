@@ -39,6 +39,7 @@ function checkValue(rule, value, where, problems) {
   } else if (rule.type === "string") {
     if (typeof value !== "string") problems.push(`${where} must be text`);
     else if (rule.minLength && value.length < rule.minLength) problems.push(`${where} is empty`);
+    else if (rule.maxLength && value.length > rule.maxLength) problems.push(`${where} is longer than ${rule.maxLength} characters`);
     else if (rule.pattern && !new RegExp(rule.pattern).test(value)) problems.push(`${where} has the wrong shape`);
   }
 }

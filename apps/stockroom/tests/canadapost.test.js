@@ -148,7 +148,7 @@ describe('Canada Post Label & Shipment Creation', () => {
     const jsonStr = buildNonContractShipmentJson({
       serviceCode: 'USA.TP',
       sender: {
-        name: 'Lyrical Books',
+        name: 'Moth Press',
         company: 'Your Press',
         phone: '4165550199',
         address1: '123 Main St',
@@ -524,7 +524,7 @@ describe('Canada Post Label & Shipment Creation', () => {
     const context = {
       serviceCode: 'DOM.EP',
       trackingPin: '7012999988881111',
-      sender: { name: 'Lyrical Books' },
+      sender: { name: 'Moth Press' },
       destination: { name: 'Jane Doe', postalCode: 'V6B 2W9', countryCode: 'CA' }
     };
 

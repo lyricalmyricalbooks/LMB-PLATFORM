@@ -18,6 +18,7 @@
 //   registry   getProfile(shopId) -> profile | null (for the shop's address once it's ready)
 //   repairs    optional: report({ shopId, check, problem, detail }); passed(shopId, check) (control-room/repairs.js)
 //   selfCheck  optional: check(shopId, { why }) (control-room/selfChecks.js): run once the shop is ready
+//   line       optional: the sign-up (signup.js), whose admitFromLine() lets presses over the daily cap in first
 import { SignupError, personOf } from "./signup.js";
 
 export const AUTO_TRIES = 3;
@@ -62,11 +63,13 @@ export function shopFromSignup(row, { testMode }) {
     paymentProvider: row.paymentProvider ?? "stripe",
     // The sign-up question's answer (form.js QUESTION), or null when skipped: it shapes the first-week list (3.3).
     sellingToday: row.answer ?? null,
+    // "What do you publish?" (form.js PUBLISHES, plan 6.2), or null when skipped: it suggests the shop's look (6.3).
+    publishes: row.publishes ?? null,
     testMode: testMode === true,
   };
 }
 
-export function createShopMaker({ signups, run, registry, repairs = null, selfCheck = null, testMode = true, now = () => new Date() }) {
+export function createShopMaker({ signups, run, registry, repairs = null, selfCheck = null, line = null, testMode = true, now = () => new Date() }) {
   const at = () => now().toISOString();
   const later = (minutes) => new Date(now().getTime() + minutes * 60_000).toISOString();
 
@@ -124,6 +127,8 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
 
     /** Runs every queued shop and every shop due its automatic try. Returns what it did, per shop. */
     async sweep() {
+      // Presses waiting for the day's room go first, so a shop let in now is made in this same run (plan 6.13).
+      if (line) await line.admitFromLine();
       const due = (await signups.list()).filter((row) => row.status === "queued" || (row.status === "waiting" && row.nextTryAt && row.nextTryAt <= at()));
       const done = [];
       for (const row of due) {

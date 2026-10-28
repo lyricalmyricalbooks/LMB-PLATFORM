@@ -20,7 +20,7 @@ export type PlatformPlan = {
   hasCard: boolean;
   cancelAtPeriodEnd: boolean;
   endsAt: string | null;
-  paymentWay: "monthly";
+  paymentWay: "monthly" | "payAsYouSell";
   link: string | null;
   closing: { stage: string; closedAt: string | null; downloadUntil: string | null; deleteAfter: string | null } | null;
 };
@@ -50,7 +50,7 @@ export function parsePlatformPlan(raw: any): PlatformPlan | null {
     hasCard: raw.hasCard === true,
     cancelAtPeriodEnd: raw.cancelAtPeriodEnd === true,
     endsAt: time(raw.endsAt),
-    paymentWay: "monthly",
+    paymentWay: raw.paymentWay === "payAsYouSell" ? "payAsYouSell" : "monthly",
     link: httpsLink(raw.link),
     closing,
   };
@@ -131,6 +131,6 @@ export function planFacts(plan: PlatformPlan, now = Date.now()): Array<{ label: 
   if (plan.closing?.downloadUntil) facts.push({ label: "Download until", value: planDate(plan.closing.downloadUntil) });
   if (plan.closing?.deleteAfter) facts.push({ label: "Deleted on", value: planDate(plan.closing.deleteAfter) });
   facts.push({ label: "Card on file", value: plan.hasCard ? "Yes" : "No card yet" });
-  facts.push({ label: "How you pay", value: "Monthly" });
+  facts.push({ label: "How you pay", value: plan.paymentWay === "payAsYouSell" ? "As you sell" : "Monthly" });
   return facts;
 }

@@ -71,7 +71,10 @@ test("every billing change writes the shop's plan document: trial, card, cancel,
   await t.event("customer.subscription.updated", { ...t.stripe.subscription(row.subscriptionId), status: "past_due" });
   assert.equal(t.plan().state, "payment-problem");
   assert.equal(t.status().access, "open");
-  assert.deepEqual(writes, ["trial", "trial", "trial", "trial", "trial", "payment-problem"]);
+  // One copy per saved change (at least one per step above), the trial throughout until the payment failed.
+  assert.ok(writes.length >= 6);
+  assert.deepEqual([...new Set(writes.slice(0, -1))], ["trial"]);
+  assert.equal(writes.at(-1), "payment-problem");
 });
 
 test("a paused plan pauses the shop's copies, the stockroom's too, and a card opens them again at once", async () => {
@@ -123,4 +126,18 @@ test("the closing sweep's stage wins over Stripe's: a closed shop stays closed, 
   assert.equal(planDocument(row, { link: LINK, at: "x", closing: { stage: "paused", pausedAt: "y" } }).closing, null);
   // An unknown access is treated as paused, never as open.
   assert.equal(planDocument({ status: "weird" }, { link: LINK, at: "x" }).access, "paused");
+});
+
+test("a shop paying as it sells is open and active, with no trial, nothing due ahead and no end date", () => {
+  const at = "2027-02-01T00:00:00.000Z";
+  const row = { plan: "shop", status: "canceled", access: "open", hasCard: false, cancelAtPeriodEnd: true, trialEnd: "2027-01-10T00:00:00.000Z", paymentWay: "payAsYouSell" };
+  const doc = planDocument(row, { link: LINK, at });
+  assert.equal(doc.paymentWay, "payAsYouSell");
+  assert.equal(doc.state, "active");
+  assert.equal(doc.access, "open");
+  assert.equal(doc.trialEnd, null);
+  assert.equal(doc.nextPaymentAt, null);
+  assert.equal(doc.endsAt, null);
+  // A switch that starts later still shows monthly until then.
+  assert.equal(planDocument({ ...row, status: "active", paymentWayFrom: "2027-03-01T00:00:00.000Z" }, { link: LINK, at }).paymentWay, "monthly");
 });

@@ -1,8 +1,29 @@
 # Control room
 
 The platform's own admin (code plan 2.8; closing a shop, emergency payments, the breach register and the backup person
-are plan 8.4 to 8.7). Platform admins only: a confirmed email on `PLATFORM_ADMIN_EMAILS`
-(comma-separated). The list is empty unless it is set, so nobody is an admin by accident.
+are plan 8.4 to 8.7; the owner's controls are Phase 9). Platform admins only: a confirmed email on
+`PLATFORM_ADMIN_EMAILS` (comma-separated). The list is empty unless it is set, so nobody is an admin by accident.
+
+## Two-step sign-in (plan 9.1)
+
+Every control-room call, the support inbox's and account recovery's admin calls and the backup person's run book also
+need a sign-in that used a second step and is under 12 hours old (`controlRoom.js` `twoStepProblem`: the ID token's
+`firebase.sign_in_second_factor` and `auth_time`, both signed by Firebase). The page signs in with Google, then asks
+for the 6-digit code from an authenticator app. A listed admin who has no authenticator yet is shown a set-up screen
+(a code to scan, the key to type, then one code to confirm), and signs in again after it.
+
+Before it works, in the platform project (Julian's step): Authentication › Settings › **Multi-factor authentication**,
+turn on **Authenticator app (TOTP)** (this upgrades sign-in to Identity Platform, free at this size), then set
+`PLATFORM_ADMIN_EMAILS` to his address on the web door. Without that, the set-up screen says it isn't turned on yet.
+
+## Today (`today.js`, plan 9.2)
+
+The page opens on the numbers: monthly income, shops live, on a free trial, paying, signed up this week, failed
+payments, paused and closed, then **Needs you** (shops with a problem, failed plan payments, the repair queue, waiting
+support requests, recoveries to check, new shops stuck while being made), each a link to its place on the page. Income
+counts each paying shop at its plan price (`billing.amount` when billing keeps it, else today's price), less its own
+`billing.percentOff`; the test shop never counts. `GET /api/control/today`; give `createControlRoom` `settings`
+(`liveSettings`), `supportStore`, `recoveryStore` and `signups` for the full list.
 
 ## The page (`index.html`, `app.js`)
 
@@ -14,7 +35,12 @@ Plain HTML and browser JavaScript, like the sign-up page; sign in with Google.
   - **Problem**: the last release check failed, a live shop has no saved profile, or something is in the repair queue.
   - **Look**: not live yet, the plan is paused or ended, or the test shop was never checked.
   - **OK**: none of these.
-- **Act as this shop**: a 30-minute support sign-in to the shop's admin. It asks why first.
+- **Your test shop** (plan 9.10): a card at the top with the platform's own test shop, its last release check, links to
+  its storefront and admin, and **Reset the sample books** (the five sample books and the shipping zone go back to 5
+  copies each; logged; only the test shop). Until the test shop exists, the card says to use the demo.
+- **View this shop**: a 30-minute support sign-in to the shop's admin that only looks (plan 9.8). It asks why first.
+  The shop's rules and server refuse anything it tries to change, and the admin shows "viewing only".
+- **Make changes**: the same visit with staff access. It asks why, then asks a second time.
   - Who, why and until when go in the registry and in the shop's own audit log before the sign-in is made.
   - If the log can't be written, there is no sign-in.
 - **Switches** (`setup/steps.js` `SWITCHES`): a box for each. It asks why, then changes the switch the same way as the
@@ -29,6 +55,22 @@ Plain HTML and browser JavaScript, like the sign-up page; sign in with Google.
 
 New trials can't take real money before Stripe has checked the press: the payment service refuses a live payment
 until the account's `charges_enabled` is true (`services/payments/service.js` `liveChargesAllowed`).
+
+## One shop's record, its fee, and switches for every shop (plan 9.3, 9.6, 9.7)
+
+- **Search and filters** over the shop list: press name, shop id or owner email; health, plan and billing state.
+- **Open record** (`POST /api/control/shop { shopId }`): owner, plan and billing, setup steps, connections (payments,
+  web address, Google, email sending), the per-order fee, the last checks and the shop's control-room history. No
+  customer details.
+- **Fee on each order** (`POST /api/control/fee { shopId, basisPoints, refunded, reason }`): any change is written to
+  the row as `platformFee.next { basisPoints, refunded, from }` 30 days ahead and the press is emailed
+  (`platform-fee-changing`) once; `services/payments/fees.js` `feeForShop` uses it from `from` on. Setting today's fee
+  again cancels a change that hasn't started. Pass `feeDefaults` (`readFeeSettings(env)`) to show the platform's fee.
+- **Switches for every shop** (`POST /api/control/switch-all { name, on, reason }`): `setSwitch` for every live shop,
+  each logged; a failure is reported and the rest carry on. **New shops start with** (`GET`/`POST
+  /api/control/new-shop-switches`): kept as `platformState/newShopSwitches`; the shop maker passes them to the setup
+  steps as `config.switchDefaults`, which step 6 uses only where the shop has nothing saved. Give `createControlRoom`
+  `platformState`.
 
 ## The command line (`switch.js`)
 
@@ -56,7 +98,9 @@ platform's one web door with `routes: controlRoutes(room)`:
 | Route | What |
 | --- | --- |
 | `GET /api/control/shops` | every shop, its health and switches |
-| `POST /api/control/act-as` | `{ shopId, reason }` -> `{ url, expiresAt }` |
+| `GET /api/control/test-shop` | `{ testShop }`: the test shop's card, or null |
+| `POST /api/control/test-shop/reset` | `{ shopId }` -> `{ shopId, reset }` |
+| `POST /api/control/act-as` | `{ shopId, reason, mode? }` (`"view"`, the default, or `"edit"`) -> `{ url, expiresAt, mode }` |
 | `POST /api/control/switch` | `{ shopId, name, on, reason }` |
 
 ## The support sign-in (`supportAccess.js`)
@@ -177,6 +221,32 @@ The access is sealed: it opens for 12 hours only with a reason, and only after t
 emailed (`backup-access-used`). Platform admins see the same run book under their list and use it without a seal
 (logged, not emailed). Routes: `GET /api/control/emergency`, `POST /api/control/emergency/open`, `/pause-releases`,
 `/resume-releases`, `/roll-back`, `/status-note` (`emergencyRoutes`, added to the web door beside `controlRoutes`).
+
+## Platform settings, the waitlist and the activity log (`platformControls.js`, `activity.js`, plan 9.4, 9.5, 9.9)
+
+`createPlatformControls({ admins, settingsStore, env, activity, waitlist, invites, signups })`, added to the web door
+with `routes: platformRoutes(controls)`. Platform admins only.
+
+- **Platform settings**: sign-up open or waitlist only, new shops a day, the three plan prices, trial days, the founding
+  offer (percent off, how many presses) and pay as you sell (share of each website sale). Saved as
+  `platformState/settings` `{ values: { path: value }, updatedAt, updatedBy }`; `services/settings.js` `liveSettings`
+  puts them on top of the environment, so sign-up and billing read them with no release. Only real changes are kept: a
+  value equal to the environment's is dropped. A new price is a new Stripe price (billing's lookup keys), so presses
+  already paying keep theirs.
+- **Sign-ups and the waitlist**: the waitlist newest first, **Invite** (emails `waitlist-invite` once and writes
+  `invites/<id>`, which sign-up's daily cap checks with `waitlist/invites.js` `isInvited`), and shops being made with
+  **Try again**, which also restarts a stop that needed a person.
+- **Activity log**: every control-room action, the shop ones too (`controlRoom.js` `log` writes there when given
+  `activity`), as `controlActivity/<id>`, kept a year, read only.
+
+| Route | What |
+| --- | --- |
+| `GET /api/control/settings` | the editable settings, their values and the environment's |
+| `POST /api/control/settings` | `{ values: { path: value }, reset?: [path], reason }` |
+| `GET /api/control/waitlist` | the waitlist and the shops being made |
+| `POST /api/control/invite` | `{ email }` |
+| `POST /api/control/retry` | `{ shopId, reason }`: make a stopped shop again |
+| `POST /api/control/activity` | `{ shopId?, limit? }` |
 
 ## Not yet
 

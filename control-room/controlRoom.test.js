@@ -4,10 +4,12 @@
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { ACT_AS_MINUTES, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth } from "./controlRoom.js";
+import { ACT_AS_MINUTES, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth, twoStepProblem } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
+import { platformRoutes } from "./platformControls.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
-import { fakeBreachStore, fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
+import { fakeActivity, fakeBreachStore, fakePlatformState, fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
+import { feeForShop } from "../services/payments/fees.js";
 import { createBreachRegister, keepUntil } from "./breaches.js";
 import { controlRoomPeople } from "./people.js";
 import { createRepairQueue } from "./repairs.js";
@@ -24,14 +26,14 @@ import { fakeVerifyIdToken } from "../signup/fakes.js";
 import { platformSettings } from "../services/settings.js";
 import { runSteps } from "../setup/runner.js";
 import { shopSteps } from "../setup/later-steps.js";
-import { SWITCHES } from "../setup/steps.js";
+import { SWITCHES, shopSwitches } from "../setup/steps.js";
 import { profileScript } from "../profile/profile.js";
 import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "../setup/fakes.js";
 import { TEST_CONFIG, TEST_SHOP } from "../setup/test-shop.js";
 
 const ID = TEST_SHOP.shopId;
 const envOf = (text) => Object.fromEntries(text.split("\n").filter(Boolean).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1).replace(/^"|"$/g, "")]));
-const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true };
+const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
 const PRESS = { uid: "uid-owner", email: "owner@example.com", email_verified: true };
 
 /** A pretend platform email service: what would be sent, by idempotency key (the real one sends each key once). */
@@ -55,6 +57,8 @@ async function world({ repairs, newsletters } = {}) {
   const square = new Set();
   const breachStore = fakeBreachStore();
   const built = [];
+  const activity = fakeActivity();
+  const platformState = fakePlatformState();
   const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
@@ -62,13 +66,14 @@ async function world({ repairs, newsletters } = {}) {
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
     breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
     people: controlRoomPeople({}),
+    activity, platformState,
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: controlRoutes(room) });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const events = (shopId = ID) => [...(registry.events.get(shopId)?.values() ?? [])].filter((e) => e.source === "control-room");
-  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square, breachStore };
+  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square, breachStore, activity, platformState };
 }
 
 test("only platform admins get in; nobody is an admin unless the list says so", async () => {
@@ -115,15 +120,22 @@ test("act as this shop: a reason is required, the use is logged first, and no lo
   const answer = await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help with tax" });
   assert.equal(answer.status, 200);
   assert.match(answer.body.url, /support=1/);
-  assert.deepEqual(w.shopAccess.calls, [{ shopId: ID, by: ADMIN.email, reason: "the owner asked for help with tax", minutes: ACT_AS_MINUTES }]);
+  assert.deepEqual(w.shopAccess.calls, [{ shopId: ID, by: ADMIN.email, reason: "the owner asked for help with tax", minutes: ACT_AS_MINUTES, mode: "view" }]);
   const [entry] = w.events();
-  assert.deepEqual([entry.what, entry.by, entry.reason, entry.expiresAt], ["act-as", ADMIN.email, "the owner asked for help with tax", answer.body.expiresAt]);
+  assert.deepEqual([entry.what, entry.by, entry.reason, entry.expiresAt, entry.mode], ["act-as", ADMIN.email, "the owner asked for help with tax", answer.body.expiresAt, "view"]);
   assert.ok(w.auditLog.entries.get(ID).has(entry.id), "in the shop's own audit log too");
+
+  // Making changes is asked for by name; anything else is refused before the log.
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help with tax", mode: "owner" })).status, 400);
+  const edit = await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked me to fix a price", mode: "edit" });
+  assert.equal(edit.body.mode, "edit");
+  assert.equal(w.shopAccess.calls.at(-1).mode, "edit");
+  assert.equal(w.events().at(-1).mode, "edit");
 
   // A log that can't be written stops the sign-in.
   w.registry.recordEvent = async () => { throw new Error("the registry is down (pretend error)"); };
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help again" })).status, 500);
-  assert.equal(w.shopAccess.calls.length, 1);
+  assert.equal(w.shopAccess.calls.length, 2);
 });
 
 test("a switch: the saved profile, its file and the live pages change, with a log entry; repeating it is safe", async () => {
@@ -189,7 +201,7 @@ test("the command line: same change and log, refuses without a name, a reason or
 
 test("the page: admins sign in with Google, every route is used, names are shown as text only", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
-  for (const path of Object.keys(controlRoutes({}))) assert.ok(app.includes(`"${path.split(" ")[1].replace("/api", "")}"`), path);
+  for (const path of [...Object.keys(controlRoutes({})), ...Object.keys(platformRoutes({}))]) assert.ok(app.includes(`"${path.split(" ")[1].replace("/api", "")}"`), path);
   for (const name of SWITCHES) assert.ok(app.includes(name), `words for ${name}`);
   assert.doesNotMatch(app, /innerHTML|insertAdjacentHTML|document\.write/);
 });
@@ -205,7 +217,9 @@ test("the real support sign-in: a token for the support account with who, why an
   assert.equal(url, `${profile.siteUrl}/admin/#support=signed.jwt`);
   assert.equal(until, now().getTime() / 1000 + 1800);
   assert.deepEqual(made[0].uid, SUPPORT_UID);
-  assert.deepEqual(made[0].claims.support, { by: ADMIN.email, reason: "x".repeat(200), until });
+  assert.deepEqual(made[0].claims.support, { by: ADMIN.email, reason: "x".repeat(200), until, mode: "view" });
+  await access.supportSignIn(ID, { by: ADMIN.email, reason: "fix a price", mode: "edit" });
+  assert.equal(made[1].claims.support.mode, "edit");
   assert.ok(JSON.stringify(made[0].claims).length < 1000, "a token's claims stay under Firebase's limit");
   // Never longer than the sign-in token itself lasts.
   assert.equal((await access.supportSignIn(ID, { by: ADMIN.email, reason: "long one", minutes: 600 })).until, now().getTime() / 1000 + MAX_MINUTES * 60);
@@ -391,4 +405,131 @@ test("a paused newsletter is turned back on by a platform admin only, with a rea
   assert.deepEqual(calls, [{ shopId: ID, by: "admin@example.com", reason: "the press cleaned its list" }]);
   assert.ok(w.events().some((e) => e.what === "newsletter-resumed" && e.by === "admin@example.com"));
   assert.equal((await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "the press cleaned its list" })).status, 409);
+});
+
+test("every logged control-room action also lands in the activity log, once (plan 9.9)", async () => {
+  const w = await world();
+  await w.room.switch(ADMIN, { shopId: ID, name: SWITCHES[0], on: true, reason: "the press asked for it" });
+  await w.room.actAs(ADMIN, { shopId: ID, reason: "help with their tax settings" });
+  const entries = await w.activity.list();
+  assert.deepEqual(entries.map((e) => e.what).sort(), ["act-as", "switch-set"]);
+  assert.ok(entries.every((e) => e.shopId === ID && e.by === "admin@example.com" && e.keepUntil > e.at));
+});
+
+test("only Julian's listed address, with two-step sign-in in the last 12 hours, opens the control room (plan 9.1)", async () => {
+  const w = await world();
+  const { firebase: _, ...oneStep } = ADMIN;
+  const noStep = await w.ask(oneStep, "GET", "/api/control/shops");
+  assert.equal(noStep.status, 403);
+  assert.match(noStep.body.message, /two-step/);
+  const old = await w.ask({ ...ADMIN, auth_time: Math.floor(Date.now() / 1000) - 13 * 3600 }, "GET", "/api/control/shops");
+  assert.equal(old.status, 401);
+  assert.match(old.body.message, /Sign in again/);
+  // A stranger with two steps is still a stranger, and isn't told about two-step sign-in.
+  const stranger = await w.ask({ ...ADMIN, uid: "x", email: "someone@example.com" }, "GET", "/api/control/shops");
+  assert.equal(stranger.status, 403);
+  assert.doesNotMatch(stranger.body.message, /two-step/);
+  assert.equal((await w.ask(ADMIN, "GET", "/api/control/shops")).status, 200);
+  assert.equal(twoStepProblem({ firebase: { sign_in_second_factor: "phone" }, auth_time: 1000 }, 1000 * 1000 + SIGN_IN_HOURS * 3600_000), null);
+});
+
+test("Today reads every shop through the control room, admins only (plan 9.2)", async () => {
+  const w = await world();
+  const today = await w.ask(ADMIN, "GET", "/api/control/today");
+  assert.equal(today.status, 200);
+  assert.equal(today.body.counts.shops, 1);
+  assert.equal(today.body.currency, "CAD");
+  assert.equal((await w.ask(PRESS, "GET", "/api/control/today")).status, 403);
+});
+
+test("one shop's record: owner, billing, setup, fee and its history, admins only (plan 9.3)", async () => {
+  const w = await world();
+  await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", access: "open", trialEnd: "2026-11-11T00:00:00Z", hasCard: false } });
+  await w.room.actAs(ADMIN, { shopId: ID, reason: "help with their tax settings" });
+  const record = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
+  assert.equal(record.ownerEmail, "owner@example.com");
+  assert.equal(record.billing.status, "trialing");
+  assert.ok(record.setup.length >= 6 && record.setup.every((step) => step.ok));
+  assert.deepEqual([record.fee.basisPoints, record.fee.next], [0, null]);
+  assert.deepEqual(record.history.map((e) => e.what), ["act-as"]);
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/shop", { shopId: ID })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: "nope" })).status, 404);
+  const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
+  assert.deepEqual([listed.ownerEmail, listed.billingStatus], ["owner@example.com", "trialing"]);
+});
+
+test("the per-order fee: the press is emailed and the change starts 30 days later; same again changes nothing; today's fee cancels it (plan 9.6)", async () => {
+  const w = await world();
+  const why = "founding press agreed to 1.5%";
+  for (const bad of [{ basisPoints: -1, refunded: true }, { basisPoints: 10001, refunded: true }, { basisPoints: 1.5, refunded: true }, { basisPoints: 150 }]) {
+    await assert.rejects(w.room.setFee(ADMIN, { shopId: ID, ...bad, reason: why }), { status: 400 });
+  }
+  await assert.rejects(w.room.setFee(PRESS, { shopId: ID, basisPoints: 150, refunded: true, reason: why }), { status: 403 });
+  const set = await w.room.setFee(ADMIN, { shopId: ID, basisPoints: 150, refunded: true, reason: why });
+  assert.equal(set.changed, true);
+  const days = (Date.parse(set.next.from) - Date.parse("2026-10-28T12:00:00Z")) / 86_400_000;
+  assert.ok(days > 29.99 && days < 30.01, String(days));
+  const row = await w.registry.getShop(ID);
+  assert.equal(feeForShop(row, undefined, new Date("2026-11-01T00:00:00Z")).basisPoints, 0);
+  assert.equal(feeForShop(row, undefined, new Date(Date.parse(set.next.from) + 1)).basisPoints, 150);
+  const mails = [...w.email.sent.values()].filter((m) => m.kind === "platform-fee-changing");
+  assert.equal(mails.length, 1);
+  assert.deepEqual([mails[0].to, mails[0].data.toPercent, mails[0].data.fromPercent], ["owner@example.com", 1.5, 0]);
+  assert.match(TEMPLATES[mails[0].kind](mails[0].data, { settings: DEFAULT_SETTINGS, pressName: "Test" }).text, /will be 1\.5%/);
+  // The same change again: nothing new, no second email.
+  assert.equal((await w.room.setFee(ADMIN, { shopId: ID, basisPoints: 150, refunded: true, reason: why })).changed, false);
+  assert.equal([...w.email.sent.values()].filter((m) => m.kind === "platform-fee-changing").length, 1);
+  // Setting today's fee again cancels the waiting change.
+  const cancelled = await w.room.setFee(ADMIN, { shopId: ID, basisPoints: 0, refunded: true, reason: "press asked to keep it" });
+  assert.equal(cancelled.cancelled, true);
+  assert.equal((await w.registry.getShop(ID)).platformFee.next, undefined);
+  assert.deepEqual(w.events().map((e) => e.what).filter((what) => what.startsWith("fee")), ["fee-change-scheduled", "fee-change-cancelled"]);
+});
+
+test("one switch for every live shop, and the switches new shops start with (plan 9.7)", async () => {
+  const w = await world();
+  const all = await w.room.switchAll(ADMIN, { name: "oldShopSync", on: true, reason: "turn the old tab on for everyone" });
+  assert.deepEqual(all.shops, [{ shopId: ID, changed: true }]);
+  assert.equal((await w.registry.getProfile(ID)).switches.oldShopSync, true);
+  await assert.rejects(w.room.switchAll(ADMIN, { name: "nope", on: true, reason: "turn the old tab on" }), { status: 400 });
+  await assert.rejects(w.room.switchAll(PRESS, { name: "oldShopSync", on: true, reason: "turn the old tab on" }), { status: 403 });
+
+  assert.equal((await w.room.newShopSwitches(ADMIN)).switches.gmailOrderScan, false);
+  assert.equal((await w.room.setNewShopSwitch(ADMIN, { name: "gmailOrderScan", on: true, reason: "every new shop scans Gmail" })).changed, true);
+  assert.equal((await w.room.setNewShopSwitch(ADMIN, { name: "gmailOrderScan", on: true, reason: "every new shop scans Gmail" })).changed, false);
+  const defaults = (await w.room.newShopSwitches(ADMIN)).switches;
+  assert.equal(defaults.gmailOrderScan, true);
+  // Setup step 6 uses them only where the shop has nothing saved.
+  assert.equal(shopSwitches(undefined, defaults).gmailOrderScan, true);
+  assert.equal(shopSwitches({ gmailOrderScan: false }, defaults).gmailOrderScan, false);
+  assert.equal((await w.activity.list()).filter((e) => e.what === "new-shop-switch").length, 1);
+});
+
+test("your test shop: the card finds it, and Reset the sample books is admin only, logged and only for the test shop (plan 9.10)", async () => {
+  const w = await world();
+  await w.registry.recordReleaseCheck(ID, { ok: true, finishedAt: "2026-10-28T11:00:00Z", version: "0.0.0-test" });
+  const card = await w.ask(ADMIN, "GET", "/api/control/test-shop");
+  assert.equal(card.status, 200);
+  const shop = card.body.testShop;
+  const profile = await w.registry.getProfile(ID);
+  assert.deepEqual([shop.shopId, shop.storefrontUrl, shop.adminUrl], [ID, profile.siteUrl, `${profile.siteUrl}/admin/`]);
+  assert.deepEqual([shop.lastCheck.ok, shop.lastCheck.at], [true, "2026-10-28T11:00:00Z"]);
+  assert.equal((await w.ask(PRESS, "GET", "/api/control/test-shop")).status, 403);
+
+  // A sample book sold out in a test, then reset to 5 copies.
+  await w.services.shopData.set(ID, "books/test-book-one", { title: "Test Book One", stockLevel: 0 });
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/test-shop/reset", { shopId: ID })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/test-shop/reset", { shopId: "press-two" })).status, 409);
+  const reset = await w.ask(ADMIN, "POST", "/api/control/test-shop/reset", { shopId: ID });
+  assert.equal(reset.status, 200);
+  assert.equal(reset.body.reset, 6, "five sample books and the shipping zone");
+  assert.equal((await w.services.shopData.get(ID, "books/test-book-one")).stockLevel, 5);
+  assert.ok(w.events().some((e) => e.what === "test-shop-reset" && e.by === "admin@example.com"));
+  assert.ok((await w.activity.list()).some((e) => e.what === "test-shop-reset"));
+});
+
+test("no test shop yet: the card says so instead of failing (plan 9.10)", async () => {
+  const w = await world();
+  await w.registry.updateShop(ID, { testShop: false });
+  assert.equal((await w.ask(ADMIN, "GET", "/api/control/test-shop")).body.testShop, null);
 });

@@ -1,6 +1,6 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
-  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Wallet,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 
@@ -23,6 +23,8 @@ export const NAV: NavEntry[] = [
     // One email page: templates, shop alerts, Gmail sending, sender details and recent deliveries.
     { id: "notifications", label: "Email sender", icon: Mail },
     { id: "team", label: "Team", icon: UserPlus },
+    // The QuickBooks link (plan 7.16); hidden unless the platform's bookkeeping link is on (`withoutPages`).
+    { id: "bookkeeping", label: "Bookkeeping", icon: Calculator },
     // The shop's plan on the platform (plan 6.6): what it is, trial days left, next payment; changes on Plan & billing.
     { id: "plan", label: "Plan", icon: Wallet },
   ] },
@@ -41,7 +43,7 @@ export const MENU: { label: string; icon: NavEntry["icon"]; pages: string[] }[] 
   { label: "Orders", icon: ShoppingCart, pages: ["orders", "customers", "discounts", "giftCards", "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews"] },
   { label: "Design", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
-  { label: "Settings", icon: Settings, pages: ["general", "shipping", "payments", "taxes", "notifications", "team", "plan"].map((id) => SETTINGS_ITEM_PREFIX + id) },
+  { label: "Settings", icon: Settings, pages: ["general", "shipping", "payments", "taxes", "notifications", "team", "bookkeeping", "plan"].map((id) => SETTINGS_ITEM_PREFIX + id) },
 ];
 
 /** Every page with its menu id and label, in NAV order. */
@@ -58,6 +60,12 @@ export function sidebarItems(nav: NavEntry[]): NavEntry[] {
     id: group.pages[0], label: group.label, icon: group.icon,
     ...(group.pages.length > 1 ? { children: group.pages.map((id) => ({ id, label: labels.get(id) || id })) } : {}),
   }));
+}
+
+/** The menu without the pages this shop doesn't have on (an item keeps its other pages). */
+export function withoutPages(items: NavEntry[], hidden: ReadonlySet<string>): NavEntry[] {
+  if (!hidden.size) return items;
+  return items.filter((item) => !hidden.has(item.id)).map((item) => (item.children ? { ...item, children: item.children.filter((c) => !hidden.has(c.id)) } : item));
 }
 
 /** The menu item (its id) that holds a page. */

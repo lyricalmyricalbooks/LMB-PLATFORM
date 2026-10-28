@@ -334,9 +334,11 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("bookkeeper can't promote themselves", assertFails(setDoc(doc(bookkeeper, "members/kit@press.test"), { role: "owner" })));
   await check("bookkeeper writes no discount", assertFails(setDoc(doc(bookkeeper, "discounts/x"), { code: "FREE" })));
   await check("bookkeeper writes no audit log", assertFails(setDoc(doc(bookkeeper, "audit-log/x"), { action: "x" })));
-  // Platform support ("act as this shop", functions/roles.js supportOf): staff access until its time, custom sign-in only.
+  // Platform support ("act as this shop", functions/roles.js supportOf): staff access for an "edit" visit until its time,
+  // custom sign-in only. A "view" visit (the default, plan 9.8) reads what staff read and changes nothing.
   const inTen = Math.floor(Date.now() / 1000) + 600;
-  const support = env.authenticatedContext("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "admin@platform.example", reason: "help", until: inTen } }).firestore();
+  const support = env.authenticatedContext("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "admin@platform.example", reason: "help", until: inTen, mode: "edit" } }).firestore();
+  const viewer = env.authenticatedContext("colophon-viewer", { firebase: { sign_in_provider: "custom" }, support: { by: "admin@platform.example", reason: "look", until: inTen } }).firestore();
   const lateSupport = env.authenticatedContext("colophon-support", { firebase: { sign_in_provider: "custom" }, support: { by: "a", until: inTen - 1200 } }).firestore();
   const fakeSupport = env.authenticatedContext("g1", { email: "x@press.test", email_verified: true, firebase: { sign_in_provider: "google.com" }, support: { until: inTen } }).firestore();
   await check("support reads a draft book", assertSucceeds(getDoc(doc(support, "books/draft"))));
@@ -344,7 +346,28 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("support can't read keys", assertFails(getDoc(doc(support, "adminSecrets/stripe"))));
   await check("support after its time can't", assertFails(getDoc(doc(lateSupport, "books/draft"))));
   await check("a Google sign-in can't claim support", assertFails(getDoc(doc(fakeSupport, "books/draft"))));
+  await check("an edit visit changes a book", assertSucceeds(setDoc(doc(support, "books/draft"), { status: "draft", title: "Unannounced" })));
+  await check("a view visit reads a draft book", assertSucceeds(getDoc(doc(viewer, "books/draft"))));
+  await check("a view visit reads the audit log", assertSucceeds(getDocs(collection(viewer, "audit-log"))));
+  await check("a view visit can't change a book", assertFails(setDoc(doc(viewer, "books/draft"), { status: "published" })));
+  await check("a view visit can't change settings", assertFails(setDoc(doc(viewer, "settings/website"), { storeName: "Mine" })));
+  await check("a view visit can't delete a page", assertFails(deleteDoc(doc(viewer, "pages/draft"))));
+  await check("a view visit reads no Team", assertFails(getDocs(collection(viewer, "members"))));
+  await check("a view visit reads no keys", assertFails(getDoc(doc(viewer, "adminSecrets/stripe"))));
   await check("author can't change settings", assertFails(setDoc(doc(author, "settings/website"), { x: 1 })));
+  // URL redirects in numbered pages (plan 5.6): public to read like settings/redirects, written by the admin, pages 1–10.
+  const redirectPage = { items: [{ from: "/old", to: "/books/b1" }], page: 1 };
+  await check("owner writes redirect page 1", assertSucceeds(setDoc(doc(owner, "redirects/1"), redirectPage)));
+  await check("staff writes redirect page 10", assertSucceeds(setDoc(doc(staff, "redirects/10"), redirectPage)));
+  await check("owner clears a redirect page", assertSucceeds(deleteDoc(doc(owner, "redirects/10"))));
+  await check("no redirect page 11", assertFails(setDoc(doc(owner, "redirects/11"), redirectPage)));
+  await check("no made-up redirect page", assertFails(setDoc(doc(owner, "redirects/extra"), redirectPage)));
+  await check("anon reads a redirect page", assertSucceeds(getDoc(doc(anon, "redirects/1"))));
+  await check("anon lists the redirect pages", assertSucceeds(getDocs(collection(anon, "redirects"))));
+  await check("anon reads the old redirects doc", assertSucceeds(getDoc(doc(anon, "settings/redirects"))));
+  await check("anon can't write a redirect page", assertFails(setDoc(doc(anon, "redirects/1"), redirectPage)));
+  await check("author can't write a redirect page", assertFails(setDoc(doc(author, "redirects/1"), redirectPage)));
+  await check("bookkeeper can't write a redirect page", assertFails(setDoc(doc(bookkeeper, "redirects/1"), redirectPage)));
 }
 
 // The shop's plan on the platform (plan 6.6, 6.7): platform/plan is the shop's admins' to read, platform/status is

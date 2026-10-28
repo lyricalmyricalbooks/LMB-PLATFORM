@@ -2,6 +2,7 @@
 // functions. Tested in shopSettings.test.js.
 
 const { shopConfig } = require("./shopConfig");
+const { pressName } = require("./shared/shopIdentity");
 
 // Before the owner filled in General › Location these were the hard-coded shipping origin.
 const ORIGIN_FALLBACK = {
@@ -22,7 +23,8 @@ function shopOrigin(settings) {
   // Shippo wants digits (and an optional +); "(647) 409-6863" becomes "6474096863".
   const phone = text(location.phone).replace(/[^\d+]/g, "") || ORIGIN_FALLBACK.phone;
   return {
-    name: text(settings?.info?.name) || "Your Press",
+    // The label's sender and the customs form's signer: the press's own name (plan 5.8).
+    name: pressName(settings, shopConfig.senderName),
     street1: pick("street"),
     city: pick("city"),
     state: pick("state"),

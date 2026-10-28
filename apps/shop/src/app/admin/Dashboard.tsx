@@ -39,7 +39,7 @@ import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
-import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems } from "./riso/nav";
+import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
@@ -197,6 +197,16 @@ export function Dashboard() {
   // Unpaid/mismatched/disputed orders etc., shown above every admin page.
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   // Pending reviews, unread messages and open privacy requests (cheap server counts).
+  // Settings › Bookkeeping shows only when the platform's bookkeeping link is on for this shop (plan 7.16). Asked once,
+  // the first time Settings opens (its pages are listed there only).
+  const [bookkeepingOn, setBookkeepingOn] = useState(false);
+  const bookkeepingAsked = useRef(false);
+  useEffect(() => {
+    if (activeTab !== "settings" || bookkeepingAsked.current) return;
+    bookkeepingAsked.current = true;
+    adminApi.bookkeeping("status").then((s) => setBookkeepingOn(!!s?.enabled)).catch(() => {});
+  }, [activeTab]);
+  const hiddenPages = new Set(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]);
   const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });
   const [searchCustomerQuery, setSearchCustomerQuery] = useState<string | undefined>(undefined);
   // What the last check read besides the orders (Stripe webhook, email log, backup, inventory link), so opening or
@@ -579,14 +589,14 @@ export function Dashboard() {
 
   const destinations = [
     ...NAV.filter((n) => !n.children).map((n) => ({ id: n.id, label: n.label, run: () => goTo(n.id) })),
-    ...(NAV.find((n) => n.children)?.children || []).map((c) => ({
+    ...(NAV.find((n) => n.children)?.children || []).filter((c) => !hiddenPages.has(SETTINGS_ITEM_PREFIX + c.id)).map((c) => ({
       id: `settings-${c.id}`, label: `Settings · ${c.label}`,
       run: () => { setActiveTab("settings"); setSettingsTab(c.id); setShowEditor(false); setSelectedOrder(null); },
     })),
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan"));
+  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -664,7 +674,7 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={sidebarItems(NAV).map((n) => {
+            items={withoutPages(sidebarItems(NAV), hiddenPages).map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
               // Privacy requests are handled in Settings › General.
               const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews

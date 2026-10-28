@@ -56,6 +56,29 @@ jobs:
       - run: pnpm run lint
       - run: npx vite build
 
+  # Accessibility as a release rule (plan 8.8): axe-core over every theme in the shop's library and the starting look,
+  # on the home page, a book page and checkout (apps/shop/scripts/a11y-check.mjs). A new problem fails; known ones are
+  # in apps/shop/scripts/a11y-baseline.json, which only goes down. Sample books only: no shop data, payments or email.
+  shop-accessibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/shop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/shop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:a11y
+
   # The platform's copy of the stockroom (apps/stockroom).
   stockroom:
     runs-on: ubuntu-latest
@@ -151,3 +174,20 @@ jobs:
           java-version: 21
       - name: A sign-up lands, and nothing else gets through
         run: npx -y firebase-tools@15.32.1 emulators:exec --only firestore --project demo-waitlist "node firestore-emulator.mjs"
+
+  # Plan 5.0e: the local demo (`npm run demo`) keeps the stockroom's own database between runs. Starts the real demo,
+  # writes to the stockroom's database, stops it with Ctrl+C, starts it again and finds the change (demo/keep-check.js).
+  demo-keeps-stockroom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: A stockroom change survives Ctrl+C and a fresh start
+        run: node demo/keep-check.js

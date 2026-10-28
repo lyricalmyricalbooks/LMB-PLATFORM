@@ -2,6 +2,7 @@
 // Called through the admin-only sendTestEmail function (`action: "replyToMessage"`, requireAdmin);
 // the email goes out through sendEmail (Gmail, then Resend), which logs every attempt to emailLog.
 const { cleanRecipients, cleanSubject } = require("./emailOutbox");
+const { pressName } = require("./shared/shopIdentity");
 
 const MAX_REPLY = 5000;
 const MAX_REPLIES_KEPT = 50;
@@ -12,7 +13,8 @@ class ReplyProblem extends Error {
 }
 
 /** Pure: the email for a reply. Throws ReplyProblem when the reply or the address is unusable. */
-function buildMessageReply(message, rawBody, { shopName = "Your Press" } = {}) {
+function buildMessageReply(message, rawBody, { shopName = "" } = {}) {
+  shopName = String(shopName || "").trim() || pressName(null);
   const body = String(rawBody ?? "").replace(/\r\n?/g, "\n").trim();
   if (!body) throw new ReplyProblem(400, "Write a reply first.");
   if (body.length > MAX_REPLY) throw new ReplyProblem(400, `Keep the reply under ${MAX_REPLY} characters.`);
@@ -40,18 +42,26 @@ function withReply(existing, entry) {
 }
 
 /**
- * Handle the action. deps: { db, sendEmail, secret, adminEmail, now }.
+ * Handle the action. deps: { db, sendEmail, secret, adminEmail, now, setupName }. The reply is signed with the press's name
+ * (Sender name, else Text & labels › Site name; plan 5.8).
  * Returns { status, json } for the HTTP response.
  */
-async function handleMessageReply(reqBody, { db, sendEmail, secret, adminEmail = "", now = () => new Date() }) {
+async function handleMessageReply(reqBody, { db, sendEmail, secret, adminEmail = "", now = () => new Date(), setupName = "" }) {
   const id = String(reqBody?.messageId || "");
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) return { status: 400, json: { error: "Unknown message." } };
   const ref = db.collection("contactMessages").doc(id);
   const snap = await ref.get();
   if (!snap.exists) return { status: 404, json: { error: "That message no longer exists." } };
+  let shopName = pressName(null, setupName);
+  try {
+    const website = (await db.collection("settings").doc("website").get()).data() || {};
+    shopName = String(website.communications?.fromName || "").trim() || pressName(website, setupName);
+  } catch (err) {
+    console.warn("Reply: the shop's name could not be read:", err?.message || err);
+  }
   let email;
   try {
-    email = buildMessageReply(snap.data(), reqBody?.body);
+    email = buildMessageReply(snap.data(), reqBody?.body, { shopName });
   } catch (err) {
     if (err instanceof ReplyProblem) return { status: err.status, json: { error: err.message } };
     throw err;

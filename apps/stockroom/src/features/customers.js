@@ -40,6 +40,7 @@ import { toCsv } from '../lib/csv.js';
 import { downloadCsv } from '../lib/download.js';
 import { fmtD, getBookCurrencyCode, normalizeCurrencyCode } from '../lib/money.js';
 import { describeCustomerFilters, joinFilterLabels } from '../lib/customer-segment.js';
+import { fileStem } from '../lib/shop-profile.js';
 
 // ── CUSTOMERS / MAILING LIST ────────────────────────────────────────────────
 // Aggregates every buyer we can identify into one de-duplicated contact list
@@ -312,7 +313,7 @@ function exportMailingListCSV() {
   if (!subs.length) { showToast('No mailable subscribers to export', 'warn'); return; }
   const rows = [['Name', 'Email', 'Source', 'Added']];
   subs.forEach(s => rows.push([s.name || '', s.email, s.source || '', s.added || '']));
-  downloadCsv(toCsv(rows), `lyrical-mailing-list-${today()}.csv`);
+  downloadCsv(toCsv(rows), `${fileStem({ lower: true })}-mailing-list-${today()}.csv`);
   showToast(`✓ Exported ${subs.length} subscriber${subs.length === 1 ? '' : 's'}`);
 }
 
@@ -1534,7 +1535,7 @@ function exportCustomersCSV() {
     Array.from(r.books).join('; '), Array.from(r.channels).join('; '),
     r.first || '', r.last || '', _custSpendStr(r.spend), Array.from(r.sources).join('; '),
   ]));
-  downloadCsv(toCsv(rows), `lyrical-customers-${today()}.csv`);
+  downloadCsv(toCsv(rows), `${fileStem({ lower: true })}-customers-${today()}.csv`);
   showToast(`✓ Exported ${list.length} customer${list.length === 1 ? '' : 's'}`);
 }
 

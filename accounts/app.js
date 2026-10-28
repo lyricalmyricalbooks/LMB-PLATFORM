@@ -128,7 +128,9 @@ function shopCard(shop) {
   if (shop.role === "owner") {
     const team = el("button", { type: "button", textContent: "Team" });
     team.addEventListener("click", () => openTeam(shop));
-    actions.append(team);
+    // The Plan & billing page (accounts/billing.html, served at /account/billing).
+    const plan = el("a", { className: "button", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Plan & billing" });
+    actions.append(team, plan);
   }
   const state = ACCESS_WORDS[shop.access] ?? (shop.status === "live" ? "" : "Still being made");
   return el("div", { className: "card" },

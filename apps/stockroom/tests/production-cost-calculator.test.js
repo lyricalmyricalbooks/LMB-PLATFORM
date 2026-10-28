@@ -28,7 +28,7 @@ describe('Production Cost Calculator from Tax Centre', () => {
       },
       'zine-vol1': {
         id: 'zine-vol1',
-        title: 'Lyrical Zine Vol 1',
+        title: 'Moth Zine Vol 1',
         currency: '$',
         listPrice: 15,
         maxPrint: 200,

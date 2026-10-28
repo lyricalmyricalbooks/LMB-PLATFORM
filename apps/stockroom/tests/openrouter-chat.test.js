@@ -129,7 +129,7 @@ describe('running a question against the backup', () => {
     await runOpenRouterTurn({ apiKey: 'secret', model: 'vendor/m:free', userText: 'x', ctx: CTX, fetchImpl });
     const [, init] = fetchImpl.mock.calls[0];
     expect(init.headers.Authorization).toBe('Bearer secret');
-    expect(init.headers['X-OpenRouter-Title']).toBe('Lyrical Inventory');
+    expect(init.headers['X-OpenRouter-Title']).toBe('Stockroom');
     expect(init.headers).not.toHaveProperty('X-Title');
     expect(JSON.parse(init.body).model).toBe('vendor/m:free');
   });
@@ -198,20 +198,20 @@ describe('running a question against the backup', () => {
 describe('checking the saved backup credential', () => {
   it('validates the key and then proves the selected model can answer', async () => {
     const fetchImpl = vi.fn().mockResolvedValueOnce({
-      ok: true, status: 200, json: async () => ({ data: { label: 'Lyrical' } }),
+      ok: true, status: 200, json: async () => ({ data: { label: 'Moth Press' } }),
     }).mockResolvedValueOnce({
       ok: true, status: 200,
       json: async () => ({ model: 'free/model', choices: [{ message: { role: 'assistant', content: 'OK' } }] }),
     });
     await expect(testOpenRouterConnection({ apiKey: ' key ', fetchImpl }))
-      .resolves.toEqual({ account: { label: 'Lyrical' }, model: 'free/model' });
+      .resolves.toEqual({ account: { label: 'Moth Press' }, model: 'free/model' });
     expect(fetchImpl).toHaveBeenCalledWith(
       'https://openrouter.ai/api/v1/key',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
           Authorization: 'Bearer key',
-          'X-OpenRouter-Title': 'Lyrical Inventory',
+          'X-OpenRouter-Title': 'Stockroom',
         }),
       }),
     );

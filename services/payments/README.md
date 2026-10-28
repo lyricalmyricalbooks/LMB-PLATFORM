@@ -76,6 +76,30 @@ A percentage of each payment, taken as Stripe's application fee. **0% unless set
 
 The press sees the fee with their payout state (`account.status` returns `platformFee: { percent, refundedWithRefunds }`).
 
+## Pay as you sell (6.19)
+
+A press on the Shop or Shop-and-stockroom plan can pay a share of each website sale instead of the monthly price
+(`payAsYouSell.js`). services/billing (`paymentWay.js`) writes the terms on the registry row when the press chooses:
+`payAsYouSell: { basisPoints, capMinor, currency, from, until }`. While they apply (from `from`, the end of the trial
+or of the month already paid for, to `until`, a return to monthly), they replace the shop's usual fee:
+
+- **Only the books.** A Checkout Session counts every line but shipping and tax (`product_data.metadata.lmb_line`
+  `"shipping"`/`"tax"`, or the shop's own line names); a card payment counts `metadata.lmb_books_minor` (never more than
+  the payment). Discounts already lower the lines. No book total, a total Stripe changes later (codes), or a currency
+  other than the cap's: no fee, logged. Taking too much is worse than taking nothing.
+- **The cap.** Never more in a billing month (counted from `from`, the same day each month) than `capMinor`, the plan's
+  monthly price. The order that crosses it pays only what is left; the rest of the month is free.
+- **The ledger** (`feeLedger`, one record per shop per billing month): a checkout's fee is *held* for two hours (so two
+  at once can't both take the last of the cap), *taken* on `payment_intent.succeeded` / `checkout.session.completed`
+  (Square: `payment.updated` COMPLETED), *released* on `checkout.session.expired` / `payment_intent.canceled`. Keyed by
+  the checkout's idempotency key, and every event sets a state, so a retry or a repeated event never counts twice.
+- **Refunds** always give the fee back in proportion (`refund_application_fee`, Square's refund `app_fee_money`), and
+  `charge.refunded` (Square: `refund.updated` COMPLETED) lowers the total of the month the fee was taken in, even from
+  a later month.
+- **The trial** takes no fee: the terms start when it ends. A shop on the stockroom alone never pays this way.
+
+Without a `feeLedger` the service takes no pay-as-you-sell fee (and says so in the log).
+
 ## What it keeps
 
 The service never writes a shop's database. It writes the registry row's `payments` (the account's state from
@@ -98,6 +122,8 @@ again; the email's idempotency key holds `pastDueSince`, so a retry never sends 
 - `stripeApi.js`: the Stripe REST client (form encoding, `Stripe-Account`, `Idempotency-Key`, errors kept as Stripe's).
 - `stripeSignature.js`: Stripe's webhook signature, checked with `node:crypto`.
 - `fees.js`: the fee settings and sums. `config.js`: the environment.
+- `payAsYouSell.js`: pay as you sell's terms, billing months, book totals and fee ledger. `feeLedgerFakes.js`: an
+  in-memory ledger store, for `payAsYouSell.test.js`.
 - `http.js`: `handlePayments(request, { service })` routes the two web doors. `index.js`: `createPaymentsFromEnv`.
 - `fakes.js`: pretend Stripe, account record and shop webhook, for tests.
 - `square.js`: the Square part (Connect Square, `square.*` calls, Square events). `squareApi.js`: the Square REST client.
@@ -130,6 +156,11 @@ platform's publishable key and the press's account (`payments` in the shop profi
 - Hosting: the handler runs nowhere yet. It becomes one function in the platform project, with the Connect webhook
   endpoint (`connect: true`) pointed at `/stripe/events`.
 - The real registry, audit log and account record (Firestore in the platform project and the shop's `audit-log`).
+- Pay as you sell: the Firestore ledger store (`feeMonths`, updated in a transaction, and `feePayments`); the shop's
+  card form sending `metadata.lmb_books_minor` and marking its shipping and tax lines (`apps/shop`
+  functions/checkoutPayment.js; until then a card-form order takes no fee and Checkout pages are counted by line name);
+  orders in another currency than the plan's (they take no fee until the shop sends the book total in the plan's
+  currency).
 - Square: the platform's Square applications (Julian: a Square developer account, production and Sandbox apps with the
   redirect address `/square/oauth`, and the two webhook subscriptions), the Firestore token and state stores, and the
   shop side (`functions/payments/square.js` and the admin's Connect Square button).

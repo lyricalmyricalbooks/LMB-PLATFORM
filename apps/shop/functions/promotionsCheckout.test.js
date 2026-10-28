@@ -11,7 +11,7 @@ const { giftCardId } = realRequire('./giftCards.js');
 const CODE = 'ABCD-EFGH-JKMN-PQRS';
 const CARD_ID = giftCardId(CODE);
 
-function harness({ items, books = {}, discounts = {}, giftCards = {}, appliedDiscount = null, cards = undefined, paymentMethod = 'Stripe', taxRate = 0, collectTax } = {}) {
+function harness({ items, books = {}, discounts = {}, giftCards = {}, appliedDiscount = null, cards = undefined, paymentMethod = 'Stripe', taxRate = 0, collectTax, bookName } = {}) {
   const updates = [], stripeCalls = [];
   const order = {
     items, trackingKey: 'a'.repeat(64), paymentMethod,
@@ -23,7 +23,7 @@ function harness({ items, books = {}, discounts = {}, giftCards = {}, appliedDis
     books: { ebook: { status: 'published', format: 'E-book', retailPrice: 20, digital: true }, ...books },
     discounts,
     giftCards,
-    settings: { website: { taxes: { rates: taxRate ? [{ country: 'Canada', region: 'ON', rate: taxRate }] : [], ...(collectTax === undefined ? {} : { collect: collectTax }) }, payments: { stripe: { secretKey: 'sk_test_fake' } } } },
+    settings: { website: { taxes: { rates: taxRate ? [{ country: 'Canada', region: 'ON', rate: taxRate, ...(bookName ? { bookName } : {}) }] : [], ...(collectTax === undefined ? {} : { collect: collectTax }) }, payments: { stripe: { secretKey: 'sk_test_fake' } } } },
   };
   const snap = (name, id) => { const data = docs[name]?.[id]; return { exists: !!data, data: () => data, id }; };
   const merge = (name, id, change) => { docs[name] ||= {}; const target = (docs[name][id] ||= {}); for (const [k, v] of Object.entries(change)) { if (k.includes('.')) { const [a, b] = k.split('.'); target[a] = { ...(target[a] || {}), [b]: v }; } else target[k] = v; } };
@@ -239,11 +239,17 @@ describe('tax collection switch (Settings › Taxes)', () => {
     expect((await app.call('createStripeCheckoutSession')).code).toBe(200);
     expect(app.order.tax).toBeCloseTo(2.6);
     expect(app.order.total).toBeCloseTo(22.6);
+    // Kept split by the rate's name in the books (plan 7.11): a suggested one, or the press's own.
+    expect(app.order.taxLines).toEqual([{ name: 'HST ON', cents: 260 }]);
+    const named = harness({ items: [line('ebook')], taxRate: 13, bookName: 'HST payable' });
+    expect((await named.call('createStripeCheckoutSession')).code).toBe(200);
+    expect(named.order.taxLines).toEqual([{ name: 'HST payable', cents: 260 }]);
   });
   test('switched off: no tax is charged even with saved rates', async () => {
     const app = harness({ items: [line('ebook')], taxRate: 13, collectTax: false });
     expect((await app.call('createStripeCheckoutSession')).code).toBe(200);
     expect(app.order.tax).toBe(0);
+    expect(app.order.taxLines).toEqual([]);
     expect(app.order.total).toBe(20);
   });
 });

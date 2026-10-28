@@ -18,6 +18,38 @@ settings (`../signup/config.js`) and sign-in.
 - **Get help from Colophon**: a request to the platform team (`services/support/`), about one of the person's shops or
   none, and every earlier request with its answers. Answers also come by email; the person can add to a request.
 
+## Plan & billing (`billing.html`, `billing.js`, `billingWords.js`, `billingRoutes.js`)
+
+The page every billing email links to, `/account/billing?shop=<id>` (Hosting serves `accounts/billing.html` there; its
+script loads from `/accounts/billing.js`). Code plan 6.4 and 6.5. The shop card on the account page links to it for
+owners.
+
+- The plan and price ("plus tax" when `BILLING_TAX` is on), and where it stands: trial days left, the next payment,
+  cancelled until a date, paused, a payment problem or closed.
+- The card on file (brand, last four, expiry) with **Add a card** / **Change card** (Stripe's own page).
+- **Change plan**: **See what changes** first (apps opening and closing, when, the prorated amount), then **Change my
+  plan**.
+- Invoices with their PDFs; **Cancel plan** / **Keep my plan**.
+- **How you pay** (row 6.19): monthly, or a share of website sales never more than the plan's price, with **Switch to
+  pay as you sell** / **Switch to monthly**. Shown when the door is given `paymentWay` (`createPaymentWay` from
+  `services/billing`, sharing the payment service's fee ledger); hidden otherwise.
+- Loading, error, signed-out and no-plan states.
+
+The calls, each for the shop's owner only (the shop's own team, `accounts.roleIn`), each reaching `services/billing`
+once and logged (done, refused or failed) in the registry and the shop's audit log:
+
+| Route | Body | Answer |
+| --- | --- | --- |
+| `POST /api/billing/status` | `{ shopId }` | `{ billing }` (null: no plan yet) |
+| `POST /api/billing/card` | `{ shopId }` | `{ url }`: Stripe's card page, coming back only to this shop's Plan & billing page |
+| `POST /api/billing/cancel` | `{ shopId }` | `{ cancelAtPeriodEnd }` |
+| `POST /api/billing/keep` | `{ shopId }` | `{ cancelAtPeriodEnd }` |
+| `POST /api/billing/change-plan` | `{ shopId, plan, preview? }` | `{ preview }`, or `{ plan, changed }` |
+| `POST /api/billing/invoices` | `{ shopId }` | `{ invoices }` |
+
+The web door adds them with `routes: { ...accountRoutes(accounts), ...billingRoutes({ billing, accounts, registry,
+auditLog, settings }) }`.
+
 ## Roles
 
 The shop's own roles (`apps/shop/functions/roles.js`), named in `roles.js`:
@@ -58,6 +90,27 @@ to the platform's one web door: `createApi({ …, routes: accountRoutes(accounts
   open invite. A shop can have 20 open invites at once.
 - Every invite, acceptance, role change and removal is logged in the registry and the shop's audit log.
 - The invite email comes from the platform (`services/email`, kind `invite`).
+
+## People added in the shop's own Team (`teamSync.js`)
+
+An owner can also add people in the shop's admin (Settings › Team), which writes `members/<email>` in the shop's own
+database. `createTeamSync({ memberships, registry, shopData, auditLog })` makes the switcher's copy match that list,
+one shop at a time (code plan 5.11):
+
+- `syncShop(shopId)` reads only that shop's `members` (`shopData.list`) and adds, re-roles or removes that shop's
+  `memberships` rows to match. The shop's list is the truth; the copy only feeds the switcher. Every row it writes
+  carries that shop id, so one shop's list never touches another shop's people.
+- Roles are the shop's own list (`roles.js` `ROLES`, kept equal to `apps/shop/functions/roles.js` by a test): a
+  document with any other role is skipped, as the shop skips it. The shop's own owner address is never copied.
+- Safe to run again: a second run writes and logs nothing. Each change is logged once in the registry and the shop's
+  audit log (`member-added-in-shop`, `role-changed-in-shop`, `member-removed-in-shop`).
+- `syncAll()` runs every live shop; one shop that can't be read doesn't stop the others.
+- The shop's door, `handleTeamChanged` (`POST /team-changed`, `X-Shop-Id` + the shop's service key): the shop's
+  `syncMemberRole` trigger calls it on each Team change when its settings have `PLATFORM_ACCOUNTS_URL`. The body is
+  never read; the platform re-reads that shop's list.
+
+A removal ends in both places either way: **Remove** here deletes the shop's document and the copy together; a removal
+in the shop deletes the document and the next sync removes the copy.
 
 ## New-device alerts (`devices.js`)
 
@@ -112,5 +165,5 @@ Until the move is automatic (`recoveryByHand` stands in for it), the admin does 
 - Moving a recovered account automatically (`applyRecovery` is `recoveryByHand` for now).
 - Wiring the device and recovery stores (`clients/stores.js` `firestoreDevices`, `firestoreRecoveries`) and the
   Firebase account lookup (`findAccount`) into the hosted web door.
-- People the owner adds in the shop's own admin (Settings › Team) are not copied back here yet, so they don't see that
-  shop in the switcher until they are invited from this page.
+- Hosting the team door and running `syncAll` on a schedule (each night, to catch a missed notice), then writing
+  `PLATFORM_ACCOUNTS_URL` into the shops' settings (setup step 8 does it once `config.platformAccountsUrl` is set).

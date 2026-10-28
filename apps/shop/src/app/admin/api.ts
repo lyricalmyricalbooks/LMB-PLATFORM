@@ -6,7 +6,7 @@ import { discountRecord, discountUpdate } from "../../shared/discountRecord";
 import { check } from "../../shared/edge";
 import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
-import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
+import { REDIRECTS_COLLECTION, REDIRECTS_DOC, redirectPageIds, redirectsToPages, type Redirect } from "../features/site/redirects";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
@@ -22,6 +22,7 @@ import { mediaApi } from "./mediaApi";
 import { auditLog } from "./auditLog";
 import type { PlatformPaymentsAnswer } from "./platformPayments";
 import type { DomainCheck, DomainList } from "./customDomains";
+import type { BookkeepingOptions, BookkeepingSave, BookkeepingStatus } from "./quickbooksLink";
 /** Cache-Control for uploaded shop pictures (mirrors functions/imageCopies.js IMMUTABLE). */
 export const PUBLIC_FILE_CACHE = "public, max-age=31536000, immutable";
 
@@ -666,9 +667,20 @@ export const adminApi = {
 
   // URL redirects (Settings › General): old address → new address, in the public, admin-written settings/redirects doc.
   getRedirects: publicApi.getRedirects,
+  // Plan 5.6: saved in numbered pages of 500 (`redirects/1`…, up to 5,000), filled in order, in one batch; pages past
+  // the end are cleared and the legacy settings/redirects doc is marked moved, so an older list never comes back.
   saveRedirects: async (items: Redirect[]): Promise<Redirect[]> => {
-    const clean = cleanRedirects(items);
-    await setDoc(doc(db, "settings", REDIRECTS_DOC), { items: clean, updatedAt: new Date().toISOString() });
+    const pages = redirectsToPages(items);
+    const clean = pages.flatMap(p => p.items);
+    const updatedAt = new Date().toISOString();
+    const batch = writeBatch(db);
+    for (const id of redirectPageIds()) {
+      const page = pages.find(p => p.id === id);
+      if (page) batch.set(doc(db, REDIRECTS_COLLECTION, id), { items: page.items, page: Number(id), updatedAt });
+      else batch.delete(doc(db, REDIRECTS_COLLECTION, id));
+    }
+    batch.set(doc(db, "settings", REDIRECTS_DOC), { items: [], paged: true, pages: pages.length, count: clean.length, updatedAt });
+    await batch.commit();
     await adminApi.recordAuditLog("settings", `Updated URL redirects (${clean.length})`);
     return clean;
   },
@@ -1251,6 +1263,21 @@ export const adminApi = {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw Object.assign(new Error(result.error || "Couldn't reach your web addresses."), { code: result.code });
     return result as DomainList & DomainCheck;
+  },
+
+  // Settings › Bookkeeping (plan 7.16): the QuickBooks link, through the platform's bookkeeping service. A shop without
+  // it answers status { enabled: false } and refuses the other steps with code "not_available".
+  bookkeeping: async (step: "status" | "connect" | "options" | "save" | "resend" | "disconnect", args: Partial<BookkeepingSave> & { returnUrl?: string; date?: string } = {}) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "bookkeeping", step, ...args }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(result.error || "Couldn't reach your bookkeeping link."), { code: result.code });
+    return result as BookkeepingStatus & BookkeepingOptions & { url?: string; results?: { kind: string; ref: string; outcome: string; message?: string }[]; stopped?: string };
   },
 
   // Deletes a stored PayPal client secret (admin-only adminSecrets/paypal). Live then falls back to the Functions secret.

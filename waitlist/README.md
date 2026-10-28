@@ -23,4 +23,14 @@ so a deploy has to name the project.
 The product is called Colophon (`page.test.js` keeps the page on that name). Which domain to buy: run
 `node waitlist/domain-check.js` (it only reads, over RDAP) and see `docs/name-and-domain.md`.
 
-Copy rules: never name a rival shop platform; no prices or trial lengths until they are decided.
+## Pricing (code plan 6.1)
+
+`pricing.js` adds the three plans, "Free for 14 days, no card needed", **Start your free trial** and, above the form,
+"Not ready yet? Join the waitlist". The plans, prices and trial come from the platform's `GET /api/plans`
+(`signup/api.js`, from the settings). They show only when `config.js` has `PLANS_URL` and `SIGNUP_URL` (empty until
+sign-up is hosted) and the answer says `signupOpen` (the control room's live setting, off by default); anything else,
+including no answer, leaves today's page. The founding price shows only when the founding offer is set; under the shop
+and shop-and-stockroom plans, "or 2% of your website sales, never more than $29 a month" shows only when pay as you sell
+is over 0% (the percent and cap come from the answer). Proven by `pricing.test.js`.
+
+Copy rules: never name a rival shop platform; prices and trial lengths only from `/api/plans`, never typed into the page.

@@ -15,12 +15,10 @@
 // The closing sweep (closing.js) keeps its stage on the registry row (`closing`); a closed or deleted stage wins over
 // Stripe's status, so a shop the sweep closed stays closed even though Stripe still calls its plan "paused".
 import { PLAN_APPS } from "./plans.js";
+import { currentPaymentWay } from "./paymentWayState.js";
 
 export const PLAN_DOC = "platform/plan";
 export const STATUS_DOC = "platform/status";
-
-/** How the press pays. Monthly only at launch (Julian, 28 October 2026); yearly comes once 10 presses pay. */
-export const PAYMENT_WAYS = Object.freeze(["monthly"]);
 
 const ENDED = new Set(["canceled", "incomplete_expired"]);
 
@@ -49,17 +47,20 @@ export function nextPaymentAt(row, closing = null) {
 /** The admin-only document. `link` is the platform's Plan & billing page for this shop. */
 export function planDocument(row, { link, at, closing = null }) {
   const access = shopAccess(row, closing);
-  const endsAt = row.cancelAtPeriodEnd && !ENDED.has(row.status) ? (row.status === "trialing" ? row.trialEnd : row.currentPeriodEnd) ?? null : null;
+  // Paying as it sells (paymentWay.js, plan 6.19): open with no subscription, nothing to pay ahead and no trial.
+  const paymentWay = currentPaymentWay(row, Date.parse(at));
+  const asItSells = paymentWay === "payAsYouSell" && access === "open";
+  const endsAt = !asItSells && row.cancelAtPeriodEnd && !ENDED.has(row.status) ? (row.status === "trialing" ? row.trialEnd : row.currentPeriodEnd) ?? null : null;
   return {
     plan: row.plan ?? null,
-    state: shopState(row, closing),
+    state: asItSells ? "active" : shopState(row, closing),
     access,
-    trialEnd: row.status === "trialing" ? row.trialEnd ?? null : null,
-    nextPaymentAt: nextPaymentAt(row, closing),
+    trialEnd: !asItSells && row.status === "trialing" ? row.trialEnd ?? null : null,
+    nextPaymentAt: asItSells ? null : nextPaymentAt(row, closing),
     hasCard: Boolean(row.hasCard),
-    cancelAtPeriodEnd: Boolean(row.cancelAtPeriodEnd),
+    cancelAtPeriodEnd: !asItSells && Boolean(row.cancelAtPeriodEnd),
     endsAt,
-    paymentWay: PAYMENT_WAYS.includes(row.paymentWay) ? row.paymentWay : "monthly",
+    paymentWay,
     link,
     // Only what the admin shows: when it closed, until when everything can be downloaded, and the day it is deleted.
     closing: closing && closing.stage !== "paused"

@@ -25,7 +25,7 @@ describe("firestore.rules anonymous-abuse guards", () => {
   it("serves only published pages to the public", () => {
     const pages = block("pages/{pageId}");
     expect(pages).not.toMatch(/allow read: if true/);
-    expect(pages).toMatch(/allow read: if isAdmin\(\) \|\| resource\.data\.status == "published"/);
+    expect(pages).toMatch(/allow read: if isAdminReader\(\) \|\| resource\.data\.status == "published"/);
     // Every shopper read of pages filters on status (a list query must match the rule).
     expect(read("src/app/lib/publicApi.ts")).toMatch(/collection\(liteDb, "pages"\), where\("status", "==", "published"\)/);
     expect(read("scripts/publicStorefrontData.mjs")).not.toMatch(/collection\('pages'\)/);
@@ -92,10 +92,10 @@ describe("firestore.rules round-2 security (#18, #111, #112)", () => {
   it("serves only published books to the public, with private fields in an admin-only subdocument", () => {
     const books = block("books/{bookId}");
     expect(books).not.toMatch(/allow read: if true/);
-    expect(books).toMatch(/allow read: if isAdmin\(\) \|\| resource\.data\.status == "published"/);
-    expect(books).toMatch(/match \/private\/\{docId\} \{\s*allow read, write: if isAdmin\(\);/);
+    expect(books).toMatch(/allow read: if isAdminReader\(\) \|\| resource\.data\.status == "published"/);
+    expect(books).toMatch(/match \/private\/\{docId\} \{\s*allow read: if isAdminReader\(\);\s*allow write: if isAdmin\(\);/);
     // The admin's one-query read of every private document.
-    expect(rules).toMatch(/match \/\{path=\*\*\}\/private\/\{docId\} \{\s*allow read: if isAdmin\(\);/);
+    expect(rules).toMatch(/match \/\{path=\*\*\}\/private\/\{docId\} \{\s*allow read: if isAdminReader\(\);/);
   });
 
   it("every shopper read of books asks for published ones only", () => {
@@ -162,7 +162,7 @@ describe("Team roles", () => {
     expect(fn(rules, "isOwner") + fn(rules, "isAdmin")).not.toMatch(/bookkeeper/);
     const lines = rules.split("\n").filter((line) => line.includes("isBookkeeper()") && !line.includes("function"));
     expect(lines.length).toBe(3);
-    for (const line of lines) expect(line).toMatch(/allow (read|get, list): if isAdmin\(\) \|\| isBookkeeper\(\)/);
+    for (const line of lines) expect(line).toMatch(/allow (read|get, list): if isAdminReader\(\) \|\| isBookkeeper\(\)/);
     expect(block("orders/{orderId}")).toContain("isBookkeeper()");
     expect(block("giftCards/{cardId}")).toContain("isBookkeeper()");
     expect(block("analytics/{docId}")).toContain("isBookkeeper()");
@@ -186,12 +186,22 @@ describe("Team roles", () => {
 describe("Platform support", () => {
   const fn = (text: string, name: string) => text.match(new RegExp(`function ${name}\\(\\)\\s*\\{([\\s\\S]*?)\\n\\s*\\}`))?.[1] ?? "";
   it("needs a custom sign-in and runs out, in Firestore and Storage", () => {
-    for (const text of [rules, read("storage.rules")]) {
-      const body = fn(text, "isSupport");
+    for (const body of [fn(rules, "supportVisit"), fn(read("storage.rules"), "isSupport")]) {
       expect(body).toContain('request.auth.token.firebase.sign_in_provider == "custom"');
       expect(body).toContain("request.time.toMillis() < request.auth.token.support.until * 1000");
-      expect(fn(text, "isAdmin")).toContain("isSupport()");
     }
+    for (const text of [rules, read("storage.rules")]) expect(fn(text, "isAdmin")).toContain("isSupport()");
+  });
+  // Plan 9.8: a "view" visit (the default) reads what staff read and changes nothing; only an "edit" visit is staff.
+  it("a view visit only ever reads", () => {
+    expect(fn(rules, "isSupport")).toContain('support.get("mode", "view") == "edit"');
+    expect(fn(read("storage.rules"), "isSupport")).toContain('support.get("mode", "view") == "edit"');
+    expect(fn(rules, "isSupportViewer")).toContain('support.get("mode", "view") != "edit"');
+    expect(fn(rules, "isAdmin")).not.toContain("isSupportViewer");
+    const lines = rules.split("\n").filter((line) => line.includes("isAdminReader()") && !line.includes("function") && !line.trim().startsWith("//"));
+    expect(lines.length).toBeGreaterThan(20);
+    // Every rule that lets the viewer in is a read (the customer rule reads across two lines).
+    for (const line of lines) expect(line, line).toMatch(/allow (read|get, list|list): if |request\.auth\.uid == customerId \|\| isAdminReader\(\)\);|return isAdmin\(\) \|\| isSupportViewer\(\);/);
   });
   it("is never the owner", () => {
     expect(fn(rules, "isOwner")).not.toContain("isSupport");
