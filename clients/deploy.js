@@ -36,12 +36,20 @@ export const siteOf = (projectId, app) => (app === "shop" ? projectId : `${proje
 
 /**
  * `deployClient({ fetch, token, run, buildDir, writeText })`. `buildDir(version)` is the folder the release was built
- * in once (apps/shop and apps/stockroom inside it, each with its `firebase.deploy.json`).
+ * in once (apps/shop and apps/stockroom inside it). `ownerEmailOf(projectId)` gives the shop's owner address: before
+ * each shop deploy, the shop copy's own `scripts/deployConfig.mjs --project <id>` writes that shop's
+ * `firebase.deploy.json` and its rules with the owner filled in (plan 1.14b), so the shared build never holds one
+ * shop's owner for another.
  */
-export function deployClient({ fetch, token, run, buildDir, writeText = writeFile }) {
+export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, writeText = writeFile }) {
   const call = googleHttp({ fetch, token });
   const firebase = async (version, app, args) => {
     const cwd = join(buildDir(version), "apps", app);
+    const projectId = args[args.indexOf("--project") + 1];
+    if (app === "shop") {
+      if (typeof ownerEmailOf !== "function") throw new Error("the deploy client needs ownerEmailOf to fill in the shop's rules");
+      await run("node", ["scripts/deployConfig.mjs", "--project", projectId], { cwd, env: { SHOP_OWNER_EMAIL: await ownerEmailOf(projectId) } });
+    }
     await run("firebase", [...args, "--config", "firebase.deploy.json", "--non-interactive", "--force"], { cwd });
   };
 
@@ -111,8 +119,11 @@ export function deployClient({ fetch, token, run, buildDir, writeText = writeFil
       const live = await deployedFunctions(projectId);
       if (live?.region !== region) throw new Error(`the server code went to ${live?.region ?? "nowhere"}, not ${region}; the shop copy must read SHOP_FUNCTIONS_REGION`);
     },
-    async pages(projectId, { version, app }) {
+    // `profileScript` is the shop's own /shop-profile.js (setup step 6): the one file that differs between shops'
+    // pages, written into the shared build just before this shop's deploy.
+    async pages(projectId, { version, app, profileScript }) {
       const site = siteOf(projectId, app);
+      if (profileScript) await writeText(join(buildDir(version), "apps", app, "dist", "shop-profile.js"), profileScript);
       if (app !== "shop") {
         try {
           await call("GET", `${HOSTING}/projects/${projectId}/sites/${site}`);

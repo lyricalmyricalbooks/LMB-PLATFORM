@@ -48,7 +48,7 @@ export function realSetupClients({ fetch, token, run, buildDir, registryFirestor
     registry,
     auditLog: firestoreAuditLog(shopDb),
     google: googleClients({ fetch, token, sleep }),
-    deploy: deployClient({ fetch, token, run, buildDir }),
+    deploy: deployClient({ fetch, token, run, buildDir, ownerEmailOf: async (projectId) => (await registry.getShop(projectId))?.ownerEmail }),
     envFiles: registryFiles(platform, "functions.env"),
     profileFiles: registryFiles(platform, "shop-profile.js"),
     shopData: shopDataClient(shopDb),

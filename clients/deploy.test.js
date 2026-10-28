@@ -11,13 +11,15 @@ const notFound = { status: 404, json: { error: { code: 404, status: "NOT_FOUND",
 function setup(script) {
   const fetch = scriptedFetch(script);
   const runs = [];
+  const configs = [];
   const written = new Map();
   const deploy = deployClient({
     fetch, token, buildDir: (version) => `/builds/${version}`,
-    run: async (command, args, { cwd }) => void runs.push({ command, args, cwd }),
+    ownerEmailOf: async () => "owner@example.com",
+    run: async (command, args, { cwd, env }) => void (command === "node" ? configs.push({ args, cwd, env }) : runs.push({ command, args, cwd })),
     writeText: async (path, text) => void written.set(path, text),
   });
-  return { fetch, deploy, runs, written };
+  return { fetch, deploy, runs, configs, written };
 }
 
 test("the live rules' release and apps are read from the stamp in the ruleset", async () => {
@@ -62,9 +64,10 @@ test("the live pages' release comes from the latest Hosting release message", as
   fetch.done();
 });
 
-test("rules deploy each plan app's rules from the release's build folder", async () => {
-  const { deploy, runs } = setup([]);
+test("rules deploy each plan app's rules from the release's build folder, the shop's with its owner filled in", async () => {
+  const { deploy, runs, configs } = setup([]);
   await deploy.rules(P, { version: "1.2.3", apps: ["shop", "stockroom"] });
+  assert.deepEqual(configs, [{ args: ["scripts/deployConfig.mjs", "--project", P], cwd: "/builds/1.2.3/apps/shop", env: { SHOP_OWNER_EMAIL: "owner@example.com" } }]);
   assert.deepEqual(runs, [
     { command: "firebase", args: ["deploy", "--only", "firestore,storage", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/shop" },
     { command: "firebase", args: ["deploy", "--only", "firestore", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/stockroom" },
@@ -82,14 +85,15 @@ test("server code is deployed with its env file and the release stamped in, then
 
 test("pages: the stockroom gets its own site once; the deploy is stamped with the release", async () => {
   const S = `https://firebasehosting.googleapis.com/v1beta1/projects/${P}/sites`;
-  const { fetch, deploy, runs } = setup([
+  const { fetch, deploy, runs, written } = setup([
     { method: "GET", url: `${S}/${P}-stockroom`, ...notFound },
     { method: "POST", url: `${S}?siteId=${P}-stockroom`, body: {}, json: { name: `projects/${P}/sites/${P}-stockroom` } },
     { method: "GET", url: `${S}/${P}-stockroom`, json: { name: "x" } },
   ]);
   assert.deepEqual(await deploy.pages(P, { version: "1.2.3", app: "stockroom" }), { url: `https://${P}-stockroom.web.app` });
   await deploy.pages(P, { version: "1.2.3", app: "stockroom" });
-  assert.deepEqual(await deploy.pages(P, { version: "1.2.3", app: "shop" }), { url: `https://${P}.web.app` });
+  assert.deepEqual(await deploy.pages(P, { version: "1.2.3", app: "shop", profileScript: "window.SHOP={}" }), { url: `https://${P}.web.app` });
+  assert.equal(written.get("/builds/1.2.3/apps/shop/dist/shop-profile.js"), "window.SHOP={}");
   assert.deepEqual(runs.map((r) => [r.cwd, r.args.at(6)]), [["/builds/1.2.3/apps/stockroom", "lmb-release 1.2.3"], ["/builds/1.2.3/apps/stockroom", "lmb-release 1.2.3"], ["/builds/1.2.3/apps/shop", "lmb-release 1.2.3"]]);
   assert.equal(siteOf(P, "shop"), P);
   fetch.done();
