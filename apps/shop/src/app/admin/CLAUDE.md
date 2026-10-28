@@ -304,6 +304,12 @@ The private operations, label purchase safeguards, payment authority and server 
   skipped. `titlePerformance` + `OverviewTitles.tsx` (Dig deeper › **Titles**, CSV). **Customers:** `overviewCohorts.ts`
   `cohortRetention`, `repeatTiming`, `newVsReturningRevenue`; **Sales:** `operations` (median paid→shipped, payment/currency
   mix) and `hourHeatmap` (Toronto weekday × hour).
+- **Connect Google (platform plan 6.17):** on a shop with `PLATFORM_GOOGLE_URL`, `ConnectGoogleCard.tsx` (`googleConnect.ts`,
+  `functions/googleConnect.js`) replaces the Google Analytics and Search Console cards in Visitors & Google and shows a
+  prompt on the Overview and in Marketing & traffic until connected. The platform writes the same
+  `settings/website.analytics.ga4MeasurementId` and `adminSecrets/googleAnalytics` fields the older cards do, so the tag
+  and reports below work unchanged. `useGoogleConnect().mode === "own"` (no link) keeps the older cards. On those shops
+  Email sender shows `PlatformSenderCard` instead of the Gmail app-password panel (`senderStatus.backup === "platform"`).
 - **Google Analytics 4:** Settings › General › **Google Analytics** (`GoogleAnalyticsCard.tsx`, `admin/googleAnalytics.ts`).
   Measurement ID (public) = `settings/website.analytics.ga4MeasurementId`, written only by that card (`updateSettings` drops
   `analytics` so a stale settings form can't put an old ID back); property ID = admin-only `adminSecrets/googleAnalytics`.

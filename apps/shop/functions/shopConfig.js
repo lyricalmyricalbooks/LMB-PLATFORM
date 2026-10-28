@@ -32,6 +32,9 @@
 //   PLATFORM_DOMAINS_URL the platform domain service's address (https, LMB-PLATFORM services/domains, plan 2.9). Set:
 //                        Settings › General › Your web address puts the shop on the press's own address. Unset: the
 //                        card says the platform's team sets addresses up.
+//   PLATFORM_GOOGLE_URL  the platform's Google link (https, LMB-PLATFORM google/, plan 6.17). Set: the admin shows
+//                        Connect Google (one sign-in for Analytics, search, Google Shopping and email) instead of the
+//                        Google Analytics and Search Console cards. Unset: those cards, as before.
 //   PLATFORM_ACCOUNTING_URL the platform bookkeeping service's address (https, LMB-PLATFORM services/accounting, plan
 //                        7.15). Set: Settings › Bookkeeping can connect QuickBooks. Unset: the page stays hidden.
 //   PLATFORM_EMAIL_URL   the platform email service's shop door (https). Set: when the shop hasn't connected its own
@@ -140,6 +143,7 @@ function readShopConfig(env = {}) {
     stockroomDatabase: DATABASE_ID.test(text(env.SHOP_STOCKROOM_DATABASE)) ? text(env.SHOP_STOCKROOM_DATABASE) : PLACEHOLDER.stockroomDatabase,
     platformEmailUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_EMAIL_URL)) ? text(env.PLATFORM_EMAIL_URL) : "",
     platformDomainsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_DOMAINS_URL)) ? text(env.PLATFORM_DOMAINS_URL).replace(/\/+$/, "") : "",
+    platformGoogleUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_GOOGLE_URL)) ? text(env.PLATFORM_GOOGLE_URL).replace(/\/+$/, "") : "",
     platformAccountingUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTING_URL)) ? text(env.PLATFORM_ACCOUNTING_URL).replace(/\/+$/, "") : "",
     platformAccountsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_ACCOUNTS_URL)) ? text(env.PLATFORM_ACCOUNTS_URL).replace(/\/+$/, "") : "",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),

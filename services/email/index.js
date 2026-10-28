@@ -24,11 +24,18 @@
 //
 // Streams (streams.js, plan 8.3): every email is tagged with its stream, "orders" or "newsletter", and with
 // SHOP_SENDER_ADDRESSES on, a shop's email comes from its own address on that stream's subdomain.
+//
+// The press's own domain (ownDomain.js, plan 6.18): once a shop's own address passes the sending-records check, its
+// emails come from orders@<their domain> instead (registry `emailSender.state` "on"); replies still go to the press.
+// The press's own Gmail (plan 6.20, switched on by Julian): with `gmailSend` passed in and the registry's
+// `gmailSender.on`, the shop's emails go from the press's Gmail through the Google link; if Gmail refuses one, it goes
+// the usual way instead, so nothing is lost.
 import { platformSettings } from "../settings.js";
 import { resendClient } from "./resend.js";
 import { TEMPLATES, customProblems } from "./templates.js";
 import { shopSenderAddress, streamOf, streamSettings } from "./streams.js";
 import { NewsletterPausedError } from "./reputation.js";
+import { ownDomainSender } from "./ownDomain.js";
 
 const EMAIL = /^[^@\s<>"',;]+@[^@\s<>"',;]+\.[^@\s<>"',;]+$/;
 const KIND = /^[a-z][a-z0-9-]{1,40}$/;
@@ -48,7 +55,7 @@ const tag = (name, value) => ({ name, value: String(value).replace(/[^A-Za-z0-9_
  * The email service. `env` holds RESEND_API_KEY and the platform settings (services/settings.js); nothing is sent
  * without the key.
  */
-export function createEmailService({ env = process.env, fetch = globalThis.fetch, registry, sentLog, reputation = null, now = () => new Date(), sleep } = {}) {
+export function createEmailService({ env = process.env, fetch = globalThis.fetch, registry, sentLog, reputation = null, gmailSend = null, now = () => new Date(), sleep } = {}) {
   if (!registry?.getShop) throw new Error("The email service needs the shop registry");
   if (!sentLog?.get || !sentLog?.put || !sentLog?.findSent) throw new Error("The email service needs its sent log");
   const settings = platformSettings(env);
@@ -112,9 +119,22 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
       const replyTo = (shop.replyTo || shop.ownerEmail || "").trim().toLowerCase();
       if (!EMAIL.test(replyTo)) throw new Error(`${shopId} has no reply-to address in the registry`);
       const parts = compose(message, { settings, pressName: cleanName(shop.pressName) || shopId });
+      if (gmailSend && shop.gmailSender?.on === true) {
+        const done = await sentLog.get(message.idempotencyKey);
+        if (done?.status === "sent") return { id: done.id, alreadySent: true };
+        try {
+          const { id } = await gmailSend(shopId, { to: message.to.trim(), replyTo, ...parts });
+          await sentLog.put(message.idempotencyKey, { shopId, kind: message.kind, stream, to: message.to.trim(), id, via: "gmail", status: "sent", at: now().toISOString() });
+          return { id, alreadySent: false };
+        } catch (error) {
+          console.error(`Gmail sending for ${shopId} failed; sending the usual way:`, error?.message || error);
+        }
+      }
+      // The press's own domain once its records check out (newsletters too: the reputation pause still applies).
+      const address = ownDomainSender(shop) ?? shopSenderAddress({ shopId, stream, streams, settings });
       return deliver({
         shopId, kind: message.kind, stream, to: message.to.trim(), idempotencyKey: message.idempotencyKey,
-        from: fromLine(shop.pressName || shopId, shopSenderAddress({ shopId, stream, streams, settings })), replyTo, parts,
+        from: fromLine(shop.pressName || shopId, address), replyTo, parts,
       });
     },
 

@@ -32,6 +32,24 @@ another.
   unsigned, wrongly signed or over five minutes old. The secret is `RESEND_WEBHOOK_SECRET`.
 - `fakes.js`: in-memory sent log, pretend Resend and the reputation store for tests.
 
+## The press's own domain (plan 6.18)
+
+Once a press's own web address opens their shop, their emails can come from it too (`ownDomain.js`):
+
+1. `connect(shopId, domain)` adds the domain to the platform's Resend account (once). It sends the sending records
+   Resend asks for to the domain service through `domainsCall` (`google/domainBridge.js`; the registrar's Allow window
+   is plan 6.15). Until then the answer is "waiting", and Colophon's sender carries on.
+2. `check(shopId)` reads Resend. Once the records check out, the registry's `emailSender.state` is `on`, and
+   `send` puts `orders@<their domain>` on the From line. The reply-to stays the press's, so replies reach them.
+3. If the records break, the shop goes straight back to Colophon's sender. The owner gets one plain email
+   (`own-email-paused`, one per time it was on). When the records come back, so does the own address.
+   `checkAll()` is the sweep, every few hours.
+4. `disconnect(shopId)` removes the records and Resend's domain when the shop is deleted (`google/teardown.js`).
+
+The Google link's email step runs `connect` for the shop. With Gmail sending switched on (`GOOGLE_GMAIL_SENDING`, after
+Google's security review), `createEmailService({ gmailSend })` sends a shop's emails from the press's own Gmail while
+the registry's `gmailSender.on` is true. When Gmail refuses one, it goes the usual way.
+
 ## Email reputation (plan 8.3)
 
 One shop's newsletter must never put the other shops' receipts in spam.

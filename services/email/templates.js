@@ -190,6 +190,18 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The press's own domain stopped passing the sending check (ownDomain.js, plan 6.18): Colophon's sender meanwhile. */
+  "own-email-paused": ({ domain }, { settings, pressName }) => layout({
+    subject: `${pressName}'s emails are coming from ${settings.platformName} for now`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your shop's emails were coming from orders@${domain}, but that address stopped working for sending. Something changed where you bought ${domain}.`,
+      `So nothing gets lost, your receipts and order emails now come from ${settings.platformName}'s address with ${pressName}'s name on them, and replies still reach you.`,
+      `When the address works again, your emails switch back to orders@${domain} by themselves. If you moved ${domain} to another company, reply to this email and we'll help.`,
+    ],
+    footer: signOff(settings),
+  }),
+
   /** A monthly payment was declined. Stripe tries again; the shop stays open meanwhile. */
   "payment-failed": ({ price, nextTry, link }, { settings, pressName }) => layout({
     subject: `We couldn't take this month's payment for ${pressName}`,
