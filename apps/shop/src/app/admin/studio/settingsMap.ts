@@ -332,7 +332,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Order slip", match: /^co(Summary|ShowSummary|HideSummary|ItemCount|LineQty|Slip)/ },
     { title: "Contact & address fields", match: /^co(SignedIn|Google|Email|Name|Address|Country|City|State|Zip|Phone|Bill|EnterAddress)/ },
     { title: "Shipping, pickup & delivery", match: /^co(Ship|Fulfillment|Rates|ArrivesBy|FreeShip|Packed|Pickup|Carrier|Estimated|Free$|NoShipping|Preorder|TaxLater)/ },
-    { title: "Payment & the Pay button", match: /^co(Payment|Card|Pay|PayPal|Paypal|PlaceOrder|Processing|Stripe|Trust|Guarantee|TestMode|NoPayment|PrivacyNote|Policy|Terms|OnlyLeft|Express|OrderNote|Rates)/ },
+    { title: "Payment & the Pay button", match: /^co(Payment|Card|Pay|PayPal|Paypal|PlaceOrder|Processing|Stripe|Square|Trust|Guarantee|TestMode|NoPayment|PrivacyNote|Policy|Terms|OnlyLeft|Express|OrderNote|Rates)/ },
     { title: "Discount codes", match: /^co(HaveCode|Discount|Apply)/ },
     { title: "Gift cards, automatic offers & free gifts", match: /^co(GiftCard|Auto|FreeGift|Line)/ },
     { title: "After the order", match: /^co(Thanks|Account|Pending|Continue|OrderPlaced|OrderConfirmed|Finalizing|CheckEmail|OrderNumber|ConfirmationSent|Confirming|Success|TrackOrder)/ },

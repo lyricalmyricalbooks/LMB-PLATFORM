@@ -117,7 +117,7 @@ export function canMarkManualPaid(o: any): boolean {
  if (!o || ["paid", "refunded", "refund_pending"].includes(o.paymentStatus) || o.status === "cancelled" || o.status === "refunded") return false;
  if (o.stripePaymentIntentId || o.stripeCheckoutSessionId || o.paypalOrderId || o.paypalCaptureId) return false;
  const method = String(o.paymentMethod || "").toLowerCase();
- if (!method || /stripe|card|paypal|apple|google|free/.test(method)) return false;
+ if (!method || /stripe|square|card|paypal|apple|google|free/.test(method)) return false;
  return Number(o.total) > 0;
 }
 /** Address fields the server refuses to change on this paid order, and why (see api.correctOrderAddress). */

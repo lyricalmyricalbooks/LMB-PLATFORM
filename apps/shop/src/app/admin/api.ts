@@ -20,6 +20,7 @@ import { toCountryCodes } from "./shippingCountries";
 import { keepPhotoCopies, removedPhotos, shownUrls, unusedBookFiles } from "./bookFileCleanup";
 import { mediaApi } from "./mediaApi";
 import { auditLog } from "./auditLog";
+import type { PlatformPaymentsAnswer } from "./platformPayments";
 /** Cache-Control for uploaded shop pictures (mirrors functions/imageCopies.js IMMUTABLE). */
 export const PUBLIC_FILE_CACHE = "public, max-age=31536000, immutable";
 
@@ -1206,6 +1207,21 @@ export const adminApi = {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Couldn't register the domain with Stripe.");
     return result as { domain: string; applePay: string; googlePay: string };
+  },
+
+  // The press's card account on the platform (plan 2.2b / 2.10): "status" (connected? the platform's fee) or "connect"
+  // (the address of Square's sign-in or Stripe's onboarding, coming back to Settings › Payments). Platform shops only.
+  platformPayments: async (step: "status" | "connect") => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "platformPayments", step, origin: window.location.origin }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Couldn't reach your card account.");
+    return result as PlatformPaymentsAnswer;
   },
 
   // Deletes a stored PayPal client secret (admin-only adminSecrets/paypal). Live then falls back to the Functions secret.

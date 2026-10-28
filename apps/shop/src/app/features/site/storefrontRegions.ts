@@ -84,6 +84,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "stripePaymentHeader", label: "Stripe payment method selector", required: true },
     { id: "stripeBrands", label: "Accepted card badges" },
     { id: "stripePaymentRecovery", label: "Stripe payment recovery", required: true },
+    { id: "squarePaymentNote", label: "Square checkout note (Square shops)" },
   ] },
   { id: "checkoutLayout", title: "Checkout · layout & elements", copy: "Checkout", files: ["Checkout.tsx", "features/site/CheckoutAddressStep.tsx", "features/site/CheckoutDeliveryStep.tsx", "features/site/CheckoutPaymentStep.tsx", "features/site/CheckoutOrderSummary.tsx", "features/site/FulfillmentMethodPicker.tsx"], regions: [
     { id: "checkoutHeader", label: "Checkout header" }, { id: "checkoutProgress", label: "Checkout step labels (switch: Style › Checkout page › Header & sections)", required: true },

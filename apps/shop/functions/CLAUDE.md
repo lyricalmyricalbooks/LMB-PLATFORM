@@ -808,6 +808,21 @@ function's `secrets` list (and the global options) on a shop that uses a platfor
 `platformKey.test.js` fails when a functions file declares a bare `secrets: [` list. The card form gets the platform's
 publishable key and the press's account from the shop profile's `payments` (`platformStripe` in `src/lib/shopProfile.ts`).
 
+**Square (28 October 2026, code plan 2.2b).** `SHOP_PAYMENT_PROVIDER="square"` works only with `SHOP_PAYMENT_MODE=
+"platform"` (`providerModeOf` throws otherwise). `payments/square.js` answers the same interface in Stripe's words, so
+the callers stay as they are: Square objects are mapped to intent, session, charge, refund and dispute shapes, and the
+ids it saves carry our prefixes (`sqpay_`, `sqlink_`; `payments/ids.js`, used by every "is this a saved payment id"
+check instead of `pi_`/`cs_`). Checkout is Square's hosted page (a payment link): `createCardIntent` and the embedded
+form refuse with `card_form_unavailable`; the page sends the shopper there and back with `?square=1`, and the status
+check reads the order's own saved payment. Square events come to `stripeWebhook` from the platform with
+`X-Platform-Event: square`; `verifyWebhookEvent` fetches the payment, refund or dispute again before believing it.
+Card orders keep `paymentMethod: "Stripe"` (the rules and the server know cards by that name); `paymentGuards.js` also
+treats "square" as a provider. The admin's **Card payments** card (`PlatformPaymentsCard.tsx`, action
+`platformPayments` with `step: "status" | "connect"` in `checkoutAdmin.js`) replaces the Stripe keys card on every
+platform shop: connect Square (or finish Stripe onboarding), the account's state and Colophon's fee next to payouts.
+Known gaps: gift cards with a card payment are refused for Square shops; a payment link doesn't expire with the stock
+hold; admin and email wording still says "Stripe" in places.
+
 ## Email module (27 October 2026, code plan 1.13)
 
 `functions/email/index.js` (`createEmail`) is the one door for every email the server sends, built like the payments

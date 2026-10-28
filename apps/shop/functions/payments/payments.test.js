@@ -386,23 +386,26 @@ describe("provider choice", () => {
     return { db, Stripe: fakeStripe().Stripe, liveSecretKey: { value: () => "sk_live_deployed" }, readAdminSecret: async () => ({}) };
   };
 
-  test("Stripe is the default and, so far, the only provider", () => {
-    expect(PROVIDER_NAMES).toEqual(["stripe"]);
+  test("Stripe is the default; Square is the other provider (plan 2.2b)", () => {
+    expect(PROVIDER_NAMES).toEqual(["stripe", "square"]);
     expect(createPayments(deps()).provider).toBe("stripe");
     expect(createPayments({ provider: "stripe", ...deps() }).provider).toBe("stripe");
   });
 
   test("callers get exactly the provider interface, nothing provider-only", () => {
     const payments = createPayments(deps());
-    expect(Object.keys(payments).sort()).toEqual(["mode", "provider", ...INTERFACE].sort());
+    expect(Object.keys(payments).sort()).toEqual(["account", "mode", "provider", ...INTERFACE].sort());
     expect(payments.mode).toBe("own");
+    expect(payments.account).toBeNull(); // the platform account exists only in platform mode
     for (const name of INTERFACE) expect(typeof payments[name], name).toBe("function");
     expect(payments.withPrivateStripeKeys).toBeUndefined();
     expect(Object.isFrozen(payments)).toBe(true);
   });
 
   test("an unknown provider is refused by name", () => {
-    expect(() => createPayments({ provider: "square", ...deps() })).toThrow('Payment provider "square" is not available. Choose one of: stripe.');
+    expect(() => createPayments({ provider: "paypal", ...deps() })).toThrow('Payment provider "paypal" is not available. Choose one of: stripe, square.');
+    // Square only runs through the platform.
+    expect(() => createPayments({ provider: "square", ...deps() })).toThrow(/Square payments run through the platform/);
   });
 
   test("the front calls through to the provider unchanged", async () => {
@@ -422,10 +425,12 @@ describe("provider choice", () => {
 
   test("a provider that isn't built (or a typo) stops the shop's server with a plain message", () => {
     const { readShopConfig } = require("../shopConfig.js");
-    for (const value of ["square", "strpe", "paypal"]) {
+    for (const value of ["strpe", "paypal"]) {
       expect(() => readShopConfig({ SHOP_PAYMENT_PROVIDER: value }))
-        .toThrow(`SHOP_PAYMENT_PROVIDER is "${value}", which this shop can't use yet. Set it to one of: stripe (or leave it empty for stripe)`);
+        .toThrow(`SHOP_PAYMENT_PROVIDER is "${value}", which this shop can't use yet. Set it to one of: stripe, square (or leave it empty for stripe)`);
     }
+    expect(() => readShopConfig({ SHOP_PAYMENT_PROVIDER: "square" })).toThrow('SHOP_PAYMENT_PROVIDER is "square", which runs through the platform only.');
+    expect(readShopConfig({ SHOP_PAYMENT_PROVIDER: "square", SHOP_PAYMENT_MODE: "platform", SHOP_PAYMENTS_SERVICE_URL: "https://payments.platform.example" }).paymentProvider).toBe("square");
   });
 
   test("the functions refuse to load at all with an unknown provider", () => {
@@ -437,7 +442,8 @@ describe("provider choice", () => {
         return "loaded";
       } catch (err) { return String(err.stderr); }
     };
-    expect(run("square")).toContain(`SHOP_PAYMENT_PROVIDER is "square", which this shop can't use yet.`);
+    expect(run("squre")).toContain(`SHOP_PAYMENT_PROVIDER is "squre", which this shop can't use yet.`);
+    expect(run("square")).toContain(`SHOP_PAYMENT_PROVIDER is "square", which runs through the platform only.`);
     expect(run("stripe")).toBe("loaded");
   }, 30000);
 });

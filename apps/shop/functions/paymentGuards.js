@@ -1,3 +1,5 @@
+const { isPaymentId } = require("./payments/ids");
+
 // Currencies the shop prices in (exchange rates exist only for these). Any other
 // value would fall back to a 1:1 rate and let a shopper pay e.g. 100 INR for a
 // CA$100 order, so it is refused before a payment is created.
@@ -90,10 +92,11 @@ function lateFailureMayMarkFailed(order, sessionId) {
 // which must not be "refunded" by just changing its status.
 function refundProviderOf(order) {
   if (!order) return null;
-  if (typeof order.stripePaymentIntentId === "string" && order.stripePaymentIntentId.startsWith("pi_")) return "stripe";
+  // "stripe" names the card provider's refund path (payments.refund), whichever provider the shop uses.
+  if (isPaymentId(order.stripePaymentIntentId)) return "stripe";
   if (order.paypalCaptureId) return "paypal";
   const method = String(order.paymentMethod || "").toLowerCase();
-  if (/stripe|card|paypal|apple|google/.test(method)) return null;
+  if (/stripe|square|card|paypal|apple|google/.test(method)) return null;
   return "manual";
 }
 
@@ -181,7 +184,7 @@ function manualPaidRefusal(order) {
   if (order.status === "cancelled" || order.status === "refunded") return "closed";
   const method = String(order.paymentMethod || "").toLowerCase();
   if (order.stripePaymentIntentId || order.stripeCheckoutSessionId || order.paypalOrderId) return "provider";
-  if (/stripe|card|paypal|apple|google/.test(method)) return "provider";
+  if (/stripe|square|card|paypal|apple|google/.test(method)) return "provider";
   return null;
 }
 

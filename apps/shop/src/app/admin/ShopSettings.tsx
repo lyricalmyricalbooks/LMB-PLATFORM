@@ -13,6 +13,8 @@ import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfi
 import { paymentHealth } from "./paymentHealth";
 import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
+import { PlatformPaymentsCard } from "./PlatformPaymentsCard";
+import { shopProfile } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
@@ -1498,6 +1500,8 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   const enabledManual = manualMethods.filter((m: any) => m.enabled);
   const dirty = hasChanges("payments");
   useSettingsDirty("payments", dirty);
+  // Cards through Colophon (plan 2.2 / 2.2b): the press's own Square or Stripe account, connected here, with no keys.
+  const platformCards = shopProfile.payments?.mode === "platform" ? shopProfile.payments.provider : null;
   const stripeLive = !!stripe.connected;
   const paypalLive = !!paypal.connected;
   const secretStored = !!(stripe.secretKey || stripe.testSecretKey || stripe.secretKeyStored || stripe.testSecretKeyStored);
@@ -1525,7 +1529,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           <SectionCard title="Payment overview" description="What works right now.">
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               <StatusBadge tone={testMode ? "warning" : "success"}>{testMode ? "Test mode — no real charges" : "Live mode"}</StatusBadge>
-              <StatusBadge tone={stripeLive ? "success" : "neutral"}>Stripe {stripeLive ? "on" : "off"}</StatusBadge>
+              {platformCards
+                ? <StatusBadge tone="info">Cards through {platformCards === "square" ? "Square" : "Stripe"}</StatusBadge>
+                : <StatusBadge tone={stripeLive ? "success" : "neutral"}>Stripe {stripeLive ? "on" : "off"}</StatusBadge>}
               <StatusBadge tone={paypalLive ? "success" : "neutral"}>PayPal {paypalLive ? "on" : "off"}</StatusBadge>
               <StatusBadge tone={enabledManual.length ? "info" : "neutral"}>{enabledManual.length} manual method{enabledManual.length === 1 ? "" : "s"}</StatusBadge>
             </div>
@@ -1548,6 +1554,11 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
       </SettingsGroup>
 
       <SettingsGroup id="pay-methods" active={view === "pay-methods"}>
+        {platformCards ? (
+        <SettingsAnchor id="pay-stripe">
+          <PlatformPaymentsCard provider={platformCards} />
+        </SettingsAnchor>
+        ) : (
         <SettingsAnchor id="pay-stripe">
           <SectionCard title="Stripe" description="Cards, Apple Pay, Google Pay."
             actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>Stripe dashboard ↗</SecondaryButton>}>
@@ -1610,6 +1621,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
             </div>
           </SectionCard>
         </SettingsAnchor>
+        )}
         <SettingsAnchor id="pay-paypal">
           <SectionCard title="PayPal">
             <div className="rp-stack" style={{ gap: 20 }}>

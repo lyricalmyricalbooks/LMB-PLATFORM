@@ -99,14 +99,18 @@ test("the env file is what the shop's server code reads", () => {
 
 const envOf = (text) => Object.fromEntries(text.trim().split("\n").map((line) => line.match(/^([A-Z_]+)="(.*)"$/).slice(1)));
 
-test("the env file names the press's chosen payment provider, and the shop refuses one it hasn't built", () => {
+test("the env file names the press's chosen payment provider; Square runs through the platform only", () => {
   assert.equal(envOf(envFileText({ ...TEST_SHOP, paymentProvider: undefined }, TEST_CONFIG)).SHOP_PAYMENT_PROVIDER, "stripe");
   assert.equal(envOf(envFileText({ ...TEST_SHOP, paymentProvider: "stripe" }, TEST_CONFIG)).SHOP_PAYMENT_PROVIDER, "stripe");
-  // Square passes the platform's list of providers but isn't built into the shop yet: the shop's server must refuse it
-  // when it reads the file, so the deploy stops before any shopper reaches checkout.
+  // Square (plan 2.2b) works in the shop through the platform's payment service, which every platform shop uses.
   const square = envOf(envFileText({ ...TEST_SHOP, paymentProvider: "square" }, TEST_CONFIG));
   assert.equal(square.SHOP_PAYMENT_PROVIDER, "square");
-  assert.throws(() => readShopConfig({ ...square, GCLOUD_PROJECT: ID }), /SHOP_PAYMENT_PROVIDER is "square", which this shop can't use yet/);
+  const config = readShopConfig({ ...square, GCLOUD_PROJECT: ID });
+  assert.equal(config.paymentProvider, "square");
+  assert.equal(config.paymentMode, "platform");
+  // A shop on its own keys can't choose Square: the server refuses when it reads the file, before any shopper pays.
+  const { SHOP_PAYMENT_MODE: _, ...ownKeys } = square;
+  assert.throws(() => readShopConfig({ ...ownKeys, GCLOUD_PROJECT: ID }), /SHOP_PAYMENT_PROVIDER is "square", which runs through the platform only/);
 });
 
 test("the env file names the platform's shared sender once there is one, and the shop reads it", () => {
@@ -389,20 +393,48 @@ test("the test shop mark must be true or false, and the test shop must be in tes
 
 // Payments: a provider choice, Stripe first.
 
-test("payments take a provider: Stripe works, Square is planned and refused before Google is asked", async () => {
+test("payments take a provider: Stripe and Square; anything else is refused before Google is asked", async () => {
   assert.deepEqual(Object.keys(PAYMENT_PROVIDERS), ["stripe", "square"]);
   assert.deepEqual(paymentProblems(TEST_SHOP), []);
   const { paymentProvider: _, ...noChoice } = TEST_SHOP;
   assert.deepEqual(paymentProblems(noChoice), [], "Stripe when the press chose none");
-  assert.match(paymentProblems({ ...TEST_SHOP, paymentProvider: "square" })[0], /Square aren't ready yet \(plan item 2\.2b\)/);
+  assert.deepEqual(paymentProblems({ ...TEST_SHOP, paymentProvider: "square" }), []);
   assert.match(paymentProblems({ ...TEST_SHOP, paymentProvider: "toString" })[0], /must be one of stripe, square/);
   assert.match(shopProblems({ ...TEST_SHOP, testMode: "yes" })[0], /test mode/);
 
-  const { google, services, run } = setup({ shop: { ...TEST_SHOP, paymentProvider: "square" } });
+  const { google, services, run } = setup({ shop: { ...TEST_SHOP, paymentProvider: "toString" } });
   const result = await run();
   assert.equal(result.failedStep, 1);
-  assert.match(result.error, /Square/);
   assert.equal(google.calls.length + services.calls.length, 0);
+});
+
+test("a Square press: step 13 records Square in sandbox, and the press connects their own account from the admin", async () => {
+  const shop = { ...TEST_SHOP, paymentProvider: "square" };
+  const { services, registry, run } = setup({ shop });
+  const result = await run();
+  assert.equal(result.ok, true, result.error);
+  // No account is made for a Square press, and no Stripe call is made at all.
+  assert.deepEqual(services.calls.filter(([name]) => /^(stripe|square)\./.test(name)), []);
+  assert.deepEqual((await registry.getShop(ID)).payments, { provider: "square", mode: "test" });
+  assert.deepEqual((await registry.getProfile(ID)).payments, { provider: "square", mode: "platform" });
+
+  // The press connects Square; the payment service saves the account. Running setup again changes nothing.
+  await registry.updateShop(ID, { payments: { provider: "square", mode: "test", accountId: "MLFAKE123", locationId: "LFAKE" } });
+  const again = await run();
+  assert.equal(again.ok, true, again.error);
+  assert.deepEqual((await registry.getShop(ID)).payments, { provider: "square", mode: "test", accountId: "MLFAKE123", locationId: "LFAKE" });
+});
+
+test("a Square press whose registry says Stripe stops for a person", async () => {
+  const shop = { ...TEST_SHOP, paymentProvider: "square" };
+  const { services, registry } = setup({ shop });
+  const upTo12 = await runSteps({ shop, steps: setupSteps12(services, registry), registry, auditLog: fakeAuditLog() });
+  assert.equal(upTo12.ok, true, upTo12.error);
+  await registry.updateShop(ID, { payments: { provider: "stripe", accountId: "acct_fakeA", mode: "test" } });
+  const steps = shopSteps({ ...services, google: fakeGoogle(), registry, profileFiles: fakeProfileFiles(), config: TEST_CONFIG });
+  const result = await runSteps({ shop, steps, registry, auditLog: fakeAuditLog() });
+  assert.equal(result.failedStep, 13);
+  assert.match(result.error, /on stripe, but the shop chose square/);
 });
 
 test("payments with no connection for the chosen provider stop at step 13", async () => {

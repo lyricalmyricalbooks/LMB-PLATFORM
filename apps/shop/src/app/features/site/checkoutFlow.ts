@@ -109,6 +109,8 @@ export function readReturn(search: string, pathname: string) {
     canceled: Boolean(params.get("canceled")),
     stripeSessionId: params.get("session_id") || "",
     stripeIntentId: params.get("payment_intent") || "",
+    /** Back from Square's checkout page (plan 2.2b): Square sends no payment id, so the server checks the order's own. */
+    square: params.get("square") === "1",
     settledUrl: `${pathname}?order_id=${encodeURIComponent(orderId)}&success=true${manual ? "&manual=true" : ""}${previousPaid ? "&previous_paid=true" : ""}`,
   };
 }

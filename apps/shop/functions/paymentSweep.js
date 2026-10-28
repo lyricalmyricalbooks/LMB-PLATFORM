@@ -1,5 +1,7 @@
 // Finds orders whose Stripe payment may have succeeded while the webhook never marked them paid.
 // Pure helpers; the scheduled function in index.js does the Stripe lookups and the email.
+const { isPaymentId, isCheckoutId } = require("./payments/ids");
+
 const MIN_AGE_MS = 10 * 60 * 1000;          // give the webhook 10 minutes first
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // older ones are stale
 
@@ -10,8 +12,8 @@ function suspectOrders(orders, nowMs = Date.now()) {
     // refund decision, not a "webhook missed" alert. Cancelled orders stay in: a card that went
     // through after cancelling with no webhook must still be found.
     if (o.paymentMismatch || o.inventoryConflict) return false;
-    const hasIntent = typeof o.stripePaymentIntentId === "string" && o.stripePaymentIntentId.startsWith("pi_");
-    const hasSession = typeof o.stripeCheckoutSessionId === "string" && o.stripeCheckoutSessionId.startsWith("cs_");
+    const hasIntent = isPaymentId(o.stripePaymentIntentId);
+    const hasSession = isCheckoutId(o.stripeCheckoutSessionId);
     if (!hasIntent && !hasSession) return false;
     const age = nowMs - Date.parse(o.createdAt || "");
     return age >= MIN_AGE_MS && age <= MAX_AGE_MS;
