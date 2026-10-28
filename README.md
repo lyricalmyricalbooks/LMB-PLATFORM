@@ -26,7 +26,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `signup/` | Sign-up, plan choice and billing. |
 | `waitlist/` | The public waitlist page. |
 | `profile/` | The shop profile format: what differs between shops, read by both apps when the page opens. |
-| `docs/` | Decisions and plans: `code-plan.md` (the build order, one pull request per line), `shop-setup.md`, `payments.md`, `test-shop.md`, `decisions.md`. |
+| `docs/` | Decisions and plans: `code-plan.md` (the build order, one pull request per line), `shop-setup.md`, `payments.md`, `test-shop.md`, `name-and-domain.md`, `decisions.md`. |
 
 The plan behind all of this is the "Press platform build plan" doc.
 
