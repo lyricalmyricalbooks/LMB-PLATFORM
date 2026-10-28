@@ -21,6 +21,9 @@
   section[hidden] { display: none; }
   form, .stack { display: grid; gap: 16px; }
   label { display: grid; gap: 4px; font: 13px "DM Mono", monospace; text-transform: uppercase; }
+  textarea { font: inherit; font-size: 17px; border: 2px solid var(--ink); border-radius: 0; padding: 12px; background: var(--paper); color: var(--ink); min-height: 140px; resize: vertical; }
+  .message { border-left: 4px solid var(--blue); padding-left: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .message.from-support { border-left-color: var(--pink); }
   input, select, button { font: inherit; font-size: 17px; border: 2px solid var(--ink); border-radius: 0; padding: 12px; background: var(--paper); color: var(--ink); min-height: 48px; }
   button { cursor: pointer; font-weight: 600; }
   .primary { background: var(--yellow); color: #1d1a17; box-shadow: 4px 4px 0 var(--ink); }
@@ -70,6 +73,24 @@
     <p class="hint">Signed in as <strong id="me"></strong>. <button type="button" class="ghost" id="sign-out">Sign out</button></p>
     <div id="shops" class="stack"></div>
     <a href="../signup/">Start another shop</a>
+    <button type="button" class="ghost" id="open-help">Get help from Colophon</button>
+  </section>
+
+  <!-- Help: ask the platform team, and see the answers (services/support). -->
+  <section id="view-help" class="stack" hidden aria-labelledby="help-title">
+    <button type="button" class="ghost" id="help-back">← All your shops</button>
+    <h2 id="help-title" tabindex="-1">Get help</h2>
+    <p class="hint">A person reads every request. You'll get the answer by email, and it shows here too.</p>
+    <form id="help-form" class="card" novalidate>
+      <label>Which shop is it about?<select name="shopId" id="help-shop"></select></label>
+      <label>In a few words<input name="subject" maxlength="150" required></label>
+      <p class="error" data-problem="subject" role="alert" hidden></p>
+      <label>What's happening?<textarea name="body" maxlength="5000" required></textarea></label>
+      <p class="error" data-problem="body" role="alert" hidden></p>
+      <button type="submit" class="primary">Send</button>
+    </form>
+    <h3>Your requests</h3>
+    <div id="tickets" class="stack"></div>
   </section>
 
   <!-- One shop's team, for its owners. -->

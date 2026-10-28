@@ -38,7 +38,7 @@ export function profileValue(name, profile = readShopProfileSync()) {
 }
 
 // The one-off switches (src/lib/shopProfile.ts SHOP_SWITCHES): on only when the profile says `true`.
-export const SHOP_SWITCHES = ['legacyStockroomSignIn', 'githubPagesForwarding', 'gmailReceiptFinder'];
+export const SHOP_SWITCHES = ['legacyStockroomSignIn', 'githubPagesForwarding', 'gmailReceiptFinder', 'gmailOrderScan'];
 
 /** "true" or "false" for one switch, for the deploy workflows. An unknown switch name throws. */
 export function switchValue(name, profile = readShopProfileSync()) {

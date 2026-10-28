@@ -340,7 +340,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
       className={`relative w-full ${heightCls} flex items-center overflow-hidden ${
         settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center"
       }`}
-      style={{ backgroundColor: settings.backgroundColor || "#000", ...bgStyle(settings) }}
+      style={{ backgroundColor: settings.backgroundColor || "var(--bg-color, #000)", ...bgStyle(settings) }}
     >
       {settings.imageUrl && (
         <div className="absolute inset-0">
@@ -488,7 +488,7 @@ export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: a
   return (
     <section
       className={`relative flex overflow-hidden ${BANNER_HEIGHTS[settings.height] || BANNER_HEIGHTS.large}`}
-      style={{ backgroundColor: settings.backgroundColor || "#171717" }}
+      style={{ backgroundColor: settings.backgroundColor || "var(--surface-2, #171717)" }}
     >
       {settings.imageUrl ? (
         <>
@@ -966,7 +966,7 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
             <a
               href={siteHref(slide.ctaUrl)}
               className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
-              style={{ backgroundColor: slide.accentColor || "#fff" }}
+              style={{ backgroundColor: slide.accentColor || "rgb(var(--fg-rgb, 255, 255, 255))" }}
               data-theme-field="ctaText"
             >
               {slide.ctaText}

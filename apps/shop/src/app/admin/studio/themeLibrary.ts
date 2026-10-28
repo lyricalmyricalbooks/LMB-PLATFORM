@@ -13,7 +13,7 @@ export const PALETTES = [
   { id: "sage",    label: "Soft Sage",      bg: "#e7ede6", text: "#1a2e1a", accent: "#4a7c4a", swatches: ["#e7ede6","#1a2e1a","#4a7c4a"] },
   { id: "nord",    label: "Arctic Nord",    bg: "#2e3440", text: "#eceff4", accent: "#88c0d0", swatches: ["#2e3440","#eceff4","#88c0d0"] },
   { id: "cyber",   label: "Night City",     bg: "#000000", text: "#ffffff", accent: "#fde047", swatches: ["#000000","#ffffff","#fde047"] },
-  { id: "rose",    label: "Desert Rose",    bg: "#fff5f5", text: "#742a2a", accent: "#f56565", swatches: ["#fff5f5","#742a2a","#f56565"] },
+  { id: "rose",    label: "Desert Rose",    bg: "#fff5f5", text: "#742a2a", accent: "#e53e3e", swatches: ["#fff5f5","#742a2a","#e53e3e"] },
   { id: "ocean",   label: "Deep Ocean",     bg: "#0c1a25", text: "#e2e8f0", accent: "#38bdf8", swatches: ["#0c1a25","#e2e8f0","#38bdf8"] },
 ];
 
@@ -69,7 +69,7 @@ export const THEME_LIBRARY = [
       buttonColor: "#e8402a", buttonTextColor: "#100f0d", buttonHoverBgColor: "#ff6b55", buttonHoverTextColor: "#100f0d",
       buttonRadius: 0, buttonUppercase: true, buttonShadow: false,
       badgeBgPrimary: "#e8402a", badgeTextPrimary: "#100f0d", badgeBgSecondary: "#1b3fe0", badgeTextSecondary: "#ffffff",
-      headerBg: "#faf6ec", headerColor: "#100f0d", footerBg: "#100f0d", footerLayout: "4col",
+      headerBg: "#faf6ec", headerColor: "#100f0d", footerBg: "#100f0d", footerTextColor: "#faf6ec", footerHeadingColor: "#faf6ec", footerLayout: "4col",
       showAnnouncement: true, announcementBg: "#100f0d", announcementColor: "#faf6ec", announcementScrolling: true,
       announcementFontSize: 11, announcementWeight: 900, announcementTracking: 0.18, announcementSpeed: 28,
       checkoutAccentColor: "#e8402a", checkoutBgColor: "#faf6ec", checkoutInputRadius: 0,
@@ -107,7 +107,7 @@ export const THEME_LIBRARY = [
       overlayColor: "#0a0910",
       headingFont: "Cormorant Garamond", bodyFont: "Inter", font: "Inter", headingWeight: 600,
       buttonColor: "#A855F7", buttonTextColor: "#ffffff",
-      buttonHoverBgColor: "#C084FC", buttonHoverTextColor: "#ffffff",
+      buttonHoverBgColor: "#C084FC", buttonHoverTextColor: "#0a0910",
       buttonStyle: "solid", buttonRadius: 999, buttonUppercase: true,
       badgeBgPrimary: "#A855F7", badgeTextPrimary: "#ffffff",
       badgeBgSecondary: "#1c1a22", badgeTextSecondary: "#f3f1ee",
