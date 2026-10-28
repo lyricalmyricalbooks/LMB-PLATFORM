@@ -18,6 +18,36 @@ settings (`../signup/config.js`) and sign-in.
 - **Get help from Colophon**: a request to the platform team (`services/support/`), about one of the person's shops or
   none, and every earlier request with its answers. Answers also come by email; the person can add to a request.
 
+## Plan & billing (`billing.html`, `billing.js`, `billingWords.js`, `billingRoutes.js`)
+
+The page every billing email links to, `/account/billing?shop=<id>` (Hosting serves `accounts/billing.html` there; its
+script loads from `/accounts/billing.js`). Code plan 6.4 and 6.5. The shop card on the account page links to it for
+owners.
+
+- The plan and price ("plus tax" when `BILLING_TAX` is on), and where it stands: trial days left, the next payment,
+  cancelled until a date, paused, a payment problem or closed.
+- The card on file (brand, last four, expiry) with **Add a card** / **Change card** (Stripe's own page).
+- **Change plan**: **See what changes** first (apps opening and closing, when, the prorated amount), then **Change my
+  plan**.
+- Invoices with their PDFs; **Cancel plan** / **Keep my plan**.
+- Loading, error, signed-out and no-plan states. A marked spot, `<section id="payment-way">`, waits for row 6.19's
+  "Two ways to pay" switch.
+
+The calls, each for the shop's owner only (the shop's own team, `accounts.roleIn`), each reaching `services/billing`
+once and logged (done, refused or failed) in the registry and the shop's audit log:
+
+| Route | Body | Answer |
+| --- | --- | --- |
+| `POST /api/billing/status` | `{ shopId }` | `{ billing }` (null: no plan yet) |
+| `POST /api/billing/card` | `{ shopId }` | `{ url }`: Stripe's card page, coming back only to this shop's Plan & billing page |
+| `POST /api/billing/cancel` | `{ shopId }` | `{ cancelAtPeriodEnd }` |
+| `POST /api/billing/keep` | `{ shopId }` | `{ cancelAtPeriodEnd }` |
+| `POST /api/billing/change-plan` | `{ shopId, plan, preview? }` | `{ preview }`, or `{ plan, changed }` |
+| `POST /api/billing/invoices` | `{ shopId }` | `{ invoices }` |
+
+The web door adds them with `routes: { ...accountRoutes(accounts), ...billingRoutes({ billing, accounts, registry,
+auditLog, settings }) }`.
+
 ## Roles
 
 The shop's own roles (`apps/shop/functions/roles.js`), named in `roles.js`:
