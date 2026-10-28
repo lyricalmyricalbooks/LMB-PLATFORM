@@ -120,15 +120,22 @@ test("act as this shop: a reason is required, the use is logged first, and no lo
   const answer = await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help with tax" });
   assert.equal(answer.status, 200);
   assert.match(answer.body.url, /support=1/);
-  assert.deepEqual(w.shopAccess.calls, [{ shopId: ID, by: ADMIN.email, reason: "the owner asked for help with tax", minutes: ACT_AS_MINUTES }]);
+  assert.deepEqual(w.shopAccess.calls, [{ shopId: ID, by: ADMIN.email, reason: "the owner asked for help with tax", minutes: ACT_AS_MINUTES, mode: "view" }]);
   const [entry] = w.events();
-  assert.deepEqual([entry.what, entry.by, entry.reason, entry.expiresAt], ["act-as", ADMIN.email, "the owner asked for help with tax", answer.body.expiresAt]);
+  assert.deepEqual([entry.what, entry.by, entry.reason, entry.expiresAt, entry.mode], ["act-as", ADMIN.email, "the owner asked for help with tax", answer.body.expiresAt, "view"]);
   assert.ok(w.auditLog.entries.get(ID).has(entry.id), "in the shop's own audit log too");
+
+  // Making changes is asked for by name; anything else is refused before the log.
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help with tax", mode: "owner" })).status, 400);
+  const edit = await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked me to fix a price", mode: "edit" });
+  assert.equal(edit.body.mode, "edit");
+  assert.equal(w.shopAccess.calls.at(-1).mode, "edit");
+  assert.equal(w.events().at(-1).mode, "edit");
 
   // A log that can't be written stops the sign-in.
   w.registry.recordEvent = async () => { throw new Error("the registry is down (pretend error)"); };
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help again" })).status, 500);
-  assert.equal(w.shopAccess.calls.length, 1);
+  assert.equal(w.shopAccess.calls.length, 2);
 });
 
 test("a switch: the saved profile, its file and the live pages change, with a log entry; repeating it is safe", async () => {
@@ -210,7 +217,9 @@ test("the real support sign-in: a token for the support account with who, why an
   assert.equal(url, `${profile.siteUrl}/admin/#support=signed.jwt`);
   assert.equal(until, now().getTime() / 1000 + 1800);
   assert.deepEqual(made[0].uid, SUPPORT_UID);
-  assert.deepEqual(made[0].claims.support, { by: ADMIN.email, reason: "x".repeat(200), until });
+  assert.deepEqual(made[0].claims.support, { by: ADMIN.email, reason: "x".repeat(200), until, mode: "view" });
+  await access.supportSignIn(ID, { by: ADMIN.email, reason: "fix a price", mode: "edit" });
+  assert.equal(made[1].claims.support.mode, "edit");
   assert.ok(JSON.stringify(made[0].claims).length < 1000, "a token's claims stay under Firebase's limit");
   // Never longer than the sign-in token itself lasts.
   assert.equal((await access.supportSignIn(ID, { by: ADMIN.email, reason: "long one", minutes: 600 })).until, now().getTime() / 1000 + MAX_MINUTES * 60);
@@ -494,4 +503,33 @@ test("one switch for every live shop, and the switches new shops start with (pla
   assert.equal(shopSwitches(undefined, defaults).gmailOrderScan, true);
   assert.equal(shopSwitches({ gmailOrderScan: false }, defaults).gmailOrderScan, false);
   assert.equal((await w.activity.list()).filter((e) => e.what === "new-shop-switch").length, 1);
+});
+
+test("your test shop: the card finds it, and Reset the sample books is admin only, logged and only for the test shop (plan 9.10)", async () => {
+  const w = await world();
+  await w.registry.recordReleaseCheck(ID, { ok: true, finishedAt: "2026-10-28T11:00:00Z", version: "0.0.0-test" });
+  const card = await w.ask(ADMIN, "GET", "/api/control/test-shop");
+  assert.equal(card.status, 200);
+  const shop = card.body.testShop;
+  const profile = await w.registry.getProfile(ID);
+  assert.deepEqual([shop.shopId, shop.storefrontUrl, shop.adminUrl], [ID, profile.siteUrl, `${profile.siteUrl}/admin/`]);
+  assert.deepEqual([shop.lastCheck.ok, shop.lastCheck.at], [true, "2026-10-28T11:00:00Z"]);
+  assert.equal((await w.ask(PRESS, "GET", "/api/control/test-shop")).status, 403);
+
+  // A sample book sold out in a test, then reset to 5 copies.
+  await w.services.shopData.set(ID, "books/test-book-one", { title: "Test Book One", stockLevel: 0 });
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/test-shop/reset", { shopId: ID })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/test-shop/reset", { shopId: "press-two" })).status, 409);
+  const reset = await w.ask(ADMIN, "POST", "/api/control/test-shop/reset", { shopId: ID });
+  assert.equal(reset.status, 200);
+  assert.equal(reset.body.reset, 6, "five sample books and the shipping zone");
+  assert.equal((await w.services.shopData.get(ID, "books/test-book-one")).stockLevel, 5);
+  assert.ok(w.events().some((e) => e.what === "test-shop-reset" && e.by === "admin@example.com"));
+  assert.ok((await w.activity.list()).some((e) => e.what === "test-shop-reset"));
+});
+
+test("no test shop yet: the card says so instead of failing (plan 9.10)", async () => {
+  const w = await world();
+  await w.registry.updateShop(ID, { testShop: false });
+  assert.equal((await w.ask(ADMIN, "GET", "/api/control/test-shop")).body.testShop, null);
 });

@@ -49,16 +49,25 @@ describe('bookkeeper (plan 7.17)', () => {
 describe('platform support', () => {
   const later = Math.floor(Date.now() / 1000) + 600;
   const pass = (support, provider = 'custom') => ({ uid: 'colophon-support', firebase: { sign_in_provider: provider }, support });
-  test('a support sign-in from the platform is staff until its time runs out', () => {
-    expect(adminRole(pass({ by: 'admin@platform.example', reason: 'help with tax', until: later }))).toBe('staff');
-    expect(supportOf(pass({ by: 'admin@platform.example', reason: 'help with tax', until: later }))).toEqual({ by: 'admin@platform.example', reason: 'help with tax', until: later });
-    expect(adminRole(pass({ by: 'a', until: Math.floor(Date.now() / 1000) - 1 }))).toBeNull();
+  test('an "edit" support sign-in from the platform is staff until its time runs out', () => {
+    expect(adminRole(pass({ by: 'admin@platform.example', reason: 'help with tax', until: later, mode: 'edit' }))).toBe('staff');
+    expect(supportOf(pass({ by: 'admin@platform.example', reason: 'help with tax', until: later, mode: 'edit' }))).toEqual({ by: 'admin@platform.example', reason: 'help with tax', until: later, mode: 'edit' });
+    expect(adminRole(pass({ by: 'a', until: Math.floor(Date.now() / 1000) - 1, mode: 'edit' }))).toBeNull();
+  });
+  test('a "view" visit (the default) reads the books but is no admin', () => {
+    const view = pass({ by: 'a', reason: 'look', until: later });
+    expect(supportOf(view).mode).toBe('view');
+    expect(adminRole(view)).toBeNull();
+    expect(booksReader(view)).toBe('admin');
+    expect(adminRole(pass({ until: later, mode: 'anything' }))).toBeNull();
+    expect(booksReader(pass({ until: Math.floor(Date.now() / 1000) - 1 }))).toBeNull();
   });
   test('only a custom sign-in can carry it, and it is never owner', () => {
-    expect(adminRole(pass({ until: later }, 'google.com'))).toBeNull();
-    expect(adminRole(pass({ until: String(later) }))).toBeNull();
+    expect(adminRole(pass({ until: later, mode: 'edit' }, 'google.com'))).toBeNull();
+    expect(booksReader(pass({ until: later }, 'google.com'))).toBeNull();
+    expect(adminRole(pass({ until: String(later), mode: 'edit' }))).toBeNull();
     expect(adminRole(pass(null))).toBeNull();
-    expect(adminRole({ ...pass({ until: later }), email: OWNER, email_verified: true, role: 'owner' })).toBe('staff');
+    expect(adminRole({ ...pass({ until: later, mode: 'edit' }), email: OWNER, email_verified: true, role: 'owner' })).toBe('staff');
   });
 });
 
