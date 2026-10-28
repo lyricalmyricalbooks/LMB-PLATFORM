@@ -21,6 +21,7 @@ import { keepPhotoCopies, removedPhotos, shownUrls, unusedBookFiles } from "./bo
 import { mediaApi } from "./mediaApi";
 import { auditLog } from "./auditLog";
 import type { PlatformPaymentsAnswer } from "./platformPayments";
+import type { DomainCheck, DomainList } from "./customDomains";
 /** Cache-Control for uploaded shop pictures (mirrors functions/imageCopies.js IMMUTABLE). */
 export const PUBLIC_FILE_CACHE = "public, max-age=31536000, immutable";
 
@@ -1228,6 +1229,21 @@ export const adminApi = {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Couldn't reach your card account.");
     return result as PlatformPaymentsAnswer;
+  },
+
+  // The press's own web address (plan 2.9), through the platform's domain service. A shop without that service answers
+  // code "not_available" (the card then shows the older field).
+  customDomains: async (step: "list" | "add" | "check", domain?: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "customDomains", step, ...(domain === undefined ? {} : { domain }) }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(result.error || "Couldn't reach your web addresses."), { code: result.code });
+    return result as DomainList & DomainCheck;
   },
 
   // Deletes a stored PayPal client secret (admin-only adminSecrets/paypal). Live then falls back to the Functions secret.

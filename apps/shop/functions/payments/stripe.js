@@ -351,7 +351,8 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
   // Registers (or re-validates) a storefront domain for Apple Pay / Google Pay in the current mode's account.
   // Throws "Stripe is not configured." when that mode has no key. Returns Stripe's payment method domain.
   async function registerPaymentDomain(domainName) {
-    if (platform) throw new Error("The platform registers payment domains for shops on its payments.");
+    // Through the platform (plan 2.9): registered on the press's own account, for one of the shop's own addresses.
+    if (platform) return platform.account.paymentDomain(domainName);
     const settingsDoc = await db.collection("settings").doc("website").get();
     const settings = settingsDoc.exists ? settingsDoc.data() : {};
     const testMode = settings.payments?.testMode || false;

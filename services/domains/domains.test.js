@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createDomainService, domainState } from "./domains.js";
 import { domainOrigins, domainProblem, normalDomain, withExtraOrigins } from "./names.js";
 import { fakeDeploy, fakeEnvFiles, fakeHosting } from "./fakes.js";
+import { handleDomains } from "./http.js";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
 import { hashServiceKey } from "../email/http.js";
 
@@ -30,7 +31,7 @@ test("addresses are checked in plain words", () => {
   assert.equal(normalDomain(" https://Shop.MothPress.example/about "), "shop.mothpress.example");
   assert.equal(domainProblem("shop.mothpress.example", { platformDomain: "platform.example" }), null);
   for (const bad of ["", "mothpress", "-bad.example", "shop..example", "moth press.example", "x.123"]) assert.ok(domainProblem(normalDomain(bad)), bad);
-  for (const theirs of ["moth.web.app", "moth.firebaseapp.com", "localhost", "a.test"]) assert.match(domainProblem(theirs), /can't be used/, theirs);
+  for (const theirs of ["moth-press.web.app", "moth-press.firebaseapp.com", "localhost", "a.test"]) assert.match(domainProblem(theirs), /can't be used/, theirs);
   assert.match(domainProblem("moth.platform.example", { platformDomain: "platform.example" }), /belongs to the platform/);
   assert.deepEqual(domainOrigins([{ name: "b.example" }, "a.example", { name: "b.example" }, null]), ["https://a.example", "https://b.example"]);
   assert.equal(withExtraOrigins(ENV, ["https://a.example"]), ENV.replace('SHOP_EXTRA_ORIGINS=""', 'SHOP_EXTRA_ORIGINS="https://a.example"'));
@@ -97,7 +98,7 @@ test("a Square shop's live address needs no payment domain", async () => {
 });
 
 test("refusals: a bad address, one another shop has, too many, an unknown one, a wrong key", async () => {
-  const other = { shopId: "fern-press", projectId: "fern-press", domains: [{ name: "books.fern.example" }] };
+  const other = { shopId: "press-two", projectId: "press-two", domains: [{ name: "books.fern.example" }] };
   const { call, hosting, deploy } = await world({ others: [other] });
   assert.equal((await call("domains.add", { domain: "moth.platform.example" })).status, 400);
   assert.equal((await call("domains.add", { domain: `${SHOP}.web.app` })).status, 400);
@@ -110,6 +111,15 @@ test("refusals: a bad address, one another shop has, too many, an unknown one, a
   assert.equal((await call("domains.remove", { domain: "a.moth.example" })).status, 400, "nothing removes an address");
   assert.ok(!hosting.calls.some(([, , d]) => d === "books.fern.example"));
   assert.equal(deploy.shipped.length, 3, "one redeploy per new address");
+});
+
+test("the door takes shop calls only, as POST /shop", async () => {
+  const { service } = await world();
+  const headers = { "X-Shop-Id": SHOP, Authorization: `Bearer ${KEY}` };
+  assert.equal((await handleDomains({ method: "GET", path: "/shop", headers }, { service })).status, 405);
+  assert.equal((await handleDomains({ method: "POST", path: "/other", headers }, { service })).status, 404);
+  const listed = await handleDomains({ method: "POST", path: "/shop/", headers, body: { op: "domains.list" } }, { service });
+  assert.deepEqual(listed, { status: 200, body: { domains: [], max: 3 } });
 });
 
 test("Google failing is a plain answer, and the address is kept to try again", async () => {

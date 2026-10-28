@@ -92,6 +92,8 @@ function platformAccount(call) {
     status: () => call("account.status", undefined),
     connectLink: (returnUrl) => call("account.connectLink", undefined, { returnUrl }),
     onboardingLink: (returnUrl, refreshUrl) => call("account.onboardingLink", undefined, { returnUrl, refreshUrl }),
+    // Apple Pay and Google Pay on one of the shop's own addresses (plan 2.9): Stripe's payment method domain.
+    paymentDomain: (domain) => call("account.paymentDomain", undefined, { domain }),
   });
 }
 

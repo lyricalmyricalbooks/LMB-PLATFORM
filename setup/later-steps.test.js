@@ -123,6 +123,26 @@ test("the env file names the platform's shared sender once there is one, and the
   assert.equal(readShopConfig({ GCLOUD_PROJECT: ID, PLATFORM_EMAIL_URL: "http://plain.example" }).platformEmailUrl, "");
 });
 
+test("the env file carries the press's own addresses and the domain service, and running setup again keeps them", async () => {
+  const env = envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, platformDomainsUrl: "https://domains.platform.example", extraOrigins: ["https://a.example", "https://b.example"] }));
+  assert.equal(env.PLATFORM_DOMAINS_URL, "https://domains.platform.example");
+  assert.equal(env.SHOP_EXTRA_ORIGINS, "https://a.example,https://b.example");
+  const config = readShopConfig({ ...env, GCLOUD_PROJECT: ID });
+  assert.equal(config.platformDomainsUrl, "https://domains.platform.example");
+  assert.ok(config.allowedOrigins.includes("https://b.example"));
+  assert.equal(envOf(envFileText(TEST_SHOP, TEST_CONFIG)).PLATFORM_DOMAINS_URL, undefined);
+
+  // The domain service saved an address; step 8 done again (a repair) writes it too, so nothing drops.
+  const { services, registry, steps, run } = setup();
+  assert.equal((await run()).ok, true);
+  await registry.updateShop(ID, { domains: [{ name: "shop.mothpress.example", state: "live" }] });
+  const step8 = steps.find((step) => step.number === 8);
+  assert.equal(await step8.check({ shop: TEST_SHOP }), false, "a file without the address is out of date");
+  await step8.act({ shop: TEST_SHOP });
+  assert.equal(envOf(services.world.envFiles.get(ID)).SHOP_EXTRA_ORIGINS, "https://shop.mothpress.example");
+  assert.equal(await step8.check({ shop: TEST_SHOP }), true);
+});
+
 test("the env file names the region step 8 deploys the server code to", async () => {
   assert.equal(envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, region: "europe-west1" })).SHOP_FUNCTIONS_REGION, "europe-west1");
   const { services, run } = setup();

@@ -50,7 +50,7 @@ export function appsOf(shop) {
 export const sellingToday = (shop) => (typeof shop.sellingToday === "string" && /^[a-z]{2,20}$/.test(shop.sellingToday) ? shop.sellingToday : null);
 
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
-export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "", extraOrigins = [] }) {
+export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "", platformDomainsUrl = "", extraOrigins = [] }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
   const quote = (value) => `"${String(value).replace(/[\r\n"\\<>]+/g, " ").replace(/\s+/g, " ").trim()}"`;
   return [
@@ -79,6 +79,9 @@ export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = RE
     // The platform email service's shop door (services/email/http.js): the backup sender for a shop that hasn't
     // connected its own Gmail. Written only once the platform has one (config.platformEmailUrl).
     ...(platformEmailUrl ? [`PLATFORM_EMAIL_URL=${quote(platformEmailUrl)}`] : []),
+    // The platform domain service (services/domains, plan 2.9): the press's own web address from the shop's settings.
+    // Written only once the platform hosts it (config.platformDomainsUrl).
+    ...(platformDomainsUrl ? [`PLATFORM_DOMAINS_URL=${quote(platformDomainsUrl)}`] : []),
     "",
   ].join("\n");
 }

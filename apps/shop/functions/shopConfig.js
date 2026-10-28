@@ -29,6 +29,9 @@
 //   SHOP_STOCKROOM_DATABASE the stockroom's named Firestore database in this project (plan 1.21; the profile's
 //                        stockroom.firestoreDatabase). The inventory app link reads and writes there
 //                        (inventoryLinkStore.js). Unset keeps "stockroom", the name setup gives every shop
+//   PLATFORM_DOMAINS_URL the platform domain service's address (https, LMB-PLATFORM services/domains, plan 2.9). Set:
+//                        Settings › General › Your web address puts the shop on the press's own address. Unset: the
+//                        card says the platform's team sets addresses up.
 //   PLATFORM_EMAIL_URL   the platform email service's shop door (https). Set: when the shop hasn't connected its own
 //                        Gmail (or Gmail refuses a send) its emails go through the platform's shared sender, with the
 //                        shop's name and replies to the shop; Resend keys in the shop are no longer used. Unset: the
@@ -131,6 +134,7 @@ function readShopConfig(env = {}) {
     testShop: text(env.SHOP_TEST_SHOP).toLowerCase() === "true",
     stockroomDatabase: DATABASE_ID.test(text(env.SHOP_STOCKROOM_DATABASE)) ? text(env.SHOP_STOCKROOM_DATABASE) : PLACEHOLDER.stockroomDatabase,
     platformEmailUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_EMAIL_URL)) ? text(env.PLATFORM_EMAIL_URL) : "",
+    platformDomainsUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_DOMAINS_URL)) ? text(env.PLATFORM_DOMAINS_URL).replace(/\/+$/, "") : "",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
     project: functionsProject,
     region,
