@@ -92,10 +92,10 @@ check (a new press has no books; the test shop's starter catalogue brings one in
 
 Open points from 1.30:
 
-- **The shop copy doesn't pick its functions region yet.** `apps/shop/functions` sets no region (Firebase's default is
-  `us-central1`) and writes `us-central1` into the Stripe webhook and download links; its `firebase.json` names `nam5`
-  for Firestore. The setup step passes `northamerica-northeast1`, but a real deploy needs the shop copy to read it
-  (from the profile or the env file) first. `apps/shop` was left unchanged here.
+- **Functions region (closed by 1.15).** `apps/shop/functions/shopConfig.js` reads `SHOP_FUNCTIONS_REGION`, which step 8
+  writes, for every function and the Stripe webhook and download links. The shop copy's `firebase.json` still names
+  `nam5` for Firestore; that only matters if a deploy creates the database, and step 5 creates it first in
+  `northamerica-northeast1`.
 - **Stockroom rules and Hosting site** depend on the open decision before 1.20 (own named database, or rules merged
   with the shop's). The deploy client takes the list of apps and picks the site, so the steps don't change either way.
 - **Starter documents** come from the release, since the shop copy owns their shape (see 1.23 for theme presets).
