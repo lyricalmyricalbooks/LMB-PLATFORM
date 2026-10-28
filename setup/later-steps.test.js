@@ -102,6 +102,14 @@ test("the env file names the press's chosen payment provider, and the shop refus
   assert.throws(() => readShopConfig({ ...square, GCLOUD_PROJECT: ID }), /SHOP_PAYMENT_PROVIDER is "square", which this shop can't use yet/);
 });
 
+test("the env file names the platform's shared sender once there is one, and the shop reads it", () => {
+  assert.equal(envOf(envFileText(TEST_SHOP, TEST_CONFIG)).PLATFORM_EMAIL_URL, undefined);
+  const env = envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, platformEmailUrl: "https://email.platform.example/shop" }));
+  assert.equal(env.PLATFORM_EMAIL_URL, "https://email.platform.example/shop");
+  assert.equal(readShopConfig({ ...env, GCLOUD_PROJECT: ID }).platformEmailUrl, "https://email.platform.example/shop");
+  assert.equal(readShopConfig({ GCLOUD_PROJECT: ID, PLATFORM_EMAIL_URL: "http://plain.example" }).platformEmailUrl, "");
+});
+
 test("the env file names the region step 8 deploys the server code to", async () => {
   assert.equal(envOf(envFileText(TEST_SHOP, { ...TEST_CONFIG, region: "europe-west1" })).SHOP_FUNCTIONS_REGION, "europe-west1");
   const { services, run } = setup();

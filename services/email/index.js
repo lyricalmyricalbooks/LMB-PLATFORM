@@ -49,7 +49,8 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
   const resend = () => (client ??= resendClient({ apiKey: env.RESEND_API_KEY, fetch, ...(sleep ? { sleep } : {}) }));
 
   const compose = (message, context) => {
-    const template = TEMPLATES[message.kind];
+    // A shop's own email (through the shop door) always carries its own words, even if its kind shares a template's name.
+    const template = message.custom ? null : TEMPLATES[message.kind];
     if (template) return template(message.data ?? message, context);
     const problems = customProblems(message);
     if (problems.length) throw new Error(`The email can't be sent: ${problems.join("; ")}`);

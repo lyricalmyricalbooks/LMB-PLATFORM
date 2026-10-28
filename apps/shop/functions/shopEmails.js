@@ -232,6 +232,12 @@ function shopEmails({
         return;
       }
 
+      // Settings › Email sender › Gmail sending: the address Gmail sends from and the backup without it.
+      if (body.action === "senderStatus") {
+        res.status(200).json(await mailer.senderStatus());
+        return;
+      }
+
       const { templateId, email } = body;
       if (!templateId || !email) {
         res.status(400).json({ error: "Missing templateId or email" });

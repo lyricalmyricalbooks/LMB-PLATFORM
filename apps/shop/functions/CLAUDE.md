@@ -809,3 +809,13 @@ saved, then Resend with the sandbox retry; logs every attempt; parks a failed `q
 (`sendQueuedEmail`), the claims (`sendOrderEmailOnce`) and every template. `email/email.test.js` (fake Firestore, Gmail
 and Resend) pins the send paths and fails when another functions file opens a mail transport, makes a Resend client,
 sends through one or writes `emailLog` itself.
+
+**Platform shared sender (28 October 2026, code plan 2.3b).** When the shop's functions env has `PLATFORM_EMAIL_URL`
+(`shopConfig.platformEmailUrl`, written by platform setup step 8), the backup after Gmail is the platform's email service
+(`email/platformSender.js`, POST with `X-Shop-Id` and `Authorization: Bearer $PLATFORM_SERVICE_KEY`, read at send time),
+never the shop's own Resend key. It makes one request per recipient, with the idempotency key `<queue id or random>:<address>`.
+A `retryable: false` refusal is logged once and never queued; anything else is queued as before. Gmail (the press's own
+address) still goes first, and a shop whose Gmail works never reaches the platform (tested). The shared sender sends no
+attachments, and the log says so. `senderStatus()` (`sendTestEmail` action `senderStatus`) tells Settings › Email sender
+the Gmail address and the backup. The card is "Send from your own Gmail" and hides the Resend fields when the backup is
+the platform (`src/app/admin/senderStatus.ts`). With `PLATFORM_EMAIL_URL` unset, everything works as before.

@@ -37,7 +37,7 @@ export function appsOf(shop) {
 }
 
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
-export function envFileText(shop, { senderEmail, region = REGION }) {
+export function envFileText(shop, { senderEmail, region = REGION, platformEmailUrl = "" }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
   const quote = (value) => `"${String(value).replace(/[\r\n"\\<>]+/g, " ").replace(/\s+/g, " ").trim()}"`;
   return [
@@ -55,6 +55,9 @@ export function envFileText(shop, { senderEmail, region = REGION }) {
     // "true" only for the platform's own test shop (docs/test-shop.md): its test-card checkouts then move stock like
     // real ones, for the release check. Every other shop gets "false", so the shop never guesses.
     `SHOP_TEST_SHOP=${quote(shop.testShop === true)}`,
+    // The platform email service's shop door (services/email/http.js): the backup sender for a shop that hasn't
+    // connected its own Gmail. Written only once the platform has one (config.platformEmailUrl).
+    ...(platformEmailUrl ? [`PLATFORM_EMAIL_URL=${quote(platformEmailUrl)}`] : []),
     "",
   ].join("\n");
 }
