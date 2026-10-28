@@ -27,6 +27,7 @@ import { ChangeList, Figure, ReadinessStrip, RunList, RunRow, Trend, money, mone
 import { readinessSummary } from "../launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
+import { FirstWeekCard } from "./FirstWeekCard";
 import { GOOGLE_PARTS, OverviewMarketing, type GaState } from "./OverviewMarketing";
 import { FoundOnGoogleCard } from "./OverviewMarketingExtras";
 import { OverviewCustomers } from "./OverviewCustomers";
@@ -547,7 +548,11 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   };
 
   return (
-    <OverviewBoard store={boards.store} setStore={boards.setStore} saveState={boards.saveState} saveError={boards.saveError}
-      onRetrySave={boards.retrySave} renderWidget={renderWidget} header={header} />
+    <>
+      {/* Plan 3.3: only a shop whose setup wrote the sign-up answer shows it, until done or hidden. */}
+      <FirstWeekCard books={stock.books} readiness={readiness} onOpen={tab => setActiveTab?.(tab)} />
+      <OverviewBoard store={boards.store} setStore={boards.setStore} saveState={boards.saveState} saveError={boards.saveError}
+        onRetrySave={boards.retrySave} renderWidget={renderWidget} header={header} />
+    </>
   );
 }
