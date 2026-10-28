@@ -36,8 +36,9 @@ import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
-import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems } from "./riso/nav";
+import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
+import { providerName } from "./providerWords";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -191,6 +192,16 @@ export function Dashboard() {
   // Unpaid/mismatched/disputed orders etc., shown above every admin page.
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   // Pending reviews, unread messages and open privacy requests (cheap server counts).
+  // Settings › Bookkeeping shows only when the platform's bookkeeping link is on for this shop (plan 7.16). Asked once,
+  // the first time Settings opens (its pages are listed there only).
+  const [bookkeepingOn, setBookkeepingOn] = useState(false);
+  const bookkeepingAsked = useRef(false);
+  useEffect(() => {
+    if (activeTab !== "settings" || bookkeepingAsked.current) return;
+    bookkeepingAsked.current = true;
+    adminApi.bookkeeping("status").then((s) => setBookkeepingOn(!!s?.enabled)).catch(() => {});
+  }, [activeTab]);
+  const hiddenPages = new Set(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]);
   const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });
   const [searchCustomerQuery, setSearchCustomerQuery] = useState<string | undefined>(undefined);
   // What the last check read besides the orders (Stripe webhook, email log, backup, inventory link), so opening or
@@ -220,7 +231,7 @@ export function Dashboard() {
         .then(async (data) => {
           const failedParts: string[] = [];
           const [webhook, emailLog, backup, linkState, shopErrors, cardAccount] = await Promise.all([
-            adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push("the Stripe webhook status"); return null; }),
+            adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push(`the ${providerName()} webhook status`); return null; }),
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
             inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),
@@ -568,14 +579,14 @@ export function Dashboard() {
 
   const destinations = [
     ...NAV.filter((n) => !n.children).map((n) => ({ id: n.id, label: n.label, run: () => goTo(n.id) })),
-    ...(NAV.find((n) => n.children)?.children || []).map((c) => ({
+    ...(NAV.find((n) => n.children)?.children || []).filter((c) => !hiddenPages.has(SETTINGS_ITEM_PREFIX + c.id)).map((c) => ({
       id: `settings-${c.id}`, label: `Settings · ${c.label}`,
       run: () => { setActiveTab("settings"); setSettingsTab(c.id); setShowEditor(false); setSelectedOrder(null); },
     })),
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications"));
+  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -653,7 +664,7 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={sidebarItems(NAV).map((n) => {
+            items={withoutPages(sidebarItems(NAV), hiddenPages).map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
               // Privacy requests are handled in Settings › General.
               const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
@@ -768,7 +779,7 @@ export function Dashboard() {
           </dl>
           <h3 className="rp-help-head">How things work</h3>
           <ul className="rp-help-list">
-            <li><strong>Payments:</strong> card (Stripe) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and e-Transfer orders wait as pending: open the order › <strong>More order actions</strong> › <strong>Payment received — mark paid</strong> once the money has arrived.</li>
+            <li><strong>Payments:</strong> card ({providerName()}) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and e-Transfer orders wait as pending: open the order › <strong>More order actions</strong> › <strong>Payment received — mark paid</strong> once the money has arrived.</li>
             <li><strong>Shop status</strong> (top bar): shows whether shoppers can buy. Open it to close the shop behind the “under construction” wall, or to open it again.</li>
             <li><strong>Design studio:</strong> changes are saved as a draft first; Publish when you're ready.</li>
             <li><strong>Bookmarks:</strong> the address bar keeps your place, so pages can be bookmarked or shared: <code>#orders/&lt;id&gt;</code>, <code>#customers?q=&lt;email&gt;</code>, <code>#settings/payments</code>, <code>#gift-cards</code>, <code>#designer</code>. Reload and Back/Forward return to the same page.</li>

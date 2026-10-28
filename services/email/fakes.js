@@ -57,3 +57,40 @@ export function fakeReputationStore() {
     events: async (shopId, since) => (events.get(shopId) ?? []).filter((e) => e.at >= since).map((e) => ({ ...e })),
   };
 }
+
+/**
+ * A pretend Resend domains list (ownDomain.js). `world.records(name)` are the records Resend asks for; a test moves a
+ * domain with `setStatus(name, "verified" | "not_started" | "failed")`. `calls` keeps every change asked for.
+ */
+export function fakeResendDomains() {
+  const domains = new Map();
+  const calls = [];
+  const byId = (id) => [...domains.values()].find((d) => d.id === id) ?? null;
+  return {
+    domains,
+    calls,
+    setStatus(name, status) { domains.get(name).status = status; },
+    find: async (name) => (domains.has(name) ? structuredClone(domains.get(name)) : null),
+    async create(name) {
+      calls.push(["create", name]);
+      if (domains.has(name)) throw new Error(`${name} is already added`);
+      const domain = {
+        id: `dom_${domains.size + 1}`, name, status: "not_started",
+        records: [
+          { record: "SPF", name: "send", type: "MX", value: "feedback-smtp.example.amazonses.com", priority: 10 },
+          { record: "SPF", name: "send", type: "TXT", value: "v=spf1 include:amazonses.com ~all" },
+          { record: "DKIM", name: "resend._domainkey", type: "TXT", value: "p=MIGfMA0GCSqGSIb3DQEB" },
+        ],
+      };
+      domains.set(name, domain);
+      return structuredClone(domain);
+    },
+    get: async (id) => structuredClone(byId(id)),
+    async verify(id) { calls.push(["verify", id]); return { id }; },
+    async remove(id) {
+      calls.push(["remove", id]);
+      const found = byId(id);
+      if (found) domains.delete(found.name);
+    },
+  };
+}

@@ -14,9 +14,10 @@
 //                         buckets.get, buckets.insert (project) for the stockroom's own bucket (plan 1.20)
 //   Secret Manager v1     projects.secrets.versions.access ("latest"), projects.secrets.create (secretId, automatic
 //                         replication), projects.secrets.addVersion: the shop's service key (setup/serviceKey.js)
-//   Firebase Hosting v1beta1  projects.sites.customDomains.get, projects.sites.customDomains.create (customDomainId):
-//                         a press's own web address on the shop's default site (plan 2.9, services/domains). Create
-//                         starts a long-running setup on Google's side; its state is read back with get.
+//   Firebase Hosting v1beta1  projects.sites.customDomains.get, projects.sites.customDomains.create (customDomainId),
+//                         projects.sites.customDomains.delete: a press's own web address on the shop's default site
+//                         (plan 2.9, 5.9, services/domains). Create starts a long-running setup on Google's side; its
+//                         state is read back with get. Delete stops Hosting serving the shop there.
 //   Firebase Storage (the address the shop's pages read files through, where storage rules apply):
 //                         GET https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{name}?alt=media, with no sign-in.
 //                         Not in a discovery document; it is the address Firebase's web SDK reads files from.
@@ -255,8 +256,8 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
         await call("POST", `${secret}/${name}:addVersion`, { body: { payload: { data: Buffer.from(String(value), "utf8").toString("base64") } } });
       },
     },
-    // A press's own web address on the shop's default Hosting site (the site id is the project id). Nothing here
-    // removes one.
+    // A press's own web address on the shop's default Hosting site (the site id is the project id). Only the domain
+    // service's remove (plan 5.9) calls removeDomain, for an address in that shop's own registry row.
     hosting: {
       /** The custom domain as Google sees it (hostState, ownershipState, cert, requiredDnsUpdates), or null. */
       async getDomain(projectId, domain) {
@@ -268,6 +269,14 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
           await call("POST", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains`, { query: { customDomainId: domain }, body: {} });
         } catch (error) {
           if (!isAlreadyExists(error)) throw error;
+        }
+      },
+      /** Stops serving the shop at `domain`; one that is already gone is fine. */
+      async removeDomain(projectId, domain) {
+        try {
+          await call("DELETE", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains/${encodeURIComponent(domain)}`);
+        } catch (error) {
+          if (!isNotFound(error)) throw error;
         }
       },
     },

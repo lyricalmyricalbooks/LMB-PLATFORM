@@ -4,6 +4,7 @@
 // Pure (no Firestore, no Shippo): index.js reads the catalog and posts what this builds.
 const { isPhysicalItem } = require("./shared/localFulfillment");
 const { countryCodeOf } = require("./shared/addressRules");
+const { DEFAULT_SHOP_NAME } = require("./shared/shopIdentity");
 
 const DEFAULT_DESCRIPTION = "Printed books";
 const DEFAULT_HS_CODE = "4901.99"; // Printed books, brochures and similar: other (not single sheets)
@@ -75,7 +76,7 @@ function customsDeclaration(itemIds, order, signer, fromCountry) {
     contents_explanation: DEFAULT_DESCRIPTION,
     non_delivery_option: "RETURN",
     certify: true,
-    certify_signer: String(signer || "Your Press").slice(0, 100),
+    certify_signer: String(signer || "").trim().slice(0, 100) || DEFAULT_SHOP_NAME,
     incoterm: "DDU",
     invoice: String(order.orderId || "").slice(0, 100) || undefined,
     items: itemIds,

@@ -18,29 +18,32 @@ const memberId = email => normEmail(email);
 const isRole = v => ROLES.includes(v);
 
 /**
- * Platform support on this pass ("act as this shop" in the platform's control room): { by, reason, until } while it
- * lasts, else null. Only a custom sign-in token can carry it, and only the platform makes those for a shop on it; the
+ * Platform support on this pass ("act as this shop" in the platform's control room): { by, reason, until, mode } while
+ * it lasts, else null. `mode` is "view" (read only, the default) or "edit" (plan 9.8). Only a custom sign-in token can carry it, and only the platform makes those for a shop on it; the
  * platform logs each one in the shop's audit log first. `until` is in seconds. Same check as isSupport() in the rules.
  */
 function supportOf(token, nowMs = Date.now()) {
   const support = token?.support;
   if (token?.firebase?.sign_in_provider !== "custom" || !support || typeof support !== "object") return null;
   if (typeof support.until !== "number" || support.until * 1000 <= nowMs) return null;
-  return { by: String(support.by ?? ""), reason: String(support.reason ?? ""), until: support.until };
+  const mode = support.mode === "edit" ? "edit" : "view";
+  return { by: String(support.by ?? ""), reason: String(support.reason ?? ""), until: support.until, mode };
 }
 
 /** The admin role on a verified sign-in pass: "owner", "staff", or null for everyone else (authors included). */
 function adminRole(token) {
-  // Platform support gets staff access: never the Team, billing or secret keys.
-  if (supportOf(token)) return "staff";
+  // Platform support: an "edit" visit gets staff access (never the Team, billing or secret keys); a "view" visit
+  // changes nothing, so it is no admin here and reads through booksReader and the rules' isAdminReader().
+  const support = supportOf(token);
+  if (support) return support.mode === "edit" ? "staff" : null;
   if (!token || token.email_verified !== true) return null;
   if (OWNER_EMAILS.includes(normEmail(token.email))) return "owner";
   return ADMIN_ROLES.includes(token.role) ? token.role : null;
 }
 
-/** "admin" for owner, staff and support, "bookkeeper" for the bookkeeper role, else null: who may read the books. */
+/** "admin" for owner, staff and support (either kind), "bookkeeper" for the bookkeeper role, else null: who may read the books. */
 function booksReader(token) {
-  if (adminRole(token)) return "admin";
+  if (adminRole(token) || supportOf(token)) return "admin";
   return token?.email_verified === true && token.role === "bookkeeper" ? "bookkeeper" : null;
 }
 

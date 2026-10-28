@@ -32,6 +32,7 @@ const { checkoutRate } = require("./checkoutRate");
 const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./liveRateExtra");
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./shared/addressRules");
+const { pressName } = require("./shared/shopIdentity");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./shared/discountCategories");
@@ -62,9 +63,11 @@ const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./a
 const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
+const { googleConnectActions } = require("./googleConnect");
+const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink");
 const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
-const { createPayments } = require("./payments");
+const { createPayments, providerName } = require("./payments");
 const { isPaymentId, isCheckoutId } = require("./payments/ids");
 const { createEmail } = require("./email");
 const { createPlatformSender } = require("./email/platformSender");
@@ -78,6 +81,7 @@ const { orderRequestActions } = require("./orderRequests");
 const { shippingLabelEndpoints } = require("./shippingLabels");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
+const { createPaymentPages, paidAfterHold } = require("./paymentPages");
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./shared/preorder");
 const { check: checkBody } = require("./shared/edge");
 const { orderActionBody, refundOrderBody } = require("./shared/orderActions");
@@ -224,9 +228,11 @@ exports.refreshMyRole = onBrowserRequest(async (req, res) => {
     res.status(401).json({ error: "Sign in first." });
     return;
   }
-  // Platform support (roles.js supportOf) has no Team entry to sync: staff until its time runs out.
-  if (supportOf(decoded)) {
-    res.json({ role: "staff", support: true, ownerEmail: shopConfig.ownerEmail });
+  // Platform support (roles.js supportOf) has no Team entry to sync: staff until its time runs out. A "view" visit
+  // (plan 9.8) opens the admin to look only: the rules and every admin action refuse its changes.
+  const support = supportOf(decoded);
+  if (support) {
+    res.json({ role: "staff", support: true, viewOnly: support.mode !== "edit", ownerEmail: shopConfig.ownerEmail });
     return;
   }
   if (decoded.email_verified !== true) {
@@ -318,6 +324,14 @@ const payments = createPayments({
   db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret,
 });
 const { testMode: shopTestMode } = payments;
+// The company that takes this shop's card payments, in every press- and shopper-facing word the server writes (order
+// activity, refund and alert messages, admin emails): "Square" on a Square shop, "Stripe" otherwise (code plan 5.2).
+const CARD = providerName(payments.provider);
+// Card orders keep paymentMethod "Stripe" (the rules and the server know cards by that name); shown, it is the provider.
+const paymentMethodLabel = (method) => (!method || method === "Stripe" ? CARD : method);
+// Square payment pages close when their stock hold ends, and a payment made after that is refunded in full (code plan
+// 5.1, paymentPages.js). The email is the press's own "Order refunded" one (sendLateRefundEmail, below).
+const paymentPages = createPaymentPages({ db, payments, releaseStock, sendLateRefundEmail: (...args) => sendLateRefundEmail(...args) });
 
 // Asks the payment provider (test and live accounts, the order's own mode first) for one of the
 // order's saved payments. Returns { intent | session, mode } or null when no account knows it.
@@ -1542,6 +1556,15 @@ const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, h
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
 const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
 
+// Connect Google: one sign-in, through the platform's Google link (googleConnect.js, plan 6.17).
+const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+
+// Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
+// Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).
+const { handleBookkeeping } = bookkeepingActions({
+  url: shopConfig.platformAccountingUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
+  buildDay: async (date) => dayFromOrders((await db.collection("orders").get()).docs.map((d) => ({ id: d.id, ...d.data() })), date),
+});
 // Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
 const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
 
@@ -1575,6 +1598,8 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   registerPaymentDomain: handleRegisterPaymentDomain,
   platformPayments: handlePlatformPayments,
   customDomains: handleCustomDomains,
+  googleConnect: handleGoogleConnect,
+  bookkeeping: handleBookkeeping,
   practiceCheckout: handlePracticeCheckout,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,
@@ -1657,18 +1682,41 @@ function inventoryLinkDeps() {
 // one, that the server itself fetched from Stripe or received in a signed
 // webhook — never browser data. The amount and currency must match the payment
 // this order was created for.
-const STRIPE_WEBHOOK_AUTHORITY = Symbol("verified Stripe webhook");
+// The shopper's email for a payment refunded because it arrived after the checkout closed (paymentPages.js): the press's
+// own "Order refunded" email (Settings › Notifications) with one plain paragraph saying why. Sent once per payment.
+async function sendLateRefundEmail(orderId, order, { amountMinor, currency, paymentIntentId }) {
+  const to = order.customer?.email;
+  const notificationSettings = await loadNotificationSettings();
+  if (!to || notificationSettings.order_refunded?.enabled === false) return;
+  const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
+    customer_name: order.customer?.name || "there",
+    order_id: order.orderId || orderId,
+    total_price: refundAmountText({ refund: { amount: Number(amountMinor || 0) / 100, currency: String(currency || "").toUpperCase() } }),
+    button_url: await orderTrackUrl(orderId, order),
+  }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">Your payment reached us after the checkout had closed, so the books were no longer set aside for you and this order wasn't placed. We've refunded the full amount. You're welcome to order again.</p>`);
+  await sendOrderEmailOnce(orderId, `latePaymentRefund_${paymentIntentId}`, {
+    to, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+  });
+}
+
+const STRIPE_WEBHOOK_AUTHORITY = Symbol("verified Stripe webhook"); // Stripe shops only (an internal name)
 async function markStripeOrderPaid(orderId, session, opts = {}) {
-    if (opts.authority !== STRIPE_WEBHOOK_AUTHORITY) throw new Error("Stripe orders require a verified webhook.");
+    if (opts.authority !== STRIPE_WEBHOOK_AUTHORITY) throw new Error("Stripe orders require a verified webhook."); // Stripe shops only (internal)
     let duplicateAlert = null;
     const initialOrder = await db.collection("orders").doc(orderId).get();
+    // A Square payment made after the order's payment page should have closed (its stock hold had ended): never marked
+    // paid, no stock taken, refunded in full and the shopper told (paymentPages.js, code plan 5.1).
+    if (initialOrder.exists && paidAfterHold(initialOrder.data(), session)) {
+      await paymentPages.refundLatePayment(orderId, session);
+      return false;
+    }
     if (initialOrder.exists) {
       const initial = initialOrder.data();
       const amountCheck = paidAmountCheck(initial, session.amount_total, session.currency);
       // Sandbox payments skip the stock check, except on the test shop and for practice orders (see reserveForConfirmedPayment).
       if (amountCheck.ok && ((session.livemode !== false && initial.stripeMode !== "test") || sandboxTakesStock(initial, shopConfig.testShop))
           && initial.paymentStatus !== "paid" && initial.status !== "cancelled"
-          && !await reserveForConfirmedPayment(orderId, "Stripe", typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id)) return false;
+          && !await reserveForConfirmedPayment(orderId, CARD, typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id)) return false;
     }
 
     const paymentIntentId = typeof session.payment_intent === "string"
@@ -1684,7 +1732,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
       updatedAt: at,
     });
     const result = await settlePayment(orderId, {
-      provider: "Stripe",
+      provider: CARD,
       message: opts.message,
       receipt: receipt(new Date().toISOString()),
       // A sandbox (test-mode) payment is a rehearsal: flag the order as a test order
@@ -1704,7 +1752,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
             duplicatePayments: [...(order.duplicatePayments || []), { provider: "stripe", paymentIntentId, sessionId: session.id, amountMinor: session.amount_total, currency: session.currency, at: now }],
             paymentMismatch: { duplicate: true, provider: "stripe", paymentIntentId, at: now },
             updatedAt: now,
-            activity: [...(order.activity || []), { type: "event", message: `A second Stripe payment (${paymentIntentId || session.id}) arrived for this already-paid order. Refund it in the Stripe Dashboard.`, createdAt: now }],
+            activity: [...(order.activity || []), { type: "event", message: `A second ${CARD} payment (${paymentIntentId || session.id}) arrived for this already-paid order. Refund it in the ${CARD} Dashboard.`, createdAt: now }],
           } };
         }
         // Money arrived for an order the shop had already cancelled: don't revive it (stock, emails,
@@ -1714,7 +1762,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
           return { reason: "cancelled", update: {
             ...receipt(now),
             paymentMismatch: { paidAfterCancel: true, provider: "stripe", paymentIntentId, at: now },
-            activity: [...(order.activity || []), { type: "event", message: `Stripe payment ${paymentIntentId || session.id} arrived after this order was cancelled. Not marked paid — refund it in the Stripe Dashboard or reopen the order with the customer.`, createdAt: now }],
+            activity: [...(order.activity || []), { type: "event", message: `${CARD} payment ${paymentIntentId || session.id} arrived after this order was cancelled. Not marked paid — refund it in the ${CARD} Dashboard or reopen the order with the customer.`, createdAt: now }],
           } };
         }
         const amountCheck = paidAmountCheck(order, session.amount_total, session.currency);
@@ -1723,7 +1771,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
           return { reason: "amount-mismatch", update: {
             ...receipt(now),
             paymentMismatch: { ...amountCheck, provider: "stripe", paymentIntentId, at: now },
-            activity: [...(order.activity || []), { type: "event", message: `Stripe payment did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — refund or review in Stripe.`, createdAt: now }],
+            activity: [...(order.activity || []), { type: "event", message: `${CARD} payment did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — refund or review in ${CARD}.`, createdAt: now }],
           } };
         }
         return null;
@@ -1736,7 +1784,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
         secret: RESEND_API_KEY.value(),
         to: ADMIN_TO,
         subject: `⚠ Order ${duplicateAlert.orderId} was paid twice`,
-        html: `<p>Stripe took a second payment (${escapeHtml(duplicateAlert.paymentIntentId || "")}, ${(Number(duplicateAlert.amount) / 100).toFixed(2)} ${escapeHtml(String(duplicateAlert.currency || "").toUpperCase())}) for order <strong>${escapeHtml(duplicateAlert.orderId)}</strong>, which was already paid.</p><p>Refund the second payment in the Stripe Dashboard. The order keeps its first payment.</p>`,
+        html: `<p>${CARD} took a second payment (${escapeHtml(duplicateAlert.paymentIntentId || "")}, ${(Number(duplicateAlert.amount) / 100).toFixed(2)} ${escapeHtml(String(duplicateAlert.currency || "").toUpperCase())}) for order <strong>${escapeHtml(duplicateAlert.orderId)}</strong>, which was already paid.</p><p>Refund the second payment in the ${CARD} Dashboard. The order keeps its first payment.</p>`,
       }).catch(err => console.warn("duplicate payment alert failed:", err.message));
     }
   return result.paid;
@@ -1758,7 +1806,7 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     const order = snap.data();
     const now = new Date().toISOString();
     const done = status === "succeeded";
-    const label = provider === "stripe" ? "Stripe" : provider === "paypal" ? "PayPal" : provider === "dispute" ? "Lost dispute" : "Manual";
+    const label = provider === "stripe" ? CARD : provider === "paypal" ? "PayPal" : provider === "dispute" ? "Lost dispute" : "Manual";
     const amountText = amountMinor != null ? ` for ${(amountMinor / 100).toFixed(2)} ${String(currency || "").toUpperCase()}` : "";
 
     if (order.paymentStatus === "refunded") { alreadyRecorded = true; return; }
@@ -1882,7 +1930,7 @@ async function applyPartialRefund(orderId, { provider, refundId = null, amountMi
     const lines = order.sandboxPayment === true && !sandboxStockTaken(order, shopConfig.testShop) ? [] : restockLines;
     const books = lines.length ? await readBooks(transaction, db, lines) : new Map();
     if (lines.length) writeStock(transaction, db, lines, books, 1, now);
-    const label = provider === "stripe" ? "Stripe" : provider === "paypal" ? "PayPal" : "Manual";
+    const label = provider === "stripe" ? CARD : provider === "paypal" ? "PayPal" : "Manual";
     const cur = String(currency || order.expectedCurrency || "CAD").toUpperCase();
     // Stripe/PayPal may already have reported this refund (webhook first): never count it twice.
     const total = Math.max(refundedSoFar(order), already + amountMinor);
@@ -1979,7 +2027,7 @@ async function revertFailedRefund(orderId, { refundId = null, source = "", charg
       updatedAt: now,
       activity: [...(order.activity || []), {
         type: "event",
-        message: `Stripe refund failed${source ? ` (${source})` : ""}: the customer was not refunded. The order is paid again${restocked.length ? "; restocked copies taken back out of stock" : ""}${notes.length ? `; ${notes.join("; ")}` : ""}. Refund again or contact the customer.`,
+        message: `${CARD} refund failed${source ? ` (${source})` : ""}: the customer was not refunded. The order is paid again${restocked.length ? "; restocked copies taken back out of stock" : ""}${notes.length ? `; ${notes.join("; ")}` : ""}. Refund again or contact the customer.`,
         createdAt: now,
       }],
     });
@@ -2023,7 +2071,7 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
     if (r.disputeStatus && r.disputeStatus !== order.disputeStatus) {
       update.disputeStatus = r.disputeStatus;
       if (dispute?.id) update.disputeId = dispute.id;
-      notes.push(`Stripe dispute ${r.disputeStatus.replace(/_/g, " ")} (${source}).`);
+      notes.push(`${CARD} dispute ${r.disputeStatus.replace(/_/g, " ")} (${source}).`);
     }
 
     // Money taken after the order was cancelled (or for the wrong amount), now fully refunded:
@@ -2031,7 +2079,7 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
     if (r.fullyRefunded && order.paymentMismatch && !mismatchResolved(order) && order.paymentStatus !== "paid") {
       update["paymentMismatch.resolvedAt"] = now;
       update["paymentMismatch.resolvedBy"] = "stripe-refund";
-      notes.push(`The unexpected Stripe payment was refunded (${source}).`);
+      notes.push(`The unexpected ${CARD} payment was refunded (${source}).`);
     }
 
     // The card payment for an order whose gift card fell short, now refunded: nothing left to settle.
@@ -2046,7 +2094,7 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
     } else if (r.partiallyRefunded && order.paymentStatus === "paid" && (order.refundedAmountMinor || 0) !== r.refundedMinor) {
       update.refundedAmountMinor = r.refundedMinor;
       update.partiallyRefunded = true;
-      notes.push(`Partial refund in Stripe: ${(r.refundedMinor / 100).toFixed(2)} ${r.currency} of ${(r.amountMinor / 100).toFixed(2)}. Order stays paid — adjust what you ship (${source}).`);
+      notes.push(`Partial refund in ${CARD}: ${(r.refundedMinor / 100).toFixed(2)} ${r.currency} of ${(r.amountMinor / 100).toFixed(2)}. Order stays paid — adjust what you ship (${source}).`);
     }
 
     if (!notes.length) return;
@@ -2171,15 +2219,15 @@ exports.stripeWebhook = onRequest(
 
     try {
       if (event.type === "checkout.session.expired") {
-        await noteOnOrder(event.data.object.client_reference_id, "Stripe Checkout session expired without payment.");
+        await noteOnOrder(event.data.object.client_reference_id, `${CARD} Checkout session expired without payment.`);
       } else if (event.type === "checkout.session.async_payment_failed") {
         const failedSession = event.data.object;
         // A late failure from an old session must never undo a paid order or one paid through another session.
-        await noteOnOrder(failedSession.client_reference_id, "Delayed payment failed (Stripe).", current =>
+        await noteOnOrder(failedSession.client_reference_id, `Delayed payment failed (${CARD}).`, current =>
           lateFailureMayMarkFailed(current, failedSession.id) ? { paymentStatus: "failed" } : {});
       } else if (event.type === "payment_intent.payment_failed" && event.data.object?.metadata?.checkout === "payment_element") {
         const reason = event.data.object.last_payment_error?.message || "unknown reason";
-        await noteOnOrder(event.data.object.metadata.order_id, `Card payment attempt failed (Stripe): ${reason}`);
+        await noteOnOrder(event.data.object.metadata.order_id, `Card payment attempt failed (${CARD}): ${reason}`);
       } else if (event.type.startsWith("charge.dispute.")) {
         const dispute = event.data.object;
         const piId = typeof dispute.payment_intent === "string" ? dispute.payment_intent : dispute.payment_intent?.id;
@@ -2188,8 +2236,8 @@ exports.stripeWebhook = onRequest(
           if (!snap.empty) {
             await noteOnOrder(snap.docs[0].id,
               event.type === "charge.dispute.created"
-                ? `Stripe dispute opened (${(dispute.amount / 100).toFixed(2)} ${(dispute.currency || "").toUpperCase()}, reason: ${dispute.reason || "unknown"}). Respond in the Stripe Dashboard before the evidence deadline.`
-                : `Stripe dispute is now ${String(dispute.status || "updated").replace(/_/g, " ")}.`,
+                ? `${CARD} dispute opened (${(dispute.amount / 100).toFixed(2)} ${(dispute.currency || "").toUpperCase()}, reason: ${dispute.reason || "unknown"}). Respond in the ${CARD} Dashboard before the evidence deadline.`
+                : `${CARD} dispute is now ${String(dispute.status || "updated").replace(/_/g, " ")}.`,
               { disputeStatus: dispute.status || "needs_response", disputeId: dispute.id });
             if (event.type === "charge.dispute.closed" && dispute.status === "lost") {
               await applyOrderRefund(snap.docs[0].id, { provider: "dispute", amountMinor: dispute.amount, currency: dispute.currency, status: "succeeded", restock: false, actor: "stripe-dispute", note: "chargeback lost" });
@@ -2216,7 +2264,7 @@ exports.stripeWebhook = onRequest(
 
       if (orderId && settled) {
         try {
-          await markStripeOrderPaid(orderId, session, { authority: STRIPE_WEBHOOK_AUTHORITY, account: event.account || null, message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)" });
+          await markStripeOrderPaid(orderId, session, { authority: STRIPE_WEBHOOK_AUTHORITY, account: event.account || null, message: isElementPayment ? `Payment completed (${CARD} card form)` : `Payment completed (${CARD} Webhook)` });
           console.log(`Order ${orderId} successfully processed via webhook.`);
           // The real card fee, once the provider has it (code plan 7.10). Best effort: the payout fills it in later.
           await recordOrderMoney({ db, payments, orderId }).catch(err => console.warn(`Order ${orderId}: the card fee wasn't read yet (${err?.message || err}).`));
@@ -2237,7 +2285,7 @@ exports.stripeWebhook = onRequest(
         try {
           const snap = await db.collection("orders")
             .where("stripePaymentIntentId", "==", paymentIntentId).limit(1).get();
-          if (!snap.empty) await revertFailedRefund(snap.docs[0].id, { refundId: refund.id || null, source: `Stripe webhook${refund.failure_reason ? `: ${String(refund.failure_reason).replace(/_/g, " ")}` : ""}` });
+          if (!snap.empty) await revertFailedRefund(snap.docs[0].id, { refundId: refund.id || null, source: `${CARD} webhook${refund.failure_reason ? `: ${String(refund.failure_reason).replace(/_/g, " ")}` : ""}` });
         } catch (err) {
           console.error("Failed to sync charge.refund.updated:", err);
           await recordWebhookProcessingFailure(event, err);
@@ -2260,7 +2308,7 @@ exports.stripeWebhook = onRequest(
           const snap = await db.collection("orders")
             .where("stripePaymentIntentId", "==", paymentIntentId).limit(1).get();
           if (!snap.empty) {
-            await syncStripeReversal(snap.docs[0].id, { charge, source: "Stripe webhook" });
+            await syncStripeReversal(snap.docs[0].id, { charge, source: `${CARD} webhook` });
             // The refund's own fee (any fee given back), on the order's money (code plan 7.10). Best effort.
             await recordOrderMoney({ db, payments, orderId: snap.docs[0].id }).catch(err => console.warn(`Order ${snap.docs[0].id}: the refund's fee wasn't read yet (${err?.message || err}).`));
           }
@@ -2449,7 +2497,7 @@ exports.refundOrder = onBrowserRequest(
             return card ? sum + Math.max(0, Math.floor(Number(card.initialMinor) || 0) - Math.floor(Number(card.balanceMinor) || 0)) : sum;
           }, 0);
           if (spentMinor > 0) {
-            const error = new Error(`CA$${(spentMinor / 100).toFixed(2)} of the gift cards this order bought has already been spent. A full refund would give that money back twice. Refund only the unused part in Stripe or PayPal directly, then disable the card in Gift cards.`);
+            const error = new Error(`CA$${(spentMinor / 100).toFixed(2)} of the gift cards this order bought has already been spent. A full refund would give that money back twice. Refund only the unused part in ${CARD} or PayPal directly, then disable the card in Gift cards.`);
             error.status = 409; throw error;
           }
         }
@@ -2463,7 +2511,7 @@ exports.refundOrder = onBrowserRequest(
       const provider = refundProviderOf(order);
       if (!provider) {
         await releaseClaim();
-        res.status(409).json({ error: "This order has no saved card or PayPal payment to refund. Refund it in Stripe or PayPal directly; the order updates itself." });
+        res.status(409).json({ error: `This order has no saved card or PayPal payment to refund. Refund it in ${CARD} or PayPal directly; the order updates itself.` });
         return;
       }
       let outcome;
@@ -2527,7 +2575,7 @@ exports.refundOrder = onBrowserRequest(
       // Keep the claim only when the provider may have taken the refund (accepted, or a lost
       // connection): its webhook then follows the admin's restock choice.
       if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500))) await releaseClaim();
-      const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500);
+      const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500); // Stripe shops only (an error type)
       res.status(status).json({ error: err.message || "Refund failed" });
     }
   },
@@ -2644,11 +2692,11 @@ async function loadNotificationSettings() {
   // Emails to the shop itself (Settings › Notifications › Emails to the shop). On unless switched off;
   // an older saved new_order_admin.enabled is honoured too.
   // {{shop_name}} in every email (plan 1.16): Settings › Email sender name, else the shop's name, else the deploy's.
-  merged.shopName = shopConfig.senderName;
+  // Plan 5.8: else Text & labels › Site name (pressName), never the placeholder for a named shop.
+  merged.shopName = pressName(null, shopConfig.senderName);
   try {
     const website = (await db.collection("settings").doc("website").get()).data() || {};
-    const own = [website.communications?.fromName, website.info?.name].map((v) => String(v || "").trim()).find(Boolean);
-    if (own) merged.shopName = own;
+    merged.shopName = String(website.communications?.fromName || "").trim() || pressName(website, shopConfig.senderName);
   } catch (err) {
     console.warn("Failed to load the shop name for emails, using the deploy's:", err);
   }
@@ -3055,7 +3103,7 @@ async function handleOrderUpdated(event) {
           ${risoButton(adminOrderUrl, "Fulfil this order &rarr;", notificationSettings.brand?.brandColor, notificationSettings.brand?.emailTheme)}
           <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;${order.customer.phone ? ` · ${escapeHtml(order.customer.phone)}` : ""}</p>
           <p><strong>Ship to:</strong> ${escapeHtml(adminAddr)}</p>
-          <p><strong>Payment:</strong> ${escapeHtml(order.paymentMethod || "Stripe")}</p>
+          <p><strong>Payment:</strong> ${escapeHtml(paymentMethodLabel(order.paymentMethod))}</p>
           ${preorderLines.length ? `<p><strong>Pre-order:</strong> ${preorderLines.map(escapeHtml).join(" ")} It waits in Orders › Awaiting release until then.</p>` : ""}
           ${itemsTable}
           <p style="margin-top:24px;"><a href="${adminOrderUrl}">Open the order in the admin</a> to pack it, buy a label and mark it shipped.</p>
@@ -3344,7 +3392,9 @@ async function sendWeeklySummary(nowMs = Date.now()) {
     .catch(err => console.warn("Weekly summary: book titles unavailable:", err.message));
   let attachments = [];
   try {
-    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles }));
+    // Headed with the press's own name (Text & labels › Site name, plan 5.8).
+    const website = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
+    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles }), { shopName: pressName(website, shopConfig.senderName) });
     attachments = [{ filename: weeklyPdfName(week), content: pdf, contentType: "application/pdf" }];
   } catch (err) {
     console.error("Weekly summary PDF failed; sending the email without it:", err);
@@ -3579,7 +3629,7 @@ exports.onOrderCreated = onDocumentCreated(
         <p>It's waiting for a manual payment (${escapeHtml(order.paymentMethod || "manual")}). Once the money arrives, confirm it in the order and ship it.</p>
         ${risoButton(siteLink(`/admin#orders/${encodeURIComponent(orderId)}`), "Open this order &rarr;", notificationSettings.brand?.brandColor, notificationSettings.brand?.emailTheme)}
         <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;</p>
-        <p><strong>Payment Method:</strong> ${escapeHtml(order.paymentMethod || "Stripe")}</p>
+        <p><strong>Payment Method:</strong> ${escapeHtml(paymentMethodLabel(order.paymentMethod))}</p>
         <p><strong>Shipping Method:</strong> ${escapeHtml(order.shippingMethod || "Standard")}</p>
         ${itemsTable}
       `;
@@ -3968,7 +4018,7 @@ exports.markOrderPaid = onBrowserRequest(
       const refusal = manualPaidRefusal(snap.exists ? snap.data() : null);
       if (refusal === "missing") { res.status(404).json({ error: "Order not found" }); return; }
       if (refusal === "closed") { res.status(409).json({ error: "This order is cancelled or refunded, so it can't be marked paid." }); return; }
-      if (refusal === "provider") { res.status(409).json({ error: "Card and PayPal orders are marked paid only when the payment provider confirms the payment. Use Check payment with Stripe, or check PayPal." }); return; }
+      if (refusal === "provider") { res.status(409).json({ error: `Card and PayPal orders are marked paid only when the payment provider confirms the payment. Use Check payment with ${CARD}, or check PayPal.` }); return; }
       await completeOrderWithoutCard(orderId, `Payment confirmed manually by ${adminUser.email}.`, { reserve: false });
       res.status(200).json({ success: true });
     } catch (err) {
@@ -4026,6 +4076,16 @@ async function checkLabelRefunds(now = Date.now()) {
   }
   return { checked, settled };
 }
+
+// Square payment pages close when their stock hold ends; late refunds that failed are tried again (code plan 5.1,
+// paymentPages.js). Stripe's own Checkout Sessions expire by themselves, so a Stripe shop has nothing to do here.
+exports.paymentPageSweep = onSchedule(
+  { schedule: "every 5 minutes", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
+  async () => {
+    if (payments.provider !== "square") return;
+    const result = await paymentPages.closeDuePages();
+    if (result.closed || result.refunded) console.log("paymentPageSweep:", result);
+  });
 
 exports.unpaidPaymentSweep = onSchedule(
   { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: withPlatformKey([STRIPE_SECRET_KEY, RESEND_API_KEY, SHIPPO_API_TOKEN]) },
@@ -4086,8 +4146,8 @@ exports.unpaidPaymentSweep = onSchedule(
       try {
         await sendEmail({
           to: ADMIN_TO,
-          subject: `⚠ Stripe webhook missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
-          html: alertHtml(found),
+          subject: `⚠ ${CARD} webhook missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
+          html: alertHtml(found, CARD),
           secret: RESEND_API_KEY.value(),
         });
         const at = new Date().toISOString();

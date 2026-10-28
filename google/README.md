@@ -1,0 +1,98 @@
+# Google link
+
+**Connect Google** (code plan 6.17 and 6.20). The press signs in with their Google account and allows Colophon once.
+One connect job then links everything Google for their shop. One teardown job undoes it on the closing timeline
+(plan 6.8). Plain Node 22 ES modules, no packages. Google is called over its REST services with an injected `fetch`.
+Tests use a pretend Google (`fakes.js`). **Off unless `GOOGLE_CONNECT_ENABLED=true`.** While it is off, every shop keeps
+its older Google Analytics card.
+
+## What one sign-in connects (`connect.js`)
+
+| Step | What happens | Where it is kept |
+| --- | --- | --- |
+| `firebase` | The shop's own project (made and owned by Colophon) is ready, and its reporting account is named | `google.firebase` |
+| `analytics` | A property and web stream in the press's own Analytics account. The measurement ID goes to the shop, where the existing tag and consent rules take over. The property number goes to the admin-only settings. The shop's reporting account becomes a Viewer, so the Overview shows Google's figures | `google.analytics`; the shop's `settings/website.analytics.ga4MeasurementId` and `adminSecrets/googleAnalytics.propertyId` |
+| `domain` | The press's own address, once one opens the shop (`services/domains`) | `google.domain` |
+| `searchConsole` | The shop's address, verified through a file on its own pages. The own address too, verified through a record that the domain's Allow step adds (plan 6.15). The shop's reporting account becomes an owner, so the existing Search Console code in the shop (`apps/shop/functions/searchConsole.js`) reads it. The sitemap is sent | `google.searchConsole`; the shop's `adminSecrets/googleAnalytics.searchConsoleSite` |
+| `merchantCenter` | The press's Merchant Center account (made in their name when they have none), the shop's book feed (`/google-merchant-feed.xml`) as its daily product source, and free listings | `google.merchantCenter` |
+| `email` | The press's Gmail, once Julian switches that on. Otherwise orders@ their own domain (`services/email/ownDomain.js`). Otherwise Colophon's sender with the press's name | `google.email`, `gmailSender`, `emailSender` |
+| `drive`, `youtube`, `calendar`, `businessProfile`, `ads` | The extras, each one tick box on the same Allow page: nightly backups to a folder the press owns, trailers from their channel, an events calendar, their Maps listing, a link from the book feed to Google Ads (never spends) | `google.<extra>` |
+
+The registry row's `google` also holds `accountEmail`, `connectedAt`, `closedAt`, `deletedAt` and
+`steps: [{ step, state: "done" | "failed" | "waiting", at, detail }]`. Each step is also written to the shop's audit log
+(`record.js`).
+
+- **Re-runnable.** Each step first reads the registry row and Google, and changes only what is missing. A re-run that
+  finds nothing to do writes nothing, not even to the audit log.
+- **Skippable.** Google lets the press untick any part on its Allow page. A part whose permission wasn't given waits and
+  changes nothing. "No" on the whole page leaves the shop exactly as it was.
+- **Plain words.** Every step's `detail` is shown to the press and in the control room, so it never names a technical
+  term.
+
+## Teardown (`teardown.js`)
+
+| Stage | Steps |
+| --- | --- |
+| pause | nothing |
+| closing (60 days paused, the press leaves, or the press presses Disconnect) | `stopFeed` (the book feed leaves Merchant Center, the Ads link goes), `stopTag` (the tag stops; the shop's reporting account leaves Analytics and Search Console), `stopGmail`, `stopExtras`, `giveBackAccess` (Google revokes Colophon's grant) |
+| deletion (after the 90 days and the 30- and 7-day emails) | `removeDomain` (the own address and its email records, through `domainsCall`), `deleteFirebase` |
+
+The press's own Analytics, Search Console, Merchant Center, Drive, YouTube, Calendar, Business Profile and Ads accounts
+are never deleted, so their history leaves with them.
+
+**Plugging it into the closing sweep.** `createGoogleLink(...).teardown` gives `teardownOnClose(shop)` and
+`teardownBeforeDelete(shop)`. Pass them as the sweep's `onClose` and `beforeDelete` hooks. `teardownBeforeDelete`
+refuses (`{ refused: true }`, nothing deleted) unless the registry row shows the deletion is due:
+`closing: { closedAt, deleteAfter, warned30At, warned7At }`, with both emails sent and `deleteAfter` passed
+(`deletionDue`).
+
+## The control room (`status.js`)
+
+`googleStatus(shopId)` gives the stage (not connected, connected, closed, deleted), the account, each part and every
+step with `canRunAgain`. `runAgain(shopId, step)` runs one connect or teardown step again. A deletion step never runs
+before `deletionDue`.
+
+## Doors (`service.js`, `http.js`)
+
+| Door | Who knocks | What it checks |
+| --- | --- | --- |
+| `POST /shop` | the shop's server (`apps/shop/functions/googleConnect.js`, `PLATFORM_GOOGLE_URL`) | `X-Shop-Id` plus `Authorization: Bearer <shop service key>`, like the other platform services |
+| `GET /google/oauth` | Google, sending the press back with `code` and `state` | the one-use state (15 minutes) |
+
+The shop's calls: `google.status`, `google.connectLink { returnUrl, extras }`, `google.tryAgain { step }`,
+`google.disconnect`.
+
+## Files
+
+- `connect.js`, `teardown.js`, `status.js`, `record.js`: the jobs and how they record.
+- `service.js`, `http.js`: the doors. `index.js`: `createGoogleLink(...)` puts it all together.
+- `googleApi.js`: the Google client. `endpoints.js`: every Google address and permission, with its reference page.
+- `tokens.js`: the press's tokens, sealed with `../services/payments/tokenSeal.js` (key `GOOGLE_TOKEN_KEY`) and bound
+  to the shop.
+- `domainBridge.js`: `domainsCall`, the one way in to `services/domains`. Until the domain service can add records
+  (plan 6.15), it answers `{ waiting: true }` and the part that asked waits.
+- `gmail.js`: `gmailSend` for the email service, once Gmail sending is switched on.
+- `config.js`: the settings. `fakes.js`: pretend Google, shop project, domain service and stores. `google.test.js`.
+
+## Settings
+
+`GOOGLE_CONNECT_ENABLED`, `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URL`, `GOOGLE_TOKEN_KEY`,
+`GOOGLE_GMAIL_SENDING` (off), `GOOGLE_BUSINESS_PROFILE` (off), `GOOGLE_ADS_DEVELOPER_TOKEN` (none: no Ads box). They
+live in this service's environment only.
+
+### Switched on by Julian
+
+1. Make Colophon's Google app (a Web sign-in client). Turn on Analytics Admin, Site Verification, Search Console,
+   Merchant, Drive, YouTube Data and Calendar in the platform project.
+2. Have Google approve the sign-in screen for those permissions (Go-live plan). Then set the keys and
+   `GOOGLE_CONNECT_ENABLED=true`.
+3. Gmail sending: after Google's yearly security review of the sending permission, set `GOOGLE_GMAIL_SENDING=on`.
+4. Business Profile: once Google grants Colophon access to its Business Profile tools, set `GOOGLE_BUSINESS_PROFILE=on`.
+5. Ads: once Google gives Colophon a developer token, set `GOOGLE_ADS_DEVELOPER_TOKEN`.
+
+## Not yet
+
+- Hosting (one function in the platform project) and the Firestore stores `googleConnections` and `googleStates`.
+- The real `shopFirebase` client (Admin SDK writes into the shop's project, the verification file on its Hosting, and
+  project deletion), and the nightly Drive backup and the calendar's events on the website.
+- Adding and removing records through the registrar's Allow window (plan 6.15, `domainsCall`).

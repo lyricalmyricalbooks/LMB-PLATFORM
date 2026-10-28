@@ -29,6 +29,7 @@ import { readinessSummary } from "../launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
 import { FirstWeekCard } from "./FirstWeekCard";
+import { ConnectGoogleCard } from "../ConnectGoogleCard";
 import { GOOGLE_PARTS, OverviewMarketing, type GaState } from "./OverviewMarketing";
 import { FoundOnGoogleCard } from "./OverviewMarketingExtras";
 import { OverviewCustomers } from "./OverviewCustomers";
@@ -554,6 +555,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     <>
       {/* Plan 3.3: only a shop whose setup wrote the sign-up answer shows it, until done or hidden. */}
       <FirstWeekCard books={stock.books} readiness={readiness} onOpen={tab => setActiveTab?.(tab)} />
+      {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected. */}
+      <ConnectGoogleCard variant="prompt" />
       <OverviewBoard store={boards.store} setStore={boards.setStore} saveState={boards.saveState} saveError={boards.saveError}
         onRetrySave={boards.retrySave} renderWidget={renderWidget} header={header} />
     </>

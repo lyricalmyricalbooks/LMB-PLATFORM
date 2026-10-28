@@ -304,6 +304,12 @@ The private operations, label purchase safeguards, payment authority and server 
   skipped. `titlePerformance` + `OverviewTitles.tsx` (Dig deeper › **Titles**, CSV). **Customers:** `overviewCohorts.ts`
   `cohortRetention`, `repeatTiming`, `newVsReturningRevenue`; **Sales:** `operations` (median paid→shipped, payment/currency
   mix) and `hourHeatmap` (Toronto weekday × hour).
+- **Connect Google (platform plan 6.17):** on a shop with `PLATFORM_GOOGLE_URL`, `ConnectGoogleCard.tsx` (`googleConnect.ts`,
+  `functions/googleConnect.js`) replaces the Google Analytics and Search Console cards in Visitors & Google and shows a
+  prompt on the Overview and in Marketing & traffic until connected. The platform writes the same
+  `settings/website.analytics.ga4MeasurementId` and `adminSecrets/googleAnalytics` fields the older cards do, so the tag
+  and reports below work unchanged. `useGoogleConnect().mode === "own"` (no link) keeps the older cards. On those shops
+  Email sender shows `PlatformSenderCard` instead of the Gmail app-password panel (`senderStatus.backup === "platform"`).
 - **Google Analytics 4:** Settings › General › **Google Analytics** (`GoogleAnalyticsCard.tsx`, `admin/googleAnalytics.ts`).
   Measurement ID (public) = `settings/website.analytics.ga4MeasurementId`, written only by that card (`updateSettings` drops
   `analytics` so a stale settings form can't put an old ID back); property ID = admin-only `adminSecrets/googleAnalytics`.
@@ -431,6 +437,14 @@ stored in the public, admin-written `settings/redirects` doc (`{ items: [{from, 
 `NotFoundPage`, `BookDetail` with no book, `PageView` with no page — through `useMissingRedirect` (reads
 `publicApi.getRedirects`, never in the Studio preview, keeps the shopper's query, stops after `MAX_REDIRECT_HOPS`), so a real
 page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-visible words, so no Text & labels entry.
+**Pages of 500 (plan 5.6):** up to `MAX_REDIRECTS` 5,000, saved as `redirects/1` … `redirects/10` (`{ items, page }`,
+public read, admin write of ids 1–10 only in `firestore.rules`). `saveRedirects` writes every page or clears it in one
+batch (`redirectsToPages`, filled in order) and marks the old `settings/redirects` doc `paged: true` with no items; every
+reader goes through `redirectsFromStore` (`publicApi.getRedirects`, which the admin, the storefront and the prerendered
+pages all use): pages by number, else the old doc's list while it was never moved, so older shops keep working until their
+first save. Checks use a `RedirectIndex` map so a 5,000 list stays quick. The import says "Your shop is full" when it runs
+out of room (`importRedirects` `full`, `oldLinksMessage`); the card shows "N of 5,000 used" and a find box past 100 rows.
+Tests: `redirects.test.ts`, `redirectPagesApi.test.ts` (499/500/501/5,000, migration), `scripts/firestore-rules-emulator.mjs`.
 
 ## Bring your shop with you (28 October 2026)
 
@@ -484,7 +498,9 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
   give search engines (Text & labels › `seoReturnDays`, 0 = no returns after shipping). `withStarter` re-reads the draft
   and keeps any saved words. The card says "A starting point, not legal advice"; the four texts await a lawyer's read.
 - Settings › General › Your web address (`CustomDomainCard.tsx`, plan 2.9) shows the older "Domain & visibility" field
-  when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`).
+  when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`). Plan 5.9: "Your main address" line, **Make main** on
+  a live address and **Remove** on any address but the main one, each behind a confirm (`domainActions` in
+  `customDomains.ts`; `CustomDomainCard.test.tsx`). Going back to the shop's own address is a button under the main line.
 - Settings › Payments › Card payments (`PlatformPaymentsCard.tsx`, plan 2.2b) replaces the Stripe keys card on platform
   shops.
 - **What Stripe still needs (plan 7.9):** `account.status` carries `needs: [{ words, pastDue }]` (plain words made by
@@ -494,6 +510,12 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
   readiness row ticks only once `paymentsReady` (cards and payouts). While something is past due, `cardAccountAlert`
   (adminAlerts.ts, action `cardAccount` → Settings › Payments › Ways to pay) puts a banner on every admin page; the
   Dashboard's 5-minute alert check reads the status for Stripe platform shops. The platform emails the owner once.
+- Settings › Bookkeeping (`BookkeepingSettings.tsx`, pure `quickbooksLink.ts`, plan 7.16): Connect to QuickBooks in three
+  steps (sign in with Intuit, one line per day or every order, match taxes and five accounts), then last day sent, Send
+  again and Disconnect. Hidden unless `adminApi.bookkeeping("status")` says `enabled` (Dashboard asks once when
+  Settings opens and drops the menu entry with `withoutPages`). The button is text only ("Connect to QuickBooks"), as
+  Intuit asks; the admin has no French yet, so there is no French label. Tax names are each rate's `bookName` (plan 7.11)
+  or "Tax <place>" until then.
 
 
 ## Bookkeeper role (28 October 2026, code plan 7.17)

@@ -1,3 +1,4 @@
+import { providerName } from "./providerWords";
 import { duplicateBookData } from "./catalogList";
 import type { OrderActionBody, RefundOrderBody } from "../../shared/orderActions";
 import type { GiftCardBody, GiftCardOp } from "../../shared/giftCardActions";
@@ -6,7 +7,7 @@ import { discountRecord, discountUpdate } from "../../shared/discountRecord";
 import { check } from "../../shared/edge";
 import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
-import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
+import { REDIRECTS_COLLECTION, REDIRECTS_DOC, redirectPageIds, redirectsToPages, type Redirect } from "../features/site/redirects";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
@@ -21,7 +22,8 @@ import { keepPhotoCopies, removedPhotos, shownUrls, unusedBookFiles } from "./bo
 import { mediaApi } from "./mediaApi";
 import { auditLog } from "./auditLog";
 import type { PlatformPaymentsAnswer } from "./platformPayments";
-import type { DomainCheck, DomainList } from "./customDomains";
+import type { DomainCheck, DomainList, DomainStep } from "./customDomains";
+import type { BookkeepingOptions, BookkeepingSave, BookkeepingStatus } from "./quickbooksLink";
 /** Cache-Control for uploaded shop pictures (mirrors functions/imageCopies.js IMMUTABLE). */
 export const PUBLIC_FILE_CACHE = "public, max-age=31536000, immutable";
 
@@ -666,9 +668,20 @@ export const adminApi = {
 
   // URL redirects (Settings › General): old address → new address, in the public, admin-written settings/redirects doc.
   getRedirects: publicApi.getRedirects,
+  // Plan 5.6: saved in numbered pages of 500 (`redirects/1`…, up to 5,000), filled in order, in one batch; pages past
+  // the end are cleared and the legacy settings/redirects doc is marked moved, so an older list never comes back.
   saveRedirects: async (items: Redirect[]): Promise<Redirect[]> => {
-    const clean = cleanRedirects(items);
-    await setDoc(doc(db, "settings", REDIRECTS_DOC), { items: clean, updatedAt: new Date().toISOString() });
+    const pages = redirectsToPages(items);
+    const clean = pages.flatMap(p => p.items);
+    const updatedAt = new Date().toISOString();
+    const batch = writeBatch(db);
+    for (const id of redirectPageIds()) {
+      const page = pages.find(p => p.id === id);
+      if (page) batch.set(doc(db, REDIRECTS_COLLECTION, id), { items: page.items, page: Number(id), updatedAt });
+      else batch.delete(doc(db, REDIRECTS_COLLECTION, id));
+    }
+    batch.set(doc(db, "settings", REDIRECTS_DOC), { items: [], paged: true, pages: pages.length, count: clean.length, updatedAt });
+    await batch.commit();
     await adminApi.recordAuditLog("settings", `Updated URL redirects (${clean.length})`);
     return clean;
   },
@@ -1127,7 +1140,7 @@ export const adminApi = {
         if (operations.hold) throw new Error("Release the fulfillment hold before continuing.");
         if (queueOf(o) === "Awaiting release") throw new Error("This pre-order hasn't been released yet. Press \"Ready to ship now\" if the books have arrived.");
         // Books already on their way may still be marked delivered (proof for the dispute).
-        if (disputeOpen(o) && current !== "out_for_delivery") throw new Error("This payment is disputed. Don't hand over the books until the dispute is settled in Stripe.");
+        if (disputeOpen(o) && current !== "out_for_delivery") throw new Error(`This payment is disputed. Don't hand over the books until the dispute is settled in ${providerName()}.`);
         if (operations.packed !== packingKey(o)) throw new Error("Complete the packing checklist first.");
         if (method === "local_delivery" && (addressIssues(o).length || operations.addressReviewed !== addressKey(o))) throw new Error("Review and confirm the delivery address first.");
         const next = method === "pickup"
@@ -1219,7 +1232,7 @@ export const adminApi = {
       body: JSON.stringify({ action: "registerPaymentDomain", origin }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Couldn't register the domain with Stripe.");
+    if (!response.ok) throw new Error(result.error || "Couldn't register the domain with Stripe."); // Stripe shops only
     return result as { domain: string; applePay: string; googlePay: string };
   },
 
@@ -1240,7 +1253,7 @@ export const adminApi = {
 
   // The press's own web address (plan 2.9), through the platform's domain service. A shop without that service answers
   // code "not_available" (the card then shows the older field).
-  customDomains: async (step: "list" | "add" | "check", domain?: string) => {
+  customDomains: async (step: DomainStep, domain?: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
     const response = await functionFetch("createStripeCheckoutSession", {
@@ -1251,6 +1264,21 @@ export const adminApi = {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw Object.assign(new Error(result.error || "Couldn't reach your web addresses."), { code: result.code });
     return result as DomainList & DomainCheck;
+  },
+
+  // Settings › Bookkeeping (plan 7.16): the QuickBooks link, through the platform's bookkeeping service. A shop without
+  // it answers status { enabled: false } and refuses the other steps with code "not_available".
+  bookkeeping: async (step: "status" | "connect" | "options" | "save" | "resend" | "disconnect", args: Partial<BookkeepingSave> & { returnUrl?: string; date?: string } = {}) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "bookkeeping", step, ...args }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(result.error || "Couldn't reach your bookkeeping link."), { code: result.code });
+    return result as BookkeepingStatus & BookkeepingOptions & { url?: string; results?: { kind: string; ref: string; outcome: string; message?: string }[]; stopped?: string };
   },
 
   // Deletes a stored PayPal client secret (admin-only adminSecrets/paypal). Live then falls back to the Functions secret.
@@ -1269,7 +1297,7 @@ export const adminApi = {
   // falls back to the Firebase Functions secret, if one is set.
   removeStripeSecretKey: async (mode: "live" | "test") => {
     await setDoc(doc(db, "adminSecrets", "stripe"), { [mode === "live" ? "secretKey" : "testSecretKey"]: deleteField(), updatedAt: serverTimestamp() }, { merge: true });
-    await adminApi.recordAuditLog("payments", `Removed the stored Stripe ${mode} secret key`);
+    await adminApi.recordAuditLog("payments", `Removed the stored Stripe ${mode} secret key`); // Stripe shops only
   },
 
   // Checks (fix/recreate: repairs) the Stripe webhook endpoint for the mode in use.
@@ -1282,7 +1310,7 @@ export const adminApi = {
       body: JSON.stringify({ action: "webhookHealth", ...opts }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Couldn't check the Stripe webhook.");
+    if (!response.ok) throw new Error(result.error || "Couldn't check the Stripe webhook."); // Stripe shops only
     return result as {
       mode: "test" | "live"; url: string; found: boolean; enabled: boolean; wrongUrl: boolean;
       missingEvents: string[]; savedSecret: boolean; deployedSecret?: boolean; lastReceivedAt: string | null; lastEventType: string | null;
@@ -1367,7 +1395,7 @@ export const adminApi = {
       body: JSON.stringify({ action: "verifyStripeKeys" }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Couldn't reach Stripe.");
+    if (!response.ok) throw new Error(result.error || "Couldn't reach Stripe."); // Stripe shops only
     type ModeResult = { source: "stored" | "functions" | "none"; publishableKeyMode: "live" | "test" | "invalid" | "missing"; keyMode?: string; ok?: boolean; accountId?: string | null; accountName?: string | null; chargesEnabled?: boolean; error?: string };
     return result as { activeMode: "live" | "test"; live: ModeResult; test: ModeResult; sameAccount: boolean | null };
   },
@@ -1381,7 +1409,7 @@ export const adminApi = {
       body: JSON.stringify({ action: "status", orderId }),
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Couldn't reach Stripe.");
+    if (!response.ok) throw new Error(result.error || `Couldn't reach ${providerName()}.`);
     return result as { status: string; paymentStatus: string };
   },
 
