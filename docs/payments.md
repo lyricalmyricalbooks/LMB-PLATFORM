@@ -24,8 +24,13 @@ Rules:
 
 - The shop stays in charge of its own orders and stock: the service never writes a shop's database directly. It calls
   one signed endpoint on the shop, and the shop decides.
-- Calls between a shop and the service carry a signed token for that shop. The service refuses an account ID that the
-  registry doesn't list for that shop.
+- Calls from a shop to the service carry that shop's service key (`X-Shop-Id` + `Authorization: Bearer …`, the same
+  proof as the email service; the registry keeps only its hash). The service only ever acts on the account the
+  registry lists for that shop.
+- Events passed on to a shop carry no signature; the shop fetches each one again through the service before believing
+  it (built in 2.1, `services/payments/README.md`).
+- The platform's per-order fee is a percentage taken as Stripe's application fee: 0% unless set, per shop or as a
+  platform default, given back in proportion when a press refunds unless that setting is off.
 - Anything triggered by a shop's own database (order to stockroom, catalog markers) stays in the shop's functions.
   Database triggers can't fire across projects.
 - Email works the same way, in `services/email/`, holding the sender key.

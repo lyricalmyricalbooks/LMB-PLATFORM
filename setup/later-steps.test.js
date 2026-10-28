@@ -50,7 +50,7 @@ test("a full run makes the test shop live: rules, server code in Montréal, page
   assert.equal(world.docs.get(`${ID} settings/website`).shopName, "Test Press");
 
   const row = await registry.getShop(ID);
-  assert.deepEqual(row.payments, { provider: "stripe", accountId: world.accounts.stripe.get(ID) });
+  assert.deepEqual(row.payments, { provider: "stripe", accountId: world.accounts.stripe.get(ID), mode: "test" });
   assert.deepEqual(called(services, "stripe.createAccount"), [["stripe.createAccount", ID, true]], "the test shop's account is made in test mode");
 
   const welcome = world.sent.get(`${ID} ${OWNER_WELCOME}`);
@@ -406,7 +406,7 @@ test("an account the payment service already made is saved, not made again", asy
   services.world.accounts.stripe.set(ID, "acct_fake_existing");
   assert.equal((await run()).ok, true);
   assert.deepEqual(called(services, "stripe.createAccount"), []);
-  assert.deepEqual((await registry.getShop(ID)).payments, { provider: "stripe", accountId: "acct_fake_existing" });
+  assert.deepEqual((await registry.getShop(ID)).payments, { provider: "stripe", accountId: "acct_fake_existing", mode: "test" });
 });
 
 test("payments that disagree with the registry stop for a person", async () => {
