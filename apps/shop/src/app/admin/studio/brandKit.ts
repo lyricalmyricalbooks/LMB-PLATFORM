@@ -117,11 +117,13 @@ export const PERSONALITIES: Personality[] = [
 /** Every colour key the brand kit sets, worked out from one palette (the same keys Riso Noir sets). */
 export function paletteKeys(p: BrandPalette): Record<string, string> {
   const onAccent = readableOn(p.accent);
-  const muted = mix(p.text, p.bg, 0.36);
   const surface = mix(p.bg, p.text, 0.06);
+  const raised = mix(p.bg, p.text, 0.1);
+  // Small print sits on the page, on cards and on the raised buy box: it must read at 4.5:1 on the closest of them.
+  const muted = withContrast(mix(p.text, p.bg, 0.36), raised, 4.5);
   return {
     backgroundColor: p.bg, textColor: p.text, primaryColor: p.accent,
-    surfaceColor: surface, surfaceRaisedColor: mix(p.bg, p.text, 0.1), mutedTextColor: muted, borderColor: mix(p.text, p.bg, 0.78),
+    surfaceColor: surface, surfaceRaisedColor: raised, mutedTextColor: muted, borderColor: mix(p.text, p.bg, 0.78),
     favoriteColor: p.accent, focusRingColor: p.accent, linkColorHover: mix(p.accent, p.text, 0.25),
     activeControlBg: p.text, activeControlText: p.bg,
     buttonColor: p.accent, buttonTextColor: onAccent, buttonHoverBgColor: p.text, buttonHoverTextColor: p.bg,
@@ -131,6 +133,8 @@ export function paletteKeys(p: BrandPalette): Record<string, string> {
     checkoutAccentColor: p.accent, checkoutBgColor: p.bg,
     cartDrawerBg: p.bg, cartDrawerText: p.text, cartDrawerMuted: muted, cartDrawerSurface: surface, cartDrawerBorder: p.text,
     risoOutlineColor: p.text, risoShadowColor: p.accent,
+    // The tint over pictures (hero, banners, sold-out covers) is the page colour, so page-coloured words read on it.
+    overlayColor: p.bg,
   };
 }
 

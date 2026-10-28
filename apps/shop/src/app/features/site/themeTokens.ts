@@ -26,6 +26,7 @@
  */
 import { STOREFRONT_COLOR_CLASSES } from "./storefrontColorClasses";
 import { trackingEm } from "./shopTypography";
+import { contrastRatio, parseColor } from "./colorSchemes";
 
 export function hexToRgbTriplet(input?: string, fallback = "255, 255, 255"): string {
   if (!input) return fallback;
@@ -78,6 +79,22 @@ export interface StorefrontTokenInput {
 }
 
 /**
+ * The least see-through the text colour may be on the page and still read at 3:1 (WCAG's large-text level), in
+ * steps of 0.05: about 0.35 for white on black, more on a light page. Faint text classes use it as their floor.
+ */
+export function faintFloor(fg: string, bg: string): number {
+  const page = parseColor(bg);
+  if (!page) return 0;
+  for (let a = 0; a <= 1.0001; a += 0.05) {
+    const ink = parseColor(fg, page);
+    if (!ink) return 0;
+    const mixed = `rgb(${ink.map((v, i) => Math.round(v * a + page[i] * (1 - a))).join(", ")})`;
+    if ((contrastRatio(mixed, bg) ?? 0) >= 3) return Math.round(a * 100) / 100;
+  }
+  return 1;
+}
+
+/**
  * Emit the CSS custom-property declarations (without the wrapping selector) for a
  * design object. Drop the result inside any `[data-fm-store] { … }` rule.
  */
@@ -103,6 +120,7 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
 
   return [
     `--fg-rgb: ${fgTriplet};`,
+    `--fg-faint: ${faintFloor(fg, bg)};`,
     // Border tint: follows the dedicated "Border" color when set, else the
     // foreground. Alpha gradation of each border utility is preserved.
     `--border-rgb: ${hexToRgbTriplet(design?.borderColor, fgTriplet)};`,
@@ -183,7 +201,10 @@ function alphaOf(suffix?: string): number | null {
 
 /** The token-driven colour value for one Tailwind colour utility (without variants). */
 function tokenValue(prefix: string, color: string, shade: number, alpha: number | null): string | null {
-  const rgba = (v: string, a: number) => `rgba(var(${v}), ${a})`;
+  // Faint words (text-white/40…) never fade below the theme's readable floor, `--fg-faint` (plan 1.25): on a light
+  // page the same see-through ink reads far weaker than on black. Borders and backgrounds keep their own alpha.
+  const faint = (prefix === "text" || prefix === "placeholder");
+  const rgba = (v: string, a: number) => (faint && v === "--fg-rgb" ? `rgba(var(${v}), max(${a}, var(--fg-faint, 0)))` : `rgba(var(${v}), ${a})`);
   if (color === "white") {
     const v = prefix === "border" || prefix === "divide" ? "--border-rgb" : prefix === "bg" && alpha !== null ? "--surface-rgb" : "--fg-rgb";
     return alpha === null ? `rgb(var(${v}))` : rgba(v, alpha);
