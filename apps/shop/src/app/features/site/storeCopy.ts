@@ -384,8 +384,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
     fields: [
       { key: "loadingAria", label: "Accessible label", default: "Loading {name}" },
       { key: "loadingTag", label: "Sticker tag", default: "Est. independently" },
-      { key: "loadingWordmarkA", label: "Wordmark (first part)", default: "Lyrical" },
-      { key: "loadingWordmarkB", label: "Wordmark (accent part)", default: "myrical" },
+      { key: "loadingWordmarkA", label: "Wordmark (first part)", default: "{name}", hint: "{name} is the site name." },
+      { key: "loadingWordmarkB", label: "Wordmark (accent part)", default: "", hint: "Optional words after the first part, in the accent colour." },
       { key: "loadingSub", label: "Subline", default: "Books / printed matter" },
       { key: "loadingStatus", label: "Status text", default: "Pulling the first print" },
     ],

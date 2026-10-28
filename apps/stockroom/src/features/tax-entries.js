@@ -55,6 +55,7 @@ import { escapeHtml } from '../lib/html.js';
 import { closeM, confirmDialog, openM, promptDialog } from '../lib/modal.js';
 import { fmt, getBookCurrencyCode, getSym, roundCents, setSelectCurrency } from '../lib/money.js';
 import { followableUrl } from '../lib/receipt-links.js';
+import { fileStem } from '../lib/shop-profile.js';
 import {
   _localReceiptCell,
   _runReceiptScan,
@@ -1170,7 +1171,7 @@ function downloadFullTaxSeasonExport() {
     csv += `${esc(`${n} expense${n === 1 ? ' is' : 's are'} still waiting for an exchange rate — counted as 0.00 CAD above, so the expense totals are NOT final. Open the Tax Centre while online to fill them in, then re-export.`)}\n`;
   }
 
-  downloadCsv('﻿' + csv, `Lyrical_Tax_Season_${isAllTime ? 'AllTime' : year}_Export.csv`);
+  downloadCsv('﻿' + csv, `${fileStem()}_Tax_Season_${isAllTime ? 'AllTime' : year}_Export.csv`);
 
   if (waitingExpenses.size) {
     const n = waitingExpenses.size;

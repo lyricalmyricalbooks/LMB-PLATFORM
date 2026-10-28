@@ -18,7 +18,7 @@ const SITE = "https://shop.test/sub";
 const photo = (n: string) => [{ url: `https://img.test/${n}.jpg` }, { url: `https://img.test/${n}-back.jpg` }];
 
 const catalog: any[] = [
-  { id: "a", title: "Salt Hours", subtitle: "Zoe Moss", description: "<p>Poems &amp; tides</p>", isbn: "978-0-306-40615-7", retailPrice: 24, trackInventory: true, stockLevel: 3, photos: photo("a"), categories: ["Poetry"], publisher: "Lyrical Press" },
+  { id: "a", title: "Salt Hours", subtitle: "Zoe Moss", description: "<p>Poems &amp; tides</p>", isbn: "978-0-306-40615-7", retailPrice: 24, trackInventory: true, stockLevel: 3, photos: photo("a"), categories: ["Poetry"], publisher: "Moth Press" },
   { id: "b", title: "Sold Out", retailPrice: 10, trackInventory: true, stockLevel: 0, photos: photo("b") },
   { id: "c", title: "Backorder", retailPrice: 10, trackInventory: true, allowBackorder: true, stockLevel: 0, photos: photo("c") },
   { id: "d", title: "Sale", retailPrice: 30, isOnSale: true, salePrice: 20, saleStartsAt: "2026-10-01", saleEndsAt: "2026-12-31", photos: photo("d") },
@@ -68,7 +68,7 @@ describe("merchantFeedItems", () => {
     expect(byId.a).toMatchObject({
       title: "Salt Hours by Zoe Moss", creators: ["Zoe Moss"], description: "Poems & tides", link: `${SITE}/books/salt-hours`, image: "https://img.test/a.jpg",
       additionalImages: ["https://img.test/a-back.jpg"], price: "24.00 CAD", availability: "in_stock", gtin: "9780306406157",
-      brand: "Lyrical Press", productType: "Poetry", googleCategory: "Media > Books > Print Books", condition: "new",
+      brand: "Moth Press", productType: "Poetry", googleCategory: "Media > Books > Print Books", condition: "new",
     });
     expect(byId.m.googleCategory).toBe("Media > Books > E-books");
     expect(byId.b.availability).toBe("out_of_stock");

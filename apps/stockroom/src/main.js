@@ -1122,7 +1122,7 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { readShopProfile, switchOn } from './lib/shop-profile.js';
+import { fileStem, readShopProfile, switchOn } from './lib/shop-profile.js';
 
 
 // Tells the boot watchdog in index.html that the bundle and every import it
@@ -3707,7 +3707,7 @@ export let notifyUrl = localStorage.getItem('lm-notify-url') || '';
 // The Apps Script `scriptVersion` the client expects. Bump this (and the value
 // in apps-script/Code.gs) whenever Code.gs gains behaviour that needs a fresh
 // deploy — the connection card flags any older deployed version as outdated.
-export const EXPECTED_SCRIPT_VERSION = 'v58';
+export const EXPECTED_SCRIPT_VERSION = 'v59';
 // What the connected spreadsheet last told us it was running. Null until a
 // version check has actually answered — an unknown version is not a mismatch,
 // so the To-do list stays quiet rather than inventing a problem.
@@ -14261,7 +14261,7 @@ document.addEventListener('visibilitychange', () => {
 // ── DATA BACKUPS & PORTABILITY
 function backupFileName() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `lyrical-backup-${stamp}.json`;
+  return `${fileStem({ lower: true })}-backup-${stamp}.json`;
 }
 
 async function openBackupHandleDb() {
@@ -15070,7 +15070,7 @@ function exportAllToCSV() {
 
   if (rows.length === 1) { showToast('No records to export', 'warn'); return; }
 
-  downloadCsv(toCsv(rows), `lyrical-records-export-${today()}.csv`);
+  downloadCsv(toCsv(rows), `${fileStem({ lower: true })}-records-export-${today()}.csv`);
   showToast('✓ CSV Export downloaded');
 }
 
@@ -17391,7 +17391,7 @@ function toggleStripePaidNotify() {
 async function sendTestDeviceNotification() {
   const sent = await notifyDevice({
     title: 'Notifications are working',
-    body: 'This is how news from Lyrical Inventory will look on this device.',
+    body: 'This is how news from Stockroom will look on this device.',
     tag: 'lm-test',
     force: true,
   });
