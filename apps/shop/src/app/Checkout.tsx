@@ -1827,7 +1827,6 @@ export function Checkout() {
   // Pay button: the words on the left, the total on the right (order slip). Read aloud as one phrase.
   const payLabel = selectedPaymentMethod === "stripe" ? c("coPay") : selectedPaymentMethod === "paypal" ? c("coPayPal") : c("coPlaceOrder");
   const payTotal = showTotalOnPay ? formatPrice(finalTotal) : "";
-  const paymentLabel = payTotal ? `${payLabel} ${payTotal}` : payLabel;
   // The phone bar's words with the live total kept out of page translation (a translated number stops updating).
   const TOTAL_SLOT = "\u0000";
   const barWords = selectedPaymentMethod === "stripe" && payTotal ? c("coPayWithTotal", { total: TOTAL_SLOT }) : (payTotal ? `${payLabel} ${TOTAL_SLOT}` : payLabel);
@@ -2021,7 +2020,7 @@ export function Checkout() {
               payTabs={payTabs} hasStripe={hasStripe} hasPaypal={hasPaypal} isCompleting={isCompleting} selectedPaymentMethod={selectedPaymentMethod} setSelectedPaymentMethod={setSelectedPaymentMethod}
               enabledManualMethods={enabledManualMethods} hasCodeBoxes={hasCodeBoxes} codeBoxes={codeBoxes} holdIssues={holdIssues} notice={notice} noticeRef={noticeRef} catalogState={catalogState}
               termsRequired={termsRequired} termsAccepted={termsAccepted} setTermsAccepted={setTermsAccepted} termsError={termsError} policyLinks={policyLinks}
-              payDisabled={payDisabled} paymentLabel={paymentLabel} payLabel={payLabel} payTotal={payTotal} checkoutPolicies={checkoutPolicies}
+              payDisabled={payDisabled} payLabel={payLabel} payTotal={payTotal} checkoutPolicies={checkoutPolicies}
               stripeOption={hasStripe && (
               <StripePaymentSection
                 design={checkoutDesign}
