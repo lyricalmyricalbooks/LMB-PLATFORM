@@ -15,11 +15,19 @@
 //                 support (supportAccess.js; the shop copy shows a banner and treats it as staff until it ends).
 //   repairs       optional: the repair queue (repairs.js): open(shopId), list({ status }), markFixed(id, { by, note })
 //   selfCheck     optional: the self-checks (selfChecks.js): check(shopId, { why }), run after every change here
+//   shopData      optional: a shop's own database, get(shopId, path) / set(shopId, path, data) (clients/shop.js);
+//                 needed to close a shop (closure.js)
+//   envFiles, deploy, build, email, squareAccount   optional: the emergency payments switch (emergencyPayments.js);
+//                 without envFiles, deploy and email it refuses
+//   breaches      optional: the breach register (breaches.js createBreachRegister)
+//   people        optional: controlRoomPeople() (people.js): the privacy contact shown with the register
 //   newsletters   optional: the newsletter pause (services/email/reputation.js): resume(shopId, { by, reason })
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
 import { profileProblems, profileScript } from "../profile/profile.js";
+import { SETTINGS_DOC, isPaused, pausedSettings, restoredSettings } from "./closure.js";
+import { PAYMENT_ROUTES, emergencyPayments } from "./emergencyPayments.js";
 
 export const ACT_AS_MINUTES = 30;
 export const MIN_REASON = 10;
@@ -58,6 +66,8 @@ export function shopHealth({ row, profile, checks = [], repairs = [] }) {
   if (!last && row.testShop) watch.push("the test shop has never passed a release check");
   if (row.billing?.access === "paused") watch.push("the plan is paused until a card is added");
   if (row.billing?.access === "closed") watch.push("the plan has ended");
+  if (row.paymentsEmergency) watch.push(`card payments moved to ${row.paymentsEmergency.to === "own" ? "the press's own Stripe keys" : "Square"} by the emergency switch`);
+  if (row.closure) watch.push(`closed by the platform on ${String(row.closure.at).slice(0, 10)}: ${row.closure.reason}`);
   // Spending limits (services/health/spending.js): past its budget, a shop's costly jobs slow down or wait.
   if (row.spending?.level === "slow") watch.push("past its budget: photo copies, AI writing and imports run slowly");
   if (row.spending?.level === "held") watch.push("twice its budget: photo copies, AI writing and imports wait until next month");
@@ -89,7 +99,9 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
   };
 }
 
-export function createControlRoom({ registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, newsletters, admins, now = () => new Date() }) {
+export function createControlRoom({
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, admins, now = () => new Date(),
+}) {
   const at = () => now().toISOString();
 
   // Every control-room action is logged in the registry and, once the shop's database exists, in its own audit log.
@@ -100,6 +112,10 @@ export function createControlRoom({ registry, auditLog, profileFiles, publish, s
     if (await auditLog.ready(shopId)) await auditLog.write(shopId, entry.id, entry);
     return entry;
   }
+
+  const paymentsSwitch = envFiles && deploy && email
+    ? emergencyPayments({ registry, envFiles, profileFiles, deploy, build, publish, shopData, squareAccount, email, log, now })
+    : null;
 
   const reasonOf = (reason) => {
     const text = typeof reason === "string" ? reason.trim() : "";
@@ -163,6 +179,8 @@ export function createControlRoom({ registry, auditLog, profileFiles, publish, s
           health: shopHealth({ row, profile, checks, repairs: open }),
           switches: profile ? shopSwitches(profile.switches) : null,
           siteUrl: profile?.siteUrl ?? null,
+          closed: row.closure ? { by: row.closure.by, reason: row.closure.reason, at: row.closure.at } : null,
+          paymentsMoved: row.paymentsEmergency ? { to: row.paymentsEmergency.to, by: row.paymentsEmergency.by, at: row.paymentsEmergency.at } : null,
         });
       }
       const order = { problem: 0, watch: 1, ok: 2 };
@@ -207,6 +225,72 @@ export function createControlRoom({ registry, auditLog, profileFiles, publish, s
       if (!selfCheck) throw new ControlError(404, "The self-checks aren't set up.");
       await shopOr404(shopId);
       return selfCheck.check(shopId, { why: `asked by ${by}` });
+    },
+
+    /**
+     * "Close this shop" for abuse (plan 8.4): its checkout and pages close (closure.js), with a reason. Logged before
+     * anything changes. Closing a closed shop changes nothing.
+     */
+    async closeShop(claims, { shopId, reason } = {}) {
+      const by = adminOf(claims, admins);
+      const why = reasonOf(reason);
+      const row = await shopOr404(shopId);
+      if (row.closure) return { shopId, closed: true, changed: false, at: row.closure.at };
+      const hasPages = Boolean(PLANS[row.plan]?.shop);
+      if (hasPages && !shopData) throw new ControlError(503, "The control room can't reach the shop's settings, so nothing was closed.");
+      const settings = hasPages ? await shopData.get(shopId, SETTINGS_DOC) : null;
+      const closure = { by, reason: why, at: at(), pauseBefore: settings?.maintenance ?? null };
+      await log(shopId, "shop-closed", { by, reason: why });
+      // The registry first: from here the payment service refuses the shop, even before its pause page is on.
+      await registry.updateShop(shopId, { closure });
+      if (hasPages && !isPaused(settings)) await shopData.set(shopId, SETTINGS_DOC, pausedSettings(settings));
+      return { shopId, closed: true, changed: true, at: closure.at };
+    },
+
+    /** Opens a closed shop again: its pause goes back to what it was before, with a reason in the log. */
+    async reopenShop(claims, { shopId, reason } = {}) {
+      const by = adminOf(claims, admins);
+      const why = reasonOf(reason);
+      const row = await shopOr404(shopId);
+      if (!row.closure) return { shopId, closed: false, changed: false };
+      const hasPages = Boolean(PLANS[row.plan]?.shop);
+      if (hasPages && !shopData) throw new ControlError(503, "The control room can't reach the shop's settings, so nothing was opened.");
+      await log(shopId, "shop-reopened", { by, reason: why, closedBy: row.closure.by, closedAt: row.closure.at });
+      if (hasPages) await shopData.set(shopId, SETTINGS_DOC, restoredSettings(await shopData.get(shopId, SETTINGS_DOC), row.closure.pauseBefore));
+      await registry.updateShop(shopId, { closure: null, lastClosure: { ...row.closure, reopenedBy: by, reopenedAt: at(), reopenReason: why } });
+      return { shopId, closed: false, changed: true };
+    },
+
+    /**
+     * The emergency payments switch (plan 8.5): one shop, or every live shop (`all: true`), to the press's own Stripe
+     * keys ("own"), to Square ("square"), or back to the platform's Stripe ("platform"). Each press is emailed at once.
+     */
+    async movePayments(claims, { shopId, all, to, reason } = {}) {
+      const by = adminOf(claims, admins);
+      if (!PAYMENT_ROUTES.includes(to)) throw new ControlError(400, "Choose own keys, Square or back to the platform.");
+      const why = reasonOf(reason);
+      if (all !== true) await shopOr404(shopId);
+      if (!paymentsSwitch) throw new ControlError(503, "The emergency payments switch isn't set up here, so nothing was moved.");
+      return paymentsSwitch.move({ by, reason: why, to, shopId, all: all === true });
+    },
+
+    /** The breach register (plan 8.6): every entry, newest first, and who the privacy contact is. */
+    async breaches(claims) {
+      adminOf(claims, admins);
+      if (!breaches) return { breaches: [], privacyContact: people.privacyContact ?? null };
+      return { breaches: await breaches.list(), privacyContact: people.privacyContact ?? null };
+    },
+
+    async recordBreach(claims, details = {}) {
+      const by = adminOf(claims, admins);
+      if (!breaches) throw new ControlError(503, "The breach register isn't set up here, so nothing was written.");
+      return { breach: await breaches.record({ ...details, by }) };
+    },
+
+    async updateBreach(claims, { id, reportedToCommissioner, peopleTold, note } = {}) {
+      const by = adminOf(claims, admins);
+      if (!breaches) throw new ControlError(503, "The breach register isn't set up here, so nothing was written.");
+      return { breach: await breaches.update({ by, id, reportedToCommissioner, peopleTold, note }) };
     },
 
     /**

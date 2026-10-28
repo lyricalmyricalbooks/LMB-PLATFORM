@@ -3,19 +3,20 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { DRAFT, SECTIONS, SHUTDOWN_NOTICE_DAYS, TERMS_VERSION, acceptanceRecord, acceptedCurrent, currentTermsVersion } from "./terms.js";
+import { BACKUP_KEEP_DAYS, DRAFT, PRIVACY_CONTACT, SECTIONS, SHUTDOWN_NOTICE_DAYS, TERMS_VERSION, acceptanceRecord, acceptedCurrent, currentTermsVersion } from "./terms.js";
 import { renderTerms } from "./page.js";
+import { controlRoomPeople } from "../control-room/people.js";
 
 // Each version's words, fingerprinted. Changing the words without a new TERMS_VERSION fails here: add the new
 // version's line (never change an old one) so a stored acceptance always names the words the press saw.
-const FINGERPRINTS = { "2026-10-28-draft": "646ebc6599507d9f" };
+const FINGERPRINTS = { "2026-10-28-draft": "646ebc6599507d9f", "2026-10-28-draft.2": "55b1600cfb4bed2d" };
 
 const text = SECTIONS.flatMap((s) => [s.title, ...s.paragraphs]).join(" ");
 
 test("one version id, and the words can't change without a new one", () => {
-  assert.match(TERMS_VERSION, /^\d{4}-\d{2}-\d{2}(-draft)?$/);
+  assert.match(TERMS_VERSION, /^\d{4}-\d{2}-\d{2}(-draft(\.\d+)?)?$/);
   assert.equal(currentTermsVersion(), TERMS_VERSION);
-  assert.equal(DRAFT, TERMS_VERSION.endsWith("-draft"), "a draft version ends in -draft, a final one doesn't");
+  assert.equal(DRAFT, /-draft(\.\d+)?$/.test(TERMS_VERSION), "a draft version ends in -draft (or -draft.2 and on), a final one doesn't");
   const print = createHash("sha256").update(JSON.stringify(SECTIONS)).digest("hex").slice(0, 16);
   assert.equal(print, FINGERPRINTS[TERMS_VERSION], "the words changed: give them a new TERMS_VERSION and add its fingerprint");
 });
@@ -58,4 +59,13 @@ test("sign-up's record: the current version and when, and nothing else is accept
   assert.throws(() => acceptanceRecord(TERMS_VERSION, "not a date"), /real date/);
   assert.ok(!acceptedCurrent({ termsVersion: "2025-01-01", termsAcceptedAt: "2025-01-01T00:00:00Z" }));
   assert.ok(!acceptedCurrent(null));
+});
+
+test("the privacy policy names the privacy contact and says how long backups are kept (plan 8.6)", () => {
+  const privacy = SECTIONS.find((s) => s.id === "privacy").paragraphs.join(" ");
+  assert.equal(PRIVACY_CONTACT, controlRoomPeople({}).privacyContact, "the same placeholder as the control room's setting");
+  assert.ok(privacy.includes(`write to our privacy contact at ${PRIVACY_CONTACT}`));
+  assert.equal(BACKUP_KEEP_DAYS, 30);
+  assert.match(privacy, /Each backup is kept for 30 days, then deleted\. If your shop is deleted, its backups are kept 30 days more/);
+  assert.ok(renderTerms().includes(PRIVACY_CONTACT));
 });

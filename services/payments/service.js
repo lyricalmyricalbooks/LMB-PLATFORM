@@ -228,7 +228,8 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     const row = shopId ? await registry.getShop(shopId) : null;
     // One answer for "no such shop" and "wrong key", so the door can't be used to find shop ids.
     if (!row || !serviceKeyMatches(key, row.serviceKeyHash)) throw new ServiceError(401, "unknown_shop", "This shop can't use the platform's payments.");
-    if (row.status === "abandoned") throw new ServiceError(403, "shop_closed", "This shop is closed.");
+    // Abandoned, or closed by a platform admin for abuse (control room, plan 8.4): no payments either way.
+    if (row.status === "abandoned" || row.closure) throw new ServiceError(403, "shop_closed", "This shop is closed.");
     const payments = row.payments;
     if (payments?.provider === "square") return row;
     if (payments?.provider !== "stripe" || !ACCOUNT_ID.test(payments.accountId ?? "")) {
@@ -243,6 +244,19 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     if (mode !== "live" && mode !== "test") throw bad("mode must be live or test");
     if (mode === "live" && row.payments.mode !== "live") throw new ServiceError(403, "test_only", "This shop takes test payments only.");
     return mode;
+  }
+
+  // A new press takes real money only once Stripe has checked them (charges_enabled; plan 8.4, so a trial made for
+  // fraud can't sell before then). The registry keeps Stripe's answer from account.updated. Until it says yes, Stripe is
+  // asked again, so a missed event never keeps a checked press from selling.
+  async function liveChargesAllowed(row) {
+    if (row.payments.chargesEnabled === true) return;
+    const account = await stripe.call("live", "GET", `/v1/accounts/${row.payments.accountId}`);
+    if (account.charges_enabled !== true) {
+      throw new ServiceError(403, "not_checked", "Stripe is still checking this press's account, so it can't take real payments yet.");
+    }
+    await registry.updateShop(row.shopId, { payments: { ...row.payments, chargesEnabled: true, stateAt: iso() } });
+    await logChange(row.shopId, `payments-checked-${row.payments.accountId}`, { kind: "payments.charges-enabled", accountId: row.payments.accountId });
   }
 
   function createParams(where, params, fee) {
@@ -337,6 +351,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     const op = typeof name === "string" && Object.hasOwn(SHOP_OPS, name) ? SHOP_OPS[name] : null;
     if (!op) throw bad(`unknown call ${String(name).slice(0, 60)}`);
     const mode = modeFor(row, body.mode);
+    if (op.create && mode === "live") await liveChargesAllowed(row);
     const path = op.path(args);
     let params;
     if (op.create) params = createParams(op.create, args.params, fee);

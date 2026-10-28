@@ -6,6 +6,7 @@
 //   release       its rules, server code and pages are all on the release the registry says
 //   service-key   a shop with a shop app has its service key, matching the registry's hash
 //   plan          a shop whose plan ended is not still marked live
+//   closed        a shop the platform closed (plan 8.4) still has its pause page on      (fixes itself; needs shopData)
 //
 // A check only looks. A failing check with a safe fix (rewriting a file from the saved profile and publishing it, the
 // same thing a switch change does) is fixed once and checked again; anything else goes to the repair queue for a
@@ -16,14 +17,16 @@
 //
 // Clients passed in: registry (getShop, getProfile, saveProfile, listShops, recordEvent), profileFiles (read, write),
 // deploy (deployed), publish (controlRoom.js profilePublisher), repairs (repairs.js), google (secrets.latest; optional:
-// without it the service-key check only looks for the registry's hash).
+// without it the service-key check only looks for the registry's hash), shopData (get, set: the shop's own database;
+// optional: without it the closed check isn't run).
 import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
 import { hasServiceKey } from "../setup/serviceKey.js";
 import { profileProblems, profileScript } from "../profile/profile.js";
+import { closedShopCheck } from "./closure.js";
 
 const appsOf = (row) => Object.keys(PLANS[row.plan] ?? {}).filter((app) => PLANS[row.plan][app]);
 
-export function selfChecks({ registry, profileFiles, deploy, publish, google }) {
+export function selfChecks({ registry, profileFiles, deploy, publish, google, shopData }) {
   return [
     {
       name: "profile",
@@ -96,10 +99,11 @@ export function selfChecks({ registry, profileFiles, deploy, publish, google }) 
         return { ok: true };
       },
     },
+    ...(shopData ? [closedShopCheck({ shopData })] : []),
   ];
 }
 
-export function createSelfChecks({ registry, profileFiles, deploy, publish, repairs, google, checks = selfChecks({ registry, profileFiles, deploy, publish, google }), now = () => new Date() }) {
+export function createSelfChecks({ registry, profileFiles, deploy, publish, repairs, google, shopData, checks = selfChecks({ registry, profileFiles, deploy, publish, google, shopData }), now = () => new Date() }) {
   async function check(shopId, { why = "check" } = {}) {
     const row = await registry.getShop(shopId);
     if (!row) return { shopId, ok: false, skipped: "no such shop", results: [] };

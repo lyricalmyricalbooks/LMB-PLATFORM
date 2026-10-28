@@ -42,6 +42,19 @@ const SWITCH_WORDS = {
 
 async function load() {
   status.textContent = "Loading…";
+  // The backup person (plan 8.7) sees only the run book; a platform admin sees it below everything else.
+  let role = null;
+  try {
+    role = (await loadEmergency()).role;
+  } catch {
+    // Neither an admin nor the backup person: the shops call below says so.
+  }
+  if (role === "backup") {
+    status.textContent = "";
+    $("#view-signin").hidden = true;
+    $("#view-shops").hidden = true;
+    return;
+  }
   try {
     const { shops } = await api("GET", "/control/shops");
     const problems = shops.filter((s) => s.health.level === "problem").length;
@@ -53,6 +66,7 @@ async function load() {
     await loadRepairs();
     await loadTickets();
     await loadRecoveries();
+    await loadBreaches();
   } catch (failure) {
     status.textContent = failure.message;
   }
@@ -92,6 +106,26 @@ function card(shop) {
     check.disabled = false;
   });
 
+  // Close for abuse (plan 8.4): checkout and pages close; the shop's pause page shows instead. Reversible.
+  const closing = el("button", { type: "button", textContent: shop.closed ? "Open this shop again" : "Close this shop" });
+  closing.addEventListener("click", async () => {
+    const reason = askWhy(shop.closed
+      ? `Open ${shop.pressName}'s checkout and pages again.`
+      : `Close ${shop.pressName}'s checkout and pages for abuse. Shoppers see the shop's pause page until you open it again.`);
+    if (!reason) return;
+    closing.disabled = true;
+    try {
+      await api("POST", shop.closed ? "/control/reopen" : "/control/close", { shopId: shop.shopId, reason });
+      await load();
+      status.textContent = `${shop.pressName} is ${shop.closed ? "open again" : "closed"}. It's in the shop's log.`;
+    } catch (failure) {
+      status.textContent = failure.message;
+      closing.disabled = false;
+    }
+  });
+
+  const moveCards = paymentsMenu(shop.paymentsMoved?.to ?? "platform", { shopId: shop.shopId }, shop.pressName);
+
   const switches = shop.switches
     ? el("div", { className: "row" }, ...Object.entries(shop.switches).map(([name, on]) => {
       const box = el("input", { type: "checkbox", checked: on });
@@ -113,17 +147,48 @@ function card(shop) {
     : null;
 
   return el("div", { className: `card ${shop.health.level}` },
-    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), act, check),
+    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), act, check, closing),
     el("div", { className: "facts" },
       el("span", { textContent: shop.shopId }),
       el("span", { textContent: `plan: ${shop.plan ?? "?"}` }),
       el("span", { textContent: `version: ${shop.version ?? "none yet"}` }),
       el("span", { textContent: `status: ${shop.status ?? "?"}` }),
       shop.access ? el("span", { textContent: `billing: ${shop.access}` }) : null,
-      shop.testShop ? el("span", { textContent: "test shop" }) : null),
+      shop.testShop ? el("span", { textContent: "test shop" }) : null,
+      shop.closed ? el("span", { textContent: `closed by ${shop.closed.by}` }) : null,
+      shop.paymentsMoved ? el("span", { textContent: `cards: ${PAYMENT_WORDS[shop.paymentsMoved.to]}` }) : null),
     shop.health.reasons.length ? el("ul", {}, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
-    switches);
+    switches,
+    shop.status === "live" ? moveCards : null);
 }
+
+// ── The emergency payments switch (plan 8.5): if the platform's Stripe is paused, move a shop, or every shop. ──
+const PAYMENT_WORDS = { platform: "through the platform (normal)", own: "the press's own Stripe keys", square: "Square" };
+
+function paymentsMenu(current, target, name) {
+  const choice = el("select", {}, ...Object.entries(PAYMENT_WORDS).map(([value, words]) => el("option", { value, textContent: words, selected: value === current })));
+  choice.setAttribute("aria-label", `Card payments for ${name}`);
+  const move = el("button", { type: "button", textContent: "Move card payments" });
+  move.addEventListener("click", async () => {
+    const to = choice.value;
+    const reason = askWhy(`Move card payments for ${name} to ${PAYMENT_WORDS[to]}. The press is emailed at once, and the shop's server and pages are deployed again.`);
+    if (!reason) return;
+    move.disabled = true;
+    try {
+      const { shops } = await api("POST", "/control/payments", { ...target, to, reason });
+      await load();
+      const failed = shops.filter((s) => s.error);
+      const moved = shops.filter((s) => !s.error && !s.skipped).length;
+      status.textContent = `${moved} shop${moved === 1 ? "" : "s"} on ${PAYMENT_WORDS[to]}.${failed.length ? ` Not moved: ${failed.map((s) => `${s.shopId} (${s.error})`).join("; ")}` : ""}`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    move.disabled = false;
+  });
+  return el("div", { className: "row" }, el("label", { className: "switch" }, "Card payments", choice), move);
+}
+
+$("#all-payments").append(paymentsMenu("platform", { all: true }, "every live shop"));
 
 // ── The repair queue (control-room/repairs.js): mark an item fixed once a person has dealt with it. ──
 let repairStatus = "open";
@@ -312,9 +377,126 @@ function recoveryCard(request) {
     actions.childElementCount ? actions : null);
 }
 
+// ── The breach register (control-room/breaches.js, plan 8.6): written down, marked reported or told, never deleted. ──
+async function loadBreaches() {
+  try {
+    const { breaches, privacyContact } = await api("POST", "/control/breaches");
+    $("#privacy-contact").textContent = privacyContact ? `Privacy contact: ${privacyContact}.` : "";
+    $("#breaches").replaceChildren(...(breaches.length ? breaches.map(breachCard) : [el("p", { textContent: "Nothing in the register." })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+$("#breach-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const value = (name) => form.elements.namedItem(name);
+  try {
+    await api("POST", "/control/breaches/record", {
+      foundOn: value("foundOn").value, what: value("what").value, people: value("people").value,
+      shops: value("shops").value.split(",").map((id) => id.trim()).filter(Boolean),
+      reportedToCommissioner: value("reportedToCommissioner").checked, peopleTold: value("peopleTold").checked,
+    });
+    form.reset();
+    status.textContent = "Written in the breach register.";
+    await loadBreaches();
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+});
+
+function breachCard(entry) {
+  const when = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const mark = (label, field) => {
+    const button = el("button", { type: "button", textContent: label });
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await api("POST", "/control/breaches/update", { id: entry.id, [field]: true });
+        await loadBreaches();
+      } catch (failure) {
+        status.textContent = failure.message;
+        button.disabled = false;
+      }
+    });
+    return button;
+  };
+  const actions = el("div", { className: "row" },
+    entry.reportedToCommissioner ? null : mark("Mark reported to the Commissioner", "reportedToCommissioner"),
+    entry.peopleTold ? null : mark("Mark people told", "peopleTold"));
+  return el("div", { className: `card ${entry.reportedToCommissioner && entry.peopleTold ? "ok" : "watch"}` },
+    el("div", { className: "row" }, el("strong", { textContent: `Found ${entry.foundOn}` }), el("span", { className: "pill", textContent: entry.id })),
+    el("div", { className: "message", textContent: entry.what }),
+    el("div", { className: "facts" },
+      el("span", { textContent: `people: ${entry.people}` }),
+      el("span", { textContent: `shops: ${entry.shops.join(", ") || "none"}` }),
+      el("span", { textContent: entry.reportedToCommissioner ? `reported ${when(entry.reportedAt)}` : "not reported to the Commissioner" }),
+      el("span", { textContent: entry.peopleTold ? `people told ${when(entry.toldAt)}` : "people not told" }),
+      el("span", { textContent: `kept until at least ${entry.keepUntil}` })),
+    ...entry.history.map((h) => el("div", { className: "facts", textContent: `${when(h.at)} · ${h.what} · ${h.by}${h.note ? ` · ${h.note}` : ""}` })),
+    actions.childElementCount ? actions : null);
+}
+
+// ── The run book (control-room/backupPerson.js, plan 8.7): pause releases, roll back a shop, a status note. ──
+async function loadEmergency() {
+  const state = await api("GET", "/control/emergency");
+  const run = (label, path, body, done) => {
+    const button = el("button", { type: "button", textContent: label });
+    button.addEventListener("click", async () => {
+      const extra = body();
+      if (!extra) return;
+      button.disabled = true;
+      try {
+        await api("POST", path, extra);
+        status.textContent = done;
+        await loadEmergency();
+      } catch (failure) {
+        status.textContent = failure.message;
+        button.disabled = false;
+      }
+    });
+    return button;
+  };
+  const reason = (what) => {
+    const why = (window.prompt(`${what}\n\nWhy? Julian is told (at least 10 characters).`) ?? "").trim();
+    return why ? { reason: why } : null;
+  };
+  const sealed = state.role === "backup" && !state.seal;
+  const parts = [];
+  if (state.role === "backup") {
+    parts.push(el("p", { className: "hint", textContent: state.seal ? `Open until ${new Date(state.seal.until).toLocaleString()}. Every use is emailed to Julian.` : "Shut. Open it only in an emergency." }));
+    if (sealed) parts.push(el("div", { className: "row" }, run("Open the emergency access", "/control/emergency/open", () => reason("Open the emergency access for 12 hours."), "Open. Julian has been emailed.")));
+  }
+  if (!sealed) {
+    parts.push(el("div", { className: "row" },
+      el("strong", { textContent: state.releasesPaused ? `Releases paused by ${state.releasesPaused.by}: ${state.releasesPaused.reason}` : "Releases are running normally." }),
+      state.releasesPaused
+        ? run("Resume releases", "/control/emergency/resume-releases", () => reason("Let releases go out again."), "Releases can go out again.")
+        : run("Pause releases", "/control/emergency/pause-releases", () => reason("Stop every release; one already running stops before its next shop."), "Releases are paused.")));
+    const shopId = el("input", { placeholder: "shop id" });
+    shopId.setAttribute("aria-label", "Shop to roll back");
+    const version = el("input", { placeholder: "release, like 1.4.0" });
+    version.setAttribute("aria-label", "Release to go back to");
+    parts.push(el("div", { className: "row" }, shopId, version,
+      run("Roll this shop back", "/control/emergency/roll-back", () => {
+        const why = reason(`Put ${shopId.value} back on release ${version.value}.`);
+        return why ? { ...why, shopId: shopId.value.trim(), version: version.value.trim() } : null;
+      }, "Rolled back. It's in the shop's history.")));
+    const note = el("textarea", { maxLength: 500, value: state.statusNote?.text ?? "" });
+    note.setAttribute("aria-label", "Note on the status page");
+    parts.push(note, el("div", { className: "row" },
+      run("Post on the status page", "/control/emergency/status-note", () => ({ text: note.value }), "The status page shows the note."),
+      run("Take the note down", "/control/emergency/status-note", () => ({ text: "" }), "The note is down.")));
+  }
+  $("#emergency").replaceChildren(...parts);
+  $("#view-emergency").hidden = false;
+  return state;
+}
+
 $("#google").addEventListener("click", () => signInWithPopup(auth, new GoogleAuthProvider()).catch(() => { status.textContent = "Sign-in didn't finish."; }));
 $("#refresh").addEventListener("click", load);
 onAuthStateChanged(auth, (user) => {
   if (user) load();
-  else { $("#view-signin").hidden = false; $("#view-shops").hidden = true; }
+  else { $("#view-signin").hidden = false; $("#view-shops").hidden = true; $("#view-emergency").hidden = true; }
 });

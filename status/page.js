@@ -36,5 +36,9 @@ export function renderStatus(summary, { now = () => new Date(), error = null, lo
     ? `<p class="checked">Last checked ${escape(new Date(words.checkedAt).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }))}</p>`
     : "";
   const rows = words.parts.map((part) => `<li class="part state-${part.state}"><span>${escape(part.name)}</span><strong>${escape(part.words)}</strong></li>`).join("");
-  return `<p class="headline tone-${words.tone}">${escape(words.headline)}</p>${rows ? `<ul class="parts">${rows}</ul>` : ""}${when}`;
+  // The team's own note about a known problem, when there is one, above what the checks see.
+  const note = summary?.note?.text
+    ? `<p class="note" role="note">${escape(summary.note.text)}${summary.note.at ? ` <span class="checked">(${escape(new Date(summary.note.at).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }))})</span>` : ""}</p>`
+    : "";
+  return `${note}<p class="headline tone-${words.tone}">${escape(words.headline)}</p>${rows ? `<ul class="parts">${rows}</ul>` : ""}${when}`;
 }

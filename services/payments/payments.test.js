@@ -29,7 +29,7 @@ const ENV = {
 function shopRow(fields = {}) {
   return {
     shopId: SHOP, projectId: SHOP, pressName: "Moth Press", ownerEmail: "owner@example.com", region: "northamerica-northeast1",
-    status: "live", serviceKeyHash: hashServiceKey(KEY), payments: { provider: "stripe", accountId: "acct_moth", mode: "live" }, ...fields,
+    status: "live", serviceKeyHash: hashServiceKey(KEY), payments: { provider: "stripe", accountId: "acct_moth", mode: "live", chargesEnabled: true }, ...fields,
   };
 }
 
@@ -132,12 +132,34 @@ test("only a shop with its own service key gets in, with one answer for every re
 });
 
 test("a closed shop, one without a Stripe account, or a Square shop without the platform's Square app, is refused before Stripe is asked", async () => {
-  for (const [row, status, code] of [[shopRow({ status: "abandoned" }), 403, "shop_closed"], [shopRow({ payments: undefined }), 409, "no_account"], [shopRow({ payments: { provider: "square", accountId: "L1" } }), 503, "square_not_ready"]]) {
+  const closure = { by: "admin@example.com", reason: "sold stolen cards", at: "2026-10-28T12:00:00Z" };
+  for (const [row, status, code] of [[shopRow({ status: "abandoned" }), 403, "shop_closed"], [shopRow({ closure }), 403, "shop_closed"], [shopRow({ payments: undefined }), 409, "no_account"], [shopRow({ payments: { provider: "square", accountId: "L1" } }), 503, "square_not_ready"]]) {
     const { call, stripe } = await world({ row });
     const answer = await call("paymentIntents.create", intentArgs());
     assert.deepEqual([answer.status, answer.body.error.code], [status, code]);
     assert.equal(stripe.requests.length, 0);
   }
+});
+
+test("a new press takes no real money until Stripe has checked them; test payments and lookups still work", async () => {
+  const fresh = { provider: "stripe", accountId: "acct_moth", mode: "live" };
+  const { call, stripe, registry } = await world({ row: shopRow({ payments: fresh }) });
+  stripe.world.accounts.set("acct_moth", { id: "acct_moth", charges_enabled: false, payouts_enabled: false, details_submitted: true });
+  for (const op of ["paymentIntents.create", "checkout.sessions.create"]) {
+    const answer = await call(op, op === "paymentIntents.create" ? intentArgs() : { params: { mode: "payment" }, idempotencyKey: "order1-session" });
+    assert.deepEqual([answer.status, answer.body.error.code], [403, "not_checked"], op);
+  }
+  assert.ok(!stripe.requests.some((r) => r.method === "POST"), "nothing was created at Stripe");
+  assert.equal((await call("paymentIntents.create", intentArgs(), "test")).status, 200, "a test payment needs no check");
+
+  // Stripe says yes (here without the account.updated event ever arriving): the next payment goes through, and the
+  // answer is kept so Stripe isn't asked again.
+  stripe.world.accounts.get("acct_moth").charges_enabled = true;
+  assert.equal((await call("paymentIntents.create", intentArgs())).status, 200);
+  assert.equal((await registry.getShop(SHOP)).payments.chargesEnabled, true);
+  const asked = stripe.requests.filter((r) => r.method === "GET").length;
+  assert.equal((await call("paymentIntents.create", intentArgs({ metadata: { order_id: "order2" } }))).status, 200);
+  assert.equal(stripe.requests.filter((r) => r.method === "GET").length, asked);
 });
 
 // ── Shop calls: checkout ──────────────────────────────────────────────────────────────────────────────────────────

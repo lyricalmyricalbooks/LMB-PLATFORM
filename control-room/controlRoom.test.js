@@ -7,7 +7,17 @@ import assert from "node:assert/strict";
 import { ACT_AS_MINUTES, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
-import { fakeRepairQueue, fakeShopAccess } from "./fakes.js";
+import { fakeBreachStore, fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
+import { createBreachRegister, keepUntil } from "./breaches.js";
+import { controlRoomPeople } from "./people.js";
+import { createRepairQueue } from "./repairs.js";
+import { createSelfChecks } from "./selfChecks.js";
+import { createPaymentService } from "../services/payments/service.js";
+import { hashServiceKey } from "../services/email/http.js";
+import { envPayments } from "./emergencyPayments.js";
+import { readShopConfig } from "../apps/shop/functions/shopConfig.js";
+import { TEMPLATES } from "../services/email/templates.js";
+import { DEFAULT_SETTINGS } from "../services/settings.js";
 import { MAX_MINUTES, SUPPORT_UID, supportAccess } from "./supportAccess.js";
 import { createApi } from "../signup/api.js";
 import { fakeVerifyIdToken } from "../signup/fakes.js";
@@ -20,8 +30,15 @@ import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices 
 import { TEST_CONFIG, TEST_SHOP } from "../setup/test-shop.js";
 
 const ID = TEST_SHOP.shopId;
+const envOf = (text) => Object.fromEntries(text.split("\n").filter(Boolean).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1).replace(/^"|"$/g, "")]));
 const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true };
 const PRESS = { uid: "uid-owner", email: "owner@example.com", email_verified: true };
+
+/** A pretend platform email service: what would be sent, by idempotency key (the real one sends each key once). */
+function fakeEmail() {
+  const sent = new Map();
+  return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
+}
 
 async function world({ repairs, newsletters } = {}) {
   const google = fakeGoogle();
@@ -34,17 +51,24 @@ async function world({ repairs, newsletters } = {}) {
   await registry.updateShop(ID, { release: { version: "0.0.0-test", at: "2026-10-28T00:00:00Z", runId: "r1" } });
   await registry.createShop("press-two", { shopId: "press-two", pressName: "Another Press", plan: "shop", status: "creating", ownerEmail: "two@example.com" });
   const shopAccess = fakeShopAccess();
+  const email = fakeEmail();
+  const square = new Set();
+  const breachStore = fakeBreachStore();
   const built = [];
   const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
-    registry, auditLog, profileFiles, publish, shopAccess, repairs, newsletters, admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
+    registry, auditLog, profileFiles, publish, shopAccess, repairs, newsletters, shopData: services.shopData,
+    envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
+    breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
+    people: controlRoomPeople({}),
+    admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: controlRoutes(room) });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const events = (shopId = ID) => [...(registry.events.get(shopId)?.values() ?? [])].filter((e) => e.source === "control-room");
-  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built };
+  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square, breachStore };
 }
 
 test("only platform admins get in; nobody is an admin unless the list says so", async () => {
@@ -186,6 +210,171 @@ test("the real support sign-in: a token for the support account with who, why an
   // Never longer than the sign-in token itself lasts.
   assert.equal((await access.supportSignIn(ID, { by: ADMIN.email, reason: "long one", minutes: 600 })).until, now().getTime() / 1000 + MAX_MINUTES * 60);
   await assert.rejects(supportAccess({ identity, registry: w.registry }).supportSignIn(ID, { by: ADMIN.email, reason: "r" }), /service account/);
+});
+
+test("close a shop for abuse: admins only, a reason, logged first, checkout and pages closed; opening it again puts things back", async () => {
+  const w = await world();
+  const settingsKey = `${ID} settings/website`;
+  w.services.world.docs.set(settingsKey, { shopName: "Test Press", maintenance: { enabled: false, message: "Back after the fair" } });
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/close", { shopId: ID, reason: "selling stolen card numbers" })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/close", { shopId: ID, reason: "spam" })).status, 400);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/close", { shopId: "no-such-shop", reason: "selling stolen card numbers" })).status, 404);
+  assert.equal(w.events().length, 0);
+
+  const closed = await w.ask(ADMIN, "POST", "/api/control/close", { shopId: ID, reason: "selling stolen card numbers" });
+  assert.equal(closed.status, 200);
+  assert.equal(closed.body.changed, true);
+  // The shop's own pause: its server closes checkout and its pages show the press's pause words.
+  assert.deepEqual(w.services.world.docs.get(settingsKey), { shopName: "Test Press", maintenance: { enabled: true, message: "Back after the fair" } });
+  const row = await w.registry.getShop(ID);
+  assert.deepEqual([row.closure.by, row.closure.reason], [ADMIN.email, "selling stolen card numbers"]);
+  const [entry] = w.events();
+  assert.deepEqual([entry.what, entry.by, entry.reason], ["shop-closed", ADMIN.email, "selling stolen card numbers"]);
+  assert.ok(w.auditLog.entries.get(ID).has(entry.id), "in the shop's own audit log too");
+  const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
+  assert.equal(listed.closed.reason, "selling stolen card numbers");
+  assert.match(listed.health.reasons.join(" "), /closed by the platform on 2026-10-28: selling stolen card numbers/);
+
+  // The platform's payment service refuses the shop while it is closed, whatever its own settings say.
+  const key = "shop-service-key-test-shop-0123456789abcdef";
+  await w.registry.updateShop(ID, { serviceKeyHash: hashServiceKey(key), payments: { provider: "stripe", accountId: "acct_test", mode: "test" } });
+  const payments = createPaymentService({ stripe: { call: async () => assert.fail("Stripe was asked") }, registry: w.registry, auditLog: w.auditLog, accounts: {}, deliver: async () => ({ status: 200 }), config: { webhookSecrets: { live: [], test: [] }, fee: { basisPoints: 0, refunded: true } } });
+  const refused = await payments.shopCall({ headers: { "X-Shop-Id": ID, Authorization: `Bearer ${key}` }, body: { op: "paymentIntents.create", mode: "test", args: {} } });
+  assert.deepEqual([refused.status, refused.body.error.code], [403, "shop_closed"]);
+
+  // Closing twice changes nothing.
+  assert.equal((await w.room.closeShop(ADMIN, { shopId: ID, reason: "selling stolen card numbers again" })).changed, false);
+
+  // A press who turns the pause off finds it back on after the next self-check.
+  const checks = createSelfChecks({ registry: w.registry, profileFiles: w.profileFiles, deploy: w.services.deploy, publish: async () => ({ apps: [] }), repairs: createRepairQueue({ store: fakeRepairStore(), registry: w.registry, auditLog: w.auditLog }), shopData: w.services.shopData });
+  w.services.world.docs.set(settingsKey, { shopName: "Test Press", maintenance: { enabled: false, message: "" } });
+  const result = await checks.check(ID);
+  assert.deepEqual(result.results.find((r) => r.check === "closed"), { check: "closed", ok: true, fixed: "turned the shop's pause page on again" });
+  assert.equal(w.services.world.docs.get(settingsKey).maintenance.enabled, true);
+
+  // Opening again: the pause goes back to how the press had it, and the payment service lets the shop in.
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/reopen", { shopId: ID, reason: "x" })).status, 400);
+  w.services.world.docs.set(settingsKey, { shopName: "Test Press", maintenance: { enabled: true, message: "" } });
+  const opened = await w.ask(ADMIN, "POST", "/api/control/reopen", { shopId: ID, reason: "the press proved the cards were theirs" });
+  assert.equal(opened.status, 200);
+  assert.deepEqual(w.services.world.docs.get(settingsKey), { shopName: "Test Press", maintenance: { enabled: false, message: "Back after the fair" } });
+  const after = await w.registry.getShop(ID);
+  assert.equal(after.closure, null);
+  assert.deepEqual([after.lastClosure.reopenedBy, after.lastClosure.reopenReason], [ADMIN.email, "the press proved the cards were theirs"]);
+  assert.deepEqual(w.events().map((e) => e.what), ["shop-closed", "shop-reopened"]);
+  const allowed = await payments.shopCall({ headers: { "X-Shop-Id": ID, Authorization: `Bearer ${key}` }, body: { op: "account.status", mode: "test", args: {} } }).catch((e) => e);
+  assert.notEqual(allowed.body?.error?.code, "shop_closed");
+});
+
+test("emergency payments: a shop moves to the press's own Stripe keys and back, deployed again, the press emailed each time", async () => {
+  const w = await world();
+  const ask = (body) => w.ask(ADMIN, "POST", "/api/control/payments", { shopId: ID, reason: "the platform's Stripe account is paused", ...body });
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/payments", { shopId: ID, to: "own", reason: "the platform's Stripe account is paused" })).status, 403);
+  assert.equal((await ask({ to: "paypal" })).status, 400);
+  assert.equal((await ask({ to: "own", reason: "" })).status, 400);
+  assert.equal((await ask({ to: "own", shopId: "no-such-shop" })).status, 404);
+  assert.equal((await ask({ to: "platform" })).body.shops[0].skipped, "already on the platform's payments", "off unless used");
+
+  const envBefore = await w.services.envFiles.read(ID);
+  const profileBefore = await w.registry.getProfile(ID);
+  const paymentsBefore = (await w.registry.getShop(ID)).payments;
+  const owner = (await w.registry.getShop(ID)).ownerEmail;
+  const deploysBefore = w.services.calls.length;
+
+  const moved = await ask({ to: "own" });
+  assert.equal(moved.status, 200);
+  assert.deepEqual(moved.body.shops.map((s) => [s.shopId, s.changed, s.ready, s.server, s.pages]), [[ID, true, false, true, ["shop", "stockroom"]]]);
+  // The shop's own-key path: its server reads the new settings as the press's own Stripe keys.
+  const envNow = await w.services.envFiles.read(ID);
+  assert.deepEqual(envPayments(envNow), { provider: "stripe", mode: "own" });
+  assert.deepEqual([readShopConfig({ ...envOf(envNow), GCLOUD_PROJECT: ID }).paymentMode, readShopConfig({ ...envOf(envNow), GCLOUD_PROJECT: ID }).paymentProvider], ["own", "stripe"]);
+  assert.equal(envNow.split("\n").length, envBefore.split("\n").length, "every other setting is kept");
+  const calls = w.services.calls.slice(deploysBefore).map(([name, , version]) => [name, version]);
+  assert.deepEqual(calls, [["envFiles.write", undefined], ["deploy.functions", "0.0.0-test"], ["deploy.pages", "0.0.0-test"], ["deploy.pages", "0.0.0-test"]], "server code and pages go out again at their own release");
+  assert.deepEqual((await w.registry.getProfile(ID)).payments, { provider: "stripe", mode: "own" });
+  const row = await w.registry.getShop(ID);
+  assert.deepEqual([row.paymentsEmergency.to, row.paymentsEmergency.by], ["own", ADMIN.email]);
+  assert.deepEqual(row.payments, paymentsBefore, "the platform account is kept for the way back");
+  const [first] = w.email.sent.values();
+  assert.deepEqual([first.kind, first.to, first.data.to, first.data.ready], ["payments-moved", owner, "own", false]);
+  assert.match(TEMPLATES[first.kind](first.data, { settings: DEFAULT_SETTINGS, pressName: first.data.pressName }).text, /add your own Stripe keys\. Until you do, shoppers can't pay by card/);
+  const [entry] = w.events();
+  assert.deepEqual([entry.what, entry.from, entry.to, entry.by], ["payments-moved", "platform", "own", ADMIN.email]);
+  assert.ok(w.auditLog.entries.get(ID).has(entry.id));
+  const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
+  assert.equal(listed.paymentsMoved.to, "own");
+
+  // Running it again changes nothing and emails nobody twice.
+  const again = await ask({ to: "own" });
+  assert.deepEqual([again.body.shops[0].changed, again.body.shops[0].server, again.body.shops[0].pages], [false, false, []]);
+  assert.equal(w.email.sent.size, 1);
+
+  // Back: everything as it was, and the press is told.
+  const back = await ask({ to: "platform", reason: "the platform's Stripe account works again" });
+  assert.equal(back.body.shops[0].changed, true);
+  assert.equal(await w.services.envFiles.read(ID), envBefore);
+  assert.deepEqual(await w.registry.getProfile(ID), profileBefore);
+  const after = await w.registry.getShop(ID);
+  assert.deepEqual([after.paymentsEmergency, after.payments, after.lastPaymentsEmergency.to], [null, paymentsBefore, "own"]);
+  assert.deepEqual([...w.email.sent.values()].map((m) => m.data.to), ["own", "platform"]);
+});
+
+test("emergency payments: every live shop to Square at once; refused when the switch isn't set up", async () => {
+  const w = await world();
+  w.square.add(ID);
+  const answer = await w.ask(ADMIN, "POST", "/api/control/payments", { all: true, to: "square", reason: "the platform's Stripe account is paused" });
+  assert.equal(answer.status, 200);
+  assert.deepEqual(answer.body.shops.map((s) => [s.shopId, s.changed, s.ready]), [[ID, true, true]], "only live shops; press-two is still being made");
+  const envNow = await w.services.envFiles.read(ID);
+  assert.equal(readShopConfig({ ...envOf(envNow), GCLOUD_PROJECT: ID }).paymentProvider, "square");
+  assert.deepEqual((await w.registry.getProfile(ID)).payments, { provider: "square", mode: "platform" });
+  assert.equal((await w.registry.getShop(ID)).payments.provider, "square", "the payment service routes the shop to Square");
+  assert.match(TEMPLATES["payments-moved"]({ to: "square", ready: true }, { settings: DEFAULT_SETTINGS, pressName: "Test Press" }).text, /Square account is connected/);
+
+  const bare = createControlRoom({ registry: w.registry, auditLog: w.auditLog, profileFiles: w.profileFiles, publish: async () => ({ apps: [] }), admins: [ADMIN.email] });
+  await assert.rejects(bare.movePayments(ADMIN, { shopId: ID, to: "own", reason: "the platform's Stripe account is paused" }), { status: 503 });
+});
+
+test("the breach register: admins only, every field required, kept two years with no way to delete, the shops' logs told", async () => {
+  const w = await world();
+  const good = { foundOn: "2026-10-27", what: "A support visit showed one press's order list to another press by mistake.", shops: [ID], people: "about 12 shoppers of the test press", reportedToCommissioner: false, peopleTold: false };
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/breaches")).status, 403);
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/breaches/record", good)).status, 403);
+  for (const wrong of [{ foundOn: "27/10/2026" }, { foundOn: "2026-10-29" }, { what: " " }, { people: "" }, { peopleTold: "no" }, { shops: ["no-such-shop"] }]) {
+    assert.equal((await w.ask(ADMIN, "POST", "/api/control/breaches/record", { ...good, ...wrong })).status, 400, JSON.stringify(wrong));
+  }
+  assert.equal(w.breachStore.rows.size, 0);
+
+  const recorded = await w.ask(ADMIN, "POST", "/api/control/breaches/record", good);
+  assert.equal(recorded.status, 200);
+  const entry = recorded.body.breach;
+  assert.deepEqual([entry.foundOn, entry.shops, entry.reportedToCommissioner, entry.peopleTold, entry.recordedBy, entry.keepUntil], ["2026-10-27", [ID], false, false, ADMIN.email, "2028-10-27"]);
+  const [logged] = w.events();
+  assert.deepEqual([logged.what, logged.breachId, logged.by], ["breach-recorded", entry.id, ADMIN.email]);
+  assert.equal(logged.people, undefined, "the shop's log names the entry, not its details");
+  assert.ok(w.auditLog.entries.get(ID).has(logged.id));
+
+  const updated = await w.ask(ADMIN, "POST", "/api/control/breaches/update", { id: entry.id, reportedToCommissioner: true, note: "Filed online, reference 123." });
+  assert.equal(updated.body.breach.reportedToCommissioner, true);
+  assert.deepEqual(updated.body.breach.history.map((h) => h.what), ["recorded", "reported to the Privacy Commissioner"]);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/breaches/update", { id: entry.id })).status, 400, "nothing to add");
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/breaches/update", { id: "nope", peopleTold: true })).status, 404);
+  // A mark can't be taken back.
+  await w.ask(ADMIN, "POST", "/api/control/breaches/update", { id: entry.id, reportedToCommissioner: false, note: "checking" });
+  assert.equal(w.breachStore.rows.get(entry.id).reportedToCommissioner, true);
+
+  const list = await w.ask(ADMIN, "POST", "/api/control/breaches");
+  assert.deepEqual([list.body.breaches.length, list.body.privacyContact], [1, "privacy@platform.example"]);
+  assert.ok(!Object.keys(controlRoutes(w.room)).some((route) => /delete|remove/.test(route)), "no route deletes an entry");
+  assert.equal(keepUntil("2028-02-29"), "2030-03-01");
+});
+
+test("the control room's people: a placeholder privacy contact, and nobody as admin address or backup person until set", () => {
+  assert.deepEqual(controlRoomPeople({}), { privacyContact: "privacy@platform.example", adminEmail: null, backupPerson: null });
+  assert.deepEqual(controlRoomPeople({ PLATFORM_DOMAIN: "colophon.example", PLATFORM_ADMIN_EMAIL: " Owner@Example.com ", PLATFORM_BACKUP_PERSON: "backup@example.com" }), {
+    privacyContact: "privacy@colophon.example", adminEmail: "owner@example.com", backupPerson: "backup@example.com",
+  });
+  assert.throws(() => controlRoomPeople({ PLATFORM_BACKUP_PERSON: "someone" }), /PLATFORM_BACKUP_PERSON is not an email address/);
 });
 
 test("a paused newsletter is turned back on by a platform admin only, with a reason, and logged", async () => {

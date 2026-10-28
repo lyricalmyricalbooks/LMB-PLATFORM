@@ -8,13 +8,22 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-10-28-draft";
+export const TERMS_VERSION = "2026-10-28-draft.2";
 
 /** True until a lawyer has read the words. The page shows the draft notice while it is. */
 export const DRAFT = true;
 
 /** The version a new sign-up accepts. */
 export const currentTermsVersion = () => TERMS_VERSION;
+
+/**
+ * Who answers privacy questions (plan 8.6). The same address as the control room's PLATFORM_PRIVACY_CONTACT
+ * (control-room/people.js), whose placeholder this is until Julian names one; terms.test.js keeps the two equal.
+ */
+export const PRIVACY_CONTACT = "privacy@platform.example";
+
+/** How long each backup of a shop is kept, in days (the shop's nightly backup removes older ones). */
+export const BACKUP_KEEP_DAYS = 30;
 
 /** How long a press has between our notice and the end of the service, in days. */
 export const SHUTDOWN_NOTICE_DAYS = 90;
@@ -45,7 +54,9 @@ export const SECTIONS = Object.freeze([
       "We keep your name, your email address, your press's name, the plan you chose, and your answers when you signed up. We use them to run your shop, bill your plan and write to you about your account.",
       "We never sell your details, and we never show you or your shoppers advertising.",
       "Your shop's information is kept in its own copy, separate from every other press. Each copy is backed up, so a mistake can be put right.",
+      `Each backup is kept for ${BACKUP_KEEP_DAYS} days, then deleted. If your shop is deleted, its backups are kept ${BACKUP_KEEP_DAYS} days more and then they are gone too.`,
       "You can ask us for a copy of what we hold about you, or ask us to correct it or delete it. Write to us from your account page.",
+      `For any privacy question, write to our privacy contact at ${PRIVACY_CONTACT}.`,
     ],
   },
   {
