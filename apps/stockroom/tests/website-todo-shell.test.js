@@ -139,6 +139,8 @@ describe('books on the website, not in this app yet', () => {
     await app.window.saveBookFromModal();
     await app.settle(5);
     expect(app.main.BOOKS['the-hound-signed']).toBeTruthy();
+    // Saved, so no "Discard your unsaved changes?" question opens over it.
+    expect($('m-confirm').style.display).not.toBe('flex');
     expect(link.asks).toHaveLength(1);
     expect(link.asks[0].key).toBe('hound|signed');
     expect(link.asks[0].value.inventoryBookId).toBe('the-hound-signed');
@@ -180,6 +182,35 @@ describe('books on the website, not in this app yet', () => {
     await app.settle(5);
     await waitFor(() => expect(app.toast()).toBe('Saved in this app. The website will offer to match it under New books to match.'));
     link.askImpl = null;
+  });
+});
+
+describe('a product sold in sizes (plan 10.5)', () => {
+  const size = (v) => ({ key: `tee|${v}`, bookId: 'tee', variantId: v, title: 'Moth Tee', edition: v.toUpperCase(), product: 'Moth Tee', price: v === 'l' ? 32 : 30, isbn: `TEE-${v.toUpperCase()}`, status: 'published' });
+
+  it('adding one size offers the others; yes adds each as its own item in one group, linked on the website', async () => {
+    link.asks.length = 0;
+    link.statusCb(status({ catalog: { books: ['s', 'm', 'l'].map(size) } }));
+    app.window.switchTab('website');
+    await waitFor(() => expect($('wl-shop-books').querySelector('[data-key="tee|s"]')).not.toBeNull());
+    $('wl-shop-books').querySelector('[data-wl-action="shop-add"][data-key="tee|s"]').click();
+    await app.settle();
+    expect($('nb-title').value).toBe('Moth Tee — S');
+    $('nb-max').value = '40';
+    const saved = app.window.saveBookFromModal();
+    await waitFor(() => expect(document.getElementById('m-confirm').textContent).toContain('Moth Tee — M, Moth Tee — L'));
+    await app.answerConfirm(true);
+    await saved;
+    await app.settle(5);
+    const items = Object.values(app.main.BOOKS).filter(b => b.group && b.group.id === 'web-tee');
+    expect(items.map(b => [b.id, b.title, b.listPrice, b.maxPrint, b.isbn]).sort()).toEqual([
+      ['moth-tee-l', 'Moth Tee — L', 32, 40, 'TEE-L'], ['moth-tee-m', 'Moth Tee — M', 30, 40, 'TEE-M'], ['moth-tee-s', 'Moth Tee — S', 30, 40, 'TEE-S'],
+    ]);
+    expect(link.asks.map(a => [a.key, a.value.inventoryBookId]).sort()).toEqual([['tee|l', 'moth-tee-l'], ['tee|m', 'moth-tee-m'], ['tee|s', 'moth-tee-s']]);
+    app.window.renderCatalogList();
+    const group = document.querySelector('#catalog-list .catalog-group');
+    expect(group.querySelector('.catalog-group-title').textContent).toContain('Moth Tee');
+    expect(group.querySelectorAll('.catalog-card').length).toBe(3);
   });
 });
 
