@@ -266,6 +266,15 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false;
     }
+    match /firstWeek/{docId} {
+      // Overview › Your first week (plan 3.3): the sign-up answer, written once by the platform's setup (Admin SDK),
+      // and the steps the owner ticked or hiding the list. Admin only.
+      allow read: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(["sellingToday", "plan", "done", "hiddenAt", "createdAt", "updatedAt"])
+        && (!("done" in request.resource.data) || request.resource.data.done is map && request.resource.data.done.size() <= 20)
+        && (!("hiddenAt" in request.resource.data) || request.resource.data.hiddenAt is string);
+    }
     match /customerNotes/{noteId} {
       // Private notes + tags per customer (id = sha256 of the lowercased email). Admin only.
       allow read, delete: if isAdmin();

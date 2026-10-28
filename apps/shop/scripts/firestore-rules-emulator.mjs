@@ -239,7 +239,13 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("admin note extra key refused", assertFails(setDoc(doc(admin, "customerNotes/y"), { email: "a@b.co", note: "", tags: [], updatedAt: "now", junk: 1 })));
   await check("admin reads opt-outs", assertSucceeds(getDoc(doc(admin, "marketing-optout/x"))));
   await check("admin can't write opt-outs", assertFails(setDoc(doc(admin, "marketing-optout/x"), { at: "now" })));
+  // Overview › Your first week (plan 3.3)
+  await check("admin ticks a first-week step", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { sellingToday: "online", done: { look: "now" }, updatedAt: "now" })));
+  await check("admin hides the first-week list", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { hiddenAt: "now" }, { merge: true })));
+  await check("first-week extra key refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { junk: 1 }, { merge: true })));
 }
+await check("anon can't read the first week", assertFails(getDoc(doc(anon, "firstWeek/start"))));
+await check("anon can't write the first week", assertFails(setDoc(doc(anon, "firstWeek/start"), { hiddenAt: "now" })));
 
 // Inventory app link: per-order records are server-only; the admin reads the link's status document.
 {

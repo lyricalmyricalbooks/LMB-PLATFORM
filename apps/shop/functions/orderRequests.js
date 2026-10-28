@@ -4,6 +4,8 @@
 // out of index.js as is (functions/CLAUDE.md › Cloud Functions › Action table): index.js passes in its own db, admin
 // SDK, its payments module (functions/payments) and guards, so the vm-based handler tests' fakes still apply.
 
+const { isPaymentId, isCheckoutId } = require("./payments/ids");
+
 function orderRequestActions({
   db, admin, crypto, ADMIN_TO, LIMITS, RESEND_API_KEY, canViewOrder, cancelRefusal, chargedRedemptions,
   checkStripeReversal, claimEmailSend, escapeHtml, hitLimit, intentAsSession,
@@ -31,7 +33,7 @@ function orderRequestActions({
       // What the payment provider says about this order's unpaid attempt (functions/payments).
       let account = null;
       const found = {};
-      if (pre && !cancelRefusal(pre) && (intentId.startsWith("pi_") || sessionId.startsWith("cs_"))) {
+      if (pre && !cancelRefusal(pre) && (isPaymentId(intentId) || isCheckoutId(sessionId))) {
         try {
           account = await payments.clientForMode(pre.stripeMode === "test" ? "test" : "live", pre.stripeAccountId || null);
           await payments.readAttempt(account, { intentId, sessionId }, found);
@@ -121,7 +123,7 @@ function orderRequestActions({
         // Already paid: still ask Stripe whether it was since refunded or disputed (this is what the
         // admin's "Sync with Stripe" relies on). Throttled to once a minute per order.
         let paymentStatus = "paid";
-        if (String(saved.stripePaymentIntentId || "").startsWith("pi_") && !(Date.now() - Date.parse(saved.stripeCheckedAt || "") < 60 * 1000)) {
+        if (isPaymentId(saved.stripePaymentIntentId) && !(Date.now() - Date.parse(saved.stripeCheckedAt || "") < 60 * 1000)) {
           try {
             await checkStripeReversal(orderId, saved, "status check");
             paymentStatus = (await db.collection("orders").doc(orderId).get()).data()?.paymentStatus || "paid";
@@ -136,8 +138,8 @@ function orderRequestActions({
       // the payment ids this server saved on the order when it created the payment.
       // Only the payment ids this server saved on the order are looked up: an id typed into the request
       // that the order doesn't carry never triggers a Stripe call (#106).
-      const savedIntent = typeof saved.stripePaymentIntentId === "string" && saved.stripePaymentIntentId.startsWith("pi_") ? saved.stripePaymentIntentId : "";
-      const savedSession = typeof saved.stripeCheckoutSessionId === "string" && saved.stripeCheckoutSessionId.startsWith("cs_") ? saved.stripeCheckoutSessionId : "";
+      const savedIntent = isPaymentId(saved.stripePaymentIntentId) ? saved.stripePaymentIntentId : "";
+      const savedSession = isCheckoutId(saved.stripeCheckoutSessionId) ? saved.stripeCheckoutSessionId : "";
       paymentIntentId = typeof paymentIntentId === "string" && paymentIntentId === savedIntent ? savedIntent : "";
       sessionId = typeof sessionId === "string" && sessionId === savedSession ? savedSession : "";
       if (!paymentIntentId && !sessionId) {

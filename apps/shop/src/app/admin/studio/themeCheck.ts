@@ -87,3 +87,65 @@ export function themeProblems(theme: any): string[] {
   }
   return problems;
 }
+
+// ── Imported theme files (My themes › Import) ───────────────────────────────────────────────────────────────────
+// A theme file is a whole design (savedThemes.ts), not a library entry, so it is checked against what a design may
+// hold: Theme settings keys, Text & labels words, pages with their section lists, and the structured data Studio's
+// other workspaces edit (sections, menus, categories, colour schemes…). Anything else would show in the shop with no
+// way to change it, so Import warns about it in plain words before adding the theme.
+
+/** Design keys edited by Studio's other workspaces, or bookkeeping Studio writes itself. */
+const DESIGN_STRUCTURE_KEYS = new Set([
+  "copy", "menus", "sections", "globalSections", "homepageSections", "altSections", "social", "categories", "navOrder",
+  "secondaryNavKeys", "colorSchemes", "hero", "headerLinks", "sectionPresets", "typeScale", "mobileOverrides",
+  "themeLibraryPreset", "palettePreset", "footerBadges", "sharedBlocks", "headerSections", "overlaySections",
+  "announcements", "alternateTemplates", "productInfoBlocks", "regions", "elementSchemes", "showHero", "themeStyle",
+  "letterSpacing", "wordmarkStyle", "fontSize", "cornerStyle", "animationLevel",
+]);
+
+const quoted = (items: string[]) => {
+  const shown = items.slice(0, 6).map(i => `“${i}”`).join(", ");
+  return items.length > 6 ? `${shown} and ${items.length - 6} more` : shown;
+};
+
+/**
+ * Plain-words problems with an imported design: settings, words and sections Studio couldn't change afterwards.
+ * `known` adds keys the shop's own starting design holds (they are Studio's own, even without a Theme settings row).
+ */
+export function importedThemeProblems(design: any, known: Iterable<string> = []): string[] {
+  if (!design || typeof design !== "object" || Array.isArray(design)) return ["The file has no design in it."];
+  const { style, copy } = controls();
+  const styleTop = new Set([...style].map(k => k.split(".")[0]));
+  const allowed = new Set(known);
+  const settings: string[] = [];
+  const words: string[] = [];
+  const sections = new Set<string>();
+  const checkSections = (list: any[]) => {
+    for (const s of list) if (s && typeof s === "object" && typeof s.type === "string" && !getSectionMeta(s.type)) sections.add(s.type);
+  };
+
+  for (const [key, value] of Object.entries(design)) {
+    if (key === "copy") {
+      for (const word of Object.keys((value as any) || {})) if (!copy.has(word)) words.push(word);
+    } else if (Array.isArray(value) && value.some(v => v && typeof v === "object" && /Section$/.test(String((v as any).type)))) {
+      checkSections(value); // a section group (header, footer, pop-up…)
+    } else if (value && typeof value === "object" && !Array.isArray(value) && Array.isArray((value as any).sections)) {
+      checkSections((value as any).sections); // a page: Home, a book page, page:about…
+    } else if (!styleTop.has(key) && !DESIGN_STRUCTURE_KEYS.has(key) && !allowed.has(key) && !key.startsWith("page")) {
+      settings.push(key);
+    }
+  }
+  if (design.palettePreset !== undefined && !PALETTES.some((p: any) => p.id === design.palettePreset)) settings.push(`palette ${design.palettePreset}`);
+
+  const problems: string[] = [];
+  if (settings.length) problems.push(settings.length === 1
+    ? `1 setting has no control in Studio, so you couldn't change it afterwards: ${quoted(settings)}.`
+    : `${settings.length} settings have no control in Studio, so you couldn't change them afterwards: ${quoted(settings)}.`);
+  if (words.length) problems.push(words.length === 1
+    ? `1 piece of text isn't in Text & labels, so it would never show: ${quoted(words)}.`
+    : `${words.length} pieces of text aren't in Text & labels, so they would never show: ${quoted(words)}.`);
+  if (sections.size) problems.push(sections.size === 1
+    ? `1 kind of section isn't one Studio has, so it wouldn't show or be editable: ${quoted([...sections])}.`
+    : `${sections.size} kinds of section aren't ones Studio has, so they wouldn't show or be editable: ${quoted([...sections])}.`);
+  return problems;
+}

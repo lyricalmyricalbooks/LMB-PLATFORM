@@ -82,6 +82,20 @@ function platformStripeClient(call, mode) {
 }
 
 /**
+ * The press's own account on the platform, for the admin's payments card (code plan 2.2b / 2.10): whether it is
+ * connected and what the platform's fee is (`account.status`), and the page that connects it: Square's sign-in
+ * (`account.connectLink`) or Stripe's onboarding (`account.onboardingLink`). The service checks that every return
+ * address is one of the shop's own.
+ */
+function platformAccount(call) {
+  return Object.freeze({
+    status: () => call("account.status", undefined),
+    connectLink: (returnUrl) => call("account.connectLink", undefined, { returnUrl }),
+    onboardingLink: (returnUrl, refreshUrl) => call("account.onboardingLink", undefined, { returnUrl, refreshUrl }),
+  });
+}
+
+/**
  * Everything stripe.js needs for platform mode.
  * @param {object} deps
  * @param {typeof fetch} deps.fetch
@@ -100,8 +114,9 @@ function createPlatformAccess({ fetch, url, shopId, serviceKey }) {
   const call = createServiceCaller({ fetch, url: url.replace(/\/+$/, ""), shopId, readKey });
   return {
     call,
+    account: platformAccount(call),
     client: (mode) => platformStripeClient(call, mode === "test" ? "test" : "live"),
   };
 }
 
-module.exports = { createPlatformAccess, createServiceCaller, platformStripeClient };
+module.exports = { createPlatformAccess, createServiceCaller, platformAccount, platformStripeClient };

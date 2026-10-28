@@ -266,7 +266,44 @@ function checkoutAdminActions({
     }
   }
 
-  return { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, handleWebhookHealth, handleRegisterPaymentDomain };
+  // Admin: the press's card account on the platform (code plan 2.2b / 2.10), for Settings › Payments › Card payments.
+  // `step: "status"` says whether it is connected, which account and the platform's fee; `step: "connect"` gives the
+  // page that connects it (Square's sign-in, or Stripe's onboarding), coming back to this admin. Only for a shop whose
+  // payments run through the platform; the platform's service checks every address again.
+  async function handlePlatformPayments(req, res) {
+    if (!await requireAdmin(req, res)) return;
+    if (!payments.account) {
+      res.status(409).json({ error: "This shop takes card payments with its own keys, not through the platform.", code: "own_keys" });
+      return;
+    }
+    const step = req.body?.step;
+    try {
+      if (step === "status") {
+        res.json({ provider: payments.provider, ...await payments.account.status() });
+        return;
+      }
+      if (step === "connect") {
+        const origin = ALLOWED_ORIGINS.find(o => o === req.body?.origin && /^https:\/\//.test(o));
+        if (!origin) {
+          res.status(400).json({ error: "Open the admin from the shop's own address to connect your account." });
+          return;
+        }
+        const back = (flag) => `${origin}/admin${flag ? `?${flag}` : ""}#settings/payments/methods`;
+        const link = payments.provider === "square"
+          ? await payments.account.connectLink(back(""))
+          : await payments.account.onboardingLink(back("stripe=return"), back("stripe=refresh"));
+        res.json({ provider: payments.provider, url: link.url, expiresAt: link.expiresAt ?? null });
+        return;
+      }
+      res.status(400).json({ error: "Unknown step.", code: "bad_request" });
+    } catch (err) {
+      console.error(`Platform payments (${step}) failed:`, err?.message || err);
+      const status = Number.isInteger(err?.statusCode) && err.statusCode >= 400 && err.statusCode < 500 ? 409 : 502;
+      res.status(status).json({ error: err?.message || "The platform's payment service didn't answer.", code: err?.code || "platform_error" });
+    }
+  }
+
+  return { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, handleWebhookHealth, handleRegisterPaymentDomain, handlePlatformPayments };
 }
 
 module.exports = { checkoutAdminActions };

@@ -10,6 +10,10 @@ vi.mock("../../CartContext", () => ({ useCart: () => ({ cartCount: 0, cartTotal:
 vi.mock("../../../lib/firebase", () => ({ db: {}, auth: {} }));
 vi.mock("../../components/sectionRender", () => ({ SectionList: () => null, GlobalSections: () => null, GroupSections: () => null, TemplateSections: () => null }));
 vi.mock("../../lib/seo", () => ({ useSEO: () => {} }));
+// The currency provider's rate and country look-ups run on their own clock; under a busy test run they finished after
+// this file did and logged into a closed test worker. The bar doesn't need them, so they never answer here.
+vi.mock("./exchangeRates", async (orig) => ({ ...(await orig<any>()), loadRates: () => new Promise(() => {}) }));
+vi.mock("./visitorCurrency", async (orig) => ({ ...(await orig<any>()), loadVisitorCountry: () => new Promise(() => {}) }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
 const { StoreHeader } = await import("./StoreHeader");

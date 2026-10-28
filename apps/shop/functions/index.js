@@ -62,6 +62,7 @@ const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
+const { isPaymentId, isCheckoutId } = require("./payments/ids");
 const { createEmail } = require("./email");
 const { createPlatformSender } = require("./email/platformSender");
 const { shippoEndpoints } = require("./shippoEndpoints");
@@ -1196,7 +1197,7 @@ async function releaseSupersededAttempt(req, email, currentOrderId, currentItems
     if (previousAttemptPaid(prev, null, null)) return sameBag ? { paidOrderId: prevId } : {};
     if (prev.paymentStatus !== "unpaid" || checkoutRefusal(prev)) return {};
     const intentId = String(prev.stripePaymentIntentId || ""), sessionId = String(prev.stripeCheckoutSessionId || "");
-    if (intentId.startsWith("pi_") || sessionId.startsWith("cs_")) {
+    if (isPaymentId(intentId) || isCheckoutId(sessionId)) {
       const account = await payments.clientForMode(prev.stripeMode === "test" ? "test" : "live", prev.stripeAccountId || null);
       const found = await payments.readAttempt(account, { intentId, sessionId });
       const intent = found.intent || null, session = found.session || null;
@@ -1496,7 +1497,7 @@ exports.paypalWebhook = onRequest(
   }
 );
 
-const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, handleWebhookHealth, handleRegisterPaymentDomain } = checkoutAdminActions({
+const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, handleWebhookHealth, handleRegisterPaymentDomain, handlePlatformPayments } = checkoutAdminActions({
   db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, inventoryLinkDeps,
 });
 
@@ -1528,6 +1529,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   track: handleTrackOrder,
   trackingLink: handleTrackingLink,
   registerPaymentDomain: handleRegisterPaymentDomain,
+  platformPayments: handlePlatformPayments,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,
   inventoryLink: handleInventoryLinkAdmin,
@@ -3987,7 +3989,7 @@ exports.unpaidPaymentSweep = onSchedule(
     const sweepStartedAt = Date.now();
     await runInBatches(candidates, SWEEP_LOOKUP_BATCH, async order => {
       try {
-        const usesIntent = typeof order.stripePaymentIntentId === "string" && order.stripePaymentIntentId.startsWith("pi_");
+        const usesIntent = isPaymentId(order.stripePaymentIntentId);
         const result = await retrieveOrderPayment(order.id, order, usesIntent
           ? { paymentIntentId: order.stripePaymentIntentId }
           : { sessionId: order.stripeCheckoutSessionId }, await paymentKeys());

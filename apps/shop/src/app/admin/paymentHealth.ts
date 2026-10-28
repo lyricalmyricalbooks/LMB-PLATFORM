@@ -1,13 +1,18 @@
 export type PaymentIssue = { id: string; label: string; detail: string; severity: "blocking" | "warning" };
 import { isStripePublishableKey } from "../features/site/stripeLifecycle";
+import { platformTakesCards } from "../../lib/shopProfile";
 
-/** Admin readiness checks only. Payment authority remains with provider webhooks. */
-export function paymentHealth(payments: any = {}): PaymentIssue[] {
+/**
+ * Admin readiness checks only. Payment authority remains with provider webhooks.
+ * `platformCards`: the shop takes cards through Colophon (plan 2.2 / 2.2b), with no keys in its settings; that counts
+ * as a way to pay, and Settings › Payments › Card payments shows whether the account is connected.
+ */
+export function paymentHealth(payments: any = {}, platformCards: boolean = platformTakesCards()): PaymentIssue[] {
   const issues: PaymentIssue[] = [];
   const stripe = payments.stripe || {};
   const paypal = payments.paypal || {};
   const manual = (payments.manualMethods || []).filter((method: any) => method.enabled);
-  if (!stripe.connected && !paypal.connected && manual.length === 0) issues.push({ id: "no-gateway", label: "No payment method is enabled", detail: "Customers cannot complete checkout until at least one method is enabled.", severity: "blocking" });
+  if (!platformCards && !stripe.connected && !paypal.connected && manual.length === 0) issues.push({ id: "no-gateway", label: "No payment method is enabled", detail: "Customers cannot complete checkout until at least one method is enabled.", severity: "blocking" });
   if (payments.testMode) issues.push({ id: "test-mode", label: "Sandbox mode is active", detail: "Test payments do not collect real money. Turn this off before launch.", severity: "warning" });
   if (stripe.connected && !(payments.testMode ? stripe.testPublicKey : stripe.publicKey)) issues.push({ id: "stripe-publishable", label: "Stripe publishable key is missing", detail: `Add the ${payments.testMode ? "test" : "live"} publishable key used by the active mode.`, severity: "blocking" });
   else if (stripe.connected && !isStripePublishableKey(payments.testMode ? stripe.testPublicKey : stripe.publicKey, Boolean(payments.testMode))) issues.push({ id: "stripe-invalid", label: "Stripe publishable key is invalid", detail: "Replace the placeholder or wrong-mode key with the publishable key for the active Stripe mode.", severity: "blocking" });

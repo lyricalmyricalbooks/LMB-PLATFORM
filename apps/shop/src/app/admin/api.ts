@@ -20,6 +20,7 @@ import { toCountryCodes } from "./shippingCountries";
 import { keepPhotoCopies, removedPhotos, shownUrls, unusedBookFiles } from "./bookFileCleanup";
 import { mediaApi } from "./mediaApi";
 import { auditLog } from "./auditLog";
+import type { PlatformPaymentsAnswer } from "./platformPayments";
 /** Cache-Control for uploaded shop pictures (mirrors functions/imageCopies.js IMMUTABLE). */
 export const PUBLIC_FILE_CACHE = "public, max-age=31536000, immutable";
 
@@ -1214,6 +1215,21 @@ export const adminApi = {
     return result as { domain: string; applePay: string; googlePay: string };
   },
 
+  // The press's card account on the platform (plan 2.2b / 2.10): "status" (connected? the platform's fee) or "connect"
+  // (the address of Square's sign-in or Stripe's onboarding, coming back to Settings › Payments). Platform shops only.
+  platformPayments: async (step: "status" | "connect") => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "platformPayments", step, origin: window.location.origin }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Couldn't reach your card account.");
+    return result as PlatformPaymentsAnswer;
+  },
+
   // Deletes a stored PayPal client secret (admin-only adminSecrets/paypal). Live then falls back to the Functions secret.
   removePaypalSecret: async (mode: "live" | "test") => {
     await setDoc(doc(db, "adminSecrets", "paypal"), { [mode === "live" ? "clientSecret" : "testClientSecret"]: deleteField(), updatedAt: serverTimestamp() }, { merge: true });
@@ -1873,6 +1889,17 @@ export const adminApi = {
       subscribed: new Set(subs.docs.filter(d => d.data().status !== "pending").map(d => String(d.data().email || d.id).trim().toLowerCase())),
       optedOutHashes: optouts ? new Set<string>(optouts.docs.map(d => d.id)) : null,
     };
+  },
+
+  // Your first week (plan 3.3): admin-only `firstWeek/start`, written once by the platform's setup with the sign-up
+  // answer. Null when the shop has none (the Overview then shows no list).
+  getFirstWeek: async () => {
+    const snap = await getDoc(doc(db, "firstWeek", "start"));
+    return snap.exists() ? (snap.data() as import("./firstWeek").FirstWeekDoc) : null;
+  },
+  /** Ticks a step by hand (`done.<id>`), or hides the list (`hiddenAt`). Merges, so nothing else changes. */
+  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string }) => {
+    await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
   },
 
   // Private per-customer notes and tags (admin-only `customerNotes/{sha256(lowercased email)}`).

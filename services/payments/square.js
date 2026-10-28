@@ -399,6 +399,8 @@ export function createSquareService({ square, registry, tokens, states, deliver,
         }
         return { status: 200, body: { disconnected: row.shopId } };
       }
+      // Only payments, refunds and disputes mean anything to a shop; the rest would be refused there and sent again.
+      if (!["payment", "refund", "dispute"].includes(event.data?.type)) return { status: 200, body: { ignored: "not a payment, refund or dispute" } };
       const result = await deliver(row, rawBody, "square");
       if (result.status >= 200 && result.status < 300) return { status: 200, body: { forwarded: row.shopId } };
       console.error(`Square event ${event.event_id} for ${row.shopId} wasn't taken (${result.status}${result.error ? `: ${result.error}` : ""})`);

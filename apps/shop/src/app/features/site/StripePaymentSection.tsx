@@ -4,7 +4,7 @@ import { regionProps, regionVisible } from "./storefrontRegions";
 
 /** Payment fields must live outside the radio label: label activation and
  * preventDefault handlers interfere with Stripe's own interactive iframe. */
-export function StripePaymentSection({ design, selected, configured, canRetry, busy, onSelect, onRetry, tabs = false, children }: {
+export function StripePaymentSection({ design, selected, configured, canRetry, busy, onSelect, onRetry, tabs = false, hosted = false, children }: {
   design: any;
   selected: boolean;
   configured: boolean;
@@ -14,6 +14,8 @@ export function StripePaymentSection({ design, selected, configured, canRetry, b
   onRetry: () => void;
   /** Checkout's order-slip look: payment choices sit side by side as tabs, the card badges move under them. */
   tabs?: boolean;
+  /** Square shops (plan 2.2b): the card is entered on Square's own page, so a note stands where the card form would. */
+  hosted?: boolean;
   children: ReactNode;
 }) {
   const c = (key: string) => getCopy(design, key);
@@ -35,7 +37,9 @@ export function StripePaymentSection({ design, selected, configured, canRetry, b
   const body = selected && (
     <>
       {tabs && badges}
-      {configured ? children : (
+      {hosted ? (
+        <p {...regionProps("squarePaymentNote")} className="fm-co-note">{c("coSquareNote")}</p>
+      ) : configured ? children : (
         <p {...regionProps("stripePaymentRecovery")} role="alert" className="fm-co-note">{c("coStripeConfigError")}</p>
       )}
       {canRetry && (

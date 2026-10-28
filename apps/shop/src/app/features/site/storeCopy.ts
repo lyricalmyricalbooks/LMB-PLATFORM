@@ -887,6 +887,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "coPaypalOption", label: "PayPal payment option", default: "PayPal" },
       { key: "coDiscountRejected", label: "Discount code refused at payment", default: "Your discount code couldn’t be used and has been removed: {reason} Review your total and try again.", hint: "Use {reason} for why the code was refused." },
       { key: "coNoPayment", label: "No payment method message", multiline: true, default: "No payment method is currently available. Please contact the store before placing your order." },
+      { key: "coSquareNote", label: "Card payment on Square's page (Square shops)", multiline: true, default: "You’ll enter your card on Square’s secure checkout page, then come back here for your receipt." },
       { key: "coStripeConfigError", label: "Card payment configuration error", multiline: true, default: "Card payments are temporarily unavailable. Please contact the store or choose another payment method." },
       { key: "coPrivacyNote", label: "Payment privacy note", multiline: true, default: "Card details go straight to the payment provider" },
       { key: "coPackedNote", label: "Reassurance text", default: "You’ll receive an order confirmation and shipping updates by email." },
