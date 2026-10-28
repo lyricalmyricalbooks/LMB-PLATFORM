@@ -2,10 +2,8 @@
 // shop's bookkeeping format — the same columns, the same money format and the
 // same tax names — checked here against the shop's own code.
 import { describe, expect, test } from 'vitest';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import {
-  DAY_COLUMNS_AFTER_TAX, DAY_COLUMNS_BEFORE_TAX, dayLineRows, inPersonDailyLines, inPersonTaxOf, isInPersonSale, suggestedTaxBookName,
+  DAY_COLUMNS_AFTER_TAX, DAY_COLUMNS_BEFORE_TAX, TAX_BOOK_NAMES as STOCKROOM_NAMES, dayLineRows, inPersonDailyLines, inPersonTaxOf, isInPersonSale, suggestedTaxBookName,
 } from '../src/lib/bookkeeping-days.js';
 import { csvRow } from '../src/lib/csv.js';
 import { suggestedTaxBookName as shopSuggestion, TAX_BOOK_NAMES } from '../../shop/src/shared/taxBooks.ts';
@@ -21,10 +19,8 @@ describe('in-person day lines match the shop\'s bookkeeping file', () => {
     }
     cases.push({ country: 'United States', region: 'New York', rate: '8.875' }, null);
     for (const c of cases) expect(suggestedTaxBookName(c), JSON.stringify(c)).toBe(shopSuggestion(c));
-    // The name suggestions offered in the export dialog are the shop's.
-    const html = readFileSync(path.join(process.cwd(), 'index.html'), 'utf8');
-    const offered = [...html.match(/<datalist id="tc-ip-tax-names">(.*?)<\/datalist>/)[1].matchAll(/value="([^"]+)"/g)].map((m) => m[1]);
-    expect(offered).toEqual(TAX_BOOK_NAMES);
+    // The names offered in the export dialog are the shop's.
+    expect([...STOCKROOM_NAMES]).toEqual(TAX_BOOK_NAMES);
   });
 
   test('a day of fair sales writes the same CSV as the shop writes for the same money', () => {

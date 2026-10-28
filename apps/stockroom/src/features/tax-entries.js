@@ -47,7 +47,7 @@ import { voidHistEntry } from './sales-ledger.js';
 import { editArtistPayout, findArtistPayout, settlePayoutRequests, undoRecordedArtistSettlement } from './dashboard.js';
 import { ledgerSaleIndexForHistMirror } from '../lib/consignment.js';
 import { csvCell, csvRow, toCsv } from '../lib/csv.js';
-import { dayLineRows, inPersonDailyLines, inPersonTaxOf, isInPersonSale, suggestedTaxBookName } from '../lib/bookkeeping-days.js';
+import { dayLineRows, inPersonDailyLines, inPersonTaxOf, isInPersonSale, suggestedTaxBookName, TAX_BOOK_NAMES } from '../lib/bookkeeping-days.js';
 import { registerActions } from '../lib/actions.js';
 import { downloadCsv } from '../lib/download.js';
 import { payoutNetted } from '../lib/earnings.js';
@@ -1218,6 +1218,10 @@ function fillInPersonTaxFields() {
   const saved = TAX_CENTER.settings?.inPersonTax || {};
   const rate = $('tc-ip-tax-rate'), name = $('tc-ip-tax-name'), included = $('tc-ip-tax-included');
   if (!rate || !name || !included) return;
+  const choices = $('tc-ip-tax-names');
+  if (choices && !choices.options.length) {
+    TAX_BOOK_NAMES.forEach(n => { const o = document.createElement('option'); o.value = n; choices.appendChild(o); });
+  }
   rate.value = saved.rate ?? '';
   name.value = saved.bookName || '';
   included.checked = saved.included !== false;

@@ -20,6 +20,9 @@ import { IN_PERSON_CHANNELS } from './market-day.js';
 export const DAY_COLUMNS_BEFORE_TAX = Object.freeze(['Date', 'Sales before tax', 'Shipping', 'Discounts', 'Gift cards sold', 'Gift cards used', 'Refunds']);
 export const DAY_COLUMNS_AFTER_TAX = Object.freeze(['Card fees', 'Net', 'Currency']);
 
+/** The names offered for a tax, the shop's list (TAX_BOOK_NAMES in taxBooks.ts). */
+export const TAX_BOOK_NAMES = Object.freeze(['GST', 'HST ON', 'HST NS', 'HST NB', 'HST NL', 'HST PE', 'PST BC', 'PST MB', 'PST SK', 'QST', 'Exempt', 'Sales tax']);
+
 const CANADA = {
   AB: 'alberta', BC: 'british columbia', MB: 'manitoba', NB: 'new brunswick', NL: 'newfoundland and labrador',
   NS: 'nova scotia', NT: 'northwest territories', NU: 'nunavut', ON: 'ontario', PE: 'prince edward island',
