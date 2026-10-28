@@ -1,9 +1,11 @@
 import type { FirebaseApp } from "firebase/app";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from "firebase/app-check";
 
+import { emulatorSettings } from "./emulators";
 import { shopProfile } from "./shopProfile";
 
 type AppCheckEnvironment = {
+  VITE_FIREBASE_EMULATORS?: string;
   VITE_RECAPTCHA_ENTERPRISE_SITE_KEY?: string;
   VITE_APP_CHECK_MODE?: string;
   VITE_APP_CHECK_DEBUG_TOKEN?: string;
@@ -19,6 +21,8 @@ export function initializeBrowserAppCheck(
 ): AppCheck | null {
   const siteKey = profileSiteKey?.trim() || env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY?.trim();
   if (typeof window === "undefined" || !siteKey || env.VITE_APP_CHECK_MODE === "off") return null;
+  // The demo shop's emulators (./emulators) have no App Check, and the bot check can't vouch for a local page.
+  if (emulatorSettings(env, app.options?.projectId ?? "")) return null;
 
   // Explicit local-only debug credentials; never enable a production debug bypass.
   if (env.DEV && ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname) && env.VITE_APP_CHECK_DEBUG_TOKEN) {

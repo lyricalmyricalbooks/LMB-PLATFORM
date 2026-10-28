@@ -162,6 +162,10 @@ npm run logs
   tracking, account, admin sign-in, 404, search and phone against the live published catalog. It fails on a page error,
   on the error panel and on a caught section/page crash ("failed to render" / "Storefront render error"), never writes
   (cookies rejected, no email typed, nothing paid). `CHROMIUM_PATH` reuses a local browser; `SMOKE_URL` checks a running site.
+- **Demo shop (28 October 2026):** LMB-PLATFORM's `npm run demo` (`demo/`, `docs/demo-shop.md`) runs this shop, the stockroom and
+  the Functions on the Firebase emulators (project `demo-colophon-test`). `src/lib/emulators.ts` switches Firestore, Firestore Lite,
+  Auth, Storage and the Functions address to the emulators only when the build has `VITE_FIREBASE_EMULATORS=true` **and** the
+  profile's project starts with `demo-`; App Check is then skipped. Off for every real build (`emulators.test.ts`).
 - **Studio fixture:** `pnpm dev` then open `/studio-fixture.html` — the real Studio with in-memory data
   (`studio/fixture/fakeStudioApi.ts`; writes are recorded in `window.__studioFixture.calls`, nothing reaches
   Firestore). `pnpm run test:studio` drives it in Chromium (`CHROMIUM_PATH` to reuse an installed browser,

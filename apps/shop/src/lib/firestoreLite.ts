@@ -1,5 +1,6 @@
-import { getFirestore } from "firebase/firestore/lite";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore/lite";
 
+import { emulators } from "./emulators";
 import { app } from "./firebaseApp";
 
 /**
@@ -8,3 +9,5 @@ import { app } from "./firebaseApp";
  * snapshots from the two editions can't be mixed. Admin, checkout and account keep `db` from ./firebase.
  */
 export const liteDb = getFirestore(app);
+// The demo shop only (./emulators).
+if (emulators) connectFirestoreEmulator(liteDb, emulators.host, emulators.ports.firestore);

@@ -4,6 +4,7 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
-    "test": "node --test \"*.test.js\" \"profile/*.test.js\" \"waitlist/*.test.js\" \"setup/*.test.js\" \"services/*.test.js\" \"services/*/*.test.js\" \"clients/*.test.js\" \"release-check/*.test.js\" \"signup/*.test.js\" \"accounts/*.test.js\" \"control-room/*.test.js\" \"status/*.test.js\" \"help/*.test.js\""
+    "demo": "node demo/run.js",
+    "test": "node --test \"*.test.js\" \"profile/*.test.js\" \"waitlist/*.test.js\" \"setup/*.test.js\" \"services/*.test.js\" \"services/*/*.test.js\" \"clients/*.test.js\" \"release-check/*.test.js\" \"signup/*.test.js\" \"accounts/*.test.js\" \"control-room/*.test.js\" \"status/*.test.js\" \"help/*.test.js\" \"demo/*.test.js\""
   }
 }

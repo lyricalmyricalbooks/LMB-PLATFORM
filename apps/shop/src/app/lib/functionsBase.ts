@@ -1,5 +1,6 @@
 import { orderAccessHeaders } from "./orderAccessClient";
 import { AppVerificationError } from "../../lib/appVerification";
+import { emulators, emulatorUrl } from "../../lib/emulators";
 import { shopProfile } from "../../lib/shopProfile";
 
 // Central resolver for Cloud Function endpoints. The project and region come from the shop profile
@@ -8,6 +9,8 @@ const PROJECT_ID = shopProfile.firebase.projectId;
 const REGION = shopProfile.functionsRegion;
 
 export function functionUrl(name: string): string {
+  // The demo shop (lib/emulators): the server code runs in the local Functions emulator.
+  if (emulators) return `${emulatorUrl(emulators, "functions")}/${PROJECT_ID}/${REGION}/${name}`;
   const override = import.meta.env.VITE_FUNCTIONS_BASE as string | undefined;
   if (override) return `${override.replace(/\/$/, "")}/${name}`;
   if (
