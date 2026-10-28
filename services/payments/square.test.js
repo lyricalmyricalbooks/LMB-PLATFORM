@@ -315,6 +315,38 @@ test("disputes, cancels and deletes; another press's objects are out of reach", 
   assert.equal((await w.call("square.payments.retrieve", { id: "bad id!" })).status, 400);
 });
 
+test("each payment's fees and its payout: Square's processing fee, and the payout's lines page by page (7.10)", async () => {
+  const w = await world();
+  await w.connect("MERCHANT1");
+  const made = await w.call("square.checkout.create", checkoutArgs());
+  const payment = w.sq.world.pay(made.body.id);
+  payment.processing_fee = [{ effective_at: "2026-10-28T12:00:00Z", type: "INITIAL", amount_money: { amount: 145, currency: "CAD" } }];
+  assert.equal((await w.call("square.payments.retrieve", { id: payment.id })).body.processingFeeMinor, 145);
+  const refund = await w.call("square.refunds.create", { params: { paymentId: payment.id, amountMinor: 1000 }, idempotencyKey: "r1" });
+  w.sq.world.refunds.get(refund.body.id).processing_fee = [{ type: "INITIAL", amount_money: { amount: -36, currency: "CAD" } }];
+  assert.equal((await w.call("square.refunds.retrieve", { id: refund.body.id })).body.processingFeeMinor, -36);
+
+  const money = (amount) => ({ amount, currency_code: "CAD" });
+  const payoutId = w.sq.world.payout("MERCHANT1", [
+    { type: "CHARGE", gross_amount_money: money(4000), fee_amount_money: money(145), net_amount_money: money(3855), type_charge_details: { payment_id: payment.id } },
+    { type: "REFUND", gross_amount_money: money(-1000), fee_amount_money: money(-36), net_amount_money: money(-964), type_refund_details: { payment_id: payment.id, refund_id: refund.body.id } },
+    { type: "CHARGE", gross_amount_money: money(500), fee_amount_money: money(20), net_amount_money: money(480), type_charge_details: { payment_id: "PAYother" } },
+  ]);
+  const payout = await w.call("square.payouts.retrieve", { id: payoutId });
+  assert.deepEqual(payout.body, { id: payoutId, status: "PAID", arrivalDate: "2026-10-30", amountMinor: 3371, currency: "CAD", locationId: "LOCMERCHANT1" });
+  const first = await w.call("square.payouts.entries", { id: payoutId });
+  assert.equal(first.body.data.length, 2);
+  assert.deepEqual(first.body.data[1], { id: `${payoutId}-e1`, type: "REFUND", paymentId: payment.id, refundId: refund.body.id, grossMinor: -1000, feeMinor: -36, netMinor: -964, currency: "CAD", effectiveAt: "2026-10-28T12:00:00Z" });
+  const second = await w.call("square.payouts.entries", { id: payoutId, cursor: first.body.cursor });
+  assert.deepEqual(second.body.data.map((e) => e.paymentId), ["PAYother"]);
+  assert.equal(second.body.cursor, null);
+  assert.equal((await w.call("square.payouts.entries", { id: payoutId, cursor: "two words" })).status, 400);
+
+  // Another press's payout is out of reach, and connecting asks Square for the payout permissions.
+  assert.equal((await w.call("square.payouts.retrieve", { id: "po_someone-else" })).status, 404);
+  assert.ok(SQUARE_SCOPES.includes("PAYOUTS_READ") && SQUARE_SCOPES.includes("SETTLEMENTS_READ"));
+});
+
 test("modes: a test shop never takes live payments; a live shop has no Sandbox to test with", async () => {
   const w = await world({ rows: [squareRow({}, { mode: "live" })] });
   await w.connect("MERCHANT1", { mode: "live" });
@@ -380,6 +412,12 @@ test("Square events: signature checked, shop found by account, passed on for the
   const stranger = squareEvent({ merchant_id: "NOBODY" });
   assert.equal((await w.service.squareEvent("test", signed(stranger), stranger)).body.ignored !== undefined, true);
   assert.equal(w.delivered.length, 2);
+  // A payout (each order's payout and fees, 7.10) is passed on too; an event about anything else is not.
+  const payout = squareEvent({ type: "payout.paid", event_id: "e-2", data: { type: "payout", id: "po_1", object: { payout: { id: "po_1" } } } });
+  assert.deepEqual((await w.service.squareEvent("test", signed(payout), payout)).body, { forwarded: SHOP });
+  const other = squareEvent({ type: "customer.created", event_id: "e-3", data: { type: "customer", id: "C1" } });
+  assert.ok((await w.service.squareEvent("test", signed(other), other)).body.ignored);
+  assert.equal(w.delivered.length, 3);
 });
 
 test("a shop that doesn't take the event makes Square send it again", async () => {

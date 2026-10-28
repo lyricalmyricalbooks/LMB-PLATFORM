@@ -51,8 +51,12 @@
         // shop's Team list) or an address in bookOwners/authorEmails, same as
         // isAnyAuthor() in firestore.rules. The role opens only this list; which
         // book stays with the bookOwners map above.
+        //
+        // The bookkeeper role (plan 7.17) reads only the mode flags and the Tax
+        // Centre's bookkeeper copy, same as isBookkeeperReadableSetting() in
+        // firestore.rules (the copy has no keys: src/lib/bookkeeper-copy.js).
         "$key": {
-          ".read": "auth != null && ((auth.token.email_verified === true && (auth.token.email === '__SHOP_OWNER_EMAIL__' || auth.token.role === 'owner')) || (((auth.token.email_verified === true && auth.token.role === 'author') || root.child('lyrical/settings/bookOwners/authorEmails').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && ($key === 'modeFlags' || $key === 'notifyEndpoint' || $key === 'analyticsConfig' || $key === 'catalog' || $key === 'paymentLinks' || $key === 'productionCosts' || $key === 'websitePaymentMethods')))"
+          ".read": "auth != null && ((auth.token.email_verified === true && (auth.token.email === '__SHOP_OWNER_EMAIL__' || auth.token.role === 'owner')) || (((auth.token.email_verified === true && auth.token.role === 'author') || root.child('lyrical/settings/bookOwners/authorEmails').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && ($key === 'modeFlags' || $key === 'notifyEndpoint' || $key === 'analyticsConfig' || $key === 'catalog' || $key === 'paymentLinks' || $key === 'productionCosts' || $key === 'websitePaymentMethods')) || (auth.token.email_verified === true && auth.token.role === 'bookkeeper' && $key.matches(/^(modeFlags|taxCentreForBookkeeper)$/)))"
         }
       },
       "backups": {

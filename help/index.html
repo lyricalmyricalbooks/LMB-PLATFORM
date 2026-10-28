@@ -30,6 +30,7 @@
   .where { font: 14px "DM Mono", monospace; }
   .where span { color: var(--muted); }
   .link { font: 13px "DM Mono", monospace; }
+  .support ul { margin: 0 0 12px; padding-left: 22px; }
   .empty { border: 2px solid var(--ink); background: var(--yellow); color: #1d1a17; padding: 14px 16px; box-shadow: 4px 4px 0 var(--ink); }
   footer { font: 13px "DM Mono", monospace; color: var(--muted); margin-top: 40px; }
   a { color: inherit; }
@@ -42,12 +43,15 @@
   <label for="search">Search the answers</label>
   <input type="search" id="search" placeholder="e.g. shipping, editions, old shop" autocomplete="off">
   <div id="answers" aria-live="polite"></div>
+  <div id="support"></div>
   <footer>
     <p>Didn't find it? Use <b>Get help from Colophon</b> on your account page and a person will answer.</p>
   </footer>
 </main>
 <script type="module">
   import { renderHelp } from "./page.js";
+  import { renderSupport } from "./support.js";
+  document.getElementById("support").innerHTML = renderSupport();
   const box = document.getElementById("answers");
   const search = document.getElementById("search");
   // ?plan=shop|stockroom|both shows only the answers for that plan (the account page can link with it).

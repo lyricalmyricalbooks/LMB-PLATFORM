@@ -11,7 +11,8 @@ import './styles/phone.css';
 // The Riso phone redesign sits on top of the phone layer above.
 import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
-import { isPublisherUser } from './lib/publisher-access.js';
+import { isPublisherUser, readPassClaims } from './lib/publisher-access.js';
+import { isBookkeeperPass } from './lib/bookkeeper-copy.js';
 import { foldFooterActions, initPhoneLayouts } from './lib/phone-layout.js';
 import { createPhonePageMemory, initPhoneWorkspace, observeSidebarBadges } from './lib/phone-workspace.js';
 const phonePages = createPhonePageMemory(window);
@@ -694,6 +695,15 @@ registerActions({
     const e = (getState().expenses || []).find(x => String(x.id) === el.dataset.id);
     if (e) markExpenseReceived(e.id);
   },
+  // Backups › Open in a spreadsheet: the copies on hand, per place, in the layout another shop system reads
+  // (plan 7.19, lib/stock-locations.js). The practice book stays out.
+  'backups.stockLocations': () => {
+    const entries = Object.keys(BOOKS).filter(bid => !isTestBookId(bid))
+      .map(bid => ({ book: BOOKS[bid], state: states[bid] || defaultState(BOOKS[bid]) }));
+    if (!entries.length) { showToast('No books to list yet.', 'err'); return; }
+    downloadCsv(stockLocationsCsv(entries), `stock-counts-${today()}.csv`);
+    showToast(`✓ Stock counts for ${entries.length} book${entries.length === 1 ? '' : 's'} downloaded`, 'ok');
+  },
   // The money card's own buttons.
   'moneyCard.askPayLink': () => askAuthorForPayLink(),
   'moneyCard.setUpPayLink': () => goToPayLinkSetup(),
@@ -1111,6 +1121,7 @@ import { IN_PERSON_CHANNELS } from './lib/channel-mix.js';
 import { csvToObjects, toCsv } from './lib/csv.js';
 import { plainChanges, kindLabel, parseBuildDate, relativeWhen, dayHeading } from './lib/whats-new.js';
 import { downloadText, downloadCsv } from './lib/download.js';
+import { stockLocationsCsv } from './lib/stock-locations.js';
 import { OC_STAGES } from './lib/opencall.js';
 import { deriveOnHand, buildOrderTimeline, inventoryBreakdown, deduplicateDirectConsignmentSales, recalculateBookStatsFromHistory, orderStockPreview, orderStockPreviewCopy, deriveStockBreakdown, transferAuthorStock, isVoidStale } from './lib/inventory.js';
 import { fairSyncPill } from './lib/fair-mode.js';
@@ -19286,6 +19297,17 @@ async function initStartup() {
       // On a device that has opened the app before: show the copy this device
       // already holds while the server is asked.
       const publisherAccount = await isPublisherUser(user, { askRules: window._fbAskRulesIfPublisher });
+      // The shop Team's bookkeeper (plan 7.17) gets only the tax centre's expenses, read only
+      // (features/bookkeeper-view.js); no book, catalogue or setting of the publisher's is loaded.
+      if (!publisherAccount && isBookkeeperPass(user, await readPassClaims(user))) {
+        window.IS_PUBLISHER = false;
+        IS_AUTHOR_MODE = false;
+        await window._fbLoadModeFlags();
+        const { showBookkeeperView } = await import('./features/bookkeeper-view.js');
+        await showBookkeeperView({ email: user.email, loadSettings: window._fbLoadSettings, onSignOut: () => window._fbSignOut() });
+        dismissSplash();
+        return;
+      }
       if (cachedGlobal === true) {
         showStartupPreview(user, publisherAccount)
           .then(shown => { if (shown) dismissSplash(); })
@@ -19467,6 +19489,7 @@ function startupCachedGlobalMode() {
 
 let _pendingGateMsg = null;
 function setupGate(errMsg) {
+  document.getElementById('bookkeeper-view')?.remove();
   $('pw-gate').style.display = '';
   $('pw-app').style.display = 'none';
   document.querySelector('#gate-sub').textContent = 'inventory app';

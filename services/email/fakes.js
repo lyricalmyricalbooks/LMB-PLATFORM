@@ -1,4 +1,4 @@
-// In-memory stand-ins for the email service's sent log and for Resend's answers, for tests. The real sent log is a
+// In-memory stand-ins for the email service's sent log, Resend's answers and the newsletter reputation store, for tests. The real sent log is a
 // Firestore collection in the platform project (`emailSent/<idempotency key>`), with the same three calls.
 
 export function fakeSentLog() {
@@ -8,7 +8,7 @@ export function fakeSentLog() {
     get: async (key) => (entries.has(key) ? { ...entries.get(key) } : null),
     put: async (key, entry) => void entries.set(key, { ...entry }),
     findSent: async (shopId, kind) => [...entries.values()].find((e) => e.shopId === shopId && e.kind === kind && e.status === "sent") ?? null,
-    countSince: async (shopId, since) => [...entries.values()].filter((e) => e.shopId === shopId && e.status === "sent" && e.at >= since).length,
+    countSince: async (shopId, since, stream) => [...entries.values()].filter((e) => e.shopId === shopId && e.status === "sent" && e.at >= since && (!stream || (e.stream ?? "orders") === stream)).length,
   };
 }
 
@@ -39,3 +39,21 @@ export function fakeResendFetch(answers = []) {
 }
 
 const response = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+
+/** The newsletter reputation store (reputation.js), in memory: each shop's pause state and its counted events. */
+export function fakeReputationStore() {
+  const states = new Map();
+  const events = new Map();
+  return {
+    states,
+    getState: async (shopId) => structuredClone(states.get(shopId) ?? null),
+    setState: async (shopId, state) => void states.set(shopId, structuredClone(state)),
+    addEvent: async (shopId, event) => {
+      const list = events.get(shopId) ?? [];
+      if (list.some((e) => e.id === event.id)) return false;
+      events.set(shopId, [...list, { ...event }]);
+      return true;
+    },
+    events: async (shopId, since) => (events.get(shopId) ?? []).filter((e) => e.at >= since).map((e) => ({ ...e })),
+  };
+}

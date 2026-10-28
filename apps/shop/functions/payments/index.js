@@ -34,6 +34,10 @@
 //   Admin (Settings › Payments)
 //   deployedLiveKey(), checkKey(key), webhookEndpoints(), registerPaymentDomain(domainName)
 //
+//   Fees and payouts (code plan 7.10; orderMoney.js writes them on the order)
+//   paymentMoney(orderId, order, { keys? })          { parts: { charge?, <refund id>? } } as the provider has them now
+//   payoutMoney({ mode, payoutId, accountId?, arrivalDate? })   { payout: { id, date }, lines: [{ paymentId, key, part }] }
+//
 // The order bookkeeping (what a payment, refund or reversal means for an order) stays with the callers. A new provider
 // is one file beside stripe.js implementing the same names, added to PROVIDERS below.
 
@@ -50,6 +54,7 @@ const DEFAULT_MODE = "own";
 const INTERFACE = Object.freeze([
   "testMode", "readKeys", "clientForMode", "findOrderPayment", "readAttempt", "stopAttempt", "checkReversal", "refund",
   "webhookClient", "verifyWebhookEvent", "forCheckout", "deployedLiveKey", "checkKey", "webhookEndpoints", "registerPaymentDomain",
+  "paymentMoney", "payoutMoney",
 ]);
 
 /**

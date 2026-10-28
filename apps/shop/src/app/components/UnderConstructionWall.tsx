@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { useLiveDesign } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
+import { practiceHint } from "../lib/practiceHint";
 
 /**
  * Full-screen Riso "under construction" wall. Off by default; switched on in
@@ -14,6 +15,8 @@ export function UnderConstructionWall() {
   const { pathname } = useLocation();
   if (design?.showUnderConstruction !== true) return null;
   if (pathname.startsWith("/admin")) return null;
+  // The owner's practice order (plan 7.6): their own browser sees the shop behind the wall.
+  if (practiceHint()) return null;
   const c = (key: string) => getCopy(design, key);
   const email = c("ucEmail");
   return (

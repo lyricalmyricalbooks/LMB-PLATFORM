@@ -163,6 +163,25 @@ describe("launchReadiness on a shop whose cards go through Colophon (plan 2.10)"
     }
   });
 
+  it("says what Stripe still needs with its deadline, blocks when it is past due, and ticks once cards and payouts work", () => {
+    const deadline = "2026-11-12T17:00:00.000Z";
+    const card = (account: object) => launchReadiness({ ...base, platformCards: "stripe", platformAccount: { provider: "stripe", detailsSubmitted: true, ...account } }).find(i => i.id === "card-account")!;
+    // Due: cards work, payouts don't yet.
+    const due = card({ chargesEnabled: true, payoutsEnabled: false, needs: [{ words: "your bank details", pastDue: false }], deadline });
+    expect(due.status).toBe("warn");
+    expect(due.detail).toMatch(/^Stripe needs your bank details by 1[23] November\. Press Continue with Stripe in Payments\.$/);
+    expect(due.action).toBe("Continue with Stripe");
+    // Past due: Stripe has paused something.
+    const late = card({ chargesEnabled: false, payoutsEnabled: false, pastDue: true, needs: [{ words: "your bank details", pastDue: true }, { words: "your date of birth", pastDue: false }], deadline });
+    expect(late.status).toBe("block");
+    expect(late.label).toBe("Stripe has paused your payments");
+    expect(late.detail).toMatch(/^Stripe needs your bank details now\. The deadline has passed.*It also needs your date of birth by 1[23] November\./);
+    // Done.
+    const done = card({ chargesEnabled: true, payoutsEnabled: true, needs: [], deadline: null });
+    expect(done.status).toBe("ok");
+    expect(done.detail).toBe("Payouts go to your own Stripe account.");
+  });
+
   it("a shop on its own keys is unchanged", () => {
     const own = launchReadiness({ ...base, settings: goodSettings, platformCards: null });
     expect(status(own, "card-account")).toBeUndefined();

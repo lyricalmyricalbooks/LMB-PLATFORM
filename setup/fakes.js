@@ -326,6 +326,10 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
     },
     shopData: {
       get: async (projectId, path) => structuredClone(world.docs.get(key(projectId, path)) ?? null),
+      async set(projectId, path, data) {
+        change("shopData.set", projectId, path);
+        world.docs.set(key(projectId, path), structuredClone(data));
+      },
       async create(projectId, path, data) {
         change("shopData.create", projectId, path);
         if (world.docs.has(key(projectId, path))) throw new Error(`${path} already exists`);

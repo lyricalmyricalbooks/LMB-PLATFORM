@@ -32,11 +32,14 @@
 //   deliver    (row, rawBody, provider) -> { status } posts an event to the shop's webhook (httpDeliver below)
 //   squareApi  createSquareApi(...) from squareApi.js, with `tokens` and `states` (square.js); optional: without it
 //              Square shops are refused
+//   email      sendPlatform(message) (services/email); optional: emails the owner once when a requirement on their
+//              Stripe account goes past its deadline (code plan 7.9)
 import { StripeApiError } from "./stripeApi.js";
 import { SquareApiError } from "./squareApi.js";
 import { createSquareService, SQUARE_OP_NAMES } from "./square.js";
 import { verifySignature } from "./stripeSignature.js";
 import { feeFor, feeForShop, feeSummary, takesFee } from "./fees.js";
+import { accountNeeds } from "./requirements.js";
 import { serviceKeyMatches } from "../email/http.js";
 
 /** A refusal by the service itself (not Stripe), with the HTTP status to answer with. */
@@ -50,7 +53,7 @@ export class ServiceError extends Error {
 }
 
 const ACCOUNT_ID = /^acct_[A-Za-z0-9]+$/;
-const ids = { pi: /^pi_[A-Za-z0-9_]+$/, cs: /^cs_[A-Za-z0-9_]+$/, evt: /^evt_[A-Za-z0-9_]+$/ };
+const ids = { pi: /^pi_[A-Za-z0-9_]+$/, cs: /^cs_[A-Za-z0-9_]+$/, evt: /^evt_[A-Za-z0-9_]+$/, po: /^po_[A-Za-z0-9_]+$/, txn: /^txn_[A-Za-z0-9_]+$/ };
 
 // Parameters that would move money anywhere but the press's own account, or set the platform's fee. A shop never
 // sets them: the service adds the fee itself, and any of these from a shop is refused, at any depth.
@@ -90,10 +93,30 @@ const expandOnly = (params, allowed) => {
   if (!Array.isArray(out.expand) || !out.expand.every((item) => allowed.includes(item))) throw bad(`only ${allowed.join(", ") || "nothing"} can be expanded`);
   return out;
 };
+const limitOk = (limit) => {
+  if (limit !== undefined && !(Number.isInteger(limit) && limit >= 1 && limit <= 100)) throw bad("limit must be 1 to 100");
+};
 const listParams = (params) => {
   const out = only(params, ["payment_intent", "limit"]);
   idFor("pi", out.payment_intent);
-  if (out.limit !== undefined && !(Number.isInteger(out.limit) && out.limit >= 1 && out.limit <= 100)) throw bad("limit must be 1 to 100");
+  limitOk(out.limit);
+  return out;
+};
+// A payment's refunds, with each one's balance transaction when asked (its fee and net, code plan 7.10).
+const refundListParams = (params) => {
+  const out = only(params, ["payment_intent", "limit", "expand"]);
+  idFor("pi", out.payment_intent);
+  limitOk(out.limit);
+  if (out.expand !== undefined) expandOnly({ expand: out.expand }, ["data.balance_transaction"]);
+  return out;
+};
+// What one payout paid in (code plan 7.10): its balance transactions, page by page, with each one's charge or refund.
+const payoutListParams = (params) => {
+  const out = only(params, ["payout", "limit", "starting_after", "expand"]);
+  idFor("po", out.payout);
+  limitOk(out.limit);
+  if (out.starting_after !== undefined) idFor("txn", out.starting_after);
+  if (out.expand !== undefined) expandOnly({ expand: out.expand }, ["data.source"]);
   return out;
 };
 
@@ -117,18 +140,37 @@ function sessionAmount(params) {
 /** The Stripe calls a shop may ask for. Each names Stripe's path and checks the shop's parameters. */
 const SHOP_OPS = Object.freeze({
   "paymentIntents.create": { method: "POST", path: () => "/v1/payment_intents", create: "top" },
-  "paymentIntents.retrieve": { method: "GET", path: (a) => `/v1/payment_intents/${idFor("pi", a.id)}`, params: (p) => expandOnly(p, ["latest_charge"]) },
+  // latest_charge.balance_transaction: the charge's fee and net, once Stripe has them (code plan 7.10).
+  "paymentIntents.retrieve": { method: "GET", path: (a) => `/v1/payment_intents/${idFor("pi", a.id)}`, params: (p) => expandOnly(p, ["latest_charge", "latest_charge.balance_transaction"]) },
   "paymentIntents.cancel": { method: "POST", path: (a) => `/v1/payment_intents/${idFor("pi", a.id)}/cancel`, params: (p) => only(p, []) },
   "checkout.sessions.create": { method: "POST", path: () => "/v1/checkout/sessions", create: "payment_intent_data" },
   "checkout.sessions.retrieve": { method: "GET", path: (a) => `/v1/checkout/sessions/${idFor("cs", a.id)}`, params: (p) => expandOnly(p, []) },
   "checkout.sessions.expire": { method: "POST", path: (a) => `/v1/checkout/sessions/${idFor("cs", a.id)}/expire`, params: (p) => only(p, []) },
   "refunds.create": { method: "POST", path: () => "/v1/refunds", refund: true },
-  "refunds.list": { method: "GET", path: () => "/v1/refunds", params: listParams },
+  "refunds.list": { method: "GET", path: () => "/v1/refunds", params: refundListParams },
   "disputes.list": { method: "GET", path: () => "/v1/disputes", params: listParams },
   "events.retrieve": { method: "GET", path: (a) => `/v1/events/${idFor("evt", a.id)}`, params: (p) => only(p, []) },
+  "balanceTransactions.list": { method: "GET", path: () => "/v1/balance_transactions", params: payoutListParams },
 });
 
 export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink", "account.connectLink", "account.paymentDomain", ...SQUARE_OP_NAMES]);
+
+/** Stripe's controller settings that match a Standard account (the deprecated `type: "standard"`). */
+export const STANDARD_CONTROLLER = Object.freeze({
+  losses: Object.freeze({ payments: "stripe" }),
+  fees: Object.freeze({ payer: "account" }),
+  requirement_collection: "stripe",
+  stripe_dashboard: Object.freeze({ type: "full" }),
+});
+
+/** The merchant category for a press selling its books to readers: "Book Stores". */
+export const BOOK_STORES_MCC = "5942";
+
+/** The shop's public web address for Stripe's business profile: its own site, or the Firebase address it starts on. */
+function shopAddress(row) {
+  if (typeof row.siteUrl === "string" && /^https:\/\/[^/\s]+/.test(row.siteUrl)) return row.siteUrl;
+  return /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(row.projectId ?? "") ? `https://${row.projectId}.web.app` : undefined;
+}
 
 /** Where a shop's server code receives Stripe events (the shop's `stripeWebhook` function, apps/shop functionLink). */
 export function shopWebhookUrl(row) {
@@ -187,7 +229,7 @@ const header = (headers, name) => {
  * @param {object} deps see the header comment
  * @param {{ webhookSecrets: { live: string[], test: string[] }, fee: object }} deps.config readServiceConfig()
  */
-export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, now = () => Date.now() }) {
+export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, email = null, now = () => Date.now() }) {
   const { webhookSecrets } = config;
   const iso = () => new Date(now()).toISOString();
 
@@ -197,6 +239,33 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     const full = { id, source: "payment-service", at: iso(), ...entry };
     await registry.recordEvent(shopId, full);
     await auditLog.write(shopId, id, full);
+  }
+
+  // The shop's admin, where the press presses Continue with Stripe. Stripe's own link is never emailed: it works
+  // once, for a few minutes.
+  function paymentsPage(row) {
+    const site = typeof row.siteUrl === "string" && /^https:\/\/[^/\s]+/.test(row.siteUrl) ? row.siteUrl.replace(/\/+$/, "") : `https://${row.projectId}.web.app`;
+    return `${site}/admin#settings/payments/methods`;
+  }
+
+  // One email for each time the account goes past due: the key holds when it did, so a repeated event (or a retry
+  // after a lost answer) sends nothing new. Answers false when the email couldn't be sent, so Stripe retries.
+  async function emailPastDue(row, payments, needs, accountId) {
+    try {
+      await email.sendPlatform({
+        kind: "payments-past-due",
+        to: row.ownerEmail,
+        shopId: row.shopId,
+        idempotencyKey: `payments-past-due/${row.shopId}/${accountId}/${payments.pastDueSince || "first"}`,
+        data: { pressName: row.pressName || row.shopId, provider: "Stripe", needs: needs.needs.filter((n) => n.pastDue).map((n) => n.words), link: paymentsPage(row) },
+      });
+    } catch (err) {
+      console.error(`The past-due email for ${row.shopId} wasn't sent: ${err?.message || err}`);
+      return false;
+    }
+    await registry.updateShop(row.shopId, { payments: { ...payments, pastDueEmailedAt: iso() } });
+    await logChange(row.shopId, `payments-past-due-emailed-${accountId}-${payments.pastDueSince}`, { kind: "payments.past-due-emailed", accountId });
+    return true;
   }
 
   const square = squareApi
@@ -211,7 +280,8 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     const row = shopId ? await registry.getShop(shopId) : null;
     // One answer for "no such shop" and "wrong key", so the door can't be used to find shop ids.
     if (!row || !serviceKeyMatches(key, row.serviceKeyHash)) throw new ServiceError(401, "unknown_shop", "This shop can't use the platform's payments.");
-    if (row.status === "abandoned") throw new ServiceError(403, "shop_closed", "This shop is closed.");
+    // Abandoned, or closed by a platform admin for abuse (control room, plan 8.4): no payments either way.
+    if (row.status === "abandoned" || row.closure) throw new ServiceError(403, "shop_closed", "This shop is closed.");
     const payments = row.payments;
     if (payments?.provider === "square") return row;
     if (payments?.provider !== "stripe" || !ACCOUNT_ID.test(payments.accountId ?? "")) {
@@ -226,6 +296,19 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     if (mode !== "live" && mode !== "test") throw bad("mode must be live or test");
     if (mode === "live" && row.payments.mode !== "live") throw new ServiceError(403, "test_only", "This shop takes test payments only.");
     return mode;
+  }
+
+  // A new press takes real money only once Stripe has checked them (charges_enabled; plan 8.4, so a trial made for
+  // fraud can't sell before then). The registry keeps Stripe's answer from account.updated. Until it says yes, Stripe is
+  // asked again, so a missed event never keeps a checked press from selling.
+  async function liveChargesAllowed(row) {
+    if (row.payments.chargesEnabled === true) return;
+    const account = await stripe.call("live", "GET", `/v1/accounts/${row.payments.accountId}`);
+    if (account.charges_enabled !== true) {
+      throw new ServiceError(403, "not_checked", "Stripe is still checking this press's account, so it can't take real payments yet.");
+    }
+    await registry.updateShop(row.shopId, { payments: { ...row.payments, chargesEnabled: true, stateAt: iso() } });
+    await logChange(row.shopId, `payments-checked-${row.payments.accountId}`, { kind: "payments.charges-enabled", accountId: row.payments.accountId });
   }
 
   function createParams(where, params, fee) {
@@ -266,6 +349,9 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       payoutsEnabled: account.payouts_enabled === true,
       detailsSubmitted: account.details_submitted === true,
       requirementsDue: Array.isArray(account.requirements?.currently_due) ? account.requirements.currently_due.length : 0,
+      // What Stripe still needs, in plain words, with its deadline (7.9): { needs: [{ words, pastDue }], deadline,
+      // pastDue, disabledReason }.
+      ...accountNeeds(account),
       // Shown to the press next to their payouts (owner's instruction, 28 October 2026).
       platformFee: feeSummary(fee),
     };
@@ -320,6 +406,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     const op = typeof name === "string" && Object.hasOwn(SHOP_OPS, name) ? SHOP_OPS[name] : null;
     if (!op) throw bad(`unknown call ${String(name).slice(0, 60)}`);
     const mode = modeFor(row, body.mode);
+    if (op.create && mode === "live") await liveChargesAllowed(row);
     const path = op.path(args);
     let params;
     if (op.create) params = createParams(op.create, args.params, fee);
@@ -366,15 +453,26 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       // The account's own state, kept in the registry for the go-live checklist (2.10) and the control room.
       if (event.type === "account.updated" && event.data?.object?.id === event.account && mode === row.payments.mode) {
         const account = event.data.object;
+        const needs = accountNeeds(account);
         const state = {
           chargesEnabled: account.charges_enabled === true,
           payoutsEnabled: account.payouts_enabled === true,
           detailsSubmitted: account.details_submitted === true,
+          pastDue: needs.pastDue,
         };
         const saved = row.payments;
+        let payments = saved;
         if (Object.entries(state).some(([key, value]) => saved[key] !== value)) {
-          await registry.updateShop(row.shopId, { payments: { ...saved, ...state, stateAt: iso() } });
+          // When it turned past due; cleared once it isn't, so the next time emails the owner again.
+          const { pastDueSince, pastDueEmailedAt, ...rest } = saved;
+          payments = { ...rest, ...state, stateAt: iso(), ...(needs.pastDue ? { pastDueSince: pastDueSince ?? iso(), ...(pastDueEmailedAt ? { pastDueEmailedAt } : {}) } : {}) };
+          await registry.updateShop(row.shopId, { payments });
           await logChange(row.shopId, `payments-account-${event.id}`, { kind: "payments.account-updated", accountId: event.account, ...state });
+        }
+        // Past due: Stripe has paused cards or payouts. The owner is emailed once (the admin shows a banner as well).
+        if (needs.pastDue && !payments.pastDueEmailedAt && email) {
+          const emailed = await emailPastDue(row, payments, needs, event.account);
+          if (!emailed) return { status: 502, body: { error: "The owner couldn't be emailed; Stripe will send the event again." } };
         }
       }
       if (event.type === "account.application.deauthorized" && mode === row.payments.mode && !row.payments.disconnectedAt) {
@@ -437,8 +535,17 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     },
 
     /**
-     * Makes the press's Standard account. Safe to repeat: the shop id is in the idempotency key, so a retry after a
-     * lost answer gets the same account back. The shop must be in the registry, with the same owner.
+     * Makes the press's account, with Standard's behaviour. Safe to repeat: the shop id is in the idempotency key, so a
+     * retry after a lost answer gets the same account back. The shop must be in the registry, with the same owner.
+     *
+     * Stripe calls the account types deprecated and describes accounts by their controller settings instead
+     * (https://docs.stripe.com/connect/migrate-to-controller-properties). These four are what Standard means: Stripe
+     * covers losses and collects what it needs, the press pays its own Stripe fees and has the full Stripe Dashboard.
+     * Accounts made earlier with `type: "standard"` already carry the same settings and are left as they are.
+     *
+     * What the platform knows is filled in, so Stripe's sign-up asks less (and on these accounts it can only be filled
+     * in now, before the press's first visit): the country from sign-up, the shop's web address and "Book Stores"
+     * (merchant category 5942).
      */
     async createAccount(shopId, { pressName, ownerEmail, country, currency, testMode }) {
       const row = await registry.getShop(shopId);
@@ -447,11 +554,11 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       const mode = testMode === true ? "test" : "live";
       const account = await stripe.call(mode, "POST", "/v1/accounts", {
         params: {
-          type: "standard",
+          controller: STANDARD_CONTROLLER,
           country,
           email: ownerEmail,
           default_currency: String(currency).toLowerCase(),
-          business_profile: { name: pressName },
+          business_profile: { name: pressName, url: shopAddress(row), mcc: BOOK_STORES_MCC, product_description: "Books and printed matter" },
           metadata: { lmb_shop_id: shopId },
         },
         idempotencyKey: `lmb-account-${shopId}-${mode}`,

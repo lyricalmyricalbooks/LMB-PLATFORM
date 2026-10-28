@@ -12,3 +12,7 @@ export const FIREBASE_SDK = "https://www.gstatic.com/firebasejs/11.10.0";
 
 // The platform's web door (signup/api.js), on the same site as this page.
 export const API_BASE = "/api";
+
+// The sample press anyone can try before signing up (plan 7.7, docs/demo-shop.md "The sample press"). Empty until
+// Julian hosts it: the page then shows no link. waitlist/config.js has the same address.
+export const SAMPLE_PRESS_URL = "";

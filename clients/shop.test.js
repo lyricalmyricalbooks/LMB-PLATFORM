@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { firestoreClient } from "./firestore.js";
 import { inventoryLinkClient, registryFiles, shopDataClient, siteCheckClient, stockroomClient } from "./shop.js";
-import { firestoreAccounts, firestoreDevices, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreSupport } from "./stores.js";
+import { firestoreAccounts, firestoreBreaches, firestoreDevices, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreSupport } from "./stores.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 
 const P = "lmb-test-shop";
@@ -143,6 +143,19 @@ test("the repair store lists by shop and status with equality filters only", asy
   const repairs = firestoreRepairs(firestoreClient({ fetch, token, projectId: "lmb-platform-prod" }));
   assert.deepEqual(await repairs.list({ shopId: "moth-press", status: "open" }), [{ status: "open" }]);
   assert.deepEqual(await repairs.list({ status: "fixed" }), []);
+  fetch.done();
+});
+
+test("the breach register's store reads every entry and writes one by id", async () => {
+  const R = "https://firestore.googleapis.com/v1/projects/lmb-platform-prod/databases/(default)/documents";
+  const fetch = scriptedFetch([
+    { method: "POST", url: `${R}:runQuery`, body: { structuredQuery: { from: [{ collectionId: "breaches" }], limit: 5000 } }, json: [{ document: { name: `projects/lmb-platform-prod/databases/(default)/documents/breaches/b1`, fields: { foundOn: str("2026-10-28") } } }] },
+    { method: "PATCH", url: `${R}/breaches/b1`, body: { fields: { foundOn: str("2026-10-28") } }, json: {} },
+  ]);
+  const breaches = firestoreBreaches(firestoreClient({ fetch, token, projectId: "lmb-platform-prod" }));
+  assert.deepEqual(await breaches.list(), [{ foundOn: "2026-10-28" }]);
+  await breaches.set("b1", { foundOn: "2026-10-28" });
+  assert.equal(breaches.delete, undefined, "nothing here deletes an entry");
   fetch.done();
 });
 
