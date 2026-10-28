@@ -1,6 +1,6 @@
 // The shop's one door to its card payment provider (code plans 1.11–1.12). Callers ask this module; only the provider
 // file talks to the provider. Each shop chooses its provider (shopConfig.paymentProvider, from SHOP_PAYMENT_PROVIDER in
-// the shop's functions/.env.<project id>; default "stripe"). Stripe is the only provider so far.
+// the shop's functions/.env.<project id>; default "stripe"). Stripe, or Square (code plan 2.2b; through the platform only).
 //
 // Each shop also chooses a mode (shopConfig.paymentMode, SHOP_PAYMENT_MODE; code plan 2.2): "own" (default) uses the
 // shop's own keys; "platform" sends every call through the platform's payment service on the press's connected account
@@ -38,9 +38,10 @@
 // is one file beside stripe.js implementing the same names, added to PROVIDERS below.
 
 const { createStripeProvider } = require("./stripe");
+const { createSquareProvider } = require("./square");
 const { createPlatformAccess } = require("./platform");
 
-const PROVIDERS = Object.freeze({ stripe: createStripeProvider });
+const PROVIDERS = Object.freeze({ stripe: createStripeProvider, square: createSquareProvider });
 const PROVIDER_NAMES = Object.freeze(Object.keys(PROVIDERS));
 const DEFAULT_PROVIDER = "stripe";
 const MODES = Object.freeze(["own", "platform"]);
@@ -73,7 +74,8 @@ function createPayments({ provider = DEFAULT_PROVIDER, mode = DEFAULT_MODE, serv
   const impl = make({ ...deps, platform });
   const missing = INTERFACE.filter(name => typeof impl[name] !== "function");
   if (missing.length) throw new Error(`Payment provider "${provider}" is missing: ${missing.join(", ")}.`);
-  return Object.freeze({ provider: impl.id, mode, ...Object.fromEntries(INTERFACE.map(name => [name, impl[name]])) });
+  // `account`: the press's account on the platform (platform.js platformAccount); null with the shop's own keys.
+  return Object.freeze({ provider: impl.id, mode, account: platform ? platform.account : null, ...Object.fromEntries(INTERFACE.map(name => [name, impl[name]])) });
 }
 
 module.exports = { createPayments, PROVIDER_NAMES, DEFAULT_PROVIDER, MODES, DEFAULT_MODE, INTERFACE };

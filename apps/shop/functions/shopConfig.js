@@ -97,6 +97,14 @@ function paymentsServiceUrlOf(mode, value) {
   return url;
 }
 
+// Square runs only through the platform (code plan 2.2b): the shop never holds a Square token of its own.
+function providerModeOf(provider, mode) {
+  if (provider === "square" && mode !== "platform") {
+    throw new Error('SHOP_PAYMENT_PROVIDER is "square", which runs through the platform only. Set SHOP_PAYMENT_MODE="platform" and SHOP_PAYMENTS_SERVICE_URL in the shop\'s functions/.env file, then deploy again.');
+  }
+  return mode;
+}
+
 /** The shop's server settings from `env` (process.env in the functions), each one checked on its own. */
 function readShopConfig(env = {}) {
   const project = text(env.GCLOUD_PROJECT) || text(env.GOOGLE_CLOUD_PROJECT) || PLACEHOLDER.project;
@@ -118,7 +126,7 @@ function readShopConfig(env = {}) {
     siteUrl,
     siteHost: host.replace(/^www\./, ""),
     paymentProvider: paymentProviderOf(env.SHOP_PAYMENT_PROVIDER),
-    paymentMode: paymentModeOf(env.SHOP_PAYMENT_MODE),
+    paymentMode: providerModeOf(paymentProviderOf(env.SHOP_PAYMENT_PROVIDER), paymentModeOf(env.SHOP_PAYMENT_MODE)),
     paymentsServiceUrl: paymentsServiceUrlOf(paymentModeOf(env.SHOP_PAYMENT_MODE), env.SHOP_PAYMENTS_SERVICE_URL),
     testShop: text(env.SHOP_TEST_SHOP).toLowerCase() === "true",
     stockroomDatabase: DATABASE_ID.test(text(env.SHOP_STOCKROOM_DATABASE)) ? text(env.SHOP_STOCKROOM_DATABASE) : PLACEHOLDER.stockroomDatabase,

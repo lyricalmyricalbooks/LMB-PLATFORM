@@ -38,7 +38,7 @@ import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess } from ".
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
 import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, onPageRestored } from "./features/site/stripeLifecycle";
-import { platformStripe } from "../lib/shopProfile";
+import { paysOnSquare, platformStripe, platformTakesCards } from "../lib/shopProfile";
 import { checkoutFlow, confirmationView, initialFlow, readReturn, stripeTookPayment } from "./features/site/checkoutFlow";
 import { checkoutDetailProblems, detailInputId, expressWalletEnabled, type DetailField } from "./features/site/checkoutDetails";
 import { createLatestGuard, signalWithTimeout, RATES_TIMEOUT_MS } from "./features/site/latestRequest";
@@ -209,6 +209,9 @@ export function Checkout() {
     paymentStarted: inlineAttemptStarted,
   });
   const useCardForm = stripeRoute.inline;
+  // Square shops (plan 2.2b): the card is entered on Square's own checkout page; Pay sends the shopper there.
+  const onSquare = paysOnSquare();
+  const cardCanPay = onSquare || stripeRoute.canPay;
 
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -303,7 +306,7 @@ export function Checkout() {
     const payments = settings?.payments;
     if (!payments) return;
     const offered = [
-      ...(payments.stripe?.connected ? ["stripe"] : []),
+      ...(payments.stripe?.connected || platformTakesCards() ? ["stripe"] : []),
       ...(payments.paypal?.connected ? ["paypal"] : []),
       ...(Array.isArray(payments.manualMethods) ? payments.manualMethods : []).filter((m: any) => m?.enabled).map((m: any) => `manual_${m.id}`),
     ];
@@ -1144,7 +1147,7 @@ export function Checkout() {
       setNotice({ tone: "error", text: c("coBelowMinimum", { amount: amountIn(MIN_CARD_CHARGE, currency) }) });
       return;
     }
-    if (selectedPaymentMethod === "stripe" && !stripeRoute.canPay && finalTotal > 0) {
+    if (selectedPaymentMethod === "stripe" && !cardCanPay && finalTotal > 0) {
       setNotice({ tone: "error", text: c("coStripeLoadError") });
       return;
     }
@@ -1266,7 +1269,7 @@ export function Checkout() {
         status: "pending_payment",
         paymentStatus: "unpaid",
         // Manual-payment orders never use this: the server builds them (createManualLocalOrder).
-        paymentMethod: selectedPaymentMethod === "paypal" ? "PayPal" : "Stripe",
+        paymentMethod: selectedPaymentMethod === "paypal" ? "PayPal" : "Stripe", // a Square shop's card orders too: the rules and server know cards as "Stripe" (plan 2.2b)
         paymentInstructions: "",
         testMode: settings?.payments?.testMode || false,
         appliedDiscount: appliedDiscount
@@ -1386,6 +1389,22 @@ export function Checkout() {
       const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
 
       const successUrl = `${returnUrl}?success=true&order_id=${encodeURIComponent(orderId)}`;
+
+      if (onSquare && selectedPaymentMethod === "stripe") {
+        // Square's own checkout page takes the card; the server prices the order and makes the page.
+        const squareResponse = await functionFetch("createStripeCheckoutSession", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, embedded: false, previousOrderId: supersededOrderId }),
+        });
+        const squareData = await squareResponse.json().catch(() => ({}));
+        if (!squareResponse.ok || !squareData.url) {
+          throw discountRejection(squareData) || serverRefusal(squareResponse, squareData) || new CopyError(checkoutDesign, "coStripeError");
+        }
+        purchaseNavigating.current = true;
+        window.location.href = squareData.url;
+        return;
+      }
 
       if (payingByCardForm) {
         // Lock recovery before requesting an intent: even a lost response may
@@ -1571,7 +1590,7 @@ export function Checkout() {
           sessionStorage.removeItem("fm_checkout_cart_id");
           return;
         }
-        if (stripeSessionId.startsWith("cs_") || stripeIntentId.startsWith("pi_")) {
+        if (stripeSessionId.startsWith("cs_") || stripeIntentId.startsWith("pi_") || landing.square) {
           // Ask Stripe whether this session was actually completed. "open" means
           // the shopper came back without paying — send them back to the form.
           const statusRes = await functionFetch("createStripeCheckoutSession", {
@@ -1798,7 +1817,7 @@ export function Checkout() {
   }
 
   // ── Main checkout ───────────────────────────────────────────────────────────
-  const hasStripe = Boolean(settings?.payments?.stripe?.connected);
+  const hasStripe = Boolean(settings?.payments?.stripe?.connected) || platformTakesCards();
   const hasPaypal = Boolean(settings?.payments?.paypal?.connected);
   const configuredManualMethods = settings?.payments?.manualMethods;
   const enabledManualMethods = (Array.isArray(configuredManualMethods) ? configuredManualMethods : []).filter((method: any) => method.enabled);
@@ -1817,7 +1836,7 @@ export function Checkout() {
     ? <>{barParts[0]}<span translate="no">{payTotal}</span>{barParts.slice(1).join(payTotal)}</>
     : barWords;
   // Also waits while carrier rates load (the picker shows the loading words), instead of "choose an option".
-  const payDisabled = isCompleting || catalogState !== "ready" || (shippoRatesLoading && !digitalOnly && physicalItems.length > 0 && fulfillmentSelection.method === "shipping") || (finalTotal > 0 && selectedPaymentMethod === "stripe" && !stripeRoute.canPay) || (finalTotal > 0 && !hasStripe && !hasPaypal && enabledManualMethods.length === 0);
+  const payDisabled = isCompleting || catalogState !== "ready" || (shippoRatesLoading && !digitalOnly && physicalItems.length > 0 && fulfillmentSelection.method === "shipping") || (finalTotal > 0 && selectedPaymentMethod === "stripe" && !cardCanPay) || (finalTotal > 0 && !hasStripe && !hasPaypal && enabledManualMethods.length === 0);
   const labelsAbove = checkoutLabelsAbove(checkoutDesign);
   const payTabs = checkoutPayTabs(checkoutDesign);
   const payBar = checkoutPayBarOn(checkoutDesign);
@@ -2009,6 +2028,7 @@ export function Checkout() {
                 tabs={payTabs}
                 selected={selectedPaymentMethod === "stripe"}
                 configured={useCardForm}
+                hosted={onSquare}
                 canRetry={stripeRoute.canRetry}
                 busy={isCompleting}
                 onSelect={() => setSelectedPaymentMethod("stripe")}

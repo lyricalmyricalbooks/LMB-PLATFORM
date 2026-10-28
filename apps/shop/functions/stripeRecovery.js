@@ -1,6 +1,7 @@
 // Pure helpers that keep a Stripe payment and its shop order in step even when the
 // webhook is missing, misconfigured or pointed at the other (test/live) account.
 // index.js does the Stripe and Firestore calls.
+const { isPaymentId } = require("./payments/ids");
 
 // Every event stripeWebhook acts on. The webhook health check makes sure the
 // Stripe endpoint sends all of them.
@@ -129,7 +130,7 @@ function refundedMayStillFail(o, nowMs) {
 // Whether the safety net watches an order at all, whenever it was last checked.
 function reversalWatched(o, nowMs = Date.now()) {
   return !!o && (o.paymentStatus === "paid" || o.paymentStatus === "refund_pending" || refundedMayStillFail(o, nowMs)) && o.isTest !== true
-    && typeof o.stripePaymentIntentId === "string" && o.stripePaymentIntentId.startsWith("pi_")
+    && isPaymentId(o.stripePaymentIntentId)
     && nowMs - Date.parse(o.paidAt || o.createdAt || "") <= REVERSAL_WINDOW_MS;
 }
 function ordersDueReversalCheck(orders, nowMs = Date.now(), limit = 40) {

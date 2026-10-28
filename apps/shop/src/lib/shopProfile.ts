@@ -142,6 +142,17 @@ export function readShopProfile(source: unknown = typeof window === "undefined" 
 
 export const shopProfile: ShopProfile = readShopProfile();
 
+/** Card payments run through the platform (plan 2.2): the checkout offers cards without the shop's own keys. */
+export function platformTakesCards(profile: ShopProfile = shopProfile): boolean {
+  const payments = profile.payments;
+  return payments?.mode === "platform" && (payments.provider === "square" || Boolean(payments.stripe?.accountId));
+}
+
+/** The shop takes cards through Square (plan 2.2b): shoppers pay on Square's own page, with no card form here. */
+export function paysOnSquare(profile: ShopProfile = shopProfile): boolean {
+  return profile.payments?.provider === "square" && profile.payments.mode === "platform";
+}
+
 /**
  * The Stripe card form's settings when the platform takes the payments: the platform's publishable key for the shop's
  * current mode and the press's account. null when the shop uses its own keys (the settings' keys apply).
