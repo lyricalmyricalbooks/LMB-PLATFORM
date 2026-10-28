@@ -421,6 +421,21 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /**
+   * A setup tip during the trial (services/trial-tips, plan 6.10): the next step of the shop's setup guide. `data`:
+   * { pressName, subject, paragraphs, action, link, offLink }. Always carries the link that turns the tips off.
+   */
+  "trial-tip": ({ subject, paragraphs = [], action, link, offLink }, { settings, pressName }) => {
+    if (!subject || !paragraphs.length || !action) throw new Error("the setup tip has no words");
+    return layout({
+      subject: `${pressName}: ${subject}`,
+      greeting: "Hello,",
+      paragraphs: [...paragraphs, `Don't want these setup tips? Turn them off here: ${safeLink(offLink)}. Emails about your plan and payments still come.`],
+      buttons: [[action, safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
+
   // Closing a shop (code plan 6.8): shop-closed, shop-deletion-warning, shop-deleted.
   ...closingTemplates({ layout, safeLink, signOff }),
 };
