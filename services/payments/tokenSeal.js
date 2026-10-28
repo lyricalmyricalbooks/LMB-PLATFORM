@@ -1,15 +1,16 @@
 // A press's Square tokens are kept sealed (AES-256-GCM), as Square asks ("OAuth tokens should be encrypted and stored on
 // a secure server"). The sealing key is SQUARE_TOKEN_KEY in the service's environment (32 bytes, Base64); the store only
-// ever holds the sealed text. Each seal is bound to its shop and mode, so a sealed token copied to another shop's
+// ever holds the sealed text. The bookkeeping service (services/accounting) seals presses' QuickBooks tokens the same
+// way, with its own key. Each seal is bound to its shop and mode, so a sealed token copied to another shop's
 // record won't open.
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 const VERSION = "v1";
 
-/** The sealing key from its Base64 text; throws unless it is exactly 32 bytes. */
-export function sealingKey(text) {
+/** The sealing key from its Base64 text; throws unless it is exactly 32 bytes. `name` is the setting, for the message. */
+export function sealingKey(text, name = "SQUARE_TOKEN_KEY") {
   const key = Buffer.from(String(text ?? "").trim(), "base64");
-  if (key.length !== 32) throw new Error("SQUARE_TOKEN_KEY must be 32 bytes, written in Base64");
+  if (key.length !== 32) throw new Error(`${name} must be 32 bytes, written in Base64`);
   return key;
 }
 
