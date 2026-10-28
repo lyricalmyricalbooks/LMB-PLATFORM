@@ -446,3 +446,15 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). Imported customers appear in the
   list once they order (the list is built from orders).
 - **Photos** stay on the old shop's addresses until plan 3.1b copies them into the shop's own storage.
+
+## Your first week (28 October 2026)
+
+Plan 3.3. Overview › **Your first week** (`overview/FirstWeekCard.tsx`, above the board) lists steps shaped by the
+sign-up answer, read from the admin-only `firstWeek/start` (`adminApi.getFirstWeek`), which the platform's setup step 12
+writes once (`sellingToday`, `plan`). No document, no list: shops made before this, or by hand, never see it.
+`firstWeek.ts` (pure) orders the steps per answer (`ORDER`; unknown or skipped answers get `general`) and works out
+"done" from the books and `launchReadiness` items (`shipping`, `payments` ok); `MANUAL` steps are ticked by the owner
+(`updateFirstWeek({ done: { id: at } })`, merged). Hide this list writes `hiddenAt`. `SELLING_TODAY` must list the
+sign-up form's answers (`signup/form.js` QUESTION; a root test checks). Firestore rule `firstWeek`: admin only,
+`hasOnly(["sellingToday", "plan", "done", "hiddenAt", "createdAt", "updatedAt"])`. The Overview's "designer" link
+opens Settings › Design (Dashboard maps it like general/notifications/taxes).
