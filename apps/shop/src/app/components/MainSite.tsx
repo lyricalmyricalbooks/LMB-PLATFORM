@@ -14,7 +14,8 @@ import { useSiteData } from "../features/site/useSiteData";
 import { useShopBreak } from "../features/site/useShopBreak";
 import { SHOP_BREAK_WORDS, type ShopBreak } from "../features/site/shopBreak";
 import { BootSplash } from "./BootSplash";
-import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
+import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
+import { themeStyleCss } from "../features/site/templateStyles";
 import { wantsHome } from "../features/site/homeLink";
 import { getCopy } from "../features/site/storeCopy";
 import { preorderActive } from "../features/site/preorder";
@@ -324,7 +325,7 @@ function TypographyTokens({ design }: { design: any }) {
 }
 /* Semantic token layer: remaps white/black alpha utilities + fm-* helpers. */
 ${STOREFRONT_TOKEN_CSS}
-${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : ""}
+${themeStyleCss(design)}
 `;
   if (t.typeScale) {
     const size = (steps: number) => Math.round(t.base * Math.pow(t.typeScale, steps) * 10) / 10;
