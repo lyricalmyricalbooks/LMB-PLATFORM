@@ -243,6 +243,12 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("admin ticks a first-week step", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { sellingToday: "online", done: { look: "now" }, updatedAt: "now" })));
   await check("admin hides the first-week list", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { hiddenAt: "now" }, { merge: true })));
   await check("first-week extra key refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { junk: 1 }, { merge: true })));
+  // Choose your look (plan 6.3) and the guide's progress for the trial emails (plan 6.10)
+  await check("admin records Choose your look", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "press-zine", at: "now", skipped: false } }, { merge: true })));
+  await check("admin saves the guide's progress", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { progress: { steps: ["logo", "look"], done: ["look"], at: "now" } }, { merge: true })));
+  await check("welcome with an extra key refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "x", at: "now", junk: 1 } }, { merge: true })));
+  await check("admin can't change the sign-up answer", assertFails(setDoc(doc(admin, "firstWeek/start"), { sellingToday: "fairs" }, { merge: true })));
+  await check("admin can't change the plan", assertFails(setDoc(doc(admin, "firstWeek/start"), { plan: "both" }, { merge: true })));
 }
 await check("anon can't read the first week", assertFails(getDoc(doc(anon, "firstWeek/start"))));
 await check("anon can't write the first week", assertFails(setDoc(doc(anon, "firstWeek/start"), { hiddenAt: "now" })));
@@ -368,6 +374,39 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("anon can't write a redirect page", assertFails(setDoc(doc(anon, "redirects/1"), redirectPage)));
   await check("author can't write a redirect page", assertFails(setDoc(doc(author, "redirects/1"), redirectPage)));
   await check("bookkeeper can't write a redirect page", assertFails(setDoc(doc(bookkeeper, "redirects/1"), redirectPage)));
+}
+
+// The shop's plan on the platform (plan 6.6, 6.7): platform/plan is the shop's admins' to read, platform/status is
+// public, and no browser writes either (the owner included). New orders on a paused plan are refused by the server
+// (functions/planPause.test.js): the guest order rule is at the 1000-expression limit and doesn't read the status.
+{
+  const owner = env.authenticatedContext("o1", { email: "owner@example.com", email_verified: true }).firestore();
+  const staff = env.authenticatedContext("s1", { email: "sam@press.test", email_verified: true, role: "staff" }).firestore();
+  const bookkeeper = env.authenticatedContext("k1", { email: "kit@press.test", email_verified: true, role: "bookkeeper" }).firestore();
+  const reader = env.authenticatedContext("u1", { email: "reader@example.com", email_verified: true }).firestore();
+  const setStatus = (access) => env.withSecurityRulesDisabled((ctx) => Promise.all([
+    setDoc(doc(ctx.firestore(), "platform/status"), { access, updatedAt: "2027-01-01T00:00:00.000Z" }),
+    setDoc(doc(ctx.firestore(), "platform/plan"), { state: access === "open" ? "trial" : access, access, hasCard: false, link: "https://platform.example/account/billing?shop=x" }),
+  ]));
+  await setStatus("paused");
+  await check("owner reads the plan", assertSucceeds(getDoc(doc(owner, "platform/plan"))));
+  await check("staff reads the plan", assertSucceeds(getDoc(doc(staff, "platform/plan"))));
+  await check("bookkeeper can't read the plan", assertFails(getDoc(doc(bookkeeper, "platform/plan"))));
+  await check("a shopper can't read the plan", assertFails(getDoc(doc(reader, "platform/plan"))));
+  await check("anon can't read the plan", assertFails(getDoc(doc(anon, "platform/plan"))));
+  await check("anon reads the shop's status", assertSucceeds(getDoc(doc(anon, "platform/status"))));
+  await check("owner can't write the plan", assertFails(setDoc(doc(owner, "platform/plan"), { state: "active", access: "open" })));
+  await check("owner can't open the shop's status", assertFails(setDoc(doc(owner, "platform/status"), { access: "open" })));
+  await check("owner can't delete the status", assertFails(deleteDoc(doc(owner, "platform/status"))));
+  await check("staff can't write the plan", assertFails(setDoc(doc(staff, "platform/plan"), { state: "active" })));
+  await check("anon can't write the status", assertFails(setDoc(doc(anon, "platform/status"), { access: "open" })));
+  await check("no other platform document", assertFails(setDoc(doc(owner, "platform/other"), { x: 1 })));
+  await setStatus("closed");
+  await check("anon reads a closed shop's status", assertSucceeds(getDoc(doc(anon, "platform/status"))));
+  await check("owner can't reopen a closed shop", assertFails(setDoc(doc(owner, "platform/status"), { access: "open" }, { merge: true })));
+  await setStatus("open");
+  await check("owner reads an open plan", assertSucceeds(getDoc(doc(owner, "platform/plan"))));
+  await env.withSecurityRulesDisabled((ctx) => Promise.all([deleteDoc(doc(ctx.firestore(), "platform/status")), deleteDoc(doc(ctx.firestore(), "platform/plan"))]));
 }
 
 await env.cleanup();

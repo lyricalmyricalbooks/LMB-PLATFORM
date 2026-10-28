@@ -100,6 +100,7 @@ platform's one web door with `routes: controlRoutes(room)`:
 | `GET /api/control/shops` | every shop, its health and switches |
 | `GET /api/control/test-shop` | `{ testShop }`: the test shop's card, or null |
 | `POST /api/control/test-shop/reset` | `{ shopId }` -> `{ shopId, reset }` |
+| `POST /api/control/google-run-again` | `{ shopId, step }` -> `{ outcome }`: one Google step again (needs `googleSteps`) |
 | `POST /api/control/act-as` | `{ shopId, reason, mode? }` (`"view"`, the default, or `"edit"`) -> `{ url, expiresAt, mode }` |
 | `POST /api/control/switch` | `{ shopId, name, on, reason }` |
 

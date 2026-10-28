@@ -36,7 +36,7 @@ Then hand over the tasks, one card at a time. Start the clock for each card when
 | # | Task card (what they read) | Done when |
 | --- | --- | --- |
 | 1 | Sign up for Colophon for your press. | Their shop is ready and they can open its admin. |
-| 2 | Find out what Colophon suggests you do first. | They name the first step on Your first week, or open it. |
+| 2 | Find out what Colophon suggests you do first. | They choose a look, then name the first step of Set up your shop, or open it. |
 | 3 | Put your books in the shop. (Moving shop: use your export. Others: use the spreadsheet on the desk.) | The books are in Books, as drafts or published. |
 | 4 | One of your books comes as a paperback and a signed copy. Make sure people can buy either. | The book has two editions, each with a price. |
 | 5 | Make sure shoppers in your own country can get books delivered, and see the price. | A shipping price is set for their country. |

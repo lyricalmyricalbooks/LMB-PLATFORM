@@ -19,7 +19,9 @@ describe("admin-only customer data rules", () => {
   it("the first-week checklist is admin-only with a bounded shape (plan 3.3)", () => {
     const b = block("firstWeek");
     expect(b).toMatch(/allow read: if isAdminReader\(\);/);
-    expect(b).toMatch(/hasOnly\(\["sellingToday", "plan", "done", "hiddenAt", "createdAt", "updatedAt"\]\)/);
+    expect(b).toMatch(/hasOnly\(\["sellingToday", "publishes", "country", "plan", "done", "hiddenAt", "welcome", "progress", "createdAt", "updatedAt"\]\)/);
+    // The sign-up answers are the platform's: the admin can add ticks, the welcome and progress, never change them.
+    expect(b).toMatch(/request\.resource\.data\.get\("sellingToday", null\) == resource\.data\.get\("sellingToday", null\)/);
     expect(b).not.toMatch(/if true/);
     expect(b).not.toMatch(/delete/);
   });

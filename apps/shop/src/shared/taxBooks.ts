@@ -8,7 +8,9 @@ export type TaxRateLike = { country?: string; region?: string; rate?: string | n
 export type TaxLine = { name: string; cents: number };
 
 /** Names offered in Settings › Taxes (any other name can be typed). */
-export const TAX_BOOK_NAMES = ["GST", "HST ON", "HST NS", "HST NB", "HST NL", "HST PE", "PST BC", "PST MB", "PST SK", "QST", "Exempt", "Sales tax"];
+// Manitoba's provincial tax is the retail sales tax (RST); the other two are PST (plan 5.10). A combined rate (GST and
+// the provincial tax in one rate, as the provincial presets add them) is "GST + PST BC", "GST + RST MB", "GST + QST".
+export const TAX_BOOK_NAMES = ["GST", "HST ON", "HST NS", "HST NB", "HST NL", "HST PE", "PST BC", "PST SK", "RST MB", "QST", "GST + PST BC", "GST + PST SK", "GST + RST MB", "GST + QST", "Exempt", "Sales tax"];
 export const TAX_BOOK_NAME_MAX = 40;
 
 const CANADA: Record<string, string> = {
@@ -17,7 +19,8 @@ const CANADA: Record<string, string> = {
   QC: "quebec", SK: "saskatchewan", YT: "yukon",
 };
 const HST = new Set(["ON", "NS", "NB", "NL", "PE"]);
-const PST = new Set(["BC", "MB", "SK"]);
+/** The provincial sales tax's name in each province that has one apart from GST. */
+const PROVINCIAL: Record<string, string> = { BC: "PST BC", SK: "PST SK", MB: "RST MB" };
 
 const clean = (v: unknown) => String(v ?? "").trim();
 const isCanada = (country: unknown) => ["ca", "canada"].includes(clean(country).toLowerCase());
@@ -40,7 +43,7 @@ export function suggestedTaxBookName(rate: TaxRateLike | null | undefined): stri
     if (percent === 5) return "GST";
     if (HST.has(code)) return `HST ${code}`;
     if (code === "QC") return percent === 9.975 ? "QST" : "GST + QST";
-    if (PST.has(code)) return percent <= 7 ? `PST ${code}` : `GST + PST ${code}`;
+    if (PROVINCIAL[code]) return percent <= 7 ? PROVINCIAL[code] : `GST + ${PROVINCIAL[code]}`;
     return code ? `Tax ${code}` : "Sales tax";
   }
   const place = clean(rate.region) || clean(rate.country);
