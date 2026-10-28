@@ -41,8 +41,8 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
       // leads and the marquee strip sits below it (a first-section marquee
       // would collide with the header).
       { type: "ProductCoverCarouselSection", settings: {
-        title: "Your Press",
-        tagline: "An independent publishing house based in Toronto, specializing in contemporary photography and art books.",
+        title: "{{shop.name}}",
+        tagline: "An independent publishing house specializing in contemporary photography and art books.",
       } },
       { type: "MarqueeSection", settings: {
         text: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA",
@@ -70,7 +70,7 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
       { type: "EphemeraRowSection", settings: { align: "center" } },
       { type: "RowSection", settings: { layout: "33-67", gap: 48, verticalAlign: "top", items: [
         { kind: "text", title: "WHY THIS EXISTS", body: "" },
-        { kind: "text", title: "", body: "Your Press is an independent imprint publishing contemporary photography and art books in small, considered runs. We care more about ink, paper, and sequence than trends. Independently run out of Toronto, and updated whenever there's something worth printing." },
+        { kind: "text", title: "", body: "{{shop.name}} is an independent imprint publishing contemporary photography and art books in small, considered runs. We care more about ink, paper, and sequence than trends. Independently run, and updated whenever there's something worth printing." },
       ] } },
       { type: "ImageWithTextSection", settings: {
         eyebrow: "CONTACT", title: "Got a manuscript, a proposal, or a question about an order?",
@@ -136,7 +136,7 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     name: "Minimal Gallery",
     description: "A quiet, image-first page: hero, gallery, one paragraph, email capture.",
     sections: [
-      { type: "HeroSection", settings: { title: "F✶M", subtitle: "Photography & art books", ctaText: "ENTER", overlayOpacity: 0.35, align: "center" } },
+      { type: "HeroSection", settings: { title: "{{shop.name}}", subtitle: "Photography & art books", ctaText: "ENTER", overlayOpacity: 0.35, align: "center" } },
       { type: "GallerySection", settings: { columns: 3 } },
       { type: "TextContentSection", settings: { title: "", content: "A short statement about your practice." } },
       { type: "NewsletterSection", settings: { title: "STAY IN TOUCH" } },

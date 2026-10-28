@@ -8,6 +8,7 @@ import { GmailSendingCard } from "./GmailSendingCard";
 import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
 import { fillSample, insertAt, PLACEHOLDERS, problemTemplates, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
 import { adminApi } from "./api";
+import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 import { useSettingsDirty } from "./settingsDirty";
 import { resendKeyProblem } from "./privateKeys";
 import { senderOf, senderProblems, withSender, type Sender } from "./senderSettings";
@@ -93,70 +94,70 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     subject: "Order confirmed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your purchase! We've received your order and are preparing it for shipment. We will send you another email when it has shipped.",
     buttonText: "View your order",
-    signoff: "Thanks,\nThe Your Press team",
+    signoff: "Thanks,\nThe {{shop_name}} team",
     enabled: true
   },
   order_pending_payment: {
     subject: "Order received — payment needed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your order! It is reserved for you, but it is not paid yet. Please pay {{total_price}} by {{payment_method}} using the instructions below. We'll confirm by email as soon as your payment arrives and then prepare your order.",
     buttonText: "View your order",
-    signoff: "Thanks,\nThe Your Press team",
+    signoff: "Thanks,\nThe {{shop_name}} team",
     enabled: true
   },
   shipping_confirmation: {
     subject: "Your order is on the way!",
     body: "Hi {{customer_name}},\n\nGood news! Your order {{order_id}} has shipped with {{tracking_carrier}} and is on its way.\n\nTracking number: {{tracking_number}}\n\nUse the button below to follow your parcel on the carrier's website.",
     buttonText: "Track your shipment",
-    signoff: "Best,\nThe Your Press team",
+    signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
   abandoned_cart: {
     subject: "Did you forget something?",
     body: "Hi {{customer_name}},\n\nWe noticed you left some items in your cart. We've saved them for you, so you can easily complete your purchase whenever you're ready!",
     buttonText: "Resume purchase",
-    signoff: "Thanks,\nThe Your Press team",
+    signoff: "Thanks,\nThe {{shop_name}} team",
     enabled: true
   },
   order_cancelled: {
     subject: "Order cancelled: {{order_id}}",
     body: "Hi {{customer_name}},\n\nYour order has been cancelled and you will not be charged. If you have any questions, please contact us.",
     buttonText: "",
-    signoff: "Best,\nThe Your Press team",
+    signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
   order_refunded: {
     subject: "Order refunded: {{order_id}}",
     body: "Hi {{customer_name}},\n\nWe have successfully refunded {{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
     buttonText: "",
-    signoff: "Best,\nThe Your Press team",
+    signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
   customer_welcome: {
-    subject: "Welcome to Your Press!",
-    body: "Hi {{customer_name}},\n\nThank you for creating an account with Your Press! You can now log in to view your orders, save shipping addresses, and download digital library books.",
+    subject: "Welcome to {{shop_name}}!",
+    body: "Hi {{customer_name}},\n\nThank you for creating an account with {{shop_name}}! You can now log in to view your orders, save shipping addresses, and download digital library books.",
     buttonText: "Go to your account",
-    signoff: "Warmly,\nThe Your Press team",
+    signoff: "Warmly,\nThe {{shop_name}} team",
     enabled: true
   },
   contact_reply: {
     subject: "We got your message",
-    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Your Press! We've received your message and will reply as soon as we can.",
+    body: "Hi {{customer_name}},\n\nThanks for getting in touch with {{shop_name}}! We've received your message and will reply as soon as we can.",
     buttonText: "",
-    signoff: "Warmly,\nThe Your Press team",
+    signoff: "Warmly,\nThe {{shop_name}} team",
     enabled: true
   },
   gift_card: {
     subject: "You've received a {{amount}} gift card",
-    body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for Your Press.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter this code at checkout to use it. Any balance left over stays on the card for next time. {{expires}}",
+    body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for {{shop_name}}.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter this code at checkout to use it. Any balance left over stays on the card for next time. {{expires}}",
     buttonText: "Shop now",
-    signoff: "Happy reading,\nThe Your Press team",
+    signoff: "Happy reading,\nThe {{shop_name}} team",
     enabled: true
   },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
     buttonText: "Track shipment",
-    signoff: "Best,\nThe Your Press team",
+    signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
   // Mirrors functions/reviewRequests.js REVIEW_REQUEST_TEMPLATE.
@@ -164,7 +165,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     subject: "How are you finding your book?",
     body: "Hi {{customer_name}},\n\nWe hope your books from order {{order_id}} arrived safely. If you have a moment, we'd love to hear what you think — a short review helps other readers find their next book. Each title below opens its page, where the review form is.",
     buttonText: "Write a review",
-    signoff: "Thanks for reading,\nThe Your Press team",
+    signoff: "Thanks for reading,\nThe {{shop_name}} team",
     enabled: false,
     delayDays: 14
   },
@@ -191,7 +192,7 @@ const TEMPLATE_IDS = Object.keys(DEFAULT_SETTINGS).filter((k) => k !== "brand" &
 const TABS = TEMPLATE_IDS.map((id) => ({ id, label: TAB_META[id]?.label || id.replace(/_/g, " "), group: TAB_META[id]?.group || "other" }));
 const GROUP_IDS = [...Object.keys(GROUP_LABELS).filter((g) => TABS.some((t) => t.group === g)), "shopAlerts"];
 
-function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings, order: any = null) {
+function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings, order: any = null, shopName = DEFAULT_SHOP_NAME) {
   const brand: Partial<NotificationSettings["brand"]> = data.brand || {};
   const brandColor = brand.brandColor || "#e8402a";
   
@@ -200,7 +201,7 @@ function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings,
   // unknown placeholders read as blank.
   const fallback = DEFAULT_SETTINGS[templateId];
   const body = withRequiredPlaceholders(templateId, template.body || fallback.body);
-  const values = orderPreviewVars(order);
+  const values = { shop_name: shopName, ...orderPreviewVars(order) };
   const buttonText = fillSample(templateId, template.buttonText || "", values);
   const signoff = fillSample(templateId, template.signoff || fallback.signoff, values);
   // {{items_table}} survives filling so it lands where the owner put it, as the server does.
@@ -219,7 +220,7 @@ function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings,
     ${ctaButtonHtml}
     ${itemsTableHtml}
     <p style="margin-top:30px;font-weight:600;">${signoffHtml}</p>
-  `, { logoUrl: brand.logoUrl || "", accent: brandColor, theme: brand.emailTheme });
+  `, { logoUrl: brand.logoUrl || "", accent: brandColor, theme: brand.emailTheme, shopName });
 }
 
 export function NotificationEditor({ focus, subTab, onSubTabChange }: {
@@ -509,7 +510,9 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const shopAlerts: Partial<NotificationSettings["shopAlerts"]> = data.shopAlerts || {};
   const setShopAlert = (patch: Record<string, unknown>) => setData((prev) => ({ ...prev, ...patch }));
   const enabled = activeTab === "review_request" ? currentTemplate.enabled === true : currentTemplate.enabled !== false;
-  const subjectPreview = fillSample(activeTab, currentTemplate.subject || DEFAULT_SETTINGS[activeTab].subject, orderPreviewVars((recentOrders || []).find((o) => o.id === previewOrderId)));
+  // The shop name in the preview: the saved sender name, which the server reads first (loadNotificationSettings).
+  const previewShopName = (senderSaved.fromName || "").trim() || DEFAULT_SHOP_NAME;
+  const subjectPreview = fillSample(activeTab, currentTemplate.subject || DEFAULT_SETTINGS[activeTab].subject, { shop_name: previewShopName, ...orderPreviewVars((recentOrders || []).find((o) => o.id === previewOrderId)) });
   const badColor = !!data.brand?.brandColor && !/^#[0-9a-f]{3,8}$/i.test(data.brand.brandColor.trim());
   const problems = templateProblems(activeTab, currentTemplate);
   const defaults = DEFAULT_SETTINGS[activeTab];
@@ -632,7 +635,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       <div id="email-sender" style={{ scrollMarginTop: 16 }} />
       <SectionCard title="Email sender" description="Who it's from. Where replies go.">
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-          <TextField label="Sender name" value={sender.fromName} placeholder="Your Press" error={senderIssues.fromName}
+          <TextField label="Sender name" value={sender.fromName} placeholder={DEFAULT_SHOP_NAME} error={senderIssues.fromName}
             onChange={(e) => setSender(prev => ({ ...prev, fromName: e.target.value }))} />
           <TextField label="Reply-to address" type="email" value={sender.replyTo} placeholder="owner@example.com" error={senderIssues.replyTo}
             hint="Blank = the sending address."
@@ -807,7 +810,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
               {(recentOrders || []).map((o) => <option key={o.id} value={o.id}>{o.orderId || o.id} · {o.customer?.name || o.customer?.email || "Customer"}</option>)}
             </SelectField>
           </div>
-          <iframe srcDoc={compilePreviewHtml(activeTab, data, previewOrder)} sandbox="" title={`Preview of the ${TABS.find((t) => t.id === activeTab)?.label} email`}
+          <iframe srcDoc={compilePreviewHtml(activeTab, data, previewOrder, previewShopName)} sandbox="" title={`Preview of the ${TABS.find((t) => t.id === activeTab)?.label} email`}
             style={{ width: "100%", height: 560, border: "1px solid var(--rp-border)", background: "var(--rp-surface)" }} />
         </SectionCard>
       </div>

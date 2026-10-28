@@ -33,7 +33,7 @@ const PHONE_MAX = 767;
 
 /**
  * Desktop size, then the phone size. A phone size of 0 no longer copies the desktop size as is
- * (a 49px title broke "YOUR PRESS" mid-word on a 360px phone): it scales down with the screen
+ * (a 49px title broke a two-word press name mid-word on a 360px phone): it scales down with the screen
  * (`phoneScale`, never above the desktop size). `fit` caps every size so the longest word still
  * fits the line (see `titleFitSize`). The plain `font-size` before each `min()` is the fallback
  * for browsers without `min()` or container units.
