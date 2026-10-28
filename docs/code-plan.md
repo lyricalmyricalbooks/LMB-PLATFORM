@@ -84,7 +84,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | 1.23 | shop | A theme preset can hold section lists and starter pages, not only colours and fonts. Offered after the look, never applied with it; pages are added as drafts only when missing (`studio/presetContent.ts`) | preset tests (`presetContent.test.ts`); Studio check | done |
 | 1.24 | shop | Check: a theme file only uses settings that have a Studio control (`studio/themeCheck.ts`, run on every theme-library entry; found and fixed the hero's Height) | the check (`themeCheck.test.ts`) | done |
 | 1.25 | shop | Check: every section and book page block draws under every theme and stays readable. Apply now writes the palette's full colour set (`studio/themeLook.ts`); faint words have a readable floor; four looks fixed | the check (`themeReadability.test.tsx`) | done |
-| 1.26 | shop | Theme wave 1: Riso, Broadsheet, Imprint; admin themes Riso Press and Paper (all admin colours in one file) | theme checks | |
+| 1.26 | shop | Theme wave 1: Riso, Broadsheet, Imprint; admin themes Riso Press and Paper (all admin colours in one file). Riso (Paper and Noir) was already in; Broadsheet and Imprint added with palettes and homepage layouts; every admin colour is a token in `riso/adminThemes.css`, Paper chosen in the avatar menu | theme checks (`themeCheck`, `themeReadability.test.tsx`, `riso/adminThemes.test.ts`) | done |
 | 1.27 | shop | Studio opens in Essentials; everything else under All settings; five-item admin menu | Studio checks | |
 
 ### 1G. The setup script and the test shop
@@ -121,14 +121,15 @@ Gate: a press nobody has spoken to signs up, pays and takes an order with no hel
 
 Gate: a press moves over in an afternoon without a call.
 
-| # | Repo | Pull request |
-| --- | --- | --- |
-| 3.1 | shop | Import books, photos, editions and customers from common shop exports and spreadsheets |
-| 3.2 | shop | Old product links keep working (redirects from the import) |
-| 3.3 | shop | First-week checklist shaped by the sign-up answer |
-| 3.4 | platform | Help articles for the top 20 questions |
-| 3.5 | shop | Theme wave 3; a press's edits stored apart from the theme they started from |
-| 3.6 | platform | The five-person first-hour test, and fixes for the top three stalls |
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 3.1 | shop | Import books, photos, editions and customers from common shop exports and spreadsheets. `admin/shopMove.ts` recognises four export shapes by their headings only (one line per edition grouped by Handle; a product line then its options; products with variation lines pointing at a Parent; listings with numbered photo columns) and translates them into Books › Import CSV's own columns, so the same preview and safety rules apply (matched by ISBN, SKU, title; new books are drafts; never publishes; stock only on request for existing books). New books sold in several versions are created with their editions; existing books keep theirs (a warning says so). HTML descriptions become the editor's formatting. Any other spreadsheet goes to the plain import unchanged. Customers › Bring customers over turns a customer list into private notes and tags (kept, merged, marked so a re-run changes nothing) and adds newsletter subscribers only for customers the file says agreed, who aren't on the list or opted out, and only after the owner ticks that they have permission (`newsletter` status `imported`, with the consent text). Customer-facing words never name another shop system (a test checks). Still open: photos stay on the old shop's address until copied into the shop's own storage (3.1b); old addresses are kept per book for 3.2 | `shopMove.test.ts`, `catalogImport.test.ts` | done |
+| 3.1b | shop | Copy imported photos into the shop's own storage, so they survive the old shop closing | | |
+| 3.2 | shop | Old product links keep working (redirects from the import). After Books › Import CSV saves an old shop's export, each book's old product addresses (`oldPaths` from 3.1; both possible page addresses where the export can't say which) become URL redirects to `/books/<id>`, which the book page always finds even after a rename (`importRedirects` in `admin/shopMove.ts`). The owner's own redirects are never replaced, a re-run adds nothing, the shop's own routes are never claimed, and the 500-redirect limit skips with a reason instead of failing. The preview says the links will be kept, the result says how many, and the audit log records it. Followed in the browser from a missing page (`useMissingRedirect`), so they work once the press's address points at the shop | `shopMove.test.ts` (old shop links) | done |
+| 3.3 | shop | First-week checklist shaped by the sign-up answer | | |
+| 3.4 | platform | Help articles for the top 20 questions | | |
+| 3.5 | shop | Theme wave 3; a press's edits stored apart from the theme they started from | | |
+| 3.6 | platform | The five-person first-hour test, and fixes for the top three stalls | | |
 
 ## Phase 4: running many shops
 
