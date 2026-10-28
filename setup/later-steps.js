@@ -45,6 +45,9 @@ export function appsOf(shop) {
   return Object.entries(PLANS[shop.plan] ?? {}).filter(([, on]) => on).map(([app]) => app);
 }
 
+/** The sign-up answer for the first-week list (signup/form.js QUESTION ids), or null when skipped or unknown. */
+export const sellingToday = (shop) => (typeof shop.sellingToday === "string" && /^[a-z]{2,20}$/.test(shop.sellingToday) ? shop.sellingToday : null);
+
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
 export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "" }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
@@ -107,6 +110,8 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
   // The test shop also gets its starter catalogue (test-catalogue.js); its stockroom side and links are below.
   const starterDocs = (shop) => [
     { path: `members/${shop.ownerEmail.toLowerCase()}`, data: { role: "owner", addedBy: "setup" } },
+    // Overview › Your first week (plan 3.3): the sign-up answer shapes the steps. Written once; the owner's ticks stay.
+    ...(appsOf(shop).includes("shop") ? [{ path: "firstWeek/start", data: { sellingToday: sellingToday(shop), plan: shop.plan } }] : []),
     ...release.starterContent(shop),
     ...(needsStockroomLink(shop) ? testCatalogue(shop).shopDocs : []),
   ];

@@ -1,7 +1,9 @@
 # Sign-up
 
 A press signs itself up, with no help (code plan 2.5): sign in, name the press, pick a plan, answer one question it may
-skip, and start the free trial with no card. The shop maker then makes the shop (2.6).
+skip, and start the free trial with no card. The shop maker then makes the shop (2.6). The answer travels with the
+shop (`shopFromSignup` › `sellingToday`) and setup step 12 writes it to the shop's `firstWeek/start`, where the
+Overview's first-week list reads it (plan 3.3).
 
 ## The page (`index.html`, `app.js`)
 
