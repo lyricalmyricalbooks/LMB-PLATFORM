@@ -21,7 +21,7 @@ import { keepPhotoCopies, removedPhotos, shownUrls, unusedBookFiles } from "./bo
 import { mediaApi } from "./mediaApi";
 import { auditLog } from "./auditLog";
 import type { PlatformPaymentsAnswer } from "./platformPayments";
-import type { DomainCheck, DomainList } from "./customDomains";
+import type { DomainCheck, DomainList, DomainStep } from "./customDomains";
 /** Cache-Control for uploaded shop pictures (mirrors functions/imageCopies.js IMMUTABLE). */
 export const PUBLIC_FILE_CACHE = "public, max-age=31536000, immutable";
 
@@ -1240,7 +1240,7 @@ export const adminApi = {
 
   // The press's own web address (plan 2.9), through the platform's domain service. A shop without that service answers
   // code "not_available" (the card then shows the older field).
-  customDomains: async (step: "list" | "add" | "check", domain?: string) => {
+  customDomains: async (step: DomainStep, domain?: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
     const response = await functionFetch("createStripeCheckoutSession", {

@@ -35,21 +35,34 @@ export function fakeHosting() {
       calls.push(["addDomain", projectId, domain]);
       if (!domains.has(key(projectId, domain))) domains.set(key(projectId, domain), { state: "dns" });
     },
+    async removeDomain(projectId, domain) {
+      calls.push(["removeDomain", projectId, domain]);
+      domains.delete(key(projectId, domain));
+    },
   };
 }
 
-/** The shop's server code: which version and settings file it runs. */
-export function fakeDeploy(live = { version: "1.4.0", region: "northamerica-northeast1" }) {
+/** The shop's server code and pages: which version each runs, and what was deployed again. */
+export function fakeDeploy(live = { version: "1.4.0", region: "northamerica-northeast1" }, pages = { version: "1.4.0", url: "https://moth-press.web.app" }) {
   const shipped = [];
+  const pagesShipped = [];
   return {
     shipped,
-    deployed: async (_shopId, part) => (part === "functions" ? live : null),
+    pagesShipped,
+    deployed: async (_shopId, part) => (part === "functions" ? live : part === "pages:shop" ? pages : null),
     async functions(shopId, options) { shipped.push({ shopId, ...options }); },
+    async pages(shopId, options) { pagesShipped.push({ shopId, ...options }); },
   };
 }
 
 /** The shop's saved server settings files. */
 export function fakeEnvFiles(files = {}) {
+  const map = new Map(Object.entries(files));
+  return { map, read: async (shopId) => map.get(shopId) ?? null, async write(shopId, text) { map.set(shopId, text); } };
+}
+
+/** The /shop-profile.js files the shops' pages ship with. */
+export function fakeProfileFiles(files = {}) {
   const map = new Map(Object.entries(files));
   return { map, read: async (shopId) => map.get(shopId) ?? null, async write(shopId, text) { map.set(shopId, text); } };
 }
