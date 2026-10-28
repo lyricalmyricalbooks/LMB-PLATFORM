@@ -1875,6 +1875,17 @@ export const adminApi = {
     };
   },
 
+  // Your first week (plan 3.3): admin-only `firstWeek/start`, written once by the platform's setup with the sign-up
+  // answer. Null when the shop has none (the Overview then shows no list).
+  getFirstWeek: async () => {
+    const snap = await getDoc(doc(db, "firstWeek", "start"));
+    return snap.exists() ? (snap.data() as import("./firstWeek").FirstWeekDoc) : null;
+  },
+  /** Ticks a step by hand (`done.<id>`), or hides the list (`hiddenAt`). Merges, so nothing else changes. */
+  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string }) => {
+    await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
+  },
+
   // Private per-customer notes and tags (admin-only `customerNotes/{sha256(lowercased email)}`).
   listCustomerNotes: async () => {
     const snap = await getDocs(query(collection(db, "customerNotes"), limit(10000)));

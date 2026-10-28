@@ -60,6 +60,8 @@ export function shopFromSignup(row, { testMode }) {
     country: row.country,
     currency: row.currency,
     paymentProvider: row.paymentProvider ?? "stripe",
+    // The sign-up question's answer (form.js QUESTION), or null when skipped: it shapes the first-week list (3.3).
+    sellingToday: row.answer ?? null,
     testMode: testMode === true,
   };
 }

@@ -15,6 +15,13 @@ describe("admin-only customer data rules", () => {
     expect(b).toMatch(/hasOnly\(\["email", "note", "tags", "updatedAt"\]\)/);
     expect(b).not.toMatch(/if true/);
   });
+  it("the first-week checklist is admin-only with a bounded shape (plan 3.3)", () => {
+    const b = block("firstWeek");
+    expect(b).toMatch(/allow read: if isAdmin\(\);/);
+    expect(b).toMatch(/hasOnly\(\["sellingToday", "plan", "done", "hiddenAt", "createdAt", "updatedAt"\]\)/);
+    expect(b).not.toMatch(/if true/);
+    expect(b).not.toMatch(/delete/);
+  });
   it("marketing opt-outs are readable by the admin and never writable from a browser", () => {
     const b = block("marketing-optout");
     expect(b).toMatch(/allow read: if isAdmin\(\);/);
