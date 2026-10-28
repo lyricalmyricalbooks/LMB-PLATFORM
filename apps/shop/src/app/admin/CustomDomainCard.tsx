@@ -68,7 +68,7 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
   if (unavailable) return <>{fallback}</>;
 
   return (
-    <SectionCard title="Your web address" description="Open your shop at an address you own, like shop.yourpress.com. Your current address keeps working.">
+    <SectionCard title="Your web address" description="Open your shop at an address you own. The current one keeps working.">
       <div className="rp-stack" style={{ gap: 16 }}>
         {domains === null && busy === "list" ? (
           <LoadingState label="Loading your web addresses…" />

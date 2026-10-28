@@ -125,6 +125,35 @@ describe("readiness evidence boundaries", () => {
   });
 });
 
+describe("launchReadiness on a shop whose cards go through Colophon (plan 2.10)", () => {
+  const platformSettings = { ...goodSettings, payments: { testMode: false } };
+  const base = { settings: platformSettings, books: [goodBook], shippingProfiles: [{}], emailLog: [{ status: "sent" }], orders: [] };
+
+  it("asks for the card account to be connected instead of keys, and drops the deployment rows", () => {
+    const notConnected = launchReadiness({ ...base, platformCards: "square", platformAccount: { provider: "square", connected: false } });
+    expect(status(notConnected, "card-account")).toBe("block");
+    expect(notConnected.find(i => i.id === "card-account")?.action).toBe("Connect Square");
+    expect(status(notConnected, "payments")).toBe("ok");
+    expect(status(notConnected, "stripe-secret")).toBeUndefined();
+    expect(status(notConnected, "deployment")).toBeUndefined();
+    expect(status(notConnected, "hosting")).toBeUndefined();
+  });
+
+  it("is green once the account takes cards; a Stripe account still finishing sign-up blocks", () => {
+    const ready = launchReadiness({ ...base, platformCards: "square", platformAccount: { provider: "square", connected: true, chargesEnabled: true } });
+    expect(status(ready, "card-account")).toBe("ok");
+    const stripe = launchReadiness({ ...base, platformCards: "stripe", platformAccount: { provider: "stripe", detailsSubmitted: true, chargesEnabled: false } });
+    expect(stripe.find(i => i.id === "card-account")?.label).toMatch(/can't take cards yet/);
+    expect(status(launchReadiness({ ...base, platformCards: "stripe", platformAccount: null }), "card-account")).toBe("warn");
+  });
+
+  it("a shop on its own keys is unchanged", () => {
+    const own = launchReadiness({ ...base, settings: goodSettings, platformCards: null });
+    expect(status(own, "card-account")).toBeUndefined();
+    expect(status(own, "deployment")).toBe("warn");
+  });
+});
+
 describe("launchReadiness postal address", () => {
   it("blocks while no postal address is saved, and passes once one is", () => {
     const base = { books: [], shippingProfiles: [], emailLog: [], orders: [] };

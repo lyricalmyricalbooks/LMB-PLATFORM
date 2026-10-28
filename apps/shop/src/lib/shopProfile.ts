@@ -148,6 +148,11 @@ export function platformTakesCards(profile: ShopProfile = shopProfile): boolean 
   return payments?.mode === "platform" && (payments.provider === "square" || Boolean(payments.stripe?.accountId));
 }
 
+/** The provider a shop's cards go through on the platform (plan 2.2 / 2.2b), or null on the shop's own keys. */
+export function platformCardsProvider(profile: ShopProfile = shopProfile): "stripe" | "square" | null {
+  return profile.payments?.mode === "platform" ? profile.payments.provider : null;
+}
+
 /** The shop takes cards through Square (plan 2.2b): shoppers pay on Square's own page, with no card form here. */
 export function paysOnSquare(profile: ShopProfile = shopProfile): boolean {
   return profile.payments?.provider === "square" && profile.payments.mode === "platform";
