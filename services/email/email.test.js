@@ -181,7 +181,7 @@ test("service keys are compared by hash and refuse short or malformed values", (
 test("every billing email renders for the press, links to the account page and escapes the press's name", () => {
   const settings = { platformName: "Colophon" };
   const data = { planName: "Shop and stockroom", price: "$39.00", date: "14 November 2026", nextTry: "17 November 2026", link: "https://platform.example/account/billing?shop=moth-press" };
-  for (const kind of ["trial-ending", "card-needed", "payment-failed", "subscription-cancelled", "subscription-ended", "plan-changed"]) {
+  for (const kind of ["sign-in-link", "trial-ending", "card-needed", "payment-failed", "subscription-cancelled", "subscription-ended", "plan-changed"]) {
     for (const hasCard of [false, true]) {
       const parts = TEMPLATES[kind]({ ...data, hasCard }, { settings, pressName: "Moth <b>Press</b>" });
       assert.ok(parts.subject && parts.text && parts.html, kind);
