@@ -7,6 +7,7 @@ import { createSquareApi } from "./squareApi.js";
 
 export { handlePayments } from "./http.js";
 export { feeFor, feeForShop, readFeeSettings } from "./fees.js";
+export { activeTerms, billingMonth, createFeeLedger } from "./payAsYouSell.js";
 
 /**
  * @param {object} deps
@@ -17,8 +18,9 @@ export { feeFor, feeForShop, readFeeSettings } from "./fees.js";
  * @param {object} [deps.squareTokens] the presses' sealed Square tokens; deps.squareStates Connect Square's one-use states
  *   (square.js has the shapes; both platform-project collections in the real service)
  * @param {object} [deps.email] the email service (services/email), for the owner's one past-due email (7.9)
+ * @param {object} [deps.feeLedger] the pay-as-you-sell ledger store (payAsYouSell.js; 6.19)
  */
-export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts, squareTokens = null, squareStates = null, email = null, now }) {
+export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts, squareTokens = null, squareStates = null, email = null, feeLedger = null, now }) {
   const config = readServiceConfig(env);
   const squareReady = Boolean((config.square.apps.live || config.square.apps.test) && squareTokens && squareStates);
   return createPaymentService({
@@ -30,6 +32,7 @@ export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts
     deliver: httpDeliver(fetch),
     config,
     email,
+    feeLedger,
     now,
   });
 }

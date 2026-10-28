@@ -21,7 +21,8 @@ here once, as a TypeScript module, instead of a hand-kept mirror pair with a par
   checkout form's no-postcode list). Local pickup and delivery (`localFulfillment`: quotes,
   settings check, the server's choice check and physical subtotal; the config types now live here and `types.ts`
   re-exports them). Discount categories (`discountCategories`: which books a category discount covers, plus the
-  Discounts screen's category choices).
+  Discounts screen's category choices). The shop's name (`shopIdentity`, plan 5.8: `shopName`, `pressName` for the
+  server; `features/site/shopIdentity.ts` re-exports it).
 - Bookkeeping (plan 7.11, 7.12, 28 October 2026): `taxBooks.ts` names each tax rate for the books (`bookName`, else
   `suggestedTaxBookName`); `authoritativeTax` (functions/index.js) stores each order's `taxLines` (`[{ name, cents }]`, adds up
   to the rounded tax) through `taxLinesFor`. `bookkeeping.ts` turns orders into the month's order, day

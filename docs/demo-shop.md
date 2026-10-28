@@ -62,7 +62,7 @@ stockroom open.
 ## Stop it
 
 Press **Ctrl+C** in the terminal. If Windows asks "Terminate batch job (Y/N)?", type `Y` and press Enter. The demo saves
-the shop's data on the way out, so your changes are still there next time.
+the shop's and the stockroom's data on the way out, so your changes are still there next time.
 
 To start over from the starter books, run `npm run demo -- --fresh`.
 
@@ -71,8 +71,6 @@ To start over from the starter books, run `npm run demo -- --fresh`.
 - **Paying.** The checkout opens and works out shipping, but its Pay step says no payment method is available. Card
   payments need Stripe, which can't run on your computer. No order is paid and no money moves.
 - **Emails** are not sent. Shipping labels and live carrier rates can't be bought.
-- **Stockroom changes aren't kept** between runs. The emulator saves only the shop's own database, so the stockroom
-  starts again from its starter books each time.
 - **Stay online.** The practice sign-in window and the stockroom load a few files from the internet. Your shop's data
   never leaves your computer.
 - If the shop's server code can't start, the demo runs without it and says so. Then shipping prices, order tools and
@@ -136,7 +134,9 @@ The code is ready. Nothing is hosted yet. To host it:
 2. Writes `.demo/`. That's the emulator config, the rules filled in for the demo owner (the shop's and the stockroom's
    Firestore rules joined, since the emulator takes one file for every database), a `.firebaserc` for the two buckets,
    and both apps' shop profiles. `.demo/` is git-ignored.
-3. Starts `firebase-tools@15.32.1 emulators:start` with `--import`/`--export-on-exit .demo/data`.
+3. Starts `firebase-tools@15.32.1 emulators:start` with `--import`/`--export-on-exit .demo/data`. That export keeps
+   only the default Firestore database, so the stockroom's own database (`stockroom`) is saved by `demo/keepDatabase.js`
+   to `.demo/stockroom-data.json`: every few seconds and at Ctrl+C, and written back before seeding on the next start.
 4. Seeds the emulators (`demo/seed.js`). It adds the test catalogue (`setup/test-catalogue.js`), photos, settings, the
    Team entry, the stockroom books, and a Google account with the `owner` role. Each item is added only when it's
    missing.

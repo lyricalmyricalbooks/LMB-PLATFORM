@@ -301,10 +301,11 @@ ${clip(f.brief, 500)}`;
   },
 };
 
-function systemText(voice, task) {
+function systemText(voice, task, siteName = "") {
   const v = clip(voice, VOICE_MAX);
+  const press = clip(siteName, 80);
   return [
-    "You write shop copy for Your Press, an independent publisher. You return only the JSON asked for.",
+    `You write shop copy for ${press ? `${press}, an independent publisher` : "an independent publisher"}. You return only the JSON asked for.`,
     task === "rewrite" || task === "sectionDraft" ? STUDIO_HONESTY : HONESTY,
     v ? `The shop owner's house style (follow it unless it conflicts with the rules above):\n${v}` : "",
   ].filter(Boolean).join("\n\n");
@@ -322,7 +323,7 @@ function buildRequest(task, input, ctx = {}, model = MODELS[0]) {
   // 2.5 models "think" out of the same token budget; these short answers don't need it.
   if (/^gemini-2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
   return {
-    systemInstruction: { parts: [{ text: systemText(ctx.voice, task) }] },
+    systemInstruction: { parts: [{ text: systemText(ctx.voice, task, ctx.siteName) }] },
     contents: [{ role: "user", parts: [
       ...(ctx.image ? [{ inlineData: { mimeType: ctx.image.mimeType, data: ctx.image.data } }] : []),
       { text: spec.prompt(input || {}, ctx) },
@@ -444,7 +445,7 @@ function buildOpenRouterRequest(task, input, ctx = {}, model = OPENROUTER_MODELS
   return {
     model,
     messages: [
-      { role: "system", content: `${systemText(ctx.voice, task)}\n\nAnswer with one JSON object only, matching this JSON schema:\n${JSON.stringify(schema)}` },
+      { role: "system", content: `${systemText(ctx.voice, task, ctx.siteName)}\n\nAnswer with one JSON object only, matching this JSON schema:\n${JSON.stringify(schema)}` },
       { role: "user", content: ctx.image ? [{ type: "text", text }, { type: "image_url", image_url: { url: `data:${ctx.image.mimeType};base64,${ctx.image.data}` } }] : text },
     ],
     temperature: 0.7,
@@ -482,7 +483,7 @@ async function callOpenRouter({ apiKey, body, fetchImpl }) {
   try {
     const res = await fetchImpl(OPENROUTER_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "X-Title": "Your Press admin" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "X-Title": "Shop admin" },
       body: JSON.stringify(body),
       ...(ctrl ? { signal: ctrl.signal } : {}),
     });

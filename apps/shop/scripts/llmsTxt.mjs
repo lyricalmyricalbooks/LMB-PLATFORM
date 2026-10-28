@@ -1,7 +1,7 @@
 // /llms.txt (https://llmstxt.org): a plain summary of the shop for AI assistants and AI search, built from the same
 // published catalog as the sitemap. Facts only (who made each book, format, pages, year, language, ISBN), never prices
 // or stock, which change between builds.
-import { creatorNames, cut, isLive, plain } from '../src/app/features/site/merchantFeed.mjs';
+import { creatorNames, cut, feedShopName, isLive, plain } from '../src/app/features/site/merchantFeed.mjs';
 import { resolveProductRoutes } from '../src/app/features/site/productRouteData.mjs';
 import { safeSlug } from './routeSafety.mjs';
 
@@ -24,11 +24,12 @@ function bookFacts(book) {
   ].filter(Boolean).join(' · ');
 }
 
-export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date(), shopName = 'Your Press' } = {}) {
+export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date(), shopName = '' } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const info = settings?.info || {};
   const location = settings?.location || {};
-  const name = line(info.name) || shopName;
+  // The build passes the press's own name (feedShopName: Site name, else Store name; plan 5.8).
+  const name = line(shopName) || feedShopName(settings);
   const out = [`# ${name}`, ''];
   const summary = line(info.description);
   if (summary) out.push(`> ${summary}`, '');
