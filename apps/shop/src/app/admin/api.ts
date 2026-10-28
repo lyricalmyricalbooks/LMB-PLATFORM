@@ -1,3 +1,4 @@
+import { providerName } from "./providerWords";
 import { duplicateBookData } from "./catalogList";
 import type { OrderActionBody, RefundOrderBody } from "../../shared/orderActions";
 import type { GiftCardBody, GiftCardOp } from "../../shared/giftCardActions";
@@ -1127,7 +1128,7 @@ export const adminApi = {
         if (operations.hold) throw new Error("Release the fulfillment hold before continuing.");
         if (queueOf(o) === "Awaiting release") throw new Error("This pre-order hasn't been released yet. Press \"Ready to ship now\" if the books have arrived.");
         // Books already on their way may still be marked delivered (proof for the dispute).
-        if (disputeOpen(o) && current !== "out_for_delivery") throw new Error("This payment is disputed. Don't hand over the books until the dispute is settled in Stripe.");
+        if (disputeOpen(o) && current !== "out_for_delivery") throw new Error(`This payment is disputed. Don't hand over the books until the dispute is settled in ${providerName()}.`);
         if (operations.packed !== packingKey(o)) throw new Error("Complete the packing checklist first.");
         if (method === "local_delivery" && (addressIssues(o).length || operations.addressReviewed !== addressKey(o))) throw new Error("Review and confirm the delivery address first.");
         const next = method === "pickup"
@@ -1219,7 +1220,7 @@ export const adminApi = {
       body: JSON.stringify({ action: "registerPaymentDomain", origin }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Couldn't register the domain with Stripe.");
+    if (!response.ok) throw new Error(result.error || "Couldn't register the domain with Stripe."); // Stripe shops only
     return result as { domain: string; applePay: string; googlePay: string };
   },
 
@@ -1269,7 +1270,7 @@ export const adminApi = {
   // falls back to the Firebase Functions secret, if one is set.
   removeStripeSecretKey: async (mode: "live" | "test") => {
     await setDoc(doc(db, "adminSecrets", "stripe"), { [mode === "live" ? "secretKey" : "testSecretKey"]: deleteField(), updatedAt: serverTimestamp() }, { merge: true });
-    await adminApi.recordAuditLog("payments", `Removed the stored Stripe ${mode} secret key`);
+    await adminApi.recordAuditLog("payments", `Removed the stored Stripe ${mode} secret key`); // Stripe shops only
   },
 
   // Checks (fix/recreate: repairs) the Stripe webhook endpoint for the mode in use.
@@ -1282,7 +1283,7 @@ export const adminApi = {
       body: JSON.stringify({ action: "webhookHealth", ...opts }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Couldn't check the Stripe webhook.");
+    if (!response.ok) throw new Error(result.error || "Couldn't check the Stripe webhook."); // Stripe shops only
     return result as {
       mode: "test" | "live"; url: string; found: boolean; enabled: boolean; wrongUrl: boolean;
       missingEvents: string[]; savedSecret: boolean; deployedSecret?: boolean; lastReceivedAt: string | null; lastEventType: string | null;
@@ -1367,7 +1368,7 @@ export const adminApi = {
       body: JSON.stringify({ action: "verifyStripeKeys" }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Couldn't reach Stripe.");
+    if (!response.ok) throw new Error(result.error || "Couldn't reach Stripe."); // Stripe shops only
     type ModeResult = { source: "stored" | "functions" | "none"; publishableKeyMode: "live" | "test" | "invalid" | "missing"; keyMode?: string; ok?: boolean; accountId?: string | null; accountName?: string | null; chargesEnabled?: boolean; error?: string };
     return result as { activeMode: "live" | "test"; live: ModeResult; test: ModeResult; sameAccount: boolean | null };
   },
@@ -1381,7 +1382,7 @@ export const adminApi = {
       body: JSON.stringify({ action: "status", orderId }),
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Couldn't reach Stripe.");
+    if (!response.ok) throw new Error(result.error || `Couldn't reach ${providerName()}.`);
     return result as { status: string; paymentStatus: string };
   },
 

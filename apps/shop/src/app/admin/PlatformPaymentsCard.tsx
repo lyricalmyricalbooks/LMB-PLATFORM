@@ -79,7 +79,7 @@ export function PlatformPaymentsCard({ provider }: { provider: "stripe" | "squar
                 {needs} Press <strong>{CONTINUE_WITH_STRIPE}</strong>; it takes a few minutes.
               </p>
             ) : provider === "stripe" && ready ? (
-              <p className="rp-hint" style={{ margin: 0 }}>Stripe has everything it needs. Cards and payouts are working.</p>
+              <p className="rp-hint" style={{ margin: 0 }}>{/* Stripe shops only */}Stripe has everything it needs. Cards and payouts are working.</p>
             ) : null}
             {connected && !canTakeCards && !needs && (
               <p className="rp-hint" style={{ margin: 0 }}>{name} hasn't turned on card payments for this account yet. {provider === "square" ? "Open your Square dashboard to finish anything it asks for." : `Press ${CONTINUE_WITH_STRIPE} to finish anything it asks for.`}</p>

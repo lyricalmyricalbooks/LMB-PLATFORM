@@ -16,7 +16,7 @@ import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PlatformPaymentsCard } from "./PlatformPaymentsCard";
 import { CustomDomainCard } from "./CustomDomainCard";
-import { platformCardsProvider, shopProfile } from "../../lib/shopProfile";
+import { paysOnSquare, platformCardsProvider, providerName, shopProfile } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
@@ -1298,7 +1298,7 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications, onOp
     const missed: string[] = [];
     const soft = <T,>(p: Promise<T>, label: string, fallback: T) => p.catch(() => { missed.push(label); return fallback; });
     const [orders, webhook, emailLog, practiceNow] = await Promise.all([
-      soft(adminApi.getOrders(50), "orders", [] as any[]), platform ? Promise.resolve(null) : soft(adminApi.getStripeWebhookStatus(), "Stripe webhook status", null as any), soft(adminApi.getRecentEmailLog(100), "email log", [] as any[]),
+      soft(adminApi.getOrders(50), "orders", [] as any[]), platform ? Promise.resolve(null) : soft(adminApi.getStripeWebhookStatus(), "Stripe webhook status" /* Stripe shops only */, null as any), soft(adminApi.getRecentEmailLog(100), "email log", [] as any[]),
       platform ? soft(practiceCheckout("status"), "practice order", null) : Promise.resolve(null),
     ]);
     setFailed(missed);
@@ -1432,7 +1432,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
 
   const updateTestMode = async (val: boolean) => {
     const ok = await askConfirm(val
-      ? { title: "Switch on test mode?", message: "Once you save, checkout only accepts Stripe and PayPal test payments (card 4242 4242 4242 4242). Real cards are refused and new orders are marked as tests that never touch stock or revenue. An alert shows on every admin page while it's on.", confirmLabel: "Use test mode" }
+      ? { title: "Switch on test mode?", message: `Once you save, checkout only accepts ${providerName()} and PayPal test payments${paysOnSquare() ? "" : " (card 4242 4242 4242 4242)"}. Real cards are refused and new orders are marked as tests that never touch stock or revenue. An alert shows on every admin page while it's on.`, confirmLabel: "Use test mode" }
       : { title: "Switch off test mode?", message: "Once you save, checkout takes real payments with your live keys. Make sure the live publishable and secret keys are filled in and the webhook check passes.", confirmLabel: "Take real payments" });
     if (!ok) return;
     setSettings({
@@ -1563,8 +1563,8 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               <StatusBadge tone={testMode ? "warning" : "success"}>{testMode ? "Test mode — no real charges" : "Live mode"}</StatusBadge>
               {platformCards
-                ? <StatusBadge tone="info">Cards through {platformCards === "square" ? "Square" : "Stripe"}</StatusBadge>
-                : <StatusBadge tone={stripeLive ? "success" : "neutral"}>Stripe {stripeLive ? "on" : "off"}</StatusBadge>}
+                ? <StatusBadge tone="info">Cards through {providerName(platformCards)}</StatusBadge>
+                : <StatusBadge tone={stripeLive ? "success" : "neutral"}>{/* Stripe shops only */}Stripe {stripeLive ? "on" : "off"}</StatusBadge>}
               <StatusBadge tone={paypalLive ? "success" : "neutral"}>PayPal {paypalLive ? "on" : "off"}</StatusBadge>
               <StatusBadge tone={enabledManual.length ? "info" : "neutral"}>{enabledManual.length} manual method{enabledManual.length === 1 ? "" : "s"}</StatusBadge>
             </div>
@@ -1593,17 +1593,17 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
         ) : (
         <SettingsAnchor id="pay-stripe">
-          <SectionCard title="Stripe" description="Cards, Apple Pay, Google Pay."
-            actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>Stripe dashboard ↗</SecondaryButton>}>
+          <SectionCard title="Stripe" description="Cards, Apple Pay, Google Pay." /* Stripe shops only (own keys) */
+            actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>{/* Stripe shops only */}Stripe dashboard ↗</SecondaryButton>}>
             <div className="rp-stack" style={{ gap: 20 }}>
-              <Toggle label="Stripe checkout" checked={!!stripe.connected} onChange={(v) => updateStripe({ connected: v })} />
+              <Toggle label="Stripe checkout" /* Stripe shops only */ checked={!!stripe.connected} onChange={(v) => updateStripe({ connected: v })} />
               {stripe.connected && (
                 <>
                   {secretStored && (
                     <div style={{ padding: 16, background: "var(--rp-warning-tint)" }}>
                       <strong>🔒 Secret key stored privately.</strong>{" "}
                       Secret keys are kept in an admin-only store the storefront cannot read.
-                      {stripe.keysWerePublic && " A key was once saved where the storefront could read it and has since been moved — rotate it in the Stripe Dashboard to be safe."}
+                      {stripe.keysWerePublic && " A key was once saved where the storefront could read it and has since been moved — rotate it in the Stripe Dashboard to be safe." /* Stripe shops only */}
                     </div>
                   )}
                   <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
@@ -1633,7 +1633,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                   <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
                     <div className="rp-sect">Apple Pay &amp; Google Pay</div>
                     <p className="rp-hint" style={{ marginTop: 0 }}>
-                      Wallet buttons only show in the card form once this site's address is registered with Stripe. Save your Stripe keys first.
+                      {/* Stripe shops only */}Wallet buttons only show in the card form once this site's address is registered with Stripe. Save your Stripe keys first.
                     </p>
                     <SecondaryButton size="sm" disabled={registeringDomain} onClick={async () => {
                       if (registeringDomain) return;
@@ -1642,11 +1642,11 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                         const r = await adminApi.registerStripePaymentDomain(window.location.origin);
                         toast.success(`${r.domain}: Apple Pay ${r.applePay}, Google Pay ${r.googlePay}`);
                       } catch (err: any) {
-                        toast.error(friendlyError(err, "register this site with Stripe"));
+                        toast.error(friendlyError(err, "register this site with Stripe")); // Stripe shops only
                       } finally {
                         setRegisteringDomain(false);
                       }
-                    }}>{registeringDomain ? "Registering…" : "Register this site with Stripe"}</SecondaryButton>
+                    }}>{registeringDomain ? "Registering…" : "Register this site with Stripe" /* Stripe shops only */}</SecondaryButton>
                   </div>
                   <StripeWebhookHealth unsaved={dirty} />
                 </>

@@ -836,8 +836,17 @@ restocked on refund (`sandboxTakesStock` in settlePayment.js, as on the test sho
 (`body.practice` or an earlier practice attempt) gets 409 `practice_ended` rather than a live charge. Exports also skip
 unpaid practice orders. The storefront's hint (`src/app/lib/practiceHint.ts`) only lets the owner's browser past the
 store-status page; it decides nothing. Tested in `practiceCheckout.test.js` with a fake service for both providers.
-Known gaps: gift cards with a card payment are refused for Square shops; admin and email wording still says "Stripe" in
-places.
+Known gap: gift cards with a card payment are refused for Square shops.
+**The provider's own name (28 October 2026, code plan 5.2).** A Square shop never says "Stripe" to the press or the
+shopper. The server names the provider with `providerName(payments.provider)` from `payments/index.js`, kept as `CARD`
+in index.js and orderRequests.js. That covers order activity lines, refund, dispute and alert messages, and the admin's
+new-order emails (a card order's stored `paymentMethod: "Stripe"` shows as `paymentMethodLabel`). `fulfillmentGuard.js`
+reads the provider from shopConfig. The admin and storefront use the same rule, `providerName()` in
+`src/lib/shopProfile.ts`, read from the profile's `payments`. On a Stripe shop every word is unchanged.
+`src/app/admin/providerWording.test.ts` checks two things:
+- **A Square profile.** The order list, alerts, Ready to sell, payment checks and test-sale steps say Square.
+- **Every shown word.** It reads each string in the admin screens and in these server files. A remaining "Stripe" must
+  sit on a line marked `Stripe shops only`, or be the stored value compared or listed.
 **Square pages close with the stock hold (28 October 2026, code plan 5.1).** `paymentPages.js`. When a Square link opens,
 checkoutPayment.js saves `openedPage(order, session)` on the order: `paymentPages` (each page's `id`, `closesAt`, later
 `closedAt`/`closed`), `paymentPageClosesAt` (the latest) and `paymentPageCloseDue` (the earliest still open; null when

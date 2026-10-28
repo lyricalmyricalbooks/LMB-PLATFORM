@@ -1,6 +1,7 @@
 import { addressMissing, regionRequired, postalRequired } from "../features/site/addressRules";
 import { cleanTrackingLink } from "../lib/tracking";
 import { waitingPreorderLines, shipDateOf } from "../features/site/preorder";
+import { providerName } from "../../lib/shopProfile";
 // Publisher workflow state is private; public order/payment records remain authoritative.
 export const WORK_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery", "Awaiting release", "In transit", "Completed", "Unpaid", "All orders"];
 export const terminal = (o: any) => o.status === "cancelled" || ["refunded", "refund_pending"].includes(o.paymentStatus) || ["cancelled", "refunded"].includes(o.fulfillmentStatus);
@@ -92,7 +93,7 @@ export function dispatchProblem(o: any): string {
  if (fulfillmentMethod(o) !== "shipping") return "Local pickup and delivery orders cannot use carrier dispatch.";
  if (q === "In transit" || q === "Completed") return "This order has already been dispatched.";
  if (o.customerRequest?.type === "return" && o.customerRequest.status === "open") return "Resolve the active return before dispatching the order.";
- if (disputeOpen(o)) return "This payment is disputed. Don't ship until the dispute is settled in Stripe.";
+ if (disputeOpen(o)) return `This payment is disputed. Don't ship until the dispute is settled in ${providerName()}.`;
  if (refundFailed(o)) return "The refund for this order failed at the bank, so the customer was not refunded. Refund again or contact them before packing.";
  if (o.operations?.hold) return `Order on hold: ${o.operations.hold}`;
  if (q === "Awaiting release") return `Pre-order: releases ${preorderShipDate(o) || "on a date not yet announced"}. Press "Ready to ship now" if the books have arrived.`;
