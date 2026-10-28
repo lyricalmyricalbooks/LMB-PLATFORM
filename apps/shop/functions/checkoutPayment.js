@@ -289,6 +289,7 @@ function checkoutPaymentActions({
         shippingEstimate,
         fulfillment,
         tax: taxCost,
+        taxLines: priced.taxLines,
         giftCardAmount,
         giftCardRedemptions,
         total: finalTotal,
