@@ -163,12 +163,13 @@ runs is already part of the demo (`npm run demo`), so it isn't a row here.
 
 ### 5.0c Found on Windows by the local demo
 
-The demo's own polish (hiding the test-mode notice in the demo, a double-click starter) stays with the demo work, not here.
+The demo's own polish (hiding the test-mode notice in the demo, a double-click starter) stays with the demo work, not here. Saving the stockroom between demo runs is 5.0e.
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
 | 5.0c | stockroom | Signed out, the stockroom shows its sign-in screen with a plain "Sign in to see your stockroom", never an empty dashboard that looks like lost data; an expired sign-in returns there too | stockroom test: no signed-in person → sign-in screen, dashboard hidden | |
 | 5.0d | platform | The automatic checks also run on Windows: a `windows-latest` CI job runs root `npm test` and both apps' unit tests, so a case-only file name clash or a `/`-only path fails before merge (the shop's `caseSafeImports.test.ts` from #86 already guards imports) | the new CI job green on Windows | |
+| 5.0e | platform | The local demo keeps the stockroom's changes between runs. The emulator's export may save only the default Firestore database, so the stockroom's named database could be lost at Ctrl+C. `demo/run.js` checks this and, if needed, saves and reloads the `stockroom` database itself | a CI check that starts the emulators, writes to the `stockroom` database, stops with Ctrl+C, restarts and finds the change | |
 
 ### 5A. Money: close the Square gaps first
 
