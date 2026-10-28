@@ -63,7 +63,8 @@ import { pdpFreeShipping } from "./extras/pdp-free-shipping/pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
 import { policyHtml, policySlug, policyTitle } from "./policyPages";
 import { quickAddChoice } from "./buyable";
-import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
+import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS } from "./themeTokens";
+import { themeStyleCss } from "./templateStyles";
 import { StorefrontOverrides } from "./StorefrontOverrides";
 import { resolveProductDesign } from "./surfaceDesign";
 import { bookTemplateSurface, previewTemplate } from "./templateAlternates";
@@ -364,7 +365,7 @@ export default function BookDetail() {
       box-shadow: none !important;
     }
     ${STOREFRONT_TOKEN_CSS}
-    ${(tokenSource as any)?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(tokenSource as any) : ""}
+    ${themeStyleCss(tokenSource as any)}
     ${productPageCss(tokenSource)}
   `;
 

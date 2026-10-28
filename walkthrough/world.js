@@ -12,7 +12,18 @@ import { createAccounts } from "../accounts/accounts.js";
 import { fakeAccountStores } from "../accounts/fakes.js";
 import { controlRoutes } from "../control-room/routes.js";
 import { controlRoomAdmins, createControlRoom, profilePublisher } from "../control-room/controlRoom.js";
-import { fakeRepairStore, fakeShopAccess } from "../control-room/fakes.js";
+import { fakeActivity, fakeBreachStore, fakeInviteStore, fakePlatformState, fakeRepairStore, fakeShopAccess, fakeWaitlist } from "../control-room/fakes.js";
+import { createPlatformControls, platformRoutes } from "../control-room/platformControls.js";
+import { createBackupAccess, emergencyRoutes } from "../control-room/backupPerson.js";
+import { runBook } from "../control-room/runbook.js";
+import { controlRoomPeople } from "../control-room/people.js";
+import { createInvites } from "../waitlist/invites.js";
+import { createSupportInbox } from "../services/support/inbox.js";
+import { supportRoutes } from "../services/support/routes.js";
+import { fakeSupportStore } from "../services/support/fakes.js";
+import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
+import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
+import { fakeRecoveryStore } from "../accounts/fakes.js";
 import { createRepairQueue } from "../control-room/repairs.js";
 import { createApi } from "../signup/api.js";
 import { fakeAuth, fakeInvites, fakeSignupStores, fakeVerifyIdToken } from "../signup/fakes.js";
@@ -53,9 +64,9 @@ export function fakeClock(start = "2026-10-28T12:00:00Z") {
 /**
  * Builds the platform. Options: `start` (the pretend time) or `clock` (any object shaped like fakeClock's, for a clock
  * that follows real time), `env` (platform settings on top of "sign-up is open"), `invited` (waitlist emails with an
- * invite), `google` (a pretend Google, to make a step fail), `suffix` (the five characters of a new shop's id).
+ * invite), `waitlisted` (people on the waitlist the control room lists), `google` (a pretend Google, to make a step fail), `suffix` (the five characters of a new shop's id).
  */
-export function platformWorld({ start, clock = fakeClock(start), env = {}, invited = [], google = fakeGoogle(), suffix = null } = {}) {
+export function platformWorld({ start, clock = fakeClock(start), env = {}, invited = [], waitlisted = [], google = fakeGoogle(), suffix = null } = {}) {
   const settingsEnv = { SIGNUP_OPEN: "true", ...env };
   const settings = platformSettings(settingsEnv);
   const live = () => liveSettings({ env: settingsEnv });
@@ -104,10 +115,36 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   // Accounts, and the control room.
   const accountStores = fakeAccountStores();
   const accounts = createAccounts({ accounts: stores.accounts, ...accountStores, registry, shopData, auditLog, email, settings, now: clock.date });
+  // The control room and what it sits on: the platform's own settings, the waitlist and its invites, the activity log,
+  // the breach register, the support inbox, account recovery and the backup person's run book (all pretend).
+  const admins = controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: ADMIN_EMAIL });
+  const people = controlRoomPeople({ PLATFORM_ADMIN_EMAIL: ADMIN_EMAIL });
+  const platformState = fakePlatformState();
+  const activity = fakeActivity();
+  const supportStore = fakeSupportStore();
+  const recoveryStore = fakeRecoveryStore();
+  const waitlist = fakeWaitlist(waitlisted);
   const room = createControlRoom({
     registry, auditLog, profileFiles, shopAccess: fakeShopAccess(), repairs, signups: stores.signups, shopData,
-    publish: profilePublisher({ deploy: services.deploy, registry }), settings: live,
-    admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: ADMIN_EMAIL }), now: clock.date,
+    publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: fakeBreachStore(), people,
+    activity, supportStore, recoveryStore, platformState, admins, now: clock.date,
+  });
+  const controls = createPlatformControls({
+    admins, settingsStore: platformState, env: settingsEnv, activity, waitlist, signups: stores.signups, now: clock.date,
+    invites: createInvites({ invites: fakeInviteStore(), email, settings, now: clock.date }),
+  });
+  const backup = createBackupAccess({
+    people, admins: [ADMIN_EMAIL], state: platformState, email, registry, auditLog, now: clock.date,
+    runBook: runBook({ state: platformState, registry, platform: { set: async () => {} }, rollBack: async () => ({ ok: true }), now: clock.date }),
+  });
+  const support = createSupportInbox({ store: supportStore, email, registry, settings, admins: [ADMIN_EMAIL], roleIn: (person, shopId) => accounts.roleIn(person, shopId), now: clock.date });
+  const recovery = createRecovery({
+    store: recoveryStore, email, registry, auditLog, settings, admins: [ADMIN_EMAIL], now: clock.date,
+    findAccount: async (address) => {
+      for (const [accountId, row] of stores.accounts.rows) if (String(row.email ?? "").toLowerCase() === address) return { accountId };
+      return null;
+    },
+    applyRecovery: async (move) => recoveryByHand(move),
   });
 
   // The platform's one web door: sign-up, the shop maker's Try again, accounts, billing and the control room.
@@ -118,6 +155,10 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
       ...accountRoutes(accounts),
       ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now: clock.date }),
       ...controlRoutes(room),
+      ...platformRoutes(controls),
+      ...emergencyRoutes(backup),
+      ...supportRoutes(support),
+      ...recoveryRoutes(recovery),
     },
     log: () => {},
   });
@@ -125,7 +166,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, door, ask, invites,
+    stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, ask, invites,
     /** The shop's own database as the platform wrote it: a document, or null. */
     doc: (shopId, path) => services.world.docs.get(`${shopId} ${path}`) ?? null,
   };

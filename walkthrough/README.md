@@ -1,13 +1,17 @@
 # Walkthrough
 
-The platform's own pages on made-up data, on one computer: `npm run walkthrough` (code plan 6.14). Plain Node 22 ES
+The platform's own pages on made-up data, on one computer: `npm run walkthrough` (code plan 6.14), with a start page that
+links them all as the platform owner and as a press (plan 9.11). `npm run walkthrough:all` (`--with-demo`) also starts
+`npm run demo`, the shop and stockroom the start page's last section links to. Plain Node 22 ES
 modules, no packages of its own, no emulators, no network. The plain-words guide is in
 [docs/demo-shop.md](../docs/demo-shop.md); `npm run demo` is the shop and stockroom, this is the pages around them.
 
 | File | What it does |
 | --- | --- |
-| `run.js` | The command. Prints the addresses. `--port <number>` (or `WALKTHROUGH_PORT`) picks another port than 5180. |
-| `server.js` | `startWalkthrough({ port })`: serves the pages' own files from their folders, the web door at `/api`, a stand-in card page, and the placeholder at `/`. Port 0 picks a free port (the tests). |
+| `run.js` | The command. Prints the addresses. `--port <number>` (or `WALKTHROUGH_PORT`) picks another port than 5180; `--with-demo` also starts the demo in the same terminal (its `--fresh`, `--no-functions` and `--new-press` pass through) and waits for it to save on Ctrl+C. |
+| `server.js` | `startWalkthrough({ port })`: serves the pages' own files from their folders, the web door at `/api`, a stand-in card page, and the start page at `/` (and `/start`). Port 0 picks a free port (the tests). Seeds two presses, the platform's test shop (the demo shop, with a passed release check) and three waitlist entries. |
+| `startPage.js` | `START_SECTIONS` (every link, who it signs in as, what to try there) and `startPage()`. Walkthrough links name their person with `?as=`, so they open as that person whoever signed in last. |
+| `browser-check.js` | `node walkthrough/browser-check.js` (CI job `walkthrough-browser`): Chromium opens the start page and every walkthrough link on it as its person, and fails on a page error, a console error, a failed `/api` call or a page that never shows its signed-in view. The demo's links are left out. `WALKTHROUGH_SHOTS=<folder>` keeps screenshots. |
 | `world.js` | `platformWorld()`: the whole platform joined with pretend services (see below). The server and `road.test.js` both use it. |
 | `stub/` | The sign-in library, the waitlist's store: stand-ins the pages load in place of Google's and the platform project's. |
 | `walkthrough.test.js` | Starts the server on a random port; each page answers 200; the card and sign-up routes work. |
@@ -16,7 +20,8 @@ modules, no packages of its own, no emulators, no network. The plain-words guide
 
 | Address | Page | Notes |
 | --- | --- | --- |
-| `/` | one line: "Start page coming" | **Left free** for the control room's start page (`/` or `/start`). Nothing else is served at `/` or `/start`. |
+| `/` (and `/start`) | the start page (`startPage.js`) | Three sections: as the platform owner, as a press, inside a press's shop and stockroom (`npm run demo`). |
+| `/control/` | `control-room/index.html` | Signs in as `admin@example.com` with two-step claims (`firebase.sign_in_second_factor: "totp"`, a fresh `auth_time`), so every panel opens. This sign-in is never remembered, so the other pages keep their own person. |
 | `/waitlist/` | `waitlist/index.html` | Plans from `/api/plans` and **Start your free trial** (the walkthrough turns sign-up on). The form keeps sign-ups in memory. |
 | `/signup/` | `signup/index.html` | "Continue with Google" signs in as `newcomer@example.com`, who has no shop yet. |
 | `/account/` (and `/accounts/`) | `accounts/index.html` | Signs in as `owner@example.com`, who has two presses. |
@@ -49,4 +54,6 @@ Joined here because no hosted web door exists yet (plan 6.14):
   `publishPlan` now also copies the plan onto the registry row, which the control room reads; a trial that began at
   sign-up had neither copy until the next billing event. A failure there goes to the repair queue (`shop-plan`) and never
   holds the press up.
-- One web door carries every route. When the real door is hosted, it needs this same list.
+- One web door carries every route: sign-up, accounts, billing, the control room and what sits beside it (platform
+  settings and the waitlist, the backup person's run book, the support inbox, account recovery). When the real door is
+  hosted, it needs this same list.

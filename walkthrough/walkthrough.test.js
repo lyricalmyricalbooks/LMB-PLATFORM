@@ -1,10 +1,13 @@
 // The walkthrough server (`npm run walkthrough`) starts on a free port and every page answers: the waitlist, sign-up and
-// account pages and Plan & billing, with their own files, on pretend data. The start page path stays a placeholder for
-// the control room's start page. Nothing here uses the network except this computer's own address.
+// account pages, Plan & billing and the control room, with their own files, on pretend data, and the start page links
+// them all. Nothing here uses the network except this computer's own address.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { PAGES, SEED_PRESSES, startWalkthrough } from "./server.js";
+import { PAGES, SEED_PRESSES, WALKTHROUGH_TEST_SHOP, startWalkthrough } from "./server.js";
+import { START_SECTIONS } from "./startPage.js";
+import { ADMIN_EMAIL, adminClaims } from "./world.js";
+import { twoStepProblem } from "../control-room/controlRoom.js";
 
 let walk;
 before(async () => {
@@ -34,13 +37,51 @@ test("each page answers 200 on a random port, and Plan & billing for each made-u
   assert.equal((await get("/accounts/")).status, 200, "the sign-in links' address for the account page");
 });
 
-test("the path / holds only the one-line placeholder, and /start is left free", async () => {
+test("the start page links every page as the owner and as a press, and every walkthrough link answers 200", async () => {
   const page = await (await get("/")).text();
-  assert.match(page, /<p>Start page coming<\/p>/);
-  assert.equal(page.replace(/<head>[\s\S]*<\/head>/, "").replace(/<[^>]+>/g, "").trim(), "Start page coming");
-  assert.equal((await get("/start")).status, 404);
-  assert.equal((await get("/start/")).status, 404);
-  assert.deepEqual(PAGES.filter((page) => page.path === "/").map((page) => page.name), ["Start page"]);
+  assert.equal(await (await get("/start")).text(), page, "/start is the same page");
+  for (const section of START_SECTIONS) assert.match(page, new RegExp(`<section id="${section.id}">`));
+  const hrefs = [...page.matchAll(/<a href="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, "&"));
+  assert.deepEqual(hrefs, START_SECTIONS.flatMap((section) => section.links.map((l) => l.href)));
+  for (const path of ["/control/", "/waitlist/", "/signup/?as=newcomer@example.com", "/account/?as=owner@example.com", "/account/billing?shop=moth-press&as=owner@example.com", "/account/billing?shop=paper-wasp&as=owner@example.com", "/help/", "/terms/"]) assert.ok(hrefs.includes(path), path);
+  // A link with a person opens as that person.
+  for (const item of START_SECTIONS.flatMap((section) => section.links).filter((l) => !l.demo && l.who && !l.href.startsWith("/control/"))) assert.equal(new URL(item.href, walk.url).searchParams.get("as"), item.who, item.name);
+  const local = hrefs.filter((href) => href.startsWith("/"));
+  for (const href of local) assert.equal((await get(href.replace(/#.*/, ""))).status, 200, href);
+  const demo = START_SECTIONS.flatMap((section) => section.links).filter((l) => l.demo);
+  assert.ok(demo.length >= 5);
+  for (const item of demo) assert.match(item.href, /^http:\/\/127\.0\.0\.1:517[34]\//, `${item.name} goes to npm run demo`);
+  assert.equal(local.length + demo.length, hrefs.length);
+  for (const word of ["admin@example.com", "owner@example.com", "newcomer@example.com", "npm run demo"]) assert.match(page, new RegExp(word));
+});
+
+test("the control room opens for the platform owner with two-step sign-in, on the walkthrough's shops and test shop", async () => {
+  for (const path of ["/control/", "/control/app.js"]) assert.equal((await get(path)).status, 200, path);
+  assert.equal((await get("/control")).status, 301);
+  const ADMIN = { ...adminClaims({ ms: () => Date.now() }), email: ADMIN_EMAIL };
+  const shops = await call(ADMIN, "GET", "/api/control/shops");
+  assert.equal(shops.status, 200);
+  assert.ok(["moth-press", "paper-wasp", WALKTHROUGH_TEST_SHOP.shopId].every((id) => shops.body.shops.some((shop) => shop.shopId === id)));
+  const { testShop } = (await call(ADMIN, "GET", "/api/control/test-shop")).body;
+  assert.equal(testShop.shopId, WALKTHROUGH_TEST_SHOP.shopId);
+  assert.equal(testShop.storefrontUrl, "http://127.0.0.1:5173");
+  assert.equal(testShop.lastCheck.ok, true);
+  assert.equal((await call(ADMIN, "GET", "/api/control/today")).status, 200);
+  // Without the second step, or as a press, the control room stays shut.
+  const { firebase: _, ...oneStep } = ADMIN;
+  assert.equal((await call(oneStep, "GET", "/api/control/shops")).status, 403);
+  assert.equal((await call(OWNER, "GET", "/api/control/shops")).status, 403);
+  // The test shop is the platform's, not on the press's account page.
+  assert.ok(!(await call(OWNER, "GET", "/api/accounts/shops")).body.shops.some((shop) => shop.shopId === WALKTHROUGH_TEST_SHOP.shopId));
+});
+
+test("the stand-in sign-in gives the platform owner the two-step claims the control room checks, and no one else", async () => {
+  const stub = readFileSync("walkthrough/stub/firebase-auth.js", "utf8");
+  assert.match(stub, /"admin@example\.com": \{[^}]*twoStep: true/);
+  assert.match(stub, /sign_in_second_factor: "totp"/);
+  assert.match(stub, /startsWith\("\/control"\) \? "admin@example\.com"/);
+  assert.doesNotMatch(stub.match(/"owner@example\.com": \{[^}]*\}/)[0], /twoStep/);
+  assert.equal(twoStepProblem({ firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) }), null);
 });
 
 test("the pages load their own files, with the sign-in and the pricing pointed at the walkthrough", async () => {

@@ -892,7 +892,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
     title: "Printed-paper look (Riso)",
     hint: "Outlines, offset shadows, focus ring and texture of the Riso Press look.",
     fields: [
-      { key: "themeStyle", label: "Print style", kind: "select", options: [{ value: "riso", label: "Riso Press (outlined, flat shadows)" }, { value: "default", label: "Standard" }] },
+      { key: "themeStyle", label: "Print style", kind: "select", options: [{ value: "riso", label: "Riso Press (outlined, flat shadows)" }, { value: "marquee", label: "Marquee (ruled masthead, stickers, offset buttons)" }, { value: "shelf", label: "Shelf (soft covers, pill buttons)" }, { value: "default", label: "Standard" }] },
       { key: "risoOutlineColor", label: "Outline color", kind: "color" },
       { key: "risoOutlineWidth", label: "Outline width", kind: "range", min: 0, max: 6, step: 1, suffix: "px" },
       { key: "risoShadowColor", label: "Offset shadow color", kind: "color" },
