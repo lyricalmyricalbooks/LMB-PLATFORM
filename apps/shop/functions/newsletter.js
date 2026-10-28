@@ -2,17 +2,20 @@
 // signed link in the confirmation email; every subscriber can unsubscribe with a signed link. Pure
 // helpers here; the HTTP actions (newsletterSignup / newsletterConfirm / unsubscribe) are in index.js.
 
-const NEWSLETTER_CONSENT_TEXT = "Asked to receive the Your Press newsletter on the website; the subscription starts only after the address owner confirms by email link.";
+const { DEFAULT_SHOP_NAME } = require("./shared/shopIdentity");
+
+/** What the subscriber agreed to, in the press's own name (plan 5.8), kept on the record as proof of consent. */
+const newsletterConsentText = shopName => `Asked to receive the ${String(shopName || "").trim() || DEFAULT_SHOP_NAME} newsletter on the website; the subscription starts only after the address owner confirms by email link.`;
 
 /** The pending record written at signup. `subscribedAt` stays for older readers (Overview, CSV). */
-function pendingRecord(email, source, now) {
+function pendingRecord(email, source, now, shopName = "") {
   return {
     email,
     status: "pending",
     source: String(source || "website").slice(0, 60),
     requestedAt: now,
     subscribedAt: now,
-    consentText: NEWSLETTER_CONSENT_TEXT,
+    consentText: newsletterConsentText(shopName),
   };
 }
 
@@ -31,14 +34,15 @@ const mayMail = record => !!record && !isPending(record);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 function confirmationEmail({ shopName, confirmUrl, unsubscribeUrl, address }) {
-  const name = esc(shopName || "Your Press");
+  const plain = String(shopName || "").trim() || DEFAULT_SHOP_NAME;
+  const name = esc(plain);
   return {
-    subject: `Confirm your subscription to ${shopName || "Your Press"}`,
+    subject: `Confirm your subscription to ${plain}`,
     html: `<p>Someone asked to send news from ${name} to this address. If that was you, confirm below. If not, ignore this email and nothing will be sent.</p>`
       + `<p><a href="${esc(confirmUrl)}" style="display:inline-block;padding:12px 22px;background:#111;color:#fff;text-decoration:none;font-weight:bold;">Yes, subscribe me</a></p>`
-      + `<p style="font-size:12px;color:#666;">${esc(NEWSLETTER_CONSENT_TEXT)}</p>`
+      + `<p style="font-size:12px;color:#666;">${esc(newsletterConsentText(plain))}</p>`
       + `<p style="margin-top:28px;font-size:11px;color:#888;">Changed your mind later? <a href="${esc(unsubscribeUrl)}">Unsubscribe</a> at any time.${address ? ` ${name}, ${esc(address)}.` : ""}</p>`,
   };
 }
 
-module.exports = { NEWSLETTER_CONSENT_TEXT, pendingRecord, confirmedRecord, isPending, mayMail, confirmationEmail };
+module.exports = { newsletterConsentText, pendingRecord, confirmedRecord, isPending, mayMail, confirmationEmail };

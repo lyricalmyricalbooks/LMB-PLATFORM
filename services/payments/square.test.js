@@ -315,6 +315,31 @@ test("disputes, cancels and deletes; another press's objects are out of reach", 
   assert.equal((await w.call("square.payments.retrieve", { id: "bad id!" })).status, 400);
 });
 
+test("a payment page closed when its stock hold ends (5.1): its Square order is cancelled; a payment keeps Square's own time", async () => {
+  const w = await world();
+  await w.connect("MERCHANT1");
+  const made = await w.call("square.checkout.create", checkoutArgs());
+  const closed = await w.call("square.checkout.delete", { id: made.body.id });
+  assert.equal(closed.status, 200);
+  assert.equal(closed.body.cancelledOrderId, made.body.squareOrderId);
+  const deletes = w.sq.requests.filter((r) => r.method === "DELETE");
+  assert.deepEqual(deletes.map((r) => r.path), [`/v2/online-checkout/payment-links/${made.body.id}`]);
+  // The page is gone: reading or closing it again answers "not found", which the shop takes as already closed.
+  assert.equal((await w.call("square.checkout.retrieve", { id: made.body.id })).status, 404);
+  assert.equal((await w.call("square.checkout.delete", { id: made.body.id })).status, 404);
+
+  // The shop tells a late payment from a slow event by when Square says the shopper paid.
+  const open = await w.call("square.checkout.create", { ...checkoutArgs(), idempotencyKey: "second" });
+  const payment = w.sq.world.pay(open.body.id);
+  const read = await w.call("square.payments.retrieve", { id: payment.id });
+  assert.equal(read.body.createdAt, payment.created_at);
+  assert.equal(read.body.referenceId, "order1");
+  // And the full refund of a late payment needs no amount: it refunds what is left.
+  const refund = await w.call("square.refunds.create", { params: { paymentId: payment.id, reason: "Paid after the checkout closed" }, idempotencyKey: "late-order1" });
+  assert.equal(refund.status, 200);
+  assert.equal(refund.body.amountMinor, 5000);
+});
+
 test("each payment's fees and its payout: Square's processing fee, and the payout's lines page by page (7.10)", async () => {
   const w = await world();
   await w.connect("MERCHANT1");

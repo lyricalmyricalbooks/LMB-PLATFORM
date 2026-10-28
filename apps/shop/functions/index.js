@@ -32,6 +32,7 @@ const { checkoutRate } = require("./checkoutRate");
 const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./liveRateExtra");
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./shared/addressRules");
+const { pressName } = require("./shared/shopIdentity");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./shared/discountCategories");
@@ -62,6 +63,7 @@ const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./a
 const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
+const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink");
 const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
@@ -78,6 +80,7 @@ const { orderRequestActions } = require("./orderRequests");
 const { shippingLabelEndpoints } = require("./shippingLabels");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
+const { createPaymentPages, paidAfterHold } = require("./paymentPages");
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./shared/preorder");
 const { check: checkBody } = require("./shared/edge");
 const { orderActionBody, refundOrderBody } = require("./shared/orderActions");
@@ -320,6 +323,9 @@ const payments = createPayments({
   db, Stripe, liveSecretKey: STRIPE_SECRET_KEY, readAdminSecret,
 });
 const { testMode: shopTestMode } = payments;
+// Square payment pages close when their stock hold ends, and a payment made after that is refunded in full (code plan
+// 5.1, paymentPages.js). The email is the press's own "Order refunded" one (sendLateRefundEmail, below).
+const paymentPages = createPaymentPages({ db, payments, releaseStock, sendLateRefundEmail: (...args) => sendLateRefundEmail(...args) });
 
 // Asks the payment provider (test and live accounts, the order's own mode first) for one of the
 // order's saved payments. Returns { intent | session, mode } or null when no account knows it.
@@ -1544,6 +1550,12 @@ const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, h
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
 const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
 
+// Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
+// Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).
+const { handleBookkeeping } = bookkeepingActions({
+  url: shopConfig.platformAccountingUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
+  buildDay: async (date) => dayFromOrders((await db.collection("orders").get()).docs.map((d) => ({ id: d.id, ...d.data() })), date),
+});
 // Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
 const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
 
@@ -1577,6 +1589,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   registerPaymentDomain: handleRegisterPaymentDomain,
   platformPayments: handlePlatformPayments,
   customDomains: handleCustomDomains,
+  bookkeeping: handleBookkeeping,
   practiceCheckout: handlePracticeCheckout,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,
@@ -1659,11 +1672,34 @@ function inventoryLinkDeps() {
 // one, that the server itself fetched from Stripe or received in a signed
 // webhook — never browser data. The amount and currency must match the payment
 // this order was created for.
+// The shopper's email for a payment refunded because it arrived after the checkout closed (paymentPages.js): the press's
+// own "Order refunded" email (Settings › Notifications) with one plain paragraph saying why. Sent once per payment.
+async function sendLateRefundEmail(orderId, order, { amountMinor, currency, paymentIntentId }) {
+  const to = order.customer?.email;
+  const notificationSettings = await loadNotificationSettings();
+  if (!to || notificationSettings.order_refunded?.enabled === false) return;
+  const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
+    customer_name: order.customer?.name || "there",
+    order_id: order.orderId || orderId,
+    total_price: refundAmountText({ refund: { amount: Number(amountMinor || 0) / 100, currency: String(currency || "").toUpperCase() } }),
+    button_url: await orderTrackUrl(orderId, order),
+  }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">Your payment reached us after the checkout had closed, so the books were no longer set aside for you and this order wasn't placed. We've refunded the full amount. You're welcome to order again.</p>`);
+  await sendOrderEmailOnce(orderId, `latePaymentRefund_${paymentIntentId}`, {
+    to, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+  });
+}
+
 const STRIPE_WEBHOOK_AUTHORITY = Symbol("verified Stripe webhook");
 async function markStripeOrderPaid(orderId, session, opts = {}) {
     if (opts.authority !== STRIPE_WEBHOOK_AUTHORITY) throw new Error("Stripe orders require a verified webhook.");
     let duplicateAlert = null;
     const initialOrder = await db.collection("orders").doc(orderId).get();
+    // A Square payment made after the order's payment page should have closed (its stock hold had ended): never marked
+    // paid, no stock taken, refunded in full and the shopper told (paymentPages.js, code plan 5.1).
+    if (initialOrder.exists && paidAfterHold(initialOrder.data(), session)) {
+      await paymentPages.refundLatePayment(orderId, session);
+      return false;
+    }
     if (initialOrder.exists) {
       const initial = initialOrder.data();
       const amountCheck = paidAmountCheck(initial, session.amount_total, session.currency);
@@ -2646,11 +2682,11 @@ async function loadNotificationSettings() {
   // Emails to the shop itself (Settings › Notifications › Emails to the shop). On unless switched off;
   // an older saved new_order_admin.enabled is honoured too.
   // {{shop_name}} in every email (plan 1.16): Settings › Email sender name, else the shop's name, else the deploy's.
-  merged.shopName = shopConfig.senderName;
+  // Plan 5.8: else Text & labels › Site name (pressName), never the placeholder for a named shop.
+  merged.shopName = pressName(null, shopConfig.senderName);
   try {
     const website = (await db.collection("settings").doc("website").get()).data() || {};
-    const own = [website.communications?.fromName, website.info?.name].map((v) => String(v || "").trim()).find(Boolean);
-    if (own) merged.shopName = own;
+    merged.shopName = String(website.communications?.fromName || "").trim() || pressName(website, shopConfig.senderName);
   } catch (err) {
     console.warn("Failed to load the shop name for emails, using the deploy's:", err);
   }
@@ -3346,7 +3382,9 @@ async function sendWeeklySummary(nowMs = Date.now()) {
     .catch(err => console.warn("Weekly summary: book titles unavailable:", err.message));
   let attachments = [];
   try {
-    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles }));
+    // Headed with the press's own name (Text & labels › Site name, plan 5.8).
+    const website = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
+    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles }), { shopName: pressName(website, shopConfig.senderName) });
     attachments = [{ filename: weeklyPdfName(week), content: pdf, contentType: "application/pdf" }];
   } catch (err) {
     console.error("Weekly summary PDF failed; sending the email without it:", err);
@@ -4028,6 +4066,16 @@ async function checkLabelRefunds(now = Date.now()) {
   }
   return { checked, settled };
 }
+
+// Square payment pages close when their stock hold ends; late refunds that failed are tried again (code plan 5.1,
+// paymentPages.js). Stripe's own Checkout Sessions expire by themselves, so a Stripe shop has nothing to do here.
+exports.paymentPageSweep = onSchedule(
+  { schedule: "every 5 minutes", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
+  async () => {
+    if (payments.provider !== "square") return;
+    const result = await paymentPages.closeDuePages();
+    if (result.closed || result.refunded) console.log("paymentPageSweep:", result);
+  });
 
 exports.unpaidPaymentSweep = onSchedule(
   { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: withPlatformKey([STRIPE_SECRET_KEY, RESEND_API_KEY, SHIPPO_API_TOKEN]) },

@@ -29,6 +29,17 @@
   .card { border: 2px solid var(--ink); padding: 18px; box-shadow: 4px 4px 0 var(--blue); }
   .card h2 { font: 400 24px/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 0 0 8px; }
   .card p { margin: 0; color: var(--muted); }
+  .section { font: 400 32px/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 40px 0 8px; }
+  #pricing .lead { margin: 0 0 8px; }
+  .plans { margin: 24px 0; }
+  .plan h3 { font: 400 24px/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 0 0 8px; }
+  .plan .price { color: var(--ink); font-size: 20px; margin: 0 0 8px; }
+  .plan .price s { color: var(--muted); }
+  .plan .or-pay { margin-top: 8px; font-size: 15px; }
+  .founding { font-weight: 600; background: var(--yellow); color: #1d1a17; display: inline-block; padding: 4px 8px; margin: 0; }
+  .start { display: inline-flex; align-items: center; min-height: 48px; padding: 12px 20px; border: 2px solid var(--ink); background: var(--yellow); color: #1d1a17; font-weight: 600; text-decoration: none; box-shadow: 4px 4px 0 var(--ink); }
+  .start:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+  .start:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
   footer { font: 13px "DM Mono", monospace; color: var(--muted); }
   @media (max-width: 560px) { form { grid-template-columns: 1fr; } }
 </style>
@@ -38,6 +49,17 @@
   <div class="mark">Colophon · founding presses</div>
   <h1>Your press, <span>your shop</span>, your stockroom.</h1>
   <p class="lead">A shop and stockroom made by a working small press, for small presses. Sell books, zines and prints, keep count of every copy, and see what's selling, without a pile of add-ons.</p>
+
+  <!-- Pricing (plan 6.1): hidden, and the page is today's waitlist, until the platform says sign-up is open
+       (waitlist/pricing.js). -->
+  <section id="pricing" hidden aria-labelledby="pricing-title">
+    <h2 id="pricing-title" class="section">Plans</h2>
+    <p class="lead" id="pricing-trial">Free for 14 days, no card needed.</p>
+    <p id="pricing-founding" class="founding" hidden></p>
+    <div class="grid plans" id="plan-cards"></div>
+    <a class="start" id="start-trial" href="">Start your free trial</a>
+  </section>
+  <h2 id="not-ready" class="section" hidden>Not ready yet? Join the waitlist</h2>
 
   <form id="waitlist" novalidate>
     <label>Your name<input name="name" autocomplete="name" required></label>
@@ -70,7 +92,11 @@
 <script type="module">
   import { handleSignup } from "./signup.js";
   import { firestoreStore } from "./firestoreStore.js";
-  import { SAMPLE_PRESS_URL, WAITLIST_FIREBASE } from "./config.js";
+  import { PLANS_URL, SAMPLE_PRESS_URL, SIGNUP_URL, WAITLIST_FIREBASE } from "./config.js";
+  import { loadPricing, renderPricing } from "./pricing.js";
+
+  // Sign-up open: show the plans above the waitlist. Anything else leaves the page as it is.
+  if (PLANS_URL && SIGNUP_URL) loadPricing({ fetch, url: PLANS_URL }).then((view) => renderPricing(document, view, { signupUrl: SIGNUP_URL }));
 
   if (SAMPLE_PRESS_URL) {
     document.querySelector("#sample-press a").href = SAMPLE_PRESS_URL;
