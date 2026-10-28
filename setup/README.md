@@ -97,8 +97,33 @@ when what it finds is neither done nor untouched:
 
 Dry run for the test shop: `node setup/dry-run.js` (pretend Google and services, changes nothing).
 
-Not yet: the real clients (Google, deploys, registry, audit log, payment and email services) and a command that runs
-against them; the bot-check key in the profile (left out, so the app's build setting is used); a book page in the shop
+## Real clients (`real.js`)
+
+`realSetupClients({ fetch, token, run, buildDir, paymentService, emailService, serviceAccount })` gives the steps their
+real clients, all from `clients/` (each tested there with a fake `fetch` that checks the exact requests):
+
+| Steps reach | Real client | Google API (from its discovery document) |
+| --- | --- | --- |
+| `google.projects`, `google.billing` | `clients/google.js` | Resource Manager v3, Cloud Billing v1 |
+| `google.firebase` | `clients/google.js` | Firebase Management v1beta1 (add Firebase, web apps, their settings) |
+| `google.services` | `clients/google.js` | Service Usage v1 (batches of 20) |
+| `google.firestore`, `google.storage` | `clients/google.js` | Firestore Admin v1, Firebase Storage v1beta (default bucket) |
+| `google.backups` | `clients/google.js` | IAM policy on the project (the functions' account gets `roles/datastore.importExportAdmin`), Cloud Storage (latest `backups/<day>/`), Firestore export |
+| `google.storageProbe` | `clients/google.js` | Cloud Storage upload; the unsigned read goes to the address the shop's pages read files from |
+| `deploy` | `clients/deploy.js` | Reads what is live over REST (rules stamp, functions' `SHOP_RELEASE_VERSION`, Hosting release message); deploys with the Firebase command line in the release's build folder |
+| `envFiles`, `profileFiles` | `clients/shop.js` | Registry documents `shops/<id>/files/<name>`, copied into each shop's deploy by the release build |
+| `shopData`, `stockroom` | `clients/shop.js` | Firestore: the shop's database, the stockroom's named database `stockroom` (plan 1.20) |
+| `inventoryLink` | `clients/shop.js` | The shop's own link admin call, as the test owner (`clients/identity.js`); test shop only |
+| `siteCheck` | `clients/shop.js` | A plain GET |
+| `registry`, `auditLog` | `clients/registry.js` | Firestore in the platform project, and the shop's `audit-log` |
+| `providers.stripe`, `email` | `services/payments`, `services/email` | The services themselves; their stores are `clients/stores.js` |
+
+Two things are not hand-written over REST: deploying Cloud Functions and uploading Hosting files. Both go through the
+Firebase command line, as the shop's own deploy workflow does. Functions need their source built and uploaded, and the
+Hosting upload address could not be confirmed from Google's docs from here.
+
+Not yet: a command that runs the shop maker against the real clients (it needs the platform project and its account,
+Julian's step 1–2 in `docs/test-shop.md`); the bot-check key in the profile (left out, so the app's build setting is used); a book page in the shop
 check (a new press has no books; the test shop's starter catalogue now has five, so the release check's book page
 can use one).
 

@@ -11,7 +11,7 @@ export function scriptedFetch(script, { token = "test-token" } = {}) {
   const queue = [...script];
   const seen = [];
   const fetch = async (url, init = {}) => {
-    const request = { method: init.method ?? "GET", url, headers: init.headers ?? {}, body: init.body === undefined ? undefined : JSON.parse(init.body) };
+    const request = { method: init.method ?? "GET", url, headers: init.headers ?? {}, body: init.body === undefined ? undefined : /json/.test(init.headers?.["Content-Type"] ?? "") ? JSON.parse(init.body) : init.body };
     seen.push(request);
     const expected = queue.shift();
     assert.ok(expected, `unexpected request ${request.method} ${url}`);

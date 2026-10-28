@@ -24,6 +24,8 @@
 import { isDeepStrictEqual } from "node:util";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { paymentProblems } from "./payments.js";
+// The one name for the stockroom's database, shared with the real clients (clients/shop.js) and the release check.
+import { STOCKROOM_DATABASE } from "../clients/shop.js";
 
 export const REGION = "northamerica-northeast1";
 export const WEB_APP_NAME = "Shop";
@@ -32,7 +34,7 @@ export const WEB_APP_NAME = "Shop";
 // bucket of its own, each with its own rules (apps/stockroom/scripts/deployConfig.mjs), so nothing it stores shares the
 // shop's rules. Its Realtime Database is the project's default instance: Realtime Database has no Montréal location,
 // so it sits in us-central1, where the profile's default database address points.
-export const STOCKROOM_DATABASE = "stockroom";
+export { STOCKROOM_DATABASE };
 export const RTDB_LOCATION = "us-central1";
 export const stockroomBucketName = (shopId) => `${shopId}-stockroom`;
 

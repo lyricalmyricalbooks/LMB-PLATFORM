@@ -13,14 +13,12 @@ import { promisify } from "node:util";
 import { firestoreClient } from "../clients/firestore.js";
 import { identityClient, testOwnerSession } from "../clients/identity.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
+import { STOCKROOM_DATABASE } from "../clients/shop.js";
 import { playwrightBrowser } from "./browser.js";
 import { runReleaseCheck } from "./runner.js";
 import { shopAdmin, shopReads, stockroomReads } from "./shop-clients.js";
 
 export const PLATFORM_PROJECT = "lmb-platform-prod";
-// The stockroom's own named database in each shop's project (plan 1.20) when the profile doesn't name one (its
-// `stockroom` block, written by setup step 6, is what the stockroom itself opens).
-export const STOCKROOM_DATABASE = process.env.STOCKROOM_DATABASE || "stockroom";
 
 export async function gcloudToken() {
   const { stdout } = await promisify(execFile)("gcloud", ["auth", "print-access-token"]);
@@ -45,7 +43,8 @@ export async function realRun({ shopId, env = process.env, fetch = globalThis.fe
     urls: { site: profile.siteUrl, stockroom: env.RELEASE_STOCKROOM_URL || `https://${projectId}-stockroom.web.app` },
     browser: await playwrightBrowser({ chromium, launchOptions: { executablePath: env.CHROMIUM_PATH || undefined } }),
     shopData: shopReads(shopDb),
-    stockroomData: stockroomReads(firestoreClient({ fetch, token, projectId, database: profile.stockroom?.firestoreDatabase || STOCKROOM_DATABASE })),
+    // The profile's `stockroom` block names the database (setup step 6); STOCKROOM_DATABASE for an older profile.
+    stockroomData: stockroomReads(firestoreClient({ fetch, token, projectId, database: profile.stockroom?.firestoreDatabase || env.STOCKROOM_DATABASE || STOCKROOM_DATABASE })),
     shopAdmin: shopAdmin({ fetch, functionsBase: `https://${profile.functionsRegion}-${projectId}.cloudfunctions.net`, session }),
   };
   const auditLog = firestoreAuditLog(() => shopDb);
