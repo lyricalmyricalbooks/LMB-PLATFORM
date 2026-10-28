@@ -23,6 +23,12 @@ export function shopDataClient(firestoreFor) {
   return {
     get: (projectId, path) => firestoreFor(projectId).get(path),
     set: (projectId, path, data) => firestoreFor(projectId).set(path, data),
+    remove: (projectId, path) => firestoreFor(projectId).remove(path),
+    /**
+     * The documents directly in one collection, as [{ id, data }] (the accounts team sync reads `members`, whose ids are
+     * email addresses: the id is taken from the decoded path, so an `@` sent back as `%40` reads as `@`).
+     */
+    list: async (projectId, collection) => (await firestoreFor(projectId).query(collection)).map(({ path, data }) => ({ id: path.split("/").at(-1), data })),
     async create(projectId, path, data) {
       if (!(await firestoreFor(projectId).create(path, data))) throw new Error(`${path} already exists`);
     },

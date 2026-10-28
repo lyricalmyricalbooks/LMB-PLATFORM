@@ -87,6 +87,19 @@ test("shop data creates only missing documents; per-shop files live in the regis
   fetch.done();
 });
 
+test("shop data lists a collection's documents and removes one (the accounts team sync)", async () => {
+  const S = `https://firestore.googleapis.com/v1/projects/${P}/databases/(default)/documents`;
+  const fetch = scriptedFetch([
+    { method: "POST", url: `${S}:runQuery`, body: { structuredQuery: { from: [{ collectionId: "members" }] } },
+      json: [{ document: { name: `projects/${P}/databases/(default)/documents/members/bea%40example.com`, fields: { role: str("staff") } } }, { readTime: "t" }] },
+    { method: "DELETE", url: `${S}/members/bea%40example.com?currentDocument.exists=true`, json: {} },
+  ]);
+  const shopData = shopDataClient((projectId) => firestoreClient({ fetch, token, projectId }));
+  assert.deepEqual(await shopData.list(P, "members"), [{ id: "bea@example.com", data: { role: "staff" } }]);
+  assert.equal(await shopData.remove(P, "members/bea@example.com"), true);
+  fetch.done();
+});
+
 test("the site check reports the status, an empty page and no answer", async () => {
   const answers = [{ status: 200, text: "<html>" }, { status: 200, text: "  " }, { status: 500, text: "x" }, "down"];
   const fetch = async () => {

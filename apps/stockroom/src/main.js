@@ -695,6 +695,15 @@ registerActions({
     const e = (getState().expenses || []).find(x => String(x.id) === el.dataset.id);
     if (e) markExpenseReceived(e.id);
   },
+  // Backups › Open in a spreadsheet: the copies on hand, per place, in the layout another shop system reads
+  // (plan 7.19, lib/stock-locations.js). The practice book stays out.
+  'backups.stockLocations': () => {
+    const entries = Object.keys(BOOKS).filter(bid => !isTestBookId(bid))
+      .map(bid => ({ book: BOOKS[bid], state: states[bid] || defaultState(BOOKS[bid]) }));
+    if (!entries.length) { showToast('No books to list yet.', 'err'); return; }
+    downloadCsv(stockLocationsCsv(entries), `stock-counts-${today()}.csv`);
+    showToast(`✓ Stock counts for ${entries.length} book${entries.length === 1 ? '' : 's'} downloaded`, 'ok');
+  },
   // The money card's own buttons.
   'moneyCard.askPayLink': () => askAuthorForPayLink(),
   'moneyCard.setUpPayLink': () => goToPayLinkSetup(),
@@ -1112,6 +1121,7 @@ import { IN_PERSON_CHANNELS } from './lib/channel-mix.js';
 import { csvToObjects, toCsv } from './lib/csv.js';
 import { plainChanges, kindLabel, parseBuildDate, relativeWhen, dayHeading } from './lib/whats-new.js';
 import { downloadText, downloadCsv } from './lib/download.js';
+import { stockLocationsCsv } from './lib/stock-locations.js';
 import { OC_STAGES } from './lib/opencall.js';
 import { deriveOnHand, buildOrderTimeline, inventoryBreakdown, deduplicateDirectConsignmentSales, recalculateBookStatsFromHistory, orderStockPreview, orderStockPreviewCopy, deriveStockBreakdown, transferAuthorStock, isVoidStale } from './lib/inventory.js';
 import { fairSyncPill } from './lib/fair-mode.js';
@@ -1123,7 +1133,7 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { readShopProfile, switchOn } from './lib/shop-profile.js';
+import { fileStem, readShopProfile, switchOn } from './lib/shop-profile.js';
 
 
 // Tells the boot watchdog in index.html that the bundle and every import it
@@ -3708,7 +3718,7 @@ export let notifyUrl = localStorage.getItem('lm-notify-url') || '';
 // The Apps Script `scriptVersion` the client expects. Bump this (and the value
 // in apps-script/Code.gs) whenever Code.gs gains behaviour that needs a fresh
 // deploy — the connection card flags any older deployed version as outdated.
-export const EXPECTED_SCRIPT_VERSION = 'v58';
+export const EXPECTED_SCRIPT_VERSION = 'v59';
 // What the connected spreadsheet last told us it was running. Null until a
 // version check has actually answered — an unknown version is not a mismatch,
 // so the To-do list stays quiet rather than inventing a problem.
@@ -14262,7 +14272,7 @@ document.addEventListener('visibilitychange', () => {
 // ── DATA BACKUPS & PORTABILITY
 function backupFileName() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `lyrical-backup-${stamp}.json`;
+  return `${fileStem({ lower: true })}-backup-${stamp}.json`;
 }
 
 async function openBackupHandleDb() {
@@ -15071,7 +15081,7 @@ function exportAllToCSV() {
 
   if (rows.length === 1) { showToast('No records to export', 'warn'); return; }
 
-  downloadCsv(toCsv(rows), `lyrical-records-export-${today()}.csv`);
+  downloadCsv(toCsv(rows), `${fileStem({ lower: true })}-records-export-${today()}.csv`);
   showToast('✓ CSV Export downloaded');
 }
 
@@ -17392,7 +17402,7 @@ function toggleStripePaidNotify() {
 async function sendTestDeviceNotification() {
   const sent = await notifyDevice({
     title: 'Notifications are working',
-    body: 'This is how news from Lyrical Inventory will look on this device.',
+    body: 'This is how news from Stockroom will look on this device.',
     tag: 'lm-test',
     force: true,
   });

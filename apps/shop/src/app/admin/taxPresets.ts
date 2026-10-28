@@ -1,7 +1,8 @@
 // Settings › Taxes › Start from a preset (plan 2.10). A preset fills in the rates a new press most often needs, in the
 // draft only (nothing applies until Save), and never changes a rate the press already has. Rates as of October 2026;
-// the press checks them, and the page says so.
+// the press checks them, and the page says so. Each added rate gets its name in the books (GST, HST ON…, plan 7.11).
 import { regionsFor } from "../features/site/postalRegion";
+import { suggestedTaxBookName } from "../../shared/taxBooks";
 import type { TaxRate } from "./taxRatesEdit";
 
 export type TaxPreset = { id: string; label: string; description: string; country: string; rates: Record<string, string> };
@@ -38,7 +39,7 @@ export function applyTaxPreset(rates: TaxRate[], preset: TaxPreset): { rates: Ta
     const region = names.get(code);
     if (!region) continue;
     if (next.some((r) => norm(r.country) === norm(preset.country) && norm(r.region) === norm(region))) { kept += 1; continue; }
-    next.push({ country: preset.country, region, rate });
+    next.push({ country: preset.country, region, rate, bookName: suggestedTaxBookName({ country: preset.country, region, rate }) });
     added += 1;
   }
   return { rates: next, added, kept };

@@ -16,7 +16,7 @@ export type ImportField =
   | "id" | "title" | "subtitle" | "description" | "format" | "isbn" | "sku" | "status" | "isFeatured"
   | "retailPrice" | "salePrice" | "stockLevel" | "categories" | "publisher" | "publishDate"
   | "pageCount" | "edition" | "language" | "imageUrl"
-  | "weight" | "saleStartsAt" | "saleEndsAt" | "tags" | "shippingProfileId" | "extraImages";
+  | "weight" | "saleStartsAt" | "saleEndsAt" | "tags" | "shippingProfileId" | "extraImages" | "metaTitle" | "metaDescription";
 
 /** Spreadsheet headings each field accepts (compared lower-case, spaces and punctuation ignored). */
 export const IMPORT_COLUMNS: { field: ImportField; label: string; aliases: string[] }[] = [
@@ -45,6 +45,8 @@ export const IMPORT_COLUMNS: { field: ImportField; label: string; aliases: strin
   { field: "tags", label: "Tags", aliases: ["tags", "tag", "keywords"] },
   { field: "shippingProfileId", label: "Shipping profile", aliases: ["shipping profile", "shipping profile id"] },
   { field: "extraImages", label: "Extra image URLs", aliases: ["extra image urls", "extra images", "more images", "additional images"] },
+  { field: "metaTitle", label: "SEO title", aliases: ["seo title", "meta title", "search title"] },
+  { field: "metaDescription", label: "SEO description", aliases: ["seo description", "meta description", "search description"] },
 ];
 
 export const MAX_IMPORT_ROWS = 2000;
@@ -281,6 +283,7 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
     const next: Record<string, any> = {};
     const text = (f: ImportField, field: string = f) => { if (given(f)) next[field] = value[f]!; };
     text("title"); text("subtitle"); text("description"); text("format"); text("sku"); text("publisher"); text("edition"); text("language");
+    text("metaTitle"); text("metaDescription");
     if (given("weight")) {
       if (parseWeightGrams(value.weight) === null) errors.push(`Weight “${value.weight}” must be a number in g or kg, e.g. 450 g.`);
       // Imperial values in an older file are still understood and saved in grams.

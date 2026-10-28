@@ -111,8 +111,8 @@ describe("planImport", () => {
   });
 
   it("leaves price and stock of books sold in editions to the book editor", () => {
-    const plan = planImport("ID,Price,Stock,Publisher\nb3,30,9,Lyrical\n", books);
-    expect(plan.rows[0].patch).toEqual({ publisher: "Lyrical" });
+    const plan = planImport("ID,Price,Stock,Publisher\nb3,30,9,Moth Press\n", books);
+    expect(plan.rows[0].patch).toEqual({ publisher: "Moth Press" });
     expect(plan.rows[0].warnings[0]).toMatch(/editions/);
   });
 

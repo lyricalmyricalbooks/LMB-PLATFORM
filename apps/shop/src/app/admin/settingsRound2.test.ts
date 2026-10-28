@@ -53,7 +53,7 @@ describe("#141 Taxes and Email sender are in Settings", () => {
   it("edits the sender name and reply-to, keeping the rest of the map", () => {
     const stored = { orderReceipts: true, abandonedCart: false, fromName: "Old" };
     expect(senderOf(stored)).toEqual({ fromName: "Old", replyTo: "", fromEmail: "" });
-    expect(withSender(stored, { fromName: "Lyrical", replyTo: "hi@x.org", fromEmail: "" })).toEqual({ orderReceipts: true, abandonedCart: false, fromName: "Lyrical", replyTo: "hi@x.org" });
+    expect(withSender(stored, { fromName: "Moth Press", replyTo: "hi@x.org", fromEmail: "" })).toEqual({ orderReceipts: true, abandonedCart: false, fromName: "Moth Press", replyTo: "hi@x.org" });
     expect(withSender(stored, { fromName: "", replyTo: "", fromEmail: "" })).toEqual({ orderReceipts: true, abandonedCart: false });
     expect(senderProblems({ fromName: "Shop", replyTo: "not-an-email", fromEmail: "" }).replyTo).toBeTruthy();
     expect(senderProblems({ fromName: "A <b>", replyTo: "", fromEmail: "" }).fromName).toBeTruthy();

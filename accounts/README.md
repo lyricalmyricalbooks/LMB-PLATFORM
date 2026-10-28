@@ -59,6 +59,27 @@ to the platform's one web door: `createApi({ …, routes: accountRoutes(accounts
 - Every invite, acceptance, role change and removal is logged in the registry and the shop's audit log.
 - The invite email comes from the platform (`services/email`, kind `invite`).
 
+## People added in the shop's own Team (`teamSync.js`)
+
+An owner can also add people in the shop's admin (Settings › Team), which writes `members/<email>` in the shop's own
+database. `createTeamSync({ memberships, registry, shopData, auditLog })` makes the switcher's copy match that list,
+one shop at a time (code plan 5.11):
+
+- `syncShop(shopId)` reads only that shop's `members` (`shopData.list`) and adds, re-roles or removes that shop's
+  `memberships` rows to match. The shop's list is the truth; the copy only feeds the switcher. Every row it writes
+  carries that shop id, so one shop's list never touches another shop's people.
+- Roles are the shop's own list (`roles.js` `ROLES`, kept equal to `apps/shop/functions/roles.js` by a test): a
+  document with any other role is skipped, as the shop skips it. The shop's own owner address is never copied.
+- Safe to run again: a second run writes and logs nothing. Each change is logged once in the registry and the shop's
+  audit log (`member-added-in-shop`, `role-changed-in-shop`, `member-removed-in-shop`).
+- `syncAll()` runs every live shop; one shop that can't be read doesn't stop the others.
+- The shop's door, `handleTeamChanged` (`POST /team-changed`, `X-Shop-Id` + the shop's service key): the shop's
+  `syncMemberRole` trigger calls it on each Team change when its settings have `PLATFORM_ACCOUNTS_URL`. The body is
+  never read; the platform re-reads that shop's list.
+
+A removal ends in both places either way: **Remove** here deletes the shop's document and the copy together; a removal
+in the shop deletes the document and the next sync removes the copy.
+
 ## New-device alerts (`devices.js`)
 
 Every platform page (sign-up, this page, the control room) keeps a random device id in the browser
@@ -112,5 +133,5 @@ Until the move is automatic (`recoveryByHand` stands in for it), the admin does 
 - Moving a recovered account automatically (`applyRecovery` is `recoveryByHand` for now).
 - Wiring the device and recovery stores (`clients/stores.js` `firestoreDevices`, `firestoreRecoveries`) and the
   Firebase account lookup (`findAccount`) into the hosted web door.
-- People the owner adds in the shop's own admin (Settings › Team) are not copied back here yet, so they don't see that
-  shop in the switcher until they are invited from this page.
+- Hosting the team door and running `syncAll` on a schedule (each night, to catch a missed notice), then writing
+  `PLATFORM_ACCOUNTS_URL` into the shops' settings (setup step 8 does it once `config.platformAccountsUrl` is set).
