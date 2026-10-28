@@ -158,8 +158,17 @@ runs is already part of the demo (`npm run demo`), so it isn't a row here.
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
-| 5.0 | stockroom | A new shop's stockroom starts empty. `src/main.js` still has five built-in books from one press (real titles, real author names and per-book author passwords); a new shop starts with no books and the first-run screen says "Add your first book". The splash screen and sign-in logo (`index.html`, a three-line wordmark) show the shop's own name from the profile instead | stockroom tests: a fresh profile has no books and no author passwords; splash and sign-in show the profile's name | |
+| 5.0 | stockroom | The splash screen and sign-in logo show the shop's own name from the profile, not one press's three-line wordmark (`index.html`). The built-in books are already gone (#86: `DEFAULT_BOOKS` is empty) | stockroom test: splash and sign-in show the profile's name | |
 | 5.0b | platform | The copy check catches names split across lines or tags, so the 5.0 wordmark can't come back: `apps-isolation.test.js` also reads each HTML file with its tags removed and its words joined, and fails on a built-in book list carrying author passwords | the check, plus a probe that a split wordmark fails it | |
+
+### 5.0c Found on Windows by the local demo
+
+The demo's own polish (hiding the test-mode notice in the demo, a double-click starter) stays with the demo work, not here.
+
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 5.0c | stockroom | Signed out, the stockroom shows its sign-in screen with a plain "Sign in to see your stockroom", never an empty dashboard that looks like lost data; an expired sign-in returns there too | stockroom test: no signed-in person → sign-in screen, dashboard hidden | |
+| 5.0d | platform | The automatic checks also run on Windows: a `windows-latest` CI job runs root `npm test` and both apps' unit tests, so a case-only file name clash or a `/`-only path fails before merge (the shop's `caseSafeImports.test.ts` from #86 already guards imports) | the new CI job green on Windows | |
 
 ### 5A. Money: close the Square gaps first
 
