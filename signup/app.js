@@ -2,7 +2,7 @@
 // trial, then follow the shop being made. Plain browser JavaScript with no framework (docs/decisions.md); Firebase's
 // own browser library is loaded from Google for sign-in only. Every check the page makes, the server makes again.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SAMPLE_PRESS_URL } from "./config.js";
-import { COUNTRIES, PLAN_CHOICES, QUESTION, checkSignup, isEmail } from "./form.js";
+import { ADDRESS_SUFFIX, COUNTRIES, PLAN_CHOICES, PUBLISHES, QUESTION, checkAddress, checkSignup, isEmail } from "./form.js";
 import { deviceId } from "./device.js";
 
 // Before Firebase loads, so the link shows even when it can't.
@@ -94,7 +94,59 @@ function fillDetails(info) {
   $("#question-label").textContent = QUESTION.label;
   $("#question-hint").textContent = QUESTION.hint;
   $("#answers").replaceChildren(...QUESTION.options.map((o) => choice(QUESTION.id, o.id, o.label, "", false)));
+  $("#publishes-label").textContent = PUBLISHES.label;
+  $("#publishes-hint").textContent = PUBLISHES.hint;
+  $("#publishes").replaceChildren(...PUBLISHES.options.map((o) => choice(PUBLISHES.id, o.id, o.label, "", false)));
+  termsVersion = info.termsVersion ?? "";
 }
+let termsVersion = "";
+
+// The web address preview (plan 6.2): made from the press name until the press presses Change, then checked as they
+// type. The server checks it again on sign-up.
+let addressChanged = false;
+let addressTimer;
+const addressInput = $("#address");
+const addressState = $("#address-state");
+function showAddress(answer) {
+  if (answer.address && !addressChanged) addressInput.value = answer.address;
+  $("#address-text").textContent = answer.address ? `${answer.address}${ADDRESS_SUFFIX}` : "Type your press's name to see it.";
+  addressState.textContent = answer.problem ?? (addressChanged && answer.free ? "That address is free." : "");
+}
+function checkAddressSoon(body) {
+  clearTimeout(addressTimer);
+  addressTimer = setTimeout(async () => {
+    addressState.textContent = "Checking…";
+    try {
+      showAddress(await api("POST", "/signup/address", body));
+    } catch {
+      addressState.textContent = "We couldn't check the address just now. We'll check it again when you start.";
+    }
+  }, 400);
+}
+$("#details-form").pressName.addEventListener("input", (event) => {
+  if (addressChanged) return;
+  if (event.target.value.trim().length < 2) return showAddress({});
+  checkAddressSoon({ pressName: event.target.value });
+});
+$("#address-change").addEventListener("click", () => {
+  addressChanged = true;
+  $("#address-edit").hidden = false;
+  addressInput.focus();
+});
+addressInput.addEventListener("input", () => {
+  const { ok, address, problem } = checkAddress(addressInput.value);
+  $("#address-text").textContent = `${address || "…"}${ADDRESS_SUFFIX}`;
+  if (!ok) {
+    clearTimeout(addressTimer);
+    addressState.textContent = problem;
+    return;
+  }
+  checkAddressSoon({ address });
+});
+$("#skip-publishes").addEventListener("click", () => {
+  document.querySelectorAll(`input[name="${PUBLISHES.id}"]`).forEach((input) => { input.checked = false; });
+  $("#details-form").termsAccepted.focus();
+});
 
 function choice(name, value, title, detail, checked) {
   const label = document.createElement("label");
@@ -114,7 +166,11 @@ $("#skip").addEventListener("click", () => {
 $("#details-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(event.target);
-  const input = { pressName: form.get("pressName"), plan: form.get("plan"), country: form.get("country"), [QUESTION.id]: form.get(QUESTION.id) };
+  const input = {
+    pressName: form.get("pressName"), plan: form.get("plan"), country: form.get("country"),
+    [QUESTION.id]: form.get(QUESTION.id), [PUBLISHES.id]: form.get(PUBLISHES.id),
+    address: addressInput.value, termsAccepted: event.target.termsAccepted.checked, termsVersion,
+  };
   const { ok, problems } = checkSignup(input);
   showProblems(problems);
   if (!ok) return;
@@ -149,6 +205,7 @@ async function follow() {
     const { shops } = await api("GET", "/signup");
     renderShops(shops);
     if (shops.some((s) => s.status === "queued" || s.status === "making")) following = setTimeout(follow, 5000);
+    else if (shops.some((s) => s.status === "in-line")) following = setTimeout(follow, 60000);
   } catch (failure) {
     status.textContent = failure.message;
     following = setTimeout(follow, 15000);
@@ -156,6 +213,8 @@ async function follow() {
 }
 
 const WORDS = {
+  // The daily cap (plan 6.13): the same words as signup.js IN_LINE_WORDS.
+  "in-line": "We're making a few shops a day. You're next in line, and we'll email you when yours starts.",
   queued: "Waiting for its turn. This takes a few minutes.",
   making: "Being made now. This takes a few minutes; you can close this page and we'll email you when it's ready.",
   ready: "Ready. We've emailed you the way in.",

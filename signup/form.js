@@ -28,6 +28,50 @@ export const COUNTRIES = Object.freeze({
   NZ: Object.freeze({ name: "New Zealand", currency: "NZD" }),
 });
 
+/**
+ * "What do you publish?" (plan 6.2), also skippable. The answer travels with the shop (`shopFromSignup` › `publishes`)
+ * and suggests a look on the shop's welcome screen (6.3).
+ */
+export const PUBLISHES = Object.freeze({
+  id: "publishes",
+  label: "What do you publish?",
+  hint: "Optional. We'll suggest a look for your shop.",
+  options: Object.freeze([
+    Object.freeze({ id: "books", label: "Books" }),
+    Object.freeze({ id: "zines", label: "Zines" }),
+    Object.freeze({ id: "comics", label: "Comics" }),
+    Object.freeze({ id: "prints", label: "Prints" }),
+    Object.freeze({ id: "mix", label: "A mix" }),
+  ]),
+});
+
+/** Where a shop lives until the press connects its own domain: <web address>.web.app. */
+export const ADDRESS_SUFFIX = ".web.app";
+
+// The web address is the shop id, so it follows the shop id's rules (setup/steps.js shopProblems): 6 to 30 lowercase
+// letters, digits and hyphens, starting with a letter and not ending with a hyphen. Google refuses ids holding the first
+// words; the rest are the platform's own.
+const ADDRESS = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+const NOT_IN_AN_ADDRESS = Object.freeze(["google", "null", "undefined", "ssl"]);
+const RESERVED = Object.freeze(["admin", "api", "www", "colophon", "platform", "support", "help", "status", "signup", "accounts"]);
+
+/**
+ * Checks a web address the press typed. Returns { ok, address, problem }: `address` is the value lowercased and trimmed,
+ * `problem` plain words for the page. Whether it is free is the server's check (signup.js `checkAddressFree`).
+ */
+export function checkAddress(value) {
+  const address = typeof value === "string" ? value.trim().toLowerCase().replace(/\.web\.app$/, "") : "";
+  let problem = null;
+  if (address.length < 6) problem = "Use at least 6 letters or numbers.";
+  else if (address.length > 30) problem = "Use 30 letters or numbers at most.";
+  else if (!/^[a-z0-9-]+$/.test(address)) problem = "Use only letters, numbers and hyphens (-).";
+  else if (!/^[a-z]/.test(address)) problem = "Start with a letter.";
+  else if (address.endsWith("-")) problem = "End with a letter or a number.";
+  else if (!ADDRESS.test(address)) problem = "Use only letters, numbers and hyphens (-).";
+  else if (NOT_IN_AN_ADDRESS.some((word) => address.includes(word)) || RESERVED.includes(address)) problem = "That address isn't available. Try another.";
+  return { ok: !problem, address, problem };
+}
+
 export const PLAN_CHOICES = Object.freeze(["both", "shop", "stockroom"]);
 
 const EMAIL = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
@@ -61,6 +105,18 @@ export function checkSignup(input) {
   if (!country) problems.country = "Choose where your press is.";
   const rawAnswer = input?.[QUESTION.id];
   const answer = QUESTION.options.some((option) => option.id === rawAnswer) ? rawAnswer : null;
-  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer };
+  const rawPublishes = input?.[PUBLISHES.id];
+  const publishes = PUBLISHES.options.some((option) => option.id === rawPublishes) ? rawPublishes : null;
+  // The web address may be left out: the server then makes one from the press's name.
+  let address = null;
+  if (typeof input?.address === "string" && input.address.trim()) {
+    const checked = checkAddress(input.address);
+    if (checked.ok) address = checked.address;
+    else problems.address = checked.problem;
+  }
+  // The terms (terms/terms.js): the box must be ticked; the server checks the version is today's.
+  if (input?.termsAccepted !== true) problems.terms = "Tick the box to agree to the terms.";
+  const termsVersion = typeof input?.termsVersion === "string" ? input.termsVersion.slice(0, 60) : "";
+  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion };
   return { ok: Object.keys(problems).length === 0, details, problems };
 }
