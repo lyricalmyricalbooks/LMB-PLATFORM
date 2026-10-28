@@ -21,6 +21,7 @@ const S = "[data-fm-store]";
 
 /** The pieces both templates share: a readable floor for faint words, focus rings and reduced motion. */
 const TEMPLATE_BASE_CSS = `
+${[["20", 0.7], ["25", 0.7], ["30", 0.7], ["40", 0.72], ["50", 0.75]].map(([n, a]) => `${S} .text-white\\/${n}{color:rgba(var(--fg-rgb),${a});}`).join("\n")}
 ${S} :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px;}
 ${S} ::selection{background:var(--accent);color:var(--on-accent);}
 ${S} h1,${S} h2,${S} h3{text-wrap:balance;}
@@ -41,6 +42,7 @@ ${S} .fm-ref-catbar{text-transform:uppercase;letter-spacing:.09em;font-size:.78r
 ${S} .fm-ref-catbar a[aria-current]{box-shadow:inset 0 -4px 0 var(--accent);padding-bottom:3px;}
 ${S} .fm-card{transition:none;}
 ${S} .fm-card:hover{translate:0 0;}
+${S} .fm-card-price-old{opacity:.75 !important;}
 ${S} .fm-card .fm-photo-frame{border:var(--rp-outline-w) solid var(--rp-outline);margin-bottom:.6rem;box-shadow:none;}
 ${S} .fm-card:hover .fm-photo-frame{box-shadow:var(--rp-shadow-x) var(--rp-shadow-x) 0 var(--rp-shadow-color);transition:box-shadow .12s ease;}
 ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.5rem;left:auto;right:.5rem;}
@@ -69,6 +71,9 @@ ${S} .fm-announce{text-transform:uppercase;}
 export const SHELF_CSS = `
 ${S} h1,${S} h2,${S} h3{line-height:1.02;letter-spacing:0;font-weight:var(--rp-heading-weight,400);}
 ${S} header[data-section="navigation"]{background-color:var(--bg-color);}
+${S} header[data-section="navigation"] [class*="opacity-"],${S} a[class*="hover:!opacity-100"]{opacity:1 !important;}
+${S} a[aria-current]{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:6px;}
+${S} .fm-card-price-old{opacity:.75 !important;}
 ${S} .fm-card .fm-photo-frame{border-radius:6px 12px 12px 6px !important;box-shadow:0 14px 24px -16px rgba(var(--fg-rgb),.55);transition:translate .25s ease,box-shadow .25s ease;}
 ${S} .fm-card:hover .fm-photo-frame{translate:0 -4px;box-shadow:0 20px 28px -16px rgba(var(--fg-rgb),.6);}
 ${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.6rem;left:.6rem;}
@@ -79,6 +84,7 @@ ${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border-radius:99
 ${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:0 -2px;}
 ${S} :is(button,a).rounded-full{border-radius:999px;}
 ${S} [data-store-region="catalogSearch"],${S} [data-store-region="catalogSort"],${S} [data-store-region="catalogStock"],${S} [data-store-region="catalogSale"]{border-radius:999px !important;}
+${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.82);}
 ${S} .glass-card{border-radius:18px;}
 ${S} [data-store-region="newsletterPanel"]{background-color:var(--surface);}
 ${S} footer[data-fm-footer]{border-top:0;}
