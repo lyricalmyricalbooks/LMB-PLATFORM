@@ -5,6 +5,7 @@ import { inventoryApi } from "../inventoryApi";
 import { getOrdersCached, peekOrders } from "../ordersCache";
 import { salesReportCsv } from "./salesReport";
 import { launchReadiness } from "../launchReadiness";
+import { platformCardsProvider } from "../../../lib/shopProfile";
 import toast from "react-hot-toast";
 import {
   EmptyState, ErrorState, LoadingState, SecondaryButton, SectionCard,
@@ -109,7 +110,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       adminApi.getSettings(),
       adminApi.getShippingProfiles(),
       adminApi.getRecentEmailLog(5),
-    ]).then(([settings, shippingProfiles, emailLog]) => setLaunch({ parts: { settings, shippingProfiles, emailLog }, error: false }))
+      // A shop whose cards go through Colophon: is the press's card account connected? (plan 2.10; null if unknown)
+      platformCardsProvider() ? adminApi.platformPayments("status").catch(() => null) : Promise.resolve(undefined),
+    ]).then(([settings, shippingProfiles, emailLog, platformAccount]) => setLaunch({ parts: { settings, shippingProfiles, emailLog, platformAccount }, error: false }))
       .catch(() => setLaunch({ parts: null, error: true }));
     // The whole catalogue and every order, so 1-year and year-on-year figures are never cut off.
     getOrdersCached({ force: reloadKey > 0 }).then((o: any[]) => { seenShared.current = o; setAllOrders({ orders: o, error: false }); setLoadedAt(new Date()); })

@@ -9,6 +9,7 @@ import {
 import { cleanTaxRate, taxRateProblem, type TaxRate } from "./taxRatesEdit";
 import { useSettingsDirty } from "./settingsDirty";
 import { SettingsAnchor, jumpTo } from "./settingsLayout";
+import { applyTaxPreset, TAX_PRESETS } from "./taxPresets";
 
 // Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
 // nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
@@ -18,6 +19,8 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   const [region, setRegion] = useState("");
   const [rate, setRate] = useState("");
   const [tried, setTried] = useState(false);
+  const [presetId, setPresetId] = useState(TAX_PRESETS[0].id);
+  const preset = TAX_PRESETS.find((p) => p.id === presetId) || TAX_PRESETS[0];
   const rates: TaxRate[] = settings.taxes?.rates || [];
   const savedRates: TaxRate[] = originalSettings?.taxes?.rates || [];
   const collecting = taxCollectionOn(settings);
@@ -38,6 +41,13 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
     if (problem) return;
     setRates([...rates, cleanTaxRate({ country, region, rate })]);
     setRegion(""); setRate(""); setTried(false);
+  };
+  // A preset fills only the places with no rate yet, in the draft: nothing applies until Save.
+  const usePreset = () => {
+    const result = applyTaxPreset(rates, preset);
+    if (!result.added) { toast(`Every place in ${preset.country} already has a rate. Nothing changed.`); return; }
+    setRates(result.rates);
+    toast.success(`Added ${result.added} rate${result.added === 1 ? "" : "s"}${result.kept ? `; kept your ${result.kept} existing one${result.kept === 1 ? "" : "s"}` : ""}. Review, then save.`);
   };
   const remove = async (index: number) => {
     const r = rates[index];
@@ -86,6 +96,18 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           : <DataTable caption="Tax rates" rows={rates.map((r, index) => ({ ...r, index }))} rowKey={(r) => `${r.index}`} columns={columns} />}
       </SectionCard>
 
+
+      <SettingsAnchor id="tax-presets">
+      <SectionCard title="Start from a preset" description="Fills places with no rate yet. Your rates stay as they are.">
+        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", alignItems: "end" }}>
+          <SelectField label="Preset" value={presetId} onChange={(e) => setPresetId(e.target.value)}>
+            {TAX_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </SelectField>
+          <div><SecondaryButton onClick={usePreset}>Fill in missing rates</SecondaryButton></div>
+        </div>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>{preset.description} Rates as of October 2026. Not tax advice: check with your accountant.</p>
+      </SectionCard>
+      </SettingsAnchor>
 
       <SettingsAnchor id="tax-add">
       <SectionCard title="Add a tax rate">

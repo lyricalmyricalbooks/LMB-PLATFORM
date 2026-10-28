@@ -464,3 +464,17 @@ writes once (`sellingToday`, `plan`). No document, no list: shops made before th
 sign-up form's answers (`signup/form.js` QUESTION; a root test checks). Firestore rule `firstWeek`: admin only,
 `hasOnly(["sellingToday", "plan", "done", "hiddenAt", "createdAt", "updatedAt"])`. The Overview's "designer" link
 opens Settings › Design (Dashboard maps it like general/notifications/taxes).
+
+## Going live on Colophon (28 October 2026, code plan 2.10)
+
+- `launchReadiness` takes `platformCards` (default `platformCardsProvider()` from the shop profile) and `platformAccount`
+  (the platform's `account.status`, loaded by the Overview with `adminApi.platformPayments("status")`; null when it
+  couldn't be read). A platform shop gets a `card-account` row (block until the press's Square or Stripe account is
+  connected and can take cards) and none of the key, deployment or Hosting rows: Colophon deploys its shops.
+- Settings › Taxes › Start from a preset (`taxPresets.ts`): `applyTaxPreset` adds a rate only for a province with none
+  (country and region compared without case), in the draft. Rates are as of October 2026 and the card says "Not tax
+  advice". Shipping presets are the new-profile starters (`shippingProfileStarters.ts`).
+- Settings › General › Your web address (`CustomDomainCard.tsx`, plan 2.9) shows the older "Domain & visibility" field
+  when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`).
+- Settings › Payments › Card payments (`PlatformPaymentsCard.tsx`, plan 2.2b) replaces the Stripe keys card on platform
+  shops.

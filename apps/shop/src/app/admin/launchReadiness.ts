@@ -2,6 +2,8 @@ import { summarizeShipping } from "./shippingHealth";
 import { paymentHealth } from "./paymentHealth";
 import { isRealPaidOrder } from "./overview/overviewInsights";
 import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
+import { platformCardsProvider } from "../../lib/shopProfile";
+import { accountConnected, providerName, type PlatformPaymentsAnswer } from "./platformPayments";
 
 /** Admin-only "Ready to sell?" checks. Read-only guidance; nothing here changes data. */
 export type ReadinessStatus = "ok" | "warn" | "block";
@@ -13,6 +15,12 @@ export type ReadinessInput = {
   shippingProfiles: any[];
   emailLog: any[];
   orders: any[];
+  /**
+   * A shop whose cards go through Colophon (plan 2.10): its provider (from the shop profile by default) and what the
+   * platform says about the press's card account (null: couldn't ask; undefined: not asked yet).
+   */
+  platformCards?: "stripe" | "square" | null;
+  platformAccount?: PlatformPaymentsAnswer | null;
 };
 
 const REQUIRED_POLICIES: Array<[string, string]> = [["shipping", "Shipping"], ["returns", "Returns"], ["privacy", "Privacy"], ["terms", "Terms"]];
@@ -20,17 +28,33 @@ const REQUIRED_POLICIES: Array<[string, string]> = [["shipping", "Shipping"], ["
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const hasText = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
-export function launchReadiness({ settings, books, shippingProfiles, emailLog, orders }: ReadinessInput): ReadinessItem[] {
+export function launchReadiness({ settings, books, shippingProfiles, emailLog, orders, platformCards = platformCardsProvider(), platformAccount }: ReadinessInput): ReadinessItem[] {
   const items: ReadinessItem[] = [];
   const payments = settings?.payments || {};
   const stripe = payments.stripe || {};
 
+  // Cards through Colophon: no keys to check, only whether the press's own account is connected and can take cards.
+  if (platformCards) {
+    const name = providerName(platformCards);
+    const connect = platformCards === "square" ? "Connect Square" : "Finish Stripe setup";
+    if (platformAccount === undefined || platformAccount === null) {
+      items.push({ id: "card-account", label: `Your ${name} account couldn't be checked`, detail: `Open Payments to see whether your ${name} account is connected.`, status: "warn", tab: "payments", action: "Open Payments" });
+    } else if (!accountConnected(platformAccount)) {
+      items.push({ id: "card-account", label: `${name} isn't connected yet`, detail: `Shoppers can't pay by card until you connect your own ${name} account. Press ${connect} in Payments.`, status: "block", tab: "payments", action: connect });
+    } else if (platformAccount.chargesEnabled !== true) {
+      items.push({ id: "card-account", label: `${name} can't take cards yet`, detail: `Your ${name} account is connected but still needs details from you. Open your ${name} dashboard and finish what it asks for.`, status: "block", tab: "payments", action: "Open Payments" });
+    } else {
+      items.push({ id: "card-account", label: `${name} is connected and taking cards`, detail: `Payouts go to your own ${name} account.`, status: "ok", tab: "payments", action: "Open Payments" });
+    }
+  }
+
   // Payments
   // Secret-key findings get their own row below.
-  const payIssues = paymentHealth(payments).filter(i => !["client-secret", "stripe-test-secret", "stripe-live-secret"].includes(i.id));
+  const payIssues = paymentHealth(payments, Boolean(platformCards)).filter(i => !["client-secret", "stripe-test-secret", "stripe-live-secret"].includes(i.id));
   const blocking = payIssues.filter(i => i.severity === "blocking");
   if (blocking.length) items.push({ id: "payments", label: blocking[0].label, detail: blocking[0].detail, status: "block", tab: "payments", action: "Open Payments" });
   else if (payments.testMode) items.push({ id: "payments", label: "Payments are in sandbox mode", detail: "Test payments collect no money. Switch to live keys before launch.", status: "warn", tab: "payments", action: "Open Payments" });
+  else if (platformCards) items.push({ id: "payments", label: "Payments are live", detail: "Shoppers pay real money. Place one small order, then refund it, to see it work end to end.", status: "ok", tab: "payments", action: "Open Payments" });
   else items.push({ id: "payments", label: "Live payment configuration is present", detail: "The publishable key is valid. Confirm the server connection and complete a checkout before relying on it.", status: "ok", tab: "payments", action: "Open Payments" });
 
   if (stripe.connected) {
@@ -112,6 +136,8 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
     ? { id: "first-sale", label: "A real paid order is recorded", detail: "The order is marked paid. Inspect provider payment, webhook logs, receipt, refund and fulfillment separately to verify the full flow.", status: "warn", tab: "orders", action: "Open Orders" }
     : { id: "first-sale", label: "No real paid order yet", detail: "Place one small live order (then refund it) to prove checkout end to end.", status: "warn", tab: "orders", action: "Open Orders" });
 
+  // Colophon deploys and checks every platform shop's releases; the press has nothing to verify there.
+  if (platformCards) return items;
   items.push({ id: "deployment", label: "Production deployment is unverified", detail: "This dashboard has no release or deployment evidence. Compare the latest successful workflow and Firebase release with the intended production version.", status: "warn", tab: "general", action: "Check deployments", href: "https://github.com/lyricalmyricalbooks/LMB-PLATFORM/actions" });
   items.push({ id: "hosting", label: "Hosting release needs verification", detail: "Confirm the live domain and Hosting release in the configured Firebase project. Frontend and Functions releases are separate.", status: "warn", tab: "general", action: "Open Firebase", href: "https://console.firebase.google.com/project/lmb-test-shop/hosting" });
   return items;
