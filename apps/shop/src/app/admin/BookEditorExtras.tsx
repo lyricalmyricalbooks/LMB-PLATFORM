@@ -6,6 +6,7 @@ import { SectionCard, SelectField, StatusBadge, TextField, Toggle } from "./riso
 import {
   ADD_ON_PRESETS, MAX_ADD_ONS, MAX_BUNDLE_PARTS, bundleAvailable, bundlePartProblem, newAddOn, saleStatus, saleWindowProblem,
 } from "./productExtras";
+import { productKind, type ProductKind } from "../../shared/productOptions";
 
 type Setter = (name: string, value: any) => void;
 
@@ -168,14 +169,22 @@ export function BoxSetEditor({ form, set, bookId, catalog, catalogError, on, onT
 }
 
 // ── Details › Product type ─────────────────────────────────────────
-export function ProductTypeCard({ form, onChange }: { form: any; onChange: (type: "book" | "giftCard") => void }) {
+/** What a product is (plan 10.3). Book is today's default; e-books stay a book format. */
+export const KIND_CHOICES: { id: ProductKind; label: string }[] = [
+  { id: "book", label: "Book" }, { id: "clothing", label: "Clothing" }, { id: "shoes", label: "Shoes" }, { id: "jewelry", label: "Jewelry" },
+  { id: "art", label: "Art or print" }, { id: "music", label: "Music" }, { id: "other", label: "Something else" },
+];
+
+export function ProductTypeCard({ form, onChange, onKind }: { form: any; onChange: (type: "book" | "giftCard") => void; onKind: (kind: ProductKind) => void }) {
   const giftCard = form.productType === "giftCard";
+  const kind = productKind(form);
   return (
-    <SectionCard title="Product type" description="Most products are books. Choose Gift card to sell gift cards: shoppers pick an amount and the code is emailed to them (or the person they're giving it to).">
+    <SectionCard title="Product type" description="Choose what this is: the editor shows the fields that fit it, and the product page shows only the details it has. Choose Gift card to sell gift cards: shoppers pick an amount and the code is emailed to them (or the person they're giving it to).">
       <div role="radiogroup" aria-label="Product type" className="be-chips">
-        {[{ id: "book", label: "Book" }, { id: "giftCard", label: "Gift card" }].map((t) => {
-          const on = (t.id === "giftCard") === giftCard;
-          return <button key={t.id} type="button" role="radio" aria-checked={on} className={`be-chip ${on ? "is-on" : ""}`} onClick={() => onChange(t.id as any)}>{on ? "✓ " : ""}{t.label}</button>;
+        {[...KIND_CHOICES.map((k) => ({ id: k.id as string, label: k.label })), { id: "giftCard", label: "Gift card" }].map((t) => {
+          const on = t.id === "giftCard" ? giftCard : !giftCard && (t.id === kind || (t.id === "book" && kind === "ebook"));
+          const pick = () => { if (t.id === "giftCard") onChange("giftCard"); else { if (giftCard) onChange("book"); onKind(t.id as ProductKind); } };
+          return <button key={t.id} type="button" role="radio" aria-checked={on} className={`be-chip ${on ? "is-on" : ""}`} onClick={pick}>{on ? "✓ " : ""}{t.label}</button>;
         })}
       </div>
       {giftCard && (
