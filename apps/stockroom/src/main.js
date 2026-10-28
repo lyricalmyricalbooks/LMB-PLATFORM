@@ -1121,6 +1121,7 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
+import { readShopProfile, switchOn } from './lib/shop-profile.js';
 
 
 // Tells the boot watchdog in index.html that the bundle and every import it
@@ -8873,7 +8874,25 @@ export function getAllAppliedIds() {
 // Feature modules call this; they can't reassign the cache themselves.
 export function invalidateAppliedIds() { _appliedIdsCache = null; }
 
+// Plan 1.17: reading order receipts from the publisher's Gmail (Scan Gmail, Backfill shipping info) is one press's
+// one-off, off unless the shop profile's gmailOrderScan switch is on. Off, orders reach the Orders screen only through
+// the website link (src/features/website-link.js), and the screen says so.
+export function gmailOrderScanOn() {
+  // Read from the page's profile each time (cheap), so the answer is never a stale copy.
+  return switchOn('gmailOrderScan', readShopProfile());
+}
+
+/** Shows the Gmail scan parts of the Orders screen when the switch is on, and the website-only words when it is off. */
+export function applyGmailOrderScanSwitch(on = gmailOrderScanOn()) {
+  if (typeof document === 'undefined') return on;
+  for (const el of document.querySelectorAll('[data-gmail-order-scan]')) el.hidden = !on;
+  for (const el of document.querySelectorAll('[data-no-gmail-order-scan]')) el.hidden = on;
+  return on;
+}
+
 export function renderOrders() {
+  // Switched off, there is no scan queue to draw: the website link fills this screen.
+  if (!applyGmailOrderScanSwitch()) return;
   // A scan is mid-flight and the skeletons are on screen. Repainting the real
   // queue now would show the pre-scan state as though it were the result.
   if (_webScanning) return;
@@ -9379,6 +9398,7 @@ function normalizeGmailOrder(o, book) {
 }
 
 async function fetchOrders() {
+  if (!applyGmailOrderScanSwitch()) return;
   const book = getBook();
   const btn = $('scan-btn');
   const log = 'log-web';
