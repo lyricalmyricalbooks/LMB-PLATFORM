@@ -27,7 +27,7 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
     if (busy) return;
     setBusy(theme.id); setError("");
     try {
-      await applyChosenLook(theme, settings);
+      await applyChosenLook(theme, settings, publishes);
       await onDone({ theme: theme.id, at: new Date().toISOString(), ...(skipped ? { skipped: true } : {}) });
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
@@ -73,7 +73,7 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
     <SectionCard title={`Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
       actions={first && <GhostButton size="sm" disabled={!!busy} onClick={() => void choose(first, true)}>Skip for now</GhostButton>}>
       {error && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>{error}</p>}
-      {first && <p className="rp-hint" style={{ marginTop: 0 }}>Skip uses “{first.name}”, our suggestion for you. Every look keeps your words, books and pages.</p>}
+      {first && <p className="rp-hint" style={{ marginTop: 0 }}>Skip uses “{first.name}”, our suggestion for you. Every look keeps your words, products and pages.</p>}
       <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "8px 0 12px" }}>Suggested for you</h3>
       <ul aria-label="Suggested looks" style={grid}>{suggested.map(t => card(t, true))}</ul>
       <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "24px 0 12px" }}>Every look</h3>

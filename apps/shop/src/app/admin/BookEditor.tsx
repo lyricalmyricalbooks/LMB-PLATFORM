@@ -72,6 +72,7 @@ import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/si
 import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
 import { ProductOptionsEditor } from "./ProductOptionsEditor";
+import { startingKind } from "./sells";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
@@ -367,6 +368,17 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       setInitialData(JSON.parse(JSON.stringify(formData)));
       // Filled-in starting values count as unsaved edits until the owner saves.
       if (prefill) setFormData((prev: any) => ({ ...prev, ...JSON.parse(JSON.stringify(prefill)) }));
+      // Plan 10.1: a shop that signed up selling something other than books starts each new product as that kind
+      // (sells.ts). The starting kind isn't an edit, so it goes into both the form and what "unsaved" compares with.
+      if (!(prefill as any)?.kind) {
+        Promise.resolve().then(() => adminApi.getFirstWeek()).then(doc => {
+          const kind = startingKind(doc?.publishes);
+          if (kind === "book") return;
+          const start = (prev: any) => (prev && !prev.kind && !prev.id && !prev.productType ? { ...prev, kind, format: "" } : prev);
+          setFormData(start);
+          setInitialData(start);
+        }).catch(() => { /* no sign-up answer to go on: a book, as before */ });
+      }
     }
   }, [bookProp]);
 

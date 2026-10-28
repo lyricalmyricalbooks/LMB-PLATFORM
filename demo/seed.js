@@ -94,7 +94,7 @@ export function demoShopDocs(photoFor) {
 /**
  * What a press that has just signed up has in its `firstWeek/start` (setup step 12 writes it from the sign-up answers,
  * setup/later-steps.js): no look chosen and no step ticked, so the admin opens on Choose your look and then Set up your
- * shop. "How do you sell today?" is "just starting out" and "What do you publish?" is books.
+ * shop. "How do you sell today?" is "just starting out" and "What do you sell?" is books.
  */
 export const NEW_PRESS_START = Object.freeze({ sellingToday: "starting", publishes: "books", country: "CA", plan: "both" });
 
