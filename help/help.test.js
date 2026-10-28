@@ -1,15 +1,16 @@
-// Help articles (plan 3.4): twenty, in plain words, never naming a rival, pointing only at pages the shop really has.
+// Help articles (plan 3.4, 8.2): in plain words, never naming a rival, pointing only at pages the shop really has.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ARTICLES, TOPICS, articlesFor, searchArticles } from "./articles.js";
+import { ARTICLES, CHECKLIST_ANSWERS, TOPICS, articlesFor, searchArticles } from "./articles.js";
+import { SUPPORT, renderSupport } from "./support.js";
 import { renderHelp } from "./page.js";
 
 const words = (a) => [a.question, ...a.answer, ...(a.where || [])].join(" ");
 
-test("twenty articles, each with its own id, a topic, a question and an answer", () => {
-  assert.equal(ARTICLES.length, 20);
-  assert.equal(new Set(ARTICLES.map((a) => a.id)).size, 20);
+test("each article has its own id, a topic, a question and an answer", () => {
+  assert.equal(ARTICLES.length, 28);
+  assert.equal(new Set(ARTICLES.map((a) => a.id)).size, ARTICLES.length);
   for (const a of ARTICLES) {
     assert.match(a.id, /^[a-z][a-z-]+$/, a.id);
     assert.ok(TOPICS.includes(a.topic), `${a.id}: topic ${a.topic}`);
@@ -22,6 +23,9 @@ test("twenty articles, each with its own id, a topic, a question and an answer",
 test("plain words: short sentences, no code or tool names, never a rival", () => {
   const jargon = /\b(firestore|firebase|cloud functions?|api|json|webhook|oauth|html|sdk|database|server|deploy|stripe|resend|shippo|square)\b/i;
   const rivals = /\b(big ?cartel|shopify|squarespace|etsy|wix|woocommerce|square online)\b/i;
+  const support = [SUPPORT.title, ...SUPPORT.includes, ...SUPPORT.excludes].join(" ");
+  assert.doesNotMatch(support, jargon);
+  assert.doesNotMatch(support, rivals);
   for (const a of ARTICLES) {
     const text = words(a);
     assert.doesNotMatch(text, jargon, a.id);
@@ -55,14 +59,14 @@ test("the stockroom answers show only to presses with the stockroom, and the sho
   assert.ok(!articlesFor("shop").some((a) => a.id === "fairs"));
   assert.ok(articlesFor("stockroom").some((a) => a.id === "fairs"));
   assert.ok(!articlesFor("stockroom").some((a) => a.id === "shipping"));
-  assert.equal(articlesFor("both").length, 20);
+  assert.equal(articlesFor("both").length, ARTICLES.length);
   assert.ok(articlesFor("stockroom").some((a) => a.id === "stock-everywhere"));
 });
 
 test("search finds by any words in the question or answer, and an empty box shows everything", () => {
   assert.deepEqual(searchArticles("old shop links").map((a) => a.id), ["old-links"]);
   assert.ok(searchArticles("editions").some((a) => a.id === "editions"));
-  assert.equal(searchArticles("").length, 20);
+  assert.equal(searchArticles("").length, ARTICLES.length);
   assert.equal(searchArticles("zzzz").length, 0);
 });
 
@@ -73,4 +77,30 @@ test("the page groups answers by topic, opens the one in the address, and points
   assert.ok(!all.includes(" open>"));
   assert.match(renderHelp({ search: "zzzz" }), /Get help from Colophon/);
   assert.ok(!renderHelp({ search: "<script>" }).includes("<script>"));
+});
+
+test("every step of the shop's first-week list has an answer", () => {
+  const source = readFileSync(new URL("../apps/shop/src/app/admin/firstWeek.ts", import.meta.url), "utf8");
+  const union = source.match(/export type StepId =([^;]+);/)[1];
+  const steps = [...union.matchAll(/"([a-z-]+)"/g)].map((m) => m[1]);
+  assert.ok(steps.length >= 13 && steps.includes("shipping"), `read ${steps.length} steps`);
+  const ids = new Set(ARTICLES.map((a) => a.id));
+  for (const step of steps) {
+    assert.ok(CHECKLIST_ANSWERS[step], `the "${step}" step has no answer in CHECKLIST_ANSWERS`);
+    assert.ok(ids.has(CHECKLIST_ANSWERS[step]), `${step}: no article "${CHECKLIST_ANSWERS[step]}"`);
+  }
+  assert.deepEqual(Object.keys(CHECKLIST_ANSWERS).sort(), [...steps].sort(), "no answer for a step that no longer exists");
+});
+
+test("what support includes and doesn't, on the help page and next to the plans on sign-up", () => {
+  const excluded = SUPPORT.excludes.join(" ");
+  for (const not of ["Setup calls", "Data entry", "Design work"]) assert.ok(excluded.includes(not), not);
+  assert.ok(SUPPORT.includes.length >= 3);
+  const block = renderSupport();
+  for (const line of [...SUPPORT.includes, ...SUPPORT.excludes]) assert.ok(block.includes(line.replace(/'/g, "&#39;")), line);
+  assert.match(readFileSync(new URL("./index.html", import.meta.url), "utf8"), /renderSupport\(\)/);
+  // The sign-up page has no build step and doesn't load help/, so it carries the same lines, word for word.
+  const signup = readFileSync(new URL("../signup/index.html", import.meta.url), "utf8").replace(/&#39;|&rsquo;/g, "'");
+  for (const line of [SUPPORT.title, ...SUPPORT.includes, ...SUPPORT.excludes]) assert.ok(signup.includes(line), `sign-up page lacks "${line}"`);
+  assert.ok(ARTICLES.some((a) => a.id === "what-help"));
 });

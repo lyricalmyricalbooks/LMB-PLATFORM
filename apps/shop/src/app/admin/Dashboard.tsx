@@ -8,11 +8,14 @@ import {
 } from "lucide-react";
 
 import { Login } from "./Login";
+import { BookkeeperDesk } from "./BookkeeperDesk";
 import { BookCatalog } from "./BookCatalog";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
-import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
+import { backupAlert, buildAdminAlerts, cardAccountAlert, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
+import type { PlatformPaymentsAnswer } from "./platformPayments";
+import { platformCardsProvider } from "../../lib/shopProfile";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { inventoryLinkView, setInventoryLink, type AppBookEntry } from "./appSwitch";
 import { AppSwitcher, AppSwitchPill, useWebsiteTabName } from "./AppSwitcher";
@@ -78,6 +81,8 @@ export function Dashboard() {
   const [boot] = useState(readBootRoute);
   const [activeTab, setActiveTab] = useState(boot.tab);
   const [user, setUser] = useState<any>(null);
+  // Signed in with the Team's bookkeeper role: the Bookkeeping page instead of the admin.
+  const [bookkeeper, setBookkeeper] = useState<{ email: string | null } | null>(null);
   // Platform support signed in from the platform's control room (supportSession.ts); null for everyone else.
   const [supportVisit, setSupportVisit] = useState<SupportVisit | null>(null);
   const [loading, setLoading] = useState(true);
@@ -190,7 +195,7 @@ export function Dashboard() {
   const [searchCustomerQuery, setSearchCustomerQuery] = useState<string | undefined>(undefined);
   // What the last check read besides the orders (Stripe webhook, email log, backup, inventory link), so opening or
   // closing an order re-counts the badge and alerts from memory without reading any of it again.
-  const alertInputs = useRef<{ webhook: any; emailLog: any[]; backup: any; linkState: any; shopErrors: any[]; failedParts: string[] } | null>(null);
+  const alertInputs = useRef<{ webhook: any; emailLog: any[]; backup: any; linkState: any; shopErrors: any[]; cardAccount: PlatformPaymentsAnswer | null; failedParts: string[] } | null>(null);
   const showAlerts = (data: any[]) => {
     const inputs = alertInputs.current;
     if (!inputs) return;
@@ -198,7 +203,8 @@ export function Dashboard() {
     const backupNote = backupAlert(inputs.backup);
     const note = checkFailedAlert(inputs.failedParts);
     const errorsNote = shopErrorAlert(shopErrorRows(inputs.shopErrors));
-    setAlerts([...buildAdminAlerts(data, inputs.webhook, Date.now(), inputs.emailLog), ...inventoryLinkAlerts(inputs.linkState), ...(backupNote ? [backupNote] : []), ...(errorsNote ? [errorsNote] : []), ...(note ? [note] : [])]);
+    const cardNote = cardAccountAlert(inputs.cardAccount);
+    setAlerts([...(cardNote ? [cardNote] : []), ...buildAdminAlerts(data, inputs.webhook, Date.now(), inputs.emailLog), ...inventoryLinkAlerts(inputs.linkState), ...(backupNote ? [backupNote] : []), ...(errorsNote ? [errorsNote] : []), ...(note ? [note] : [])]);
   };
   useEffect(() => {
     if (!user) return;
@@ -213,15 +219,17 @@ export function Dashboard() {
       return getOrdersCached({ maxAgeMs })
         .then(async (data) => {
           const failedParts: string[] = [];
-          const [webhook, emailLog, backup, linkState, shopErrors] = await Promise.all([
+          const [webhook, emailLog, backup, linkState, shopErrors, cardAccount] = await Promise.all([
             adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push("the Stripe webhook status"); return null; }),
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
             inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),
             adminApi.getClientErrors(20).catch(() => { failedParts.push("the shop errors"); return []; }),
+            // Cards through Colophon: is anything on the press's Stripe account past its deadline? (plan 7.9)
+            platformCardsProvider() === "stripe" ? adminApi.platformPayments("status").catch(() => null) : Promise.resolve(null),
           ]);
           if (!alive) return;
-          alertInputs.current = { webhook, emailLog, backup, linkState, shopErrors, failedParts };
+          alertInputs.current = { webhook, emailLog, backup, linkState, shopErrors, cardAccount, failedParts };
           // The switcher's count; an unreadable link state keeps the last count rather than inventing one.
           if (linkState) {
             setInventoryLink(inventoryLinkView(linkState));
@@ -311,9 +319,18 @@ export function Dashboard() {
 
     // A #support= link from the platform's control room signs support in (supportSession.ts).
     void adminApi.startSupportVisit();
-    const unsubscribe = adminApi.onAuthStateChange((u) => {
-      setUser(u);
+    const unsubscribe = adminApi.onAuthStateChange(async (u) => {
       setSupportVisit(null);
+      // The Team's bookkeeper gets the read-only Bookkeeping page, never the admin (BookkeeperDesk.tsx, plan 7.17).
+      const books = u ? await Promise.resolve(adminApi.bookkeeperSignIn?.()).catch(() => null) : null;
+      if (books) {
+        setBookkeeper(books);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      setBookkeeper(null);
+      setUser(u);
       if (!u) { setLoading(false); return; }
       void adminApi.supportVisit().then(setSupportVisit).catch(() => setSupportVisit(null));
       loadSettings();
@@ -426,8 +443,17 @@ export function Dashboard() {
     );
   }
 
+  if (bookkeeper) {
+    return <BookkeeperDesk email={bookkeeper.email} appearance={adminTheme === "dark" ? "dark" : "light"} />;
+  }
+
   if (!user) {
-    return <Login onLogin={() => {}} />;
+    // A first sign-in learns its role only after the server updates the pass (adminApi.login), so look again then.
+    return <Login onLogin={() => {
+      void Promise.resolve(adminApi.bookkeeperSignIn?.()).catch(() => null).then((books) => {
+        if (books) { setBookkeeper(books); setUser(null); }
+      });
+    }} />;
   }
 
   const handleLogout = async () => {

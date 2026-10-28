@@ -3,7 +3,7 @@ import { paymentHealth } from "./paymentHealth";
 import { isRealPaidOrder } from "./overview/overviewInsights";
 import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
 import { platformCardsProvider } from "../../lib/shopProfile";
-import { accountConnected, providerName, type PlatformPaymentsAnswer } from "./platformPayments";
+import { accountConnected, CONTINUE_WITH_STRIPE, needsLine, paymentsReady, providerName, type PlatformPaymentsAnswer } from "./platformPayments";
 
 /** Admin-only "Ready to sell?" checks. Read-only guidance; nothing here changes data. */
 export type ReadinessStatus = "ok" | "warn" | "block";
@@ -36,15 +36,23 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   // Cards through Colophon: no keys to check, only whether the press's own account is connected and can take cards.
   if (platformCards) {
     const name = providerName(platformCards);
-    const connect = platformCards === "square" ? "Connect Square" : "Finish Stripe setup";
+    const connect = platformCards === "square" ? "Connect Square" : CONTINUE_WITH_STRIPE;
+    // What Stripe still needs, with its deadline (plan 7.9); null for Square or when nothing is.
+    const needs = platformAccount ? needsLine({ ...platformAccount, provider: platformCards }) : null;
+    const finish = platformCards === "square" ? "Open your Square dashboard and finish what it asks for." : `Press ${CONTINUE_WITH_STRIPE} in Payments.`;
     if (platformAccount === undefined || platformAccount === null) {
       items.push({ id: "card-account", label: `Your ${name} account couldn't be checked`, detail: `Open Payments to see whether your ${name} account is connected.`, status: "warn", tab: "payments", action: "Open Payments" });
     } else if (!accountConnected(platformAccount)) {
-      items.push({ id: "card-account", label: `${name} isn't connected yet`, detail: `Shoppers can't pay by card until you connect your own ${name} account. Press ${connect} in Payments.`, status: "block", tab: "payments", action: connect });
+      items.push({ id: "card-account", label: `${name} isn't connected yet`, detail: `Shoppers can't pay by card until you connect your own ${name} account.${needs ? ` ${needs}` : ""} Press ${connect} in Payments.`, status: "block", tab: "payments", action: connect });
+    } else if (platformAccount.pastDue === true) {
+      items.push({ id: "card-account", label: `${name} has paused your payments`, detail: `${needs ?? `${name} needs a few more details, and the deadline has passed.`} ${finish}`, status: "block", tab: "payments", action: connect });
     } else if (platformAccount.chargesEnabled !== true) {
-      items.push({ id: "card-account", label: `${name} can't take cards yet`, detail: `Your ${name} account is connected but still needs details from you. Open your ${name} dashboard and finish what it asks for.`, status: "block", tab: "payments", action: "Open Payments" });
+      items.push({ id: "card-account", label: `${name} can't take cards yet`, detail: `${needs ?? `Your ${name} account is connected but still needs details from you.`} ${finish}`, status: "block", tab: "payments", action: connect });
+    } else if (!paymentsReady({ ...platformAccount, provider: platformCards })) {
+      items.push({ id: "card-account", label: `${name} takes cards but isn't paying out yet`, detail: `${needs ?? `${name} needs a few more details before it pays your sales into your bank.`} ${finish}`, status: "warn", tab: "payments", action: connect });
     } else {
-      items.push({ id: "card-account", label: `${name} is connected and taking cards`, detail: `Payouts go to your own ${name} account.`, status: "ok", tab: "payments", action: "Open Payments" });
+      // Cards and payouts work: the step ticks itself. Anything Stripe will need later is still said, with its date.
+      items.push({ id: "card-account", label: `${name} is connected and taking cards`, detail: `Payouts go to your own ${name} account.${needs ? ` ${needs}` : ""}`, status: "ok", tab: "payments", action: "Open Payments" });
     }
   }
 

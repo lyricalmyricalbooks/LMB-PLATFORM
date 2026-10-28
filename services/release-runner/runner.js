@@ -3,7 +3,11 @@
 // release.
 //
 //   runRelease({ version, registry, auditLog, builder, deploy, envFiles, profileFiles, siteCheck, projects,
-//                releaseCheck, config: { folder, exclude }, dryRun, print })
+//                releaseCheck, config: { folder, exclude }, dryRun, print, paused })
+//   rollBackShop({ ...the same clients }, { shopId, version, by, reason })   one shop back to an earlier release, by hand
+//
+// - `paused()` (optional) resolves to the run book's release pause ({ by, reason, at }, control-room/runbook.js) or
+//   null. A paused release doesn't start, and a running one stops before its next shop.
 //
 // - `builder.build(version)` builds the shop and stockroom once, into the folder `deploy` reads (builder.js). A build
 //   that fails stops the release before anything is deployed. A rollback builds the previous release the same way;
@@ -36,7 +40,7 @@ const message = (error) => (error instanceof Error ? error.message : String(erro
 
 export async function runRelease({
   version, registry, auditLog, builder, deploy, envFiles, profileFiles, siteCheck, projects, releaseCheck,
-  config = {}, dryRun = false, print = () => {}, now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES,
+  config = {}, dryRun = false, print = () => {}, now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES, paused = async () => null,
 }) {
   if (!VERSION.test(version ?? "")) throw new Error(`"${version}" isn't a release version (like 1.4.0)`);
   if (!config.folder) throw new Error("the release runner needs the shops folder, to make sure every shop it touches is the platform's");
@@ -52,6 +56,12 @@ export async function runRelease({
   if (dryRun) {
     for (const { row, ring } of order) print(`  would send to ${row.shopId} (ring ${ring}, now on ${row.release?.version ?? "an unrecorded release"})`);
     return { ok: true, dryRun: true, version, rings: plan.rings.map((ring) => ring.map((row) => row.shopId)), shops: [] };
+  }
+
+  const pause = await paused();
+  if (pause) {
+    print(`Releases are paused by ${pause.by} (${pause.reason}); release ${version} doesn't start.`);
+    return { ok: false, version, paused: pause, shops: [] };
   }
 
   const lockFor = () => ({ runId, takenAt: now().toISOString(), expiresAt: new Date(now().getTime() + lockMinutes * 60_000).toISOString() });
@@ -81,6 +91,11 @@ export async function runRelease({
         error = "the release lock was taken over by another run";
         break;
       }
+      const pausedNow = await paused();
+      if (pausedNow) {
+        error = `releases were paused by ${pausedNow.by} (${pausedNow.reason}) before ${row.shopId}`;
+        break;
+      }
       const result = await releaseShop(ctx, row, version);
       Object.assign(shops[index], result);
       await record(ctx, row.shopId, version, result);
@@ -94,6 +109,61 @@ export async function runRelease({
     await registry.recordRelease({ kind: "release", version, runId, startedAt, finishedAt: now().toISOString(), ok: !error, ...(error ? { error } : {}), shops });
     await registry.releaseLock(RELEASE_LOCK, runId);
     print(error ? `Release ${version} stopped: ${error}.` : `Release ${version} reached every shop.`);
+  }
+}
+
+/**
+ * One shop back to an earlier release by hand (the run book's "roll back a shop", control-room/runbook.js): built (or
+ * reused), deployed in the usual order and checked, with the release lock and the shop's lock held, so it never meets a
+ * running release. Recorded in the registry's release history and the shop's audit log, with who and why.
+ */
+export async function rollBackShop({
+  registry, auditLog, builder, deploy, envFiles, profileFiles, siteCheck, projects, releaseCheck,
+  config = {}, print = () => {}, now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES,
+}, { shopId, version, by, reason }) {
+  if (!VERSION.test(version ?? "")) throw new Error(`"${version}" isn't a release version (like 1.4.0)`);
+  if (!config.folder) throw new Error("rolling back needs the shops folder, to make sure the shop is the platform's");
+  const row = typeof shopId === "string" ? await registry.getShop(shopId) : null;
+  if (!row) throw new Error(`there's no shop called ${shopId}`);
+  const lockFor = () => ({ runId, takenAt: now().toISOString(), expiresAt: new Date(now().getTime() + lockMinutes * 60_000).toISOString() });
+  const releaseLock = await registry.takeLock(RELEASE_LOCK, lockFor());
+  if (!releaseLock.taken) return { ok: false, status: "busy", error: `a release (${releaseLock.runId}) is running; pause releases, then try again when it stops` };
+  const ctx = { registry, auditLog, builder, deploy, envFiles, profileFiles, siteCheck, projects, releaseCheck, config, print, now, runId };
+  const startedAt = now().toISOString();
+  const previous = row.release?.version ?? null;
+  let result;
+  try {
+    const project = await projects.get(shopId);
+    if (project?.parent !== config.folder) {
+      result = { status: "refused", error: `its project isn't in the platform's shops folder (${project?.parent ?? "no such project"}); nothing was deployed` };
+    } else {
+      const lock = await registry.takeLock(shopId, lockFor());
+      if (!lock.taken) {
+        result = { status: "busy", error: `the shop maker is working on it (run ${lock.runId}); nothing was deployed` };
+      } else {
+        try {
+          await builder.build(version);
+          await ship(ctx, row, version);
+          const problems = await checkShop(ctx, row, version);
+          if (problems.length) result = { status: "failed", error: problems.join("; ") };
+          else {
+            await registry.updateShop(shopId, { release: { version, at: now().toISOString(), runId } });
+            result = { status: "rolled-back" };
+          }
+        } catch (error) {
+          result = { status: "failed", error: `the deploy failed: ${message(error)}` };
+        } finally {
+          await registry.releaseLock(shopId, runId);
+        }
+      }
+    }
+    const line = { shopId, ring: 0, previous, by, reason, ...result };
+    await record(ctx, shopId, version, line);
+    await registry.recordRelease({ kind: "roll-back", version, runId, startedAt, finishedAt: now().toISOString(), ok: result.status === "rolled-back", by, reason, shops: [line] });
+    print(result.status === "rolled-back" ? `${shopId}: back on ${version}.` : `${shopId}: ${result.error}.`);
+    return { ok: result.status === "rolled-back", previous, ...result };
+  } finally {
+    await registry.releaseLock(RELEASE_LOCK, runId);
   }
 }
 

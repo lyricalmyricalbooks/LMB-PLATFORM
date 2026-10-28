@@ -15,7 +15,11 @@ an injected `fetch`, and tests use a pretend Stripe (`fakes.js`).
 
 A shop asks for one of a fixed list of calls (`SHOP_OP_NAMES` in `service.js`): card payments and Checkout Sessions
 (create, read, cancel/expire), refunds (create, list), disputes (list), an event (read again), the account's state and
-Stripe's sign-up link. Ids and parameters are checked; anything that would move money elsewhere (`transfer_data`,
+Stripe's sign-up link, and for each order's real fee and payout (7.10): a payment's charge and refunds with their
+balance transactions (`expand`), and a payout's balance transactions (`balanceTransactions.list`, by `payout`, paged).
+Square shops get the same through `square.payouts.retrieve` / `square.payouts.entries` and the processing fees on
+`square.payments.retrieve` and refunds; Square's `payout.paid` is passed on (permissions `PAYOUTS_READ`,
+`SETTLEMENTS_READ`). Ids and parameters are checked; anything that would move money elsewhere (`transfer_data`,
 `on_behalf_of`, an application fee…) is refused, and the idempotency key is scoped to the shop.
 
 Passed-on events carry no signature. The shop believes nothing in them: it fetches the event again through `/shop`
@@ -44,6 +48,16 @@ Square's API reference, version `2026-09-16` (`squareApi.js` lists every path).
   refund setting is off.
 - **Idempotency keys** are hashed with the shop id into 40 characters (Square allows 45 on refunds).
 
+## New accounts (7.8)
+
+`createAccount` makes each press's account with Standard's behaviour written as Stripe's controller settings
+(`controller`: losses `stripe`, fees paid by the `account`, requirements collected by `stripe`, the `full` Dashboard),
+not the deprecated `type: "standard"` ([Stripe's guide](https://docs.stripe.com/connect/migrate-to-controller-properties)).
+It fills in what the platform knows, because on these accounts that can only happen before the press's first visit:
+the country from sign-up, the shop's web address (`siteUrl`, else `https://<projectId>.web.app`), merchant category
+5942 "Book Stores" and "Books and printed matter". Accounts made earlier keep working untouched: Stripe gave them the
+same controller settings.
+
 ## Modes
 
 The registry row keeps `payments: { provider, accountId, mode }`, where `mode` is the mode the account was made in. An
@@ -65,9 +79,18 @@ The press sees the fee with their payout state (`account.status` returns `platfo
 ## What it keeps
 
 The service never writes a shop's database. It writes the registry row's `payments` (the account's state from
-`account.updated`: charges, payouts, details submitted; `disconnectedAt` when a press disconnects) and its own record of
+`account.updated`: charges, payouts, details submitted, `pastDue`; `disconnectedAt` when a press disconnects) and its own record of
 the accounts it made (`accounts`). Each change is logged in the registry (`recordEvent`) and the shop's audit log, with
 stable ids.
+
+## What Stripe still needs (7.9)
+
+`account.status` adds `needs: [{ words, pastDue }]` (Stripe's `requirements.past_due` and `currently_due` in plain
+words, `requirements.js`, past due first, each once), `deadline` (`current_deadline`, ISO) and `pastDue`. When an
+`account.updated` turns past due, the row gets `pastDueSince`, and with the `email` client (services/email
+`sendPlatform`) the owner gets one `payments-past-due` email linking to their admin's Payments page, never Stripe's own
+link; then `pastDueEmailedAt`. Both clear once nothing is past due. A failed send answers 502, so Stripe sends the event
+again; the email's idempotency key holds `pastDueSince`, so a retry never sends twice.
 
 ## Files
 

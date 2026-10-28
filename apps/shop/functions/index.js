@@ -62,6 +62,7 @@ const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./a
 const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
+const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
 const { isPaymentId, isCheckoutId } = require("./payments/ids");
@@ -97,8 +98,10 @@ setGlobalOptions({ maxInstances: 10, region: require("./shopConfig").shopConfig.
 
 admin.initializeApp();
 const db = admin.firestore();
-// On the platform's test shop only (shopConfig.testShop), sandbox payments take stock and their refunds put it back.
-const { createSettlement, sandboxStockTaken } = require("./settlePayment");
+// On the platform's test shop (shopConfig.testShop) and for practice orders (plan 7.6), sandbox payments take stock and
+// their refunds put it back.
+const { createSettlement, sandboxStockTaken, sandboxTakesStock } = require("./settlePayment");
+const { recordOrderMoney, recordPayout } = require("./orderMoney");
 const { settlePayment } = createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n), testShop: require("./shopConfig").shopConfig.testShop });
 
 const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
@@ -107,7 +110,7 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 // Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-const { adminRole, supportOf, syncMemberRole } = require("./roles");
+const { adminRole, booksReader, supportOf, syncMemberRole } = require("./roles");
 const { shopConfig, functionLink } = require("./shopConfig");
 
 // Who may call the functions from a browser: local dev, this shop's Hosting address and its own domain (shopConfig.js).
@@ -163,6 +166,26 @@ async function requireAdmin(req, res) {
   try {
     const decoded = await admin.auth().verifyIdToken(match[1]);
     if (!adminRole(decoded)) {
+      res.status(403).json({ error: "Admin access required" });
+      return null;
+    }
+    return decoded;
+  } catch (err) {
+    res.status(401).json({ error: "Invalid Authorization token" });
+    return null;
+  }
+}
+
+// The bookkeeper's reads (roles.js booksReader): the admin, or the Team's bookkeeper role. Only read-only actions use it.
+async function requireBooksReader(req, res) {
+  const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+  if (!match) {
+    res.status(401).json({ error: "Missing Authorization token" });
+    return null;
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    if (!booksReader(decoded)) {
       res.status(403).json({ error: "Admin access required" });
       return null;
     }
@@ -1257,10 +1280,11 @@ async function reserveForConfirmedPayment(orderId, provider, paymentId) {
   const snap = await ref.get();
   if (!snap.exists) return true;
   const order = snap.data();
-  // A sandbox payment takes no stock, so it needs none, except on the platform's test shop (shopConfig.testShop), where
-  // it takes stock like a live one and so is checked like one: sold out after its hold lapsed = not marked paid.
+  // A sandbox payment takes no stock, so it needs none, except on the platform's test shop (shopConfig.testShop) and for
+  // a practice order (sandboxTakesStock), where it takes stock like a live one and so is checked like one: sold out
+  // after its hold lapsed = not marked paid.
   const sandbox = order.paypalMode === "test" || order.stripeMode === "test";
-  if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || (sandbox && !shopConfig.testShop)) return true;
+  if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || (sandbox && !sandboxTakesStock(order, shopConfig.testShop))) return true;
   try {
     await reserveStock(db, orderId, order.items || [], Date.now(), holdOwner(order));
     return true;
@@ -1505,11 +1529,14 @@ exports.paypalWebhook = onRequest(
 );
 
 const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, handleWebhookHealth, handleRegisterPaymentDomain, handlePlatformPayments } = checkoutAdminActions({
-  db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, inventoryLinkDeps,
+  db, payments, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, requireBooksReader, inventoryLinkDeps,
 });
 
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
 const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+
+// Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
+const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
 
 // Handler tests replace sendEmail after loading index.js; this keeps the moved handlers on the current one.
 const lateSendEmail = (...args) => sendEmail(...args);
@@ -1541,6 +1568,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   registerPaymentDomain: handleRegisterPaymentDomain,
   platformPayments: handlePlatformPayments,
   customDomains: handleCustomDomains,
+  practiceCheckout: handlePracticeCheckout,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,
   inventoryLink: handleInventoryLinkAdmin,
@@ -1562,7 +1590,7 @@ const { handleManualLocalOrder, handleUnsubscribe, handleCompleteFreeOrder, hand
   loadHoldLimits, normMarketingEmail, optOutId, orderRequestIdentity, orderRequestKey, priceOrder,
   PricingError, publicErrorMessage, readAdminSecret, recalculateOrder, refusePreviousAttemptPaid, releaseStock,
   releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, payments,
-  stripeIntentKey, testShop: shopConfig.testShop, tokenMatches,
+  stripeIntentKey, testShop: shopConfig.testShop, tokenMatches, practiceFor,
 });
 
 // ──────────────────────────────────────────────────────────────
@@ -1630,8 +1658,8 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
     if (initialOrder.exists) {
       const initial = initialOrder.data();
       const amountCheck = paidAmountCheck(initial, session.amount_total, session.currency);
-      // Sandbox payments skip the stock check, except on the test shop (see reserveForConfirmedPayment).
-      if (amountCheck.ok && ((session.livemode !== false && initial.stripeMode !== "test") || shopConfig.testShop)
+      // Sandbox payments skip the stock check, except on the test shop and for practice orders (see reserveForConfirmedPayment).
+      if (amountCheck.ok && ((session.livemode !== false && initial.stripeMode !== "test") || sandboxTakesStock(initial, shopConfig.testShop))
           && initial.paymentStatus !== "paid" && initial.status !== "cancelled"
           && !await reserveForConfirmedPayment(orderId, "Stripe", typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id)) return false;
     }
@@ -2183,6 +2211,8 @@ exports.stripeWebhook = onRequest(
         try {
           await markStripeOrderPaid(orderId, session, { authority: STRIPE_WEBHOOK_AUTHORITY, account: event.account || null, message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)" });
           console.log(`Order ${orderId} successfully processed via webhook.`);
+          // The real card fee, once the provider has it (code plan 7.10). Best effort: the payout fills it in later.
+          await recordOrderMoney({ db, payments, orderId }).catch(err => console.warn(`Order ${orderId}: the card fee wasn't read yet (${err?.message || err}).`));
         } catch (err) {
           console.error("Failed to process order update in transaction:", err);
           await recordWebhookProcessingFailure(event, err);
@@ -2222,13 +2252,32 @@ exports.stripeWebhook = onRequest(
         try {
           const snap = await db.collection("orders")
             .where("stripePaymentIntentId", "==", paymentIntentId).limit(1).get();
-          if (!snap.empty) await syncStripeReversal(snap.docs[0].id, { charge, source: "Stripe webhook" });
+          if (!snap.empty) {
+            await syncStripeReversal(snap.docs[0].id, { charge, source: "Stripe webhook" });
+            // The refund's own fee (any fee given back), on the order's money (code plan 7.10). Best effort.
+            await recordOrderMoney({ db, payments, orderId: snap.docs[0].id }).catch(err => console.warn(`Order ${snap.docs[0].id}: the refund's fee wasn't read yet (${err?.message || err}).`));
+          }
         } catch (err) {
           console.error("Failed to sync charge.refunded:", err);
           await recordWebhookProcessingFailure(event, err);
           res.status(500).send(`Refund sync failure: ${err.message}`);
           return;
         }
+      }
+    }
+
+    // A payout reached the press's bank: each order in it keeps its fee, net, payout and payout date (code plan 7.10).
+    // Safe to repeat; a failure asks Stripe (or Square, through the platform) to send the event again.
+    if (event.type === "payout.paid") {
+      const payout = event.data.object || {};
+      try {
+        const changed = await recordPayout({ db, payments, mode: event.livemode ? "live" : "test", payoutId: payout.id, accountId: event.account || null, arrivalDate: payout.arrival_date });
+        console.log(`Payout ${payout.id}: ${changed} order(s) updated.`);
+      } catch (err) {
+        console.error("Failed to record payout.paid:", err);
+        await recordWebhookProcessingFailure(event, err);
+        res.status(500).send(`Payout sync failure: ${err.message}`);
+        return;
       }
     }
 

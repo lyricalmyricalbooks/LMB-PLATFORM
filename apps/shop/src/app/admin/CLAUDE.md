@@ -474,7 +474,34 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
 - Settings › Taxes › Start from a preset (`taxPresets.ts`): `applyTaxPreset` adds a rate only for a province with none
   (country and region compared without case), in the draft. Rates are as of October 2026 and the card says "Not tax
   advice". Shipping presets are the new-profile starters (`shippingProfileStarters.ts`).
+- Settings › General › Store policies › Start from our wording (`starterPolicies.ts`, plan 7.5): shown only under an
+  empty policy; fills it with the shop name, Location address, contact email and the returns window book pages already
+  give search engines (Text & labels › `seoReturnDays`, 0 = no returns after shipping). `withStarter` re-reads the draft
+  and keeps any saved words. The card says "A starting point, not legal advice"; the four texts await a lawyer's read.
 - Settings › General › Your web address (`CustomDomainCard.tsx`, plan 2.9) shows the older "Domain & visibility" field
   when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`).
 - Settings › Payments › Card payments (`PlatformPaymentsCard.tsx`, plan 2.2b) replaces the Stripe keys card on platform
   shops.
+- **What Stripe still needs (plan 7.9):** `account.status` carries `needs: [{ words, pastDue }]` (plain words made by
+  the platform, `services/payments/requirements.js`), `deadline` and `pastDue`. `needsLine` (platformPayments.ts) says it
+  ("Stripe needs your bank details by 12 November."); the card shows it above one **Continue with Stripe** button that
+  asks for a fresh Stripe page on every press (Stripe's links work once and are never emailed). The `card-account`
+  readiness row ticks only once `paymentsReady` (cards and payouts). While something is past due, `cardAccountAlert`
+  (adminAlerts.ts, action `cardAccount` → Settings › Payments › Ways to pay) puts a banner on every admin page; the
+  Dashboard's 5-minute alert check reads the status for Stripe platform shops. The platform emails the owner once.
+
+
+## Bookkeeper role (28 October 2026, code plan 7.17)
+
+Team role `bookkeeper` (Settings › Team, or the platform's account page): reads the money and changes nothing.
+- **Rules:** `isBookkeeper()` in `firestore.rules` (verified pass, `role == "bookkeeper"`) appears only in three read
+  rules: `orders` (get, list), `giftCards`, `analytics`. Never books, customers, newsletter, settings, keys, the Team or
+  any write (`securityRules.test.ts` and the emulator script check). `isAdmin()` never names it.
+- **Server:** `adminRole` ignores it, so every `requireAdmin` action refuses it. `requireBooksReader` (`roles.js`
+  `booksReader`) lets it in only to `platformPayments` step `status` (payouts on or paused, the fee); `connect` stays
+  admin-only.
+- **Admin:** `Dashboard` asks `adminApi.bookkeeperSignIn()` before setting `user`; a bookkeeper gets
+  `BookkeeperDesk.tsx` (period sales, tax and shipping collected, payouts, Orders and Sales report CSVs) and never the
+  admin shell, so none of the admin's reads run. `bookkeeping.ts` (pure) blanks shoppers' and gift card recipients'
+  email addresses in its downloads. A first sign-in learns the role after `login()` refreshes the pass (`onLogin`).
+- **Stockroom:** the same role reads the tax centre's key-free copy (`apps/stockroom/src/lib/bookkeeper-copy.js`).

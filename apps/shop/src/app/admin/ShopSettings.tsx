@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { POLICY_KEYS, POLICY_TITLES, policySlug, type PolicyKey } from "../features/site/policyPages";
+import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
+import { STARTER_POLICY_NOTE, starterFacts, withStarter } from "./starterPolicies";
 import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
@@ -15,7 +16,7 @@ import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PlatformPaymentsCard } from "./PlatformPaymentsCard";
 import { CustomDomainCard } from "./CustomDomainCard";
-import { shopProfile } from "../../lib/shopProfile";
+import { platformCardsProvider, shopProfile } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
@@ -38,6 +39,7 @@ import { ShopErrorsCard } from "./ShopErrorsCard";
 import { useSettingsDirty } from "./settingsDirty";
 import { SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError, useSubTab, type SettingsTab } from "./settingsLayout";
 import { testSaleSteps } from "./testSaleWalkthrough";
+import { practiceCheckout, type PracticeState } from "../lib/practiceCheckout";
 import { studioHash } from "../lib/studioLocation";
 
 export function ShopSettings({ 
@@ -126,13 +128,6 @@ export function ShopSettings({
     </div>
   );
 }
-const POLICY_STARTERS: Record<PolicyKey, string> = {
-  shipping: "We process orders within 1–3 business days of payment. Carrier transit time is additional and shown at checkout for your destination and selected service.\n\nYou will receive an email with tracking once your order ships. Digital titles are available to download immediately after payment.",
-  returns: "Once an order has shipped it can't be returned. Until it ships, you can ask to cancel it from the order tracking page (the link is in your order confirmation email).\n\nIf your book arrives damaged or incorrect, contact us within 30 days of delivery and we will replace it or refund you.\n\nDigital downloads are non-refundable once accessed, unless the file is faulty.",
-  privacy: "We collect only what we need to fulfil your order and, if you opt in, send you our newsletter: your name, email, shipping address and order details.\n\nPayments are processed by Stripe; we never see or store your card number. We do not sell your personal information. You can ask us to delete your data at any time.",
-  terms: "By placing an order you agree that the details you provide are accurate and that you are authorised to use the payment method.\n\nPrices are shown in Canadian dollars unless stated otherwise. We may cancel and refund an order if a title is unavailable or a pricing error occurred.",
-};
-
 // SaveBar names the cards that have unsaved edits, not the settings keys behind them.
 export const GENERAL_SECTION_TITLES: Record<string, string> = {
   maintenance: "Store status", stockHolds: "Checkout stock holds", info: "Store identity", domain: "Domain & visibility", location: "Location", policies: "Store policies",
@@ -275,12 +270,16 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                       hint={text.trim() ? `Live at /page/${policySlug(k)}` : "Hidden until it has text."}
                       onChange={(e) => set("policies", { [k]: e.target.value })} />
                     {!text.trim() && (
-                      <SecondaryButton size="sm" onClick={() => set("policies", { [k]: POLICY_STARTERS[k] })}>Insert starter text</SecondaryButton>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>
+                        {/* Reads the latest saved policy again so a click can never replace words typed meanwhile. */}
+                        <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev)) } }))}>Start from our wording</SecondaryButton>
+                        <span className="rp-hint">Filled with your shop name, address and returns window. {STARTER_POLICY_NOTE}</span>
+                      </div>
                     )}
                   </div>
                 );
               })}
-              <p className="rp-hint" style={{ margin: 0 }}>Starter text is a sketch, not legal advice.</p>
+              <p className="rp-hint" style={{ margin: 0 }}>Our wording is {STARTER_POLICY_NOTE.toLowerCase()} Read it through and change anything that isn't true for your shop before you save.</p>
             </div>
           </SectionCard>
         </SettingsAnchor>
@@ -1290,17 +1289,30 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications, onOp
   const [data, setData] = useState<{ orders: any[]; webhook: any; emailLog: any[] } | null>(null);
   // Reads that failed: their steps are unknown, not "not done".
   const [failed, setFailed] = useState<string[]>([]);
+  // A platform shop (plan 7.4) rehearses with a practice order (plan 7.6), which the server switches on for an hour.
+  const platform = platformCardsProvider();
+  const [practice, setPractice] = useState<PracticeState | null>(null);
+  const [practiceBusy, setPracticeBusy] = useState(false);
+  const [practiceError, setPracticeError] = useState("");
   const load = async () => {
     const missed: string[] = [];
     const soft = <T,>(p: Promise<T>, label: string, fallback: T) => p.catch(() => { missed.push(label); return fallback; });
-    const [orders, webhook, emailLog] = await Promise.all([
-      soft(adminApi.getOrders(50), "orders", [] as any[]), soft(adminApi.getStripeWebhookStatus(), "Stripe webhook status", null as any), soft(adminApi.getRecentEmailLog(100), "email log", [] as any[]),
+    const [orders, webhook, emailLog, practiceNow] = await Promise.all([
+      soft(adminApi.getOrders(50), "orders", [] as any[]), platform ? Promise.resolve(null) : soft(adminApi.getStripeWebhookStatus(), "Stripe webhook status", null as any), soft(adminApi.getRecentEmailLog(100), "email log", [] as any[]),
+      platform ? soft(practiceCheckout("status"), "practice order", null) : Promise.resolve(null),
     ]);
     setFailed(missed);
     setData({ orders, webhook, emailLog });
+    setPractice(practiceNow);
   };
   useEffect(() => { load(); }, []);
-  const steps = testSaleSteps({ payments, ...(data || { orders: [], webhook: null, emailLog: [] }) });
+  const switchPractice = async (step: "start" | "stop") => {
+    setPracticeBusy(true);
+    setPracticeError("");
+    try { setPractice(await practiceCheckout(step)); } catch (err) { setPracticeError(friendlyError(err, step === "start" ? "start the practice order" : "stop the practice order")); }
+    finally { setPracticeBusy(false); }
+  };
+  const steps = testSaleSteps({ payments, platform, practice, ...(data || { orders: [], webhook: null, emailLog: [] }) });
   const doneCount = steps.filter((st) => st.done).length;
   const go = (link: string, id: string) => {
     if (link === "orders") onOpenOrders?.();
@@ -1314,12 +1326,30 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications, onOp
     <SectionCard title="Test sale walkthrough" description={`One full rehearsal before real money · ${data ? `${doneCount} of ${steps.length} done` : "checking…"}`}
       actions={<SecondaryButton size="sm" onClick={load}>Check again</SecondaryButton>}>
       {failed.length > 0 && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>Couldn't read the {failed.join(", ")}. Check again.</p>}
+      {platform && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 12px", alignItems: "center", marginBottom: 12 }} aria-live="polite">
+          {practice?.active ? (
+            <>
+              <StatusBadge tone="info">Practice on until {new Date(practice.until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</StatusBadge>
+              <span className="rp-hint">Only you can use it. Your shop stays private to everyone else.</span>
+              <SecondaryButton size="sm" disabled={practiceBusy} onClick={() => switchPractice("stop")}>Stop practice</SecondaryButton>
+            </>
+          ) : (
+            <PrimaryButton size="sm" disabled={practiceBusy || practice?.refusal === "shop_open" || practice?.refusal === "owner_only"} onClick={() => switchPractice("start")}>
+              {practiceBusy ? "Starting…" : "Try a practice order"}
+            </PrimaryButton>
+          )}
+          {!practice?.active && practice?.refusal === "owner_only" && <span className="rp-hint">Only the shop's owner can try a practice order.</span>}
+          {practiceError && <span role="alert" className="rp-hint" style={{ color: "var(--rp-danger)" }}>{practiceError}</span>}
+        </div>
+      )}
       <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }} aria-label="Test sale steps">
         {steps.map((st, i) => (
           <li key={st.id} style={{ display: "flex", flexWrap: "wrap", gap: "8px 12px", alignItems: "flex-start", padding: "10px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
             <span className="rp-todo-mark" data-done={st.done || undefined} aria-label={st.done ? "Done" : "To do"} role="img">{st.done ? "✓" : ""}</span>
             <span style={{ flex: "1 1 220px", minWidth: 0 }}><strong style={st.done ? { color: "var(--rp-text-muted)" } : undefined}>{st.label}</strong><span className="rp-hint" style={{ display: "block" }}>{st.howTo}</span></span>
-            {!st.done && <button type="button" className="rp-wb-a" onClick={() => go(st.link, st.id)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</button>}
+            {/* The practice step's button sits above the list. */}
+            {!st.done && st.link !== "practice" && <button type="button" className="rp-wb-a" onClick={() => go(st.link, st.id)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</button>}
           </li>
         ))}
       </ol>

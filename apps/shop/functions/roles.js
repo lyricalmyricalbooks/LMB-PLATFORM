@@ -4,10 +4,13 @@
 // before anyone is added, and nobody can lock the owner out by editing the list.
 // "author" is a Team role for the stockroom only: its rules let an author read the settings their own books need, and
 // which books stays in the stockroom's per-book list. It never opens this admin (adminRole answers owner or staff only).
+// "bookkeeper" (plan 7.17) reads the money only: the admin's Bookkeeping page (orders, sales, tax collected and payout
+// status) and the stockroom's tax centre copy. The rules let it read and never write; on the server it passes only
+// requireBooksReader, never requireAdmin.
 const { shopConfig } = require("./shopConfig");
 
 const OWNER_EMAILS = [shopConfig.ownerEmail];
-const ROLES = ["owner", "staff", "author"];
+const ROLES = ["owner", "staff", "author", "bookkeeper"];
 const ADMIN_ROLES = ["owner", "staff"];
 
 const normEmail = v => String(v || "").trim().toLowerCase();
@@ -33,6 +36,12 @@ function adminRole(token) {
   if (!token || token.email_verified !== true) return null;
   if (OWNER_EMAILS.includes(normEmail(token.email))) return "owner";
   return ADMIN_ROLES.includes(token.role) ? token.role : null;
+}
+
+/** "admin" for owner, staff and support, "bookkeeper" for the bookkeeper role, else null: who may read the books. */
+function booksReader(token) {
+  if (adminRole(token)) return "admin";
+  return token?.email_verified === true && token.role === "bookkeeper" ? "bookkeeper" : null;
 }
 
 /** Checks one Team entry an owner writes. */
@@ -73,4 +82,4 @@ async function syncMemberRole({ auth, db, email }) {
   return { status: "updated", role };
 }
 
-module.exports = { OWNER_EMAILS, ROLES, ADMIN_ROLES, adminRole, supportOf, memberId, memberProblem, syncMemberRole };
+module.exports = { OWNER_EMAILS, ROLES, ADMIN_ROLES, adminRole, booksReader, supportOf, memberId, memberProblem, syncMemberRole };

@@ -3,7 +3,8 @@
 // stockroom against them, and prints what to open. Ctrl+C stops everything; what you changed is kept for next time
 // (`npm run demo -- --fresh` starts again from the starter catalogue).
 //
-// Options: --fresh (forget the saved demo data first), --no-functions (leave the shop's server code out).
+// Options: --fresh (forget the saved demo data first), --no-functions (leave the shop's server code out),
+// --sample-press <public host> (the sample press on a server: read-only, no server code, fresh every night; hosted.js).
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -13,6 +14,9 @@ import {
   profileScript, shopProfile, stockroomProfile, url, viteEnv,
 } from "./config.js";
 import { seedDemo } from "./seed.js";
+import { INTERNAL_PORTS, msUntilReset, RESET_HOUR, sampleEmulatorConfig, sampleProfileScript, sampleRules, sampleViteEnv } from "./hosted.js";
+import { startGate } from "./gate.js";
+import { resetSamplePress } from "./reset.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const WORK = join(ROOT, ".demo");
@@ -55,14 +59,16 @@ function ensurePackages(withFunctions) {
   }
 }
 
-function writeWorkFiles(withFunctions) {
+function writeWorkFiles(withFunctions, sample = false) {
   mkdirSync(WORK, { recursive: true });
   const read = (path) => readFileSync(join(ROOT, path), "utf8");
-  for (const { file, text } of demoRules(read)) writeFileSync(join(WORK, file), text);
-  writeFileSync(join(WORK, "firebase.json"), `${JSON.stringify(emulatorConfig({ functionsSource: withFunctions ? "../apps/shop/functions" : null }), null, 2)}\n`);
+  for (const { file, text } of (sample ? sampleRules : demoRules)(read)) writeFileSync(join(WORK, file), text);
+  const config = sample ? sampleEmulatorConfig() : emulatorConfig({ functionsSource: withFunctions ? "../apps/shop/functions" : null });
+  writeFileSync(join(WORK, "firebase.json"), `${JSON.stringify(config, null, 2)}\n`);
   writeFileSync(join(WORK, ".firebaserc"), `${JSON.stringify(firebaseRc(), null, 2)}\n`);
-  writeFileSync(join(WORK, "shop-profile.js"), profileScript(shopProfile()));
-  writeFileSync(join(WORK, "stockroom-profile.js"), profileScript(stockroomProfile()));
+  const script = sample ? sampleProfileScript : profileScript;
+  writeFileSync(join(WORK, "shop-profile.js"), script(shopProfile()));
+  writeFileSync(join(WORK, "stockroom-profile.js"), script(stockroomProfile()));
 }
 
 // On Windows, Ctrl+C reaches every program in the window, so each one stops itself. Elsewhere each piece runs in its
@@ -75,9 +81,9 @@ function start(name, command, args, options) {
   return child;
 }
 
-async function hubSays() {
+async function hubSays(port = PORTS.hub) {
   try {
-    const response = await fetch(url(PORTS.hub, "/emulators"));
+    const response = await fetch(url(port, "/emulators"));
     return response.ok ? await response.json() : null;
   } catch {
     return null;
@@ -85,10 +91,13 @@ async function hubSays() {
 }
 
 /** Starts the emulators and waits until every one answers. Resolves false when they stop first. */
-function startEmulators(withFunctions) {
+function startEmulators(withFunctions, sample = false) {
   const args = ["-y", FIREBASE_TOOLS, "emulators:start", "--project", DEMO_PROJECT, "--config", "firebase.json"];
-  if (existsSync(DATA)) args.push("--import", "data");
-  args.push("--export-on-exit", "data");
+  // The sample press keeps nothing: it starts from the seed and is reset every night.
+  if (!sample) {
+    if (existsSync(DATA)) args.push("--import", "data");
+    args.push("--export-on-exit", "data");
+  }
   const log = [];
   // No Google sign-in is needed or looked for: the emulators never call Google for a demo- project.
   const child = start("emulators", "npx", args, { cwd: WORK, shell: WINDOWS, env: { ...process.env, METADATA_SERVER_DETECTION: "none" } });
@@ -111,7 +120,7 @@ function startEmulators(withFunctions) {
     const deadline = Date.now() + 4 * 60_000;
     const poll = async () => {
       if (done) return;
-      const running = await hubSays();
+      const running = await hubSays(sample ? INTERNAL_PORTS.hub : PORTS.hub);
       const ready = running && needed.every((name) => running[name]) && log.join("").includes("All emulators ready");
       if (ready) {
         done = true;
@@ -203,8 +212,67 @@ function printWelcome(withFunctions) {
   say("starter books each time); `npm run demo -- --fresh` starts the shop over too.");
 }
 
+// The sample press's apps, built once for its public host with each app's own Vite.
+function buildSampleApps(publicHost) {
+  const env = { ...process.env, ...sampleViteEnv(publicHost) };
+  const apps = {};
+  for (const [name, folder] of [["shop", "apps/shop"], ["stockroom", "apps/stockroom"]]) {
+    const outDir = join(WORK, "sample", name);
+    say(`Building the ${name} for ${publicHost}…`);
+    const vite = join(ROOT, folder, "node_modules", "vite", "bin", "vite.js");
+    const result = spawnSync(process.execPath, [vite, "build", "--outDir", outDir, "--emptyOutDir"], { cwd: join(ROOT, folder), env, stdio: "inherit" });
+    if (result.status !== 0) stopWith(`Building the ${name} failed.`);
+    apps[name] = { root: outDir, profile: readFileSync(join(WORK, `${name}-profile.js`), "utf8") };
+  }
+  return apps;
+}
+
+function resetEveryNight() {
+  setTimeout(async () => {
+    try {
+      const seeded = await resetSamplePress({ fetch });
+      say(`${new Date().toISOString()} The sample press starts fresh (${seeded.created.length} shop documents seeded).`);
+    } catch (error) {
+      console.error(`${new Date().toISOString()} The nightly reset failed: ${error?.message ?? error}`);
+    }
+    resetEveryNight();
+  }, msUntilReset()).unref?.();
+}
+
+async function sampleMain(publicHost) {
+  say(`Starting the sample press for ${publicHost} (read-only, no server code, fresh every night)…`);
+  sampleViteEnv(publicHost);
+  checkTools();
+  ensurePackages(false);
+  if (await hubSays(INTERNAL_PORTS.hub)) stopWith("The sample press's emulators are already running. Stop that one first.");
+  process.on("SIGINT", () => stopAll(0, { byCtrlC: true }));
+  process.on("SIGTERM", () => stopAll(0));
+  writeWorkFiles(false, true);
+  const emulators = await startEmulators(false, true);
+  if (!emulators.ok) {
+    stopAll(1);
+    stopWith(`The Firebase emulators didn't start. The end of their log (.demo/emulators.log):\n${(emulators.log ?? "").slice(-1500)}`);
+  }
+  emulators.child.on("exit", () => {
+    if (!stopping) {
+      console.error("The Firebase emulators stopped; stopping the sample press.");
+      stopAll(1);
+    }
+  });
+  await resetSamplePress({ fetch });
+  const apps = buildSampleApps(publicHost);
+  startGate({ apps, log: (line) => say(line) });
+  resetEveryNight();
+  say("");
+  say(`The sample press is open at http://${publicHost}:${PORTS.shop}/ (stockroom: http://${publicHost}:${PORTS.stockroom}/).`);
+  say(`Visitors can look at everything and save nothing. It starts fresh every night at ${RESET_HOUR}:00 server time.`);
+  say("No email can be sent and no payment taken: the shop's server code is not running.");
+}
+
 async function main() {
   const argv = process.argv.slice(2);
+  const sampleAt = argv.indexOf("--sample-press");
+  if (sampleAt >= 0) return sampleMain(argv[sampleAt + 1]);
   let withFunctions = !argv.includes("--no-functions");
   say("Starting the demo shop (project demo-colophon-test, local only)…");
   checkTools();

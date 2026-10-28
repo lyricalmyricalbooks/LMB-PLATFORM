@@ -10,6 +10,10 @@ made-up project `demo-colophon-test`. The plain-words guide for the owner is [do
 | `seed.js` | Fills the emulators: the test catalogue (`setup/test-catalogue.js`) with covers, the settings, the Team entry, the stockroom's books, and the demo owner with the `owner` role. Safe to run again. |
 | `serve.js` | Starts one app's own Vite with the demo profile at `/shop-profile.js`. |
 | `photos.js` | The placeholder covers. |
+| `hosted.js` | The sample press (`npm run demo -- --sample-press <host>`): read-only rules, no server code, the notice bar, what the gate refuses, the nightly reset time. |
+| `gate.js` | The sample press's only public door: serves the built apps and passes requests to the emulators, refusing their back doors. |
+| `reset.js` | The sample press's nightly fresh start: clears everything and seeds again. `node demo/reset.js` runs it once. |
+| `fakeEmulators.js` | The pretend emulators the tests use. |
 
-Plain Node 22 ES modules with no packages of their own. Tests: `demo/demo.test.js` (root `npm test`). They use a
+Plain Node 22 ES modules with no packages of their own. Tests: `demo/demo.test.js` and `demo/sample-press.test.js` (root `npm test`). They use a
 pretend emulator, so they never start the real one.

@@ -56,6 +56,7 @@
     <button class="wide" type="submit">Join the waitlist</button>
     <p id="status" class="wide" role="status" aria-live="polite"></p>
   </form>
+  <p id="sample-press" hidden>Want to look around first? <a href="">Try a sample press</a>. Nothing you do there is saved.</p>
 
   <div class="grid">
     <div class="card"><h2>A shop that looks like you</h2><p>Themes made for presses: photobooks, zines, poetry, art books. Change every word and colour yourself.</p></div>
@@ -69,7 +70,12 @@
 <script type="module">
   import { handleSignup } from "./signup.js";
   import { firestoreStore } from "./firestoreStore.js";
-  import { WAITLIST_FIREBASE } from "./config.js";
+  import { SAMPLE_PRESS_URL, WAITLIST_FIREBASE } from "./config.js";
+
+  if (SAMPLE_PRESS_URL) {
+    document.querySelector("#sample-press a").href = SAMPLE_PRESS_URL;
+    document.getElementById("sample-press").hidden = false;
+  }
 
   const store = WAITLIST_FIREBASE.projectId ? firestoreStore(WAITLIST_FIREBASE) : null;
   const form = document.getElementById("waitlist");

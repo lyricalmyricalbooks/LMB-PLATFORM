@@ -25,7 +25,38 @@ another.
 - `http.js`: the shop door. `X-Shop-Id` plus `Authorization: Bearer <shop service key>`; the registry keeps only the
   key's SHA-256 (`serviceKeyHash`). At most 2,000 emails per shop a day. Setup step 8 gives each shop its key
   (`setup/serviceKey.js`: the Functions secret `PLATFORM_SERVICE_KEY` in the shop's project).
-- `fakes.js`: in-memory sent log and pretend Resend for tests.
+- `streams.js`: the two streams and each shop's own sender address (below).
+- `reputation.js`: the newsletter pause (below).
+- `webhook.js`: the door for Resend's delivery events, signed the Svix way (`svix-id`, `svix-timestamp`,
+  `svix-signature`; HMAC-SHA256 of `<id>.<timestamp>.<raw body>` with the base64 part of `whsec_…`), refused when
+  unsigned, wrongly signed or over five minutes old. The secret is `RESEND_WEBHOOK_SECRET`.
+- `fakes.js`: in-memory sent log, pretend Resend and the reputation store for tests.
+
+## Email reputation (plan 8.3)
+
+One shop's newsletter must never put the other shops' receipts in spam.
+
+- **Two streams.** Every email is tagged `stream: orders` (receipts, order and shipping notices, sign-in, billing:
+  what a person is waiting for) or `stream: newsletter` (newsletters, campaigns, back in stock, review requests,
+  abandoned-cart reminders), by its kind (`streamOf`). Resend's advice is a subdomain per purpose, so a bad reputation
+  stays on that subdomain, and one tag per sender on a shared account, because tags come back in its events.
+- **Each shop's own address.** With `SHOP_SENDER_ADDRESSES=on`, a shop's email comes from `<shop id>@mail.<domain>`
+  (orders) or `<shop id>@news.<domain>` (newsletter); `PLATFORM_ORDERS_EMAIL_DOMAIN` and
+  `PLATFORM_NEWSLETTER_EMAIL_DOMAIN` change the subdomains. Off by default: everything comes from
+  `notifications@<domain>`, as before. The platform's own email always does.
+- **The pause.** `email.complained` and permanent `email.bounced` events for a shop's newsletter stream are counted over
+  7 days. More than 0.3% complaints (and at least 2), or more than 4% hard bounces (and at least 5), pauses that shop's
+  newsletter: further newsletter emails are refused (the shop door answers 422, no retry), the owner gets one plain
+  email (`newsletter-paused`), and the repair queue gets a `newsletter-reputation` item. Receipts and every other
+  orders-stream email keep going. A platform admin presses **Turn the newsletter back on** on that item in the control
+  room (logged, with a reason); only problems after that count.
+
+### Switched on by Julian
+
+1. Choose the sending domain, then add `mail.<domain>` and `news.<domain>` in Resend and publish their DNS records.
+2. Add a webhook in Resend for `email.bounced` and `email.complained`, pointing at this service's event door; put its
+   signing secret in `RESEND_WEBHOOK_SECRET`.
+3. Set `SHOP_SENDER_ADDRESSES=on`.
 
 ## Settings
 
@@ -37,4 +68,6 @@ real one), `PLATFORM_SENDER_EMAIL` (default `notifications@<domain>`), `PLATFORM
 ## Not yet
 
 - Hosting: the handler and service run nowhere yet. They become one function in the platform project.
-- The sent log's Firestore store (`emailSent/<key>` in the platform project).
+- The sent log's Firestore store (`emailSent/<key>` in the platform project), and the reputation store
+  (`emailReputation/<shop id>` with its events).
+- Hosting the event door (`webhook.js`).

@@ -79,6 +79,25 @@ test("an author goes to the stockroom, never to the admin", async () => {
   assert.equal(url, `https://${SHOP}-stockroom.web.app`);
 });
 
+test("a bookkeeper is invited like any role, goes to the admin (its Bookkeeping page) and is told what they'll see", async () => {
+  const w = world();
+  assert.ok(ROLES.includes("bookkeeper"));
+  const sent = await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: CAL.email, role: "bookkeeper" });
+  assert.equal(sent.status, 200);
+  assert.match(w.email.list().at(-1).data.roleWords, /bookkeeper.*without changing anything/);
+  await w.accounts.accept(CAL, w.secretOf(CAL.email));
+  assert.equal(w.shopData.docs.get(`${SHOP} members/${CAL.email}`).role, "bookkeeper");
+  assert.deepEqual(await w.accounts.switchTo(CAL, SHOP), { shopId: SHOP, role: "bookkeeper", url: `https://${SHOP}.example/admin` });
+  // Only an owner manages the team: a bookkeeper can't invite or see it.
+  assert.equal((await w.ask(CAL, "POST", "/api/accounts/team", { shopId: SHOP })).status, 403);
+  assert.equal((await w.ask(CAL, "POST", "/api/accounts/invite", { shopId: SHOP, email: "dee@example.com", role: "bookkeeper" })).status, 403);
+  // Changing someone to bookkeeper rewrites the shop's own list.
+  await w.accounts.invite(OWNER, { shopId: SHOP, email: BEA.email, role: "staff" });
+  await w.accounts.accept(BEA, w.secretOf(BEA.email));
+  assert.equal((await w.ask(OWNER, "POST", "/api/accounts/role", { shopId: SHOP, email: BEA.email, role: "bookkeeper" })).status, 200);
+  assert.equal(w.shopData.docs.get(`${SHOP} members/${BEA.email}`).role, "bookkeeper");
+});
+
 test("an owner invites by email with a role; accepting writes the shop's own team list and logs it", async () => {
   const w = world();
   const sent = await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: " Cal@Example.com ", role: "staff" });
@@ -176,7 +195,7 @@ test("roles change and people leave, but a shop always keeps an owner", async ()
   assert.deepEqual((await w.accounts.myShops(OWNER)).shops, [], "the account's old list of shops gives no role");
   const logged = [...w.registry.events.get(SHOP).values()].map((e) => e.what);
   assert.deepEqual(logged.slice(-3), ["role-changed", "role-changed", "member-removed"]);
-  assert.deepEqual(ROLES, ["owner", "staff", "author"]);
+  assert.deepEqual(ROLES, ["owner", "staff", "author", "bookkeeper"]);
 });
 
 test("the team list shows the shop's sign-up owner, members and open invites", async () => {

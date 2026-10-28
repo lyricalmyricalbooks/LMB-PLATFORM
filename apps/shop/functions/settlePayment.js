@@ -8,11 +8,17 @@ const { chargedRedemptions, readGiftCards, debitShortfall, writeGiftCardChange }
 const { discountUsedUp } = require("./paymentGuards");
 const { releaseStockForOrder } = require("./stockHolds");
 
-// A sandbox (test-card) order whose payment took the books out of stock. That happens only on the platform's test
-// shop (shopConfig.testShop, plan 1.31b), so its release check can see stock drop and come back on refund. On every
-// other shop a sandbox payment never touches stock, so this is always false there.
+// Does a sandbox (test-card) payment on this order take stock like a live one? Only on the platform's test shop
+// (shopConfig.testShop, plan 1.31b), so its release check can see stock drop and come back on refund, and for a
+// practice order (practiceCheckout.js, plan 7.6), so the owner sees the same. Everywhere else a sandbox payment never
+// touches stock.
+function sandboxTakesStock(order, testShop) {
+  return testShop === true || order?.practiceOrder === true;
+}
+
+// A sandbox order whose payment took the books out of stock (sandboxTakesStock); false for every other sandbox order.
 function sandboxStockTaken(order, testShop) {
-  return testShop === true && order?.sandboxPayment === true && order?.inventoryDecrementedAt != null;
+  return sandboxTakesStock(order, testShop) && order?.sandboxPayment === true && order?.inventoryDecrementedAt != null;
 }
 
 // testShop: true only on the platform's test shop; its sandbox payments take stock like live ones (nothing else changes:
@@ -40,8 +46,8 @@ function createSettlement({ db, increment, testShop = false }) {
   // provider: the name shown in the order's activity ("Stripe", "PayPal", "Checkout").
   // message:  the activity line for the payment.
   // receipt:  the provider's ids, written with the paid status (and kept when a gift card falls short).
-  // sandbox:  order => true for a test-mode payment: a paid test order that touches nothing real (on the test shop it
-  //           takes stock, see createSettlement).
+  // sandbox:  order => true for a test-mode payment: a paid test order that touches nothing real (on the test shop and
+  //           for a practice order it takes stock, see sandboxTakesStock).
   // verify:   order => null to go ahead, or { reason, update? } to stop (written as is). Runs first,
   //           inside the transaction, so it also decides what a repeat on a paid order does.
   // Returns { paid: true } or { paid: false, reason: "missing" | "already-paid" | "gift-card-short" | <verify's reason> }.
@@ -66,7 +72,7 @@ function createSettlement({ db, increment, testShop = false }) {
       // Firestore transactions require all reads before any write.
       const test = !!sandbox(order);
       const items = order.items || [];
-      const takeStock = (!test || testShop === true) && order.inventoryDecrementedAt == null;
+      const takeStock = (!test || sandboxTakesStock(order, testShop)) && order.inventoryDecrementedAt == null;
       const books = takeStock ? await readBooks(transaction, db, items) : new Map();
       const discountRef = !test && order.appliedDiscount?.id && order.discountUsageCountedAt == null
         ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
@@ -123,4 +129,4 @@ function createSettlement({ db, increment, testShop = false }) {
   return { settlePayment };
 }
 
-module.exports = { createSettlement, sandboxStockTaken };
+module.exports = { createSettlement, sandboxStockTaken, sandboxTakesStock };
