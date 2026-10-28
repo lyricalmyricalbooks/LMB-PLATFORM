@@ -24,6 +24,8 @@ A check that can't be made ("couldn't check: …") counts as failing. Every chec
   keeps failing, and one note when it recovers. An alert that couldn't be sent is sent on the next run, and so is a
   recovery note.
 
+After each run the checks job also saves the public status summary (`status/publish.js`), which the status page shows.
+
 ## Every night (`nightly.js`)
 
 Each shop backs up its own database every night (its own nightly backup function). The platform adds:

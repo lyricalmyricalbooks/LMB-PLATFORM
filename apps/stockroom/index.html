@@ -1337,14 +1337,17 @@
       <div class="web-orders-copy">
         <div class="eyebrow">From order to inventory</div>
         <h2>Orders</h2>
-        <p>Review your Big Cartel receipts, then record new orders in your inventory.</p>
-        <div class="web-order-steps" aria-label="Website order workflow">
+        <!-- Plan 1.17: the Gmail order scan is one press's one-off, behind the gmailOrderScan switch
+             (applyGmailOrderScanSwitch in src/main.js). Off, orders reach this screen only through the website link. -->
+        <p data-no-gmail-order-scan>Orders from your website arrive here by themselves and come off your stock as they are paid.</p>
+        <p data-gmail-order-scan hidden>Review your Big Cartel receipts, then record new orders in your inventory.</p>
+        <div class="web-order-steps" aria-label="Website order workflow" data-gmail-order-scan hidden>
           <span><b>1</b> Scan Gmail</span>
           <span><b>2</b> Review matches</span>
           <span><b>3</b> Apply stock</span>
         </div>
       </div>
-      <div class="web-orders-actions">
+      <div class="web-orders-actions" data-gmail-order-scan hidden>
         <label class="recon-toggle" title="Show orders that are already applied or cancelled" style="margin-right: 8px;">
           <input type="checkbox" id="show-all-orders-chk" onchange="renderOrders()"> Show applied/hidden
         </label>
@@ -1365,14 +1368,14 @@
       <span id="web-bc-gap-strip-text">Some Big Cartel orders are not in your ledger.</span>
       <button class="btn sm" type="button" onclick="switchTab('bigcartel')">Review them</button>
     </div>
-    <div class="web-orders-status sys-container" id="web-orders-status" aria-label="Order scan status">
+    <div class="web-orders-status sys-container" id="web-orders-status" aria-label="Order scan status" data-gmail-order-scan hidden>
       <div class="web-stat web-stat-live"><span class="web-stat-label">Ready to apply</span><strong class="web-stat-value">0</strong><span class="web-stat-sub">Nothing waiting on you</span></div>
       <div class="web-stat web-stat-live"><span class="web-stat-label">Already applied</span><strong class="web-stat-value">0</strong><span class="web-stat-sub">None recorded from this scan</span></div>
       <div class="web-stat web-stat-live"><span class="web-stat-label">Last Gmail scan</span><strong class="web-stat-value">Never</strong><span class="web-stat-sub">Press Scan Gmail to check</span></div>
     </div>
-    <div id="orders-list" class="orders-list"><div class="empty-state web-empty"><div class="e-icon">📬</div><strong>Ready to scan for new orders</strong><span>Press “Scan Gmail” at the top of this screen to pull in recent Big Cartel receipts for this book.</span></div></div>
-    <button class="btn gold apply-all-cta" id="apply-all-btn" onclick="applyAll()" disabled aria-describedby="apply-all-hint">Apply all new orders</button>
-    <p class="apply-all-hint" id="apply-all-hint">Scan Gmail first to find new orders.</p>
+    <div id="orders-list" class="orders-list" data-gmail-order-scan hidden><div class="empty-state web-empty"><div class="e-icon">📬</div><strong>Ready to scan for new orders</strong><span>Press “Scan Gmail” at the top of this screen to pull in recent Big Cartel receipts for this book.</span></div></div>
+    <button class="btn gold apply-all-cta" id="apply-all-btn" onclick="applyAll()" disabled aria-describedby="apply-all-hint" data-gmail-order-scan hidden>Apply all new orders</button>
+    <p class="apply-all-hint" id="apply-all-hint" data-gmail-order-scan hidden>Scan Gmail first to find new orders.</p>
     <div class="log-console" id="log-web"></div>
   </div>
 </div>

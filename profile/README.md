@@ -3,7 +3,7 @@
 The one written format the shop and the stockroom agree on. Everything that differs between shops and is safe to be
 public: Firebase web settings, functions region, the shop's address, the bot-protection site key, which apps are on,
 and the `switches` for features one press needed once (`legacyStockroomSignIn`, `githubPagesForwarding`,
-`gmailReceiptFinder`; optional, on only when `true`; setup writes all three as `false`), and `payments`: the provider,
+`gmailReceiptFinder`, `gmailOrderScan`; optional, on only when `true`; setup writes all four as `false`), and `payments`: the provider,
 `own` or `platform` mode, and the public ids the card form needs (for Stripe through the platform: the press's
 connected account and the platform's publishable keys). Setup writes `payments` at step 13, once the account exists.
 
