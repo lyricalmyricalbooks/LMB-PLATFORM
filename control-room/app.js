@@ -42,6 +42,19 @@ const SWITCH_WORDS = {
 
 async function load() {
   status.textContent = "Loading…";
+  // The backup person (plan 8.7) sees only the run book; a platform admin sees it below everything else.
+  let role = null;
+  try {
+    role = (await loadEmergency()).role;
+  } catch {
+    // Neither an admin nor the backup person: the shops call below says so.
+  }
+  if (role === "backup") {
+    status.textContent = "";
+    $("#view-signin").hidden = true;
+    $("#view-shops").hidden = true;
+    return;
+  }
   try {
     const { shops } = await api("GET", "/control/shops");
     const problems = shops.filter((s) => s.health.level === "problem").length;
@@ -409,9 +422,65 @@ function breachCard(entry) {
     actions.childElementCount ? actions : null);
 }
 
+// ── The run book (control-room/backupPerson.js, plan 8.7): pause releases, roll back a shop, a status note. ──
+async function loadEmergency() {
+  const state = await api("GET", "/control/emergency");
+  const run = (label, path, body, done) => {
+    const button = el("button", { type: "button", textContent: label });
+    button.addEventListener("click", async () => {
+      const extra = body();
+      if (!extra) return;
+      button.disabled = true;
+      try {
+        await api("POST", path, extra);
+        status.textContent = done;
+        await loadEmergency();
+      } catch (failure) {
+        status.textContent = failure.message;
+        button.disabled = false;
+      }
+    });
+    return button;
+  };
+  const reason = (what) => {
+    const why = (window.prompt(`${what}\n\nWhy? Julian is told (at least 10 characters).`) ?? "").trim();
+    return why ? { reason: why } : null;
+  };
+  const sealed = state.role === "backup" && !state.seal;
+  const parts = [];
+  if (state.role === "backup") {
+    parts.push(el("p", { className: "hint", textContent: state.seal ? `Open until ${new Date(state.seal.until).toLocaleString()}. Every use is emailed to Julian.` : "Shut. Open it only in an emergency." }));
+    if (sealed) parts.push(el("div", { className: "row" }, run("Open the emergency access", "/control/emergency/open", () => reason("Open the emergency access for 12 hours."), "Open. Julian has been emailed.")));
+  }
+  if (!sealed) {
+    parts.push(el("div", { className: "row" },
+      el("strong", { textContent: state.releasesPaused ? `Releases paused by ${state.releasesPaused.by}: ${state.releasesPaused.reason}` : "Releases are running normally." }),
+      state.releasesPaused
+        ? run("Resume releases", "/control/emergency/resume-releases", () => reason("Let releases go out again."), "Releases can go out again.")
+        : run("Pause releases", "/control/emergency/pause-releases", () => reason("Stop every release; one already running stops before its next shop."), "Releases are paused.")));
+    const shopId = el("input", { placeholder: "shop id" });
+    shopId.setAttribute("aria-label", "Shop to roll back");
+    const version = el("input", { placeholder: "release, like 1.4.0" });
+    version.setAttribute("aria-label", "Release to go back to");
+    parts.push(el("div", { className: "row" }, shopId, version,
+      run("Roll this shop back", "/control/emergency/roll-back", () => {
+        const why = reason(`Put ${shopId.value} back on release ${version.value}.`);
+        return why ? { ...why, shopId: shopId.value.trim(), version: version.value.trim() } : null;
+      }, "Rolled back. It's in the shop's history.")));
+    const note = el("textarea", { maxLength: 500, value: state.statusNote?.text ?? "" });
+    note.setAttribute("aria-label", "Note on the status page");
+    parts.push(note, el("div", { className: "row" },
+      run("Post on the status page", "/control/emergency/status-note", () => ({ text: note.value }), "The status page shows the note."),
+      run("Take the note down", "/control/emergency/status-note", () => ({ text: "" }), "The note is down.")));
+  }
+  $("#emergency").replaceChildren(...parts);
+  $("#view-emergency").hidden = false;
+  return state;
+}
+
 $("#google").addEventListener("click", () => signInWithPopup(auth, new GoogleAuthProvider()).catch(() => { status.textContent = "Sign-in didn't finish."; }));
 $("#refresh").addEventListener("click", load);
 onAuthStateChanged(auth, (user) => {
   if (user) load();
-  else { $("#view-signin").hidden = false; $("#view-shops").hidden = true; }
+  else { $("#view-signin").hidden = false; $("#view-shops").hidden = true; $("#view-emergency").hidden = true; }
 });

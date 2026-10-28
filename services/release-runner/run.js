@@ -12,9 +12,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { gcloudToken, realRun as realReleaseCheck } from "../../release-check/run.js";
-import { realSetupClients } from "../../setup/real.js";
+import { PLATFORM_PROJECT, realSetupClients } from "../../setup/real.js";
 import { releaseBuilder } from "./builder.js";
 import { runRelease } from "./runner.js";
+import { firestoreClient } from "../../clients/firestore.js";
+import { firestorePlatformState } from "../../clients/stores.js";
+import { releasesPaused } from "../../control-room/runbook.js";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -36,6 +39,8 @@ export async function realRelease({ version, dryRun = false, env = process.env, 
     profileFiles: clients.profileFiles, siteCheck: clients.siteCheck, projects: clients.google.projects,
     releaseCheck: (shopId, v) => realReleaseCheck({ shopId, env: { ...env, RELEASE_VERSION: v }, fetch, token, chromium, print }),
     config: { folder: env.RELEASE_FOLDER, exclude: (env.RELEASE_HOLD_BACK ?? "").split(",").filter(Boolean) },
+    // The run book's pause (control room, plan 8.7): a paused release doesn't start or stops before its next shop.
+    paused: () => releasesPaused(firestorePlatformState(firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT }))),
   });
 }
 

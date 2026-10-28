@@ -72,6 +72,19 @@ export function firestoreBreaches(firestore) {
   };
 }
 
+/**
+ * platformState/<name>: small platform-wide records the run book keeps (control-room/runbook.js): `releasePause`
+ * { paused, by, reason, at }, `statusNote` { text, by, at } and `backupSeal` { by, reason, openedAt, until }.
+ * emergencyLog/<id>: every use of the backup person's access (control-room/backupPerson.js), never deleted from here.
+ */
+export function firestorePlatformState(firestore) {
+  return {
+    get: (name) => firestore.get(`platformState/${name}`),
+    set: (name, value) => firestore.set(`platformState/${name}`, value),
+    log: (id, entry) => firestore.set(`emergencyLog/${id}`, entry),
+  };
+}
+
 /** devices/<accountId>: { known: { <hash>: { firstSeenAt, lastSeenAt, browser } } } (accounts/devices.js). */
 export function firestoreDevices(firestore) {
   return {

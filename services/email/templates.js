@@ -233,6 +233,26 @@ export const TEMPLATES = {
     });
   },
 
+  /**
+   * To Julian's own address (PLATFORM_ADMIN_EMAIL): the backup person opened their sealed access or used it
+   * (control-room/backupPerson.js, plan 8.7). `data`: { by, action, reason, detail, at, until }.
+   */
+  "backup-access-used": ({ by, action, reason, detail, at, until }, { settings }) => {
+    if (!by || !action) throw new Error("the backup access email needs who and what");
+    return layout({
+      subject: `${settings.platformName} backup access: ${by} ${action}`,
+      greeting: "",
+      paragraphs: [
+        `${by} ${action} at ${at} (UTC).`,
+        ...(reason ? [`Why: ${reason}`] : []),
+        ...(detail && detail !== reason ? [detail] : []),
+        ...(until ? [`The access stays open until ${until} (UTC).`] : []),
+        "Every use is in the emergency log. If you didn't expect this, open the control room and look at once.",
+      ],
+      footer: `${settings.platformName} control room`,
+    });
+  },
+
   "recovery-asked": ({ newEmail }, { settings }) => layout({
     subject: `Someone asked to move your ${settings.platformName} account`,
     greeting: "Hello,",

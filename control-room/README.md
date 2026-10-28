@@ -1,6 +1,7 @@
 # Control room
 
-The platform's own admin (code plan 2.8). Platform admins only: a confirmed email on `PLATFORM_ADMIN_EMAILS`
+The platform's own admin (code plan 2.8; closing a shop, emergency payments, the breach register and the backup person
+are plan 8.4 to 8.7). Platform admins only: a confirmed email on `PLATFORM_ADMIN_EMAILS`
 (comma-separated). The list is empty unless it is set, so nobody is an admin by accident.
 
 ## The page (`index.html`, `app.js`)
@@ -18,6 +19,16 @@ Plain HTML and browser JavaScript, like the sign-up page; sign in with Google.
   - If the log can't be written, there is no sign-in.
 - **Switches** (`setup/steps.js` `SWITCHES`): a box for each. It asks why, then changes the switch the same way as the
   command below.
+
+- **Close this shop** (plan 8.4, `closure.js`): for abuse. It asks why, logs it, then turns on the shop's own pause
+  (`settings/website` `maintenance`: the pause page with the press's own words, and checkout closed on the shop's
+  server) and records `closure` on the registry row, where the platform payment service refuses the shop. A self-check
+  turns the pause back on if the press turns it off. **Open this shop again** puts the pause back as it was.
+- **Card payments** (plan 8.5, `emergencyPayments.js`): the emergency payments switch, per shop and for every live
+  shop at once, below the list. Only for when the platform's Stripe account is paused. See below.
+
+New trials can't take real money before Stripe has checked the press: the payment service refuses a live payment
+until the account's `charges_enabled` is true (`services/payments/service.js` `liveChargesAllowed`).
 
 ## The command line (`switch.js`)
 
@@ -125,10 +136,56 @@ needs the reason the person is sent. An approved request can be recorded as move
 with **I've moved it by hand** ticked: the steps are in `accounts/README.md`, "Recovery: applying". The calls are
 `POST /api/control/recovery`, `/approve`, `/deny` and `/apply` (`accounts/recoveryRoutes.js`).
 
+## Emergency payments (`emergencyPayments.js`, plan 8.5)
+
+`POST /api/control/payments` `{ shopId | all: true, to: "own" | "square" | "platform", reason }`. Off unless used.
+
+- **own**: the shop takes cards with the press's own Stripe keys (`SHOP_PAYMENT_MODE="own"`, the shop's own-key
+  path; the admin then shows the key fields under Settings › Payments).
+- **square**: cards through Square on the platform (the press connects Square from the same page).
+- **platform**: back to how it was before, from what the move saved (`paymentsEmergency.before`).
+
+Each move logs, saves `paymentsEmergency` on the registry row (and `payments` for Square, which the payment service
+routes by), rewrites the shop's server settings file and deploys its server code again at its release, writes the
+profile's `payments` and deploys its pages again, then emails the press (`payments-moved`) with what to do. Running it
+again finishes a move that stopped half-way and sends no second email. Every live shop at once skips a stockroom alone
+and a shop not on the platform's Stripe, and one shop's trouble doesn't stop the others.
+
+## Breach register (`breaches.js`, plan 8.6)
+
+Every privacy breach, whether or not it had to be reported: the day found, what happened, the shops and people
+affected, reported to the Privacy Commissioner yes/no, people told yes/no. Kept at least two years (`keepUntil`); there
+is no way to delete an entry from here or its store (`breaches/<id>`). Marks and notes only add to its history. Each
+affected shop's history and audit log name the entry, not its details. Calls: `POST /api/control/breaches`,
+`/breaches/record`, `/breaches/update`.
+
+The privacy contact shown with it is `PLATFORM_PRIVACY_CONTACT` (`people.js`), privacy@ the platform domain until
+Julian names one.
+
+## The backup person (`backupPerson.js`, `runbook.js`, plan 8.7)
+
+One named person, `PLATFORM_BACKUP_PERSON` (nobody by default), who can act when Julian can't be reached. They sign in
+to this page and see only the run book:
+
+- **pause releases** (`platformState/releasePause`; the release runner doesn't start, or stops before its next shop),
+  and resume them;
+- **roll back a shop** to an earlier release (`services/release-runner` `rollBackShop`, refused while a release runs);
+- **post a note** on the public status page, or take it down.
+
+The access is sealed: it opens for 12 hours only with a reason, and only after the email to Julian's address
+(`PLATFORM_ADMIN_EMAIL`) has gone; with no address set it stays shut. Every use is written to `emergencyLog/<id>` and
+emailed (`backup-access-used`). Platform admins see the same run book under their list and use it without a seal
+(logged, not emailed). Routes: `GET /api/control/emergency`, `POST /api/control/emergency/open`, `/pause-releases`,
+`/resume-releases`, `/roll-back`, `/status-note` (`emergencyRoutes`, added to the web door beside `controlRoutes`).
+
 ## Not yet
 
 - **Schedules:** the daily self-check sweep and the shop maker's sweep (Cloud Scheduler in the platform project).
 - **More callers:** the release runner and billing changes don't run the self-checks yet; the daily sweep covers them.
-- **Hosting** the page and the `/api` function.
+- **Hosting** the page and the `/api` function, with the clients the newer actions take: `shopData`, `envFiles`,
+  `deploy`, `build`, `email` and `squareAccount` for closing a shop and the payments switch, `breaches`
+  (`firestoreBreaches`), and `emergencyRoutes(createBackupAccess(...))` with `firestorePlatformState`.
+- **Julian's choices** (each is a setting): `PLATFORM_ADMIN_EMAIL`, `PLATFORM_BACKUP_PERSON` and
+  `PLATFORM_PRIVACY_CONTACT`.
 - **Permissions:** the platform's service account needs permission to manage each shop's users. It already has it as
   owner of the projects it makes.

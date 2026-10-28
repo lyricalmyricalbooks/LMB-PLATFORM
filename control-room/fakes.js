@@ -41,3 +41,16 @@ export function fakeBreachStore() {
     list: async () => structuredClone([...rows.values()]),
   };
 }
+
+/** The platform's small records and the emergency log, in memory (clients/stores.js `firestorePlatformState`). */
+export function fakePlatformState() {
+  const docs = new Map();
+  const log = new Map();
+  return {
+    docs,
+    entries: log,
+    get: async (name) => structuredClone(docs.get(name) ?? null),
+    set: async (name, value) => void docs.set(name, structuredClone(value)),
+    log: async (id, entry) => void log.set(id, structuredClone(entry)),
+  };
+}
