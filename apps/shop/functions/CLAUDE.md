@@ -826,6 +826,16 @@ platform shop: connect Square (or finish Stripe onboarding), the account's state
 now declares when that address is set. The service adds the address to `SHOP_EXTRA_ORIGINS` and redeploys the server
 code before Hosting serves it. In platform mode `payments.registerPaymentDomain` goes through the service
 (`account.paymentDomain`) instead of refusing.
+**Practice orders (28 October 2026, code plan 7.6).** `practiceCheckout.js` (action `practiceCheckout`, `step: "status" |
+"start" | "stop"`) lets the owner of a private platform shop (`shopPrivate`: maintenance on or the wall up) start one hour of
+practice; the flag is the server-only `systemStatus/practiceCheckout` (`{ uid, until }`). `handleStripeCheckout` asks
+`practiceFor(req)`: only the owner's own verified sign-in, while the flag runs and the shop is still private, gets settings
+with checkout open and test mode on for that request, so the payment goes through the service in test mode (Stripe or
+Square). The order gets `practiceOrder: true`, holds stock, and settles as a sandbox payment that takes stock and can be
+restocked on refund (`sandboxTakesStock` in settlePayment.js, as on the test shop). A checkout that expected practice
+(`body.practice` or an earlier practice attempt) gets 409 `practice_ended` rather than a live charge. Exports also skip
+unpaid practice orders. The storefront's hint (`src/app/lib/practiceHint.ts`) only lets the owner's browser past the
+store-status page; it decides nothing. Tested in `practiceCheckout.test.js` with a fake service for both providers.
 Known gaps: gift cards with a card payment are refused for Square shops; a payment link doesn't expire with the stock
 hold; admin and email wording still says "Stripe" in places.
 **Card fees and payouts (28 October 2026, code plan 7.10).** Every paid card order keeps `fee`, `net`, `platformFee`,

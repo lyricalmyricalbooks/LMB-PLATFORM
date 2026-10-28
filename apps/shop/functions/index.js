@@ -61,6 +61,7 @@ const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./a
 const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
+const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
 const { isPaymentId, isCheckoutId } = require("./payments/ids");
@@ -96,8 +97,9 @@ setGlobalOptions({ maxInstances: 10, region: require("./shopConfig").shopConfig.
 
 admin.initializeApp();
 const db = admin.firestore();
-// On the platform's test shop only (shopConfig.testShop), sandbox payments take stock and their refunds put it back.
-const { createSettlement, sandboxStockTaken } = require("./settlePayment");
+// On the platform's test shop (shopConfig.testShop) and for practice orders (plan 7.6), sandbox payments take stock and
+// their refunds put it back.
+const { createSettlement, sandboxStockTaken, sandboxTakesStock } = require("./settlePayment");
 const { recordOrderMoney, recordPayout } = require("./orderMoney");
 const { settlePayment } = createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n), testShop: require("./shopConfig").shopConfig.testShop });
 
@@ -1252,10 +1254,11 @@ async function reserveForConfirmedPayment(orderId, provider, paymentId) {
   const snap = await ref.get();
   if (!snap.exists) return true;
   const order = snap.data();
-  // A sandbox payment takes no stock, so it needs none, except on the platform's test shop (shopConfig.testShop), where
-  // it takes stock like a live one and so is checked like one: sold out after its hold lapsed = not marked paid.
+  // A sandbox payment takes no stock, so it needs none, except on the platform's test shop (shopConfig.testShop) and for
+  // a practice order (sandboxTakesStock), where it takes stock like a live one and so is checked like one: sold out
+  // after its hold lapsed = not marked paid.
   const sandbox = order.paypalMode === "test" || order.stripeMode === "test";
-  if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || (sandbox && !shopConfig.testShop)) return true;
+  if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || (sandbox && !sandboxTakesStock(order, shopConfig.testShop))) return true;
   try {
     await reserveStock(db, orderId, order.items || [], Date.now(), holdOwner(order));
     return true;
@@ -1506,6 +1509,9 @@ const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, h
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
 const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
 
+// Practice orders on a platform shop while it is private, for the owner only (practiceCheckout.js, plan 7.6).
+const { handlePracticeCheckout, practiceFor } = practiceCheckoutActions({ db, platform: payments.mode === "platform", requireAdmin, orderRequestIdentity });
+
 // Handler tests replace sendEmail after loading index.js; this keeps the moved handlers on the current one.
 const lateSendEmail = (...args) => sendEmail(...args);
 
@@ -1536,6 +1542,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   registerPaymentDomain: handleRegisterPaymentDomain,
   platformPayments: handlePlatformPayments,
   customDomains: handleCustomDomains,
+  practiceCheckout: handlePracticeCheckout,
   webhookHealth: handleWebhookHealth,
   giftCardAdmin: handleGiftCardAdmin,
   inventoryLink: handleInventoryLinkAdmin,
@@ -1557,7 +1564,7 @@ const { handleManualLocalOrder, handleUnsubscribe, handleCompleteFreeOrder, hand
   loadHoldLimits, normMarketingEmail, optOutId, orderRequestIdentity, orderRequestKey, priceOrder,
   PricingError, publicErrorMessage, readAdminSecret, recalculateOrder, refusePreviousAttemptPaid, releaseStock,
   releaseSupersededAttempt, reserveCheckout, reserveStock, serverGeoCountry, StockHoldError, payments,
-  stripeIntentKey, testShop: shopConfig.testShop, tokenMatches,
+  stripeIntentKey, testShop: shopConfig.testShop, tokenMatches, practiceFor,
 });
 
 // ──────────────────────────────────────────────────────────────
@@ -1625,8 +1632,8 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
     if (initialOrder.exists) {
       const initial = initialOrder.data();
       const amountCheck = paidAmountCheck(initial, session.amount_total, session.currency);
-      // Sandbox payments skip the stock check, except on the test shop (see reserveForConfirmedPayment).
-      if (amountCheck.ok && ((session.livemode !== false && initial.stripeMode !== "test") || shopConfig.testShop)
+      // Sandbox payments skip the stock check, except on the test shop and for practice orders (see reserveForConfirmedPayment).
+      if (amountCheck.ok && ((session.livemode !== false && initial.stripeMode !== "test") || sandboxTakesStock(initial, shopConfig.testShop))
           && initial.paymentStatus !== "paid" && initial.status !== "cancelled"
           && !await reserveForConfirmedPayment(orderId, "Stripe", typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id)) return false;
     }

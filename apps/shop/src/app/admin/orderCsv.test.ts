@@ -22,4 +22,16 @@ describe("orders CSV extras", () => {
   it("keeps quoted newlines inside one record", () => {
     expect(csvRecords('"a","b\nc"\n"d","e"')).toEqual(['"a","b\nc"', '"d","e"']);
   });
+  it("leaves practice and test orders out, paid or not (plan 7.6)", () => {
+    const csv = exportOrdersCsv([
+      { ...base, orderId: "LM-REAL" },
+      { ...base, orderId: "LM-PRACTICE-UNPAID", paymentStatus: "unpaid", practiceOrder: true },
+      { ...base, orderId: "LM-PRACTICE-PAID", practiceOrder: true, isTest: true, sandboxPayment: true },
+    ], { paidOnly: false });
+    const rows = csvRecords(csv);
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toContain('"LM-REAL"');
+    expect(csv).not.toContain("PRACTICE");
+  });
 });
+
