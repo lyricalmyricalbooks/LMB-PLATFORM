@@ -142,7 +142,7 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, feeDefaults = NO_FEE, admins, now = () => new Date(),
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, feeDefaults = NO_FEE, admins, now = () => new Date(),
 }) {
   const at = () => now().toISOString();
 
@@ -331,8 +331,29 @@ export function createControlRoom({
         lastChecks: checks.slice(-5).reverse(),
         health: shopHealth({ row, profile, checks, repairs: open }),
         closed: row.closure ?? null,
+        // Closing an unpaid or dropped shop (6.8): stage, dates and the warning emails sent.
+        closing: row.closing ?? null,
+        // Every Google step with its state (6.20, google/status.js); a failed read leaves the rest of the record.
+        google: googleSteps ? await googleSteps.googleStatus(shopId).catch(() => null) : null,
         history: activity ? await activity.list({ shopId, limit: 50 }) : [],
       };
+    },
+
+    /**
+     * Run again (6.20 on the shop record): one Google step of one shop, through google/status.js `runAgain`, which keeps
+     * its own rules (nothing deleted ahead of 6.8's dates). Logged before it runs.
+     */
+    async googleRunAgain(claims, { shopId, step } = {}) {
+      const by = adminOf(claims, admins);
+      await shopOr404(shopId);
+      if (!googleSteps) throw new ControlError(503, "The control room can't reach the Google steps right now.");
+      if (typeof step !== "string" || !step) throw new ControlError(400, "Choose a Google step to run again.");
+      await log(shopId, "google-run-again", { by, step });
+      try {
+        return { shopId, step, outcome: await googleSteps.runAgain(shopId, step) };
+      } catch (failure) {
+        throw new ControlError(409, failure.message);
+      }
     },
 
     /**
