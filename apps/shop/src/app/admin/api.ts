@@ -64,6 +64,7 @@ import {
 import { db, auth, googleProvider } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { currentAdminRole, ensureShopOwnerKnown, refreshAdminRole } from "./adminAccess";
+import { startSupportVisit, supportOf } from "./supportSession";
 import { publicApi } from "../lib/publicApi";
 import { defaultSettings } from "./defaultSettings";
 import { signIntoLegacyStockroom } from "./legacySignIn";
@@ -133,6 +134,11 @@ export const adminApi = {
   },
 
   logout: () => signOut(auth),
+
+  /** Platform support: signs in with a #support= link from the platform's control room (supportSession.ts). */
+  startSupportVisit: () => startSupportVisit(auth),
+  /** The support visit on the current sign-in, or null for everyone else. */
+  supportVisit: async () => supportOf((await auth.currentUser?.getIdTokenResult())?.claims),
 
   onAuthStateChange: (callback: (user: any) => void) => {
     return onAuthStateChanged(auth, callback);

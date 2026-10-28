@@ -49,3 +49,27 @@ export function firestoreSupport(firestore) {
     },
   };
 }
+
+/** devices/<accountId>: { known: { <hash>: { firstSeenAt, lastSeenAt, browser } } } (accounts/devices.js). */
+export function firestoreDevices(firestore) {
+  return {
+    get: (accountId) => firestore.get(`devices/${accountId}`),
+    set: (accountId, row) => firestore.set(`devices/${accountId}`, row),
+  };
+}
+
+/** recoveries/<id>: one account recovery request with its history (accounts/recovery.js). Equality filters only. */
+export function firestoreRecoveries(firestore) {
+  const rows = async (where) => (await firestore.query("recoveries", { where, limit: 200 })).map((row) => row.data);
+  const newestFirst = (a, b) => (a.askedAt < b.askedAt ? 1 : -1);
+  return {
+    get: (id) => firestore.get(`recoveries/${id}`),
+    put: (id, row) => firestore.set(`recoveries/${id}`, row),
+    list: ({ status }) => rows([["status", "==", status]]),
+    listByRequester: async (email) => (await rows([["requesterEmail", "==", email]])).sort(newestFirst),
+    listByOld: async (email) => (await rows([["oldEmail", "==", email]])).sort(newestFirst),
+    async countSince(email, since) {
+      return (await rows([["requesterEmail", "==", email]])).filter((r) => r.askedAt >= since).length;
+    },
+  };
+}
