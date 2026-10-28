@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
 import { releaseBuilder, tagOf } from "./builder.js";
 import { fakeFiles, fakeWorld } from "./fakes.js";
@@ -194,16 +195,17 @@ test("the builder builds a release's tag once and reuses it", async () => {
     exists: (path) => made.has(path),
     writeText: async (path) => void made.add(path),
   });
-  assert.equal(await builder.build("1.1.0"), "/builds/1.1.0");
+  const at = (path) => join("/builds", path); // backslashes on Windows
+  assert.equal(await builder.build("1.1.0"), at("1.1.0"));
   await builder.build("1.1.0");
   assert.equal(tagOf("1.1.0"), "release-1.1.0");
   assert.deepEqual(runs, [
-    "git worktree add --detach /builds/1.1.0 release-1.1.0 /repo",
-    "pnpm install --frozen-lockfile /builds/1.1.0/apps/shop",
-    "pnpm exec vite build /builds/1.1.0/apps/shop",
-    "npm ci /builds/1.1.0/apps/shop/functions",
-    "npm ci /builds/1.1.0/apps/stockroom",
-    "npm run build /builds/1.1.0/apps/stockroom",
+    `git worktree add --detach ${at("1.1.0")} release-1.1.0 /repo`,
+    `pnpm install --frozen-lockfile ${at("1.1.0/apps/shop")}`,
+    `pnpm exec vite build ${at("1.1.0/apps/shop")}`,
+    `npm ci ${at("1.1.0/apps/shop/functions")}`,
+    `npm ci ${at("1.1.0/apps/stockroom")}`,
+    `npm run build ${at("1.1.0/apps/stockroom")}`,
   ]);
 });
 

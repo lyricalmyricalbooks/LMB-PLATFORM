@@ -17,7 +17,8 @@ import { defaultSettings } from "../../admin/defaultSettings";
 
 const SRC = join(__dirname, "../../..");
 // Release notes describe history; tests may name anything. Everything else must take the name from shopIdentity.ts.
-const SKIP = [/\.test\.tsx?$/, /\/__fixtures__\//, /\/admin\/updates\//];
+// Either slash: Windows paths use backslashes.
+const SKIP = [/\.test\.tsx?$/, /[\\/]__fixtures__[\\/]/, /[\\/]admin[\\/]updates[\\/]/];
 
 function sources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {

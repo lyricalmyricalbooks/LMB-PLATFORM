@@ -62,7 +62,7 @@ describe("firebase.deploy.json", () => {
     try {
       for (const file of ["firebase.json", "firestore.rules", "storage.rules"]) cpSync(join(ROOT, file), join(dir, file));
       const written = writeDeployFiles({ root: dir, projectId: "press-two-shop", owner: "owner@press.test" });
-      expect(written).toEqual([`${OUT_DIR}/firestore.rules`, `${OUT_DIR}/storage.rules`, CONFIG_FILE]);
+      expect(written).toEqual([join(OUT_DIR, "firestore.rules"), join(OUT_DIR, "storage.rules"), CONFIG_FILE]);
       const config = JSON.parse(readFileSync(join(dir, CONFIG_FILE), "utf8"));
       for (const rulesPath of [config.firestore.rules, config.storage.rules]) {
         const text = readFileSync(join(dir, rulesPath), "utf8");

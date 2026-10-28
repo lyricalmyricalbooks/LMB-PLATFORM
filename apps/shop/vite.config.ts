@@ -122,5 +122,10 @@ export default defineConfig(({ command }) => ({
     // Vitest 5 caches transformed files on disk by default, and the cache doesn't notice a new file joining an
     // import.meta.glob (e.g. a new release note in admin/updates), so tests would read a stale list.
     fsModuleCache: false,
+    // On a slow machine (the Windows CI job) a test file can finish while one of its console lines is still on its
+    // way to the main process; Vitest then reports "Closing rpc while onUserConsoleLog was pending" as an error even
+    // though every test passed. Only that lost log line is ignored; any other unhandled error still fails the run.
+    onUnhandledError: (error) =>
+      !(error?.name === "EnvironmentTeardownError" && /"onUserConsoleLog" was pending/.test(String(error?.message))),
   },
 }))

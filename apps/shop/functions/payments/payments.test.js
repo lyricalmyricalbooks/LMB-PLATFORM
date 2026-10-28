@@ -2,6 +2,7 @@
 // order-account lookup, refunds, the refund/dispute check and the webhook client. No network, no real keys.
 import { describe, expect, test, vi } from "vitest";
 import { createRequire } from "module";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const { createPayments, PROVIDER_NAMES, INTERFACE } = require("./index.js");
@@ -435,7 +436,7 @@ describe("provider choice", () => {
 
   test("the functions refuse to load at all with an unknown provider", () => {
     const { execFileSync } = require("node:child_process");
-    const dir = new URL("..", import.meta.url).pathname;
+    const dir = fileURLToPath(new URL("..", import.meta.url));
     const run = (provider) => {
       try {
         execFileSync(process.execPath, ["-e", "require('./index.js')"], { cwd: dir, env: { ...process.env, SHOP_PAYMENT_PROVIDER: provider }, stdio: "pipe" });
@@ -478,7 +479,7 @@ describe("one door", () => {
   const outside = async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const dir = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
+    const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
     return fs.readdirSync(dir).filter(f => f.endsWith(".js") && !f.includes(".test."))
       .map(f => ({ f, text: fs.readFileSync(path.join(dir, f), "utf8").replace(/^\s*\/\/.*$/gm, "") }));
   };

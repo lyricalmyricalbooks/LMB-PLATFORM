@@ -2,6 +2,7 @@
 // payment service, as this shop, with its service key. A pretend service stands in for it; nothing reaches Stripe.
 import { describe, expect, test } from "vitest";
 import { createRequire } from "module";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const { createPayments } = require("./index.js");
@@ -219,7 +220,7 @@ describe("the shop's payment mode", () => {
 
   test("the functions load in platform mode, and refuse to without the service's address", () => {
     const { execFileSync } = require("node:child_process");
-    const dir = new URL("..", import.meta.url).pathname;
+    const dir = fileURLToPath(new URL("..", import.meta.url));
     const run = (env) => {
       try {
         execFileSync(process.execPath, ["-e", "require('./index.js')"], { cwd: dir, env: { ...process.env, ...env }, stdio: "pipe" });
