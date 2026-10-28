@@ -28,6 +28,51 @@ describe('publisher access', () => {
     expect(isPublisherPass(user('second@example.com', false), { role: 'owner' })).toBe(false);
   });
 
+  // A shop without the shop app has no server to put the owner role on the pass; the page asks the rules instead.
+  describe('asking the rules (owner with no role on the pass)', () => {
+    const memory = () => {
+      const m = new Map();
+      return { getItem: k => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), m };
+    };
+    const owner = { ...user('real-owner@press.example'), uid: 'u-owner' };
+
+    it('lets in the account the rules allow, and remembers it for an offline start', async () => {
+      const store = memory();
+      expect(await isPublisherUser(owner, { askRules: async () => true, store })).toBe(true);
+      expect(await isPublisherUser(owner, { askRules: async () => null, store })).toBe(true);
+    });
+
+    it('keeps out an account the rules refuse, and forgets an earlier yes', async () => {
+      const store = memory();
+      await isPublisherUser(owner, { askRules: async () => true, store });
+      expect(await isPublisherUser(owner, { askRules: async () => false, store })).toBe(false);
+      expect(await isPublisherUser(owner, { askRules: async () => null, store })).toBe(false);
+    });
+
+    it('never lets in on another account remembered on this device, an unverified email, or no answer at all', async () => {
+      const store = memory();
+      await isPublisherUser(owner, { askRules: async () => true, store });
+      const other = { ...user('someone@press.example'), uid: 'u-other' };
+      expect(await isPublisherUser(other, { askRules: async () => null, store })).toBe(false);
+      expect(await isPublisherUser({ ...owner, emailVerified: false }, { askRules: async () => true, store })).toBe(false);
+      expect(await isPublisherUser({ ...user('new@press.example'), uid: 'u-new' }, { askRules: async () => { throw new Error('boom'); }, store: memory() })).toBe(false);
+      expect(await isPublisherUser(owner, { store: memory() })).toBe(false);
+    });
+
+    it('does not ask when the pass already answers', async () => {
+      let asked = 0;
+      const second = { ...user('second@example.com', true, { role: 'owner' }), uid: 'u2' };
+      expect(await isPublisherUser(second, { askRules: async () => { asked++; return false; } })).toBe(true);
+      expect(asked).toBe(0);
+    });
+
+    it('works when the browser blocks storage', async () => {
+      const blocked = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); }, removeItem: () => {} };
+      expect(await isPublisherUser(owner, { askRules: async () => true, store: blocked })).toBe(true);
+      expect(await isPublisherUser(owner, { askRules: async () => null, store: blocked })).toBe(false);
+    });
+  });
+
   it('treats a pass that cannot be read, or not in time, as no role', async () => {
     expect(await readPassClaims({ getIdTokenResult: () => Promise.reject(new Error('offline')) })).toEqual({});
     expect(await readPassClaims({ getIdTokenResult: () => new Promise(() => {}) }, 10)).toEqual({});

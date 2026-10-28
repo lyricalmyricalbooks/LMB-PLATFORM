@@ -132,6 +132,16 @@ service cloud.firestore {
       allow write: if isPublisher();
     }
 
+    // "Am I the publisher?" (src/lib/publisher-access.js askRules): the sign-in screen reads this one document,
+    // which never exists, straight from the server. The read is allowed exactly when isPublisher() is true, so the
+    // screen can never disagree with these rules. That is how the owner of a shop without the shop app (no shop
+    // server to put the owner role on the pass) gets in: by the owner address the deploy filled in above, which the
+    // page itself never holds. Nothing can be written or listed here.
+    match /publisherCheck/{id} {
+      allow get: if isPublisher();
+      allow list, write: if false;
+    }
+
     // System backup snapshots — one doc per backup (keeps the settings manifest
     // small and avoids the 1 MiB per-document limit). Publisher only.
     match /backups/{id} {
