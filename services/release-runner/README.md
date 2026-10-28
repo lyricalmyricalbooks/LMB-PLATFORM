@@ -26,8 +26,8 @@ that folder, so a release can never reach it.
    so they are left out and each shop's pages read their own books.
 3. For each shop, ring by ring, holding that shop's own lock (so the shop maker can't work on it at the same time):
    - rules (stamped with the release and the shop's apps, owner filled in by each app's `deployConfig.mjs`; the
-     stockroom's go to its own database, bucket and Realtime Database, named in the shop's profile), then server code
-     with the shop's own settings file, then pages with the shop's own profile file;
+     stockroom's go to its own database, bucket and Realtime Database, named in the shop's profile), then the shop's pending
+     data changes (`apps/shop/functions/migrations`, plan 4.2), then server code with the shop's own settings file, then pages with the shop's own profile file;
    - a check: every part's release stamp must be this release, the home page, `/admin`, `/shop-profile.js` and the
      stockroom page must answer, and on the test shop the full release check (`release-check/`) must pass;
    - on success the registry row gets `release: { version, at, runId }`.
@@ -41,7 +41,8 @@ that folder, so a release can never reach it.
 A shop already on the release, with its stamps and checks in order, is left alone, so a release can be re-run after a
 fix. `--dry-run` prints the rings and changes nothing.
 
-Data changes (plan 4.2) must keep working with the previous release's code, because a rollback only puts code back.
+Data changes (plan 4.2) run before the new server code and must keep working with the previous release's code,
+because a rollback only puts code back. Each is recorded in the shop, so a re-run or a rollback never repeats one.
 
 ## Running it for real
 

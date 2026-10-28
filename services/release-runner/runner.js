@@ -151,7 +151,7 @@ async function rollBack(ctx, row, version, previous, error) {
   }
 }
 
-/** Rules, then server code, then pages: the order the shop's own deploy uses, so new pages never meet old rules. */
+/** Rules, then data changes and server code, then pages: the order the shop's own deploy uses, so new pages never meet old rules. */
 async function ship({ deploy, envFiles, profileFiles }, row, version) {
   const apps = appsOf(row);
   // Checked before anything goes out: the deploy client writes this file into every app's rules config and pages.
@@ -160,6 +160,8 @@ async function ship({ deploy, envFiles, profileFiles }, row, version) {
   if (apps.includes("shop")) {
     const envFile = await envFiles.read(row.shopId);
     if (!envFile) throw new Error("its server settings file is missing from the registry (setup step 8)");
+    // Data changes go before the new server code; they must keep working with the old code too (plan 4.2).
+    await deploy.migrate(row.shopId, { version });
     await deploy.functions(row.shopId, { version, region: row.region ?? REGION, envFile });
   }
   for (const app of apps) await deploy.pages(row.shopId, { version, app });
