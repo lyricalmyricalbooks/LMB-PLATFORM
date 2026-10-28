@@ -121,7 +121,8 @@ export function createGoogleTeardown({ google, tokens, shopFirebase, domainsCall
       if (ctx.row.emailSender?.resendDomainId) await ownDomain.disconnect(ctx.shopId);
       let waiting = false;
       for (const domain of names) {
-        const answer = await domainsCall("removeDomain", ctx.row, { domain });
+        // `deleting`: the shop is being deleted, so even its main address comes off (services/domains removeDomain).
+        const answer = await domainsCall("removeDomain", ctx.row, { domain, deleting: true });
         if (answer?.waiting) waiting = true;
       }
       if (waiting) return { state: "waiting", detail: "The web address still has to be taken off by hand." };

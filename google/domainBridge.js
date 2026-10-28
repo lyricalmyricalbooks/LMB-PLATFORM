@@ -8,7 +8,7 @@
 //   domainsCall("addRecords", row, { domain, records, purpose })
 //                                                          -> { done: true } once the records are in, or { waiting: true }
 //   domainsCall("removeRecords", row, { domain, purpose }) -> the same
-//   domainsCall("removeDomain", row, { domain })           -> the address is taken off hosting and its records removed
+//   domainsCall("removeDomain", row, { domain, deleting }) -> the address is taken off hosting and its records removed
 
 const DOMAIN_SERVICE_CALLS = { addRecords: "applyRecords", removeRecords: "removeRecords", removeDomain: "removeDomain" };
 
