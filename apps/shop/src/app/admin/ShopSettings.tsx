@@ -1309,7 +1309,7 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications, onOp
   const switchPractice = async (step: "start" | "stop") => {
     setPracticeBusy(true);
     setPracticeError("");
-    try { setPractice(await practiceCheckout(step)); } catch (err: any) { setPracticeError(err?.message || "Couldn't reach the practice checkout."); }
+    try { setPractice(await practiceCheckout(step)); } catch (err) { setPracticeError(friendlyError(err, step === "start" ? "start the practice order" : "stop the practice order")); }
     finally { setPracticeBusy(false); }
   };
   const steps = testSaleSteps({ payments, platform, practice, ...(data || { orders: [], webhook: null, emailLog: [] }) });
