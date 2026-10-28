@@ -6,7 +6,8 @@ import { mergeRows } from '../src/lib/merge-state.js';
 import { computeCashFlowMetrics } from '../src/lib/cashflow.js';
 import { planCurrencyChange, applyCurrencyChange } from '../src/lib/currency-migration.js';
 import { appSource } from './helpers/extract-decl.js';
-import { csvCell } from '../src/lib/csv.js';
+import { csvCell, csvRow } from '../src/lib/csv.js';
+import { dayLineRows, inPersonDailyLines, inPersonTaxOf, isInPersonSale } from '../src/lib/bookkeeping-days.js';
 import { getBookCurrencyCode } from '../src/lib/money.js';
 import { payoutNetted } from '../src/lib/earnings.js';
 
@@ -163,7 +164,7 @@ describe('a linked author settlement', () => {
     const source = appSource.match(/function downloadFullTaxSeasonExport\(\) \{([\s\S]*?)\n\}\n/)[1];
     let csv = '';
     const deps = { document: { getElementById: () => ({ value: '2026' }) }, today: () => '2026-10-08',
-      csvCell, BOOK_LIST: [{ ...book, id: 'harbour' }], states: { harbour: s }, defaultState: () => ({}),
+      csvCell, csvRow, dayLineRows, inPersonDailyLines, inPersonTaxOf, isInPersonSale, BOOK_LIST: [{ ...book, id: 'harbour' }], states: { harbour: s }, defaultState: () => ({}),
       getBookCurrencyCode, _fxRateCache: {}, isTestBook: () => false, isTestBookId: () => false,
       filterArtistEarningsByYear: () => 0, payoutNetted, TAX_CENTER: { businessExpenses: [] },
       downloadCsv: content => { csv = content; }, showToast: () => {} };

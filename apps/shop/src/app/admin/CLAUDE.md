@@ -505,3 +505,12 @@ Team role `bookkeeper` (Settings › Team, or the platform's account page): read
   admin shell, so none of the admin's reads run. `bookkeeping.ts` (pure) blanks shoppers' and gift card recipients'
   email addresses in its downloads. A first sign-in learns the role after `login()` refreshes the pass (`onLogin`).
 - **Stockroom:** the same role reads the tax centre's key-free copy (`apps/stockroom/src/lib/bookkeeper-copy.js`).
+
+## Download for another shop system (28 October 2026, code plan 7.18)
+
+Settings › General › Backups & export › **Download for another shop system** (`BackupsExportCard.tsx`, pure builders in
+`shopExport.ts`). Books: one line per edition, extra photos on their own lines, in the older handle-rows headings
+because those are what `shopMove.ts` reads (`shopExport.test.ts` round-trips the file through `planShopMove`); move to
+the newer headings only together with shopMove. Gift cards stay out. Customers: buyers from orders plus newsletter
+sign-ups; "Accepts Email Marketing" is yes only for a current subscriber who has not opted out. Words on screen never
+name another system. The stockroom's matching stock file is `apps/stockroom/src/lib/stock-locations.js` (7.19).
