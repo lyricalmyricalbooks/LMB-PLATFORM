@@ -199,7 +199,7 @@ test("a subscription's period is read from either place Stripe keeps it", () => 
 });
 
 test("billing runs in test mode unless told otherwise, and refuses a mode it doesn't know", () => {
-  assert.deepEqual(readBillingConfig({}), { mode: "test", webhookSecrets: [] });
-  assert.deepEqual(readBillingConfig({ BILLING_MODE: "live", STRIPE_BILLING_WEBHOOK_SECRET: "a, b" }), { mode: "live", webhookSecrets: ["a", "b"] });
+  assert.deepEqual(readBillingConfig({}), { mode: "test", webhookSecrets: [], tax: false });
+  assert.deepEqual(readBillingConfig({ BILLING_MODE: "live", STRIPE_BILLING_WEBHOOK_SECRET: "a, b" }), { mode: "live", webhookSecrets: ["a", "b"], tax: false });
   assert.throws(() => readBillingConfig({ BILLING_MODE: "prod" }), /BILLING_MODE/);
 });
