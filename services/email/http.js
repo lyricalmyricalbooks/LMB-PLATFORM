@@ -44,7 +44,7 @@ export async function handleShopEmail(request, { service, registry, sentLog, dai
   const { kind, to, subject, text, html, idempotencyKey } = body;
   try {
     // The key is scoped to the shop, so two shops' keys can never meet.
-    const result = await service.send(shopId, { kind, to, subject, text, html, idempotencyKey: `${shopId}/${idempotencyKey}` });
+    const result = await service.send(shopId, { kind, to, subject, text, html, custom: true, idempotencyKey: `${shopId}/${idempotencyKey}` });
     return reply(200, { ok: true, id: result.id, alreadySent: result.alreadySent });
   } catch (error) {
     if (typeof error.retryable === "boolean") return reply(error.retryable ? 503 : 422, { ok: false, retryable: error.retryable, message: error.message });
