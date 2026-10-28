@@ -35,7 +35,7 @@ afterEach(() => { act(() => root?.unmount()); host.remove(); restore(); });
 
 async function mount() {
   root = createRoot(host);
-  await act(async () => { root.render(h(StudioEditor, { settings: fixture.settings, onExit: () => {} })); });
+  await act(async () => { root.render(h(StudioEditor, { settings: fixture.settings, initialLocation: { leftTab: "sections" }, onExit: () => {} })); });
   await act(async () => { await new Promise(r => setTimeout(r, 0)); });
 }
 
@@ -374,7 +374,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     const stale = JSON.parse(JSON.stringify(fixture.settings));
     fixture.settings.design = { ...fixture.settings.design, accentColor: "#abcdef", scheduledMarker: "live-now" }; // a scheduled go-live
     root = createRoot(host);
-    await act(async () => { root.render(h(StudioEditor, { settings: { ...stale, draftDesign: fixture.settings.draftDesign }, onExit: () => {} })); });
+    await act(async () => { root.render(h(StudioEditor, { settings: { ...stale, draftDesign: fixture.settings.draftDesign }, initialLocation: { leftTab: "sections" }, onExit: () => {} })); });
     await act(async () => { await new Promise(r => setTimeout(r, 0)); });
     await click(buttons("Add section")[0]);
     await click(buttons(/^Newsletter/)[0]);
