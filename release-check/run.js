@@ -43,7 +43,8 @@ export async function realRun({ shopId, env = process.env, fetch = globalThis.fe
     urls: { site: profile.siteUrl, stockroom: env.RELEASE_STOCKROOM_URL || `https://${projectId}-stockroom.web.app` },
     browser: await playwrightBrowser({ chromium, launchOptions: { executablePath: env.CHROMIUM_PATH || undefined } }),
     shopData: shopReads(shopDb),
-    stockroomData: stockroomReads(firestoreClient({ fetch, token, projectId, database: env.STOCKROOM_DATABASE || STOCKROOM_DATABASE })),
+    // The profile's `stockroom` block names the database (setup step 6); STOCKROOM_DATABASE for an older profile.
+    stockroomData: stockroomReads(firestoreClient({ fetch, token, projectId, database: profile.stockroom?.firestoreDatabase || env.STOCKROOM_DATABASE || STOCKROOM_DATABASE })),
     shopAdmin: shopAdmin({ fetch, functionsBase: `https://${profile.functionsRegion}-${projectId}.cloudfunctions.net`, session }),
   };
   const auditLog = firestoreAuditLog(() => shopDb);

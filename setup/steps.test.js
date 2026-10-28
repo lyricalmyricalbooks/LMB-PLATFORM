@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import vm from "node:vm";
 import { latestByStep, runSteps, stepProblems } from "./runner.js";
-import { REGION, SERVICES, firstSteps, projectDisplayName, shopProblems, shopProfile } from "./steps.js";
+import { REGION, RTDB_LOCATION, SERVICES, STOCKROOM_DATABASE, firstSteps, projectDisplayName, shopProblems, shopProfile } from "./steps.js";
 import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "./fakes.js";
 import { TEST_CONFIG, TEST_SHOP } from "./test-shop.js";
 import { dryRun } from "./dry-run.js";
@@ -131,6 +131,58 @@ test("a database in another region stops the run instead of being replaced", asy
   assert.equal(result.failedStep, 5);
   assert.match(result.error, /us-central1, not northamerica-northeast1/);
   assert.ok(!google.calls.some(([name]) => name.startsWith("firestore.")));
+});
+
+test("with the stockroom in the plan, step 5 also makes its own database, bucket and Realtime Database (plan 1.20)", async () => {
+  const { google, registry, run } = setup();
+  assert.equal((await run()).ok, true);
+  assert.deepEqual(google.world.namedDatabases.get(`lmb-test-shop/${STOCKROOM_DATABASE}`), { locationId: REGION });
+  assert.deepEqual(google.world.extraBuckets.get("lmb-test-shop-stockroom"), { name: "lmb-test-shop-stockroom", location: REGION.toUpperCase(), project: "lmb-test-shop" });
+  assert.deepEqual(google.world.realtimeDatabases.get("lmb-test-shop"), { name: "lmb-test-shop-default-rtdb", location: RTDB_LOCATION });
+  // The named database gets delete protection like the shop's.
+  const created = google.calls.filter(([name]) => name === "firestore.createDatabase").map(([, , id]) => id);
+  assert.deepEqual(created, ["(default)", STOCKROOM_DATABASE]);
+  // The profile tells the stockroom where they are; the shop ignores it.
+  const profile = await registry.getProfile("lmb-test-shop");
+  assert.deepEqual(profile.stockroom, { firestoreDatabase: "stockroom", storageBucket: "lmb-test-shop-stockroom" });
+  assert.deepEqual(profileProblems(profile), []);
+});
+
+test("a shop without the stockroom gets none of its pieces", async () => {
+  const { google, registry, run } = setup({ shop: { ...TEST_SHOP, plan: "shop", testShop: false, testMode: false } });
+  assert.equal((await run()).ok, true);
+  assert.equal(google.world.namedDatabases.size + google.world.extraBuckets.size + google.world.realtimeDatabases.size, 0);
+  assert.ok(!google.calls.some(([name]) => name === "realtimeDatabase.createInstance" || name === "storage.createBucket"));
+  assert.equal("stockroom" in (await registry.getProfile("lmb-test-shop")), false);
+});
+
+test("a stockroom piece missing on a re-run is made then, and nothing else is touched", async () => {
+  const { google, run, registry } = setup();
+  assert.equal((await run()).ok, true);
+  google.world.extraBuckets.clear();
+  const steps = firstSteps({ google, registry, profileFiles: fakeProfileFiles(), config: TEST_CONFIG });
+  assert.equal(await steps[4].check({ shop: TEST_SHOP }), false);
+  google.calls.length = 0;
+  await steps[4].act({ shop: TEST_SHOP });
+  assert.deepEqual(google.calls.map(([name]) => name), ["storage.createBucket"]);
+  assert.equal(await steps[4].check({ shop: TEST_SHOP }), true);
+});
+
+test("a stockroom piece in the wrong place, or a bucket name another project holds, stops step 5 for a person", async () => {
+  const cases = [
+    [(w) => w.namedDatabases.set("lmb-test-shop/stockroom", { locationId: "us-central1" }), /stockroom database is in us-central1/],
+    [(w) => w.extraBuckets.set("lmb-test-shop-stockroom", { name: "lmb-test-shop-stockroom", location: "US", project: "someone-else" }), /belongs to another project/],
+    [(w) => w.extraBuckets.set("lmb-test-shop-stockroom", { name: "lmb-test-shop-stockroom", location: "US", project: "lmb-test-shop" }), /stockroom bucket is in US/],
+    [(w) => w.realtimeDatabases.set("lmb-test-shop", { name: "x", location: "europe-west1" }), /Realtime Database is in europe-west1/],
+  ];
+  for (const [arrange, reason] of cases) {
+    const { google, run } = setup();
+    arrange(google.world);
+    const result = await run();
+    assert.equal(result.failedStep, 5, String(reason));
+    assert.match(result.error, reason);
+    assert.ok(!google.calls.some(([name]) => /createBucket|createInstance/.test(name) || (name === "firestore.createDatabase")), String(reason));
+  }
 });
 
 test("a profile that drifted from the web app is written again", async () => {
