@@ -5,13 +5,14 @@
 //   day money went back. Day lines are those added up, so the two sheets always agree.
 // - Day lines (`dailyBookkeeping`): sales before tax, shipping, discounts, gift cards sold and used, refunds, each tax
 //   by its name in the books (taxBooks.ts), card fees, net. Net = what the press keeps: sales − discounts + shipping +
-//   taxes + gift cards sold − gift cards used − card fees − refunds (an order's own `net` wins when the payment
-//   service recorded one).
-// - Payout lines: one per payout dated in the month, with its orders' total, fees and net.
+//   taxes + gift cards sold − gift cards used − card fees − refunds.
+// - Payout lines: one per payout dated in the month, with its orders' total, fees, refunds and net (the payment
+//   service's `net`, which already has refunds taken off; total − fees − refunds = net).
 // Money is whole cents in the shop's currency (order amounts are stored in it; a refund in the shopper's currency is
-// converted back with the order's exchange rate). Test, sandbox and practice orders are left out. Card fee and payout
-// fields (`fee`, `net` in cents, `payoutId`, `payoutDate`) come from the payment service (plan 7.10); an order without
-// them shows blanks there.
+// converted back with the order's exchange rate). Test, sandbox and practice orders (`practiceOrder`, or `practice`)
+// are left out. Card fee and payout fields come from the payment service (plan 7.10, functions/orderMoney.js): `fee`
+// and `net` in cents of the order's own currency (converted here like refunds), `payoutId`, `payoutDate`
+// (YYYY-MM-DD); an order without them shows blanks there.
 import type { TaxLine } from "./taxBooks";
 
 type Money = number | string | null | undefined;
@@ -29,6 +30,8 @@ export type BookkeepingOrder = {
   isTest?: boolean;
   sandboxPayment?: boolean;
   practice?: boolean;
+  practiceOrder?: boolean;
+  stripeCurrency?: string;
   items?: Line[];
   subtotal?: Money;
   discount?: Money;
@@ -90,6 +93,7 @@ export type BookkeepingPayout = {
   orders: number;
   totalCents: number;
   feesCents: number;
+  refundsCents: number;
   netCents: number;
   currency: string;
 };
@@ -113,7 +117,7 @@ export function dayOf(value: unknown, timeZone = "UTC"): string {
 
 /** Real money only: no test, sandbox or practice orders, and only orders that were paid. */
 export function countsForBooks(order: BookkeepingOrder): boolean {
-  return order.isTest !== true && order.sandboxPayment !== true && order.practice !== true && PAID.has(String(order.paymentStatus || ""));
+  return order.isTest !== true && order.sandboxPayment !== true && order.practice !== true && order.practiceOrder !== true && PAID.has(String(order.paymentStatus || ""));
 }
 
 function taxesOf(order: BookkeepingOrder): Record<string, number> {
@@ -154,6 +158,15 @@ function refundsOf(order: BookkeepingOrder, currency: string, timeZone: string):
   return out.filter(([day, amount]) => day && amount);
 }
 
+/** A fee or net from the payment service (cents of the order's currency) in the shop's currency; null when missing. */
+function serviceCents(order: BookkeepingOrder, value: Money, currency: string): number | null {
+  const amount = whole(value);
+  if (amount === null) return null;
+  const own = String(order.stripeCurrency || order.checkoutCurrency || currency).toUpperCase();
+  const rate = Number(order.exchangeRate) > 0 ? Number(order.exchangeRate) : 1;
+  return own === currency ? amount : Math.round(amount / rate);
+}
+
 const giftCardsSold = (order: BookkeepingOrder) => (Array.isArray(order.items) ? order.items : [])
   .filter((item) => item && item.giftCard === true)
   .reduce((sum, item) => sum + cents((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0);
@@ -173,8 +186,7 @@ export function bookkeepingOrderLines(orders: BookkeepingOrder[], options: Bookk
     if (paidDay && inMonth(paidDay)) {
       const soldCards = giftCardsSold(order);
       const totalCents = cents(order.total);
-      const feeCents = whole(order.fee);
-      const net = whole(order.net);
+      const feeCents = serviceCents(order, order.fee, currency);
       out.push({
         date: paidDay, orderId, kind: "Sale",
         salesCents: cents(order.subtotal) - soldCards,
@@ -185,7 +197,8 @@ export function bookkeepingOrderLines(orders: BookkeepingOrder[], options: Bookk
         refundsCents: 0,
         taxes: taxesOf(order),
         totalCents, feeCents,
-        netCents: net ?? totalCents - (feeCents || 0),
+        // The service's `net` already has refunds off; refunds are their own lines here, so net is total − fee.
+        netCents: totalCents - (feeCents || 0),
         payoutId, payoutDate, currency,
       });
     }
@@ -234,13 +247,15 @@ export function bookkeepingPayouts(orders: BookkeepingOrder[], options: Bookkeep
     const date = order.payoutDate != null && order.payoutDate !== "" ? dayOf(order.payoutDate, timeZone) : "";
     if (date.slice(0, 7) !== options.month) continue;
     const id = String(order.payoutId);
-    const payout = payouts.get(id) || { payoutId: id, date, orders: 0, totalCents: 0, feesCents: 0, netCents: 0, currency };
+    const payout = payouts.get(id) || { payoutId: id, date, orders: 0, totalCents: 0, feesCents: 0, refundsCents: 0, netCents: 0, currency };
     const totalCents = cents(order.total);
-    const feeCents = whole(order.fee) || 0;
+    const feeCents = serviceCents(order, order.fee, currency) || 0;
+    const netCents = serviceCents(order, order.net, currency) ?? totalCents - feeCents;
     payout.orders += 1;
     payout.totalCents += totalCents;
     payout.feesCents += feeCents;
-    payout.netCents += whole(order.net) ?? totalCents - feeCents;
+    payout.refundsCents += totalCents - feeCents - netCents;
+    payout.netCents += netCents;
     payouts.set(id, payout);
   }
   return [...payouts.values()].sort((a, b) => a.date.localeCompare(b.date) || a.payoutId.localeCompare(b.payoutId));

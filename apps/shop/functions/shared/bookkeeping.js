@@ -26,7 +26,7 @@ function dayOf(value, timeZone = "UTC") {
 }
 /** Real money only: no test, sandbox or practice orders, and only orders that were paid. */
 function countsForBooks(order) {
-    return order.isTest !== true && order.sandboxPayment !== true && order.practice !== true && PAID.has(String(order.paymentStatus || ""));
+    return order.isTest !== true && order.sandboxPayment !== true && order.practice !== true && order.practiceOrder !== true && PAID.has(String(order.paymentStatus || ""));
 }
 function taxesOf(order) {
     const out = {};
@@ -68,6 +68,15 @@ function refundsOf(order, currency, timeZone) {
     }
     return out.filter(([day, amount]) => day && amount);
 }
+/** A fee or net from the payment service (cents of the order's currency) in the shop's currency; null when missing. */
+function serviceCents(order, value, currency) {
+    const amount = whole(value);
+    if (amount === null)
+        return null;
+    const own = String(order.stripeCurrency || order.checkoutCurrency || currency).toUpperCase();
+    const rate = Number(order.exchangeRate) > 0 ? Number(order.exchangeRate) : 1;
+    return own === currency ? amount : Math.round(amount / rate);
+}
 const giftCardsSold = (order) => (Array.isArray(order.items) ? order.items : [])
     .filter((item) => item && item.giftCard === true)
     .reduce((sum, item) => sum + cents((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0);
@@ -87,8 +96,7 @@ function bookkeepingOrderLines(orders, options) {
         if (paidDay && inMonth(paidDay)) {
             const soldCards = giftCardsSold(order);
             const totalCents = cents(order.total);
-            const feeCents = whole(order.fee);
-            const net = whole(order.net);
+            const feeCents = serviceCents(order, order.fee, currency);
             out.push({
                 date: paidDay, orderId, kind: "Sale",
                 salesCents: cents(order.subtotal) - soldCards,
@@ -99,7 +107,8 @@ function bookkeepingOrderLines(orders, options) {
                 refundsCents: 0,
                 taxes: taxesOf(order),
                 totalCents, feeCents,
-                netCents: net ?? totalCents - (feeCents || 0),
+                // The service's `net` already has refunds off; refunds are their own lines here, so net is total − fee.
+                netCents: totalCents - (feeCents || 0),
                 payoutId, payoutDate, currency,
             });
         }
@@ -150,13 +159,15 @@ function bookkeepingPayouts(orders, options) {
         if (date.slice(0, 7) !== options.month)
             continue;
         const id = String(order.payoutId);
-        const payout = payouts.get(id) || { payoutId: id, date, orders: 0, totalCents: 0, feesCents: 0, netCents: 0, currency };
+        const payout = payouts.get(id) || { payoutId: id, date, orders: 0, totalCents: 0, feesCents: 0, refundsCents: 0, netCents: 0, currency };
         const totalCents = cents(order.total);
-        const feeCents = whole(order.fee) || 0;
+        const feeCents = serviceCents(order, order.fee, currency) || 0;
+        const netCents = serviceCents(order, order.net, currency) ?? totalCents - feeCents;
         payout.orders += 1;
         payout.totalCents += totalCents;
         payout.feesCents += feeCents;
-        payout.netCents += whole(order.net) ?? totalCents - feeCents;
+        payout.refundsCents += totalCents - feeCents - netCents;
+        payout.netCents += netCents;
         payouts.set(id, payout);
     }
     return [...payouts.values()].sort((a, b) => a.date.localeCompare(b.date) || a.payoutId.localeCompare(b.payoutId));

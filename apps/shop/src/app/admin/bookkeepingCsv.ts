@@ -42,8 +42,8 @@ export function bookkeepingOrdersCsv(orders: BookkeepingOrder[], options: Bookke
 /** Sheet 3: one line per payout. */
 export function bookkeepingPayoutsCsv(orders: BookkeepingOrder[], options: BookkeepingOptions): string {
   return csv([
-    ["Payout", "Date", "Orders", "Orders total", "Card fees", "Net", "Currency"],
-    ...bookkeepingPayouts(orders, options).map((p) => [p.payoutId, p.date, p.orders, money(p.totalCents), money(p.feesCents), money(p.netCents), p.currency]),
+    ["Payout", "Date", "Orders", "Orders total", "Card fees", "Refunds", "Net", "Currency"],
+    ...bookkeepingPayouts(orders, options).map((p) => [p.payoutId, p.date, p.orders, money(p.totalCents), money(p.feesCents), money(p.refundsCents), money(p.netCents), p.currency]),
   ]);
 }
 
