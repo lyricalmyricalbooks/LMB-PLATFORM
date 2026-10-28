@@ -166,7 +166,7 @@ describe('a linked author settlement', () => {
       csvCell, BOOK_LIST: [{ ...book, id: 'harbour' }], states: { harbour: s }, defaultState: () => ({}),
       getBookCurrencyCode, _fxRateCache: {}, isTestBook: () => false, isTestBookId: () => false,
       filterArtistEarningsByYear: () => 0, payoutNetted, TAX_CENTER: { businessExpenses: [] },
-      downloadCsv: content => { csv = content; }, showToast: () => {} };
+      downloadCsv: content => { csv = content; }, showToast: () => {}, fileStem: () => 'Stockroom' };
     new Function(...Object.keys(deps), source)(...Object.values(deps));
     expect(csv).toContain('"Earnings settled"');
     expect(csv).not.toContain('"Artist Payout"');
