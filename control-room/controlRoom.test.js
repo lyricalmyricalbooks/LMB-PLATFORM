@@ -12,6 +12,10 @@ import { createRepairQueue } from "./repairs.js";
 import { createSelfChecks } from "./selfChecks.js";
 import { createPaymentService } from "../services/payments/service.js";
 import { hashServiceKey } from "../services/email/http.js";
+import { envPayments } from "./emergencyPayments.js";
+import { readShopConfig } from "../apps/shop/functions/shopConfig.js";
+import { TEMPLATES } from "../services/email/templates.js";
+import { DEFAULT_SETTINGS } from "../services/settings.js";
 import { MAX_MINUTES, SUPPORT_UID, supportAccess } from "./supportAccess.js";
 import { createApi } from "../signup/api.js";
 import { fakeVerifyIdToken } from "../signup/fakes.js";
@@ -24,8 +28,15 @@ import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices 
 import { TEST_CONFIG, TEST_SHOP } from "../setup/test-shop.js";
 
 const ID = TEST_SHOP.shopId;
+const envOf = (text) => Object.fromEntries(text.split("\n").filter(Boolean).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1).replace(/^"|"$/g, "")]));
 const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true };
 const PRESS = { uid: "uid-owner", email: "owner@example.com", email_verified: true };
+
+/** A pretend platform email service: what would be sent, by idempotency key (the real one sends each key once). */
+function fakeEmail() {
+  const sent = new Map();
+  return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
+}
 
 async function world({ repairs } = {}) {
   const google = fakeGoogle();
@@ -38,17 +49,21 @@ async function world({ repairs } = {}) {
   await registry.updateShop(ID, { release: { version: "0.0.0-test", at: "2026-10-28T00:00:00Z", runId: "r1" } });
   await registry.createShop("press-two", { shopId: "press-two", pressName: "Another Press", plan: "shop", status: "creating", ownerEmail: "two@example.com" });
   const shopAccess = fakeShopAccess();
+  const email = fakeEmail();
+  const square = new Set();
   const built = [];
   const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
-    registry, auditLog, profileFiles, publish, shopAccess, repairs, shopData: services.shopData, admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
+    registry, auditLog, profileFiles, publish, shopAccess, repairs, shopData: services.shopData,
+    envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
+    admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: controlRoutes(room) });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const events = (shopId = ID) => [...(registry.events.get(shopId)?.values() ?? [])].filter((e) => e.source === "control-room");
-  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built };
+  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square };
 }
 
 test("only platform admins get in; nobody is an admin unless the list says so", async () => {
@@ -244,4 +259,73 @@ test("close a shop for abuse: admins only, a reason, logged first, checkout and 
   assert.deepEqual(w.events().map((e) => e.what), ["shop-closed", "shop-reopened"]);
   const allowed = await payments.shopCall({ headers: { "X-Shop-Id": ID, Authorization: `Bearer ${key}` }, body: { op: "account.status", mode: "test", args: {} } }).catch((e) => e);
   assert.notEqual(allowed.body?.error?.code, "shop_closed");
+});
+
+test("emergency payments: a shop moves to the press's own Stripe keys and back, deployed again, the press emailed each time", async () => {
+  const w = await world();
+  const ask = (body) => w.ask(ADMIN, "POST", "/api/control/payments", { shopId: ID, reason: "the platform's Stripe account is paused", ...body });
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/payments", { shopId: ID, to: "own", reason: "the platform's Stripe account is paused" })).status, 403);
+  assert.equal((await ask({ to: "paypal" })).status, 400);
+  assert.equal((await ask({ to: "own", reason: "" })).status, 400);
+  assert.equal((await ask({ to: "own", shopId: "no-such-shop" })).status, 404);
+  assert.equal((await ask({ to: "platform" })).body.shops[0].skipped, "already on the platform's payments", "off unless used");
+
+  const envBefore = await w.services.envFiles.read(ID);
+  const profileBefore = await w.registry.getProfile(ID);
+  const paymentsBefore = (await w.registry.getShop(ID)).payments;
+  const owner = (await w.registry.getShop(ID)).ownerEmail;
+  const deploysBefore = w.services.calls.length;
+
+  const moved = await ask({ to: "own" });
+  assert.equal(moved.status, 200);
+  assert.deepEqual(moved.body.shops.map((s) => [s.shopId, s.changed, s.ready, s.server, s.pages]), [[ID, true, false, true, ["shop", "stockroom"]]]);
+  // The shop's own-key path: its server reads the new settings as the press's own Stripe keys.
+  const envNow = await w.services.envFiles.read(ID);
+  assert.deepEqual(envPayments(envNow), { provider: "stripe", mode: "own" });
+  assert.deepEqual([readShopConfig({ ...envOf(envNow), GCLOUD_PROJECT: ID }).paymentMode, readShopConfig({ ...envOf(envNow), GCLOUD_PROJECT: ID }).paymentProvider], ["own", "stripe"]);
+  assert.equal(envNow.split("\n").length, envBefore.split("\n").length, "every other setting is kept");
+  const calls = w.services.calls.slice(deploysBefore).map(([name, , version]) => [name, version]);
+  assert.deepEqual(calls, [["envFiles.write", undefined], ["deploy.functions", "0.0.0-test"], ["deploy.pages", "0.0.0-test"], ["deploy.pages", "0.0.0-test"]], "server code and pages go out again at their own release");
+  assert.deepEqual((await w.registry.getProfile(ID)).payments, { provider: "stripe", mode: "own" });
+  const row = await w.registry.getShop(ID);
+  assert.deepEqual([row.paymentsEmergency.to, row.paymentsEmergency.by], ["own", ADMIN.email]);
+  assert.deepEqual(row.payments, paymentsBefore, "the platform account is kept for the way back");
+  const [first] = w.email.sent.values();
+  assert.deepEqual([first.kind, first.to, first.data.to, first.data.ready], ["payments-moved", owner, "own", false]);
+  assert.match(TEMPLATES[first.kind](first.data, { settings: DEFAULT_SETTINGS, pressName: first.data.pressName }).text, /add your own Stripe keys\. Until you do, shoppers can't pay by card/);
+  const [entry] = w.events();
+  assert.deepEqual([entry.what, entry.from, entry.to, entry.by], ["payments-moved", "platform", "own", ADMIN.email]);
+  assert.ok(w.auditLog.entries.get(ID).has(entry.id));
+  const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
+  assert.equal(listed.paymentsMoved.to, "own");
+
+  // Running it again changes nothing and emails nobody twice.
+  const again = await ask({ to: "own" });
+  assert.deepEqual([again.body.shops[0].changed, again.body.shops[0].server, again.body.shops[0].pages], [false, false, []]);
+  assert.equal(w.email.sent.size, 1);
+
+  // Back: everything as it was, and the press is told.
+  const back = await ask({ to: "platform", reason: "the platform's Stripe account works again" });
+  assert.equal(back.body.shops[0].changed, true);
+  assert.equal(await w.services.envFiles.read(ID), envBefore);
+  assert.deepEqual(await w.registry.getProfile(ID), profileBefore);
+  const after = await w.registry.getShop(ID);
+  assert.deepEqual([after.paymentsEmergency, after.payments, after.lastPaymentsEmergency.to], [null, paymentsBefore, "own"]);
+  assert.deepEqual([...w.email.sent.values()].map((m) => m.data.to), ["own", "platform"]);
+});
+
+test("emergency payments: every live shop to Square at once; refused when the switch isn't set up", async () => {
+  const w = await world();
+  w.square.add(ID);
+  const answer = await w.ask(ADMIN, "POST", "/api/control/payments", { all: true, to: "square", reason: "the platform's Stripe account is paused" });
+  assert.equal(answer.status, 200);
+  assert.deepEqual(answer.body.shops.map((s) => [s.shopId, s.changed, s.ready]), [[ID, true, true]], "only live shops; press-two is still being made");
+  const envNow = await w.services.envFiles.read(ID);
+  assert.equal(readShopConfig({ ...envOf(envNow), GCLOUD_PROJECT: ID }).paymentProvider, "square");
+  assert.deepEqual((await w.registry.getProfile(ID)).payments, { provider: "square", mode: "platform" });
+  assert.equal((await w.registry.getShop(ID)).payments.provider, "square", "the payment service routes the shop to Square");
+  assert.match(TEMPLATES["payments-moved"]({ to: "square", ready: true }, { settings: DEFAULT_SETTINGS, pressName: "Test Press" }).text, /Square account is connected/);
+
+  const bare = createControlRoom({ registry: w.registry, auditLog: w.auditLog, profileFiles: w.profileFiles, publish: async () => ({ apps: [] }), admins: [ADMIN.email] });
+  await assert.rejects(bare.movePayments(ADMIN, { shopId: ID, to: "own", reason: "the platform's Stripe account is paused" }), { status: 503 });
 });

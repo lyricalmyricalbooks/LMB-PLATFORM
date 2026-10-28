@@ -17,11 +17,14 @@
 //   selfCheck     optional: the self-checks (selfChecks.js): check(shopId, { why }), run after every change here
 //   shopData      optional: a shop's own database, get(shopId, path) / set(shopId, path, data) (clients/shop.js);
 //                 needed to close a shop (closure.js)
+//   envFiles, deploy, build, email, squareAccount   optional: the emergency payments switch (emergencyPayments.js);
+//                 without envFiles, deploy and email it refuses
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { SETTINGS_DOC, isPaused, pausedSettings, restoredSettings } from "./closure.js";
+import { PAYMENT_ROUTES, emergencyPayments } from "./emergencyPayments.js";
 
 export const ACT_AS_MINUTES = 30;
 export const MIN_REASON = 10;
@@ -60,6 +63,7 @@ export function shopHealth({ row, profile, checks = [], repairs = [] }) {
   if (!last && row.testShop) watch.push("the test shop has never passed a release check");
   if (row.billing?.access === "paused") watch.push("the plan is paused until a card is added");
   if (row.billing?.access === "closed") watch.push("the plan has ended");
+  if (row.paymentsEmergency) watch.push(`card payments moved to ${row.paymentsEmergency.to === "own" ? "the press's own Stripe keys" : "Square"} by the emergency switch`);
   if (row.closure) watch.push(`closed by the platform on ${String(row.closure.at).slice(0, 10)}: ${row.closure.reason}`);
   for (const repair of repairs) problems.push(`in the repair queue: ${repair.problem}`);
   // The five-minute watch (services/health) keeps its latest results on the row.
@@ -89,7 +93,9 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
   };
 }
 
-export function createControlRoom({ registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, admins, now = () => new Date() }) {
+export function createControlRoom({
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, admins, now = () => new Date(),
+}) {
   const at = () => now().toISOString();
 
   // Every control-room action is logged in the registry and, once the shop's database exists, in its own audit log.
@@ -100,6 +106,10 @@ export function createControlRoom({ registry, auditLog, profileFiles, publish, s
     if (await auditLog.ready(shopId)) await auditLog.write(shopId, entry.id, entry);
     return entry;
   }
+
+  const paymentsSwitch = envFiles && deploy && email
+    ? emergencyPayments({ registry, envFiles, profileFiles, deploy, build, publish, shopData, squareAccount, email, log, now })
+    : null;
 
   const reasonOf = (reason) => {
     const text = typeof reason === "string" ? reason.trim() : "";
@@ -164,6 +174,7 @@ export function createControlRoom({ registry, auditLog, profileFiles, publish, s
           switches: profile ? shopSwitches(profile.switches) : null,
           siteUrl: profile?.siteUrl ?? null,
           closed: row.closure ? { by: row.closure.by, reason: row.closure.reason, at: row.closure.at } : null,
+          paymentsMoved: row.paymentsEmergency ? { to: row.paymentsEmergency.to, by: row.paymentsEmergency.by, at: row.paymentsEmergency.at } : null,
         });
       }
       const order = { problem: 0, watch: 1, ok: 2 };
@@ -242,6 +253,19 @@ export function createControlRoom({ registry, auditLog, profileFiles, publish, s
       if (hasPages) await shopData.set(shopId, SETTINGS_DOC, restoredSettings(await shopData.get(shopId, SETTINGS_DOC), row.closure.pauseBefore));
       await registry.updateShop(shopId, { closure: null, lastClosure: { ...row.closure, reopenedBy: by, reopenedAt: at(), reopenReason: why } });
       return { shopId, closed: false, changed: true };
+    },
+
+    /**
+     * The emergency payments switch (plan 8.5): one shop, or every live shop (`all: true`), to the press's own Stripe
+     * keys ("own"), to Square ("square"), or back to the platform's Stripe ("platform"). Each press is emailed at once.
+     */
+    async movePayments(claims, { shopId, all, to, reason } = {}) {
+      const by = adminOf(claims, admins);
+      if (!PAYMENT_ROUTES.includes(to)) throw new ControlError(400, "Choose own keys, Square or back to the platform.");
+      const why = reasonOf(reason);
+      if (all !== true) await shopOr404(shopId);
+      if (!paymentsSwitch) throw new ControlError(503, "The emergency payments switch isn't set up here, so nothing was moved.");
+      return paymentsSwitch.move({ by, reason: why, to, shopId, all: all === true });
     },
 
     /** The control room's switch button. */

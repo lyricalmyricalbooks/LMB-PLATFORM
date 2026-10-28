@@ -8,6 +8,8 @@
 //   POST /api/control/check    { shopId }: run the self-checks now
 //   POST /api/control/close    { shopId, reason }: close a shop's checkout and pages for abuse (plan 8.4)
 //   POST /api/control/reopen   { shopId, reason }: open them again
+//   POST /api/control/payments { shopId | all: true, to: "own" | "square" | "platform", reason }: the emergency
+//                              payments switch (plan 8.5)
 
 export function controlRoutes(room) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
@@ -20,5 +22,6 @@ export function controlRoutes(room) {
     "POST /api/control/check": (claims, request) => room.checkNow(claims, body(request)),
     "POST /api/control/close": (claims, request) => room.closeShop(claims, body(request)),
     "POST /api/control/reopen": (claims, request) => room.reopenShop(claims, body(request)),
+    "POST /api/control/payments": (claims, request) => room.movePayments(claims, body(request)),
   };
 }

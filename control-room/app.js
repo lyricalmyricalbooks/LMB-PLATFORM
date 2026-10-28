@@ -110,6 +110,8 @@ function card(shop) {
     }
   });
 
+  const moveCards = paymentsMenu(shop.paymentsMoved?.to ?? "platform", { shopId: shop.shopId }, shop.pressName);
+
   const switches = shop.switches
     ? el("div", { className: "row" }, ...Object.entries(shop.switches).map(([name, on]) => {
       const box = el("input", { type: "checkbox", checked: on });
@@ -139,10 +141,40 @@ function card(shop) {
       el("span", { textContent: `status: ${shop.status ?? "?"}` }),
       shop.access ? el("span", { textContent: `billing: ${shop.access}` }) : null,
       shop.testShop ? el("span", { textContent: "test shop" }) : null,
-      shop.closed ? el("span", { textContent: `closed by ${shop.closed.by}` }) : null),
+      shop.closed ? el("span", { textContent: `closed by ${shop.closed.by}` }) : null,
+      shop.paymentsMoved ? el("span", { textContent: `cards: ${PAYMENT_WORDS[shop.paymentsMoved.to]}` }) : null),
     shop.health.reasons.length ? el("ul", {}, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
-    switches);
+    switches,
+    shop.status === "live" ? moveCards : null);
 }
+
+// ── The emergency payments switch (plan 8.5): if the platform's Stripe is paused, move a shop, or every shop. ──
+const PAYMENT_WORDS = { platform: "through the platform (normal)", own: "the press's own Stripe keys", square: "Square" };
+
+function paymentsMenu(current, target, name) {
+  const choice = el("select", {}, ...Object.entries(PAYMENT_WORDS).map(([value, words]) => el("option", { value, textContent: words, selected: value === current })));
+  choice.setAttribute("aria-label", `Card payments for ${name}`);
+  const move = el("button", { type: "button", textContent: "Move card payments" });
+  move.addEventListener("click", async () => {
+    const to = choice.value;
+    const reason = askWhy(`Move card payments for ${name} to ${PAYMENT_WORDS[to]}. The press is emailed at once, and the shop's server and pages are deployed again.`);
+    if (!reason) return;
+    move.disabled = true;
+    try {
+      const { shops } = await api("POST", "/control/payments", { ...target, to, reason });
+      await load();
+      const failed = shops.filter((s) => s.error);
+      const moved = shops.filter((s) => !s.error && !s.skipped).length;
+      status.textContent = `${moved} shop${moved === 1 ? "" : "s"} on ${PAYMENT_WORDS[to]}.${failed.length ? ` Not moved: ${failed.map((s) => `${s.shopId} (${s.error})`).join("; ")}` : ""}`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    move.disabled = false;
+  });
+  return el("div", { className: "row" }, el("label", { className: "switch" }, "Card payments", choice), move);
+}
+
+$("#all-payments").append(paymentsMenu("platform", { all: true }, "every live shop"));
 
 // ── The repair queue (control-room/repairs.js): mark an item fixed once a person has dealt with it. ──
 let repairStatus = "open";

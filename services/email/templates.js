@@ -197,6 +197,42 @@ export const TEMPLATES = {
   }),
 
   /** To the old address: someone asked to move this account away from it. */
+  /**
+   * The emergency payments switch (control-room/emergencyPayments.js, plan 8.5): a platform admin moved the shop's card
+   * payments. `to`: "own" (the press's own Stripe keys), "square" or "platform" (back to normal); `ready`: whether the
+   * press can take cards that way already.
+   */
+  "payments-moved": ({ to, ready }, { settings, pressName }) => {
+    const admin = "Open your shop's admin, then Settings and Payments";
+    const words = {
+      own: {
+        subject: `${pressName} now takes cards with your own Stripe account`,
+        paragraphs: [
+          `Card payments through ${settings.platformName} are stopped for now, so we moved ${pressName}'s checkout to your own Stripe account to keep you selling.`,
+          ready ? "Your own Stripe keys are already saved, so shoppers can pay by card now." : `${admin}, and add your own Stripe keys. Until you do, shoppers can't pay by card.`,
+        ],
+      },
+      square: {
+        subject: `${pressName} now takes cards with Square`,
+        paragraphs: [
+          `Card payments through Stripe are stopped for now, so we moved ${pressName}'s checkout to Square to keep you selling.`,
+          ready ? "Your Square account is connected, so shoppers can pay by card now." : `${admin}, and press Connect Square. Until you do, shoppers can't pay by card.`,
+        ],
+      },
+      platform: {
+        subject: `${pressName}'s card payments are back to normal`,
+        paragraphs: [`Card payments through ${settings.platformName} work again, so we moved ${pressName}'s checkout back. You don't need to do anything.`],
+      },
+    }[to];
+    if (!words) throw new Error("the payments email needs where the payments went");
+    return layout({
+      subject: words.subject,
+      greeting: "Hello,",
+      paragraphs: [...words.paragraphs, "Your books, orders and payouts already made are not affected. We'll email you again when anything changes."],
+      footer: signOff(settings),
+    });
+  },
+
   "recovery-asked": ({ newEmail }, { settings }) => layout({
     subject: `Someone asked to move your ${settings.platformName} account`,
     greeting: "Hello,",
