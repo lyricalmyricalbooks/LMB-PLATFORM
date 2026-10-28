@@ -15,6 +15,7 @@
 //                 support (supportAccess.js; the shop copy shows a banner and treats it as staff until it ends).
 //   repairs       optional: the repair queue (repairs.js): open(shopId), list({ status }), markFixed(id, { by, note })
 //   selfCheck     optional: the self-checks (selfChecks.js): check(shopId, { why }), run after every change here
+//   newsletters   optional: the newsletter pause (services/email/reputation.js): resume(shopId, { by, reason })
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
@@ -85,7 +86,7 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
   };
 }
 
-export function createControlRoom({ registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, admins, now = () => new Date() }) {
+export function createControlRoom({ registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, newsletters, admins, now = () => new Date() }) {
   const at = () => now().toISOString();
 
   // Every control-room action is logged in the registry and, once the shop's database exists, in its own audit log.
@@ -203,6 +204,21 @@ export function createControlRoom({ registry, auditLog, profileFiles, publish, s
       if (!selfCheck) throw new ControlError(404, "The self-checks aren't set up.");
       await shopOr404(shopId);
       return selfCheck.check(shopId, { why: `asked by ${by}` });
+    },
+
+    /**
+     * Turns a shop's newsletter back on after it paused itself (too many spam reports or bounces, plan 8.3), once the
+     * press has cleaned its list. Logged with the reason; receipts never stopped, so there is nothing else to restart.
+     */
+    async resumeNewsletter(claims, { shopId, reason } = {}) {
+      const by = adminOf(claims, admins);
+      const why = reasonOf(reason);
+      if (!newsletters) throw new ControlError(404, "The newsletter pause isn't set up.");
+      await shopOr404(shopId);
+      const { resumed } = await newsletters.resume(shopId, { by, reason: why });
+      if (!resumed) throw new ControlError(409, "That shop's newsletter isn't paused.");
+      await log(shopId, "newsletter-resumed", { by, reason: why });
+      return { shopId, resumed };
     },
 
     /** The control room's switch button. */
