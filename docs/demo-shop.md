@@ -85,6 +85,49 @@ To start over from the starter books, run `npm run demo -- --fresh`.
   restart the computer.
 - The emulators' own messages are in `.demo/emulators.log` in the `LMB-PLATFORM` folder.
 
+## The sample press (on a server, for anyone to try)
+
+The sample press is this demo on a server, so people can look around before they sign up. It is the same shop with the
+same books, run in a stricter way:
+
+- **Read-only.** Visitors can open the shop, the admin, Studio and the stockroom, and sign in as the demo owner the
+  same way. Nothing they change is kept: saving shows an error.
+- **No email and no payment, ever.** The shop's server code, the only part that sends email or takes a card, never
+  runs. The checkout stops before Pay.
+- **Fresh every night** at 3 a.m. (server time): everything is cleared and the starter books go back in.
+- Every page shows a bar: "This is a sample press to try. Nothing you do here is saved, and it starts fresh every
+  night."
+
+Once it has an address, the waitlist and sign-up pages show a "Try a sample press" link.
+
+### What Julian does to put it online
+
+The code is ready. Nothing is hosted yet. To host it:
+
+1. **Get a small server.** A Linux machine with Node.js 22 and Java 21, about 2 GB of memory, in the platform's own
+   Google Cloud account (never in a press's project). Give it a name, such as `sample.yourpress.example`.
+2. **Open these ports to the internet, and no others:** 5173 (the shop), 5174 (the stockroom), 9099 (sign-in), 8080
+   (database), 9000 (stockroom live data) and 9199 (photos). Keep 5001 (the server code), 4000 (the control panel)
+   and the 1xxxx ports closed.
+3. **Start it** on the server, from the `LMB-PLATFORM` folder:
+
+   ```
+   npm run demo -- --sample-press sample.yourpress.example
+   ```
+
+   Run it as a service that restarts on its own, such as a systemd unit. To start it fresh by hand while it runs,
+   use `node demo/reset.js`.
+4. **Check it:** open `http://sample.yourpress.example:5173/`, see the bar, change something in the admin and see it
+   refused. The next morning, the shop is back to its starter books.
+5. **Link it:** put the address in `SAMPLE_PRESS_URL` in both `waitlist/config.js` and `signup/config.js`.
+
+### What it can't do yet
+
+- **The address is `http://`, not `https://`.** Browsers mark the page "Not secure". The apps reach the practice
+  database with plain `http://`, so `https://` needs a small change to both apps first.
+- **Saving shows the app's usual error,** not a friendly "this is a sample" message.
+- **Everyone shares one sample press.** Visitors can't see each other's changes, because there are none.
+
 ## For developers
 
 `demo/run.js` does the work. In order, it:
@@ -102,3 +145,20 @@ To start over from the starter books, run `npm run demo -- --fresh`.
 The apps only use the emulators when built with `VITE_FIREBASE_EMULATORS=true` **and** opened with a `demo-` project.
 See `apps/shop/src/lib/emulators.ts` and `apps/stockroom/src/lib/emulators.js`. A real shop sets neither, so its
 pages are unchanged. App Check is skipped in demo mode.
+
+`--sample-press <host>` (`demo/hosted.js`) changes four things:
+
+- `sampleRules` takes every write out of the rules: `allow read, write` becomes `allow read`, and the database's
+  `.write` becomes `false`.
+- `sampleEmulatorConfig` has no functions and no control panel. The emulators listen on this computer only, on
+  `INTERNAL_PORTS`.
+- `demo/gate.js` is the only thing on the public ports (`GATE_PORTS`). It serves each app's `vite build` (made for the
+  public host) with `sampleProfileScript`, which adds the bar. It forwards everything else to the emulators, except
+  what `gateRefusal` turns away: the emulators' `owner` pass, `/emulator/` admin addresses (the practice sign-in
+  window is allowed), `/internal/` and `/.settings/`.
+- `demo/reset.js` clears both Firestore databases, the live data and the accounts, then reruns `seedDemo`. `run.js`
+  runs it on start and every night at `RESET_HOUR`.
+
+Tests: `demo/sample-press.test.js`. On 28 October 2026 it was also run against the real emulators: the read-only rules
+loaded, a visitor's write was refused, the owner pass and the clear address were refused at the gate, and a change was
+gone after a reset. The database emulator couldn't start in that sandbox, for the plain demo too.
