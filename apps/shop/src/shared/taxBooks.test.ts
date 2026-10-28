@@ -13,6 +13,12 @@ describe("names in your books (plan 7.11)", () => {
     expect(name("Quebec", "14.975")).toBe("GST + QST");
     expect(name("British Columbia", "7")).toBe("PST BC");
     expect(name("British Columbia", "12")).toBe("GST + PST BC");
+    // Plan 5.10: Saskatchewan's PST and Manitoba's RST, each alone and added to GST.
+    expect(name("SK", "6")).toBe("PST SK");
+    expect(name("Saskatchewan", "11")).toBe("GST + PST SK");
+    expect(name("Manitoba", "7")).toBe("RST MB");
+    expect(name("MB", "12")).toBe("GST + RST MB");
+    expect(name("Quebec", "9.975")).toBe("QST");
     expect(name("Ontario", "0")).toBe("Exempt");
     expect(name("New York", "8.875", "United States")).toBe("Sales tax New York");
     expect(suggestedTaxBookName(null)).toBe("Sales tax");

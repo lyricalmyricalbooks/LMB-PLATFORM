@@ -28,7 +28,7 @@ import { ChangeList, Figure, ReadinessStrip, RunList, RunRow, Trend, money, mone
 import { readinessSummary } from "../launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
-import { FirstWeekCard } from "./FirstWeekCard";
+import { SetupStart } from "./SetupStart";
 import { ConnectGoogleCard } from "../ConnectGoogleCard";
 import { GOOGLE_PARTS, OverviewMarketing, type GaState } from "./OverviewMarketing";
 import { FoundOnGoogleCard } from "./OverviewMarketingExtras";
@@ -62,7 +62,7 @@ const PERIOD_BUTTONS: Array<{ id: Preset; label: string; title: string; phone?: 
   { id: "90d", label: "90d", title: "The last 90 days" }, { id: "mtd", label: "MTD", title: "This month so far" }, { id: "lastMonth", label: "Last month", title: "Last calendar month" },
   { id: "ytd", label: "YTD", title: "This year so far", phone: "Year" }, { id: "365d", label: "12m", title: "The last 12 months" }, { id: "custom", label: "Custom", title: "Pick your own dates" },
 ];
-export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void }) {
+export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void; onSetWall?: (on: boolean) => Promise<boolean> }) {
   const saved = useMemo(readPrefs, []);
   const [preset, setPreset] = useState<Preset>(saved.preset && PRESETS.some(p => p.id === saved.preset) ? saved.preset : "30d");
   const [compareMode, setCompareMode] = useState<CompareMode>(saved.compare === "lastYear" ? "lastYear" : "previous");
@@ -553,8 +553,10 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
 
   return (
     <>
-      {/* Plan 3.3: only a shop whose setup wrote the sign-up answer shows it, until done or hidden. */}
-      <FirstWeekCard books={stock.books} readiness={readiness} onOpen={tab => setActiveTab?.(tab)} />
+      {/* Plans 6.3 and 6.9: only a shop whose setup wrote the sign-up answers shows Choose your look, then the guide. */}
+      <SetupStart books={stock.books} orders={allOrders.orders} readiness={readiness}
+        settings={launch.parts ? launch.parts.settings : launch.error ? null : undefined}
+        onOpen={tab => setActiveTab?.(tab)} onSetWall={onSetWall} onRetrySettings={refresh} />
       {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected. */}
       <ConnectGoogleCard variant="prompt" />
       <OverviewBoard store={boards.store} setStore={boards.setStore} saveState={boards.saveState} saveError={boards.saveError}

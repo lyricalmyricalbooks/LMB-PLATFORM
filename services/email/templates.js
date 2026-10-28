@@ -1,6 +1,7 @@
 // The words of every email the platform sends, by kind. Each template takes the email's data plus `{ settings, pressName }`
 // and returns { subject, text, html }. Every value from a press or a person is escaped in the HTML, and links must be
 // https. Customer-facing words: name the product (settings.platformName), never a rival.
+import { closingTemplates } from "./closingTemplates.js";
 
 export const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -431,6 +432,24 @@ export const TEMPLATES = {
     paragraphs: [`The ${settings.platformName} account that used ${oldEmail} now signs in with ${newEmail}.`, "If you didn't expect this, reply to this email at once."],
     footer: signOff(settings),
   }),
+
+  /**
+   * A setup tip during the trial (services/trial-tips, plan 6.10): the next step of the shop's setup guide. `data`:
+   * { pressName, subject, paragraphs, action, link, offLink }. Always carries the link that turns the tips off.
+   */
+  "trial-tip": ({ subject, paragraphs = [], action, link, offLink }, { settings, pressName }) => {
+    if (!subject || !paragraphs.length || !action) throw new Error("the setup tip has no words");
+    return layout({
+      subject: `${pressName}: ${subject}`,
+      greeting: "Hello,",
+      paragraphs: [...paragraphs, `Don't want these setup tips? Turn them off here: ${safeLink(offLink)}. Emails about your plan and payments still come.`],
+      buttons: [[action, safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
+
+  // Closing a shop (code plan 6.8): shop-closed, shop-deletion-warning, shop-deleted.
+  ...closingTemplates({ layout, safeLink, signOff }),
 };
 
 /** Problems with a free-form email a shop asks to send (its own order and account emails), in plain words. */

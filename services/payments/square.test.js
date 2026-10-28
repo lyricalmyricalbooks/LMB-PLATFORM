@@ -279,6 +279,32 @@ test("the platform fee rides on the checkout and goes back in proportion with a 
   assert.equal((await w.call("square.refunds.retrieve", { id: half.body.id })).body.paymentId, payment.id);
 });
 
+test("gift card plus card (5.3): the gift card's share is a discount on Square's order, the card pays the rest, the fee is on the rest", async () => {
+  const w = await world({ rows: [squareRow({ platformFee: { basisPoints: 1000 } })] });
+  await w.connect("MERCHANT1");
+  // A gift card that covers everything, or a part that isn't whole cents, is refused before Square is asked.
+  assert.equal((await w.call("square.checkout.create", checkoutArgs({ giftCardMinor: 5000 }))).status, 400);
+  assert.equal((await w.call("square.checkout.create", checkoutArgs({ giftCardMinor: 12.5 }))).status, 400);
+  assert.equal((await w.call("square.checkout.create", checkoutArgs({ giftCardMinor: -1 }))).status, 400);
+  assert.equal(w.sq.requests.filter((r) => r.path === "/v2/online-checkout/payment-links").length, 0);
+
+  const made = await w.call("square.checkout.create", checkoutArgs({ giftCardMinor: 1500 }));
+  assert.equal(made.status, 200, JSON.stringify(made.body));
+  const sent = w.sq.requests.find((r) => r.path === "/v2/online-checkout/payment-links");
+  assert.deepEqual(sent.body.order.discounts, [{ uid: "gift-card", name: "Gift card", type: "FIXED_AMOUNT", amount_money: { amount: 1500, currency: "CAD" }, scope: "ORDER" }]);
+  assert.equal(sent.body.order.line_items.length, 2);
+  // 10% of the 35.00 the card pays, not of the 50.00 the books cost.
+  assert.deepEqual(sent.body.checkout_options.app_fee_money, { amount: 350, currency: "CAD" });
+
+  const payment = w.sq.world.pay(made.body.id);
+  assert.equal(payment.total_money.amount, 3500);
+  const look = await w.call("square.checkout.retrieve", { id: made.body.id });
+  assert.equal(look.body.totalMinor, 3500);
+  // A refund can't take back more than the card paid.
+  const all = await w.call("square.refunds.create", { params: { paymentId: payment.id }, idempotencyKey: "order1-refund-all" });
+  assert.equal(all.body.amountMinor, 3500);
+});
+
 test("a shop whose fee isn't refunded keeps it out of the refund", async () => {
   const w = await world({ rows: [squareRow({ platformFee: { basisPoints: 1000, refunded: false } })] });
   await w.connect("MERCHANT1");

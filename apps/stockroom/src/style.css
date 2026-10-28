@@ -21566,3 +21566,13 @@ a.notif-action:hover { text-decoration: underline; }
 .author-subs-card { background: var(--surface-card); border: var(--stroke-hair) solid var(--border); border-left: var(--stroke) solid var(--amber); border-radius: var(--r2); padding: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
 .author-subs-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .author-subs-title { font-weight: 600; color: var(--text2); margin-bottom: var(--space-1); display: flex; align-items: center; gap: var(--space-2); }
+
+/* Set up your stockroom (plan 6.9): the five-step guide on All Books for a stockroom-only plan (lib/setup-guide.js). */
+.setup-guide-list { list-style: none; margin: 0; padding: 0; }
+.setup-guide-step { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) 0; border-top: var(--stroke-hair) solid var(--border2); }
+.setup-guide-step:first-child { border-top: 0; }
+.setup-guide-num { min-width: 1.5rem; font-family: var(--font-mono); font-weight: 700; color: var(--text); }
+.setup-guide-text { flex: 1 1 14rem; min-width: 0; }
+.setup-guide-text p { margin: var(--space-1) 0 0; color: var(--text3); font-size: var(--text-xs); }
+.setup-guide-step.is-done strong { text-decoration: line-through; color: var(--text3); }
+.setup-guide-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }

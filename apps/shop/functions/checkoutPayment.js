@@ -78,7 +78,7 @@ function checkoutPaymentActions({
       }
       return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
     } catch (err) {
-      return res.status(400).json({ error: publicErrorMessage(err, "We could not place this order. Please check your details and try again."), ...(["hold_limit", "store_closed", "shipping_rates_changed"].includes(err.code) ? { code: err.code } : {}) });
+      return res.status(400).json({ error: publicErrorMessage(err, "We could not place this order. Please check your details and try again."), ...(["hold_limit", "store_closed", "shop_paused", "shipping_rates_changed"].includes(err.code) ? { code: err.code } : {}) });
     }
   }
 
@@ -253,10 +253,12 @@ function checkoutPaymentActions({
         });
       }
 
-      // Gift cards pay part of the order: the card is charged only what is left.
+      // Gift cards pay part of the order: the card is charged only what is left. Stripe's hosted page can't show that,
+      // so it takes gift cards on the card form only; Square's page shows the gift card's share and charges the rest
+      // (code plan 5.3).
       const giftCardMinor = Math.round(giftCardAmount * exchangeRate * 100);
       const chargeMinor = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0) - giftCardMinor;
-      if (giftCardMinor > 0 && !paymentElement) {
+      if (giftCardMinor > 0 && !paymentElement && !card.giftCardsOnHostedPage) {
         res.status(400).json({ error: "Gift cards can be used with the card form on the checkout page.", code: "gift_card_rejected" });
         return;
       }
@@ -356,20 +358,23 @@ function checkoutPaymentActions({
       }
       const joiner = checkoutBase.includes("?") ? "&" : "?";
 
+      // The card pays what the gift cards leave (all of it when there are none): the webhook settles only that amount.
       await orderRef.update({
-        expectedAmountMinor: lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0),
+        expectedAmountMinor: chargeMinor,
         expectedCurrency: checkoutCurrency,
         chargedGiftCards: giftCardRedemptions,
         updatedAt: new Date().toISOString(),
       });
       // Same order, amount and minute = the same session (a double click can't open two).
-      const sessionAmount = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0);
+      const sessionAmount = chargeMinor;
       const sessionMinute = Math.floor(Date.now() / 60000);
       const session = await card.createCheckoutSession({
         line_items: lineItems,
         mode: "payment",
         client_reference_id: orderId,
         customer_email: order.customer.email,
+        // Only a provider whose page shows it (Square) is ever given a gift card's share; it is refused above otherwise.
+        ...(giftCardMinor > 0 ? { gift_card_minor: giftCardMinor } : {}),
         // Let Stripe select eligible methods from Dashboard configuration.
         // Delayed methods remain unpaid until the success webhook settles them.
         payment_intent_data: {

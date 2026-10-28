@@ -12,6 +12,7 @@ import { isTestProfileActive, installSandboxBackend } from './lib/test-profile.j
 import { DATA_ROOT, shopProfile, stockroomBucketUrl, stockroomDatabaseId } from './lib/shop-profile.js';
 import { emulatorSettings } from './lib/emulators.js';
 import { BOOKKEEPER_COPY_KEY, bookkeeperCopyKey, bookkeeperTaxCopy } from './lib/bookkeeper-copy.js';
+import { lockWrites } from './lib/plan-pause.js';
 
 // This shop's Firebase project comes from /shop-profile.js (src/lib/shop-profile.js).
 const firebaseConfig = { ...shopProfile.firebase };
@@ -1321,10 +1322,26 @@ window._fbMassMigrate = async (BOOKS) => {
   return true;
 };
 
+// The shop's plan on the platform (lib/plan-pause.js): platform/plan in this database, written only by the platform.
+// Null when there is none (not on a plan) or it can't be read in a few seconds (offline): the rules still refuse
+// changes on a paused plan, so a slow read never opens one.
+window._fbLoadPlan = async (waitMs = 4000) => {
+  try {
+    const read = getDoc(doc(fs, 'platform', 'plan')).then(snap => (snap.exists() ? snap.data() : null));
+    return await Promise.race([read, new Promise(resolve => setTimeout(() => resolve(null), waitMs))]);
+  } catch (e) {
+    console.warn('[FB] plan not read', e);
+    return null;
+  }
+};
+
 // The Test Profile never reads or writes the real cloud: every function above
 // (sign-in aside) is swapped for a copy kept on this device. Installed last so
 // it covers everything defined in this file, including anything added later.
 if (isTestProfileActive()) installSandboxBackend(window, window.localStorage);
+
+// While the plan is paused or closed, every write above refuses at once (features/plan-pause.js sets the flag).
+lockWrites(window, () => window.PLAN_READ_ONLY === true);
 
 window._fbReady = true;
 document.dispatchEvent(new Event('firebase-ready'));

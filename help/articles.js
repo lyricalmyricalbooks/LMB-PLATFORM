@@ -41,8 +41,8 @@ export const ARTICLES = Object.freeze([
     topic: "Getting started",
     question: "What should I do first?",
     answer: [
-      "Your Overview opens with a short list called Your first week. It is chosen from how you said you sell today when you signed up.",
-      "Steps the shop can check, such as adding books, shipping and payments, tick themselves. You tick the others with Mark done. When you no longer need the list, press Hide this list.",
+      "The first time you open your shop's admin, you choose a look for it. Then your Overview shows Set up your shop: eight steps from your logo to opening your shop, in an order chosen from how you said you sell today.",
+      "Three steps show at a time and the rest wait under Later. Most tick themselves once they are done. Your shop stays private until the last step, Open your shop. When you no longer need the guide, press Hide this guide.",
     ],
     where: ["Overview"],
   },
@@ -62,7 +62,7 @@ export const ARTICLES = Object.freeze([
     question: "How do I add photos to my books?",
     answer: [
       "Open the book in Books and add one or more photos, then save the book.",
-      "Books with a photo sell far better. The first-week list ticks this step once every book has one.",
+      "Books with a photo sell far better, and the shop looks finished.",
     ],
     where: ["Books"],
   },
@@ -210,10 +210,21 @@ export const ARTICLES = Object.freeze([
     topic: "Selling",
     question: "How do I try an order before real shoppers do?",
     answer: [
-      "Open Settings › Payments and follow Test sale walkthrough. It takes you through an order with a test card, the confirmation email and a refund.",
-      "Each step ticks itself when it is done, and no real money moves.",
+      "While your shop is still private, open Settings › Payments and press Try a practice order. For an hour, you can buy a book in your own shop with the practice card shown there. Then see the confirmation email and refund the order.",
+      "Each step ticks itself when it is done, practice orders never count in your sales, and no real money moves.",
     ],
     where: ["Settings › Payments"],
+    plans: ["shop"],
+  },
+  {
+    id: "open-shop",
+    topic: "Getting started",
+    question: "How do I open my shop to shoppers?",
+    answer: [
+      "A new shop starts private: shoppers see an under-construction page while you set it up. When you are ready, press Open your shop, the last step of Set up your shop on the Overview.",
+      "It first checks that your shop can sell: a published book, shipping, payments and your address for emails. If something is missing, it says what and takes you there. You can close the shop again from Settings › General › Store status.",
+    ],
+    where: ["Overview", "Settings › General"],
     plans: ["shop"],
   },
   {
@@ -310,23 +321,20 @@ export const ARTICLES = Object.freeze([
 ]);
 
 /**
- * The answer for each step of the shop's first-week list (apps/shop/src/app/admin/firstWeek.ts, `StepId`). A new step
+ * The answer for each step of the shop's setup guide, Set up your shop (apps/shop/src/app/admin/firstWeek.ts, `StepId`). A new step
  * there fails help.test.js until it has an answer here.
  */
 export const CHECKLIST_ANSWERS = Object.freeze({
-  "bring-books": "bring-books",
-  "bring-customers": "bring-customers",
-  "import-spreadsheet": "import-spreadsheet",
-  "add-books": "add-a-book",
-  photos: "photos",
-  isbn: "isbn",
+  logo: "look",
   look: "look",
+  "add-books": "add-a-book",
+  "bring-books": "bring-books",
+  "import-spreadsheet": "import-spreadsheet",
   shipping: "shipping",
   payments: "get-paid",
-  publish: "publish",
-  fair: "fairs",
   address: "own-address",
-  share: "share",
+  practice: "test-order",
+  open: "open-shop",
 });
 
 /** The articles for a plan ("both", "shop" or "stockroom"); everyone gets the ones with no plan. */

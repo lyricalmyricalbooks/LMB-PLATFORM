@@ -78,6 +78,8 @@ const MAIN_IMPORT_BUDGET = {
   'receipt-finder.js': 0,
   // The bookkeeper's read-only screen (plan 7.17) needs nothing from main.js.
   'bookkeeper-view.js': 0,
+  // The read-only lock while the shop's plan is paused (platform plan 6.7) needs nothing from main.js.
+  'plan-pause.js': 0,
   // The review inbox is a window over receipts.js and shipping.js, which hold its
   // data. From main.js it needs only the DOM lookup, the role check, the toast,
   // and the call that repaints the landing page after something is filed.
@@ -341,6 +343,8 @@ const MIN_EXPORTS = {
   'app-search.js': 2,
   // The bookkeeper's read-only screen: its markup and the call that shows it.
   'bookkeeper-view.js': 2,
+  // The read-only lock: the call that locks the stockroom and shows the banner.
+  'plan-pause.js': 1,
 };
 
 describe('feature modules are the only home of what they own', () => {

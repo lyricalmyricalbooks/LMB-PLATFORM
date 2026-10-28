@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PLAN_WRITE_FUNCTIONS } from '../src/lib/plan-pause.js';
 
 // The rules files can't be executed here (that needs the Firebase emulators),
 // so this pins down the decisions they encode: which settings documents a
@@ -270,7 +271,7 @@ describe('website link rules', () => {
   it('websiteLink: publisher reads both, writes only its own app document', () => {
     const rules = block('websiteLink');
     expect(rules).toMatch(/allow read: if isPublisher\(\);/);
-    expect(rules).toContain("isPublisher() && docId == 'app'");
+    expect(rules).toContain("isPublisher() && planOpen() && docId == 'app'");
     expect(rules).toContain("keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks'])");
     expect(rules).toContain('appTodoOk(request.resource.data)');
     expect(rules).toContain("linkMapOk(request.resource.data, 'linkRequests')");
@@ -309,5 +310,58 @@ describe('website link rules', () => {
     expect(fb).toContain("const app = { build: String(build || '') };");
     expect(fb).toContain('if (plan.feeds.length) app.lastFeedAt = now;');
     expect(fb).toContain('if (plan.accepted.length) app.lastImportAt = now;');
+  });
+});
+
+// The shop's plan on the platform (platform plan 6.7, src/lib/plan-pause.js): paused or closed, the stockroom is
+// read-only. The emulator run (scripts/rules-emulator.mjs) checks the rules' behaviour; these keep the lists in step.
+const firebaseJs = read('src/firebase.js');
+describe('every write in firebase.js is locked', () => {
+  // Each `window._fbX = …` up to the next one. A body that writes (setDoc, deleteDoc, a batch, a transaction, a
+  // Realtime Database set/remove/push or an upload) must be in PLAN_WRITE_FUNCTIONS.
+  const blocks = [...firebaseJs.matchAll(/^window\.(_fb[A-Za-z0-9]+)\s*=/gm)].map((m, i, all) => ({
+    name: m[1],
+    body: firebaseJs.slice(m.index, all[i + 1]?.index ?? firebaseJs.length),
+  }));
+  const writes = /(?<![.\w])(setDoc|updateDoc|deleteDoc|addDoc|writeBatch|runTransaction|uploadBytes|uploadString|deleteObject|set|update|remove|push)\(/;
+  // Writes that stay allowed on purpose: the first-ever copy of the mode switches (errors caught, the rules refuse it
+  // while paused) and error reports, which keep reaching the owner while the stockroom is read-only.
+  const notLocked = ['_fbLoadModeFlags', '_fbLogClientError'];
+
+  it('finds the functions', () => {
+    expect(blocks.length).toBeGreaterThan(30);
+  });
+  it('lists every function that writes', () => {
+    const missing = blocks.filter(b => writes.test(b.body) && !PLAN_WRITE_FUNCTIONS.includes(b.name) && !notLocked.includes(b.name)).map(b => b.name);
+    expect(missing).toEqual([]);
+  });
+  it('lists only functions that exist', () => {
+    const names = new Set(blocks.map(b => b.name));
+    expect(PLAN_WRITE_FUNCTIONS.filter(n => !names.has(n))).toEqual([]);
+  });
+  it('locks after the test profile swaps its functions in, so both are covered', () => {
+    const sandbox = firebaseJs.indexOf('installSandboxBackend(window');
+    const lock = firebaseJs.indexOf('lockWrites(window');
+    const load = firebaseJs.indexOf('window._fbLoadPlan');
+    expect(sandbox).toBeGreaterThan(0);
+    expect(lock).toBeGreaterThan(sandbox);
+    expect(load).toBeLessThan(sandbox);
+  });
+});
+
+describe('the app and the rules agree', () => {
+  it('reads the plan on start and stops saving while read-only', () => {
+    expect(read('src/main.js')).toMatch(/_fbLoadPlan\(\)/);
+    expect(read('src/main.js')).toMatch(/planReadOnly\(plan\)/);
+    expect(read('src/main.js')).toMatch(/if \(window\.PLAN_READ_ONLY\) \{\s*showToast/);
+  });
+  it('lets signed-in people read the plan, nobody write it, and every write needs an open plan', () => {
+    expect(firestoreRules).toMatch(/match \/platform\/\{docId\} \{\s*allow get: if docId == 'plan' && request\.auth != null;\s*allow list, write: if false;/);
+    // Error reports (clientErrors) stay open: they are how a problem reaches the owner, paused or not.
+    const errorReports = firestoreRules.slice(firestoreRules.indexOf('match /clientErrors/'), firestoreRules.indexOf('\n    }', firestoreRules.indexOf('match /clientErrors/')));
+    const writeLines = firestoreRules.replace(errorReports, '').split('\n')
+      .filter(l => /allow [a-z, ]*(write|create|update|delete)[a-z, ]*:/.test(l) && !/if false/.test(l));
+    const unguarded = writeLines.filter(l => !l.includes('planOpen()'));
+    expect(unguarded).toEqual([]);
   });
 });

@@ -207,3 +207,17 @@ describe("Platform support", () => {
     expect(fn(rules, "isOwner")).not.toContain("isSupport");
   });
 });
+
+// The shop's plan on the platform (plan 6.6, 6.7): only the platform writes platform/plan and platform/status, the plan
+// is the admins' to read, and a paused plan stops guest orders. scripts/firestore-rules-emulator.mjs checks the same.
+describe("The shop's plan", () => {
+  it("is written by no browser, read by admins only, with a public open-or-not status", () => {
+    const platform = block("platform/{docId}");
+    expect(platform).toMatch(/allow write: if false;/);
+    expect(platform).toMatch(/allow read: if docId == 'status' \|\| \(docId == 'plan' && isAdmin\(\)\);/);
+  });
+  it("leaves stopping orders to the server, which every checkout path goes through", () => {
+    // functions/planPause.test.js proves the refusal; the guest order rule is at the engine's expression limit.
+    expect(read("functions/index.js")).toMatch(/if \(planPaused\(\(await db\.collection\("platform"\)\.doc\("status"\)\.get\(\)\)\.data\(\)\)\)/);
+  });
+});

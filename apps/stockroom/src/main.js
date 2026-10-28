@@ -13,6 +13,7 @@ import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
 import { isPublisherUser, readPassClaims } from './lib/publisher-access.js';
 import { isBookkeeperPass } from './lib/bookkeeper-copy.js';
+import { planReadOnly } from './lib/plan-pause.js';
 import { foldFooterActions, initPhoneLayouts } from './lib/phone-layout.js';
 import { createPhonePageMemory, initPhoneWorkspace, observeSidebarBadges } from './lib/phone-workspace.js';
 const phonePages = createPhonePageMemory(window);
@@ -1133,7 +1134,8 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { fileStem, readShopProfile, switchOn } from './lib/shop-profile.js';
+import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, switchOn } from './lib/shop-profile.js';
+import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 
 
 // Tells the boot watchdog in index.html that the bundle and every import it
@@ -4082,6 +4084,13 @@ async function saveStateNow(bookId, rebase) {
   //
   // Self-clearing: _fbWatch replaces states[bookId] wholesale when real data
   // arrives, and the marker is a property of the object it replaces.
+  // The shop's plan is paused or closed (lib/plan-pause.js): read-only. Nothing is queued either, since the rules
+  // would refuse it on every retry; the banner says how to open the stockroom again.
+  if (window.PLAN_READ_ONLY) {
+    showToast('Your plan is paused, so the stockroom is read-only. Nothing was changed.', 'warn', 6000);
+    setSyncState('error', '<b>Read-only</b> · your plan is paused');
+    return;
+  }
   if (state._loadFailed) {
     const title = (BOOKS[bookId] && BOOKS[bookId].title) || bookId;
     showToast(`⚠ Not saving — ${title} never loaded, so this screen isn't its real data. Reload first.`, 'err', 6000);
@@ -6234,11 +6243,35 @@ function showCatalogueSkeleton() {
 // ── ALL BOOKS OVERVIEW
 function updateAllOverview() {
   const allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b));
+  renderSetupGuide(allBooksVisible);
   renderAllBooksStrips(allBooksVisible);
   renderCombinedChannelAnalytics(allBooksVisible);
   renderCombinedConsignmentSummary(allBooksVisible);
   renderOverviewRail();
 }
+
+// Set up your stockroom (plan 6.9, lib/setup-guide.js): five steps for a stockroom-only plan, above All Books.
+function renderSetupGuide(allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b))) {
+  const el = $('stockroom-setup-guide');
+  if (!el) return;
+  const saved = readGuide();
+  const steps = guideSteps({ books: allBooksVisible, states }, saved);
+  const on = !isAuthor() && guideApplies(readShopProfile(), DEFAULT_SHOP_PROFILE) && showGuide(steps, saved);
+  el.hidden = !on;
+  el.innerHTML = on ? guideHtml(steps) : '';
+}
+registerActions({
+  'guide.open': el => switchTab(el.dataset.tab),
+  'guide.tick': el => {
+    const saved = readGuide();
+    writeGuide({ ...saved, done: { ...(saved.done || {}), [el.dataset.id]: new Date().toISOString() } });
+    renderSetupGuide();
+  },
+  'guide.hide': () => {
+    writeGuide({ ...readGuide(), hiddenAt: new Date().toISOString() });
+    renderSetupGuide();
+  },
+});
 
 // The phone's All Books: one row per title (lib/phone-books.js). The chip
 // choice lasts for the visit; the desktop strips below are untouched.
@@ -19300,6 +19333,12 @@ async function initStartup() {
         dismissSplash();
         return;
       }
+      // A paused or closed plan opens the stockroom read-only (lib/plan-pause.js), before anything can be changed.
+      const plan = typeof window._fbLoadPlan === 'function' ? await window._fbLoadPlan() : null;
+      if (planReadOnly(plan)) {
+        const { showPlanPause } = await import('./features/plan-pause.js');
+        showPlanPause(plan);
+      }
       if (cachedGlobal === true) {
         showStartupPreview(user, publisherAccount)
           .then(shown => { if (shown) dismissSplash(); })
@@ -19346,7 +19385,7 @@ async function initStartup() {
         // Seed/refresh the rules-readable ownership map now we're authenticated as
         // publisher, so authors' per-book writes resolve under the tightened rules
         // even if the catalog isn't edited this session.
-        if (typeof window._fbSaveBookOwners === 'function') window._fbSaveBookOwners(ownersFromBooks());
+        if (typeof window._fbSaveBookOwners === 'function' && !window.PLAN_READ_ONLY) window._fbSaveBookOwners(ownersFromBooks());
         showApp('publisher', null);
         syncSheetsConnectionWithCloud();
         checkAppUpdate();

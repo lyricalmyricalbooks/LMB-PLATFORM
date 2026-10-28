@@ -132,6 +132,50 @@ function feeForm(record) {
   return form;
 }
 
+// Closing a shop (6.8): where it is, and the dates the press was told.
+const CLOSING_WORDS = { paused: "paused", closed: "closed, download open", deleted: "deleted" };
+function closingView(closing) {
+  if (!closing) return [];
+  const dates = [
+    closing.closedAt && `closed ${dateOnly(closing.closedAt)}`,
+    closing.downloadUntil && `download until ${dateOnly(closing.downloadUntil)}`,
+    closing.deleteAfter && `deleted after ${dateOnly(closing.deleteAfter)}`,
+    closing.warned30At && "30-day warning sent",
+    closing.warned7At && "7-day warning sent",
+    closing.problem && `problem: ${closing.problem}`,
+  ].filter(Boolean);
+  return [el("strong", { textContent: "Closing" }), el("p", { textContent: `${CLOSING_WORDS[closing.stage] ?? closing.stage}${dates.length ? ` · ${dates.join(" · ")}` : ""}` })];
+}
+
+// The shop's Google steps (6.20, google/status.js), each with Run again when it failed or waits.
+const GOOGLE_STATE = { done: "done", failed: "failed", waiting: "waiting" };
+function googleView(record) {
+  const google = record.google;
+  if (!google) return el("p", { className: "hint", textContent: "Not connected to Google." });
+  const list = el("ul", {}, ...google.steps.map((step) => {
+    const item = el("li", {}, `${step.step}: ${GOOGLE_STATE[step.state] ?? step.state}${step.detail ? `. ${step.detail}` : ""} `);
+    if (step.canRunAgain) {
+      const again = el("button", { type: "button", textContent: "Run again" });
+      again.addEventListener("click", async () => {
+        again.disabled = true;
+        try {
+          const { outcome } = await api("POST", "/control/google-run-again", { shopId: record.shopId, step: step.step });
+          status.textContent = `${record.pressName}: ${step.step} ${GOOGLE_STATE[outcome.state] ?? outcome.state}.`;
+          list.closest(".record")?.replaceWith(recordView(await api("POST", "/control/shop", { shopId: record.shopId })));
+        } catch (failure) {
+          status.textContent = failure.message;
+          again.disabled = false;
+        }
+      });
+      item.append(again);
+    }
+    return item;
+  }));
+  return el("div", { className: "stack" },
+    el("p", { className: "hint", textContent: `${google.stage}${google.accountEmail ? ` as ${google.accountEmail}` : ""}${google.connectedAt ? ` since ${dateOnly(google.connectedAt)}` : ""}.` }),
+    google.steps.length ? list : el("p", { className: "hint", textContent: "No Google steps yet." }));
+}
+
 function recordView(record) {
   const billing = record.billing;
   const line = (label, value) => (value ? el("li", {}, el("strong", { textContent: `${label}: ` }), value) : null);
@@ -144,10 +188,12 @@ function recordView(record) {
       line("Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan),
       line("Payments", connections.payments ? `${connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"),
       line("Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map((d) => `${d.name} (${d.state})`).join(", ") : "the shop's own .web.app address"),
-      line("Google", connections.google ? Object.entries(connections.google).filter(([k, v]) => v && !["steps", "connectedAt"].includes(k)).map(([k]) => k).join(", ") || "not connected" : "not connected"),
       line("Version", record.version ?? "none yet")),
     el("strong", { textContent: "Setup" }),
     record.setup.length ? el("ul", {}, ...record.setup.map((step) => el("li", { textContent: `${step.step}. ${step.name ?? ""} ${step.ok ? "done" : `stopped: ${step.error}`}` }))) : el("p", { className: "hint", textContent: "No setup steps yet." }),
+    ...closingView(record.closing),
+    el("strong", { textContent: "Google" }),
+    googleView(record),
     el("strong", { textContent: "Fee on each order" }),
     feeForm(record),
     el("strong", { textContent: "Control-room history" }),
@@ -768,7 +814,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 // ── Activity log (plan 9.9): read only. ──
 const ACTIVITY_WORDS = {
   "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "switch-set": "set a switch",
-  "act-as": "opened the shop's admin as support", "test-shop-reset": "reset the test shop's sample books", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
+  "act-as": "opened the shop's admin as support", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again",
 };
