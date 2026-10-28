@@ -1,7 +1,7 @@
 // Imported photos into the shop's own Storage (photoImport.js, plan 3.1b): proven with a fake bucket, database and
 // fetch. Nothing here reaches a real shop or the internet.
 import { describe, expect, it } from "vitest";
-const { publicHttps, needsImport, runPhotoImport, MAX_BYTES } = require("./photoImport");
+const { publicHttps, privateAddress, needsImport, runPhotoImport, MAX_BYTES } = require("./photoImport");
 
 const BUCKET = "lmb-test-shop.firebasestorage.app";
 const OWN = `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/products%2F1-01.png?alt=media&token=t1`;
@@ -57,6 +57,7 @@ function fakeFetch(answers) {
     calls.push(url);
     const a = answers[url];
     if (!a) return { ok: false, status: 404, url, headers: new Map(), arrayBuffer: async () => new ArrayBuffer(0) };
+    if (a.redirect) return { ok: false, status: 302, url, headers: new Map([["location", a.redirect]]), arrayBuffer: async () => new ArrayBuffer(0) };
     const body = Buffer.from(a.body || "photo-bytes");
     return {
       ok: true, status: 200, url: a.finalUrl || url,
@@ -68,6 +69,7 @@ function fakeFetch(answers) {
 }
 
 const quiet = { warn() {} };
+const publicLookup = async () => [{ address: "93.184.216.34", family: 4 }];
 const book = id => fakeDbBooks => fakeDbBooks.docs.get(`books/${id}`);
 
 describe("photoImport helpers", () => {
@@ -104,7 +106,7 @@ describe("runPhotoImport", () => {
 
   it("copies old-address photos into the bucket and swaps each book to the copy, keeping the old address", async () => {
     const { db, bucket, fetch, calls } = setup();
-    const result = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet });
+    const result = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
     expect(result).toMatchObject({ found: 3, done: 3, books: 2, failed: 0, pending: 0 });
     // One download per address, even when two books share it.
     expect(calls.sort()).toEqual([OLD_B, OLD_A].sort());
@@ -126,20 +128,20 @@ describe("runPhotoImport", () => {
 
   it("writes one audit line per run that copied something, and none when nothing was left", async () => {
     const { db, bucket, fetch } = setup();
-    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet });
+    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
     expect(db.audit).toHaveLength(1);
     expect(db.audit[0]).toMatchObject({ type: "catalog", photos: 3, books: 2 });
     expect(db.audit[0].message).toBe("Copied 3 imported photos on 2 books into the shop's own storage");
-    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet });
+    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
     expect(db.audit).toHaveLength(1);
   });
 
   it("is safe to re-run: a second pass downloads nothing, and a copy saved before a crash is reused", async () => {
     const { db, bucket, fetch, calls } = setup();
-    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet });
+    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
     const after = structuredClone([...db.docs.entries()]);
     calls.length = 0;
-    const again = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet });
+    const again = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
     expect(again.found).toBe(0);
     expect(calls).toEqual([]);
     expect(structuredClone([...db.docs.entries()]).filter(([p]) => p.startsWith("books/"))).toEqual(after.filter(([p]) => p.startsWith("books/")));
@@ -147,7 +149,7 @@ describe("runPhotoImport", () => {
     // The file was saved but the book never switched (the run stopped in between): the next run reuses the file.
     const db2 = fakeDb({ three: { photos: [{ url: OLD_A }] } });
     calls.length = 0;
-    await runPhotoImport({ db: db2, bucket, fetch, deadline: Date.now() + 60_000, log: quiet });
+    await runPhotoImport({ db: db2, bucket, fetch, deadline: Date.now() + 60_000, log: quiet, lookup: publicLookup });
     expect(calls).toEqual([]);
     expect(db2.docs.get("books/three").photos[0].url).toBe(book("one")(db).photos[0].url);
     expect(bucket.store.size).toBe(2);
@@ -164,10 +166,10 @@ describe("runPhotoImport", () => {
     const { fetch, calls } = fakeFetch({
       "https://cdn.oldshop.example/page": { type: "text/html" },
       "https://cdn.oldshop.example/huge.jpg": { length: MAX_BYTES + 1 },
-      "https://cdn.oldshop.example/inward.jpg": { finalUrl: "https://10.0.0.1/x.jpg" },
+      "https://cdn.oldshop.example/inward.jpg": { redirect: "https://10.0.0.1/x.jpg" },
     });
     const now = Date.now();
-    const result = await runPhotoImport({ db, bucket, fetch, deadline: now + 60_000, now, log: quiet });
+    const result = await runPhotoImport({ db, bucket, fetch, deadline: now + 60_000, now, log: quiet, lookup: publicLookup });
     expect(result).toMatchObject({ found: 4, done: 0, failed: 4 });
     expect(bucket.store.size).toBe(0);
     expect(db.audit).toEqual([]);
@@ -177,15 +179,15 @@ describe("runPhotoImport", () => {
       "larger than 20 MB", "moved to an address that isn't allowed", "not a photo (text/html)", "the old shop answered 404",
     ]);
     calls.length = 0;
-    await runPhotoImport({ db, bucket, fetch, deadline: now + 60_000, now: now + 3600_000, log: quiet });
+    await runPhotoImport({ db, bucket, fetch, deadline: now + 60_000, now: now + 3600_000, log: quiet, lookup: publicLookup });
     expect(calls).toEqual([]);
-    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, now: now + 8 * 24 * 3600_000, log: quiet });
+    await runPhotoImport({ db, bucket, fetch, deadline: Date.now() + 60_000, now: now + 8 * 24 * 3600_000, log: quiet, lookup: publicLookup });
     expect(calls).toHaveLength(4);
   });
 
   it("stops at the deadline and leaves the rest for the next run", async () => {
     const { db, bucket, fetch, calls } = setup();
-    const result = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() - 1, log: quiet });
+    const result = await runPhotoImport({ db, bucket, fetch, deadline: Date.now() - 1, log: quiet, lookup: publicLookup });
     expect(result).toMatchObject({ found: 3, done: 0, pending: 3 });
     expect(calls).toEqual([]);
     expect(db.docs.get("systemStatus/photoImport").pending).toBe(3);
@@ -194,5 +196,71 @@ describe("runPhotoImport", () => {
   it("refuses to run without an injected fetch", async () => {
     const { db, bucket } = setup();
     await expect(runPhotoImport({ db, bucket, deadline: Date.now() + 1000 })).rejects.toThrow(/needs a fetch/);
+  });
+});
+
+describe("copyPhoto hardening", () => {
+  const { copyPhoto } = require("./photoImport");
+  const START = "https://cdn.oldshop.example/start.jpg";
+  const photo = (extra = {}) => ({
+    ok: true, status: 200, headers: new Map([["content-type", "image/jpeg"]]),
+    arrayBuffer: async () => new TextEncoder().encode("photo").buffer, ...extra,
+  });
+  const moved = to => ({ ok: false, status: 302, headers: new Map([["location", to]]) });
+  const run = (fetch, extra = {}) => copyPhoto({ bucket: fakeBucket(), bucketName: BUCKET, url: START, fetch, lookup: publicLookup, ...extra });
+
+  it("follows redirects by hand and never requests a hop that points inward", async () => {
+    const calls = [];
+    const answers = {
+      [START]: moved("/next.jpg"),
+      "https://cdn.oldshop.example/next.jpg": moved("https://169.254.169.254/latest/meta-data"),
+    };
+    const fetch = async (url, opts) => { calls.push([url, opts.redirect]); return answers[url]; };
+    await expect(run(fetch)).rejects.toThrow("moved to an address that isn't allowed");
+    expect(calls).toEqual([[START, "manual"], ["https://cdn.oldshop.example/next.jpg", "manual"]]);
+  });
+
+  it("follows up to three public moves, and refuses a fourth", async () => {
+    const hop = n => `https://cdn.oldshop.example/hop${n}.jpg`;
+    // START → hop1 → … → hopN, then the photo.
+    const chain = n => async url => {
+      const at = url === START ? 0 : Number(url.match(/hop(\d)/)[1]);
+      return at < n ? moved(hop(at + 1)) : photo();
+    };
+    await expect(run(chain(3))).resolves.toContain("products%2Fimported%2F");
+    await expect(run(chain(4))).rejects.toThrow("too many moves");
+  });
+
+  it("keeps the time limit running while the body is read", async () => {
+    const fetch = async (url, { signal }) => photo({
+      arrayBuffer: () => new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")))),
+    });
+    await expect(run(fetch, { timeoutMs: 20 })).rejects.toThrow("the old shop took too long to answer");
+  });
+
+  it("stops reading once the body passes 20 MB when no size was declared", async () => {
+    const chunk = new Uint8Array(4 * 1024 * 1024);
+    let reads = 0, cancelled = false;
+    const body = { getReader: () => ({ read: async () => { reads += 1; return { done: false, value: chunk }; }, cancel: async () => { cancelled = true; } }) };
+    await expect(run(async () => photo({ body }))).rejects.toThrow("larger than 20 MB");
+    expect(reads).toBe(Math.floor(MAX_BYTES / chunk.byteLength) + 1);
+    expect(cancelled).toBe(true);
+  });
+
+  it("refuses a public name that points at a private address, without requesting it", async () => {
+    const calls = [];
+    const fetch = async url => { calls.push(url); return photo(); };
+    for (const address of ["10.0.0.5", "169.254.169.254", "127.0.0.1", "::1", "fd00::1", "::ffff:192.168.1.2"]) {
+      await expect(run(fetch, { lookup: async () => [{ address, family: address.includes(":") ? 6 : 4 }] }))
+        .rejects.toThrow("the address points inside a private network");
+    }
+    await expect(run(fetch, { lookup: async () => [{ address: "93.184.216.34", family: 4 }, { address: "10.1.1.1", family: 4 }] }))
+      .rejects.toThrow("private network");
+    expect(calls).toEqual([]);
+    expect(privateAddress("172.20.0.1")).toBe(true);
+    expect(privateAddress("100.64.0.1")).toBe(true);
+    expect(privateAddress("fe80::1")).toBe(true);
+    expect(privateAddress("172.32.0.1")).toBe(false);
+    expect(privateAddress("2606:4700::1111")).toBe(false);
   });
 });

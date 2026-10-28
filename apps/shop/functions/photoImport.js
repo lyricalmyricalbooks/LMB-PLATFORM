@@ -11,7 +11,8 @@
 // it; a photo already in this bucket is skipped; the swap is a transaction that only touches photos still on the
 // old address. Addresses that can't be read are remembered and retried after a week. Each run that copies anything
 // leaves one line in the shop's audit log. Only https addresses on public host names are fetched (never an IP
-// address or an internal name), only pictures are kept, and nothing over 20 MB is saved.
+// address, an internal name or a name that points at a private address; redirects are checked hop by hop), only
+// pictures are kept, nothing over 20 MB is read, and the 20-second limit covers the whole download.
 "use strict";
 
 const crypto = require("crypto");
@@ -66,28 +67,94 @@ async function existingCopy(bucket, bucketName, url) {
   return null;
 }
 
-/** Downloads one old address and saves it in this bucket. Returns the new download address. */
-async function copyPhoto({ bucket, bucketName, url, fetch }) {
+/** True for an address no outside fetch may reach: private, loopback, link-local, shared, multicast or unspecified. */
+function privateAddress(address) {
+  const a = String(address || "").toLowerCase();
+  const mapped = a.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return privateAddress(mapped[1]);
+  const v4 = a.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (v4) {
+    const [b0, b1] = [Number(v4[1]), Number(v4[2])];
+    return b0 === 0 || b0 === 10 || b0 === 127 || b0 >= 224
+      || (b0 === 169 && b1 === 254) || (b0 === 172 && b1 >= 16 && b1 <= 31) || (b0 === 192 && b1 === 168)
+      || (b0 === 100 && b1 >= 64 && b1 <= 127);
+  }
+  if (!a.includes(":")) return true; // not an address at all
+  return a === "::" || a === "::1" || /^f[cd]/.test(a) || /^fe[89ab]/.test(a) || /^ff/.test(a);
+}
+
+const defaultLookup = (host) => require("dns").promises.lookup(host, { all: true, verbatim: true });
+
+/** Refuses an address that isn't public https, or whose host name points at a private address. */
+async function checkAddress(url, lookup) {
+  if (!publicHttps(url)) throw new Error("moved to an address that isn't allowed");
+  const found = await lookup(new URL(url).hostname);
+  const list = Array.isArray(found) ? found : [found];
+  if (!list.length || list.some(r => privateAddress(r?.address))) throw new Error("the address points inside a private network");
+}
+
+/** Reads the body, stopping as soon as it passes `MAX_BYTES` (whether or not the size was declared). */
+async function readCapped(res) {
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    const whole = Buffer.from(await res.arrayBuffer());
+    if (whole.length > MAX_BYTES) throw new Error("larger than 20 MB");
+    return whole;
+  }
+  const parts = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_BYTES) {
+      try { await reader.cancel(); } catch { /* already closed */ }
+      throw new Error("larger than 20 MB");
+    }
+    parts.push(Buffer.from(value));
+  }
+  return Buffer.concat(parts);
+}
+
+const MAX_REDIRECTS = 3;
+
+/**
+ * Downloads one old address and saves it in this bucket. Returns the new download address. Redirects are followed by
+ * hand (at most three), each new address checked before it is requested, and the time limit covers reading the body.
+ * Known gap: the host name is looked up here and again by `fetch`, so a name that changes its answer in between could
+ * still reach a private address.
+ */
+async function copyPhoto({ bucket, bucketName, url, fetch, lookup = defaultLookup, timeoutMs = FETCH_TIMEOUT_MS }) {
   const again = await existingCopy(bucket, bucketName, url);
   if (again) return again;
-  const controller = typeof AbortController === "function" ? new AbortController() : null;
-  const timer = controller ? setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS) : null;
-  let res;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let type, body;
   try {
-    res = await fetch(url, { redirect: "follow", signal: controller?.signal });
+    let current = url;
+    let res;
+    for (let hop = 0; ; hop += 1) {
+      await checkAddress(current, lookup);
+      res = await fetch(current, { redirect: "manual", signal: controller.signal });
+      if (![301, 302, 303, 307, 308].includes(res.status)) break;
+      const next = res.headers?.get?.("location");
+      if (!next || hop >= MAX_REDIRECTS) throw new Error("too many moves");
+      current = new URL(next, current).href;
+    }
+    if (!res.ok) throw new Error(`the old shop answered ${res.status}`);
+    type = String(res.headers?.get?.("content-type") || "").split(";")[0].trim().toLowerCase();
+    if (!TYPES[type]) throw new Error(`not a photo (${type || "no type"})`);
+    const declared = Number(res.headers?.get?.("content-length"));
+    if (declared > MAX_BYTES) throw new Error("larger than 20 MB");
+    body = await readCapped(res);
+  } catch (err) {
+    if (controller.signal.aborted) throw new Error("the old shop took too long to answer");
+    throw err;
   } finally {
-    if (timer) clearTimeout(timer);
+    clearTimeout(timer);
   }
-  if (res.url && !publicHttps(res.url)) throw new Error("moved to an address that isn't allowed");
-  if (!res.ok) throw new Error(`the old shop answered ${res.status}`);
-  const type = String(res.headers?.get?.("content-type") || "").split(";")[0].trim().toLowerCase();
-  const ext = TYPES[type];
-  if (!ext) throw new Error(`not a photo (${type || "no type"})`);
-  const declared = Number(res.headers?.get?.("content-length"));
-  if (declared > MAX_BYTES) throw new Error("larger than 20 MB");
-  const body = Buffer.from(await res.arrayBuffer());
   if (!body.length) throw new Error("empty file");
-  if (body.length > MAX_BYTES) throw new Error("larger than 20 MB");
+  const ext = TYPES[type];
   const path = `${importedBase(url)}.${ext}`;
   const token = crypto.randomUUID();
   await bucket.file(path).save(body, {
@@ -124,7 +191,7 @@ async function swapPhotos(db, bookId, moved, nowIso) {
  * One pass over the catalog: reads every book once a day (and only recently edited ones in between), copies until
  * `deadline`, and records the run in `systemStatus/photoImport` and, when anything was copied, in `audit-log`.
  */
-async function runPhotoImport({ db, bucket, fetch, deadline, now = Date.now(), log = console }) {
+async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeoutMs = FETCH_TIMEOUT_MS, deadline, now = Date.now(), log = console }) {
   if (typeof fetch !== "function") throw new Error("runPhotoImport needs a fetch");
   const bucketName = bucket.name;
   const nowIso = new Date(now).toISOString();
@@ -157,7 +224,7 @@ async function runPhotoImport({ db, bucket, fetch, deadline, now = Date.now(), l
       if (Date.now() > deadline) break;
       if (failed[hashOf(url)]?.at === nowIso) { failures += 1; continue; } // failed for another book this run
       try {
-        if (!copied.has(url)) copied.set(url, await copyPhoto({ bucket, bucketName, url, fetch }));
+        if (!copied.has(url)) copied.set(url, await copyPhoto({ bucket, bucketName, url, fetch, lookup, timeoutMs }));
         moved.set(url, copied.get(url));
         delete failed[hashOf(url)];
       } catch (err) {
@@ -191,4 +258,4 @@ async function runPhotoImport({ db, bucket, fetch, deadline, now = Date.now(), l
   return { found, done, books, failed: failures, pending };
 }
 
-module.exports = { publicHttps, needsImport, importedBase, copyPhoto, swapPhotos, runPhotoImport, MAX_BYTES };
+module.exports = { publicHttps, privateAddress, needsImport, importedBase, copyPhoto, swapPhotos, runPhotoImport, MAX_BYTES };
