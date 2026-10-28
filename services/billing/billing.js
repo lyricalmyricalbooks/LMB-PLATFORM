@@ -28,6 +28,7 @@
 //   email           sendPlatform({ kind, to, data, idempotencyKey, shopId }) (services/email)
 import { verifySignature } from "../payments/stripeSignature.js";
 import { isPlan, planPrice } from "./plans.js";
+import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 
 /** What each Stripe subscription status means for the shop: open, paused (a card fixes it) or closed. */
 export const ACCESS = Object.freeze({
@@ -95,6 +96,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   async function save(shopId, fields, what) {
     const before = (await subscriptions.get(shopId)) ?? {};
     const row = { ...before, ...fields, shopId, updatedAt: at() };
+    // A press paying as they sell (6.19, paymentWay.js) has no subscription running, and the shop stays open.
+    row.access = payAsYouSellAccess(row, now(), row.access) ?? row.access;
     await subscriptions.set(shopId, row);
     if (await registry.getShop(shopId)) {
       const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
@@ -274,6 +277,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       return {
         plan: row.plan, planName: price?.name ?? "", price: price?.priceText ?? "", status: row.status, access: row.access,
         trialEnd: row.trialEnd, currentPeriodEnd: row.currentPeriodEnd, cancelAtPeriodEnd: row.cancelAtPeriodEnd, hasCard: row.hasCard,
+        paymentWay: currentPaymentWay(row, now()),
       };
     },
 
@@ -319,6 +323,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const known = shopId ? await subscriptions.get(shopId) : null;
         if (!known || known.subscriptionId !== object.id) return "not ours";
         const saved = await sync(shopId, object, event.type.replace("customer.subscription.", "stripe-"));
+        // Paying as they sell: the subscription ending is the switch itself, and no card is asked for.
+        if (saved.paymentWay === "payAsYouSell") return saved.status;
         if (event.type === "customer.subscription.trial_will_end") {
           await notify(shopId, "trial-ending", { date: dateText(saved.trialEnd), hasCard: saved.hasCard }, event.id);
         } else if (event.type === "customer.subscription.paused") {

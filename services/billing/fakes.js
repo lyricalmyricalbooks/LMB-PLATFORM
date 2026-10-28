@@ -68,12 +68,14 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
     }
     if (method === "POST" && path === "/v1/subscriptions") {
       if (!world.customers.has(p.customer)) return missing("customer");
-      const trialDays = Number(p.trial_period_days ?? 0);
+      // A trial by days, or until a set time (`trial_end`, as a later monthly plan starts: paymentWay.js).
+      const trialEndAt = p.trial_end ? Number(p.trial_end) : null;
+      const trialDays = trialEndAt ? Math.max(1, Math.ceil((trialEndAt - clock()) / 86400)) : Number(p.trial_period_days ?? 0);
       const id = `sub_${next++}`;
       const sub = {
         id, object: "subscription", customer: p.customer, price: p["items[0][price]"], itemId: `si_${next++}`,
-        status: trialDays ? "trialing" : "incomplete", trial_end: trialDays ? clock() + trialDays * 86400 : null,
-        periodEnd: clock() + (trialDays || 30) * 86400, cancel_at_period_end: false, default_payment_method: null,
+        status: trialDays ? "trialing" : "incomplete", trial_end: trialEndAt ?? (trialDays ? clock() + trialDays * 86400 : null),
+        periodEnd: trialEndAt ?? clock() + (trialDays || 30) * 86400, cancel_at_period_end: false, default_payment_method: null,
         metadata: { lmb_shop_id: p["metadata[lmb_shop_id]"], lmb_plan: p["metadata[lmb_plan]"], lmb_account_id: p["metadata[lmb_account_id]"] },
         missingCard: p["trial_settings[end_behavior][missing_payment_method]"] ?? null,
         latest_invoice: null,
@@ -89,6 +91,10 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
     if ((m = path.match(/^\/v1\/subscriptions\/(sub_\w+)(\/resume)?$/))) {
       const sub = world.subscriptions.get(m[1]);
       if (!sub) return missing("subscription");
+      if (method === "DELETE" && !m[2]) {
+        sub.status = "canceled";
+        return ok(subBody(sub));
+      }
       if (method === "POST" && m[2]) {
         if (sub.status !== "paused") return { status: 400, body: { error: { type: "invalid_request_error", message: "not paused" } } };
         sub.status = "active";
