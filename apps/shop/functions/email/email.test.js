@@ -7,8 +7,9 @@ import path from "node:path";
 
 const require = createRequire(import.meta.url);
 const { createEmail } = require("./index.js");
+const { createPlatformSender, platformKind } = require("./platformSender.js");
 
-function make({ docs = {}, gmail = null, resend = {}, secret = "re_deployed", failOutbox = false } = {}) {
+function make({ docs = {}, gmail = null, resend = {}, secret = "re_deployed", failOutbox = false, platformSender = null } = {}) {
   const store = {
     "settings/website": null, "settings/notifications": null, "adminSecrets/gmail": null, "adminSecrets/resend": null,
     ...docs,
@@ -46,6 +47,7 @@ function make({ docs = {}, gmail = null, resend = {}, secret = "re_deployed", fa
     db, crypto: require("crypto"), Resend, nodemailer, ownerEmail: "owner@example.com", senderName: "Your Press",
     senderEmail: "orders@example.com", readAdminSecret: async (id) => store[`adminSecrets/${id}`] || {},
     resendSecretValue: () => secret, escapeHtml: (v) => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;"),
+    platformSender,
   });
   return { mail, log: added.emailLog, outbox, gmailSent, gmailOpts, resendCalls };
 }
@@ -124,6 +126,80 @@ describe("send", () => {
     warn.mockRestore();
     expect(err.queued).toBeUndefined();
     expect(app.log[0]).toMatchObject({ status: "failed" });
+  });
+});
+
+// Plan 2.3b: on a platform shop the backup after Gmail is the platform's shared sender, reached over HTTP with the
+// shop's own service key (email/platformSender.js). The press's own Gmail always goes first.
+function fakePlatform(answers = []) {
+  const calls = [];
+  const queue = [...answers];
+  const fetch = async (url, init) => {
+    calls.push({ url, headers: init.headers, body: JSON.parse(init.body) });
+    const next = queue.shift() ?? { status: 200, body: { ok: true, id: `platform-${calls.length}` } };
+    if (next === "network") throw new Error("socket hang up");
+    return { ok: next.status < 300, status: next.status, json: async () => next.body };
+  };
+  const sender = createPlatformSender({ url: "https://email.platform.example/shop", shopId: "moth-press", serviceKey: () => "shop-key-0123456789abcdef0123456789", fetch });
+  return { sender, calls };
+}
+
+describe("platform shops", () => {
+  test("a shop with Gmail connected sends from its own Gmail and never reaches the platform sender", async () => {
+    const platform = fakePlatform();
+    const app = make({ docs: { "adminSecrets/gmail": { appPassword: "abcd efgh" } }, platformSender: platform.sender });
+    expect(await app.mail.send({ ...message, queue: "orderConfirmed" })).toEqual({ id: "gmail-1" });
+    expect(app.gmailSent[0].from).toBe('"Your Press" <owner@example.com>');
+    expect(platform.calls).toEqual([]);
+    expect(app.resendCalls).toEqual([]);
+  });
+
+  test("without Gmail, the platform's shared sender is the backup, never the shop's own Resend key", async () => {
+    const platform = fakePlatform();
+    const app = make({ docs: { "adminSecrets/resend": { apiKey: "re_private" } }, platformSender: platform.sender });
+    expect(await app.mail.send({ to: ["reader@example.com", "second@example.com"], subject: "Your order", html: "<p>Thanks</p>", queue: "orderConfirmed", outboxId: "q1" })).toEqual({ id: "platform-1" });
+    expect(app.resendCalls).toEqual([]);
+    expect(platform.calls.map((c) => [c.body.to, c.body.idempotencyKey, c.body.kind])).toEqual([
+      ["reader@example.com", "q1:reader@example.com", "order-confirmed"],
+      ["second@example.com", "q1:second@example.com", "order-confirmed"],
+    ]);
+    expect(platform.calls[0]).toMatchObject({ url: "https://email.platform.example/shop", headers: { "X-Shop-Id": "moth-press", Authorization: "Bearer shop-key-0123456789abcdef0123456789" } });
+    expect(platform.calls[0].body.html).toMatch(/<html/i);
+    expect(app.log.at(-1)).toMatchObject({ status: "sent", keySource: "platform", from: "platform", id: "platform-1" });
+  });
+
+  test("a Gmail refusal falls back to the platform sender, and the log says so", async () => {
+    const platform = fakePlatform();
+    const app = make({ docs: { "adminSecrets/gmail": { appPassword: "pw" } }, gmail: { fails: "Invalid login" }, platformSender: platform.sender });
+    await app.mail.send(message);
+    expect(platform.calls).toHaveLength(1);
+    expect(app.log.map((e) => [e.status, e.keySource])).toEqual([["fallback", "gmail"], ["sent", "platform"]]);
+    expect(app.log[0].error).toMatch(/platform's shared sender/);
+  });
+
+  test("a busy platform parks an important email for a retry; a refusal it can't fix is not queued", async () => {
+    const busy = make({ platformSender: fakePlatform([{ status: 503, body: { ok: false, retryable: true, message: "try later" } }]).sender });
+    const err = await busy.mail.send({ ...message, queue: "orderConfirmed" }).catch((e) => e);
+    expect(err.queued).toBeTruthy();
+    expect(busy.log[0]).toMatchObject({ status: "queued", keySource: "platform" });
+
+    const refused = make({ platformSender: fakePlatform([{ status: 422, body: { ok: false, retryable: false, message: "the email has no words" } }]).sender });
+    await expect(refused.mail.send({ ...message, queue: "orderConfirmed" })).rejects.toMatchObject({ permanent: true });
+    expect(refused.outbox).toEqual({});
+    expect(refused.log[0]).toMatchObject({ status: "failed", permanent: true, keySource: "platform" });
+  });
+
+  test("the sender status tells the admin Gmail's address and the backup", async () => {
+    expect(await make({ platformSender: fakePlatform().sender }).mail.senderStatus()).toEqual({ ok: true, gmailAddress: "owner@example.com", gmailSaved: false, backup: "platform" });
+    expect(await make({ docs: { "adminSecrets/gmail": { appPassword: "pw" } } }).mail.senderStatus()).toMatchObject({ gmailSaved: true, backup: "resend" });
+  });
+
+  test("kind names become the service's form, and a missing service key is a retry, not a loss", async () => {
+    expect(platformKind("orderConfirmed")).toBe("order-confirmed");
+    expect(platformKind("")).toBe("shop-email");
+    const sender = createPlatformSender({ url: "https://email.platform.example/shop", shopId: "moth-press", serviceKey: () => "", fetch: async () => { throw new Error("not called"); } });
+    await expect(sender.send({ kind: "x", to: "a@example.com", subject: "s", html: "h", idempotencyKey: "k" })).rejects.toMatchObject({ permanent: false });
+    expect(() => createPlatformSender({ url: "http://x.example", shopId: "s", serviceKey: () => "", fetch })).toThrow(/https/);
   });
 });
 

@@ -63,6 +63,7 @@ const { checkoutAdminActions } = require("./checkoutAdmin");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
 const { createEmail } = require("./email");
+const { createPlatformSender } = require("./email/platformSender");
 const { shippoEndpoints } = require("./shippoEndpoints");
 const { scheduledJobs } = require("./scheduledJobs");
 const { shopEmails } = require("./shopEmails");
@@ -335,9 +336,14 @@ function orderRowsHtml(items = [], order = null) {
 
 // Every email the server sends goes through functions/email (code plan 1.13). `sendEmail` stays index.js's own name for
 // it (handler tests swap it out). resendSecretValue is a const further down, so it is read at send time.
+// On a platform shop (PLATFORM_EMAIL_URL set), the backup after the press's own Gmail is the platform's shared sender.
 const mailer = createEmail({
   db, crypto, Resend, nodemailer, ownerEmail: ADMIN_TO, senderName: shopConfig.senderName, senderEmail: shopConfig.senderEmail,
   readAdminSecret, resendSecretValue: () => resendSecretValue(), escapeHtml,
+  platformSender: shopConfig.platformEmailUrl
+    ? createPlatformSender({ url: shopConfig.platformEmailUrl, shopId: shopConfig.project, serviceKey: () => process.env.PLATFORM_SERVICE_KEY || "",
+      fetch: (url, options) => fetchWithTimeout(url, options, 20000) })
+    : null,
 });
 const { logEmailAttempt } = mailer;
 

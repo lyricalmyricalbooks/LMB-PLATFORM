@@ -7,19 +7,42 @@
 // `readLock(shopId)` -> { runId, takenAt, expiresAt } | null; `takeLock(shopId, lock)` takes the lock when it is free,
 // lapsed (expiresAt passed) or already this run's, and returns { taken: true } or { taken: false, runId, expiresAt }
 // (the real one does this in one Firestore transaction); `releaseLock(shopId, runId)` frees it only for the run that
-// holds it. Audit log: `ready(shopId)` says whether the shop's database exists yet; `write(shopId, id, entry)` stores
-// the entry under `id`, replacing any entry with that id.
+// holds it. The payment service also uses `findShopByPaymentAccount(provider, accountId)` (the row whose `payments`
+// names that account, or null) and `recordEvent(shopId, entry)` (its own changes, by entry id). The release check keeps
+// its runs with `recordReleaseCheck(shopId, entry)` / `readReleaseChecks(shopId)`. Audit log: `ready(shopId)` says
+// whether the shop's database exists yet; `write(shopId, id, entry)` stores the entry under `id`, replacing any entry
+// with that id.
 
 export function fakeRegistry(seed = {}) {
   const steps = new Map(Object.entries(seed).map(([shopId, list]) => [shopId, [...list]]));
   const shops = new Map();
   const profiles = new Map();
   const locks = new Map();
+  const events = new Map();
+  const releaseChecks = new Map();
   return {
     steps,
+    releaseChecks,
+    // Release check runs (release-check/runner.js), oldest first.
+    async recordReleaseCheck(shopId, entry) {
+      if (!releaseChecks.has(shopId)) releaseChecks.set(shopId, []);
+      releaseChecks.get(shopId).push(structuredClone(entry));
+    },
+    async readReleaseChecks(shopId) {
+      return structuredClone(releaseChecks.get(shopId) ?? []);
+    },
     shops,
     profiles,
     locks,
+    events,
+    async findShopByPaymentAccount(provider, accountId) {
+      const row = [...shops.values()].find((shop) => shop.payments?.provider === provider && shop.payments?.accountId === accountId);
+      return row ? structuredClone(row) : null;
+    },
+    async recordEvent(shopId, entry) {
+      if (!events.has(shopId)) events.set(shopId, new Map());
+      events.get(shopId).set(entry.id, structuredClone(entry));
+    },
     async getShop(shopId) {
       return shops.has(shopId) ? structuredClone(shops.get(shopId)) : null;
     },
@@ -233,12 +256,13 @@ export function fakeGoogle({ failOnce = [] } = {}) {
 }
 
 /**
- * The rest of the world steps 7–15 reach, in memory: deploys, the per-shop env file, the shop's database, the payment
- * providers (through the payment service), the email service and the page checker. Like fakeGoogle, `calls` lists
+ * The rest of the world steps 7–16 reach, in memory: deploys, the per-shop env file, the shop's database, the payment
+ * providers (through the payment service), the email service, the page checker, the shop's stockroom link and the
+ * stockroom's catalogue. Like fakeGoogle, `calls` lists
  * every change asked for and `failOnce` names calls that throw the first time.
  */
 export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
-  const world = { deployed: new Map(), envFiles: new Map(), docs: new Map(), accounts: { stripe: new Map() }, sent: new Map(), pageStatus, links: new Map(), stockroomReachable: true };
+  const world = { deployed: new Map(), envFiles: new Map(), docs: new Map(), accounts: { stripe: new Map() }, sent: new Map(), pageStatus, links: new Map(), stockroomReachable: true, stockroomBooks: new Map() };
   const calls = [];
   const failures = [...failOnce];
   const change = (name, ...args) => {
@@ -309,6 +333,17 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
     siteCheck: {
       get: async (url) => ({ status: world.pageStatus(url), problems: [] }),
     },
+    // The stockroom's catalogue: books are added when missing and never changed (the real one also turns on the newer
+    // storage for them, so the shop's link can read them).
+    stockroom: {
+      books: async (projectId) => Object.fromEntries([...(world.stockroomBooks.get(projectId) ?? new Map())].map(([id, book]) => [id, structuredClone(book)])),
+      async addBooks(projectId, books) {
+        change("stockroom.addBooks", projectId, books.map((book) => book.id));
+        const catalog = world.stockroomBooks.get(projectId) ?? new Map();
+        for (const book of books) if (!catalog.has(book.id)) catalog.set(book.id, structuredClone(book));
+        world.stockroomBooks.set(projectId, catalog);
+      },
+    },
     // Like the shop's link admin: no start day until the connection check passes; a start day is never moved later.
     inventoryLink: {
       state: async (projectId) => structuredClone(world.links.get(projectId) ?? null),
@@ -317,6 +352,31 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
         const ok = world.stockroomReachable;
         world.links.set(projectId, { ...(world.links.get(projectId) ?? {}), connection: { ok } });
         return ok ? { ok } : { ok, problem: "permission-denied" };
+      },
+      // Like op "saveLinks": the whole map, each link checked against the shop's books and the stockroom's catalogue
+      // (which it must be able to read); refused links come back as errors and are left out.
+      async saveLinks(projectId, links) {
+        change("inventoryLink.saveLinks", projectId, Object.keys(links).length);
+        if (!world.stockroomReachable) throw new Error("The website can't read the inventory app yet.");
+        const stock = world.stockroomBooks.get(projectId) ?? new Map();
+        const kept = {};
+        const errors = [];
+        const used = new Map();
+        for (const [bookId, entry] of Object.entries(links)) {
+          for (const [key, inventoryBookId] of Object.entries(entry ?? {})) {
+            if (!inventoryBookId) continue;
+            const book = world.docs.get(key === "_" ? `${projectId} books/${bookId}` : null);
+            const fail = (reason) => errors.push({ bookId, variantId: key === "_" ? null : key, reason });
+            if (!book) { fail("This book is no longer in the website catalog."); continue; }
+            if (!stock.has(inventoryBookId)) { fail("That book is not in the inventory app."); continue; }
+            if (book.digital === true) { fail("E-books and audiobooks have no stock to link."); continue; }
+            if (used.has(inventoryBookId) && used.get(inventoryBookId) !== bookId) { fail("That inventory book is already linked."); continue; }
+            used.set(inventoryBookId, bookId);
+            kept[bookId] = { ...(kept[bookId] ?? {}), [key]: inventoryBookId };
+          }
+        }
+        world.links.set(projectId, { ...(world.links.get(projectId) ?? {}), links: kept });
+        return { links: kept, errors };
       },
       async startSales(projectId, { startDay }) {
         change("inventoryLink.startSales", projectId, startDay);

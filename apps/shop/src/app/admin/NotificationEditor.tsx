@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { placeItemsTable, risoButton, risoLayout, safeLogoUrl } from "./emailTheme";
 import { orderPreviewVars, previewItemsTable } from "./emailPreviewData";
 import { GmailSendingCard } from "./GmailSendingCard";
+import { useSenderStatus } from "./senderStatus";
 import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
 import { fillSample, insertAt, PLACEHOLDERS, problemTemplates, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
 import { adminApi } from "./api";
@@ -246,6 +247,9 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const [group, setGroup] = useState<string>("orders");
   // The old Email sender address (focus "sender") opens on the tab holding the sender card.
   const [view, setView] = useSubTab<EmailView>(focus === "sender" ? "email-setup" : "email-templates", subTab, onSubTabChange);
+  // On a platform shop the backup is the shared sender, so the shop's own Resend settings don't apply (plan 2.3b).
+  const senderStatus = useSenderStatus();
+  const sharedBackup = senderStatus.backup === "platform";
   // "Preview with a real order": recent orders loaded on demand, filled in the browser only.
   const [recentOrders, setRecentOrders] = useState<any[] | null>(null);
   const [previewOrderId, setPreviewOrderId] = useState("");
@@ -627,7 +631,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
 
       <TabPanel tabId="email-setup" active={view === "email-setup"}>
       <div className="rp-stack">
-      <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} />
+      <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} sender={senderStatus} />
 
       <div id="email-sender" style={{ scrollMarginTop: 16 }} />
       <SectionCard title="Email sender" description="Who it's from. Where replies go.">
@@ -637,9 +641,11 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
           <TextField label="Reply-to address" type="email" value={sender.replyTo} placeholder="owner@example.com" error={senderIssues.replyTo}
             hint="Blank = the sending address."
             onChange={(e) => setSender(prev => ({ ...prev, replyTo: e.target.value }))} />
-          <TextField label="Backup sender address (Resend)" type="email" value={sender.fromEmail} placeholder="orders@your-domain.com" error={senderIssues.fromEmail}
-            hint="Resend backup only."
-            onChange={(e) => setSender(prev => ({ ...prev, fromEmail: e.target.value }))} />
+          {!sharedBackup && (
+            <TextField label="Backup sender address (Resend)" type="email" value={sender.fromEmail} placeholder="orders@your-domain.com" error={senderIssues.fromEmail}
+              hint="Resend backup only."
+              onChange={(e) => setSender(prev => ({ ...prev, fromEmail: e.target.value }))} />
+          )}
         </div>
         {senderError && <p className="rp-error-text" role="alert">{senderError}</p>}
         <div style={{ marginTop: 12 }}>
@@ -668,7 +674,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             <option value="dark">Dark (Riso Noir)</option>
           </SelectField>
         </div>
-        <details style={{ marginTop: 16 }}>
+        {!sharedBackup && <details style={{ marginTop: 16 }}>
           <summary className="rp-label" style={{ cursor: "pointer" }}>Advanced: backup sender (Resend){resendStored ? " · key stored" : ""}</summary>
           <p className="rp-hint">Backup if Gmail fails. Reaches only you without a verified domain.</p>
           <TextField label="Resend API key" type="password" value={resendDraft} autoComplete="new-password" spellCheck={false}
@@ -691,7 +697,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
               ⚠ This key was once saved where the storefront could read it and has been moved to the admin-only store. Rotate it in Resend to be safe.
             </p>
           )}
-        </details>
+        </details>}
       </SectionCard>
 
       </div>
