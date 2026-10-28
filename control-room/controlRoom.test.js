@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { ACT_AS_MINUTES, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
-import { fakeBreachStore, fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
+import { fakeActivity, fakeBreachStore, fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
 import { createBreachRegister, keepUntil } from "./breaches.js";
 import { controlRoomPeople } from "./people.js";
 import { createRepairQueue } from "./repairs.js";
@@ -55,6 +55,7 @@ async function world({ repairs, newsletters } = {}) {
   const square = new Set();
   const breachStore = fakeBreachStore();
   const built = [];
+  const activity = fakeActivity();
   const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
@@ -62,13 +63,14 @@ async function world({ repairs, newsletters } = {}) {
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
     breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
     people: controlRoomPeople({}),
+    activity,
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: controlRoutes(room) });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const events = (shopId = ID) => [...(registry.events.get(shopId)?.values() ?? [])].filter((e) => e.source === "control-room");
-  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square, breachStore };
+  return { google, services, registry, profileFiles, auditLog, shopAccess, room, ask, events, built, email, square, breachStore, activity };
 }
 
 test("only platform admins get in; nobody is an admin unless the list says so", async () => {
@@ -391,4 +393,13 @@ test("a paused newsletter is turned back on by a platform admin only, with a rea
   assert.deepEqual(calls, [{ shopId: ID, by: "admin@example.com", reason: "the press cleaned its list" }]);
   assert.ok(w.events().some((e) => e.what === "newsletter-resumed" && e.by === "admin@example.com"));
   assert.equal((await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "the press cleaned its list" })).status, 409);
+});
+
+test("every logged control-room action also lands in the activity log, once (plan 9.9)", async () => {
+  const w = await world();
+  await w.room.switch(ADMIN, { shopId: ID, name: SWITCHES[0], on: true, reason: "the press asked for it" });
+  await w.room.actAs(ADMIN, { shopId: ID, reason: "help with their tax settings" });
+  const entries = await w.activity.list();
+  assert.deepEqual(entries.map((e) => e.what).sort(), ["act-as", "switch-set"]);
+  assert.ok(entries.every((e) => e.shopId === ID && e.by === "admin@example.com" && e.keepUntil > e.at));
 });

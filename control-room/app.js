@@ -67,6 +67,9 @@ async function load() {
     await loadTickets();
     await loadRecoveries();
     await loadBreaches();
+    await loadWaitlist();
+    await loadSettings();
+    await loadActivity();
   } catch (failure) {
     status.textContent = failure.message;
   }
@@ -401,6 +404,9 @@ $("#breach-form").addEventListener("submit", async (event) => {
     form.reset();
     status.textContent = "Written in the breach register.";
     await loadBreaches();
+    await loadWaitlist();
+    await loadSettings();
+    await loadActivity();
   } catch (failure) {
     status.textContent = failure.message;
   }
@@ -499,4 +505,135 @@ $("#refresh").addEventListener("click", load);
 onAuthStateChanged(auth, (user) => {
   if (user) load();
   else { $("#view-signin").hidden = false; $("#view-shops").hidden = true; $("#view-emergency").hidden = true; }
+});
+
+// ── Sign-ups and the waitlist (plan 9.5): invite someone and they skip the daily line; Try again for a stuck shop. ──
+const when = (at) => (at ? new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "");
+
+async function invite(address, button) {
+  if (button) button.disabled = true;
+  try {
+    const { email, sent } = await api("POST", "/control/invite", { email: address });
+    await loadWaitlist();
+    status.textContent = sent ? `Invite sent to ${email}.` : `${email} was already invited. Nothing new was sent.`;
+  } catch (failure) {
+    status.textContent = failure.message;
+    if (button) button.disabled = false;
+  }
+}
+
+async function loadWaitlist() {
+  try {
+    const { waiting, people, inTheMaking } = await api("GET", "/control/waitlist");
+    $("#waitlist-summary").textContent = `${waiting} waiting on the list · ${inTheMaking.length} shop${inTheMaking.length === 1 ? "" : "s"} being made`;
+    $("#making").replaceChildren(...inTheMaking.map((shop) => {
+      const retry = el("button", { type: "button", textContent: "Try again", hidden: ["queued", "making"].includes(shop.status) });
+      retry.addEventListener("click", async () => {
+        const reason = askWhy(`Try making ${shop.pressName} again.`);
+        if (!reason) return;
+        retry.disabled = true;
+        try {
+          await api("POST", "/control/retry", { shopId: shop.shopId, reason });
+          status.textContent = `${shop.pressName}: trying again.`;
+          await loadWaitlist();
+        } catch (failure) {
+          status.textContent = failure.message;
+          retry.disabled = false;
+        }
+      });
+      return el("div", { className: `card ${shop.canRetry || shop.status === "failed" ? "problem" : "watch"}` },
+        el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: shop.status }), retry),
+        el("div", { className: "facts" }, el("span", { textContent: shop.shopId }), el("span", { textContent: shop.ownerEmail ?? "" }), el("span", { textContent: `started ${when(shop.createdAt)}` })),
+        shop.message ? el("p", { className: "hint", textContent: shop.message }) : null);
+    }));
+    $("#waitlist").replaceChildren(...(people.length ? people.map((person) => {
+      const button = el("button", { type: "button", textContent: person.invited ? "Invited" : "Invite", disabled: person.invited });
+      button.addEventListener("click", () => invite(person.email, button));
+      return el("div", { className: "card" },
+        el("div", { className: "row" }, el("strong", { textContent: person.press || person.name || person.email }), button),
+        el("div", { className: "facts" }, el("span", { textContent: person.email }), el("span", { textContent: `wants: ${person.plan}` }), el("span", { textContent: `joined ${when(person.joinedAt)}` })));
+    }) : [el("p", { textContent: "Nobody is on the waitlist yet." })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+$("#invite-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  await invite(form.email.value, form.querySelector("button"));
+  form.reset();
+});
+
+// ── Platform settings (plan 9.4): sign-up, the daily cap, prices, trial, founding offer, pay as you sell. ──
+// Money shows in dollars and the pay-as-you-sell share as a percent; the server keeps cents and hundredths of a percent.
+const toShown = (field, value) => (field.kind === "cents" ? (value / 100).toFixed(2) : field.kind === "basisPoints" ? String(value / 100) : String(value));
+const fromShown = (field, text) => (field.kind === "cents" || field.kind === "basisPoints" ? Math.round(Number(text) * 100) : Number(text));
+let settingsFields = [];
+
+async function loadSettings() {
+  try {
+    const { fields, values, defaults, updatedAt, updatedBy } = await api("GET", "/control/settings");
+    settingsFields = fields;
+    $("#settings-fields").replaceChildren(...fields.map((field) => {
+      const changed = values[field.path] !== defaults[field.path];
+      const note = changed ? el("span", { className: "hint", textContent: ` (normally ${field.kind === "yesNo" ? (defaults[field.path] ? "on" : "off") : toShown(field, defaults[field.path])})` }) : null;
+      if (field.kind === "yesNo") {
+        return el("label", { className: "switch" }, el("input", { type: "checkbox", name: field.path, checked: values[field.path] }), field.label, note);
+      }
+      const unit = field.kind === "cents" ? " ($)" : field.kind === "basisPoints" ? " (%)" : "";
+      const step = field.kind === "whole" ? "1" : "0.01";
+      return el("label", { className: "field" }, `${field.label}${unit}`, note,
+        el("input", { type: "number", name: field.path, value: toShown(field, values[field.path]), step, min: toShown(field, field.min), max: toShown(field, field.max), required: true, inputMode: "decimal" }));
+    }));
+    $("#settings-updated").textContent = updatedAt ? `Last changed ${when(updatedAt)} by ${updatedBy}` : "Nothing changed yet: these are the platform's defaults.";
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+$("#settings-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = Object.fromEntries(settingsFields.map((field) => [field.path, field.kind === "yesNo" ? form.elements[field.path].checked : fromShown(field, form.elements[field.path].value)]));
+  const button = form.querySelector("button[type=submit]");
+  button.disabled = true;
+  try {
+    const { changed } = await api("POST", "/control/settings", { values, reason: form.reason.value });
+    form.reason.value = "";
+    await loadSettings();
+    await loadActivity();
+    status.textContent = changed.length ? `Saved: ${changed.map((c) => settingsFields.find((f) => f.path === c.path)?.label ?? c.path).join("; ")}.` : "Nothing had changed, so nothing was saved.";
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+  button.disabled = false;
+});
+
+// ── Activity log (plan 9.9): read only. ──
+const ACTIVITY_WORDS = {
+  "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "switch-set": "set a switch",
+  "act-as": "opened the shop's admin as support", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
+  "newsletter-resumed": "turned the newsletter back on", "signup-retry": "tried making the shop again",
+};
+
+async function loadActivity() {
+  try {
+    const shopId = $("#activity-form").shopId.value.trim();
+    const { entries } = await api("POST", "/control/activity", shopId ? { shopId } : {});
+    $("#activity").replaceChildren(...(entries.length ? entries.map((entry) => el("div", { className: "card" },
+      el("div", { className: "row" }, el("strong", { textContent: `${entry.by ?? "the platform"} ${ACTIVITY_WORDS[entry.what] ?? entry.what}` }), entry.shopId ? el("span", { className: "pill", textContent: entry.shopId }) : null),
+      el("div", { className: "facts" }, el("span", { textContent: when(entry.at) }),
+        entry.detail?.reason ? el("span", { textContent: `why: ${entry.detail.reason}` }) : null,
+        ...(entry.detail?.changes ?? []).map((c) => el("span", { textContent: `${c.path}: ${c.from} → ${c.to}` })),
+        entry.detail?.email ? el("span", { textContent: entry.detail.email }) : null)))
+      : [el("p", { textContent: "Nothing yet." })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+$("#activity-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  loadActivity();
 });
