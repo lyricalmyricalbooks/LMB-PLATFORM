@@ -9,7 +9,7 @@
 //   2. The screens and messages a Colophon shop does reach are built with pretend data and read as the press sees them.
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { createRequire } from "node:module";
 // TypeScript 7 (the compiler) has no JS API; Microsoft's @typescript/typescript6 keeps the classic parser for tools like this.
 import ts from "@typescript/typescript6";
@@ -153,7 +153,7 @@ const OWN_ACCOUNT_COMPONENTS: Record<string, string> = {
   // Only Stripe's own-keys card (StripeWebhookHealth) reads these.
   "src/app/admin/stripeChecks.ts": "",
 };
-const ADMIN_FILES = walk(join(SHOP, "src/app/admin")).map((f) => relative(SHOP, f)).filter((f) => /\.tsx?$/.test(f) && !SKIP.test(f) && !NOT_READ.has(f));
+const ADMIN_FILES = walk(join(SHOP, "src/app/admin")).map((f) => relative(SHOP, f).split(sep).join("/")).filter((f) => /\.tsx?$/.test(f) && !SKIP.test(f) && !NOT_READ.has(f));
 
 describe("the shop's admin: every word a Colophon shop's press can read", () => {
   it("reads every file in the admin", () => {

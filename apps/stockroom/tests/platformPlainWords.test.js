@@ -14,7 +14,7 @@
 //      press's own, which a Colophon shop has no way to set up; they go as those features get platform versions.
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as acorn from 'acorn';
 import { DEFAULT_SHOP_PROFILE, parseShopProfile, runsOnColophon } from '../src/lib/shop-profile.js';
@@ -164,7 +164,7 @@ function sentencesIn(source) {
 function technicalSentences() {
   const found = new Map();
   for (const file of sourceFiles(join(APP, 'src'))) {
-    const path = relative(APP, file);
+    const path = relative(APP, file).split(sep).join('/'); // the same slashes on Windows as in plainWords.known.json
     for (const s of sentencesIn(readFileSync(file, 'utf8'))) {
       if (s.marked || !banned(s.text).length) continue;
       found.set(`${path}: ${s.text.slice(0, 160)}`, `${path}:${s.line}`);
