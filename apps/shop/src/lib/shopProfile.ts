@@ -43,8 +43,9 @@ export type ShopPayments = {
  *   legacyStockroomSignIn   the admin sign-in also signs into a separate stockroom project (src/lib/legacyFirebase.ts)
  *   githubPagesForwarding   an old GitHub Pages address forwards to the shop and hands over the bag (movedState.ts)
  *   gmailReceiptFinder      the stockroom's Gmail receipt finder (read by the stockroom; listed here so both agree)
+ *   gmailOrderScan          the stockroom's Orders screen scans Gmail for order receipts (read by the stockroom)
  */
-export const SHOP_SWITCHES = ["legacyStockroomSignIn", "githubPagesForwarding", "gmailReceiptFinder"] as const;
+export const SHOP_SWITCHES = ["legacyStockroomSignIn", "githubPagesForwarding", "gmailReceiptFinder", "gmailOrderScan"] as const;
 export type ShopSwitch = (typeof SHOP_SWITCHES)[number];
 
 /** Whether the profile turns this one-off on. Anything but `true` is off. */

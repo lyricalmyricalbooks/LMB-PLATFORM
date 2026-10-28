@@ -33,10 +33,12 @@ export const DEFAULT_SHOP_PROFILE = Object.freeze({
  * on with `true`; the test shop's profile names none, so all are off. The shop reads the same list
  * (apps/shop/src/lib/shopProfile.ts SHOP_SWITCHES).
  *   gmailReceiptFinder      Tax Centre › Email Receipt Import's Gmail Finder and Gmail Import tabs (src/features/receipts.js)
+ *   gmailOrderScan          Orders › Scan Gmail and Backfill shipping info: order receipts read from Gmail through Apps
+ *                           Script (src/main.js fetchOrders, src/features/shipping.js backfillShipping)
  *   legacyStockroomSignIn   the shop's admin also signs into a separate stockroom project (read by the shop)
  *   githubPagesForwarding   an old GitHub Pages address forwards to the shop (read by the shop)
  */
-export const SHOP_SWITCHES = Object.freeze(['legacyStockroomSignIn', 'githubPagesForwarding', 'gmailReceiptFinder']);
+export const SHOP_SWITCHES = Object.freeze(['legacyStockroomSignIn', 'githubPagesForwarding', 'gmailReceiptFinder', 'gmailOrderScan']);
 
 const FIREBASE_KEYS = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
 const text = (value) => typeof value === 'string' && value.trim() !== '';

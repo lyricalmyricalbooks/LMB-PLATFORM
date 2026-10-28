@@ -35,6 +35,7 @@ const SWITCH_WORDS = {
   legacyStockroomSignIn: "Old stockroom sign-in",
   githubPagesForwarding: "Forward the old GitHub Pages address",
   gmailReceiptFinder: "Find receipts in Gmail",
+  gmailOrderScan: "Scan Gmail for order receipts",
 };
 
 async function load() {
