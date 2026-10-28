@@ -26,6 +26,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `services/billing/` | Each press's Colophon plan (shop, stockroom or both) on the platform's own Stripe account: free trial with no card, card, cancel, plan changes and the billing emails. |
 | `services/email/` | The one service that holds the email sender key. |
 | `signup/` | Sign-up, plan choice and billing. |
+| `accounts/` | One sign-in for every shop a person belongs to: the shop switcher, and invites with a role for each shop's team. |
 | `waitlist/` | The public waitlist page. |
 | `profile/` | The shop profile format: what differs between shops, read by both apps when the page opens. |
 | `docs/` | Decisions and plans: `code-plan.md` (the build order, one pull request per line), `shop-setup.md`, `payments.md`, `test-shop.md`, `name-and-domain.md`, `decisions.md`. |
