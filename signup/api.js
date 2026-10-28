@@ -4,7 +4,7 @@
 // Admin in the platform project) checks it.
 //
 //   GET  /api/plans          the plans, prices and trial, for the plan choice (public)
-//   POST /api/signin-link    { email }: email a sign-in link (public, rate-limited)
+//   POST /api/signin-link    { email, page? }: email a sign-in link back to "signup" or "accounts" (public, rate-limited)
 //   POST /api/signup         start the free trial and queue the shop (signed in)
 //   GET  /api/signup         the signed-in person's shops in the making (signed in)
 //
@@ -35,7 +35,7 @@ export function createApi({ signup, verifyIdToken, settings, routes = {} }) {
       currency: settings.currency,
       productName: settings.platformName,
     }),
-    "POST /api/signin-link": async (request) => signup.sendSignInLink({ email: request.body?.email }),
+    "POST /api/signin-link": async (request) => signup.sendSignInLink({ email: request.body?.email, page: request.body?.page }),
     "POST /api/signup": async (request) => signup.start(await claimsOf(request), request.body ?? {}),
     "GET /api/signup": async (request) => ({ shops: await signup.mine(await claimsOf(request)) }),
     ...Object.fromEntries(Object.entries(routes).map(([route, run]) => [route, async (request) => run(await claimsOf(request), request)])),

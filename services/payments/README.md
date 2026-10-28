@@ -22,6 +22,28 @@ Passed-on events carry no signature. The shop believes nothing in them: it fetch
 (`events.retrieve`), which only reaches its own account. So a forged post to a shop's webhook gets nowhere, and no
 secret has to be shared with the shop beyond its service key.
 
+## Square (2.2b)
+
+A press can take payments through their own Square account instead (`payments.provider: "square"` in the registry).
+The service holds the platform's Square applications and each press's tokens; the shop holds neither. Built against
+Square's API reference, version `2026-09-16` (`squareApi.js` lists every path).
+
+| Door | Who knocks | What it checks |
+| --- | --- | --- |
+| `POST /shop`, `account.connectLink` | the shop's admin, for its Connect Square button | the return address is one of the shop's own; the link carries a one-use state that lasts 15 minutes |
+| `GET /square/oauth` | Square, sending the press back with `code` and `state` | the state; one Square account per shop and one shop per Square account (otherwise `?square=in_use` or `other_account` for a person to sort out). It takes the token, reads the press's main location, and records `payments: { accountId (merchant id), locationId, currency, country, connectedAt }` |
+| `POST /shop`, `square.*` | a Square shop's server code | as for Stripe; the calls are hosted checkout (payment links: create, read, delete), payments (read, cancel), refunds (create, read, list for a payment) and disputes for a payment, answered in a small provider-neutral shape (`square.js`) |
+| `POST /square/events/live`, `/square/events/test` | Square, one webhook subscription per environment | Square's signature (the configured notification address plus the raw body); the merchant id finds the shop; `oauth.authorization.revoked` marks the shop disconnected and drops its tokens; anything else goes on to the shop, which looks the object up again |
+
+- **One environment per shop.** A shop in test mode is connected to Square's Sandbox and is refused live calls; a live
+  shop is connected to production and has no Sandbox to test with.
+- **Tokens** are sealed with AES-256-GCM (`SQUARE_TOKEN_KEY`), bound to the shop and mode, and renewed a week before
+  they end (Square's last 30 days). Renewals are logged; tokens never are.
+- **The fee** is Square's `app_fee_money` on the payment link, within Square's cap (90% of the payment, 60% under its
+  small-payment threshold). A refund gives back the same share of the fee (`app_fee_money` on the refund) unless the
+  refund setting is off.
+- **Idempotency keys** are hashed with the shop id into 40 characters (Square allows 45 on refunds).
+
 ## Modes
 
 The registry row keeps `payments: { provider, accountId, mode }`, where `mode` is the mode the account was made in. An
@@ -55,6 +77,9 @@ stable ids.
 - `fees.js`: the fee settings and sums. `config.js`: the environment.
 - `http.js`: `handlePayments(request, { service })` routes the two web doors. `index.js`: `createPaymentsFromEnv`.
 - `fakes.js`: pretend Stripe, account record and shop webhook, for tests.
+- `square.js`: the Square part (Connect Square, `square.*` calls, Square events). `squareApi.js`: the Square REST client.
+  `squareSignature.js`: Square's webhook signature. `tokenSeal.js`: sealing the presses' tokens. `squareFakes.js`:
+  pretend Square, token store and states, for `square.test.js`.
 
 ## Settings
 
@@ -62,6 +87,11 @@ stable ids.
 `STRIPE_CONNECT_WEBHOOK_SECRET_TEST` (comma-separated while rolling a secret) and the fee settings above, in this
 service's environment only. A key in the wrong slot stops the service. A test fails if any code outside this folder
 names the platform key.
+
+Square: `SQUARE_APPLICATION_ID_LIVE` / `_SECRET_LIVE` (production) and `_TEST` (Sandbox, values starting `sandbox-`),
+`SQUARE_WEBHOOK_URL_LIVE` / `_TEST` and `SQUARE_WEBHOOK_SIGNATURE_KEY_LIVE` / `_TEST` (comma-separated while rolling),
+and `SQUARE_TOKEN_KEY`. All optional; without an environment's application its Square shops are told Square isn't
+ready (503). The token store and the states (`squareTokens`, `squareStates`) are platform-project collections.
 
 ## The shop side (2.2)
 
@@ -77,3 +107,6 @@ platform's publishable key and the press's account (`payments` in the shop profi
 - Hosting: the handler runs nowhere yet. It becomes one function in the platform project, with the Connect webhook
   endpoint (`connect: true`) pointed at `/stripe/events`.
 - The real registry, audit log and account record (Firestore in the platform project and the shop's `audit-log`).
+- Square: the platform's Square applications (Julian: a Square developer account, production and Sandbox apps with the
+  redirect address `/square/oauth`, and the two webhook subscriptions), the Firestore token and state stores, and the
+  shop side (`functions/payments/square.js` and the admin's Connect Square button).

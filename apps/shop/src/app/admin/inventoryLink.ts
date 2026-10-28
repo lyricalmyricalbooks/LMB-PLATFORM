@@ -2,6 +2,7 @@
 // (docs/INVENTORY_LINK.md). Links live in admin-read `systemStatus/inventoryLink.links`:
 // { [websiteBookId]: { "_" | variantId: inventoryBookId } }.
 import { isBundle, isGiftCardProduct } from "../features/site/promotions";
+import { shopProfile } from "../../lib/shopProfile";
 
 export type InventoryLinks = Record<string, Record<string, string>>;
 
@@ -178,8 +179,11 @@ export function ago(iso: string | null | undefined, now = Date.now()): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-/** The Google Cloud page where the owner grants the website access to the inventory app. */
-export const IAM_URL = "https://console.cloud.google.com/iam-admin/iam?project=lmb-test-stockroom";
+/**
+ * The Google Cloud page of this shop's own project, where the shop's server account keeps its access. The stockroom
+ * lives in the same project (plan 1.21), so nothing needs granting unless someone removed that access.
+ */
+export const IAM_URL = `https://console.cloud.google.com/iam-admin/iam?project=${encodeURIComponent(shopProfile.firebase.projectId)}`;
 
 /* ── Books only the inventory app has (docs/INVENTORY_LINK.md › One to-do list and new books) ── */
 

@@ -81,6 +81,12 @@ test("rules deploy each plan app's rules from the release's build folder, with t
   ]);
 });
 
+test("data changes run from the release's build of the shop, for that shop", async () => {
+  const { deploy, configs } = setup([]);
+  await deploy.migrate(P, { version: "1.2.3" });
+  assert.deepEqual(configs, [{ args: ["functions/migrations/run.js", "--project", P, "--release", "1.2.3"], cwd: "/builds/1.2.3/apps/shop", env: undefined }]);
+});
+
 test("server code is deployed with its env file and the release stamped in, then its region is checked", async () => {
   const fn = (region) => ({ functions: [{ name: `projects/${P}/locations/${region}/functions/f`, serviceConfig: { environmentVariables: { SHOP_RELEASE_VERSION: "1.2.3" } } }] });
   const { deploy, runs, written } = setup([{ method: "GET", url: FN, json: fn("northamerica-northeast1") }, { method: "GET", url: FN, json: fn("us-central1") }]);

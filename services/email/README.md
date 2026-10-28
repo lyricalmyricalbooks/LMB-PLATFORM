@@ -10,7 +10,7 @@ called over its REST API with an injected `fetch`, and tests use a pretend Resen
 | A press's receipts and customer notices, when the press **has connected its own Gmail** | the press's own Gmail address, by the shop itself (`apps/shop/functions/email`); never reaches this service | the press's choice |
 | The same, when the press **hasn't connected Gmail** (or Gmail refused a send) | `"<Press name>" <notifications@<platform domain>>`, through this service's shop door (`apps/shop/functions/email/platformSender.js`, when the shop's env has `PLATFORM_EMAIL_URL`) | the press's reply-to address, else the owner's |
 | The shop maker's welcome to a new owner (setup step 14) | the same, with the press's name | the press |
-| The platform's own email: billing, sign-up, invites | `"Colophon" <notifications@<platform domain>>` | `support@<platform domain>` |
+| The platform's own email: billing, sign-up, invites, health alerts (services/health) | `"Colophon" <notifications@<platform domain>>` | `support@<platform domain>` |
 
 The press's name and reply-to always come from the shop registry, never from the request, so one shop can't sign as
 another.
