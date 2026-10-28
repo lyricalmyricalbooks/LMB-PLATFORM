@@ -101,6 +101,8 @@ const DESIGN_STRUCTURE_KEYS = new Set([
   "themeLibraryPreset", "palettePreset", "footerBadges", "sharedBlocks", "headerSections", "overlaySections",
   "announcements", "alternateTemplates", "productInfoBlocks", "regions", "elementSchemes", "showHero", "themeStyle",
   "letterSpacing", "wordmarkStyle", "fontSize", "cornerStyle", "animationLevel",
+  // The look a press started from, kept apart from their own edits (themeSwitch.ts, plan 3.5).
+  "themeBase",
 ]);
 
 const quoted = (items: string[]) => {

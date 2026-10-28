@@ -43,8 +43,7 @@ import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections } from "./presetContent";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY } from "./themeLibrary";
-import { themeLookKeys } from "./themeLook";
-import { bringBack, switchSummary, themeSwitchReport, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
+import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
 import { StudioOutline, blockLabel } from "./StudioOutline";
@@ -754,8 +753,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     // themeLook.ts: the palette's full colour set (cards, footer, bag, small print…), then the theme's own keys.
     // What carried over (themeSwitch.ts): worked out from the draft as it is now, shown in Themes until dismissed.
     const before = designRef.current;
-    const report = themeSwitchReport(before, applyThemeKeysToSurfaces(before, themeLookKeys(theme, before), surfaceIds), defaults, theme);
-    change((d) => applyThemeKeysToSurfaces(d, themeLookKeys(theme, d), surfaceIds), { label: `Apply “${theme.name}” look` });
+    // applyLook also stores the look as the design's `themeBase`, so the press's own edits stay apart from it (plan 3.5).
+    const report = themeSwitchReport(before, applyLook(before, theme, surfaceIds), defaults, theme);
+    change((d) => applyLook(d, theme, surfaceIds), { label: `Apply “${theme.name}” look` });
     setSwitchReport(report);
     say("ok", `“${theme.name}” applied to the draft (sections and text kept). ${switchSummary(report)} Publish to make it live.`, undoAction());
     // A preset can also hold section lists and starter pages (presetContent.ts). They are offered, never applied with the
@@ -794,6 +794,21 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const keys = new Set(items);
     setSwitchReport((r) => r && { ...r, replaced: r.replaced.filter((i) => !keys.has(i)), kept: [...r.kept, ...items] });
     say("ok", items.length === 1 ? `Brought back “${items[0].label}”.` : `Brought back ${items.length} of your changes.`, undoAction());
+  };
+  // The press's own edits over their look, listed in Themes (worked out only while Themes is open).
+  const ownEditsList = useMemo(() => (leftTab === "themes" ? ownEdits(design, defaults) : []), [leftTab, design, defaults]);
+  /** Themes › Your changes › Use the theme's: undo own edits back to the look they started from (plan 3.5). */
+  const resetOwnEdits = (items: SwitchItem[]) => {
+    if (!items.length) return;
+    change((d) => resetToLook(d, items), { label: items.length === 1 ? `Use the theme's ${items[0].label}` : `Use the theme's settings for ${items.length} changes` });
+    say("ok", items.length === 1 ? `“${items[0].label}” is the theme's again.` : `${items.length} settings are the theme's again.`, undoAction());
+  };
+  /** Themes › Update look: a release changed the press's theme; take the new version and lay their edits back on. */
+  const updateOwnLook = (theme: any) => {
+    const kept = ownEdits(designRef.current, defaults).length;
+    change((d) => updateLookKeepingEdits(d, defaults, theme, surfaceIds), { label: `Update “${theme.name}” look` });
+    setSwitchReport(null);
+    say("ok", `“${theme.name}” updated in the draft${kept ? `; your ${kept} change${kept === 1 ? "" : "s"} stayed on top` : ""}. Publish to make it live.`, undoAction());
   };
   // One My themes write at a time: a double-click on Duplicate would otherwise save from a stale list and leave an orphan copy.
   const themesBusyRef = useRef(false);
@@ -2546,6 +2561,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onApplyPreset={preset => { setThemePreview(null); applyLibraryTheme(preset); }}
                 switchReport={switchReport && design.themeLibraryPreset === switchReport.themeId ? switchReport : null}
                 onBringBack={bringBackEdits} onDismissSwitch={() => setSwitchReport(null)}
+                ownEdits={ownEditsList} updatedTheme={updatedTheme(design)} onResetEdits={resetOwnEdits} onUpdateLook={updateOwnLook}
                 links={{ create: (d, name, days) => adminApi.createPreviewLink(d, name, days), list: () => adminApi.listPreviewLinks(), revoke: token => adminApi.revokePreviewLink(token) }}
                 askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
             )}

@@ -538,6 +538,10 @@
 .studio-switch-label { overflow-wrap: anywhere; }
 .studio-switch-values { display: inline-flex; align-items: center; gap: 4px; font-family: var(--rp-font-mono); font-size: 11px; color: var(--rp-text-muted); white-space: nowrap; }
 .studio-switch-swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid var(--rp-border-strong); vertical-align: middle; }
+.studio-own-edits { background: var(--rp-surface-sunken); border-width: 1px; border-color: var(--rp-border); }
+.studio-own-edits h3 { margin: 0; }
+.studio-own-update { display: grid; gap: 6px; justify-items: start; padding: 8px; border: 2px solid var(--rp-border-strong); background: var(--rp-warning-tint); }
+.studio-switch-kept > button { margin-top: 6px; }
 .studio-switch-kept summary { cursor: pointer; font-size: 12px; font-weight: 700; min-height: 32px; display: flex; align-items: center; }
 .studio-theme-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .studio-theme-thumb { position: relative; height: 72px; overflow: hidden; border: 1px solid var(--rp-border-strong); padding: 6px; display: grid; align-content: start; gap: 2px; }

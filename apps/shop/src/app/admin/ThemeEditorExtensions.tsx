@@ -427,7 +427,8 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
       showDates: true,
       showExcerpts: true,
       ctaText: "Read more",
-      accentColor: "#A855F7",
+      // Blank: the link takes the theme's own colours (a fixed violet was unreadable on light themes such as Poster).
+      accentColor: "",
       items: [
         { title: "New seasonal catalogue", date: "2026-06-27", excerpt: "Introduce readers to a new collection, author interview, or shop announcement.", imageUrl: "", linkUrl: "/page/news" },
         { title: "Inside the archive", date: "2026-06-27", excerpt: "Use this card to explain your curation process and build trust before purchase.", imageUrl: "", linkUrl: "/page/news" },

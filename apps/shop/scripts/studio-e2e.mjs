@@ -1427,6 +1427,32 @@ await check("switching looks lists what carried over, Bring back restores a repl
   await report.waitFor({ state: "detached", timeout: 5000 });
 }, FIRST_VISIT);
 
+await check("Themes keeps the press's own changes apart from their look, and Use the theme's puts one back", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const essentials = page.locator('[data-studio-panel="essentials"]');
+  await essentials.getByRole("button", { name: "Browse looks" }).click();
+  const panel = page.locator("[data-studio-panel='themes']");
+  await panel.locator("[data-theme-card='preset:press-zine']").getByRole("button", { name: "Use this look" }).click();
+  await page.getByRole("dialog", { name: /Also use “Zine” layout/ }).getByRole("button", { name: "Cancel" }).click();
+  await panel.locator("[data-switch-report]").getByRole("button", { name: "Done" }).click();
+  const own = panel.locator("[data-own-edits]");
+  await own.getByText("Your changes to Zine").waitFor({ timeout: 5000 });
+  if (!/Nothing changed yet/.test(await own.innerText())) throw new Error("a fresh look already lists changes");
+  // Change the title font in Essentials: Themes now lists it as the press's own.
+  await page.getByRole("button", { name: "Essentials" }).first().click();
+  await essentials.locator('[data-style-key="headingFont"] select').selectOption("Oswald");
+  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  await own.getByText("1 setting is yours").waitFor({ timeout: 5000 });
+  await own.getByText("Show your changes (1)").click();
+  const item = own.locator("[data-own-edit-list] li", { hasText: "Heading font" });
+  if (!/Archivo Black[\s\S]*Oswald/.test(await item.innerText())) throw new Error("the change doesn't show the theme's font and the press's");
+  await item.getByRole("button", { name: /^Use the theme's / }).click();
+  await expectText(page, "is the theme's again");
+  await own.getByText("Nothing changed yet").waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: "Essentials" }).first().click();
+  if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Archivo Black") throw new Error("Use the theme's didn't restore Zine's title font");
+}, FIRST_VISIT);
+
 await check("the hero's Height control (found by the theme check) changes the hero in the preview", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();

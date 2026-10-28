@@ -624,6 +624,16 @@ Kept / replaced lists use Studio's own labels; **Bring back** (one or all) write
 undoable change. The panel hides when the draft's `themeLibraryPreset` no longer matches (Undo). Ready-made look
 drawings and Preview use `themedDesign`, so they show the palette's colours, not only `global`.
 
+**A press's edits apart from their look (28 October 2026, plan 3.5).** Use this look goes through `applyLook`
+(`themeSwitch.ts`), which also stores `design.themeBase = { id, name, look, sig }`: exactly the keys the look wrote and a
+signature of the theme as it ships (`lookSignature`). `ownEdits(design, defaults)` lists the press's edits against that
+stored look (else the library look, else the starting design); Themes shows them as "Your changes to …" with **Use the
+theme's** (`resetToLook`, one or all, undoable). When a release changes a theme, `updatedTheme(design)` finds it and
+**Update …** applies the new version with every own edit laid back on top (`updateLookKeepingEdits`). The storefront
+ignores `themeBase`; it is a structural key for the import check. Wave 3: Chapbook, Archive, Poster (palettes `vellum`,
+`archival`, `poster`, layouts `press-chapbook` / `press-archive` / `press-poster`). Changing a shipped theme now offers an
+update to every shop using it, so change themes on purpose.
+
 ## Studio organization
 
 Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages

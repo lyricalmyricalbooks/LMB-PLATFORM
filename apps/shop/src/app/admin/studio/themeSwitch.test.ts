@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { defaultSettings } from "../defaultSettings";
 import { THEME_LIBRARY } from "./themeLibrary";
 import { themedDesign } from "./themeLook";
-import { bringBack, switchSummary, themeSwitchReport } from "./themeSwitch";
+import { applyLook, bringBack, lookSignature, ownEdits, resetToLook, switchSummary, themeSwitchReport, updatedTheme, updateLookKeepingEdits } from "./themeSwitch";
 
 const BASE = defaultSettings().design;
 const theme = (id: string): any => THEME_LIBRARY.find((t: any) => t.id === id);
@@ -44,6 +44,42 @@ describe("theme switch report", () => {
     expect(restored.productPage.headerBg).toBe("#abcdef");
     // Everything else stays as the new look set it.
     expect(restored.headingFont).toBe(after.headingFont);
+  });
+
+  it("stores the look apart from the press's edits, lists the edits and resets them to the look (plan 3.5)", () => {
+    const zine = theme("press-zine");
+    const applied = applyLook(BASE, zine);
+    expect(applied.themeBase).toMatchObject({ id: "press-zine", name: "Zine", sig: lookSignature(zine) });
+    expect(applied.themeBase.look.themeLibraryPreset).toBeUndefined();
+    expect(applied.headingFont).toBe("Archivo Black");
+    expect(ownEdits(applied, BASE)).toEqual([]);
+    expect(updatedTheme(applied)).toBeNull();
+
+    const mine = { ...applied, headingFont: "Oswald", footerColumnGap: 120, productPage: { ...(applied.productPage || {}), headerBg: "#abcdef" } };
+    const edits = ownEdits(mine, BASE);
+    expect(edits.map(e => `${e.surface || "all"}:${e.key}`).sort()).toEqual(["all:footerColumnGap", "all:headingFont", "productPage:headerBg"]);
+    expect(edits.find(e => e.key === "headingFont")).toMatchObject({ before: "Oswald", after: "Archivo Black" });
+    const reset = resetToLook(mine, edits);
+    expect(reset.headingFont).toBe("Archivo Black");
+    expect(reset.productPage?.headerBg).toBeUndefined();
+    expect(ownEdits(reset, BASE)).toEqual([]);
+  });
+
+  it("measures a switch against the stored look, and carries edits onto a newer version of the same theme", () => {
+    const zine = theme("press-zine");
+    // The shop applied an older Zine (a different accent and catalog heading), then changed the title font.
+    const older = { ...zine, global: { ...zine.global, catalogHeading: "Old issues", primaryColor: "#aa0055" } };
+    const mine = { ...applyLook(BASE, older), headingFont: "Oswald" };
+    expect(ownEdits(mine, BASE).map(e => e.key)).toEqual(["headingFont"]);
+    expect(updatedTheme(mine)?.id).toBe("press-zine");
+    const updated = updateLookKeepingEdits(mine, BASE, zine);
+    expect(updated.catalogHeading).toBe(zine.global.catalogHeading);
+    expect(updated.primaryColor).toBe(applyLook(BASE, zine).primaryColor);
+    expect(updated.headingFont).toBe("Oswald");
+    expect(updatedTheme(updated)).toBeNull();
+    // Switching from the stored look reports only the press's own edit.
+    const { report } = sw(updated, "press-index");
+    expect(report.replaced.map(i => i.key)).toEqual(["headingFont"]);
   });
 
   it("gives the plain summary for kept-only switches", () => {

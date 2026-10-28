@@ -22,6 +22,47 @@ function SwitchValue({ value }: { value: any }) {
   return <>{text.length > 28 ? `${text.slice(0, 27)}…` : text}</>;
 }
 
+/** Themes › Your changes: the press's edits kept apart from the look they started from, each one resettable. */
+function OwnEditsPanel({ lookName, edits, updated, onReset, onUpdate }: {
+  lookName: string; edits: SwitchItem[]; updated?: { id: string; name: string } | null;
+  onReset: (items: SwitchItem[]) => void; onUpdate?: (theme: any) => void;
+}) {
+  const n = edits.length;
+  return (
+    <section className="studio-switch studio-own-edits" data-own-edits aria-labelledby="studio-own-edits-title">
+      <h3 id="studio-own-edits-title">Your changes to {lookName}</h3>
+      {updated && onUpdate && (
+        <div className="studio-own-update" data-look-update>
+          <p className="studio-switch-summary">A newer version of {updated.name} is available.</p>
+          <p className="studio-hint">Updating changes only what you haven't changed{n ? `: your ${n} change${n === 1 ? "" : "s"} stay on top` : ""}. You can undo it.</p>
+          <PrimaryButton size="sm" onClick={() => onUpdate(updated)}>Update {updated.name}</PrimaryButton>
+        </div>
+      )}
+      <p className="studio-hint">
+        {n ? `${n} setting${n === 1 ? " is" : "s are"} yours; everything else comes from ${lookName}. Switching looks keeps what the new look doesn't set.`
+          : `Nothing changed yet: every style setting comes from ${lookName}.`}
+      </p>
+      {n > 0 && (
+        <details className="studio-switch-kept">
+          <summary>Show your changes ({n})</summary>
+          <ul className="studio-switch-list" data-own-edit-list>
+            {edits.map((item) => (
+              <li key={`${item.surface || ""}:${item.key}`}>
+                <span className="studio-switch-label">{item.label}</span>
+                <span className="studio-switch-values">
+                  <span title={lookName}><SwitchValue value={item.after} /></span> <span aria-hidden>→</span> <span className="sr-only">yours</span> <span title="Yours"><SwitchValue value={item.before} /></span>
+                </span>
+                <SecondaryButton size="sm" aria-label={`Use the theme's ${item.label}`} onClick={() => onReset([item])}>Use the theme's</SecondaryButton>
+              </li>
+            ))}
+          </ul>
+          {n > 1 && <SecondaryButton size="sm" onClick={() => onReset(edits)}>Use the theme's for all {n}</SecondaryButton>}
+        </details>
+      )}
+    </section>
+  );
+}
+
 /** Themes › What carried over: the press's own style edits after switching looks, with Bring back for each replaced one. */
 function SwitchReportPanel({ report, onBringBack, onDismiss }: { report: ThemeSwitchReport; onBringBack: (items: SwitchItem[]) => void; onDismiss: () => void }) {
   return (
@@ -120,6 +161,12 @@ type Props = {
   switchReport?: ThemeSwitchReport | null;
   onBringBack?: (items: SwitchItem[]) => void;
   onDismissSwitch?: () => void;
+  /** The press's own style edits over the look they started from (plan 3.5). */
+  ownEdits?: SwitchItem[];
+  /** Their ready-made theme when a release changed it since they applied it. */
+  updatedTheme?: { id: string; name: string } | null;
+  onResetEdits?: (items: SwitchItem[]) => void;
+  onUpdateLook?: (theme: any) => void;
   links: PreviewLinkApi;
   askConfirm: (opts: { title: string; message: string; confirmLabel?: string }) => Promise<boolean>;
   say: (kind: "ok" | "err", text: string) => void;
@@ -167,6 +214,9 @@ export function StudioThemes(p: Props) {
     catch { p.say("err", "Couldn't turn off the link. Try again."); }
   };
 
+  // The look the draft started from: its stored base, else the ready-made look it names.
+  const lookName: string | undefined = p.design?.themeBase?.id === p.currentPresetId && p.design?.themeBase?.name
+    ? p.design.themeBase.name : p.presets.find(x => x.id === p.currentPresetId)?.name;
   const previewButton = (id: string, label: string, design: any) => (
     <SecondaryButton size="sm" aria-pressed={p.previewingId === id} onClick={() => p.onPreview(p.previewingId === id ? null : { id, label, design })}>
       <Eye size={13} aria-hidden /> {p.previewingId === id ? "Stop preview" : "Preview"}
@@ -177,6 +227,8 @@ export function StudioThemes(p: Props) {
     <div className="studio-themes" data-studio-panel="themes">
       {p.switchReport && p.onBringBack && p.onDismissSwitch &&
         <SwitchReportPanel report={p.switchReport} onBringBack={p.onBringBack} onDismiss={p.onDismissSwitch} />}
+      {!p.switchReport && p.ownEdits && p.onResetEdits && lookName &&
+        <OwnEditsPanel lookName={lookName} edits={p.ownEdits} updated={p.updatedTheme} onReset={p.onResetEdits} onUpdate={p.onUpdateLook} />}
       <section className="studio-themes-current">
         <h3>Live now</h3>
         <article className="studio-theme-card" data-theme-card="live">
