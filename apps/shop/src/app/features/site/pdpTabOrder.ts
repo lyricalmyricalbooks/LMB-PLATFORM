@@ -1,7 +1,7 @@
-// Order of the book page's Description / Artist bio / Details / Shipping & returns / Reviews tabs (or accordions).
+// Order of the book page's Description / Artist bio / Size guide / Details / Shipping & returns / Reviews tabs (or accordions).
 // Studio › Style › Book page · photos & layout › Order of the tabs (`pdpTabOrder1…5`). Blank everywhere = the built-in order.
 
-export const PDP_TAB_IDS = ["description", "artist", "specs", "policies", "reviews"] as const;
+export const PDP_TAB_IDS = ["description", "artist", "size", "specs", "policies", "reviews"] as const;
 export type PdpTabId = (typeof PDP_TAB_IDS)[number];
 
 export const PDP_TAB_ORDER_KEYS = ["pdpTabOrder1", "pdpTabOrder2", "pdpTabOrder3", "pdpTabOrder4", "pdpTabOrder5"] as const;

@@ -17,11 +17,12 @@ export const DETAILS_FIELD_TAB: Record<string, DetailsSubTab> = {
 };
 
 /** Customs only matter for printed products (no gift cards, no e-books/audiobooks), as before. */
-export function detailsSubTabs({ customs, issues = {} }: { customs: boolean; issues?: Partial<Record<DetailsSubTab, number>> }) {
+/** `books: false` (a shirt, a ring: plan 10.3) names the tabs for any product; a book's tabs keep their names. */
+export function detailsSubTabs({ customs, issues = {}, books = true }: { customs: boolean; issues?: Partial<Record<DetailsSubTab, number>>; books?: boolean }) {
   const tabs: Array<{ id: DetailsSubTab; label: string; count?: number }> = [
     { id: "bd-basics", label: "Basics", count: issues["bd-basics"] || undefined },
-    { id: "bd-publishing", label: "Publishing details", count: issues["bd-publishing"] || undefined },
-    { id: "bd-rows", label: "Book page rows", count: issues["bd-rows"] || undefined },
+    { id: "bd-publishing", label: books ? "Publishing details" : "Product details", count: issues["bd-publishing"] || undefined },
+    { id: "bd-rows", label: books ? "Book page rows" : "Product page rows", count: issues["bd-rows"] || undefined },
   ];
   if (customs) tabs.push({ id: "bd-customs", label: "Customs", count: issues["bd-customs"] || undefined });
   return tabs;

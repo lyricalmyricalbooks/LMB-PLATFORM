@@ -72,7 +72,7 @@ import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/si
 import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
 import { ProductOptionsEditor } from "./ProductOptionsEditor";
-import { adoptEditions, usesOptionPicker, variantsForOptions, type ProductOption } from "../../shared/productOptions";
+import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
 import { DescriptionText } from "../features/site/DescriptionText";
@@ -1085,6 +1085,14 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       return next;
     });
   };
+  // Plan 10.3: a book keeps no `kind` (so a books shop's data is unchanged); anything else stores its kind, drops the
+  // book format so shop cards don't say "Paperback" under a shirt, and gets it back on returning to Book.
+  const setKind = (kind: ProductKind) => setFormData((prev: any) => {
+    const next = { ...prev };
+    if (kind === "book") { delete next.kind; if (!next.format) next.format = "Paperback"; }
+    else { next.kind = kind; if (isBookKind(productKind(prev))) next.format = ""; }
+    return next;
+  });
   const toggleBoxSet = async (on: boolean) => {
     const parts = (formData.bundleItems || []).length;
     if (!on && parts) {
@@ -1147,7 +1155,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     const sub = !c.ok && c.tab === "details" && "field" in c && c.field ? DETAILS_FIELD_TAB[c.field] : undefined;
     if (sub) detailsIssues[sub] = (detailsIssues[sub] || 0) + 1;
   });
-  const detailsTabs = detailsSubTabs({ customs: !giftCard && !isDigital, issues: detailsIssues });
+  const bookKind = isBookKind(productKind(formData));
+  const detailsTabs = detailsSubTabs({ customs: !giftCard && !isDigital, issues: detailsIssues, books: bookKind || giftCard });
   const shownDetailsSub = shownDetailsSubTab(detailsSub, detailsTabs);
   const tabs: Array<{ id: BookTab; label: string; count?: number }> = [
     { id: "details", label: "Details", count: tabIssues.details || undefined },
@@ -1263,15 +1272,17 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               {/* Hidden sub tabs stay mounted, so the description toolbar, ISBN lookup and row editor keep their state. */}
               <div role="tabpanel" id="bd-panel-basics" aria-labelledby="rp-tab-bd-basics" className="be-subpanel" hidden={shownDetailsSub !== "bd-basics"}>
               {/* A new product chooses its type first; an existing one rarely changes it, so it moves to the end. */}
-              {!book && <ProductTypeCard form={formData} onChange={setProductType} />}
-              <SectionCard title="Book details" description="The essentials shoppers see first.">
+              {!book && <ProductTypeCard form={formData} onChange={setProductType} onKind={setKind} />}
+              <SectionCard title={bookKind ? "Book details" : "Product details"} description="The essentials shoppers see first.">
                 <div className="be-grid">
-                  <div className="be-span-2"><TextField label="Book title" name="title" value={formData.title} onChange={handleChange} placeholder="e.g. Find Still Catches Me Shifted" required /></div>
+                  <div className="be-span-2"><TextField label={bookKind ? "Book title" : "Product title"} name="title" value={formData.title} onChange={handleChange} placeholder={bookKind ? "e.g. Find Still Catches Me Shifted" : "e.g. Logo tee"} required /></div>
+                  {bookKind ? <>
                   <SelectField label="Author (linked profile)" name="authorId" value={formData.authorId || ""} onChange={handleChange} hint="Optional. Links this book to an author page.">
                     <option value="">— None —</option>
                     {authors.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </SelectField>
                   <TextField label="Author / contributors (display)" name="subtitle" value={formData.subtitle} onChange={handleChange} placeholder="e.g. Zoe Moss, Lucia Bellemare" />
+                  </> : <div className="be-span-2"><TextField label="Brand or maker" name="subtitle" value={formData.subtitle} onChange={handleChange} placeholder="e.g. your label's name" hint="Shown under the title, and as the Brand row in the product's details." /></div>}
                   <div className="be-span-2">
                     <TextField label="Web address (URL slug)" name="slug" value={formData.slug} onChange={handleChange} placeholder="the-book-slug"
                       readOnly={addressLocked}
@@ -1338,20 +1349,21 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </div>
                 </div>
               </SectionCard>
-              {book && <ProductTypeCard form={formData} onChange={setProductType} />}
+              {book && <ProductTypeCard form={formData} onChange={setProductType} onKind={setKind} />}
               </div>
               <div role="tabpanel" id="bd-panel-publishing" aria-labelledby="rp-tab-bd-publishing" className="be-subpanel" hidden={shownDetailsSub !== "bd-publishing"}>
-              <SectionCard title="Publishing details" description="Bibliographic data used on the product page and in search.">
+              <SectionCard title={bookKind ? "Publishing details" : "Product details"} description={bookKind ? "Bibliographic data used on the product page and in search." : "Codes and facts used on the product page, for shipping and in search. Empty boxes don't show to shoppers."}>
                 <div className="be-grid be-grid-3">
-                  <div>
+                  {bookKind && <div>
                     <TextField label="ISBN" name="isbn" value={formData.isbn} onChange={handleChange} placeholder="978-0-…" error={isbnWarn} />
                     <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={!String(formData.isbn || "").trim() || isbnBusy} onClick={() => void fillFromIsbn()}
                       title="Looks the ISBN up on Open Library (then Google Books) and fills only empty fields">
                       {isbnBusy ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <RefreshCw size={13} aria-hidden />} Fill from ISBN
                     </button>
-                  </div>
+                  </div>}
                   <TextField label="SKU" name="sku" value={formData.sku} onChange={handleChange} placeholder="LM-2024-…" />
                   <TextField label="Barcode / UPC" name="barcode" value={formData.barcode || ""} onChange={handleChange} placeholder="0-00000-00000-0" />
+                  {bookKind ? <>
                   <SelectField label="Format" name="format" value={formData.format} onChange={handleChange}>
                     {["Paperback", "Hardcover", "Special Edition", "Box Set", "Zine", "E-book (PDF)", "E-book (EPUB)", "Audiobook"].map((f) => <option key={f}>{f}</option>)}
                   </SelectField>
@@ -1360,6 +1372,19 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <TextField label="Publication date" type="date" name="publishDate" value={formData.publishDate || ""} onChange={handleChange} />
                   <TextField label="Page count" type="number" min={0} name="pageCount" value={formData.pageCount ?? 0} onChange={handleChange} />
                   <TextField label="Language" name="language" value={formData.language || ""} onChange={handleChange} placeholder="English" />
+                  </> : <>
+                  <TextField label="Material" name="material" value={formData.material || ""} onChange={handleChange} placeholder="e.g. 100% organic cotton" />
+                  <TextField label="Care" name="care" value={formData.care || ""} onChange={handleChange} placeholder="e.g. Machine wash cold" />
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <TextArea label="Size guide" name="sizeChart" value={formData.sizeChart || ""} onChange={handleChange} rows={5}
+                      placeholder={"e.g.\nS: chest 36 in, length 27 in\nM: chest 40 in, length 28 in"}
+                      hint="Optional. Fill it in (or choose a picture below) and the product page gets a Size guide tab." />
+                    <SelectField label="Size guide picture" name="sizeChartPhoto" value={formData.sizeChartPhoto || ""} onChange={handleChange}>
+                      <option value="">— None —</option>
+                      {(formData.photos || []).map((p: any, idx: number) => isVideoItem(p) ? null : <option key={p.id || idx} value={p.url}>Image {idx + 1}{p.altText ? ` (${p.altText})` : ""}</option>)}
+                    </SelectField>
+                  </div>
+                  </>}
                   {!giftCard && <TextField label="Dimensions" name="dimensions" value={formData.dimensions || ""} onChange={handleChange} placeholder="6 x 9 in" />}
                   {!giftCard && <WeightField label="Weight" value={formData.weight || ""} onChange={(w) => set("weight", w)} hint={boxSetOn ? "Used for weight-based shipping. Leave blank to use the books inside added together." : "Used for weight-based shipping."} />}
                 </div>

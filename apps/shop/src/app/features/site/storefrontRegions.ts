@@ -42,6 +42,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "productBoxSet", label: "Box set contents" },
     { id: "productPickup", label: "Pickup availability (under the buy buttons)" },
     { id: "productArtistBio", label: "Artist bio tab" },
+    { id: "productSizeGuide", label: "Size guide tab" },
     { id: "productPolicies", label: "Shipping & returns tab" },
     { id: "productGiftCardForm", label: "Gift card recipient form" },
     { id: "relatedBooks", label: "Recommended books row" },

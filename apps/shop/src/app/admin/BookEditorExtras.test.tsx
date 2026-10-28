@@ -25,7 +25,7 @@ describe("book editor extras", () => {
     expect(html).toContain("This product is a box set of other books");
   });
   it("describes gift-card amounts", () => {
-    const html = renderToStaticMarkup(<ProductTypeCard form={{ productType: "giftCard" }} onChange={noop} />);
+    const html = renderToStaticMarkup(<ProductTypeCard form={{ productType: "giftCard" }} onChange={noop} onKind={noop} />);
     expect(html).toContain("Each edition is an amount, e.g. CA$25");
   });
 });
