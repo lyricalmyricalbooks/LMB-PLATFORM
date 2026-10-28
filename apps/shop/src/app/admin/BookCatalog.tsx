@@ -3,6 +3,7 @@ import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
 import { ArrowDown, ArrowUp, GripVertical, Plus, SlidersHorizontal, Upload, X } from "lucide-react";
 import "./books.css";
+import { useShopWords } from "./shopWords";
 import { EditionStockDialog } from "./EditionStockDialog";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { type InventoryLinks } from "./inventoryLink";
@@ -51,6 +52,8 @@ async function eachBook(books: any[], write: (b: any) => Promise<unknown>) {
 const STATUS_CHIPS = [...STATUS_FILTERS, "Pre-order", "Coming soon"] as const;
 
 export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps) {
+  // Plan 10.23: "Products" for a shop that doesn't sell books (sells.ts).
+  const w = useShopWords();
   const [books, setBooks] = useState<any[]>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -103,7 +106,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     } catch (err) {
       console.error(err);
       setFailed(true);
-      toast.error("Failed to load books");
+      toast.error(w("Failed to load books"));
     } finally {
       setLoading(false);
     }
@@ -187,12 +190,12 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const selectedBooks = useMemo(() => books.filter(b => selected.includes(b.id)), [books, selected]);
   const references = useMemo(() => (confirm?.kind === "bulk" ? bookReferences(selected, books) : confirm?.kind === "one" ? bookReferences([confirm.book.id], books) : []), [confirm, selected, books]);
   const referenceText = references.length
-    ? ` Still used by other books: ${references.map(r => `“${r.title}” (in ${r.usedBy.join(", ")})`).join("; ")}. Those box sets / recommendations will lose it.`
+    ? `${w(" Still used by other books: ")}${references.map(r => `“${r.title}” (in ${r.usedBy.join(", ")})`).join("; ")}. Those box sets / recommendations will lose it.`
     : "";
 
   const finish = async (failedBooks: any[], ok: string, action: string) => {
     setSelected(failedBooks.map(b => b.id));
-    if (failedBooks.length) toast.error(`Could not ${action}: ${failedBooks.map(b => b.title || "Untitled").join(", ")}. These books remain selected for retry.`);
+    if (failedBooks.length) toast.error(`Could not ${action}: ${failedBooks.map(b => b.title || "Untitled").join(", ")}. ${w("These books remain selected for retry.")}`);
     else toast.success(ok);
     await loadBooks();
   };
@@ -251,7 +254,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         const patch: Record<string, any> = bulkOp === "track-on" ? { trackInventory: true } : bulkOp === "track-off" ? { trackInventory: false }
           : bulkOp === "backorder-on" ? { allowBackorder: true } : bulkOp === "backorder-off" ? { allowBackorder: false } : { status: "archived" };
         const bad = await eachBook(list, b => adminApi.updateBook(b.id, { title: b.title, ...patch }, b));
-        await finish(bad, `Updated ${list.length - bad.length} book${list.length - bad.length === 1 ? "" : "s"}`, "update");
+        await finish(bad, w(`Updated ${list.length - bad.length} book${list.length - bad.length === 1 ? "" : "s"}`), "update");
       }
       setBulkOpen(false);
     } catch (err: any) {
@@ -432,7 +435,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
   // Phones: the same rows as cards (the table would scroll sideways).
   const phoneCards = (
-    <ul className="bk-cards" aria-label="Books">
+    <ul className="bk-cards" aria-label={w("Books")}>
       {pageRows.map(b => {
         const at = rows.findIndex(x => x.id === b.id);
         return (
@@ -461,15 +464,15 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     </ul>
   );
 
-  if (loading) return <LoadingState label="Loading books…" />;
-  if (failed) return <ErrorState description="Your books could not be loaded." onRetry={() => { setLoading(true); loadBooks(); }} />;
+  if (loading) return <LoadingState label={w("Loading books…")} />;
+  if (failed) return <ErrorState description={w("Your books could not be loaded.")} onRetry={() => { setLoading(true); loadBooks(); }} />;
 
   if (books.length === 0) {
     return (
       <SectionCard>
-        <EmptyState icon="📚" title="No books yet" description="Add your first title to start selling — it appears on the storefront as soon as it's published."
+        <EmptyState icon="📚" title={w("No books yet")} description={w("Add your first title to start selling — it appears on the storefront as soon as it's published.")}
           action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>Add book</PrimaryButton>
+            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
             <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import CSV</SecondaryButton>
           </div>} />
         {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
@@ -492,7 +495,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         tabs={STATUS_CHIPS.map((v) => ({ id: v, label: v, count: statusCounts[v] }))} />
       <div className="bk-filters" data-open={filtersOpen}>
       <FilterBar>
-        <div className="rp-grow"><SearchField label="Search books" placeholder="Search title, author, ISBN or SKU…" value={search} onChange={e => setSearch(e.target.value)} /></div>
+        <div className="rp-grow"><SearchField label={w("Search books")} placeholder={w("Search title, author, ISBN or SKU…")} value={search} onChange={e => setSearch(e.target.value)} /></div>
         <SecondaryButton className="bk-filter-toggle" icon={<SlidersHorizontal size={16} aria-hidden />} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(o => !o)}>
           {filtersOpen ? "Hide filters" : `Filters & sort${activeFilters ? ` (${activeFilters})` : ""}`}
         </SecondaryButton>
@@ -513,7 +516,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           </SelectField>
         </div>
         <div className="bk-filter-extra">
-          <SelectField label="Sort books" hideLabel value={sort} onChange={e => setSort(e.target.value as SortKey)}>
+          <SelectField label={w("Sort books")} hideLabel value={sort} onChange={e => setSort(e.target.value as SortKey)}>
             <option value="shop">Shop order (drag to arrange)</option>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -538,7 +541,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           <SecondaryButton size="sm" onClick={() => setReview("draft")}>Move to draft…</SecondaryButton>
           <SecondaryButton size="sm" onClick={() => setPriceOpen(true)}>Change price…</SecondaryButton>
           <SecondaryButton size="sm" onClick={openBulk}>Bulk edit…</SecondaryButton>
-          <ActionMenu label="More actions for the selected books" actions={[
+          <ActionMenu label={w("More actions for the selected books")} actions={[
             { label: "Feature on the homepage", onSelect: () => bulkFeature(true) },
             { label: "Stop featuring", onSelect: () => bulkFeature(false) },
             { label: `Export ${selected.length} selected…`, onSelect: () => { setExportScope("selected"); setExportOpen(true); } },
@@ -551,7 +554,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         actions={
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
             {pageRows.length > 0 && <Checkbox label={sort === "shop" ? "Select all" : "Select page"} checked={allSelected} onChange={togglePage} />}
-            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>Add book</PrimaryButton>
+            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
             <ActionMenu label="More catalog actions" actions={[
               { label: "Import CSV…", onSelect: () => setImportOpen(true) },
               { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
@@ -566,16 +569,16 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         {sort === "shop" && (
           <p className="rp-hint" role="status" style={{ padding: "8px 16px", margin: 0 }}>
             {filtering
-              ? "Clear the search and filters to rearrange — the order covers every book."
+              ? w("Clear the search and filters to rearrange — the order covers every book.")
               : savingOrder ? "Saving the new order…" : "Drag a grip or use the arrows to set the shop's Featured order."}
           </p>
         )}
         {pageRows.length === 0 ? (
-          <EmptyState title="No books match" description="Nothing fits this search and these filters. Clear them to see every book."
+          <EmptyState title={w("No books match")} description={w("Nothing fits this search and these filters. Clear them to see every book.")}
             action={<SecondaryButton onClick={resetFilters}>Clear filters</SecondaryButton>} />
         ) : (
           <>
-            <div className="bk-table"><DataTable caption="Books" columns={columns} rows={pageRows} rowKey={b => b.id} rowProps={dragRow} /></div>
+            <div className="bk-table"><DataTable caption={w("Books")} columns={columns} rows={pageRows} rowKey={b => b.id} rowProps={dragRow} /></div>
             {phoneCards}
           </>
         )}
@@ -586,11 +589,11 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       <EditionStockDialog book={stockEditId ? byId.get(stockEditId) || null : null} onClose={() => setStockEditId(null)} onSaved={loadBooks} />
       {!runsOnColophon() && <MerchantFeedDialog open={feedOpen} onClose={() => setFeedOpen(false)} books={books} />}
       {!runsOnColophon() && <GoogleIndexDialog open={indexOpen} onClose={() => setIndexOpen(false)} books={books} />}
-      <Dialog open={exportOpen} onClose={() => setExportOpen(false)} title="Export books"
+      <Dialog open={exportOpen} onClose={() => setExportOpen(false)} title={w("Export books")}
         footer={<><SecondaryButton onClick={() => setExportOpen(false)}>Cancel</SecondaryButton><PrimaryButton onClick={exportCsv}>Download CSV</PrimaryButton></>}>
         <div className="rp-stack">
-          <SelectField label="Which books" value={exportScope} onChange={e => setExportScope(e.target.value as any)}>
-            <option value="all">All books ({books.length})</option>
+          <SelectField label={w("Which books")} value={exportScope} onChange={e => setExportScope(e.target.value as any)}>
+            <option value="all">{w("All books")} ({books.length})</option>
             <option value="filtered">Filtered ({rows.length})</option>
             <option value="selected" disabled={!selected.length}>Selected ({selected.length})</option>
           </SelectField>
@@ -615,7 +618,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <option value="archive">Archive (hide from the shop)</option>
           </SelectField>
           {(bulkOp === "category-add" || bulkOp === "category-remove") && (
-            <SelectField label="Category" value={bulkTarget} onChange={e => setBulkTarget(e.target.value)} hint="Published categories only; up to 400 books at a time.">
+            <SelectField label="Category" value={bulkTarget} onChange={e => setBulkTarget(e.target.value)} hint={w("Published categories only; up to 400 books at a time.")}>
               <option value="">Choose…</option>
               {shopCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </SelectField>
@@ -633,8 +636,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         const failedBooks = chosen.filter((_, index) => results[index].status === "rejected");
         setSelected(failedBooks.map(book => book.id));
         setReview(null);
-        if (failedBooks.length) toast.error(`Could not update: ${failedBooks.map(book => book.title).join(", ")}. These books remain selected for retry.`);
-        else toast.success(`Updated ${chosen.length} books.`);
+        if (failedBooks.length) toast.error(`Could not update: ${failedBooks.map(book => book.title).join(", ")}. ${w("These books remain selected for retry.")}`);
+        else toast.success(w(`Updated ${chosen.length} books.`));
         await loadBooks();
       }} />}
       <Dialog open={priceOpen} onClose={() => setPriceOpen(false)} title={`Change price for ${selected.length} title${selected.length === 1 ? "" : "s"}`}
@@ -656,13 +659,13 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             {pricePlan.changes.length > 20 && <li>…and {pricePlan.changes.length - 20} more</li>}
             {!pricePlan.changes.length && <li>No prices would change.</li>}
           </ul>
-          {pricePlan.skipped.length > 0 && <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }} aria-label="Skipped books">
+          {pricePlan.skipped.length > 0 && <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }} aria-label={w("Skipped books")}>
             {pricePlan.skipped.map(s => <li key={s.id}>Skipped {s.title}: {s.reason}.</li>)}
           </ul>}
         </div>
       </Dialog>
       <ConfirmDialog open={confirm?.kind === "bulk"} title={`Delete ${selected.length} title${selected.length === 1 ? "" : "s"}?`} confirmLabel="Delete permanently"
-        message={`This permanently removes the selected books from the catalog. Set them to draft instead if you may want them back.${referenceText}`}
+        message={`${w("This permanently removes the selected books from the catalog.")} Set them to draft instead if you may want them back.${referenceText}`}
         onConfirm={() => { setConfirm(null); bulkDelete(); }} onCancel={() => setConfirm(null)} />
       <ConfirmDialog open={confirm?.kind === "one"} title="Delete this title?" confirmLabel="Delete title"
         message={confirm?.kind === "one" ? `Are you sure you want to delete “${confirm.book.title}”? This cannot be undone.${referenceText}` : ""}

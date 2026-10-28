@@ -1,6 +1,7 @@
 import { googleFontHref } from "./fonts";
 import { storefrontOverridesCss, storefrontOverridesFontNames } from "./StorefrontOverrides";
-import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, RISO_CHECKOUT_DARK_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
+import { buildStorefrontTokenVars, RISO_CHECKOUT_DARK_CSS, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
+import { themeStyleCss } from "./templateStyles";
 
 /**
  * Drop-in <style> block that wires the semantic token layer onto any storefront
@@ -45,7 +46,7 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
     [data-fm-store] .custom-btn{background-color:var(--btn-bg) !important;color:var(--btn-text) !important;}
     [data-fm-store] .custom-btn:hover{background-color:var(--btn-hover-bg) !important;color:var(--btn-hover-text) !important;}
     ${STOREFRONT_TOKEN_CSS}
-    ${d.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(d) : ""}
+    ${themeStyleCss(d)}
   `;
   const customCss = d.customCss ? `\n/* Custom CSS */\n${d.customCss}` : '';
 

@@ -506,6 +506,10 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   products start as `startingKind` (BookEditor, also in `initialData` so it isn't an unsaved edit) and the guide's
   first-product step. A new shopper word with "book" in it needs a starter word in `sells.ts` (or `BOOK_ONLY_COPY`
   when it only shows for books); `sells.test.ts` fails otherwise.
+- **Admin words** (plan 10.23, started): `adminWordsFor(answer)` is identity for a books shop and `goodsWords` (book →
+  product, author → maker; e-book, bookkeeping left alone) otherwise. Dashboard provides it as `ShopWordsContext`
+  (`shopWords.tsx`, `useShopWords()`); the menu, page titles, the product list and the product editor use it (the
+  editor follows the product's own kind). Wrap new admin words with `w(...)` on those pages.
 
 ## Going live on Colophon (28 October 2026, code plan 2.10)
 

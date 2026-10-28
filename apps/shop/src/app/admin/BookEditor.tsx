@@ -72,7 +72,7 @@ import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/si
 import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
 import { ProductOptionsEditor } from "./ProductOptionsEditor";
-import { startingKind } from "./sells";
+import { goodsWords, startingKind } from "./sells";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
@@ -162,7 +162,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const [stockLinksFailed, setStockLinksFailed] = useState(false);
   useEffect(() => { inventoryLinkApi.links().then(setStockLinks).catch(() => { setStockLinks({}); setStockLinksFailed(true); }); }, []);
   const LINKED_HINT = "Counted in the inventory app. Change it there; the website follows it (Inventory › Inventory app link).";
-  const LINKS_FAILED_HINT = "Couldn't check whether this stock is counted in the inventory app. Close and reopen the book to edit it.";
+  const LINKS_FAILED_HINT = "Couldn't check whether this stock is counted in the inventory app. Close and reopen it to edit it.";
   const stockLocked = (variantId: string | null) => !!book?.id && (stockLinksFailed || isStockLinked(stockLinks, book.id, variantId));
   const stockLockHint = (variantId: string | null) => (stockLocked(variantId) ? (stockLinksFailed ? LINKS_FAILED_HINT : LINKED_HINT) : undefined);
   const [askConfirm, confirmNode] = useConfirm();
@@ -222,6 +222,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     bundleItems: [],
   });
 
+  // Plan 10.23: the editor's words follow the product's kind: "Product images" for a shirt, "Book images" for a book.
+  const w = isBookKind(productKind(formData)) ? (text: string) => text : goodsWords;
   const [publishReview, setPublishReview] = useState(false);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [authors, setAuthors] = useState<any[]>([]);
@@ -585,7 +587,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         if (new URL(formData.seoImage.trim()).protocol !== "https:") add("seo", "Sharing image must use an HTTPS URL.");
       } catch { add("seo", "Sharing image must be a valid HTTPS URL."); }
     }
-    if (!formData.title.trim()) found.push({ text: "Book title is required.", tab: "details", field: "title" });
+    if (!formData.title.trim()) found.push({ text: w("Book title is required."), tab: "details", field: "title" });
     if (formData.retailPrice < 0) add("pricing", "Retail price cannot be negative.");
     // An edition saved with a blank price would sell for $0.
     (formData.variants || []).forEach((v: any, i: number) => {
@@ -621,7 +623,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       if (book) {
         // Pass what the editor loaded so untouched stock keeps its live value.
         const saved: any = await adminApi.updateBook(book.id, toSave, initialData, { removeMissing: true });
-        toast.success("Book updated successfully");
+        toast.success(w("Book updated successfully"));
         // Pre-order switch or release date changed: updateBook carried the new date onto paid, unsent pre-orders.
         const sync = saved?.preorderSync;
         if (sync?.failed) toast.error("Book saved, but its paid pre-orders couldn't be updated. Save again to retry.");
@@ -641,7 +643,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     } catch (err: any) {
       console.error("Save error details:", err);
       // Plain words (never the raw error): the edits stay in the editor, so a retry loses nothing.
-      toast.error("Couldn't save the book. Check your internet connection and press Save again — your edits are still here.");
+      toast.error(w("Couldn't save the book. Check your internet connection and press Save again — your edits are still here."));
     } finally {
       setLoading(false);
     }
@@ -975,7 +977,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const [descBeforeAi, setDescBeforeAi] = useState<string | null>(null);
   const writeDescriptionWithAi = async () => {
     const current = String(formData.description || "");
-    if (!String(formData.title || "").trim()) { toast.error("Give the book a title first."); return; }
+    if (!String(formData.title || "").trim()) { toast.error(w("Give the book a title first.")); return; }
     if (current.trim() && !(await askConfirm({
       title: "Improve the description with AI?",
       message: "The AI rewrites the description from what is written now and the book's details. You can undo it, and nothing is saved until you save the book. Check every fact before saving.",
@@ -1009,7 +1011,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   };
   const backupNote = "Google's free AI allowance had run out, so OpenRouter wrote";
   const describeOne = async (id: string) => {
-    if (!String(formData.title || "").trim()) { toast.error("Give the book a title first."); return; }
+    if (!String(formData.title || "").trim()) { toast.error(w("Give the book a title first.")); return; }
     const index = formData.photos.findIndex((p: any) => p.id === id);
     if (index < 0) return;
     const current = describedAlt(formData.photos[index].altText);
@@ -1026,7 +1028,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   };
   const photosToDescribe = (formData.photos || []).filter((p: any) => !isVideoItem(p) && !describedAlt(p.altText));
   const describeAllPhotos = async () => {
-    if (!String(formData.title || "").trim()) { toast.error("Give the book a title first."); return; }
+    if (!String(formData.title || "").trim()) { toast.error(w("Give the book a title first.")); return; }
     const todo: { photo: any; index: number }[] = photosToDescribe.map((p: any) => ({ photo: p, index: formData.photos.findIndex((x: any) => x.id === p.id) }));
     if (!todo.length) return;
     setDescribeAll({ done: 0, total: todo.length });
@@ -1202,25 +1204,25 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     <div className="book-editor-riso w-full h-full flex flex-col relative overflow-hidden">
       <header className="rp-dialog-head be-head shrink-0">
         <div className="be-head-main">
-          <button type="button" onClick={handleClose} className="rp-icon-btn" aria-label="Close book editor"><ArrowLeft size={18} aria-hidden /></button>
+          <button type="button" onClick={handleClose} className="rp-icon-btn" aria-label={w("Close book editor")}><ArrowLeft size={18} aria-hidden /></button>
           <div className="be-title-block">
-            <h2 className="rp-dialog-title" title={formData.title?.trim() || undefined}>{formData.title?.trim() || (book ? "Edit book" : "New book")}</h2>
+            <h2 className="rp-dialog-title" title={formData.title?.trim() || undefined}>{formData.title?.trim() || w(book ? "Edit book" : "New book")}</h2>
             <span className="be-id">
               <StatusBadge tone={statusTone as any}>{STATUS_WORDS[formData.status] || formData.status}</StatusBadge>
               {isDirty
                 ? <span className="be-dirty" role="status"><span aria-hidden>●</span> Unsaved changes</span>
                 : book ? <span className="be-saved" role="status"><span aria-hidden>✓</span> All changes saved</span> : null}
-              {book && <span className="be-book-id">Book ID {book.id}</span>}
+              {book && <span className="be-book-id">{w("Book ID")} {book.id}</span>}
             </span>
           </div>
         </div>
         <div className="be-actions">
           {book && (
-            <ActionMenu label="More for this book" actions={[
+            <ActionMenu label={w("More for this book")} actions={[
               ...((book.slug || formData.slug) ? [{ label: "Preview page (new tab)", icon: <ExternalLink size={14} aria-hidden />, onSelect: () => { window.open(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book.id)}?preview=true`, "_blank", "noreferrer"); } }] : []),
-              ...(book.slug ? [{ label: "Copy link to this book", icon: <Copy size={14} aria-hidden />, onSelect: () => void copyBookLink() }] : []),
+              ...(book.slug ? [{ label: w("Copy link to this book"), icon: <Copy size={14} aria-hidden />, onSelect: () => void copyBookLink() }] : []),
               ...(book.slug && book.status === "published" ? [{ label: "Design this page", icon: <Palette size={14} aria-hidden />, onSelect: () => {
-                if (isDirty) { toast.error("Save the book first, then design its page in the Design studio."); return; }
+                if (isDirty) { toast.error(w("Save the book first, then design its page in the Design studio.")); return; }
                 window.location.hash = studioHash({ templateId: "productPage", productSlug: book.slug });
               } }] : []),
             ]} />
@@ -1259,7 +1261,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
           </ul>
         </div>
       )}
-      <ConfirmDialog open={confirmSlug} appearance="light" title="Change this book's web address?" confirmLabel="Change web address"
+      <ConfirmDialog open={confirmSlug} appearance="light" title={w("Change this book's web address?")} confirmLabel="Change web address"
         message="Links people already have to this book (search results, emails, social posts, bookmarks) will stop working, and the site cannot redirect them. Only continue if the old address was wrong."
         onConfirm={() => { setConfirmSlug(false); setSlugUnlocked(true); }} onCancel={() => setConfirmSlug(false)} />
       <ConfirmDialog open={confirmDiscard} appearance="light" title="Discard unsaved changes?" confirmLabel="Discard changes"
@@ -1267,7 +1269,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         onConfirm={() => { setConfirmDiscard(false); onClose(); }} onCancel={() => setConfirmDiscard(false)} />
 
       <div className="be-tabbar shrink-0">
-        <div className="be-tabs-wide"><Tabs variant="page" label="Book editor sections" tabs={tabs} value={shownTab} onChange={setTab} /></div>
+        <div className="be-tabs-wide"><Tabs variant="page" label={w("Book editor sections")} tabs={tabs} value={shownTab} onChange={setTab} /></div>
         {/* Phones: one drop-down instead of four rows of tabs. */}
         <div className="be-tabs-narrow">
           <SelectField label="Section" value={shownTab} onChange={(e) => setTab(e.target.value as BookTab)}>
@@ -1473,7 +1475,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
           )}
 
           {shownTab === "media" && (
-            <SectionCard title="Book images" description="Use genuine cover and interior photographs. Drag the ⠿ handle to reorder; the first image is the cover shown in the shop and search."
+            <SectionCard title={w("Book images")} description="Use genuine cover and interior photographs. Drag the ⠿ handle to reorder; the first image is the cover shown in the shop and search."
               actions={<>
                 <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS}><Upload size={14} aria-hidden /> Upload images</button>
                 {photosToDescribe.length > 0 && aiWriterAvailable() && (
@@ -1570,7 +1572,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 {activePrice > 0 && num(formData.costPrice) > activePrice && <p className="be-warn" role="status">⚠ Cost is higher than the selling price — you'd lose money on each copy.</p>}
               </SectionCard>
               <SectionCard title="Sale pricing" description="Show a struck-through original price with a discounted one — now, or between the dates you choose.">
-                <Toggle label="This book is on sale" checked={!!formData.isOnSale} onChange={(v) => set("isOnSale", v)} />
+                <Toggle label={w("This book is on sale")} checked={!!formData.isOnSale} onChange={(v) => set("isOnSale", v)} />
                 {formData.isOnSale && (
                   <>
                     <div className="be-grid be-grid-3 mt-4">
@@ -1618,7 +1620,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 {lowStock && <p className="be-warn" role="status">⚠ Low stock. Consider reprinting or turning on backorders.</p>}
               </SectionCard>
               )}
-              {!giftCard && <SectionCard title="Coming soon" description="Show this book in the shop before it can be bought. Shoppers get a Coming soon button that signs them up for an email when it's out.">
+              {!giftCard && <SectionCard title="Coming soon" description={w("Show this book in the shop before it can be bought. Shoppers get a Coming soon button that signs them up for an email when it's out.")}>
                 <div className="be-toggles">
                   <Toggle label="Show as Coming soon (not for sale yet)" checked={!!formData.comingSoon} onChange={(v) => setFormData((prev: any) => ({ ...prev, comingSoon: v, ...(v ? { preorder: false } : {}) }))} />
                 </div>
@@ -1640,7 +1642,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </>
                 )}
               </SectionCard>}
-              {!giftCard && <SectionCard title="Pre-order" description="Sell this book before it comes out. On its publication date it becomes a normal book by itself.">
+              {!giftCard && <SectionCard title="Pre-order" description={w("Sell this book before it comes out. On its publication date it becomes a normal book by itself.")}>
                 <div className="be-toggles">
                   <Toggle label="Take pre-orders until the publication date" checked={!!formData.preorder} onChange={(v) => setFormData((prev: any) => ({ ...prev, preorder: v, ...(v ? { comingSoon: false } : {}) }))} />
                 </div>
@@ -1666,7 +1668,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </>
                 )}
               </SectionCard>}
-              {!giftCard && <SectionCard title="Shipping" description="Which shipping rates apply to this book. Status, schedule and Featured are in the Summary panel (beside the form, or below it on a phone).">
+              {!giftCard && <SectionCard title="Shipping" description={w("Which shipping rates apply to this book. Status, schedule and Featured are in the Summary panel (beside the form, or below it on a phone).")}>
                 <div className="be-grid">
                   <SelectField label="Shipping profile" name="shippingProfileId" value={formData.shippingProfileId} onChange={handleChange}>
                     {shippingProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1782,7 +1784,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
 
           {shownTab === "organize" && (
             <>
-            <SectionCard title="Categories & tags" description="Categories build the shop menus — pick every one this book belongs in. New categories created here are published to the shop and added to Design › Menus automatically. Tags power search.">
+            <SectionCard title="Categories & tags" description={w("Categories build the shop menus — pick every one this book belongs in. New categories created here are published to the shop and added to Design › Menus automatically. Tags power search.")}>
               <div className="be-chips" role="group" aria-label="Categories">
                 {categories.map((cat) => {
                   const on = (formData.categories || []).includes(cat);
@@ -1821,7 +1823,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               </div>
             </SectionCard>
             <BookTemplatePicker value={formData.templateId} onChange={id => set("templateId", id ?? null)} />
-            <SectionCard title="Curated recommendations" description="Choose up to four companion books in display order. Only published books appear to shoppers. Save this book to apply your selection.">
+            <SectionCard title="Curated recommendations" description={w("Choose up to four companion books in display order. Only published books appear to shoppers. Save this book to apply your selection.")}>
               <SelectField label="Recommendation source" value={Array.isArray(formData.relatedBookIds) ? "curated" : "automatic"} onChange={(event) => setFormData((prev: any) => {
                 const next = { ...prev };
                 if (event.target.value === "automatic") delete next.relatedBookIds;
@@ -1847,12 +1849,12 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   })}
                 </ol>
                 {recommendationError ? <p role="alert">The catalog could not be loaded. Your saved selection is preserved; reopen this editor to retry.</p> : <>
-                  <TextField label="Find a companion book" value={recommendationSearch} onChange={(event) => setRecommendationSearch(event.target.value)} />
+                  <TextField label={w("Find a companion book")} value={recommendationSearch} onChange={(event) => setRecommendationSearch(event.target.value)} />
                   <SelectField label="Add recommendation" value="" disabled={formData.relatedBookIds.length >= 4} onChange={(event) => {
                     const id = event.target.value;
                     if (id) setFormData((prev: any) => ({ ...prev, relatedBookIds: [...prev.relatedBookIds, id] }));
                   }}>
-                    <option value="">Choose a book</option>
+                    <option value="">{w("Choose a book")}</option>
                     {recommendationCatalog.filter(item => item.id !== book?.id && !formData.relatedBookIds.includes(item.id) && String(item.title || "").toLowerCase().includes(recommendationSearch.toLowerCase())).map(item => <option key={item.id} value={item.id}>{item.title}{item.status !== "published" ? " (not published)" : ""}</option>)}
                   </SelectField>
                 </>}
@@ -1867,7 +1869,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         </form>
 
         {publishReview && <CatalogReviewDialog books={[{ ...formData, id: book?.id || "new" }]} action="publish" onClose={() => setPublishReview(false)} onConfirm={async () => { setPublishReview(false); await handleSave(undefined, true); }} />}
-        <aside className="be-rail" aria-label="Book summary">
+        <aside className="be-rail" aria-label={w("Book summary")}>
           <div className="be-rail-card">
             <p className="be-rail-head">Summary</p>
             <div className="be-rail-summary">

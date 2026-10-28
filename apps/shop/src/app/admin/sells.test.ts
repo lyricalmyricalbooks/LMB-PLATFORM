@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { BOOK_ONLY_COPY, SELLS, SWAPPED, firstProductWords, sellsBooks, starterWords, startingKind, withStarterWords } from "./sells";
+import { BOOK_ONLY_COPY, SELLS, SWAPPED, adminWordsFor, firstProductWords, goodsWords, sellsBooks, starterWords, startingKind, withStarterWords } from "./sells";
 import { DEFAULT_COPY, getCopy } from "../features/site/storeCopy";
 import { firstWeekSteps } from "./firstWeek";
 import { suggestedThemes } from "./chooseLook";
@@ -60,5 +60,17 @@ describe("What a shop sells (plan 10.1)", () => {
     const step = (publishes: string) => firstWeekSteps({ plan: "both", publishes }, facts).find(s => s.id === "add-books")!;
     expect(step("books").title).toBe("Add your first book");
     expect(step("jewelry").title).toBe("Add your first product");
+  });
+
+  it("admin words (plan 10.23): a books shop reads the same, a clothing shop reads products and makers", () => {
+    for (const answer of ["books", "zines", null, "pottery"]) expect(adminWordsFor(answer)("Add book")).toBe("Add book");
+    const w = adminWordsFor("clothing");
+    expect(w("Add book")).toBe("Add product");
+    expect(w("No books yet")).toBe("No products yet");
+    expect(w("Search title, author, ISBN or SKU…")).toBe("Search title, maker, ISBN or SKU…");
+    expect(w("BOOKS")).toBe("PRODUCTS");
+    expect(w("Add your first title to start selling")).toBe("Add your first title to start selling");
+    // Book-only and look-alike words are left alone.
+    expect(goodsWords("E-book (PDF), e-books, Bookkeeping, bookkeeper, Facebook")).toBe("E-book (PDF), e-books, Bookkeeping, bookkeeper, Facebook");
   });
 });
