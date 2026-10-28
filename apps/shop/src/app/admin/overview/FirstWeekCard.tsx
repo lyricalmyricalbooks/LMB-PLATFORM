@@ -15,7 +15,7 @@ export function FirstWeekCard({ books, readiness, onOpen }: { books: any[] | nul
   const [saving, setSaving] = useState("");
   useEffect(() => {
     let live = true;
-    adminApi.getFirstWeek().then(d => { if (live) setDoc(d); }).catch(() => {});
+    Promise.resolve().then(() => adminApi.getFirstWeek()).then(d => { if (live) setDoc(d); }).catch(() => {});
     return () => { live = false; };
   }, []);
   const steps = useMemo(() => (doc ? firstWeekSteps(doc, { books, readiness }) : []), [doc, books, readiness]);

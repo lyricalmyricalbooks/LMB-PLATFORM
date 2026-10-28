@@ -122,6 +122,8 @@ test("every setup step has words for the press, and person-stops are told apart 
   assert.equal(retryable("the database is in us-east1, not northamerica-northeast1"), false);
   assert.equal(retryable("the registry has x on square, but the shop chose stripe; a person decides which one stays"), false);
   assert.deepEqual(shopFromSignup({ shopId: "x", pressName: "P", ownerEmail: "o@example.com", plan: "shop", country: "CA", currency: "CAD" }, { testMode: false }).testMode, false);
+  assert.equal(shopFromSignup({ shopId: "x", plan: "shop", answer: "fairs" }, { testMode: true }).sellingToday, "fairs");
+  assert.equal(shopFromSignup({ shopId: "x", plan: "shop", answer: null }, { testMode: true }).sellingToday, null);
 });
 
 test("a shop that becomes ready closes its shop-maker repairs and gets its self-checks; a failing check never holds it up", async () => {
