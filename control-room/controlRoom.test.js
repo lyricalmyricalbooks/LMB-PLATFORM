@@ -42,7 +42,7 @@ function fakeEmail() {
   return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
 }
 
-async function world({ repairs, newsletters } = {}) {
+async function world({ repairs, newsletters, googleSteps } = {}) {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -66,7 +66,7 @@ async function world({ repairs, newsletters } = {}) {
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
     breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
     people: controlRoomPeople({}),
-    activity, platformState,
+    activity, platformState, googleSteps,
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
@@ -532,4 +532,39 @@ test("no test shop yet: the card says so instead of failing (plan 9.10)", async 
   const w = await world();
   await w.registry.updateShop(ID, { testShop: false });
   assert.equal((await w.ask(ADMIN, "GET", "/api/control/test-shop")).body.testShop, null);
+});
+
+test("the shop record shows each Google step, and Run again runs one, admins only and logged (6.20 on 9.3)", async () => {
+  const ran = [];
+  const googleSteps = {
+    googleStatus: async (shopId) => ({ shopId, stage: "connected", steps: [{ step: "analytics", state: "done" }, { step: "email", state: "failed", detail: "Google didn't answer.", canRunAgain: true }] }),
+    async runAgain(shopId, step) {
+      if (step === "deleteFirebase") throw new Error("This shop isn't due to be deleted yet");
+      ran.push([shopId, step]);
+      return { step, state: "done" };
+    },
+  };
+  const w = await world({ googleSteps });
+  await w.registry.updateShop(ID, { closing: { stage: "paused", deleteAfter: "2027-03-01T00:00:00Z" } });
+  const record = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
+  assert.deepEqual(record.google.steps.map((s) => s.state), ["done", "failed"]);
+  assert.equal(record.closing.stage, "paused");
+
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/google-run-again", { shopId: ID, step: "email" })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/google-run-again", { shopId: ID })).status, 400);
+  const again = await w.ask(ADMIN, "POST", "/api/control/google-run-again", { shopId: ID, step: "email" });
+  assert.equal(again.status, 200);
+  assert.equal(again.body.outcome.state, "done");
+  assert.deepEqual(ran, [[ID, "email"]]);
+  assert.ok(w.events().some((e) => e.what === "google-run-again" && e.step === "email"));
+  // The Google side's own rules still hold: nothing deleted early.
+  const early = await w.ask(ADMIN, "POST", "/api/control/google-run-again", { shopId: ID, step: "deleteFirebase" });
+  assert.equal(early.status, 409);
+  assert.match(early.body.message, /isn't due/);
+});
+
+test("without the Google steps the record still opens, and Run again says it can't reach them", async () => {
+  const w = await world();
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.google, null);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/google-run-again", { shopId: ID, step: "email" })).status, 503);
 });
