@@ -95,9 +95,11 @@ if (isSignInWithEmailLink(auth, location.href)) {
 
 // ── The shop switcher ──
 const ACCESS_WORDS = { paused: "Paused until a card is added", closed: "Closed" };
+let myShops = [];
 
 async function loadShops() {
   const { email, shops } = await api("GET", "/accounts/shops");
+  myShops = shops;
   $("#me").textContent = email;
   const list = $("#shops");
   if (!shops.length) {
@@ -202,6 +204,79 @@ $("#invite-form").addEventListener("submit", async (event) => {
   } catch (failure) {
     problem.textContent = failure.problems?.email ?? failure.message;
     problem.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+// ── Get help (services/support) ──
+const STATUS_WORDS = { open: "Waiting for an answer", answered: "Answered", closed: "Closed" };
+$("#open-help").addEventListener("click", () => openHelp().catch((failure) => { status.textContent = failure.message; }));
+$("#help-back").addEventListener("click", () => loadShops().catch((failure) => { status.textContent = failure.message; }));
+
+async function openHelp() {
+  $("#help-shop").replaceChildren(new Option("Not about one shop", ""), ...myShops.map((shop) => new Option(shop.pressName, shop.shopId)));
+  if (myShops.length === 1) $("#help-shop").value = myShops[0].shopId;
+  await loadTickets();
+  show("help");
+}
+
+async function loadTickets() {
+  const { tickets } = await api("GET", "/support/mine");
+  $("#tickets").replaceChildren(...(tickets.length ? tickets.map(ticketCard) : [el("p", { className: "empty", textContent: "No requests yet." })]));
+}
+
+function ticketCard(ticket) {
+  const when = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const messages = ticket.messages.map((m) => el("div", { className: `message from-${m.from}` },
+    el("p", { className: "hint", textContent: `${m.from === "you" ? "You" : "Colophon support"} · ${when(m.at)}` }),
+    el("p", { textContent: m.body, style: "margin:0" })));
+  const more = el("form", { className: "stack", noValidate: true },
+    el("label", {}, "Add to this request", el("textarea", { name: "body", maxLength: 5000, required: true })),
+    el("p", { className: "error", hidden: true, role: "alert" }),
+    el("button", { type: "submit", textContent: "Send" }));
+  more.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = more.querySelector("button");
+    const problem = more.querySelector(".error");
+    button.disabled = true;
+    try {
+      await api("POST", "/support/add", { id: ticket.id, body: more.body.value });
+      status.textContent = "Sent. We'll answer by email.";
+      await loadTickets();
+    } catch (failure) {
+      problem.textContent = failure.problems?.body ?? failure.message;
+      problem.hidden = false;
+      button.disabled = false;
+    }
+  });
+  return el("div", { className: "card" },
+    el("div", { className: "row" }, el("strong", { textContent: ticket.subject }), el("span", { className: "pill", textContent: STATUS_WORDS[ticket.status] ?? ticket.status })),
+    el("p", { className: "hint", textContent: `Request ${ticket.id}${ticket.pressName ? ` · ${ticket.pressName}` : ""}` }),
+    ...messages, more);
+}
+
+$("#help-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const button = form.querySelector("button[type=submit]");
+  for (const p of form.querySelectorAll("[data-problem]")) p.hidden = true;
+  button.disabled = true;
+  // The same id on a retry, so pressing Send twice makes one request.
+  form.dataset.requestId ||= crypto.randomUUID();
+  try {
+    await api("POST", "/support/open", { shopId: form.shopId.value || undefined, subject: form.subject.value, body: form.body.value, requestId: form.dataset.requestId });
+    status.textContent = "Sent. We've emailed you a copy, and we'll answer by email.";
+    form.reset();
+    delete form.dataset.requestId;
+    await loadTickets();
+  } catch (failure) {
+    const problems = failure.problems ?? {};
+    for (const [field, words] of Object.entries(problems)) {
+      const p = form.querySelector(`[data-problem="${field}"]`);
+      if (p) { p.textContent = words; p.hidden = false; }
+    }
+    if (!Object.keys(problems).length) status.textContent = failure.message;
   } finally {
     button.disabled = false;
   }

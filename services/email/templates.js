@@ -89,6 +89,36 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  // ── Support (services/support). `data`: { pressName, ticketId, subject, body, from?, followUp? }. ──
+
+  /** To the person who asked: we have it. Their own words are repeated so they can check them. */
+  "support-received": ({ ticketId, subject, body }, { settings }) => layout({
+    subject: `We have your request: ${subject}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Thanks for writing to ${settings.platformName} support. A person reads every request, and you'll get the answer by email.`,
+      `Your request (number ${ticketId}):`,
+      body,
+    ],
+    footer: signOff(settings),
+  }),
+
+  /** To the platform's support address: a new request, or more words on one. */
+  "support-new": ({ ticketId, subject, body, from, followUp }, { settings, pressName }) => layout({
+    subject: `${followUp ? "More on" : "New request"} ${ticketId}: ${subject}`,
+    greeting: "",
+    paragraphs: [`From ${from}${pressName ? ` (${pressName})` : ""}:`, body, "Answer it in the control room, under Support, so the press gets it by email."],
+    footer: `${settings.platformName} support inbox`,
+  }),
+
+  /** To the person who asked: the team's answer. */
+  "support-reply": ({ ticketId, subject, body }, { settings }) => layout({
+    subject: `Re: ${subject}`,
+    greeting: "Hello,",
+    paragraphs: [body, `This answers your request number ${ticketId}. Add to it from your account page if you need more help.`],
+    footer: signOff(settings),
+  }),
+
   // ── Billing (services/billing), sent to the person who pays. `data`: { pressName, planName, price, date, link }. ──
 
   /** Three days before the trial ends. With no card yet, it asks for one; with a card, it says when the first charge is. */
