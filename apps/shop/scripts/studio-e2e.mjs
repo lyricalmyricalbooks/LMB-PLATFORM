@@ -36,6 +36,15 @@ const results = [];
 const [shardNo, shardCount] = (process.env.STUDIO_SHARD || "1/1").split("/").map(Number);
 if (!(shardCount >= 1 && shardNo >= 1 && shardNo <= shardCount)) throw new Error(`STUDIO_SHARD must look like 2/3, not ${process.env.STUDIO_SHARD}`);
 let checkNo = 0;
+// Studio opens in Essentials (plan 1.27). Checks start in Page layout, as they were written for, unless they name a
+// workspace; FIRST_VISIT opens Studio exactly as a new press sees it.
+const FIRST_VISIT = "first-visit";
+function startAt(query) {
+  if (query === FIRST_VISIT) return "";
+  if (query.includes("tab=")) return query;
+  if (query.startsWith("#designer")) return query + (query.includes("?") ? "&" : "?") + "tab=sections";
+  return query + "#designer?tab=sections";
+}
 async function check(name, viewport, run, query = "", prepare = null) {
   // STUDIO_ONLY="words" runs only the checks whose name contains those words (local iteration).
   if (process.env.STUDIO_ONLY && !name.includes(process.env.STUDIO_ONLY)) return;
@@ -46,7 +55,7 @@ async function check(name, viewport, run, query = "", prepare = null) {
   page.on("pageerror", e => errors.push(e.message));
   try {
     if (prepare) await prepare(page);
-    await page.goto(`${base}/studio-fixture.html${query}`);
+    await page.goto(`${base}/studio-fixture.html${startAt(query)}`);
     await page.waitForSelector("[data-studio-editor]", { timeout: 30000 });
     await run(page);
     if (errors.length) throw new Error(`page errors: ${errors.join(" | ")}`);
@@ -69,6 +78,22 @@ const expectText = async (page, text, timeout = 5000) => page.getByText(text).fi
 const calls = page => page.evaluate(() => window.__studioFixture.calls);
 const mod = process.platform === "darwin" ? "Meta" : "Control";
 const desktop = { width: 1440, height: 900 };
+
+await check("Studio opens in Essentials: name, logo, colours and fonts first, everything else under All settings", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const panel = page.locator('[data-studio-panel="essentials"]');
+  await panel.waitFor({ timeout: 10000 });
+  if (await page.getByRole("button", { name: "Essentials" }).first().getAttribute("aria-pressed") !== "true") throw new Error("Essentials is not the open workspace");
+  await page.locator(".studio-rail-section", { hasText: "All settings" }).waitFor();
+  // The shop's name here is the same word as Text & labels › Site name.
+  const name = panel.locator('[data-copy-key="siteName"]').locator("input, textarea").first();
+  await name.fill("Harbour Press");
+  const frame = page.frameLocator('iframe[title="Live preview"]');
+  await frame.getByText("Harbour").first().waitFor({ timeout: 10000 });
+  // A step's button opens its workspace.
+  await panel.getByRole("button", { name: "Browse looks" }).click();
+  if (await page.getByRole("button", { name: "Themes" }).first().getAttribute("aria-pressed") !== "true") throw new Error("Browse looks did not open Themes");
+}, FIRST_VISIT);
 
 await check("preview connects with the unsaved design", desktop, async page => {
   await expectText(page, "Preview connected", 30000);

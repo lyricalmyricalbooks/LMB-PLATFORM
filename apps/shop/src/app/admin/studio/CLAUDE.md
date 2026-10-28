@@ -606,6 +606,15 @@ Any problem opens a confirm ("Import anyway" / Cancel) that names them in plain 
 `themeImportCheck.test.ts` keeps Studio's own exports (starting look, every library theme, the fixture draft) free of
 warnings; a new structural design key belongs in `DESIGN_STRUCTURE_KEYS` or that test fails.
 
+**Essentials (28 October 2026, plan 1.27).** Studio opens in **Essentials** (`leftTab` `essentials`, first in
+`RAIL_TABS`, G then E) unless it remembers another workspace or a link names one. The panel is `ESSENTIALS` in
+`studio/essentials.ts`: name (Text & labels `siteName`), logo, colours, fonts and buttons, announcement bar, plus buttons
+to Themes, the homepage's Page layout and Pages. Every key is the same control as in Theme settings / Text & labels
+(`renderStyleField`, `StudioCopyField`), never a second store; `essentials.test.ts` checks that and keeps it to 8 steps
+and 12 settings. The other workspaces sit under an "All settings" heading in the rail. `studio-e2e.mjs` starts each check
+in Page layout (`startAt`) unless its query names a tab or is `FIRST_VISIT`; `StudioEditor.test.tsx`'s `mount()` does
+the same.
+
 ## Studio organization
 
 Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages
