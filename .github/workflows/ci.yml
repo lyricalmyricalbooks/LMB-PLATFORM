@@ -74,6 +74,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # The Hosting settings (its own site inside each shop's project, plan 1.20) against what the build wrote.
+      - run: npm run check:hosting
 
   # The shop copy's Firestore rules against the real rules engine (apps/shop/scripts/firestore-rules-emulator.mjs),
   # including who may open the admin (owner, staff) and manage the Team. Packages go in a throwaway folder.

@@ -44,6 +44,16 @@
         "stockroom": { "type": "boolean" }
       }
     },
+    "stockroom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["firestoreDatabase", "storageBucket"],
+      "description": "Where the stockroom keeps its data inside the shop's project (plan 1.20): its own named Firestore database and its own storage bucket, each with its own rules. Missing: the project's default database and bucket (a stockroom in a project of its own).",
+      "properties": {
+        "firestoreDatabase": { "type": "string", "pattern": "^[a-z][a-z0-9-]{2,61}[a-z0-9]$", "description": "The named Firestore database: \"stockroom\" for every shop setup makes." },
+        "storageBucket": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$", "description": "The stockroom's storage bucket: \"<project id>-stockroom\"." }
+      }
+    },
     "switches": {
       "type": "object",
       "additionalProperties": false,

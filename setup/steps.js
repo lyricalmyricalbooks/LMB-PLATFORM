@@ -13,19 +13,34 @@
 //   google.services     listEnabled(projectId) -> [name]                           enable(projectId, [name])
 //   google.firestore    getDatabase(projectId) -> { locationId } | null            createDatabase(projectId, { locationId, type, deleteProtection })
 //   google.storage      getDefaultBucket(projectId) -> { name, location } | null   createDefaultBucket(projectId, { location })
+//                       getBucket(projectId, name) -> { name, location, project } | null
+//                       createBucket(projectId, { name, location })   a bucket in the project, added to Firebase
+//   google.firestore    getDatabase(projectId, databaseId) and createDatabase(projectId, { databaseId, … }) for a named one
+//   google.realtimeDatabase  getInstance(projectId) -> { name, location } | null   createInstance(projectId, { location })
+//                            (the project's default instance, <project id>-default-rtdb)
 //
 // The registry (fakes.js has the shape) keeps the shop row and its profile; `profileFiles` keeps the per-shop
 // /shop-profile.js that Hosting serves (read(shopId) -> text | null, write(shopId, text)).
 import { isDeepStrictEqual } from "node:util";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { paymentProblems } from "./payments.js";
+// The one name for the stockroom's database, shared with the real clients (clients/shop.js) and the release check.
+import { STOCKROOM_DATABASE } from "../clients/shop.js";
 
 export const REGION = "northamerica-northeast1";
 export const WEB_APP_NAME = "Shop";
 
+// The stockroom's own pieces inside a shop's project (plan 1.20, decided by Julian): a named Firestore database and a
+// bucket of its own, each with its own rules (apps/stockroom/scripts/deployConfig.mjs), so nothing it stores shares the
+// shop's rules. Its Realtime Database is the project's default instance: Realtime Database has no Montréal location,
+// so it sits in us-central1, where the profile's default database address points.
+export { STOCKROOM_DATABASE };
+export const RTDB_LOCATION = "us-central1";
+export const stockroomBucketName = (shopId) => `${shopId}-stockroom`;
+
 /**
- * The Google services a shop needs. The first twelve are the list in docs/shop-setup.md; the last four are what the
- * shop's server code (2nd-generation functions) and the rules deploy need as well.
+ * The Google services a shop needs. The first twelve are the list in docs/shop-setup.md; the next four are what the
+ * shop's server code (2nd-generation functions) and the rules deploy need as well, and the last is the stockroom's.
  */
 export const SERVICES = [
   "firestore.googleapis.com",
@@ -44,6 +59,8 @@ export const SERVICES = [
   "run.googleapis.com",
   "pubsub.googleapis.com",
   "firebaserules.googleapis.com",
+  // The stockroom's Realtime Database.
+  "firebasedatabase.googleapis.com",
 ];
 
 export const PLANS = { shop: { shop: true, stockroom: false }, stockroom: { shop: false, stockroom: true }, both: { shop: true, stockroom: true } };
@@ -96,6 +113,8 @@ export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches =
     functionsRegion: region,
     siteUrl: `https://${projectId}.web.app`,
     apps: { ...PLANS[shop.plan] },
+    // Where the stockroom keeps its data in this project (read by apps/stockroom/src/lib/shop-profile.js).
+    ...(PLANS[shop.plan].stockroom ? { stockroom: { firestoreDatabase: STOCKROOM_DATABASE, storageBucket: stockroomBucketName(shop.shopId) } } : {}),
     switches: shopSwitches(savedSwitches),
     ...(savedPayments ? { payments: savedPayments } : {}),
   };
@@ -113,6 +132,20 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
     const problems = shopProblems(shop);
     if (problems.length) throw new Error(`The shop details have problems: ${problems.join("; ")}`);
     return shop;
+  };
+
+  // The stockroom's own database, bucket and Realtime Database as they are now. One in the wrong place, or a bucket name
+  // another project holds, stops the run for a person: none can be moved, and nothing is ever deleted here.
+  const stockroomPieces = async (shop) => {
+    const database = await google.firestore.getDatabase(shop.shopId, STOCKROOM_DATABASE);
+    if (database && database.locationId !== region) throw new Error(`the stockroom database is in ${database.locationId}, not ${region}`);
+    const name = stockroomBucketName(shop.shopId);
+    const bucket = await google.storage.getBucket(shop.shopId, name);
+    if (bucket && bucket.project !== shop.shopId) throw new Error(`the bucket name ${name} belongs to another project; a person picks the stockroom's bucket`);
+    if (bucket && bucket.location?.toLowerCase() !== region) throw new Error(`the stockroom bucket is in ${bucket.location}, not ${region}`);
+    const realtime = await google.realtimeDatabase.getInstance(shop.shopId);
+    if (realtime && realtime.location !== RTDB_LOCATION) throw new Error(`the Realtime Database is in ${realtime.location}, not ${RTDB_LOCATION}, so the stockroom's database address would be wrong`);
+    return { database, bucket, realtime };
   };
 
   // The web app's settings, or null when the web app isn't there yet.
@@ -185,13 +218,17 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
     {
       number: 5,
       name: `Create the database and the storage bucket in ${region}`,
+      // The shop's (default) database and bucket; with the stockroom in the plan, also its own named database and
+      // bucket in the same place, and the Realtime Database it uses (plan 1.20).
       async check({ shop }) {
         const database = await google.firestore.getDatabase(shop.shopId);
         const bucket = await google.storage.getDefaultBucket(shop.shopId);
         // A database or bucket can't be moved, so one in the wrong place needs a person, not a retry.
         if (database && database.locationId !== region) throw new Error(`the database is in ${database.locationId}, not ${region}`);
         if (bucket && bucket.location?.toLowerCase() !== region) throw new Error(`the storage bucket is in ${bucket.location}, not ${region}`);
-        return Boolean(database && bucket);
+        if (!PLANS[shop.plan]?.stockroom) return Boolean(database && bucket);
+        const pieces = await stockroomPieces(shop);
+        return Boolean(database && bucket && pieces.database && pieces.bucket && pieces.realtime);
       },
       async act({ shop }) {
         if (!(await google.firestore.getDatabase(shop.shopId))) {
@@ -200,6 +237,13 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
         if (!(await google.storage.getDefaultBucket(shop.shopId))) {
           await google.storage.createDefaultBucket(shop.shopId, { location: region });
         }
+        if (!PLANS[shop.plan]?.stockroom) return;
+        const pieces = await stockroomPieces(shop);
+        if (!pieces.database) {
+          await google.firestore.createDatabase(shop.shopId, { databaseId: STOCKROOM_DATABASE, locationId: region, type: "FIRESTORE_NATIVE", deleteProtection: true });
+        }
+        if (!pieces.bucket) await google.storage.createBucket(shop.shopId, { name: stockroomBucketName(shop.shopId), location: region });
+        if (!pieces.realtime) await google.realtimeDatabase.createInstance(shop.shopId, { location: RTDB_LOCATION });
       },
     },
     {

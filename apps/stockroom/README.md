@@ -15,7 +15,7 @@ when the connection comes back.
 | **Data** | Firebase: **Firestore** (books under `books/{bookId}/data/{part}`, config under `settings/{name}`), the **Realtime Database** (older fallback), **Auth** (Google sign-in) and **Storage** (receipt files). The SDK is loaded from `www.gstatic.com` in `src/firebase.js` and precached so the app starts offline. |
 | **Offline saving** | Changes show on screen at once, then save to Firestore. When the device is offline, the latest state of each book waits in an on-device queue and uploads later. If another device changed the same book in the meantime, the two versions are merged, not overwritten. |
 | **Outside services** | Canada Post, Big Cartel and outgoing email go through your deployed Google Apps Script (`apps-script/Code.gs`). Stripe, the Gmail receipt finder and AI receipt scanning are called from the browser. |
-| **Hosting** | GitHub Pages. `.github/workflows/deploy.yml` builds and publishes on every push to `main`. |
+| **Hosting** | GitHub Pages for now (`.github/workflows/deploy.yml`, every push to `main`). Inside a shop's Firebase project the stockroom has its own Hosting site, `<project id>-stockroom` (plan 1.20). |
 | **Access rules** | `firestore.rules`, `database.rules.json`, `storage.rules`. Only the publisher account reads everything. An author reads and writes only their own book, plus the few settings their screens need. |
 
 `backend/server.js` is a **local development helper only**. When the app runs
@@ -51,10 +51,12 @@ npm run build          # production build + service worker
 ## Deploying
 
 - **The app:** merge to `main`. The Pages workflow does the rest.
-- **Access rules:** the Pages deploy does *not* publish them. After changing any
-  of the three rules files, publish them with the Firebase CLI:
-  `firebase deploy --only firestore:rules,database,storage`. You can also paste
-  each file into the Firebase console.
+- **Into a shop's project (rules and pages together):** run `deploy-firebase.yml` by hand with the project id, or
+  locally: `SHOP_OWNER_EMAIL=… node scripts/deployConfig.mjs --project <id>`, then
+  `firebase deploy --config firebase.deploy.json --only firestore:rules,database,storage` and `--only hosting`.
+  The three rules files hold the slot `__SHOP_OWNER_EMAIL__` for the owner's address; the step fills it, names the
+  stockroom's own database (`stockroom`) and bucket (`<project id>-stockroom`) from `public/shop-profile.js`, and
+  refuses to write anything without them. Deployed unfilled, the rules let in only the shop's Team owner role.
 - **Apps Script:** when `apps-script/Code.gs` changes, the build copies it to
   `public/gas-code.txt`. Paste it into your Apps Script project and redeploy.
   See `CLAUDE.md` for the version-bump rule.
