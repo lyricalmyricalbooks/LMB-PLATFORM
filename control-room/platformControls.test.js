@@ -13,8 +13,8 @@ import { fakeSignupStores, fakeVerifyIdToken } from "../signup/fakes.js";
 import { createApi } from "../signup/api.js";
 import { TEMPLATES } from "../services/email/templates.js";
 
-const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true };
-const STRANGER = { uid: "uid-x", email: "someone@example.com", email_verified: true };
+const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
+const STRANGER = { uid: "uid-x", email: "someone@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
 
 function world() {
   const settingsStore = fakePlatformState();

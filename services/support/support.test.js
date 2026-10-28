@@ -14,7 +14,7 @@ import { supportRoutes } from "./routes.js";
 
 const ADA = { uid: "uid-ada", email: "Ada@Moth.example", email_verified: true };
 const BEA = { uid: "uid-bea", email: "bea@example.com", email_verified: true };
-const ADMIN = { uid: "uid-admin", email: "team@platform.example", email_verified: true };
+const ADMIN = { uid: "uid-admin", email: "team@platform.example", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
 const settings = platformSettings({});
 
 function world() {

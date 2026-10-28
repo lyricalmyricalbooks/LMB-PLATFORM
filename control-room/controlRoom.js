@@ -3,7 +3,7 @@
 // shop switch on or off, re-publishing that shop's profile.
 //
 // Only platform admins get in: a confirmed email on the PLATFORM_ADMIN_EMAILS list (none by default, so nobody is an
-// admin by accident).
+// admin by accident), signed in with two steps in the last 12 hours (plan 9.1).
 //
 // Clients passed in (setup/fakes.js and fakes.js have pretend ones):
 //   registry      listShops(); getShop(shopId); getProfile(shopId); saveProfile(shopId, profile);
@@ -22,6 +22,8 @@
 //   breaches      optional: the breach register (breaches.js createBreachRegister)
 //   people        optional: controlRoomPeople() (people.js): the privacy contact shown with the register
 //   newsletters   optional: the newsletter pause (services/email/reputation.js): resume(shopId, { by, reason })
+//   settings      optional: () -> the live platform settings (services/settings.js liveSettings), for Today's income
+//   supportStore, recoveryStore, signups   optional: list({ status }) / list(): what's waiting, for Today (9.2)
 //   activity      optional: the activity log (activity.js, plan 9.9): record(entry); every logged action goes there too
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
@@ -30,6 +32,8 @@ import { profileProblems, profileScript } from "../profile/profile.js";
 import { SETTINGS_DOC, isPaused, pausedSettings, restoredSettings } from "./closure.js";
 import { PAYMENT_ROUTES, emergencyPayments } from "./emergencyPayments.js";
 import { activityEntry } from "./activity.js";
+import { todaySummary } from "./today.js";
+import { platformSettings } from "../services/settings.js";
 
 export const ACT_AS_MINUTES = 30;
 export const MIN_REASON = 10;
@@ -46,11 +50,37 @@ export function controlRoomAdmins(env = process.env) {
   return String(env.PLATFORM_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter((e) => e.includes("@"));
 }
 
-/** The signed-in platform admin's email, or a refusal. */
-export function adminOf(claims, admins) {
+/** A control-room sign-in lasts this long; after it, sign in again (with the code). */
+export const SIGN_IN_HOURS = 12;
+
+/** The two-step words the page shows. "two-step" in the message is how the page knows to offer the set-up. */
+export const TWO_STEP_NEEDED = "The control room needs two-step sign-in: a code from your authenticator app each time you sign in. Set it up, then sign in again.";
+
+/**
+ * Why this sign-in may not open the control room (plan 9.1), or null: it must have used a second step (Firebase puts
+ * `firebase.sign_in_second_factor` on the pass, "totp" for an authenticator app) and be under 12 hours old (`auth_time`,
+ * in seconds). Both are on the ID token Firebase signs, so a browser can't add them.
+ */
+export function twoStepProblem(claims, nowMs = Date.now()) {
+  const factor = claims?.firebase?.sign_in_second_factor;
+  if (typeof factor !== "string" || !factor) return { status: 403, message: TWO_STEP_NEEDED };
+  const signedInAt = Number(claims.auth_time) * 1000;
+  if (!Number.isFinite(signedInAt) || nowMs - signedInAt > SIGN_IN_HOURS * 3600_000) {
+    return { status: 401, message: `Your control-room sign-in is more than ${SIGN_IN_HOURS} hours old. Sign in again.` };
+  }
+  return null;
+}
+
+/**
+ * The signed-in platform admin's email, or a refusal: an address on PLATFORM_ADMIN_EMAILS, confirmed, signed in with
+ * two steps in the last 12 hours (plan 9.1). The two-step check comes after the list, so a stranger learns nothing.
+ */
+export function adminOf(claims, admins, nowMs = Date.now()) {
   if (!claims?.uid) throw new ControlError(401, "Sign in first.");
   const email = String(claims.email ?? "").toLowerCase();
   if (claims.email_verified !== true || !admins.includes(email)) throw new ControlError(403, "The control room is for platform admins only.");
+  const problem = twoStepProblem(claims, nowMs);
+  if (problem) throw new ControlError(problem.status, problem.message);
   return email;
 }
 
@@ -102,7 +132,7 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, admins, now = () => new Date(),
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, admins, now = () => new Date(),
 }) {
   const at = () => now().toISOString();
 
@@ -204,6 +234,25 @@ export function createControlRoom({
       await log(shopId, "act-as", { by, reason: why, expiresAt });
       const { url } = await shopAccess.supportSignIn(shopId, { by, reason: why, minutes: ACT_AS_MINUTES });
       return { shopId, url, expiresAt };
+    },
+
+    /** Today (9.2): the numbers, monthly income and everything that needs a person. */
+    async today(claims) {
+      adminOf(claims, admins);
+      const rows = await registry.listShops();
+      const profiles = {}, checks = {}, open = {};
+      for (const row of rows) {
+        profiles[row.shopId] = await registry.getProfile(row.shopId);
+        checks[row.shopId] = await registry.readReleaseChecks(row.shopId);
+        open[row.shopId] = repairs ? await repairs.open(row.shopId) : [];
+      }
+      return todaySummary({
+        rows, profiles, checks, open, now: now(),
+        settings: settings ? await settings() : platformSettings({}),
+        support: supportStore ? await supportStore.list({ status: "open", limit: 200 }) : [],
+        recoveries: recoveryStore ? await recoveryStore.list({ status: "waiting" }) : [],
+        making: signups ? (await signups.list()).filter((s) => s.status !== "ready") : [],
+      });
     },
 
     /** The repair queue: open items (or fixed ones), newest first. */
