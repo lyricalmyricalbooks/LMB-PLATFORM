@@ -93,7 +93,7 @@ Gate: a second shop made by the setup script takes a sandbox order end to end, a
 | 1.29 | platform | Steps 1–6 (registry, project, Firebase, services, database, web app and profile) using Google's APIs | dry run against the test shop | done |
 | 1.30 | platform | Steps 7–15 (rules, functions, pages, backup, private storage check, starter content, payments, email, shop check). The payments step takes the press's provider: Stripe built, Square planned (2.2b). A per-shop lock stops two runs overlapping. Open point: the shop copy's functions don't set a region yet (Firebase's default `us-central1`, and `us-central1` in its webhook and download links), so the step's `northamerica-northeast1` only takes effect once `apps/shop` reads it | dry run of all 15 steps; step and lock tests with fakes | done |
 | 1.31 | shop | Sandbox checkouts hold stock on shops the platform marks as test shops (`SHOP_TEST_SHOP="true"` in the shop's functions env, written by setup step 8 for the test shop only). There, a sandbox payment also takes stock and its refund puts it back, like a live one (1.31b); discount use and revenue stay untouched | checkout, payment and refund tests | done |
-| 1.32 | platform | Create `platform-test` with the script; the release check (test card purchase, stock drop, email, refund) | the check passes | |
+| 1.32 | platform | Create `platform-test` with the script; the release check (test card purchase, stock drop, email, refund). Starter catalogue done: step 12 gives the test shop three stocked books, a pre-order, an e-book and a shipping zone, creates the three stocked books in its stockroom and links each through the shop's link (`setup/test-catalogue.js`) | the check passes | next |
 
 ## Phase 2: the platform
 

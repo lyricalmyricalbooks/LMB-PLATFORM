@@ -69,7 +69,13 @@ when what it finds is neither done nor untouched:
 11. Write a test file, then read it without signing in: refused passes; a read that works stops the run (the shop's
     files would be public); any other answer stops it too.
 12. Create the owner's `members/<email>` entry (role `owner`) and the release's starter documents. Create only: a
-    document already there is kept, whatever it holds.
+    document already there is kept, whatever it holds. **The test shop** (`testShop: true`, plan "both") also gets its
+    starter catalogue (`test-catalogue.js`): three printed books with 5 copies (stock tracked), a pre-order, an e-book
+    and a Canada shipping zone in the shop; the three printed books in the stockroom (`stockroom` client: 5 printed,
+    none sold, added only when missing); and each printed shop book linked to its stockroom book through the shop's own
+    link (`inventoryLink.saveLinks`, after its connection check). The links already saved are sent back unchanged; a
+    test book linked to another stockroom book stops the run for a person. The step's audit entry lists what it
+    created, added and linked.
 13. **Connect payments with the press's chosen provider** (`shop.paymentProvider`, Stripe when none). `payments.js`
     lists the providers: Stripe is built; Square is planned (plan item 2.2b) and refused at step 1 until it is, so no
     project is made for a shop that can't take payments yet. Each provider is a client of the platform payment service
@@ -88,7 +94,8 @@ Dry run for the test shop: `node setup/dry-run.js` (pretend Google and services,
 
 Not yet: the real clients (Google, deploys, registry, audit log, payment and email services) and a command that runs
 against them; the bot-check key in the profile (left out, so the app's build setting is used); a book page in the shop
-check (a new press has no books; the test shop's starter catalogue brings one in 1.32).
+check (a new press has no books; the test shop's starter catalogue now has five, so the release check's book page
+can use one).
 
 Open points from 1.30:
 

@@ -42,7 +42,7 @@ the first presses; Phase 2 runs the same code from sign-up. Write the code once,
 | 9 | Deploy the shop and stockroom pages from the current release | deployed version = release version | site answers on its Firebase address |
 | 10 | Grant the nightly backup its permission and run one backup | backup permission present | a backup file exists |
 | 11 | Check storage is private: an unsigned read of a test file is refused | a recent pass recorded | refused as expected |
-| 12 | Write starter content and settings (theme, currency, shipping zone, owner as admin member) | settings doc exists | admin opens with the setup checklist |
+| 12 | Write starter content and settings (theme, currency, shipping zone, owner as admin member); the test shop also gets its starter catalogue, with its three stocked books in the stockroom and linked | settings doc exists | admin opens with the setup checklist |
 | 13 | Connect payments with the provider the press chose (Stripe now; Square planned, 2.2b): create the press's account through the payments service and save the provider and account ID | account ID saved and found at the provider | the press finishes sign-up from the admin's Connect button |
 | 14 | Email the owner their sign-in link (via the email service) | email logged as sent | email sent |
 | 15 | Run the shop check: home page, a book page, admin sign-in | — | all pass; registry `status: live` |

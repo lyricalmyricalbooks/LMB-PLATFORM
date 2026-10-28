@@ -20,14 +20,18 @@
 //   email       wasSent(shopId, kind) -> boolean; send(shopId, { kind, to, pressName, links, idempotencyKey })
 //   siteCheck   get(url) -> { status, problems: [text] }
 //   inventoryLink  the shop's link to its stockroom, through the shop's own admin calls (functions/inventoryLinkAdmin.js):
-//                  state(projectId) -> { startDay?, connection? } | null; check(projectId) -> { ok, problem? } (op "check");
-//                  startSales(projectId, { startDay }) (op "startSales")
+//                  state(projectId) -> { startDay?, connection?, links? } | null (op "status");
+//                  check(projectId) -> { ok, problem? } (op "check"); startSales(projectId, { startDay }) (op "startSales");
+//                  saveLinks(projectId, links) -> { links, errors } (op "saveLinks": the whole map, checked by the shop)
+//   stockroom   the stockroom's own data: books(projectId) -> { [id]: book } (its catalogue);
+//               addBooks(projectId, [book]) adds the books its catalogue lacks and never changes one already there
 //
 // `config.release` is the release being set up: `{ version, starterContent(shop) -> [{ path, data }] }`. The starter
 // documents come from the release because the shop copy owns their shape. `config.senderEmail` is the platform address
 // shop email is sent from (the email service adds the press's name and reply-to).
 import { PLANS, REGION, firstSteps } from "./steps.js";
 import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
+import { testCatalogue } from "./test-catalogue.js";
 
 export const OWNER_WELCOME = "owner-welcome";
 
@@ -68,7 +72,7 @@ export function torontoDay(date) {
 export const needsStockroomLink = (shop) => shop.testShop === true && appsOf(shop).includes("shop") && appsOf(shop).includes("stockroom");
 
 /** Steps 7–16. */
-export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, registry, config, now = () => new Date() }) {
+export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, stockroom, registry, config, now = () => new Date() }) {
   const release = config?.release;
   if (typeof release?.version !== "string" || !release.version) throw new Error("config.release.version must name the release being set up");
   if (typeof release.starterContent !== "function") throw new Error("config.release.starterContent must list the starter documents");
@@ -84,7 +88,12 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     return true;
   };
   const sameApps = (a = [], b = []) => [...a].sort().join() === [...b].sort().join();
-  const starterDocs = (shop) => [{ path: `members/${shop.ownerEmail.toLowerCase()}`, data: { role: "owner", addedBy: "setup" } }, ...release.starterContent(shop)];
+  // The test shop also gets its starter catalogue (test-catalogue.js); its stockroom side and links are below.
+  const starterDocs = (shop) => [
+    { path: `members/${shop.ownerEmail.toLowerCase()}`, data: { role: "owner", addedBy: "setup" } },
+    ...release.starterContent(shop),
+    ...(needsStockroomLink(shop) ? testCatalogue(shop).shopDocs : []),
+  ];
   const pageUrls = async (shop) => {
     const urls = {};
     for (const app of appsOf(shop)) urls[app] = (await deploy.deployed(shop.shopId, `pages:${app}`))?.url;
@@ -159,12 +168,48 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
       async check({ shop }) {
         // A document that is there counts, whatever it holds now: the press may already have changed it.
         for (const { path } of starterDocs(shop)) if (!(await shopData.get(shop.shopId, path))) return false;
-        return true;
+        if (!needsStockroomLink(shop)) return true;
+        // The test shop's catalogue: its stockroom books are there and each printed book is linked to one.
+        const { stockroomBooks, links } = testCatalogue(shop);
+        const have = (await stockroom.books(shop.shopId)) ?? {};
+        if (stockroomBooks.some((book) => !have[book.id])) return false;
+        const saved = (await inventoryLink.state(shop.shopId))?.links ?? {};
+        return links.every((link) => linkProblem(saved, link) === "linked");
       },
       async act({ shop }) {
+        const created = [];
         for (const { path, data } of starterDocs(shop)) {
-          if (!(await shopData.get(shop.shopId, path))) await shopData.create(shop.shopId, path, { ...data, createdAt: now().toISOString() });
+          if (!(await shopData.get(shop.shopId, path))) {
+            await shopData.create(shop.shopId, path, { ...data, createdAt: now().toISOString() });
+            created.push(path);
+          }
         }
+        if (!needsStockroomLink(shop)) return { detail: { created } };
+
+        const { stockroomBooks, links } = testCatalogue(shop);
+        const have = (await stockroom.books(shop.shopId)) ?? {};
+        const missing = stockroomBooks.filter((book) => !have[book.id]);
+        if (missing.length) await stockroom.addBooks(shop.shopId, missing);
+
+        const saved = (await inventoryLink.state(shop.shopId))?.links ?? {};
+        const toLink = [];
+        for (const link of links) {
+          const state = linkProblem(saved, link);
+          if (state === "linked") continue;
+          if (state !== "free") throw new Error(state);
+          toLink.push(link);
+        }
+        if (toLink.length) {
+          // The shop checks every link against both catalogues, so it must reach the stockroom first.
+          const { ok, problem } = await inventoryLink.check(shop.shopId);
+          if (!ok) throw new Error(`the shop can't reach its stockroom${problem ? ` (${problem})` : ""}, so its books can't be linked; a person checks the link`);
+          // The whole map is saved: the links already there are sent back unchanged.
+          const map = structuredClone(saved);
+          for (const { shopBookId, stockroomBookId } of toLink) map[shopBookId] = { ...(map[shopBookId] ?? {}), _: stockroomBookId };
+          const { errors = [] } = await inventoryLink.saveLinks(shop.shopId, map);
+          if (errors.length) throw new Error(`the shop refused the test books' links: ${errors.map((e) => `${e.bookId}: ${e.reason}`).join("; ")}`);
+        }
+        return { detail: { created, stockroomBooks: missing.map((book) => book.id), linked: toLink.map((link) => link.shopBookId) } };
       },
     },
     shopOnly(connectPaymentsStep({ number: 13, registry, providers })),
@@ -223,6 +268,15 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
       },
     },
   ];
+}
+
+// Whether one test-catalogue link is in the shop's saved links: "linked", "free" (nothing there yet) or, when the shop
+// book is linked elsewhere, the problem in words. Another link is the press's or a person's choice, never overwritten.
+function linkProblem(saved, { shopBookId, stockroomBookId }) {
+  const entry = saved?.[shopBookId];
+  if (!entry || !Object.values(entry).some(Boolean)) return "free";
+  if (entry._ === stockroomBookId) return "linked";
+  return `the shop book ${shopBookId} is already linked to another stockroom book; a person decides which link stays`;
 }
 
 // The stockroom alone takes no payments, so the payments step has nothing to do for it.

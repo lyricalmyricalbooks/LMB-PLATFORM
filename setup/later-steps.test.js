@@ -6,6 +6,7 @@ import { OWNER_WELCOME, appsOf, envFileText, laterSteps, needsStockroomLink, sho
 import { PAYMENT_PROVIDERS, paymentProblems } from "./payments.js";
 import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "./fakes.js";
 import { TEST_CONFIG, TEST_SHOP } from "./test-shop.js";
+import { TEST_PRINTED_IDS, TEST_STOCK, testShopDocs } from "./test-catalogue.js";
 import { readShopConfig } from "../apps/shop/functions/shopConfig.js";
 
 const ID = TEST_SHOP.shopId;
@@ -190,24 +191,112 @@ test("the test shop's link is turned on from today, after the shop's own connect
   const { services, auditLog, run } = setup();
   const result = await run();
   assert.equal(result.ok, true, result.error);
-  assert.deepEqual(called(services, "inventoryLink.check"), [["inventoryLink.check", ID]]);
+  // Once before step 12 links the starter books, once before step 16 starts sending sales.
+  assert.deepEqual(called(services, "inventoryLink.check"), [["inventoryLink.check", ID], ["inventoryLink.check", ID]]);
   const [[, , startDay]] = called(services, "inventoryLink.startSales");
   assert.match(startDay, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(services.world.links.get(ID).startDay, startDay);
   assert.ok([...auditLog.entries.get(ID).values()].some((e) => e.step === 16 && e.status === "done"), "logged in the shop's audit log");
 });
 
-test("an unreachable stockroom stops at step 16 for a person, and the retry turns the link on once", async () => {
+test("an unreachable stockroom stops at step 12 for a person, and the retry links the books and turns the link on once", async () => {
   const { services, run } = setup();
   services.world.stockroomReachable = false;
   const first = await run();
-  assert.equal(first.failedStep, 16);
-  assert.match(first.error, /can't reach its stockroom \(permission-denied\)/);
+  assert.equal(first.failedStep, 12);
+  assert.match(first.error, /can't reach its stockroom \(permission-denied\), so its books can't be linked/);
   assert.equal(services.world.links.get(ID).startDay, undefined);
   services.world.stockroomReachable = true;
   const second = await run();
   assert.equal(second.ok, true, second.error);
+  assert.equal(called(services, "inventoryLink.saveLinks").length, 1);
   assert.equal(called(services, "inventoryLink.startSales").length, 1);
+});
+
+test("a stockroom that stops answering between the two steps stops at step 16, and the retry turns the link on once", async () => {
+  const { services, steps, run } = setup();
+  const step12 = steps[11];
+  // Reachable for step 12, then not.
+  steps[11] = { ...step12, act: async (ctx) => { const out = await step12.act(ctx); services.world.stockroomReachable = false; return out; } };
+  const first = await run();
+  assert.equal(first.failedStep, 16);
+  assert.match(first.error, /can't reach its stockroom \(permission-denied\); a person checks the link/);
+  services.world.stockroomReachable = true;
+  steps[11] = step12;
+  const second = await run();
+  assert.equal(second.ok, true, second.error);
+  assert.equal(called(services, "inventoryLink.startSales").length, 1);
+});
+
+// Step 12: the test shop's starter catalogue (test-catalogue.js, docs/test-shop.md).
+
+test("the test shop gets its starter catalogue: five books and a zone in the shop, three in the stockroom, each linked", async () => {
+  const { services, auditLog, run } = setup();
+  assert.equal((await run()).ok, true);
+  const { world } = services;
+  for (const { path } of testShopDocs()) assert.ok(world.docs.has(`${ID} ${path}`), `${path} is in the shop`);
+  const printed = TEST_PRINTED_IDS.map((id) => world.docs.get(`${ID} books/${id}`));
+  assert.deepEqual(printed.map((b) => [b.stockLevel, b.trackInventory, b.status]), Array(3).fill([TEST_STOCK, true, "published"]));
+  assert.equal(world.docs.get(`${ID} books/test-pre-order`).preorder, true);
+  assert.equal(world.docs.get(`${ID} books/test-e-book`).digital, true);
+  assert.deepEqual(world.docs.get(`${ID} shipping-profiles/test-canada`).countries, ["CA"]);
+
+  const stock = world.stockroomBooks.get(ID);
+  assert.deepEqual([...stock.keys()], TEST_PRINTED_IDS);
+  assert.ok([...stock.values()].every((book) => book.maxPrint === TEST_STOCK && book.currency === "CA$"));
+  assert.deepEqual(world.links.get(ID).links, Object.fromEntries(TEST_PRINTED_IDS.map((id) => [id, { _: id }])));
+
+  const entry = [...auditLog.entries.get(ID).values()].find((e) => e.step === 12 && e.status === "done");
+  assert.deepEqual(entry.detail.stockroomBooks, TEST_PRINTED_IDS);
+  assert.deepEqual(entry.detail.linked, TEST_PRINTED_IDS);
+  assert.ok(entry.detail.created.includes("books/test-e-book"), "the audit log names what was created");
+});
+
+test("every other shop gets no test catalogue and its stockroom is left alone", async () => {
+  const { testShop: _, ...press } = TEST_SHOP;
+  const { services, run } = setup({ shop: press });
+  assert.equal((await run()).ok, true);
+  assert.ok(![...services.world.docs.keys()].some((key) => key.includes("books/")));
+  assert.equal(called(services, "stockroom.addBooks").length + called(services, "inventoryLink.saveLinks").length, 0);
+});
+
+test("the catalogue is safe to re-run: books the press changed and links already there are kept", async () => {
+  const { services, run, steps } = setup();
+  const { world } = services;
+  // A half-done earlier attempt: one stockroom book (renamed since) and one link already there.
+  world.stockroomBooks.set(ID, new Map([["test-book-one", { id: "test-book-one", title: "Renamed", maxPrint: 9 }]]));
+  world.links.set(ID, { links: { "test-book-two": { _: "test-book-two" } } });
+  world.docs.set(`${ID} books/test-book-two`, { title: "Test Book Two", stockLevel: 5, trackInventory: true });
+  assert.equal((await run()).ok, true);
+  assert.equal(world.stockroomBooks.get(ID).get("test-book-one").title, "Renamed");
+  assert.deepEqual(called(services, "stockroom.addBooks").map(([, , ids]) => ids), [["test-book-two", "test-book-three"]]);
+  assert.deepEqual(world.links.get(ID).links, Object.fromEntries(TEST_PRINTED_IDS.map((id) => [id, { _: id }])));
+  const before = services.calls.length;
+  assert.equal(await steps[11].check({ shop: TEST_SHOP }), true);
+  assert.equal(services.calls.length, before, "the check changes nothing");
+});
+
+test("a test book linked to another stockroom book stops step 12 for a person and nothing is relinked", async () => {
+  const { services, run } = setup();
+  services.world.links.set(ID, { links: { "test-book-one": { _: "a-press-book" } } });
+  const result = await run();
+  assert.equal(result.failedStep, 12);
+  assert.match(result.error, /test-book-one is already linked to another stockroom book; a person decides/);
+  assert.equal(called(services, "inventoryLink.saveLinks").length, 0);
+});
+
+test("links the shop refuses stop step 12 with the shop's reasons", async () => {
+  const { services, steps, run } = setup();
+  const step12 = steps[11];
+  // The stockroom loses a book between adding and linking.
+  steps[11] = { ...step12, act: async (ctx) => {
+    const add = services.stockroom.addBooks;
+    services.stockroom.addBooks = async (projectId, books) => add(projectId, books.filter((b) => b.id !== "test-book-three"));
+    try { return await step12.act(ctx); } finally { services.stockroom.addBooks = add; }
+  } };
+  const result = await run();
+  assert.equal(result.failedStep, 12);
+  assert.match(result.error, /refused the test books' links: test-book-three: That book is not in the inventory app/);
 });
 
 test("Toronto's day is the link's day, not UTC's", () => {
