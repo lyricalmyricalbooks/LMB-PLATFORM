@@ -5,7 +5,8 @@
 //   applied  { "<id>": { at, release, runId, description, result } }   one entry per change that finished
 //   running  { runId, since, until } | null                           the run that holds the lock
 //   failed   { id, error, at, runId } | null                          the last change that stopped a run
-// and every finished or failed change also gets an audit-log entry (type "migration").
+// and every finished or failed change also gets an entry in the admin's Activity logs (audit-log, type "settings",
+// actor "Shop updates", in plain words; the change's id and any error ride along as `migration` and `error`).
 //
 // A change is { id: "0001-short-name", description, run({ db, log, now }) } in list.js, numbered 0001, 0002… with no
 // gaps. Rules for writing one:
@@ -68,7 +69,7 @@ async function runMigrations({ db, migrations, release = null, runId, dryRun = f
 
   const applied = [];
   const skipped = [];
-  const audit = entry => db.collection("audit-log").add({ type: "migration", createdAt: now().toISOString(), ...entry });
+  const audit = entry => db.collection("audit-log").add({ type: "settings", actor: "Shop updates", createdAt: now().toISOString(), ...entry });
   try {
     for (const m of migrations) {
       if (lock.done[m.id]) {
@@ -82,13 +83,13 @@ async function runMigrations({ db, migrations, release = null, runId, dryRun = f
       } catch (error) {
         const failed = { id: m.id, error: message(error), at: now().toISOString(), runId };
         await ref.set({ failed }, { merge: true });
-        await audit({ message: `Data change ${m.id} failed: ${failed.error}`, migration: m.id, release, runId });
+        await audit({ message: `An update to your shop's saved information didn't finish (${m.description}). Nothing is lost; it is tried again with the next update.`, migration: m.id, error: failed.error, release, runId });
         log(`${m.id} failed: ${failed.error}`);
         return { ok: false, applied, skipped, failed: m.id, error: failed.error };
       }
       const entry = { at: now().toISOString(), release, runId, description: m.description, result: result ?? null };
       await ref.set({ applied: { [m.id]: entry }, failed: null }, { merge: true });
-      await audit({ message: `Data change ${m.id} done: ${m.description}`, migration: m.id, release, runId });
+      await audit({ message: `Your shop's saved information was updated: ${m.description}.`, migration: m.id, release, runId });
       applied.push(m.id);
     }
     return { ok: true, applied, skipped };
