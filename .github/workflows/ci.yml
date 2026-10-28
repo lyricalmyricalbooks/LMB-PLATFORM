@@ -77,6 +77,39 @@ jobs:
       # The Hosting settings (its own site inside each shop's project, plan 1.20) against what the build wrote.
       - run: npm run check:hosting
 
+  # Plan 5.0d: the same unit tests on Windows (root, the shop copy and its server code, the stockroom copy), so a
+  # `/`-only path, a POSIX-only command or a case-only file name clash fails before merge. Line endings stay as committed
+  # (Windows' git would otherwise turn them into CRLF and every text comparison with them).
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Platform tests
+        run: npm test
+      - name: Shop packages
+        working-directory: apps/shop
+        run: pnpm install --frozen-lockfile
+      - name: Shop server code packages
+        working-directory: apps/shop/functions
+        run: npm ci
+      - name: Shop tests
+        working-directory: apps/shop
+        run: pnpm test
+      - name: Stockroom packages
+        working-directory: apps/stockroom
+        run: npm ci
+      - name: Stockroom tests
+        working-directory: apps/stockroom
+        run: npm test
+
   # The shop copy's Firestore rules against the real rules engine (apps/shop/scripts/firestore-rules-emulator.mjs),
   # including who may open the admin (owner, staff) and manage the Team. Packages go in a throwaway folder.
   shop-rules:
