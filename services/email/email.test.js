@@ -191,3 +191,14 @@ test("every billing email renders for the press, links to the account page and e
   }
   assert.throws(() => TEMPLATES["card-needed"]({ link: "http://x.example" }, { settings, pressName: "P" }), /https/);
 });
+
+test("the past-due email says what the card provider needs in plain words and links only to the shop's admin", () => {
+  const settings = { platformName: "Colophon" };
+  const parts = TEMPLATES["payments-past-due"]({ provider: "Stripe", needs: ["your bank details", "your date of birth"], link: "https://moth-press.web.app/admin#settings/payments/methods" }, { settings, pressName: "Moth <b>Press</b>" });
+  assert.equal(parts.subject, "Stripe has paused payments for Moth <b>Press</b>");
+  assert.match(parts.text, /Stripe still needs your bank details and your date of birth for Moth <b>Press<\/b>/);
+  assert.match(parts.text, /press Continue with Stripe under Payments/);
+  assert.match(parts.html, /href="https:\/\/moth-press\.web\.app\/admin#settings\/payments\/methods"/);
+  assert.doesNotMatch(parts.html, /<b>Press/);
+  assert.throws(() => TEMPLATES["payments-past-due"]({ needs: [], link: "https://x.example" }, { settings, pressName: "P" }), /names nothing/);
+});

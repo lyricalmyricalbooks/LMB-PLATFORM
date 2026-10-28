@@ -3,6 +3,7 @@
 // tested without the page.
 
 export type PlatformFee = { percent: number; refundedWithRefunds: boolean };
+export type AccountNeed = { words: string; pastDue: boolean };
 
 /** What the platform says about the press's card account (functions/checkoutAdmin.js handlePlatformPayments). */
 export type PlatformPaymentsAnswer = {
@@ -15,6 +16,12 @@ export type PlatformPaymentsAnswer = {
   payoutsEnabled?: boolean;
   detailsSubmitted?: boolean;
   requirementsDue?: number;
+  /** What Stripe still needs, in plain words (services/payments/requirements.js), past due first (plan 7.9). */
+  needs?: AccountNeed[];
+  /** When the rest is due (ISO), or null. */
+  deadline?: string | null;
+  /** Something is past its deadline: Stripe has paused cards or payouts. */
+  pastDue?: boolean;
   platformFee?: PlatformFee;
   url?: string;
 };
@@ -50,7 +57,7 @@ export function returnNotice(search: string): ReturnNotice | null {
   if (square) return { tone: "danger", text: "Square couldn't be connected just now. Wait a minute and press Connect Square again." };
   const stripe = params.get("stripe");
   if (stripe === "return") return { tone: "success", text: "Back from Stripe. If anything is still missing, it's listed below." };
-  if (stripe === "refresh") return { tone: "warning", text: "That Stripe page expired. Press Finish Stripe setup to get a new one." };
+  if (stripe === "refresh") return { tone: "warning", text: "That Stripe page expired. Press Continue with Stripe to get a new one." };
   return null;
 }
 
@@ -60,4 +67,42 @@ export function withoutReturnFlags(href: string): string {
   url.searchParams.delete("square");
   url.searchParams.delete("stripe");
   return url.toString();
+}
+
+/** The Stripe button's words. Each press asks the platform for a fresh Stripe page: Stripe's links work once. */
+export const CONTINUE_WITH_STRIPE = "Continue with Stripe";
+
+/** Cards and payouts both work (Stripe), or cards work (Square, which pays out by itself): the step is done. */
+export function paymentsReady(answer: PlatformPaymentsAnswer): boolean {
+  if (!accountConnected(answer) || answer.chargesEnabled !== true) return false;
+  return answer.provider === "square" || answer.payoutsEnabled === true;
+}
+
+/** "your bank details", "your bank details and your date of birth", "a, b and c". */
+export function joinWords(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/** "12 November", in the owner's own time zone (a test passes one). */
+export function dueDateText(iso: string, timeZone?: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", ...(timeZone ? { timeZone } : {}) }).format(date);
+}
+
+/**
+ * What Stripe still needs, in one or two plain sentences: "Stripe needs your bank details by 12 November." Past-due
+ * details come first and say what has stopped. null when nothing is needed (or for Square, which asks for nothing here).
+ */
+export function needsLine(answer: PlatformPaymentsAnswer, timeZone?: string): string | null {
+  if (answer.provider === "square") return null;
+  const needs = Array.isArray(answer.needs) ? answer.needs : [];
+  const late = needs.filter((n) => n.pastDue).map((n) => n.words);
+  const due = needs.filter((n) => !n.pastDue).map((n) => n.words);
+  const by = answer.deadline ? dueDateText(answer.deadline, timeZone) : "";
+  const parts: string[] = [];
+  if (late.length) parts.push(`Stripe needs ${joinWords(late)} now. The deadline has passed, so Stripe has paused card payments or payouts until it has ${late.length === 1 ? "it" : "them"}.`);
+  if (due.length) parts.push(`${late.length ? "It also needs" : "Stripe needs"} ${joinWords(due)}${by ? ` by ${by}` : ""}.`);
+  return parts.length ? parts.join(" ") : null;
 }

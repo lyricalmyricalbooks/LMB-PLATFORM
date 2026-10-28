@@ -22,7 +22,7 @@ const WORD: Record<string, string> = { danger: "Urgent", warning: "Needs attenti
 
 const ACTION_LABEL: Record<string, string> = {
   retry: "Try again", inventory: "Open Inventory app link", general: "Open Backups", notifications: "Open email deliveries",
-  payments: "Open Payments", webhook: "Open webhook health", order: "Open order", inventoryApp: "Open the inventory app",
+  payments: "Open Payments", cardAccount: "Open Payments", webhook: "Open webhook health", order: "Open order", inventoryApp: "Open the inventory app",
 };
 
 // Alerts shown above every admin page. Dismissing hides an alert in this browser until
@@ -65,7 +65,7 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
   };
   const runAction = (a: AdminAlert) => (a.action === "inventoryApp" ? openApp(a.appHash) : a.action === "retry" ? onRetry?.() : a.action === "inventory" ? onOpenInventory?.()
     : a.action === "general" ? onOpenGeneral?.() : a.action === "notifications" ? onOpenNotifications()
-      : a.action === "webhook" || a.action === "payments" ? onOpenWebhook()
+      : a.action === "webhook" || a.action === "payments" || a.action === "cardAccount" ? onOpenWebhook()
         : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders());
 
   const shown = expanded ? visible : visible.slice(0, SHOWN);

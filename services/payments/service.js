@@ -32,11 +32,14 @@
 //   deliver    (row, rawBody, provider) -> { status } posts an event to the shop's webhook (httpDeliver below)
 //   squareApi  createSquareApi(...) from squareApi.js, with `tokens` and `states` (square.js); optional: without it
 //              Square shops are refused
+//   email      sendPlatform(message) (services/email); optional: emails the owner once when a requirement on their
+//              Stripe account goes past its deadline (code plan 7.9)
 import { StripeApiError } from "./stripeApi.js";
 import { SquareApiError } from "./squareApi.js";
 import { createSquareService, SQUARE_OP_NAMES } from "./square.js";
 import { verifySignature } from "./stripeSignature.js";
 import { feeFor, feeForShop, feeSummary, takesFee } from "./fees.js";
+import { accountNeeds } from "./requirements.js";
 import { serviceKeyMatches } from "../email/http.js";
 
 /** A refusal by the service itself (not Stripe), with the HTTP status to answer with. */
@@ -226,7 +229,7 @@ const header = (headers, name) => {
  * @param {object} deps see the header comment
  * @param {{ webhookSecrets: { live: string[], test: string[] }, fee: object }} deps.config readServiceConfig()
  */
-export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, now = () => Date.now() }) {
+export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, email = null, now = () => Date.now() }) {
   const { webhookSecrets } = config;
   const iso = () => new Date(now()).toISOString();
 
@@ -236,6 +239,33 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     const full = { id, source: "payment-service", at: iso(), ...entry };
     await registry.recordEvent(shopId, full);
     await auditLog.write(shopId, id, full);
+  }
+
+  // The shop's admin, where the press presses Continue with Stripe. Stripe's own link is never emailed: it works
+  // once, for a few minutes.
+  function paymentsPage(row) {
+    const site = typeof row.siteUrl === "string" && /^https:\/\/[^/\s]+/.test(row.siteUrl) ? row.siteUrl.replace(/\/+$/, "") : `https://${row.projectId}.web.app`;
+    return `${site}/admin#settings/payments/methods`;
+  }
+
+  // One email for each time the account goes past due: the key holds when it did, so a repeated event (or a retry
+  // after a lost answer) sends nothing new. Answers false when the email couldn't be sent, so Stripe retries.
+  async function emailPastDue(row, payments, needs, accountId) {
+    try {
+      await email.sendPlatform({
+        kind: "payments-past-due",
+        to: row.ownerEmail,
+        shopId: row.shopId,
+        idempotencyKey: `payments-past-due/${row.shopId}/${accountId}/${payments.pastDueSince || "first"}`,
+        data: { pressName: row.pressName || row.shopId, provider: "Stripe", needs: needs.needs.filter((n) => n.pastDue).map((n) => n.words), link: paymentsPage(row) },
+      });
+    } catch (err) {
+      console.error(`The past-due email for ${row.shopId} wasn't sent: ${err?.message || err}`);
+      return false;
+    }
+    await registry.updateShop(row.shopId, { payments: { ...payments, pastDueEmailedAt: iso() } });
+    await logChange(row.shopId, `payments-past-due-emailed-${accountId}-${payments.pastDueSince}`, { kind: "payments.past-due-emailed", accountId });
+    return true;
   }
 
   const square = squareApi
@@ -319,6 +349,9 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       payoutsEnabled: account.payouts_enabled === true,
       detailsSubmitted: account.details_submitted === true,
       requirementsDue: Array.isArray(account.requirements?.currently_due) ? account.requirements.currently_due.length : 0,
+      // What Stripe still needs, in plain words, with its deadline (7.9): { needs: [{ words, pastDue }], deadline,
+      // pastDue, disabledReason }.
+      ...accountNeeds(account),
       // Shown to the press next to their payouts (owner's instruction, 28 October 2026).
       platformFee: feeSummary(fee),
     };
@@ -420,15 +453,26 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       // The account's own state, kept in the registry for the go-live checklist (2.10) and the control room.
       if (event.type === "account.updated" && event.data?.object?.id === event.account && mode === row.payments.mode) {
         const account = event.data.object;
+        const needs = accountNeeds(account);
         const state = {
           chargesEnabled: account.charges_enabled === true,
           payoutsEnabled: account.payouts_enabled === true,
           detailsSubmitted: account.details_submitted === true,
+          pastDue: needs.pastDue,
         };
         const saved = row.payments;
+        let payments = saved;
         if (Object.entries(state).some(([key, value]) => saved[key] !== value)) {
-          await registry.updateShop(row.shopId, { payments: { ...saved, ...state, stateAt: iso() } });
+          // When it turned past due; cleared once it isn't, so the next time emails the owner again.
+          const { pastDueSince, pastDueEmailedAt, ...rest } = saved;
+          payments = { ...rest, ...state, stateAt: iso(), ...(needs.pastDue ? { pastDueSince: pastDueSince ?? iso(), ...(pastDueEmailedAt ? { pastDueEmailedAt } : {}) } : {}) };
+          await registry.updateShop(row.shopId, { payments });
           await logChange(row.shopId, `payments-account-${event.id}`, { kind: "payments.account-updated", accountId: event.account, ...state });
+        }
+        // Past due: Stripe has paused cards or payouts. The owner is emailed once (the admin shows a banner as well).
+        if (needs.pastDue && !payments.pastDueEmailedAt && email) {
+          const emailed = await emailPastDue(row, payments, needs, event.account);
+          if (!emailed) return { status: 502, body: { error: "The owner couldn't be emailed; Stripe will send the event again." } };
         }
       }
       if (event.type === "account.application.deauthorized" && mode === row.payments.mode && !row.payments.disconnectedAt) {
