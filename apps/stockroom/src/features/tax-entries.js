@@ -46,7 +46,9 @@ import { BOOKS, BOOK_LIST, states, defaultState, withActiveBook } from '../core/
 import { voidHistEntry } from './sales-ledger.js';
 import { editArtistPayout, findArtistPayout, settlePayoutRequests, undoRecordedArtistSettlement } from './dashboard.js';
 import { ledgerSaleIndexForHistMirror } from '../lib/consignment.js';
-import { csvCell, toCsv } from '../lib/csv.js';
+import { csvCell, csvRow, toCsv } from '../lib/csv.js';
+import { dayLineRows, inPersonDailyLines, inPersonTaxOf, isInPersonSale, suggestedTaxBookName } from '../lib/bookkeeping-days.js';
+import { registerActions } from '../lib/actions.js';
 import { downloadCsv } from '../lib/download.js';
 import { payoutNetted } from '../lib/earnings.js';
 import { canonicalExpenseCategory } from '../lib/expense-categories.js';
@@ -1081,6 +1083,30 @@ function downloadFullTaxSeasonExport() {
     csv += `${esc(book.title)},${revenueCAD.toFixed(2)},${net.toFixed(2)},${sold}\n`;
   });
 
+  // Section 1b: fair and in-person sales as the shop's bookkeeping day lines
+  // (plan 7.13): same columns, same tax names, so both apps add up together.
+  const inPersonTax = inPersonTaxOf(TAX_CENTER.settings?.inPersonTax);
+  const inPersonSales = [];
+  BOOK_LIST.forEach(book => {
+    if (isTestBook(book) || isTestBookId(book.id)) return;
+    const s = states[book.id] || defaultState(book);
+    const cur = getBookCurrencyCode(book);
+    const rawRate = _fxRateCache[`${cur}_CAD`];
+    let any = false;
+    for (const h of s.hist || []) {
+      if (!isInPersonSale(h) || (!isAllTime && !h.date.startsWith(year))) continue;
+      const amount = (h.qty || 0) * (h.price || 0);
+      any = any || amount > 0;
+      inPersonSales.push({ date: h.date, amount: amount * (rawRate || 1) });
+    }
+    flagRateIfMissing(book, cur, rawRate, any);
+  });
+  csv += '\n--- FAIR & IN-PERSON SALES BY DAY (same lines as the shop\'s bookkeeping file) ---\n';
+  csv += inPersonTax
+    ? `${esc(`Tax: ${inPersonTax.name} at ${inPersonTax.rate}%, ${inPersonTax.included ? 'included in the prices' : 'added on top of the prices'}.`)}\n`
+    : `${esc('No tax on in-person sales set (Tax Season Export › Tax on in-person sales): all of it is shown as sales before tax.')}\n`;
+  dayLineRows(inPersonDailyLines(inPersonSales, { tax: inPersonTax, currency: 'CAD' })).forEach(row => { csv += csvRow(row) + '\n'; });
+
   // Section 2: All Expenses & Payouts
   csv += '\n--- ALL EXPENSES & PAYOUTS ---\n';
   csv += 'Date,Book/Entity,Category,Description,Amount (CAD),Receipt Link\n';
@@ -1182,6 +1208,44 @@ function downloadFullTaxSeasonExport() {
   }
 }
 
+// ── TAX ON IN-PERSON SALES (Tax Season Export modal) ──
+// A stockroom sale records its price only, so the export's daily lines take
+// their tax from this one setting: the rate, its name in the books (the same
+// names the shop uses) and whether prices include it. Kept in the Tax Centre
+// (TAX_CENTER.settings.inPersonTax), so it saves on this device at once and
+// uploads with the Tax Centre when there is a connection.
+function fillInPersonTaxFields() {
+  const saved = TAX_CENTER.settings?.inPersonTax || {};
+  const rate = $('tc-ip-tax-rate'), name = $('tc-ip-tax-name'), included = $('tc-ip-tax-included');
+  if (!rate || !name || !included) return;
+  rate.value = saved.rate ?? '';
+  name.value = saved.bookName || '';
+  included.checked = saved.included !== false;
+  showInPersonTaxHint();
+}
+
+function showInPersonTaxHint() {
+  const rate = $('tc-ip-tax-rate')?.value.trim() || '';
+  const name = $('tc-ip-tax-name');
+  if (name) name.placeholder = rate === '' ? 'GST, HST ON, PST BC…' : suggestedTaxBookName({ country: 'Canada', rate });
+  const hint = $('tc-ip-tax-hint');
+  const tax = inPersonTaxOf({ rate, bookName: name?.value, included: $('tc-ip-tax-included')?.checked });
+  if (hint) hint.textContent = rate === '' ? 'No rate: in-person sales are shown as sales before tax.'
+    : tax ? `In-person sales show ${tax.name} at ${tax.rate}%, ${tax.included ? 'taken out of' : 'added to'} the prices.`
+    : 'Enter the rate as a number from 0 to 100, e.g. 13.';
+}
+
+async function saveInPersonTax() {
+  showInPersonTaxHint();
+  const rate = $('tc-ip-tax-rate')?.value.trim() || '';
+  const bookName = ($('tc-ip-tax-name')?.value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (rate !== '' && !inPersonTaxOf({ rate })) return;
+  if (!TAX_CENTER.settings) TAX_CENTER.settings = {};
+  if (rate === '') delete TAX_CENTER.settings.inPersonTax;
+  else TAX_CENTER.settings.inPersonTax = { rate, bookName, included: !!$('tc-ip-tax-included')?.checked };
+  if (await saveTaxCenter()) showToast('Tax on in-person sales saved', 'ok', 2500);
+}
+
 // Called once by main.js, at the point in start-up where this code used to run
 // inline: closes trip pickers on an outside click, wires the edit-expense file
 // name and the smart category guess once the page has loaded, and installs the
@@ -1191,6 +1255,10 @@ function initTaxEntries() {
   document.addEventListener('DOMContentLoaded', _tcWireEditExpenseFile);
   document.addEventListener('DOMContentLoaded', _tcWireSmartCategory);
   document.addEventListener('keydown', _tcKeyboardShortcuts);
+  registerActions({
+    'taxExport.inPersonTaxInput': () => showInPersonTaxHint(),
+    'taxExport.inPersonTaxSave': () => saveInPersonTax(),
+  });
 }
 
 export {
@@ -1211,6 +1279,7 @@ export {
   snapReceipt,
   snapReceiptChosen,
   downloadFullTaxSeasonExport,
+  fillInPersonTaxFields,
   exportTripCSV,
   relinkEditExpenseReceipt,
   removeEditExpenseReceipt,
