@@ -60,6 +60,14 @@ describe("the admin's web address card", () => {
     expect(res.body.error).toMatch(/Make another address main first/);
   });
 
+  test("Connect (plan 6.15) maps to the service's one-step call, as this shop", async () => {
+    const { run, calls } = make();
+    const res = await run({ step: "connect", domain: "shop.mothpress.example" });
+    expect(res.statusCode).toBe(200);
+    expect(calls.map((c) => [c.op, c.args])).toEqual([["domains.connect", { domain: "shop.mothpress.example" }]]);
+    expect(calls[0].headers).toMatchObject({ "X-Shop-Id": "moth-press", Authorization: `Bearer ${KEY}` });
+  });
+
   test("only an admin may ask; an unknown step, a shop without the service or without its key is refused before anything is sent", async () => {
     expect((await make().run({ step: "list" }, { admin: false })).statusCode).toBe(403);
     expect((await make().run({ step: "delete" })).statusCode).toBe(400);

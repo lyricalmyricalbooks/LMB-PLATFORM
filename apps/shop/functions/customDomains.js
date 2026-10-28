@@ -4,9 +4,10 @@
 // live. The shop proves who it is with its service key, like the payment and email services. Admin-only. Plan 5.9 adds
 // Make main (the address emails, links and Google use) and Remove; the service refuses removing the main address.
 //
-//   body { action: "customDomains", step: "list" | "add" | "check" | "makeMain" | "remove", domain? }
+//   body { action: "customDomains", step: "list" | "add" | "connect" | "check" | "makeMain" | "remove", domain? }
+// Plan 6.15: `connect` is the one step (add, then the Allow link or the guide for the press's domain seller).
 
-const STEPS = Object.freeze({ list: "domains.list", add: "domains.add", check: "domains.check", makeMain: "domains.makeMain", remove: "domains.remove" });
+const STEPS = Object.freeze({ list: "domains.list", add: "domains.add", connect: "domains.connect", check: "domains.check", makeMain: "domains.makeMain", remove: "domains.remove" });
 
 function customDomainActions({ url, shopId, serviceKey, requireAdmin, fetch = globalThis.fetch, timeoutMs = 30000 }) {
   async function handleCustomDomains(req, res) {
