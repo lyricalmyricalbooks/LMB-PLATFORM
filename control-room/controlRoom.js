@@ -22,12 +22,14 @@
 //   breaches      optional: the breach register (breaches.js createBreachRegister)
 //   people        optional: controlRoomPeople() (people.js): the privacy contact shown with the register
 //   newsletters   optional: the newsletter pause (services/email/reputation.js): resume(shopId, { by, reason })
+//   activity      optional: the activity log (activity.js, plan 9.9): record(entry); every logged action goes there too
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { SETTINGS_DOC, isPaused, pausedSettings, restoredSettings } from "./closure.js";
 import { PAYMENT_ROUTES, emergencyPayments } from "./emergencyPayments.js";
+import { activityEntry } from "./activity.js";
 
 export const ACT_AS_MINUTES = 30;
 export const MIN_REASON = 10;
@@ -100,7 +102,7 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, admins, now = () => new Date(),
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, admins, now = () => new Date(),
 }) {
   const at = () => now().toISOString();
 
@@ -110,6 +112,8 @@ export function createControlRoom({
     const entry = { id: `control-room-${stamp}-${what}-${createHash("sha256").update(JSON.stringify(detail)).digest("hex").slice(0, 8)}`, source: "control-room", at: stamp, what, ...detail };
     await registry.recordEvent(shopId, entry);
     if (await auditLog.ready(shopId)) await auditLog.write(shopId, entry.id, entry);
+    // The activity log (9.9): every admin action in one list, newest first.
+    if (activity) await activity.record(activityEntry({ at: stamp, by: detail.by, what, shopId, detail }));
     return entry;
   }
 
