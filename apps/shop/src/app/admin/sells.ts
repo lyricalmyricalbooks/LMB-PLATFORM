@@ -121,3 +121,24 @@ export function firstProductWords(answer?: string | null): { title: string; why:
   if (sellsBooks(answer)) return null;
   return { title: "Add your first product", why: "A name, a price and a photo are enough to start. Sizes, colours and the rest can come later." };
 }
+
+// Admin words (plan 10.23): the admin is written for books. For a shop that sells something else, the words people
+// see in the admin pass through `goodsWords` ("Add book" → "Add product", "author" → "maker"). Book-only words
+// (e-book, ISBN, publisher, bookkeeping) are left alone.
+const GOODS_SWAPS: [RegExp, string][] = [
+  [/(?<![-\w])books\b/g, "products"], [/(?<![-\w])Books\b/g, "Products"], [/(?<![-\w])BOOKS\b/g, "PRODUCTS"],
+  [/(?<![-\w])book\b/g, "product"], [/(?<![-\w])Book\b/g, "Product"], [/(?<![-\w])BOOK\b/g, "PRODUCT"],
+  [/\bauthors\b/g, "makers"], [/\bAuthors\b/g, "Makers"], [/\bauthor\b/g, "maker"], [/\bAuthor\b/g, "Maker"],
+];
+
+/** Admin words for a shop or product that isn't books: book → product, author → maker. */
+export function goodsWords(text: string): string {
+  return GOODS_SWAPS.reduce((out, [from, to]) => out.replace(from, to), text);
+}
+
+const same = (text: string) => text;
+
+/** The admin's word function for a sign-up answer: unchanged for a books shop. */
+export function adminWordsFor(answer?: string | null): (text: string) => string {
+  return sellsBooks(answer) ? same : goodsWords;
+}

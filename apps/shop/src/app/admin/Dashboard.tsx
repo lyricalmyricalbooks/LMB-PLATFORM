@@ -1,5 +1,5 @@
 import "../../styles/adminCompat.css";
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import { isShopOwner, markOwnerDeviceOnSignIn } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
@@ -39,6 +39,8 @@ import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
+import { adminWordsFor } from "./sells";
+import { ShopWordsContext } from "./shopWords";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
@@ -208,6 +210,15 @@ export function Dashboard() {
     adminApi.bookkeeping("status").then((s) => setBookkeepingOn(!!s?.enabled)).catch(() => {});
   }, [activeTab]);
   const hiddenPages = new Set(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]);
+  // What the shop sells (plan 10.23): sign-up's answer in `firstWeek/start`. A shop that doesn't sell books reads
+  // "Products" for "Books" across the admin (sells.ts `adminWordsFor`); with no answer every word stays as it is.
+  const [sellsAnswer, setSellsAnswer] = useState<string | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => setSellsAnswer(doc?.publishes ?? null)).catch(() => {});
+  }, [user]);
+  const w = adminWordsFor(sellsAnswer);
+  const nav = useMemo(() => NAV.map((n) => ({ ...n, label: w(n.label) })), [w]);
   const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });
   const [searchCustomerQuery, setSearchCustomerQuery] = useState<string | undefined>(undefined);
   // What the last check read besides the orders (Stripe webhook, email log, backup, inventory link), so opening or
@@ -436,7 +447,7 @@ export function Dashboard() {
   const settingsChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsPageOf(settingsTab);
   const pageTitle = isSettingsPage
     ? NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === settingsChild)?.label || "Settings"
-    : (PAGE_COPY[activeTab] || PAGE_COPY.overview).title;
+    : w((PAGE_COPY[activeTab] || PAGE_COPY.overview).title);
   useEffect(() => {
     const previous = document.title;
     document.title = adminDocumentTitle(pageTitle);
@@ -553,7 +564,8 @@ export function Dashboard() {
     setSidebarOpen(false);
   };
 
-  const copy = PAGE_COPY[activeTab] || PAGE_COPY.overview;
+  const pageCopy = PAGE_COPY[activeTab] || PAGE_COPY.overview;
+  const copy = { ...pageCopy, title: w(pageCopy.title), description: w(pageCopy.description) };
   const childLabel = NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === navChild)?.label;
   const trail: Array<{ label: string; onClick?: () => void }> = [{ label: "Admin", onClick: () => goTo("overview") }];
   if (selectedOrder && activeTab !== "orders") {
@@ -589,7 +601,7 @@ export function Dashboard() {
   const userName = user.displayName || user.email;
 
   const destinations = [
-    ...NAV.filter((n) => !n.children).map((n) => ({ id: n.id, label: n.label, run: () => goTo(n.id) })),
+    ...nav.filter((n) => !n.children).map((n) => ({ id: n.id, label: n.label, run: () => goTo(n.id) })),
     ...(NAV.find((n) => n.children)?.children || []).filter((c) => !hiddenPages.has(SETTINGS_ITEM_PREFIX + c.id)).map((c) => ({
       id: `settings-${c.id}`, label: `Settings · ${c.label}`,
       run: () => { setActiveTab("settings"); setSettingsTab(c.id); setShowEditor(false); setSelectedOrder(null); },
@@ -663,6 +675,7 @@ export function Dashboard() {
   );
 
   return (
+    <ShopWordsContext.Provider value={w}>
     <ToastProvider>
       <Dialog open={!!bookLinkProblem} onClose={() => setBookLinkProblem(null)} title="Couldn't open that book"
         footer={<SecondaryButton data-autofocus onClick={() => setBookLinkProblem(null)}>Close</SecondaryButton>}>
@@ -675,7 +688,7 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={withoutPages(sidebarItems(NAV), hiddenPages).map((n) => {
+            items={withoutPages(sidebarItems(nav), hiddenPages).map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
               // Privacy requests are handled in Settings › General.
               const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
@@ -683,7 +696,7 @@ export function Dashboard() {
               // Five menu items (plan 1.27): an item shows the sum of its pages' counts, each page its own.
               const pages = n.children ? n.children.map((c) => ({ ...c, badge: badgeFor(c.id) || 0 })) : undefined;
               const badge = pages ? pages.reduce((sum, c) => sum + c.badge, 0) : badgeFor(n.id);
-              return { ...n, ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
+              return { ...n, label: w(n.label), ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
             })}
             activeId={showEditor ? null : menuItemFor(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive)}
             activeChildId={navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
@@ -862,5 +875,6 @@ export function Dashboard() {
         )}
       </AnimatePresence>
     </ToastProvider>
+    </ShopWordsContext.Provider>
   );
 }
