@@ -26,3 +26,18 @@ export const fakeAuth = () => ({ signInLink: async (email, { url }) => `${url}&o
 
 /** A pretend token check: the token is the JSON of the claims. */
 export const fakeVerifyIdToken = async (token) => JSON.parse(token);
+
+/**
+ * Pretend waitlist invites (the control room's, waitlist/invites.js): `emails` are invited; `used` records each
+ * markUsed(email, shopId).
+ */
+export function fakeInvites(emails = []) {
+  const invited = new Set(emails.map((e) => e.toLowerCase()));
+  const used = new Map();
+  return {
+    used,
+    invite: (email) => void invited.add(email.toLowerCase()),
+    isInvited: async (email) => invited.has(String(email).toLowerCase()) && !used.has(String(email).toLowerCase()),
+    markUsed: async (email, shopId) => void (used.has(email.toLowerCase()) || used.set(email.toLowerCase(), shopId)),
+  };
+}

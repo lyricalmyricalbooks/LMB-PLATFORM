@@ -354,7 +354,7 @@ function HeaderActions({ flags, copyDesign, color, shop, onSearch, wishlistCount
         </div>
       )}
       {showAdmin && (
-        <Link to="/admin" style={tint} className="mr-2 hidden items-center gap-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.2em] opacity-30 transition-all hover:opacity-100 sm:flex">
+        <Link to="/admin" style={tint} className="mr-2 hidden items-center gap-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.2em] opacity-70 transition-all hover:opacity-100 sm:flex">
           <span data-studio-copy="navAdmin">{getCopy(copyDesign, "navAdmin")}</span>
         </Link>
       )}
@@ -461,7 +461,9 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
       >
         <div ref={rowRef} className="fm-hdr-row mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
           <div className="flex min-w-0 flex-1 items-center gap-8 md:gap-12">
-            <Link to="/" state={HOME_LINK_STATE} data-hdr-fixed className="flex shrink-0 items-center" aria-label={getCopy(design, "logoAlt")}>
+            {/* The link's name comes from the logo itself (its alt text, or the words of a text logo), so what a screen
+                reader says matches what shoppers see (accessibility check, plan 8.8). */}
+            <Link to="/" state={HOME_LINK_STATE} data-hdr-fixed className="flex shrink-0 items-center">
               <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={scheme ? { ...storefront, logoColor: undefined } : storefront} /></span>
             </Link>
             {!navBelow && navBar}
@@ -479,7 +481,6 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
               cartButton={!storefront.hideCartButton && (
                 <button
                   onClick={() => setIsCartOpen(true)}
-                  aria-label={getCopy(design, "ariaCart")}
                   className="fm-hdr-cart store-btn-primary group flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 transition-all hover:scale-[1.02]"
                   style={{ backgroundColor: storefront.buttonColor || "var(--accent)", color: storefront.buttonTextColor || "var(--on-accent)" }}
                 >
@@ -487,6 +488,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
                   {cartCount > 0 && (
                     <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ backgroundColor: storefront.buttonTextColor || "var(--on-accent)", color: storefront.buttonColor || "var(--accent)" }}>{cartCount}</span>
                   )}
+                  <span className="sr-only">{getCopy(design, "ariaCart")}</span>
                 </button>
               )}
             />
@@ -590,7 +592,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
     />
   );
   const logo = (
-    <Link to="/" state={HOME_LINK_STATE} aria-label={getCopy(design, "logoAlt")} style={{ color: headerTextColor }} data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center">
+    <Link to="/" state={HOME_LINK_STATE} style={{ color: headerTextColor }} data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center">
       <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={headerScheme ? { ...shop.logoDesign, logoColor: undefined } : shop.logoDesign} /></span>
     </Link>
   );
@@ -629,7 +631,6 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
               {showBag && cartPlacement === "top-right" && (
                 <button
                   onClick={() => setIsCartOpen(true)}
-                  aria-label={getCopy(design, "ariaCart")}
                   className={`flex shrink-0 items-center gap-2 pt-1 text-lg md:text-2xl font-black leading-none whitespace-nowrap hover:opacity-70 transition-opacity ${shop.logoPosition === "center" ? "absolute right-0 top-0" : shop.logoPosition === "right" ? "" : "ml-auto"}`}
                   style={{ color: headerTextColor }}
                 >
@@ -637,6 +638,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                   <span>{cartCount}</span>
                   <span aria-hidden="true" className="font-light">|</span>
                   <span>{cartAmount}</span>
+                  <span className="sr-only">{getCopy(design, "ariaCart")}</span>
                 </button>
               )}
             </div>
@@ -675,7 +677,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
               {sf?.menus?.header?.length > 0 && <StoreMenu items={sf.menus.header} design={sf} />}
               {!design?.hideHeaderSearch && <button onClick={onSearch} className="hover:opacity-70 transition-opacity"><span data-studio-copy="navSearch">{getCopy(design, "navSearch")}</span></button>}
               {showSys && (
-                <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40"><span data-studio-copy="navAdmin">{getCopy(design, "navAdmin")}</span></Link>
+                <Link to="/admin" className="hover:opacity-100 transition-opacity opacity-70"><span data-studio-copy="navAdmin">{getCopy(design, "navAdmin")}</span></Link>
               )}
               {showBag && cartPlacement === "nav-end" && (
                 <button onClick={() => setIsCartOpen(true)} aria-label={getCopy(design, "ariaCart")} className="hover:opacity-70 transition-opacity">
@@ -708,7 +710,6 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                 cartButton={showBag && (
                   <button
                     onClick={() => setIsCartOpen(true)}
-                    aria-label={getCopy(design, "ariaCart")}
                     className={`fm-hdr-cart group flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${buttonShadow ? "shadow-lg" : ""} ${stickers ? "fm-sticker-pill" : ""}`}
                     style={{
                       backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
@@ -718,6 +719,8 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                       ...(stickers ? { borderRadius: pillRadius(sf?.navPillRadius), transform: "rotate(2deg)" } : {}),
                     }}
                   >
+                    {/* The bag's name starts with its visible words, then the screen-reader words from Text & labels
+                        (accessibility check, plan 8.8). */}
                     <span className={`text-[10px] tracking-[0.2em] font-semibold ${buttonUppercase ? "uppercase" : ""}`}>{bagLabel}</span>
                     {cartCount > 0 && (
                       <span
@@ -730,6 +733,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                         {cartCount}
                       </span>
                     )}
+                    <span className="sr-only">{getCopy(design, "ariaCart")}</span>
                   </button>
                 )}
               />

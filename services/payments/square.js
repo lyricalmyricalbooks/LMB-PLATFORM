@@ -18,11 +18,13 @@
 //   square   createSquareApi(...) (squareApi.js)
 //   tokens   get(shopId, mode) -> { sealed, merchantId, expiresAt } | null; set(shopId, mode, record); remove(shopId, mode)
 //   states   put(state, { shopId, mode, returnUrl, expiresAt }); take(state) -> that record | null (once only)
+//   payAsYouSell  service.js's pay-as-you-sell parts (6.19): termsFor(row), fee(row, terms, …) and the ledger; optional
 import { createHash, randomBytes } from "node:crypto";
 import { SquareApiError } from "./squareApi.js";
 import { verifySquareSignature, SQUARE_SIGNATURE_HEADER } from "./squareSignature.js";
 import { seal, unseal } from "./tokenSeal.js";
 import { feeFor, feeSummary, takesFee } from "./fees.js";
+import { squareBooksMinor } from "./payAsYouSell.js";
 
 /** What the platform asks a press to allow (the minimum Square lists for app fees, plus locations and disputes). */
 export const SQUARE_SCOPES = Object.freeze([
@@ -156,7 +158,7 @@ export const SQUARE_OP_NAMES = Object.freeze([
  * @param {(shopId: string, id: string, entry: object) => Promise<void>} deps.logChange registry + audit log
  * @param {(row: object) => Set<string>} deps.shopHosts the shop's own web addresses
  */
-export function createSquareService({ square, registry, tokens, states, deliver, config, logChange, refuse, shopHosts, now = () => Date.now() }) {
+export function createSquareService({ square, registry, tokens, states, deliver, config, logChange, refuse, shopHosts, payAsYouSell = null, now = () => Date.now() }) {
   const settings = config.square ?? {};
   const iso = (ms = now()) => new Date(ms).toISOString();
   const bad = (message) => refuse(400, "bad_request", message);
@@ -204,7 +206,7 @@ export function createSquareService({ square, registry, tokens, states, deliver,
     return order?.reference_id ?? null;
   }
 
-  function checkoutParams(row, params, fee) {
+  function checkoutParams(row, params, fee, payAsYouSellFeeMinor = null) {
     if (!params || typeof params !== "object") throw bad("parameters are needed");
     const { referenceId, currency, lineItems, buyerEmail, redirectUrl, note } = params;
     if (typeof referenceId !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(referenceId)) throw bad("referenceId (the shop's order id, at most 40 letters) is needed");
@@ -225,7 +227,10 @@ export function createSquareService({ square, registry, tokens, states, deliver,
     let url;
     try { url = new URL(redirectUrl); } catch { throw bad("redirectUrl must be an address"); }
     if (url.protocol !== "https:" || !shopHosts(row).has(url.hostname.toLowerCase())) throw bad("redirectUrl must be one of the shop's own addresses");
-    const appFee = takesFee(fee) ? squareFee(total, upper, fee) : 0;
+    // Pay as you sell (6.19) worked its fee out already; Square's own cap still applies.
+    const appFee = payAsYouSellFeeMinor !== null
+      ? Math.min(payAsYouSellFeeMinor, squareFee(total, upper, { basisPoints: 10000 }))
+      : takesFee(fee) ? squareFee(total, upper, fee) : 0;
     return {
       total,
       body: {
@@ -248,9 +253,16 @@ export function createSquareService({ square, registry, tokens, states, deliver,
   const OPS = {
     async "square.checkout.create"(row, mode, token, args, fee) {
       if (!row.payments.locationId) throw refuse(409, "not_connected", "This shop hasn't connected Square yet.");
-      const { body } = checkoutParams(row, args.params, fee);
+      // Checked once without a fee first, so a bad request never holds part of the month's cap.
+      checkoutParams(row, args.params, { basisPoints: 0 });
+      const terms = payAsYouSell?.termsFor(row) ?? null;
+      const held = terms
+        ? await payAsYouSell.fee(row, terms, { key: keyFrom(row, args), booksMinor: squareBooksMinor(args.params.lineItems), currency: args.params.currency })
+        : null;
+      const { body } = checkoutParams(row, args.params, fee, held ? held.feeMinor : null);
       const created = await square.call(mode, "POST", "/v2/online-checkout/payment-links", { accessToken: token, body: { idempotency_key: keyFrom(row, args), ...body } });
       const link = created.payment_link ?? {};
+      if (held?.ref && held.feeMinor > 0) await payAsYouSell.ledger.link(row.shopId, [link.id, link.order_id], held.ref);
       return { id: link.id, url: link.url ?? link.long_url ?? null, squareOrderId: link.order_id ?? null, createdAt: link.created_at ?? null };
     },
     async "square.checkout.retrieve"(row, mode, token, args) {
@@ -288,7 +300,7 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       const amount = params.amountMinor === undefined || params.amountMinor === null ? left : params.amountMinor;
       if (!Number.isInteger(amount) || amount < 1) throw bad("amountMinor must be a whole number above 0");
       // The fee goes back in proportion to the refund, from the platform's share (Square's refund app_fee_money).
-      const feeBack = fee.refunded ? refundedFee(payment, amount) : 0;
+      const feeBack = fee.refunded || payAsYouSell?.termsFor(row) ? refundedFee(payment, amount) : 0;
       const body = {
         idempotency_key: keyFrom(row, args),
         payment_id: paymentId,
@@ -362,6 +374,22 @@ export function createSquareService({ square, registry, tokens, states, deliver,
     const expiresAt = now() + STATE_MS;
     await states.put(state, { shopId: row.shopId, mode, returnUrl: url.toString(), expiresAt });
     return { url: square.authorizeUrl(mode, { scopes: SQUARE_SCOPES, state }), expiresAt: Math.floor(expiresAt / 1000) };
+  }
+
+  // Pay as you sell (6.19): a payment that completes or fails, or a refund that completes, on a checkout with a fee.
+  // Each sets a state, so the same event twice changes nothing.
+  async function ledgerEvent(row, event) {
+    const ledger = payAsYouSell?.ledger;
+    if (!ledger) return;
+    const object = event.data?.object ?? {};
+    if (event.data?.type === "payment" && object.payment) {
+      const { id, order_id: orderId, status: state, app_fee_money: appFee } = object.payment;
+      if (state === "COMPLETED") await ledger.paid(row.shopId, orderId, { feeMinor: Number.isInteger(appFee?.amount) ? appFee.amount : undefined, alsoIds: [id] });
+      else if (state === "CANCELED" || state === "FAILED") await ledger.released(row.shopId, orderId);
+    } else if (event.data?.type === "refund" && object.refund?.status === "COMPLETED") {
+      const { id, payment_id: paymentId, app_fee_money: appFee } = object.refund;
+      await ledger.refunded(row.shopId, paymentId, { sourceId: id, feeBackMinor: Number.isInteger(appFee?.amount) ? appFee.amount : 0 });
+    }
   }
 
   const backTo = (returnUrl, outcome) => {
@@ -451,6 +479,12 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       // rest would be refused there and sent again.
       const wanted = ["payment", "refund", "dispute"].includes(event.data?.type) || (event.data?.type === "payout" && event.type === "payout.paid");
       if (!wanted) return { status: 200, body: { ignored: "not a payment, refund, dispute or paid payout" } };
+      try {
+        await ledgerEvent(row, event);
+      } catch (err) {
+        console.error(`Square event ${event.event_id} for ${row.shopId} wasn't counted for pay as you sell: ${err?.message || err}`);
+        return { status: 500, body: { error: "The event couldn't be counted; Square will send it again." } };
+      }
       const result = await deliver(row, rawBody, "square");
       if (result.status >= 200 && result.status < 300) return { status: 200, body: { forwarded: row.shopId } };
       console.error(`Square event ${event.event_id} for ${row.shopId} wasn't taken (${result.status}${result.error ? `: ${result.error}` : ""})`);

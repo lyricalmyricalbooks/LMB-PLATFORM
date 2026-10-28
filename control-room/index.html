@@ -47,6 +47,7 @@
   .tile { border: 2px solid var(--ink); padding: 12px; display: grid; gap: 2px; }
   .tile strong { font: 400 30px/1.1 Anton, Impact, sans-serif; }
   .tile span { font: 13px "DM Mono", monospace; text-transform: uppercase; color: var(--muted); }
+  .record ul { padding-left: 20px; }
   .needs a { color: inherit; font-weight: 600; }
   .qr { width: 220px; max-width: 100%; background: #fff; border: 2px solid var(--ink); }
   .qr img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
@@ -85,6 +86,12 @@
     <div id="today-numbers" class="tiles"></div>
     <div id="needs" class="stack"></div>
     <h2>Shops</h2>
+    <form id="shop-filters" class="row" role="search">
+      <label class="field">Search (press, shop id or owner email) <input type="search" name="q" autocomplete="off"></label>
+      <label class="field">Health <select name="health"><option value="">All</option><option value="problem">Problem</option><option value="watch">Look</option><option value="ok">OK</option></select></label>
+      <label class="field">Plan <select name="plan"><option value="">All</option><option value="shop">Shop</option><option value="stockroom">Stockroom</option><option value="both">Both</option></select></label>
+      <label class="field">Billing <select name="billing"><option value="">All</option><option value="trialing">Free trial</option><option value="active">Paying</option><option value="past_due">Payment failing</option><option value="paused">Paused</option><option value="canceled">Ended</option></select></label>
+    </form>
     <div class="row"><span id="summary"></span> <button type="button" id="refresh">Refresh</button></div>
     <div id="shops" class="stack"></div>
     <h2>Sign-ups and the waitlist</h2>
@@ -95,6 +102,9 @@
       <label class="field">Invite someone not on the list <input type="email" name="email" required autocomplete="off" placeholder="name@press.example"></label>
       <button type="submit">Send invite</button>
     </form>
+    <h2>Switches for every shop</h2>
+    <p class="hint">Turn one feature on or off for every live shop at once, and choose what a new shop starts with. Each shop's own switch is on its card.</p>
+    <div id="every-switch" class="stack"></div>
     <h2>Platform settings</h2>
     <p class="hint">Changes here reach sign-up and new plans at once, with no release. A new price is for new subscriptions only; presses already paying keep theirs.</p>
     <form id="settings-form" class="card">

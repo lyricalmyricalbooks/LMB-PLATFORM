@@ -42,6 +42,15 @@
   .card { border: 2px solid var(--ink); padding: 18px; box-shadow: 4px 4px 0 var(--pink); display: grid; gap: 8px; }
   #status { min-height: 1.5em; font-weight: 600; }
   .note { font: 13px "DM Mono", monospace; color: var(--muted); }
+  .address { display: grid; gap: 4px; }
+  .address .label { margin: 0; font: 13px "DM Mono", monospace; text-transform: uppercase; }
+  #address-preview { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; overflow-wrap: anywhere; }
+  .with-suffix { display: flex; align-items: stretch; text-transform: none; }
+  .with-suffix input { flex: 1; min-width: 0; border-right: 0; }
+  .with-suffix span { display: flex; align-items: center; padding: 0 12px; border: 2px solid var(--ink); font: 15px "DM Mono", monospace; color: var(--muted); }
+  .tick { display: flex; gap: 12px; align-items: flex-start; font: inherit; font-size: 16px; text-transform: none; cursor: pointer; }
+  .tick input { width: 24px; height: 24px; min-height: 24px; margin: 2px 0 0; flex: none; accent-color: var(--blue); }
+  .tick a { color: inherit; }
   .support { margin-top: 16px; font-size: 15px; }
   .support summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
   .support summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
@@ -78,6 +87,17 @@
       <h2 id="details-title">About your press</h2>
       <label>Press name<input name="pressName" autocomplete="organization" maxlength="80" required></label>
       <p class="error" data-problem="pressName" role="alert" hidden></p>
+      <!-- The web address preview (plan 6.2): made from the press name, checked as they type; Change edits it. -->
+      <div class="address">
+        <p class="label">Your shop's web address</p>
+        <p id="address-preview"><strong id="address-text">Type your press's name to see it.</strong> <button type="button" class="ghost" id="address-change">Change</button></p>
+        <label id="address-edit" hidden>Web address
+          <span class="with-suffix"><input name="address" id="address" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" inputmode="url"><span aria-hidden="true">.web.app</span></span>
+        </label>
+        <p class="hint" id="address-state" role="status" aria-live="polite"></p>
+        <p class="error" data-problem="address" role="alert" hidden></p>
+        <p class="hint">You can connect a domain you own later.</p>
+      </div>
       <fieldset>
         <legend>What do you need?</legend>
         <div class="choices" id="plans"></div>
@@ -91,6 +111,16 @@
         <div class="choices" id="answers"></div>
         <button type="button" class="ghost" id="skip">Skip this question</button>
       </fieldset>
+      <fieldset class="answers">
+        <legend id="publishes-label"></legend>
+        <p class="hint" id="publishes-hint"></p>
+        <div class="choices" id="publishes"></div>
+        <button type="button" class="ghost" id="skip-publishes">Skip this question</button>
+      </fieldset>
+      <label class="tick"><input name="termsAccepted" type="checkbox" required>
+        <span>I agree to Colophon's <a href="/terms/" target="_blank" rel="noopener">terms, privacy policy and data agreement</a>.</span>
+      </label>
+      <p class="error" data-problem="terms" role="alert" hidden></p>
       <button type="submit" class="primary">Start my free trial</button>
       <p class="note">No card needed now. We'll remind you before the trial ends, and you can cancel at any time.</p>
     </form>

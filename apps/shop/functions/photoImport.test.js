@@ -265,6 +265,83 @@ describe("copyPhoto hardening", () => {
   });
 });
 
+describe("one lookup per host: the download connects to the checked address (plan 5.7)", () => {
+  const { copyPhoto, pinnedFetch } = require("./photoImport");
+  const { Readable } = require("stream");
+  const START = "https://cdn.oldshop.example/start.jpg";
+
+  // A name that answers with a public address first, then a private one (the classic rebinding trick).
+  const rebinding = () => {
+    const asked = [];
+    const lookup = async host => {
+      asked.push(host);
+      return asked.length === 1 ? [{ address: "93.184.216.34", family: 4 }] : [{ address: "10.0.0.9", family: 4 }];
+    };
+    return { lookup, asked };
+  };
+
+  it("looks the name up once and hands the download that same address, even if the name changes its answer", async () => {
+    const { lookup, asked } = rebinding();
+    const seen = [];
+    const fetch = async (url, opts) => {
+      seen.push([url, opts.address]);
+      // A second lookup here would now say 10.0.0.9: the download must use what was checked instead.
+      return { ok: true, status: 200, headers: new Map([["content-type", "image/jpeg"]]), arrayBuffer: async () => new TextEncoder().encode("photo").buffer };
+    };
+    await expect(copyPhoto({ bucket: fakeBucket(), bucketName: BUCKET, url: START, fetch, lookup })).resolves.toContain("products%2Fimported%2F");
+    expect(asked).toEqual(["cdn.oldshop.example"]);
+    expect(seen).toEqual([[START, { address: "93.184.216.34", family: 4 }]]);
+  });
+
+  it("checks each redirect hop once, and refuses the hop whose name now answers privately", async () => {
+    const { lookup, asked } = rebinding();
+    const NEXT = "https://img.oldshop.example/next.jpg";
+    const calls = [];
+    const fetch = async (url, opts) => { calls.push([url, opts.address.address]); return { ok: false, status: 302, headers: new Map([["location", NEXT]]) }; };
+    await expect(copyPhoto({ bucket: fakeBucket(), bucketName: BUCKET, url: START, fetch, lookup })).rejects.toThrow("private network");
+    expect(asked).toEqual(["cdn.oldshop.example", "img.oldshop.example"]);
+    expect(calls).toEqual([[START, "93.184.216.34"]]);
+  });
+
+  it("pinnedFetch connects to the checked address whatever the name says, keeping the name for TLS and Host", async () => {
+    let options;
+    const request = (opts, onResponse) => {
+      options = opts;
+      const res = Readable.from([Buffer.from("pho"), Buffer.from("to")]);
+      res.statusCode = 200;
+      res.headers = { "content-type": "image/png", "content-length": "5" };
+      queueMicrotask(() => onResponse(res));
+      return { on() {}, end() {} };
+    };
+    const res = await pinnedFetch("https://cdn.oldshop.example:8443/a/b.png?x=1", { address: { address: "93.184.216.34", family: 4 }, request });
+    expect(options).toMatchObject({
+      hostname: "cdn.oldshop.example", servername: "cdn.oldshop.example", port: "8443", path: "/a/b.png?x=1", method: "GET",
+      headers: { host: "cdn.oldshop.example:8443" }, agent: false,
+    });
+    // However Node asks, the connection goes to the pinned address and nowhere else.
+    const one = await new Promise(r => options.lookup("cdn.oldshop.example", {}, (err, address, family) => r([err, address, family])));
+    expect(one).toEqual([null, "93.184.216.34", 4]);
+    const all = await new Promise(r => options.lookup("cdn.oldshop.example", { all: true }, (err, list) => r([err, list])));
+    expect(all).toEqual([null, [{ address: "93.184.216.34", family: 4 }]]);
+    const bare = await new Promise(r => options.lookup("cdn.oldshop.example", (err, address) => r(address)));
+    expect(bare).toBe("93.184.216.34");
+    expect(res).toMatchObject({ ok: true, status: 200 });
+    expect(res.headers.get("Content-Type")).toBe("image/png");
+    expect(res.headers.get("location")).toBeNull();
+    const reader = res.body.getReader();
+    const parts = [];
+    for (let r = await reader.read(); !r.done; r = await reader.read()) parts.push(Buffer.from(r.value));
+    expect(Buffer.concat(parts).toString()).toBe("photo");
+  });
+
+  it("pinnedFetch refuses to connect without a checked public address or over plain http", async () => {
+    const request = () => { throw new Error("must not connect"); };
+    await expect(pinnedFetch(START, { request })).rejects.toThrow("no checked address");
+    await expect(pinnedFetch(START, { address: { address: "10.0.0.9", family: 4 }, request })).rejects.toThrow("no checked address");
+    await expect(pinnedFetch("http://cdn.oldshop.example/a.jpg", { address: { address: "93.184.216.34", family: 4 }, request })).rejects.toThrow("isn't allowed");
+  });
+});
+
 describe("pictures inside book descriptions (plan 5.5)", () => {
   const { descriptionImages } = require("./photoImport");
   const IN_TEXT = "https://cdn.oldshop.example/files/spread.jpg?v=2&size=big";
