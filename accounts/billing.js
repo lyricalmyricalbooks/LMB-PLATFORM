@@ -71,6 +71,7 @@ async function load() {
     render(billing);
     show("billing");
     loadInvoices();
+    loadPaymentWay();
   } catch (failure) {
     fail(failure.message);
   }
@@ -129,6 +130,34 @@ async function loadInvoices() {
     })));
   } catch (failure) {
     list.replaceChildren(el("p", { className: "error", textContent: `We couldn't load your invoices: ${failure.message}` }));
+  }
+}
+
+// How the shop pays (6.19): monthly, or a share of website sales up to the plan's price. Stays hidden when the door
+// doesn't offer it or can't answer; the rest of the page doesn't depend on it.
+function renderPaymentWay(view) {
+  const section = $("#payment-way");
+  const button = view.button ? el("button", { type: "button", textContent: view.button.label }) : null;
+  if (button) button.addEventListener("click", () => act(button, async () => {
+    const answer = await api("/billing/payment-way/switch", { to: view.button.to });
+    status.textContent = answer.changed ? "Done. The lines above say when the change starts." : "Nothing to change.";
+    renderPaymentWay(answer.view);
+  }));
+  section.replaceChildren(
+    el("h2", { textContent: view.title }),
+    ...view.lines.map((line) => el("p", { textContent: line })),
+    view.note ? el("p", { className: "hint", textContent: view.note }) : null,
+    button,
+  );
+  section.hidden = false;
+}
+
+async function loadPaymentWay() {
+  try {
+    const { view } = await api("/billing/payment-way");
+    if (view) renderPaymentWay(view);
+  } catch {
+    $("#payment-way").hidden = true;
   }
 }
 
