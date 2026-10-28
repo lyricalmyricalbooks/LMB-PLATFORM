@@ -48,6 +48,30 @@ export function fakeEmulators(ports = PORTS) {
         return ok({});
       }
       const path = decodeURIComponent(target.pathname.replace(/^\/v1\/projects\/demo-colophon-test\/databases\//, ""));
+      const full = (key) => `projects/demo-colophon-test/databases/${key}`;
+      // Saving and restoring a whole database (keepDatabase.js): collection ids under a parent, a collection's
+      // documents a page at a time (with parents that exist only through their subcollections), and a commit.
+      if (method === "POST" && path.endsWith(":listCollectionIds")) {
+        const parent = path.slice(0, -":listCollectionIds".length);
+        const ids = new Set([...docs.keys()].filter((key) => key.startsWith(`${parent}/`)).map((key) => key.slice(parent.length + 1).split("/")[0]));
+        return ok({ collectionIds: [...ids].sort() });
+      }
+      if (method === "POST" && path.endsWith(":commit")) {
+        for (const { update } of JSON.parse(init.body).writes) docs.set(update.name.replace(full(""), ""), update.fields);
+        return ok({});
+      }
+      const segments = path.split("/").slice(2); // after "<database>/documents"
+      if (method === "GET" && segments.length % 2 === 1) {
+        const below = [...docs.keys()].filter((key) => key.startsWith(`${path}/`)).map((key) => key.slice(path.length + 1).split("/")[0]);
+        const ids = [...new Set(below)].sort();
+        const size = Number(target.searchParams.get("pageSize") || 100);
+        const from = Number(target.searchParams.get("pageToken") || 0);
+        const documents = ids.slice(from, from + size).map((id) => {
+          const key = `${path}/${id}`;
+          return docs.has(key) ? { name: full(key), fields: docs.get(key), createTime: "2026-10-28T00:00:00Z" } : { name: full(key) };
+        });
+        return ok({ documents, ...(from + size < ids.length ? { nextPageToken: String(from + size) } : {}) });
+      }
       if (method === "POST" && target.searchParams.get("documentId")) {
         const key = `${path}/${target.searchParams.get("documentId")}`;
         if (docs.has(key)) return ok({ error: { status: "ALREADY_EXISTS", message: "exists" } }, 409);
