@@ -2,7 +2,7 @@ import { EmptyState, LoadingState, SecondaryButton } from "../riso/components";
 import { Funnel, RankBars, type RankRow } from "./OverviewViz";
 import type { GaState } from "./OverviewMarketing";
 import type { Book } from "./overviewInsights";
-import { Frame, NeedsUpdate, NotAnswered, NotConnected, NotYet, OWN_HOSTS } from "./OverviewVisitors";
+import { Frame, NeedsUpdate, NotAnswered, NotConnected, NotYet, OWN_HOSTS } from "./OverviewVisitors.tsx";
 import {
   bagPeeks, bookPageActions, brokenInside, eventCount, filtersUsed, missingDefinitions, missingPages, navLinks, readDepth, sourceState,
   type CustomKey, type StandardKey,

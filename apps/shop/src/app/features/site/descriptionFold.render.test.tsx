@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import DescriptionFold from "./DescriptionFold";
+import DescriptionFold from "./DescriptionFold.tsx";
 
 const long = "word ".repeat(200);
 

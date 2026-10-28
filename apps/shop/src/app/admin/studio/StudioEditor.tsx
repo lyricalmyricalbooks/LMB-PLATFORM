@@ -95,7 +95,7 @@ import { MediaLibraryButton, MediaPickerContext } from "./mediaPicker";
 import type { UsagePlace } from "./mediaLibrary";
 import { GO_SEQUENCE_MS, resolveGoKey, resolveShortcut, SHORTCUTS, type ShortcutAction } from "./shortcuts";
 import { StudioPreviewFrame } from "./StudioPreviewFrame";
-import { TemplatePicker } from "./TemplatePicker";
+import { TemplatePicker } from "./TemplatePicker.tsx";
 import { currentOption, pickerOptions, type PickerOption } from "./templatePicker";
 import { loadUiState, saveUiState, uiStateKey, type Zoom } from "./studioUiState";
 import { auth } from "../../../lib/firebase";

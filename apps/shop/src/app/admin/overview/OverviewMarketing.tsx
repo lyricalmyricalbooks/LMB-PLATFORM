@@ -4,7 +4,7 @@ import { DataTable, EmptyState, LoadingState, MetricCard, SecondaryButton, Secti
 import type { Book, Order } from "./overviewInsights";
 import { bookInterest, rankMap, recordedSince, sourceOf, sourcePerformance, sumMap, type Daily, type SourceRow } from "./overviewTraffic";
 import { isRealPaidOrder } from "./overviewInsights";
-import { OrdersDrill } from "./OverviewDrill";
+import { OrdersDrill } from "./OverviewDrill.tsx";
 import { countsByDay, copiesOf, ordersWithBook } from "./overviewDrill";
 import { funnelSteps, type TrafficFigures } from "./overviewSources";
 import type { Ga4Answer } from "../googleAnalytics";

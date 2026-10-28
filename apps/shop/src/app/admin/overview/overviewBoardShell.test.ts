@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEW_WIDGETS, WIDGET_KEYWORDS, goalProblem, leadDaysProblem, rowFills, searchWidgets } from "./OverviewBoard";
+import { NEW_WIDGETS, WIDGET_KEYWORDS, goalProblem, leadDaysProblem, rowFills, searchWidgets } from "./OverviewBoard.tsx";
 import { WIDGETS } from "./overviewBoard";
 
 describe("rowFills: the last widget of a short row fills it", () => {

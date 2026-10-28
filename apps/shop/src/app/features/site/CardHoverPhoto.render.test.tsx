@@ -4,7 +4,7 @@
 import { act, createElement as h } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it } from "vitest";
-import CardHoverPhoto from "./CardHoverPhoto";
+import CardHoverPhoto from "./CardHoverPhoto.tsx";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 

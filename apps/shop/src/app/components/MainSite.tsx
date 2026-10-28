@@ -49,7 +49,7 @@ import { regionProps } from "../features/site/storefrontRegions";
 import { collectionIntro } from "../features/site/collectionIntro";
 import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
 import { gridPhotoSizes, photoSrcSet } from "../features/site/photoSources";
-import CardHoverPhoto from "../features/site/CardHoverPhoto";
+import CardHoverPhoto from "../features/site/CardHoverPhoto.tsx";
 import { cardHoverPhoto } from "../features/site/cardHoverPhoto";
 import { cardFormats } from "../features/site/cardFormats";
 import { cardCreator } from "../features/site/cardCreator";
