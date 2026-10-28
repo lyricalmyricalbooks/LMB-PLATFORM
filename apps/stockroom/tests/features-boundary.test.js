@@ -76,6 +76,8 @@ const MAIN_IMPORT_BUDGET = {
   'receipts.js': 14,
   // Composed by receipts.js with injected adapters; no main.js cycle at all.
   'receipt-finder.js': 0,
+  // The bookkeeper's read-only screen (plan 7.17) needs nothing from main.js.
+  'bookkeeper-view.js': 0,
   // The review inbox is a window over receipts.js and shipping.js, which hold its
   // data. From main.js it needs only the DOM lookup, the role check, the toast,
   // and the call that repaints the landing page after something is filed.
@@ -337,6 +339,8 @@ const MIN_EXPORTS = {
   // Written as a feature module from the start: start it (button, shortcuts)
   // and open it (from a #search= link or the book deep link's fallback).
   'app-search.js': 2,
+  // The bookkeeper's read-only screen: its markup and the call that shows it.
+  'bookkeeper-view.js': 2,
 };
 
 describe('feature modules are the only home of what they own', () => {
@@ -364,9 +368,12 @@ describe('feature modules are the only home of what they own', () => {
       // one would pull it back into the first download. Its wiring is checked
       // in tests/lazy-screens.test.js instead.
       const lazy = new RegExp(`lazyFeature\\(\\(\\) => import\\('\\./features/${file.replace('.', '\\.')}'\\)`).test(mainJs);
+      // A whole screen that replaces the app (the bookkeeper's) is fetched with a plain dynamic import instead.
+      const loadedOnDemand = lazy
+        || new RegExp(`await import\\('\\./features/${file.replace('.', '\\.')}'\\)`).test(mainJs);
 
       it('has everything main.js still uses imported back', () => {
-        if (lazy) {
+        if (loadedOnDemand) {
           // ...and must keep it that way.
           expect(mainJs).not.toMatch(new RegExp(`from '\\./features/${file.replace('.', '\\.')}'`));
           return;

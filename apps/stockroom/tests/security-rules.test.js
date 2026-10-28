@@ -31,6 +31,8 @@ const AUTHOR_READS = [
   'modeFlags', 'notifyEndpoint', 'analyticsConfig', 'catalog',
   'paymentLinks', 'productionCosts', 'websitePaymentMethods',
 ];
+// Read by the bookkeeper's screen (plan 7.17): which database, and the Tax Centre's key-free copy.
+const BOOKKEEPER_READS = ['modeFlags', 'taxCentreForBookkeeper'];
 // Secrets, business records and customer personal data.
 const PUBLISHER_ONLY = [
   'taxCenter', 'bigCartelConfig', 'systemBackups', 'bookOwners',
@@ -68,6 +70,7 @@ function settingsKeysUsedByApp() {
   }
   // Written through a constant rather than a literal.
   if (/SYSTEM_BACKUP_KEY = 'systemBackups'/.test(read('src/main.js'))) keys.add('systemBackups');
+  if (/BOOKKEEPER_COPY_KEY = 'taxCentreForBookkeeper'/.test(read('src/lib/bookkeeper-copy.js'))) keys.add('taxCentreForBookkeeper');
   return [...keys].sort();
 }
 
@@ -86,7 +89,7 @@ describe('settings read access', () => {
   });
 
   it('every settings document the app uses has been classified', () => {
-    const classified = new Set([...AUTHOR_READS, ...PUBLISHER_ONLY]);
+    const classified = new Set([...AUTHOR_READS, ...BOOKKEEPER_READS, ...PUBLISHER_ONLY]);
     const unclassified = settingsKeysUsedByApp().filter(k => !classified.has(k));
     // A new settings doc is publisher-only by default under the allowlist. If an
     // author session needs to read it, add it to isAuthorReadableSetting() in
@@ -98,6 +101,44 @@ describe('settings read access', () => {
   it('is an allowlist, so an unknown settings document is publisher-only', () => {
     expect(firestoreRules).toMatch(/allow read: if isPublisher\(\)\s*\|\|\s*\(isAnyAuthor\(\) && isAuthorReadableSetting\(document\)\)/);
     expect(firestoreRules).not.toMatch(/!\s*isPublisherOnlySetting/);
+  });
+});
+
+describe('bookkeeper settings reads (plan 7.17)', () => {
+  it('Firestore and the Realtime Database open the same two settings to the verified bookkeeper role, never a secret', () => {
+    const m = firestoreRules.match(/function isBookkeeperReadableSetting\(name\)\s*\{\s*return name in \[([^\]]*)\]/);
+    expect(m).not.toBeNull();
+    expect([...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]).sort()).toEqual([...BOOKKEEPER_READS].sort());
+    expect(firestoreRules).toMatch(/\|\|\s*\(isBookkeeper\(\) && isBookkeeperReadableSetting\(document\)\)/);
+    const fn = firestoreRules.match(/function isBookkeeper\(\)\s*\{([\s\S]*?)\}/)[1];
+    expect(fn).toContain('request.auth.token.email_verified == true');
+    expect(fn).toContain("request.auth.token.get('role', '') == 'bookkeeper'");
+    const expr = rtdbRules.rules.lyrical.settings.$key['.read'];
+    expect(expr).toContain("auth.token.email_verified === true && auth.token.role === 'bookkeeper' && $key.matches(/^(modeFlags|taxCentreForBookkeeper)$/)");
+    for (const key of PUBLISHER_ONLY) expect(BOOKKEEPER_READS.includes(key), key).toBe(false);
+  });
+  it('starts before any publisher data loads, and the Tax Centre save keeps the copy up to date', () => {
+    const main = read('src/main.js');
+    const bookkeeper = main.indexOf('isBookkeeperPass(user, await readPassClaims(user))');
+    expect(bookkeeper).toBeGreaterThan(-1);
+    expect(bookkeeper).toBeLessThan(main.indexOf('const flagsLoaded = window._fbLoadModeFlags();'));
+    const firebase = read('src/firebase.js');
+    expect(firebase.match(/if \(key === 'taxCenter'\) void saveBookkeeperCopy\(/g)).toHaveLength(2);
+  });
+
+  it('the bookkeeper writes nothing: no write rule names the role', () => {
+    for (const line of firestoreRules.split('\n').filter(l => /allow [^:]*(write|create|update|delete)/.test(l))) {
+      expect(line).not.toContain('isBookkeeper');
+    }
+    const writes = [];
+    const collect = (node) => {
+      for (const [k, v] of Object.entries(node)) {
+        if (k === '.write' && typeof v === 'string') writes.push(v);
+        else if (v && typeof v === 'object') collect(v);
+      }
+    };
+    collect(rtdbRules.rules);
+    for (const w of writes) expect(w).not.toContain('bookkeeper');
   });
 });
 

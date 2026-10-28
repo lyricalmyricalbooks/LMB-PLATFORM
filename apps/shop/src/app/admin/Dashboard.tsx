@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { Login } from "./Login";
+import { BookkeeperDesk } from "./BookkeeperDesk";
 import { BookCatalog } from "./BookCatalog";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
@@ -80,6 +81,8 @@ export function Dashboard() {
   const [boot] = useState(readBootRoute);
   const [activeTab, setActiveTab] = useState(boot.tab);
   const [user, setUser] = useState<any>(null);
+  // Signed in with the Team's bookkeeper role: the Bookkeeping page instead of the admin.
+  const [bookkeeper, setBookkeeper] = useState<{ email: string | null } | null>(null);
   // Platform support signed in from the platform's control room (supportSession.ts); null for everyone else.
   const [supportVisit, setSupportVisit] = useState<SupportVisit | null>(null);
   const [loading, setLoading] = useState(true);
@@ -316,9 +319,18 @@ export function Dashboard() {
 
     // A #support= link from the platform's control room signs support in (supportSession.ts).
     void adminApi.startSupportVisit();
-    const unsubscribe = adminApi.onAuthStateChange((u) => {
-      setUser(u);
+    const unsubscribe = adminApi.onAuthStateChange(async (u) => {
       setSupportVisit(null);
+      // The Team's bookkeeper gets the read-only Bookkeeping page, never the admin (BookkeeperDesk.tsx, plan 7.17).
+      const books = u ? await Promise.resolve(adminApi.bookkeeperSignIn?.()).catch(() => null) : null;
+      if (books) {
+        setBookkeeper(books);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      setBookkeeper(null);
+      setUser(u);
       if (!u) { setLoading(false); return; }
       void adminApi.supportVisit().then(setSupportVisit).catch(() => setSupportVisit(null));
       loadSettings();
@@ -431,8 +443,17 @@ export function Dashboard() {
     );
   }
 
+  if (bookkeeper) {
+    return <BookkeeperDesk email={bookkeeper.email} appearance={adminTheme === "dark" ? "dark" : "light"} />;
+  }
+
   if (!user) {
-    return <Login onLogin={() => {}} />;
+    // A first sign-in learns its role only after the server updates the pass (adminApi.login), so look again then.
+    return <Login onLogin={() => {
+      void Promise.resolve(adminApi.bookkeeperSignIn?.()).catch(() => null).then((books) => {
+        if (books) { setBookkeeper(books); setUser(null); }
+      });
+    }} />;
   }
 
   const handleLogout = async () => {
