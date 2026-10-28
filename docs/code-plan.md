@@ -148,8 +148,9 @@ Gate: a month where every update reaches every shop with no checkout outage.
 
 Steps that need no accounts, credentials, hosting or Julian's hands: known gaps from Phases 2 and 3, hardening and
 tests. Nothing here deploys, touches a live project or changes `LyricalmyricalWebsite` or `lyrical-inventory`. The local
-demo mode (built in another thread) is not part of this batch. Rows marked *waits on Julian* start only after his answer;
-the rest run in the order listed, one pull request each, merged when every check is green.
+demo mode (built in another thread) is not part of this batch. Julian said to build it all on 28 October 2026, with the recommended answers: Square takes gift card plus card
+(5.3), a press gets 30 days' notice of a fee change (5.4), and the tax presets cover Canada's provinces only (5.10).
+One pull request each, merged when every check is green.
 
 ### 5.0 First: take the last of one press out of the stockroom copy
 
@@ -158,8 +159,8 @@ runs is already part of the demo (`npm run demo`), so it isn't a row here.
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
-| 5.0 | stockroom | The splash screen and sign-in logo show the shop's own name from the profile, not one press's three-line wordmark (`index.html`). The built-in books are already gone (#86: `DEFAULT_BOOKS` is empty) | stockroom test: splash and sign-in show the profile's name | |
-| 5.0b | platform | The copy check catches names split across lines or tags, so the 5.0 wordmark can't come back: `apps-isolation.test.js` also reads each HTML file with its tags removed and its words joined, and fails on a built-in book list carrying author passwords | the check, plus a probe that a split wordmark fails it | |
+| 5.0 | stockroom | The splash screen and sign-in logo show the shop's own name from the profile, not one press's three-line wordmark (`index.html`). The built-in books are already gone (#86: `DEFAULT_BOOKS` is empty) | stockroom test: splash and sign-in show the profile's name | covered by 7.3 (the stockroom wordmark and file names) |
+| 5.0b | platform | The copy check catches names split across lines or tags, so the 5.0 wordmark can't come back: `apps-isolation.test.js` also reads each HTML file with its tags removed and its words joined, and fails on a built-in book list carrying author passwords | the check, plus a probe that a split wordmark fails it | covered by 7.3 (the copy check fails on "Lyrical" anywhere outside `shops/`, which catches a split wordmark) |
 
 ### 5.0c Found on Windows by the local demo
 
@@ -177,8 +178,8 @@ The demo's own polish (hiding the test-mode notice in the demo, a double-click s
 | --- | --- | --- | --- | --- |
 | 5.1 | shop, platform | A Square payment page closes when its stock hold ends, so two shoppers can't both pay for the last copy. The hold sweep that releases stock also cancels the shop's open Square payment link through `functions/payments/` (and `services/payments` for platform shops); a payment that still arrives after the hold is refunded in full with a plain-words email, like a late Stripe payment | payment tests with a fake Square: hold ends → link cancelled; late payment → refund and stock untouched | |
 | 5.2 | shop | A Square shop never says "Stripe": order history, order detail, refunds, the payments panel, Ready to sell, receipt and refund emails and help text name the shop's own provider (one `providerName()` read from the profile's `payments` field). Test: no shopper- or press-visible "Stripe" on a Square shop | provider-wording test over admin screens and email templates; existing Stripe tests unchanged | |
-| 5.3 | shop, platform | Gift card plus card on Square shops. *Waits on Julian (question 1).* Either: the gift card pays first and Square takes the rest, refunds going back to each in turn; or: Square shops hide "pay part with a gift card" with a plain note until later | checkout and refund tests with a fake Square | |
-| 5.4 | platform | Per-shop fee in the control room. The fee already works (`services/payments/fees.js`, registry `platformFee`); a platform admin can now see and set one shop's fee and refund rule there, every change in that shop's `audit-log` and the control room's own log. *Waits on Julian (question 2)* for whether the press is emailed and how much notice | control-room tests: admin only, bad value refused, change logged, re-run does nothing | |
+| 5.3 | shop, platform | Gift card plus card on Square shops (Julian, 28 October 2026): the gift card pays first and Square takes the rest; a refund goes back to the card first, then to the gift card | checkout and refund tests with a fake Square | |
+| 5.4 | platform | Per-shop fee in the control room. The fee already works (`services/payments/fees.js`, registry `platformFee`); a platform admin can now see and set one shop's fee and refund rule there, every change in that shop's `audit-log` and the control room's own log. *Waits on Julian (question 2)* for whether the press is emailed and how much notice | control-room tests: admin only, bad value refused, change logged, re-run does nothing | moved to the control-room work (Julian's owner area): the press gets 30 days' notice by email before a fee change |
 
 ### 5B. Bringing a shop over
 
@@ -194,15 +195,15 @@ The demo's own polish (hiding the test-mode notice in the demo, a double-click s
 | --- | --- | --- | --- | --- |
 | 5.8 | shop | The press's own name in every server email and the product feed: newsletters, message replies, customs forms, the weekly report, the Google product feed and checkout sender default read Text & labels › Site name, never "Your Press" | a test that renders each email and the feed with a named shop and finds no placeholder | |
 | 5.9 | platform, shop | Remove a web address, and choose the shop's main address. `services/domains` gains remove and make-main (the shop's own key only; never the last working address); the main address becomes the shop's site address for emails, links, the sitemap and Stripe's payment domain; Settings shows both buttons. Built and tested only; it goes live with the service | domains tests with fakes; shop settings test | |
-| 5.10 | shop | More tax presets. *Waits on Julian (question 3)*: Canada's provincial sales taxes (PST in BC, Saskatchewan and Manitoba; QST in Quebec), with or without US states. Each preset says "not tax advice", as now | presets tests: each province's total rate on a printed book and an e-book | |
+| 5.10 | shop | More tax presets: Canada's provincial sales taxes (PST in BC, Saskatchewan and Manitoba; QST in Quebec); no US states for now (Julian, 28 October 2026). Each preset says "not tax advice", as now | presets tests: each province's total rate on a printed book and an e-book | |
 
 ### 5D. Accounts, onboarding and docs
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
 | 5.11 | platform, shop | People added in the shop's own Settings › Team show up in the account switcher, and removing them there removes them in both places (the 2.7 "still to do") | accounts tests with fake stores: add, change role, remove from either side | |
-| 5.12 | platform | Sign-up, account and help pages pass a phone-width and plain-words check: loading, empty and error states on every screen, readable colours, buttons big enough to tap, keyboard use. A browser check takes a screenshot of each at phone and desktop width in CI | the new browser check (pretend data only) | |
-| 5.13 | platform | One end-to-end test of the whole platform with fakes: sign up → trial starts → shop maker runs the setup steps in dry run → owner opens the account page → control room sees the shop → a failed step retries. Catches two services disagreeing about a field | the test itself, in root `npm test` | |
+| 5.12 | platform | Sign-up, account and help pages pass a phone-width and plain-words check: loading, empty and error states on every screen, readable colours, buttons big enough to tap, keyboard use. A browser check takes a screenshot of each at phone and desktop width in CI | the new browser check (pretend data only) | moved into 6.16 and the sign-up work (those pages are being rebuilt in Phase 6) |
+| 5.13 | platform | One end-to-end test of the whole platform with fakes: sign up → trial starts → shop maker runs the setup steps in dry run → owner opens the account page → control room sees the shop → a failed step retries. Catches two services disagreeing about a field | the test itself, in root `npm test` | moved into 6.14 (one test of the whole road), which also covers the shop maker and the control room |
 | 5.14 | platform | A short run book for Julian in plain words: what each alert means and what to do, how to pause a shop, refund a press's fee, restore a backup and stop a release | doc test: every alert name in `services/health` has a section | |
 | 5.15 | platform | Tidy the plan: row 1.30's open point is done (the shop's functions run in its own region since 1.15); mark it, and check every "still to do" in Phases 2 to 4 against the code | — | |
 
