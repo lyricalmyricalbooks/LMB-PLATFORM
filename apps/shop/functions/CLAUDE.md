@@ -796,6 +796,18 @@ unsure, `createCardIntent`, `createCheckoutSession`), and for Settings › Payme
   built) makes `shopConfig.js` throw a plain message, so the functions refuse to load instead of quietly taking
   payments through Stripe (`paymentProviderOf`; payments.test.js loads index.js with `square` to prove it).
 
+**Platform mode (28 October 2026, code plan 2.2).** `SHOP_PAYMENT_MODE` (`own`, the default, or `platform`; anything
+else makes `shopConfig.js` throw) picks how the provider reaches Stripe. In `platform` mode the shop holds no Stripe key:
+`payments/platform.js` gives `stripe.js` a Stripe-shaped client whose calls go to the platform's payment service
+(`SHOP_PAYMENTS_SERVICE_URL`, https, required) with `X-Shop-Id` and `Authorization: Bearer <PLATFORM_SERVICE_KEY>`. The
+service makes them on the press's own connected account. Key checks, webhook endpoint lists and payment-domain
+registration are the platform's job there. `verifyWebhookEvent` is async in both modes: in platform mode it reads only
+the forwarded event's id and fetches the event again through the service, so an unsigned forwarded body can't change an
+order (tested). `platformKey.js` holds the secret: `withPlatformKey([...])` adds `PLATFORM_SERVICE_KEY` to every
+function's `secrets` list (and the global options) on a shop that uses a platform service, and to none otherwise;
+`platformKey.test.js` fails when a functions file declares a bare `secrets: [` list. The card form gets the platform's
+publishable key and the press's account from the shop profile's `payments` (`platformStripe` in `src/lib/shopProfile.ts`).
+
 ## Email module (27 October 2026, code plan 1.13)
 
 `functions/email/index.js` (`createEmail`) is the one door for every email the server sends, built like the payments
@@ -813,7 +825,7 @@ sends through one or writes `emailLog` itself.
 **Platform shared sender (28 October 2026, code plan 2.3b).** When the shop's functions env has `PLATFORM_EMAIL_URL`
 (`shopConfig.platformEmailUrl`, written by platform setup step 8), the backup after Gmail is the platform's email service
 (`email/platformSender.js`, POST with `X-Shop-Id` and `Authorization: Bearer $PLATFORM_SERVICE_KEY`, read at send time),
-never the shop's own Resend key. It makes one request per recipient, with the idempotency key `<queue id or random>:<address>`.
+never the shop's own Resend key. It makes one request per recipient, with the idempotency key `<key>:<address>`, where the key is the queue id, or for an unqueued email a hash of its recipients, subject, kind, order, words and the hour, so a retry after a partial send never doubles an email (tested).
 A `retryable: false` refusal is logged once and never queued; anything else is queued as before. Gmail (the press's own
 address) still goes first, and a shop whose Gmail works never reaches the platform (tested). The shared sender sends no
 attachments, and the log says so. `senderStatus()` (`sendTestEmail` action `senderStatus`) tells Settings › Email sender

@@ -185,3 +185,23 @@ test("storage probe: the test file is written with the platform's token and read
   assert.deepEqual(await google.storageProbe.readUnsigned(P), { status: 403 });
   fetch.done();
 });
+
+test("secrets: a missing key is null; adding creates the secret once, then a version", async () => {
+  const SM = `https://secretmanager.googleapis.com/v1/projects/${P}/secrets`;
+  const value = "a".repeat(64);
+  const data = Buffer.from(value).toString("base64");
+  const exists = { status: 409, json: { error: { code: 409, status: "ALREADY_EXISTS", message: "exists" } } };
+  const { fetch, google } = clients([
+    { method: "GET", url: `${SM}/PLATFORM_SERVICE_KEY/versions/latest:access`, ...notFound },
+    { method: "POST", url: `${SM}?secretId=PLATFORM_SERVICE_KEY`, body: { replication: { automatic: {} } }, json: { name: "x" } },
+    { method: "POST", url: `${SM}/PLATFORM_SERVICE_KEY:addVersion`, body: { payload: { data } }, json: { name: "x/versions/1" } },
+    { method: "POST", url: `${SM}?secretId=PLATFORM_SERVICE_KEY`, body: { replication: { automatic: {} } }, ...exists },
+    { method: "POST", url: `${SM}/PLATFORM_SERVICE_KEY:addVersion`, body: { payload: { data } }, json: { name: "x/versions/2" } },
+    { method: "GET", url: `${SM}/PLATFORM_SERVICE_KEY/versions/latest:access`, json: { name: "x/versions/2", payload: { data } } },
+  ]);
+  assert.equal(await google.secrets.latest(P, "PLATFORM_SERVICE_KEY"), null);
+  await google.secrets.add(P, "PLATFORM_SERVICE_KEY", value);
+  await google.secrets.add(P, "PLATFORM_SERVICE_KEY", value);
+  assert.equal(await google.secrets.latest(P, "PLATFORM_SERVICE_KEY"), value);
+  fetch.done();
+});

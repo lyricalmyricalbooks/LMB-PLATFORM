@@ -24,5 +24,8 @@ export const TEST_CONFIG = Object.freeze({
   folder: "folders/000000000000",
   billingAccount: "billingAccounts/000000-000000-000000",
   senderEmail: "shops@example.com",
+  // The platform payment service's made-up address, and made-up publishable keys (public by design, never real ones).
+  paymentsServiceUrl: "https://payments.platform.example",
+  stripePublishableKeys: Object.freeze({ live: "pk_live_platformExample", test: "pk_test_platformExample" }),
   release: Object.freeze({ version: "0.0.0-test", starterContent: testStarterContent }),
 });

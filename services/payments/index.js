@@ -27,6 +27,14 @@ export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts
   });
 }
 
+/**
+ * The Stripe client for the platform's own billing (services/billing): the presses' Colophon subscriptions, charged on
+ * the platform's own Stripe account, not on a connected one. The platform key is still read only here.
+ */
+export function platformBillingStripe({ env, fetch }) {
+  return createStripeApi({ fetch, keys: readServiceConfig(env).keys });
+}
+
 /** The shop maker's Stripe client (setup/payments.js `providers.stripe`), backed by the service. */
 export const setupClient = (service) => ({
   findAccount: (shopId) => service.findAccount(shopId),

@@ -86,8 +86,11 @@ const listParams = (params) => {
   return out;
 };
 
-// What a Checkout Session charges, from its line items (the shop always prices with price_data).
+// What a Checkout Session charges, from its line items (the shop always prices with price_data). null when Stripe may
+// take money off later (coupons or promotion codes): the true total isn't known here, and a fee above it would make
+// Stripe refuse the whole session.
 function sessionAmount(params) {
+  if (params?.discounts !== undefined || params?.allow_promotion_codes) return null;
   const items = params?.line_items;
   if (!Array.isArray(items) || !items.length) return null;
   let total = 0;
@@ -213,6 +216,11 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     if (routing) throw new ServiceError(400, "money_routing", `${routing} is set by the platform, never by a shop`);
     if (!takesFee(fee)) return params;
     const amount = where === "top" ? params.amount : sessionAmount(params);
+    if (where !== "top" && amount === null) {
+      // A session whose total isn't known up front goes ahead without a fee rather than failing in front of a shopper.
+      console.warn("Checkout Session without a known total: no platform fee taken");
+      return params;
+    }
     if (!Number.isInteger(amount)) throw bad("the platform fee needs the payment's amount");
     const applicationFee = feeFor(amount, fee);
     if (!applicationFee) return params;
