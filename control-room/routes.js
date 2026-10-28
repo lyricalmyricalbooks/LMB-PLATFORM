@@ -6,6 +6,7 @@
 //   POST /api/control/repairs  { status: "open" | "fixed" }: the repair queue
 //   POST /api/control/repairs/fixed  { id, note }: a person marks a repair fixed
 //   POST /api/control/check    { shopId }: run the self-checks now
+//   POST /api/control/newsletter/resume  { shopId, reason }: turn a paused newsletter back on
 
 export function controlRoutes(room) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
@@ -16,5 +17,6 @@ export function controlRoutes(room) {
     "POST /api/control/repairs": (claims, request) => room.repairs(claims, body(request)),
     "POST /api/control/repairs/fixed": (claims, request) => room.markFixed(claims, body(request)),
     "POST /api/control/check": (claims, request) => room.checkNow(claims, body(request)),
+    "POST /api/control/newsletter/resume": (claims, request) => room.resumeNewsletter(claims, body(request)),
   };
 }

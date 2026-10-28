@@ -19,9 +19,16 @@
 //   sentLog    get(key) -> entry | null; put(key, entry); findSent(shopId, kind) -> entry | null;
 //              countSince(shopId, isoTime) -> number of sent emails (the shop door's daily limit, http.js)
 //   fetch      the network (tests pass a fake)
+//   reputation optional: isPaused(shopId) (reputation.js). A paused shop's newsletter-stream emails are refused;
+//              its orders-stream emails (receipts, notices) always go.
+//
+// Streams (streams.js, plan 8.3): every email is tagged with its stream, "orders" or "newsletter", and with
+// SHOP_SENDER_ADDRESSES on, a shop's email comes from its own address on that stream's subdomain.
 import { platformSettings } from "../settings.js";
 import { resendClient } from "./resend.js";
 import { TEMPLATES, customProblems } from "./templates.js";
+import { shopSenderAddress, streamOf, streamSettings } from "./streams.js";
+import { NewsletterPausedError } from "./reputation.js";
 
 const EMAIL = /^[^@\s<>"',;]+@[^@\s<>"',;]+\.[^@\s<>"',;]+$/;
 const KIND = /^[a-z][a-z0-9-]{1,40}$/;
@@ -41,10 +48,11 @@ const tag = (name, value) => ({ name, value: String(value).replace(/[^A-Za-z0-9_
  * The email service. `env` holds RESEND_API_KEY and the platform settings (services/settings.js); nothing is sent
  * without the key.
  */
-export function createEmailService({ env = process.env, fetch = globalThis.fetch, registry, sentLog, now = () => new Date(), sleep } = {}) {
+export function createEmailService({ env = process.env, fetch = globalThis.fetch, registry, sentLog, reputation = null, now = () => new Date(), sleep } = {}) {
   if (!registry?.getShop) throw new Error("The email service needs the shop registry");
   if (!sentLog?.get || !sentLog?.put || !sentLog?.findSent) throw new Error("The email service needs its sent log");
   const settings = platformSettings(env);
+  const streams = streamSettings(env, settings);
   let client;
   const resend = () => (client ??= resendClient({ apiKey: env.RESEND_API_KEY, fetch, ...(sleep ? { sleep } : {}) }));
 
@@ -57,19 +65,19 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
     return { subject: message.subject.trim(), text: message.text, html: message.html };
   };
 
-  const deliver = async ({ shopId, kind, to, idempotencyKey, from, replyTo, parts }) => {
+  const deliver = async ({ shopId, kind, stream = "orders", to, idempotencyKey, from, replyTo, parts }) => {
     const done = await sentLog.get(idempotencyKey);
     if (done?.status === "sent") return { id: done.id, alreadySent: true };
     const at = now().toISOString();
     try {
       const { id } = await resend().send({
         from, to, replyTo, idempotencyKey, ...parts,
-        tags: [tag("kind", kind), ...(shopId ? [tag("shop", shopId)] : [])],
+        tags: [tag("kind", kind), ...(shopId ? [tag("shop", shopId)] : []), tag("stream", stream)],
       });
-      await sentLog.put(idempotencyKey, { shopId, kind, to, id, status: "sent", at });
+      await sentLog.put(idempotencyKey, { shopId, kind, stream, to, id, status: "sent", at });
       return { id, alreadySent: false };
     } catch (error) {
-      await sentLog.put(idempotencyKey, { shopId, kind, to, status: "failed", error: error.message, retryable: error.retryable !== false, at });
+      await sentLog.put(idempotencyKey, { shopId, kind, stream, to, status: "failed", error: error.message, retryable: error.retryable !== false, at });
       throw error;
     }
   };
@@ -82,6 +90,7 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
 
   return {
     settings,
+    streams,
 
     /** Has this shop's email of this kind been sent? (setup step 14 checks before it sends) */
     async wasSent(shopId, kind) {
@@ -98,12 +107,14 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
       const shop = await registry.getShop(shopId);
       if (!shop) throw new Error(`The registry has no shop ${shopId}`);
       if (shop.status === "abandoned") throw new Error(`${shopId} is marked abandoned; its email is off`);
+      const stream = streamOf(message.kind);
+      if (stream === "newsletter" && reputation && (await reputation.isPaused(shopId))) throw new NewsletterPausedError(shopId);
       const replyTo = (shop.replyTo || shop.ownerEmail || "").trim().toLowerCase();
       if (!EMAIL.test(replyTo)) throw new Error(`${shopId} has no reply-to address in the registry`);
       const parts = compose(message, { settings, pressName: cleanName(shop.pressName) || shopId });
       return deliver({
-        shopId, kind: message.kind, to: message.to.trim(), idempotencyKey: message.idempotencyKey,
-        from: fromLine(shop.pressName || shopId, settings.senderEmail), replyTo, parts,
+        shopId, kind: message.kind, stream, to: message.to.trim(), idempotencyKey: message.idempotencyKey,
+        from: fromLine(shop.pressName || shopId, shopSenderAddress({ shopId, stream, streams, settings })), replyTo, parts,
       });
     },
 

@@ -161,8 +161,24 @@ function repairCard(item) {
       done.disabled = false;
     }
   });
+  // A newsletter that paused itself (services/email/reputation.js): turn it back on once the press has cleaned its list.
+  const resume = el("button", { type: "button", textContent: "Turn the newsletter back on", hidden: item.status !== "open" || item.check !== "newsletter-reputation" });
+  resume.addEventListener("click", async () => {
+    const reason = askWhy(`Turn ${item.shopId}'s newsletter back on?`);
+    if (!reason) return;
+    resume.disabled = true;
+    try {
+      await api("POST", "/control/newsletter/resume", { shopId: item.shopId, reason });
+      await api("POST", "/control/repairs/fixed", { id: item.id, note: `Newsletter back on: ${reason}` });
+      await load();
+      status.textContent = "The newsletter is back on.";
+    } catch (failure) {
+      status.textContent = failure.message;
+      resume.disabled = false;
+    }
+  });
   return el("div", { className: `card ${item.status === "open" ? "problem" : "ok"}` },
-    el("div", { className: "row" }, el("strong", { textContent: item.problem }), el("span", { className: "pill", textContent: item.check }), done),
+    el("div", { className: "row" }, el("strong", { textContent: item.problem }), el("span", { className: "pill", textContent: item.check }), resume, done),
     el("div", { className: "facts" },
       el("span", { textContent: item.shopId }),
       el("span", { textContent: `seen ${item.count} time${item.count === 1 ? "" : "s"}, last ${when(item.lastSeenAt)}` }),
