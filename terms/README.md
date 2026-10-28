@@ -15,10 +15,10 @@ Colophon's terms of service, privacy policy, data agreement and shutdown promise
 
 `currentTermsVersion()` is the version a new press agrees to. `acceptanceRecord(version, at)` gives what sign-up
 stores with the shop, `{ termsVersion, termsAcceptedAt }`, and refuses any other version (the page was open while the
-words changed). `acceptedCurrent(record)` says whether a stored record is for today's words.
+words changed). `acceptedCurrent(record)` says whether a stored record is for today's words. Sign-up's tick box (plan 6.2) stores the
+record on the sign-up row once; `GET /api/plans` gives the page the version to send back.
 
 ## Not yet
 
-- The tick box on the sign-up page and storing the record (code plan 6.2, in its own pull request).
 - A lawyer reads the words (Julian). Then set `DRAFT` to false and give a new version.
 - A Hosting address, next to `help/` and `accounts/` (Julian).

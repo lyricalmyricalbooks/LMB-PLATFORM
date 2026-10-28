@@ -13,6 +13,7 @@ import { runSteps } from "../setup/runner.js";
 import { shopSteps } from "../setup/later-steps.js";
 import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "../setup/fakes.js";
 import { TEST_CONFIG } from "../setup/test-shop.js";
+import { TERMS_VERSION } from "../terms/terms.js";
 
 const ADA = { uid: "uid-ada", email: "owner@example.com", email_verified: true };
 
@@ -35,7 +36,7 @@ async function make({ failOnce = [], google = fakeGoogle({ failOnce }), selfChec
   });
   const api = createApi({ signup, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: { "POST /api/signup/retry": (claims, request) => maker.retry(claims, request.body?.shopId) } });
   const ask = (method, path, body, claims = ADA) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
-  const { shopId } = await signup.start(ADA, { pressName: "Moth Press", plan: "both", country: "CA" });
+  const { shopId } = await signup.start(ADA, { pressName: "Moth Press", plan: "both", country: "CA", termsAccepted: true, termsVersion: TERMS_VERSION });
   return { stores, registry, services, google, maker, ask, shopId, reported, tick: (minutes) => { clock += minutes * 60_000; } };
 }
 

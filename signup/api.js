@@ -3,7 +3,9 @@
 // so tests need no server. Signed-in calls carry `Authorization: Bearer <Firebase ID token>`; `verifyIdToken` (Firebase
 // Admin in the platform project) checks it.
 //
-//   GET  /api/plans          the plans, prices and trial, for the plan choice (public)
+//   GET  /api/plans          the plans, prices and trial, for the plan choice and the waitlist's pricing (public);
+//                            also whether sign-up is open, the founding price and pay as you sell (live settings)
+//   POST /api/signup/address { pressName?, address? }: the web address preview, checked as they type (signed in)
 //   POST /api/signin-link    { email, page? }: email a sign-in link back to "signup" or "accounts" (public, rate-limited)
 //   POST /api/signup         start the free trial and queue the shop (signed in)
 //   GET  /api/signup         the signed-in person's shops in the making (signed in)
@@ -12,14 +14,23 @@
 // `onSignedIn(claims, request)` sees every signed-in call (the new-device alerts, accounts/devices.js); a failure there
 // is logged and never stops the call.
 import { planList } from "../services/billing/plans.js";
+import { priceText } from "../services/settings.js";
+import { currentTermsVersion } from "../terms/terms.js";
 import { SignupError } from "./signup.js";
+import { LIVE_DEFAULTS, liveSettings } from "./live.js";
+
+/** The plans that have a website, so can be paid for as a share of its sales. */
+export const PAY_AS_YOU_SELL_PLANS = Object.freeze(["shop", "both"]);
+
+/** 200 basis points -> "2%", 250 -> "2.5%". */
+export const percentText = (basisPoints) => `${(basisPoints / 100).toLocaleString("en-CA", { maximumFractionDigits: 2 })}%`;
 
 const header = (headers, name) => {
   const found = Object.entries(headers ?? {}).find(([key]) => key.toLowerCase() === name);
   return typeof found?.[1] === "string" ? found[1] : "";
 };
 
-export function createApi({ signup, verifyIdToken, settings, routes = {}, onSignedIn, log = console.error }) {
+export function createApi({ signup, verifyIdToken, settings, routes = {}, onSignedIn, live = () => liveSettings(), log = console.error }) {
   const claimsOf = async (request) => {
     const token = header(request.headers, "authorization").replace(/^Bearer\s+/i, "");
     if (!token) throw new SignupError(401, "Sign in first.");
@@ -40,12 +51,31 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, onSign
   };
 
   const table = {
-    "GET /api/plans": async () => ({
-      plans: planList(settings).map(({ plan, name, priceText }) => ({ plan, name, priceText })),
-      trialDays: settings.trialDays,
-      currency: settings.currency,
-      productName: settings.platformName,
-    }),
+    "GET /api/plans": async () => {
+      // The live settings decide what the waitlist page shows (plan 6.1). If they can't be read, sign-up reads as
+      // closed and the page stays the waitlist.
+      const now = await Promise.resolve().then(live).catch(() => LIVE_DEFAULTS);
+      const percentOff = now.foundingOffer?.percentOff ?? 0;
+      const basisPoints = now.payAsYouSell?.basisPoints ?? 0;
+      return {
+        plans: planList(settings).map(({ plan, name, amount, priceText: price }) => ({
+          plan,
+          name,
+          priceText: price,
+          ...(percentOff > 0 ? { foundingPriceText: priceText(Math.round((amount * (100 - percentOff)) / 100), settings.currency) } : {}),
+          // The second way to pay (6.19 bills it): a share of website sales, never more than the plan's own price.
+          // The stockroom alone has no website, so it has none.
+          ...(basisPoints > 0 && PAY_AS_YOU_SELL_PLANS.includes(plan) ? { payAsYouSell: { percentText: percentText(basisPoints), capText: price } } : {}),
+        })),
+        trialDays: settings.trialDays,
+        currency: settings.currency,
+        productName: settings.platformName,
+        signupOpen: now.signupOpen === true,
+        ...(percentOff > 0 ? { foundingOffer: { percentOff, presses: now.foundingOffer.presses } } : {}),
+        termsVersion: currentTermsVersion(),
+      };
+    },
+    "POST /api/signup/address": async (request) => signup.checkWebAddress(await claimsOf(request), request.body ?? {}),
     "POST /api/signin-link": async (request) => signup.sendSignInLink({ email: request.body?.email, page: request.body?.page }),
     "POST /api/signup": async (request) => signup.start(await claimsOf(request), request.body ?? {}),
     "GET /api/signup": async (request) => ({ shops: await signup.mine(await claimsOf(request)) }),

@@ -38,13 +38,22 @@ export function readFeeSettings(env = {}) {
 
 export const NO_FEE = Object.freeze({ basisPoints: 0, refunded: true });
 
-/** The fee for one shop: its registry row's `platformFee` over the platform default. */
-export function feeForShop(row, defaults = NO_FEE) {
+/**
+ * The fee for one shop: its registry row's `platformFee` over the platform default. A change the control room scheduled
+ * (`platformFee.next: { basisPoints, refunded, from }`, plan 9.6: the press is emailed 30 days ahead) applies from its
+ * `from` time on.
+ */
+export function feeForShop(row, defaults = NO_FEE, now = new Date()) {
   const own = row?.platformFee;
   if (own !== undefined && (own === null || typeof own !== "object" || Array.isArray(own))) throw new Error("the shop's platformFee must be an object");
+  const next = own?.next;
+  if (next !== undefined && next !== null && (typeof next !== "object" || Array.isArray(next) || !Number.isFinite(Date.parse(next.from)))) {
+    throw new Error("the shop's platformFee.next must have a from date");
+  }
+  const current = next && Date.parse(next.from) <= now.getTime() ? next : own;
   return Object.freeze({
-    basisPoints: basisPoints("platformFee.basisPoints", own?.basisPoints) ?? defaults.basisPoints,
-    refunded: yesNo("platformFee.refunded", own?.refunded) ?? defaults.refunded,
+    basisPoints: basisPoints("platformFee.basisPoints", current?.basisPoints) ?? basisPoints("platformFee.basisPoints", own?.basisPoints) ?? defaults.basisPoints,
+    refunded: yesNo("platformFee.refunded", current?.refunded) ?? yesNo("platformFee.refunded", own?.refunded) ?? defaults.refunded,
   });
 }
 
