@@ -78,7 +78,7 @@ function checkoutPaymentActions({
       }
       return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
     } catch (err) {
-      return res.status(400).json({ error: publicErrorMessage(err, "We could not place this order. Please check your details and try again."), ...(["hold_limit", "store_closed", "shipping_rates_changed"].includes(err.code) ? { code: err.code } : {}) });
+      return res.status(400).json({ error: publicErrorMessage(err, "We could not place this order. Please check your details and try again."), ...(["hold_limit", "store_closed", "shop_paused", "shipping_rates_changed"].includes(err.code) ? { code: err.code } : {}) });
     }
   }
 

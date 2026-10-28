@@ -1,6 +1,7 @@
 // The words of every email the platform sends, by kind. Each template takes the email's data plus `{ settings, pressName }`
 // and returns { subject, text, html }. Every value from a press or a person is escaped in the HTML, and links must be
 // https. Customer-facing words: name the product (settings.platformName), never a rival.
+import { closingTemplates } from "./closingTemplates.js";
 
 export const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -419,6 +420,9 @@ export const TEMPLATES = {
     paragraphs: [`The ${settings.platformName} account that used ${oldEmail} now signs in with ${newEmail}.`, "If you didn't expect this, reply to this email at once."],
     footer: signOff(settings),
   }),
+
+  // Closing a shop (code plan 6.8): shop-closed, shop-deletion-warning, shop-deleted.
+  ...closingTemplates({ layout, safeLink, signOff }),
 };
 
 /** Problems with a free-form email a shop asks to send (its own order and account emails), in plain words. */

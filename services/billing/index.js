@@ -14,6 +14,7 @@ import { platformSettings } from "../settings.js";
 import { createBilling } from "./billing.js";
 
 export { createBilling, ACCESS, APP_NAMES, BillingError, CARD_WARNING_DAYS, DOWNLOAD_DAYS, cardEnds, cardWords, dateText, fromSubscription, planOpening } from "./billing.js";
+export { shopPlanCopies, planDocument, PLAN_DOC, STATUS_DOC } from "./shopPlan.js";
 export { planList, planPrice, PLAN_IDS, PLAN_APPS, isPlan } from "./plans.js";
 export { createPaymentWay, currentPaymentWay, payAsYouSellTerms, paymentWayRoutes, paymentWayView, PAYMENT_WAYS } from "./paymentWay.js";
 
@@ -26,7 +27,7 @@ export function readBillingConfig(env = {}) {
   return { mode, webhookSecrets, tax: ["on", "true", "yes", "1"].includes(taxWord) };
 }
 
-export function createBillingFromEnv({ env = process.env, fetch = globalThis.fetch, customers, subscriptions, events, registry, auditLog, email, closeApp, now }) {
+export function createBillingFromEnv({ env = process.env, fetch = globalThis.fetch, customers, subscriptions, events, registry, auditLog, email, closeApp, shopPlan, now }) {
   const { mode, webhookSecrets, tax } = readBillingConfig(env);
-  return createBilling({ stripe: platformBillingStripe({ env, fetch }), mode, settings: platformSettings(env), customers, subscriptions, events, registry, auditLog, email, webhookSecrets, tax, closeApp, now });
+  return createBilling({ stripe: platformBillingStripe({ env, fetch }), mode, settings: platformSettings(env), customers, subscriptions, events, registry, auditLog, email, webhookSecrets, tax, closeApp, shopPlan, now });
 }

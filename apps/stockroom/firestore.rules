@@ -23,6 +23,19 @@ service cloud.firestore {
             || request.auth.token.get('role', '') == 'owner');
     }
 
+    // The shop's plan on the platform (the platform's plan 6.7): platform/plan, written only by the platform with its
+    // own access (which these rules don't govern). While it says anything but "open" the stockroom is read-only for
+    // everyone: every write below also needs planOpen(). No plan document: not on a plan, open. The app reads the
+    // same document and refuses changes before trying them (src/lib/plan-pause.js).
+    function planOpen() {
+      return !exists(/databases/$(database)/documents/platform/plan)
+        || get(/databases/$(database)/documents/platform/plan).data.get('access', 'open') == 'open';
+    }
+    match /platform/{docId} {
+      allow get: if docId == 'plan' && request.auth != null;
+      allow list, write: if false;
+    }
+
     // Author→book ownership comes from the rules-readable map at
     // settings/bookOwners ({ bookId: authorEmailLower }), maintained by the
     // publisher client. The catalog itself is a stringified blob these rules
@@ -84,20 +97,21 @@ service cloud.firestore {
     // forever). Keep this list in sync with what those functions dirty.
     match /books/{bookId} {
       allow read: if isPublisher() || isBookAuthor(bookId);
-      allow write: if isPublisher();
+      allow write: if isPublisher() && planOpen();
 
       match /data/{part} {
         allow read: if isPublisher() || isBookAuthor(bookId);
-        allow write: if isPublisher()
+        allow write: if planOpen() && (isPublisher()
           || (isBookAuthor(bookId)
-              && (part == 'stores' || part == 'ledger' || part == 'hist' || part == 'metadata'));
+              && (part == 'stores' || part == 'ledger' || part == 'hist' || part == 'metadata')));
       }
     }
 
     // Author submissions — publisher reads/writes all; an author may only read
     // and write submissions for their own book.
     match /submissions/{bookId}/{type}/{subId} {
-      allow read, write: if isPublisher() || isBookAuthor(bookId);
+      allow read: if isPublisher() || isBookAuthor(bookId);
+      allow write: if (isPublisher() || isBookAuthor(bookId)) && planOpen();
     }
 
     // The ONLY settings documents a non-publisher may read — the ones an author
@@ -145,7 +159,7 @@ service cloud.firestore {
       allow read: if isPublisher()
         || (isAnyAuthor() && isAuthorReadableSetting(document))
         || (isBookkeeper() && isBookkeeperReadableSetting(document));
-      allow write: if isPublisher();
+      allow write: if isPublisher() && planOpen();
     }
 
     // "Am I the publisher?" (src/lib/publisher-access.js askRules): the sign-in screen reads this one document,
@@ -161,7 +175,8 @@ service cloud.firestore {
     // System backup snapshots — one doc per backup (keeps the settings manifest
     // small and avoids the 1 MiB per-document limit). Publisher only.
     match /backups/{id} {
-      allow read, write: if isPublisher();
+      allow read: if isPublisher();
+      allow write: if isPublisher() && planOpen();
     }
 
     // Client error reports — window.onerror / unhandledrejection captures from
@@ -193,7 +208,8 @@ service cloud.firestore {
     // rules); the publisher client reads them live and deletes each one after
     // importing it into the tax centre.
     match /emailReceiptInbox/{document} {
-      allow read, write: if isPublisher();
+      allow read: if isPublisher();
+      allow write: if isPublisher() && planOpen();
     }
 
     // ── Website link (docs/website-link.md) ───────────────────────────────
@@ -207,7 +223,7 @@ service cloud.firestore {
     // and never rewrites the website's copy of one.
     match /websiteOrders/{orderId} {
       allow read: if isPublisher();
-      allow update: if isPublisher()
+      allow update: if isPublisher() && planOpen()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imported', 'pending', 'app'])
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['pending'])
             || request.resource.data.pending == false);
@@ -218,7 +234,7 @@ service cloud.firestore {
     // Written only by the publish transaction, from the server's saved books.
     match /websiteStockFeed/{bookId} {
       allow read: if isPublisher();
-      allow create, update: if isPublisher()
+      allow create, update: if isPublisher() && planOpen()
         && request.resource.data.keys().hasOnly(['bookId', 'title', 'onHand', 'webCopies', 'base', 'derived', 'at', 'build'])
         && request.resource.data.bookId == bookId
         && request.resource.data.title is string
@@ -228,7 +244,7 @@ service cloud.firestore {
         && request.resource.data.derived is bool
         && request.resource.data.at is string
         && request.resource.data.build is string;
-      allow delete: if isPublisher();
+      allow delete: if isPublisher() && planOpen();
     }
 
     // todo = { at, items: [≤ 10] }.
@@ -252,7 +268,7 @@ service cloud.firestore {
     // set aside ("One to-do list and new books" in docs/website-link.md).
     match /websiteLink/{docId} {
       allow read: if isPublisher();
-      allow create, update: if isPublisher() && docId == 'app'
+      allow create, update: if isPublisher() && planOpen() && docId == 'app'
         && request.resource.data.keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks'])
         && appTodoOk(request.resource.data)
         && linkMapOk(request.resource.data, 'linkRequests')

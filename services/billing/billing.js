@@ -36,6 +36,8 @@
 //   email           sendPlatform({ kind, to, data, idempotencyKey, shopId }) (services/email)
 //   closeApp        optional: closeApp({ shopId, app, closedAt, downloadUntil }), takes a dropped app's pages down. The
 //                   registry row's `closedApps` is written either way and is what the shop maker reads.
+//   shopPlan        optional: write(shopId, row, { link, at }) (shopPlan.js shopPlanCopies): the shop's own copy of
+//                   its plan (code plan 6.6), written on every change once the shop's database exists
 import { verifySignature } from "../payments/stripeSignature.js";
 import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
 import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
@@ -112,7 +114,7 @@ export class BillingError extends Error {
   }
 }
 
-export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, now = () => Date.now() }) {
+export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, shopPlan = null, now = () => Date.now() }) {
   if (mode !== "test" && mode !== "live") throw new Error('billing mode must be "test" or "live"');
   const at = () => new Date(now()).toISOString();
   const call = (method, path, options) => stripe.call(mode, method, path, options);
@@ -137,8 +139,15 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
       await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing: row.appsClosing ?? null, updatedAt: row.updatedAt } });
     }
+    await copyToShop(shopId, row);
     if (what) await logChange(shopId, what, { status: row.status, plan: row.plan, access: row.access });
     return row;
+  }
+
+  // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
+  async function copyToShop(shopId, row) {
+    if (!shopPlan || !(await auditLog.ready(shopId))) return null;
+    return shopPlan.write(shopId, row, { link: accountLink(shopId), at: at() });
   }
 
   async function rowFor(shopId) {
@@ -263,6 +272,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     ensurePrice,
     ensureCustomer,
 
+    /** Writes the shop's copy of its plan again (the shop maker once the database exists; the closing sweep). */
+    async publishPlan(shopId) {
+      const row = await subscriptions.get(shopId);
+      return row ? copyToShop(shopId, row) : null;
+    },
+
     /**
      * Starts a shop's plan. A press's first plan has the free trial and needs no card; a plan started again after one
      * ended (or for a second shop of an account that already had a trial) starts unpaid until a card is added.
@@ -327,6 +342,17 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const until = saved.status === "trialing" ? saved.trialEnd : saved.currentPeriodEnd;
       await notify(shopId, "subscription-cancelled", { date: dateText(until) }, `${shopId}/cancel/${saved.subscriptionId}/${at()}`);
       return saved;
+    },
+
+    /**
+     * Ends the plan now, with no refund for the rest of the period: the closing sweep's step after 60 days paused
+     * (closing.js). A plan that has ended already is left as it is.
+     */
+    async endPlan({ shopId }) {
+      const row = await rowFor(shopId);
+      if (ENDED.has(row.status)) return row;
+      const sub = await call("DELETE", `/v1/subscriptions/${row.subscriptionId}`);
+      return sync(shopId, sub, "plan-ended");
     },
 
     /** Undoes a cancel that hasn't happened yet. */

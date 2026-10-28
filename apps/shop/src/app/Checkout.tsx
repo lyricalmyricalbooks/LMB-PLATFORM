@@ -1110,7 +1110,8 @@ export function Checkout() {
     // Per-shopper hold cap (functions/stockHolds.js HOLD_LIMITS): the shop's own words.
     if (data?.code === "hold_limit") return new CopyError(checkoutDesign, "coHoldLimit");
     // Settings › General › Store status › Maintenance: the server refuses every new checkout.
-    if (data?.code === "store_closed") return new CopyError(checkoutDesign, "coStoreClosed");
+    // A paused or closed plan (plan 6.7, "shop_paused") reads the same to a shopper: checkout is closed for now.
+    if (data?.code === "store_closed" || data?.code === "shop_paused") return new CopyError(checkoutDesign, "coStoreClosed");
     return message ?new CopyError(checkoutDesign, "coServerRefused", { reason: message }) : null;
   };
 

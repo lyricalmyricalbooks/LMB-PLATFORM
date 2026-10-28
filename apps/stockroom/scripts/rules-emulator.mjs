@@ -137,6 +137,33 @@ await check("unverified bookkeeper reads no copy (Database)", assertFails(get(re
 // Not checked: an author's own receipts. storage.rules finds the author through Firestore (firestore.get), and the
 // Storage emulator refused that lookup in testing with the old rules as well as the new ones.
 
+// The shop's plan on the platform (the platform's plan 6.7): while platform/plan says anything but "open", every
+// Firestore write refuses for everyone, owner included, and reads carry on. Signed-in people read the plan; nobody
+// here writes it (the platform does, with its own access).
+const owner = people["owner address"];
+await env.withSecurityRulesDisabled(async ctx => {
+  await setDoc(doc(ctx.firestore(), "platform/plan"), { access: "paused", state: "paused" });
+});
+await check("owner reads the plan", assertSucceeds(getDoc(doc(owner.firestore(), "platform/plan"))));
+await check("author reads the plan", assertSucceeds(getDoc(doc(author.firestore(), "platform/plan"))));
+await check("bookkeeper reads the plan", assertSucceeds(getDoc(doc(bookkeeper.firestore(), "platform/plan"))));
+await check("signed out reads no plan", assertFails(getDoc(doc(shutOut["signed out"].firestore(), "platform/plan"))));
+await check("owner can't change the plan", assertFails(setDoc(doc(owner.firestore(), "platform/plan"), { access: "open" })));
+await check("paused: owner still reads a book", assertSucceeds(getDoc(doc(owner.firestore(), "books/b1/data/ledger"))));
+await check("paused: owner can't change a setting", assertFails(setDoc(doc(owner.firestore(), "settings/catalog"), { data: "{}", ts: 9 })));
+await check("paused: owner can't change a book", assertFails(setDoc(doc(owner.firestore(), "books/b2/data/ledger"), { rows: [9] })));
+await check("paused: owner can't save a backup", assertFails(setDoc(doc(owner.firestore(), "backups/x"), { at: 1 })));
+await check("paused: author can't change own ledger", assertFails(setDoc(doc(author.firestore(), "books/b1/data/ledger"), { rows: [9] })));
+await env.withSecurityRulesDisabled(async ctx => {
+  await setDoc(doc(ctx.firestore(), "platform/plan"), { access: "closed", state: "closed" });
+});
+await check("closed: owner can't change a setting", assertFails(setDoc(doc(owner.firestore(), "settings/catalog"), { data: "{}", ts: 9 })));
+await env.withSecurityRulesDisabled(async ctx => {
+  await setDoc(doc(ctx.firestore(), "platform/plan"), { access: "open", state: "active" });
+});
+await check("reopened: owner changes a setting", assertSucceeds(setDoc(doc(owner.firestore(), "settings/catalog"), { data: "{}", ts: 10 })));
+await check("reopened: author changes own ledger", assertSucceeds(setDoc(doc(author.firestore(), "books/b1/data/ledger"), { rows: [10] })));
+
 await env.cleanup();
 console.log(failures ? `${failures} check(s) failed` : "all checks passed");
 process.exit(failures ? 1 : 0);
