@@ -32,7 +32,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `signup/` | Sign-up, plan choice and billing. |
 | `accounts/` | One sign-in for every shop a person belongs to: the shop switcher, and invites with a role for each shop's team. |
 | `waitlist/` | The public waitlist page. |
-| `help/` | Plain answers to the twenty questions presses ask most, as one static page with search. |
+| `help/` | Plain answers to the questions presses ask most, one for every first-week step, and what our help includes, as one static page with search. |
 | `terms/` | The terms, privacy policy, data agreement and shutdown promise on one page, with the version sign-up records. |
 | `demo/` | `npm run demo`: the test shop, admin, Studio and stockroom on your own computer, against the Firebase emulators (`docs/demo-shop.md`). |
 | `profile/` | The shop profile format: what differs between shops, read by both apps when the page opens. |

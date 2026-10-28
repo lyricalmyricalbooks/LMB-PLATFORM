@@ -42,6 +42,9 @@
   .card { border: 2px solid var(--ink); padding: 18px; box-shadow: 4px 4px 0 var(--pink); display: grid; gap: 8px; }
   #status { min-height: 1.5em; font-weight: 600; }
   .note { font: 13px "DM Mono", monospace; color: var(--muted); }
+  .support { margin-top: 16px; font-size: 15px; }
+  .support summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+  .support summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -90,6 +93,22 @@
       <button type="submit" class="primary">Start my free trial</button>
       <p class="note">No card needed now. We'll remind you before the trial ends, and you can cancel at any time.</p>
     </form>
+    <!-- What support includes and doesn't (plan 8.2): the same lines as help/support.js, word for word. -->
+    <details class="support">
+      <summary>What our help includes</summary>
+      <ul>
+        <li>Answers in writing, from a person, when you ask from your account page.</li>
+        <li>Fixing anything in Colophon that doesn't work as it should.</li>
+        <li>Help bringing your shop over: we check your file with you if an import goes wrong.</li>
+        <li>Plain answers to questions about your plan and your bill.</li>
+      </ul>
+      <p><b>Not included:</b></p>
+      <ul>
+        <li>Setup calls. Every step has a written answer here, and we answer your questions in writing.</li>
+        <li>Data entry. We don't add or change your books, prices, stock or orders for you.</li>
+        <li>Design work. We don't make logos, photos or custom looks; choose a theme and make it yours in Design.</li>
+      </ul>
+    </details>
   </section>
 
   <!-- 3. The shop is being made: progress, then the way in, or a plain "try again". -->
