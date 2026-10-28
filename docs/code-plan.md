@@ -129,7 +129,7 @@ Gate: a press moves over in an afternoon without a call.
 | 3.3 | shop | First-week checklist shaped by the sign-up answer | | |
 | 3.4 | platform | Help articles for the top 20 questions | | |
 | 3.5 | shop | Theme wave 3; a press's edits stored apart from the theme they started from | | |
-| 3.6 | platform | The five-person first-hour test, and fixes for the top three stalls | | |
+| 3.6 | platform | The five-person first-hour test, and fixes for the top three stalls. **Prep done:** the script, tasks, what to watch, stall scoring, ranking and the pass mark are in `docs/first-hour-test.md`, with two sample files in `docs/first-hour-test/`. Still to do: hosting sign-up in test mode (Julian), five sessions, then one row and PR per top-three fix | the sessions | open |
 
 ## Phase 4: running many shops
 
