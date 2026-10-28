@@ -28,6 +28,7 @@
 //                 defaults new shops get (9.7, record `newShopSwitches`)
 //   feeDefaults   the platform's default per-order fee (services/payments/fees.js readFeeSettings), shown with a shop's fee
 //   activity      optional: the activity log (activity.js, plan 9.9): record(entry); every logged action goes there too
+import { testShopDocs } from "../setup/test-catalogue.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
@@ -248,6 +249,49 @@ export function createControlRoom({
       await log(shopId, "act-as", { by, reason: why, expiresAt, mode });
       const { url } = await shopAccess.supportSignIn(shopId, { by, reason: why, minutes: ACT_AS_MINUTES, mode });
       return { shopId, url, expiresAt, mode };
+    },
+
+    /**
+     * Your test shop (9.10): the platform's own shop (`testShop: true` in the registry), for the card at the top of the
+     * control room. Null until it exists; `npm run demo` is the test shop on Julian's computer until then.
+     */
+    async testShop(claims) {
+      adminOf(claims, admins);
+      const row = (await registry.listShops()).find((r) => r.testShop === true);
+      if (!row) return { testShop: null };
+      const profile = await registry.getProfile(row.shopId);
+      const checks = await registry.readReleaseChecks(row.shopId);
+      const last = checks.at(-1);
+      const siteUrl = profile?.siteUrl ?? null;
+      return {
+        testShop: {
+          shopId: row.shopId,
+          pressName: row.pressName ?? row.shopId,
+          status: row.status ?? null,
+          version: row.release?.version ?? null,
+          storefrontUrl: siteUrl,
+          adminUrl: siteUrl ? `${siteUrl}/admin/` : null,
+          lastCheck: last ? { ok: last.ok, at: last.finishedAt ?? null, version: last.version ?? null, failedCheck: last.failedCheck ?? null } : null,
+          health: shopHealth({ row, profile, checks, repairs: repairs ? await repairs.open(row.shopId) : [] }),
+        },
+      };
+    },
+
+    /**
+     * Reset the sample books (9.10): the test shop's starter books and shipping zone go back to how setup step 12 made
+     * them, 5 copies each (setup/test-catalogue.js). Only the test shop; its orders, settings and stockroom stay as they
+     * are. Logged.
+     */
+    async resetTestShop(claims, { shopId } = {}) {
+      const by = adminOf(claims, admins);
+      const row = await shopOr404(shopId);
+      if (row.testShop !== true) throw new ControlError(409, "Only the test shop's sample books can be reset.");
+      if (row.status !== "live") throw new ControlError(409, "The test shop isn't live yet, so there are no sample books to reset.");
+      if (!shopData) throw new ControlError(503, "The control room can't reach the test shop's books, so nothing was reset.");
+      const docs = testShopDocs();
+      await log(shopId, "test-shop-reset", { by, books: docs.map((d) => d.path) });
+      for (const { path, data } of docs) await shopData.set(shopId, path, data);
+      return { shopId, reset: docs.length };
     },
 
     /**
