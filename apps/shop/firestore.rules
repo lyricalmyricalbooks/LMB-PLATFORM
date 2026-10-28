@@ -14,14 +14,27 @@ service cloud.firestore {
         && (request.auth.token.email == "__SHOP_OWNER_EMAIL__" || request.auth.token.get("role", "") == "owner");
     }
     // Platform support ("act as this shop" in the platform's control room): a sign-in the platform makes for this shop
-    // only, logged in the shop's audit log first, with the same access as staff until its "until" time (seconds).
+    // only, logged in the shop's audit log first, with the same access as staff until its "until" time (seconds), or
+    // read-only access for a "view" visit.
     // Only a custom sign-in token can carry it, and only the platform can make one (functions/roles.js supportOf).
-    function isSupport() {
+    // A visit is "view" (read only, the control room's default) unless the platform made it "edit" (plan 9.8).
+    function supportVisit() {
       return request.auth != null
         && request.auth.token.firebase.sign_in_provider == "custom"
         && request.auth.token.get("support", null) is map
         && request.auth.token.support.get("until", 0) is number
         && request.time.toMillis() < request.auth.token.support.until * 1000;
+    }
+    function isSupport() {
+      return supportVisit() && request.auth.token.support.get("mode", "view") == "edit";
+    }
+    // A read-only support visit reads what staff read and writes nothing.
+    function isSupportViewer() {
+      return supportVisit() && request.auth.token.support.get("mode", "view") != "edit";
+    }
+    // Who may read the admin's data: the admin, or a read-only support visit. Writes stay isAdmin().
+    function isAdminReader() {
+      return isAdmin() || isSupportViewer();
     }
     function isAdmin() {
       return isOwner()
@@ -86,15 +99,16 @@ service cloud.firestore {
       // Shoppers see published books only (list queries must filter status == "published"); drafts, archived
       // and unreleased records are the admin's. Private fields (cost prices, shelf codes, the legacy
       // inventory key, the digital file path) live in books/{id}/private/admin, never on this document.
-      allow read: if isAdmin() || resource.data.status == "published";
+      allow read: if isAdminReader() || resource.data.status == "published";
       allow write: if isAdmin();
       match /private/{docId} {
-        allow read, write: if isAdmin();
+        allow read: if isAdminReader();
+        allow write: if isAdmin();
       }
     }
     // The admin's collection-group read of every book's private document (Books, Inventory, Orders packing).
     match /{path=**}/private/{docId} {
-      allow read: if isAdmin();
+      allow read: if isAdminReader();
     }
     match /settings/{docId} {
       allow read: if true;
@@ -116,7 +130,7 @@ service cloud.firestore {
     match /pages/{pageId} {
       // Shoppers see published pages only (queries must filter status == "published");
       // drafts and hidden pages are the admin's.
-      allow read: if isAdmin() || resource.data.status == "published";
+      allow read: if isAdminReader() || resource.data.status == "published";
       allow write: if isAdmin();
     }
     // Publisher packing, holds and internal notes never appear in guest tracking.
@@ -125,7 +139,7 @@ service cloud.firestore {
     // this is never publicly readable. Cloud Functions read it with the Admin SDK.
     match /adminSecrets/{docId} {
       // Staff see whether the Stripe webhook is set up; the keys themselves are the owner's.
-      allow read: if isOwner() || (isAdmin() && docId == "stripeWebhookStatus");
+      allow read: if isOwner() || (isAdminReader() && docId == "stripeWebhookStatus");
       allow write: if isOwner();
     }
     // The owner's Team list (Settings › Team): one document per person, named by their lower-case email.
@@ -144,7 +158,7 @@ service cloud.firestore {
     // The owner's admin screen layouts (Overview boards: admin/overview/overviewBoardStore.ts) and the Overview's sales notes
     // (admin/overview/overviewNotesStore.ts). Admin-only, one JSON string each.
     match /adminPrefs/{docId} {
-      allow read: if isAdmin();
+      allow read: if isAdminReader();
       allow write: if isAdmin() && (docId == "overviewBoard" || docId == "overviewNotes")
         && request.resource.data.keys().hasOnly(["data", "updatedAt"])
         && request.resource.data.data is string && request.resource.data.data.size() <= 200000
@@ -152,17 +166,18 @@ service cloud.firestore {
     }
     // Nightly backup outcome (functions nightlyFirestoreBackup); Settings › General › Backups & export.
     match /systemStatus/{docId} {
-      allow read: if isAdmin();
+      allow read: if isAdminReader();
       allow write: if false;
     }
     // Shopper-side crash reports, counted by the Functions (functions/clientErrors.js). The admin reads them in
     // Settings › General › Tools & records › Shop errors and may clear them.
     match /clientErrors/{errorId} {
-      allow read, delete: if isAdmin();
+      allow read: if isAdminReader();
+      allow delete: if isAdmin();
       allow create, update: if false;
     }
     match /emailLog/{entryId} {
-      allow read: if isAdmin();
+      allow read: if isAdminReader();
       allow write: if false;
     }
     // Inventory app link: what each website order sent to the inventory app (functions/inventoryLinkJobs.js).
@@ -171,14 +186,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /order-operations/{orderId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdminReader();
+      allow write: if isAdmin();
     }
     match /orders/{orderId} {
       // Guests never read orders directly: order tracking and the checkout
       // thank-you page ask the server (createStripeCheckoutSession action
       // "track"), which checks the customer email or emailed link key.
       // Admins see everything; signed-in customers only their own orders.
-      allow get, list: if isAdmin() || isBookkeeper()
+      allow get, list: if isAdminReader() || isBookkeeper()
         // Only a verified sign-in email may list a customer's orders.
         || (request.auth != null && request.auth.token.email_verified == true
           && resource.data.customer.email == request.auth.token.email);
@@ -271,13 +287,13 @@ service cloud.firestore {
     // Customer privacy requests (copy / delete my data). Created by Functions only.
     match /marketing-optout/{id} {
       // Written only by Functions (unsubscribe link / privacy erase); the admin reads it to see consent.
-      allow read: if isAdmin();
+      allow read: if isAdminReader();
       allow write: if false;
     }
     match /firstWeek/{docId} {
       // Overview › Your first week (plan 3.3): the sign-up answer, written once by the platform's setup (Admin SDK),
       // and the steps the owner ticked or hiding the list. Admin only.
-      allow read: if isAdmin();
+      allow read: if isAdminReader();
       allow create, update: if isAdmin()
         && request.resource.data.keys().hasOnly(["sellingToday", "plan", "done", "hiddenAt", "createdAt", "updatedAt"])
         && (!("done" in request.resource.data) || request.resource.data.done is map && request.resource.data.done.size() <= 20)
@@ -285,7 +301,8 @@ service cloud.firestore {
     }
     match /customerNotes/{noteId} {
       // Private notes + tags per customer (id = sha256 of the lowercased email). Admin only.
-      allow read, delete: if isAdmin();
+      allow read: if isAdminReader();
+      allow delete: if isAdmin();
       allow create, update: if isAdmin()
         && request.resource.data.keys().hasOnly(["email", "note", "tags", "updatedAt"])
         && request.resource.data.email is string && request.resource.data.email.size() <= 254
@@ -294,21 +311,24 @@ service cloud.firestore {
         && request.resource.data.updatedAt is string;
     }
     match /privacyRequests/{requestId} {
-      allow read, update, delete: if isAdmin();
+      allow read: if isAdminReader();
+      allow update, delete: if isAdmin();
       allow create: if false;
     }
     match /theme-versions/{versionId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdminReader();
+      allow write: if isAdmin();
     }
     // Scheduled publishes and campaigns (Studio 3.5). Admin-only; the Functions scheduler (Admin SDK) runs them.
     match /themeSchedule/{entryId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdminReader();
+      allow write: if isAdmin();
     }
     // Share previews (Studio 3.4): an unpublished design behind an unguessable token. Anyone holding the link can
     // read that one document until it expires; nobody but the admin can list, create, change or remove them.
     match /previewTokens/{token} {
       allow get: if resource.data.expiresAt is timestamp && resource.data.expiresAt > request.time;
-      allow list: if isAdmin();
+      allow list: if isAdminReader();
       allow create, update: if isAdmin()
         && request.resource.data.keys().hasOnly(["design", "name", "createdAt", "expiresAt"])
         && request.resource.data.expiresAt is timestamp
@@ -319,26 +339,30 @@ service cloud.firestore {
     // Studio's private working copy (themes/workspace: unpublished draft + save revision)
     // and My themes. Never public: shoppers only ever read the published settings/website.design.
     match /themes/{themeId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdminReader();
+      allow write: if isAdmin();
     }
     match /savedThemes/{themeId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdminReader();
+      allow write: if isAdmin();
     }
     // Studio media library (2.4): image records (description, focal point, sizes, files). Admin only —
     // the picture files are public under Storage assets/media/, and a placed picture's srcset details
     // travel in the published design, so shoppers never read these.
     match /media/{mediaId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdminReader();
+      allow write: if isAdmin();
     }
     match /audit-log/{logId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdminReader();
+      allow write: if isAdmin();
     }
     match /analytics/{docId} {
       // Visitors may bump traffic/funnel counters, but order and revenue
       // figures are written exclusively by the payment webhook (Admin SDK).
       // Only the admin (and the bookkeeper) reads the daily docs (revenue, search terms): the storefront
       // writes counters with increment() and never needs to read them back.
-      allow read: if isAdmin() || isBookkeeper();
+      allow read: if isAdminReader() || isBookkeeper();
       // Each recorded map stays small, so a forged client can't bloat the doc, and
       // one write can't raise the visit counter by more than one.
       // Only the maps a write changes are checked (`ch` = every field on create, the changed fields on update): a
@@ -432,17 +456,18 @@ service cloud.firestore {
     }
     // Gift cards (functions/giftCards.js): the admin reads them; only Functions create, spend or change them.
     match /giftCards/{cardId} {
-      allow read: if isAdmin() || isBookkeeper();
+      allow read: if isAdminReader() || isBookkeeper();
       allow write: if false;
     }
     match /discounts/{docId} {
       // Public code validation happens via the validateDiscountCode function.
-      allow read, write: if isAdmin();
+      allow read: if isAdminReader();
+      allow write: if isAdmin();
     }
     match /customers/{customerId} {
       // Customers can read/write their own profile; admin can read all
       allow read: if request.auth != null
-        && (request.auth.uid == customerId || isAdmin());
+        && (request.auth.uid == customerId || isAdminReader());
       // Only the profile fields Account.tsx writes, bounded, and only the signed-in account's own
       // email: a profile naming someone else's address would trigger the welcome email to them
       // (onCustomerCreated also checks the Auth record's verified email).
@@ -462,11 +487,12 @@ service cloud.firestore {
       // newsletterSignup), which stores a pending record with the consent text and mails a signed
       // confirmation link. Browsers can no longer write here, so a stranger's address can't be
       // added without the owner confirming. Unsubscribe deletes the row server-side.
-      allow read, create, update, delete: if isAdmin();
+      allow read: if isAdminReader();
+      allow create, update, delete: if isAdmin();
     }
     match /inventoryLog/{entryId} {
       // Inventory › stock adjustment history: admin-only, append-only (written with the stock change).
-      allow read: if isAdmin();
+      allow read: if isAdminReader();
       allow create: if isAdmin()
         && request.resource.data.keys().hasOnly(["bookId", "variantId", "title", "edition", "from", "to", "delta", "reason", "note", "at", "by"])
         && request.resource.data.bookId is string && request.resource.data.bookId.size() <= 160
@@ -477,7 +503,8 @@ service cloud.firestore {
     }
     match /inventoryCosts/{bookId} {
       // Cost prices per book (CAD). Books are public, so costs live here, admin-only.
-      allow read, write: if isAdmin();
+      allow read: if isAdminReader();
+      allow write: if isAdmin();
     }
     match /contactMessages/{messageId} {
       // Storefront contact form: anyone can send; only admin (and Functions) can read/change.
@@ -493,7 +520,8 @@ service cloud.firestore {
         && request.resource.data.page is string && request.resource.data.page.size() <= 300
         && request.resource.data.status == "new"
         && request.resource.data.createdAt == request.time;
-      allow read, delete: if isAdmin();
+      allow read: if isAdminReader();
+      allow delete: if isAdmin();
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
         && request.resource.data.status in ["new", "emailed", "read", "archived", "replied"];
@@ -515,7 +543,8 @@ service cloud.firestore {
         && request.resource.data.get("variantName", "") is string
         && request.resource.data.get("variantName", "").size() <= 120
         && request.resource.data.status == "waiting";
-      allow read, update, delete: if isAdmin();
+      allow read: if isAdminReader();
+      allow update, delete: if isAdmin();
     }
     match /reviewContacts/{reviewId} {
       // The reviewer's email for a review, readable by the admin only. A visitor may add one only
@@ -530,12 +559,13 @@ service cloud.firestore {
           !exists(/databases/$(database)/documents/reviews/$(reviewId))
           && getAfter(/databases/$(database)/documents/reviews/$(reviewId)).data.status == "pending"
           && getAfter(/databases/$(database)/documents/reviews/$(reviewId)).data.createdAt == request.resource.data.createdAt));
-      allow read, update, delete: if isAdmin();
+      allow read: if isAdminReader();
+      allow update, delete: if isAdmin();
     }
     match /reviews/{reviewId} {
       // The public sees approved reviews only; pending/rejected ones are the admin's.
       // Reviewer emails live in admin-only reviewContacts, never on the public review.
-      allow read: if isAdmin() || resource.data.status == "approved";
+      allow read: if isAdminReader() || resource.data.status == "approved";
       // Anyone can submit a review (lands "pending"); no reply, no email, no extra fields.
       allow create: if request.resource.data.status == "pending"
         && request.resource.data.keys().hasOnly(["bookId", "authorName", "rating", "title", "body", "status", "createdAt"])
@@ -565,7 +595,8 @@ service cloud.firestore {
       allow update: if cartFieldsValid()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(cartClientKeys())
         && (resource.data.get("recovered", false) == false || request.resource.data.get("recovered", false) == true);
-      allow list, delete: if isAdmin();
+      allow list: if isAdminReader();
+      allow delete: if isAdmin();
     }
     function cartClientKeys() {
       return ["email", "items", "subtotal", "customer", "cartKey", "recovered", "recoveredAt", "updatedAt", "createdAt"];

@@ -171,6 +171,6 @@ describe("firestore.rules", () => {
     const block = rules.match(/match \/media\/\{mediaId\}\s*\{([^}]*)\}/);
     expect(block, "firestore.rules needs a match /media/{mediaId} block").toBeTruthy();
     const body = block![1].replace(/\/\/.*$/gm, "").trim();
-    expect(body).toBe("allow read, write: if isAdmin();");
+    expect(body.replace(/\s+/g, " ")).toBe("allow read: if isAdminReader(); allow write: if isAdmin();");
   });
 });

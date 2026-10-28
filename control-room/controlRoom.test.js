@@ -120,15 +120,22 @@ test("act as this shop: a reason is required, the use is logged first, and no lo
   const answer = await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help with tax" });
   assert.equal(answer.status, 200);
   assert.match(answer.body.url, /support=1/);
-  assert.deepEqual(w.shopAccess.calls, [{ shopId: ID, by: ADMIN.email, reason: "the owner asked for help with tax", minutes: ACT_AS_MINUTES }]);
+  assert.deepEqual(w.shopAccess.calls, [{ shopId: ID, by: ADMIN.email, reason: "the owner asked for help with tax", minutes: ACT_AS_MINUTES, mode: "view" }]);
   const [entry] = w.events();
-  assert.deepEqual([entry.what, entry.by, entry.reason, entry.expiresAt], ["act-as", ADMIN.email, "the owner asked for help with tax", answer.body.expiresAt]);
+  assert.deepEqual([entry.what, entry.by, entry.reason, entry.expiresAt, entry.mode], ["act-as", ADMIN.email, "the owner asked for help with tax", answer.body.expiresAt, "view"]);
   assert.ok(w.auditLog.entries.get(ID).has(entry.id), "in the shop's own audit log too");
+
+  // Making changes is asked for by name; anything else is refused before the log.
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help with tax", mode: "owner" })).status, 400);
+  const edit = await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked me to fix a price", mode: "edit" });
+  assert.equal(edit.body.mode, "edit");
+  assert.equal(w.shopAccess.calls.at(-1).mode, "edit");
+  assert.equal(w.events().at(-1).mode, "edit");
 
   // A log that can't be written stops the sign-in.
   w.registry.recordEvent = async () => { throw new Error("the registry is down (pretend error)"); };
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help again" })).status, 500);
-  assert.equal(w.shopAccess.calls.length, 1);
+  assert.equal(w.shopAccess.calls.length, 2);
 });
 
 test("a switch: the saved profile, its file and the live pages change, with a log entry; repeating it is safe", async () => {
@@ -210,7 +217,9 @@ test("the real support sign-in: a token for the support account with who, why an
   assert.equal(url, `${profile.siteUrl}/admin/#support=signed.jwt`);
   assert.equal(until, now().getTime() / 1000 + 1800);
   assert.deepEqual(made[0].uid, SUPPORT_UID);
-  assert.deepEqual(made[0].claims.support, { by: ADMIN.email, reason: "x".repeat(200), until });
+  assert.deepEqual(made[0].claims.support, { by: ADMIN.email, reason: "x".repeat(200), until, mode: "view" });
+  await access.supportSignIn(ID, { by: ADMIN.email, reason: "fix a price", mode: "edit" });
+  assert.equal(made[1].claims.support.mode, "edit");
   assert.ok(JSON.stringify(made[0].claims).length < 1000, "a token's claims stay under Firebase's limit");
   // Never longer than the sign-in token itself lasts.
   assert.equal((await access.supportSignIn(ID, { by: ADMIN.email, reason: "long one", minutes: 600 })).until, now().getTime() / 1000 + MAX_MINUTES * 60);

@@ -21,8 +21,9 @@ export function SupportBanner({ visit, onSignOut }: { visit: SupportVisit | null
     <div role="status" className="rp-alert" data-tone="warning" data-support-banner="">
       <span className="rp-alert-glyph" aria-hidden="true">!</span>
       <div className="rp-alert-text">
-        <span className="rp-alert-kicker">Platform support</span>
+        <span className="rp-alert-kicker">{visit.mode === "edit" ? "Platform support" : "Platform support · viewing only"}</span>
         <strong className="rp-alert-title">{visit.by || "Platform support"} is signed in until {supportEndText(visit.until)}.</strong>
+        {visit.mode !== "edit" && <span className="rp-alert-detail">Looking only: nothing in your shop can be changed on this visit.</span>}
         {visit.reason && <span className="rp-alert-detail">Why: {visit.reason}. This visit is in your shop's log.</span>}
       </div>
       <div className="rp-alert-actions">

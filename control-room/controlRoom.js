@@ -11,7 +11,7 @@
 //   auditLog      ready(shopId); write(shopId, id, entry): the shop's own audit log
 //   profileFiles  read(shopId); write(shopId, text): the shop's /shop-profile.js as the platform keeps it
 //   publish       (shopId) -> { apps }: puts the saved /shop-profile.js live (profilePublisher below)
-//   shopAccess    supportSignIn(shopId, { by, reason, minutes }) -> { url }: a short sign-in to the shop's admin for
+//   shopAccess    supportSignIn(shopId, { by, reason, minutes, mode }) -> { url }: a short sign-in to the shop's admin for
 //                 support (supportAccess.js; the shop copy shows a banner and treats it as staff until it ends).
 //   repairs       optional: the repair queue (repairs.js): open(shopId), list({ status }), markFixed(id, { by, note })
 //   selfCheck     optional: the self-checks (selfChecks.js): check(shopId, { why }), run after every change here
@@ -237,15 +237,17 @@ export function createControlRoom({
      * "Act as this shop": a short sign-in to the shop's admin for support. It is logged in the registry and the shop's
      * own audit log before the sign-in is made, with who, why and until when; with no log, no sign-in.
      */
-    async actAs(claims, { shopId, reason } = {}) {
+    async actAs(claims, { shopId, reason, mode = "view" } = {}) {
       const by = adminOf(claims, admins);
       const why = reasonOf(reason);
+      // "view" (the default, plan 9.8) looks only: the shop's server and rules refuse its changes. "edit" is staff.
+      if (mode !== "view" && mode !== "edit") throw new ControlError(400, "Choose to view the shop or to make changes.");
       const row = await shopOr404(shopId);
       if (row.status !== "live") throw new ControlError(409, "That shop isn't live yet, so there's no admin to open.");
       const expiresAt = new Date(now().getTime() + ACT_AS_MINUTES * 60_000).toISOString();
-      await log(shopId, "act-as", { by, reason: why, expiresAt });
-      const { url } = await shopAccess.supportSignIn(shopId, { by, reason: why, minutes: ACT_AS_MINUTES });
-      return { shopId, url, expiresAt };
+      await log(shopId, "act-as", { by, reason: why, expiresAt, mode });
+      const { url } = await shopAccess.supportSignIn(shopId, { by, reason: why, minutes: ACT_AS_MINUTES, mode });
+      return { shopId, url, expiresAt, mode };
     },
 
     /**

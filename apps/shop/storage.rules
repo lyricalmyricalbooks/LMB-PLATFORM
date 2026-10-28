@@ -3,11 +3,13 @@ service firebase.storage {
   match /b/{bucket}/o {
     // Same admin check as firestore.rules (functions/roles.js): the owner address or a Team role on the pass.
     // The owner address is filled in at deploy by scripts/deployConfig.mjs (see firestore.rules).
-    // Platform support, as in firestore.rules isSupport(): staff access until its "until" time, custom sign-in only.
+    // Platform support, as in firestore.rules isSupport(): staff access until its "until" time, custom sign-in only,
+    // for an "edit" visit. A "view" visit (plan 9.8) uploads nothing; the photos it sees are public anyway.
     function isSupport() {
       return request.auth != null
         && request.auth.token.firebase.sign_in_provider == "custom"
         && request.auth.token.get("support", null) is map
+        && request.auth.token.support.get("mode", "view") == "edit"
         && request.auth.token.support.get("until", 0) is number
         && request.time.toMillis() < request.auth.token.support.until * 1000;
     }

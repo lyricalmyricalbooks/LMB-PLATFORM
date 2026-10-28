@@ -176,20 +176,29 @@ async function loadToday() {
 }
 
 function card(shop) {
-  const act = el("button", { type: "button", textContent: "Act as this shop", disabled: shop.status !== "live" });
-  act.addEventListener("click", async () => {
-    const reason = askWhy(`Open ${shop.pressName}'s admin as support for 30 minutes.`);
+  // "View this shop" looks only (plan 9.8); "Make changes" asks a second time, because it can change the press's shop.
+  const actAs = (mode) => async (event) => {
+    const button = event.currentTarget;
+    const what = mode === "edit"
+      ? `Open ${shop.pressName}'s admin for 30 minutes WITH the power to change their shop.`
+      : `Open ${shop.pressName}'s admin for 30 minutes, looking only.`;
+    const reason = askWhy(what);
     if (!reason) return;
-    act.disabled = true;
+    if (mode === "edit" && !window.confirm(`Anything you change is changed in ${shop.pressName}'s real shop, and the press sees it in their log. Go on?`)) return;
+    button.disabled = true;
     try {
-      const { url } = await api("POST", "/control/act-as", { shopId: shop.shopId, reason });
+      const { url } = await api("POST", "/control/act-as", { shopId: shop.shopId, reason, mode });
       window.open(url, "_blank", "noopener");
-      status.textContent = `Logged. ${shop.pressName}'s admin opened in a new tab.`;
+      status.textContent = `Logged. ${shop.pressName}'s admin opened in a new tab${mode === "edit" ? ", able to make changes" : ", looking only"}.`;
     } catch (failure) {
       status.textContent = failure.message;
     }
-    act.disabled = false;
-  });
+    button.disabled = false;
+  };
+  const act = el("button", { type: "button", textContent: "View this shop", disabled: shop.status !== "live" });
+  act.addEventListener("click", actAs("view"));
+  const change = el("button", { type: "button", textContent: "Make changes", disabled: shop.status !== "live" });
+  change.addEventListener("click", actAs("edit"));
 
   // Self-checks now (2.11): what's off goes to the repair queue below.
   const check = el("button", { type: "button", textContent: "Check now", disabled: shop.status !== "live" });
@@ -269,7 +278,7 @@ function card(shop) {
     open.disabled = false;
   });
   return el("div", { className: `card ${shop.health.level}` },
-    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), open, act, check, closing),
+    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), open, act, change, check, closing),
     el("div", { className: "facts" },
       el("span", { textContent: shop.shopId }),
       el("span", { textContent: `plan: ${shop.plan ?? "?"}` }),
