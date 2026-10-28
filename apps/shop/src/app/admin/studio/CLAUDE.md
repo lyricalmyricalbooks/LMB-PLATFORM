@@ -599,6 +599,13 @@ reads at 4.5:1 on the raised surface. Faint `text-white/NN` classes are floored 
 section or block is covered automatically; fix the colour, never loosen the check. Section fallbacks use tokens
 (`var(--bg-color)`, `var(--surface-2)`, `--fg-rgb`), never a fixed colour.
 
+**Import warns (28 October 2026).** My themes › Import runs `importedThemeProblems` (`themeCheck.ts`) on the file's
+design: top-level keys must be a Theme settings key, a structural key (`DESIGN_STRUCTURE_KEYS`), a page with sections or
+a key the starting design holds; `copy` words must be Text & labels keys; section types must be ones Studio can add.
+Any problem opens a confirm ("Import anyway" / Cancel) that names them in plain words, at most six per kind.
+`themeImportCheck.test.ts` keeps Studio's own exports (starting look, every library theme, the fixture draft) free of
+warnings; a new structural design key belongs in `DESIGN_STRUCTURE_KEYS` or that test fails.
+
 ## Studio organization
 
 Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages
