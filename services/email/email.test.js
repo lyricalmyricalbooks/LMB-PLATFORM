@@ -147,6 +147,17 @@ test("the shop door: the right key sends, scoped to the shop; a wrong key or unk
   assert.equal(resend.requests.length, 1);
 });
 
+test("the shop door never swaps a shop's words for a platform template of the same name", async () => {
+  const { service, registry, sentLog, resend } = await make();
+  const answer = await handleShopEmail(
+    { method: "POST", headers: { "x-shop-id": "moth-press", authorization: `Bearer ${SHOP_KEY}` }, body: { kind: OWNER_WELCOME, to: "reader@example.com", subject: "Our news", html: "<p>News</p>", idempotencyKey: "n1" } },
+    { service, registry, sentLog },
+  );
+  assert.equal(answer.status, 200);
+  assert.equal(resend.requests[0].body.subject, "Our news");
+  assert.equal(resend.requests[0].body.html, "<p>News</p>");
+});
+
 test("the shop door stops a shop at its daily limit and says a retry is fine later", async () => {
   const { service, registry, sentLog } = await make();
   const ask = (n) => handleShopEmail(
