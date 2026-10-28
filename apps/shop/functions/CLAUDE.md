@@ -880,6 +880,12 @@ attachments, and the log says so. `senderStatus()` (`sendTestEmail` action `send
 the Gmail address and the backup. The card is "Send from your own Gmail" and hides the Resend fields when the backup is
 the platform (`src/app/admin/senderStatus.ts`). With `PLATFORM_EMAIL_URL` unset, everything works as before.
 
+**Team in the platform's account switcher (28 October 2026, code plan 5.11).** With `PLATFORM_ACCOUNTS_URL`
+(`shopConfig.platformAccountsUrl`, setup step 8) set, the `syncMemberRole` trigger, after updating the sign-in pass,
+POSTs `<url>/team-changed` with `X-Shop-Id` and the service key and an empty body (`teamNotice.js`). The platform then
+re-reads this shop's `members` itself (LMB-PLATFORM `accounts/teamSync.js`), so the notice carries no team data. It
+never throws; a missed notice is caught up by the platform's own sync. Unset: nothing is sent.
+
 ## Data changes (28 October 2026, platform plan 4.2)
 
 `functions/migrations/`: numbered data changes, each run once per shop. `list.js` holds them in order

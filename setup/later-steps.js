@@ -50,7 +50,7 @@ export function appsOf(shop) {
 export const sellingToday = (shop) => (typeof shop.sellingToday === "string" && /^[a-z]{2,20}$/.test(shop.sellingToday) ? shop.sellingToday : null);
 
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
-export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "", platformDomainsUrl = "", platformAccountingUrl = "", extraOrigins = [] }) {
+export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "", platformDomainsUrl = "", platformAccountingUrl = "", platformAccountsUrl = "", extraOrigins = [] }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
   const quote = (value) => `"${String(value).replace(/[\r\n"\\<>]+/g, " ").replace(/\s+/g, " ").trim()}"`;
   return [
@@ -85,6 +85,9 @@ export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = RE
     // The platform bookkeeping service (services/accounting, plan 7.15): Settings › Bookkeeping's QuickBooks link.
     // Written only once the platform hosts it (config.platformAccountingUrl); without it the page stays hidden.
     ...(platformAccountingUrl ? [`PLATFORM_ACCOUNTING_URL=${quote(platformAccountingUrl)}`] : []),
+    // The platform accounts' shop door (accounts/teamSync.js, plan 5.11): told when Settings › Team changes, so the
+    // account switcher lists the people added there. Written only once the platform hosts it (config.platformAccountsUrl).
+    ...(platformAccountsUrl ? [`PLATFORM_ACCOUNTS_URL=${quote(platformAccountsUrl)}`] : []),
     "",
   ].join("\n");
 }

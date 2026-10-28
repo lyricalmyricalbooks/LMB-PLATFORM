@@ -69,6 +69,7 @@ const { createPayments } = require("./payments");
 const { isPaymentId, isCheckoutId } = require("./payments/ids");
 const { createEmail } = require("./email");
 const { createPlatformSender } = require("./email/platformSender");
+const { tellPlatformTeamChanged } = require("./teamNotice");
 const { shippoEndpoints } = require("./shippoEndpoints");
 const { scheduledJobs } = require("./scheduledJobs");
 const { shopEmails } = require("./shopEmails");
@@ -198,8 +199,14 @@ async function requireBooksReader(req, res) {
 }
 
 // Team (functions/roles.js). Adding, changing or removing someone in Settings › Team updates their sign-in pass at once.
+// On a platform shop (PLATFORM_ACCOUNTS_URL), the platform is then told, so the person sees the shop in its account
+// switcher (teamNotice.js); a failed notice is logged and never undoes the change.
 exports.syncMemberRole = onDocumentWritten("members/{email}", async event => {
   await syncMemberRole({ auth: admin.auth(), db, email: event.params.email });
+  if (shopConfig.platformAccountsUrl) {
+    const notice = await tellPlatformTeamChanged({ url: shopConfig.platformAccountsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey });
+    if (!notice.ok) console.warn("The platform wasn't told about the Team change:", notice.reason);
+  }
 });
 
 // The admin calls this right after Google sign-in: someone added before they ever signed in gets their role now.
