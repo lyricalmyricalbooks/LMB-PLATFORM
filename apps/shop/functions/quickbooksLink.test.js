@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const { bookkeepingActions, dayFromOrders } = require("./bookkeeping.js");
+const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink.js");
 const { readShopConfig } = require("./shopConfig.js");
 const { usesPlatformServices } = require("./platformKey.js");
 

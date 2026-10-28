@@ -62,7 +62,7 @@ const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./a
 const { adminReportActions } = require("./adminReports");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
-const { bookkeepingActions, dayFromOrders } = require("./bookkeeping");
+const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink");
 const { practiceCheckoutActions } = require("./practiceCheckout");
 const { checkoutPaymentActions } = require("./checkoutPayment");
 const { createPayments } = require("./payments");
@@ -1536,7 +1536,7 @@ const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, h
 // The press's own web address, through the platform's domain service (customDomains.js, plan 2.9).
 const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
 
-// Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (bookkeeping.js, plan 7.16).
+// Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
 // Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).
 const { handleBookkeeping } = bookkeepingActions({
   url: shopConfig.platformAccountingUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,

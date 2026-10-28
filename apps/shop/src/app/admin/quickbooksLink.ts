@@ -1,6 +1,6 @@
 // Settings › Bookkeeping (code plan 7.16), pure and tested: the QuickBooks link's three steps, its words and what the
 // page shows. The platform's bookkeeping service (LMB-PLATFORM services/accounting) does the work; the shop's server
-// passes each step on (functions/bookkeeping.js).
+// passes each step on (functions/quickbooksLink.js).
 
 export type BookkeepingStyle = "daily" | "orders";
 

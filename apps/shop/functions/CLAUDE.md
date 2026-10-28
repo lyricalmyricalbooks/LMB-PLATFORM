@@ -826,7 +826,7 @@ platform shop: connect Square (or finish Stripe onboarding), the account's state
 now declares when that address is set. The service adds the address to `SHOP_EXTRA_ORIGINS` and redeploys the server
 code before Hosting serves it. In platform mode `payments.registerPaymentDomain` goes through the service
 (`account.paymentDomain`) instead of refusing.
-**Bookkeeping (28 October 2026, code plan 7.16).** `bookkeeping.js` (action `bookkeeping`, `step: "status" | "connect" |
+**Bookkeeping (28 October 2026, code plan 7.16).** `quickbooksLink.js` (action `bookkeeping`, `step: "status" | "connect" |
 "options" | "save" | "resend" | "disconnect"`) passes Settings › Bookkeeping to the platform's bookkeeping service
 (`PLATFORM_ACCOUNTING_URL`, https, LMB-PLATFORM services/accounting; `withPlatformKey` declares the key when set). Unset:
 `status` answers `{ enabled: false }` and the page and its menu entry stay hidden; other steps 409 `not_available`. The
