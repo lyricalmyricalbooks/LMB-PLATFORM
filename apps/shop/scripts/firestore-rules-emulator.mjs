@@ -345,6 +345,19 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("support after its time can't", assertFails(getDoc(doc(lateSupport, "books/draft"))));
   await check("a Google sign-in can't claim support", assertFails(getDoc(doc(fakeSupport, "books/draft"))));
   await check("author can't change settings", assertFails(setDoc(doc(author, "settings/website"), { x: 1 })));
+  // URL redirects in numbered pages (plan 5.6): public to read like settings/redirects, written by the admin, pages 1–10.
+  const redirectPage = { items: [{ from: "/old", to: "/books/b1" }], page: 1 };
+  await check("owner writes redirect page 1", assertSucceeds(setDoc(doc(owner, "redirects/1"), redirectPage)));
+  await check("staff writes redirect page 10", assertSucceeds(setDoc(doc(staff, "redirects/10"), redirectPage)));
+  await check("owner clears a redirect page", assertSucceeds(deleteDoc(doc(owner, "redirects/10"))));
+  await check("no redirect page 11", assertFails(setDoc(doc(owner, "redirects/11"), redirectPage)));
+  await check("no made-up redirect page", assertFails(setDoc(doc(owner, "redirects/extra"), redirectPage)));
+  await check("anon reads a redirect page", assertSucceeds(getDoc(doc(anon, "redirects/1"))));
+  await check("anon lists the redirect pages", assertSucceeds(getDocs(collection(anon, "redirects"))));
+  await check("anon reads the old redirects doc", assertSucceeds(getDoc(doc(anon, "settings/redirects"))));
+  await check("anon can't write a redirect page", assertFails(setDoc(doc(anon, "redirects/1"), redirectPage)));
+  await check("author can't write a redirect page", assertFails(setDoc(doc(author, "redirects/1"), redirectPage)));
+  await check("bookkeeper can't write a redirect page", assertFails(setDoc(doc(bookkeeper, "redirects/1"), redirectPage)));
 }
 
 await env.cleanup();

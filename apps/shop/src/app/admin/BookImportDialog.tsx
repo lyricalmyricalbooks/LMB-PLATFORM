@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
 import { importTemplateCsv, IMPORT_COLUMNS, type ImportPlan, type ImportRow } from "./catalogImport";
-import { importRedirects, planShopMove, SHAPE_WORDS, type ProductMove } from "./shopMove";
+import { importRedirects, oldLinksMessage, planShopMove, SHAPE_WORDS, type ProductMove } from "./shopMove";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { Dialog, PrimaryButton, SecondaryButton, SelectField, StatusBadge, type BadgeTone } from "./riso/components";
 import { normalizeCategories } from "../features/site/navItems";
@@ -11,7 +11,7 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const SHOWN_ROWS = 150;
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
-type LinkResult = { added: number; skipped: number; failed: boolean };
+type LinkResult = { added: number; skipped: number; full: number; failed: boolean };
 
 const ACTION: Record<ImportRow["action"], { tone: BadgeTone; text: string }> = {
   create: { tone: "info", text: "New book (draft)" },
@@ -107,9 +107,9 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
           await adminApi.saveRedirects(next.items);
           await adminApi.recordAuditLog("catalog", `Old shop links: ${next.added.length} now lead to the imported books`).catch(() => {});
         }
-        setLinks({ added: next.added.length, skipped: next.skipped.length, failed: false });
+        setLinks({ added: next.added.length, skipped: next.skipped.length - next.full, full: next.full, failed: false });
       } catch {
-        setLinks({ added: 0, skipped: 0, failed: true });
+        setLinks({ added: 0, skipped: 0, full: 0, failed: true });
       }
     }
     setResults(done);
@@ -210,9 +210,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
             {failed.map(r => <li key={r.line}>Line {r.line} · {r.title}: {r.message}. Import the file again to retry; rows already saved show as unchanged.</li>)}
           </ul>}
           {links && <p className="rp-hint" style={{ margin: 0 }}>
-            {links.failed
-              ? "The old shop links couldn't be saved. Import the same file again to retry; books already saved show as unchanged."
-              : `${links.added} old shop link${links.added === 1 ? " now leads" : "s now lead"} to ${links.added === 1 ? "its book" : "their books"} (Settings › General › URL redirects).${links.skipped ? ` ${links.skipped} already led somewhere else and ${links.skipped === 1 ? "was" : "were"} left as ${links.skipped === 1 ? "it was" : "they were"}.` : ""}`}
+            {oldLinksMessage(links)}
           </p>}
           {(plan?.counts.create || 0) > 0 && <p className="rp-hint" style={{ margin: 0 }}>New books are drafts and are now selected in the catalog. Choose <strong>Publish</strong> to review and put them on sale.</p>}
         </div>}

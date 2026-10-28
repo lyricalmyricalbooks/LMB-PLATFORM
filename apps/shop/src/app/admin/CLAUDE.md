@@ -431,6 +431,14 @@ stored in the public, admin-written `settings/redirects` doc (`{ items: [{from, 
 `NotFoundPage`, `BookDetail` with no book, `PageView` with no page — through `useMissingRedirect` (reads
 `publicApi.getRedirects`, never in the Studio preview, keeps the shopper's query, stops after `MAX_REDIRECT_HOPS`), so a real
 page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-visible words, so no Text & labels entry.
+**Pages of 500 (plan 5.6):** up to `MAX_REDIRECTS` 5,000, saved as `redirects/1` … `redirects/10` (`{ items, page }`,
+public read, admin write of ids 1–10 only in `firestore.rules`). `saveRedirects` writes every page or clears it in one
+batch (`redirectsToPages`, filled in order) and marks the old `settings/redirects` doc `paged: true` with no items; every
+reader goes through `redirectsFromStore` (`publicApi.getRedirects`, which the admin, the storefront and the prerendered
+pages all use): pages by number, else the old doc's list while it was never moved, so older shops keep working until their
+first save. Checks use a `RedirectIndex` map so a 5,000 list stays quick. The import says "Your shop is full" when it runs
+out of room (`importRedirects` `full`, `oldLinksMessage`); the card shows "N of 5,000 used" and a find box past 100 rows.
+Tests: `redirects.test.ts`, `redirectPagesApi.test.ts` (499/500/501/5,000, migration), `scripts/firestore-rules-emulator.mjs`.
 
 ## Bring your shop with you (28 October 2026)
 

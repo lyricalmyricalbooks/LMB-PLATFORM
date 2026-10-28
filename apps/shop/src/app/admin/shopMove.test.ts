@@ -217,7 +217,8 @@ describe("old shop links (plan 3.2)", () => {
     const full = Array.from({ length: MAX_REDIRECTS }, (_, i) => ({ from: `/old/${i}`, to: "/" + i }));
     const next = importRedirects(full, [{ oldPaths: ["/products/one-more"], bookId: "b" }]);
     expect(next.added).toEqual([]);
-    expect(next.skipped[0].why).toContain(String(MAX_REDIRECTS));
+    expect(next.skipped[0].why).toContain(MAX_REDIRECTS.toLocaleString("en"));
+    expect(next.full).toBe(1);
   });
 });
 
