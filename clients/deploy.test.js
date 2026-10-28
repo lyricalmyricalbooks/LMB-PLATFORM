@@ -16,6 +16,7 @@ function setup(script) {
   const deploy = deployClient({
     fetch, token, buildDir: (version) => `/builds/${version}`,
     ownerEmailOf: async () => "owner@example.com",
+    profileScriptOf: async () => "window.__SHOP_PROFILE__={}",
     run: async (command, args, { cwd, env }) => void (command === "node" ? configs.push({ args, cwd, env }) : runs.push({ command, args, cwd })),
     writeText: async (path, text) => void written.set(path, text),
     readText: async (path) => written.get(path) ?? "// lmb-release: {\"version\":\"0.9.0\",\"apps\":[\"shop\"]}\nrules_version = '2';\n",
@@ -65,17 +66,18 @@ test("the live pages' release comes from the latest Hosting release message", as
   fetch.done();
 });
 
-test("rules deploy each plan app's rules from the release's build folder, the shop's with its owner filled in", async () => {
+test("rules deploy each plan app's rules from the release's build folder, with the owner filled in and the release stamped", async () => {
   const { deploy, runs, configs, written } = setup([]);
   await deploy.rules(P, { version: "1.2.3", apps: ["shop", "stockroom"] });
   const stamped = `${rulesStamp({ version: "1.2.3", apps: ["shop", "stockroom"] })}\nrules_version = '2';\n`;
   assert.equal(written.get("/builds/1.2.3/apps/shop/.deploy/firestore.rules"), stamped, "the old stamp is replaced, not stacked");
-  assert.equal(written.get("/builds/1.2.3/apps/stockroom/firestore.rules"), stamped);
+  assert.equal(written.get("/builds/1.2.3/apps/stockroom/.deploy/firestore.rules"), stamped);
+  assert.equal(written.get("/builds/1.2.3/apps/stockroom/public/shop-profile.js"), "window.__SHOP_PROFILE__={}", "the stockroom's deployConfig reads its database and bucket from the shop's profile");
   assert.equal(stampedRules("rules_version = '2';", "// lmb-release: {}"), "// lmb-release: {}\nrules_version = '2';");
-  assert.deepEqual(configs, [{ args: ["scripts/deployConfig.mjs", "--project", P], cwd: "/builds/1.2.3/apps/shop", env: { SHOP_OWNER_EMAIL: "owner@example.com" } }]);
+  assert.deepEqual(configs, ["shop", "stockroom"].map((app) => ({ args: ["scripts/deployConfig.mjs", "--project", P], cwd: `/builds/1.2.3/apps/${app}`, env: { SHOP_OWNER_EMAIL: "owner@example.com" } })));
   assert.deepEqual(runs, [
     { command: "firebase", args: ["deploy", "--only", "firestore,storage", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/shop" },
-    { command: "firebase", args: ["deploy", "--only", "firestore", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/stockroom" },
+    { command: "firebase", args: ["deploy", "--only", "firestore,database,storage", "--project", P, "--config", "firebase.deploy.json", "--non-interactive", "--force"], cwd: "/builds/1.2.3/apps/stockroom" },
   ]);
 });
 
@@ -97,9 +99,18 @@ test("pages: the stockroom gets its own site once; the deploy is stamped with th
   ]);
   assert.deepEqual(await deploy.pages(P, { version: "1.2.3", app: "stockroom" }), { url: `https://${P}-stockroom.web.app` });
   await deploy.pages(P, { version: "1.2.3", app: "stockroom" });
-  assert.deepEqual(await deploy.pages(P, { version: "1.2.3", app: "shop", profileScript: "window.SHOP={}" }), { url: `https://${P}.web.app` });
-  assert.equal(written.get("/builds/1.2.3/apps/shop/dist/shop-profile.js"), "window.SHOP={}");
+  assert.deepEqual(await deploy.pages(P, { version: "1.2.3", app: "shop" }), { url: `https://${P}.web.app` });
+  assert.equal(written.get("/builds/1.2.3/apps/shop/dist/shop-profile.js"), "window.__SHOP_PROFILE__={}");
+  assert.equal(written.get("/builds/1.2.3/apps/stockroom/dist/shop-profile.js"), "window.__SHOP_PROFILE__={}");
   assert.deepEqual(runs.map((r) => [r.cwd, r.args.at(6)]), [["/builds/1.2.3/apps/stockroom", "lmb-release 1.2.3"], ["/builds/1.2.3/apps/stockroom", "lmb-release 1.2.3"], ["/builds/1.2.3/apps/shop", "lmb-release 1.2.3"]]);
   assert.equal(siteOf(P, "shop"), P);
   fetch.done();
+});
+
+test("a shop with no saved profile or owner is never deployed", async () => {
+  const runs = [];
+  const base = { fetch: scriptedFetch([]), token, buildDir: () => "/b", run: async (c, a) => void runs.push(a), writeText: async () => {}, readText: async () => "" };
+  await assert.rejects(deployClient({ ...base, ownerEmailOf: async () => "owner@example.com", profileScriptOf: async () => null }).pages(P, { version: "1", app: "shop" }), /no saved shop profile/);
+  await assert.rejects(deployClient({ ...base, profileScriptOf: async () => "x" }).rules(P, { version: "1", apps: ["shop"] }), /needs ownerEmailOf/);
+  assert.deepEqual(runs, []);
 });

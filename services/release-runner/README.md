@@ -25,8 +25,9 @@ that folder, so a release can never reach it.
    the same for every shop is built. The shop's catalogue file, sitemap and ready-made pages come from one shop's books,
    so they are left out and each shop's pages read their own books.
 3. For each shop, ring by ring, holding that shop's own lock (so the shop maker can't work on it at the same time):
-   - rules (stamped with the release and the shop's apps, owner filled in), then server code with the shop's own
-     settings file, then pages with the shop's own profile file;
+   - rules (stamped with the release and the shop's apps, owner filled in by each app's `deployConfig.mjs`; the
+     stockroom's go to its own database, bucket and Realtime Database, named in the shop's profile), then server code
+     with the shop's own settings file, then pages with the shop's own profile file;
    - a check: every part's release stamp must be this release, the home page, `/admin`, `/shop-profile.js` and the
      stockroom page must answer, and on the test shop the full release check (`release-check/`) must pass;
    - on success the registry row gets `release: { version, at, runId }`.
@@ -56,7 +57,5 @@ account. No key is read from a file.
 
 ## Open points
 
-- The stockroom has no per-shop deploy settings yet (its own named database and its `<project>-stockroom` site), so
-  `firebase deploy` for the stockroom needs them before a "both" or "stockroom" shop can get a release (track E).
 - A stockroom-only shop's rules live in the named database, while the rules stamp is read from the default one.
   The shop maker's step 7 has the same gap.

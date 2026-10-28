@@ -55,7 +55,7 @@ test("a good release is built once and reaches the test shop, then every other s
   assert.deepEqual(world.calls.filter(([kind]) => kind === "release-check"), [["release-check", "lmb-test-shop", "1.1.0"]], "only the test shop gets the buying check");
   // Each shop's own files go with its deploy; a shop-only plan has no stockroom.
   assert.ok(world.calls.some(([kind, id, , , env]) => kind === "functions" && id === "press-bravo" && env === "env for press-bravo"));
-  assert.ok(world.calls.some(([kind, id, , app, profile]) => kind === "pages" && id === "press-bravo" && app === "shop" && profile === "profile for press-bravo"));
+  assert.ok(world.calls.some(([kind, id, , app]) => kind === "pages" && id === "press-bravo" && app === "stockroom"));
   assert.ok(!world.calls.some(([kind, id, , app]) => kind === "pages" && id === "press-alpha" && app === "stockroom"));
   assert.equal((await registry.getShop("press-bravo")).release.version, "1.1.0");
   assert.equal(registry.releases.get("1.1.0-run-1").ok, true);

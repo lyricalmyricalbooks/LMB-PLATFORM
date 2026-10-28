@@ -154,17 +154,15 @@ async function rollBack(ctx, row, version, previous, error) {
 /** Rules, then server code, then pages: the order the shop's own deploy uses, so new pages never meet old rules. */
 async function ship({ deploy, envFiles, profileFiles }, row, version) {
   const apps = appsOf(row);
+  // Checked before anything goes out: the deploy client writes this file into every app's rules config and pages.
+  if (!(await profileFiles.read(row.shopId))) throw new Error("its shop profile file is missing from the registry (setup step 6)");
   await deploy.rules(row.shopId, { version, apps });
   if (apps.includes("shop")) {
     const envFile = await envFiles.read(row.shopId);
     if (!envFile) throw new Error("its server settings file is missing from the registry (setup step 8)");
     await deploy.functions(row.shopId, { version, region: row.region ?? REGION, envFile });
   }
-  for (const app of apps) {
-    const profileScript = app === "shop" ? await profileFiles.read(row.shopId) : undefined;
-    if (app === "shop" && !profileScript) throw new Error("its shop profile file is missing from the registry (setup step 6)");
-    await deploy.pages(row.shopId, { version, app, profileScript });
-  }
+  for (const app of apps) await deploy.pages(row.shopId, { version, app });
 }
 
 /** What is wrong with the shop on `version`, in plain words; empty when it passes. */

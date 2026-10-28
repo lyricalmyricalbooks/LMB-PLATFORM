@@ -7,14 +7,17 @@
 //   Firebase Mgmt v1beta1 projects.get, projects.addFirebase, projects.webApps.list/create/getConfig, operations.get
 //   Service Usage v1      services.list (filter state:ENABLED), services.batchEnable (at most 20 ids a call), operations.get
 //   Firestore Admin v1    projects.databases.get/create (databaseId), databases.exportDocuments, databases.operations.get
-//   Firebase Storage v1beta projects.getDefaultBucket, projects.defaultBucket.create
-//   Cloud Storage JSON v1 objects.get, objects.list (prefix, delimiter), objects.insert (simple media upload)
+//   Firebase Storage v1beta projects.getDefaultBucket, projects.defaultBucket.create, projects.buckets.addFirebase
+//   Realtime Database Mgmt v1beta  projects.locations.instances.list (location "-"), projects.locations.instances.create
+//                         (databaseId, type DEFAULT_DATABASE); the stockroom's database (plan 1.20)
+//   Cloud Storage JSON v1 objects.get, objects.list (prefix, delimiter), objects.insert (simple media upload),
+//                         buckets.get, buckets.insert (project) for the stockroom's own bucket (plan 1.20)
 //   Firebase Storage (the address the shop's pages read files through, where storage rules apply):
 //                         GET https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{name}?alt=media, with no sign-in.
 //                         Not in a discovery document; it is the address Firebase's web SDK reads files from.
 //
 // Every create waits for Google's operation to finish, as steps.js expects. Nothing here deletes anything.
-import { googleHttp, isNotFound, waitForOperation } from "./http.js";
+import { GoogleError, googleHttp, isNotFound, waitForOperation } from "./http.js";
 
 const RM = "https://cloudresourcemanager.googleapis.com/v3";
 const BILLING = "https://cloudbilling.googleapis.com/v1";
@@ -25,6 +28,7 @@ const FIREBASE_STORAGE = "https://firebasestorage.googleapis.com/v1beta";
 const GCS = "https://storage.googleapis.com/storage/v1";
 const GCS_UPLOAD = "https://storage.googleapis.com/upload/storage/v1";
 const FILES = "https://firebasestorage.googleapis.com/v0";
+const RTDB = "https://firebasedatabase.googleapis.com/v1beta";
 
 /** The role the nightly backup's account needs to export the database (the shop's runScheduledBackup). */
 export const BACKUP_ROLE = "roles/datastore.importExportAdmin";
@@ -143,6 +147,47 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
       },
       async createDefaultBucket(projectId, { location }) {
         await call("POST", `${FIREBASE_STORAGE}/projects/${projectId}/defaultBucket`, { body: { location } });
+      },
+      // Bucket names are shared by everyone on Google Cloud. A bucket in another project answers 403 to us, or names
+      // another project number: either way `project` is not this project, and step 5 stops for a person.
+      async getBucket(projectId, name) {
+        let bucket;
+        try {
+          bucket = await call("GET", `${GCS}/b/${encodeURIComponent(name)}`);
+        } catch (error) {
+          if (isNotFound(error)) return null;
+          if (error instanceof GoogleError && error.status === 403) return { name, location: "", project: null };
+          throw error;
+        }
+        const ours = String(bucket.projectNumber) === String(await projectNumber(projectId));
+        return { name: bucket.name, location: bucket.location, project: ours ? projectId : null };
+      },
+      // Made with uniform access (rules decide who reads it), then added to Firebase so its storage rules apply.
+      async createBucket(projectId, { name, location }) {
+        await call("POST", `${GCS}/b`, { query: { project: projectId }, body: { name, location, iamConfiguration: { uniformBucketLevelAccess: { enabled: true } } } });
+        await call("POST", `${FIREBASE_STORAGE}/projects/${projectId}/buckets/${name}:addFirebase`, { body: {} });
+      },
+    },
+    // The project's default Realtime Database instance (<project id>-default-rtdb), which the stockroom uses.
+    realtimeDatabase: {
+      async getInstance(projectId) {
+        const instances = [];
+        let pageToken;
+        do {
+          const page = await call("GET", `${RTDB}/projects/${projectId}/locations/-/instances`, { query: { pageToken } });
+          instances.push(...(page.instances ?? []));
+          pageToken = page.nextPageToken;
+        } while (pageToken);
+        const found = instances.find((i) => i.type === "DEFAULT_DATABASE");
+        if (!found) return null;
+        const [, , , location, , id] = found.name.split("/");
+        return { name: id, location };
+      },
+      async createInstance(projectId, { location }) {
+        await call("POST", `${RTDB}/projects/${projectId}/locations/${location}/instances`, {
+          query: { databaseId: `${projectId}-default-rtdb` },
+          body: { type: "DEFAULT_DATABASE" },
+        });
       },
     },
     backups: {

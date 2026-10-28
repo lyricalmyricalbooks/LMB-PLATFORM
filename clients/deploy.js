@@ -40,21 +40,28 @@ export function stampedRules(text, stamp) {
 export const siteOf = (projectId, app) => (app === "shop" ? projectId : `${projectId}-${app}`);
 
 /**
- * `deployClient({ fetch, token, run, buildDir, writeText })`. `buildDir(version)` is the folder the release was built
- * in once (apps/shop and apps/stockroom inside it). `ownerEmailOf(projectId)` gives the shop's owner address: before
- * each shop deploy, the shop copy's own `scripts/deployConfig.mjs --project <id>` writes that shop's
- * `firebase.deploy.json` and its rules with the owner filled in (plan 1.14b), so the shared build never holds one
- * shop's owner for another.
+ * `deployClient({ fetch, token, run, buildDir, ownerEmailOf, profileScriptOf })`. `buildDir(version)` is the folder
+ * the release was built in once (apps/shop and apps/stockroom inside it). The build is shared by every shop, so what
+ * is one shop's own goes in just before that shop's deploy:
+ * - `ownerEmailOf(projectId)`: each app's own `scripts/deployConfig.mjs --project <id>` writes that shop's
+ *   `firebase.deploy.json` and its rules with the owner filled in (plans 1.14b, 1.20);
+ * - `profileScriptOf(projectId)`: the shop's /shop-profile.js (setup step 6), written into the stockroom's `public/`
+ *   (its deployConfig reads the stockroom's database and bucket from it) and into each app's built pages.
  */
-export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, writeText = writeFile, readText = (path) => readFile(path, "utf8") }) {
+export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profileScriptOf, writeText = writeFile, readText = (path) => readFile(path, "utf8") }) {
   const call = googleHttp({ fetch, token });
+  const profileFor = async (projectId) => {
+    if (typeof profileScriptOf !== "function") throw new Error("the deploy client needs profileScriptOf for the shop's own profile");
+    const script = await profileScriptOf(projectId);
+    if (!script) throw new Error(`${projectId} has no saved shop profile yet (setup step 6)`);
+    return script;
+  };
   const firebase = async (version, app, args, prepare) => {
     const cwd = join(buildDir(version), "apps", app);
     const projectId = args[args.indexOf("--project") + 1];
-    if (app === "shop") {
-      if (typeof ownerEmailOf !== "function") throw new Error("the deploy client needs ownerEmailOf to fill in the shop's rules");
-      await run("node", ["scripts/deployConfig.mjs", "--project", projectId], { cwd, env: { SHOP_OWNER_EMAIL: await ownerEmailOf(projectId) } });
-    }
+    if (typeof ownerEmailOf !== "function") throw new Error("the deploy client needs ownerEmailOf to fill in the shop's rules");
+    if (app === "stockroom") await writeText(join(cwd, "public", "shop-profile.js"), await profileFor(projectId));
+    await run("node", ["scripts/deployConfig.mjs", "--project", projectId], { cwd, env: { SHOP_OWNER_EMAIL: await ownerEmailOf(projectId) } });
     if (prepare) await prepare(cwd);
     await run("firebase", [...args, "--config", "firebase.deploy.json", "--non-interactive", "--force"], { cwd });
   };
@@ -113,17 +120,18 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, writeT
       if (app) return deployedPages(projectId, app);
       throw new Error(`unknown deploy part ${part}`);
     },
-    // The shop's rules and indexes, and the stockroom's when the plan has it (its own named database, plan 1.20).
-    // Each app's Firestore rules get the stamp line (this release, this shop's apps) just before they go out: the shop's
-    // from the per-shop copy deployConfig.mjs wrote to .deploy/, the stockroom's from its own firestore.rules.
+    // The shop's rules and indexes, and the stockroom's when the plan has it: its named database, its bucket and the
+    // Realtime Database, as its firebase.deploy.json names them (apps/stockroom/scripts/deployConfig.mjs, plan 1.20).
+    // Each app's Firestore rules get the stamp line (this release, this shop's apps) just before they go out, in the
+    // per-shop copy deployConfig.mjs wrote to .deploy/.
     async rules(projectId, { version, apps }) {
       const stamp = rulesStamp({ version, apps });
       for (const app of apps) {
         const stampFile = async (cwd) => {
-          const path = join(cwd, app === "shop" ? ".deploy" : "", "firestore.rules");
+          const path = join(cwd, ".deploy", "firestore.rules");
           await writeText(path, stampedRules(await readText(path), stamp));
         };
-        await firebase(version, app, ["deploy", "--only", app === "shop" ? "firestore,storage" : "firestore", "--project", projectId], stampFile);
+        await firebase(version, app, ["deploy", "--only", app === "shop" ? "firestore,storage" : "firestore,database,storage", "--project", projectId], stampFile);
       }
     },
     // The env file is written next to the functions' code for this one deploy, with the release stamped in.
@@ -134,11 +142,10 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, writeT
       const live = await deployedFunctions(projectId);
       if (live?.region !== region) throw new Error(`the server code went to ${live?.region ?? "nowhere"}, not ${region}; the shop copy must read SHOP_FUNCTIONS_REGION`);
     },
-    // `profileScript` is the shop's own /shop-profile.js (setup step 6): the one file that differs between shops'
-    // pages, written into the shared build just before this shop's deploy.
-    async pages(projectId, { version, app, profileScript }) {
+    // The shop's own /shop-profile.js is the one file that differs between shops' pages.
+    async pages(projectId, { version, app }) {
       const site = siteOf(projectId, app);
-      if (profileScript) await writeText(join(buildDir(version), "apps", app, "dist", "shop-profile.js"), profileScript);
+      await writeText(join(buildDir(version), "apps", app, "dist", "shop-profile.js"), await profileFor(projectId));
       if (app !== "shop") {
         try {
           await call("GET", `${HOSTING}/projects/${projectId}/sites/${site}`);

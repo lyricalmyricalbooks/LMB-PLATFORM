@@ -50,8 +50,8 @@ export function fakeWorld({ broken = {}, badBuilds = [] } = {}) {
         if (fault(version, shopId) === "deploy") throw new Error("functions deploy exited with 2");
         set(shopId, "functions", version);
       },
-      async pages(shopId, { version, app, profileScript }) {
-        calls.push(["pages", shopId, version, app, profileScript ?? null]);
+      async pages(shopId, { version, app }) {
+        calls.push(["pages", shopId, version, app]);
         set(shopId, `pages:${app}`, version);
       },
     },

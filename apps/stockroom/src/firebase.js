@@ -9,14 +9,17 @@ import { readOldCopyCached, oldCopyCache } from './lib/old-copy-cache.js';
 import { planWebsitePublish } from './lib/website-link.js';
 import { adoptDecision, compareCopies, movedElsewhere } from './lib/storage-mode.js';
 import { isTestProfileActive, installSandboxBackend } from './lib/test-profile.js';
-import { DATA_ROOT, shopProfile } from './lib/shop-profile.js';
+import { DATA_ROOT, shopProfile, stockroomBucketUrl, stockroomDatabaseId } from './lib/shop-profile.js';
 
 // This shop's Firebase project comes from /shop-profile.js (src/lib/shop-profile.js).
 const firebaseConfig = { ...shopProfile.firebase };
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
-const storage = getStorage(app);
+// Inside a shop's project the stockroom has its own bucket and its own named Firestore database (plan 1.20), each
+// with its own rules; the profile names them. Without them it uses the project's defaults.
+const storage = getStorage(app, stockroomBucketUrl(shopProfile));
+const firestoreDatabase = stockroomDatabaseId(shopProfile);
 // Enable IndexedDB-backed offline persistence so Firestore reads/writes keep
 // working without a connection and sync when it returns — essential for the POS
 // at markets on flaky signal. Multi-tab manager keeps several open tabs in sync
@@ -26,10 +29,10 @@ let fs;
 try {
   fs = initializeFirestore(app, {
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-  });
+  }, firestoreDatabase);
 } catch (e) {
   console.warn('[FB] Firestore persistent cache unavailable, using memory cache', e);
-  fs = initializeFirestore(app, {});
+  fs = initializeFirestore(app, {}, firestoreDatabase);
 }
 const googleProvider = new GoogleAuthProvider();
 

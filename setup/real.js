@@ -26,6 +26,7 @@ export function realSetupClients({ fetch, token, run, buildDir, registryFirestor
   const platform = registryFirestore ?? firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT });
   const registry = firestoreRegistry(platform);
   const shopDb = (projectId) => firestoreClient({ fetch, token, projectId });
+  const profileFiles = registryFiles(platform, "shop-profile.js");
   const stockroomDb = (projectId) => firestoreClient({ fetch, token, projectId, database: stockroomDatabase });
 
   // The test owner's sign-in, made once per run and only for the test shop (testOwnerSession refuses any other).
@@ -48,9 +49,9 @@ export function realSetupClients({ fetch, token, run, buildDir, registryFirestor
     registry,
     auditLog: firestoreAuditLog(shopDb),
     google: googleClients({ fetch, token, sleep }),
-    deploy: deployClient({ fetch, token, run, buildDir, ownerEmailOf: async (projectId) => (await registry.getShop(projectId))?.ownerEmail }),
+    deploy: deployClient({ fetch, token, run, buildDir, ownerEmailOf: async (projectId) => (await registry.getShop(projectId))?.ownerEmail, profileScriptOf: (projectId) => profileFiles.read(projectId) }),
     envFiles: registryFiles(platform, "functions.env"),
-    profileFiles: registryFiles(platform, "shop-profile.js"),
+    profileFiles,
     shopData: shopDataClient(shopDb),
     stockroom: stockroomClient(stockroomDb),
     inventoryLink: inventoryLinkClient({ fetch, functionsBase, idToken: async (projectId) => (await session(projectId)).idToken }),

@@ -12,8 +12,9 @@
 //   owner (clients/identity.js).
 
 /**
- * The stockroom's own named database in each shop's project (plan 1.20). Its name is set in one place; the stockroom
- * copy's deploy (track 1.20) must use the same one.
+ * The stockroom's own named database in each shop's project (plan 1.20). Its name is set in one place: setup step 5
+ * creates it and step 6 writes it into the profile's `stockroom` block, which the stockroom copy opens and deploys
+ * its rules to (apps/stockroom/scripts/deployConfig.mjs).
  */
 export const STOCKROOM_DATABASE = "stockroom";
 
