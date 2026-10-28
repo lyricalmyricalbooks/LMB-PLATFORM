@@ -29,6 +29,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `services/billing/` | Each press's Colophon plan (shop, stockroom or both) on the platform's own Stripe account: free trial with no card, card, cancel, plan changes and the billing emails. |
 | `services/email/` | The one service that holds the email sender key. |
 | `services/domains/` | A press's own web address from their shop's settings: saved, allowed to call the shop's server code, served by Firebase Hosting, then registered for Apple Pay and Google Pay. |
+| `google/` | Connect Google: one sign-in links the press's Analytics, Search Console, Google Shopping, own web address, email sending and the optional extras, and one teardown undoes it on the closing timeline. Off until switched on. |
 | `services/accounting/` | The QuickBooks link: a press connects their QuickBooks company from their shop's settings and each night's sales, refunds, card fees and payouts are sent once. Off until switched on (`docs/accounting.md`). |
 | `signup/` | Sign-up, plan choice and billing. |
 | `accounts/` | One sign-in for every shop a person belongs to: the shop switcher, and invites with a role for each shop's team. |
