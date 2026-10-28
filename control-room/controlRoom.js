@@ -58,6 +58,9 @@ export function shopHealth({ row, profile, checks = [], repairs = [] }) {
   if (!last && row.testShop) watch.push("the test shop has never passed a release check");
   if (row.billing?.access === "paused") watch.push("the plan is paused until a card is added");
   if (row.billing?.access === "closed") watch.push("the plan has ended");
+  // Spending limits (services/health/spending.js): past its budget, a shop's costly jobs slow down or wait.
+  if (row.spending?.level === "slow") watch.push("past its budget: photo copies, AI writing and imports run slowly");
+  if (row.spending?.level === "held") watch.push("twice its budget: photo copies, AI writing and imports wait until next month");
   for (const repair of repairs) problems.push(`in the repair queue: ${repair.problem}`);
   // The five-minute watch (services/health) keeps its latest results on the row.
   for (const [name, result] of Object.entries(row.health?.checks ?? {})) {
