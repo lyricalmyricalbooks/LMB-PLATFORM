@@ -134,14 +134,19 @@ describe("send", () => {
 function fakePlatform(answers = []) {
   const calls = [];
   const queue = [...answers];
+  // Like the real service: an idempotency key it has sent before answers with the first id and sends nothing.
+  const delivered = new Map();
   const fetch = async (url, init) => {
-    calls.push({ url, headers: init.headers, body: JSON.parse(init.body) });
-    const next = queue.shift() ?? { status: 200, body: { ok: true, id: `platform-${calls.length}` } };
+    const body = JSON.parse(init.body);
+    calls.push({ url, headers: init.headers, body });
+    const next = queue.shift();
     if (next === "network") throw new Error("socket hang up");
-    return { ok: next.status < 300, status: next.status, json: async () => next.body };
+    if (next) return { ok: next.status < 300, status: next.status, json: async () => next.body };
+    if (!delivered.has(body.idempotencyKey)) delivered.set(body.idempotencyKey, { to: body.to, id: `platform-${delivered.size + 1}` });
+    return { ok: true, status: 200, json: async () => ({ ok: true, id: delivered.get(body.idempotencyKey).id }) };
   };
   const sender = createPlatformSender({ url: "https://email.platform.example/shop", shopId: "moth-press", serviceKey: () => "shop-key-0123456789abcdef0123456789", fetch });
-  return { sender, calls };
+  return { sender, calls, inboxes: () => [...delivered.values()].map((d) => d.to) };
 }
 
 describe("platform shops", () => {
@@ -187,6 +192,30 @@ describe("platform shops", () => {
     await expect(refused.mail.send({ ...message, queue: "orderConfirmed" })).rejects.toMatchObject({ permanent: true });
     expect(refused.outbox).toEqual({});
     expect(refused.log[0]).toMatchObject({ status: "failed", permanent: true, keySource: "platform" });
+  });
+
+  test("a partial send retried from the queue reaches only the recipient still missing it", async () => {
+    const platform = fakePlatform([undefined, { status: 503, body: { ok: false, retryable: true, message: "busy" } }]);
+    const app = make({ platformSender: platform.sender });
+    const email = { to: ["reader@example.com", "second@example.com"], subject: "Your order", html: "<p>Thanks</p>", queue: "orderConfirmed" };
+    const err = await app.mail.send(email).catch((e) => e);
+    expect(err.queued).toBeTruthy();
+    expect(platform.inboxes()).toEqual(["reader@example.com"]);
+    // The retry queue sends it again under its own id (sendQueuedEmail passes outboxId).
+    await app.mail.send({ ...email, outboxId: err.queued });
+    expect(platform.inboxes()).toEqual(["reader@example.com", "second@example.com"]);
+  });
+
+  test("an email that isn't queued, tried again soon after a partial send, doesn't double either", async () => {
+    const platform = fakePlatform([undefined, { status: 503, body: { ok: false, retryable: true, message: "busy" } }]);
+    const app = make({ platformSender: platform.sender });
+    const email = { to: ["reader@example.com", "second@example.com"], subject: "Shop alert", html: "<p>New order</p>" };
+    await expect(app.mail.send(email)).rejects.toThrow(/busy/);
+    await app.mail.send(email);
+    expect(platform.inboxes()).toEqual(["reader@example.com", "second@example.com"]);
+    // A different email to the same people is a new email.
+    await app.mail.send({ ...email, subject: "Another alert" });
+    expect(platform.inboxes()).toHaveLength(4);
   });
 
   test("the sender status tells the admin Gmail's address and the backup", async () => {
