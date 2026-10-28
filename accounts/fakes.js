@@ -32,6 +32,10 @@ export function fakeShopData() {
     get: async (projectId, path) => structuredClone(docs.get(`${projectId} ${path}`) ?? null),
     set: async (projectId, path, data) => void docs.set(`${projectId} ${path}`, structuredClone(data)),
     remove: async (projectId, path) => void docs.delete(`${projectId} ${path}`),
+    /** The documents directly in one collection: [{ id, data }]. */
+    list: async (projectId, collection) => [...docs.entries()]
+      .filter(([key]) => key.startsWith(`${projectId} ${collection}/`) && !key.slice(`${projectId} ${collection}/`.length).includes("/"))
+      .map(([key, data]) => ({ id: key.slice(`${projectId} ${collection}/`.length), data: structuredClone(data) })),
   };
 }
 
