@@ -17,9 +17,9 @@ import { renderStatus } from "../status/page.js";
 import { STATUS_DOC } from "../status/publish.js";
 
 const FOLDER = "folders/000000000000";
-const BACKUP = { uid: "uid-backup", email: "backup@example.com", email_verified: true };
-const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true };
-const STRANGER = { uid: "uid-x", email: "someone@example.com", email_verified: true };
+const BACKUP = { uid: "uid-backup", email: "backup@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Date.parse("2026-10-28T12:00:00Z") / 1000 };
+const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Date.parse("2026-10-28T12:00:00Z") / 1000 };
+const STRANGER = { uid: "uid-x", email: "someone@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Date.parse("2026-10-28T12:00:00Z") / 1000 };
 const WHY = "Julian is away and checkout broke after the release";
 
 async function world({ env = { PLATFORM_ADMIN_EMAIL: "owner@example.com", PLATFORM_BACKUP_PERSON: "Backup@Example.com" }, emailFails = false } = {}) {
@@ -78,7 +78,10 @@ test("sealed: nothing works until it is opened with a reason, which emails Julia
 
   // After the seal runs out, it's shut again.
   w.tick(SEAL_HOURS * 3_600_000 + 1);
-  assert.equal((await w.ask(BACKUP, "POST", "/api/control/emergency/pause-releases", { reason: WHY })).status, 403);
+  // The old sign-in is too old by now (plan 9.1); signed in again, the seal is still shut.
+  assert.equal((await w.ask(BACKUP, "POST", "/api/control/emergency/pause-releases", { reason: WHY })).status, 401);
+  const again = { ...BACKUP, auth_time: Date.parse("2026-10-28T12:00:00Z") / 1000 + SEAL_HOURS * 3600 + 60 };
+  assert.equal((await w.ask(again, "POST", "/api/control/emergency/pause-releases", { reason: WHY })).status, 403);
 
   const noAddress = await world({ env: { PLATFORM_BACKUP_PERSON: "backup@example.com" } });
   assert.equal((await noAddress.ask(BACKUP, "POST", "/api/control/emergency/open", { reason: WHY })).status, 503);
