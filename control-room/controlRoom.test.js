@@ -40,7 +40,7 @@ function fakeEmail() {
   return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
 }
 
-async function world({ repairs } = {}) {
+async function world({ repairs, newsletters } = {}) {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -58,7 +58,7 @@ async function world({ repairs } = {}) {
   const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
-    registry, auditLog, profileFiles, publish, shopAccess, repairs, shopData: services.shopData,
+    registry, auditLog, profileFiles, publish, shopAccess, repairs, newsletters, shopData: services.shopData,
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
     breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
     people: controlRoomPeople({}),
@@ -375,4 +375,20 @@ test("the control room's people: a placeholder privacy contact, and nobody as ad
     privacyContact: "privacy@colophon.example", adminEmail: "owner@example.com", backupPerson: "backup@example.com",
   });
   assert.throws(() => controlRoomPeople({ PLATFORM_BACKUP_PERSON: "someone" }), /PLATFORM_BACKUP_PERSON is not an email address/);
+});
+
+test("a paused newsletter is turned back on by a platform admin only, with a reason, and logged", async () => {
+  const paused = new Set([ID]);
+  const calls = [];
+  const newsletters = { resume: async (shopId, options) => { calls.push({ shopId, ...options }); return { resumed: paused.delete(shopId) }; } };
+  const w = await world({ newsletters });
+  const path = "/api/control/newsletter/resume";
+  assert.equal((await w.ask(PRESS, "POST", path, { shopId: ID, reason: "the press cleaned its list" })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "ok" })).status, 400);
+  assert.equal((await w.ask(ADMIN, "POST", path, { shopId: "no-such-shop", reason: "the press cleaned its list" })).status, 404);
+  const answer = await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "the press cleaned its list" });
+  assert.equal(answer.status, 200);
+  assert.deepEqual(calls, [{ shopId: ID, by: "admin@example.com", reason: "the press cleaned its list" }]);
+  assert.ok(w.events().some((e) => e.what === "newsletter-resumed" && e.by === "admin@example.com"));
+  assert.equal((await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "the press cleaned its list" })).status, 409);
 });

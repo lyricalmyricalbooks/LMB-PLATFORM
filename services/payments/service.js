@@ -130,6 +130,23 @@ const SHOP_OPS = Object.freeze({
 
 export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink", "account.connectLink", "account.paymentDomain", ...SQUARE_OP_NAMES]);
 
+/** Stripe's controller settings that match a Standard account (the deprecated `type: "standard"`). */
+export const STANDARD_CONTROLLER = Object.freeze({
+  losses: Object.freeze({ payments: "stripe" }),
+  fees: Object.freeze({ payer: "account" }),
+  requirement_collection: "stripe",
+  stripe_dashboard: Object.freeze({ type: "full" }),
+});
+
+/** The merchant category for a press selling its books to readers: "Book Stores". */
+export const BOOK_STORES_MCC = "5942";
+
+/** The shop's public web address for Stripe's business profile: its own site, or the Firebase address it starts on. */
+function shopAddress(row) {
+  if (typeof row.siteUrl === "string" && /^https:\/\/[^/\s]+/.test(row.siteUrl)) return row.siteUrl;
+  return /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(row.projectId ?? "") ? `https://${row.projectId}.web.app` : undefined;
+}
+
 /** Where a shop's server code receives Stripe events (the shop's `stripeWebhook` function, apps/shop functionLink). */
 export function shopWebhookUrl(row) {
   const region = row?.functionsRegion || row?.region;
@@ -452,8 +469,17 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     },
 
     /**
-     * Makes the press's Standard account. Safe to repeat: the shop id is in the idempotency key, so a retry after a
-     * lost answer gets the same account back. The shop must be in the registry, with the same owner.
+     * Makes the press's account, with Standard's behaviour. Safe to repeat: the shop id is in the idempotency key, so a
+     * retry after a lost answer gets the same account back. The shop must be in the registry, with the same owner.
+     *
+     * Stripe calls the account types deprecated and describes accounts by their controller settings instead
+     * (https://docs.stripe.com/connect/migrate-to-controller-properties). These four are what Standard means: Stripe
+     * covers losses and collects what it needs, the press pays its own Stripe fees and has the full Stripe Dashboard.
+     * Accounts made earlier with `type: "standard"` already carry the same settings and are left as they are.
+     *
+     * What the platform knows is filled in, so Stripe's sign-up asks less (and on these accounts it can only be filled
+     * in now, before the press's first visit): the country from sign-up, the shop's web address and "Book Stores"
+     * (merchant category 5942).
      */
     async createAccount(shopId, { pressName, ownerEmail, country, currency, testMode }) {
       const row = await registry.getShop(shopId);
@@ -462,11 +488,11 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
       const mode = testMode === true ? "test" : "live";
       const account = await stripe.call(mode, "POST", "/v1/accounts", {
         params: {
-          type: "standard",
+          controller: STANDARD_CONTROLLER,
           country,
           email: ownerEmail,
           default_currency: String(currency).toLowerCase(),
-          business_profile: { name: pressName },
+          business_profile: { name: pressName, url: shopAddress(row), mcc: BOOK_STORES_MCC, product_description: "Books and printed matter" },
           metadata: { lmb_shop_id: shopId },
         },
         idempotencyKey: `lmb-account-${shopId}-${mode}`,

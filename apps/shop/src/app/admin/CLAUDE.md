@@ -474,6 +474,10 @@ opens Settings › Design (Dashboard maps it like general/notifications/taxes).
 - Settings › Taxes › Start from a preset (`taxPresets.ts`): `applyTaxPreset` adds a rate only for a province with none
   (country and region compared without case), in the draft. Rates are as of October 2026 and the card says "Not tax
   advice". Shipping presets are the new-profile starters (`shippingProfileStarters.ts`).
+- Settings › General › Store policies › Start from our wording (`starterPolicies.ts`, plan 7.5): shown only under an
+  empty policy; fills it with the shop name, Location address, contact email and the returns window book pages already
+  give search engines (Text & labels › `seoReturnDays`, 0 = no returns after shipping). `withStarter` re-reads the draft
+  and keeps any saved words. The card says "A starting point, not legal advice"; the four texts await a lawyer's read.
 - Settings › General › Your web address (`CustomDomainCard.tsx`, plan 2.9) shows the older "Domain & visibility" field
   when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`).
 - Settings › Payments › Card payments (`PlatformPaymentsCard.tsx`, plan 2.2b) replaces the Stripe keys card on platform

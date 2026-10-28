@@ -21,6 +21,7 @@
 //                 without envFiles, deploy and email it refuses
 //   breaches      optional: the breach register (breaches.js createBreachRegister)
 //   people        optional: controlRoomPeople() (people.js): the privacy contact shown with the register
+//   newsletters   optional: the newsletter pause (services/email/reputation.js): resume(shopId, { by, reason })
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
@@ -67,6 +68,9 @@ export function shopHealth({ row, profile, checks = [], repairs = [] }) {
   if (row.billing?.access === "closed") watch.push("the plan has ended");
   if (row.paymentsEmergency) watch.push(`card payments moved to ${row.paymentsEmergency.to === "own" ? "the press's own Stripe keys" : "Square"} by the emergency switch`);
   if (row.closure) watch.push(`closed by the platform on ${String(row.closure.at).slice(0, 10)}: ${row.closure.reason}`);
+  // Spending limits (services/health/spending.js): past its budget, a shop's costly jobs slow down or wait.
+  if (row.spending?.level === "slow") watch.push("past its budget: photo copies, AI writing and imports run slowly");
+  if (row.spending?.level === "held") watch.push("twice its budget: photo copies, AI writing and imports wait until next month");
   for (const repair of repairs) problems.push(`in the repair queue: ${repair.problem}`);
   // The five-minute watch (services/health) keeps its latest results on the row.
   for (const [name, result] of Object.entries(row.health?.checks ?? {})) {
@@ -96,7 +100,7 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, admins, now = () => new Date(),
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, admins, now = () => new Date(),
 }) {
   const at = () => now().toISOString();
 
@@ -287,6 +291,21 @@ export function createControlRoom({
       const by = adminOf(claims, admins);
       if (!breaches) throw new ControlError(503, "The breach register isn't set up here, so nothing was written.");
       return { breach: await breaches.update({ by, id, reportedToCommissioner, peopleTold, note }) };
+    },
+
+    /**
+     * Turns a shop's newsletter back on after it paused itself (too many spam reports or bounces, plan 8.3), once the
+     * press has cleaned its list. Logged with the reason; receipts never stopped, so there is nothing else to restart.
+     */
+    async resumeNewsletter(claims, { shopId, reason } = {}) {
+      const by = adminOf(claims, admins);
+      const why = reasonOf(reason);
+      if (!newsletters) throw new ControlError(404, "The newsletter pause isn't set up.");
+      await shopOr404(shopId);
+      const { resumed } = await newsletters.resume(shopId, { by, reason: why });
+      if (!resumed) throw new ControlError(409, "That shop's newsletter isn't paused.");
+      await log(shopId, "newsletter-resumed", { by, reason: why });
+      return { shopId, resumed };
     },
 
     /** The control room's switch button. */

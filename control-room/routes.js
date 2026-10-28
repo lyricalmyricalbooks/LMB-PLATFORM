@@ -13,6 +13,7 @@
 //   POST /api/control/breaches         the breach register and the privacy contact (plan 8.6)
 //   POST /api/control/breaches/record  { foundOn, what, shops, people, reportedToCommissioner, peopleTold }
 //   POST /api/control/breaches/update  { id, reportedToCommissioner?, peopleTold?, note? }
+//   POST /api/control/newsletter/resume  { shopId, reason }: turn a paused newsletter back on
 
 export function controlRoutes(room) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
@@ -29,5 +30,6 @@ export function controlRoutes(room) {
     "POST /api/control/breaches": (claims) => room.breaches(claims),
     "POST /api/control/breaches/record": (claims, request) => room.recordBreach(claims, body(request)),
     "POST /api/control/breaches/update": (claims, request) => room.updateBreach(claims, body(request)),
+    "POST /api/control/newsletter/resume": (claims, request) => room.resumeNewsletter(claims, body(request)),
   };
 }

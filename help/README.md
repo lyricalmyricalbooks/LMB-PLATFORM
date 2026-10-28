@@ -1,10 +1,15 @@
 # Help
 
-Plain answers to the twenty questions presses ask most in their first weeks (plan 3.4): `index.html`, a static page with
+Plain answers to the questions presses ask most in their first weeks (plan 3.4): `index.html`, a static page with
 no build step, like the status page and the waitlist.
 
 - **The answers** live in `articles.js`, one list grouped by topic. Each has a question, a few short paragraphs, where
   to click in the shop's admin (`where`) and, when it only applies to the shop or the stockroom, its `plans`.
+- **Every first-week step has an answer** (plan 8.2): `CHECKLIST_ANSWERS` maps each step of the shop's list
+  (`StepId` in `apps/shop/src/app/admin/firstWeek.ts`) to an article; a new step fails `help.test.js` until it has one.
+- **What our help includes** (plan 8.2): `support.js` holds what support covers and what it doesn't (no setup calls, no
+  data entry, no design work). The help page shows it under the answers, and the sign-up page carries the same lines next
+  to the plans (it has no build step, so the test checks the two match word for word).
 - **The page** (`page.js`) groups them by topic, filters by the search box and opens the answer named in the address
   (`#editions`), so support can send a link to one answer. `?plan=shop`, `?plan=stockroom` or `?plan=both` shows only
   that plan's answers.

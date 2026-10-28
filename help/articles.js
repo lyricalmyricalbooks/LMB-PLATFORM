@@ -1,5 +1,6 @@
-// Help articles for the top 20 questions a press asks in its first weeks (plan 3.4). Plain ES module with no imports,
-// so the help page loads it as is and the tests read the same list.
+// Help articles for the questions a press asks most in its first weeks (plan 3.4), with one for every step of the
+// first-week list (plan 8.2, `CHECKLIST_ANSWERS`). Plain ES module with no imports, so the help page loads it as is
+// and the tests read the same list.
 //
 // Words here are customer-facing: plain words, short sentences, no code or tool names, never a rival's name. Every
 // "where to click" path names real admin pages (help.test.js checks them against the shop's menu). Say only what the
@@ -44,6 +45,46 @@ export const ARTICLES = Object.freeze([
       "Steps the shop can check, such as adding books, shipping and payments, tick themselves. You tick the others with Mark done. When you no longer need the list, press Hide this list.",
     ],
     where: ["Overview"],
+  },
+  {
+    id: "import-spreadsheet",
+    topic: "Getting started",
+    question: "How do I bring in my books from a spreadsheet?",
+    answer: [
+      "Save your list of books as a CSV file. Most spreadsheet programs can do this from Save as or Download.",
+      "Open Books, press Import CSV and choose the file. You see every book before anything is saved, and each one arrives as a draft.",
+    ],
+    where: ["Books"],
+  },
+  {
+    id: "photos",
+    topic: "Getting started",
+    question: "How do I add photos to my books?",
+    answer: [
+      "Open the book in Books and add one or more photos, then save the book.",
+      "Books with a photo sell far better. The first-week list ticks this step once every book has one.",
+    ],
+    where: ["Books"],
+  },
+  {
+    id: "isbn",
+    topic: "Getting started",
+    question: "Where do I put a book's ISBN?",
+    answer: [
+      "Open the book in Books and type it in the ISBN box. Dashes and spaces are fine.",
+      "Bookshops and distributors order by ISBN, and the shop shows the barcode on the book's page.",
+    ],
+    where: ["Books"],
+  },
+  {
+    id: "publish",
+    topic: "Getting started",
+    question: "How do I put a book on sale?",
+    answer: [
+      "Open the book and choose Publish. The shop checks the book first and tells you if anything is missing, such as a price or a photo.",
+      "You can also pick a date, and the book goes on sale by itself that day.",
+    ],
+    where: ["Books"],
   },
   {
     id: "bring-books",
@@ -155,6 +196,38 @@ export const ARTICLES = Object.freeze([
     plans: ["shop"],
   },
   {
+    id: "email-sender",
+    topic: "Selling",
+    question: "Can order emails come from my own Gmail address?",
+    answer: [
+      "Yes. Open Settings › Email sender and find Send from your own Gmail. Paste an app password from your Google account there.",
+      "The steps to get an app password are under How to get an app password on the same page. Until you do this, emails still go out from us for you.",
+    ],
+    where: ["Settings › Email sender"],
+    plans: ["shop"],
+  },
+  {
+    id: "test-order",
+    topic: "Selling",
+    question: "How do I try an order before real shoppers do?",
+    answer: [
+      "Open Settings › Payments and follow Test sale walkthrough. It takes you through an order with a test card, the confirmation email and a refund.",
+      "Each step ticks itself when it is done, and no real money moves.",
+    ],
+    where: ["Settings › Payments"],
+    plans: ["shop"],
+  },
+  {
+    id: "share",
+    topic: "Selling",
+    question: "How do I tell people my shop is open?",
+    answer: [
+      "Copy your shop's web address from your browser and share it in your newsletter, on social media and at your next event.",
+      "Each book has its own page, so you can share a link straight to a new book too.",
+    ],
+    plans: ["shop"],
+  },
+  {
     id: "new-order",
     topic: "Orders",
     question: "What happens when someone places an order?",
@@ -218,6 +291,15 @@ export const ARTICLES = Object.freeze([
     where: ["Books", "Orders", "Customers"],
   },
   {
+    id: "what-help",
+    topic: "Your account",
+    question: "What help can I get from Colophon?",
+    answer: [
+      "Ask from your account page and a person answers in writing. We fix anything that doesn't work, help when bringing your shop over goes wrong, and answer questions about your bill.",
+      "We don't do setup calls, data entry or design work. Every setup step has a written answer on this page instead.",
+    ],
+  },
+  {
     id: "trial-ends",
     topic: "Your account",
     question: "What happens when my free trial ends?",
@@ -227,6 +309,26 @@ export const ARTICLES = Object.freeze([
     ],
   },
 ]);
+
+/**
+ * The answer for each step of the shop's first-week list (apps/shop/src/app/admin/firstWeek.ts, `StepId`). A new step
+ * there fails help.test.js until it has an answer here.
+ */
+export const CHECKLIST_ANSWERS = Object.freeze({
+  "bring-books": "bring-books",
+  "bring-customers": "bring-customers",
+  "import-spreadsheet": "import-spreadsheet",
+  "add-books": "add-a-book",
+  photos: "photos",
+  isbn: "isbn",
+  look: "look",
+  shipping: "shipping",
+  payments: "get-paid",
+  publish: "publish",
+  fair: "fairs",
+  address: "own-address",
+  share: "share",
+});
 
 /** The articles for a plan ("both", "shop" or "stockroom"); everyone gets the ones with no plan. */
 export function articlesFor(plan) {

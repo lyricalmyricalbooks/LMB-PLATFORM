@@ -385,7 +385,18 @@ test("setup's step 13 makes one Standard account through the service, saved with
   assert.deepEqual(payments, { provider: "stripe", accountId: "acct_fake1", mode: "live" });
   assert.deepEqual((await registry.getProfile(SHOP)).payments, { provider: "stripe", mode: "platform", stripe: { accountId: "acct_fake1", publishableKey: "pk_live_platformExample" } });
   const create = stripe.requests.find((r) => r.path === "/v1/accounts");
-  assert.equal(create.params.type, "standard");
+  // Standard's behaviour, written as Stripe's controller settings, not the deprecated account type.
+  assert.equal(create.params.type, undefined);
+  assert.equal(create.params["controller[losses][payments]"], "stripe");
+  assert.equal(create.params["controller[fees][payer]"], "account");
+  assert.equal(create.params["controller[requirement_collection]"], "stripe");
+  assert.equal(create.params["controller[stripe_dashboard][type]"], "full");
+  // Filled in so Stripe asks the press less.
+  assert.equal(create.params.country, "CA");
+  assert.equal(create.params["business_profile[url]"], `https://${SHOP}.web.app`);
+  assert.equal(create.params["business_profile[mcc]"], "5942");
+  assert.equal(create.params["business_profile[product_description]"], "Books and printed matter");
+  assert.equal(create.params["business_profile[name]"], "Moth Press");
   assert.equal(create.params.default_currency, "cad");
   assert.equal(create.params["metadata[lmb_shop_id]"], SHOP);
   assert.equal(create.headers["Idempotency-Key"], `lmb-account-${SHOP}-live`);
