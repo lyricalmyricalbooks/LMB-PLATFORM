@@ -135,7 +135,7 @@ Gate: a month where every update reaches every shop with no checkout outage.
 
 | # | Repo | Pull request |
 | --- | --- | --- |
-| 4.1 | platform | `services/release-runner/`: build once, deploy ring by ring (test shop, your shop, everyone), stop at the first failed check, roll back |
+| 4.1 | platform | `services/release-runner/`: build once, deploy ring by ring (the test shop, then every other platform shop; the owner's own original shop is not on the platform and is never a ring), stop at the first failed check, roll back. **Status: open (code done; a real release needs Julian).** Built: rings from the registry only (exactly one live test shop first, then live shops by id; every shop's project must be in the shops folder), one build per release (`release-<version>` git tag, reused for a rollback), rules then server code then pages per shop with its own files, a check after each (release stamps and pages for every shop, the full release check for the test shop), rollback of the failed shop to its previous release, a release lock and each shop's own lock, a dry run, and every run recorded in the registry and each shop's audit log. Proven by `services/release-runner/release.test.js` with pretend deploys. Still to do: the platform project and shops folder (Julian, `docs/test-shop.md` steps 1–2) and the first tagged release |
 | 4.2 | shop | `functions/migrations/`: numbered data changes, each recorded in the shop so a re-run does nothing |
 | 4.3 | platform | `services/health/`: 5-minute checks, nightly backups, alerts on checkout, webhook and backup failures |
 | 4.4 | platform | Status page and support inbox |
