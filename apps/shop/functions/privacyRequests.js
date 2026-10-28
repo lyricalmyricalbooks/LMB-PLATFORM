@@ -3,6 +3,9 @@
 // (functions/CLAUDE.md › Cloud Functions › Action table): index.js passes in its own db, admin SDK, email sender and
 // guards, so the vm-based handler tests' fakes still apply.
 
+const { pressName } = require("./shared/shopIdentity");
+const { shopConfig } = require("./shopConfig");
+
 function privacyActions({
   db, admin, ADMIN_TO, GIFT_CARD_PERSONAL, LIMITS, RESEND_API_KEY, claimEmailSendDetailed, confirmationEmail,
   confirmedRecord, escapeHtml, findByEmailData, footerAddress, giftCardsFor, hitLimit, marketingUnsubscribeKey,
@@ -40,10 +43,12 @@ function privacyActions({
         if (claim.reason === "address") return res.status(200).json({ ok: true });
         return res.status(429).json({ error: "busy" });
       }
-      await ref.set(pendingRecord(email, req.body?.source, new Date().toISOString()));
-      const { confirmUrl, unsubscribeUrl } = await newsletterLinks(email);
+      // The press's own name (Sender name, else Text & labels › Site name; plan 5.8) in the email and the consent.
       const website = (await db.collection("settings").doc("website").get()).data() || {};
-      const mail = confirmationEmail({ shopName: "Your Press", confirmUrl, unsubscribeUrl, address: footerAddress(website.location) });
+      const shopName = String(website.communications?.fromName || "").trim() || pressName(website, shopConfig.senderName);
+      await ref.set(pendingRecord(email, req.body?.source, new Date().toISOString(), shopName));
+      const { confirmUrl, unsubscribeUrl } = await newsletterLinks(email);
+      const mail = confirmationEmail({ shopName, confirmUrl, unsubscribeUrl, address: footerAddress(website.location) });
       await sendEmail({ queue: "newsletterConfirm", secret: RESEND_API_KEY.value(), to: email, subject: mail.subject, html: mail.html })
         .catch(err => console.warn("newsletter confirmation email failed:", err.message));
       return res.status(200).json({ ok: true });

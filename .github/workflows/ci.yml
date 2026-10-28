@@ -56,6 +56,29 @@ jobs:
       - run: pnpm run lint
       - run: npx vite build
 
+  # Accessibility as a release rule (plan 8.8): axe-core over every theme in the shop's library and the starting look,
+  # on the home page, a book page and checkout (apps/shop/scripts/a11y-check.mjs). A new problem fails; known ones are
+  # in apps/shop/scripts/a11y-baseline.json, which only goes down. Sample books only: no shop data, payments or email.
+  shop-accessibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/shop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/shop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:a11y
+
   # The platform's copy of the stockroom (apps/stockroom).
   stockroom:
     runs-on: ubuntu-latest

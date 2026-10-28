@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Accessibility fixture (development only)</title>
+  </head>
+  <body>
+    <!-- Local test harness for the accessibility check (scripts/a11y-check.mjs): the real storefront under one theme
+         from the library, with sample books and no shop data read. Served by `vite` in development only; production
+         builds use index.html alone. -->
+    <div id="root"></div>
+    <script type="module" src="/src/a11yFixture/main.ts"></script>
+  </body>
+</html>
