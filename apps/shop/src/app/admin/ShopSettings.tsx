@@ -1298,7 +1298,7 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications, onOp
     const missed: string[] = [];
     const soft = <T,>(p: Promise<T>, label: string, fallback: T) => p.catch(() => { missed.push(label); return fallback; });
     const [orders, webhook, emailLog, practiceNow] = await Promise.all([
-      soft(adminApi.getOrders(50), "orders", [] as any[]), soft(adminApi.getStripeWebhookStatus(), "Stripe webhook status", null as any), soft(adminApi.getRecentEmailLog(100), "email log", [] as any[]),
+      soft(adminApi.getOrders(50), "orders", [] as any[]), platform ? Promise.resolve(null) : soft(adminApi.getStripeWebhookStatus(), "Stripe webhook status", null as any), soft(adminApi.getRecentEmailLog(100), "email log", [] as any[]),
       platform ? soft(practiceCheckout("status"), "practice order", null) : Promise.resolve(null),
     ]);
     setFailed(missed);

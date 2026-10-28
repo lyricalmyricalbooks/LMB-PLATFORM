@@ -64,7 +64,7 @@ function practiceCheckoutActions({ db, platform, requireAdmin, orderRequestIdent
         return;
       }
       if (step === "start") {
-        if (refusal === "own_keys") return res.status(409).json({ error: "This shop takes card payments with its own keys. Use test mode instead.", code: refusal });
+        if (refusal === "own_keys") return res.status(409).json({ error: "This shop takes card payments through its own account. Use test mode instead.", code: refusal });
         if (refusal === "owner_only") return res.status(403).json({ error: "Only the shop's owner can try a practice order.", code: refusal });
         if (refusal === "shop_open") return res.status(409).json({ error: "Your shop is open, so practice orders are off. They work only while the shop is private.", code: refusal });
         const startedAt = new Date(now()).toISOString();
