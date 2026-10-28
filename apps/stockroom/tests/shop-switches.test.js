@@ -205,3 +205,39 @@ describe('the old shop system tab follows its switch', () => {
     app.window.switchTab('dashboard');
   });
 });
+
+describe("words shown for the old shop system's orders", () => {
+  // These show whenever such orders exist, switch or not, so they use neutral words instead of the system's name.
+  let app;
+  beforeAll(async () => {
+    app = await loadApp();
+  }, 30000);
+  afterEach(() => {
+    delete window._reconPayments;
+    try { localStorage.removeItem('lm-bigcartel-orders-cache'); } catch { /* private mode */ }
+  });
+
+  it('the Payments match pill says "Website order"', () => {
+    window._reconPayments = [{
+      id: 'pi_1', amount: 25, currency: 'cad', date: '2026-10-01', customer: 'Ada', email: '',
+      description: 'Payment for Big Cartel order #ABCD-123456',
+    }];
+    app.window.renderReconcile();
+    const pills = [...document.querySelectorAll('#recon-needs .recon-pill, #recon-matched .recon-pill')].map((n) => n.textContent);
+    expect(pills.join(' ')).toContain('Website order #ABCD-123456');
+    expect(pills.join(' ')).not.toMatch(/big cartel/i);
+  });
+
+  it('the ready-to-ship card says "website order"', async () => {
+    localStorage.setItem('lm-bigcartel-orders-cache', JSON.stringify({
+      timestamp: Date.now(),
+      orders: [{ id: 'ABCD-123456', attributes: { status: 'completed', created_at: new Date().toISOString() } }],
+      included: [],
+    }));
+    const { renderBigCartelShipQueue } = await import('../src/features/shipping.js');
+    renderBigCartelShipQueue();
+    const card = document.getElementById('ship-bc-queue').textContent;
+    expect(card).toContain('1 website order is waiting for a parcel.');
+    expect(card).not.toMatch(/big cartel/i);
+  });
+});

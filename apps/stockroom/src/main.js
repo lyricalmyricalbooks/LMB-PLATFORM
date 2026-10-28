@@ -17019,7 +17019,7 @@ function _reconNeedCard(p, c) {
   if (c.kind === 'bigcartel' && c.scanned) {
     return `<div class="card recon-card">
       <div class="recon-variant">
-        <div class="recon-info"><div>${_reconAmountBadge(p)} <span class="pill green recon-pill">Big Cartel ${escapeHtml(c.ref)}</span>${disputed}</div>${_reconMeta(p)}</div>
+        <div class="recon-info"><div>${_reconAmountBadge(p)} <span class="pill green recon-pill">Website order ${escapeHtml(c.ref)}</span>${disputed}</div>${_reconMeta(p)}</div>
         <div class="recon-actions">
           <button class="btn gold sm" onclick="reconcileApplyBigCartel('${idSafe}')">Apply order</button>
           <button class="btn tag sm" onclick="reconcileDismiss('${idSafe}')">Dismiss</button></div>
@@ -17028,7 +17028,7 @@ function _reconNeedCard(p, c) {
 
   // Direct sale (bare pi_…) or Big Cartel order we never scanned → pick a book.
   const kindPill = c.kind === 'bigcartel'
-    ? `<span class="pill green recon-pill">Big Cartel ${escapeHtml(c.ref)}</span>`
+    ? `<span class="pill green recon-pill">Website order ${escapeHtml(c.ref)}</span>`
     : `<span class="pill gold recon-pill">Direct sale</span>`;
   const suggest = c.bookId ? `<span class="recon-suggest">SKU match → ${escapeHtml(BOOKS[c.bookId].title)}</span>` : '';
   const recDisabled = c.bookId ? '' : ' disabled';
@@ -17073,7 +17073,7 @@ function _reconNeedCard(p, c) {
 function _reconGroupCard(items, gi) {
   const p = items[0].p, c = items[0].c, n = items.length;
   const kindPill = c.kind === 'bigcartel'
-    ? `<span class="pill green recon-pill">Big Cartel</span>`
+    ? `<span class="pill green recon-pill">Website order</span>`
     : `<span class="pill gold recon-pill">Direct sale</span>`;
   const suggest = c.bookId ? `<span class="recon-suggest">SKU match → ${escapeHtml(BOOKS[c.bookId].title)}</span>` : '';
   const total = _stripeFmtMoney(items.reduce((s, it) => s + it.p.amount, 0), p.currency);
@@ -17152,7 +17152,7 @@ export function renderReconcile() {
     if (c.kind === 'website') { matched.push({ p, c, label: 'Website', tone: 'green', note: 'Comes in from your website — it reaches your books by itself (see “From your website” on the Orders tab), so there is nothing to record here.' }); continue; }
     if (p.refunded && p.fullyRefunded !== false) { matched.push({ p, c, label: 'Refunded', tone: 'gray', note: 'Refunded in Stripe — no stock to deduct.' }); continue; }
     if (c.kind === 'invoice' && c.inv && c.inv.status === 'paid') { matched.push({ p, c, label: 'Invoice paid', tone: 'green', note: `${c.ref} already marked paid.` }); continue; }
-    if (c.kind === 'bigcartel' && c.applied) { matched.push({ p, c, label: 'Big Cartel', tone: 'green', note: `Order ${c.ref} already applied to stock.` }); continue; }
+    if (c.kind === 'bigcartel' && c.applied) { matched.push({ p, c, label: 'Website order', tone: 'green', note: `Order ${c.ref} already applied to stock.` }); continue; }
     needs.push({ p, c });
   }
 
