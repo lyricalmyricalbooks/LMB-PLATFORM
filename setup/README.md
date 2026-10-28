@@ -77,9 +77,11 @@ when what it finds is neither done nor untouched:
 10. Give the nightly backup its permission and make the first backup.
 11. Write a test file, then read it without signing in: refused passes; a read that works stops the run (the shop's
     files would be public); any other answer stops it too.
-12. Create the owner's `members/<email>` entry (role `owner`), `firstWeek/start` (the sign-up answer `sellingToday` and
-    the plan, for the Overview's first-week list, plan 3.3; shops with the shop app only) and the release's starter
-    documents. Create only: a
+12. Create the owner's `members/<email>` entry (role `owner`), `firstWeek/start` (the sign-up answers `sellingToday`
+    and `publishes`, the `country` and the plan, for Choose your look and Set up your shop on the Overview, plans 6.3
+    and 6.9; shops with the shop app only) and the release's starter documents. A press's `settings/website` starts
+    with the under-construction wall up (`privateStart`), so a new shop is private until the owner presses Open your
+    shop; the test shop stays open. Create only: a
     document already there is kept, whatever it holds. **The test shop** (`testShop: true`, plan "both") also gets its
     starter catalogue (`test-catalogue.js`): three printed books with 5 copies (stock tracked), a pre-order, an e-book
     and a Canada shipping zone in the shop; the three printed books in the stockroom (`stockroom` client: 5 printed,

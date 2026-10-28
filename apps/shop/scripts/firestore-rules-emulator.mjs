@@ -243,6 +243,12 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("admin ticks a first-week step", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { sellingToday: "online", done: { look: "now" }, updatedAt: "now" })));
   await check("admin hides the first-week list", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { hiddenAt: "now" }, { merge: true })));
   await check("first-week extra key refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { junk: 1 }, { merge: true })));
+  // Choose your look (plan 6.3) and the guide's progress for the trial emails (plan 6.10)
+  await check("admin records Choose your look", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "press-zine", at: "now", skipped: false } }, { merge: true })));
+  await check("admin saves the guide's progress", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { progress: { steps: ["logo", "look"], done: ["look"], at: "now" } }, { merge: true })));
+  await check("welcome with an extra key refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "x", at: "now", junk: 1 } }, { merge: true })));
+  await check("admin can't change the sign-up answer", assertFails(setDoc(doc(admin, "firstWeek/start"), { sellingToday: "fairs" }, { merge: true })));
+  await check("admin can't change the plan", assertFails(setDoc(doc(admin, "firstWeek/start"), { plan: "both" }, { merge: true })));
 }
 await check("anon can't read the first week", assertFails(getDoc(doc(anon, "firstWeek/start"))));
 await check("anon can't write the first week", assertFails(setDoc(doc(anon, "firstWeek/start"), { hiddenAt: "now" })));

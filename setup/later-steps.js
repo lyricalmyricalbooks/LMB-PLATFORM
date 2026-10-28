@@ -49,6 +49,24 @@ export function appsOf(shop) {
 /** The sign-up answer for the first-week list (signup/form.js QUESTION ids), or null when skipped or unknown. */
 export const sellingToday = (shop) => (typeof shop.sellingToday === "string" && /^[a-z]{2,20}$/.test(shop.sellingToday) ? shop.sellingToday : null);
 
+/** "What do you publish?" (signup/form.js, plan 6.2), for the theme suggestions (plan 6.3), or null when skipped. */
+export const publishes = (shop) => (typeof shop.publishes === "string" && /^[a-z]{2,20}$/.test(shop.publishes) ? shop.publishes : null);
+
+/** The country the press signed up from (two capital letters), for the setup guide's shipping starter, or null. */
+const countryOf = (shop) => (typeof shop.country === "string" && /^[A-Z]{2}$/.test(shop.country) ? shop.country : null);
+
+/**
+ * The release's starter documents, with a press's new shop starting private (plan 6.9): the under-construction wall
+ * is up in the starting design until the owner presses Open your shop in the setup guide. The platform's test shop
+ * stays open, since the release check buys on it.
+ */
+export function privateStart(shop, docs) {
+  if (shop.testShop === true) return docs;
+  return docs.map((doc) => (doc.path === "settings/website"
+    ? { ...doc, data: { ...doc.data, design: { ...(doc.data?.design ?? {}), showUnderConstruction: true } } }
+    : doc));
+}
+
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
 export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "", platformDomainsUrl = "", extraOrigins = [] }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
@@ -117,9 +135,12 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
   // The test shop also gets its starter catalogue (test-catalogue.js); its stockroom side and links are below.
   const starterDocs = (shop) => [
     { path: `members/${shop.ownerEmail.toLowerCase()}`, data: { role: "owner", addedBy: "setup" } },
-    // Overview › Your first week (plan 3.3): the sign-up answer shapes the steps. Written once; the owner's ticks stay.
-    ...(appsOf(shop).includes("shop") ? [{ path: "firstWeek/start", data: { sellingToday: sellingToday(shop), plan: shop.plan } }] : []),
-    ...release.starterContent(shop),
+    // Overview › Choose your look and Set up your shop (plans 6.3, 6.9): the sign-up answers shape the theme suggestions
+    // and the steps. Written once; the owner's ticks and choice stay.
+    ...(appsOf(shop).includes("shop")
+      ? [{ path: "firstWeek/start", data: { sellingToday: sellingToday(shop), publishes: publishes(shop), country: countryOf(shop), plan: shop.plan } }]
+      : []),
+    ...privateStart(shop, release.starterContent(shop)),
     ...(needsStockroomLink(shop) ? testCatalogue(shop).shopDocs : []),
   ];
   const pageUrls = async (shop) => {

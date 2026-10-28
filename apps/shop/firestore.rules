@@ -275,13 +275,26 @@ service cloud.firestore {
       allow write: if false;
     }
     match /firstWeek/{docId} {
-      // Overview › Your first week (plan 3.3): the sign-up answer, written once by the platform's setup (Admin SDK),
-      // and the steps the owner ticked or hiding the list. Admin only.
+      // Overview › Set up your shop (plan 6.9, was Your first week 3.3): the sign-up answers, written once by the
+      // platform's setup (Admin SDK), and the steps the owner ticked, hiding the guide, Choose your look being done
+      // (`welcome`, plan 6.3) and the guide's progress the platform's trial emails read (`progress`, plan 6.10).
+      // Admin only. The sign-up answers themselves never change from the admin.
       allow read: if isAdmin();
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(["sellingToday", "plan", "done", "hiddenAt", "createdAt", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "country", "plan", "done", "hiddenAt", "welcome", "progress", "createdAt", "updatedAt"])
+        && (resource == null || (request.resource.data.get("sellingToday", null) == resource.data.get("sellingToday", null)
+          && request.resource.data.get("publishes", null) == resource.data.get("publishes", null)
+          && request.resource.data.get("country", null) == resource.data.get("country", null)
+          && request.resource.data.get("plan", null) == resource.data.get("plan", null)))
         && (!("done" in request.resource.data) || request.resource.data.done is map && request.resource.data.done.size() <= 20)
-        && (!("hiddenAt" in request.resource.data) || request.resource.data.hiddenAt is string);
+        && (!("hiddenAt" in request.resource.data) || request.resource.data.hiddenAt is string)
+        && (!("welcome" in request.resource.data) || (request.resource.data.welcome is map
+          && request.resource.data.welcome.keys().hasOnly(["theme", "at", "skipped"])
+          && request.resource.data.welcome.theme is string && request.resource.data.welcome.theme.size() <= 80))
+        && (!("progress" in request.resource.data) || (request.resource.data.progress is map
+          && request.resource.data.progress.keys().hasOnly(["steps", "done", "at"])
+          && request.resource.data.progress.steps is list && request.resource.data.progress.steps.size() <= 20
+          && request.resource.data.progress.done is list && request.resource.data.progress.done.size() <= 20));
     }
     match /customerNotes/{noteId} {
       // Private notes + tags per customer (id = sha256 of the lowercased email). Admin only.

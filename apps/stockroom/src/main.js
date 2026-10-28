@@ -1133,7 +1133,8 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { readShopProfile, switchOn } from './lib/shop-profile.js';
+import { DEFAULT_SHOP_PROFILE, readShopProfile, switchOn } from './lib/shop-profile.js';
+import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 
 
 // Tells the boot watchdog in index.html that the bundle and every import it
@@ -6234,11 +6235,35 @@ function showCatalogueSkeleton() {
 // ── ALL BOOKS OVERVIEW
 function updateAllOverview() {
   const allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b));
+  renderSetupGuide(allBooksVisible);
   renderAllBooksStrips(allBooksVisible);
   renderCombinedChannelAnalytics(allBooksVisible);
   renderCombinedConsignmentSummary(allBooksVisible);
   renderOverviewRail();
 }
+
+// Set up your stockroom (plan 6.9, lib/setup-guide.js): five steps for a stockroom-only plan, above All Books.
+function renderSetupGuide(allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b))) {
+  const el = $('stockroom-setup-guide');
+  if (!el) return;
+  const saved = readGuide();
+  const steps = guideSteps({ books: allBooksVisible, states }, saved);
+  const on = !isAuthor() && guideApplies(readShopProfile(), DEFAULT_SHOP_PROFILE) && showGuide(steps, saved);
+  el.hidden = !on;
+  el.innerHTML = on ? guideHtml(steps) : '';
+}
+registerActions({
+  'guide.open': el => switchTab(el.dataset.tab),
+  'guide.tick': el => {
+    const saved = readGuide();
+    writeGuide({ ...saved, done: { ...(saved.done || {}), [el.dataset.id]: new Date().toISOString() } });
+    renderSetupGuide();
+  },
+  'guide.hide': () => {
+    writeGuide({ ...readGuide(), hiddenAt: new Date().toISOString() });
+    renderSetupGuide();
+  },
+});
 
 // The phone's All Books: one row per title (lib/phone-books.js). The chip
 // choice lasts for the visit; the desktop strips below are untouched.

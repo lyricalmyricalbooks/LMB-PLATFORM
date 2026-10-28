@@ -9,7 +9,7 @@ import { renderHelp } from "./page.js";
 const words = (a) => [a.question, ...a.answer, ...(a.where || [])].join(" ");
 
 test("each article has its own id, a topic, a question and an answer", () => {
-  assert.equal(ARTICLES.length, 28);
+  assert.equal(ARTICLES.length, 29);
   assert.equal(new Set(ARTICLES.map((a) => a.id)).size, ARTICLES.length);
   for (const a of ARTICLES) {
     assert.match(a.id, /^[a-z][a-z-]+$/, a.id);
@@ -79,11 +79,11 @@ test("the page groups answers by topic, opens the one in the address, and points
   assert.ok(!renderHelp({ search: "<script>" }).includes("<script>"));
 });
 
-test("every step of the shop's first-week list has an answer", () => {
+test("every step of the shop's setup guide has an answer", () => {
   const source = readFileSync(new URL("../apps/shop/src/app/admin/firstWeek.ts", import.meta.url), "utf8");
   const union = source.match(/export type StepId =([^;]+);/)[1];
   const steps = [...union.matchAll(/"([a-z-]+)"/g)].map((m) => m[1]);
-  assert.ok(steps.length >= 13 && steps.includes("shipping"), `read ${steps.length} steps`);
+  assert.ok(steps.length >= 10 && steps.includes("shipping") && steps.includes("open"), `read ${steps.length} steps`);
   const ids = new Set(ARTICLES.map((a) => a.id));
   for (const step of steps) {
     assert.ok(CHECKLIST_ANSWERS[step], `the "${step}" step has no answer in CHECKLIST_ANSWERS`);

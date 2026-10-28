@@ -28,6 +28,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `services/payments/` | The one service that holds the Stripe platform key. It handles checkout and Stripe events for all shops. |
 | `services/billing/` | Each press's Colophon plan (shop, stockroom or both) on the platform's own Stripe account: free trial with no card, card, cancel, plan changes and the billing emails. |
 | `services/email/` | The one service that holds the email sender key. |
+| `services/trial-tips/` | Setup tips by email on days 2, 4, 7, 21 and 60 of a press's trial, each for the next step of their shop's setup guide they haven't done; tips can be turned off, billing emails can't. |
 | `services/domains/` | A press's own web address from their shop's settings: saved, allowed to call the shop's server code, served by Firebase Hosting, then registered for Apple Pay and Google Pay. |
 | `services/accounting/` | The QuickBooks link: a press connects their QuickBooks company from their shop's settings and each night's sales, refunds, card fees and payouts are sent once. Off until switched on (`docs/accounting.md`). |
 | `signup/` | Sign-up, plan choice and billing. |

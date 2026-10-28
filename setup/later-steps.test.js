@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { latestByStep, runSteps, stepProblems } from "./runner.js";
 import { REGION, shopProblems } from "./steps.js";
 import { readFileSync } from "node:fs";
-import { OWNER_WELCOME, appsOf, envFileText, laterSteps, needsStockroomLink, sellingToday, shopSteps, torontoDay } from "./later-steps.js";
+import { OWNER_WELCOME, appsOf, envFileText, laterSteps, needsStockroomLink, privateStart, publishes, sellingToday, shopSteps, torontoDay } from "./later-steps.js";
 import { QUESTION } from "../signup/form.js";
 import { PAYMENT_PROVIDERS, paymentProblems } from "./payments.js";
 import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "./fakes.js";
@@ -597,6 +597,26 @@ test("the sign-up answer is written once for the first-week list, and the owner'
   services.world.docs.set(`${ID} firstWeek/start`, { sellingToday: "online", done: { look: "2026-10-28" } });
   assert.equal((await run()).ok, true);
   assert.deepEqual(services.world.docs.get(`${ID} firstWeek/start`).done, { look: "2026-10-28" });
+});
+
+test("the publishing answer and country travel to the shop for Choose your look, and a press's shop starts private", async () => {
+  const { testShop: _, ...press } = TEST_SHOP;
+  const shop = { ...press, publishes: "zines", country: "CA" };
+  const { services, run } = setup({ shop });
+  assert.equal((await run()).ok, true);
+  const start = services.world.docs.get(`${ID} firstWeek/start`);
+  assert.equal(start.publishes, "zines");
+  assert.equal(start.country, "CA");
+  assert.equal(services.world.docs.get(`${ID} settings/website`).design.showUnderConstruction, true);
+  // A re-run keeps the owner's choice and the shop they opened.
+  services.world.docs.set(`${ID} firstWeek/start`, { ...start, welcome: { theme: "press-zine", at: "2026-10-28" } });
+  services.world.docs.set(`${ID} settings/website`, { design: { showUnderConstruction: false } });
+  assert.equal((await run()).ok, true);
+  assert.deepEqual(services.world.docs.get(`${ID} firstWeek/start`).welcome, { theme: "press-zine", at: "2026-10-28" });
+  assert.equal(services.world.docs.get(`${ID} settings/website`).design.showUnderConstruction, false);
+  assert.equal(publishes({ publishes: "<b>" }), null);
+  // The platform's test shop stays open: the release check buys on it.
+  assert.deepEqual(privateStart(TEST_SHOP, [{ path: "settings/website", data: { shopName: "x" } }]), [{ path: "settings/website", data: { shopName: "x" } }]);
 });
 
 test("a skipped or unknown answer is written as none, and a stockroom-only shop gets no first-week list", async () => {
