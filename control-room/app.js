@@ -3,6 +3,7 @@
 // sign-up page. The server (control-room/routes.js) checks that the person is a platform admin, and asks for a reason
 // that goes in the shop's log.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
+import { deviceId } from "../signup/device.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
@@ -21,7 +22,7 @@ async function api(method, path, body) {
   const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
   const response = await fetch(`${API_BASE}${path}`, {
     method,
-    headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}`, "X-Device-Id": deviceId() } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const answer = await response.json().catch(() => ({ ok: false, message: "The platform didn't answer. Try again." }));
@@ -50,6 +51,7 @@ async function load() {
     $("#view-shops").hidden = false;
     await loadRepairs();
     await loadTickets();
+    await loadRecoveries();
   } catch (failure) {
     status.textContent = failure.message;
   }
@@ -170,10 +172,10 @@ function repairCard(item) {
 
 // ── Support requests (services/support): answer, and the press gets it by email; close when done. ──
 let ticketStatus = "open";
-for (const button of document.querySelectorAll(".filters button")) {
+for (const button of document.querySelectorAll("#ticket-filters button")) {
   button.addEventListener("click", () => {
     ticketStatus = button.dataset.status;
-    for (const other of document.querySelectorAll(".filters button")) other.setAttribute("aria-pressed", String(other === button));
+    for (const other of document.querySelectorAll("#ticket-filters button")) other.setAttribute("aria-pressed", String(other === button));
     loadTickets();
   });
 }
@@ -225,6 +227,72 @@ function ticketCard(ticket) {
       el("div", { className: "facts", textContent: `${m.from === "press" ? ticket.email : m.by} · ${when(m.at)}` }),
       el("div", { textContent: m.body }))),
     answer, el("div", { className: "row" }, send, close));
+}
+
+// ── Account recovery (accounts/recovery.js): check, approve or deny; after the wait, move it by hand and record it. ──
+let recoveryStatus = "waiting";
+for (const button of document.querySelectorAll("#recovery-filters button")) {
+  button.addEventListener("click", () => {
+    recoveryStatus = button.dataset.status;
+    for (const other of document.querySelectorAll("#recovery-filters button")) other.setAttribute("aria-pressed", String(other === button));
+    loadRecoveries();
+  });
+}
+
+async function loadRecoveries() {
+  try {
+    const { requests } = await api("POST", "/control/recovery", { status: recoveryStatus });
+    $("#recoveries").replaceChildren(...(requests.length ? requests.map(recoveryCard) : [el("p", { textContent: "Nothing here." })]));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+function recoveryCard(request) {
+  const when = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const decide = async (button, path, body, done) => {
+    button.disabled = true;
+    try {
+      await api("POST", path, { id: request.id, ...body });
+      status.textContent = done;
+      await loadRecoveries();
+    } catch (failure) {
+      status.textContent = failure.message;
+      button.disabled = false;
+    }
+  };
+  const words = el("textarea", { maxLength: 2000 });
+  words.setAttribute("aria-label", `Note or reason for request ${request.id}`);
+  const actions = el("div", { className: "row" });
+  if (request.status === "waiting") {
+    const approve = el("button", { type: "button", className: "primary", textContent: "Approve (note how you checked)" });
+    approve.addEventListener("click", () => decide(approve, "/control/recovery/approve", { note: words.value }, `Approved. Both addresses are told; it can be moved after three days.`));
+    actions.append(approve);
+  }
+  if (request.status === "waiting" || request.status === "approved") {
+    const deny = el("button", { type: "button", textContent: "Deny (the reason is emailed)" });
+    deny.addEventListener("click", () => decide(deny, "/control/recovery/deny", { reason: words.value }, `Denied, and ${request.requesterEmail} is told why.`));
+    actions.append(deny);
+  }
+  let byHand = null;
+  if (request.status === "approved") {
+    byHand = el("input", { type: "checkbox" });
+    const apply = el("button", { type: "button", className: "primary", textContent: "Record as moved", disabled: Date.now() < Date.parse(request.holdUntil) });
+    apply.addEventListener("click", () => decide(apply, "/control/recovery/apply", { doneByHand: byHand.checked }, `Recorded. Both addresses are told the account has moved.`));
+    actions.append(el("label", { className: "switch" }, byHand, "I've moved it by hand"), apply);
+  }
+  return el("div", { className: "card" },
+    el("div", { className: "row" }, el("strong", { textContent: `${request.oldEmail} → ${request.requesterEmail}` }), el("span", { className: "pill", textContent: request.status })),
+    el("div", { className: "facts" },
+      el("span", { textContent: request.id }),
+      el("span", { textContent: request.accountId ? "the old address has an account" : "no account uses the old address" }),
+      el("span", { textContent: `shops: ${(request.shops ?? []).join(", ") || "none"}` }),
+      el("span", { textContent: `asked ${when(request.askedAt)}` }),
+      request.holdUntil ? el("span", { textContent: `can move after ${when(request.holdUntil)}` }) : null),
+    el("div", { className: "message", textContent: request.details }),
+    ...(request.history ?? []).map((h) => el("div", { className: "facts", textContent: `${when(h.at)} · ${h.what}${h.by ? ` · ${h.by}` : ""}${h.note ? ` · ${h.note}` : ""}${h.reason ? ` · ${h.reason}` : ""}` })),
+    actions.childElementCount ? words : null,
+    actions.childElementCount ? actions : null);
 }
 
 $("#google").addEventListener("click", () => signInWithPopup(auth, new GoogleAuthProvider()).catch(() => { status.textContent = "Sign-in didn't finish."; }));

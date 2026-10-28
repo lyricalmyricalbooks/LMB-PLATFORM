@@ -33,6 +33,7 @@
   button:disabled { opacity: .6; cursor: default; }
   .or { font: 13px "DM Mono", monospace; text-transform: uppercase; color: var(--muted); text-align: center; }
   .card { border: 2px solid var(--ink); padding: 18px; box-shadow: 4px 4px 0 var(--pink); display: grid; gap: 8px; }
+  .card.warning { box-shadow: 4px 4px 0 var(--danger); }
   .row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
   .row > :first-child { flex: 1 1 200px; overflow-wrap: anywhere; }
   .pill { font: 13px "DM Mono", monospace; text-transform: uppercase; border: 2px solid var(--ink); padding: 2px 8px; }
@@ -71,9 +72,27 @@
   <section id="view-shops" class="stack" hidden aria-labelledby="shops-title">
     <h2 id="shops-title" tabindex="-1">Choose a shop</h2>
     <p class="hint">Signed in as <strong id="me"></strong>. <button type="button" class="ghost" id="sign-out">Sign out</button></p>
+    <div id="recovery-alerts" class="stack"></div>
     <div id="shops" class="stack"></div>
     <a href="../signup/">Start another shop</a>
     <button type="button" class="ghost" id="open-help">Get help from Colophon</button>
+    <button type="button" class="ghost" id="open-recovery">Lost access to the email your shops use?</button>
+  </section>
+
+  <!-- Account recovery: move an account from an email address the person has lost (accounts/recovery.js). -->
+  <section id="view-recovery" class="stack" hidden aria-labelledby="recovery-title">
+    <button type="button" class="ghost" id="recovery-back">← All your shops</button>
+    <h2 id="recovery-title" tabindex="-1">Move your account to this address</h2>
+    <p class="hint">If you can no longer get into the email address your Colophon account used, we can move it to the one you're signed in with now. A person checks every request, we tell the old address, and nothing moves for three days after we approve it.</p>
+    <form id="recovery-form" class="card" novalidate>
+      <label>The email address you've lost<input name="oldEmail" type="email" autocomplete="off" required></label>
+      <p class="error" data-problem="oldEmail" role="alert" hidden></p>
+      <label>How can we check it's you?<textarea name="details" maxlength="3000" required placeholder="Your press's name, your shop's web address, a recent order or anything only you would know."></textarea></label>
+      <p class="error" data-problem="details" role="alert" hidden></p>
+      <button type="submit" class="primary">Ask to move my account</button>
+    </form>
+    <h3>Your requests</h3>
+    <div id="recoveries" class="stack"></div>
   </section>
 
   <!-- Help: ask the platform team, and see the answers (services/support). -->

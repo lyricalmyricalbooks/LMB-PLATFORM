@@ -59,12 +59,22 @@
     </div>
     <div id="repairs" class="stack"></div>
     <h2>Support requests</h2>
-    <div class="row filters" role="group" aria-label="Which requests">
+    <div class="row filters" id="ticket-filters" role="group" aria-label="Which requests">
       <button type="button" data-status="open" aria-pressed="true">Waiting</button>
       <button type="button" data-status="answered" aria-pressed="false">Answered</button>
       <button type="button" data-status="closed" aria-pressed="false">Closed</button>
     </div>
     <div id="tickets" class="stack"></div>
+    <h2>Account recovery</h2>
+    <p>People who lost the email address their account uses. Approve only once you've checked it's them; the move then waits three days for the old address to object, and you make it by hand (accounts/README.md, "Recovery: applying").</p>
+    <div class="row filters" id="recovery-filters" role="group" aria-label="Which recovery requests">
+      <button type="button" data-status="waiting" aria-pressed="true">To check</button>
+      <button type="button" data-status="approved" aria-pressed="false">Approved, waiting</button>
+      <button type="button" data-status="applied" aria-pressed="false">Moved</button>
+      <button type="button" data-status="denied" aria-pressed="false">Denied</button>
+      <button type="button" data-status="cancelled" aria-pressed="false">Stopped</button>
+    </div>
+    <div id="recoveries" class="stack"></div>
   </section>
   <p id="status" role="status" aria-live="polite"></p>
 </main>

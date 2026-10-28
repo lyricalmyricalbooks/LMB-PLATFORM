@@ -8,6 +8,7 @@ import { ACT_AS_MINUTES, adminOf, controlRoomAdmins, createControlRoom, profileP
 import { controlRoutes } from "./routes.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
 import { fakeRepairQueue, fakeShopAccess } from "./fakes.js";
+import { MAX_MINUTES, SUPPORT_UID, supportAccess } from "./supportAccess.js";
 import { createApi } from "../signup/api.js";
 import { fakeVerifyIdToken } from "../signup/fakes.js";
 import { platformSettings } from "../services/settings.js";
@@ -167,4 +168,22 @@ test("the page: admins sign in with Google, every route is used, names are shown
   for (const path of Object.keys(controlRoutes({}))) assert.ok(app.includes(`"${path.split(" ")[1].replace("/api", "")}"`), path);
   for (const name of SWITCHES) assert.ok(app.includes(name), `words for ${name}`);
   assert.doesNotMatch(app, /innerHTML|insertAdjacentHTML|document\.write/);
+});
+
+test("the real support sign-in: a token for the support account with who, why and until, opened at the shop's admin", async () => {
+  const w = await world();
+  const made = [];
+  const identity = { customToken: async (sa, uid, claims) => { made.push({ sa, uid, claims }); return "signed.jwt"; } };
+  const now = () => new Date("2026-10-28T12:00:00Z");
+  const access = supportAccess({ identity, registry: w.registry, serviceAccount: "platform@example.com", now });
+  const { url, until } = await access.supportSignIn(ID, { by: ADMIN.email, reason: "x".repeat(500), minutes: 30 });
+  const profile = await w.registry.getProfile(ID);
+  assert.equal(url, `${profile.siteUrl}/admin/#support=signed.jwt`);
+  assert.equal(until, now().getTime() / 1000 + 1800);
+  assert.deepEqual(made[0].uid, SUPPORT_UID);
+  assert.deepEqual(made[0].claims.support, { by: ADMIN.email, reason: "x".repeat(200), until });
+  assert.ok(JSON.stringify(made[0].claims).length < 1000, "a token's claims stay under Firebase's limit");
+  // Never longer than the sign-in token itself lasts.
+  assert.equal((await access.supportSignIn(ID, { by: ADMIN.email, reason: "long one", minutes: 600 })).until, now().getTime() / 1000 + MAX_MINUTES * 60);
+  await assert.rejects(supportAccess({ identity, registry: w.registry }).supportSignIn(ID, { by: ADMIN.email, reason: "r" }), /service account/);
 });
