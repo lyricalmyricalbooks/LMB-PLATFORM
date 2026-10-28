@@ -191,6 +191,18 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The press's own web address opens their shop, with its padlock (services/domains, plan 6.15). Sent once. */
+  "domain-live": ({ domain, link }, { settings, pressName }) => layout({
+    subject: `${pressName} is open at ${domain}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your shop now opens at ${domain}, with the secure padlock.`,
+      "The address your shop came with keeps working too. To have emails, links and Google use the new one, make it your main address in your web address settings.",
+    ],
+    buttons: [["Open your web address settings", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The press's own domain stopped passing the sending check (ownDomain.js, plan 6.18): Colophon's sender meanwhile. */
   "own-email-paused": ({ domain }, { settings, pressName }) => layout({
     subject: `${pressName}'s emails are coming from ${settings.platformName} for now`,

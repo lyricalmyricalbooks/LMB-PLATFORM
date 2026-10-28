@@ -2,11 +2,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { adminApi } from "./api";
 import { DestructiveButton, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { describeDomain, domainActions, recordHostLabel, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
+import { allowLabel, describeDomain, domainActions, guideLineTitle, guideMailto, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
+import { copyText } from "./clipboard";
 
 // Settings › General › Your web address (plan 2.9): put the shop on the press's own address through Colophon. A shop
 // without the platform's domain service shows `fallback` (the older "for your records" field) instead. Plan 5.9: each
 // address can be removed (never the main one), and a live one made the main address emails, links and Google use.
+// Plan 6.15: one Connect step. A domain seller that works with Colophon gets a button for its own sign-in window; any
+// other gets a guide in plain words with a Copy button on every line and a mail for the press's web person.
 export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
   const [domains, setDomains] = useState<DomainEntry[] | null>(null);
   const [max, setMax] = useState(3);
@@ -65,12 +68,12 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
     setBusy("add");
     setError(null);
     try {
-      const found = (await adminApi.customDomains("add", name)) as DomainCheck;
+      const found = (await adminApi.customDomains("connect", name)) as DomainCheck;
       setChecks((c) => ({ ...c, [found.name]: found }));
       setDomains((list) => [...(list || []).filter((d) => d.name !== found.name), { name: found.name, state: found.state }]);
       setDraft("");
     } catch (err: any) {
-      setError(friendlyError(err, "add that address"));
+      setError(friendlyError(err, "connect that address"));
     } finally {
       setBusy(null);
     }
@@ -149,7 +152,7 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
               const found = checks[d.name];
               const state = found?.state ?? d.state;
               const info = describeDomain(state);
-              const records = found?.records ?? [];
+              const guide = state !== "live" ? found?.guide : undefined;
               const actions = domainActions({ ...d, state }, main);
               return (
                 <div key={d.name} className="rp-card" style={{ padding: 16, boxShadow: "none" }} data-domain={d.name}>
@@ -161,22 +164,41 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
                     </span>
                   </div>
                   <p className="rp-hint" style={{ margin: "8px 0 0" }}>{info.text}</p>
-                  {records.length > 0 && (
-                    <div style={{ overflowX: "auto", marginTop: 12 }}>
-                      <table className="rp-table" aria-label={`DNS records for ${d.name}`}>
-                        <thead><tr><th scope="col">Do this</th><th scope="col">Type</th><th scope="col">Name / host</th><th scope="col">Value</th></tr></thead>
-                        <tbody>
-                          {records.map((r, i) => (
-                            <tr key={i}>
-                              <td>{r.action === "add" ? "Add" : "Remove"}</td>
-                              <td>{r.type}</td>
-                              <td style={{ fontFamily: "var(--rp-font-mono)" }}>{recordHostLabel(r.host, d.name)}</td>
-                              <td style={{ fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{r.value}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  {state !== "live" && found?.allowUrl && (
+                    <div className="rp-stack" style={{ gap: 8, marginTop: 12 }} data-allow>
+                      <p style={{ margin: 0 }}>{found.seller ? `${found.seller} will ask you to sign in and say yes. That is all it takes.` : "Your domain seller will ask you to sign in and say yes. That is all it takes."}</p>
+                      <div className="rp-card-actions">
+                        <PrimaryButton size="sm" disabled={!!busy} onClick={() => window.location.assign(found.allowUrl!)}>{allowLabel(found.seller)}</PrimaryButton>
+                      </div>
                     </div>
+                  )}
+                  {guide && (
+                    <details style={{ marginTop: 12 }} open={!found?.allowUrl} data-guide>
+                      <summary style={{ cursor: "pointer", fontWeight: 600 }}>{found?.allowUrl ? "Prefer to do it yourself?" : `Connect ${d.name} yourself`}</summary>
+                      <ol style={{ margin: "8px 0", paddingLeft: 20 }}>
+                        {guide.steps.map((step, i) => <li key={i}>{step}</li>)}
+                      </ol>
+                      <div className="rp-stack" style={{ gap: 8 }}>
+                        {guide.lines.map((line, i) => (
+                          <div key={i} className="rp-card" style={{ padding: 12, boxShadow: "none" }} data-guide-line>
+                            <strong>{guideLineTitle(line)}</strong>
+                            <dl style={{ margin: "4px 0 8px", display: "grid", gridTemplateColumns: "auto 1fr", gap: "2px 12px" }}>
+                              <dt>Kind</dt><dd style={{ margin: 0 }}>{line.kind}</dd>
+                              <dt>Name</dt><dd style={{ margin: 0, fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{line.name}</dd>
+                              <dt>Value</dt><dd style={{ margin: 0, fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{line.value}</dd>
+                              {line.priority !== undefined && <><dt>Priority</dt><dd style={{ margin: 0 }}>{line.priority}</dd></>}
+                            </dl>
+                            <div className="rp-card-actions">
+                              <SecondaryButton size="sm" onClick={() => copyText(line.name, "Name")}>Copy name</SecondaryButton>
+                              <SecondaryButton size="sm" onClick={() => copyText(line.value, "Value")}>Copy value</SecondaryButton>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="rp-card-actions" style={{ marginTop: 8 }}>
+                        <a className="rp-btn rp-btn-secondary rp-btn-sm" href={guideMailto(guide)}>Send these to my web person</a>
+                      </div>
+                    </details>
                   )}
                   {(found?.state ?? d.state) === "live" && (
                     <p className="rp-hint" style={{ margin: "8px 0 0" }}>
@@ -200,11 +222,11 @@ export function CustomDomainCard({ fallback }: { fallback: ReactNode }) {
             })}
             {domains.length < max && (
               <div className="rp-stack" style={{ gap: 8 }}>
-                <TextField label="Add an address" placeholder="shop.yourpress.com" spellCheck={false} autoCapitalize="none" value={draft}
-                  hint="Use an address you own. You'll add a few records where you bought it."
+                <TextField label="Connect an address you own" placeholder="shop.yourpress.com" spellCheck={false} autoCapitalize="none" value={draft}
+                  hint="Type the address, press Connect, and we'll take you through the rest."
                   onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
                 <div className="rp-card-actions">
-                  <PrimaryButton disabled={!draft.trim() || !!busy} onClick={add}>{busy === "add" ? "Adding…" : "Add address"}</PrimaryButton>
+                  <PrimaryButton disabled={!draft.trim() || !!busy} onClick={add}>{busy === "add" ? "Connecting…" : "Connect"}</PrimaryButton>
                 </div>
               </div>
             )}

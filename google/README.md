@@ -98,4 +98,5 @@ live in this service's environment only.
 - Hosting (one function in the platform project) and the Firestore stores `googleConnections` and `googleStates`.
 - The real `shopFirebase` client (Admin SDK writes into the shop's project, the verification file on its Hosting, and
   project deletion), and the nightly Drive backup and the calendar's events on the website.
-- Adding and removing records through the registrar's Allow window (plan 6.15, `domainsCall`).
+- Hosting the domain service, so `domainsCall` reaches `applyRecords` / `removeRecords` / `removeDomain` for real (plan
+  6.15 built them in `services/domains`; teardown passes `deleting: true`).

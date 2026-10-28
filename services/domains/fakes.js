@@ -66,3 +66,42 @@ export function fakeProfileFiles(files = {}) {
   const map = new Map(Object.entries(files));
   return { map, read: async (shopId) => map.get(shopId) ?? null, async write(shopId, text) { map.set(shopId, text); } };
 }
+
+/**
+ * The public "who sold this domain" lookup (sellers.js), from a table: `{ "mothpress.example": { registrar,
+ * domainConnect } }`. A name not in the table reads as unknown. `calls` keeps every lookup.
+ */
+export function fakeSellers(table = {}) {
+  const calls = [];
+  return {
+    calls,
+    async lookup(domain) {
+      calls.push(domain);
+      const zone = Object.keys(table).find((z) => domain === z || domain.endsWith(`.${z}`));
+      if (!zone) return { zone: domain.split(".").slice(-2).join("."), registrar: null, domainConnect: null };
+      return { zone, registrar: table[zone].registrar ?? null, domainConnect: table[zone].domainConnect ?? null };
+    },
+  };
+}
+
+/** A pretend Domain Connect seller's settings, with Colophon's template registered unless `hasTemplate` is false. */
+export function fakeDomainConnectSeller({ name = "GoDaddy", hasTemplate = true } = {}) {
+  return { providerName: name, urlSyncUX: "https://dcc.seller.example/manage", width: 750, height: 750, hasTemplate };
+}
+
+/** Lines seen from outside: `show(record)` makes one visible (sellers.js publicLinesClient's shape). */
+export function fakePublicLines() {
+  const seen = new Set();
+  const key = (r) => [r.type, String(r.host).toLowerCase(), String(r.value).toLowerCase()].join(" ");
+  return { show(record) { seen.add(key(record)); }, has: async (record) => seen.has(key(record)) };
+}
+
+/** The platform emails sent, once per idempotency key (services/email sendPlatform's shape). */
+export function fakePlatformEmail() {
+  const sent = new Map();
+  return {
+    sent,
+    list: () => [...sent.values()],
+    sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))),
+  };
+}

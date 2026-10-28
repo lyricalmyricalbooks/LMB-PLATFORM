@@ -366,7 +366,7 @@ test("deletion waits for the closing dates and both emails, then takes the addre
   // Closing hadn't run yet, so it runs first.
   assert.deepEqual(done.steps.map((s) => s.step), ["stopFeed", "stopTag", "stopGmail", "stopExtras", "giveBackAccess", "removeDomain", "deleteFirebase"]);
   assert.ok(done.steps.every((s) => s.state === "done"), JSON.stringify(done.steps));
-  assert.ok(t.domains.calls.some(([op, , args]) => op === "removeDomain" && args.domain === "shop.mothpress.example"));
+  assert.ok(t.domains.calls.some(([op, , args]) => op === "removeDomain" && args.domain === "shop.mothpress.example" && args.deleting === true));
   assert.equal(t.resendDomains.domains.size, 0);
   assert.equal((await t.shopRow()).emailSender, null);
   assert.equal(t.shopFirebase.docs.get(SHOP).deleted, true);
