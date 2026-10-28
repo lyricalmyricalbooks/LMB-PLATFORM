@@ -2,7 +2,7 @@
  * legacyFirebase.ts
  *
  * Initializes a SECONDARY Firebase app connected to the legacy
- * Your Press inventory project (lmb-test-stockroom).
+ * the inventory project (lmb-test-stockroom).
  *
  * This is read-only from the website's perspective — we only pull
  * stock levels from the RTDB and write them into the main Firestore.

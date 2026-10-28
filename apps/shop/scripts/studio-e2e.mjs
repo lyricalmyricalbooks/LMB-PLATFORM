@@ -1170,7 +1170,7 @@ await check("Rewrite with AI: a section title is rewritten as one undoable chang
   // The fixture answers AI requests itself (setAiTransport), so nothing reaches Google.
   await page.evaluate(() => {
     window.__studioFixture.aiAnswer = body => body.task === "rewrite"
-      ? { status: 200, data: { result: { text: body.input.text.includes("{year}") ? "Copyright {year}, the press" : "Letters from the press" } } }
+      ? { status: 200, data: { result: { text: body.input.text.includes("{year}") ? "Copyright {year}, {name}" : "Letters from the press" } } }
       : undefined;
   });
   await page.getByRole("button", { name: "Add section" }).first().click();
@@ -1184,19 +1184,19 @@ await check("Rewrite with AI: a section title is rewritten as one undoable chang
   if (asked.task !== "rewrite" || asked.input.how !== "friendlier" || !/Newsletter/.test(asked.input.where)) throw new Error(`asked ${JSON.stringify(asked)}`);
   await page.getByRole("button", { name: "Undo" }).first().click();
   await frame.getByText("Letters from the press").first().waitFor({ state: "detached", timeout: 10000 });
-  // Text & labels: the {year} placeholder survives, and an answer that drops it changes nothing.
+  // Text & labels: the {year} and {name} placeholders survive, and an answer that drops one changes nothing.
   await page.getByRole("button", { name: "Text & labels", exact: true }).first().click();
   await page.getByRole("button", { name: /^Footer/ }).first().click();
   const field = page.locator('[data-copy-key="footerCopyright"]');
   await field.getByRole("button", { name: /^Rewrite .* with AI$/ }).click();
   await field.getByRole("button", { name: "Improve" }).click();
-  await page.waitForFunction(() => document.querySelector('[data-copy-key="footerCopyright"] input, [data-copy-key="footerCopyright"] textarea')?.value === "Copyright {year}, the press", null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelector('[data-copy-key="footerCopyright"] input, [data-copy-key="footerCopyright"] textarea')?.value === "Copyright {year}, {name}", null, { timeout: 10000 });
   await page.evaluate(() => { window.__studioFixture.aiAnswer = () => ({ status: 200, data: { result: { text: "No placeholder here" } } }); });
   await field.getByRole("button", { name: /^Rewrite .* with AI$/ }).click();
   await field.getByRole("button", { name: "Shorter" }).click();
   await expectText(page, "dropped a {placeholder}");
   const value = await field.locator("input, textarea").first().inputValue();
-  if (value !== "Copyright {year}, the press") throw new Error(`the field changed to "${value}"`);
+  if (value !== "Copyright {year}, {name}") throw new Error(`the field changed to "${value}"`);
 });
 
 await check("Rewrite with AI on rich text: the toast's Undo puts the old words back even after the editor tidies the HTML", desktop, async page => {

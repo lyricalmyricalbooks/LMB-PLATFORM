@@ -168,6 +168,15 @@ test("backups: the latest backup day is read from the bucket, and a backup is an
   fetch.done();
 });
 
+test("backups: another database's export goes next to the shop's", async () => {
+  const { fetch, google } = clients([
+    defaultBucket,
+    { method: "POST", url: `https://firestore.googleapis.com/v1/projects/${P}/databases/stockroom:exportDocuments`, body: { outputUriPrefix: `gs://${BUCKET}/backups/2026-10-28/stockroom-export`, collectionIds: [] }, json: { name: `projects/${P}/databases/stockroom/operations/ex2`, done: true, response: {} } },
+  ]);
+  assert.deepEqual(await google.backups.run(P, { database: "stockroom" }), { name: "backups/2026-10-28/" });
+  fetch.done();
+});
+
 test("storage probe: the test file is written with the platform's token and read with none", async () => {
   const object = `https://storage.googleapis.com/storage/v1/b/${BUCKET}/o/${encodeURIComponent(PROBE_FILE)}`;
   const { fetch, google } = clients([
