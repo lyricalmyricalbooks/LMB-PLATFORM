@@ -13,6 +13,7 @@ const { cleanRecipients, cleanSubject, cleanFromName, isPermanentEmailError, nex
 const { explainEmailError } = require("../emailErrors");
 const { risoLayout } = require("../emailTheme");
 const { footerAddress } = require("../marketingOptOut");
+const { pressName } = require("../shared/shopIdentity");
 
 // Bounded waits: a hung connection must not stall a trigger or the 15-minute sweep.
 const GMAIL_TIMEOUTS = { connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 };
@@ -71,7 +72,8 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
     secret = secret || resendSecretValue();
     let apiKey = secret;
     let keySource = secret ? "secret" : "none";
-    let fromName = senderName;
+    // Settings › Email sender › Sender name, else the press's own name (Text & labels › Site name, plan 5.8).
+    let fromName = pressName(null, senderName);
     let fromEmail = senderEmail;
     let replyTo = null;
     let brand = {};
@@ -82,7 +84,7 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
       if (settingsDoc.exists) {
         const settings = settingsDoc.data() || {};
         const comms = settings.communications || {};
-        if (comms.fromName) fromName = comms.fromName;
+        fromName = String(comms.fromName || "").trim() || pressName(settings, senderName);
         if (comms.replyTo) replyTo = comms.replyTo;
         if (comms.fromEmail) fromEmail = comms.fromEmail;
         if (comms.resendApiKey) { apiKey = comms.resendApiKey; keySource = "settings"; }

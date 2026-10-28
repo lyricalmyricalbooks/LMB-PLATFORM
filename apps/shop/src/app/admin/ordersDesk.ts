@@ -3,6 +3,7 @@
 import { queueOf, terminal, preorderShipDate, disputeOpen, addressIssues, addressKey, fulfillmentMethod, packingInfo } from "./fulfillment";
 import { orderMatches, type CatalogSearchIndex } from "./orderSearch";
 import { isArchived, orderTime } from "./orderListHelpers";
+import { providerName } from "./providerWords";
 
 export type DeskView = "needs" | "preorders" | "shipped" | "all";
 
@@ -106,10 +107,10 @@ export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "succ
   if (o.paymentMismatch && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Payment doesn't match" };
   if (o.giftCardConflict && !o.giftCardConflict.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Gift card couldn't cover its part" };
   if (o.customerRequest?.status === "open") return { tone: "danger", text: o.customerRequest.type === "cancel" ? "⚠ Customer asks to cancel" : "⚠ Customer asks to return" };
-  if (awaitingWebhook(o)) return { tone: "warning", text: "◷ Paid in Stripe — awaiting webhook" };
-  if (Array.isArray(o.duplicatePayments) && o.duplicatePayments.length) return { tone: "danger", text: "⚠ Paid twice — refund the extra in Stripe" };
-  if (o.disputeStatus === "needs_response" || o.disputeStatus === "warning_needs_response") return { tone: "danger", text: "⚠ Dispute — respond in Stripe" };
-  if (disputeOpen(o)) return { tone: "danger", text: SHIPPED_QUEUES.includes(q) ? "⚠ Dispute open — follow it in Stripe" : "⚠ Dispute open — hold the books" };
+  if (awaitingWebhook(o)) return { tone: "warning", text: `◷ Paid in ${providerName()} — awaiting webhook` };
+  if (Array.isArray(o.duplicatePayments) && o.duplicatePayments.length) return { tone: "danger", text: `⚠ Paid twice — refund the extra in ${providerName()}` };
+  if (o.disputeStatus === "needs_response" || o.disputeStatus === "warning_needs_response") return { tone: "danger", text: `⚠ Dispute — respond in ${providerName()}` };
+  if (disputeOpen(o)) return { tone: "danger", text: SHIPPED_QUEUES.includes(q) ? `⚠ Dispute open — follow it in ${providerName()}` : "⚠ Dispute open — hold the books" };
   if (o.partiallyRefunded) return { tone: "warning", text: "⚠ Partly refunded" };
   if (q === "Needs attention") return { tone: "danger", text: attentionReason(o) };
   if (q === "Ready to pack") return { tone: "warning", text: "● Pack" };

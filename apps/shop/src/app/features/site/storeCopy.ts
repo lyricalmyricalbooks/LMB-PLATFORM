@@ -930,7 +930,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "coDiscountExpired", label: "Discount error (invalid code)", default: "INVALID OR EXPIRED CODE" },
       { key: "coDiscountUnavailable", label: "Discount error (code couldn't be checked)", default: "We couldn't check that code right now. Try again." },
       { key: "coPaypalError", label: "PayPal start error", default: "Failed to create PayPal order." },
-      { key: "coStripeError", label: "Card checkout start error", default: "Failed to create secure Stripe session." },
+      { key: "coStripeError", label: "Card checkout start error", default: "Couldn’t open the secure card payment. Please try again." },
       { key: "coPaypalCaptureError", label: "PayPal capture error", default: "PayPal didn’t complete the payment, so nothing was charged. Please try again or choose another payment method." },
       { key: "coOrderNumber", label: "Thank-you order number", default: "ORDER #{number}", hint: "Use {number} for the order number." },
       { key: "coConfirmationSent", label: "Thank-you note (paid)", default: "A confirmation will be sent to your email." },

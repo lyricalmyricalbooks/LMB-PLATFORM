@@ -26,7 +26,8 @@ export type PlatformPaymentsAnswer = {
   url?: string;
 };
 
-export const providerName = (provider: string | undefined) => (provider === "square" ? "Square" : "Stripe");
+// One rule for the provider's name everywhere (code plan 5.2): a provider id here, the shop profile elsewhere.
+export { providerName } from "../../lib/shopProfile";
 
 /** A Stripe account the platform made exists from the start; it is "connected" once its details are in. */
 export function accountConnected(answer: PlatformPaymentsAnswer): boolean {
@@ -56,8 +57,8 @@ export function returnNotice(search: string): ReturnNotice | null {
   if (square === "other_account") return { tone: "danger", text: "That's a different Square account from the one this shop uses. Sign in with the same account as before." };
   if (square) return { tone: "danger", text: "Square couldn't be connected just now. Wait a minute and press Connect Square again." };
   const stripe = params.get("stripe");
-  if (stripe === "return") return { tone: "success", text: "Back from Stripe. If anything is still missing, it's listed below." };
-  if (stripe === "refresh") return { tone: "warning", text: "That Stripe page expired. Press Continue with Stripe to get a new one." };
+  if (stripe === "return") return { tone: "success", text: "Back from Stripe. If anything is still missing, it's listed below." }; // Stripe shops only
+  if (stripe === "refresh") return { tone: "warning", text: "That Stripe page expired. Press Continue with Stripe to get a new one." }; // Stripe shops only
   return null;
 }
 
@@ -70,7 +71,7 @@ export function withoutReturnFlags(href: string): string {
 }
 
 /** The Stripe button's words. Each press asks the platform for a fresh Stripe page: Stripe's links work once. */
-export const CONTINUE_WITH_STRIPE = "Continue with Stripe";
+export const CONTINUE_WITH_STRIPE = "Continue with Stripe"; // Stripe shops only
 
 /** Cards and payouts both work (Stripe), or cards work (Square, which pays out by itself): the step is done. */
 export function paymentsReady(answer: PlatformPaymentsAnswer): boolean {
@@ -102,7 +103,7 @@ export function needsLine(answer: PlatformPaymentsAnswer, timeZone?: string): st
   const due = needs.filter((n) => !n.pastDue).map((n) => n.words);
   const by = answer.deadline ? dueDateText(answer.deadline, timeZone) : "";
   const parts: string[] = [];
-  if (late.length) parts.push(`Stripe needs ${joinWords(late)} now. The deadline has passed, so Stripe has paused card payments or payouts until it has ${late.length === 1 ? "it" : "them"}.`);
-  if (due.length) parts.push(`${late.length ? "It also needs" : "Stripe needs"} ${joinWords(due)}${by ? ` by ${by}` : ""}.`);
+  if (late.length) parts.push(`Stripe needs ${joinWords(late)} now. The deadline has passed, so Stripe has paused card payments or payouts until it has ${late.length === 1 ? "it" : "them"}.`); // Stripe shops only
+  if (due.length) parts.push(`${late.length ? "It also needs" : "Stripe needs"} ${joinWords(due)}${by ? ` by ${by}` : ""}.`); // Stripe shops only
   return parts.length ? parts.join(" ") : null;
 }

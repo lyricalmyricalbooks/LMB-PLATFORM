@@ -5,6 +5,7 @@ import { describeBackup, type BackupRecord } from "./backupStatus";
 import { waitingPreorderLines, preorderClockStart } from "../features/site/preorder";
 import { appOnlyBooks, detailDiffs, openMatches } from "./inventoryLink";
 import { CONTINUE_WITH_STRIPE, needsLine, type PlatformPaymentsAnswer } from "./platformPayments";
+import { providerName } from "./providerWords";
 // Admin-wide alerts shown above every admin page (AdminAlerts.tsx). Pure, tested.
 // Payment problems come first: money that arrived but isn't recorded, or vice versa.
 
@@ -57,7 +58,7 @@ const list = (orders: any[]) => {
 };
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const hasStripePayment = (o: any) =>
-  String(o?.stripePaymentIntentId || "").startsWith("pi_") || String(o?.stripeCheckoutSessionId || "").startsWith("cs_");
+  /^(pi|sqpay)_/.test(String(o?.stripePaymentIntentId || "")) || /^(cs|sqlink)_/.test(String(o?.stripeCheckoutSessionId || ""));
 const isFinished = (o: any) => ["cancelled", "completed"].includes(o?.status)
   || ["shipped", "out_for_delivery", "delivered", "cancelled", "refunded", "picked_up"].includes(o?.fulfillmentStatus);
 
@@ -71,7 +72,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   const mismatch = orders.filter((o) => o.paymentMismatch && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid" && o.paymentStatus !== "refunded");
   if (mismatch.length) out.push(alert("mismatch", "danger", `${plural(mismatch.length, "payment doesn't", "payments don't")} match the order total`,
-    `Stripe or PayPal took a different amount than the order expected: ${list(mismatch)}. Review and refund in Stripe before shipping.`, mismatch));
+    `${providerName()} or PayPal took a different amount than the order expected: ${list(mismatch)}. Review and refund in ${providerName()} before shipping.`, mismatch));
 
   const reconciliation = orders.filter(o => o.reconciliationPending && o.paymentStatus !== "paid" && o.paymentStatus !== "refunded");
   if (reconciliation.length) out.push(alert("payment-reconciliation", "danger", `${plural(reconciliation.length, "payment awaits", "payments await")} webhook reconciliation`, `Provider evidence needs reconciliation with a signed webhook: ${list(reconciliation)}. Review Payments webhook health before fulfillment.`, reconciliation));
@@ -82,7 +83,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   const paidTwice = orders.filter((o) => Array.isArray(o.duplicatePayments) && o.duplicatePayments.length && o.paymentStatus === "paid" && !isFinished(o));
   if (paidTwice.length) out.push(alert("paid-twice", "danger", `${plural(paidTwice.length, "order was", "orders were")} paid twice`,
-    `Stripe took a second payment for an order that was already paid: ${list(paidTwice)}. Refund the extra payment in the Stripe Dashboard.`, paidTwice));
+    `${providerName()} took a second payment for an order that was already paid: ${list(paidTwice)}. Refund the extra payment in the ${providerName()} Dashboard.`, paidTwice));
 
   const overLimit = orders.filter((o) => o.discountOverLimit && o.paymentStatus === "paid" && !isFinished(o));
   if (overLimit.length) out.push(alert("discount-over-limit", "warning", `${plural(overLimit.length, "order used", "orders used")} a discount code past its limit`,
@@ -90,23 +91,23 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   const stuck = orders.filter((o) => o.paymentStatus === "unpaid" && hasStripePayment(o) && age(o, now) >= STRIPE_GRACE_MS && age(o, now) <= 7 * DAY && !o.paymentMismatch);
   if (stuck.length) out.push(alert("unpaid-stripe", "danger", `${plural(stuck.length, "order is", "orders are")} unpaid after starting a card payment`,
-    `The customer may have paid but Stripe hasn't confirmed it to the shop: ${list(stuck)}. Open the order to review provider payment and pending webhook reconciliation. Only a verified payment webhook can mark it paid.`, stuck));
+    `The customer may have paid but ${providerName()} hasn't confirmed it to the shop: ${list(stuck)}. Open the order to review provider payment and pending webhook reconciliation. Only a verified payment webhook can mark it paid.`, stuck));
 
   const disputes = orders.filter((o) => o.disputeStatus && ["needs_response", "warning_needs_response"].includes(o.disputeStatus));
   if (disputes.length) out.push(alert("dispute", "danger", `${plural(disputes.length, "payment dispute needs", "payment disputes need")} a response`,
-    `Answer in the Stripe Dashboard before the deadline: ${list(disputes)}.`, disputes));
+    `Answer in the ${providerName()} Dashboard before the deadline: ${list(disputes)}.`, disputes));
 
   const refundFailedOrders = orders.filter((o) => o.paymentStatus === "paid" && o.refund?.status === "failed");
   if (refundFailedOrders.length) out.push(alert("refund-failed", "danger", `${plural(refundFailedOrders.length, "refund was", "refunds were")} rejected by the bank`,
     `The customer was told they were refunded but the money did not go back: ${list(refundFailedOrders)}. Refund again or contact the customer before packing.`, refundFailedOrders));
 
   if (webhook?.lastFailureAt && (!webhook.lastReceivedAt || webhook.lastFailureAt > webhook.lastReceivedAt) && now - Date.parse(webhook.lastFailureAt) <= 7 * DAY) {
-    out.push(alert("webhook", "danger", "Stripe's payment messages are being rejected",
-      "The last Stripe webhook failed its security check, so paid orders may stay unpaid. Settings › Payments › Webhook health › Reset webhook signing.", [], "webhook"));
+    out.push(alert("webhook", "danger", `${providerName()}'s payment messages are being rejected`,
+      `The last ${providerName()} webhook failed its security check, so paid orders may stay unpaid. Settings › Payments › Webhook health › Reset webhook signing.`, [], "webhook"));
   }
 
   const partial = orders.filter((o) => o.partiallyRefunded && o.paymentStatus === "paid" && !isFinished(o));
-  if (partial.length) out.push(alert("partial-refund", "warning", `${plural(partial.length, "order was", "orders were")} partly refunded in Stripe`,
+  if (partial.length) out.push(alert("partial-refund", "warning", `${plural(partial.length, "order was", "orders were")} partly refunded in ${providerName()}`,
     `Check what still needs to ship before packing: ${list(partial)}.`, partial));
 
   const inventoryConflict = orders.filter((o) => o.inventoryConflict && !isFinished(o));
@@ -176,7 +177,7 @@ export function checkFailedAlert(failedParts: string[]): AdminAlert | null {
 export function settingsAlerts(settings: any): AdminAlert[] {
   if (settings?.payments?.testMode !== true) return [];
   return [{ id: "test-mode", tone: "warning", title: "Test mode is on — real cards are refused",
-    detail: "Checkout only accepts Stripe/PayPal test payments and orders are marked as tests. Switch it off in Settings › Payments before selling.", orderIds: [], action: "payments" }];
+    detail: `Checkout only accepts ${providerName()}/PayPal test payments and orders are marked as tests. Switch it off in Settings › Payments before selling.`, orderIds: [], action: "payments" }];
 }
 
 // The inventory app link (systemStatus/inventoryLink, written by functions inventoryLinkSweep): only
@@ -192,8 +193,8 @@ export function cardAccountAlert(answer: PlatformPaymentsAnswer | null | undefin
   return {
     id: "card-account-past-due",
     tone: "danger",
-    title: "Stripe has paused your payments",
-    detail: `${needsLine(answer) ?? "Stripe needs a few more details, and the deadline has passed."} Open Payments and press ${CONTINUE_WITH_STRIPE}.`,
+    title: "Stripe has paused your payments", // Stripe shops only
+    detail: `${needsLine(answer) ?? "Stripe needs a few more details, and the deadline has passed."} Open Payments and press ${CONTINUE_WITH_STRIPE}.`, // Stripe shops only
     orderIds: [],
     key: late.join("|") || "past-due",
     action: "cardAccount",

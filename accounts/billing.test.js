@@ -11,6 +11,8 @@ import { fakeAccountStores, fakeShopData } from "./fakes.js";
 import { createApi } from "../signup/api.js";
 import { fakeSignupStores, fakeVerifyIdToken } from "../signup/fakes.js";
 import { createBilling } from "../services/billing/billing.js";
+import { createPaymentWay } from "../services/billing/paymentWay.js";
+import { fakeFeeLedgerStore } from "../services/payments/feeLedgerFakes.js";
 import { fakeBillingStores, fakeBillingStripe, fakePlatformEmail } from "../services/billing/fakes.js";
 import { createStripeApi } from "../services/payments/stripeApi.js";
 import { platformSettings } from "../services/settings.js";
@@ -31,10 +33,12 @@ async function world() {
   const auditLog = fakeAuditLog();
   const email = fakePlatformEmail();
   const stripe = fakeBillingStripe({ clock: () => NOW / 1000 });
-  const real = createBilling({
+  const deps = {
     stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
     mode: "test", settings, ...fakeBillingStores(), registry, auditLog, email, now: () => NOW,
-  });
+  };
+  const real = createBilling(deps);
+  const paymentWay = createPaymentWay({ ...deps, billing: real, feeLedger: fakeFeeLedgerStore(), live: async () => ({ payAsYouSell: { basisPoints: 200 }, foundingOffer: { percentOff: 25 } }) });
   await real.startTrial({ account: { accountId: OWNER.uid, email: OWNER.email }, shopId: SHOP, pressName: "Moth Press", plan: "both" });
 
   // Counts each call that reaches the billing service.
@@ -50,7 +54,7 @@ async function world() {
   for (const [person, role] of [[SECOND_OWNER, "owner"], [STAFF, "staff"], [BOOKKEEPER, "bookkeeper"]]) {
     await stores.memberships.set(SHOP, person.email, { shopId: SHOP, email: person.email, accountId: person.uid, role });
   }
-  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings, routes: billingRoutes({ billing, accounts, registry, auditLog, settings, now: () => new Date(NOW) }) });
+  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings, routes: billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now: () => new Date(NOW) }) });
   const ask = (claims, route, body = {}) => api({ method: "POST", path: `/api/billing/${route}`, body: { shopId: SHOP, ...body }, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const logged = () => [...registry.events.get(SHOP).values()].filter((e) => e.source === "billing-door");
   return { ask, calls, stripe, registry, auditLog, logged, real };
@@ -105,6 +109,24 @@ test("the answers: status, a preview that changes nothing, then the change; canc
   assert.equal((await w.ask(OWNER, "keep")).body.cancelAtPeriodEnd, false);
   assert.deepEqual((await w.ask(OWNER, "invoices")).body.invoices, []);
   assert.equal((await w.ask(OWNER, "status", { shopId: "" })).status, 400);
+});
+
+test("two ways to pay: the owner sees how the shop pays and switches to pay as you sell; others are refused", async () => {
+  const w = await world();
+  for (const person of [STAFF, BOOKKEEPER, STRANGER]) {
+    assert.equal((await w.ask(person, "payment-way")).status, 403);
+    assert.equal((await w.ask(person, "payment-way/switch", { to: "payAsYouSell" })).status, 403);
+  }
+  const first = (await w.ask(OWNER, "payment-way")).body;
+  assert.equal(first.view.title, "How you pay");
+  assert.equal(first.view.button.to, "payAsYouSell");
+  assert.match(first.view.lines.join(" "), /2% of your website sales, never more than \$39 a month/);
+  const switched = (await w.ask(OWNER, "payment-way/switch", { to: "payAsYouSell" })).body;
+  assert.equal(switched.changed, true);
+  assert.equal(switched.view.way, "payAsYouSell");
+  assert.equal(switched.view.button.to, "monthly");
+  assert.equal((await w.ask(OWNER, "payment-way/switch", { to: "payAsYouSell" })).body.changed, false, "a repeat changes nothing");
+  assert.ok(w.logged().some((e) => e.what === "billing-payment-way-switch" && e.outcome === "done"));
 });
 
 test("the card page comes back only to this shop's Plan & billing page, whatever the page asks", async () => {

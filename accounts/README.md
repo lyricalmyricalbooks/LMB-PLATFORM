@@ -30,8 +30,10 @@ owners.
 - **Change plan**: **See what changes** first (apps opening and closing, when, the prorated amount), then **Change my
   plan**.
 - Invoices with their PDFs; **Cancel plan** / **Keep my plan**.
-- Loading, error, signed-out and no-plan states. A marked spot, `<section id="payment-way">`, waits for row 6.19's
-  "Two ways to pay" switch.
+- **How you pay** (row 6.19): monthly, or a share of website sales never more than the plan's price, with **Switch to
+  pay as you sell** / **Switch to monthly**. Shown when the door is given `paymentWay` (`createPaymentWay` from
+  `services/billing`, sharing the payment service's fee ledger); hidden otherwise.
+- Loading, error, signed-out and no-plan states.
 
 The calls, each for the shop's owner only (the shop's own team, `accounts.roleIn`), each reaching `services/billing`
 once and logged (done, refused or failed) in the registry and the shop's audit log:
