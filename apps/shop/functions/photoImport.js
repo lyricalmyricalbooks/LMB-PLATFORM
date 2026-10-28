@@ -13,6 +13,11 @@
 // leaves one line in the shop's audit log. Only https addresses on public host names are fetched (never an IP
 // address, an internal name or a name that points at a private address; redirects are checked hop by hop), only
 // pictures are kept, nothing over 20 MB is read, and the 20-second limit covers the whole download.
+//
+// Pictures inside a book's description (plan 5.5): an imported description can carry `<img src="…">` tags pointing
+// at the old shop. Those addresses are copied with the same rules and the same file names, and the description is
+// rewritten in the same transaction as the photos, only where the tag still points at the old address. Each rewritten
+// picture is listed in the book's `descriptionImages` as `{ url, importedFrom }`, so the old address is kept.
 "use strict";
 
 const crypto = require("crypto");
@@ -42,6 +47,33 @@ function needsImport(photo, bucketName) {
   if (!photo || typeof photo !== "object" || photo.videoUrl || typeof photo.url !== "string") return false;
   if (storagePathOf(photo.url, bucketName)) return false;
   return publicHttps(photo.url);
+}
+
+const IMG_SRC_RE = /(<img\b[^>]*?\ssrc\s*=\s*)("([^"]*)"|'([^']*)')/gi;
+const unescapeAttr = v => v.replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'");
+const escapeAttr = v => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+
+/** The old-shop addresses of the `<img>` pictures in a description that still need copying. */
+function descriptionImages(text, bucketName) {
+  if (typeof text !== "string" || !/<img\b/i.test(text)) return [];
+  const urls = new Set();
+  for (const m of text.matchAll(IMG_SRC_RE)) {
+    const url = unescapeAttr((m[3] ?? m[4] ?? "").trim());
+    if (needsImport({ url }, bucketName)) urls.add(url);
+  }
+  return [...urls];
+}
+
+/** The description with every `<img>` still on an address in `moved` pointed at its copy, and the swaps made. */
+function rewriteDescription(text, moved) {
+  const swaps = [];
+  const next = text.replace(IMG_SRC_RE, (whole, lead, _q, dq, sq) => {
+    const old = unescapeAttr((dq ?? sq ?? "").trim());
+    if (!moved.has(old)) return whole;
+    swaps.push({ url: moved.get(old), importedFrom: old });
+    return `${lead}"${escapeAttr(moved.get(old))}"`;
+  });
+  return { text: next, swaps };
 }
 
 const hashOf = url => crypto.createHash("sha256").update(url).digest("hex").slice(0, 32);
@@ -165,7 +197,10 @@ async function copyPhoto({ bucket, bucketName, url, fetch, lookup = defaultLooku
   return downloadUrl(bucketName, path, token);
 }
 
-/** Swaps every photo of the book still on an old address in `moved` (old → new) to its copy, in one transaction. */
+/**
+ * Swaps every photo and description picture of the book still on an old address in `moved` (old → new) to its copy,
+ * in one transaction. Returns how many old addresses were swapped.
+ */
 async function swapPhotos(db, bookId, moved, nowIso) {
   const ref = db.collection("books").doc(bookId);
   return db.runTransaction(async tx => {
@@ -173,17 +208,33 @@ async function swapPhotos(db, bookId, moved, nowIso) {
     if (!snap.exists) return 0;
     const data = snap.data() || {};
     const photos = Array.isArray(data.photos) ? data.photos : [];
-    let changed = 0;
+    const swapped = new Set(); // old addresses swapped on this book, so a picture used twice counts once
+    const patch = {};
     const next = photos.map(p => {
       if (!p || typeof p !== "object" || !moved.has(p.url)) return p;
-      changed += 1;
+      swapped.add(p.url);
       return { ...p, url: moved.get(p.url), importedFrom: p.url };
     });
-    if (!changed) return 0;
-    const patch = { photos: next, updatedAt: nowIso };
+    if (swapped.size) patch.photos = next;
+    if (typeof data.description === "string") {
+      const { text, swaps } = rewriteDescription(data.description, moved);
+      if (swaps.length) {
+        patch.description = text;
+        const kept = Array.isArray(data.descriptionImages) ? data.descriptionImages : [];
+        const listed = new Set(kept.map(k => k?.url));
+        const added = [];
+        for (const sw of swaps) {
+          swapped.add(sw.importedFrom);
+          if (!listed.has(sw.url)) { listed.add(sw.url); added.push(sw); }
+        }
+        patch.descriptionImages = [...kept, ...added];
+      }
+    }
+    if (!swapped.size) return 0;
+    patch.updatedAt = nowIso;
     if (typeof data.photoUrl === "string" && moved.has(data.photoUrl)) patch.photoUrl = moved.get(data.photoUrl);
     tx.update(ref, patch);
-    return changed;
+    return swapped.size;
   });
 }
 
@@ -206,12 +257,14 @@ async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeo
   const byBook = new Map();
   let found = 0;
   for (const doc of snap.docs) {
-    for (const photo of Array.isArray(doc.data().photos) ? doc.data().photos : []) {
-      if (!needsImport(photo, bucketName)) continue;
-      const f = failed[hashOf(photo.url)];
+    const data = doc.data() || {};
+    const wanted = (Array.isArray(data.photos) ? data.photos : []).filter(p => needsImport(p, bucketName)).map(p => p.url)
+      .concat(descriptionImages(data.description, bucketName));
+    for (const url of wanted) {
+      const f = failed[hashOf(url)];
       if (f && now - Date.parse(f.at) < FAILED_RETRY_MS) continue;
       const urls = byBook.get(doc.id) || new Set();
-      if (!urls.has(photo.url)) { urls.add(photo.url); found += 1; }
+      if (!urls.has(url)) { urls.add(url); found += 1; }
       byBook.set(doc.id, urls);
     }
   }
@@ -258,4 +311,4 @@ async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeo
   return { found, done, books, failed: failures, pending };
 }
 
-module.exports = { publicHttps, privateAddress, needsImport, importedBase, copyPhoto, swapPhotos, runPhotoImport, MAX_BYTES };
+module.exports = { publicHttps, privateAddress, needsImport, descriptionImages, rewriteDescription, importedBase, copyPhoto, swapPhotos, runPhotoImport, MAX_BYTES };

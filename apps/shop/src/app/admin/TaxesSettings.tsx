@@ -6,18 +6,21 @@ import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
 import {
   DataTable, DestructiveButton, EmptyState, PrimaryButton, SaveBar, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField, Toggle, useConfirm, type Column,
 } from "./riso/components";
-import { cleanTaxRate, taxRateProblem, type TaxRate } from "./taxRatesEdit";
+import { cleanBookName, cleanTaxRate, taxRateProblem, type TaxRate } from "./taxRatesEdit";
+import { TAX_BOOK_NAMES, TAX_BOOK_NAME_MAX, suggestedTaxBookName } from "../../shared/taxBooks";
 import { useSettingsDirty } from "./settingsDirty";
 import { SettingsAnchor, jumpTo } from "./settingsLayout";
 import { applyTaxPreset, TAX_PRESETS } from "./taxPresets";
 
 // Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
 // nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
+// Each rate's "name in your books" (bookName, plan 7.11) is what orders and the bookkeeping file call that tax.
 export function TaxesSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
   const [ask, confirmNode] = useConfirm();
   const [country, setCountry] = useState("Canada");
   const [region, setRegion] = useState("");
   const [rate, setRate] = useState("");
+  const [bookName, setBookName] = useState("");
   const [tried, setTried] = useState(false);
   const [presetId, setPresetId] = useState(TAX_PRESETS[0].id);
   const preset = TAX_PRESETS.find((p) => p.id === presetId) || TAX_PRESETS[0];
@@ -33,14 +36,14 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   // Off keeps every rate saved, so switching back on restores them.
   const setCollecting = (on: boolean) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates, collect: on } });
   const setRates = (next: TaxRate[]) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates: next } });
-  const savedKey = (r: TaxRate) => `${r.country}|${r.region}|${r.rate}`.toLowerCase();
+  const savedKey = (r: TaxRate) => `${r.country}|${r.region}|${r.rate}|${r.bookName || ""}`.toLowerCase();
   const saved = new Set(savedRates.map(savedKey));
 
   const add = () => {
     setTried(true);
     if (problem) return;
-    setRates([...rates, cleanTaxRate({ country, region, rate })]);
-    setRegion(""); setRate(""); setTried(false);
+    setRates([...rates, cleanTaxRate({ country, region, rate, bookName: bookName || suggestedTaxBookName({ country, region, rate }) })]);
+    setRegion(""); setRate(""); setBookName(""); setTried(false);
   };
   // A preset fills only the places with no rate yet, in the draft: nothing applies until Save.
   const usePreset = () => {
@@ -49,6 +52,11 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
     setRates(result.rates);
     toast.success(`Added ${result.added} rate${result.added === 1 ? "" : "s"}${result.kept ? `; kept your ${result.kept} existing one${result.kept === 1 ? "" : "s"}` : ""}. Review, then save.`);
   };
+  const rename = (index: number, name: string) => setRates(rates.map((r, i) => {
+    if (i !== index) return r;
+    const { bookName: _old, ...rest } = r;
+    return name ? { ...rest, bookName: name } : rest;
+  }));
   const remove = async (index: number) => {
     const r = rates[index];
     if (!(await ask({ title: "Remove this tax rate?", message: `${r.country}${r.region ? ` · ${r.region}` : " (whole country)"} at ${r.rate}% will stop applying once you save.`, confirmLabel: "Remove rate" }))) return;
@@ -58,6 +66,11 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   const columns: Column<TaxRate & { index: number }>[] = [
     { key: "place", header: "Where", lead: true, render: (r) => <>{r.country}{r.region ? ` · ${r.region}` : <span className="rp-hint"> · whole country</span>}</> },
     { key: "rate", header: "Rate", numeric: true, render: (r) => <span className="rp-mono">{r.rate}%</span> },
+    { key: "book", header: "In your books", render: (r) => (
+      <TextField label={`Name in your books for ${r.country}${r.region ? ` ${r.region}` : ""}`} hideLabel list="tax-book-names" maxLength={TAX_BOOK_NAME_MAX}
+        value={r.bookName ?? ""} placeholder={suggestedTaxBookName(r)}
+        onChange={(e) => rename(r.index, e.target.value)} onBlur={(e) => rename(r.index, cleanBookName(e.target.value))} />
+    ) },
     { key: "status", header: "Status", render: (r) => saved.has(savedKey(r)) ? <StatusBadge tone="success">Saved</StatusBadge> : <StatusBadge tone="warning">Not saved yet</StatusBadge> },
     { key: "actions", header: "Actions", render: (r) => <DestructiveButton size="sm" onClick={() => remove(r.index)} aria-label={`Remove tax rate for ${r.country} ${r.region}`}>Remove</DestructiveButton> },
   ];
@@ -91,9 +104,13 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
       )}
 
       <SectionCard title="Tax rates" description={collecting ? "Province beats country. Gift cards never taxed." : "Paused while collection is off."}>
+        <datalist id="tax-book-names">{TAX_BOOK_NAMES.map((name) => <option key={name} value={name} />)}</datalist>
         {rates.length === 0
           ? <EmptyState icon="%" title="No tax rates yet" description="No rate, no tax." />
-          : <DataTable caption="Tax rates" rows={rates.map((r, index) => ({ ...r, index }))} rowKey={(r) => `${r.index}`} columns={columns} />}
+          : <>
+            <DataTable caption="Tax rates" rows={rates.map((r, index) => ({ ...r, index }))} rowKey={(r) => `${r.index}`} columns={columns} />
+            <p className="rp-hint" style={{ margin: "12px 0 0" }}>"In your books" is what your bookkeeper calls each tax. Orders and the bookkeeping file split tax by it.</p>
+          </>}
       </SectionCard>
 
 
@@ -125,6 +142,8 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           )}
           <TextField label="Rate (%)" inputMode="decimal" data-tax-rate value={rate} placeholder="13" error={tried && problem ? problem : undefined}
             onChange={(e) => setRate(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+          <TextField label="Name in your books" list="tax-book-names" maxLength={TAX_BOOK_NAME_MAX} value={bookName}
+            placeholder={suggestedTaxBookName({ country, region, rate })} onChange={(e) => setBookName(e.target.value)} />
           <div><PrimaryButton onClick={add}>Add rate</PrimaryButton></div>
         </div>
         <p className="rp-hint" style={{ margin: "12px 0 0" }}>Applies on save. Not tax advice.</p>

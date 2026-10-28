@@ -54,7 +54,7 @@ const TYPE_MAP = {
 function openRouterHeaders(apiKey) {
   const headers = {
     Authorization: `Bearer ${String(apiKey || '').trim()}`,
-    'X-OpenRouter-Title': 'Lyrical Inventory',
+    'X-OpenRouter-Title': 'Stockroom',
   };
   if (typeof window !== 'undefined' && window.location?.origin) {
     headers['HTTP-Referer'] = window.location.origin;

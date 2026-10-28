@@ -178,6 +178,32 @@ emailed (`backup-access-used`). Platform admins see the same run book under thei
 (logged, not emailed). Routes: `GET /api/control/emergency`, `POST /api/control/emergency/open`, `/pause-releases`,
 `/resume-releases`, `/roll-back`, `/status-note` (`emergencyRoutes`, added to the web door beside `controlRoutes`).
 
+## Platform settings, the waitlist and the activity log (`platformControls.js`, `activity.js`, plan 9.4, 9.5, 9.9)
+
+`createPlatformControls({ admins, settingsStore, env, activity, waitlist, invites, signups })`, added to the web door
+with `routes: platformRoutes(controls)`. Platform admins only.
+
+- **Platform settings**: sign-up open or waitlist only, new shops a day, the three plan prices, trial days, the founding
+  offer (percent off, how many presses) and pay as you sell (share of each website sale). Saved as
+  `platformState/settings` `{ values: { path: value }, updatedAt, updatedBy }`; `services/settings.js` `liveSettings`
+  puts them on top of the environment, so sign-up and billing read them with no release. Only real changes are kept: a
+  value equal to the environment's is dropped. A new price is a new Stripe price (billing's lookup keys), so presses
+  already paying keep theirs.
+- **Sign-ups and the waitlist**: the waitlist newest first, **Invite** (emails `waitlist-invite` once and writes
+  `invites/<id>`, which sign-up's daily cap checks with `waitlist/invites.js` `isInvited`), and shops being made with
+  **Try again**, which also restarts a stop that needed a person.
+- **Activity log**: every control-room action, the shop ones too (`controlRoom.js` `log` writes there when given
+  `activity`), as `controlActivity/<id>`, kept a year, read only.
+
+| Route | What |
+| --- | --- |
+| `GET /api/control/settings` | the editable settings, their values and the environment's |
+| `POST /api/control/settings` | `{ values: { path: value }, reset?: [path], reason }` |
+| `GET /api/control/waitlist` | the waitlist and the shops being made |
+| `POST /api/control/invite` | `{ email }` |
+| `POST /api/control/retry` | `{ shopId, reason }`: make a stopped shop again |
+| `POST /api/control/activity` | `{ shopId?, limit? }` |
+
 ## Not yet
 
 - **Schedules:** the daily self-check sweep and the shop maker's sweep (Cloud Scheduler in the platform project).

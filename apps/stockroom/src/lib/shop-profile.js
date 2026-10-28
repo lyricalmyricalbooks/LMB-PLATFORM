@@ -79,9 +79,11 @@ export function parseShopProfile(value) {
   // Only the switches turned on are kept; an unknown name or a non-true value is simply off.
   const switches = value.switches && typeof value.switches === 'object' ? value.switches : {};
   const on = SHOP_SWITCHES.filter((name) => switches[name] === true);
+  if (value.name !== undefined && (typeof value.name !== 'string' || !value.name.length || value.name.length > 80)) return null;
   return {
     version: 1,
     shopId: value.shopId,
+    ...(value.name !== undefined ? { name: value.name } : {}),
     firebase: {
       ...Object.fromEntries(FIREBASE_KEYS.map((key) => [key, firebase[key]])),
       databaseURL: firebase.databaseURL || `https://${firebase.projectId}-default-rtdb.firebaseio.com`,
@@ -102,6 +104,16 @@ export function stockroomDatabaseId(profile = shopProfile) {
 /** The storage bucket the stockroom uses (`gs://…`), or undefined for the project's default one. */
 export function stockroomBucketUrl(profile = shopProfile) {
   return profile?.stockroom?.storageBucket ? `gs://${profile.stockroom.storageBucket}` : undefined;
+}
+
+/**
+ * How download file names start: the press's name from the profile ("Moth Press" → "Moth_Press", or "moth-press" with
+ * `lower`), or "Stockroom" when the profile names none. Never one particular press's name.
+ */
+export function fileStem({ lower = false } = {}, profile = shopProfile) {
+  const words = String(profile?.name ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').match(/[A-Za-z0-9]+/g) || [];
+  const stem = words.length ? words.join('_').slice(0, 40).replace(/_+$/, '') : 'Stockroom';
+  return lower ? stem.toLowerCase().replace(/_/g, '-') : stem;
 }
 
 /** Whether the profile turns this one-off on. Anything but `true` is off. */
