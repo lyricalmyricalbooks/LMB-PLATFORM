@@ -37,6 +37,32 @@ Exports go to `backups/<day>/` in the shop's bucket, next to the shop's own. Eac
 (`platformBackup: { shopAt, stockroomAt }`, which the backup check reads) and as a registry event. A failed export is
 an event too. The next five-minute run's backup check then alerts on it.
 
+## Spending limits per shop (`spending.js`, plan 8.9)
+
+Each shop's Google project gets a budget on the billing account, named `shop:<shop id>` (or with its id kept on the
+row as `spending.budgetId`). Google sends each budget's state to a Pub/Sub topic several times a day;
+`recordBudgetNotice` reads it and keeps a level on the shop's row, `spending: { level, costAmount, budgetAmount,
+currency, intervalStart, at }`:
+
+| Level | When | Costly jobs (photo copies, AI writing, imports) |
+| --- | --- | --- |
+| normal | under the budget, or no budget | full speed |
+| slow | the budget is spent | still run, at most 60 photo copies, 10 AI writings and 2 imports an hour |
+| held | twice the budget is spent | wait until the next budget month |
+
+`jobPace(level, job)` says what a job may do, with plain words for the owner. **Checkout, payment events and order emails
+are never slowed**, and neither is any job that isn't on the costly list. A change of level is a registry event and one
+`health-alert` email (check `spending`) to the platform's alert address; the control room shows the shop as one to
+watch. A new budget month brings the level back to normal by itself.
+
+### Switched on by Julian
+
+1. Set a monthly budget per shop project on the billing account, named `shop:<shop id>`, with a Pub/Sub topic for its
+   notifications. How much each shop's budget is waits on Julian.
+2. Host a push subscription on that topic that calls `recordBudgetNotice` (not built yet).
+3. The shop's photo copies, AI writing and imports read the level from the platform and follow `jobPace` (not built
+   yet: today the level is kept and shown, but the shop's own jobs don't read it).
+
 ## Running it for real
 
 Needs the platform project (`docs/test-shop.md`, steps 1–2) and a schedule. Nothing is scheduled yet.

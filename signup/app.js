@@ -1,9 +1,15 @@
 // The sign-up page (signup/index.html): sign in with an email link or Google, tell us about the press, start the free
 // trial, then follow the shop being made. Plain browser JavaScript with no framework (docs/decisions.md); Firebase's
 // own browser library is loaded from Google for sign-in only. Every check the page makes, the server makes again.
-import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "./config.js";
+import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SAMPLE_PRESS_URL } from "./config.js";
 import { COUNTRIES, PLAN_CHOICES, QUESTION, checkSignup, isEmail } from "./form.js";
 import { deviceId } from "./device.js";
+
+// Before Firebase loads, so the link shows even when it can't.
+if (SAMPLE_PRESS_URL) {
+  document.querySelector("#sample-press a").href = SAMPLE_PRESS_URL;
+  document.getElementById("sample-press").hidden = false;
+}
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const {

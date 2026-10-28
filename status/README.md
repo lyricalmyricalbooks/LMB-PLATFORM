@@ -20,8 +20,9 @@ project can serve this folder. Create a site for it once (`firebase hosting:site
 folder: `firebase deploy --only hosting --project lmb-platform-prod` with that site in `firebase.json`. The rules go
 out with the waitlist's (`waitlist/`, `firebase deploy --only firestore:rules`).
 
+- **A note from the team**: the run book's status note (control room, plan 8.7) is shown above the headline, for a
+  known problem ("we're looking into it"). It is saved in `platformState/statusNote` and goes out with the summary.
+
 ## Not yet
 
 - A Hosting site and address for it (Julian).
-- Notes about a known problem ("we're looking into it") written by the team; today the page shows only what the checks
-  see.

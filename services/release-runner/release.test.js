@@ -4,7 +4,7 @@ import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
 import { releaseBuilder, tagOf } from "./builder.js";
 import { fakeFiles, fakeWorld } from "./fakes.js";
 import { planRings } from "./rings.js";
-import { RELEASE_LOCK, runRelease } from "./runner.js";
+import { RELEASE_LOCK, rollBackShop, runRelease } from "./runner.js";
 
 const FOLDER = "folders/000000000000";
 const row = (shopId, extra = {}) => ({ shopId, projectId: shopId, plan: "both", status: "live", testMode: false, testShop: false, region: "northamerica-northeast1", ...extra });
@@ -18,13 +18,14 @@ async function setup({ rows = [TEST, row("press-bravo"), row("press-alpha", { pl
   const auditLog = fakeAuditLog();
   const ids = rows.map((r) => r.shopId);
   const lines = [];
-  const run = (version, extra = {}) => runRelease({
-    version, registry, auditLog, builder: world.builder, deploy: world.deploy, siteCheck: world.siteCheck, releaseCheck: world.releaseCheck,
+  const clients = {
+    registry, auditLog, builder: world.builder, deploy: world.deploy, siteCheck: world.siteCheck, releaseCheck: world.releaseCheck,
     envFiles: fakeFiles("env", ids), profileFiles: fakeFiles("profile", ids),
     projects: { get: async (id) => ({ projectId: id, parent: folders[id] ?? FOLDER }) },
-    config: { folder: FOLDER }, print: (line) => lines.push(line), runId: "run-1", ...extra,
-  });
-  return { registry, world, auditLog, run, lines };
+    config: { folder: FOLDER }, print: (line) => lines.push(line), runId: "run-1",
+  };
+  const run = (version, extra = {}) => runRelease({ version, ...clients, ...extra });
+  return { registry, world, auditLog, run, lines, clients };
 }
 
 const shippedTo = (world, version) => [...new Set(world.calls.filter(([kind, , v]) => kind === "rules" && v === version).map(([, id]) => id))];
@@ -204,4 +205,40 @@ test("the builder builds a release's tag once and reuses it", async () => {
     "npm ci /builds/1.1.0/apps/stockroom",
     "npm run build /builds/1.1.0/apps/stockroom",
   ]);
+});
+
+test("a release pause: a paused release doesn't start, and a running one stops before its next shop", async () => {
+  const pause = { by: "backup@example.com", reason: "checkout looks broken after 1.1.0", at: "2026-10-28T12:00:00Z" };
+  const first = await setup();
+  const result = await first.run("1.1.0", { paused: async () => pause });
+  assert.deepEqual([result.ok, result.paused], [false, pause]);
+  assert.deepEqual(first.world.builds, [], "nothing built, nothing deployed");
+  assert.equal(await first.registry.readLock(RELEASE_LOCK), null);
+
+  const second = await setup();
+  let asked = 0;
+  const midway = await second.run("1.1.0", { paused: async () => (++asked > 3 ? pause : null) });
+  assert.equal(midway.ok, false);
+  assert.match(midway.error, /releases were paused by backup@example\.com \(checkout looks broken after 1\.1\.0\) before press-bravo/);
+  assert.deepEqual(shippedTo(second.world, "1.1.0"), ["lmb-test-shop", "press-alpha"]);
+});
+
+test("rolling one shop back by hand: built, deployed, checked and recorded with who and why; refused during a release", async () => {
+  const { clients, world, registry, auditLog } = await setup({ on: "1.1.0" });
+  await registry.updateShop("press-bravo", { release: { version: "1.1.0", at: "2026-10-28T00:00:00Z", runId: "r0" } });
+  const result = await rollBackShop(clients, { shopId: "press-bravo", version: "1.0.0", by: "backup@example.com", reason: "the new release broke its checkout" });
+  assert.deepEqual([result.ok, result.status, result.previous], [true, "rolled-back", "1.1.0"]);
+  assert.deepEqual(world.live.get("press-bravo"), { rules: "1.0.0", functions: "1.0.0", "pages:shop": "1.0.0", "pages:stockroom": "1.0.0" });
+  assert.deepEqual(world.live.get("press-alpha")["pages:shop"], "1.1.0", "no other shop is touched");
+  assert.equal((await registry.getShop("press-bravo")).release.version, "1.0.0");
+  const [entry] = auditLog.entries.get("press-bravo").values();
+  assert.deepEqual([entry.status, entry.by, entry.reason], ["rolled-back", "backup@example.com", "the new release broke its checkout"]);
+  assert.equal(registry.releases.get("1.0.0-run-1").kind, "roll-back");
+  assert.equal(await registry.readLock(RELEASE_LOCK), null);
+  await assert.rejects(rollBackShop(clients, { shopId: "press-bravo", version: "latest", by: "x", reason: "y" }), /isn't a release version/);
+
+  await registry.takeLock(RELEASE_LOCK, { runId: "release-9", takenAt: "2026-10-28T00:00:00Z", expiresAt: "2999-01-01T00:00:00Z" });
+  const busy = await rollBackShop(clients, { shopId: "press-alpha", version: "1.0.0", by: "x", reason: "y" });
+  assert.deepEqual([busy.ok, busy.status], [false, "busy"]);
+  assert.equal(world.live.get("press-alpha")["pages:shop"], "1.1.0");
 });

@@ -13,7 +13,9 @@ import { BookCatalog } from "./BookCatalog";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
-import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
+import { backupAlert, buildAdminAlerts, cardAccountAlert, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
+import type { PlatformPaymentsAnswer } from "./platformPayments";
+import { platformCardsProvider } from "../../lib/shopProfile";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { inventoryLinkView, setInventoryLink, type AppBookEntry } from "./appSwitch";
 import { AppSwitcher, AppSwitchPill, useWebsiteTabName } from "./AppSwitcher";
@@ -193,7 +195,7 @@ export function Dashboard() {
   const [searchCustomerQuery, setSearchCustomerQuery] = useState<string | undefined>(undefined);
   // What the last check read besides the orders (Stripe webhook, email log, backup, inventory link), so opening or
   // closing an order re-counts the badge and alerts from memory without reading any of it again.
-  const alertInputs = useRef<{ webhook: any; emailLog: any[]; backup: any; linkState: any; shopErrors: any[]; failedParts: string[] } | null>(null);
+  const alertInputs = useRef<{ webhook: any; emailLog: any[]; backup: any; linkState: any; shopErrors: any[]; cardAccount: PlatformPaymentsAnswer | null; failedParts: string[] } | null>(null);
   const showAlerts = (data: any[]) => {
     const inputs = alertInputs.current;
     if (!inputs) return;
@@ -201,7 +203,8 @@ export function Dashboard() {
     const backupNote = backupAlert(inputs.backup);
     const note = checkFailedAlert(inputs.failedParts);
     const errorsNote = shopErrorAlert(shopErrorRows(inputs.shopErrors));
-    setAlerts([...buildAdminAlerts(data, inputs.webhook, Date.now(), inputs.emailLog), ...inventoryLinkAlerts(inputs.linkState), ...(backupNote ? [backupNote] : []), ...(errorsNote ? [errorsNote] : []), ...(note ? [note] : [])]);
+    const cardNote = cardAccountAlert(inputs.cardAccount);
+    setAlerts([...(cardNote ? [cardNote] : []), ...buildAdminAlerts(data, inputs.webhook, Date.now(), inputs.emailLog), ...inventoryLinkAlerts(inputs.linkState), ...(backupNote ? [backupNote] : []), ...(errorsNote ? [errorsNote] : []), ...(note ? [note] : [])]);
   };
   useEffect(() => {
     if (!user) return;
@@ -216,15 +219,17 @@ export function Dashboard() {
       return getOrdersCached({ maxAgeMs })
         .then(async (data) => {
           const failedParts: string[] = [];
-          const [webhook, emailLog, backup, linkState, shopErrors] = await Promise.all([
+          const [webhook, emailLog, backup, linkState, shopErrors, cardAccount] = await Promise.all([
             adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push("the Stripe webhook status"); return null; }),
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
             inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),
             adminApi.getClientErrors(20).catch(() => { failedParts.push("the shop errors"); return []; }),
+            // Cards through Colophon: is anything on the press's Stripe account past its deadline? (plan 7.9)
+            platformCardsProvider() === "stripe" ? adminApi.platformPayments("status").catch(() => null) : Promise.resolve(null),
           ]);
           if (!alive) return;
-          alertInputs.current = { webhook, emailLog, backup, linkState, shopErrors, failedParts };
+          alertInputs.current = { webhook, emailLog, backup, linkState, shopErrors, cardAccount, failedParts };
           // The switcher's count; an unreadable link state keeps the last count rather than inventing one.
           if (linkState) {
             setInventoryLink(inventoryLinkView(linkState));

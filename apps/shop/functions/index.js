@@ -98,6 +98,7 @@ admin.initializeApp();
 const db = admin.firestore();
 // On the platform's test shop only (shopConfig.testShop), sandbox payments take stock and their refunds put it back.
 const { createSettlement, sandboxStockTaken } = require("./settlePayment");
+const { recordOrderMoney, recordPayout } = require("./orderMoney");
 const { settlePayment } = createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n), testShop: require("./shopConfig").shopConfig.testShop });
 
 const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
@@ -2197,6 +2198,8 @@ exports.stripeWebhook = onRequest(
         try {
           await markStripeOrderPaid(orderId, session, { authority: STRIPE_WEBHOOK_AUTHORITY, account: event.account || null, message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)" });
           console.log(`Order ${orderId} successfully processed via webhook.`);
+          // The real card fee, once the provider has it (code plan 7.10). Best effort: the payout fills it in later.
+          await recordOrderMoney({ db, payments, orderId }).catch(err => console.warn(`Order ${orderId}: the card fee wasn't read yet (${err?.message || err}).`));
         } catch (err) {
           console.error("Failed to process order update in transaction:", err);
           await recordWebhookProcessingFailure(event, err);
@@ -2236,13 +2239,32 @@ exports.stripeWebhook = onRequest(
         try {
           const snap = await db.collection("orders")
             .where("stripePaymentIntentId", "==", paymentIntentId).limit(1).get();
-          if (!snap.empty) await syncStripeReversal(snap.docs[0].id, { charge, source: "Stripe webhook" });
+          if (!snap.empty) {
+            await syncStripeReversal(snap.docs[0].id, { charge, source: "Stripe webhook" });
+            // The refund's own fee (any fee given back), on the order's money (code plan 7.10). Best effort.
+            await recordOrderMoney({ db, payments, orderId: snap.docs[0].id }).catch(err => console.warn(`Order ${snap.docs[0].id}: the refund's fee wasn't read yet (${err?.message || err}).`));
+          }
         } catch (err) {
           console.error("Failed to sync charge.refunded:", err);
           await recordWebhookProcessingFailure(event, err);
           res.status(500).send(`Refund sync failure: ${err.message}`);
           return;
         }
+      }
+    }
+
+    // A payout reached the press's bank: each order in it keeps its fee, net, payout and payout date (code plan 7.10).
+    // Safe to repeat; a failure asks Stripe (or Square, through the platform) to send the event again.
+    if (event.type === "payout.paid") {
+      const payout = event.data.object || {};
+      try {
+        const changed = await recordPayout({ db, payments, mode: event.livemode ? "live" : "test", payoutId: payout.id, accountId: event.account || null, arrivalDate: payout.arrival_date });
+        console.log(`Payout ${payout.id}: ${changed} order(s) updated.`);
+      } catch (err) {
+        console.error("Failed to record payout.paid:", err);
+        await recordWebhookProcessingFailure(event, err);
+        res.status(500).send(`Payout sync failure: ${err.message}`);
+        return;
       }
     }
 

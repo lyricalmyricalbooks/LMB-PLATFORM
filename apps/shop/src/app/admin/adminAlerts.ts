@@ -4,6 +4,7 @@ import { currentRows } from "./emailLogDisplay";
 import { describeBackup, type BackupRecord } from "./backupStatus";
 import { waitingPreorderLines, preorderClockStart } from "../features/site/preorder";
 import { appOnlyBooks, detailDiffs, openMatches } from "./inventoryLink";
+import { CONTINUE_WITH_STRIPE, needsLine, type PlatformPaymentsAnswer } from "./platformPayments";
 // Admin-wide alerts shown above every admin page (AdminAlerts.tsx). Pure, tested.
 // Payment problems come first: money that arrived but isn't recorded, or vice versa.
 
@@ -16,7 +17,7 @@ export type AdminAlert = {
   orderIds: string[];
   /** What the alert is about when no order is (held books…): a change brings a hidden alert back. */
   key?: string;
-  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory" | "inventoryApp";
+  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory" | "inventoryApp" | "cardAccount";
   /** action "inventoryApp": where in the inventory app the button opens (a `#…` the app handles). */
   appHash?: string;
 };
@@ -29,6 +30,7 @@ const ALERT_ROUTES: Partial<Record<AdminAlert["action"], AlertRoute>> = {
   webhook: { tab: "settings", settingsTab: "payments", subTab: "pay-methods" },                 // Stripe › Webhook health
   payments: { tab: "settings", settingsTab: "payments" },                                       // the test mode switch: Ready to take payments?
   general: { tab: "settings", settingsTab: "general", subTab: "gs-tools" },                     // Backups & export
+  cardAccount: { tab: "settings", settingsTab: "payments", subTab: "pay-methods" },            // Card payments: Continue with Stripe
 };
 /** The page (and sub tab) an alert's button opens; null for order, orders and retry, which aren't settings pages. */
 export function alertRoute(a: Pick<AdminAlert, "action">): AlertRoute | null {
@@ -179,6 +181,25 @@ export function settingsAlerts(settings: any): AdminAlert[] {
 
 // The inventory app link (systemStatus/inventoryLink, written by functions inventoryLinkSweep): only
 // once the owner switched sales on. Plain words; the Inventory page's link panel has the detail.
+/**
+ * A shop whose cards go through Colophon (plan 7.9): a banner on every admin page while something on the press's
+ * Stripe account is past its deadline, which means Stripe has paused cards or payouts. Hiding it lasts until what is
+ * missing changes. Nothing for Square, or when the account couldn't be read.
+ */
+export function cardAccountAlert(answer: PlatformPaymentsAnswer | null | undefined): AdminAlert | null {
+  if (!answer || answer.provider === "square" || answer.pastDue !== true) return null;
+  const late = (answer.needs ?? []).filter((n) => n.pastDue).map((n) => n.words);
+  return {
+    id: "card-account-past-due",
+    tone: "danger",
+    title: "Stripe has paused your payments",
+    detail: `${needsLine(answer) ?? "Stripe needs a few more details, and the deadline has passed."} Open Payments and press ${CONTINUE_WITH_STRIPE}.`,
+    orderIds: [],
+    key: late.join("|") || "past-due",
+    action: "cardAccount",
+  };
+}
+
 export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] {
   if (!state || typeof state.startDay !== "string" || !state.startDay) return [];
   const out: AdminAlert[] = [];

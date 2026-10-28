@@ -24,7 +24,7 @@ export function fakeStripeFetch(answers = []) {
   const requests = [];
   const byKey = new Map();
   let next = 1;
-  const world = { accounts: new Map(), intents: new Map(), sessions: new Map(), events: new Map(), refunds: [], paymentDomains: [] };
+  const world = { accounts: new Map(), intents: new Map(), sessions: new Map(), events: new Map(), refunds: [], paymentDomains: [], balanceTransactions: [] };
 
   const missing = (what) => ({ status: 404, body: { error: { type: "invalid_request_error", code: "resource_missing", message: `No such ${what}` } } });
 
@@ -73,6 +73,13 @@ export function fakeStripeFetch(answers = []) {
     }
     if (method === "GET" && (path === "/v1/refunds" || path === "/v1/disputes")) {
       return { status: 200, body: { object: "list", data: path === "/v1/refunds" ? world.refunds.filter((r) => r.account === account && r.payment_intent === params.payment_intent) : [] } };
+    }
+    if (path === "/v1/balance_transactions" && method === "GET") {
+      // A payout's transactions (each `{ account, payout, ... }` in world.balanceTransactions), newest first, paged.
+      const all = world.balanceTransactions.filter((t) => t.account === account && t.payout === params.payout).map(({ account: _a, payout: _p, ...t }) => t);
+      const start = params.starting_after ? all.findIndex((t) => t.id === params.starting_after) + 1 : 0;
+      const limit = Number(params.limit ?? 10);
+      return { status: 200, body: { object: "list", data: all.slice(start, start + limit), has_more: start + limit < all.length } };
     }
     if (path === "/v1/payment_method_domains" && method === "GET") {
       return { status: 200, body: { object: "list", data: world.paymentDomains.filter((d) => d.account === account && d.domain_name === params.domain_name) } };

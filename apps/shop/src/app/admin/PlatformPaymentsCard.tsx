@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { adminApi } from "./api";
 import { ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { accountConnected, feeLine, providerName, returnNotice, withoutReturnFlags, type PlatformPaymentsAnswer, type ReturnNotice } from "./platformPayments";
+import { accountConnected, CONTINUE_WITH_STRIPE, feeLine, needsLine, paymentsReady, providerName, returnNotice, withoutReturnFlags, type PlatformPaymentsAnswer, type ReturnNotice } from "./platformPayments";
 
 // Settings › Payments › Ways to pay, for a shop whose cards run through Colophon (plan 2.2b / 2.10): no keys to paste.
 // The press connects its own Square or Stripe account here, sees whether it can take cards, and sees Colophon's fee
@@ -35,6 +35,7 @@ export function PlatformPaymentsCard({ provider }: { provider: "stripe" | "squar
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Each press asks for a fresh Stripe page: Stripe's links work once, for a few minutes, and are never emailed.
   const connect = async () => {
     if (busy) return;
     setBusy("connect");
@@ -50,8 +51,10 @@ export function PlatformPaymentsCard({ provider }: { provider: "stripe" | "squar
 
   const connected = answer ? accountConnected(answer) : false;
   const canTakeCards = connected && answer?.chargesEnabled === true;
-  const buttonLabel = busy === "connect" ? "Opening…" : provider === "square" ? (connected ? "Reconnect Square" : "Connect Square") : (connected ? "Update Stripe details" : "Finish Stripe setup");
-  const Button = connected ? SecondaryButton : PrimaryButton;
+  const needs = answer ? needsLine(answer) : null;
+  const ready = answer ? paymentsReady(answer) : false;
+  const buttonLabel = busy === "connect" ? "Opening…" : provider === "square" ? (connected ? "Reconnect Square" : "Connect Square") : CONTINUE_WITH_STRIPE;
+  const Button = ready && !needs ? SecondaryButton : PrimaryButton;
 
   return (
     <SectionCard title="Card payments" description={`Cards go to your own ${name} account, through Colophon. No keys.`}>
@@ -71,11 +74,15 @@ export function PlatformPaymentsCard({ provider }: { provider: "stripe" | "squar
               {provider === "stripe" && connected && <StatusBadge tone={answer.payoutsEnabled ? "success" : "warning"}>{answer.payoutsEnabled ? "Payouts on" : "Payouts paused"}</StatusBadge>}
             </div>
             {connected && answer.locationName && <p className="rp-hint" style={{ margin: 0 }}>Location: <strong>{answer.locationName}</strong>{answer.currency ? ` · ${answer.currency}` : ""}</p>}
-            {provider === "stripe" && connected && (answer.requirementsDue ?? 0) > 0 && (
-              <p className="rp-hint" style={{ margin: 0 }}>Stripe needs {answer.requirementsDue} more detail{answer.requirementsDue === 1 ? "" : "s"} from you before it pays out.</p>
-            )}
-            {connected && !canTakeCards && (
-              <p className="rp-hint" style={{ margin: 0 }}>{name} hasn't turned on card payments for this account yet. Open your {name} dashboard to finish anything it asks for.</p>
+            {needs ? (
+              <p role={answer.pastDue ? "alert" : undefined} style={{ margin: 0, padding: 12, border: `2px solid var(--rp-${answer.pastDue ? "danger" : "warning"})`, background: `var(--rp-${answer.pastDue ? "danger" : "warning"}-tint)` }}>
+                {needs} Press <strong>{CONTINUE_WITH_STRIPE}</strong>; it takes a few minutes.
+              </p>
+            ) : provider === "stripe" && ready ? (
+              <p className="rp-hint" style={{ margin: 0 }}>Stripe has everything it needs. Cards and payouts are working.</p>
+            ) : null}
+            {connected && !canTakeCards && !needs && (
+              <p className="rp-hint" style={{ margin: 0 }}>{name} hasn't turned on card payments for this account yet. {provider === "square" ? "Open your Square dashboard to finish anything it asks for." : `Press ${CONTINUE_WITH_STRIPE} to finish anything it asks for.`}</p>
             )}
             <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
               <div className="rp-sect">Payouts &amp; Colophon's fee</div>

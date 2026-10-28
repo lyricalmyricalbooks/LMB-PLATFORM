@@ -7,11 +7,16 @@ import { statusSummary } from "./summary.js";
 
 export const STATUS_DOC = "publicStatus/current";
 
-/** `publishStatus({ registry, platform, now })`: `platform` is the platform project's Firestore client. */
-export async function publishStatus({ registry, platform, now = () => new Date() }) {
+/**
+ * `publishStatus({ registry, platform, now, note })`: `platform` is the platform project's Firestore client. `note` is
+ * the team's note about a known problem (the run book's status note, control-room/runbook.js), `{ text, at }` or none;
+ * it is shown above the checks' own words.
+ */
+export async function publishStatus({ registry, platform, now = () => new Date(), note = null }) {
   const summary = statusSummary(await registry.listShops(), { now });
-  await platform.set(STATUS_DOC, summary);
-  return summary;
+  const out = note?.text ? { ...summary, note: { text: String(note.text).slice(0, 500), at: note.at ?? summary.updatedAt } } : summary;
+  await platform.set(STATUS_DOC, out);
+  return out;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -20,6 +25,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const { gcloudToken } = await import("../release-check/run.js");
   const { PLATFORM_PROJECT } = await import("../setup/real.js");
   const platform = firestoreClient({ fetch: globalThis.fetch, token: gcloudToken, projectId: PLATFORM_PROJECT });
-  const summary = await publishStatus({ registry: firestoreRegistry(platform), platform });
+  const { firestorePlatformState } = await import("../clients/stores.js");
+  const note = await firestorePlatformState(platform).get("statusNote");
+  const summary = await publishStatus({ registry: firestoreRegistry(platform), platform, note });
   console.log(`Status: ${summary.overall} (${summary.parts.map((p) => `${p.id} ${p.affected}/${p.total}`).join(", ")})`);
 }
