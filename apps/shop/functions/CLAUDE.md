@@ -831,3 +831,22 @@ address) still goes first, and a shop whose Gmail works never reaches the platfo
 attachments, and the log says so. `senderStatus()` (`sendTestEmail` action `senderStatus`) tells Settings › Email sender
 the Gmail address and the backup. The card is "Send from your own Gmail" and hides the Resend fields when the backup is
 the platform (`src/app/admin/senderStatus.ts`). With `PLATFORM_EMAIL_URL` unset, everything works as before.
+
+## Platform support visits (28 October 2026, code plan 2.8)
+
+"Act as this shop" in the platform's control room logs the visit in this shop's `auditLog` first. It then opens
+`/admin/#support=<custom sign-in token>`. The platform's service account makes the token for uid `colophon-support`,
+with the claim `support: { by, reason, until }` (`until` in seconds, at most an hour).
+
+- **One check, four copies:** `roles.js` `supportOf`, `isSupport()` in `firestore.rules` and `storage.rules`, and
+  `admin/supportSession.ts`. Each requires all of these:
+  - the pass came from a custom sign-in;
+  - the claim is there;
+  - `until` is a number and still in the future.
+- **Access:** support is staff (`adminRole`), never owner, so it never sees the Team, billing or secret keys.
+  `refreshMyRole` answers `staff` for support without touching the Team list.
+- **In the admin:** it signs in, takes the token out of the address, and shows the Platform support banner
+  (`SupportBanner.tsx`: who, why, until when, Sign out). It signs out by itself at `until`. The rules refuse it from
+  then on even if a tab stays open.
+- **Tests:** `scripts/firestore-rules-emulator.mjs` covers support, an expired visit and a Google pass claiming support.
+
