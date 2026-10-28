@@ -3,7 +3,8 @@ import { appsOf } from "../../setup/later-steps.js";
 
 /**
  * `fakeWorld({ broken })`: `broken` maps a version to the shops it breaks (`"*"` for all) and how: "pages" (the home
- * page answers 500), "deploy" (the server code deploy throws) or "check" (the release check fails).
+ * page answers 500), "deploy" (the server code deploy throws), "migrate" (a data change fails) or "check" (the
+ * release check fails).
  */
 export function fakeWorld({ broken = {}, badBuilds = [] } = {}) {
   const live = new Map(); // shopId -> { rules, functions, "pages:shop", "pages:stockroom" } versions
@@ -44,6 +45,10 @@ export function fakeWorld({ broken = {}, badBuilds = [] } = {}) {
       async rules(shopId, { version, apps }) {
         calls.push(["rules", shopId, version, apps.join("+")]);
         set(shopId, "rules", version);
+      },
+      async migrate(shopId, { version }) {
+        calls.push(["migrate", shopId, version]);
+        if (fault(version, shopId) === "migrate") throw new Error("data change 0003-x failed: quota exceeded");
       },
       async functions(shopId, { version, region, envFile }) {
         calls.push(["functions", shopId, version, region, envFile]);
