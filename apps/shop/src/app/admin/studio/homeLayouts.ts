@@ -33,6 +33,37 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "press-marquee",
+    name: "Marquee",
+    description: "Loud, clean homepage: a cover wall up top, a lime marquee strip, a bold product grid, notes and newsletter.",
+    sections: [
+      { type: "ProductCoverCarouselSection", settings: { title: "{{shop.name}}", tagline: "New things, made in small batches." } },
+      { type: "MarqueeSection", settings: { text: "NEW DROPS  /  SMALL BATCHES  /  SHIPS FROM THE STUDIO", separator: "✦", speed: 26, fontSize: 14, bold: true, fontWeight: 900, letterSpacing: 0.14, uppercase: true, background: "#c8f31d", color: "#0b0b0b" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Just in" } },
+      { type: "StaffNotesTableSection", settings: { title: "From the studio", backgroundColor: "#f2f2ee" } },
+      { type: "NewsletterSection", settings: { title: "First to know", description: "New drops and restocks, straight to your inbox." } },
+    ],
+  },
+  {
+    id: "press-shelf",
+    name: "Shelf",
+    description: "Warm colour-block hero with a white shelf of products that overlaps it, a short promise band and newsletter.",
+    sections: [
+      { type: "HeroSection", settings: {
+        title: "Good things, made with care", subtitle: "Small runs, honest materials and a shop you can actually talk to.",
+        ctaText: "Shop the shelf", height: "medium", align: "left", bgColor: "#e9b44c", overlayOpacity: 0,
+        textTransform: "none", headingWeight: 400,
+        customCss: "& { padding-bottom: 9rem; }",
+      } },
+      { type: "ProductShowcaseGridSection", settings: {
+        title: "On the shelf",
+        customCss: "& { position: relative; margin: -6rem auto 0; max-width: 1180px; padding: 2.5rem 2rem; background: var(--surface); border-radius: 24px; box-shadow: 0 24px 48px -28px rgba(var(--fg-rgb), .45); }",
+      } },
+      { type: "StaffNotesTableSection", settings: { title: "Why you will like it", backgroundColor: "#fbf6ea" } },
+      { type: "NewsletterSection", settings: { title: "Letters from the shelf", description: "New arrivals and restocks, once in a while." } },
+    ],
+  },
+  {
     id: "press-punk",
     name: "Punk",
     description: "Book-cover carousel hero, scrolling marquee, releases grid, staff notes table and a featured release banner.",
