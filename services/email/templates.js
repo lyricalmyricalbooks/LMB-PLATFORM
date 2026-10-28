@@ -141,6 +141,18 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The shop's newsletter paused itself (reputation.js, plan 8.3). Receipts and order emails keep going. */
+  "newsletter-paused": ({ problems = [], days }, { settings, pressName }) => layout({
+    subject: `${pressName}'s newsletter is paused for now`,
+    greeting: "Hello,",
+    paragraphs: [
+      `We paused ${pressName}'s newsletter. In the last ${days} days, ${problems.join(" and ")}.`,
+      "When that happens, email providers start sending everyone's mail to spam, so we stop it early. Your receipts, order emails and shipping notices still go out as normal.",
+      "To start again, send only to people who asked for your newsletter, and remove addresses that bounced. Then reply to this email and we'll turn it back on.",
+    ],
+    footer: signOff(settings),
+  }),
+
   /** A monthly payment was declined. Stripe tries again; the shop stays open meanwhile. */
   "payment-failed": ({ price, nextTry, link }, { settings, pressName }) => layout({
     subject: `We couldn't take this month's payment for ${pressName}`,

@@ -39,7 +39,7 @@ test("a shop's email comes from the platform address with the press's name, and 
   assert.deepEqual(request.body.to, ["owner@example.com"]);
   assert.match(request.body.subject, /Moth Press is ready on Colophon/);
   assert.match(request.body.html, /href="https:\/\/moth-press\.web\.app\/admin"/);
-  assert.deepEqual(request.body.tags, [{ name: "kind", value: "owner-welcome" }, { name: "shop", value: "moth-press" }]);
+  assert.deepEqual(request.body.tags, [{ name: "kind", value: "owner-welcome" }, { name: "shop", value: "moth-press" }, { name: "stream", value: "orders" }]);
 });
 
 test("the press's own reply-to wins, and the name and reply-to come from the registry, not the message", async () => {

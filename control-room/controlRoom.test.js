@@ -23,7 +23,7 @@ const ID = TEST_SHOP.shopId;
 const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: true };
 const PRESS = { uid: "uid-owner", email: "owner@example.com", email_verified: true };
 
-async function world({ repairs } = {}) {
+async function world({ repairs, newsletters } = {}) {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -38,7 +38,7 @@ async function world({ repairs } = {}) {
   const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
-    registry, auditLog, profileFiles, publish, shopAccess, repairs, admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
+    registry, auditLog, profileFiles, publish, shopAccess, repairs, newsletters, admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: controlRoutes(room) });
@@ -186,4 +186,20 @@ test("the real support sign-in: a token for the support account with who, why an
   // Never longer than the sign-in token itself lasts.
   assert.equal((await access.supportSignIn(ID, { by: ADMIN.email, reason: "long one", minutes: 600 })).until, now().getTime() / 1000 + MAX_MINUTES * 60);
   await assert.rejects(supportAccess({ identity, registry: w.registry }).supportSignIn(ID, { by: ADMIN.email, reason: "r" }), /service account/);
+});
+
+test("a paused newsletter is turned back on by a platform admin only, with a reason, and logged", async () => {
+  const paused = new Set([ID]);
+  const calls = [];
+  const newsletters = { resume: async (shopId, options) => { calls.push({ shopId, ...options }); return { resumed: paused.delete(shopId) }; } };
+  const w = await world({ newsletters });
+  const path = "/api/control/newsletter/resume";
+  assert.equal((await w.ask(PRESS, "POST", path, { shopId: ID, reason: "the press cleaned its list" })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "ok" })).status, 400);
+  assert.equal((await w.ask(ADMIN, "POST", path, { shopId: "no-such-shop", reason: "the press cleaned its list" })).status, 404);
+  const answer = await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "the press cleaned its list" });
+  assert.equal(answer.status, 200);
+  assert.deepEqual(calls, [{ shopId: ID, by: "admin@example.com", reason: "the press cleaned its list" }]);
+  assert.ok(w.events().some((e) => e.what === "newsletter-resumed" && e.by === "admin@example.com"));
+  assert.equal((await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "the press cleaned its list" })).status, 409);
 });
