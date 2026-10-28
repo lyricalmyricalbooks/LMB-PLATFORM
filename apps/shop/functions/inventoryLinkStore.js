@@ -1,26 +1,35 @@
-// Reads and writes in the inventory app's Firestore (project lmb-test-stockroom) — docs/INVENTORY_LINK.md.
+// Reads and writes in the inventory app's (the stockroom's) Firestore — docs/INVENTORY_LINK.md.
 //
-// The website's Functions reach it through a second Admin SDK app using their own service account.
-// The owner grants that account "Cloud Datastore User" on the inventory project once; until then every
-// call fails with PERMISSION_DENIED, which the admin panel reports as "not connected yet".
-// The Admin SDK bypasses the inventory app's rules, so this file is the only code that may touch that
-// database, and it touches only the link's own documents (plus a read of the book list, reduced to
-// safe fields by projectInventoryCatalog).
+// The stockroom lives in this shop's own Firebase project, in its own named database (plan 1.21; `stockroom`, set by
+// SHOP_STOCKROOM_DATABASE in functions/shopConfig.js). The Functions reach it through the project's own Admin SDK app,
+// so there is nothing for the owner to grant: no second project, no second app, no "Cloud Datastore User" step.
+// A database that isn't there yet (a shop without the stockroom) answers NOT_FOUND, which the admin panel reports as
+// "the stockroom isn't set up in this shop".
+// The Admin SDK bypasses the stockroom's rules, so this file is the only code that may touch that database, and it
+// touches only the link's own documents (plus a read of the book list, reduced to safe fields by
+// projectInventoryCatalog). The shop's own data stays in the (default) database; this file never opens it.
 const admin = require("./adminSdk")(require("firebase-admin"));
 const { getFirestore } = require("firebase-admin/firestore");
 const { projectInventoryCatalog } = require("./inventoryLink");
+const { shopConfig } = require("./shopConfig");
 
-const INVENTORY_PROJECT = "lmb-test-stockroom";
-const APP_NAME = "inventory";
+const STOCKROOM_DATABASE = shopConfig.stockroomDatabase;
 const LINK_VERSION = "website-link-1";
 
 let cachedDb = null;
-function inventoryDb() {
-  if (cachedDb) return cachedDb;
-  let app;
-  try { app = admin.app(APP_NAME); } catch { app = admin.initializeApp({ projectId: INVENTORY_PROJECT }, APP_NAME); }
-  cachedDb = getFirestore(app);
-  return cachedDb;
+/**
+ * The stockroom's named database in this project. `deps` are for tests: `app()` gives the project's default Admin
+ * app, `firestoreFor(app, databaseId)` opens a database in it, `database` names it.
+ */
+function inventoryDb(deps = {}) {
+  const { app = () => admin.app(), firestoreFor = getFirestore, database = STOCKROOM_DATABASE } = deps;
+  const custom = Object.keys(deps).length > 0;
+  if (cachedDb && !custom) return cachedDb;
+  // Never the shop's own database: an empty or "(default)" name would point the link at the shop's orders.
+  if (!database || database === "(default)") throw new Error("The stockroom database name is missing.");
+  const db = firestoreFor(app(), database);
+  if (!custom) cachedDb = db;
+  return db;
 }
 
 /** The address the owner grants access to (the Functions' runtime service account), or "" when unknown. */
@@ -36,8 +45,12 @@ async function serviceAccountEmail() {
   }
 }
 
-/** "not-granted" when the inventory project refuses this service account, else a short reason. */
+/**
+ * A short reason the stockroom can't be reached: "no-stockroom" when its database isn't in this project (NOT_FOUND),
+ * "not-granted" when the project refuses the Functions' own account (someone removed its role), else a short reason.
+ */
 function connectionProblem(err) {
+  if (err && (err.code === 5 || err.code === "not-found" || /NOT_FOUND|database .* does not exist/i.test(String(err.message)))) return "no-stockroom";
   const code = err && (err.code === 7 || err.code === "permission-denied" || /PERMISSION_DENIED|Missing or insufficient permissions/i.test(String(err.message)));
   if (code) return "not-granted";
   if (/has not been used|is disabled/i.test(String(err && err.message))) return "api-disabled";
@@ -184,7 +197,7 @@ async function readAppHeartbeat() {
 }
 
 module.exports = {
-  INVENTORY_PROJECT, inventoryDb, serviceAccountEmail, connectionProblem, checkConnection, heartbeat, markPastOrders,
+  STOCKROOM_DATABASE, inventoryDb, serviceAccountEmail, connectionProblem, checkConnection, heartbeat, markPastOrders,
   writeWebsiteOrder, waitingShipments, replyShipment, readFeeds, readCatalog, pendingSummary, readAppHeartbeat,
   writeWebsiteSide, writeShopCatalog,
 };

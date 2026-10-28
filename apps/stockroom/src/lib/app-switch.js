@@ -11,17 +11,26 @@
 // where the switcher sits, the count badge, the toasts — is
 // src/features/app-switch.js.
 import { escapeHtml } from './html.js';
+import { shopProfile } from './shop-profile.js';
+
+// In a shop's own project (plan 1.21) the website is that project's shop: the profile's siteUrl, and the project's
+// own web.app and firebaseapp.com addresses. A stockroom without a shop keeps the test shop's addresses.
+const ownShop = shopProfile.apps?.shop === true;
+const ownShopOrigins = ownShop
+  ? [shopProfile.siteUrl, `https://${shopProfile.firebase.projectId}.web.app`, `https://${shopProfile.firebase.projectId}.firebaseapp.com`]
+  : [];
 
 /** The website's admin. Its pages are hash routes; one order is `#orders/<id>`. */
-export const WEBSITE_ADMIN = 'https://lmb-test-shop.web.app/admin';
+export const WEBSITE_ADMIN = ownShop ? `${shopProfile.siteUrl}/admin` : 'https://lmb-test-shop.web.app/admin';
 
 /** Every address the website admin can be opened from (its own domain later). */
-export const WEBSITE_ORIGINS = Object.freeze([
+export const WEBSITE_ORIGINS = Object.freeze([...new Set([
+  ...ownShopOrigins,
   'https://lmb-test-shop.web.app',
   'https://lmb-test-shop.firebaseapp.com',
   'https://yourpress.example',
   'https://www.yourpress.example',
-]);
+])]);
 
 /** This app, as the website links to it. */
 export const INVENTORY_ORIGIN = 'https://yourpress.github.io';

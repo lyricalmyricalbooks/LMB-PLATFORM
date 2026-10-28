@@ -21,6 +21,9 @@
 //   SHOP_TEST_SHOP       "true" only on the platform's own test shop (docs/test-shop.md): its sandbox checkouts hold
 //                        stock like live ones, so the release check covers the hold. Anything else, or unset, is a
 //                        normal shop. Set by the platform, never by the shop owner
+//   SHOP_STOCKROOM_DATABASE the stockroom's named Firestore database in this project (plan 1.21; the profile's
+//                        stockroom.firestoreDatabase). The inventory app link reads and writes there
+//                        (inventoryLinkStore.js). Unset keeps "stockroom", the name setup gives every shop
 //   PLATFORM_EMAIL_URL   the platform email service's shop door (https). Set: when the shop hasn't connected its own
 //                        Gmail (or Gmail refuses a send) its emails go through the platform's shared sender, with the
 //                        shop's name and replies to the shop; Resend keys in the shop are no longer used. Unset: the
@@ -39,11 +42,14 @@ const PLACEHOLDER = Object.freeze({
   paymentProvider: DEFAULT_PROVIDER,
   region: "us-central1",
   testShop: false,
+  stockroomDatabase: "stockroom",
 });
 
 // A Cloud Functions region name: northamerica-northeast1, us-central1, europe-west2…
 const REGION = /^[a-z]+-[a-z]+[0-9]{1,2}$/;
 const PROJECT = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+// A named Firestore database id; "(default)" never matches, so the link can't be pointed at the shop's own data.
+const DATABASE_ID = /^[a-z][a-z0-9-]{2,61}[a-z0-9]$/;
 
 const EMAIL = /^[^\s@,<>"]+@[^\s@,<>"]+\.[^\s@,<>"]+$/;
 const ORIGIN = /^https:\/\/[a-z0-9.-]+\.[a-z]{2,}$/i;
@@ -88,6 +94,7 @@ function readShopConfig(env = {}) {
     siteHost: host.replace(/^www\./, ""),
     paymentProvider: paymentProviderOf(env.SHOP_PAYMENT_PROVIDER),
     testShop: text(env.SHOP_TEST_SHOP).toLowerCase() === "true",
+    stockroomDatabase: DATABASE_ID.test(text(env.SHOP_STOCKROOM_DATABASE)) ? text(env.SHOP_STOCKROOM_DATABASE) : PLACEHOLDER.stockroomDatabase,
     platformEmailUrl: /^https:\/\/[^\s"'<>]+$/.test(text(env.PLATFORM_EMAIL_URL)) ? text(env.PLATFORM_EMAIL_URL) : "",
     allowedOrigins: Object.freeze([...new Set([...LOCAL_ORIGINS, ...extraOrigins, ...(hosted ? [hosted] : []), siteUrl, ...www])]),
     project: functionsProject,

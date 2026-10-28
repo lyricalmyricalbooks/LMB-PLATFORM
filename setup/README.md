@@ -66,7 +66,7 @@ when what it finds is neither done nor untouched:
 7. Deploy the rules and indexes for the plan's apps. Another release already live stops the run (this applies to 8 and
    9 too); rules for the wrong apps are deployed again.
 8. Write `functions/.env.<project id>` (`SHOP_OWNER_EMAIL`, `SHOP_SENDER_NAME`, `SHOP_SENDER_EMAIL`, `SHOP_SITE_URL`,
-   `SHOP_EXTRA_ORIGINS` set empty, `SHOP_PAYMENT_PROVIDER` from the press's choice, `SHOP_FUNCTIONS_REGION`, `SHOP_TEST_SHOP` `"true"` only for the test shop and `"false"` for every other, and `PLATFORM_EMAIL_URL` when `config.platformEmailUrl` is set: the shared email sender for shops without their own Gmail), then deploy the server code with the region passed explicitly
+   `SHOP_EXTRA_ORIGINS` set empty, `SHOP_PAYMENT_PROVIDER` from the press's choice, `SHOP_FUNCTIONS_REGION`, `SHOP_TEST_SHOP` `"true"` only for the test shop and `"false"` for every other, `SHOP_STOCKROOM_DATABASE` (the stockroom's named database, where the shop's link to it reads and writes; plan 1.21), and `PLATFORM_EMAIL_URL` when `config.platformEmailUrl` is set: the shared email sender for shops without their own Gmail), then deploy the server code with the region passed explicitly
    (`northamerica-northeast1`). Server code already in another region stops the run. Skipped for a stockroom-only plan.
 9. Deploy the pages of each app in the plan. The deploy client picks the Hosting site and returns its address.
 10. Give the nightly backup its permission and make the first backup.

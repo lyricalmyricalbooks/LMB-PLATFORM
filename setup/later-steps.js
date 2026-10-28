@@ -29,7 +29,7 @@
 // `config.release` is the release being set up: `{ version, starterContent(shop) -> [{ path, data }] }`. The starter
 // documents come from the release because the shop copy owns their shape. `config.senderEmail` is the platform address
 // shop email is sent from (the email service adds the press's name and reply-to).
-import { PLANS, REGION, firstSteps } from "./steps.js";
+import { PLANS, REGION, STOCKROOM_DATABASE, firstSteps } from "./steps.js";
 import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
 import { testCatalogue } from "./test-catalogue.js";
 
@@ -59,6 +59,9 @@ export function envFileText(shop, { senderEmail, region = REGION, platformEmailU
     // "true" only for the platform's own test shop (docs/test-shop.md): its test-card checkouts then move stock like
     // real ones, for the release check. Every other shop gets "false", so the shop never guesses.
     `SHOP_TEST_SHOP=${quote(shop.testShop === true)}`,
+    // The stockroom's named database in this project (step 5), where the shop's link to it reads and writes
+    // (apps/shop/functions/inventoryLinkStore.js, plan 1.21). Written for every shop so the server never guesses.
+    `SHOP_STOCKROOM_DATABASE=${quote(STOCKROOM_DATABASE)}`,
     // The platform email service's shop door (services/email/http.js): the backup sender for a shop that hasn't
     // connected its own Gmail. Written only once the platform has one (config.platformEmailUrl).
     ...(platformEmailUrl ? [`PLATFORM_EMAIL_URL=${quote(platformEmailUrl)}`] : []),

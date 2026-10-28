@@ -80,7 +80,8 @@ test("the env file is what the shop's server code reads", () => {
     const [, key, value] = line.match(/^([A-Z_]+)="(.*)"$/);
     return [key, value];
   }));
-  assert.deepEqual(Object.keys(env), ["SHOP_OWNER_EMAIL", "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER", "SHOP_FUNCTIONS_REGION", "SHOP_TEST_SHOP"]);
+  assert.deepEqual(Object.keys(env), ["SHOP_OWNER_EMAIL", "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER", "SHOP_FUNCTIONS_REGION", "SHOP_TEST_SHOP", "SHOP_STOCKROOM_DATABASE"]);
+  assert.equal(env.SHOP_STOCKROOM_DATABASE, "stockroom");
   const config = readShopConfig({ ...env, GCLOUD_PROJECT: ID });
   assert.equal(config.ownerEmail, "owner@example.com");
   assert.equal(config.senderName, "Moth Night Press and Co");
