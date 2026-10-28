@@ -19289,7 +19289,7 @@ async function initStartup() {
       const cachedGlobal = startupCachedGlobalMode();
       // On a device that has opened the app before: show the copy this device
       // already holds while the server is asked.
-      const publisherAccount = await isPublisherUser(user);
+      const publisherAccount = await isPublisherUser(user, { askRules: window._fbAskRulesIfPublisher });
       if (cachedGlobal === true) {
         showStartupPreview(user, publisherAccount)
           .then(shown => { if (shown) dismissSplash(); })

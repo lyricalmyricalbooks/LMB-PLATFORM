@@ -57,6 +57,9 @@ npm run build          # production build + service worker
   The three rules files hold the slot `__SHOP_OWNER_EMAIL__` for the owner's address; the step fills it, names the
   stockroom's own database (`stockroom`) and bucket (`<project id>-stockroom`) from `public/shop-profile.js`, and
   refuses to write anything without them. Deployed unfilled, the rules let in only the shop's Team owner role.
+  The sign-in screen never holds the owner's address: when the pass carries no owner role (always so for a shop
+  without the shop app), it asks the rules by reading `publisherCheck/me`, which they allow only to the publisher.
+  A new owner address therefore needs this rules deploy again.
 - **Apps Script:** when `apps-script/Code.gs` changes, the build copies it to
   `public/gas-code.txt`. Paste it into your Apps Script project and redeploy.
   See `CLAUDE.md` for the version-bump rule.

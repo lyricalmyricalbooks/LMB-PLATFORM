@@ -62,6 +62,16 @@ const shutOut = {
   "signed out": env.unauthenticatedContext(),
 };
 
+// The sign-in screen's question (src/lib/publisher-access.js askRules): the same answer as every rule above, and
+// the only way the owner of a shop without the shop app (no owner role on the pass) is recognised.
+for (const [who, ctx] of Object.entries(people)) {
+  await check(`${who}: the publisher check says yes`, assertSucceeds(getDoc(doc(ctx.firestore(), "publisherCheck/me"))));
+  await check(`${who}: the publisher check can't be written`, assertFails(setDoc(doc(ctx.firestore(), "publisherCheck/me"), { x: 1 })));
+}
+for (const [who, ctx] of Object.entries(shutOut)) {
+  await check(`${who}: the publisher check says no`, assertFails(getDoc(doc(ctx.firestore(), "publisherCheck/me"))));
+}
+
 for (const [who, ctx] of Object.entries(people)) {
   await check(`${who}: reads a secret setting (Firestore)`, assertSucceeds(getDoc(doc(ctx.firestore(), "settings/taxCenter"))));
   await check(`${who}: writes settings (Firestore)`, assertSucceeds(setDoc(doc(ctx.firestore(), "settings/modeFlags"), { x: 1 })));
