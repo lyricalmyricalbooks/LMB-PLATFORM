@@ -7,7 +7,8 @@ import { resolveProductRoutes } from '../features/site/productRoutes';
 import { getCopy } from '../features/site/storeCopy';
 import { autoBookSeo, bookCreators, bookMetadata, defaultBookTitle, seoChecks } from '../lib/bookSeo';
 import type { Book } from '../features/site/types';
-import { askAi, bookAiInput } from './aiWriter';
+import { askAi, aiWriterAvailable, bookAiInput } from './aiWriter';
+import { runsOnColophon } from '../../lib/shopProfile';
 
 // Settings + whole catalog, shared by every opening of this pane for a minute (it used to reload both each time).
 let seoCache: { at: number; promise: Promise<[any, Book[]]> } | null = null;
@@ -79,8 +80,8 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
     <SectionCard title="Search engine listing" description="Edit this book’s search and sharing details. Google may rewrite titles and snippets; rankings are not guaranteed.">
       <div><button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={autoFill}
         title="Write the search title and description from this book's title, author and description">Auto-fill from book</button>
-        {' '}<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void writeWithAi()} disabled={aiBusy}
-          title="Draft the search title and description with AI (Settings › General › AI writing assistant)">{aiBusy ? 'Writing…' : '✦ Write with AI'}</button></div>
+        {aiWriterAvailable() && <>{' '}<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void writeWithAi()} disabled={aiBusy}
+          title="Draft the search title and description with AI (Settings › General › AI writing assistant)">{aiBusy ? 'Writing…' : '✦ Write with AI'}</button></>}</div>
       <label className="rp-hint"><input type="checkbox" checked={book.seoNoindex === true} onChange={event => onChange('seoNoindex', event.target.checked)} /> Exclude this listing from search engines</label>
       <p className="rp-hint">Useful for test and duplicate listings. The book stays available in the shop; Google receives noindex and the sitemap omits it.</p>
       <div className="be-grid">
@@ -100,8 +101,11 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
     <ArtistLinks book={book} onChange={onChange} />
     <SectionCard title={`SEO checks · ${checks.filter(c => c.ok).length}/${checks.length}`} description="Content checks are guidance, not a Google ranking score. Changes save with the book.">
       <ul className="be-check">{checks.map(c => <li key={c.id} className={c.ok ? 'is-ok' : ''}><span aria-hidden>{c.ok ? '✓' : '○'}</span> {c.label}<span className="rp-sr-only">{c.ok ? ' Complete.' : ' Needs attention.'}</span></li>)}</ul>
-      <p className="rp-hint">Canonical URLs and product details are generated automatically. The public price, currency and availability feed structured data. Submit the deployed sitemap in Google Search Console and inspect the book URL after publishing.</p>
-      {url && <a className="rp-btn rp-btn-ghost rp-btn-sm" href={`https://search.google.com/test/rich-results?url=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer">Test deployed URL with Google</a>}
+      {/* A shop run by Colophon sets up its search listing on its own: there is no sitemap or tool for the press to use (code plan 6.16). */}
+      {runsOnColophon()
+        ? <p className="rp-hint">Your shop's web addresses and book details are set up for search engines automatically. Nothing to do here.</p>
+        : <p className="rp-hint">Canonical URLs and product details are generated automatically. The public price, currency and availability feed structured data. Submit the deployed sitemap in Google Search Console and inspect the book URL after publishing.</p>}
+      {url && !runsOnColophon() && <a className="rp-btn rp-btn-ghost rp-btn-sm" href={`https://search.google.com/test/rich-results?url=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer">Test deployed URL with Google</a>}
     </SectionCard>
   </>;
 }

@@ -11,7 +11,7 @@ export async function emailFunction(body: Record<string, unknown>) {
     body: JSON.stringify(body),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `The email service answered ${response.status}. Check that Cloud Functions are deployed.`);
+  if (!response.ok) throw new Error(data.error || `The email service answered ${response.status}. Try again in a moment.`);
   return data;
 }
 

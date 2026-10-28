@@ -158,6 +158,15 @@ export function platformCardsProvider(profile: ShopProfile = shopProfile): "stri
   return profile.payments?.mode === "platform" ? profile.payments.provider : null;
 }
 
+/**
+ * The shop is run by Colophon (code plan 6.16): its cards go through the platform, so the press never meets a key, a
+ * connection address or a release. Panels that ask for those are hidden here, and the words that remain are plain
+ * (platformPlainWords.test.ts reads them). A shop on its own payment keys still shows them.
+ */
+export function runsOnColophon(profile: ShopProfile = shopProfile): boolean {
+  return platformCardsProvider(profile) !== null;
+}
+
 /** The shop takes cards through Square (plan 2.2b): shoppers pay on Square's own page, with no card form here. */
 export function paysOnSquare(profile: ShopProfile = shopProfile): boolean {
   return profile.payments?.provider === "square" && profile.payments.mode === "platform";

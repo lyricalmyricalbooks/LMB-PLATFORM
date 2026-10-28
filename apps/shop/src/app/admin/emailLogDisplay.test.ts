@@ -10,7 +10,7 @@ describe("Recent deliveries rows", () => {
   });
   it("names the provider that accepted the email", () => {
     expect(emailLogDetail({ keySource: "gmail" })).toBe("Accepted by Gmail");
-    expect(emailLogDetail({ keySource: "settings" })).toBe("Accepted by Resend");
+    expect(emailLogDetail({ keySource: "settings" })).toBe("Accepted by the email service");
     expect(emailLogDetail({ error: "Gmail SMTP rejected" })).toBe("Gmail SMTP rejected");
   });
 });

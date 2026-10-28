@@ -19,8 +19,9 @@ import { fileURLToPath } from 'node:url';
 
 const TESTS = path.dirname(fileURLToPath(import.meta.url));
 
-// 337 of 507 test files when this started.
-const MAX_SOURCE_READING_FILES = 337;
+// 337 of 507 test files when this started; 338 with tests/platformPlainWords.test.js, which has to read the page and every
+// source file to find technical words (code plan 6.16). Lower it when a source-reading test is rewritten or removed.
+const MAX_SOURCE_READING_FILES = 338;
 
 // Reads a file as text, and that file is app code or the page.
 const READS_TEXT = /readFileSync|appSource|extract-decl/;

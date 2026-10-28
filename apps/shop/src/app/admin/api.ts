@@ -1284,13 +1284,13 @@ export const adminApi = {
   // Deletes a stored PayPal client secret (admin-only adminSecrets/paypal). Live then falls back to the Functions secret.
   removePaypalSecret: async (mode: "live" | "test") => {
     await setDoc(doc(db, "adminSecrets", "paypal"), { [mode === "live" ? "clientSecret" : "testClientSecret"]: deleteField(), updatedAt: serverTimestamp() }, { merge: true });
-    await adminApi.recordAuditLog("payments", `Removed the stored PayPal ${mode} client secret`);
+    await adminApi.recordAuditLog("payments", `Removed the stored PayPal ${mode} client secret`); // Own-account shops only: PayPal keys are hidden on Colophon shops
   },
 
   // Deletes the stored Resend key (admin-only adminSecrets/resend); email then uses the RESEND_API_KEY Functions secret.
   removeResendKey: async () => {
     await setDoc(doc(db, "adminSecrets", "resend"), { apiKey: deleteField(), updatedAt: serverTimestamp() }, { merge: true });
-    await adminApi.recordAuditLog("notifications", "Removed the stored Resend API key");
+    await adminApi.recordAuditLog("notifications", "Removed the stored Resend API key"); // Own-account shops only: the mail service key is hidden on Colophon shops
   },
 
   // Deletes a stored Stripe secret key (admin-only adminSecrets/stripe). Live then

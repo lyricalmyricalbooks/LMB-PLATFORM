@@ -204,7 +204,7 @@ export function OrderDetail({
       if (fresh?.paymentStatus === "refunded" && before !== "refunded") toast.success(`${providerName()} shows this payment was refunded — order updated and stock returned.`);
       else if (fresh?.paymentStatus === "paid" && before === "unpaid") toast.success(`${providerName()} confirmed the payment — order marked paid.`);
       else if (fresh?.paymentMismatch && fresh?.paymentStatus !== "paid") toast.error(`${providerName()}'s amount doesn't match this order. Review it in ${providerName()} before fulfilling.`);
-      else if (manual) toast((report as any).awaitingWebhook ? `${providerName()} received payment. The order is awaiting its verified webhook; review Webhook health before shipping.` : fresh?.paymentStatus === "paid" ? "Order payment was confirmed by the webhook." : `${providerName()} has not confirmed this payment yet.`);
+      else if (manual) toast((report as any).awaitingWebhook ? `${providerName()} received payment. The order is waiting for the payment to be confirmed; check again in a minute before shipping.` : fresh?.paymentStatus === "paid" ? "Order payment was confirmed." : `${providerName()} has not confirmed this payment yet.`);
     } catch (err: any) {
       if (manual) toast.error(plainError(err, `Couldn't reach ${providerName()}`));
     } finally {
@@ -1384,7 +1384,7 @@ export function OrderDetail({
           )}
           {showShipForm === "dispatch" && testLabel && (
             <p className="fw-problems" role="alert" style={{ margin: 0 }}>
-              This is a TEST label bought with a Shippo test key, so it won't carry a parcel. Close this, use Wrong label? Replace it and buy a live label before shipping.
+              This is a TEST label bought with a Shippo test key, so it won't carry a parcel. Close this, use Wrong label? Replace it and buy a live label before shipping.{/* Own-account shops only: Shippo test labels */}
             </p>
           )}
           {showShipForm === "dispatch" && (

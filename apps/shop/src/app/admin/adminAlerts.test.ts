@@ -89,7 +89,7 @@ describe("operational alerts", () => {
 it("surfaces provider reconciliation without claiming it marks an order paid", () => {
   const rows = buildAdminAlerts([{ id: "P", paymentStatus: "unpaid", reconciliationPending: { provider: "stripe" }, createdAt: ago(1) }], null, now);
   expect(rows.find(a => a.id === "payment-reconciliation")?.orderIds).toEqual(["P"]);
-  expect(rows.find(a => a.id === "payment-reconciliation")?.detail).toMatch(/signed webhook/);
+  expect(rows.find(a => a.id === "payment-reconciliation")?.detail).toMatch(/needs to be confirmed/);
 });
 
 describe("gift cards not issued", () => {

@@ -21,6 +21,7 @@ import {
 } from "./riso/components";
 import { preorderActive, releaseDateOf } from "../features/site/preorder";
 import { normalizeCategories } from "../features/site/navItems";
+import { runsOnColophon } from "../../lib/shopProfile";
 import {
   STATUS_FILTERS, STOCK_FILTERS, bookAuthor, bookReferences, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, stockInfo,
 } from "./catalogList";
@@ -554,8 +555,11 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <ActionMenu label="More catalog actions" actions={[
               { label: "Import CSV…", onSelect: () => setImportOpen(true) },
               { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
-              { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
-              { label: "Google indexing", onSelect: () => setIndexOpen(true) },
+              // Google's own tools: a Colophon shop sets those up on its own (Connect Google), so no step here (code plan 6.16).
+              ...(runsOnColophon() ? [] : [
+                { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
+                { label: "Google indexing", onSelect: () => setIndexOpen(true) },
+              ]),
             ]} />
           </div>
         }>
@@ -580,8 +584,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
       {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
       <EditionStockDialog book={stockEditId ? byId.get(stockEditId) || null : null} onClose={() => setStockEditId(null)} onSaved={loadBooks} />
-      <MerchantFeedDialog open={feedOpen} onClose={() => setFeedOpen(false)} books={books} />
-      <GoogleIndexDialog open={indexOpen} onClose={() => setIndexOpen(false)} books={books} />
+      {!runsOnColophon() && <MerchantFeedDialog open={feedOpen} onClose={() => setFeedOpen(false)} books={books} />}
+      {!runsOnColophon() && <GoogleIndexDialog open={indexOpen} onClose={() => setIndexOpen(false)} books={books} />}
       <Dialog open={exportOpen} onClose={() => setExportOpen(false)} title="Export books"
         footer={<><SecondaryButton onClick={() => setExportOpen(false)}>Cancel</SecondaryButton><PrimaryButton onClick={exportCsv}>Download CSV</PrimaryButton></>}>
         <div className="rp-stack">

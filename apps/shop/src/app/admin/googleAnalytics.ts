@@ -103,7 +103,7 @@ async function call(payload: Record<string, unknown>): Promise<any> {
     throw new Error("Couldn't reach the shop's server. Check your connection and try again.");
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `The shop's server answered ${res.status}. Check that Cloud Functions are deployed.`);
+  if (!res.ok) throw new Error(data?.error || `The shop's server answered ${res.status}. Try again in a moment.`);
   return data;
 }
 

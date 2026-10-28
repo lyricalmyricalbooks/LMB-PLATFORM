@@ -66,7 +66,7 @@ import { PhotoCropDialog } from "./PhotoCropDialog";
 import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
-import { askAi, bookAiInput, photoAiUrl, runPool, DESCRIBE_AT_ONCE } from "./aiWriter";
+import { askAi, aiWriterAvailable, bookAiInput, photoAiUrl, runPool, DESCRIBE_AT_ONCE } from "./aiWriter";
 import { describedAlt } from "../features/site/photoAlt";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
 import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
@@ -112,7 +112,7 @@ function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop, onD
         aria-describedby={fileNameAlt ? `be-alt-hint-${photo.id}` : undefined} />
       {fileNameAlt && <p className="rp-hint" id={`be-alt-hint-${photo.id}`}>This is a file name, so the shop shows its own wording instead. Describe the photo, or use Describe with AI.</p>}
       <div className="be-photo-actions">
-        {!isVideoItem(photo) && (
+        {!isVideoItem(photo) && aiWriterAvailable() && (
           <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onDescribe(photo.id)} disabled={aiLocked}
             aria-label={`Describe ${index === 0 ? "the cover" : `image ${index + 1}`} with AI`}>
             {describing ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <Sparkles size={13} aria-hidden />} {describing ? "Describing…" : "Describe with AI"}
@@ -1267,10 +1267,10 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                       ))}
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Add link" onMouseDown={(e) => e.preventDefault()} onClick={() => openDescLink("description")}><Link2 size={14} aria-hidden /> Add link</button>
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-pressed={descPreview} onClick={() => setDescPreview((v) => !v)}><Eye size={14} aria-hidden /> {descPreview ? "Hide preview" : "Preview"}</button>
-                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={descAiBusy} onClick={() => void writeDescriptionWithAi()}
+                      {aiWriterAvailable() && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={descAiBusy} onClick={() => void writeDescriptionWithAi()}
                         title="Draft this description with AI (Settings › General › AI writing assistant)">
                         {descAiBusy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Sparkles size={14} aria-hidden />} {descAiBusy ? "Writing…" : (formData.description || "").trim() ? "Improve with AI" : "Write with AI"}
-                      </button>
+                      </button>}
                       {descBeforeAi !== null && (
                         <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { set("description", descBeforeAi); setDescBeforeAi(null); }}>
                           <Undo2 size={14} aria-hidden /> Undo AI draft
@@ -1414,7 +1414,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             <SectionCard title="Book images" description="Use genuine cover and interior photographs. Drag the ⠿ handle to reorder; the first image is the cover shown in the shop and search."
               actions={<>
                 <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS}><Upload size={14} aria-hidden /> Upload images</button>
-                {photosToDescribe.length > 0 && (
+                {photosToDescribe.length > 0 && aiWriterAvailable() && (
                   <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={describeAllPhotos} disabled={describingIds.size > 0 || uploading}>
                     {describeAll ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Sparkles size={14} aria-hidden />}{" "}
                     {describeAll ? `Described ${describeAll.done} of ${describeAll.total}…` : `Describe ${photosToDescribe.length} ${photosToDescribe.length === 1 ? "photo" : "photos"} with AI`}
@@ -1468,7 +1468,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               <p className="be-note">{formData.photos.length} of {MAX_BOOK_PHOTOS} images and videos. Describe each photo in the box under it, so screen readers and search engines know what it shows.</p>
               <details className="be-more-info">
                 <summary>About videos</summary>
-                <p className="be-note">Videos: up to {MAX_BOOK_VIDEOS} per book, {formatMegabytes(MAX_BOOK_VIDEO_BYTES)} each, MP4 works everywhere (WebM and MOV in most browsers). They play on the book page and in the enlarged viewer; shop cards show a still from the video. Each play downloads the file from your Firebase storage, so short clips (under a minute, 720p or 1080p) keep the shop inside its free monthly allowance.</p>
+                <p className="be-note">Videos: up to {MAX_BOOK_VIDEOS} per book, {formatMegabytes(MAX_BOOK_VIDEO_BYTES)} each, MP4 works everywhere (WebM and MOV in most browsers). They play on the book page and in the enlarged viewer; shop cards show a still from the video. Each play downloads the file from your shop's storage, so short clips (under a minute, 720p or 1080p) keep the shop inside its free monthly allowance.</p>
               </details>
               <div className="be-url-row">
                 <TextField label="Add image from URL" value={photoInput} onChange={(e) => setPhotoInput(e.target.value)} placeholder="https://…/cover.jpg"

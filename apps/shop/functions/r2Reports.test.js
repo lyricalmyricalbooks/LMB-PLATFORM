@@ -99,7 +99,7 @@ describe("#68 unpaidPaymentSweep", () => {
     expect(sweep).toContain("sweepStartedAt + SWEEP_REVERSAL_MS");
   });
   it("sends the owner alert before the slow reversal checks, email queue and review requests", () => {
-    const alertAt = sweep.indexOf("webhook missed");
+    const alertAt = sweep.indexOf("missed ${found.length} paid order");
     expect(alertAt).toBeGreaterThan(-1);
     expect(alertAt).toBeLessThan(sweep.indexOf("checkStripeReversal("));
     expect(alertAt).toBeLessThan(sweep.indexOf("runEmailOutbox()"));

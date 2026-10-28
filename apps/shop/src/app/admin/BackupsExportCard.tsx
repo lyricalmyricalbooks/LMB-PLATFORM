@@ -3,7 +3,7 @@ import { doc, getDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import { shopProfile } from "../../lib/shopProfile";
+import { runsOnColophon, shopProfile } from "../../lib/shopProfile";
 import { adminApi } from "./api";
 import { catalogToCsv } from "./bulkPricing";
 import { buildCustomers, customersToCsv } from "./customerInsights";
@@ -128,7 +128,11 @@ export function BackupsExportCard() {
           : <span className="rp-hint">Checking the last backup…</span>}
       </p>
       {view?.notes.map((note) => <p key={note} className="rp-hint" style={{ margin: "0 0 8px" }}>{note}</p>)}
-      {view?.exportNeedsRole && (
+      {/* A shop run by Colophon never sees the permission steps: Colophon looks after the full copy (code plan 6.16). */}
+      {view?.exportNeedsRole && runsOnColophon() && (
+        <p className="rp-hint" style={{ margin: "0 0 12px" }}>The full copy of your shop isn't switched on yet. Colophon is looking after this for you, so there is nothing to do.</p>
+      )}
+      {view?.exportNeedsRole && !runsOnColophon() && (
         <details style={{ margin: "0 0 12px" }}>
           <summary className="rp-label" style={{ cursor: "pointer" }}>How to switch on the full Firestore export</summary>
           <ol className="rp-hint" style={{ margin: "8px 0 0", paddingLeft: 20 }}>

@@ -498,7 +498,7 @@ export function Discounts() {
     <div className="rp-stack">
       <div className="rp-kpi-grid">
         <MetricCard label="Active discounts" value={activeCodes} footer={`${discounts.length} total`} />
-        <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted by the payment webhook" />
+        <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted when a payment goes through" />
         <MetricCard label="Revenue with a discount" value={fmt(totalCodeRevenue)} footer="Paid orders, less refunds (CAD)" />
         <MetricCard label="Discounts given" value={fmt(totalGiven)} footer="Total taken off those orders" />
       </div>

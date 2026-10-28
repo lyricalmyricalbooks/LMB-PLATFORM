@@ -62,7 +62,7 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   const payIssues = paymentHealth(payments, Boolean(platformCards)).filter(i => !["client-secret", "stripe-test-secret", "stripe-live-secret"].includes(i.id));
   const blocking = payIssues.filter(i => i.severity === "blocking");
   if (blocking.length) items.push({ id: "payments", label: blocking[0].label, detail: blocking[0].detail, status: "block", tab: "payments", action: "Open Payments" });
-  else if (payments.testMode) items.push({ id: "payments", label: "Payments are in sandbox mode", detail: "Test payments collect no money. Switch to live keys before launch.", status: "warn", tab: "payments", action: "Open Payments" });
+  else if (payments.testMode) items.push({ id: "payments", label: "Payments are in sandbox mode", detail: "Test payments collect no money. Switch to live payments before launch.", status: "warn", tab: "payments", action: "Open Payments" });
   else if (platformCards) items.push({ id: "payments", label: "Payments are live", detail: "Shoppers pay real money. Place one small order, then refund it, to see it work end to end.", status: "ok", tab: "payments", action: "Open Payments" });
   else items.push({ id: "payments", label: "Live payment configuration is present", detail: "The publishable key is valid. Confirm the server connection and complete a checkout before relying on it.", status: "ok", tab: "payments", action: "Open Payments" });
 
@@ -137,12 +137,12 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
       ? { id: "email", label: lastEmail.status === "queued" ? "The last email could not be sent and is waiting to retry" : "The last email failed to send", detail: String(lastEmail.error || "See Recent deliveries for the reason."), status: "block", tab: "notifications", action: "Open Email sender" }
       // Resend's test sender only delivers to the Resend account owner: customers get nothing.
       : String(lastEmail.from || "").toLowerCase() === "onboarding@resend.dev"
-        ? { id: "email", label: "Emails only reach you, not customers", detail: "The last email went out from Resend's test address, which only delivers to your own inbox. Add the Gmail app password (Settings › Email sender › Gmail sending) or verify your domain in Resend.", status: "block", tab: "notifications", action: "Open Email sender" }
+        ? { id: "email", label: "Emails only reach you, not customers", detail: "The last email went out from a test address, which only delivers to your own inbox. Finish setting up your email sender (Settings › Email sender) so customers receive your emails.", status: "block", tab: "notifications", action: "Open Email sender" }
       : { id: "email", label: "Email accepted; inbox delivery unverified", detail: "The provider accepted the latest message. Check the destination inbox and provider delivery events; acceptance does not prove delivery.", status: "warn", tab: "notifications", action: "Open Email sender" });
 
   // End-to-end proof
   items.push((orders || []).some(isRealPaidOrder)
-    ? { id: "first-sale", label: "A real paid order is recorded", detail: "The order is marked paid. Inspect provider payment, webhook logs, receipt, refund and fulfillment separately to verify the full flow.", status: "warn", tab: "orders", action: "Open Orders" }
+    ? { id: "first-sale", label: "A real paid order is recorded", detail: "The order is marked paid. Check the payment, the receipt, any refund and the packing separately to confirm the full flow.", status: "warn", tab: "orders", action: "Open Orders" }
     : { id: "first-sale", label: "No real paid order yet", detail: "Place one small live order (then refund it) to prove checkout end to end.", status: "warn", tab: "orders", action: "Open Orders" });
 
   // Colophon deploys and checks every platform shop's releases; the press has nothing to verify there.

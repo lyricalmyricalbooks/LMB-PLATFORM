@@ -162,7 +162,7 @@ export function carrierIssues(config: any): ShippingIssue[] {
   if (!config?.configured) return [];
   const issues: ShippingIssue[] = [];
   if (config.mode === "test") {
-    issues.push({ id: "carrier:test-key", label: "Shippo is using a TEST key", detail: "Labels bought now are sandbox labels with no real postage. Save your live key (it starts with shippo_live_) before shipping real orders.", severity: "warning" });
+    issues.push({ id: "carrier:test-key", label: "Shippo is using a TEST key", detail: "Labels bought now are sandbox labels with no real postage. Save your live key (it starts with shippo_live_) before shipping real orders.", severity: "warning" }); // Own-account shops only: Shippo is not offered on Colophon shops
   }
   if (config.dynamicRatesEnabled && (!Array.isArray(config.dynamicRateCountries) || config.dynamicRateCountries.length === 0)) {
     issues.push({ id: "carrier:live-rates-no-countries", label: "Live carrier rates are on, but no country uses them", detail: "Tick the countries that should get Shippo rates at checkout, or turn live rates off. Until then every country uses your profile rates.", severity: "warning" });

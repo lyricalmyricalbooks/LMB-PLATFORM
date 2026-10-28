@@ -308,7 +308,7 @@ export const TEMPLATES = {
         subject: `${pressName} now takes cards with your own Stripe account`,
         paragraphs: [
           `Card payments through ${settings.platformName} are stopped for now, so we moved ${pressName}'s checkout to your own Stripe account to keep you selling.`,
-          ready ? "Your own Stripe keys are already saved, so shoppers can pay by card now." : `${admin}, and add your own Stripe keys. Until you do, shoppers can't pay by card.`,
+          ready ? "Your own Stripe account is already connected, so shoppers can pay by card now." : `${admin}, and connect your own Stripe account. Until you do, shoppers can't pay by card.`,
         ],
       },
       square: {

@@ -57,7 +57,7 @@ export function PlatformPaymentsCard({ provider }: { provider: "stripe" | "squar
   const Button = ready && !needs ? SecondaryButton : PrimaryButton;
 
   return (
-    <SectionCard title="Card payments" description={`Cards go to your own ${name} account, through Colophon. No keys.`}>
+    <SectionCard title="Card payments" description={`Cards go to your own ${name} account, through Colophon. There is nothing to copy or paste.`}>
       <div className="rp-stack" style={{ gap: 16 }}>
         {notice && (
           <p role="status" style={{ margin: 0, padding: 12, border: `2px solid var(--rp-${notice.tone})`, background: `var(--rp-${notice.tone}-tint)` }}>{notice.text}</p>

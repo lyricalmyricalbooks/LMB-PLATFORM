@@ -22,7 +22,7 @@ it("puts urgent alerts first, folds past two and keeps every action reachable", 
   const more = Array.from(container.querySelectorAll("button")).find((b) => /Show 1 more alert/.test(b.textContent || ""))!;
   await act(async () => more.click());
   expect(titles()).toEqual(["Title d1", "Title w1", "Title i1"]);
-  const open = Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Open webhook health")!;
+  const open = Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Open payment checks")!;
   await act(async () => open.click());
   expect(onOpenWebhook).toHaveBeenCalled();
   // Hiding one keeps it hidden for the session.
