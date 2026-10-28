@@ -1,0 +1,5 @@
+Handle,Title,Body (HTML),Vendor,Type,Tags,Published,Option1 Name,Option1 Value,Variant SKU,Variant Grams,Variant Inventory Qty,Variant Price,Variant Compare At Price,Variant Barcode,Image Src,Image Position,Status
+tide-tables,Tide Tables,<p>Charts and poems about the sea.</p>,Sample Press,Book,"sea, poetry",TRUE,Edition,Paperback,TT-PB,300,8,22.00,,,,,active
+tide-tables,,,,,,,,Signed,TT-SG,300,2,40.00,,,,,
+fern-atlas,Fern Atlas,<p>A field guide <strong>drawn by hand</strong>.</p>,Sample Press,Book,plants,TRUE,Title,Default Title,FA-1,450,6,30.00,35.00,,,,active
+small-hours,Small Hours,<p>A zine for night owls.</p>,Sample Press,Zine,,TRUE,Title,Default Title,SH-1,80,25,7.00,,,,,draft
