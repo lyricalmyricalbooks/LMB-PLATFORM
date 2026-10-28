@@ -11,16 +11,20 @@
 //   POST /api/billing/change-plan  { shopId, plan, preview? } -> { preview } or { plan, changed }: what changes and the
 //                                  prorated amount (preview: true, nothing changes), or the change itself
 //   POST /api/billing/invoices     { shopId } -> { invoices }: newest first, each with Stripe's PDF link
+//   POST /api/billing/payment-way  { shopId } -> { view, status }: how the shop pays (monthly or pay as you sell, 6.19)
+//   POST /api/billing/payment-way/switch  { shopId, to } -> { view, status, changed }: switch from the next month (at
+//                                  once during the trial); only when the door is given `paymentWay`
 //
 // Each call reaches the billing service (services/billing) once; the page asks for the status again after a change.
 // The door never reads Stripe itself.
 import { createHash } from "node:crypto";
 import { personOf, SignupError } from "../signup/signup.js";
+import { paymentWayView } from "../services/billing/paymentWay.js";
 
 /** This shop's Plan & billing page: the one place a card page may send people back to. */
 export const billingPage = (settings, shopId) => `${settings.platformUrl}/account/billing?shop=${encodeURIComponent(shopId)}`;
 
-export function billingRoutes({ billing, accounts, registry, auditLog, settings, now = () => new Date() }) {
+export function billingRoutes({ billing, paymentWay = null, accounts, registry, auditLog, settings, now = () => new Date() }) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
   let count = 0;
 
@@ -74,5 +78,15 @@ export function billingRoutes({ billing, accounts, registry, auditLog, settings,
       return { plan: row.plan, changed: row.changed };
     }),
     "POST /api/billing/invoices": ownerCall("invoices", async (shopId) => ({ invoices: await billing.invoices(shopId) })),
+    ...(paymentWay ? {
+      "POST /api/billing/payment-way": ownerCall("payment-way", async (shopId) => {
+        const status = await paymentWay.status(shopId);
+        return { view: paymentWayView(status, settings), status };
+      }),
+      "POST /api/billing/payment-way/switch": ownerCall("payment-way-switch", async (shopId, { to }) => {
+        const { changed, ...status } = await paymentWay.switchPaymentWay({ shopId, to });
+        return { view: paymentWayView(status, settings), status, changed };
+      }),
+    } : {}),
   };
 }
