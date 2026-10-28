@@ -12,12 +12,14 @@
 //                         (databaseId, type DEFAULT_DATABASE); the stockroom's database (plan 1.20)
 //   Cloud Storage JSON v1 objects.get, objects.list (prefix, delimiter), objects.insert (simple media upload),
 //                         buckets.get, buckets.insert (project) for the stockroom's own bucket (plan 1.20)
+//   Secret Manager v1     projects.secrets.versions.access ("latest"), projects.secrets.create (secretId, automatic
+//                         replication), projects.secrets.addVersion: the shop's service key (setup/serviceKey.js)
 //   Firebase Storage (the address the shop's pages read files through, where storage rules apply):
 //                         GET https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{name}?alt=media, with no sign-in.
 //                         Not in a discovery document; it is the address Firebase's web SDK reads files from.
 //
 // Every create waits for Google's operation to finish, as steps.js expects. Nothing here deletes anything.
-import { GoogleError, googleHttp, isNotFound, waitForOperation } from "./http.js";
+import { GoogleError, googleHttp, isAlreadyExists, isNotFound, waitForOperation } from "./http.js";
 
 const RM = "https://cloudresourcemanager.googleapis.com/v3";
 const BILLING = "https://cloudbilling.googleapis.com/v1";
@@ -29,6 +31,7 @@ const GCS = "https://storage.googleapis.com/storage/v1";
 const GCS_UPLOAD = "https://storage.googleapis.com/upload/storage/v1";
 const FILES = "https://firebasestorage.googleapis.com/v0";
 const RTDB = "https://firebasedatabase.googleapis.com/v1beta";
+const SECRETS = "https://secretmanager.googleapis.com/v1";
 
 /** The role the nightly backup's account needs to export the database (the shop's runScheduledBackup). */
 export const BACKUP_ROLE = "roles/datastore.importExportAdmin";
@@ -223,6 +226,26 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
         });
         await wait(operation, FIRESTORE_ADMIN);
         return { name: folder };
+      },
+    },
+    // The shop's Functions secrets (the functions read them as environment variables). Only the service key is written
+    // here; its value is never logged.
+    secrets: {
+      /** The newest version's value, or null when the secret or its versions don't exist. */
+      async latest(projectId, name) {
+        const found = await orNull(call("GET", `${SECRETS}/projects/${projectId}/secrets/${name}/versions/latest:access`));
+        const data = found?.payload?.data;
+        return typeof data === "string" ? Buffer.from(data, "base64").toString("utf8") : null;
+      },
+      /** Adds a version holding `value`, creating the secret first when it is missing. */
+      async add(projectId, name, value) {
+        const secret = `${SECRETS}/projects/${projectId}/secrets`;
+        try {
+          await call("POST", secret, { query: { secretId: name }, body: { replication: { automatic: {} } } });
+        } catch (error) {
+          if (!isAlreadyExists(error)) throw error;
+        }
+        await call("POST", `${secret}/${name}:addVersion`, { body: { payload: { data: Buffer.from(String(value), "utf8").toString("base64") } } });
       },
     },
     storageProbe: {

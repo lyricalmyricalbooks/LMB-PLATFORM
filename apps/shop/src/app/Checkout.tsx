@@ -38,6 +38,7 @@ import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess } from ".
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
 import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, onPageRestored } from "./features/site/stripeLifecycle";
+import { platformStripe } from "../lib/shopProfile";
 import { checkoutFlow, confirmationView, initialFlow, readReturn, stripeTookPayment } from "./features/site/checkoutFlow";
 import { checkoutDetailProblems, detailInputId, expressWalletEnabled, type DetailField } from "./features/site/checkoutDetails";
 import { createLatestGuard, signalWithTimeout, RATES_TIMEOUT_MS } from "./features/site/latestRequest";
@@ -193,7 +194,10 @@ export function Checkout() {
   const [cardFormAttempt, setCardFormAttempt] = useState(0);
   const [inlineAttemptStarted, setInlineAttemptStarted] = useState(false);
   const pendingCardOrder = useRef<PendingCardOrder | null>(null);
-  const stripePublicKey: string = (settings?.payments?.testMode
+  // Payments through the platform (plan 2.2): the platform's publishable key, acting for the press's own account (the
+  // shop profile). Otherwise the shop's own key from its settings.
+  const platformCard = platformStripe(Boolean(settings?.payments?.testMode));
+  const stripePublicKey: string = platformCard ? platformCard.publishableKey : (settings?.payments?.testMode
     ? settings?.payments?.stripe?.testPublicKey
     : settings?.payments?.stripe?.publicKey) || "";
   // Stripe fields stay inline regardless of older saved redirect settings.
@@ -2019,6 +2023,7 @@ export function Checkout() {
                   key={cardFormAttempt}
                   ref={cardFormRef}
                   publishableKey={stripePublicKey}
+                  stripeAccount={platformCard?.stripeAccount}
                   amountCents={Math.round(convertPrice(finalTotal) * 100)}
                   currency={currency}
                   loadingText={c("coStripeLoading")}

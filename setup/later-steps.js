@@ -15,6 +15,8 @@
 //   google.backups       hasPermission(projectId); grantPermission(projectId); latest(projectId) -> { name } | null;
 //                        run(projectId) -> { name }
 //   google.storageProbe  hasTestFile(projectId); writeTestFile(projectId); readUnsigned(projectId) -> { status }
+//   google.secrets       latest(projectId, name) -> value | null; add(projectId, name, value)   the shop's Functions
+//                        secrets (only PLATFORM_SERVICE_KEY, serviceKey.js)
 //   shopData    get(projectId, path) -> data | null; create(projectId, path, data)   create refuses a document that exists
 //   providers   payment providers by name (payments.js)
 //   email       wasSent(shopId, kind) -> boolean; send(shopId, { kind, to, pressName, links, idempotencyKey })
@@ -28,9 +30,12 @@
 //
 // `config.release` is the release being set up: `{ version, starterContent(shop) -> [{ path, data }] }`. The starter
 // documents come from the release because the shop copy owns their shape. `config.senderEmail` is the platform address
-// shop email is sent from (the email service adds the press's name and reply-to).
+// shop email is sent from (the email service adds the press's name and reply-to). `config.paymentsServiceUrl` is the
+// platform payment service's address, which every shop's server code calls (payments through the platform, plan 2.2);
+// `config.stripePublishableKeys` ({ live, test }, public) go in the profile for the card form (payments.js).
 import { PLANS, REGION, firstSteps } from "./steps.js";
 import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
+import { ensureServiceKey, hasServiceKey } from "./serviceKey.js";
 import { testCatalogue } from "./test-catalogue.js";
 
 export const OWNER_WELCOME = "owner-welcome";
@@ -41,7 +46,7 @@ export function appsOf(shop) {
 }
 
 /** The shop's functions/.env.<project id>, read by the shop's server code (apps/shop/functions/shopConfig.js). */
-export function envFileText(shop, { senderEmail, region = REGION, platformEmailUrl = "" }) {
+export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = REGION, platformEmailUrl = "" }) {
   // Quotes and line breaks would end the value early; shopConfig.js drops the same characters from the sender name.
   const quote = (value) => `"${String(value).replace(/[\r\n"\\<>]+/g, " ").replace(/\s+/g, " ").trim()}"`;
   return [
@@ -54,6 +59,10 @@ export function envFileText(shop, { senderEmail, region = REGION, platformEmailU
     // The provider the press chose (payments.js). The shop's server refuses to start on a name it hasn't built, so a
     // provider step 1 let through but the release can't use stops at deploy instead of at a shopper's checkout.
     `SHOP_PAYMENT_PROVIDER=${quote(paymentProviderOf(shop))}`,
+    // Every shop the platform makes takes payments through the platform's payment service (plan 2.2), with no provider
+    // key of its own; the shop refuses to start in this mode without the service's address.
+    `SHOP_PAYMENT_MODE="platform"`,
+    `SHOP_PAYMENTS_SERVICE_URL=${quote(paymentsServiceUrl)}`,
     // Where the server code runs (step 8 deploys it there); the shop reads it for its function addresses.
     `SHOP_FUNCTIONS_REGION=${quote(region)}`,
     // "true" only for the platform's own test shop (docs/test-shop.md): its test-card checkouts then move stock like
@@ -75,11 +84,12 @@ export function torontoDay(date) {
 export const needsStockroomLink = (shop) => shop.testShop === true && appsOf(shop).includes("shop") && appsOf(shop).includes("stockroom");
 
 /** Steps 7–16. */
-export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, stockroom, registry, config, now = () => new Date() }) {
+export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, stockroom, registry, profileFiles, config, now = () => new Date() }) {
   const release = config?.release;
   if (typeof release?.version !== "string" || !release.version) throw new Error("config.release.version must name the release being set up");
   if (typeof release.starterContent !== "function") throw new Error("config.release.starterContent must list the starter documents");
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(config.senderEmail ?? "")) throw new Error("config.senderEmail must be the platform's sending address");
+  if (!/^https:\/\/[^/\s"]+(\/[^\s"]*)?$/.test(config.paymentsServiceUrl ?? "")) throw new Error("config.paymentsServiceUrl must be the payment service's https:// address");
   const region = config.region ?? REGION;
   const { version } = release;
 
@@ -121,12 +131,18 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         const deployed = await deploy.deployed(shop.shopId, "functions");
         // Functions in the wrong region can't be moved, and removing them is a person's call.
         if (deployed && deployed.region !== region) throw new Error(`the server code is in ${deployed.region}, not ${region}; a person decides how to move it`);
-        return isCurrent(deployed, "The server code") && (await envFiles.read(shop.shopId)) === envFileText(shop, { ...config, region });
+        return isCurrent(deployed, "The server code") && (await envFiles.read(shop.shopId)) === envFileText(shop, { ...config, region })
+          && (await hasServiceKey({ google, registry }, shop.shopId));
       },
       async act({ shop }) {
         const envFile = envFileText(shop, { ...config, region });
         if ((await envFiles.read(shop.shopId)) !== envFile) await envFiles.write(shop.shopId, envFile);
+        // The shop's key for the platform's payment and email services (serviceKey.js), before the deploy pins it. Never
+        // rotated once the shop has one.
+        const serviceKey = await ensureServiceKey({ google, registry }, shop.shopId);
         await deploy.functions(shop.shopId, { version, region, envFile });
+        // Logged with the step's entry in the registry and the shop's audit log (never the key itself).
+        return { detail: { serviceKey } };
       },
     },
     {
@@ -215,7 +231,7 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         return { detail: { created, stockroomBooks: missing.map((book) => book.id), linked: toLink.map((link) => link.shopBookId) } };
       },
     },
-    shopOnly(connectPaymentsStep({ number: 13, registry, providers })),
+    shopOnly(connectPaymentsStep({ number: 13, registry, providers, profileFiles, config })),
     {
       number: 14,
       name: "Email the owner their sign-in link",
