@@ -1,8 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, get, push, remove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
-import { getAuth, signInWithPopup, reauthenticateWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, getDocFromCache, getDocsFromCache, collection, onSnapshot, deleteDoc, writeBatch, runTransaction, query, where, deleteField } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { getDatabase, connectDatabaseEmulator, ref, set, onValue, get, push, remove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
+import { getAuth, connectAuthEmulator, signInWithPopup, reauthenticateWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import { getStorage, connectStorageEmulator, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
+import { initializeFirestore, connectFirestoreEmulator, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, getDocFromCache, getDocsFromCache, collection, onSnapshot, deleteDoc, writeBatch, runTransaction, query, where, deleteField } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { receiptDuplicate } from './lib/receipt-finder.js';
 import { ALL_PARTS, LIST_PARTS, assembleParts, emptyPart, splitState, stitchState, mergePart, mergeSettingDoc, stableStringify } from './lib/merge-state.js';
 import { readOldCopyCached, oldCopyCache } from './lib/old-copy-cache.js';
@@ -10,6 +10,7 @@ import { planWebsitePublish } from './lib/website-link.js';
 import { adoptDecision, compareCopies, movedElsewhere } from './lib/storage-mode.js';
 import { isTestProfileActive, installSandboxBackend } from './lib/test-profile.js';
 import { DATA_ROOT, shopProfile, stockroomBucketUrl, stockroomDatabaseId } from './lib/shop-profile.js';
+import { emulatorSettings } from './lib/emulators.js';
 
 // This shop's Firebase project comes from /shop-profile.js (src/lib/shop-profile.js).
 const firebaseConfig = { ...shopProfile.firebase };
@@ -33,6 +34,15 @@ try {
 } catch (e) {
   console.warn('[FB] Firestore persistent cache unavailable, using memory cache', e);
   fs = initializeFirestore(app, {}, firestoreDatabase);
+}
+// The demo shop only (lib/emulators.js): data, sign-in and stored files come from the local emulators.
+const emulators = emulatorSettings(import.meta.env, shopProfile.firebase.projectId);
+if (emulators) {
+  const { host, ports } = emulators;
+  connectDatabaseEmulator(db, host, ports.database);
+  connectAuthEmulator(auth, `http://${host}:${ports.auth}`);
+  connectStorageEmulator(storage, host, ports.storage);
+  connectFirestoreEmulator(fs, host, ports.firestore);
 }
 const googleProvider = new GoogleAuthProvider();
 

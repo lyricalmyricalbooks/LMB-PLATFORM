@@ -30,3 +30,17 @@ describe("reCAPTCHA Enterprise initialization", () => {
     expect(configs).toEqual([]);
   });
 });
+describe("the demo shop's emulators", () => {
+  const demoApp = { options: { projectId: "demo-colophon-test" } } as any;
+  it("starts App Check as before when the emulator switch is off", () => {
+    expect(initializeBrowserAppCheck(demoApp, { VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: "key" } as any)).toEqual({ initialized: true });
+  });
+  it("skips App Check for a demo project on the emulators", () => {
+    expect(initializeBrowserAppCheck(demoApp, { VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: "key", VITE_FIREBASE_EMULATORS: "true" } as any)).toBeNull();
+    expect(configs).toEqual([]);
+  });
+  it("keeps App Check for a real project even with the switch on", () => {
+    const realApp = { options: { projectId: "lmb-test-shop" } } as any;
+    expect(initializeBrowserAppCheck(realApp, { VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: "key", VITE_FIREBASE_EMULATORS: "true" } as any)).toEqual({ initialized: true });
+  });
+});

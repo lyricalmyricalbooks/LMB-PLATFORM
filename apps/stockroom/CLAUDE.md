@@ -101,3 +101,9 @@ Purely internal work (tests, refactors, docs, CI) is hidden automatically; leave
 > from the portal's guides or the downloaded OpenAPI spec.
 > Full standing rules: [docs/canada-post-rating-api.md](docs/canada-post-rating-api.md)
 > (rates) and [docs/canada-post-shipping-api.md](docs/canada-post-shipping-api.md) (labels).
+
+## Demo shop
+LMB-PLATFORM's `npm run demo` (`docs/demo-shop.md`) runs the stockroom against the Firebase emulators. `src/lib/emulators.js`
+turns that on only when the build has `VITE_FIREBASE_EMULATORS=true` **and** the profile's project starts with `demo-`;
+`src/firebase.js` then connects the Realtime Database, Auth, Storage and Firestore to them. Off for every real build
+(`tests/emulators.test.js`).
