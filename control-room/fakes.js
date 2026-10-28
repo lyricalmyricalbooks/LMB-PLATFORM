@@ -30,3 +30,27 @@ export function fakeRepairStore() {
 export function fakeRepairQueue(open = {}) {
   return { open: async (shopId) => structuredClone(open[shopId] ?? []) };
 }
+
+/** The breach register's store, in memory (clients/stores.js `firestoreBreaches` is the real one). No delete, like it. */
+export function fakeBreachStore() {
+  const rows = new Map();
+  return {
+    rows,
+    get: async (id) => structuredClone(rows.get(id) ?? null),
+    set: async (id, entry) => void rows.set(id, structuredClone(entry)),
+    list: async () => structuredClone([...rows.values()]),
+  };
+}
+
+/** The platform's small records and the emergency log, in memory (clients/stores.js `firestorePlatformState`). */
+export function fakePlatformState() {
+  const docs = new Map();
+  const log = new Map();
+  return {
+    docs,
+    entries: log,
+    get: async (name) => structuredClone(docs.get(name) ?? null),
+    set: async (name, value) => void docs.set(name, structuredClone(value)),
+    log: async (id, entry) => void log.set(id, structuredClone(entry)),
+  };
+}

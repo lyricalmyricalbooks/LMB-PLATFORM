@@ -72,6 +72,8 @@ import { CheckoutAddressStep, type CheckoutCustomer } from "./features/site/Chec
 import { CheckoutDeliveryStep } from "./features/site/CheckoutDeliveryStep";
 import { CheckoutPaymentStep } from "./features/site/CheckoutPaymentStep";
 import { CheckoutOrderSummary } from "./features/site/CheckoutOrderSummary";
+import { practiceCheckout } from "./lib/practiceCheckout";
+import { practiceHint } from "./lib/practiceHint";
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -196,13 +198,23 @@ export function Checkout() {
   const pendingCardOrder = useRef<PendingCardOrder | null>(null);
   // Payments through the platform (plan 2.2): the platform's publishable key, acting for the press's own account (the
   // shop profile). Otherwise the shop's own key from its settings.
-  const platformCard = platformStripe(Boolean(settings?.payments?.testMode));
+  // A practice order (plan 7.6): the owner's own checkout on a private platform shop pays with the test card. Only the
+  // server can say so (lib/practiceCheckout); it asks when this browser started one, and decides again at Pay.
+  const [practice, setPractice] = useState(false);
+  useEffect(() => {
+    if (!practiceHint()) return;
+    let live = true;
+    practiceCheckout("status").then(state => { if (live) setPractice(state.active); }).catch(() => { if (live) setPractice(false); });
+    return () => { live = false; };
+  }, []);
+  const payTestMode = Boolean(settings?.payments?.testMode) || practice;
+  const platformCard = platformStripe(payTestMode);
   const stripePublicKey: string = platformCard ? platformCard.publishableKey : (settings?.payments?.testMode
     ? settings?.payments?.stripe?.testPublicKey
     : settings?.payments?.stripe?.publicKey) || "";
   // Stripe fields stay inline regardless of older saved redirect settings.
   const pinnedCountryCodes = useMemo(() => parsePinned(checkoutDesign.checkoutPinnedCountries || undefined), [checkoutDesign.checkoutPinnedCountries]);
-  const stripeKeyValid = isStripePublishableKey(stripePublicKey, Boolean(settings?.payments?.testMode));
+  const stripeKeyValid = isStripePublishableKey(stripePublicKey, payTestMode);
   const stripeRoute = stripeCheckoutState({
     keyValid: stripeKeyValid,
     cardState,
@@ -1271,7 +1283,7 @@ export function Checkout() {
         // Manual-payment orders never use this: the server builds them (createManualLocalOrder).
         paymentMethod: selectedPaymentMethod === "paypal" ? "PayPal" : "Stripe", // a Square shop's card orders too: the rules and server know cards as "Stripe" (plan 2.2b)
         paymentInstructions: "",
-        testMode: settings?.payments?.testMode || false,
+        testMode: payTestMode,
         appliedDiscount: appliedDiscount
           ? { id: appliedDiscount.id, code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value }
           : null,
@@ -1395,7 +1407,7 @@ export function Checkout() {
         const squareResponse = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, embedded: false, previousOrderId: supersededOrderId }),
+          body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, embedded: false, previousOrderId: supersededOrderId, ...(practice ? { practice: true } : {}) }),
         });
         const squareData = await squareResponse.json().catch(() => ({}));
         if (!squareResponse.ok || !squareData.url) {
@@ -1436,7 +1448,7 @@ export function Checkout() {
           const intentResponse = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true, previousOrderId: supersededOrderId }),
+            body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true, previousOrderId: supersededOrderId, ...(practice ? { practice: true } : {}) }),
           });
           const intentData = await intentResponse.json();
           if (!intentResponse.ok || !intentData.clientSecret) {
@@ -1949,9 +1961,9 @@ export function Checkout() {
       <StorefrontThemeStyle design={checkoutDesign} />
       {checkoutSlipFontNames(checkoutDesign).map(name => <link key={name} rel="stylesheet" href={googleFontHref(name)} />)}
       <style>{checkoutSlipCss(checkoutDesign)}</style>
-      {settings?.payments?.testMode && (
+      {payTestMode && (
         <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-sm font-medium text-amber-900">
-          {c("coTestMode")}
+          {practice ? c("coPracticeMode", { card: onSquare ? "4111 1111 1111 1111" : "4242 4242 4242 4242" }) : c("coTestMode")}
         </div>
       )}
 

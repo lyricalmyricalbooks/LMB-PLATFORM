@@ -1,7 +1,7 @@
 import { describe, test, expect, vi } from 'vitest';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { adminRole, memberProblem, supportOf, syncMemberRole, OWNER_EMAILS } = require('./roles');
+const { adminRole, booksReader, memberProblem, supportOf, syncMemberRole, OWNER_EMAILS } = require('./roles');
 
 const OWNER = OWNER_EMAILS[0];
 
@@ -23,6 +23,26 @@ describe('adminRole', () => {
   });
   test('an author on the Team never opens the admin', () => {
     expect(adminRole({ email: 'ana@press.test', email_verified: true, role: 'author' })).toBeNull();
+  });
+});
+
+describe('bookkeeper (plan 7.17)', () => {
+  test('a bookkeeper never passes the admin check, so no server action opens for them', () => {
+    expect(adminRole({ email: 'kit@press.test', email_verified: true, role: 'bookkeeper' })).toBeNull();
+  });
+  test('booksReader lets the admin and a verified bookkeeper read the books, nobody else', () => {
+    expect(booksReader({ email: 'kit@press.test', email_verified: true, role: 'bookkeeper' })).toBe('bookkeeper');
+    expect(booksReader({ email: 'sam@press.test', email_verified: true, role: 'staff' })).toBe('admin');
+    expect(booksReader({ email: OWNER, email_verified: true })).toBe('admin');
+    expect(booksReader({ email: 'kit@press.test', email_verified: false, role: 'bookkeeper' })).toBeNull();
+    expect(booksReader({ email: 'ana@press.test', email_verified: true, role: 'author' })).toBeNull();
+    expect(booksReader(null)).toBeNull();
+  });
+  test('the Team accepts the role, and taking a staff member down to bookkeeper signs them out', async () => {
+    expect(memberProblem('kit@press.test', { role: 'bookkeeper' })).toBeNull();
+    const { auth, db } = fakes({ claims: { role: 'staff' }, member: { role: 'bookkeeper' } });
+    expect(await syncMemberRole({ auth, db, email: 'kit@press.test' })).toEqual({ status: 'updated', role: 'bookkeeper' });
+    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('u1');
   });
 });
 

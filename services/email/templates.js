@@ -60,7 +60,7 @@ export const TEMPLATES = {
    * state: "failing" | "still-failing" | "recovered", detail, since }.
    */
   "health-alert": ({ shopId, check, state, detail, since }, { settings, pressName }) => {
-    const what = { pages: "pages", checkout: "checkout", webhook: "payment events", backup: "backups" }[check];
+    const what = { pages: "pages", checkout: "checkout", webhook: "payment events", backup: "backups", spending: "spending" }[check];
     if (!what) throw new Error(`the health alert names no known check (${check})`);
     const words = {
       failing: [`${what} failing`, `The ${what} check for ${pressName} started failing at ${since}.`],
@@ -183,6 +183,26 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /**
+   * The press's card account has a detail past Stripe's deadline, so Stripe has paused cards or payouts (code plan 7.9;
+   * services/payments). Sent once each time it happens. `data`: { provider, needs: plain words, link: the shop's admin }.
+   * Never Stripe's own sign-up link: that one works once, for a few minutes, and must not be emailed.
+   */
+  "payments-past-due": ({ provider = "Stripe", needs = [], link }, { settings, pressName }) => {
+    if (!Array.isArray(needs) || !needs.length) throw new Error("the past-due email names nothing that is needed");
+    const what = needs.length === 1 ? needs[0] : `${needs.slice(0, -1).join(", ")} and ${needs[needs.length - 1]}`;
+    return layout({
+      subject: `${provider} has paused payments for ${pressName}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `${provider} still needs ${what} for ${pressName}, and the deadline has passed, so it has paused card payments or payouts until it has them.`,
+        `Open your shop's admin and press Continue with ${provider} under Payments. It takes a few minutes.`,
+      ],
+      buttons: [["Open Payments", safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
+
   /** The press changed plan. */
   "plan-changed": ({ planName, price, link }, { settings, pressName }) => layout({
     subject: `${pressName} is now on the ${planName} plan`,
@@ -209,6 +229,62 @@ export const TEMPLATES = {
   }),
 
   /** To the old address: someone asked to move this account away from it. */
+  /**
+   * The emergency payments switch (control-room/emergencyPayments.js, plan 8.5): a platform admin moved the shop's card
+   * payments. `to`: "own" (the press's own Stripe keys), "square" or "platform" (back to normal); `ready`: whether the
+   * press can take cards that way already.
+   */
+  "payments-moved": ({ to, ready }, { settings, pressName }) => {
+    const admin = "Open your shop's admin, then Settings and Payments";
+    const words = {
+      own: {
+        subject: `${pressName} now takes cards with your own Stripe account`,
+        paragraphs: [
+          `Card payments through ${settings.platformName} are stopped for now, so we moved ${pressName}'s checkout to your own Stripe account to keep you selling.`,
+          ready ? "Your own Stripe keys are already saved, so shoppers can pay by card now." : `${admin}, and add your own Stripe keys. Until you do, shoppers can't pay by card.`,
+        ],
+      },
+      square: {
+        subject: `${pressName} now takes cards with Square`,
+        paragraphs: [
+          `Card payments through Stripe are stopped for now, so we moved ${pressName}'s checkout to Square to keep you selling.`,
+          ready ? "Your Square account is connected, so shoppers can pay by card now." : `${admin}, and press Connect Square. Until you do, shoppers can't pay by card.`,
+        ],
+      },
+      platform: {
+        subject: `${pressName}'s card payments are back to normal`,
+        paragraphs: [`Card payments through ${settings.platformName} work again, so we moved ${pressName}'s checkout back. You don't need to do anything.`],
+      },
+    }[to];
+    if (!words) throw new Error("the payments email needs where the payments went");
+    return layout({
+      subject: words.subject,
+      greeting: "Hello,",
+      paragraphs: [...words.paragraphs, "Your books, orders and payouts already made are not affected. We'll email you again when anything changes."],
+      footer: signOff(settings),
+    });
+  },
+
+  /**
+   * To Julian's own address (PLATFORM_ADMIN_EMAIL): the backup person opened their sealed access or used it
+   * (control-room/backupPerson.js, plan 8.7). `data`: { by, action, reason, detail, at, until }.
+   */
+  "backup-access-used": ({ by, action, reason, detail, at, until }, { settings }) => {
+    if (!by || !action) throw new Error("the backup access email needs who and what");
+    return layout({
+      subject: `${settings.platformName} backup access: ${by} ${action}`,
+      greeting: "",
+      paragraphs: [
+        `${by} ${action} at ${at} (UTC).`,
+        ...(reason ? [`Why: ${reason}`] : []),
+        ...(detail && detail !== reason ? [detail] : []),
+        ...(until ? [`The access stays open until ${until} (UTC).`] : []),
+        "Every use is in the emergency log. If you didn't expect this, open the control room and look at once.",
+      ],
+      footer: `${settings.platformName} control room`,
+    });
+  },
+
   "recovery-asked": ({ newEmail }, { settings }) => layout({
     subject: `Someone asked to move your ${settings.platformName} account`,
     greeting: "Hello,",

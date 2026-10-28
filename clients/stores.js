@@ -63,6 +63,28 @@ export function firestoreRepairs(firestore) {
   };
 }
 
+/** breaches/<id>: the breach register (control-room/breaches.js). Never deleted from here; kept at least two years. */
+export function firestoreBreaches(firestore) {
+  return {
+    get: (id) => firestore.get(`breaches/${id}`),
+    set: (id, entry) => firestore.set(`breaches/${id}`, entry),
+    list: async () => (await firestore.query("breaches", { limit: 5000 })).map((row) => row.data),
+  };
+}
+
+/**
+ * platformState/<name>: small platform-wide records the run book keeps (control-room/runbook.js): `releasePause`
+ * { paused, by, reason, at }, `statusNote` { text, by, at } and `backupSeal` { by, reason, openedAt, until }.
+ * emergencyLog/<id>: every use of the backup person's access (control-room/backupPerson.js), never deleted from here.
+ */
+export function firestorePlatformState(firestore) {
+  return {
+    get: (name) => firestore.get(`platformState/${name}`),
+    set: (name, value) => firestore.set(`platformState/${name}`, value),
+    log: (id, entry) => firestore.set(`emergencyLog/${id}`, entry),
+  };
+}
+
 /** devices/<accountId>: { known: { <hash>: { firstSeenAt, lastSeenAt, browser } } } (accounts/devices.js). */
 export function firestoreDevices(firestore) {
   return {

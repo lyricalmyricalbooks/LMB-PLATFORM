@@ -8,6 +8,9 @@ import { adminApi } from "./api";
 import { catalogToCsv } from "./bulkPricing";
 import { buildCustomers, customersToCsv } from "./customerInsights";
 import { exportOrdersCsv } from "./orderCsv";
+import { customersForAnotherShop, productsForAnotherShop } from "./shopExport";
+import { emailHash } from "./Customers";
+import { shopNameFromSettings } from "../features/site/shopIdentity";
 import { describeBackup, describeBackupDay, type BackupDay, type BackupRecord } from "./backupStatus";
 import { friendlyError } from "./settingsLayout";
 import { DataTable, GhostButton, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
@@ -96,6 +99,15 @@ export function BackupsExportCard() {
     } finally { setBusy(""); }
   };
   const realOrders = async () => (await adminApi.getAllOrders()).filter((o: any) => o.isTest !== true);
+  // Plan 7.18: the customer file says "yes" to email marketing only for people on the newsletter now (not opted out).
+  const customersElsewhere = async () => {
+    const [orders, consent, notes] = await Promise.all([realOrders(), adminApi.getMarketingConsent(), adminApi.listCustomerNotes().catch(() => [])]);
+    const emails = new Set<string>([...consent.subscribed, ...orders.map((o: any) => String(o.customer?.email || "").trim().toLowerCase()).filter(Boolean)]);
+    const hashes = new Map(await Promise.all([...emails].map(async (e) => [e, await emailHash(e)] as const)));
+    const optedOut = (email: string) => !!consent.optedOutHashes?.has(hashes.get(email) || "");
+    const byEmail = new Map(notes.filter((n) => n.email).map((n) => [String(n.email).trim().toLowerCase(), { note: n.note || "", tags: n.tags || [] }]));
+    return customersForAnotherShop(orders, { subscribed: consent.subscribed, optedOut }, byEmail);
+  };
 
   const view = record === undefined ? null : describeBackup(record);
   return (
@@ -162,6 +174,19 @@ export function BackupsExportCard() {
         })}>{busy === "orders" ? "Preparing…" : "Orders (CSV)"}</SecondaryButton>
       </div>
       <p className="rp-hint" style={{ margin: "12px 0 0" }}>No test orders. Unpaid and cancelled included.</p>
+      <h3 className="rp-label" style={{ margin: "16px 0 8px" }}>Download for another shop system</h3>
+      <p className="rp-hint" style={{ margin: "0 0 8px" }}>Moving to a different shop system? These files use the layouts most of them read: books with one line per edition and each extra photo on its own line, and customers with their address, orders and whether they agreed to marketing email (yes only for people on your newsletter now).</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <SecondaryButton size="sm" disabled={!!busy} onClick={() => run("books-elsewhere", async () => {
+          const books = await adminApi.getAllBooks();
+          const settings = await adminApi.getPublicSettings().catch(() => null);
+          return books.length ? [`books-for-another-shop-${today()}.csv`, productsForAnotherShop(books, { vendor: shopNameFromSettings(settings) }), "text/csv;charset=utf-8"] : null;
+        })}>{busy === "books-elsewhere" ? "Preparing…" : "Books for another shop system (CSV)"}</SecondaryButton>
+        <SecondaryButton size="sm" disabled={!!busy} onClick={() => run("customers-elsewhere", async () => {
+          const csv = await customersElsewhere();
+          return csv.split("\n").length > 2 ? [`customers-for-another-shop-${today()}.csv`, csv, "text/csv;charset=utf-8"] : null;
+        })}>{busy === "customers-elsewhere" ? "Preparing…" : "Customers for another shop system (CSV)"}</SecondaryButton>
+      </div>
     </SectionCard>
   );
 }

@@ -17,6 +17,7 @@ import { wantsHome } from "../features/site/homeLink";
 import { getCopy } from "../features/site/storeCopy";
 import { preorderActive } from "../features/site/preorder";
 import { comingSoonActive } from "../features/site/comingSoon";
+import { practiceHint } from "../lib/practiceHint";
 import { buildNavItems, categoryNames, parentOf } from "../features/site/navItems";
 import { RADIUS_SCALES } from "../features/site/designTokens";
 import { catalogHeaderMaxWidth, contentMaxWidth } from "../features/site/headerNav";
@@ -717,8 +718,9 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
     );
   }
 
-  // Maintenance mode gate
-  if (settings?.maintenance?.enabled) {
+  // Maintenance mode gate. The owner's practice order (plan 7.6) steps past it in their own browser; the server still
+  // keeps checkout closed to everyone else.
+  if (settings?.maintenance?.enabled && !practiceHint()) {
     return <MaintenancePage message={settings.maintenance.message} design={activeDesign} />;
   }
 

@@ -29,6 +29,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `services/billing/` | Each press's Colophon plan (shop, stockroom or both) on the platform's own Stripe account: free trial with no card, card, cancel, plan changes and the billing emails. |
 | `services/email/` | The one service that holds the email sender key. |
 | `services/domains/` | A press's own web address from their shop's settings: saved, allowed to call the shop's server code, served by Firebase Hosting, then registered for Apple Pay and Google Pay. |
+| `services/accounting/` | The QuickBooks link: a press connects their QuickBooks company from their shop's settings and each night's sales, refunds, card fees and payouts are sent once. Off until switched on (`docs/accounting.md`). |
 | `signup/` | Sign-up, plan choice and billing. |
 | `accounts/` | One sign-in for every shop a person belongs to: the shop switcher, and invites with a role for each shop's team. |
 | `waitlist/` | The public waitlist page. |
@@ -36,7 +37,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `terms/` | The terms, privacy policy, data agreement and shutdown promise on one page, with the version sign-up records. |
 | `demo/` | `npm run demo`: the test shop, admin, Studio and stockroom on your own computer, against the Firebase emulators (`docs/demo-shop.md`). |
 | `profile/` | The shop profile format: what differs between shops, read by both apps when the page opens. |
-| `docs/` | Decisions and plans: `code-plan.md` (the build order, one pull request per line), `shop-setup.md`, `payments.md`, `test-shop.md`, `name-and-domain.md`, `first-hour-test.md`, `demo-shop.md`, `decisions.md`. |
+| `docs/` | Decisions and plans: `code-plan.md` (the build order, one pull request per line), `shop-setup.md`, `payments.md`, `test-shop.md`, `name-and-domain.md`, `first-hour-test.md`, `demo-shop.md`, `accounting.md`, `decisions.md`. |
 
 The plan behind all of this is the "Press platform build plan" doc.
 

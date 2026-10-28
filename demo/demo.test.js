@@ -11,6 +11,7 @@ import { demoProfilePlugin } from "./serve.js";
 import { demoShopDocs, emulatorFetch, seedDemo } from "./seed.js";
 import { coverSvg } from "./photos.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
+import { fakeEmulators } from "./fakeEmulators.js";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -128,46 +129,6 @@ test("Google's Firestore address goes to the emulator", async () => {
   await fetch("http://127.0.0.1:9099/x");
   assert.deepEqual(seen, ["http://127.0.0.1:8080/v1/projects/demo-colophon-test/databases/(default)/documents/books/a", "http://127.0.0.1:9099/x"]);
 });
-
-// A pretend emulator suite: sign-in, storage and Firestore documents in memory, every request recorded.
-function fakeEmulators() {
-  const docs = new Map();
-  const files = new Set();
-  const requests = [];
-  const ok = (body, status = 200) => new Response(JSON.stringify(body), { status });
-  const fetch = async (url, init = {}) => {
-    const target = new URL(String(url));
-    const method = init.method ?? "GET";
-    requests.push({ method, url: String(url), headers: init.headers ?? {}, body: init.body });
-    const auth = new Headers(init.headers ?? {}).get("authorization");
-    if (target.port === "9099") {
-      if (target.pathname.endsWith("accounts:signInWithIdp")) return ok({ localId: "uid-1", isNewUser: !requests.some((r, i) => i < requests.length - 1 && r.url.includes("signInWithIdp")) });
-      if (target.pathname.endsWith("accounts:update")) return auth === "Bearer owner" ? ok({}) : ok({ error: { message: "no" } }, 401);
-    }
-    if (target.port === "9199") {
-      if (method === "GET") return files.has(target.pathname) ? ok({}) : ok({ error: {} }, 404);
-      const name = target.searchParams.get("name");
-      files.add(`/v0/b/demo-colophon-test.appspot.com/o/${encodeURIComponent(name)}`);
-      return ok({ name });
-    }
-    if (target.port === "8080") {
-      const path = decodeURIComponent(target.pathname.replace(/^\/v1\/projects\/demo-colophon-test\/databases\//, ""));
-      if (method === "POST" && target.searchParams.get("documentId")) {
-        const key = `${path}/${target.searchParams.get("documentId")}`;
-        if (docs.has(key)) return ok({ error: { status: "ALREADY_EXISTS", message: "exists" } }, 409);
-        docs.set(key, JSON.parse(init.body).fields);
-        return ok({});
-      }
-      if (method === "PATCH") {
-        docs.set(path, JSON.parse(init.body).fields);
-        return ok({});
-      }
-      if (method === "GET") return docs.has(path) ? ok({ fields: docs.get(path) }) : ok({ error: { message: "not found" } }, 404);
-    }
-    throw new Error(`unexpected ${method} ${url}`);
-  };
-  return { fetch, docs, files, requests };
-}
 
 test("seeding fills the shop, the stockroom, the photos and the owner, all on the emulators", async () => {
   const emulators = fakeEmulators();

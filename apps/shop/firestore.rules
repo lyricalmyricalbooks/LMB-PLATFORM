@@ -4,7 +4,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Admin access (functions/roles.js): the owner address, or a role the server copied onto the sign-in pass from
     // the owner's Team list (members/{email}). Staff can do everything in the admin except the Team and secret keys.
-    // The Team's author role opens nothing here (it is for the stockroom).
+    // The Team's author role opens nothing here (it is for the stockroom). The bookkeeper role only reads the money
+    // (isBookkeeper below): orders, gift card balances and the daily sales figures, and writes nothing.
     // The owner address below is a template slot: scripts/deployConfig.mjs fills in each shop's address at deploy.
     // Deployed unfilled, it matches no verified address, so only the owner role gets in (fails closed).
     function isOwner() {
@@ -26,6 +27,12 @@ service cloud.firestore {
       return isOwner()
         || isSupport()
         || (request.auth != null && request.auth.token.email_verified == true && request.auth.token.get("role", "") == "staff");
+    }
+    // Team role "bookkeeper" (plan 7.17): reads orders, gift card balances and the daily sales figures for the books and
+    // taxes. Never books, customers, settings, keys or the Team, and never a write: every rule that lets it in is a read.
+    function isBookkeeper() {
+      return request.auth != null && request.auth.token.email_verified == true
+        && request.auth.token.get("role", "") == "bookkeeper";
     }
 
     // Short optional text: missing/null, or a string no longer than n.
@@ -124,6 +131,7 @@ service cloud.firestore {
     // The owner's Team list (Settings › Team): one document per person, named by their lower-case email.
     // functions/roles.js copies the role onto that person's sign-in pass. "author" is for the stockroom only: it is not
     // an admin role here (isAdmin above names owner and staff), so an author on the Team never opens the shop's admin.
+    // "bookkeeper" opens only the admin's read-only Bookkeeping page (isBookkeeper above).
     match /members/{email} {
       allow read: if isOwner();
       allow delete: if isOwner();
@@ -131,7 +139,7 @@ service cloud.firestore {
         && email == email.lower()
         && email != "__SHOP_OWNER_EMAIL__"
         && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy"])
-        && request.resource.data.role in ["owner", "staff", "author"];
+        && request.resource.data.role in ["owner", "staff", "author", "bookkeeper"];
     }
     // The owner's admin screen layouts (Overview boards: admin/overview/overviewBoardStore.ts) and the Overview's sales notes
     // (admin/overview/overviewNotesStore.ts). Admin-only, one JSON string each.
@@ -170,7 +178,7 @@ service cloud.firestore {
       // thank-you page ask the server (createStripeCheckoutSession action
       // "track"), which checks the customer email or emailed link key.
       // Admins see everything; signed-in customers only their own orders.
-      allow get, list: if isAdmin()
+      allow get, list: if isAdmin() || isBookkeeper()
         // Only a verified sign-in email may list a customer's orders.
         || (request.auth != null && request.auth.token.email_verified == true
           && resource.data.customer.email == request.auth.token.email);
@@ -328,9 +336,9 @@ service cloud.firestore {
     match /analytics/{docId} {
       // Visitors may bump traffic/funnel counters, but order and revenue
       // figures are written exclusively by the payment webhook (Admin SDK).
-      // Only the admin reads the daily docs (revenue, search terms): the storefront
+      // Only the admin (and the bookkeeper) reads the daily docs (revenue, search terms): the storefront
       // writes counters with increment() and never needs to read them back.
-      allow read: if isAdmin();
+      allow read: if isAdmin() || isBookkeeper();
       // Each recorded map stays small, so a forged client can't bloat the doc, and
       // one write can't raise the visit counter by more than one.
       // Only the maps a write changes are checked (`ch` = every field on create, the changed fields on update): a
@@ -424,7 +432,7 @@ service cloud.firestore {
     }
     // Gift cards (functions/giftCards.js): the admin reads them; only Functions create, spend or change them.
     match /giftCards/{cardId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || isBookkeeper();
       allow write: if false;
     }
     match /discounts/{docId} {
