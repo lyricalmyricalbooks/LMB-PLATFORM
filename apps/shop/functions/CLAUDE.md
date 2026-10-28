@@ -836,6 +836,13 @@ platform shop: connect Square (or finish Stripe onboarding), the account's state
 now declares when that address is set. The service adds the address to `SHOP_EXTRA_ORIGINS` and redeploys the server
 code before Hosting serves it. In platform mode `payments.registerPaymentDomain` goes through the service
 (`account.paymentDomain`) instead of refusing.
+**Bookkeeping (28 October 2026, code plan 7.16).** `quickbooksLink.js` (action `bookkeeping`, `step: "status" | "connect" |
+"options" | "save" | "resend" | "disconnect"`) passes Settings › Bookkeeping to the platform's bookkeeping service
+(`PLATFORM_ACCOUNTING_URL`, https, LMB-PLATFORM services/accounting; `withPlatformKey` declares the key when set). Unset:
+`status` answers `{ enabled: false }` and the page and its menu entry stay hidden; other steps 409 `not_available`. The
+currency sent is always the shop's (CAD). `resend` sends `buildDay(date)`: index.js reads every order (a refund can land
+on an older one) and `dayFromOrders` picks the day from `shared/bookkeeping`'s `dailyBookkeeping` (Toronto days, zeros
+on a quiet day); without `buildDay`, 409 `not_ready`. The nightly push of days and payouts is not wired yet (needs 7.10).
 **Practice orders (28 October 2026, code plan 7.6).** `practiceCheckout.js` (action `practiceCheckout`, `step: "status" |
 "start" | "stop"`) lets the owner of a private platform shop (`shopPrivate`: maintenance on or the wall up) start one hour of
 practice; the flag is the server-only `systemStatus/practiceCheckout` (`{ uid, until }`). `handleStripeCheckout` asks
