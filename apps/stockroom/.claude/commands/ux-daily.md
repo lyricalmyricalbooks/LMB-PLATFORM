@@ -5,7 +5,7 @@ argument-hint: [area of focus]
 
 # Daily UX/UI enhancement
 
-Ship **exactly one** polished UX/UI improvement to Lyrical Inventory.
+Ship **exactly one** polished UX/UI improvement to the stockroom.
 
 Work autonomously end-to-end. This is usually run on a schedule with nobody watching, so
 do not ask clarifying questions — pick the strongest option and proceed.

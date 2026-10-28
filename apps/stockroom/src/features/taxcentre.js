@@ -81,6 +81,7 @@ import { receiptOwners, summarizeReceiptStorage, isReceiptExemptExpense, receipt
 import { testZonosConnection } from '../lib/zonos.js';
 import { friendlyOpenRouterError, openRouterAllowanceNote, testOpenRouterConnection } from '../lib/openrouter-chat.js';
 import { _geminiClearRest } from '../lib/gemini-quota.js';
+import { fileStem } from '../lib/shop-profile.js';
 import { testCanadaPostConnection, validateCanadaPostAccount, isValidCustomerNumber, getSavedSheetsUrl, diagnoseCanadaPostConnection, inspectCanadaPostCredentials, resolveCanadaPostCredentials, migrateCanadaPostCredentials, readCanadaPostCredentialSet, credentialSetIsConfigured, CANADAPOST_CREDENTIAL_FIELDS } from '../lib/carriers/canadapost.js';
 import {
   RECURRING_FREQUENCIES,
@@ -369,7 +370,7 @@ function downloadTaxReport() {
     showToast(`\u26a0 ${note}`, 'warn', 7000);
   }
 
-  downloadCsv(csv, `Lyrical_Tax_Report_${year}.csv`);
+  downloadCsv(csv, `${fileStem()}_Tax_Report_${year}.csv`);
 }
 
 const TC_LEDGER_PAGE_SIZE = 25;

@@ -54,3 +54,24 @@ export function fakePlatformState() {
     log: async (id, entry) => void log.set(id, structuredClone(entry)),
   };
 }
+
+/** The activity log, in memory (clients/stores.js `firestoreActivity` is the real one). No delete, like it. */
+export function fakeActivity() {
+  const rows = new Map();
+  return {
+    rows,
+    record: async (entry) => void rows.set(entry.id, structuredClone(entry)),
+    list: async ({ shopId, limit = 200 } = {}) => structuredClone([...rows.values()]
+      .filter((e) => !shopId || e.shopId === shopId)
+      .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
+      .slice(0, limit)),
+  };
+}
+
+/** Waitlist invites' store and the waitlist itself, in memory (clients/stores.js `firestoreInvites`, `firestoreWaitlist`). */
+export function fakeInviteStore() {
+  const rows = new Map();
+  return { rows, get: async (id) => structuredClone(rows.get(id) ?? null), set: async (id, row) => void rows.set(id, structuredClone(row)) };
+}
+
+export const fakeWaitlist = (rows = []) => ({ list: async () => structuredClone(rows) });

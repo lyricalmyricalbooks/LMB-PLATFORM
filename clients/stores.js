@@ -108,3 +108,33 @@ export function firestoreRecoveries(firestore) {
     },
   };
 }
+
+/**
+ * controlActivity/<id>: the control room's activity log (control-room/activity.js, plan 9.9), kept a year. All entries
+ * come newest first by their time; one shop's are read with an equality filter (no extra index) and sorted here.
+ */
+export function firestoreActivity(firestore) {
+  const newestFirst = (a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0);
+  return {
+    record: (entry) => firestore.set(`controlActivity/${String(entry.id).replace(/[/]/g, "_")}`, entry),
+    async list({ shopId, limit = 200 } = {}) {
+      const rows = shopId
+        ? (await firestore.query("controlActivity", { where: [["shopId", "==", shopId]], limit: 5000 })).map((row) => row.data).sort(newestFirst)
+        : (await firestore.query("controlActivity", { orderBy: [["at", "desc"]], limit })).map((row) => row.data);
+      return rows.slice(0, limit);
+    },
+  };
+}
+
+/** waitlist/<id>: the waitlist page's sign-ups (waitlist/signup.js), read by the control room only. */
+export function firestoreWaitlist(firestore) {
+  return { list: async () => (await firestore.query("waitlist", { limit: 5000 })).map((row) => row.data) };
+}
+
+/** invites/<id>: waitlist invites (waitlist/invites.js, plan 9.5). */
+export function firestoreInvites(firestore) {
+  return {
+    get: (id) => firestore.get(`invites/${id}`),
+    set: (id, row) => firestore.set(`invites/${id}`, row),
+  };
+}

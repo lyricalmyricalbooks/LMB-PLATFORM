@@ -26,7 +26,7 @@ const ORDER_NO = 'P374063754';
 const ARTIFACT_HREF = `${GATEWAY}${ROOT}/shipping/v1/artifacts/${CUSTOMER}/shipping/9f3c1b/0`;
 
 const SENDER = {
-  name: 'Lyricamyrical books',
+  name: 'Moth Press',
   phone: '4165550142',
   address1: '456 Montrose Ave',
   city: 'Toronto',

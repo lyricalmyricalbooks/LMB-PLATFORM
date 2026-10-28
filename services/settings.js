@@ -15,6 +15,15 @@
 //   PLAN_PRICE_BOTH            monthly price of the shop and the stockroom, cents    default 3900 ($39)
 //   TRIAL_DAYS                 free days before the first charge (no card needed)    default 14
 //   PLATFORM_URL               the platform's own pages (sign-up, account)           default https://<domain>
+//   SIGNUP_OPEN                "true": anyone may sign up; otherwise waitlist invites only (6.1, 6.13)   default false
+//   SIGNUP_DAILY_CAP           new shops made a day; an invite skips it (6.13)       default 10
+//   FOUNDING_PERCENT_OFF       the founding offer's discount, for as long as they stay  default 25
+//   FOUNDING_PRESSES           how many paying presses get the founding offer        default 25
+//   PAY_AS_YOU_SELL_BASIS_POINTS  "pay as you sell" instead of a monthly fee: share of each website sale, in
+//                              hundredths of a percent (200 = 2%); 0 turns the option off (6.19)   default 200
+//
+// The control room can change the settings in EDITABLE without a release (plan 9.4): they are saved in the platform
+// project and `liveSettings` puts them on top of these. The rest (name, domain, addresses, currency) stay here.
 
 export const DEFAULT_SETTINGS = Object.freeze({
   platformName: "Colophon",
@@ -25,9 +34,25 @@ export const DEFAULT_SETTINGS = Object.freeze({
   prices: Object.freeze({ shop: 2900, stockroom: 1900, both: 3900 }),
   trialDays: 14,
   platformUrl: "https://platform.example",
+  signupOpen: false,
+  signupDailyCap: 10,
+  foundingOffer: Object.freeze({ percentOff: 25, presses: 25 }),
+  payAsYouSell: Object.freeze({ basisPoints: 200 }),
 });
 
 export const PLAN_NAMES = Object.freeze({ shop: "Shop", stockroom: "Stockroom", both: "Shop and stockroom" });
+
+// Stripe takes amounts in cents: one cent to $10,000 a month.
+const LIMITS = Object.freeze({
+  "prices.shop": { min: 1, max: 1_000_000 },
+  "prices.stockroom": { min: 1, max: 1_000_000 },
+  "prices.both": { min: 1, max: 1_000_000 },
+  trialDays: { min: 0, max: 730 },
+  signupDailyCap: { min: 0, max: 1000 },
+  "foundingOffer.percentOff": { min: 0, max: 100 },
+  "foundingOffer.presses": { min: 0, max: 1000 },
+  "payAsYouSell.basisPoints": { min: 0, max: 2000 },
+});
 
 const EMAIL = /^[^@\s<>"]+@[^@\s<>"]+\.[^@\s<>"]+$/;
 
@@ -52,6 +77,15 @@ export function platformSettings(env = process.env) {
     }
     return Number(raw);
   };
+  const yesNo = (name, fallback) => {
+    const raw = text(name, null);
+    if (raw === null) return fallback;
+    if (!/^(true|false)$/i.test(raw)) {
+      problems.push(`${name} must be true or false`);
+      return fallback;
+    }
+    return raw.toLowerCase() === "true";
+  };
 
   const domain = text("PLATFORM_DOMAIN", DEFAULT_SETTINGS.domain).toLowerCase();
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain)) problems.push("PLATFORM_DOMAIN must be a domain like colophon.example");
@@ -69,13 +103,20 @@ export function platformSettings(env = process.env) {
     currency,
     // Stripe takes amounts in cents; one cent to $10,000 a month.
     prices: {
-      shop: whole("PLAN_PRICE_SHOP", DEFAULT_SETTINGS.prices.shop, { min: 1, max: 1_000_000 }),
-      stockroom: whole("PLAN_PRICE_STOCKROOM", DEFAULT_SETTINGS.prices.stockroom, { min: 1, max: 1_000_000 }),
-      both: whole("PLAN_PRICE_BOTH", DEFAULT_SETTINGS.prices.both, { min: 1, max: 1_000_000 }),
+      shop: whole("PLAN_PRICE_SHOP", DEFAULT_SETTINGS.prices.shop, LIMITS["prices.shop"]),
+      stockroom: whole("PLAN_PRICE_STOCKROOM", DEFAULT_SETTINGS.prices.stockroom, LIMITS["prices.stockroom"]),
+      both: whole("PLAN_PRICE_BOTH", DEFAULT_SETTINGS.prices.both, LIMITS["prices.both"]),
     },
     // Stripe allows trials of up to two years; 0 means no trial.
-    trialDays: whole("TRIAL_DAYS", DEFAULT_SETTINGS.trialDays, { min: 0, max: 730 }),
+    trialDays: whole("TRIAL_DAYS", DEFAULT_SETTINGS.trialDays, LIMITS.trialDays),
     platformUrl,
+    signupOpen: yesNo("SIGNUP_OPEN", DEFAULT_SETTINGS.signupOpen),
+    signupDailyCap: whole("SIGNUP_DAILY_CAP", DEFAULT_SETTINGS.signupDailyCap, LIMITS.signupDailyCap),
+    foundingOffer: {
+      percentOff: whole("FOUNDING_PERCENT_OFF", DEFAULT_SETTINGS.foundingOffer.percentOff, LIMITS["foundingOffer.percentOff"]),
+      presses: whole("FOUNDING_PRESSES", DEFAULT_SETTINGS.foundingOffer.presses, LIMITS["foundingOffer.presses"]),
+    },
+    payAsYouSell: { basisPoints: whole("PAY_AS_YOU_SELL_BASIS_POINTS", DEFAULT_SETTINGS.payAsYouSell.basisPoints, LIMITS["payAsYouSell.basisPoints"]) },
   };
   if (problems.length) throw new Error(`The platform settings have problems: ${problems.join("; ")}`);
   return settings;
@@ -84,4 +125,65 @@ export function platformSettings(env = process.env) {
 /** "$29.00" style text for a price in cents, for emails and the sign-up page. */
 export function priceText(cents, currency = DEFAULT_SETTINGS.currency) {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency, currencyDisplay: "narrowSymbol" }).format(cents / 100);
+}
+
+/**
+ * The settings the control room may change without a release (plan 9.4), by their path in the settings, with the words
+ * the page shows. Money is in cents and the pay-as-you-sell share in hundredths of a percent, as everywhere else.
+ */
+export const EDITABLE = Object.freeze({
+  signupOpen: { kind: "yesNo", label: "Anyone can sign up (off: waitlist invites only)" },
+  signupDailyCap: { kind: "whole", ...LIMITS.signupDailyCap, label: "New shops a day (an invite skips the line)" },
+  "prices.shop": { kind: "cents", ...LIMITS["prices.shop"], label: "Shop plan, a month" },
+  "prices.stockroom": { kind: "cents", ...LIMITS["prices.stockroom"], label: "Stockroom plan, a month" },
+  "prices.both": { kind: "cents", ...LIMITS["prices.both"], label: "Shop and stockroom plan, a month" },
+  trialDays: { kind: "whole", ...LIMITS.trialDays, label: "Free trial days" },
+  "foundingOffer.percentOff": { kind: "whole", ...LIMITS["foundingOffer.percentOff"], label: "Founding offer: percent off, for as long as they stay" },
+  "foundingOffer.presses": { kind: "whole", ...LIMITS["foundingOffer.presses"], label: "Founding offer: how many paying presses get it" },
+  "payAsYouSell.basisPoints": { kind: "basisPoints", ...LIMITS["payAsYouSell.basisPoints"], label: "Pay as you sell: share of each website sale (0 turns it off)" },
+});
+
+const read = (settings, path) => path.split(".").reduce((value, key) => value?.[key], settings);
+
+/** Plain-words problems with saved values ({ path: value }); empty when every one is allowed. */
+export function savedSettingsProblems(values) {
+  if (!values || typeof values !== "object" || Array.isArray(values)) return ["the saved settings must be a list of values"];
+  const problems = [];
+  for (const [path, value] of Object.entries(values)) {
+    const field = EDITABLE[path];
+    if (!field) problems.push(`${path} can't be changed here`);
+    else if (field.kind === "yesNo" ? typeof value !== "boolean" : !Number.isInteger(value) || value < field.min || value > field.max) {
+      problems.push(field.kind === "yesNo" ? `${field.label}: choose yes or no` : `${field.label}: a whole number from ${field.min} to ${field.max}`);
+    }
+  }
+  return problems;
+}
+
+/** The settings with saved values ({ path: value }) on top. Throws on a value that isn't allowed. */
+export function withSaved(settings, values = {}) {
+  const problems = savedSettingsProblems(values);
+  if (problems.length) throw new Error(`The saved platform settings have problems: ${problems.join("; ")}`);
+  const out = structuredClone(settings);
+  for (const [path, value] of Object.entries(values)) {
+    const keys = path.split(".");
+    const last = keys.pop();
+    keys.reduce((node, key) => node[key], out)[last] = value;
+  }
+  return out;
+}
+
+/** The current value of each editable setting, by path. */
+export const editableValues = (settings) => Object.fromEntries(Object.keys(EDITABLE).map((path) => [path, read(settings, path)]));
+
+/** Where the control room keeps its changes: `store.get(SETTINGS_RECORD)` -> { values, updatedAt, updatedBy } | null. */
+export const SETTINGS_RECORD = "settings";
+
+/**
+ * The settings as they are now: the service's environment with the control room's saved changes on top. `store` is
+ * the platform's small records (clients/stores.js `firestorePlatformState`); without one, the environment alone.
+ */
+export async function liveSettings({ env = process.env, store } = {}) {
+  const base = platformSettings(env);
+  const saved = store ? await store.get(SETTINGS_RECORD) : null;
+  return saved?.values ? withSaved(base, saved.values) : base;
 }
