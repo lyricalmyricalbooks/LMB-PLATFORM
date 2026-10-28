@@ -278,6 +278,12 @@ function createSquareProvider({ db, platform = null }) {
       const type = claimed.type === "dispute.created" ? "charge.dispute.created" : CLOSED_DISPUTES.has(shaped.status) ? "charge.dispute.closed" : "charge.dispute.updated";
       return { id, type, livemode, data: { object: shaped } };
     }
+    if (kind === "payout") {
+      // A payout that reached the press's bank: each order in it keeps its fee and payout (code plan 7.10).
+      const payout = await call("square.payouts.retrieve", mode, { id: objectId });
+      const type = claimed.type === "payout.paid" && payout.status === "PAID" ? "payout.paid" : "square.payout.updated";
+      return { id, type, livemode, data: { object: { id: payout.id, object: "payout", status: lower(payout.status), arrival_date: payout.arrivalDate || null } } };
+    }
     throw Object.assign(new Error("Not a Square event the shop uses."), { code: "bad_delivery" });
   }
 
@@ -348,10 +354,56 @@ function createSquareProvider({ db, platform = null }) {
   async function webhookEndpoints() { return { mode: (await shopTestMode()) ? "test" : "live", endpoints: null }; }
   async function registerPaymentDomain() { throw new Error("Square's checkout page runs on Square's own address, so no payment domain is registered."); }
 
+  // ── Fees and payouts (code plan 7.10; orderMoney.js keeps them on the order) ─────────────────────────────────
+
+  const settledRefund = (r) => r.status === "PENDING" || r.status === "COMPLETED";
+
+  // The payment's fees as Square has them now: Square's processing fee and Colophon's app fee taken from the payment;
+  // each refund gives back what Square returns of its fee and Colophon's share of the refund (app_fee_money).
+  async function paymentMoney(orderId, order, { keys = null } = {}) {
+    const saved = String(order.stripePaymentIntentId || "");
+    if (!isSquarePaymentId(saved)) return null;
+    return inOrderModes(order, keys, async (mode) => {
+      const payment = await call("square.payments.retrieve", mode, { id: squareIdOf(saved) });
+      if (payment.referenceId !== orderId || payment.status !== "COMPLETED") return null;
+      const currency = lower(payment.currency);
+      const fee = (payment.processingFeeMinor || 0) + (payment.appFeeMinor || 0);
+      const parts = { charge: { fee, net: payment.totalMinor - fee, platformFee: payment.appFeeMinor || 0, currency } };
+      if (payment.refundIds?.length) {
+        for (const refund of ((await call("square.refunds.forPayment", mode, { paymentId: payment.id })).data || []).filter(settledRefund)) {
+          const refundFee = (refund.processingFeeMinor || 0) - (refund.appFeeMinor || 0);
+          parts[refund.id] = { fee: refundFee, net: -refund.amountMinor - refundFee, platformFee: -(refund.appFeeMinor || 0), currency };
+        }
+      }
+      return { parts };
+    });
+  }
+
+  // What one payout paid in, from Square's payout entries: a CHARGE line for each payment ("charge") and a REFUND line
+  // for each refund (its id). `date` is the day the payout reached the bank.
+  async function payoutMoney({ mode, payoutId }) {
+    const payout = await call("square.payouts.retrieve", mode, { id: squareIdOf(payoutId) });
+    const lines = [];
+    let cursor;
+    for (let page = 0; page < 100; page += 1) {
+      const answer = await call("square.payouts.entries", mode, { id: payout.id, ...(cursor ? { cursor } : {}) });
+      for (const entry of answer.data || []) {
+        if (!entry.paymentId) continue;
+        const part = { fee: entry.feeMinor, net: entry.netMinor, currency: lower(entry.currency) };
+        if (entry.type === "CHARGE") lines.push({ paymentId: squarePaymentId(entry.paymentId), key: "charge", part });
+        else if (entry.type === "REFUND" && entry.refundId) lines.push({ paymentId: squarePaymentId(entry.paymentId), key: entry.refundId, part });
+      }
+      cursor = answer.cursor;
+      if (!cursor) break;
+    }
+    return { payout: { id: payout.id, date: payout.arrivalDate || null }, lines };
+  }
+
   return {
     id: "square",
     testMode: shopTestMode, readKeys, clientForMode, findOrderPayment, readAttempt, stopAttempt, checkReversal, refund,
     webhookClient, verifyWebhookEvent, forCheckout, deployedLiveKey, checkKey, webhookEndpoints, registerPaymentDomain,
+    paymentMoney, payoutMoney,
   };
 }
 

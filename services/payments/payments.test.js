@@ -287,13 +287,40 @@ test("Stripe's sign-up link only sends the press back to the shop's own addresse
   }
 });
 
+test("a shop reads its payments' fees and what each payout paid in, on its own account only (7.10)", async () => {
+  const { call, stripe } = await world();
+  stripe.world.balanceTransactions.push(
+    { account: "acct_moth", payout: "po_1", id: "txn_1", type: "charge", fee: 146, net: 3854 },
+    { account: "acct_moth", payout: "po_1", id: "txn_2", type: "refund", fee: 0, net: -1000 },
+    { account: "acct_other", payout: "po_1", id: "txn_3", type: "charge", fee: 1, net: 1 },
+  );
+  const first = await call("balanceTransactions.list", { params: { payout: "po_1", limit: 1, expand: ["data.source"] } });
+  assert.equal(first.status, 200);
+  assert.deepEqual(first.body.data.map((t) => t.id), ["txn_1"]);
+  assert.equal(first.body.has_more, true);
+  const next = await call("balanceTransactions.list", { params: { payout: "po_1", limit: 100, starting_after: "txn_1" } });
+  assert.deepEqual(next.body.data.map((t) => t.id), ["txn_2"], "another account's transactions never show");
+  const sent = stripe.requests.find((r) => r.path === "/v1/balance_transactions");
+  assert.equal(sent.headers["Stripe-Account"], "acct_moth");
+  assert.deepEqual(sent.params["expand[]"], ["data.source"]);
+  for (const params of [{}, { payout: "acct_x" }, { payout: "po_1", type: "charge" }, { payout: "po_1", expand: ["data.source.customer"] }, { payout: "po_1", starting_after: "ch_1" }, { payout: "po_1", limit: 1000 }]) {
+    assert.equal((await call("balanceTransactions.list", { params })).status, 400, JSON.stringify(params));
+  }
+  // A charge's and refunds' balance transactions come with the lookups that already exist.
+  assert.equal((await call("paymentIntents.retrieve", { id: "pi_x", params: { expand: ["latest_charge.balance_transaction"] } })).status, 404, "allowed, and Stripe answers");
+  assert.equal((await call("refunds.list", { params: { payment_intent: "pi_x", limit: 100, expand: ["data.balance_transaction"] } })).status, 200);
+  assert.equal((await call("refunds.list", { params: { payment_intent: "pi_x", expand: ["data.charge"] } })).status, 400);
+  assert.equal((await call("disputes.list", { params: { payment_intent: "pi_x", expand: ["data.balance_transaction"] } })).status, 400);
+});
+
 test("every call a shop can make is listed", () => {
   assert.deepEqual([...SHOP_OP_NAMES].sort(), [
-    "account.onboardingLink", "account.paymentDomain", "account.status", "checkout.sessions.create", "checkout.sessions.expire", "checkout.sessions.retrieve", "disputes.list",
+    "account.onboardingLink", "account.paymentDomain", "account.status", "balanceTransactions.list", "checkout.sessions.create", "checkout.sessions.expire", "checkout.sessions.retrieve", "disputes.list",
     "events.retrieve", "paymentIntents.cancel", "paymentIntents.create", "paymentIntents.retrieve", "refunds.create", "refunds.list",
     // Square shops (square.js, plan 2.2b)
     "account.connectLink", "square.checkout.create", "square.checkout.delete", "square.checkout.retrieve", "square.disputes.forPayment",
     "square.payments.cancel", "square.payments.retrieve", "square.refunds.create", "square.refunds.forPayment", "square.refunds.retrieve",
+    "square.payouts.entries", "square.payouts.retrieve",
   ].sort());
 });
 

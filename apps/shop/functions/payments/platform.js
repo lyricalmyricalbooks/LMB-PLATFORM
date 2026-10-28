@@ -78,6 +78,8 @@ function platformStripeClient(call, mode) {
     },
     disputes: { list: (p) => call("disputes.list", mode, { params: p }) },
     events: { retrieve: (id) => call("events.retrieve", mode, { id }) },
+    // What a payout paid in (code plan 7.10).
+    balanceTransactions: { list: (p) => call("balanceTransactions.list", mode, { params: p }) },
   });
 }
 
