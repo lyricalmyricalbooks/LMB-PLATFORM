@@ -51,6 +51,22 @@ Plain HTML and browser JavaScript, like the sign-up page; sign in with Google.
 New trials can't take real money before Stripe has checked the press: the payment service refuses a live payment
 until the account's `charges_enabled` is true (`services/payments/service.js` `liveChargesAllowed`).
 
+## One shop's record, its fee, and switches for every shop (plan 9.3, 9.6, 9.7)
+
+- **Search and filters** over the shop list: press name, shop id or owner email; health, plan and billing state.
+- **Open record** (`POST /api/control/shop { shopId }`): owner, plan and billing, setup steps, connections (payments,
+  web address, Google, email sending), the per-order fee, the last checks and the shop's control-room history. No
+  customer details.
+- **Fee on each order** (`POST /api/control/fee { shopId, basisPoints, refunded, reason }`): any change is written to
+  the row as `platformFee.next { basisPoints, refunded, from }` 30 days ahead and the press is emailed
+  (`platform-fee-changing`) once; `services/payments/fees.js` `feeForShop` uses it from `from` on. Setting today's fee
+  again cancels a change that hasn't started. Pass `feeDefaults` (`readFeeSettings(env)`) to show the platform's fee.
+- **Switches for every shop** (`POST /api/control/switch-all { name, on, reason }`): `setSwitch` for every live shop,
+  each logged; a failure is reported and the rest carry on. **New shops start with** (`GET`/`POST
+  /api/control/new-shop-switches`): kept as `platformState/newShopSwitches`; the shop maker passes them to the setup
+  steps as `config.switchDefaults`, which step 6 uses only where the shop has nothing saved. Give `createControlRoom`
+  `platformState`.
+
 ## The command line (`switch.js`)
 
 ```bash

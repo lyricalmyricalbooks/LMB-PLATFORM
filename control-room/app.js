@@ -62,9 +62,8 @@ async function load() {
   try {
     await loadToday();
     const { shops } = await api("GET", "/control/shops");
-    const problems = shops.filter((s) => s.health.level === "problem").length;
-    $("#summary").textContent = `${shops.length} shops · ${problems} with a problem`;
-    $("#shops").replaceChildren(...(shops.length ? shops.map(card) : [el("p", { textContent: "No shops yet." })]));
+    allShops = shops;
+    showShops();
     status.textContent = "";
     $("#view-signin").hidden = true;
     $("#view-code").hidden = true;
@@ -75,6 +74,7 @@ async function load() {
     await loadRecoveries();
     await loadBreaches();
     await loadWaitlist();
+    await loadEverySwitch();
     await loadSettings();
     await loadActivity();
   } catch (failure) {
@@ -82,6 +82,75 @@ async function load() {
     // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
     if (/two-step/.test(failure.message) && auth.currentUser && !multiFactor(auth.currentUser).enrolledFactors.length) await startTwoStepSetup();
   }
+}
+
+// ── Shops: search and filters (plan 9.3), over the list already loaded. ──
+let allShops = [];
+function showShops() {
+  const form = $("#shop-filters");
+  const words = form.q.value.trim().toLowerCase();
+  const shown = allShops.filter((shop) => (!words || [shop.pressName, shop.shopId, shop.ownerEmail].some((v) => String(v ?? "").toLowerCase().includes(words)))
+    && (!form.health.value || shop.health.level === form.health.value)
+    && (!form.plan.value || shop.plan === form.plan.value)
+    && (!form.billing.value || shop.billingStatus === form.billing.value));
+  const problems = allShops.filter((s) => s.health.level === "problem").length;
+  $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
+  $("#shops").replaceChildren(...(shown.length ? shown.map(card) : [el("p", { textContent: allShops.length ? "No shop matches." : "No shops yet." })]));
+}
+$("#shop-filters").addEventListener("input", showShops);
+$("#shop-filters").addEventListener("submit", (event) => event.preventDefault());
+
+// ── One shop's record (plan 9.3) and its per-order fee (plan 9.6). ──
+const BILLING_WORDS = { trialing: "free trial", active: "paying", past_due: "payment failing, being retried", paused: "paused", unpaid: "paused, unpaid", incomplete: "waiting for a first payment", canceled: "ended", incomplete_expired: "ended" };
+const percent = (basisPoints) => `${basisPoints / 100}%`;
+const dateOnly = (at) => (at ? new Date(at).toLocaleDateString(undefined, { dateStyle: "medium" }) : "");
+
+function feeForm(record) {
+  const form = el("form", { className: "stack" },
+    el("p", { className: "hint", textContent: `Fee on each order now: ${percent(record.fee.basisPoints)}, ${record.fee.refunded ? "given back with a refund" : "kept on a refund"}. The platform's normal fee: ${percent(record.fee.defaults.basisPoints)}.${record.fee.next ? ` Changing to ${percent(record.fee.next.basisPoints)} on ${dateOnly(record.fee.next.from)} (the press was emailed).` : ""}` }),
+    el("label", { className: "field" }, "New fee on each order (%)", el("input", { type: "number", name: "percent", min: "0", max: "100", step: "0.01", required: true, value: String((record.fee.next ?? record.fee).basisPoints / 100), inputMode: "decimal" })),
+    el("label", { className: "switch" }, el("input", { type: "checkbox", name: "refunded", checked: (record.fee.next ?? record.fee).refunded }), "Give the fee back when an order is refunded"),
+    el("label", { className: "field" }, "Why? (goes in the shop's log)", el("input", { name: "reason", required: true, minLength: 10, maxLength: 500 })),
+    el("p", { className: "hint", textContent: "The press is emailed now and the new fee starts in 30 days. Setting today's fee again cancels a change that hasn't started." }),
+    el("div", { className: "row" }, el("button", { type: "submit", textContent: "Change the fee" })));
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = form.querySelector("button");
+    button.disabled = true;
+    try {
+      const done = await api("POST", "/control/fee", { shopId: record.shopId, basisPoints: Math.round(Number(form.percent.value) * 100), refunded: form.refunded.checked, reason: form.reason.value });
+      status.textContent = !done.changed ? "That's already the fee, so nothing changed."
+        : done.cancelled ? `${record.pressName}: the waiting fee change is cancelled.`
+          : `${record.pressName}: emailed. The new fee starts on ${dateOnly(done.next.from)}.`;
+      form.replaceWith(feeForm(await api("POST", "/control/shop", { shopId: record.shopId })));
+    } catch (failure) {
+      status.textContent = failure.message;
+      button.disabled = false;
+    }
+  });
+  return form;
+}
+
+function recordView(record) {
+  const billing = record.billing;
+  const line = (label, value) => (value ? el("li", {}, el("strong", { textContent: `${label}: ` }), value) : null);
+  const connections = record.connections;
+  return el("div", { className: "stack record" },
+    el("ul", {},
+      line("Owner", record.ownerEmail),
+      line("Started", dateOnly(record.createdAt)),
+      line("Address", record.siteUrl),
+      line("Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan),
+      line("Payments", connections.payments ? `${connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"),
+      line("Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map((d) => `${d.name} (${d.state})`).join(", ") : "the shop's own .web.app address"),
+      line("Google", connections.google ? Object.entries(connections.google).filter(([k, v]) => v && !["steps", "connectedAt"].includes(k)).map(([k]) => k).join(", ") || "not connected" : "not connected"),
+      line("Version", record.version ?? "none yet")),
+    el("strong", { textContent: "Setup" }),
+    record.setup.length ? el("ul", {}, ...record.setup.map((step) => el("li", { textContent: `${step.step}. ${step.name ?? ""} ${step.ok ? "done" : `stopped: ${step.error}`}` }))) : el("p", { className: "hint", textContent: "No setup steps yet." }),
+    el("strong", { textContent: "Fee on each order" }),
+    feeForm(record),
+    el("strong", { textContent: "Control-room history" }),
+    record.history.length ? el("ul", {}, ...record.history.map((e) => el("li", { textContent: `${when(e.at)} · ${e.by ?? "the platform"} ${ACTIVITY_WORDS[e.what] ?? e.what}${e.detail?.reason ? ` (${e.detail.reason})` : ""}` }))) : el("p", { className: "hint", textContent: "Nothing yet." }));
 }
 
 // ── Today (plan 9.2): the numbers, then what needs you, each linking to its place below. ──
@@ -180,8 +249,27 @@ function card(shop) {
     }))
     : null;
 
+  const open = el("button", { type: "button", textContent: "Open record", "aria-expanded": "false" });
+  const recordSlot = el("div");
+  open.addEventListener("click", async () => {
+    if (open.getAttribute("aria-expanded") === "true") {
+      recordSlot.replaceChildren();
+      open.setAttribute("aria-expanded", "false");
+      open.textContent = "Open record";
+      return;
+    }
+    open.disabled = true;
+    try {
+      recordSlot.replaceChildren(recordView(await api("POST", "/control/shop", { shopId: shop.shopId })));
+      open.setAttribute("aria-expanded", "true");
+      open.textContent = "Close record";
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    open.disabled = false;
+  });
   return el("div", { className: `card ${shop.health.level}` },
-    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), act, check, closing),
+    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: LEVEL[shop.health.level] }), open, act, check, closing),
     el("div", { className: "facts" },
       el("span", { textContent: shop.shopId }),
       el("span", { textContent: `plan: ${shop.plan ?? "?"}` }),
@@ -193,7 +281,8 @@ function card(shop) {
       shop.paymentsMoved ? el("span", { textContent: `cards: ${PAYMENT_WORDS[shop.paymentsMoved.to]}` }) : null),
     shop.health.reasons.length ? el("ul", {}, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
     switches,
-    shop.status === "live" ? moveCards : null);
+    shop.status === "live" ? moveCards : null,
+    recordSlot);
 }
 
 // ── The emergency payments switch (plan 8.5): if the platform's Stripe is paused, move a shop, or every shop. ──
@@ -639,7 +728,8 @@ $("#settings-form").addEventListener("submit", async (event) => {
 const ACTIVITY_WORDS = {
   "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "switch-set": "set a switch",
   "act-as": "opened the shop's admin as support", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
-  "newsletter-resumed": "turned the newsletter back on", "signup-retry": "tried making the shop again",
+  "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
+  "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again",
 };
 
 async function loadActivity() {
@@ -749,3 +839,50 @@ onAuthStateChanged(auth, (user) => {
   if (user) load();
   else showOnly("#view-signin");
 });
+
+// ── Switches for every shop (plan 9.7): one switch for every live shop at once, and what new shops start with. ──
+async function loadEverySwitch() {
+  try {
+    const { switches } = await api("GET", "/control/new-shop-switches");
+    $("#every-switch").replaceChildren(...Object.entries(switches).map(([name, startsOn]) => {
+      const words = SWITCH_WORDS[name] ?? name;
+      const button = (on) => {
+        const b = el("button", { type: "button", textContent: on ? "On for every shop" : "Off for every shop" });
+        b.addEventListener("click", async () => {
+          const reason = askWhy(`Turn "${words}" ${on ? "on" : "off"} for every live shop. Each shop's pages are deployed again.`);
+          if (!reason) return;
+          b.disabled = true;
+          try {
+            const { shops } = await api("POST", "/control/switch-all", { name, on, reason });
+            const failed = shops.filter((s) => s.error);
+            await load();
+            status.textContent = `${words}: ${shops.length - failed.length} shop${shops.length - failed.length === 1 ? "" : "s"} done.${failed.length ? ` Not done: ${failed.map((s) => `${s.shopId} (${s.error})`).join("; ")}` : ""}`;
+          } catch (failure) {
+            status.textContent = failure.message;
+          }
+          b.disabled = false;
+        });
+        return b;
+      };
+      const box = el("input", { type: "checkbox", checked: startsOn });
+      box.addEventListener("change", async () => {
+        const reason = askWhy(`New shops start with "${words}" ${box.checked ? "on" : "off"}.`);
+        if (!reason) {
+          box.checked = !box.checked;
+          return;
+        }
+        try {
+          await api("POST", "/control/new-shop-switches", { name, on: box.checked, reason });
+          status.textContent = `New shops start with ${words} ${box.checked ? "on" : "off"}.`;
+        } catch (failure) {
+          status.textContent = failure.message;
+          box.checked = !box.checked;
+        }
+      });
+      return el("div", { className: "card" }, el("div", { className: "row" }, el("strong", { textContent: words }), button(true), button(false)),
+        el("label", { className: "switch" }, box, "New shops start with it on"));
+    }));
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
