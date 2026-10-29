@@ -199,11 +199,13 @@ test("only platform admins review; approving holds the move, and applying needs 
   assert.equal(early.status, 409);
   assert.match(early.body.message, /to object/);
   tick(HOLD_HOURS);
-  const notByHand = await ask(ADMIN, "POST", "/api/control/recovery/apply", { id: request.id });
+  // Days later the admin signs in again: the control room refuses a sign-in more than 12 hours old.
+  const later = { ...ADMIN, auth_time: (Date.parse("2026-10-28T12:00:00Z") + HOLD_HOURS * 3600_000) / 1000 };
+  const notByHand = await ask(later, "POST", "/api/control/recovery/apply", { id: request.id });
   assert.equal(notByHand.status, 409);
   assert.equal(store.rows.get(request.id).status, "approved", "nothing is recorded until it's done");
 
-  const done = await ask(ADMIN, "POST", "/api/control/recovery/apply", { id: request.id, doneByHand: true });
+  const done = await ask(later, "POST", "/api/control/recovery/apply", { id: request.id, doneByHand: true });
   assert.equal(done.status, 200);
   assert.equal(done.body.request.status, "applied");
   assert.deepEqual(applied.at(-1), { from: "ada@moth.example", to: "ada.new@moth.example", accountId: "uid-ada", shops: ["moth-press"], doneByHand: true });
