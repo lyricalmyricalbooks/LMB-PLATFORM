@@ -41,3 +41,22 @@ test("pending provider refunds complete without repeating inventory changes", as
 
 test("manual returns record a publisher-authorized external refund and selective restock", async () => { const app = harness(); delete app.docs.orders.A.stripePaymentIntentId; app.docs.orders.A.paymentMethod = "e-Transfer"; await app.approveInspect(); expect((await app.call("refundOrder", {})).code).toBe(200); expect(app.docs.orders.A.paymentStatus).toBe("refunded"); expect(app.docs.books.a.stockLevel).toBe(5); expect(app.refunds).toEqual([]); });
 test("repeated receipt requests do not change private history or stock", async () => { const app = harness(); await app.call("manageReturn", { action: "approved", instructions: "Return" }); await app.call("manageReturn", { action: "received" }); const before = JSON.stringify(app.docs["order-operations"].A); await app.call("manageReturn", { action: "received" }); expect(JSON.stringify(app.docs["order-operations"].A)).toBe(before); expect(app.docs.books.a.stockLevel).toBe(3); });
+
+test("an inspected return can be swapped for another size: stock moves once, nothing is refunded, the swap can't repeat (plan 10.22)", async () => {
+  const app = harness();
+  app.docs.books.a = { ...app.docs.books.a, variants: [{ id: "m", name: "M", price: 20, stockLevel: 1, stock: 1 }, { id: "l", name: "L", price: 20, stockLevel: 4, stock: 4 }] };
+  app.docs.orders.A.items[0].variantId = "m";
+  expect((await app.call("manageReturn", { action: "exchange", swaps: [{ index: 0, toVariantId: "l", quantity: 1 }] })).code).toBe(409);
+  await app.approveInspect();
+  const result = await app.call("manageReturn", { action: "exchange", swaps: [{ index: 0, toVariantId: "l", quantity: 1 }] });
+  expect(result.code).toBe(200);
+  expect(result.body.progress.state).toBe("completed");
+  const variants = app.docs.books.a.variants;
+  expect(variants.find(v => v.id === "m").stock).toBe(2);
+  expect(variants.find(v => v.id === "l").stock).toBe(3);
+  expect(app.docs.orders.A.exchanges[0].lines[0]).toMatchObject({ fromVariantId: "m", toVariantId: "l", quantity: 1 });
+  expect(app.docs.orders.A.customerRequest.status).toBe("handled");
+  expect(app.refunds).toEqual([]);
+  expect((await app.call("manageReturn", { action: "exchange", swaps: [{ index: 0, toVariantId: "l", quantity: 1 }] })).code).toBe(409);
+  expect(app.docs.books.a.variants.find(v => v.id === "l").stock).toBe(3);
+});
