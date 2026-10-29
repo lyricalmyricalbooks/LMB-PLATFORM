@@ -164,7 +164,7 @@ export const ARTICLES = Object.freeze([
     topic: "Selling",
     question: "How do I get paid?",
     answer: [
-      "Open Settings › Payments and connect your payments account. Money from each sale goes into that account, and from there to your bank.",
+      "Open Settings › Payments and connect your payments account. Money from each sale goes into that account, and from there to your bank. Colophon never holds your money and never sees a card number: customers pay your payments provider, not us.",
       "Before you tell people about your shop, buy one book yourself to check that a payment goes all the way through.",
     ],
     where: ["Settings › Payments"],
