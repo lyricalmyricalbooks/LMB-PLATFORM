@@ -522,7 +522,7 @@ test("your test shop: the card finds it, and Reset the sample books is admin onl
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/test-shop/reset", { shopId: "press-two" })).status, 409);
   const reset = await w.ask(ADMIN, "POST", "/api/control/test-shop/reset", { shopId: ID });
   assert.equal(reset.status, 200);
-  assert.equal(reset.body.reset, 6, "five sample books and the shipping zone");
+  assert.equal(reset.body.reset, 7, "six sample products and the shipping zone");
   assert.equal((await w.services.shopData.get(ID, "books/test-book-one")).stockLevel, 5);
   assert.ok(w.events().some((e) => e.what === "test-shop-reset" && e.by === "admin@example.com"));
   assert.ok((await w.activity.list()).some((e) => e.what === "test-shop-reset"));
