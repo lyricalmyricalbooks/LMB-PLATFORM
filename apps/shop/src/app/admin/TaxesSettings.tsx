@@ -12,6 +12,7 @@ import { useSettingsDirty } from "./settingsDirty";
 import { SettingsAnchor, jumpTo } from "./settingsLayout";
 import { applyTaxPreset, suggestedTaxPresetId, TAX_PRESETS } from "./taxPresets";
 import { useShopSells } from "./shopWords";
+import { REGISTRATION_WORDS, answerTaxRegistration, provincialPlaces, provincialQuestion, taxRegistration } from "./taxRegistration";
 
 // Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
 // nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
@@ -48,7 +49,11 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
     setRegion(""); setRate(""); setBookName(""); setTried(false);
   };
   // A preset fills only the places with no rate yet, in the draft: nothing applies until Save.
-  const usePreset = () => {
+  const registration = taxRegistration(settings);
+  const usePreset = async () => {
+    if (registration === "no" && !(await ask(REGISTRATION_WORDS.unregisteredPreset))) return;
+    const places = provincialPlaces(preset);
+    if (places.length && !(await ask(provincialQuestion(places)))) return;
     const result = applyTaxPreset(rates, preset);
     if (!result.added) { toast(`Every place in ${preset.country} already has a rate. Nothing changed.`); return; }
     setRates(result.rates);
@@ -79,6 +84,14 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
 
   return (
     <div className="rp-stack">
+      <SectionCard title={REGISTRATION_WORDS.title} description={REGISTRATION_WORDS.hint}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+          <SecondaryButton aria-pressed={registration === "no"} onClick={() => setSettings({ ...settings, taxes: answerTaxRegistration(settings.taxes, false) })}>{REGISTRATION_WORDS.no}</SecondaryButton>
+          <SecondaryButton aria-pressed={registration === "yes"} onClick={() => setSettings({ ...settings, taxes: answerTaxRegistration(settings.taxes, true) })}>{REGISTRATION_WORDS.yes}</SecondaryButton>
+        </div>
+        {registration !== "unanswered" && <p className="rp-hint" style={{ margin: "12px 0 0" }}>{registration === "no" ? REGISTRATION_WORDS.savedNo : REGISTRATION_WORDS.savedYes}</p>}
+      </SectionCard>
+
       <SectionCard title="Tax collection" description="Off means no tax on any order. Rates stay saved.">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
           <Toggle label="Collect sales tax at checkout" checked={collecting} onChange={setCollecting} />
