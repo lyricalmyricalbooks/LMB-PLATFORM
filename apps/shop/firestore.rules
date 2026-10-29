@@ -245,9 +245,10 @@ service cloud.firestore {
         && request.resource.data.customer.email is string
         && guestCustomerOk(request.resource.data.customer)
         && guestOrderFieldsOk(request.resource.data)
-        // The browser's note on itself (user agent, platform): a map of at most 4 entries. Checking each entry's length
-        // too cost expressions the rule doesn't have to spare (see billingOk).
-        && (!('metadata' in request.resource.data) || (request.resource.data.metadata is map && request.resource.data.metadata.size() <= 4))
+        && (!('metadata' in request.resource.data) || (request.resource.data.metadata is map
+          && request.resource.data.metadata.size() <= 4
+          && request.resource.data.metadata.get('userAgent', '') is string && request.resource.data.metadata.get('userAgent', '').size() <= 1000
+          && request.resource.data.metadata.get('platform', '') is string && request.resource.data.metadata.get('platform', '').size() <= 40))
         && (!('referralSource' in request.resource.data) || (request.resource.data.referralSource is string && request.resource.data.referralSource.size() <= 200))
         // How the shopper found the shop (src/app/lib/visitSource.ts), as one JSON string: a per-key check of a map
         // pushed this rule past the rules engine's expression budget and refused every order that carried it.

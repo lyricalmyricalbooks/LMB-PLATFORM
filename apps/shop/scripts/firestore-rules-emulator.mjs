@@ -174,6 +174,12 @@ const order = (over = {}) => ({
   trackingKey: key, createdAt: "now", updatedAt: "now", activity: [], ...over,
 });
 await check("normal guest order", assertSucceeds(setDoc(doc(anon, "orders/AB-1"), { ...order(), orderId: "AB-1" })));
+// Everything checkout can send at once (a note, a discount, a gift card, a named address, the billing block): the
+// heaviest guest order must stay under the rules engine's 1000-expression limit, or every such order is refused.
+await check("fullest guest order ok", assertSucceeds(setDoc(doc(anon, "orders/AB-2"), { ...order({
+  customer: { name: "Reader", email: "reader@example.com", phone: "555-0100", address: { name: "Sam Reader", street: "1 Main", unit: "2", city: "Toronto", state: "ON", zip: "M1M", country: "Canada" }, billingAddress: { state: "ON", country: "Canada" } },
+  orderNote: "Please gift wrap", giftCards: ["ABCD-1234"], appliedDiscount: { code: "WELCOME10", type: "percentage", value: 10 },
+}), orderId: "AB-2" })));
 await check("50 good lines ok", assertSucceeds(setDoc(doc(anon, "orders/AB-4"), { ...order({ items: Array.from({ length: 50 }, () => ({ id: "b", quantity: 99 })) }), orderId: "AB-4" })));
 await check("bloated metadata refused", assertFails(setDoc(doc(anon, "orders/AB-5"), { ...order({ metadata: { userAgent: "x".repeat(5000), platform: "web" } }), orderId: "AB-5" })));
 await check("bloated customer refused", assertFails(setDoc(doc(anon, "orders/AB-6"), { ...order({ customer: { name: "x".repeat(1000), email: "a@b.co" } }), orderId: "AB-6" })));
