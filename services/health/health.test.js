@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS } from "../settings.js";
 import { BACKUP_MAX_HOURS, checkShop, checksFor, healthChecks } from "./checks.js";
 import { runNightlyBackups } from "./nightly.js";
 import { REMIND_HOURS, nextState, runHealth } from "./runner.js";
+import { CHECKOUT_ERROR_JUMP } from "./checks.js";
 
 const row = (shopId, extra = {}) => ({ shopId, projectId: shopId, pressName: `Press ${shopId}`, plan: "both", status: "live", testMode: false, testShop: false, payments: { provider: "stripe", accountId: "acct_1" }, ...extra });
 const NOW = "2026-10-28T12:00:00.000Z";
@@ -25,22 +26,22 @@ function world({ pages = () => 200, checkout = () => ({ status: 204, allow: "sam
       const { status, allow } = checkout(url);
       return { status, headers: { get: (name) => (name === "access-control-allow-origin" ? (allow === "same" ? init.headers.Origin : allow) : null) } };
     },
-    shopDb: (shopId) => ({ get: async (path) => structuredClone(docs[shopId]?.[path] ?? null) }),
+    shopDb: (shopId) => ({ get: async (path) => structuredClone(docs[shopId]?.[path] ?? null), query: async (collection) => structuredClone(docs[shopId]?.[collection] ?? []) }),
   };
 }
 const goodBackup = (at = "2026-10-28T03:00:00.000Z") => ({ "systemStatus/backup": { ok: true, lastSuccessAt: at } });
 
 test("which checks apply: the stockroom alone has no checkout or payment events; no payments account, no webhook check", () => {
-  assert.deepEqual(checksFor(row("a")), ["pages", "checkout", "webhook", "backup"]);
+  assert.deepEqual(checksFor(row("a")), ["pages", "checkout", "webhook", "errors", "backup"]);
   assert.deepEqual(checksFor(row("a", { plan: "stockroom" })), ["pages", "backup"]);
-  assert.deepEqual(checksFor(row("a", { payments: undefined })), ["pages", "checkout", "backup"]);
+  assert.deepEqual(checksFor(row("a", { payments: undefined })), ["pages", "checkout", "errors", "backup"]);
 });
 
 test("the checks read pages, the checkout preflight, payment events and backups", async () => {
   const now = () => new Date(NOW);
   const r = row("press-alpha", { platformBackup: { stockroomAt: "2026-10-28T02:00:00.000Z" } });
   const healthy = await checkShop(r, healthChecks(world({ docs: { "press-alpha": goodBackup() } })), { now });
-  assert.deepEqual(healthy, { pages: { ok: true }, checkout: { ok: true }, webhook: { ok: true }, backup: { ok: true } });
+  assert.deepEqual(healthy, { pages: { ok: true }, checkout: { ok: true }, webhook: { ok: true }, errors: { ok: true, memo: {} }, backup: { ok: true } });
 
   const sick = await checkShop(r, healthChecks(world({
     pages: (url) => (url.endsWith("/admin") ? 500 : 200),
@@ -192,4 +193,40 @@ test("the alert email names the press, the check and what it saw", () => {
   assert.equal(back.subject, "Press Alpha (press-alpha): payment events working again");
   assert.doesNotMatch(back.text, /What the check saw/);
   assert.throws(() => TEMPLATES["health-alert"]({ check: "mood", state: "failing" }, ctx), /no known check/);
+});
+
+// Plan 13.7: shoppers' crashes on the cart and checkout pages, from the shop's own scrubbed records.
+const record = (id, count, lastPath = "/checkout", extra = {}) => ({ id, path: `clientErrors/${id}`, data: { count, lastPath, lastSeenAt: "2026-10-28T11:58:00.000Z", message: `error ${id}`, ...extra } });
+
+test("checkout errors: the first run saves a baseline, a jump after it fails, a quiet run after that recovers", async () => {
+  const now = () => new Date(NOW);
+  const r = row("press-alpha", { plan: "shop" });
+  const checks = (records) => healthChecks(world({ docs: { "press-alpha": { ...goodBackup(), clientErrors: records } } }));
+  const first = (await checkShop(r, checks([record("a", 40), record("b", 5, "/books/x")]), { now })).errors;
+  assert.deepEqual(first, { ok: true, memo: { a: 40 } }, "only cart and checkout pages are watched, and the first run alerts nothing");
+  const previous = { ...r, health: { checks: { errors: { ok: true, since: NOW, failures: 0, memo: first.memo } } } };
+  const quiet = (await checkShop(previous, checks([record("a", 43)]), { now })).errors;
+  assert.equal(quiet.ok, true);
+  const burst = (await checkShop(previous, checks([record("a", 40 + CHECKOUT_ERROR_JUMP - 2), record("c", 3)]), { now })).errors;
+  assert.equal(burst.ok, false);
+  assert.match(burst.detail, /11 new errors on the cart and checkout pages since the last check; most often: "error a" \(8\)/);
+  assert.deepEqual(burst.memo, { a: 48, c: 3 });
+});
+
+test("a checkout error burst raises one alert and is remembered between runs", async () => {
+  const registry = fakeRegistry();
+  await registry.createShop("press-alpha", row("press-alpha", { plan: "shop" }));
+  const sent = [];
+  const notify = { sendPlatform: async (message) => { sent.push(message); } };
+  let records = [record("a", 100)];
+  const checks = { ...healthChecks({ ...world({ docs: { "press-alpha": goodBackup() } }), shopDb: (id) => ({ get: async () => goodBackup()["systemStatus/backup"], query: async () => structuredClone(records) }) }), pages: async () => ({ ok: true }), checkout: async () => ({ ok: true }), webhook: async () => ({ ok: true }) };
+  const run = () => runHealth({ registry, checks, notify, config: { alertTo: "alerts@example.com" }, now: () => new Date(NOW) });
+  await run();
+  assert.equal(sent.length, 0);
+  records = [record("a", 125)];
+  await run();
+  assert.deepEqual(sent.map((m) => [m.data.check, m.data.state]), [["errors", "failing"]]);
+  records = [record("a", 126)];
+  await run();
+  assert.deepEqual(sent.map((m) => [m.data.check, m.data.state]), [["errors", "failing"], ["errors", "recovered"]]);
 });

@@ -14,7 +14,7 @@
 import { leftOut } from "../release-runner/rings.js";
 import { checkShop } from "./checks.js";
 
-export const CONFIRM_RUNS = { pages: 2, checkout: 2, webhook: 1, backup: 1 };
+export const CONFIRM_RUNS = { pages: 2, checkout: 2, webhook: 1, errors: 1, backup: 1 };
 export const REMIND_HOURS = 6;
 export const HEALTH_ALERT = "health-alert";
 
@@ -47,6 +47,7 @@ export async function runHealth({ registry, checks, notify, config = {}, now = (
     const alerts = [];
     for (const [name, result] of Object.entries(results)) {
       const { state, alert } = nextState(name, before[name], result, at);
+      if (result.memo) state.memo = result.memo; // what a check wants to remember for the next run (the errors check)
       after[name] = state;
       if (alert) alerts.push({ name, alert, state });
       if (Boolean(before[name]?.ok) !== state.ok || !before[name]) {

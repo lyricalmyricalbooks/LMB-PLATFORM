@@ -98,7 +98,7 @@ export const TEMPLATES = {
    * state: "failing" | "still-failing" | "recovered", detail, since }.
    */
   "health-alert": ({ shopId, check, state, detail, since }, { settings, pressName }) => {
-    const what = { pages: "pages", checkout: "checkout", webhook: "payment events", backup: "backups", drill: "backup restore test", spending: "spending" }[check];
+    const what = { pages: "pages", checkout: "checkout", webhook: "payment events", errors: "shopper errors", backup: "backups", drill: "backup restore test", spending: "spending" }[check];
     if (!what) throw new Error(`the health alert names no known check (${check})`);
     const words = {
       failing: [`${what} failing`, `The ${what} check for ${pressName} started failing at ${since}.`],

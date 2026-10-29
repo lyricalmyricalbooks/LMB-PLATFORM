@@ -6,6 +6,8 @@
 //             address allowed): the function is deployed, running and accepts the shop's pages
 //   webhook   the shop's payment events record (adminSecrets/stripeWebhookStatus): no failed delivery newer than the
 //             last good one in the past day
+//   errors    shoppers' crashes on the cart and checkout pages (the shop's own scrubbed `clientErrors` records, no names or
+//             addresses): CHECKOUT_ERROR_JUMP or more new reports since the last run (plan 13.7)
 //   backup    the shop's nightly backup record (systemStatus/backup), or the platform's own backup of it, and the
 //             platform's backup of the stockroom (the row's platformBackup, nightly.js): each under BACKUP_MAX_HOURS old
 //
@@ -16,6 +18,9 @@ import { REGION } from "../../setup/steps.js";
 
 export const BACKUP_MAX_HOURS = 26;
 export const WEBHOOK_WINDOW_HOURS = 24;
+/** New checkout-page error reports in one run (five minutes) that count as a jump. */
+export const CHECKOUT_ERROR_JUMP = 10;
+const CHECKOUT_PATH = /^\/(?:checkout|cart)(?:\/|$)/;
 const TIMEOUT_MS = 10_000;
 
 const message = (error) => (error instanceof Error ? error.message : String(error));
@@ -27,6 +32,7 @@ export function checksFor(row) {
   const names = ["pages"];
   if (apps.includes("shop")) names.push("checkout");
   if (apps.includes("shop") && row.payments?.accountId) names.push("webhook");
+  if (apps.includes("shop")) names.push("errors");
   names.push("backup");
   return names;
 }
@@ -73,6 +79,32 @@ export function healthChecks({ siteCheck, fetch, shopDb }) {
       return { ok: true };
     },
 
+    // Plan 13.7. The shop counts each distinct error (clientErrors/<signature>.count, lastPath); this run compares the
+    // counts with the ones it saved last time (`memo`) and fails when checkout-page errors jumped. The first run only
+    // saves a baseline. Records expire after 30 days, so a record that is gone just drops out of the baseline.
+    async errors(row, { now, previous }) {
+      const since = new Date(now().getTime() - 24 * 3_600_000);
+      const records = await shopDb(row.shopId).query("clientErrors", { where: [["lastSeenAt", ">=", since]], orderBy: [["lastSeenAt", "desc"]], limit: 200 });
+      const counts = {};
+      const seen = [];
+      for (const { id, data } of records) {
+        const path = String(data.lastPath ?? data.paths?.[0] ?? "");
+        if (!CHECKOUT_PATH.test(path)) continue;
+        counts[id] = Number(data.count) || 0;
+        seen.push({ id, count: counts[id], message: String(data.message ?? "").slice(0, 160) });
+      }
+      if (!previous?.memo) return { ok: true, memo: counts };
+      let jump = 0;
+      let worst = null;
+      for (const entry of seen) {
+        const delta = entry.count - (previous.memo[entry.id] ?? 0);
+        if (delta > 0) jump += delta;
+        if (delta > 0 && (!worst || delta > worst.delta)) worst = { ...entry, delta };
+      }
+      if (jump >= CHECKOUT_ERROR_JUMP) return { ok: false, detail: `${jump} new errors on the cart and checkout pages since the last check${worst ? `; most often: "${worst.message}" (${worst.delta})` : ""}`, memo: counts };
+      return { ok: true, memo: counts };
+    },
+
     async backup(row, { now }) {
       const apps = appsOf(row);
       const problems = [];
@@ -99,7 +131,7 @@ export async function checkShop(row, checks, { now = () => new Date() } = {}) {
   const results = {};
   for (const name of checksFor(row)) {
     try {
-      results[name] = await checks[name](row, { now });
+      results[name] = await checks[name](row, { now, previous: row.health?.checks?.[name] });
     } catch (error) {
       results[name] = { ok: false, detail: `couldn't check: ${message(error)}` };
     }

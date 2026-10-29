@@ -70,6 +70,21 @@ refusing them or failing to process them. Orders can show as unpaid when they we
 5. Once it passes again, Stripe sends the missed events again by itself for up to three days. Ask the press to look at
    orders from the time it was failing.
 
+### errors
+
+**What it means:** shoppers' browsers reported a burst of crashes on the cart or checkout pages (ten or more new reports
+since the last check, five minutes ago). The reports hold no names, emails or addresses; the shop counts each distinct
+error. "working again" means the burst stopped.
+
+**What to do:**
+
+1. Read the detail: it names the error seen most often. Open the shop's admin, Settings › General › Tools & records ›
+   Shop errors, for the same list with the pages and the build.
+2. Try the checkout yourself in a private window (or use the test shop's practice checkout). If it fails the same way,
+   look at the last release for that shop in the control room and roll it back ("Stop a release", "Roll one shop back").
+3. If you cannot reproduce it, one device or browser is probably the cause. Leave it, and watch whether the alert comes
+   back at the next check.
+
 ### backup
 
 **What it means:** the shop's last good backup, or its stockroom's, is more than 26 hours old. Nothing is lost yet,

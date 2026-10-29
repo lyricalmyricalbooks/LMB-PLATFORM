@@ -13,6 +13,7 @@ checked. The checks only read.
 | pages | the shop's home page, `/admin`, `/shop-profile.js` and the stockroom page answer 200 | 2 failed runs in a row |
 | checkout | the shop's checkout function answers a browser's preflight from the shop's own address (204, address allowed) | 2 failed runs in a row |
 | webhook (shops with a payments account) | no failed payment event in the past day newer than the last good one (`adminSecrets/stripeWebhookStatus`) | the first failed run |
+| errors (shops) | fewer than 10 new error reports on the cart and checkout pages since the last run. The shop already counts each distinct shopper-side error without names or addresses (`clientErrors`); this run compares the counts with the ones it saved on the row (`memo`). The first run only saves a baseline | the first failed run |
 | backup | the shop's last good backup (its own nightly one, or the platform's stand-in) and the stockroom's (the platform's) are under 26 hours old | the first failed run |
 
 A check that can't be made ("couldn't check: …") counts as failing. Every check runs even when another fails.
