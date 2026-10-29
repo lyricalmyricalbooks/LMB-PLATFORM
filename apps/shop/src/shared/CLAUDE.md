@@ -53,3 +53,5 @@ browsers may write (mirroring `firestore.rules`).
   `sells.ts` re-exports them) plus the customer-email words for a shop that doesn't sell books (`GOODS_EMAILS`,
   `emailDefaultsFor`, `withShopEmailWords`, `goodsDownloadNote`). The server's `loadNotificationSettings` reads
   `firstWeek/start` › `publishes` and sets `settings.sells`; Settings › Notifications shows the same defaults.
+  The word swaps (`goodsWords`, `wordsFor`; the admin's `adminWordsFor` is `wordsFor`) live here too: the Monday report
+  (`weeklySummary.js`, `weeklyPdf.js`) takes a `words` option and only its own fixed words pass through it.

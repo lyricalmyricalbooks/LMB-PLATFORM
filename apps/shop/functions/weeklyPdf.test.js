@@ -129,3 +129,31 @@ describe("Monday email and its PDF", () => {
     expect(buildWeeklySummary({ orders, daily, week }).html).not.toContain(WEEKLY_PDF_LINE);
   });
 });
+
+describe("the weekly report in the shop's words (plan 10.23)", () => {
+  const { wordsFor } = require("./shared/shopSells");
+
+  it("a clothing shop reads products, keeps product names, and the PDF line can still be taken out", () => {
+    const words = wordsFor("clothing");
+    const mail = buildWeeklySummary({ orders, daily, week, withPdf: true, words });
+    expect(mail.pdfLine).toContain("most looked-at products");
+    expect(mail.html).toContain(mail.pdfLine);
+    const [, two] = pageStreams(buildWeeklyPdf(weeklyHighlights({ orders: [], daily: [], week, words }), { words }));
+    expect(two).toContain(hexText("Product views are not recorded yet."));
+    expect(two).not.toContain(hexText("Book views are not recorded yet."));
+    const h = weeklyHighlights({ orders, daily, week, firstOrderIds: firstOrders(orders), bookTitles: new Map([["b1", "Riso Book"]]), words });
+    expect(h.mostViewed.map(r => r.title)).toEqual(["Riso Book", "A product no longer in the catalogue"]);
+    const [, sold] = pageStreams(buildWeeklyPdf(h, { words }));
+    expect(sold).toContain(hexText("Riso Book"));
+    expect(sold).toContain(hexText("2 sold"));
+    expect(sold).not.toContain(hexText("2 copies"));
+  });
+
+  it("a books shop's report is exactly as before", () => {
+    const words = wordsFor("books");
+    expect(buildWeeklySummary({ orders, daily, week, withPdf: true, words }).html).toBe(buildWeeklySummary({ orders, daily, week, withPdf: true }).html);
+    expect(buildWeeklySummary({ orders, daily, week, withPdf: true }).pdfLine).toBe(WEEKLY_PDF_LINE);
+    const h = weeklyHighlights({ orders, daily, week, firstOrderIds: firstOrders(orders), bookTitles: new Map([["b1", "Riso Book"]]) });
+    expect(buildWeeklyPdf(h, { words }).equals(buildWeeklyPdf(h))).toBe(true);
+  });
+});
