@@ -1756,6 +1756,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 }
 .rp:not(.studio-editor) .rp-app-switch-seg + .rp-app-switch-seg { border-left: 1px solid var(--rp-rail-line); }
 .rp:not(.studio-editor) .rp-app-switch-seg[aria-current="page"] { background: var(--rp-on-inverse); color: var(--rp-text); font-weight: 600; }
+.rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-app-switch-seg[aria-current="page"] { color: var(--rp-canvas); }
 .rp:not(.studio-editor) a.rp-app-switch-seg:hover { background: var(--rp-rail-hover); color: var(--rp-on-inverse); }
 .rp:not(.studio-editor) a.rp-app-switch-seg:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--rp-focus); }
 .rp:not(.studio-editor) .rp-app-switch-go { flex: none; color: var(--rp-rail-faint); }

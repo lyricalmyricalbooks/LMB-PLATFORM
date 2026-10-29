@@ -33,8 +33,8 @@ It wears the website admin's look (Pressroom, `docs/admin-look-plan.md`): the in
 (`#today`, `#shops`, `#signups`, `#support`, `#repairs`, `#recovery`, `#switches`, `#settings`, `#payments`,
 `#runbook`, `#breaches`, `#activity`; an element's id, like `#test-shop`, opens the page it is on), the ledger figures,
 sheets, tables, pills and a drawer for each shop's record, with the same class names as `admin/riso/components.tsx`.
-The colour tokens and styles are copies in `look/` that `look.test.js` keeps identical to
-`apps/shop/src/app/admin/riso/`: change them there and copy them here. Riso Press or Paper, day or night, is kept in
+The colour tokens and styles in `look/` are copies of `shared/admin-look/`, written by
+`node shared/admin-look/sync.mjs`: change the source there, never the copies. Riso Press or Paper, day or night, is kept in
 the browser. The side menu counts what needs you (from Today's list).
 
 - **Every shop** with its plan, release version, status, billing, last release check and health. Shops with a problem
