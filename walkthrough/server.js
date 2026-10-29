@@ -20,6 +20,7 @@ import { TERMS_VERSION } from "../terms/terms.js";
 import { TEST_SHOP } from "../setup/test-shop.js";
 import { PORTS, url } from "../demo/config.js";
 import { startPage } from "./startPage.js";
+import { seedRoom } from "./seedRoom.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const HERE = join(ROOT, "walkthrough");
@@ -90,7 +91,7 @@ export const WALKTHROUGH_TEST_SHOP = Object.freeze({ ...TEST_SHOP, ownerEmail: "
 /**
  * Makes the platform's pretend world and fills it: two made-up presses for owner@example.com (the first on its free
  * trial, the second paused until a card is added), and the platform's test shop, which is the demo shop, with a passed
- * release check. Returns the world.
+ * release check, and three more presses with repairs, support requests and the rest (seedRoom.js). Returns the world.
  */
 export async function seedWalkthrough(world) {
   for (const press of SEED_PRESSES) {
@@ -103,6 +104,8 @@ export async function seedWalkthrough(world) {
     await world.registry.saveProfile(row.shopId, { ...((await world.registry.getProfile(row.shopId)) ?? {}), siteUrl });
     await world.registry.recordReleaseCheck(row.shopId, { ok: true, finishedAt: world.clock.date().toISOString(), version: "demo" });
   }
+  // The rest of the platform's day, so no control-room page starts empty (seedRoom.js).
+  await seedRoom(world);
   return world;
 }
 

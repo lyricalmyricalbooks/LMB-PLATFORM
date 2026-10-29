@@ -29,13 +29,21 @@ counts each paying shop at its plan price (`billing.amount` when billing keeps i
 
 Plain HTML and browser JavaScript, like the sign-up page; sign in with Google.
 
+It wears the website admin's look (Pressroom, `docs/admin-look-plan.md`): the ink side menu, one page at a time
+(`#today`, `#shops`, `#signups`, `#support`, `#repairs`, `#recovery`, `#switches`, `#settings`, `#payments`,
+`#runbook`, `#breaches`, `#activity`; an element's id, like `#test-shop`, opens the page it is on), the ledger figures,
+sheets, tables, pills and a drawer for each shop's record, with the same class names as `admin/riso/components.tsx`.
+The colour tokens and styles in `look/` are copies of `shared/admin-look/`, written by
+`node shared/admin-look/sync.mjs`: change the source there, never the copies. Riso Press or Paper, day or night, is kept in
+the browser. The side menu counts what needs you (from Today's list).
+
 - **Every shop** with its plan, release version, status, billing, last release check and health. Shops with a problem
   come first.
 - **Health** (`shopHealth`):
   - **Problem**: the last release check failed, a live shop has no saved profile, or something is in the repair queue.
   - **Look**: not live yet, the plan is paused or ended, or the test shop was never checked.
   - **OK**: none of these.
-- **Your test shop** (plan 9.10): a card at the top with the platform's own test shop, its last release check, links to
+- **Your test shop** (plan 9.10): a card on Today with the platform's own test shop, its last release check, links to
   its storefront and admin, and **Reset the sample books** (the five sample books and the shipping zone go back to 5
   copies each; logged; only the test shop). Until the test shop exists, the card says to use the demo.
 - **View this shop**: a 30-minute support sign-in to the shop's admin that only looks (plan 9.8). It asks why first.

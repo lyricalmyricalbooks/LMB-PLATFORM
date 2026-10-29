@@ -49,11 +49,11 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
     needs.push({ kind: "payment", shopId: row.shopId, words: `${row.pressName ?? row.shopId}: their plan payment failed`, go: "#shops" });
   }
   const repairCount = Object.values(open).reduce((n, list) => n + list.length, 0);
-  if (repairCount) needs.push({ kind: "repairs", words: `${repairCount} item${repairCount === 1 ? "" : "s"} in the repair queue`, go: "#repairs" });
-  if (support.length) needs.push({ kind: "support", words: `${support.length} support request${support.length === 1 ? "" : "s"} waiting`, go: "#tickets" });
-  if (recoveries.length) needs.push({ kind: "recovery", words: `${recoveries.length} account recover${recoveries.length === 1 ? "y" : "ies"} to check`, go: "#recoveries" });
+  if (repairCount) needs.push({ kind: "repairs", count: repairCount, words: `${repairCount} item${repairCount === 1 ? "" : "s"} in the repair queue`, go: "#repairs" });
+  if (support.length) needs.push({ kind: "support", count: support.length, words: `${support.length} support request${support.length === 1 ? "" : "s"} waiting`, go: "#tickets" });
+  if (recoveries.length) needs.push({ kind: "recovery", count: recoveries.length, words: `${recoveries.length} account recover${recoveries.length === 1 ? "y" : "ies"} to check`, go: "#recoveries" });
   const stuck = making.filter((s) => s.status === "failed" || s.status === "stopped" || s.canRetry);
-  if (stuck.length) needs.push({ kind: "signup", words: `${stuck.length} new shop${stuck.length === 1 ? "" : "s"} stuck while being made`, go: "#making" });
+  if (stuck.length) needs.push({ kind: "signup", count: stuck.length, words: `${stuck.length} new shop${stuck.length === 1 ? "" : "s"} stuck while being made`, go: "#making" });
 
   return { counts, monthlyIncome, currency: settings.currency, needs };
 }

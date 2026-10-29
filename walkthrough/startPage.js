@@ -16,10 +16,12 @@ export const START_SECTIONS = Object.freeze([
     title: "As the platform owner",
     intro: "You, running the platform. The control room signs you in as admin@example.com with the two-step sign-in already done; the real one asks for a code from your authenticator app.",
     links: [
-      { name: "Control room", href: "/control/", who: "admin@example.com", try: "Today's numbers, then find Moth Press and open its record: plan, billing, the Google steps, the per-order fee and the closing dates." },
-      { name: "View a shop as its press", href: "/control/", who: "admin@example.com", try: "On a shop's card press View this shop and give a reason. Make changes asks twice, and both go in the shop's log." },
-      { name: "Your test shop", href: "/control/#test-shop", who: "admin@example.com", try: "The test shop card opens the demo shop and its admin (start the demo first) and puts its sample books back to 5 copies." },
-      { name: "Sign-up, prices and the waitlist", href: "/control/#view-shops", who: "admin@example.com", try: "Further down: the waitlist and its invites, the daily cap, the plans and prices, the founding offer, the feature switches and the activity log." },
+      { name: "Control room", href: "/control/", who: "admin@example.com", try: "Today: the money coming in, shops by state and what needs you. Every page is in the ink menu on the left (a drawer on a phone)." },
+      { name: "Shops and a shop's record", href: "/control/#shops", who: "admin@example.com", try: "Five made-up presses. Open Moth Press for its record: plan, billing, the Google steps, the per-order fee and the closing dates. View this shop asks for a reason; Make changes asks twice, and both go in the shop's log." },
+      { name: "Your test shop", href: "/control/#test-shop", who: "admin@example.com", try: "On Today: opens the demo shop and its admin (start the demo first) and puts its sample books back to 5 copies." },
+      { name: "Support, repairs and account recovery", href: "/control/#support", who: "admin@example.com", try: "Questions from presses to answer, two problems to fix in Repairs, and one person asking to move their account to a new email." },
+      { name: "Sign-ups and the waitlist", href: "/control/#signups", who: "admin@example.com", try: "Three people on the list, one already invited. Invite another and they skip the daily line." },
+      { name: "Prices, switches and records", href: "/control/#settings", who: "admin@example.com", try: "The daily cap, the plans and prices and the founding offer; then Switches, Emergency payments, Run book, the Breach register and the Activity log in the menu." },
     ],
   },
   {
