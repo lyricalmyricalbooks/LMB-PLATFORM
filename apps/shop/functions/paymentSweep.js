@@ -25,8 +25,8 @@ const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&a
 // `card`: the shop's card payment company as the press sees it (payments/index.js providerName; code plan 5.2).
 function alertHtml(found, card = "Stripe") { // Stripe shops only (the default)
   const name = escapeHtml(card);
-  const rows = found.map((f) => `<li><strong>${escapeHtml(f.orderId)}</strong> — ${escapeHtml(f.email || "no email")} — ${escapeHtml((f.amount / 100).toFixed(2))} ${escapeHtml(String(f.currency || "").toUpperCase())} (${name} ${escapeHtml(f.intentId)})${f.fixed === false ? " — <strong>awaiting the verified webhook; review Webhook health and resend the payment event in ${name}</strong>" : " — now marked paid"}</li>`).join("");
-  return `<p>${name} shows these payments as <strong>succeeded</strong>, but the ${name} webhook never told the shop. These orders remain unpaid until a verified webhook confirms them. Do not ship them yet.</p><ul>${rows}</ul><p>To stop this happening, open Admin › Settings › Payments › <strong>Webhook health</strong> and press <strong>Check &amp; fix webhook</strong>.</p>`;
+  const rows = found.map((f) => `<li><strong>${escapeHtml(f.orderId)}</strong> — ${escapeHtml(f.email || "no email")} — ${escapeHtml((f.amount / 100).toFixed(2))} ${escapeHtml(String(f.currency || "").toUpperCase())} (${name} ${escapeHtml(f.intentId)})${f.fixed === false ? ` — <strong>waiting for the payment to be confirmed; check again in ${name}</strong>` : " — now marked paid"}</li>`).join("");
+  return `<p>${name} shows these payments as <strong>succeeded</strong>, but the shop was never told. These orders stay unpaid until the payment is confirmed. Do not ship them yet.</p><ul>${rows}</ul><p>Open Admin › Settings › Payments for the next step.</p>`;
 }
 
 module.exports = { suspectOrders, alertHtml, MIN_AGE_MS, MAX_AGE_MS };

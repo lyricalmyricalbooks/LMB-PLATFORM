@@ -884,7 +884,7 @@
     <div class="intel-disclosure-ic" aria-hidden="true">🔒</div>
     <div class="intel-disclosure-body">
       <strong>Before you start — where your figures go</strong>
-      <p>To answer a question, this screen sends the rows it needs — your sales, costs and takings — to Google's Gemini service, using the key you saved in the Tax Centre. Nothing goes anywhere until you ask something, and only you can open this screen.</p>
+      <p>To answer a question, this screen sends the rows it needs — your sales, costs and takings — to an AI service you have switched on. Nothing goes anywhere until you ask something, and only you can open this screen.</p>
       <button type="button" class="btn gold sm sys-target" onclick="acceptIntelDisclosure()">I understand</button>
     </div>
   </div>
@@ -1461,9 +1461,9 @@
 
   <!-- Payment settings: folded on a phone once a Stripe key is saved (see _reconInitFolds). -->
   <details class="recon-fold" id="recon-settings">
-    <summary>Payment settings · Stripe key, short codes, alerts</summary>
+    <summary>Payment settings · short codes, alerts</summary>
     <div class="recon-fold-body">
-      <div id="recon-keyrow" class="recon-keyrow">
+      <div id="recon-keyrow" data-own-accounts class="recon-keyrow">
         <input type="password" id="recon-key" placeholder="rk_live_… or sk_live_… (reused from Tax Centre / Invoices if already saved)" autocomplete="off">
       </div>
       <label class="toggle-row" id="stripe-sale-auto-wrap">
@@ -1576,8 +1576,8 @@
         <div style="font-size:var(--text-sm);color:var(--text3);max-width:560px;line-height:1.5;margin-top:2px;">Everyone who has purchased from you across your channels (Website, POS, Stripe, Consignment).</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-        <button class="btn ink" id="cust-stripe-btn" onclick="customerPullStripe()" title="Pull buyer names &amp; emails from your Stripe payments (needs internet + your saved Stripe key)">↻ Pull buyers from Stripe</button>
-        <button class="btn" id="cust-stripe-more-btn" onclick="customerPullDeeper()" style="display:none;" title="Reach further back through your Stripe history">↓ Load older</button>
+        <button class="btn ink" id="cust-stripe-btn" data-own-accounts onclick="customerPullStripe()" title="Pull buyer names &amp; emails from your Stripe payments (needs internet)">↻ Pull buyers from Stripe</button>
+        <button class="btn" id="cust-stripe-more-btn" data-own-accounts onclick="customerPullDeeper()" style="display:none;" title="Reach further back through your Stripe history">↓ Load older</button>
       </div>
     </div>
 
@@ -2880,7 +2880,7 @@
     <button class="settings-sub-tab active" id="btn-tctab-ledger" role="tab" aria-selected="true" aria-controls="tc-sec-ledger" tabindex="0" onclick="switchTaxCenterSubTab('ledger')"><span class="lead-emoji" aria-hidden="true">📊 </span>Expenses &amp; Ledger</button>
     <button class="settings-sub-tab" id="btn-tctab-receipts" role="tab" aria-selected="false" aria-controls="tc-sec-receipts" tabindex="-1" onclick="switchTaxCenterSubTab('receipts')"><span class="lead-emoji" aria-hidden="true">🗂️ </span>Receipts Vault</button>
     <button class="settings-sub-tab" id="btn-tctab-deductions" role="tab" aria-selected="false" aria-controls="tc-sec-deductions" tabindex="-1" onclick="switchTaxCenterSubTab('deductions')"><span class="lead-emoji" aria-hidden="true">🔎 </span>Missing Costs</button>
-    <button class="settings-sub-tab" id="btn-tctab-integrations" role="tab" aria-selected="false" aria-controls="tc-sec-integrations" tabindex="-1" onclick="switchTaxCenterSubTab('integrations')"><span class="lead-emoji" aria-hidden="true">🔌 </span>Integrations &amp; APIs</button>
+    <button class="settings-sub-tab" data-own-accounts id="btn-tctab-integrations" role="tab" aria-selected="false" aria-controls="tc-sec-integrations" tabindex="-1" onclick="switchTaxCenterSubTab('integrations')"><span class="lead-emoji" aria-hidden="true">🔌 </span>Integrations &amp; APIs</button>
     <button class="settings-sub-tab tc-email-import-tab" id="btn-tctab-email-import" role="tab" aria-selected="false" aria-controls="tc-sec-email-import" tabindex="-1" onclick="switchTaxCenterSubTab('email-import')"><span class="lead-emoji" aria-hidden="true">📧 </span>Email Receipt Import<span id="email-inbox-badge" class="tc-email-import-badge" style="display:none;"></span></button>
   </div>
 
@@ -3301,7 +3301,7 @@
               <input type="file" id="email-receipt-files" accept=".eml,.txt,.html,.htm,.pdf,image/*" multiple hidden>
               <div class="email-dropzone-icon" aria-hidden="true">📤</div>
               <div class="email-dropzone-title">Drop files here, or click to choose</div>
-              <div class="email-dropzone-sub" id="email-receipt-dropzone-sub">PDF invoices, receipt photos, or saved emails (.eml, .txt) — up to 25 MB each</div>
+              <div class="email-dropzone-sub" id="email-receipt-dropzone-sub">PDF invoices, receipt photos, or saved emails — up to 25 MB each</div>
             </div>
             <ul id="email-receipt-files-list" class="email-file-chips" aria-label="Files ready to read"></ul>
           </div>
@@ -3402,7 +3402,7 @@
     <div class="ded-list" id="tc-catcheck-body"></div>
   </div>
 
-  <div id="tc-sec-integrations" class="tc-section settings-section" role="tabpanel" aria-labelledby="btn-tctab-integrations" style="display:none;">
+  <div id="tc-sec-integrations" class="tc-section settings-section" role="tabpanel" aria-labelledby="btn-tctab-integrations" data-own-accounts style="display:none;">
     <!-- INTEGRATIONS & API SERVICES -->
     <div class="card tc-integrations-card">
       <div class="tc-integrations-head">
@@ -3740,7 +3740,7 @@
 </div>
 
 <!-- BIG CARTEL DASHBOARD -->
-<div class="tab-panel" id="tab-bigcartel" style="display:none;">
+<div class="tab-panel" id="tab-bigcartel" data-old-shop-sync style="display:none;">
   <div class="row-between" style="margin-bottom:0.5rem;">
     <div class="section-hed"><span class="lead-emoji" aria-hidden="true">🏪 </span>Big Cartel Sync & Dashboard</div>
     <div class="bc-connection-status">
@@ -3895,7 +3895,7 @@
   <div style="font-size:var(--text-sm);color:var(--text3);margin-bottom:1.5rem;">Store package specs, compare live Shippo rates, highlight Canada Post options, and predict what to charge customers for website shipping.</div>
 
   <!-- API Key Status Row -->
-  <div class="card" style="margin-bottom:1.5rem; padding: 1rem 1.4rem;">
+  <div class="card" data-own-accounts style="margin-bottom:1.5rem; padding: 1rem 1.4rem;">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
       <div style="display:flex; align-items:center; gap:8px;">
         <div id="ship-key-indicator" style="width:10px; height:10px; border-radius:50%; background:var(--red);"></div>
@@ -4467,7 +4467,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><path d="M14 14h3v3h-3zM20 14h1v1h-1zM14 20h3v1h-3zM20 17h1v4h-4v-1"></path></svg>
             Pay by QR (this total)
           </button>
-          <div class="pos-checkout-foot">Charges the exact total above, discounts included. Needs internet + your saved Stripe key.</div>
+          <div class="pos-checkout-foot">Charges the exact total above, discounts included. Needs internet and your connected Stripe account.</div>
         </div>
       </div>
     </div>
@@ -4697,7 +4697,7 @@
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
           <span id="webanalytics-api-status" style="font-size:var(--text-xs); color: var(--text3);"></span>
-          <button class="btn sm" onclick="refreshUmamiStats()" title="Refresh API metrics">↻ Refresh Stats</button>
+          <button class="btn sm" onclick="refreshUmamiStats()" title="Refresh the visitor numbers">↻ Refresh Stats</button>
         </div>
       </div>
 
@@ -4820,7 +4820,7 @@
   <div class="settings-sub-nav">
     <button class="settings-sub-tab active" id="btn-subtab-catalog" onclick="switchSettingsSubTab('catalog')"><span class="lead-emoji" aria-hidden="true">📚 </span>Book Catalog</button>
     <button class="settings-sub-tab" id="btn-subtab-profit" onclick="switchSettingsSubTab('profit')"><span class="lead-emoji" aria-hidden="true">⚖️ </span>Profit Tiers</button>
-    <button class="settings-sub-tab" id="btn-subtab-sync" onclick="switchSettingsSubTab('sync')"><span class="lead-emoji" aria-hidden="true">📊 </span>Sheets Connection</button>
+    <button class="settings-sub-tab" id="btn-subtab-sync" data-own-accounts onclick="switchSettingsSubTab('sync')"><span class="lead-emoji" aria-hidden="true">📊 </span>Sheets Connection</button>
     <button class="settings-sub-tab" id="btn-subtab-letterhead" onclick="switchSettingsSubTab('letterhead')"><span class="lead-emoji" aria-hidden="true">✉️ </span>Letterhead</button>
   </div>
 
@@ -4931,7 +4931,7 @@
   </div>
 
   <!-- 3. GOOGLE SHEETS CONNECTION SECTION -->
-  <div id="settings-sec-sync" class="settings-section" style="display:none;">
+  <div id="settings-sec-sync" data-own-accounts class="settings-section" style="display:none;">
     <div class="sheets-setup" id="sheets-setup-card">
       <div style="margin-bottom:1.5rem;">
         <div style="font-family:var(--font-ui);font-size:var(--text-lg);margin-bottom:8px;">Connect Google Sheets</div>
@@ -5795,7 +5795,7 @@
     <textarea id="ivs-bank" rows="2" placeholder="IBAN IT60 X054 2811 1010 0000 0123 456&#10;BIC ABCDITMM"></textarea>
   </div>
 
-  <div style="border-top:var(--stroke-hair) solid var(--border);margin:18px 0 12px;padding-top:14px;">
+  <div data-own-accounts style="border-top:var(--stroke-hair) solid var(--border);margin:18px 0 12px;padding-top:14px;">
     <div style="font-size:var(--text-3xs);font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">Stripe Checkout (dynamic amounts)</div>
     <div style="font-size:var(--text-xs);color:var(--text3);line-height:1.6;margin-bottom:10px;">
       Paste a Stripe <strong>Restricted Key</strong> with write permissions on <em>Products</em>, <em>Prices</em>, and <em>Payment Links</em>.
@@ -6432,7 +6432,7 @@
       <button type="button" class="btn gold sm" id="pb-gen-stripe-btn" onclick="generatePosBookStripeLink()" style="white-space:nowrap;"><span class="lead-emoji" aria-hidden="true">⚡ </span>Generate Stripe link</button>
     </div>
     <div style="font-size:var(--text-xs);color:var(--text3);margin-top:5px;line-height:1.5;">
-      Paste a link from your <a href="https://dashboard.stripe.com/payment-links" target="_blank" style="color:var(--gold-text);">Stripe Dashboard</a>, or click <strong>Generate Stripe link</strong> to mint one at this price instantly (needs your Stripe restricted key saved in the Payments tab or Invoice Settings).
+      Paste a link from your <a href="https://dashboard.stripe.com/payment-links" target="_blank" style="color:var(--gold-text);">Stripe Dashboard</a>, or click <strong>Generate Stripe link</strong> to mint one at this price instantly (needs your Stripe account connected).
     </div>
   </div>
 

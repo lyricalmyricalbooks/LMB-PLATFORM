@@ -497,7 +497,7 @@ export function FulfillmentWorkbench({
                   </p>
                 )}
                 {testLabel && (
-                  <p className="fw-problems" role="alert"><StatusBadge tone="warning">TEST label</StatusBadge> Not a real postage label: it was bought with a Shippo test key, so it won't carry a parcel or track. Use <strong>Wrong label? Replace it</strong> and buy again with your live key before shipping.</p>
+                  <p className="fw-problems" role="alert"><StatusBadge tone="warning">TEST label</StatusBadge> Not a real postage label: it was bought with a Shippo test key, so it won't carry a parcel or track. Use <strong>Wrong label? Replace it</strong> and buy again with your live key before shipping.{/* Own-account shops only: Shippo test labels */}</p>
                 )}
                 {!order.labelUrl && order.trackingSource === "inventory-app" && order.trackingNumber && (
                   <p className="fw-summary" role="status">

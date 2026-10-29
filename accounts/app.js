@@ -373,8 +373,20 @@ $("#recovery-form").addEventListener("submit", async (event) => {
 });
 
 // ── Where to start ──
+async function openShops() {
+  show("loading");
+  try {
+    await loadShops();
+  } catch (failure) {
+    $("#error-words").textContent = failure.message;
+    show("error");
+  }
+}
+$("#retry").addEventListener("click", openShops);
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) return show("signin");
+  show("loading");
   const invite = stored(INVITE_KEY);
   if (invite) {
     try {
@@ -387,9 +399,5 @@ onAuthStateChanged(auth, async (user) => {
       if (!/Sign in with that address/.test(failure.message)) store(INVITE_KEY, "");
     }
   }
-  try {
-    await loadShops();
-  } catch (failure) {
-    status.textContent = failure.message;
-  }
+  await openShops();
 });

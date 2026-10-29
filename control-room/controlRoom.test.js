@@ -311,7 +311,7 @@ test("emergency payments: a shop moves to the press's own Stripe keys and back, 
   assert.deepEqual(row.payments, paymentsBefore, "the platform account is kept for the way back");
   const [first] = w.email.sent.values();
   assert.deepEqual([first.kind, first.to, first.data.to, first.data.ready], ["payments-moved", owner, "own", false]);
-  assert.match(TEMPLATES[first.kind](first.data, { settings: DEFAULT_SETTINGS, pressName: first.data.pressName }).text, /add your own Stripe keys\. Until you do, shoppers can't pay by card/);
+  assert.match(TEMPLATES[first.kind](first.data, { settings: DEFAULT_SETTINGS, pressName: first.data.pressName }).text, /connect your own Stripe account\. Until you do, shoppers can't pay by card/);
   const [entry] = w.events();
   assert.deepEqual([entry.what, entry.from, entry.to, entry.by], ["payments-moved", "platform", "own", ADMIN.email]);
   assert.ok(w.auditLog.entries.get(ID).has(entry.id));

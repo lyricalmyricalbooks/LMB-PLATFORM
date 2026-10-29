@@ -358,7 +358,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
   ];
 
   if (loading) return <LoadingState label="Loading gift cards…" />;
-  if (failed) return <ErrorState description="Gift cards could not be loaded. If this is the first time, the gift card rules may not be deployed yet." onRetry={() => { setLoading(true); load(); }} />;
+  if (failed) return <ErrorState description="Gift cards could not be loaded. Try again in a moment." onRetry={() => { setLoading(true); load(); }} />;
 
   const exportCsv = async (fullCodes: boolean) => {
     if (fullCodes && !(await ask({ title: "Export with full codes?", message: "Anyone who gets this file can spend these gift cards. Keep it private and delete it when you're done.", confirmLabel: "Export full codes" }))) return;

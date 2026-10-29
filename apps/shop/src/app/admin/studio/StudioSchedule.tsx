@@ -120,7 +120,7 @@ export function StudioSchedule(p: Props) {
       description="Publish a design at a set time, or run a campaign that switches back by itself. Times are Toronto time.">
       <div className="studio-schedule" data-studio-panel="schedule">
         {unavailable ? (
-          <p className="studio-share-note" role="status">Scheduling needs the updated Firestore rules (<code>themeSchedule</code>) and Cloud Functions. Deploy them, then try again.</p>
+          <p className="studio-share-note" role="status">Scheduling isn't switched on for your shop yet. Try again later, or contact support.</p>
         ) : <>
           <p className={`studio-schedule-health is-${health.state}`} role="status" data-scheduler-health={health.state}>{health.text}</p>
           <section className="studio-schedule-form">

@@ -319,7 +319,7 @@ export function StudioThemes(p: Props) {
         description="Anyone with the link sees your shop with this design until the link expires. It isn't published, search engines skip it, and visits aren't counted.">
         <div className="studio-share">
           {unavailable ? (
-            <p className="studio-share-note" role="status">Preview links need the updated Firestore rules (<code>previewTokens</code>). Deploy <code>firestore.rules</code>, then try again.</p>
+            <p className="studio-share-note" role="status">Preview links aren't switched on for your shop yet. Try again later, or contact support.</p>
           ) : <>
             <label className="studio-scheme-field">Link works for
               <select value={days} onChange={e => setDays(Number(e.target.value))}>

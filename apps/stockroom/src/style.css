@@ -4057,6 +4057,9 @@ option,optgroup{background-color:var(--surface-raised);color:var(--content-prima
 /* The old shop system's parts (oldShopSync switch). Buttons and chips set their own display, which beats the UA's
    [hidden] rule, and the author/publisher toggle writes display back on the tab buttons. */
 [data-old-shop-sync][hidden] { display: none !important; }
+/* Panels that ask for a key or an account of the press's own (AI, carriers, Stripe reading, Google Sheet). A shop the
+   platform runs never shows them: src/lib/shop-profile.js marks the page with data-colophon (code plan 6.16). */
+[data-colophon] [data-own-accounts] { display: none !important; }
 .add-store-more {
   font-size: var(--text-2xs);
   color: var(--content-muted);

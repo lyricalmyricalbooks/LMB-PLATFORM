@@ -171,7 +171,7 @@ function shopEmails({
           res.status(out.status).json(out.json);
         } catch (err) {
           console.error("message reply failed:", err);
-          res.status(500).json({ error: "The reply could not be sent. Check that the latest Cloud Functions are deployed." });
+          res.status(500).json({ error: "The reply could not be sent. Try again in a moment." });
         }
         return;
       }
@@ -210,7 +210,7 @@ function shopEmails({
           res.status(200).json(result);
         } catch (err) {
           console.error("email queue action failed:", err);
-          res.status(500).json({ error: "The email queue could not be read. Check that the latest Cloud Functions are deployed." });
+          res.status(500).json({ error: "The email queue could not be read. Try again in a moment." });
         }
         return;
       }

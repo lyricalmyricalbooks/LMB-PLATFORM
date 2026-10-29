@@ -30,7 +30,7 @@ function createPlatformSender({ url, shopId, serviceKey, fetch }) {
     async send({ kind, to, subject, html, idempotencyKey }) {
       const key = String(serviceKey() || "").trim();
       if (!key) {
-        const err = new Error("This shop has no key for the platform's shared sender yet. Connect Gmail in Settings › Email sender, or ask the platform to finish setting up email.");
+        const err = new Error("This shop's emails aren't set up yet. Connect Gmail in Settings › Email sender, or ask support to finish setting up email.");
         err.permanent = false;
         throw err;
       }

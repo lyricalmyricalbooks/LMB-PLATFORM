@@ -22,7 +22,7 @@ const WORD: Record<string, string> = { danger: "Urgent", warning: "Needs attenti
 
 const ACTION_LABEL: Record<string, string> = {
   retry: "Try again", inventory: "Open Inventory app link", general: "Open Backups", notifications: "Open email deliveries",
-  payments: "Open Payments", cardAccount: "Open Payments", webhook: "Open webhook health", order: "Open order", inventoryApp: "Open the inventory app",
+  payments: "Open Payments", cardAccount: "Open Payments", webhook: "Open payment checks", order: "Open order", inventoryApp: "Open the inventory app",
 };
 
 // Alerts shown above every admin page. Dismissing hides an alert in this browser until

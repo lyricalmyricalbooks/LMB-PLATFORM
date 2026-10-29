@@ -187,7 +187,7 @@ function checkoutAdminActions({
     if (!await requireAdmin(req, res)) return;
     try {
       const { mode, endpoints } = await payments.webhookEndpoints();
-      if (!endpoints) { res.status(400).json({ error: `Add your Stripe ${mode} secret key first.` }); return; }
+      if (!endpoints) { res.status(400).json({ error: `Add your Stripe ${mode} secret key first.` }); return; } // Own-account shops only: Stripe keys are not asked on Colophon shops
       const listed = await endpoints.list();
       let report = webhookEndpointReport(listed.data, STRIPE_WEBHOOK_URL);
       const actions = [];
@@ -289,7 +289,7 @@ function checkoutAdminActions({
     // connecting the account stays admin-only.
     if (!await (step === "status" ? requireBooksReader : requireAdmin)(req, res)) return;
     if (!payments.account) {
-      res.status(409).json({ error: "This shop takes card payments with its own keys, not through the platform.", code: "own_keys" });
+      res.status(409).json({ error: "This shop takes card payments with its own keys, not through the platform.", code: "own_keys" }); // Own-account shops only: a refusal for a call the Colophon shop never makes
       return;
     }
     try {

@@ -37,6 +37,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `waitlist/` | The public waitlist page. |
 | `help/` | Plain answers to the questions presses ask most, one for every first-week step, and what our help includes, as one static page with search. |
 | `terms/` | The terms, privacy policy, data agreement and shutdown promise on one page, with the version sign-up records. |
+| `plain-words/` | The list of words no press may read (Firebase, key, webhook and the rest), and the tests that read the sign-up, account, billing and help pages, the setup steps, the emails, the shop's admin and the stockroom against it. Also a phone-width check of the press-facing pages. |
 | `demo/` | `npm run demo`: the test shop, admin, Studio and stockroom on your own computer, against the Firebase emulators (`docs/demo-shop.md`). |
 | `walkthrough/` | `npm run walkthrough`: a start page linking every page as the platform owner and as a press (the control room, waitlist, sign-up, account and Plan & billing) on made-up data on your own computer, no emulators needed (`npm run walkthrough:all` also starts the demo); also the whole platform put together with pretend services, which the road test (`road.test.js`) walks. |
 | `profile/` | The shop profile format: what differs between shops, read by both apps when the page opens. |

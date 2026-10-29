@@ -16,11 +16,12 @@ import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PlatformPaymentsCard } from "./PlatformPaymentsCard";
 import { CustomDomainCard } from "./CustomDomainCard";
-import { paysOnSquare, platformCardsProvider, providerName, shopProfile } from "../../lib/shopProfile";
+import { paysOnSquare, platformCardsProvider, providerName, runsOnColophon, shopProfile } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
 import { AiWriterCard } from "./AiWriterCard";
+import { OwnAccountOnly } from "./OwnAccountOnly";
 import { GoogleAnalyticsCard } from "./GoogleAnalyticsCard";
 import { ConnectGoogleCard } from "./ConnectGoogleCard";
 import { useGoogleConnect } from "./googleConnect";
@@ -303,14 +304,14 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       <SettingsGroup id="gs-visitors" active={view === "gs-visitors"}>
         <SettingsAnchor id="gs-own-visits"><OwnVisitsCard /></SettingsAnchor>
         {/* Plan 6.17: a shop run by Colophon connects Google with one sign-in; other shops keep the older cards. */}
-        <SettingsAnchor id="gs-analytics"><ConnectGoogleCard fallback={<GoogleAnalyticsCard />} /></SettingsAnchor>
+        <SettingsAnchor id="gs-analytics"><ConnectGoogleCard fallback={<OwnAccountOnly><GoogleAnalyticsCard /></OwnAccountOnly>} /></SettingsAnchor>
         <SettingsAnchor id="gs-clarity"><ClarityCard /></SettingsAnchor>
-        <SettingsAnchor id="gs-search-console"><OwnKeysOnly><SearchConsoleCard /></OwnKeysOnly></SettingsAnchor>
+        <SettingsAnchor id="gs-search-console"><OwnAccountOnly><OwnKeysOnly><SearchConsoleCard /></OwnKeysOnly></OwnAccountOnly></SettingsAnchor>
         <SettingsAnchor id="gs-redirects"><RedirectsCard /></SettingsAnchor>
       </SettingsGroup>
 
       <SettingsGroup id="gs-tools" active={view === "gs-tools"}>
-        <SettingsAnchor id="gs-ai"><AiWriterCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-ai"><OwnAccountOnly><AiWriterCard /></OwnAccountOnly></SettingsAnchor>
         <SettingsAnchor id="gs-privacy"><PrivacyRequestsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
         <SettingsAnchor id="gs-shop-errors"><ShopErrorsCard /></SettingsAnchor>
@@ -430,6 +431,8 @@ function LiveRateExtraField({ config, onSave }: { config: any; onSave: (extra: {
 export function ShippingSettings({ profiles, profilesError = false, refreshProfiles, initialView = "overview", subTab, onSubTabChange }: any) {
   const localFulfillmentDraft = useLocalFulfillmentDraft();
   const [askConfirm, confirmNode] = useConfirm();
+  // A shop run by Colophon never meets a carrier account's key (code plan 6.16).
+  const colophon = runsOnColophon();
   const [books, setBooks] = useState<any[]>([]);
   const [booksError, setBooksError] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
@@ -493,7 +496,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     if (shippoSaving) return;
     const apiKey = shippoApiKey.trim();
     if (!apiKey) {
-      setShippoMessage({ type: "error", text: "Enter your Shippo API key before saving." });
+      setShippoMessage({ type: "error", text: "Enter your Shippo API key before saving." }); // Own-account shops only: Shippo is hidden on Colophon shops
       return;
     }
 
@@ -504,9 +507,9 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
       setShippoConfig(config);
       setShippoApiKey("");
       setShowShippoApiKey(false);
-      setShippoMessage({ type: "success", text: `Shippo accepted the key. Saved as a ${config?.mode === "test" ? "TEST" : "LIVE"} key.` });
+      setShippoMessage({ type: "success", text: `Shippo accepted the key. Saved as a ${config?.mode === "test" ? "TEST" : "LIVE"} key.` }); // Own-account shops only: Shippo is hidden on Colophon shops
     } catch (err: any) {
-      setShippoMessage({ type: "error", text: friendlyError(err, "save the Shippo API key") });
+      setShippoMessage({ type: "error", text: friendlyError(err, "save the Shippo API key") }); // Own-account shops only: Shippo is hidden on Colophon shops
     } finally {
       setShippoSaving(false);
     }
@@ -1004,7 +1007,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
                 </div>
               ) : renderShippingProblems(shippingProblems, { showTab: true })}
               <div className="rp-card-actions">
-                <SecondaryButton onClick={() => setShippingView("carrier")}>{shippoConnected ? "Manage Shippo" : "Connect Shippo"}</SecondaryButton>
+                {!colophon && <SecondaryButton onClick={() => setShippingView("carrier")}>{shippoConnected ? "Manage Shippo" : "Connect Shippo"}</SecondaryButton>}
                 <PrimaryButton onClick={() => setShippingView("profiles")}>Manage profiles</PrimaryButton>
               </div>
             </SectionCard>
@@ -1012,7 +1015,12 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
         )}
 
         {shippingView === "carrier" && renderTabProblems(carrierProblems)}
-        {shippingView === "carrier" && (
+        {shippingView === "carrier" && colophon && (
+        <SectionCard title="Live rates and labels" description="Not available on your plan yet.">
+          <p className="rp-hint" style={{ margin: 0 }}>Shoppers pay the shipping prices from your profiles. Add or change them under Profiles.</p>
+        </SectionCard>
+        )}
+        {shippingView === "carrier" && !colophon && (
         <SectionCard title="Shippo connection" description="Address checks, live rates, labels."
           actions={!shippoLoading && <StatusBadge tone={!shippoConnected ? "warning" : shippoConfig?.mode === "test" ? "warning" : "success"}>{!shippoConnected ? "Not connected" : shippoConfig?.mode === "test" ? "Connected · TEST key" : shippoConfig?.mode === "live" ? "Connected · LIVE" : "Connected"}</StatusBadge>}>
           {!shippoLoading && !shippoConnected && (
@@ -1100,7 +1108,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
           )}
         </SectionCard>
         )}
-        {shippingView === "carrier" && <AddressFinderCard />}
+        {shippingView === "carrier" && <OwnAccountOnly><AddressFinderCard /></OwnAccountOnly>}
 
         {shippingView === "profiles" && (
         <>
@@ -1385,7 +1393,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   const [removingKey, setRemovingKey] = useState<null | "live" | "test">(null);
   const [registeringDomain, setRegisteringDomain] = useState(false);
   const removeStoredKey = async (mode: "live" | "test") => {
-    if (!(await askConfirm({ title: `Remove the stored ${mode} secret key?`, message: mode === "live" ? "Live checkout will use the key set in Firebase Functions (if any) until you enter a new one." : "Test (sandbox) checkout won't work until you enter a new test key.", confirmLabel: "Remove key" }))) return;
+    if (!(await askConfirm({ title: `Remove the stored ${mode} secret key?`, message: mode === "live" ? "Live checkout will use the key set in Firebase Functions (if any) until you enter a new one." : "Test (sandbox) checkout won't work until you enter a new test key.", confirmLabel: "Remove key" }))) return; // Own-account shops only: Stripe keys are hidden on Colophon shops
     setRemovingKey(mode);
     try {
       await adminApi.removeStripeSecretKey(mode);
@@ -1395,9 +1403,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
       setSettings(patchOf);
       setOriginalSettings?.(patchOf);
       setSecretFieldsKey((k) => k + 1);
-      toast.success(`Stored ${mode} secret key removed`);
+      toast.success(`Stored ${mode} secret key removed`); // Own-account shops only: Stripe keys are hidden on Colophon shops
     } catch (err: any) {
-      toast.error(friendlyError(err, "remove the key"));
+      toast.error(friendlyError(err, "remove the key")); // Own-account shops only: Stripe keys are hidden on Colophon shops
     } finally {
       setRemovingKey(null);
     }
@@ -1405,7 +1413,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
 
   const [removingPaypal, setRemovingPaypal] = useState<null | "live" | "test">(null);
   const removePaypalSecret = async (mode: "live" | "test") => {
-    if (!(await askConfirm({ title: `Remove the stored ${mode} PayPal client secret?`, message: mode === "live" ? "Live PayPal will use the credentials set in Firebase Functions (if any) until you enter a new secret." : "Test (sandbox) PayPal won't work until you enter a new sandbox secret.", confirmLabel: "Remove secret" }))) return;
+    if (!(await askConfirm({ title: `Remove the stored ${mode} PayPal client secret?`, message: mode === "live" ? "Live PayPal will use the credentials set in Firebase Functions (if any) until you enter a new secret." : "Test (sandbox) PayPal won't work until you enter a new sandbox secret.", confirmLabel: "Remove secret" }))) return; // Own-account shops only: PayPal is hidden on Colophon shops
     setRemovingPaypal(mode);
     try {
       await adminApi.removePaypalSecret(mode);
@@ -1415,9 +1423,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
       setSettings(patchOf);
       setOriginalSettings?.(patchOf);
       setSecretFieldsKey((k) => k + 1);
-      toast.success(`Stored ${mode} PayPal secret removed`);
+      toast.success(`Stored ${mode} PayPal secret removed`); // Own-account shops only: PayPal is hidden on Colophon shops
     } catch (err: any) {
-      toast.error(friendlyError(err, "remove the secret"));
+      toast.error(friendlyError(err, "remove the secret")); // Own-account shops only: PayPal is hidden on Colophon shops
     } finally {
       setRemovingPaypal(null);
     }
@@ -1440,7 +1448,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   const updateTestMode = async (val: boolean) => {
     const ok = await askConfirm(val
       ? { title: "Switch on test mode?", message: `Once you save, checkout only accepts ${providerName()} and PayPal test payments${paysOnSquare() ? "" : " (card 4242 4242 4242 4242)"}. Real cards are refused and new orders are marked as tests that never touch stock or revenue. An alert shows on every admin page while it's on.`, confirmLabel: "Use test mode" }
-      : { title: "Switch off test mode?", message: "Once you save, checkout takes real payments with your live keys. Make sure the live publishable and secret keys are filled in and the webhook check passes.", confirmLabel: "Take real payments" });
+      : { title: "Switch off test mode?", message: "Once you save, checkout takes real payments. Make sure your card payments are connected and working first.", confirmLabel: "Take real payments" });
     if (!ok) return;
     setSettings({
       ...settings,
@@ -1662,6 +1670,8 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           </SectionCard>
         </SettingsAnchor>
         )}
+        {/* PayPal needs the press's own PayPal credentials, so a shop run by Colophon doesn't offer it (code plan 6.16). */}
+        {!platformCards && (
         <SettingsAnchor id="pay-paypal">
           <SectionCard title="PayPal">
             <div className="rp-stack" style={{ gap: 20 }}>
@@ -1693,6 +1703,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
             </div>
           </SectionCard>
         </SettingsAnchor>
+        )}
         <SettingsAnchor id="pay-manual">
           <SectionCard title="Manual payment methods" description="e-Transfer, cash, your own terms."
             actions={
@@ -1750,12 +1761,14 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
             <p className="rp-hint" style={{ margin: 0 }}>Charged in CA$. Other currencies are display only.</p>
           </SectionCard>
         </SettingsAnchor>
+        {!platformCards && (
         <SettingsAnchor id="pay-shippo">
           <SectionCard title="Shippo" description="Lives with your shipping rules."
             actions={<SecondaryButton size="sm" onClick={() => onOpenShipping?.()}>Open Shipping › Carrier &amp; labels</SecondaryButton>}>
             <p className="rp-hint" style={{ margin: 0 }}>Key and live-rate countries, in one place.</p>
           </SectionCard>
         </SettingsAnchor>
+        )}
       </SettingsGroup>
 
       <SaveBar dirty={dirty} saving={savingSection === "payments"} message="You have unsaved payment settings."
@@ -1790,9 +1803,9 @@ export function SecretField({ label, placeholder, stored, onCommit, validate, on
   const problem = validate ? validate(draft) : "";
   return (
     <div>
-      <TextField label={label} type="password" autoComplete="new-password" spellCheck={false} value={draft} placeholder={stored ? "Stored — enter a new key to replace it" : placeholder}
+      <TextField label={label} type="password" autoComplete="new-password" spellCheck={false} value={draft} placeholder={stored ? "Stored — enter a new key to replace it" : placeholder} /* Own-account shops only: key boxes are hidden on Colophon shops */
         error={problem || undefined}
-        hint={!problem && stored ? "✓ A key is stored. It is never shown here." : undefined}
+        hint={!problem && stored ? "✓ A key is stored. It is never shown here." : undefined} /* Own-account shops only: key boxes are hidden on Colophon shops */
         onChange={(e) => {
           const value = e.target.value;
           setDraft(value);
@@ -1801,7 +1814,7 @@ export function SecretField({ label, placeholder, stored, onCommit, validate, on
         }} />
       {stored && onRemove && (
         <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" style={{ marginTop: 6 }} disabled={removing} onClick={onRemove}>
-          {removing ? "Removing…" : "Remove stored key"}
+          {removing ? "Removing…" : "Remove stored key" /* Own-account shops only: key boxes are hidden on Colophon shops */}
         </button>
       )}
     </div>

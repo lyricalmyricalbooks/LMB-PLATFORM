@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { auth } from "../../lib/firebase";
+import { runsOnColophon } from "../../lib/shopProfile";
 import { functionFetch } from "../lib/functionsBase";
 import { forgetReports } from "./googleAnalytics";
 import { clearShared } from "./overview/overviewShared";
@@ -127,7 +128,9 @@ export function useGoogleConnect() {
   const load = () => {
     setState((s) => (s.mode === "error" ? { mode: "loading", status: null, error: null } : s));
     readShared().then(
-      (answer) => setState(answer === "not_available" ? { mode: "own", status: null, error: null } : { mode: "platform", status: answer, error: null }),
+      // A shop run by Colophon (code plan 6.16) is always a "platform" shop here, switched on or not: it never falls back
+      // to today's ID-and-access Analytics and Search Console cards, which ask for things a press shouldn't meet.
+      (answer) => setState(answer === "not_available" ? (runsOnColophon() ? { mode: "platform", status: { enabled: false }, error: null } : { mode: "own", status: null, error: null }) : { mode: "platform", status: answer, error: null }),
       (err) => setState({ mode: "error", status: null, error: err?.message || "Couldn't read your Google connection." }),
     );
   };

@@ -107,7 +107,7 @@ export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "succ
   if (o.paymentMismatch && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Payment doesn't match" };
   if (o.giftCardConflict && !o.giftCardConflict.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Gift card couldn't cover its part" };
   if (o.customerRequest?.status === "open") return { tone: "danger", text: o.customerRequest.type === "cancel" ? "⚠ Customer asks to cancel" : "⚠ Customer asks to return" };
-  if (awaitingWebhook(o)) return { tone: "warning", text: `◷ Paid in ${providerName()} — awaiting webhook` };
+  if (awaitingWebhook(o)) return { tone: "warning", text: `◷ Paid in ${providerName()} — waiting for confirmation` };
   if (Array.isArray(o.duplicatePayments) && o.duplicatePayments.length) return { tone: "danger", text: `⚠ Paid twice — refund the extra in ${providerName()}` };
   if (o.disputeStatus === "needs_response" || o.disputeStatus === "warning_needs_response") return { tone: "danger", text: `⚠ Dispute — respond in ${providerName()}` };
   if (disputeOpen(o)) return { tone: "danger", text: SHIPPED_QUEUES.includes(q) ? `⚠ Dispute open — follow it in ${providerName()}` : "⚠ Dispute open — hold the books" };

@@ -24,7 +24,7 @@ export function emailLogBadge(entry: LogEntry): { tone: BadgeTone; label: string
 }
 
 export function emailLogDetail(entry: LogEntry): string {
-  const base = entry.error || entry.note || (entry.keySource === "gmail" ? "Accepted by Gmail" : "Accepted by Resend");
+  const base = entry.error || entry.note || (entry.keySource === "gmail" ? "Accepted by Gmail" : "Accepted by the email service");
   const tries = entry.status === "sent" && (entry.attempt || 0) > 1 ? ` (try ${entry.attempt})` : "";
   const next = entry.status === "queued" && entry.retryAt ? ` Next try ${new Date(entry.retryAt).toLocaleString()}.` : "";
   return `${base}${tries}${next}`;
