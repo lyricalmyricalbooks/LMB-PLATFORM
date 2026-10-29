@@ -4,13 +4,17 @@
   },
   "hosting": {
     "public": ".",
-    "ignore": ["firebase.json", "firestore.rules", "README.md", "*.test.js", "*.test.mjs", "firestore-emulator.mjs", "*.log", "**/.*", "**/node_modules/**"],
+    "ignore": ["firebase.json", "firestore.rules", "README.md", "*.test.js", "*.test.mjs", "firestore-emulator.mjs", "*.log", "**/.[!w]*", "**/node_modules/**"],
     "headers": [
       {
         "source": "**",
         "headers": [
           { "key": "X-Content-Type-Options", "value": "nosniff" },
-          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+          { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" },
+          { "key": "X-Frame-Options", "value": "DENY" },
+          { "key": "Content-Security-Policy", "value": "object-src 'none'; base-uri 'self'; frame-ancestors 'none'" },
+          { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), usb=()" }
         ]
       }
     ]

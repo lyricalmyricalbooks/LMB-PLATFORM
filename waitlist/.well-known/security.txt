@@ -1,0 +1,6 @@
+# Where to report a security problem (plan 13.2). The address is a placeholder until the platform's domain is chosen
+# (docs/name-and-domain.md); the platform owner sets the real one before launch. security/headers.test.js checks the file.
+Contact: mailto:security@platform.example
+Expires: 2027-10-29T00:00:00.000Z
+Preferred-Languages: en, fr
+Policy: https://platform.example/terms/
