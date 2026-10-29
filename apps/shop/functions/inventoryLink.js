@@ -7,7 +7,7 @@
 const crypto = require("crypto");
 const { stockLines, isBundle, isGiftCardProduct } = require("./shared/promotions");
 const { isPhysicalItem } = require("./shared/localFulfillment");
-const { usesOptionPicker } = require("./shared/productOptions");
+const { isBookKind, productKind, usesOptionPicker } = require("./shared/productOptions");
 const { shopDate } = require("./paymentGuards");
 
 const WEB_VERSION = 1;
@@ -291,6 +291,16 @@ const isDigitalEdition = (book, variant) => variant
 
 const editionKey = (bookId, variantId) => `${bookId}|${variantId || ""}`;
 
+/**
+ * An edition's code for matching and the app: its ISBN. A product that isn't a book (plan 10.6) has no ISBN, so its
+ * SKU stands in (the size's own, else the product's). A book's editions never use their SKU: the editor numbers
+ * them "SKU-2", "SKU-3", which would hide the book's ISBN.
+ */
+function codeOf(book, variant) {
+  if (isBookKind(productKind(book))) return String((variant && variant.isbn) || book.isbn || "");
+  return String((variant && (variant.isbn || variant.sku)) || book.isbn || book.sku || "");
+}
+
 /** Every printed website book/edition that can be linked (no e-books, box sets or gift cards). */
 function linkableEditions(books) {
   const out = [];
@@ -302,30 +312,36 @@ function linkableEditions(books) {
       for (const v of variants) {
         if (isDigitalEdition(book, v)) continue;
         out.push({ ...base, key: editionKey(book.id, v.id), variantId: v.id, edition: String(v.name || v.format || "Edition"),
-          isbn: String(v.isbn || book.isbn || ""), stock: whole(v.stockLevel !== undefined ? v.stockLevel : v.stock) });
+          isbn: codeOf(book, v), stock: whole(v.stockLevel !== undefined ? v.stockLevel : v.stock) });
       }
     } else if (!isDigitalEdition(book, null)) {
-      out.push({ ...base, key: editionKey(book.id, null), variantId: null, edition: "", isbn: String(book.isbn || ""), stock: whole(book.stockLevel) });
+      out.push({ ...base, key: editionKey(book.id, null), variantId: null, edition: "", isbn: codeOf(book, null), stock: whole(book.stockLevel) });
     }
   }
   return out.sort((a, b) => a.title.localeCompare(b.title) || a.edition.localeCompare(b.edition));
 }
 
 const isbnDigits = v => String(v || "").replace(/[^0-9Xx]/g, "").toUpperCase();
+// A product's own code ("TEE-M", plan 10.6): letters and digits, at least 3, and not an ISBN (matched above).
+const skuKey = v => { const s = String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); return s.length >= 3 && !/^[0-9X]{10,}$/.test(s) ? s : ""; };
 const normTitle = v => String(v || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
 /**
- * Suggested inventory book per unlinked edition: the same ISBN (10+ digits), else exactly the same
+ * Suggested inventory book per unlinked edition: the same ISBN (10+ digits), else the same SKU (a
+ * product's code, plan 10.6), else exactly the same
  * title ("Title" for a book without editions, "Title Edition" otherwise). Only a single, unused match
  * is suggested — never a guess between two.
  */
 function suggestLinks(editions, appBooks, links) {
   const used = new Set(Object.values(links || {}).flatMap(e => Object.values(e || {})));
   const byIsbn = new Map();
+  const bySku = new Map();
   const byTitle = new Map();
   for (const b of appBooks || []) {
     const isbn = isbnDigits(b.isbn);
     if (isbn.length >= 10) byIsbn.set(isbn, [...(byIsbn.get(isbn) || []), b]);
+    const sku = skuKey(b.isbn);
+    if (sku) bySku.set(sku, [...(bySku.get(sku) || []), b]);
     const t = normTitle(b.title);
     if (t) byTitle.set(t, [...(byTitle.get(t) || []), b]);
   }
@@ -341,7 +357,9 @@ function suggestLinks(editions, appBooks, links) {
     if (linkFor(links, e.bookId, e.variantId)) continue;
     const isbn = isbnDigits(e.isbn);
     const onlyPrinted = printedPerBook.get(e.bookId) === 1;
+    const sku = skuKey(e.isbn);
     const id = (isbn.length >= 10 ? pick(byIsbn.get(isbn)) : null)
+      || (sku ? pick(bySku.get(sku)) : null)
       || (e.edition ? pick(byTitle.get(normTitle(`${e.title} ${e.edition}`))) : null)
       || (!e.edition || onlyPrinted ? pick(byTitle.get(normTitle(e.title))) : null);
     if (id) { out[e.key] = id; taken.add(id); }
@@ -720,6 +738,11 @@ function detailPatch(book, diff) {
   const withVariant = fields => ({ variants: variants.map(v => (v && v.id === diff.variantId ? { ...v, ...fields } : v)) });
   if (diff.field === "title") return { title: diff.app };
   if (diff.field === "author") return { subtitle: diff.app };
+  if (diff.field === "isbn" && !isBookKind(productKind(book))) {
+    // A product that isn't a book shows its SKU here (codeOf): the code goes back where it came from.
+    if (variant && !String(variant.isbn || "").trim()) return withVariant({ sku: diff.app });
+    if (!variant && !String(book.isbn || "").trim()) return { sku: diff.app };
+  }
   if (diff.field === "isbn") return variant && String(variant.isbn || "").trim() ? withVariant({ isbn: diff.app }) : { isbn: diff.app };
   if (diff.field === "price") {
     const price = Number(diff.app);

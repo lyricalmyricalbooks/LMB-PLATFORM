@@ -199,7 +199,7 @@ device's cache) and lists any record only the old copy has, with **Copy these ov
   needs the owner (rules, old storage), shows on the To-do list too; a one-off failure only shows on the card. The website side already alerts when its own sweep stalls, the connection fails,
   sales can't be sent, or orders wait over a day for the app.
 - **New books to match.** Once a book is matched, the website sweep checks once an hour for unmatched, unarchived printed
-  editions it can pair by ISBN or exact title (`newMatchList`, the same rule as the panel's `suggestLinks`;
+  editions it can pair by ISBN, SKU or exact title (`newMatchList`, the same rule as the panel's `suggestLinks`;
   `inventoryLinkSuggest.parity.test.ts`). It stores them as `newMatches { at, count, items }`. An admin alert
   (`inventory-link-new-books`) and step 2's **New books to match** box offer one-click **Match these** (op `acceptMatches`:
   adds the stored suggestions to the links as saved now and refuses to change any existing match) or **Not these**
@@ -377,3 +377,10 @@ New deep links (text is URI-encoded, at most 100 characters; anything else in a 
 - App: `#book=<inventoryBookId>` opens that book, `#search=<text>` opens the app's search with the text filled in.
 - Website: `#catalog/book/<bookId>` opens that book in the book editor, `#search=<text>` opens the admin search with the
   text filled in. After opening, each app puts its own address back, so a reload doesn't open it again.
+
+## Products that aren't books (plan 10.6, 29 October 2026)
+A product whose kind isn't a book (clothing, jewelry, …) has no ISBN, so its edition's `isbn` carries its SKU instead
+(`codeOf`: the size's own SKU, else the product's), in both `linkableEditions` copies. Matching then tries ISBN (10+
+digits), then the same SKU (`skuKey`: letters and digits only, any case, at least 3, not ISBN-shaped), then the title.
+The app receives the SKU as the item's ISBN or SKU, and "Use the app's" writes it back to `sku`. A book's editions keep
+the book's ISBN: the editor numbers their SKUs "SKU-2", "SKU-3", which must never count as codes.
