@@ -4,6 +4,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PRACTICE_CARDS, PRACTICE_KEYS, createPracticeStripe, parseForm, practiceStripeScript, signWebhook } from "./practicePay.js";
 import { PRACTICE_MAIL_KEY, createPracticeInbox, practiceMailApi } from "./practiceMail.js";
 import { inboxPage, practiceEnv, startPracticeServices } from "./practiceServices.js";
@@ -61,7 +63,7 @@ test("the good practice card pays and tells the shop; the declined one is declin
 });
 
 test("the inbox keeps what the shop sends, newest first, and saves it to its file", (t) => {
-  const file = `${process.env.TMPDIR ?? "/tmp"}/practice-inbox-${process.pid}.json`;
+  const file = join(tmpdir(), `practice-inbox-${process.pid}.json`);
   t.after(() => rmSync(file, { force: true }));
   const inbox = createPracticeInbox({ file });
   assert.equal(practiceMailApi(inbox, "POST", "/emails", { from: "shop@yourpress.example", to: "a@example.com", subject: "First", html: "<p>1</p>" }).status, 200);
