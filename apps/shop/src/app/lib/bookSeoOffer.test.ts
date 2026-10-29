@@ -48,3 +48,41 @@ describe("shippingDetailsData", () => {
     expect(data.offers.shippingDetails.shippingRate.value).toBe(15);
   });
 });
+
+describe("search data for products beyond books (plan 10.21)", () => {
+  const url = "https://x.test/books/shirt";
+  const shirt: any = {
+    id: "s", title: "Linen Shirt", slug: "shirt", kind: "clothing", material: "Linen", photos: [{ url: "/a.jpg" }],
+    variants: [
+      { id: "m", name: "M / Black", price: 60, stock: 3, sku: "LS-M" },
+      { id: "l", name: "L / Black", price: 70, stock: 0 },
+    ],
+  };
+
+  it("a shirt is a Product, not a Book, with the price range and each size's own stock", () => {
+    const data: any = bookStructuredData(shirt, { currency: "CAD", price: 60, url, seller: "Moth Press" });
+    expect(data["@type"]).toBe("Product");
+    expect(data).not.toHaveProperty("isbn");
+    expect(data.material).toBe("Linen");
+    expect(data.brand.name).toBe("Moth Press");
+    expect(data.offers).toMatchObject({ "@type": "AggregateOffer", lowPrice: "60.00", highPrice: "70.00", offerCount: 2, priceCurrency: "CAD", availability: "https://schema.org/InStock" });
+    expect(data.offers.offers.map((o: any) => [o.name, o.price, o.availability.split("/").pop()])).toEqual([
+      ["M / Black", "60.00", "InStock"], ["L / Black", "70.00", "OutOfStock"],
+    ]);
+    expect(data.offers.offers[0].sku).toBe("LS-M");
+  });
+
+  it("all sizes sold out is out of stock; a product with no versions is a single offer", () => {
+    const out: any = bookStructuredData({ ...shirt, variants: shirt.variants.map((v: any) => ({ ...v, stock: 0 })) }, { currency: "CAD", price: 60, url });
+    expect(out.offers.availability).toBe("https://schema.org/OutOfStock");
+    const ring: any = bookStructuredData({ id: "r", title: "Ring", slug: "ring", kind: "jewelry", stockLevel: 2 }, { currency: "CAD", price: 90, url });
+    expect(ring.offers).toMatchObject({ "@type": "Offer", price: "90.00", availability: "https://schema.org/InStock" });
+  });
+
+  it("a book is still a Product and a Book, with its ISBN and one offer", () => {
+    const book: any = bookStructuredData({ id: "b", title: "B", slug: "b", isbn: "9780306406157", stockLevel: 3 } as any, { currency: "CAD", price: 20, url });
+    expect(book["@type"]).toEqual(["Product", "Book"]);
+    expect(book.isbn).toBe("9780306406157");
+    expect(book.offers["@type"]).toBe("Offer");
+  });
+});

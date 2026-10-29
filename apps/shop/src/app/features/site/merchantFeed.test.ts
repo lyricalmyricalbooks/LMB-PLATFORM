@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { bookCreators } from "../../lib/bookSeo";
+import { PRODUCT_KINDS, productKind } from "../../../shared/productOptions";
 // @ts-ignore - plain ESM shared with the build script
-import { creatorNames, merchantFeedItems, merchantFeedXml, releaseArrived as feedRelease, stockOf, bundleStock, unitPrice, preorderDate } from "./merchantFeed.mjs";
+import { apparelAudience, creatorNames, gtinOf, kindOf, merchantFeedItems, merchantFeedXml, releaseArrived as feedRelease, stockOf, bundleStock, unitPrice, preorderDate } from "./merchantFeed.mjs";
 // @ts-ignore - plain ESM build helper
 import { releaseArrived as buildRelease } from "../../../../scripts/publicStorefrontData.mjs";
 // @ts-ignore - CommonJS server modules
@@ -108,5 +109,61 @@ describe("artist names in the feed", () => {
     const xml = merchantFeedXml("https://shop.test", items);
     expect(xml).toContain("<g:product_detail><g:section_name>Book</g:section_name><g:attribute_name>Author</g:attribute_name><g:attribute_value>Ian Willms</g:attribute_value></g:product_detail>");
     expect(xml.match(/<g:product_detail>/g)).toHaveLength(2);
+  });
+});
+
+describe("products beyond books (plan 10.21)", () => {
+  const shirt = {
+    id: "s", title: "Linen Shirt", subtitle: "Spring run", retailPrice: 0, kind: "clothing", trackInventory: true, photos: photo("s"), categories: ["Shirts"],
+    options: [{ name: "Size", values: ["M", "L"] }, { name: "Colour", values: ["Black"] }], googleGender: "female",
+    variants: [
+      { id: "m", name: "M / Black", price: 60, stock: 3, options: { Size: "M", Colour: "Black" }, barcode: "036000291452" },
+      { id: "l", name: "L / Black", price: 60, stock: 0, options: { Size: "L", Colour: "Black" } },
+    ],
+  };
+  const ring = { id: "r", title: "Silver Ring", retailPrice: 90, kind: "jewelry", trackInventory: true, stockLevel: 2, photos: photo("r") };
+  const gadget = { id: "g", title: "Gadget", retailPrice: 5, kind: "other", photos: photo("g") };
+  const book = { id: "b", title: "Salt Hours", subtitle: "Zoe Moss", isbn: "978-0-306-40615-7", retailPrice: 24, photos: photo("b") };
+  const { items } = merchantFeedItems("https://shop.test", [shirt, ring, gadget, book], { now });
+  const byId = Object.fromEntries(items.map((i: any) => [i.id, i]));
+
+  it("lists each size as its own line under one group, with size, colour, barcode, gender and age group", () => {
+    expect(byId.s_m).toMatchObject({ groupId: "s", title: "Linen Shirt – M / Black", size: "M", color: "Black", gender: "female", ageGroup: "adult", gtin: "036000291452", availability: "in_stock", googleCategory: "Apparel & Accessories > Clothing", creators: [] });
+    expect(byId.s_l).toMatchObject({ groupId: "s", size: "L", availability: "out_of_stock", gtin: "" });
+    const xml = merchantFeedXml("https://shop.test", items);
+    expect(xml).toContain("<g:size>M</g:size>");
+    expect(xml).toContain("<g:color>Black</g:color>");
+    expect(xml).toContain("<g:gender>female</g:gender>");
+    expect(xml).toContain("<g:age_group>adult</g:age_group>");
+    expect(xml.match(/<g:item_group_id>s<\/g:item_group_id>/g)).toHaveLength(2);
+    expect(xml.match(/product_detail/g)?.length).toBe(2); // only the book's author line
+  });
+
+  it("the kind picks the category; other has none, and an unset audience is unisex adult", () => {
+    expect(byId.r.googleCategory).toBe("Apparel & Accessories > Jewelry");
+    expect(byId.r.gender).toBeUndefined();
+    const { items: made } = merchantFeedItems("https://shop.test", [{ ...ring, material: "Sterling silver" }], { now });
+    expect(made[0].material).toBe("Sterling silver");
+    expect(byId.g.googleCategory).toBe("");
+    expect(merchantFeedXml("https://shop.test", [byId.g])).not.toContain("google_product_category");
+    expect(apparelAudience({})).toEqual({ gender: "unisex", ageGroup: "adult" });
+    expect(apparelAudience({ googleGender: "x", googleAgeGroup: "kids" })).toEqual({ gender: "unisex", ageGroup: "kids" });
+  });
+
+  it("a book's line is unchanged: its category, ISBN, author and no apparel fields", () => {
+    expect(byId.b).toMatchObject({ googleCategory: "Media > Books > Print Books", gtin: "9780306406157", creators: ["Zoe Moss"], title: "Salt Hours by Zoe Moss" });
+    for (const key of ["size", "color", "material", "gender", "ageGroup"]) expect(byId.b[key]).toBeUndefined();
+    const xml = merchantFeedXml("https://shop.test", [byId.b]);
+    expect(xml).toContain("Media &gt; Books &gt; Print Books");
+    expect(xml).toContain("books</description>");
+    expect(merchantFeedXml("https://shop.test", [byId.s_m])).toContain("products</description>");
+  });
+
+  it("GTIN check digits are checked; the kinds agree with the shared rule", () => {
+    expect(gtinOf("036000291452")).toBe("036000291452");
+    expect(gtinOf("036000291453")).toBe("");
+    expect(gtinOf("96385074")).toBe("96385074");
+    expect(gtinOf("123")).toBe("");
+    for (const kind of [...PRODUCT_KINDS, "nonsense", "", undefined]) expect(kindOf({ kind }), String(kind)).toBe(productKind({ kind }));
   });
 });

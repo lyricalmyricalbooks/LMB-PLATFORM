@@ -5,6 +5,7 @@ export interface MerchantFeedItem {
   id: string; groupId: string; title: string; description: string; link: string; image: string; additionalImages: string[];
   price: string; salePrice: string; saleDates: string; availability: "in_stock" | "out_of_stock" | "preorder" | "backorder";
   availabilityDate: string; gtin: string; brand: string; condition: string; googleCategory: string; productType: string; bundle: boolean; creators: string[];
+  kind: string; size?: string; color?: string; material?: string; gender?: string; ageGroup?: string;
 }
 export interface MerchantFeedSkip { id: string; title: string; reason: string }
 export function shopDate(now?: Date): string;
@@ -14,6 +15,10 @@ export function preorderDate(book: any, now?: Date): string | null;
 export function stockOf(book: any, variantId?: string | null): number;
 export function bundleStock(book: any, getBook: (id: string) => any): number;
 export function isbn13(value: unknown): string;
+export function gtinOf(value: unknown): string;
+export function kindOf(book: any): string;
+export function variantAttributes(variant: any): { size: string; color: string; material: string };
+export function apparelAudience(book: any): { gender: string; ageGroup: string };
 export function creatorNames(book: any): string[];
 export function isLive(book: any, now?: Date): boolean;
 export function plain(value: unknown): string;

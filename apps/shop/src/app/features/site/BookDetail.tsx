@@ -427,7 +427,9 @@ export default function BookDetail() {
   const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
 
   const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);
-  const seoBook = selectedVariant && book ? {
+  // A shirt or ring with sizes tells search engines about every version (price range, stock per size), not just the chosen one (plan 10.21).
+  const goodsWithVersions = !!book && !isBookKind(productKind(book)) && (book.variants || []).length > 0;
+  const seoBook = selectedVariant && book && !goodsWithVersions ? {
     ...book,
     variants: [],
     stockLevel: selectedVariant.stockLevel ?? selectedVariant.stock ?? 0,
