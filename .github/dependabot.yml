@@ -1,0 +1,19 @@
+# Weekly update requests for every folder that has packages (plan 13.1), plus the actions the checks use.
+# security/dependabot.test.js fails when a folder with a package.json is missing here.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /apps/shop
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /apps/shop/functions
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /apps/stockroom
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

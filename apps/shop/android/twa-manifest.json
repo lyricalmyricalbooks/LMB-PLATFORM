@@ -2,7 +2,7 @@
   "packageId": "example.press.admin",
   "host": "yourpress.example",
   "name": "Shop Admin",
-  "launcherName": "LM Admin",
+  "launcherName": "Admin",
   "display": "standalone",
   "orientation": "portrait",
   "themeColor": "#faf6ec",

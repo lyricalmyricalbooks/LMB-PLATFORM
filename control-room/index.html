@@ -63,6 +63,10 @@
   .rp-sidebar-foot .cr-who { padding: 12px; border-top: 1px solid var(--rp-rail-line); color: var(--rp-on-inverse); font-size: 13px; overflow-wrap: anywhere; }
   .rp-sidebar-foot .cr-who span { display: block; color: var(--rp-rail-faint); font: 400 11px/1.5 var(--rp-font-mono); }
   .rp-sidebar-foot .cr-signout { margin-top: 8px; padding: 0; min-height: 32px; border: 0; background: none; color: var(--rp-on-inverse); font: 400 13px var(--rp-font-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  /* Phone (plan 13.12): the things you press are at least 44px tall. */
+  @media (pointer: coarse), (max-width: 860px) { .rp-sidebar-foot .cr-signout { min-height: 44px; padding-inline: 4px; } }
+  @media (pointer: coarse), (max-width: 767px) { .rp button.rp-tab { min-height: 44px !important; } }
+  @media (max-width: 767px) { .rp:not(.studio-editor) .rp-topbar-wordmark { display: inline-flex; align-items: center; min-height: 44px; } }
   .cr-qr { width: 220px; max-width: 100%; margin: 16px auto; padding: 8px; background: var(--rp-surface); border: 1px solid var(--rp-border); }
   .cr-qr:empty { display: none; }
   .cr-qr img { display: block; width: 100%; height: auto; image-rendering: pixelated; }

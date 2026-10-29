@@ -12,6 +12,7 @@
 // Clients passed in: people (people.js controlRoomPeople), admins (the platform admin list), runBook (runbook.js),
 // state (clients/stores.js firestorePlatformState: get, set, log), email (services/email sendPlatform), registry and
 // auditLog (a roll back is also written in the shop's own history), now.
+import { releaseWindowAt } from "../services/release-runner/releaseWindow.js";
 import { createHash } from "node:crypto";
 import { twoStepProblem } from "./controlRoom.js";
 
@@ -95,6 +96,7 @@ export function createBackupAccess({ people = {}, admins = [], runBook, state, e
         role,
         seal: await openSeal(),
         releasesPaused: await runBook.releasesPaused(),
+        releaseWindow: releaseWindowAt(now()),
         statusNote: await runBook.statusNote(),
         backupPersonSet: Boolean(people.backupPerson),
         adminTold: Boolean(people.adminEmail),

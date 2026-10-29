@@ -242,13 +242,18 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
         // A database or bucket can't be moved, so one in the wrong place needs a person, not a retry.
         if (database && database.locationId !== region) throw new Error(`the database is in ${database.locationId}, not ${region}`);
         if (bucket && bucket.location?.toLowerCase() !== region) throw new Error(`the storage bucket is in ${bucket.location}, not ${region}`);
-        if (!PLANS[shop.plan]?.stockroom) return Boolean(database && bucket);
+        const recovers = (db) => Boolean(db?.pointInTimeRecovery);
+        if (!PLANS[shop.plan]?.stockroom) return Boolean(database && bucket && recovers(database));
         const pieces = await stockroomPieces(shop);
-        return Boolean(database && bucket && pieces.database && pieces.bucket && pieces.realtime);
+        return Boolean(database && bucket && recovers(database) && pieces.database && recovers(pieces.database) && pieces.bucket && pieces.realtime);
       },
       async act({ shop }) {
-        if (!(await google.firestore.getDatabase(shop.shopId))) {
-          await google.firestore.createDatabase(shop.shopId, { locationId: region, type: "FIRESTORE_NATIVE", deleteProtection: true });
+        // Plan 13.5: seven days of roll-back to the minute on every database, switched on at creation or afterwards.
+        const existing = await google.firestore.getDatabase(shop.shopId);
+        if (!existing) {
+          await google.firestore.createDatabase(shop.shopId, { locationId: region, type: "FIRESTORE_NATIVE", deleteProtection: true, pointInTimeRecovery: true });
+        } else if (!existing.pointInTimeRecovery) {
+          await google.firestore.enablePointInTimeRecovery(shop.shopId);
         }
         if (!(await google.storage.getDefaultBucket(shop.shopId))) {
           await google.storage.createDefaultBucket(shop.shopId, { location: region });
@@ -256,7 +261,9 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
         if (!PLANS[shop.plan]?.stockroom) return;
         const pieces = await stockroomPieces(shop);
         if (!pieces.database) {
-          await google.firestore.createDatabase(shop.shopId, { databaseId: STOCKROOM_DATABASE, locationId: region, type: "FIRESTORE_NATIVE", deleteProtection: true });
+          await google.firestore.createDatabase(shop.shopId, { databaseId: STOCKROOM_DATABASE, locationId: region, type: "FIRESTORE_NATIVE", deleteProtection: true, pointInTimeRecovery: true });
+        } else if (!pieces.database.pointInTimeRecovery) {
+          await google.firestore.enablePointInTimeRecovery(shop.shopId, STOCKROOM_DATABASE);
         }
         if (!pieces.bucket) await google.storage.createBucket(shop.shopId, { name: stockroomBucketName(shop.shopId), location: region });
         if (!pieces.realtime) await google.realtimeDatabase.createInstance(shop.shopId, { location: RTDB_LOCATION });

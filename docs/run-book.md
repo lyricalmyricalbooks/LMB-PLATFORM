@@ -70,6 +70,21 @@ refusing them or failing to process them. Orders can show as unpaid when they we
 5. Once it passes again, Stripe sends the missed events again by itself for up to three days. Ask the press to look at
    orders from the time it was failing.
 
+### errors
+
+**What it means:** shoppers' browsers reported a burst of crashes on the cart or checkout pages (ten or more new reports
+since the last check, five minutes ago). The reports hold no names, emails or addresses; the shop counts each distinct
+error. "working again" means the burst stopped.
+
+**What to do:**
+
+1. Read the detail: it names the error seen most often. Open the shop's admin, Settings › General › Tools & records ›
+   Shop errors, for the same list with the pages and the build.
+2. Try the checkout yourself in a private window (or use the test shop's practice checkout). If it fails the same way,
+   look at the last release for that shop in the control room and roll it back ("Stop a release", "Roll one shop back").
+3. If you cannot reproduce it, one device or browser is probably the cause. Leave it, and watch whether the alert comes
+   back at the next check.
+
 ### backup
 
 **What it means:** the shop's last good backup, or its stockroom's, is more than 26 hours old. Nothing is lost yet,
@@ -82,6 +97,23 @@ but if the data were damaged now, a day or more of changes would be gone.
 2. The nightly run (`node services/health/run.js nightly`) makes a stand-in copy of a shop whose own backup missed a
    night, and always backs up the stockroom. If it didn't run, run it by hand now.
 3. A press can also press **Back up now** in their own admin (Settings › General › Backups & export).
+
+### drill
+
+**What it means:** the monthly restore test failed. The platform restored a shop's latest backup into a scratch copy and
+counted its books, orders and reviews there and in the live shop; the counts were far apart, the restore itself
+failed, or the scratch copy could not be removed. A backup that does not restore is not a backup.
+
+**What to do:**
+
+1. Read the detail. "books: 0 restored, 40 live" means the backup is empty or damaged. "couldn't restore: …" means
+   the export could not be imported (often a permission, or the day's export is incomplete).
+2. Run the nightly job by hand (`node services/health/run.js nightly`), then run the drill again
+   (`node services/health/run.js drill`). A passing drill clears the alert.
+3. If the restore keeps failing, use the shop's own document copy under `backups/<day>/json/` (see "Restore a backup")
+   and tell the press nothing is lost yet.
+4. A scratch database named `drill-<day>` that was not removed can be deleted from the shop's Google project by hand;
+   the platform never removes any other database.
 
 ### spending
 

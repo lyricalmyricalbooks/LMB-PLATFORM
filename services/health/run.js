@@ -3,6 +3,7 @@
 //
 //   HEALTH_ALERT_TO=<the platform's alert address> node services/health/run.js checks
 //   node services/health/run.js nightly
+//   HEALTH_ALERT_TO=<the platform's alert address> node services/health/run.js drill   # monthly (plan 13.5)
 //
 // The token comes from `gcloud auth print-access-token`. Alerts go through the platform's email service, which reads its own
 // settings; this file never reads a key.
@@ -18,15 +19,21 @@ import { publishStatus } from "../../status/publish.js";
 import { createEmailService } from "../email/index.js";
 import { healthChecks } from "./checks.js";
 import { runNightlyBackups } from "./nightly.js";
+import { runRestoreDrill } from "./restoreDrill.js";
 import { runHealth } from "./runner.js";
 
 export async function realHealth({ job, env = process.env, fetch = globalThis.fetch, token = gcloudToken, print = console.log }) {
-  if (job !== "checks" && job !== "nightly") throw new Error('say which job to run: "checks" or "nightly"');
-  if (job === "checks" && !env.HEALTH_ALERT_TO) throw new Error("HEALTH_ALERT_TO is not set");
+  if (!["checks", "nightly", "drill"].includes(job)) throw new Error('say which job to run: "checks", "nightly" or "drill"');
+  if (job !== "nightly" && !env.HEALTH_ALERT_TO) throw new Error("HEALTH_ALERT_TO is not set");
   const platform = firestoreClient({ fetch, token, projectId: PLATFORM_PROJECT });
   const registry = firestoreRegistry(platform);
   const shopDb = (projectId) => firestoreClient({ fetch, token, projectId });
   if (job === "nightly") return runNightlyBackups({ registry, backups: googleClients({ fetch, token }).backups, shopDb, print });
+  if (job === "drill") {
+    const google = googleClients({ fetch, token });
+    const notify = createEmailService({ env, fetch, registry, sentLog: firestoreSentLog(platform) });
+    return runRestoreDrill({ registry, backups: google.backups, firestore: google.firestore, notify, config: { alertTo: env.HEALTH_ALERT_TO }, print });
+  }
   const notify = createEmailService({ env, fetch, registry, sentLog: firestoreSentLog(platform) });
   const result = await runHealth({ registry, checks: healthChecks({ siteCheck: siteCheckClient({ fetch }), fetch, shopDb }), notify, config: { alertTo: env.HEALTH_ALERT_TO }, print });
   // The public status page's summary, from the rows this run just updated (status/).

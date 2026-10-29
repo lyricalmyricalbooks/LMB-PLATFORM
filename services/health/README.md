@@ -13,6 +13,7 @@ checked. The checks only read.
 | pages | the shop's home page, `/admin`, `/shop-profile.js` and the stockroom page answer 200 | 2 failed runs in a row |
 | checkout | the shop's checkout function answers a browser's preflight from the shop's own address (204, address allowed) | 2 failed runs in a row |
 | webhook (shops with a payments account) | no failed payment event in the past day newer than the last good one (`adminSecrets/stripeWebhookStatus`) | the first failed run |
+| errors (shops) | fewer than 10 new error reports on the cart and checkout pages since the last run. The shop already counts each distinct shopper-side error without names or addresses (`clientErrors`); this run compares the counts with the ones it saved on the row (`memo`). The first run only saves a baseline | the first failed run |
 | backup | the shop's last good backup (its own nightly one, or the platform's stand-in) and the stockroom's (the platform's) are under 26 hours old | the first failed run |
 
 A check that can't be made ("couldn't check: …") counts as failing. Every check runs even when another fails.
@@ -40,6 +41,23 @@ Exports go to `backups/<day>/` in the shop's bucket, next to the shop's own. Eac
 (`platformBackup: { shopAt, stockroomAt }`, which the backup check reads) and as a registry event. A failed export is
 an event too. The next five-minute run's backup check then alerts on it.
 
+## Every month: the restore drill (`restoreDrill.js`, plan 13.5)
+
+`node services/health/run.js drill` restores the latest backup of one live shop into a scratch database (`drill-<day>`, in
+the shop's own project), counts its books, orders and reviews there and in the live shop, writes `restoreDrill` on the
+row and the check `drill` (so a failure shows as a shop with a problem and sends the usual `health-alert` email), and
+removes the scratch database. Counts match when within 10% (at least 5 documents); an empty restore of a shop with
+documents always fails. It does nothing when the last drill, of any shop, was under 28 days ago; the shop drilled longest
+ago goes next. Nothing in the live shop is written, and only a database named `drill-<day>` is ever removed.
+
+New databases (shop and stockroom) are made with seven days of roll-back to the minute (point-in-time recovery), and
+step 5 switches it on for an existing one when it is re-run. See "Restore a backup" in `docs/run-book.md`.
+
+**Switched on by Julian:** a monthly schedule for the drill job, and the platform's service account needs the
+Cloud Datastore Import Export Admin role on shop projects. **Not tested against Google:** `restoreScratch`,
+`removeScratch` and `count` in `clients/google.js` follow Google's Firestore API but have only run against fakes.
+Run the drill once against the test shop before trusting it.
+
 ## Spending limits per shop (`spending.js`, plan 8.9)
 
 Each shop's Google project gets a budget on the billing account, named `shop:<shop id>` (or with its id kept on the
@@ -63,8 +81,11 @@ watch. A new budget month brings the level back to normal by itself.
 1. Set a monthly budget per shop project on the billing account, named `shop:<shop id>`, with a Pub/Sub topic for its
    notifications. How much each shop's budget is waits on Julian.
 2. Host a push subscription on that topic that calls `recordBudgetNotice` (not built yet).
-3. The shop's photo copies, AI writing and imports read the level from the platform and follow `jobPace` (not built
-   yet: today the level is kept and shown, but the shop's own jobs don't read it).
+3. Built (plan 13.4): every notice also writes the level into the shop's own database (`systemStatus/spending`), and the
+   shop's hourly photo pass, its photo import and the AI writing assistant read it (`apps/shop/functions/spendingGate.js`).
+   Slow: at most 60 photo copies, 2 imported books and 10 AI answers an hour; held: none. Checkout, payment events and
+   order emails never call the gate. A level that is missing or unreadable means full speed. A test fails when the shop's
+   table differs from `COSTLY_JOBS` here.
 
 ## Running it for real
 

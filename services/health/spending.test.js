@@ -98,3 +98,33 @@ test("the control room shows a shop past its budget as one to watch, never as br
   assert.match(slow.reasons[0], /run slowly/);
   assert.match(shopHealth({ row: { ...live, spending: { level: "held" } }, profile: {} }).reasons[0], /wait until next month/);
 });
+
+// Plan 13.4: the shop's own jobs read the level from its own database.
+import { createRequire } from "node:module";
+const shopGate = createRequire(import.meta.url)("../../apps/shop/functions/spendingGate.js");
+
+test("the shop's copy of the costly-jobs table and pace is the platform's", () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(shopGate.COSTLY_JOBS)), JSON.parse(JSON.stringify(COSTLY_JOBS)));
+  for (const job of [...Object.keys(COSTLY_JOBS), ...NEVER_SLOWED]) {
+    for (const level of ["normal", "slow", "held"]) assert.deepEqual(shopGate.paceAt(level, job), jobPace(level, job), `${job} at ${level}`);
+  }
+});
+
+test("every notice tells the shop its level, in the shop's own database; a failed write is not fatal", async () => {
+  const { registry, run } = await world();
+  const written = [];
+  const shopDb = (shopId) => ({ set: async (path, data) => { written.push([shopId, path, data.level]); } });
+  const clock = () => new Date("2026-10-28T12:00:00Z");
+  const notify = { sendPlatform: async () => ({}) };
+  const call = (body, db) => recordBudgetNotice(body, { registry, notify, config: {}, shopDb: db, now: clock });
+  await call(alert({ cost: 30 }), shopDb);
+  await call(alert({ cost: 60 }), shopDb);
+  await call(alert({ cost: 120 }), shopDb);
+  assert.deepEqual(written, [["moth-press", "systemStatus/spending", "normal"], ["moth-press", "systemStatus/spending", "slow"], ["moth-press", "systemStatus/spending", "held"]]);
+  const lines = [];
+  const result = await recordBudgetNotice(alert({ cost: 60 }), { registry, notify, config: {}, shopDb: () => ({ set: async () => { throw new Error("no access"); } }), print: (l) => lines.push(l), now: clock });
+  assert.equal(result.level, "slow");
+  assert.match(lines.join(), /couldn't tell the shop its spending level: no access/);
+  assert.equal((await registry.getShop("moth-press")).spending.level, "slow");
+  void run;
+});

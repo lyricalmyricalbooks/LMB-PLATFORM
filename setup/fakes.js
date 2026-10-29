@@ -207,11 +207,18 @@ export function fakeGoogle({ failOnce = [] } = {}) {
     firestore: {
       getDatabase: async (projectId, databaseId = "(default)") =>
         (databaseId === "(default)" ? world.databases.get(projectId) : world.namedDatabases.get(`${projectId}/${databaseId}`)) ?? null,
-      async createDatabase(projectId, { databaseId = "(default)", locationId }) {
+      async createDatabase(projectId, { databaseId = "(default)", locationId, pointInTimeRecovery = false }) {
         change("firestore.createDatabase", projectId, databaseId);
         needProject(projectId);
-        if (databaseId === "(default)") world.databases.set(projectId, { locationId });
-        else world.namedDatabases.set(`${projectId}/${databaseId}`, { locationId });
+        if (databaseId === "(default)") world.databases.set(projectId, { locationId, pointInTimeRecovery });
+        else world.namedDatabases.set(`${projectId}/${databaseId}`, { locationId, pointInTimeRecovery });
+      },
+      async enablePointInTimeRecovery(projectId, databaseId = "(default)") {
+        change("firestore.enablePointInTimeRecovery", projectId, databaseId);
+        needProject(projectId);
+        const database = databaseId === "(default)" ? world.databases.get(projectId) : world.namedDatabases.get(`${projectId}/${databaseId}`);
+        if (!database) throw new Error(`no database ${databaseId} on ${projectId}`);
+        database.pointInTimeRecovery = true;
       },
     },
     storage: {

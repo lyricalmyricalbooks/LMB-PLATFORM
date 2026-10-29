@@ -85,6 +85,8 @@ function scheduledJobs({
       // Carts nobody can still be reminded about are deleted, so this collection (and every later sweep)
       // stays small however many carts visitors have written. Own try/catch: never blocks the reminders.
       try { await pruneOldCarts(db); } catch (err) { console.warn("abandonedCartSweep: cart cleanup failed:", err.message); }
+      // Plan 13.8: admin history older than two years goes too (retention.js). Orders are never touched.
+      try { await require("./retention").pruneOldAuditLog(db); } catch (err) { console.warn("abandonedCartSweep: history cleanup failed:", err.message); }
       const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
       // Only the 7-day window a reminder can still be sent in, newest first, at most ABANDONED_CART_BATCH per run
       // (the same index as before: recovered + updatedAt). Older carts are not read at all.
@@ -247,11 +249,14 @@ function scheduledJobs({
       try {
         const { runPhotoImport, pinnedFetch } = require("./photoImport");
         // pinnedFetch connects to the address the import checked, never a second lookup of the name (plan 5.7).
-        const imported = await runPhotoImport({ db, bucket, fetch: pinnedFetch, deadline: start + 90_000 });
+        // Plan 13.4: past its budget the shop imports fewer books each hour, and far past it none (spendingGate.js).
+        const importPace = await require("./spendingGate").paceOf(db, "import");
+        const imported = importPace.run ? await runPhotoImport({ db, bucket, fetch: pinnedFetch, deadline: start + 90_000, limit: importPace.perHour }) : { found: 0, held: true };
         if (imported.found) console.log("storageImageSweep: imported photos", imported);
       } catch (err) { console.error("storageImageSweep: imported photos failed:", err.message); }
       try {
-        const copies = await runImageCopies({ db, bucket, sharp, deadline: start + 200_000 });
+        const copyPace = await require("./spendingGate").paceOf(db, "photo-copies");
+        const copies = copyPace.run ? await runImageCopies({ db, bucket, sharp, deadline: start + 200_000, limit: copyPace.perHour }) : { found: 0, held: true };
         if (copies.found) console.log("storageImageSweep: photo copies", copies);
       } catch (err) { console.error("storageImageSweep: photo copies failed:", err.message); }
       try {
