@@ -51,3 +51,24 @@ test("the panel and the server offer the same open suggestions", () => {
   expect(openMatches(items as any, links, ignored).map((m) => m.key)).toEqual(["c|"]);
   expect(openMatches(items as any, {}, {})).toEqual([]);
 });
+
+test("a product that isn't a book matches by its SKU; a book's numbered edition SKUs never count (plan 10.6)", () => {
+  const goods = [
+    { id: "t1", title: "Moth Tee", kind: "clothing", options: [{ name: "Size", values: ["S", "M"] }],
+      variants: [{ id: "s", name: "S", sku: "TEE-S", picks: { Size: "S" } }, { id: "m", name: "M", sku: "tee m", picks: { Size: "M" } }] },
+    { id: "r1", title: "Ring", kind: "jewelry", sku: "RING-01" },
+    { id: "bk", title: "Hound Again", isbn: "9780000000002", sku: "SKU", variants: [{ id: "p", name: "Paperback", sku: "SKU-2" }] },
+  ];
+  const stock = [
+    { id: "small", title: "Shirt small", isbn: "TEE-S" },
+    { id: "medium", title: "Shirt medium", isbn: "TEE-M" },
+    { id: "ring", title: "Silver ring", isbn: "ring01" },
+    { id: "sku2", title: "Something", isbn: "SKU-2" },
+  ].map((b) => ({ author: "", currency: "", maxPrint: null, onHand: null, feedAt: null, ...b }));
+  const editions = linkableEditions(goods);
+  expect(server.linkableEditions(goods)).toEqual(editions);
+  // By title, then edition. The book keeps its ISBN; the shirt and the ring send their SKUs.
+  expect(editions.map((e) => [e.key, e.isbn])).toEqual([["bk|p", "9780000000002"], ["t1|m", "tee m"], ["t1|s", "TEE-S"], ["r1|", "RING-01"]]);
+  expect(suggestLinks(editions, stock, {})).toEqual({ "t1|s": "small", "t1|m": "medium", "r1|": "ring" });
+  expect(server.suggestLinks(server.linkableEditions(goods), stock, {})).toEqual(suggestLinks(editions, stock, {}));
+});
