@@ -9,11 +9,20 @@
 //                               (https://<service>/google/oauth)
 //   GOOGLE_TOKEN_KEY            32 random bytes in Base64: seals each press's Google tokens (../services/payments/tokenSeal.js)
 //   GOOGLE_GMAIL_SENDING        "on": a shop's emails may go from the press's own Gmail through the same sign-in.
-//                               Switched on by Julian once Google's yearly security review of sending is passed; until
-//                               then the shop's own domain (services/email/ownDomain.js) or Colophon's sender
+//                               Sending is a "sensitive" permission (not "restricted"), so it goes through Google's
+//                               ordinary review of the sign-in screen with the rest; switched on by Julian once that
+//                               review is passed. Until then the shop's own domain (services/email/ownDomain.js) or
+//                               Colophon's sender
+//   GOOGLE_MERCHANT_PROVIDER_ID the number of Colophon's own Merchant Center account. Google links every Shopping
+//                               account made through the API to it (plan 15.14); without it Google Shopping waits
+//   GOOGLE_LATER_EXTRAS         "on": offer the extras that join Google's review in a second round (YouTube, Calendar,
+//                               and, with their own switches below, Business Profile and Ads). Off at launch so the
+//                               first review asks for as few permissions as possible (plan 15.12)
 //   GOOGLE_BUSINESS_PROFILE     "on": offer the Google Business Profile tick box. Switched on by Julian once Google
 //                               grants Colophon access to its Business Profile tools
-//   GOOGLE_ADS_DEVELOPER_TOKEN  the Google Ads developer token; without it the Ads tick box isn't offered
+//   GOOGLE_ADS_ACCESS           the access level Google gave Colophon's project for Google Ads: explorer, basic or
+//                               standard. Google ended developer tokens on 9 September 2026 (plan 15.13); "off" or
+//                               unset: the Ads tick box isn't offered
 import { sealingKey } from "../services/payments/tokenSeal.js";
 
 const text = (value) => (typeof value === "string" ? value.trim() : "");
@@ -34,25 +43,34 @@ export function readGoogleConfig(env = {}) {
   if (clientId && !keyText) throw new Error("GOOGLE_TOKEN_KEY is needed with the Google keys");
   if (clientId && !redirectUrl) throw new Error("GOOGLE_REDIRECT_URL is needed with the Google keys");
   if (enabled && !clientId) throw new Error("GOOGLE_CONNECT_ENABLED needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
-  const adsDeveloperToken = text(env.GOOGLE_ADS_DEVELOPER_TOKEN);
+  const adsAccess = text(env.GOOGLE_ADS_ACCESS).toLowerCase() || "off";
+  if (!["off", "explorer", "basic", "standard"].includes(adsAccess)) throw new Error("GOOGLE_ADS_ACCESS must be off, explorer, basic or standard");
+  const merchantProviderId = text(env.GOOGLE_MERCHANT_PROVIDER_ID);
+  if (merchantProviderId && !/^\d+$/.test(merchantProviderId)) throw new Error("GOOGLE_MERCHANT_PROVIDER_ID is the number of Colophon's Merchant Center account");
   return Object.freeze({
     enabled,
     app: clientId ? Object.freeze({ clientId, clientSecret }) : null,
     redirectUrl: redirectUrl || null,
     tokenKey: keyText ? sealingKey(keyText, "GOOGLE_TOKEN_KEY") : null,
     gmailSending: onOff(env, "GOOGLE_GMAIL_SENDING"),
+    laterExtras: onOff(env, "GOOGLE_LATER_EXTRAS"),
     businessProfile: onOff(env, "GOOGLE_BUSINESS_PROFILE"),
-    adsDeveloperToken: adsDeveloperToken || null,
+    adsAccess,
+    merchantProviderId: merchantProviderId || null,
   });
 }
 
-/** The optional extras a press may tick, given what the platform has switched on. */
+/**
+ * The optional extras a press may tick, given what the platform has switched on. At launch only the Drive folder is
+ * offered; YouTube, Calendar, Business Profile and Ads wait for the second review (plan 15.12).
+ */
 export function offeredExtras(config) {
+  if (!config.laterExtras) return ["drive"];
   return [
     "drive",
     "youtube",
     "calendar",
     ...(config.businessProfile ? ["businessProfile"] : []),
-    ...(config.adsDeveloperToken ? ["ads"] : []),
+    ...(config.adsAccess !== "off" ? ["ads"] : []),
   ];
 }

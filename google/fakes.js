@@ -161,7 +161,9 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
     async submitSitemap(token, siteUrl, sitemap) { who(token, "searchConsole"); change("submitSitemap", siteUrl, sitemap); world.sitemaps.add(sitemap); return {}; },
 
     listMerchantAccounts: async (token) => (who(token, "merchantCenter"), [...world.merchantAccounts.values()].map((a) => ({ ...a }))),
-    async createMerchantAccount(token, { accountName }) {
+    async createMerchantAccount(token, { accountName, providerId }) {
+      // Google refuses an account made without a link to its provider (Colophon's own Merchant Center account).
+      if (!providerId) throw new GoogleError(400, "An account made through the API needs a provider");
       who(token, "merchantCenter");
       change("createMerchantAccount", accountName);
       const name = `accounts/${7000 + next()}`;
