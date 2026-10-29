@@ -16,9 +16,12 @@ export function createTokens({ google, connections, config, now = () => Date.now
     return config.tokenKey;
   };
   const live = (conn) => Boolean(conn?.sealed && !conn.revokedAt);
+  /** Google no longer honours the press's grant (revoked, password changed, unused for six months, over the limit). */
+  const needsReconnect = (conn) => live(conn) && Boolean(conn.reconnectAt);
 
   return {
     live,
+    needsReconnect,
     get: (shopId) => connections.get(shopId),
 
     /** Keeps a fresh grant. Google sends a refresh token only on the first Allow; a later one keeps the old. */
@@ -33,20 +36,34 @@ export function createTokens({ google, connections, config, now = () => Date.now
         accessExpiresAt: granted.accessExpiresAt,
         connectedAt: before?.connectedAt && live(before) ? before.connectedAt : new Date(now()).toISOString(),
         revokedAt: null,
+        reconnectAt: null,
       };
       await connections.set(shopId, value);
       return value;
     },
 
-    /** A usable access token, refreshed five minutes before it runs out; null when the shop has no live grant. */
+    /**
+     * A usable access token, refreshed five minutes before it runs out; null when the shop has no live grant or Google has
+     * ended it. A refused refresh (invalid_grant) is remembered as "needs reconnect" (plan 15.15) so callers stop asking at
+     * once and fall back (order emails go from Colophon's sender); signing in again clears it. Other failures are thrown.
+     */
     async fresh(shopId) {
       const conn = await connections.get(shopId);
-      if (!live(conn)) return null;
+      if (!live(conn) || conn.reconnectAt) return null;
       const opened = unseal(key(), bound(shopId), conn.sealed);
       if (conn.accessExpiresAt && Date.parse(conn.accessExpiresAt) - now() > REFRESH_BEFORE_MS) {
         return { token: opened.accessToken, scopes: conn.scopes, accountEmail: conn.accountEmail, extras: conn.extras ?? [] };
       }
-      const renewed = await google.refresh(opened.refreshToken);
+      let renewed;
+      try {
+        renewed = await google.refresh(opened.refreshToken);
+      } catch (err) {
+        if (err instanceof GoogleError && err.grant === "invalid_grant") {
+          await connections.set(shopId, { ...conn, accessExpiresAt: null, reconnectAt: new Date(now()).toISOString() });
+          return null;
+        }
+        throw err;
+      }
       await connections.set(shopId, {
         ...conn,
         sealed: seal(key(), bound(shopId), { accessToken: renewed.accessToken, refreshToken: renewed.refreshToken ?? opened.refreshToken }),

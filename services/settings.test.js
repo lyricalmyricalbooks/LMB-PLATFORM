@@ -9,12 +9,14 @@ test("defaults: Colophon, $29 / $19 / $39 CAD a month, 14-day trial, notificatio
     domain: "platform.example",
     senderEmail: "notifications@platform.example",
     supportEmail: "support@platform.example",
+    mailingAddress: "",
     currency: "CAD",
     prices: { shop: 2900, stockroom: 1900, both: 3900 },
     trialDays: 14,
     platformUrl: "https://platform.example",
     signupOpen: false,
     signupDailyCap: 10,
+    openCountries: ["CA"],
     foundingOffer: { percentOff: 25, presses: 25 },
     payAsYouSell: { basisPoints: 200 },
   });
@@ -65,4 +67,16 @@ test("saved control-room changes sit on top of the environment; bad ones are ref
   assert.equal((await liveSettings({ env: {}, store })).signupDailyCap, 4);
   assert.equal((await liveSettings({ env: {} })).signupDailyCap, 10);
   assert.deepEqual(Object.keys(editableValues(platformSettings({}))), Object.keys(EDITABLE));
+});
+
+test("the mailing address is read, tidied onto one line, and refused when it is too short or has markup (15.8)", () => {
+  assert.equal(platformSettings({ PLATFORM_MAILING_ADDRESS: "PO Box 12\nExample City ON A1A 1A1" }).mailingAddress, "PO Box 12, Example City ON A1A 1A1");
+  assert.throws(() => platformSettings({ PLATFORM_MAILING_ADDRESS: "Box 1" }), /PLATFORM_MAILING_ADDRESS/);
+  assert.throws(() => platformSettings({ PLATFORM_MAILING_ADDRESS: "<b>PO Box 12</b>, Example City" }), /PLATFORM_MAILING_ADDRESS/);
+});
+
+test("the countries open for sign-up default to Canada and are read as two-letter codes (15.23)", () => {
+  assert.deepEqual(platformSettings({}).openCountries, ["CA"]);
+  assert.deepEqual(platformSettings({ SIGNUP_OPEN_COUNTRIES: "ca, us" }).openCountries, ["CA", "US"]);
+  assert.throws(() => platformSettings({ SIGNUP_OPEN_COUNTRIES: "Canada" }), /SIGNUP_OPEN_COUNTRIES/);
 });

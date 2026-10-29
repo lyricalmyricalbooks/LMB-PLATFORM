@@ -92,15 +92,34 @@ The shop's calls: `google.status`, `google.connectLink { returnUrl, extras }`, `
 `GOOGLE_GMAIL_SENDING` (off), `GOOGLE_BUSINESS_PROFILE` (off), `GOOGLE_ADS_DEVELOPER_TOKEN` (none: no Ads box). They
 live in this service's environment only.
 
+### The "is Google ready" check (plan 15.4)
+
+`readiness.js` lists what only Julian can do outside the code, in plain words: Google approved the sign-in screen
+(`GOOGLE_SIGNIN_APPROVED=yes`), Colophon's Merchant Center account registered and its number saved
+(`GOOGLE_MERCHANT_REGISTERED=yes` and `GOOGLE_MERCHANT_PROVIDER_ID`), the service versions checked in the last 90 days
+(`VERSION_CHECKS` in `endpoints.js`, automatic) and a separate test project (`GOOGLE_TEST_CLIENT_ID`). **With
+`GOOGLE_CONNECT_ENABLED=true` the settings refuse to load until every item is done** and name what is missing;
+`GOOGLE_READY_CHECKS=off` skips the check for practice runs with the pretend Google. The control room's Switches page
+shows the same list (`GET /api/control/google-ready`). `registerMerchantDeveloper` makes the one-time Merchant
+registration call (account and developer email); its path and body follow Google's guide and are confirmed by the
+first real run (plan 15.7).
+
 ### Switched on by Julian
 
 1. Make Colophon's Google app (a Web sign-in client). Turn on Analytics Admin, Site Verification, Search Console,
    Merchant, Drive, YouTube Data and Calendar in the platform project.
 2. Have Google approve the sign-in screen for those permissions (Go-live plan). Then set the keys and
    `GOOGLE_CONNECT_ENABLED=true`.
-3. Gmail sending: after Google's yearly security review of the sending permission, set `GOOGLE_GMAIL_SENDING=on`.
-4. Business Profile: once Google grants Colophon access to its Business Profile tools, set `GOOGLE_BUSINESS_PROFILE=on`.
-5. Ads: once Google gives Colophon a developer token, set `GOOGLE_ADS_DEVELOPER_TOKEN`.
+3. Gmail sending: sending is a "sensitive" permission, so it goes through the same review of the sign-in screen (no
+   yearly outside review). Once that is approved, set `GOOGLE_GMAIL_SENDING=on`.
+4. Google Shopping: make Colophon's own Merchant Center account (home page verified), register the platform project
+   with it once (`registerGcp`), then set `GOOGLE_MERCHANT_PROVIDER_ID` to that account's number. Without it Google
+   Shopping waits.
+5. The second round of extras (YouTube, Calendar, Business Profile, Ads) is off at launch so the first review asks for
+   as few permissions as possible. After it, set `GOOGLE_LATER_EXTRAS=on`.
+6. Business Profile: once Google grants Colophon access to its Business Profile tools, set `GOOGLE_BUSINESS_PROFILE=on`.
+7. Ads: Google ended developer tokens on 9 September 2026. Once the platform project has an Ads access level, set
+   `GOOGLE_ADS_ACCESS` to `explorer`, `basic` or `standard`.
 
 ## Not yet
 

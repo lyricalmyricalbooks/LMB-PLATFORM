@@ -1,5 +1,5 @@
 // The shop's emails from the press's own Gmail (code plan 6.20), through the same Google sign-in. Off until Julian
-// switches GOOGLE_GMAIL_SENDING on, once Google's yearly security review of Colophon's sending permission is passed.
+// switches GOOGLE_GMAIL_SENDING on, once Google has approved Colophon's sign-in screen with its sending permission (a sensitive one, so no yearly outside review).
 // The email service takes `gmailSend` from here (services/email/index.js); when Gmail refuses, it sends the usual way.
 
 /** Base64url text of a plain MIME email, as Gmail's send call takes it. Header values lose line breaks. */

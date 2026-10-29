@@ -89,3 +89,12 @@ real one), `PLATFORM_SENDER_EMAIL` (default `notifications@<domain>`), `PLATFORM
 - The sent log's Firestore store (`emailSent/<key>` in the platform project), and the reputation store
   (`emailReputation/<shop id>` with its events).
 - Hosting the event door (`webhook.js`).
+
+## The mailing address (plan 15.8)
+
+Canadian anti-spam law asks for a mailing address in commercial emails. `PLATFORM_MAILING_ADDRESS` (a PO box is fine)
+puts Colophon's name, that address and the support contact at the foot of every platform email, once (`withIdentity` in
+`templates.js`). A press's own emails carry the press's words and are left alone. `waitlist-invite` is a commercial
+kind (`COMMERCIAL_KINDS`): `sendPlatform` refuses it until the address is set. The invite says "Reply STOP and we'll
+take you off the list at once"; a person who replies STOP is removed from the waitlist by hand from the support inbox
+within 10 business days (a clickable link waits on the platform being able to remove a waitlist entry).

@@ -30,6 +30,8 @@ import { acceptanceRecord, currentTermsVersion } from "../terms/terms.js";
 import { liveSettings } from "./live.js";
 
 /** The press's words while its shop waits for the day's room (plan 6.13). */
+/** A press outside the countries open now (settings.openCountries, plan 15.23): its place is kept, no shop is made. */
+export const LATER_WORDS = "Colophon starts in Canada. We've saved your place and we'll email you as soon as presses in your country can start.";
 export const IN_LINE_WORDS = "We're making a few shops a day. You're next in line, and we'll email you when yours starts.";
 
 const torontoDay = (date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
@@ -59,6 +61,7 @@ export function personOf(claims) {
 
 export function createSignup({ accounts, signups, registry, billing, email, auth, throttle, settings, invites = null, live = () => liveSettings(), now = () => new Date(), suffix = randomSuffix }) {
   const at = () => now().toISOString();
+  const isOpenCountry = (country) => (settings.openCountries ?? ["CA"]).includes(country);
 
   /** Is this address free for this account? Taken in the registry, or by another person's sign-up, means no. */
   async function isFree(address, accountId) {
@@ -89,7 +92,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
   async function startedToday() {
     const today = torontoDay(now());
     return (await signups.list()).filter((row) => {
-      if (row.invited || row.status === "in-line") return false;
+      if (row.invited || row.status === "in-line" || row.status === "later") return false;
       const when = row.admittedAt ?? row.createdAt;
       return typeof when === "string" && torontoDay(new Date(when)) === today;
     }).length;
@@ -154,6 +157,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         const isInvited = await invited(person.email);
         const { signupDailyCap } = await live();
         const myTurn = isInvited || (await startedToday()) < signupDailyCap;
+        const held = !isOpenCountry(details.country);
         row = {
           shopId: details.address ?? (await freeShopId(details.pressName)),
           accountId: person.accountId,
@@ -168,12 +172,12 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
           ...agreement,
           paymentProvider: "stripe",
           invited: isInvited,
-          status: myTurn ? "queued" : "in-line",
-          ...(myTurn ? { admittedAt: at() } : { linedUpAt: at(), message: IN_LINE_WORDS }),
+          status: held ? "later" : myTurn ? "queued" : "in-line",
+          ...(held ? { message: LATER_WORDS } : myTurn ? { admittedAt: at() } : { linedUpAt: at(), message: IN_LINE_WORDS }),
           createdAt: at(),
         };
         await signups.set(row.shopId, row);
-        if (isInvited) await invites.markUsed(person.email, row.shopId);
+        if (isInvited && !held) await invites.markUsed(person.email, row.shopId);
       } else {
         if (!row.termsAcceptedAt) {
           row = { ...row, ...agreement };
@@ -187,8 +191,17 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         }
       }
 
-      if (row.status !== "in-line") row = await begin(row, person);
-      return { shopId: row.shopId, pressName: row.pressName, plan: row.plan, status: row.status, trialEnd: row.trialEnd ?? null, ...(row.status === "in-line" ? { message: IN_LINE_WORDS } : {}) };
+      // Their country has opened since they signed up: they start, or join the daily line, like anyone else.
+      if (row.status === "later" && isOpenCountry(row.country)) {
+        const isInvited = await invited(person.email);
+        const { signupDailyCap } = await live();
+        const myTurn = isInvited || (await startedToday()) < signupDailyCap;
+        row = { ...row, invited: isInvited, status: myTurn ? "queued" : "in-line", ...(myTurn ? { admittedAt: at(), message: null } : { linedUpAt: at(), message: IN_LINE_WORDS }) };
+        await signups.set(row.shopId, row);
+        if (isInvited) await invites.markUsed(person.email, row.shopId);
+      }
+      if (row.status !== "in-line" && row.status !== "later") row = await begin(row, person);
+      return { shopId: row.shopId, pressName: row.pressName, plan: row.plan, status: row.status, trialEnd: row.trialEnd ?? null, ...(row.status === "in-line" ? { message: IN_LINE_WORDS } : {}), ...(row.status === "later" ? { message: LATER_WORDS } : {}) };
     },
 
     /**
@@ -253,7 +266,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
     async mine(claims) {
       const person = personOf(claims);
       const rows = await signups.listByAccount(person.accountId);
-      return rows.map(({ shopId, pressName, plan, status, trialEnd, message, canRetry, siteUrl }) => ({ shopId, pressName, plan, status, trialEnd, message: status === "in-line" ? IN_LINE_WORDS : message, canRetry, siteUrl }));
+      return rows.map(({ shopId, pressName, plan, status, trialEnd, message, canRetry, siteUrl }) => ({ shopId, pressName, plan, status, trialEnd, message: status === "in-line" ? IN_LINE_WORDS : status === "later" ? LATER_WORDS : message, canRetry, siteUrl }));
     },
   };
 }

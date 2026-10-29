@@ -156,6 +156,7 @@ async function load() {
     await loadBreaches();
     await loadWaitlist();
     await loadEverySwitch();
+    await loadGoogleReady();
     await loadSettings();
     await loadActivity();
   } catch (failure) {
@@ -1127,6 +1128,17 @@ onAuthStateChanged(auth, (user) => {
   if (user) load();
   else showOnly("#view-signin");
 });
+
+// ── Is Google ready? (plan 15.4): what is still to do before Connect Google can be switched on. ──
+async function loadGoogleReady() {
+  const target = $("#google-ready");
+  try {
+    const { items } = await api("GET", "/control/google-ready");
+    target.replaceChildren(...items.map((i) => sheet({ title: i.title, tone: i.done ? "success" : "warning", pillWords: i.done ? "Done" : "To do", body: [el("p", { className: "rp-hint", textContent: i.words })] })));
+  } catch (failure) {
+    target.replaceChildren(emptyState(failure.message));
+  }
+}
 
 // ── Switches for every shop (plan 9.7): one switch for every live shop at once, and what new shops start with. ──
 async function loadEverySwitch() {

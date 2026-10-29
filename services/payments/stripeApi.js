@@ -7,6 +7,19 @@
 
 export const STRIPE_API = "https://api.stripe.com";
 
+/**
+ * The Stripe API version every call asks for (code plan 15.2), so the code decides what Stripe's answers look like and
+ * not whatever the Stripe account's default happens to be. Stripe's go-live checklist asks for this. It is the newest
+ * version Stripe's own upgrade page names (checked 29 October 2026). The code reads the newer answer shapes first
+ * (`items.data[].current_period_end`, `parent.subscription_details`) and falls back to the older ones, but the first
+ * Stripe sandbox run (plan 15.7) is what proves the whole flow against it. Change it with `STRIPE_API_VERSION`; the
+ * Connect events address is created with the same `api_version` (README, Settings).
+ */
+export const DEFAULT_STRIPE_API_VERSION = "2026-09-30.endive";
+
+/** Stripe's version names: a date, then (from 2024) a release name, like 2026-09-30.endive. */
+export const isStripeApiVersion = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}(\.[a-z]+)?$/.test(value);
+
 /** A refusal from Stripe, with Stripe's own type, code and HTTP status kept for the caller. */
 export class StripeApiError extends Error {
   constructor({ message, type, code, param, statusCode }) {
@@ -44,9 +57,11 @@ export function formEncode(params) {
  * @param {object} deps
  * @param {typeof fetch} deps.fetch
  * @param {{ live?: string|null, test?: string|null }} deps.keys the platform's secret keys, from the environment only
+ * @param {string} [deps.apiVersion] the Stripe API version to ask for on every call (DEFAULT_STRIPE_API_VERSION)
  */
-export function createStripeApi({ fetch, keys }) {
+export function createStripeApi({ fetch, keys, apiVersion = DEFAULT_STRIPE_API_VERSION }) {
   if (typeof fetch !== "function") throw new Error("the Stripe client needs a fetch");
+  if (!isStripeApiVersion(apiVersion)) throw new Error(`the Stripe API version "${apiVersion}" is not a Stripe version name like ${DEFAULT_STRIPE_API_VERSION}`);
   return {
     /** Has the platform a key for this mode? */
     hasMode: (mode) => Boolean(keys?.[mode]),
@@ -62,7 +77,7 @@ export function createStripeApi({ fetch, keys }) {
       if (!key) throw new StripeApiError({ message: `The platform has no Stripe ${mode} key.`, type: "api_error", code: "platform_key_missing", statusCode: 503 });
       const body = formEncode(params);
       const url = method === "GET" && body ? `${STRIPE_API}${path}?${body}` : `${STRIPE_API}${path}`;
-      const headers = { Authorization: `Bearer ${key}` };
+      const headers = { Authorization: `Bearer ${key}`, "Stripe-Version": apiVersion };
       if (account) headers["Stripe-Account"] = account;
       if (idempotencyKey && method === "POST") headers["Idempotency-Key"] = idempotencyKey;
       if (method !== "GET") headers["Content-Type"] = "application/x-www-form-urlencoded";

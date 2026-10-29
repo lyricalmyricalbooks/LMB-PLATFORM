@@ -19,6 +19,8 @@ import { createBreachRegister } from "../control-room/breaches.js";
 import { runBook } from "../control-room/runbook.js";
 import { controlRoomPeople } from "../control-room/people.js";
 import { createInvites } from "../waitlist/invites.js";
+import { readGoogleConfig } from "../google/config.js";
+import { googleReadiness } from "../google/readiness.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { fakeSupportStore } from "../services/support/fakes.js";
@@ -131,6 +133,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     registry, auditLog, profileFiles, shopAccess: fakeShopAccess(), repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: fakeBreachStore(), registry, auditLog, now: clock.date }), people,
     activity, supportStore, recoveryStore, platformState, admins, now: clock.date,
+    // Nothing of Google is set up in the practice world, so the control room shows every item still to do.
+    googleReady: (at) => googleReadiness(readGoogleConfig({}), at),
   });
   const controls = createPlatformControls({
     admins, settingsStore: platformState, env: settingsEnv, activity, waitlist, signups: stores.signups, now: clock.date,

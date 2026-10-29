@@ -12,7 +12,8 @@ import { createPracticeInbox } from "../demo/practiceMail.js";
  */
 export function practicePlatformEmail({ env = {}, registry, inbox = createPracticeInbox(), log = () => {} }) {
   const recorded = fakePlatformEmail();
-  const real = practiceEmailService({ env, registry, deliver: async (body) => ({ id: inbox.send(body).id }) });
+  // A made-up mailing address, so the walkthrough's launch emails write the way the real ones will (plan 15.8).
+  const real = practiceEmailService({ env: { PLATFORM_MAILING_ADDRESS: "1 Practice Street, Practiceville (practice only, not a real address)", ...env }, registry, deliver: async (body) => ({ id: inbox.send(body).id }) });
   return {
     sent: recorded.sent,
     list: recorded.list,

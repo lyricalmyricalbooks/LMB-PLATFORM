@@ -27,11 +27,16 @@ const START = Date.parse("2026-10-28T12:00:00Z");
 const DAY = 86_400_000;
 const ENV = {
   GOOGLE_CONNECT_ENABLED: "true",
+  GOOGLE_READY_CHECKS: "off",
   GOOGLE_CLIENT_ID: "colophon-client.apps.example",
   GOOGLE_CLIENT_SECRET: "client-secret",
   GOOGLE_REDIRECT_URL: "https://google.platform.example/google/oauth",
   GOOGLE_TOKEN_KEY: Buffer.alloc(32, 7).toString("base64"),
+  GOOGLE_MERCHANT_PROVIDER_ID: "1234567",
+  GOOGLE_LATER_EXTRAS: "on",
 };
+// The launch settings: the same but with the second round of extras still off (plan 15.12).
+const { GOOGLE_LATER_EXTRAS: _later, ...LAUNCH } = ENV;
 const ADMIN = "https://moth-press.web.app/admin#overview";
 
 const row = (fields = {}) => ({
@@ -205,9 +210,21 @@ test("while the domain's Allow step isn't built, the own address waits and nothi
   assert.equal(t.shopFirebase.docs.get(SHOP).secrets.searchConsoleSite, "https://moth-press.web.app/");
 });
 
+test("at launch only the Drive folder is offered; the later extras wait for the second review (plan 15.12)", async () => {
+  assert.deepEqual(offeredExtras(readGoogleConfig(LAUNCH)), ["drive"]);
+  assert.deepEqual(offeredExtras(readGoogleConfig({ ...LAUNCH, GOOGLE_BUSINESS_PROFILE: "on", GOOGLE_ADS_ACCESS: "explorer" })), ["drive"], "their own switches do nothing until the second round is on");
+  const t = await setup({ env: LAUNCH });
+  const refused = await t.call("google.connectLink", { returnUrl: ADMIN, extras: ["youtube"] });
+  assert.equal(refused.status, 400);
+  const link = await t.call("google.connectLink", { returnUrl: ADMIN, extras: ["drive"] });
+  const scope = new URL(link.body.url).searchParams.get("scope");
+  for (const later of ["youtube", "calendar", "businessProfile", "ads"]) assert.ok(!scope.includes(SCOPES[later][0]), `${later} is not asked for at launch`);
+});
+
 test("extras run only when ticked; Business Profile and Ads only once the platform offers them", async () => {
   assert.deepEqual(offeredExtras(readGoogleConfig(ENV)), ["drive", "youtube", "calendar"]);
-  assert.deepEqual(offeredExtras(readGoogleConfig({ ...ENV, GOOGLE_BUSINESS_PROFILE: "on", GOOGLE_ADS_DEVELOPER_TOKEN: "dev" })), ["drive", "youtube", "calendar", "businessProfile", "ads"]);
+  assert.deepEqual(offeredExtras(readGoogleConfig({ ...ENV, GOOGLE_BUSINESS_PROFILE: "on", GOOGLE_ADS_ACCESS: "explorer" })), ["drive", "youtube", "calendar", "businessProfile", "ads"]);
+  assert.throws(() => readGoogleConfig({ ...ENV, GOOGLE_ADS_ACCESS: "token" }), /explorer, basic or standard/);
   const t = await setup();
   const refused = await t.call("google.connectLink", { returnUrl: ADMIN, extras: ["ads"] });
   assert.equal(refused.status, 400);
@@ -226,7 +243,7 @@ test("extras run only when ticked; Business Profile and Ads only once the platfo
 });
 
 test("Ads links the book feed and never spends; YouTube and Business Profile record the press's own accounts", async () => {
-  const t = await setup({ env: { ...ENV, GOOGLE_BUSINESS_PROFILE: "on", GOOGLE_ADS_DEVELOPER_TOKEN: "dev-token" } });
+  const t = await setup({ env: { ...ENV, GOOGLE_BUSINESS_PROFILE: "on", GOOGLE_ADS_ACCESS: "explorer" } });
   await t.signIn({ extras: ["youtube", "businessProfile", "ads"] });
   const g = (await t.shopRow()).google;
   assert.equal(g.youtube.channelId, "UCmothpress");
@@ -234,6 +251,51 @@ test("Ads links the book feed and never spends; YouTube and Business Profile rec
   assert.equal(g.ads.customerId, "1234567890");
   assert.equal(t.google.world.productLinks.size, 1);
   assert.match((await t.step("ads")).detail, /Nothing is spent/);
+  assert.doesNotMatch((await t.step("businessProfile")).detail, /Maps|opening hours/, "nothing is promised that isn't written (plan 15.13)");
+});
+
+test("Google Shopping is made the way Google asks: v1 addresses, linked to Colophon's provider account (15.1, 15.14)", async () => {
+  const seen = [];
+  const answer = (body) => ({ ok: true, status: 200, json: async () => body });
+  const google = createGoogleApi({ fetch: async (url, init) => { seen.push({ url, init }); return answer({ name: "accounts/1" }); }, app: { clientId: "id", clientSecret: "secret" }, redirectUrl: "https://google.platform.example/google/oauth" });
+  await google.listMerchantAccounts("tok");
+  await google.createMerchantAccount("tok", { accountName: "Moth Press", ownerEmail: "owner@example.com", timeZone: "America/Toronto", languageCode: "en", providerId: "1234567" });
+  await google.listDataSources("tok", "accounts/1");
+  await google.enableFreeListings("tok", "accounts/1");
+  for (const { url } of seen) {
+    assert.match(url, /^https:\/\/merchantapi\.googleapis\.com\/(accounts|datasources)\/v1\//);
+    assert.doesNotMatch(url, /v1beta/);
+  }
+  const create = JSON.parse(seen[1].init.body);
+  assert.equal(create.service[0].provider, "accounts/1234567");
+  // Without the provider's number the shop waits instead of asking Google for something it refuses.
+  const t = await setup({ env: (({ GOOGLE_MERCHANT_PROVIDER_ID: _p, ...rest }) => rest)(ENV) });
+  await t.signIn();
+  assert.equal((await t.step("merchantCenter")).state, "waiting");
+  assert.equal(t.google.world.merchantAccounts.size, 0);
+  // And the pretend Google refuses a call with no provider, as Google does.
+  await assert.rejects(fakeGoogle().createMerchantAccount("tok", { accountName: "x" }), /provider/);
+});
+
+test("no Ads call asks for a developer token, which Google ended on 9 September 2026 (15.13)", async () => {
+  const seen = [];
+  const google = createGoogleApi({ fetch: async (url, init) => { seen.push(init); return { ok: true, status: 200, json: async () => ({ resourceNames: ["customers/1"] }) }; }, app: { clientId: "id", clientSecret: "secret" } });
+  await google.listAdsCustomers("tok");
+  await google.createProductLink("tok", "1", "7001");
+  for (const init of seen) assert.equal(init.headers["developer-token"], undefined);
+});
+
+test("no address in this folder calls a version Google has switched off (15.1)", async () => {
+  const { readFileSync, readdirSync } = await import("node:fs");
+  const { VERSION_CHECKS, ADS } = await import("./endpoints.js");
+  assert.ok(ADS.endsWith(`/${VERSION_CHECKS.ads.current}`));
+  for (const file of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsWith(".js") && !f.endsWith(".test.js"))) {
+    const code = readFileSync(new URL(file, import.meta.url), "utf8").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+    for (const v of VERSION_CHECKS.merchant.retired) assert.ok(!new RegExp(`merchantapi[^\\n]*\\/${v}\\b|/(accounts|datasources)/${v}\\b`).test(code), `${file} calls Merchant ${v}`);
+    for (const v of VERSION_CHECKS.ads.retired) assert.ok(!new RegExp(`googleads\\.googleapis\\.com/${v}\\b`).test(code), `${file} calls Ads ${v}`);
+  }
+  // The check itself catches the retired Merchant address.
+  assert.ok(/(accounts|datasources)\/v1beta\b/.test("${MERCHANT}/accounts/v1beta/accounts"));
 });
 
 test("with Gmail sending switched on, the shop's emails go from the press's Gmail and replies reach the press", async () => {
@@ -252,6 +314,46 @@ test("with Gmail sending switched on, the shop's emails go from the press's Gmai
   t.google.world.revoked.add([...t.google.world.refreshTokens.keys()][0]);
   await email.send(SHOP, { kind: "order-note", to: "reader@example.com", idempotencyKey: "note-2", subject: "Your order", text: "Thank you" });
   assert.equal(resend.requests.length, 1);
+});
+
+test("Google ending the grant becomes 'needs reconnect': emails fall back at once, the control room lists it, signing in clears it (15.15)", async () => {
+  const t = await setup({ env: { ...ENV, GOOGLE_GMAIL_SENDING: "on" } });
+  await t.signIn();
+  assert.equal((await t.call("google.status")).body.needsReconnect, false);
+  // The press changes their Google password: the refresh token stops working and the access token has run out.
+  t.google.world.revoked.add([...t.google.world.refreshTokens.keys()][0]);
+  t.connections.map.set(SHOP, { ...t.connections.map.get(SHOP), accessExpiresAt: "2000-01-01T00:00:00.000Z" });
+  assert.equal(await t.link.tokens.fresh(SHOP), null, "no token, and no error thrown");
+  assert.ok(t.connections.map.get(SHOP).reconnectAt);
+  const asked = t.google.calls.length;
+  assert.equal(await t.link.tokens.fresh(SHOP), null);
+  assert.equal(t.google.calls.length, asked, "Google isn't asked again until they reconnect");
+
+  const answer = (await t.call("google.status")).body;
+  assert.equal(answer.connected, true);
+  assert.equal(answer.needsReconnect, true);
+  const resend = fakeResendFetch();
+  const email = createEmailService({ env: { RESEND_API_KEY: "re_test_not_real" }, fetch: resend.fetch, registry: t.registry, sentLog: fakeSentLog(), gmailSend: t.link.gmailSend });
+  await email.send(SHOP, { kind: "order-note", to: "reader@example.com", idempotencyKey: "note-r", subject: "Your order", text: "Thank you" });
+  assert.equal(resend.requests.length, 1, "the order email went from Colophon's sender");
+  const control = await t.link.status.googleStatus(SHOP);
+  assert.equal(control.stage, "needs reconnect");
+  assert.ok(control.reconnectSince);
+
+  // Signing in again clears it and keeps what the shop already had.
+  await t.signIn();
+  assert.equal((await t.call("google.status")).body.needsReconnect, false);
+  assert.equal((await t.link.status.googleStatus(SHOP)).stage, "connected");
+  assert.ok(await t.link.tokens.fresh(SHOP));
+});
+
+test("a Google outage while refreshing is not 'needs reconnect'", async () => {
+  const t = await setup();
+  await t.signIn();
+  t.connections.map.set(SHOP, { ...t.connections.map.get(SHOP), accessExpiresAt: "2000-01-01T00:00:00.000Z" });
+  t.google.refresh = async () => { throw new GoogleError(503, "Google is down"); };
+  await assert.rejects(t.link.tokens.fresh(SHOP), /down/);
+  assert.equal(t.connections.map.get(SHOP).reconnectAt ?? null, null);
 });
 
 test("tokens are kept sealed, bound to their shop", async () => {
@@ -279,7 +381,7 @@ test("the door: a wrong key, an expired sign-in, a foreign return address and a 
 });
 
 test("the shop's status lists each part in plain words, with no technical terms", async () => {
-  const t = await setup({ env: { ...ENV, GOOGLE_BUSINESS_PROFILE: "on", GOOGLE_ADS_DEVELOPER_TOKEN: "dev" }, shop: { domains: [{ name: "shop.mothpress.example", state: "live" }] } });
+  const t = await setup({ env: { ...ENV, GOOGLE_BUSINESS_PROFILE: "on", GOOGLE_ADS_ACCESS: "explorer" }, shop: { domains: [{ name: "shop.mothpress.example", state: "live" }] } });
   t.google.world.analyticsAccounts = [];
   await t.signIn({ extras: ["drive", "youtube", "calendar", "businessProfile", "ads"] });
   await t.link.teardown.teardownOnClose(SHOP);

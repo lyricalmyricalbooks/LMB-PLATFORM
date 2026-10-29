@@ -173,7 +173,11 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
       let account = prev.account ?? null;
       if (!account) {
         account = (await google.listMerchantAccounts(ctx.token)).find((a) => a.accountName === accountName)?.name ?? null;
-        if (!account) account = (await google.createMerchantAccount(ctx.token, { accountName, ownerEmail: ctx.accountEmail, timeZone: TIME_ZONE, languageCode: "en" })).name;
+        if (!account) {
+          // Google links every account made through the API to Colophon's own Merchant Center account (plan 15.14).
+          if (!config.merchantProviderId) return { state: "waiting", detail: "Google Shopping isn't open yet." };
+          account = (await google.createMerchantAccount(ctx.token, { accountName, ownerEmail: ctx.accountEmail, timeZone: TIME_ZONE, languageCode: "en", providerId: config.merchantProviderId })).name;
+        }
       }
       const feedUrl = `${siteOf(ctx.row)}/${FEED_FILE}`;
       let dataSource = prev.account === account && !prev.feedStoppedAt ? prev.dataSource ?? null : null;
@@ -241,11 +245,12 @@ export function createGoogleConnect({ google, tokens, shopFirebase, domainsCall,
       const prev = ctx.google.businessProfile ?? {};
       const accountId = prev.accountId ?? (await google.listBusinessAccounts(ctx.token))[0]?.name ?? null;
       if (!accountId) return { state: "waiting", detail: "You have no Google Business Profile yet. Make one at business.google.com, then press Try again." };
-      return { state: "done", detail: "Your opening hours and your shop's link show on Google Maps.", record: { accountId, stoppedAt: null } };
+      // Only the press's profile is found and kept on record; nothing is written to it yet (plan 15.13), so nothing is promised.
+      return { state: "done", detail: "Your Google Business Profile is found and kept on record. Nothing on it is changed.", record: { accountId, stoppedAt: null } };
     },
 
     async ads(ctx) {
-      if (!config.adsDeveloperToken) return { state: "waiting", detail: "Google Ads isn't open yet." };
+      if (config.adsAccess === "off") return { state: "waiting", detail: "Google Ads isn't open yet." };
       if (!has(ctx, "ads")) return notAllowed("Google Ads");
       const prev = ctx.google.ads ?? {};
       const merchant = ctx.google.merchantCenter;

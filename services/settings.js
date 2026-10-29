@@ -9,6 +9,8 @@
 //   PLATFORM_DOMAIN            the platform's own domain                             default platform.example (placeholder)
 //   PLATFORM_SENDER_EMAIL      the address every email is sent from                  default notifications@<domain>
 //   PLATFORM_SUPPORT_EMAIL     where replies to platform emails go                   default support@<domain>
+//   PLATFORM_MAILING_ADDRESS   Colophon's mailing address (a PO box is fine), at the foot of every email; Canadian
+//                              anti-spam law asks for it in commercial emails (15.8)     default none
 //   PLATFORM_CURRENCY          the currency plans are charged in                     default CAD
 //   PLAN_PRICE_SHOP            monthly price of the shop alone, in cents             default 2900 ($29)
 //   PLAN_PRICE_STOCKROOM       monthly price of the stockroom alone, in cents        default 1900 ($19)
@@ -16,6 +18,8 @@
 //   TRIAL_DAYS                 free days before the first charge (no card needed)    default 14
 //   PLATFORM_URL               the platform's own pages (sign-up, account)           default https://<domain>
 //   SIGNUP_OPEN                "true": anyone may sign up; otherwise waitlist invites only (6.1, 6.13)   default false
+//   SIGNUP_OPEN_COUNTRIES      countries whose presses may start a shop now, comma-separated codes   default CA (15.23: tax
+//                              presets, addresses and shipping are Canadian; other countries join a "later" list)
 //   SIGNUP_DAILY_CAP           new shops made a day; an invite skips it (6.13)       default 10
 //   FOUNDING_PERCENT_OFF       the founding offer's discount, for as long as they stay  default 25
 //   FOUNDING_PRESSES           how many paying presses get the founding offer        default 25
@@ -30,12 +34,14 @@ export const DEFAULT_SETTINGS = Object.freeze({
   domain: "platform.example",
   senderEmail: "notifications@platform.example",
   supportEmail: "support@platform.example",
+  mailingAddress: "",
   currency: "CAD",
   prices: Object.freeze({ shop: 2900, stockroom: 1900, both: 3900 }),
   trialDays: 14,
   platformUrl: "https://platform.example",
   signupOpen: false,
   signupDailyCap: 10,
+  openCountries: Object.freeze(["CA"]),
   foundingOffer: Object.freeze({ percentOff: 25, presses: 25 }),
   payAsYouSell: Object.freeze({ basisPoints: 200 }),
 });
@@ -92,14 +98,19 @@ export function platformSettings(env = process.env) {
   const platformName = text("PLATFORM_NAME", DEFAULT_SETTINGS.platformName).replace(/[\r\n"<>\\]+/g, " ").slice(0, 60).trim();
   const currency = text("PLATFORM_CURRENCY", DEFAULT_SETTINGS.currency).toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) problems.push("PLATFORM_CURRENCY must be a three-letter code like CAD");
+  const mailingAddress = text("PLATFORM_MAILING_ADDRESS", "").replace(/\s*[\r\n]+\s*/g, ", ");
+  if (mailingAddress && (mailingAddress.length < 10 || mailingAddress.length > 200 || /[<>"\\]/.test(mailingAddress))) problems.push("PLATFORM_MAILING_ADDRESS must be a street or PO box address of 10 to 200 characters");
   const platformUrl = text("PLATFORM_URL", `https://${domain}`).replace(/\/+$/, "");
   if (!/^https:\/\/[^/\s]+$/.test(platformUrl)) problems.push("PLATFORM_URL must be an https address with no path");
 
+  const openCountries = text("SIGNUP_OPEN_COUNTRIES", DEFAULT_SETTINGS.openCountries.join(",")).split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
+  if (!openCountries.length || openCountries.some((c) => !/^[A-Z]{2}$/.test(c))) problems.push("SIGNUP_OPEN_COUNTRIES must be two-letter country codes like CA,US");
   const settings = {
     platformName,
     domain,
     senderEmail: email("PLATFORM_SENDER_EMAIL", `notifications@${domain}`),
     supportEmail: email("PLATFORM_SUPPORT_EMAIL", `support@${domain}`),
+    mailingAddress,
     currency,
     // Stripe takes amounts in cents; one cent to $10,000 a month.
     prices: {
@@ -111,6 +122,7 @@ export function platformSettings(env = process.env) {
     trialDays: whole("TRIAL_DAYS", DEFAULT_SETTINGS.trialDays, LIMITS.trialDays),
     platformUrl,
     signupOpen: yesNo("SIGNUP_OPEN", DEFAULT_SETTINGS.signupOpen),
+    openCountries,
     signupDailyCap: whole("SIGNUP_DAILY_CAP", DEFAULT_SETTINGS.signupDailyCap, LIMITS.signupDailyCap),
     foundingOffer: {
       percentOff: whole("FOUNDING_PERCENT_OFF", DEFAULT_SETTINGS.foundingOffer.percentOff, LIMITS["foundingOffer.percentOff"]),
