@@ -20,7 +20,13 @@ const { browserRequestHandler } = require("./appCheck");
 const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
 // Stripe, nodemailer and Resend load on first use, so the many functions that never pay or mail start faster.
 // `new Stripe(key)` / `new Resend(key)` work unchanged (a constructor that returns an object hands that object back).
-function Stripe(...args) { return new (require("stripe"))(...args); }
+// The platform's walkthrough (LMB-PLATFORM demo/practicePay.js) runs the shop on the emulators with a practice card
+// service: there, and only there, every Stripe call goes to it instead of Stripe. Never set outside the emulators.
+const PRACTICE_STRIPE = process.env.FUNCTIONS_EMULATOR === "true" && process.env.DEMO_STRIPE_URL ? new URL(process.env.DEMO_STRIPE_URL) : null;
+function Stripe(...args) {
+  if (PRACTICE_STRIPE) args = [args[0], { ...args[1], protocol: "http", host: PRACTICE_STRIPE.hostname, port: Number(PRACTICE_STRIPE.port) }];
+  return new (require("stripe"))(...args);
+}
 function Resend(...args) { return new (require("resend").Resend)(...args); }
 const nodemailer = { createTransport: (...args) => require("nodemailer").createTransport(...args) };
 const { calculateShipping } = require("./orderMath");

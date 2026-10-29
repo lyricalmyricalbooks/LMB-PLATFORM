@@ -79,7 +79,28 @@ export function fakeEmulators(ports = PORTS) {
         return ok({});
       }
       if (method === "PATCH") {
-        docs.set(path, JSON.parse(init.body).fields);
+        const fields = JSON.parse(init.body).fields ?? {};
+        const mask = target.searchParams.getAll("updateMask.fieldPaths");
+        if (!mask.length) docs.set(path, fields);
+        else {
+          // Only the masked fields change, as Firestore does: a dotted path reaches into maps, and a masked field
+          // missing from the body is removed.
+          const doc = structuredClone(docs.get(path) ?? {});
+          for (const fieldPath of mask) {
+            const parts = fieldPath.split(".");
+            let to = doc;
+            let from = fields;
+            for (const part of parts.slice(0, -1)) {
+              to[part] ??= { mapValue: { fields: {} } };
+              to = to[part].mapValue.fields;
+              from = from?.[part]?.mapValue?.fields;
+            }
+            const last = parts.at(-1);
+            if (from && last in from) to[last] = from[last];
+            else delete to[last];
+          }
+          docs.set(path, doc);
+        }
         return ok({});
       }
       if (method === "GET") return docs.has(path) ? ok({ fields: docs.get(path) }) : ok({ error: { message: "not found" } }, 404);

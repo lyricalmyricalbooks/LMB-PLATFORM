@@ -1,5 +1,6 @@
-// The walkthrough's start page (`/`, plan 9.11): every page of the platform on one page of links, as the platform owner
-// and as a press, with who each link signs in as and what to try there. The links to the shop and the stockroom go to
+// The walkthrough's start page (`/`, plan 9.11): every page of the platform on one page of links, in the order to walk
+// them: as a shopper, as a press in its admin and stockroom, as a press joining, and as the platform owner, with who
+// each link signs in as and what to try there. The links to the shop and the stockroom go to
 // `npm run demo` (demo/config.js), which runs beside the walkthrough (`npm run walkthrough -- --with-demo` starts both).
 import { PORTS, url } from "../demo/config.js";
 
@@ -12,21 +13,49 @@ const DEMO = (path, port = PORTS.shop) => url(port, path);
  */
 export const START_SECTIONS = Object.freeze([
   {
-    id: "owner",
-    title: "As the platform owner",
-    intro: "You, running the platform. The control room signs you in as admin@example.com with the two-step sign-in already done; the real one asks for a code from your authenticator app.",
+    id: "shopper",
+    title: "1. As a shopper, buying from a press",
+    intro: "Moth Press, a made-up press, on the real shop that goes live: the same pages, checkout and emails. Pay with the practice card 4242 4242 4242 4242 (any future date, any 3 digits); no money moves and every email lands in the practice inbox. These come from npm run demo, so start it too (npm run walkthrough:all starts both).",
     links: [
-      { name: "Control room", href: "/control/", who: "admin@example.com", try: "Today: the money coming in, shops by state and what needs you. Every page is in the ink menu on the left (a drawer on a phone)." },
-      { name: "Shops and a shop's record", href: "/control/#shops", who: "admin@example.com", try: "Five made-up presses. Open Moth Press for its record: plan, billing, the Google steps, the per-order fee and the closing dates. View this shop asks for a reason; Make changes asks twice, and both go in the shop's log." },
-      { name: "Your test shop", href: "/control/#test-shop", who: "admin@example.com", try: "On Today: opens the demo shop and its admin (start the demo first) and puts its sample books back to 5 copies." },
-      { name: "Support, repairs and account recovery", href: "/control/#support", who: "admin@example.com", try: "Questions from presses to answer, two problems to fix in Repairs, and one person asking to move their account to a new email." },
-      { name: "Sign-ups and the waitlist", href: "/control/#signups", who: "admin@example.com", try: "Three people on the list, one already invited. Invite another and they skip the daily line." },
-      { name: "Prices, switches and records", href: "/control/#settings", who: "admin@example.com", try: "The daily cap, the plans and prices and the founding offer; then Switches, Emergency payments, Run book, the Breach register and the Activity log in the menu." },
+      { name: "The shop's front page", href: DEMO("/"), demo: true, who: null, try: "Books, zines, prints and merch. Use the menu at the top to see one kind at a time." },
+      { name: "A photobook", href: DEMO("/books/low-tide-almanac"), demo: true, who: null, try: "Low Tide Almanac: two photos, reviews, the artist's bio, and Add to bag." },
+      { name: "A T-shirt in sizes and colours", href: DEMO("/books/night-buses-t-shirt"), demo: true, who: null, try: "Pick a size and a colour: the photo and the stock follow. XL in Bone is sold out." },
+      { name: "A print in two sizes", href: DEMO("/books/low-tide-print"), demo: true, who: null, try: "A3 and A2 cost different amounts." },
+      { name: "Sold out, and a pre-order", href: DEMO("/books/field-guide-to-small-moths"), demo: true, who: null, try: "The field guide is sold out: ask to be told when it's back. Harbour Lights (in Photobooks) is a pre-order." },
+      { name: "Bag and checkout", href: DEMO("/checkout"), demo: true, who: null, try: "Add things to the bag first. Try the code WELCOME10, then pay with 4242 4242 4242 4242. 4000 0000 0000 0002 shows a declined card." },
+      { name: "The emails the shopper gets", href: DEMO("/inbox", PORTS.practice), demo: true, who: null, try: "The order confirmation, the shipping and refund emails, and your new-order alerts, as they look in a mailbox." },
+      { name: "Track an order", href: DEMO("/track"), demo: true, who: null, try: "Use the order number and email from an order confirmation in the practice inbox." },
+      { name: "The shopper's account", href: DEMO("/account"), demo: true, who: null, try: "Sign in with Google and pick shopper@example.com (or add any made-up address): past orders and saved addresses." },
+    ],
+  },
+  {
+    id: "shop",
+    title: "2. As the press, in its website admin",
+    intro: "Everything the press runs its shop with. In the admin, Sign in with Google and pick owner@example.com (Demo Owner). Four sample orders are already there: one shipped, one to send, one refunded and one asking to cancel.",
+    links: [
+      { name: "Overview", href: DEMO("/admin"), demo: true, who: "owner@example.com", try: "Sales, orders to send and what needs you today." },
+      { name: "Orders", href: DEMO("/admin#orders"), demo: true, who: "owner@example.com", try: "Open Jun Park's order to pack and ship it, Tom Reyes's to answer the cancel request, or any paid order to refund it." },
+      { name: "Products", href: DEMO("/admin#catalog"), demo: true, who: "owner@example.com", try: "Edit a book or the T-shirt's sizes and colours. Add a product, or import a list of products from a spreadsheet." },
+      { name: "Inventory", href: DEMO("/admin#inventory"), demo: true, who: "owner@example.com", try: "Stock for every product and every size." },
+      { name: "Customers", href: DEMO("/admin#customers"), demo: true, who: "owner@example.com", try: "Who bought what." },
+      { name: "Discounts and reviews", href: DEMO("/admin#discounts"), demo: true, who: "owner@example.com", try: "WELCOME10 is set up. Reviews (in the menu) has one review waiting to be approved." },
+      { name: "Payments and emails", href: DEMO("/admin#settings/payments"), demo: true, who: "owner@example.com", try: "How the shop takes payments; then Email sender in the menu for the emails' words and look." },
+      { name: "Studio, the designer", href: DEMO("/admin#designer"), demo: true, who: "owner@example.com", try: "Change any colour, word or section, see it on the page, then publish." },
+      { name: "Themes, including Marquee and Shelf", href: DEMO("/admin#designer?tab=themes"), demo: true, who: "owner@example.com", try: "Every full template, tried on the shop before you choose." },
+      { name: "As a brand-new press", href: DEMO("/admin"), demo: true, who: "owner@example.com", try: "Start the demo with npm run demo -- --new-press: the admin opens on Choose your look, then Set up your shop." },
+    ],
+  },
+  {
+    id: "stockroom",
+    title: "3. As the press, in its stockroom",
+    intro: "The stockroom keeps the printed copies. Sign in with Google and pick owner@example.com (Demo Owner).",
+    links: [
+      { name: "The stockroom", href: DEMO("/", PORTS.stockroom), demo: true, who: "owner@example.com", try: "Moth Press's books and how many copies are on hand. Changes stay after the demo restarts." },
     ],
   },
   {
     id: "press",
-    title: "As a press, before and after signing up",
+    title: "4. As a press, finding and joining the platform",
     intro: "A press finding the platform, signing up and paying for its plan. Nothing is charged: payments are pretend.",
     links: [
       { name: "Waitlist", href: "/waitlist/", who: null, try: "The plans and Start your free trial. Joining the waitlist keeps your email only in this walkthrough." },
@@ -41,17 +70,16 @@ export const START_SECTIONS = Object.freeze([
     ],
   },
   {
-    id: "shop",
-    title: "Inside a press's shop and stockroom",
-    intro: "The press's own website, its admin and its stockroom. These come from npm run demo, so start it too (or start both at once with npm run walkthrough -- --with-demo). In the admin or the stockroom, Sign in with Google and pick owner@example.com (Demo Owner).",
+    id: "owner",
+    title: "5. As you, the platform owner",
+    intro: "You, running the platform. The control room signs you in as admin@example.com with the two-step sign-in already done; the real one asks for a code from your authenticator app.",
     links: [
-      { name: "The shop", href: DEMO("/"), demo: true, who: null, try: "The storefront a shopper sees, with the test books. Add one to the bag and go to checkout." },
-      { name: "A book page", href: DEMO("/books/test-book-one"), demo: true, who: null, try: "Test Book One: 5 left. Its stock follows the stockroom." },
-      { name: "The admin", href: DEMO("/admin"), demo: true, who: "owner@example.com", try: "Orders, books and settings. Settings › Taxes › Start from a preset; Settings › General › Your web address; the URL redirects card; the email sender preview with the press's name." },
-      { name: "Practice order and test sale", href: DEMO("/admin"), demo: true, who: "owner@example.com", try: "While the shop is private, Try a practice order: the checkout takes the test card for an hour and the order is kept out of the reports. Then refund it." },
-      { name: "Studio (the designer)", href: DEMO("/admin#designer"), demo: true, who: "owner@example.com", try: "Change the look and the words of the shop, then publish." },
-      { name: "The stockroom", href: DEMO("/", PORTS.stockroom), demo: true, who: "owner@example.com", try: "The same books and their copies. Signed out, it says so; changes stay after the demo restarts." },
-      { name: "As a brand-new press", href: DEMO("/admin"), demo: true, who: "owner@example.com", try: "Start the demo with npm run demo -- --new-press: the admin opens on Choose your look, then Set up your shop." },
+      { name: "Control room", href: "/control/", who: "admin@example.com", try: "Today: the money coming in, shops by state and what needs you. Every page is in the ink menu on the left (a drawer on a phone)." },
+      { name: "Shops and a shop's record", href: "/control/#shops", who: "admin@example.com", try: "Made-up presses. Open Moth Press for its record: plan, billing, the Google steps, the per-order fee and the closing dates. View this shop asks for a reason; Make changes asks twice, and both go in the shop's log." },
+      { name: "Your test shop", href: "/control/#test-shop", who: "admin@example.com", try: "On Today: opens the demo shop and its admin (start the demo first) and puts its test products back to 5 copies." },
+      { name: "Support, repairs and account recovery", href: "/control/#support", who: "admin@example.com", try: "Questions from presses to answer, two problems to fix in Repairs, and one person asking to move their account to a new email." },
+      { name: "Sign-ups and the waitlist", href: "/control/#signups", who: "admin@example.com", try: "Three people on the list, one already invited. Invite another and they skip the daily line." },
+      { name: "Prices, switches and records", href: "/control/#settings", who: "admin@example.com", try: "The daily cap, the plans and prices and the founding offer; then Switches, Emergency payments, Run book, the Breach register and the Activity log in the menu." },
     ],
   },
 ]);
@@ -60,7 +88,7 @@ const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;"
 
 const link = (item) => `<li class="card">
   <h3><a href="${escape(item.href)}"${item.demo ? ' target="_blank" rel="noopener"' : ""}>${escape(item.name)}</a></h3>
-  <p class="cp-who">${item.who ? `Signs in as ${escape(item.who)}` : "No sign-in"}${item.demo ? " · needs npm run demo" : ""}</p>
+  <p class="cp-who">${item.who ? `Signs in as ${escape(item.who)}` : "No sign-in"}${item.demo ? " · needs the demo running" : ""}</p>
   <p class="hint">${escape(item.try)}</p>
 </li>`;
 
@@ -97,7 +125,7 @@ export function startPage({ presses = [], waitlist = [] } = {}) {
   <div class="cp-wrap cp-start-page">
     <div class="mark">Colophon · walkthrough</div>
     <h1 class="cp-title">Walk through the platform</h1>
-    <p class="cp-lede">Every page of the platform on this computer, as the platform owner and as a press. The sign-ins are made-up people and the money is pretend, so try anything.</p>
+    <p class="cp-lede">Every page of the platform on this computer, running the same code that goes live: as a shopper, as a press and as the platform owner. The sign-ins are made-up people and the money is pretend, so try anything.</p>
     <div class="cp-alertline" data-tone="info" role="note"><p><b>Nothing here is real.</b> Nothing is saved, sent or charged, and nothing reaches a real shop, Google account or bank. Stop the walkthrough and everything made in it is forgotten.</p></div>
     ${ledger(presses, waitlist)}
 ${START_SECTIONS.map((section) => `  <section id="${section.id}">

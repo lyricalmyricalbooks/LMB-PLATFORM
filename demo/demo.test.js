@@ -13,6 +13,7 @@ import { PUBLISHES, QUESTION } from "../signup/form.js";
 import { coverSvg } from "./photos.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
 import { fakeEmulators } from "./fakeEmulators.js";
+import { sampleProducts } from "./sampleCatalogue.js";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -78,14 +79,16 @@ test("the emulator config names every piece, and leaves the server code out on r
   assert.deepEqual(Object.keys(firebaseRc().targets[DEMO_PROJECT].storage), ["shop", "stockroom"]);
 });
 
-test("the console lists the storefront, a book, the admin, Studio, the stockroom and the emulator panel", () => {
+test("the console lists the storefront, a book, a shirt, the admin, Studio, the stockroom, the practice inbox and the emulator panel", () => {
   const list = addresses().map(([, address]) => address);
   assert.deepEqual(list, [
     "http://127.0.0.1:5173/",
-    "http://127.0.0.1:5173/books/test-book-one",
+    "http://127.0.0.1:5173/books/low-tide-almanac",
+    "http://127.0.0.1:5173/books/night-buses-t-shirt",
     "http://127.0.0.1:5173/admin",
     "http://127.0.0.1:5173/admin#designer",
     "http://127.0.0.1:5174/",
+    "http://127.0.0.1:5175/inbox",
     "http://127.0.0.1:4000/",
   ]);
 });
@@ -136,8 +139,9 @@ test("seeding fills the shop, the stockroom, the photos and the owner, all on th
   const result = await seedDemo({ fetch: emulators.fetch, now: () => new Date("2026-10-28T12:00:00Z") });
   assert.equal(result.ownerCreated, true);
   assert.equal(result.created.length, demoShopDocs(() => "").length);
-  assert.deepEqual(result.stockroomAdded, ["test-book-one", "test-book-two", "test-book-three"]);
-  assert.equal(emulators.files.size, 6);
+  assert.deepEqual(result.stockroomAdded, ["test-book-one", "test-book-two", "test-book-three", "low-tide-almanac", "night-buses", "the-quiet-field", "salt-and-static", "field-guide-to-small-moths"]);
+  assert.equal(result.sampleAdded.length, sampleProducts().length);
+  assert.equal(emulators.files.size, 6 + sampleProducts().reduce((sum, product) => sum + product.art.length, 0));
   // Nothing went anywhere but the local emulators.
   for (const { url } of emulators.requests) assert.match(url, /^http:\/\/127\.0\.0\.1:(9099|9199|8080)\//);
   // The owner carries the Team owner role, which both apps accept.

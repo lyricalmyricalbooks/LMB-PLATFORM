@@ -28,6 +28,8 @@ export const PORTS = Object.freeze({
   logging: 4500,
   shop: 5173,
   stockroom: 5174,
+  // The practice card service and inbox (practiceServices.js).
+  practice: 5175,
 });
 
 export const url = (port, path = "") => `http://${HOST}:${port}${path}`;
@@ -153,10 +155,12 @@ export function firebaseRc() {
 export function addresses() {
   return [
     ["Storefront", url(PORTS.shop, "/")],
-    ["A book page", url(PORTS.shop, "/books/test-book-one")],
+    ["A book page", url(PORTS.shop, "/books/low-tide-almanac")],
+    ["A shirt in sizes", url(PORTS.shop, "/books/night-buses-t-shirt")],
     ["Admin", url(PORTS.shop, "/admin")],
     ["Studio (the theme editor)", url(PORTS.shop, "/admin#designer")],
     ["Stockroom", url(PORTS.stockroom, "/")],
+    ["Practice inbox (the shop's emails)", url(PORTS.practice, "/inbox")],
     ["Emulator control panel", url(PORTS.ui, "/")],
   ];
 }

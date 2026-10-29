@@ -74,6 +74,13 @@ service cloud.firestore {
         && shortText(a.get('zip', ''), 40)
         && shortText(a.get('country', ''), 80);
     }
+    // Checkout's billing block holds only the region its tax is worked out from (Checkout.tsx customer.billingAddress:
+    // state and country). Checked as those two fields: a whole-address check here pushed every guest order past the
+    // rules engine's limit of 1000 expressions, so the database refused it (found by the platform's walkthrough).
+    function billingOk(b) {
+      return b is map && b.keys().hasOnly(['state', 'country'])
+        && shortText(b.get('state', ''), 120) && shortText(b.get('country', ''), 80);
+    }
     // The guest's customer block on a browser-created order: bounded so a forged order can't bloat.
     function guestCustomerOk(c) {
       return c is map && c.size() <= 10
@@ -81,7 +88,7 @@ service cloud.firestore {
         && c.email.size() <= 254
         && shortText(c.get('phone', ''), 60)
         && (!('address' in c) || addressOk(c.address))
-        && (!('billingAddress' in c) || addressOk(c.billingAddress));
+        && (!('billingAddress' in c) || billingOk(c.billingAddress));
     }
 
     // Browser-written order fields other than the line items: right type and a sane size, so a forged order

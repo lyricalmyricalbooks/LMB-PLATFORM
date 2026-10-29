@@ -1,8 +1,9 @@
 # Walkthrough
 
 The platform's own pages on made-up data, on one computer: `npm run walkthrough` (code plan 6.14), with a start page that
-links them all as the platform owner and as a press (plan 9.11). `npm run walkthrough:all` (`--with-demo`) also starts
-`npm run demo`, the shop and stockroom the start page's last section links to. Plain Node 22 ES
+links them all as a shopper, as a press and as the platform owner (plan 9.11). `npm run walkthrough:all` (`--with-demo`)
+also starts `npm run demo`: the real shop, checkout, emails and stockroom on the emulators, which the start page's first
+three sections link to. Plain Node 22 ES
 modules, no packages of its own, no emulators, no network. The plain-words guide is in
 [docs/demo-shop.md](../docs/demo-shop.md); `npm run demo` is the shop and stockroom, this is the pages around them.
 
@@ -20,13 +21,15 @@ modules, no packages of its own, no emulators, no network. The plain-words guide
 
 | Address | Page | Notes |
 | --- | --- | --- |
-| `/` (and `/start`) | the start page (`startPage.js`) | Three sections: as the platform owner, as a press, inside a press's shop and stockroom (`npm run demo`). |
+| `/` (and `/start`) | the start page (`startPage.js`) | Five sections: as a shopper (the demo's shop, checkout, practice inbox), the press's website admin, its stockroom, a press joining the platform, and the platform owner. |
 | `/control/` | `control-room/index.html` | Signs in as `admin@example.com` with two-step claims (`firebase.sign_in_second_factor: "totp"`, a fresh `auth_time`), so every panel opens. This sign-in is never remembered, so the other pages keep their own person. |
 | `/waitlist/` | `waitlist/index.html` | Plans from `/api/plans` and **Start your free trial** (the walkthrough turns sign-up on). The form keeps sign-ups in memory. |
 | `/signup/` | `signup/index.html` | "Continue with Google" signs in as `newcomer@example.com`, who has no shop yet. |
 | `/account/` (and `/accounts/`) | `accounts/index.html` | Signs in as `owner@example.com`, who has three presses: Moth Press (trial), Paper Wasp Press (paused) and Fieldnote Editions (paying). |
 | `/account/billing?shop=moth-press` | `accounts/billing.html` | The press on its free trial. |
 | `/account/billing?shop=paper-wasp` | `accounts/billing.html` | The press paused until a card is added. |
+| `/account/billing?shop=fieldnote` | `accounts/billing.html` | The press paying monthly. |
+| `/status/` | `status/` | Service status over the walkthrough's shops. |
 | `/help/`, `/terms/` | `help/`, `terms/` | The pages the others link to. |
 | `/walkthrough/card` | a stand-in for Stripe's card page | **Add a card** sends the owner here; its button adds the test card. |
 

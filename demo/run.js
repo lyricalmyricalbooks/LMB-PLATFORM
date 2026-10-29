@@ -20,6 +20,9 @@ import { INTERNAL_PORTS, msUntilReset, RESET_HOUR, sampleEmulatorConfig, sampleP
 import { startGate } from "./gate.js";
 import { keepDatabase } from "./keepDatabase.js";
 import { resetSamplePress } from "./reset.js";
+import { practiceEnv, startPracticeServices } from "./practiceServices.js";
+import { practiceStripeScript, PRACTICE_CARDS } from "./practicePay.js";
+import { placeSampleOrders } from "./sampleOrders.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const WORK = join(ROOT, ".demo");
@@ -27,6 +30,10 @@ const DATA = join(WORK, "data");
 // The emulators' own export (DATA) keeps only the default Firestore database; the stockroom's is saved here instead
 // (keepDatabase.js). Outside DATA, which the export replaces whole.
 const STOCKROOM_SAVE = join(WORK, "stockroom-data.json");
+// The practice inbox's emails (practiceMail.js), kept between runs like the shop's data.
+const INBOX_SAVE = join(WORK, "inbox.json");
+// The practice card service and inbox (practiceServices.js); its address once it is listening.
+const PRACTICE_URL = url(PORTS.practice);
 const SAVE_EVERY_MS = 10_000;
 const WINDOWS = process.platform === "win32";
 const MIN_JAVA = 21; // firebase-tools 15's Firestore emulator needs Java 21 or newer.
@@ -74,7 +81,9 @@ function writeWorkFiles(withFunctions, sample = false) {
   writeFileSync(join(WORK, "firebase.json"), `${JSON.stringify(config, null, 2)}\n`);
   writeFileSync(join(WORK, ".firebaserc"), `${JSON.stringify(firebaseRc(), null, 2)}\n`);
   const script = sample ? sampleProfileScript : profileScript;
-  writeFileSync(join(WORK, "shop-profile.js"), script(shopProfile()));
+  // The shop page also gets the practice card form in place of Stripe's (practicePay.js); the sample press has no
+  // server code, so nothing to pay with.
+  writeFileSync(join(WORK, "shop-profile.js"), script(shopProfile()) + (sample ? "" : practiceStripeScript(PRACTICE_URL)));
   writeFileSync(join(WORK, "stockroom-profile.js"), script(stockroomProfile()));
 }
 
@@ -107,7 +116,9 @@ function startEmulators(withFunctions, sample = false) {
   }
   const log = [];
   // No Google sign-in is needed or looked for: the emulators never call Google for a demo- project.
-  const child = start("emulators", "npx", args, { cwd: WORK, shell: WINDOWS, env: { ...process.env, METADATA_SERVER_DETECTION: "none" } });
+  // The shop's server code pays and mails through the practice services (practiceServices.js), never Stripe or Resend.
+  const env = { ...process.env, METADATA_SERVER_DETECTION: "none", ...(sample ? {} : practiceEnv(PRACTICE_URL)) };
+  const child = start("emulators", "npx", args, { cwd: WORK, shell: WINDOWS, env });
   const keep = (chunk) => {
     const text = chunk.toString();
     log.push(text);
@@ -219,16 +230,17 @@ function printWelcome(withFunctions) {
   say(`Sign in to the admin and the stockroom with "Sign in with Google". A practice sign-in window opens:`);
   say(`pick ${DEMO_OWNER.email} (${DEMO_OWNER.name}). No password, and no real Google account is used.`);
   say("");
+  say(`Paying works with the practice card ${PRACTICE_CARDS.good} (any future date, any 3 digits); no money moves.`);
+  say(`Every email the shop sends lands in the practice inbox: ${url(PORTS.practice, "/inbox")}`);
+  say("");
   say("What doesn't work here:");
-  say("  - Paying. The checkout opens and works out shipping, but its Pay step says no payment method is available:");
-  say("    card payments need Stripe, which can't run on this computer. No order is paid and no money moves.");
-  say("  - Emails are not sent, and shipping labels and live carrier rates can't be bought.");
+  say("  - Shipping labels and live carrier rates can't be bought, and PayPal and Square aren't there.");
   say("  - Keep the computer online: the practice sign-in window and the stockroom load a few files from the internet.");
   say("    No shop data leaves this computer, and no real Google account is used.");
   if (!withFunctions) say("  - The shop's server code is off, so shipping prices, order tools and the Team list don't work either.");
   say("");
   say("Press Ctrl+C here to stop. Changes to the shop and the stockroom are kept for next time;");
-  say("`npm run demo -- --fresh` starts both over from the starter books.");
+  say("`npm run demo -- --fresh` starts both over from the sample press.");
 }
 
 // The sample press's apps, built once for its public host with each app's own Vite.
@@ -299,11 +311,21 @@ async function main() {
   if (argv.includes("--fresh")) {
     rmSync(DATA, { recursive: true, force: true });
     rmSync(STOCKROOM_SAVE, { force: true });
+    rmSync(INBOX_SAVE, { force: true });
   }
   if (await hubSays()) stopWith("The Firebase emulators are already running (another demo window?). Stop that one first with Ctrl+C.");
 
   process.on("SIGINT", () => stopAll(0, { byCtrlC: true }));
   process.on("SIGTERM", () => stopAll(0));
+
+  let practice = null;
+  try {
+    practice = await startPracticeServices({ port: PORTS.practice, webhookUrl: url(PORTS.functions, `/${DEMO_PROJECT}/us-central1/stripeWebhook`), inboxFile: INBOX_SAVE });
+  } catch (error) {
+    stopWith(error?.code === "EADDRINUSE"
+      ? `Something else is already using port ${PORTS.practice}, which the demo's practice payments and inbox need. Stop it and try again.`
+      : `The practice payments and inbox didn't start: ${error?.message ?? error}`);
+  }
 
   writeWorkFiles(withFunctions);
   say("Starting the Firebase emulators (the first run downloads them, about a minute)…");
@@ -340,6 +362,16 @@ async function main() {
   say("Filling the demo shop with its books…");
   const seeded = await seedDemo({ fetch, newPress: argv.includes("--new-press") });
   say(`  ${seeded.created.length ? `Added ${seeded.created.length} shop documents` : "The shop's books were already there"}; ${seeded.stockroomAdded.length ? `added ${seeded.stockroomAdded.length} stockroom books` : "the stockroom's books were already there"}.`);
+
+  // The first time the sample press is added, a few orders are placed and paid the way shoppers' are (sampleOrders.js).
+  if (seeded.sampleAdded.length && withFunctions) {
+    say("Placing a few sample orders with the practice card…");
+    try {
+      for (const line of await placeSampleOrders({ fetch, confirm: practice.stripe.confirm })) say(`  ${line}`);
+    } catch (error) {
+      say(`  The sample orders couldn't all be placed (${error?.message ?? error}). The shop works without them.`);
+    }
+  }
 
   if (seeded.newPress) say("  Set up as a brand-new press: the admin opens on Choose your look, then Set up your shop.");
 

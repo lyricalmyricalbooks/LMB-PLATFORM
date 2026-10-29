@@ -50,7 +50,7 @@ test("the start page links every page as the owner and as a press, and every wal
   for (const href of local) assert.equal((await get(href.replace(/#.*/, ""))).status, 200, href);
   const demo = START_SECTIONS.flatMap((section) => section.links).filter((l) => l.demo);
   assert.ok(demo.length >= 5);
-  for (const item of demo) assert.match(item.href, /^http:\/\/127\.0\.0\.1:517[34]\//, `${item.name} goes to npm run demo`);
+  for (const item of demo) assert.match(item.href, /^http:\/\/127\.0\.0\.1:517[345]\//, `${item.name} goes to npm run demo`);
   assert.equal(local.length + demo.length, hrefs.length);
   for (const word of ["admin@example.com", "owner@example.com", "newcomer@example.com", "npm run demo"]) assert.match(page, new RegExp(word));
 });
