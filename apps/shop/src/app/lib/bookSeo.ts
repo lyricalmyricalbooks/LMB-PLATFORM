@@ -5,6 +5,7 @@ import { formatKey } from '../features/site/CatalogControls';
 import { descriptionPlainText } from '../features/site/descriptionLinks';
 import { describedAlt } from '../features/site/photoAlt';
 import { canonicalUrl } from './canonicalUrl';
+import { isBookKind, productKind } from '../../shared/productOptions';
 
 /** Search descriptions are plain text, even when catalog descriptions are rich HTML. */
 export function searchText(value = ''): string {
@@ -336,7 +337,74 @@ export function shippingDetailsData(quote: { price: number; deliveryDays?: strin
   };
 }
 
+/**
+ * Search data for a shirt, a ring, a print (plan 10.21): a plain Product, never a Book. A product with sizes or colours
+ * gives an AggregateOffer: the price range, how many versions there are, and each version's own price and stock, so
+ * Google can show "from $40" and an in-stock size. The page's own price (`options.price`) is used for a product
+ * with no versions.
+ */
+function goodsStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string; shopUrl?: string; returnPolicy?: ReturnType<typeof returnPolicyData>; shipping?: ReturnType<typeof shippingDetailsData> }) {
+  const variants = (book.variants || []).filter((v: any) => v && v.id);
+  const soon = comingSoonActive(book);
+  const preorder = preorderActive(book);
+  const release = preorder ? releaseDateOf(book) : '';
+  const stockOf = (v: any) => Number(v?.stockLevel ?? v?.stock ?? 0);
+  const state = (inStock: boolean, backorder: boolean) =>
+    `https://schema.org/${preorder && inStock ? 'PreOrder' : soon ? 'OutOfStock' : backorder ? 'BackOrder' : inStock ? 'InStock' : 'OutOfStock'}`;
+  const shared = {
+    itemCondition: 'https://schema.org/NewCondition',
+    ...(options.seller ? { seller: shopRef(options.seller, options.shopUrl) } : {}),
+    ...(options.returnPolicy ? { hasMerchantReturnPolicy: options.returnPolicy } : {}),
+    ...(options.shipping ? { shippingDetails: options.shipping } : {}),
+  };
+  const priced = variants.map((v: any) => ({ v, price: Number(v.price) })).filter((x: { price: number }) => Number.isFinite(x.price) && x.price > 0);
+  let offers: Record<string, any>;
+  if (priced.length) {
+    const prices = priced.map((x: { price: number }) => x.price);
+    const anyStock = priced.some((x: { v: any }) => !soon && stockOf(x.v) > 0);
+    const allBackorder = priced.every((x: { v: any }) => x.v.onBackorder);
+    offers = {
+      '@type': 'AggregateOffer', url: options.url, priceCurrency: options.currency,
+      lowPrice: Math.min(...prices).toFixed(2), highPrice: Math.max(...prices).toFixed(2), offerCount: priced.length,
+      availability: state(anyStock, allBackorder && !anyStock),
+      ...(release ? { availabilityStarts: release } : {}),
+      ...shared,
+      offers: priced.map(({ v, price }: { v: any; price: number }) => ({
+        '@type': 'Offer', url: options.url, priceCurrency: options.currency, price: price.toFixed(2),
+        name: searchText(String(v.name || '')) || undefined, ...(v.sku ? { sku: String(v.sku) } : {}),
+        availability: state(stockOf(v) > 0, !!v.onBackorder && stockOf(v) <= 0),
+        ...shared,
+      })),
+    };
+  } else {
+    const available = !soon && (book.stockLevel === undefined || book.stockLevel === null ? true : Number(book.stockLevel) > 0);
+    offers = {
+      '@type': 'Offer', url: options.url, priceCurrency: options.currency, price: Number(options.price).toFixed(2),
+      availability: state(available, !!book.onBackorder),
+      ...(release ? { availabilityStarts: release } : {}),
+      ...shared,
+    };
+  }
+  const material = searchText(String(book.material || ''));
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    '@id': options.url + '#book',
+    url: options.url,
+    name: book.title,
+    description: searchText(descriptionPlainText(book.description)),
+    image: [...new Set([...(book.photos || []).map((p: any) => p.url), book.seoImage].filter((url): url is string => !!url?.trim()).map((url: string) => absolute(url.trim(), options.url)).filter(Boolean))],
+    ...(book.sku ? { sku: book.sku } : {}),
+    ...(material ? { material } : {}),
+    // Google's merchant listings ask for a brand: the shop's.
+    ...(options.seller ? { brand: { '@type': 'Brand', name: options.seller } } : {}),
+    offers,
+    ...ratingData(options.reviews, options.ratingSummary),
+  };
+}
+
 export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string; shopUrl?: string; returnPolicy?: ReturnType<typeof returnPolicyData>; shipping?: ReturnType<typeof shippingDetailsData> }) {
+  if (!isBookKind(productKind(book))) return goodsStructuredData(book, options);
   const variants = book.variants || [];
   const backorder = book.onBackorder || (variants.length > 0 && variants.every((v: any) => v.onBackorder));
   // Coming soon (Books › Inventory): shown but not for sale yet, so it is honestly out of stock.

@@ -1391,6 +1391,20 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </> : <>
                   <TextField label="Material" name="material" value={formData.material || ""} onChange={handleChange} placeholder="e.g. 100% organic cotton" />
                   <TextField label="Care" name="care" value={formData.care || ""} onChange={handleChange} placeholder="e.g. Machine wash cold" />
+                  {["clothing", "shoes"].includes(productKind(formData)) && <>
+                    <SelectField label="Google Shopping: for" name="googleGender" value={formData.googleGender || ""} onChange={handleChange} hint="Google asks clothing and shoes who they are for. Blank = unisex.">
+                      <option value="">Unisex (default)</option>
+                      <option value="female">Women</option>
+                      <option value="male">Men</option>
+                    </SelectField>
+                    <SelectField label="Google Shopping: age group" name="googleAgeGroup" value={formData.googleAgeGroup || ""} onChange={handleChange} hint="Blank = adult.">
+                      <option value="">Adult (default)</option>
+                      <option value="kids">Kids</option>
+                      <option value="toddler">Toddler</option>
+                      <option value="infant">Infant</option>
+                      <option value="newborn">Newborn</option>
+                    </SelectField>
+                  </>}
                   <div style={{ gridColumn: "1 / -1" }}>
                     <TextArea label="Size guide" name="sizeChart" value={formData.sizeChart || ""} onChange={handleChange} rows={5}
                       placeholder={"e.g.\nS: chest 36 in, length 27 in\nM: chest 40 in, length 28 in"}

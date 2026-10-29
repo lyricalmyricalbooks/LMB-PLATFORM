@@ -715,3 +715,13 @@ profile's site key wins over `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`, which stays t
 `DEFAULT_SHOP_PROFILE` (today's values), all or nothing so two projects never mix. `public/shop-profile.js` must equal
 `DEFAULT_SHOP_PROFILE` (tested); Hosting serves it `no-cache`. The format's master copy is `profile/` in LMB-PLATFORM; never
 put plan, test mode, Stripe account or emails in it (they are server-only).
+
+## Google Shopping and search data for products beyond books (plan 10.21, 29 October 2026)
+- `merchantFeed.mjs` (plain ESM, so it keeps its own copy of the kind list; the test checks it against `productKind`): a product with
+  sizes/colours gives one line per version under `g:item_group_id`, with `g:size`/`g:color`/`g:material` read from the version's
+  option picks by option name (`variantAttributes`), a checked barcode (`gtinOf`; books keep `isbn13`), the kind's Google category
+  (`KIND_CATEGORY`; "other" has none) and, for clothing and shoes only, `g:gender`/`g:age_group` (`apparelAudience`: the product's
+  `googleGender`/`googleAgeGroup`, else unisex adult). A book's line is unchanged.
+- `lib/bookSeo.ts` `bookStructuredData`: a non-book goes to `goodsStructuredData` (a Product, no ISBN, creators or publisher); with
+  versions it is an AggregateOffer (low/high price, count, stock per version). BookDetail passes the whole product, not the chosen
+  version, for such a product.
