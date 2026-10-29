@@ -27,6 +27,7 @@ const START = Date.parse("2026-10-28T12:00:00Z");
 const DAY = 86_400_000;
 const ENV = {
   GOOGLE_CONNECT_ENABLED: "true",
+  GOOGLE_READY_CHECKS: "off",
   GOOGLE_CLIENT_ID: "colophon-client.apps.example",
   GOOGLE_CLIENT_SECRET: "client-secret",
   GOOGLE_REDIRECT_URL: "https://google.platform.example/google/oauth",

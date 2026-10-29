@@ -42,7 +42,7 @@ function fakeEmail() {
   return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
 }
 
-async function world({ repairs, newsletters, googleSteps } = {}) {
+async function world({ repairs, newsletters, googleSteps, googleReady } = {}) {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -66,7 +66,7 @@ async function world({ repairs, newsletters, googleSteps } = {}) {
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
     breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
     people: controlRoomPeople({}),
-    activity, platformState, googleSteps,
+    activity, platformState, googleSteps, googleReady,
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
@@ -567,4 +567,15 @@ test("without the Google steps the record still opens, and Run again says it can
   const w = await world();
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.google, null);
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/google-run-again", { shopId: ID, step: "email" })).status, 503);
+});
+
+test("the control room lists what is still to do before Connect Google can be switched on, admins only (15.4)", async () => {
+  const googleReady = (now) => ({ ready: false, items: [{ id: "x", done: false, title: "Something to do", words: `Plain words at ${now}.` }] });
+  const w = await world({ googleReady });
+  assert.equal((await w.ask(PRESS, "GET", "/api/control/google-ready")).status, 403);
+  const answer = await w.ask(ADMIN, "GET", "/api/control/google-ready");
+  assert.equal(answer.status, 200);
+  assert.equal(answer.body.ready, false);
+  assert.equal(answer.body.items[0].title, "Something to do");
+  assert.equal((await (await world()).ask(ADMIN, "GET", "/api/control/google-ready")).status, 503);
 });

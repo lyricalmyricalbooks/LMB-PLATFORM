@@ -4,6 +4,7 @@
 //   POST /api/control/shop     { shopId }: one shop's record (9.3)
 //   POST /api/control/fee      { shopId, basisPoints, refunded, reason }: the shop's per-order fee, 30 days' notice (9.6)
 //   POST /api/control/switch-all  { name, on, reason }: one switch for every live shop (9.7)
+//   GET /api/control/google-ready            what is still to do before Connect Google can be switched on (15.4)
 //   GET/POST /api/control/new-shop-switches  the switches new shops start with (9.7)
 //   GET  /api/control/shops    every shop: plan, version, health, switches
 //   POST /api/control/act-as   { shopId, reason } -> { url, expiresAt }: logged before the sign-in is made
@@ -27,6 +28,7 @@ export function controlRoutes(room) {
     "POST /api/control/shop": (claims, request) => room.shop(claims, body(request)),
     "POST /api/control/fee": (claims, request) => room.setFee(claims, body(request)),
     "POST /api/control/switch-all": (claims, request) => room.switchAll(claims, body(request)),
+    "GET /api/control/google-ready": (claims) => room.googleReadiness(claims),
     "GET /api/control/new-shop-switches": (claims) => room.newShopSwitches(claims),
     "POST /api/control/new-shop-switches": (claims, request) => room.setNewShopSwitch(claims, body(request)),
     "GET /api/control/shops": (claims) => room.shops(claims),
