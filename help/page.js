@@ -33,3 +33,16 @@ ${list.map((a) => article(a, a.id === openId || (search && found.length <= 3))).
 </section>`;
   }).join("\n");
 }
+
+const slug = (topic) => topic.toLowerCase().replace(/[^a-z]+/g, "-");
+
+/** The six topics as sheets over the answers: how many answers each has and its first three questions. */
+export function renderTopics({ plan = "both" } = {}) {
+  const all = articlesFor(plan);
+  return TOPICS.map((topic) => {
+    const list = all.filter((a) => a.topic === topic);
+    if (!list.length) return "";
+    return `<a class="card cp-topic" href="#t-${esc(slug(topic))}"><b>${esc(topic)}</b><span>${list.length} ${list.length === 1 ? "answer" : "answers"}</span>
+<ul>${list.slice(0, 3).map((a) => `<li>${esc(a.question)}</li>`).join("")}</ul></a>`;
+  }).join("\n");
+}

@@ -6,7 +6,7 @@
 import { adminClaims, person } from "./world.js";
 import { TERMS_VERSION } from "../terms/terms.js";
 
-/** Presses owned by other people than owner@example.com (whose account page keeps its two). */
+/** Presses owned by other people than owner@example.com (whose account page keeps its three). */
 export const ROOM_PRESSES = Object.freeze([
   { pressName: "Kestrel Books", address: "kestrel", plan: "both", owner: person("uid-kit", "kit@example.com", "Kit Kestrel"), pays: true, publishes: "books" },
   { pressName: "Lantern Zines", address: "lantern-zines", plan: "shop", owner: person("uid-lou", "lou@example.com", "Lou Lantern"), pays: true, publishes: "zines" },

@@ -15,8 +15,21 @@ export const COPIES = [
   { from: "pressroom.css", to: ["apps/shop/src/app/admin/riso/riso.css", "apps/stockroom/src/styles/admin-look/pressroom.css", "control-room/look/pressroom.css"] },
 ];
 
+/** The platform's own pages (waitlist, sign-up, accounts, help, terms, status, walkthrough start page): each folder is
+ * served on its own, so each keeps a `look/` copy of the admin look plus the platform-pages layer. */
+export const PAGE_FOLDERS = ["waitlist", "signup", "accounts", "help", "terms", "status", "walkthrough"];
+export const PAGE_FILES = ["adminThemes.css", "pressroom.css", "platform-pages.css", "platform-look.js"];
+for (const from of PAGE_FILES) {
+  const to = PAGE_FOLDERS.map((folder) => `${folder}/look/${from}`);
+  const app = COPIES.find((copy) => copy.from === from);
+  if (app) app.to.push(...to);
+  else COPIES.push({ from, to, pagesOnly: true });
+}
+
 const banner = (from) =>
-  `/* GENERATED from shared/admin-look/${from} by shared/admin-look/sync.mjs. Edit the source, never this copy. */\n`;
+  from.endsWith(".js")
+    ? `// GENERATED from shared/admin-look/${from} by shared/admin-look/sync.mjs. Edit the source, never this copy.\n`
+    : `/* GENERATED from shared/admin-look/${from} by shared/admin-look/sync.mjs. Edit the source, never this copy. */\n`;
 
 export function expected(from) {
   return banner(from) + readFileSync(resolve(here, from), "utf8");
@@ -45,6 +58,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, expected(from));
     }
-    console.log("Admin look copied into the shop, the stockroom and the control room.");
+    console.log("Admin look copied into the shop, the stockroom, the control room and the platform pages.");
   }
 }

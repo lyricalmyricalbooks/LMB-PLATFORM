@@ -70,7 +70,7 @@ test("the page reads the document over Firestore's address and draws it, escapin
 
   const html = renderStatus(loaded, { now, locale: "en-CA" });
   assert.match(html, /tone-warn/);
-  assert.match(html, /Checkout<\/span><strong>Trouble for 1 of 3 shops/);
+  assert.match(html, /Checkout<\/span><strong[^>]*>Trouble for 1 of 3 shops/);
   assert.match(renderStatus(null, { error: new Error("x") }), /couldn't load the status/);
   const sneaky = { ...loaded, parts: [{ ...loaded.parts[0], name: "<img src=x>" }] };
   assert.doesNotMatch(renderStatus(sneaky, { now }), /<img/);

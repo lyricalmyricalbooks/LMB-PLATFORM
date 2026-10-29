@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="rp cp-page">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,125 +7,122 @@
 <meta name="description" content="Your shop's Colophon plan: price, trial, card, invoices, changing plan and cancelling.">
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600&family=DM+Mono&display=swap">
-<style>
-  :root { --paper: #f4efe6; --ink: #1d1a17; --pink: #ff48b0; --blue: #0078bf; --yellow: #ffe800; --muted: #5a534c; --danger: #c2261d; }
-  @media (prefers-color-scheme: dark) { :root { --paper: #23201d; --ink: #f1ebe1; --muted: #b9b0a5; --danger: #ff7a70; } }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font: 18px/1.55 Archivo, system-ui, sans-serif; }
-  main { max-width: 720px; margin: 0 auto; padding: 40px 16px 64px; }
-  .mark { font: 14px "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
-  h1 { font: 400 clamp(36px, 8vw, 60px)/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 12px 0 12px; overflow-wrap: anywhere; }
-  h2 { font: 400 26px/1.15 Anton, Impact, sans-serif; text-transform: uppercase; margin: 0 0 8px; }
-  h3 { font: 400 20px/1.2 Anton, Impact, sans-serif; text-transform: uppercase; margin: 8px 0 0; }
-  section[hidden], [hidden] { display: none !important; }
-  .stack { display: grid; gap: 16px; }
-  button, .button { font: inherit; font-size: 17px; border: 2px solid var(--ink); border-radius: 0; padding: 12px; background: var(--paper); color: var(--ink); min-height: 48px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
-  .primary { background: var(--yellow); color: #1d1a17; box-shadow: 4px 4px 0 var(--ink); }
-  .primary:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
-  .ghost { background: transparent; border-color: transparent; text-decoration: underline; padding: 8px 4px; min-height: 44px; justify-self: start; }
-  .danger { color: var(--danger); }
-  button:disabled { opacity: .6; cursor: default; }
-  .card { border: 2px solid var(--ink); padding: 18px; box-shadow: 4px 4px 0 var(--pink); display: grid; gap: 10px; }
-  .card.warning { box-shadow: 4px 4px 0 var(--danger); }
-  .row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
-  .row > :first-child { flex: 1 1 200px; overflow-wrap: anywhere; }
-  .pill { font: 13px "DM Mono", monospace; text-transform: uppercase; border: 2px solid var(--ink); padding: 2px 8px; }
-  .price { font: 400 34px/1.1 Anton, Impact, sans-serif; }
-  .hint { color: var(--muted); font-size: 15px; margin: 0; }
-  p { margin: 0; }
-  .error { color: var(--danger); font-weight: 600; font-size: 15px; }
-  .empty { border: 2px dashed var(--muted); padding: 18px; color: var(--muted); }
-  .loading { border: 2px dashed var(--muted); padding: 18px; color: var(--muted); font: 15px "DM Mono", monospace; text-transform: uppercase; }
-  fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; }
-  legend { font: 13px "DM Mono", monospace; text-transform: uppercase; margin-bottom: 8px; }
-  .choice { display: flex; gap: 12px; align-items: center; border: 2px solid var(--ink); padding: 12px; min-height: 48px; cursor: pointer; }
-  .choice input { width: 22px; height: 22px; margin: 0; accent-color: var(--ink); }
-  .choice span { flex: 1; }
-  ul.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  ul.list li { border-top: 2px solid var(--ink); padding-top: 8px; }
-  #status { min-height: 1.5em; font-weight: 600; }
-  a { color: inherit; }
-</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="./look/adminThemes.css">
+<link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/platform-pages.css">
+<script src="./look/platform-look.js"></script>
 </head>
-<body>
-<main>
-  <div class="mark">Colophon</div>
-  <h1 id="press">Plan &amp; billing</h1>
-  <a href="/accounts/">← All your shops</a>
+<body class="cp">
+<a class="rp-skip-link" href="#main">Skip to content</a>
+<div class="rp-app">
+  <aside class="rp-sidebar" aria-label="Your account">
+    <div class="rp-sidebar-brand"><a class="rp-brand-link" href="/account/"><span class="rp-wordmark">Colophon<span class="rp-wordmark-sub">Your account</span></span></a></div>
+    <nav class="rp-nav" aria-label="Your account"><ul class="rp-nav-list">
+      <li><a class="rp-nav-item" href="/account/">Your shops</a></li>
+      <li><a class="rp-nav-item" aria-current="page" href="">Plan &amp; billing</a></li>
+      <li><a class="rp-nav-item" href="/account/#get-help">Get help</a></li>
+      <li class="rp-nav-section-row"><div class="rp-nav-section">Colophon</div></li>
+      <li><a class="rp-nav-item" href="/help/">Help centre</a></li>
+      <li><a class="rp-nav-item" href="/status/">Service status</a></li>
+      <li><a class="rp-nav-item" href="/terms/">Terms &amp; privacy</a></li>
+    </ul></nav>
+  </aside>
+  <div class="rp-app-body">
+    <header class="rp-topbar"><a class="cp-kicker" href="/account/">← All your shops</a><div class="rp-topbar-actions"><a class="rp-status-pill" href="/status/"><span class="rp-status-dot"></span>Service status</a></div></header>
+    <div class="rp-workspace"><div class="rp-workspace-inner">
+<main id="main" tabindex="-1">
+  <div class="rp-page-header"><div><div class="cp-kicker" id="press" style="margin-bottom:10px">Your shop</div><h1 class="rp-page-title">Plan &amp; billing</h1></div></div>
 
   <section id="view-loading" aria-live="polite">
     <p class="loading">Loading your plan…</p>
   </section>
 
   <section id="view-signin" class="stack" hidden aria-labelledby="signin-title">
-    <h2 id="signin-title" tabindex="-1">Sign in</h2>
+    <h2 id="signin-title" tabindex="-1" class="cp-view-title">Sign in</h2>
     <p class="hint">Sign in with the email address you started your shop with.</p>
-    <button type="button" id="google" class="primary">Continue with Google</button>
+    <div class="cp-actions cp-start"><button type="button" id="google" class="primary">Continue with Google</button></div>
     <a href="/accounts/">Or get an email sign-in link on your shops page</a>
   </section>
 
   <section id="view-error" class="stack" hidden aria-labelledby="error-title">
-    <h2 id="error-title" tabindex="-1">We couldn't open your plan</h2>
+    <h2 id="error-title" tabindex="-1" class="cp-view-title">We couldn't open your plan</h2>
     <p class="error" id="error-words" role="alert"></p>
-    <button type="button" id="retry">Try again</button>
+    <div class="cp-actions cp-start"><button type="button" id="retry">Try again</button></div>
   </section>
 
   <section id="view-billing" class="stack" hidden aria-labelledby="plan-title">
-    <!-- The plan: name, price and where it stands (trial days left, next payment, cancelled, paused). -->
-    <div class="card" id="plan-card">
-      <div class="row"><h2 id="plan-title" tabindex="-1">Your plan</h2><span class="pill" id="plan-state"></span></div>
-      <p><span class="price" id="plan-price"></span> <span id="plan-per">a month</span></p>
-      <p id="plan-name"></p>
-      <p id="plan-when"></p>
-      <p class="hint" id="plan-closing" hidden></p>
-    </div>
+    <h2 id="plan-title" tabindex="-1" class="rp-sr-only">Your plan</h2>
+    <!-- The plan at a glance: price, the trial or the next bill, the card, where it stands. -->
+    <div class="cp-ledger" id="plan-ledger" style="--n:4"></div>
+    <!-- When the shop is paused or a payment failed: what happened and the one button that fixes it. -->
+    <div class="cp-alertline" id="plan-alert" role="alert" hidden><p id="plan-alert-words"></p><button type="button" class="primary" id="plan-alert-button">Add a card</button></div>
 
-    <!-- The card on file. Stripe's own page collects the card; it comes back here. -->
-    <div class="card" id="card-card">
-      <h3>Card</h3>
-      <p id="card-words"></p>
-      <div class="row"><button type="button" class="primary" id="card-button">Add a card</button></div>
-    </div>
+    <div class="cp-split cp-split-wide">
+      <div class="stack">
+        <!-- The plan: name, price and where it stands (trial days left, next payment, cancelled, paused). -->
+        <div class="card" id="plan-card">
+          <div class="row"><h3>Your plan</h3><span class="pill" id="plan-state"></span></div>
+          <p><span class="price" id="plan-price"></span> <span id="plan-per" class="hint">a month</span></p>
+          <p id="plan-name"></p>
+          <p id="plan-when" class="hint"></p>
+          <p class="hint" id="plan-closing" hidden></p>
+        </div>
 
-    <!-- Row 6.19 puts the "Two ways to pay" switch here (monthly, or pay as you sell), from the status's paymentWay. -->
-    <section id="payment-way" class="card" hidden aria-label="How you pay"></section>
+        <!-- Change plan: what changes and the prorated amount first, then the change. -->
+        <form class="card" id="change-form" novalidate>
+          <h3>Change plan</h3>
+          <p class="hint">A bigger plan starts now. A smaller one starts at your next bill.</p>
+          <fieldset id="plan-choices"><legend class="rp-sr-only">Choose a plan</legend></fieldset>
+          <div id="change-preview" class="stack" hidden aria-live="polite"></div>
+          <p class="error" id="change-error" role="alert" hidden></p>
+          <div class="cp-actions cp-start">
+            <button type="submit" id="change-look">See what changes</button>
+            <button type="button" class="primary" id="change-confirm" hidden>Change my plan</button>
+          </div>
+        </form>
 
-    <!-- Change plan: what changes and the prorated amount first, then the change. -->
-    <form class="card" id="change-form" novalidate>
-      <h3>Change plan</h3>
-      <fieldset id="plan-choices"><legend>Choose a plan</legend></fieldset>
-      <div id="change-preview" class="stack" hidden aria-live="polite"></div>
-      <p class="error" id="change-error" role="alert" hidden></p>
-      <div class="row">
-        <button type="submit" id="change-look">See what changes</button>
-        <button type="button" class="primary" id="change-confirm" hidden>Change my plan</button>
+        <!-- Row 6.19 puts the "Two ways to pay" switch here (monthly, or pay as you sell), from the status's paymentWay. -->
+        <section id="payment-way" class="card" hidden aria-label="How you pay"></section>
+
+        <div class="card">
+          <h3>Invoices</h3>
+          <div id="invoices" class="stack"><p class="loading">Loading invoices…</p></div>
+        </div>
       </div>
-    </form>
 
-    <div class="card">
-      <h3>Invoices</h3>
-      <div id="invoices" class="stack"><p class="loading">Loading invoices…</p></div>
-    </div>
+      <div class="stack">
+        <!-- The card on file. Stripe's own page collects the card; it comes back here. -->
+        <div class="card" id="card-card">
+          <h3>Card</h3>
+          <p id="card-words"></p>
+          <div class="cp-actions cp-start"><button type="button" class="primary" id="card-button">Add a card</button></div>
+          <p class="note">Cards are kept by our payment company. We never see the number.</p>
+        </div>
 
-    <!-- Cancel at the end of the paid month, or keep the plan while a cancel is waiting. -->
-    <div class="card" id="cancel-card">
-      <h3 id="cancel-title">Cancel plan</h3>
-      <p id="cancel-words"></p>
-      <div class="row">
-        <button type="button" class="danger" id="cancel-button">Cancel plan</button>
-        <button type="button" class="primary" id="keep-button" hidden>Keep my plan</button>
+        <!-- Cancel at the end of the paid month, or keep the plan while a cancel is waiting. -->
+        <div class="card" id="cancel-card">
+          <h3 id="cancel-title">Cancel plan</h3>
+          <p id="cancel-words" class="hint"></p>
+          <div class="cp-actions cp-start">
+            <button type="button" class="danger" id="cancel-button">Cancel plan</button>
+            <button type="button" class="primary" id="keep-button" hidden>Keep my plan</button>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
   <section id="view-none" class="stack" hidden aria-labelledby="none-title">
-    <h2 id="none-title" tabindex="-1">No plan yet</h2>
+    <h2 id="none-title" tabindex="-1" class="cp-view-title">No plan yet</h2>
     <p class="empty">This shop has no plan yet. It starts when the shop is made. If it's been more than a few minutes, ask us for help from your shops page.</p>
   </section>
 
   <p id="status" role="status" aria-live="polite"></p>
 </main>
+    </div></div>
+  </div>
+</div>
 <script type="module" src="/accounts/billing.js"></script>
 </body>
 </html>

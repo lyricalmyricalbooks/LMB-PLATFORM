@@ -16,7 +16,12 @@ export function fromValue(value) {
 }
 
 /** The summary, or null when there is none yet. Throws on any other answer, so the page can say it couldn't load. */
-export async function loadStatus({ projectId, fetch = globalThis.fetch }) {
+export async function loadStatus({ projectId, url: plain = "", fetch = globalThis.fetch }) {
+  if (plain) {
+    const answer = await fetch(plain);
+    if (!answer.ok) throw new Error(`status ${answer.status}`);
+    return answer.json();
+  }
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/publicStatus/current`;
   const response = await fetch(url);
   if (response.status === 404) return null;
@@ -35,7 +40,7 @@ export function renderStatus(summary, { now = () => new Date(), error = null, lo
   const when = words.checkedAt
     ? `<p class="checked">Last checked ${escape(new Date(words.checkedAt).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }))}</p>`
     : "";
-  const rows = words.parts.map((part) => `<li class="part state-${part.state}"><span>${escape(part.name)}</span><strong>${escape(part.words)}</strong></li>`).join("");
+  const rows = words.parts.map((part) => `<li class="part state-${part.state}"><span>${escape(part.name)}</span><strong class="pill" data-tone="${part.state === "working" ? "success" : part.state === "most" ? "danger" : "warning"}">${escape(part.words)}</strong></li>`).join("");
   // The team's own note about a known problem, when there is one, above what the checks see.
   const note = summary?.note?.text
     ? `<p class="note" role="note">${escape(summary.note.text)}${summary.note.at ? ` <span class="checked">(${escape(new Date(summary.note.at).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }))})</span>` : ""}</p>`
