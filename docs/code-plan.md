@@ -525,6 +525,40 @@ started; Julian picks the order.
 Ask Julian first (unchanged): French admin and shop [39]; Instagram and Facebook shop feeds. Needs his accounts, so
 later: key-free deploys [3c] and the service promise with automatic credits [9].
 
+## Phase 15: make it real (planned 29 October 2026)
+
+Julian (29 October 2026): "add this to the build plan". From `docs/research/2026-10-29-next-phase-paths.md`, which checked
+the outside facts on Google's, Stripe's and the Canadian government's own pages. Where Phases 12 to 14 finish features
+with fakes, this phase moves Colophon to one real test shop and a first press by hand (go-live steps B and C), and starts
+the slow outside approvals early. Rows 15.1 to 15.4 and 15.8 need no account. Rows 15.5 to 15.7 and 15.10 need what only
+Julian can do, with dates:
+
+- **5 Nov** buy the domain. **7 Nov** Google Workspace or free Cloud Identity on it (the shop maker can only create
+  projects inside an organization), one "shops" folder, one billing account, and ask Google for 50 projects.
+- **13 Nov** Stripe platform profile; a mailing address for Colophon; ask the accountant about registering for GST/HST.
+- **20 Nov** terms and privacy to a lawyer. **1 Dec** submit Google's sign-in review (needs the live privacy page).
+- **November** talk to five to ten waitlist presses; decide whether Quebec presses are in at launch (French terms first).
+
+Found by the research and fixed here: Google Shopping calls Merchant API `v1beta`, which Google discontinued in May 2026
+(15.1); no Stripe API version pin (15.2); `gmail.send` is a sensitive permission, so no yearly outside security review is
+needed and the repo's wording says otherwise (15.3). Built in this order, one pull request each.
+
+| # | Repo | Pull request | Proven by | Effort | Status |
+| --- | --- | --- | --- | --- | --- |
+| 15.1 | platform | **Bring the Google link up to today's Google.** Merchant calls move from v1beta to v1 (accounts, data sources, free listings). Google Ads moves from v18 to a currently listed version. `endpoints.js` records the date each version was checked. A test refuses any version on a known-retired list. Why: the Google Shopping part would fail on real Google today [F12, F15] | google tests with the pretend Google on the new paths; the retired-version test fails on a planted `v1beta` Merchant path | quick | |
+| 15.2 | platform | **Pin Stripe's API version** on every Stripe call (payments, billing, Square untouched) and on the event addresses. One setting with a tested default. Why: Stripe's go-live list asks for it, and an unpinned live account can change shape under the shops [F17] | payments and billing tests: every request carries the pinned version; a wrong setting is refused at start | quick | |
+| 15.3 | platform | **The permission list Google will review.** `docs/google-verification.md` gives each permission, why it is needed and why a narrower one won't do, plus the screen-recording script [F4]. A test keeps `SCOPES` and the document in step and fails on any restricted permission (full Gmail, full Drive). Fix the "yearly security review" wording in `google/config.js` and the plan rows to "Google's review of sensitive permissions" [F2, F3] | test fails when a permission is added without a reason or a restricted one appears | quick | |
+| 15.4 | platform | **The "is Google ready" self-check.** Before `GOOGLE_CONNECT_ENABLED` can be true, the control room shows what is missing: sign-in screen approved, Merchant Center developer registration done [F13], versions checked within 90 days, separate test project for test sign-ins [F5]. Adds the one-time `registerGcp` call as a platform set-up step | self-check tests with fakes: each missing item listed in plain words; switching on refused until all pass | medium | |
+| 15.5 | platform | **Real Google Cloud client for shop-maker steps 1 to 6** (create project in the shops folder, link billing, add Firebase, turn on services, database and storage in Montréal, web app), with allowance-aware errors. "Project allowance reached" becomes a waiting state in the control room and the repair queue, not a retry loop. The sign-up daily cap reads the allowance left. *Needs Julian's organization, folder and billing account* [F8, F10] | tests with recorded Google answers (including the allowance error); dry run against the real folder lists only and changes nothing | medium | |
+| 15.6 | platform | **Host the platform services** in `lmb-platform-prod`: payments, email, billing, Google link, sign-up's `/api`, trial tips, health and status as functions, secrets in Secret Manager, one deploy workflow, alerts to `HEALTH_ALERT_TO`. All Stripe in test mode | emulator suite; after deploy, a smoke check that each door answers and refuses a call without a shop key | larger | |
+| 15.7 | platform | **Make the real test shop** (`lmb-test-shop`) with the real shop maker, then run the release check's practice purchase on Stripe's sandbox through the payment service. Record what broke on the way in the run book | release check green against the real test shop; re-running setup changes nothing | medium | |
+| 15.8 | platform | **Anti-spam basics.** Every platform email ends with Colophon's name, mailing address (`PLATFORM_MAILING_ADDRESS`, refused when empty for marketing emails) and a contact. The waitlist sign-up words say who is asking, what for and that people can stop at any time. The launch email has a working unsubscribe honoured at once [F21, F22] | email template test: every template has the footer; marketing ones have a signed unsubscribe; waitlist page test reads the consent words | quick | |
+| 15.9 | platform | **Tax on Colophon's plan.** The plan page and invoices read "plus GST/HST". The rate follows the press's province once Colophon is registered (`PLATFORM_GST_NUMBER` set). Before that, no tax line and no number. Invoices show the number [F20] | billing tests with fakes per province: ON 13%, NS 14%, AB 5%; no tax when unregistered | medium | |
+| 15.10 | platform | **First press by hand (step C).** A run-book chapter and a control-room checklist to open one press's shop with the real shop maker on **their own Stripe**, with the practice order, the first live order watched, and how to stop it. Records every step in the shop's audit log | run-book test: every button it names exists in the control room; checklist test with fakes | medium | |
+| 15.11 | platform | **Privacy contact and breach record.** The terms page names the person in charge of personal information and how to reach them [F24]. The control room keeps a breach record kept for 24 months [F23], with a "report needed?" question. *Quebec only if Julian says yes:* a sign-up province question that holds Quebec presses on the waitlist until French terms exist [F25] | terms page test finds the contact; breach record tests with fakes (kept 24 months, never deleted early) | medium | |
+
+Next after these: submit Google's review once 15.3, 15.4 and the privacy page are live; Connect Google for the test shop (inside the 100-person cap); the Stripe Connect live switch (step D); a design-partner discount code if the waitlist calls want one.
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
