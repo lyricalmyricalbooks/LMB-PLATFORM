@@ -1,8 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import toast from "react-hot-toast";
 import { Checkbox, ErrorState, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { GOOGLE_PARTS, googleConnectApi, stepTone, stepWord, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus } from "./googleConnect";
+import { GOOGLE_PARTS, googleConnectApi, stepTone, stepWord, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus, type ShoppingProblems, type StockSheet } from "./googleConnect";
 
 // Connect Google (plan 6.17): one sign-in links Analytics, search, Google Shopping and the shop's email. `variant`
 // "full" (Settings › General › Visitors & Google) shows every part and its state, the extras and Disconnect;
@@ -112,6 +112,8 @@ function GoogleDetails({ status }: { status: GoogleStatus }) {
           {["analytics", "searchConsole", "merchantCenter", "email"].map((part) => <li key={part}><strong>{GOOGLE_PARTS[part].label}:</strong> {GOOGLE_PARTS[part].about}</li>)}
         </ul>
       )}
+      {status.connected && (status.steps ?? []).some((s) => s.step === "merchantCenter" && s.state === "done") && <ShoppingProblemsList />}
+      {status.connected && (status.extrasChosen ?? []).includes("drive") && <StockSheetRow />}
       {offered.length > 0 && (
         <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
           <legend style={{ fontWeight: 800, marginBottom: 6 }}>Extras <span className="rp-hint" style={{ fontWeight: 400 }}>· optional</span></legend>
@@ -146,5 +148,60 @@ function GooglePrompt({ status }: { status: GoogleStatus | null }) {
       <OutcomeLine />
       <p className="rp-hint" style={{ margin: 0 }}>Until then, visit figures come from your shop's own counter. Extras like backups to your Google Drive are in Settings › General › Visitors & Google.</p>
     </SectionCard>
+  );
+}
+
+/** Google Shopping's "not shown" list, in plain words. Nothing is shown while it loads or when it can't be read. */
+function ShoppingProblemsList() {
+  const [found, setFound] = useState<ShoppingProblems | null>(null);
+  useEffect(() => {
+    let live = true;
+    googleConnectApi.shoppingProblems().then((p) => { if (live) setFound(p); }, () => { if (live) setFound(null); });
+    return () => { live = false; };
+  }, []);
+  if (!found?.available) return null;
+  if (found.problems.length === 0) return <p className="rp-hint" style={{ margin: 0 }}>Google Shopping has no problems with your books.</p>;
+  return (
+    <div className="rp-stack" style={{ gap: 8 }}>
+      <strong>{found.problems.length === 1 ? "1 book" : `${found.problems.length} books`} Google Shopping isn't showing</strong>
+      <ul className="rp-list" aria-label="Books Google Shopping isn't showing" style={{ margin: 0 }}>
+        {found.problems.map((p) => (
+          <li key={p.offerId || p.title} style={{ padding: "8px 0" }}>
+            <strong>{p.title || p.offerId}</strong>
+            {p.issues.map((i, n) => <p key={n} className="rp-hint" style={{ margin: "2px 0 0" }}>{i.description}{i.resolution ? ` ${i.resolution}` : ""}</p>)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** "Send my stock list to my Google Sheet": the sheet is made in the press's own Drive the first time. */
+function StockSheetRow() {
+  const [busy, setBusy] = useState(false);
+  const [sheet, setSheet] = useState<StockSheet | null>(null);
+  const send = async () => {
+    setBusy(true);
+    try {
+      const next = await googleConnectApi.sendStockSheet();
+      setSheet(next);
+      if (!next.available) toast.error("Google didn't allow your Drive. Tick Your Google Drive below and save it with Google.");
+      else if (next.gone) toast("That sheet was deleted in your Drive. Press the button again to make a new one.");
+      else toast.success("Your stock list is in your Google Sheet");
+    } catch (err: any) {
+      toast.error(friendlyError(err, "send your stock list"));
+    } finally { setBusy(false); }
+  };
+  return (
+    <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+      <div style={{ minWidth: 0, flex: "1 1 220px" }}>
+        <strong>Stock list in Google Sheets</strong>
+        <p className="rp-hint" style={{ margin: "2px 0 0" }}>
+          A sheet in your own Google Drive with each product's title, author, code, price and how many you have.
+          {sheet?.url ? <> <a href={sheet.url} target="_blank" rel="noreferrer noopener">Open your sheet</a>{sheet.rows !== undefined ? ` (${sheet.rows} products)` : ""}.</> : " It only goes one way: change your stock in the stockroom, not in the sheet."}
+        </p>
+      </div>
+      <SecondaryButton size="sm" disabled={busy} onClick={send}>{busy ? "Sending…" : sheet?.url ? "Update my sheet" : "Send my stock list"}</SecondaryButton>
+    </div>
   );
 }

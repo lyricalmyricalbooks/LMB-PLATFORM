@@ -16,7 +16,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-export const PRIVATE_BOOK_KEYS = ["costPrice", "usdCostPrice", "eurCostPrice", "shelfLocation", "legacyInventoryKey", "digitalFileUrl", "digitalFilePath"];
+export const PRIVATE_BOOK_KEYS = ["costPrice", "usdCostPrice", "eurCostPrice", "shelfLocation", "wholesalePrice", "legacyInventoryKey", "digitalFileUrl", "digitalFilePath"];
 
 /**
  * What to do with one book record. Pure.

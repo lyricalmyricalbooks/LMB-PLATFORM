@@ -184,6 +184,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     usdPrice: 0,
     eurPrice: 0,
     costPrice: 0,
+    wholesalePrice: 0,
     usdCostPrice: 0,
     eurCostPrice: 0,
     stockLevel: 0,
@@ -315,6 +316,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         usdPrice: 0,
         eurPrice: 0,
         costPrice: 0,
+        wholesalePrice: 0,
         usdCostPrice: 0,
         eurCostPrice: 0,
         stockLevel: 0,
@@ -603,6 +605,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     if (formData.manualCurrencyOverrides) {
       if (formData.usdPrice < 0 || formData.eurPrice < 0) add("pricing", "Override prices cannot be negative.");
       if (formData.costPrice < 0 || formData.usdCostPrice < 0 || formData.eurCostPrice < 0) add("pricing", "Cost prices cannot be negative.");
+      if (formData.wholesalePrice < 0) add("pricing", "The wholesale price cannot be negative.");
       if (formData.isOnSale && (formData.usdSalePrice < 0 || formData.eurSalePrice < 0)) add("pricing", "Sale prices cannot be negative.");
     }
     setValidationErrors(found);
@@ -1577,6 +1580,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   {money("Price (USD)", "usdPrice", "$", { disabled: !overrides })}
                   {money("Price (EUR)", "eurPrice", "€", { disabled: !overrides })}
                   {money("Cost (CAD)", "costPrice", "$", { hint: "What it costs you to print/acquire." })}
+                  {money("Wholesale (CAD)", "wholesalePrice", "$", { hint: "What a shop that resells it pays you. Used on the line sheet; shoppers never see it. Leave at 0 to leave it off." })}
                   {money("Cost (USD)", "usdCostPrice", "$", { disabled: !overrides })}
                   {money("Cost (EUR)", "eurCostPrice", "€", { disabled: !overrides })}
                 </div>

@@ -2,6 +2,7 @@
 // Search Console, BigQuery journeys and the traffic-count reset. Every one is admin-only and never touches orders,
 // payments or stock. index.js passes in its own db, admin SDK and guards, so the handler tests' fakes still apply.
 const { handleAiWrite } = require("./aiWriter");
+const { shopConfig } = require("./shopConfig");
 const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
 const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
 const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
@@ -43,6 +44,11 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
           return { apiKey: saved.geminiKey, openrouterKey: saved.openrouterKey, openrouterModel: saved.openrouterModel, provider: saved.provider, voice: saved.voice };
         },
         allow: () => hitLimit(db, "ai-write", req, LIMITS.aiWrite),
+        // A shop run by Colophon needs no pasted key: the server's own account asks Google's AI in this project.
+        platformAi: shopConfig.platformGoogleUrl ? async () => ({
+          projectId: process.env.GCLOUD_PROJECT || admin.app().options.projectId || "",
+          accessToken: (await metadataCredentials(fetch, "https://www.googleapis.com/auth/cloud-platform")).accessToken,
+        }) : null,
         bucket: admin.app().options.storageBucket || `${process.env.GCLOUD_PROJECT || admin.app().options.projectId}.firebasestorage.app`,
       });
       res.status(status).json(body);
