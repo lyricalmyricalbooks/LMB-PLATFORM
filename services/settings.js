@@ -9,6 +9,8 @@
 //   PLATFORM_DOMAIN            the platform's own domain                             default platform.example (placeholder)
 //   PLATFORM_SENDER_EMAIL      the address every email is sent from                  default notifications@<domain>
 //   PLATFORM_SUPPORT_EMAIL     where replies to platform emails go                   default support@<domain>
+//   PLATFORM_MAILING_ADDRESS   Colophon's mailing address (a PO box is fine), at the foot of every email; Canadian
+//                              anti-spam law asks for it in commercial emails (15.8)     default none
 //   PLATFORM_CURRENCY          the currency plans are charged in                     default CAD
 //   PLAN_PRICE_SHOP            monthly price of the shop alone, in cents             default 2900 ($29)
 //   PLAN_PRICE_STOCKROOM       monthly price of the stockroom alone, in cents        default 1900 ($19)
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   domain: "platform.example",
   senderEmail: "notifications@platform.example",
   supportEmail: "support@platform.example",
+  mailingAddress: "",
   currency: "CAD",
   prices: Object.freeze({ shop: 2900, stockroom: 1900, both: 3900 }),
   trialDays: 14,
@@ -92,6 +95,8 @@ export function platformSettings(env = process.env) {
   const platformName = text("PLATFORM_NAME", DEFAULT_SETTINGS.platformName).replace(/[\r\n"<>\\]+/g, " ").slice(0, 60).trim();
   const currency = text("PLATFORM_CURRENCY", DEFAULT_SETTINGS.currency).toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) problems.push("PLATFORM_CURRENCY must be a three-letter code like CAD");
+  const mailingAddress = text("PLATFORM_MAILING_ADDRESS", "").replace(/\s*[\r\n]+\s*/g, ", ");
+  if (mailingAddress && (mailingAddress.length < 10 || mailingAddress.length > 200 || /[<>"\\]/.test(mailingAddress))) problems.push("PLATFORM_MAILING_ADDRESS must be a street or PO box address of 10 to 200 characters");
   const platformUrl = text("PLATFORM_URL", `https://${domain}`).replace(/\/+$/, "");
   if (!/^https:\/\/[^/\s]+$/.test(platformUrl)) problems.push("PLATFORM_URL must be an https address with no path");
 
@@ -100,6 +105,7 @@ export function platformSettings(env = process.env) {
     domain,
     senderEmail: email("PLATFORM_SENDER_EMAIL", `notifications@${domain}`),
     supportEmail: email("PLATFORM_SUPPORT_EMAIL", `support@${domain}`),
+    mailingAddress,
     currency,
     // Stripe takes amounts in cents; one cent to $10,000 a month.
     prices: {

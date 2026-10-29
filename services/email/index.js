@@ -32,7 +32,7 @@
 // the usual way instead, so nothing is lost.
 import { platformSettings } from "../settings.js";
 import { resendClient } from "./resend.js";
-import { TEMPLATES, customProblems } from "./templates.js";
+import { COMMERCIAL_KINDS, TEMPLATES, customProblems, withIdentity } from "./templates.js";
 import { shopSenderAddress, streamOf, streamSettings } from "./streams.js";
 import { NewsletterPausedError } from "./reputation.js";
 import { ownDomainSender } from "./ownDomain.js";
@@ -142,7 +142,10 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
     async sendPlatform(message) {
       checkCommon(message);
       if (!TEMPLATES[message.kind]) throw new Error(`There is no platform email called ${message.kind}`);
-      const parts = TEMPLATES[message.kind](message.data ?? {}, { settings, pressName: message.data?.pressName ?? "" });
+      if (COMMERCIAL_KINDS.has(message.kind) && !settings.mailingAddress) {
+        throw new Error(`PLATFORM_MAILING_ADDRESS is needed before ${settings.platformName} sends a ${message.kind} email: the law asks for a mailing address in commercial emails`);
+      }
+      const parts = withIdentity(TEMPLATES[message.kind](message.data ?? {}, { settings, pressName: message.data?.pressName ?? "" }), settings);
       return deliver({
         shopId: message.shopId ?? null, kind: message.kind, to: message.to.trim(), idempotencyKey: message.idempotencyKey,
         from: fromLine(settings.platformName, settings.senderEmail), replyTo: settings.supportEmail, parts,

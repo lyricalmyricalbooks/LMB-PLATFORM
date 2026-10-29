@@ -31,3 +31,11 @@ test("the name is spelled one way everywhere on the page", () => {
   const spellings = new Set(page.match(/colophon/gi));
   assert.deepEqual([...spellings], [NAME]);
 });
+
+test("the waitlist says who is asking, what for, and how to stop (plan 15.8)", () => {
+  const text = textOf(page);
+  assert.match(text, /Colophon will email you about your place and the launch, and nothing else/);
+  assert.match(text, /Reply STOP to any of our emails and we'll take you off the list at once/);
+  assert.match(text, /you can stop them at any time/);
+  assert.doesNotMatch(text, /We'll only email you about the launch/);
+});
