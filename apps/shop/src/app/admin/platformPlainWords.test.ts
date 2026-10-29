@@ -174,7 +174,8 @@ describe("the shop's admin: every word a Colophon shop's press can read", () => 
       }
     }
     expect(found).toEqual([]);
-  });
+    // It parses every admin file: about 2 s on Linux, past the 5 s default on a busy Windows runner.
+  }, 30_000);
 
   it("every panel left out of the reading is drawn only where a Colophon shop can't reach it", () => {
     const stray: string[] = [];
