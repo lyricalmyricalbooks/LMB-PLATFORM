@@ -42,7 +42,7 @@ function fakeEmail() {
   return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
 }
 
-async function world({ repairs, newsletters, googleSteps, googleReady } = {}) {
+async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch } = {}) {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -66,7 +66,7 @@ async function world({ repairs, newsletters, googleSteps, googleReady } = {}) {
     envFiles: services.envFiles, deploy: services.deploy, build: async (v) => void built.push(v), email, squareAccount: async (id) => (square.has(id) ? { locationId: "L1" } : null),
     breaches: createBreachRegister({ store: breachStore, registry, auditLog, now: () => new Date(clock), newId: () => `b${breachStore.rows.size + 1}` }),
     people: controlRoomPeople({}),
-    activity, platformState, googleSteps, googleReady,
+    activity, platformState, googleSteps, googleReady, taxWatch,
     admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: " Admin@Example.com ,not-an-email" }),
     now: () => new Date((clock += 1000)),
   });
@@ -578,4 +578,18 @@ test("the control room lists what is still to do before Connect Google can be sw
   assert.equal(answer.body.ready, false);
   assert.equal(answer.body.items[0].title, "Something to do");
   assert.equal((await (await world()).ask(ADMIN, "GET", "/api/control/google-ready")).status, 503);
+});
+
+test("the control room shows the tax lines, admins only, and says plainly when the sales can't be read (15.20)", async () => {
+  const taxWatch = async () => ({ lines: [{ id: "bc", label: "British Columbia PST", state: "amber", words: "$7,000 of $10,000" }], attention: true });
+  const w = await world({ taxWatch });
+  assert.equal((await w.ask(PRESS, "GET", "/api/control/tax-watch")).status, 403);
+  const answer = await w.ask(ADMIN, "GET", "/api/control/tax-watch");
+  assert.equal(answer.status, 200);
+  assert.equal(answer.body.lines[0].state, "amber");
+  assert.equal((await (await world()).ask(ADMIN, "GET", "/api/control/tax-watch")).status, 503);
+  const broken = await world({ taxWatch: async () => { throw new Error("Stripe didn't answer"); } });
+  const failed = await broken.ask(ADMIN, "GET", "/api/control/tax-watch");
+  assert.equal(failed.status, 502);
+  assert.match(failed.body.error ?? failed.body.message ?? JSON.stringify(failed.body), /Stripe didn't answer/);
 });

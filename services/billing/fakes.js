@@ -147,8 +147,15 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       return ok(world.paymentMethods.get(m[1]) ?? { id: m[1], type: "card", card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2030 }, billing_details: { address: { country: "CA", postal_code: "M5V 2T6" } } });
     }
     if (method === "GET" && path === "/v1/invoices") {
-      const list = [...world.invoices.values()].filter((invoice) => invoice.subscription === p.subscription).sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
-      return ok({ object: "list", data: list.slice(0, Number(p.limit ?? 10)) });
+      // With no subscription named, every invoice (optionally only paid ones since a time), a page at a time.
+      let list = [...world.invoices.values()]
+        .filter((invoice) => (p.subscription ? invoice.subscription === p.subscription : true))
+        .filter((invoice) => (p.status ? invoice.status === p.status : true))
+        .filter((invoice) => (p["created[gte]"] ? (invoice.created ?? 0) >= Number(p["created[gte]"]) : true))
+        .sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
+      if (p.starting_after) list = list.slice(list.findIndex((invoice) => invoice.id === p.starting_after) + 1);
+      const size = Number(p.limit ?? 10);
+      return ok({ object: "list", data: list.slice(0, size), has_more: list.length > size });
     }
     if (method === "POST" && path === "/v1/invoices/create_preview") {
       // The prorated part of a move: the rest of the month at the new price, less the rest at the old one.

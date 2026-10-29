@@ -21,6 +21,7 @@ import { controlRoomPeople } from "../control-room/people.js";
 import { createInvites } from "../waitlist/invites.js";
 import { readGoogleConfig } from "../google/config.js";
 import { googleReadiness } from "../google/readiness.js";
+import { taxWatch as watchTaxLines } from "../services/billing/taxWatch.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
 import { fakeSupportStore } from "../services/support/fakes.js";
@@ -135,6 +136,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     activity, supportStore, recoveryStore, platformState, admins, now: clock.date,
     // Nothing of Google is set up in the practice world, so the control room shows every item still to do.
     googleReady: (at) => googleReadiness(readGoogleConfig({}), at),
+    taxWatch: async () => watchTaxLines({ invoices: [], now: clock.date().getTime() }),
   });
   const controls = createPlatformControls({
     admins, settingsStore: platformState, env: settingsEnv, activity, waitlist, signups: stores.signups, now: clock.date,
