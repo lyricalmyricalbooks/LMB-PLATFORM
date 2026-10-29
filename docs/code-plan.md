@@ -485,6 +485,12 @@ screens: the shop's admin, the stockroom and the control room) and **the phone v
 the templates thread owns 10.9 to 10.12 and the Phase 11 admin look, so these rows add what those do not cover and are
 built with that thread, not instead of it.
 
+**Split agreed with the templates thread (29 October 2026):** the templates thread owns 13.9, 13.10 and 13.13 as well as
+10.9 to 10.12 and Phase 11. The tonight thread owns 13.11, 13.12 and 13.14. The phone layer of the stockroom
+(`phone.css`, `phone-riso.css` and the `max-width: 860px` rules in `style.css`) belongs to 13.11; the shared admin-look
+kit, the shop's Studio files and the stockroom's desktop frame (861px and up) stay with the templates thread. A phone
+change that needs a shared token goes through that thread.
+
 | # | Repo | Pull request | Proven by | Effort | Status |
 | --- | --- | --- | --- | --- | --- |
 | 13.9 | shop | **Phone check for every template and look.** Marquee, Shelf and each later template are drawn at phone width (home, product page with sizes, bag, checkout) with tap targets, readable type and no sideways scrolling, in the template foundation (10.9) so no template ships unchecked | browser check over every template at phone width: no horizontal scroll, buttons at least 44 pixels, text readable | medium | |
