@@ -478,6 +478,22 @@ them in the code. Built in this order, one pull request each. Nothing here chang
 Next after these, if wanted: one trust page in plain words [12], "Check my shop" for owners [17], a speed budget in CI
 [14] and per-shop feature switches [7].
 
+### 13B. Templates, back-end design and the phone version (added 29 October 2026)
+
+Julian asked tonight to also focus on **template creation**, the **design of the back ends** (read here as the admin
+screens: the shop's admin, the stockroom and the control room) and **the phone version of the platform**. Row owners:
+the templates thread owns 10.9 to 10.12 and the Phase 11 admin look, so these rows add what those do not cover and are
+built with that thread, not instead of it.
+
+| # | Repo | Pull request | Proven by | Effort | Status |
+| --- | --- | --- | --- | --- | --- |
+| 13.9 | shop | **Phone check for every template and look.** Marquee, Shelf and each later template are drawn at phone width (home, product page with sizes, bag, checkout) with tap targets, readable type and no sideways scrolling, in the template foundation (10.9) so no template ships unchecked | browser check over every template at phone width: no horizontal scroll, buttons at least 44 pixels, text readable | medium | |
+| 13.10 | shop | **More templates, one pull request each** (10.12): the next ones Julian picks from Atlas, Mosaic, Spine, Arch and Feature, each a full design system that suits a shirt, a ring and a book | the template checks of 10.9 to 10.11 | larger per template | waits on Julian's pick |
+| 13.11 | shop, stockroom | **The admin on a phone.** The shop admin and the stockroom get the Pressroom bottom bar (11.4) and phone layouts for the busiest jobs: orders, packing, stock counts, adding a product with a photo, scanning at a fair | browser check at phone width over those screens; stock counts and sales still queue offline | larger | |
+| 13.12 | platform | **Control room and platform pages on a phone** (waitlist, sign-up, plan and billing, help, status, control room): one column, big buttons, the Needs you list first | phone-width browser check on the walkthrough pages (9.11) | medium | |
+| 13.13 | platform | **Back-end design rules in one page** (`docs/admin-look-plan.md` extended): the admin screen patterns (list, record, form, empty, error), spacing and tap sizes for phone and desktop, so every new back-end screen is built the same way | a test fails a back-end screen that uses a loose colour or a tap target under size | medium | |
+| 13.14 | shop, stockroom | **Install to the home screen.** Both admins can be added to a phone's home screen like an app (name, icon, opens full screen), with the stockroom already working offline | manifest and offline tests; the install check passes | quick | |
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
