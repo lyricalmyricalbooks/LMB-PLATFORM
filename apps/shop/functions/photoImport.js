@@ -309,7 +309,7 @@ async function swapPhotos(db, bookId, moved, nowIso) {
  * One pass over the catalog: reads every book once a day (and only recently edited ones in between), copies until
  * `deadline`, and records the run in `systemStatus/photoImport` and, when anything was copied, in `audit-log`.
  */
-async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeoutMs = FETCH_TIMEOUT_MS, deadline, now = Date.now(), log = console }) {
+async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeoutMs = FETCH_TIMEOUT_MS, deadline, now = Date.now(), log = console, limit = null }) {
   if (typeof fetch !== "function") throw new Error("runPhotoImport needs a fetch");
   const bucketName = bucket.name;
   const nowIso = new Date(now).toISOString();
@@ -339,6 +339,7 @@ async function runPhotoImport({ db, bucket, fetch, lookup = defaultLookup, timeo
   let done = 0, books = 0, failures = 0;
   for (const [bookId, urls] of byBook) {
     if (Date.now() > deadline) break;
+    if (limit !== null && books >= limit) break; // the spending limit (spendingGate.js): other books wait for the next run
     const moved = new Map();
     for (const url of urls) {
       if (Date.now() > deadline) break;

@@ -11,11 +11,13 @@
 //
 // Which shop a budget is for: the registry row's `spending.budgetId`, or a budget named `shop:<shop id>`.
 //
-//   recordBudgetNotice(message, { registry, notify, config: { alertTo }, now }) -> { shopId, level, changed } | null
+//   recordBudgetNotice(message, { registry, notify, config: { alertTo }, shopDb, now }) -> { shopId, level, changed } | null
 //   jobPace(level, job) -> { run, perHour, words }: what a costly job may do now
 //
 // The level sits on the registry row, `spending: { level, costAmount, budgetAmount, currency, intervalStart, at }`, for
-// the control room and the shop; a change of level is a registry event and one email to the platform's alert address.
+// the control room; a change of level is a registry event and one email to the platform's alert address. The shop's own
+// costly jobs read the level from `systemStatus/spending` in the shop's own database, which `shopDb(shopId).set` writes on
+// every notice (apps/shop/functions/spendingGate.js, plan 13.4). A failed write is printed and retried by the next notice.
 
 export const LEVELS = Object.freeze(["normal", "slow", "held"]);
 /** The share of the budget spent at which each level starts. */
@@ -77,7 +79,7 @@ async function shopFor(notice, registry) {
   return null;
 }
 
-export async function recordBudgetNotice(body, { registry, notify, config = {}, now = () => new Date(), print = () => {} }) {
+export async function recordBudgetNotice(body, { registry, notify, config = {}, shopDb = null, now = () => new Date(), print = () => {} }) {
   const notice = readBudgetNotice(body);
   if (!notice) return null;
   const row = await shopFor(notice, registry);
@@ -98,6 +100,13 @@ export async function recordBudgetNotice(body, { registry, notify, config = {}, 
     at,
   };
   await registry.updateShop(row.shopId, { spending });
+  if (shopDb) {
+    try {
+      await shopDb(row.shopId).set("systemStatus/spending", { level, at, intervalStart: spending.intervalStart });
+    } catch (error) {
+      print(`${row.shopId}: couldn't tell the shop its spending level: ${error?.message ?? error}`);
+    }
+  }
   const changed = level !== before;
   if (changed) {
     await registry.recordEvent(row.shopId, { id: `spending-${at}-${level}`, kind: "spending", from: before, to: level, costAmount: spending.costAmount, budgetAmount: spending.budgetAmount, at });

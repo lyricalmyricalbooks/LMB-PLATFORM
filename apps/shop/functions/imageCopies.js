@@ -139,7 +139,7 @@ async function attachCopies(db, bookId, url, made) {
  * One pass over the catalog. Reads every book once a day (and only recently edited ones in between),
  * works until `deadline`, and remembers pictures that can't be read so they aren't retried every run.
  */
-async function runImageCopies({ db, bucket, sharp, deadline, now = Date.now(), log = console }) {
+async function runImageCopies({ db, bucket, sharp, deadline, now = Date.now(), log = console, limit = null }) {
   const bucketName = bucket.name;
   const statusRef = db.collection(STATUS_DOC[0]).doc(STATUS_DOC[1]);
   const status = (await statusRef.get()).data() || {};
@@ -168,6 +168,7 @@ async function runImageCopies({ db, bucket, sharp, deadline, now = Date.now(), l
   const made = new Map(); // one set of copies per picture, even when two books share it
   for (const job of jobs) {
     if (Date.now() > deadline) break;
+    if (limit !== null && done >= limit) break; // the spending limit (spendingGate.js): the rest waits for the next run
     try {
       let copies = made.get(job.path);
       if (!copies) {

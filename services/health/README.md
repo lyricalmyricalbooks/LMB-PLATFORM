@@ -80,8 +80,11 @@ watch. A new budget month brings the level back to normal by itself.
 1. Set a monthly budget per shop project on the billing account, named `shop:<shop id>`, with a Pub/Sub topic for its
    notifications. How much each shop's budget is waits on Julian.
 2. Host a push subscription on that topic that calls `recordBudgetNotice` (not built yet).
-3. The shop's photo copies, AI writing and imports read the level from the platform and follow `jobPace` (not built
-   yet: today the level is kept and shown, but the shop's own jobs don't read it).
+3. Built (plan 13.4): every notice also writes the level into the shop's own database (`systemStatus/spending`), and the
+   shop's hourly photo pass, its photo import and the AI writing assistant read it (`apps/shop/functions/spendingGate.js`).
+   Slow: at most 60 photo copies, 2 imported books and 10 AI answers an hour; held: none. Checkout, payment events and
+   order emails never call the gate. A level that is missing or unreadable means full speed. A test fails when the shop's
+   table differs from `COSTLY_JOBS` here.
 
 ## Running it for real
 

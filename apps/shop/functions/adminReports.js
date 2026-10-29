@@ -32,6 +32,11 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
     try {
+      // Plan 13.4: past its budget the shop gets fewer AI answers an hour, and far past it none. Checking a saved key is free.
+      if ((req.body || {}).op !== "check") {
+        const spend = await require("./spendingGate").allowOne(db, "ai-writing");
+        if (!spend.allowed) return res.status(429).json({ error: spend.words });
+      }
       const { status, body } = await handleAiWrite(req.body || {}, {
         readSettings: async () => {
           const saved = await readAdminSecret("ai");
