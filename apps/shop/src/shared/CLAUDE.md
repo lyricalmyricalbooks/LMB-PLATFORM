@@ -55,3 +55,6 @@ browsers may write (mirroring `firestore.rules`).
   `firstWeek/start` › `publishes` and sets `settings.sells`; Settings › Notifications shows the same defaults.
   The word swaps (`goodsWords`, `wordsFor`; the admin's `adminWordsFor` is `wordsFor`) live here too: the Monday report
   (`weeklySummary.js`, `weeklyPdf.js`) takes a `words` option and only its own fixed words pass through it.
+- Shipping by kind (plan 10.4, 29 October 2026): `kindDefaults.ts` (`kindShipping(product)`) holds each kind's customs words,
+  tariff code and fallback weight. `functions/customs.js` uses it where a product's own boxes are blank; a product with
+  no kind is a printed book with today's values. "other" has no tariff code, so the form goes without one.

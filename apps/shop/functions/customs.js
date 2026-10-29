@@ -9,13 +9,14 @@ const { DEFAULT_SHOP_NAME } = require("./shared/shopIdentity");
 const DEFAULT_DESCRIPTION = "Printed books";
 const DEFAULT_HS_CODE = "4901.99"; // Printed books, brochures and similar: other (not single sheets)
 const GRAMS_PER_LB = 453.592; // older catalog values typed in lb still read correctly
-const { FALLBACK_COPY_GRAMS } = require("./parcelWeight"); // the label tool's own per-copy assumption
+const { kindShipping } = require("./shared/kindDefaults");
+const { isBookKind, productKind } = require("./shared/productOptions"); // plan 10.4: what each kind of product ships as
 
 // 4 to 10 digits, optionally dotted (4901, 4901.99, 4901.99.0000, 490199).
 const HS_PATTERN = /^\d{4}(?:[.\s-]?\d{2}){0,3}$/;
 const validHsCode = value => HS_PATTERN.test(String(value || "").trim());
-const cleanHsCode = value => (validHsCode(value) ? String(value).trim() : DEFAULT_HS_CODE);
-const cleanDescription = value => String(value || "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 100) || DEFAULT_DESCRIPTION;
+const cleanHsCode = (value, fallback = DEFAULT_HS_CODE) => (validHsCode(value) ? String(value).trim() : fallback);
+const cleanDescription = (value, fallback = DEFAULT_DESCRIPTION) => String(value || "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 100) || fallback;
 
 // A parcel needs customs paperwork when it crosses a border.
 function needsCustoms(fromCountry, toCountry) {
@@ -50,30 +51,33 @@ function customsItems(order, books, defaultOrigin) {
     const quantity = Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)));
     const book = (books && books[item.id]) || {};
     const variant = item.variantId ? (book.variants || []).find(v => v.id === item.variantId) || null : null;
+    // Plan 10.4: a blank box means what this kind of product ships as; a printed book (no kind) is as before.
+    const kind = kindShipping(book);
     const grams = copyGrams(variant?.weight) ?? copyGrams(book.weight);
     const unit = Number(item.basePrice ?? item.price) || 0;
     const addOns = (item.addOns || []).reduce((sum, a) => sum + (Number(a.price) || 0), 0);
     const lineValue = Math.max(0.01, Math.round((unit + addOns) * quantity * ratio * 100) / 100);
     const origin = countryCodeOf(book.customsOriginCountry) || countryCodeOf(defaultOrigin) || "CA";
     return {
-      description: cleanDescription(book.customsDescription),
+      description: cleanDescription(book.customsDescription, kind.description),
       quantity,
-      net_weight: ((grams != null ? grams : FALLBACK_COPY_GRAMS) * quantity).toFixed(1),
+      net_weight: ((grams != null ? grams : kind.copyGrams) * quantity).toFixed(1),
       mass_unit: "g",
       value_amount: lineValue.toFixed(2),
       value_currency: "CAD",
       origin_country: origin,
-      tariff_number: cleanHsCode(book.hsTariffNumber),
+      ...(cleanHsCode(book.hsTariffNumber, kind.hsCode) ? { tariff_number: cleanHsCode(book.hsTariffNumber, kind.hsCode) } : {}),
       ...(item.id ? { sku_code: String(item.id).slice(0, 50) } : {}),
     };
   });
 }
 
 // The declaration that ties the item ids together. Shippo requires the certify flags.
-function customsDeclaration(itemIds, order, signer, fromCountry) {
+// `explanation` is what the parcel holds, in a few words ("Clothing, Footwear"); blank = "Printed books" as before.
+function customsDeclaration(itemIds, order, signer, fromCountry, explanation = "") {
   return {
     contents_type: "MERCHANDISE",
-    contents_explanation: DEFAULT_DESCRIPTION,
+    contents_explanation: cleanDescription(explanation),
     non_delivery_option: "RETURN",
     certify: true,
     certify_signer: String(signer || "").trim().slice(0, 100) || DEFAULT_SHOP_NAME,
@@ -85,4 +89,14 @@ function customsDeclaration(itemIds, order, signer, fromCountry) {
   };
 }
 
-module.exports = { DEFAULT_DESCRIPTION, DEFAULT_HS_CODE, validHsCode, cleanHsCode, needsCustoms, customsItems, customsDeclaration, copyGrams };
+/**
+ * What the parcel holds for the declaration: the distinct customs descriptions of its items ("Clothing, Footwear"),
+ * but only when something in it is not a book. A parcel of books keeps "Printed books" whatever each book's own words.
+ */
+function parcelContents(items, order, books) {
+  const lines = (order.items || []).filter(item => item && isPhysicalItem(item));
+  if (lines.every(item => isBookKind(productKind((books && books[item.id]) || {})))) return "";
+  return [...new Set((items || []).map(i => i && i.description).filter(Boolean))].join(", ");
+}
+
+module.exports = { parcelContents, DEFAULT_DESCRIPTION, DEFAULT_HS_CODE, validHsCode, cleanHsCode, needsCustoms, customsItems, customsDeclaration, copyGrams };

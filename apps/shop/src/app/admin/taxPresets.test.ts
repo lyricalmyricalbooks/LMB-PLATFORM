@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { applyTaxPreset, TAX_PRESETS } from "./taxPresets";
+import { applyTaxPreset, suggestedTaxPresetId, TAX_PRESETS } from "./taxPresets";
 import { regionsFor } from "../features/site/postalRegion";
 import { taxRateProblem } from "./taxRatesEdit";
 import { uncoveredTaxRegions } from "../features/site/taxRate";
@@ -61,5 +61,14 @@ describe("tax presets", () => {
     expect(rates.slice(0, 2)).toEqual(mine);
     expect(rates.find((r) => r.region === "Nova Scotia")?.rate).toBe("14");
     expect(applyTaxPreset(rates, preset("ca-books")).added).toBe(0);
+  });
+});
+
+describe("the preset the Taxes page starts on (plan 10.4)", () => {
+  const it = test;
+  it("a books shop starts on printed books; any other shop on GST/HST on other goods", () => {
+    for (const answer of [undefined, null, "", "books", "zines", "mix", "spaceships"]) expect(suggestedTaxPresetId(answer), String(answer)).toBe("ca-books");
+    for (const answer of ["clothing", "shoes", "jewelry", "prints", "music", "other"]) expect(suggestedTaxPresetId(answer), answer).toBe("ca-goods");
+    expect(TAX_PRESETS.some((p) => p.id === suggestedTaxPresetId("clothing"))).toBe(true);
   });
 });

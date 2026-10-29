@@ -10,7 +10,8 @@ import { cleanBookName, cleanTaxRate, taxRateProblem, type TaxRate } from "./tax
 import { TAX_BOOK_NAMES, TAX_BOOK_NAME_MAX, suggestedTaxBookName } from "../../shared/taxBooks";
 import { useSettingsDirty } from "./settingsDirty";
 import { SettingsAnchor, jumpTo } from "./settingsLayout";
-import { applyTaxPreset, TAX_PRESETS } from "./taxPresets";
+import { applyTaxPreset, suggestedTaxPresetId, TAX_PRESETS } from "./taxPresets";
+import { useShopSells } from "./shopWords";
 
 // Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
 // nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
@@ -22,7 +23,8 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   const [rate, setRate] = useState("");
   const [bookName, setBookName] = useState("");
   const [tried, setTried] = useState(false);
-  const [presetId, setPresetId] = useState(TAX_PRESETS[0].id);
+  const sells = useShopSells();
+  const [presetId, setPresetId] = useState(suggestedTaxPresetId(sells));
   const preset = TAX_PRESETS.find((p) => p.id === presetId) || TAX_PRESETS[0];
   const rates: TaxRate[] = settings.taxes?.rates || [];
   const savedRates: TaxRate[] = originalSettings?.taxes?.rates || [];

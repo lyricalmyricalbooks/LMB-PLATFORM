@@ -69,7 +69,7 @@ import { BookSeoPane } from "./BookSeoPane";
 import { askAi, aiWriterAvailable, bookAiInput, photoAiUrl, runPool, DESCRIBE_AT_ONCE } from "./aiWriter";
 import { describedAlt } from "../features/site/photoAlt";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
-import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
+import { customsDefaultsFor, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
 import { ProductOptionsEditor } from "./ProductOptionsEditor";
 import { goodsWords, startingKind } from "./sells";
@@ -1141,6 +1141,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const overrides = !!formData.manualCurrencyOverrides;
   const hasVariants = (formData.variants || []).length > 0;
   const isDigital = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);
+  // Plan 10.4: what a blank customs box means follows the product's kind (a printed book when it has none).
+  const customsDefaults = customsDefaultsFor(formData);
   // The price shoppers pay today: a scheduled sale that hasn't started (or has ended) doesn't count.
   const saleNow = saleStatus(formData) === "on";
   const activePrice = saleNow ? num(formData.salePrice) : num(formData.retailPrice);
@@ -1417,12 +1419,12 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 <SectionCard title="International parcels (customs)" foldKey="book-editor-customs"
                   description="Only used on customs forms for parcels leaving the country. Blank boxes use the defaults shown.">
                   <div className="be-grid">
-                    <TextField label="Customs description" name="customsDescription" value={formData.customsDescription || ""} onChange={handleChange} placeholder={DEFAULT_CUSTOMS_DESCRIPTION} hint="Printed on the customs form of international labels. Blank = “Printed books”." />
-                    <TextField label="Tariff (HS) code" name="hsTariffNumber" value={formData.hsTariffNumber || ""} onChange={handleChange} placeholder={DEFAULT_HS_CODE}
+                    <TextField label="Customs description" name="customsDescription" value={formData.customsDescription || ""} onChange={handleChange} placeholder={customsDefaults.description} hint={`Printed on the customs form of international labels. Blank = “${customsDefaults.description}”.`} />
+                    <TextField label="Tariff (HS) code" name="hsTariffNumber" value={formData.hsTariffNumber || ""} onChange={handleChange} placeholder={customsDefaults.hsCode}
                       error={formData.hsTariffNumber && !validHsCode(formData.hsTariffNumber) ? "Use 4 to 10 digits, like 4901.99." : undefined}
-                      hint="Customs code for international parcels. Blank = 4901.99 (printed books)." />
+                      hint={customsDefaults.hsCode ? `Customs code for international parcels. Blank = ${customsDefaults.hsCode} (${customsDefaults.description.toLowerCase()}); check it matches what you ship.` : "Customs code for international parcels. Blank = none on the form; enter the code for what you ship."} />
                     <TextField label="Country of origin" name="customsOriginCountry" value={formData.customsOriginCountry || ""} onChange={handleChange} placeholder="CA" maxLength={2}
-                      hint="Where the book was printed (2-letter code). Blank = your shipping-from country." />
+                      hint={`${isBookKind(productKind(formData)) ? "Where the book was printed" : "Where it was made"} (2-letter code). Blank = your shipping-from country.`} />
                   </div>
                 </SectionCard>
                 </div>
