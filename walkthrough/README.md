@@ -61,3 +61,11 @@ Joined here because no hosted web door exists yet (plan 6.14):
 - One web door carries every route: sign-up, accounts, billing, the control room and what sits beside it (platform
   settings and the waitlist, the backup person's run book, the support inbox, account recovery). When the real door is
   hosted, it needs this same list.
+
+## The web version (`site/build.js`)
+
+`node walkthrough/site/build.js <folder>` (with `npm run demo` running) opens every stop on the start page in Chromium, as the
+person it names, and writes `<folder>/index.html` with a picture of each stop and what to try there. The workflow
+`.github/workflows/walkthrough-site.yml` does this on every merge to `main` and publishes the folder with GitHub Pages, so the
+walkthrough can be opened in a browser with nothing installed. They are pictures, not a live copy: nothing on that page
+can be clicked into. Made-up data only.
