@@ -28,7 +28,7 @@ const sectionOf = (name) => {
 
 test("every health alert has its own section saying what it means and what to do", () => {
   const names = alertNames();
-  assert.deepEqual(names, ["backup", "checkout", "pages", "spending", "webhook"]);
+  assert.deepEqual(names, ["backup", "checkout", "drill", "pages", "spending", "webhook"]);
   for (const name of names) {
     const section = sectionOf(name);
     assert.ok(section, `docs/run-book.md has no "### ${name}" section`);

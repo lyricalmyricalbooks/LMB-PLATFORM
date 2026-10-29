@@ -136,7 +136,7 @@ test("a database in another region stops the run instead of being replaced", asy
 test("with the stockroom in the plan, step 5 also makes its own database, bucket and Realtime Database (plan 1.20)", async () => {
   const { google, registry, run } = setup();
   assert.equal((await run()).ok, true);
-  assert.deepEqual(google.world.namedDatabases.get(`lmb-test-shop/${STOCKROOM_DATABASE}`), { locationId: REGION });
+  assert.deepEqual(google.world.namedDatabases.get(`lmb-test-shop/${STOCKROOM_DATABASE}`), { locationId: REGION, pointInTimeRecovery: true });
   assert.deepEqual(google.world.extraBuckets.get("lmb-test-shop-stockroom"), { name: "lmb-test-shop-stockroom", location: REGION.toUpperCase(), project: "lmb-test-shop" });
   assert.deepEqual(google.world.realtimeDatabases.get("lmb-test-shop"), { name: "lmb-test-shop-default-rtdb", location: RTDB_LOCATION });
   // The named database gets delete protection like the shop's.
@@ -305,4 +305,19 @@ test("setup/ names no live Lyricalmyrical project and calls nothing over the net
     for (const id of LIVE) assert.ok(!text.includes(id), `${name} names ${id}`);
     assert.doesNotMatch(text, /\bfetch\(|https:\/\/[a-z.]*googleapis\.com|node:https?\b/, name);
   }
+});
+
+test("every database gets seven days of recovery, also one made before (plan 13.5)", async () => {
+  const { google, run, registry } = setup();
+  assert.equal((await run()).ok, true);
+  assert.equal(google.world.databases.get("lmb-test-shop").pointInTimeRecovery, true);
+  assert.equal(google.world.namedDatabases.get(`lmb-test-shop/${STOCKROOM_DATABASE}`).pointInTimeRecovery, true);
+  google.world.databases.get("lmb-test-shop").pointInTimeRecovery = false;
+  google.world.namedDatabases.get(`lmb-test-shop/${STOCKROOM_DATABASE}`).pointInTimeRecovery = false;
+  const steps = firstSteps({ google, registry, profileFiles: fakeProfileFiles(), config: TEST_CONFIG });
+  assert.equal(await steps[4].check({ shop: TEST_SHOP }), false);
+  google.calls.length = 0;
+  await steps[4].act({ shop: TEST_SHOP });
+  assert.deepEqual(google.calls.map(([name, , id]) => [name, id]), [["firestore.enablePointInTimeRecovery", "(default)"], ["firestore.enablePointInTimeRecovery", STOCKROOM_DATABASE]]);
+  assert.equal(await steps[4].check({ shop: TEST_SHOP }), true);
 });

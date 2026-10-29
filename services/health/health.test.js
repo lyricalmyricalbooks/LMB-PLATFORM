@@ -178,8 +178,9 @@ test("nightly: the stockroom is always backed up; the shop only when its own bac
 test("the real entry point needs a job and, for the checks, an alert address", async () => {
   const { realHealth } = await import("./run.js");
   const fetch = async () => { throw new Error("no network in tests"); };
-  await assert.rejects(realHealth({ job: "everything", env: {}, fetch }), /"checks" or "nightly"/);
+  await assert.rejects(realHealth({ job: "everything", env: {}, fetch }), /"checks", "nightly" or "drill"/);
   await assert.rejects(realHealth({ job: "checks", env: {}, fetch }), /HEALTH_ALERT_TO is not set/);
+  await assert.rejects(realHealth({ job: "drill", env: {}, fetch }), /HEALTH_ALERT_TO is not set/);
 });
 
 test("the alert email names the press, the check and what it saw", () => {

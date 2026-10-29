@@ -83,6 +83,23 @@ but if the data were damaged now, a day or more of changes would be gone.
    night, and always backs up the stockroom. If it didn't run, run it by hand now.
 3. A press can also press **Back up now** in their own admin (Settings › General › Backups & export).
 
+### drill
+
+**What it means:** the monthly restore test failed. The platform restored a shop's latest backup into a scratch copy and
+counted its books, orders and reviews there and in the live shop; the counts were far apart, the restore itself
+failed, or the scratch copy could not be removed. A backup that does not restore is not a backup.
+
+**What to do:**
+
+1. Read the detail. "books: 0 restored, 40 live" means the backup is empty or damaged. "couldn't restore: …" means
+   the export could not be imported (often a permission, or the day's export is incomplete).
+2. Run the nightly job by hand (`node services/health/run.js nightly`), then run the drill again
+   (`node services/health/run.js drill`). A passing drill clears the alert.
+3. If the restore keeps failing, use the shop's own document copy under `backups/<day>/json/` (see "Restore a backup")
+   and tell the press nothing is lost yet.
+4. A scratch database named `drill-<day>` that was not removed can be deleted from the shop's Google project by hand;
+   the platform never removes any other database.
+
 ### spending
 
 **What it means:** a shop's Google bill has reached its monthly budget. "failing" means the shop's costly jobs (photo

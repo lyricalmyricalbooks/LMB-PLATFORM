@@ -141,11 +141,27 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
     firestore: {
       async getDatabase(projectId, databaseId = "(default)") {
         const database = await orNull(call("GET", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/${databaseId}`));
-        return database ? { locationId: database.locationId, type: database.type, deleteProtection: database.deleteProtectionState === "DELETE_PROTECTION_ENABLED" } : null;
+        return database ? { locationId: database.locationId, type: database.type, deleteProtection: database.deleteProtectionState === "DELETE_PROTECTION_ENABLED", pointInTimeRecovery: database.pointInTimeRecoveryEnablement === "POINT_IN_TIME_RECOVERY_ENABLED" } : null;
       },
-      async createDatabase(projectId, { locationId, type, deleteProtection, databaseId = "(default)" }) {
-        const body = { locationId, type, deleteProtectionState: deleteProtection ? "DELETE_PROTECTION_ENABLED" : "DELETE_PROTECTION_DISABLED" };
+      async createDatabase(projectId, { locationId, type, deleteProtection, pointInTimeRecovery = false, databaseId = "(default)" }) {
+        const body = {
+          locationId, type, deleteProtectionState: deleteProtection ? "DELETE_PROTECTION_ENABLED" : "DELETE_PROTECTION_DISABLED",
+          ...(pointInTimeRecovery ? { pointInTimeRecoveryEnablement: "POINT_IN_TIME_RECOVERY_ENABLED" } : {}),
+        };
         await wait(await call("POST", `${FIRESTORE_ADMIN}/projects/${projectId}/databases`, { query: { databaseId }, body }), FIRESTORE_ADMIN);
+      },
+      // Seven days of "roll back to the minute" (plan 13.5): a setting on an existing database, safe to run twice.
+      async enablePointInTimeRecovery(projectId, databaseId = "(default)") {
+        await wait(await call("PATCH", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/${databaseId}`, {
+          query: { updateMask: "pointInTimeRecoveryEnablement" }, body: { pointInTimeRecoveryEnablement: "POINT_IN_TIME_RECOVERY_ENABLED" },
+        }), FIRESTORE_ADMIN);
+      },
+      /** How many documents a collection holds (an aggregation count), for the restore drill (plan 13.5). */
+      async count(projectId, databaseId, collection) {
+        const answer = await call("POST", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/${databaseId}/documents:runAggregationQuery`, {
+          body: { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: collection }] }, aggregations: [{ alias: "n", count: {} }] } },
+        });
+        return Number(answer?.[0]?.result?.aggregateFields?.n?.integerValue ?? 0);
       },
     },
     storage: {
@@ -222,6 +238,29 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
         const listing = await call("GET", `${GCS}/b/${bucket}/o`, { query: { prefix: "backups/", delimiter: "/" } });
         const days = (listing.prefixes ?? []).filter((p) => /^backups\/\d{4}-\d{2}-\d{2}\/$/.test(p)).sort();
         return days.length ? { name: days.at(-1) } : null;
+      },
+      // The restore drill (plan 13.5): the day's export of the shop's database is imported into a scratch database named
+      // drill-<day> in the same project, to be counted and then removed. Only a database with that prefix is ever removed.
+      async restoreScratch(projectId, { folder }) {
+        const bucket = await needBucket(projectId);
+        const listing = await call("GET", `${GCS}/b/${bucket}/o`, { query: { prefix: `${folder}export/` } });
+        const metadata = (listing.items ?? []).map((item) => item.name).find((name) => name.endsWith(".overall_export_metadata"));
+        if (!metadata) throw new Error(`no export metadata under ${folder}export/`);
+        const database = `drill-${today()}`;
+        const live = await orNull(call("GET", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/(default)`));
+        if (!(await orNull(call("GET", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/${database}`)))) {
+          await wait(await call("POST", `${FIRESTORE_ADMIN}/projects/${projectId}/databases`, {
+            query: { databaseId: database }, body: { locationId: live?.locationId, type: "FIRESTORE_NATIVE", deleteProtectionState: "DELETE_PROTECTION_DISABLED" },
+          }), FIRESTORE_ADMIN);
+        }
+        await wait(await call("POST", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/${database}:importDocuments`, {
+          body: { inputUriPrefix: `gs://${bucket}/${metadata}` },
+        }), FIRESTORE_ADMIN);
+        return { database };
+      },
+      async removeScratch(projectId, database) {
+        if (!/^drill-\d{4}-\d{2}-\d{2}$/.test(database)) throw new Error(`${database} is not a drill database; not removing it`);
+        await wait(await call("DELETE", `${FIRESTORE_ADMIN}/projects/${projectId}/databases/${database}`), FIRESTORE_ADMIN);
       },
       // `database` names another of the project's databases (the stockroom's, plan 1.20); its export goes next to the
       // shop's, as backups/<day>/<database>-export.

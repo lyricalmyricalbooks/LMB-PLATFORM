@@ -84,14 +84,32 @@ test("firestore: the database is made in Montréal with delete protection", asyn
   const D = `https://firestore.googleapis.com/v1/projects/${P}/databases`;
   const { fetch, google } = clients([
     { method: "GET", url: `${D}/(default)`, ...notFound },
-    { method: "POST", url: `${D}?databaseId=%28default%29`, body: { locationId: "northamerica-northeast1", type: "FIRESTORE_NATIVE", deleteProtectionState: "DELETE_PROTECTION_ENABLED" }, json: { name: `projects/${P}/databases/(default)/operations/op1`, done: false } },
+    { method: "POST", url: `${D}?databaseId=%28default%29`, body: { locationId: "northamerica-northeast1", type: "FIRESTORE_NATIVE", deleteProtectionState: "DELETE_PROTECTION_ENABLED", pointInTimeRecoveryEnablement: "POINT_IN_TIME_RECOVERY_ENABLED" }, json: { name: `projects/${P}/databases/(default)/operations/op1`, done: false } },
     { method: "GET", url: `https://firestore.googleapis.com/v1/projects/${P}/databases/(default)/operations/op1`, json: { done: true, response: {} } },
-    { method: "GET", url: `${D}/(default)`, json: { locationId: "northamerica-northeast1", type: "FIRESTORE_NATIVE", deleteProtectionState: "DELETE_PROTECTION_ENABLED" } },
+    { method: "GET", url: `${D}/(default)`, json: { locationId: "northamerica-northeast1", type: "FIRESTORE_NATIVE", deleteProtectionState: "DELETE_PROTECTION_ENABLED", pointInTimeRecoveryEnablement: "POINT_IN_TIME_RECOVERY_ENABLED" } },
   ]);
   assert.equal(await google.firestore.getDatabase(P), null);
-  await google.firestore.createDatabase(P, { locationId: "northamerica-northeast1", type: "FIRESTORE_NATIVE", deleteProtection: true });
-  assert.deepEqual(await google.firestore.getDatabase(P), { locationId: "northamerica-northeast1", type: "FIRESTORE_NATIVE", deleteProtection: true });
+  await google.firestore.createDatabase(P, { locationId: "northamerica-northeast1", type: "FIRESTORE_NATIVE", deleteProtection: true, pointInTimeRecovery: true });
+  assert.deepEqual(await google.firestore.getDatabase(P), { locationId: "northamerica-northeast1", type: "FIRESTORE_NATIVE", deleteProtection: true, pointInTimeRecovery: true });
   fetch.done();
+});
+
+test("firestore: seven-day recovery is switched on for an existing database, and a collection can be counted (plan 13.5)", async () => {
+  const D = `https://firestore.googleapis.com/v1/projects/${P}/databases`;
+  const { fetch, google } = clients([
+    { method: "PATCH", url: `${D}/(default)?updateMask=pointInTimeRecoveryEnablement`, body: { pointInTimeRecoveryEnablement: "POINT_IN_TIME_RECOVERY_ENABLED" }, json: { name: `projects/${P}/databases/(default)/operations/op2`, done: false } },
+    { method: "GET", url: `https://firestore.googleapis.com/v1/projects/${P}/databases/(default)/operations/op2`, json: { done: true, response: {} } },
+    { method: "POST", url: `${D}/drill-2026-01-02/documents:runAggregationQuery`, body: { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: "orders" }] }, aggregations: [{ alias: "n", count: {} }] } }, json: [{ result: { aggregateFields: { n: { integerValue: "41" } } } }] },
+  ]);
+  await google.firestore.enablePointInTimeRecovery(P);
+  assert.equal(await google.firestore.count(P, "drill-2026-01-02", "orders"), 41);
+  fetch.done();
+});
+
+test("backups: only a drill database can be removed (plan 13.5)", async () => {
+  const { google } = clients([]);
+  await assert.rejects(google.backups.removeScratch(P, "(default)"), /not a drill database/);
+  await assert.rejects(google.backups.removeScratch(P, "stockroom"), /not a drill database/);
 });
 
 test("storage: the default bucket is read and made through Firebase Storage", async () => {

@@ -69,6 +69,8 @@ export async function runHealth({ registry, checks, notify, config = {}, now = (
         if (alert === "recovered") after[name].recoveryUnsent = true;
       }
     }
+    // The monthly restore drill's result (restoreDrill.js) lives next to these checks and is not made by this run.
+    if (before.drill) after.drill = before.drill;
     const ok = Object.values(after).every((state) => state.ok);
     await registry.updateShop(row.shopId, { health: { checkedAt: at, ok, checks: after } });
     summary.push({ shopId: row.shopId, ok, failing: Object.keys(after).filter((name) => !after[name].ok), alerts: alerts.map((a) => `${a.name}:${a.alert}`) });

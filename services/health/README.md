@@ -40,6 +40,23 @@ Exports go to `backups/<day>/` in the shop's bucket, next to the shop's own. Eac
 (`platformBackup: { shopAt, stockroomAt }`, which the backup check reads) and as a registry event. A failed export is
 an event too. The next five-minute run's backup check then alerts on it.
 
+## Every month: the restore drill (`restoreDrill.js`, plan 13.5)
+
+`node services/health/run.js drill` restores the latest backup of one live shop into a scratch database (`drill-<day>`, in
+the shop's own project), counts its books, orders and reviews there and in the live shop, writes `restoreDrill` on the
+row and the check `drill` (so a failure shows as a shop with a problem and sends the usual `health-alert` email), and
+removes the scratch database. Counts match when within 10% (at least 5 documents); an empty restore of a shop with
+documents always fails. It does nothing when the last drill, of any shop, was under 28 days ago; the shop drilled longest
+ago goes next. Nothing in the live shop is written, and only a database named `drill-<day>` is ever removed.
+
+New databases (shop and stockroom) are made with seven days of roll-back to the minute (point-in-time recovery), and
+step 5 switches it on for an existing one when it is re-run. See "Restore a backup" in `docs/run-book.md`.
+
+**Switched on by Julian:** a monthly schedule for the drill job, and the platform's service account needs the
+Cloud Datastore Import Export Admin role on shop projects. **Not tested against Google:** `restoreScratch`,
+`removeScratch` and `count` in `clients/google.js` follow Google's Firestore API but have only run against fakes.
+Run the drill once against the test shop before trusting it.
+
 ## Spending limits per shop (`spending.js`, plan 8.9)
 
 Each shop's Google project gets a budget on the billing account, named `shop:<shop id>` (or with its id kept on the
