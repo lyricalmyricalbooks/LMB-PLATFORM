@@ -11,18 +11,11 @@
 
 import type { ProductKind } from "../../shared/productOptions";
 import { DEFAULT_COPY } from "../features/site/storeCopy";
+import { sellsBooks, type Sells } from "../../shared/shopSells";
 
-/** The sign-up answers (signup/form.js PUBLISHES.options), in the form's order. */
-export const SELLS = ["books", "zines", "comics", "prints", "mix", "clothing", "shoes", "jewelry", "music", "other"] as const;
-export type Sells = (typeof SELLS)[number];
-
-/** The answers that keep a books shop exactly as it is. */
-const BOOK_ANSWERS = new Set<string>(["books", "zines", "comics", "mix"]);
-
-/** True for a shop that sells books: a book answer, a skipped answer or one this version doesn't know. */
-export function sellsBooks(answer?: string | null): boolean {
-  return !answer || BOOK_ANSWERS.has(answer) || !(SELLS as readonly string[]).includes(answer);
-}
+// The answers and the books-shop rule live in src/shared/shopSells.ts, which the server's emails use too.
+export { SELLS, sellsBooks } from "../../shared/shopSells";
+export type { Sells } from "../../shared/shopSells";
 
 /** The kind a new product starts as (the product editor's Product type). */
 export function startingKind(answer?: string | null): ProductKind {

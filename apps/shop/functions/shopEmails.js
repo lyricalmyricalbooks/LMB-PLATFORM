@@ -5,6 +5,7 @@
 // tests' fakes still apply, and keeps each `exports.<name> =` line.
 
 const { withPlatformKey } = require("./platformKey");
+const { sellsBooks } = require("./shared/shopSells");
 function shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
@@ -272,6 +273,7 @@ function shopEmails({
           notificationSettings.brand = brand;
         }
 
+        const books = sellsBooks(notificationSettings.sells);
         const mockVars = {
           customer_name: "Julianne Smith",
           order_id: "LM-98241",
@@ -284,8 +286,9 @@ function shopEmails({
           order_url: siteLink("/track"),
           email: "julianne@reader.example",
           status: "out for delivery",
-          subject: "Stocking your books",
-          message: "Hello! Do you sell wholesale to independent bookshops?",
+          // A shop that doesn't sell books (plan 10.23) gets a sample message in its own words.
+          subject: books ? "Stocking your books" : "Stocking your work",
+          message: books ? "Hello! Do you sell wholesale to independent bookshops?" : "Hello! Do you sell wholesale to independent shops?",
           tracking_url: "https://www.canadapost-postescanada.ca/track-reperage/en",
           cart_url: siteLink("/checkout"),
           button_url: siteLink("/track"),
@@ -326,7 +329,7 @@ function shopEmails({
           sampleDownloadSection = `
             <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
               <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">Digital Library Access (Sample)</h3>
-              <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">Click the links below to download your digital books. For security, these download links are active for 24 hours.</p>
+              <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">Click the links below to download your digital ${books ? "books" : "files"}. For security, these download links are active for 24 hours.</p>
               <table style="width:100%;font-size:12px;border-collapse:collapse;">
                 <tr>
                   <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>Visions of Toronto - PDF Edition</strong></td>
