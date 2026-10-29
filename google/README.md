@@ -89,9 +89,16 @@ live in this service's environment only.
    Merchant, Drive, YouTube Data and Calendar in the platform project.
 2. Have Google approve the sign-in screen for those permissions (Go-live plan). Then set the keys and
    `GOOGLE_CONNECT_ENABLED=true`.
-3. Gmail sending: after Google's yearly security review of the sending permission, set `GOOGLE_GMAIL_SENDING=on`.
-4. Business Profile: once Google grants Colophon access to its Business Profile tools, set `GOOGLE_BUSINESS_PROFILE=on`.
-5. Ads: once Google gives Colophon a developer token, set `GOOGLE_ADS_DEVELOPER_TOKEN`.
+3. Gmail sending: sending is a "sensitive" permission, so it goes through the same review of the sign-in screen (no
+   yearly outside review). Once that is approved, set `GOOGLE_GMAIL_SENDING=on`.
+4. Google Shopping: make Colophon's own Merchant Center account (home page verified), register the platform project
+   with it once (`registerGcp`), then set `GOOGLE_MERCHANT_PROVIDER_ID` to that account's number. Without it Google
+   Shopping waits.
+5. The second round of extras (YouTube, Calendar, Business Profile, Ads) is off at launch so the first review asks for
+   as few permissions as possible. After it, set `GOOGLE_LATER_EXTRAS=on`.
+6. Business Profile: once Google grants Colophon access to its Business Profile tools, set `GOOGLE_BUSINESS_PROFILE=on`.
+7. Ads: Google ended developer tokens on 9 September 2026. Once the platform project has an Ads access level, set
+   `GOOGLE_ADS_ACCESS` to `explorer`, `basic` or `standard`.
 
 ## Not yet
 

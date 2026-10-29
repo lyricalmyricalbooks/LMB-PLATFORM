@@ -26,12 +26,28 @@ export const ANALYTICS_ADMIN_ALPHA = "https://analyticsadmin.googleapis.com/v1al
 export const SITE_VERIFICATION = "https://www.googleapis.com/siteVerification/v1";
 export const SEARCH_CONSOLE = "https://www.googleapis.com/webmasters/v3";
 export const MERCHANT = "https://merchantapi.googleapis.com";
+// Merchant API v1 (code plan 15.1). Google discontinued v1beta in May 2026, so every call goes to v1.
+export const MERCHANT_ACCOUNTS = `${MERCHANT}/accounts/v1`;
+export const MERCHANT_DATASOURCES = `${MERCHANT}/datasources/v1`;
 export const GMAIL = "https://gmail.googleapis.com/gmail/v1";
 export const DRIVE = "https://www.googleapis.com/drive/v3";
 export const YOUTUBE = "https://www.googleapis.com/youtube/v3";
 export const CALENDAR = "https://www.googleapis.com/calendar/v3";
 export const BUSINESS_ACCOUNTS = "https://mybusinessaccountmanagement.googleapis.com/v1";
-export const ADS = "https://googleads.googleapis.com/v18";
+// Google Ads lists v23 to v26 (checked 29 October 2026); v18 is no longer listed.
+export const ADS_VERSION = "v24";
+export const ADS = `https://googleads.googleapis.com/${ADS_VERSION}`;
+
+/**
+ * The versions Google has switched off, and when each address was last checked against Google's own page. A test
+ * (google.test.js) fails when any file in this folder calls a retired one, so a version Google retires is noticed
+ * here and not on a press's first connect. Update `checked` after reading developers.google.com/merchant/api/latest-updates
+ * and developers.google.com/google-ads/api/docs/sunset-dates; the readiness check (plan 15.4) warns when it is old.
+ */
+export const VERSION_CHECKS = Object.freeze({
+  merchant: Object.freeze({ checked: "2026-10-29", current: "v1", retired: ["v1beta"] }),
+  ads: Object.freeze({ checked: "2026-10-29", current: ADS_VERSION, retired: ["v18", "v19", "v20", "v21", "v22"] }),
+});
 
 /** A Viewer on an Analytics property: enough for the shop's Overview to read the reports, nothing more. */
 export const ANALYTICS_VIEWER_ROLE = "predefinedRoles/viewer";
@@ -53,3 +69,25 @@ export const SCOPES = Object.freeze({
   businessProfile: ["https://www.googleapis.com/auth/business.manage"],
   ads: ["https://www.googleapis.com/auth/adwords"],
 });
+
+/**
+ * Which parts join Google's first review and which wait for a second one (plan 15.12). The permission document
+ * (docs/google-verification.md) lists each permission under one of these, and a test keeps the two in step.
+ */
+export const LAUNCH_PARTS = Object.freeze(["identity", "analytics", "searchConsole", "merchantCenter", "email", "drive"]);
+export const LATER_PARTS = Object.freeze(["youtube", "calendar", "businessProfile", "ads"]);
+
+/** Permissions Google calls restricted: they need a yearly outside security assessment, so none may be asked for. */
+export const RESTRICTED_SCOPES = Object.freeze([
+  "https://mail.google.com/",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/gmail.compose",
+  "https://www.googleapis.com/auth/gmail.metadata",
+  "https://www.googleapis.com/auth/gmail.settings.basic",
+  "https://www.googleapis.com/auth/gmail.settings.sharing",
+  "https://www.googleapis.com/auth/drive",
+  "https://www.googleapis.com/auth/drive.readonly",
+  "https://www.googleapis.com/auth/drive.metadata",
+  "https://www.googleapis.com/auth/drive.metadata.readonly",
+]);

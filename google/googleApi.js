@@ -2,7 +2,7 @@
 // touch, over an injected `fetch` (tests use the pretend Google in fakes.js, which has the same calls). Every address is
 // in endpoints.js. Each call takes the press's access token first; the service refreshes it (google/service.js).
 import {
-  ADS, ANALYTICS_ADMIN, ANALYTICS_ADMIN_ALPHA, AUTHORIZE_URL, BUSINESS_ACCOUNTS, CALENDAR, DRIVE, GMAIL, MERCHANT,
+  ADS, ANALYTICS_ADMIN, ANALYTICS_ADMIN_ALPHA, AUTHORIZE_URL, BUSINESS_ACCOUNTS, CALENDAR, DRIVE, GMAIL, MERCHANT_ACCOUNTS, MERCHANT_DATASOURCES,
   REVOKE_URL, SEARCH_CONSOLE, SITE_VERIFICATION, TOKEN_URL, USERINFO_URL, YOUTUBE,
 } from "./endpoints.js";
 
@@ -19,7 +19,7 @@ export class GoogleError extends Error {
 const FOLDER = "application/vnd.google-apps.folder";
 const enc = encodeURIComponent;
 
-export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, adsDeveloperToken = null, now = () => Date.now(), timeoutMs = 30000 }) {
+export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, now = () => Date.now(), timeoutMs = 30000 }) {
   async function call(method, url, token, { body, query, headers = {} } = {}) {
     const address = new URL(url);
     for (const [key, value] of Object.entries(query ?? {})) if (value !== undefined && value !== null) address.searchParams.set(key, String(value));
@@ -103,22 +103,29 @@ export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, ad
     submitSitemap: (token, siteUrl, sitemapUrl) => call("PUT", `${SEARCH_CONSOLE}/sites/${enc(siteUrl)}/sitemaps/${enc(sitemapUrl)}`, token),
 
     // ---- Merchant Center ----
-    listMerchantAccounts: async (token) => (await call("GET", `${MERCHANT}/accounts/v1beta/accounts`, token)).accounts ?? [],
-    createMerchantAccount: (token, { accountName, ownerEmail, timeZone, languageCode }) =>
-      call("POST", `${MERCHANT}/accounts/v1beta/accounts:createAndConfigure`, token, {
-        body: { account: { accountName, timeZone: { id: timeZone }, languageCode }, users: [{ userId: ownerEmail, user: { accessRights: ["ADMIN"] } }] },
+    listMerchantAccounts: async (token) => (await call("GET", `${MERCHANT_ACCOUNTS}/accounts`, token)).accounts ?? [],
+    // An account made through the API is linked to its provider, which is Colophon's own Merchant Center account
+    // (code plan 15.14). Google's reference page for this call was not readable when this was written, so the
+    // `service` shape follows the service-provider guide; the first real run (15.7) confirms it.
+    createMerchantAccount: (token, { accountName, ownerEmail, timeZone, languageCode, providerId }) =>
+      call("POST", `${MERCHANT_ACCOUNTS}/accounts:createAndConfigure`, token, {
+        body: {
+          account: { accountName, timeZone: { id: timeZone }, languageCode },
+          users: [{ userId: ownerEmail, user: { accessRights: ["ADMIN"] } }],
+          service: [{ provider: `accounts/${providerId}`, accountManagement: {} }],
+        },
       }),
-    listDataSources: async (token, account) => (await call("GET", `${MERCHANT}/datasources/v1beta/${account}/dataSources`, token)).dataSources ?? [],
+    listDataSources: async (token, account) => (await call("GET", `${MERCHANT_DATASOURCES}/${account}/dataSources`, token)).dataSources ?? [],
     createDataSource: (token, account, { displayName, fileUri, feedLabel, contentLanguage, countries }) =>
-      call("POST", `${MERCHANT}/datasources/v1beta/${account}/dataSources`, token, {
+      call("POST", `${MERCHANT_DATASOURCES}/${account}/dataSources`, token, {
         body: {
           displayName,
           primaryProductDataSource: { channel: "ONLINE_PRODUCTS", feedLabel, contentLanguage, countries },
           fileInput: { fetchSettings: { enabled: true, fileUri, frequency: "FREQUENCY_DAILY", timeZone: "America/Toronto" }, fileName: "books.xml" },
         },
       }),
-    deleteDataSource: (token, name) => call("DELETE", `${MERCHANT}/datasources/v1beta/${name}`, token),
-    enableFreeListings: (token, account) => call("POST", `${MERCHANT}/accounts/v1beta/${account}/programs/free-listings:enable`, token, { body: {} }),
+    deleteDataSource: (token, name) => call("DELETE", `${MERCHANT_DATASOURCES}/${name}`, token),
+    enableFreeListings: (token, account) => call("POST", `${MERCHANT_ACCOUNTS}/${account}/programs/free-listings:enable`, token, { body: {} }),
 
     // ---- Gmail (only once Julian switches sending on) ----
     sendGmail: (token, raw) => call("POST", `${GMAIL}/users/me/messages/send`, token, { body: { raw } }),
@@ -136,14 +143,14 @@ export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, ad
     createCalendar: (token, { summary, timeZone }) => call("POST", `${CALENDAR}/calendars`, token, { body: { summary, timeZone } }),
     listBusinessAccounts: async (token) => (await call("GET", `${BUSINESS_ACCOUNTS}/accounts`, token)).accounts ?? [],
     async listAdsCustomers(token) {
-      const answer = await call("GET", `${ADS}/customers:listAccessibleCustomers`, token, { headers: { "developer-token": adsDeveloperToken ?? "" } });
+      const answer = await call("GET", `${ADS}/customers:listAccessibleCustomers`, token);
       return (answer.resourceNames ?? []).map((name) => name.replace(/^customers\//, ""));
     },
     createProductLink: (token, customerId, merchantId) =>
       call("POST", `${ADS}/customers/${enc(customerId)}/productLinks:create`, token, {
-        headers: { "developer-token": adsDeveloperToken ?? "" }, body: { productLink: { merchantCenter: { merchantCenterId: merchantId } } },
+        body: { productLink: { merchantCenter: { merchantCenterId: merchantId } } },
       }),
     removeProductLink: (token, customerId, resourceName) =>
-      call("POST", `${ADS}/customers/${enc(customerId)}/productLinks:remove`, token, { headers: { "developer-token": adsDeveloperToken ?? "" }, body: { resourceName } }),
+      call("POST", `${ADS}/customers/${enc(customerId)}/productLinks:remove`, token, { body: { resourceName } }),
   };
 }
