@@ -107,3 +107,18 @@ test("the practice service answers the card, the email sender and the inbox on o
   assert.deepEqual((await (await fetch(`${services.url}/inbox.json`)).json()).map((m) => m.subject), ["Hello"]);
   assert.match(await (await fetch(`${services.url}/inbox`)).text(), /Hello/);
 });
+
+test("the practice service hands out the sample files to import, and nothing else under /samples", async (t) => {
+  const services = await startPracticeServices({ port: 0 });
+  t.after(() => services.close());
+  for (const name of ["new-products.csv", "old-shop-products.csv", "old-shop-customers.csv"]) {
+    const response = await fetch(`${services.url}/samples/${name}`);
+    assert.equal(response.status, 200, name);
+    assert.match(response.headers.get("content-disposition"), new RegExp(`attachment; filename="${name}"`));
+    const text = await response.text();
+    assert.ok(text.split("\r\n").length > 3, name);
+    assert.ok(!/@(?!example\.com)/.test(text), `${name} uses only made-up addresses`);
+  }
+  assert.equal((await fetch(`${services.url}/samples/nothing.csv`)).status, 404);
+  assert.equal((await fetch(`${services.url}/samples/..%2Fpackage.json`)).status, 404);
+});

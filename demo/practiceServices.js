@@ -4,6 +4,7 @@
 import { createServer } from "node:http";
 import { createPracticeStripe, parseForm, PRACTICE_CARDS } from "./practicePay.js";
 import { createPracticeInbox, practiceMailApi, PRACTICE_MAIL_KEY } from "./practiceMail.js";
+import { SAMPLE_FILES } from "./sampleFiles.js";
 
 const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -112,6 +113,13 @@ export async function startPracticeServices({ host = "127.0.0.1", port, webhookU
       if (req.method === "OPTIONS") return send(res, 204, "");
       if (path === "/" || path === "/inbox") return send(res, 200, inboxPage(inbox.all(), address.searchParams.get("open")), "text/html; charset=utf-8");
       if (path === "/inbox.json") return send(res, 200, inbox.all());
+      // Files to try the importers with (sampleFiles.js).
+      const sample = /^\/samples\/([a-z-]+\.csv)$/.exec(path)?.[1];
+      if (sample && SAMPLE_FILES[sample]) {
+        const body = SAMPLE_FILES[sample].body();
+        res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${sample}"`, "Cache-Control": "no-store" });
+        return res.end(body);
+      }
       if (path === "/practice/confirm" && req.method === "POST") {
         let body = {};
         try { body = JSON.parse(await readBody(req)); } catch { body = {}; }
