@@ -18,6 +18,8 @@
 //   TRIAL_DAYS                 free days before the first charge (no card needed)    default 14
 //   PLATFORM_URL               the platform's own pages (sign-up, account)           default https://<domain>
 //   SIGNUP_OPEN                "true": anyone may sign up; otherwise waitlist invites only (6.1, 6.13)   default false
+//   SIGNUP_OPEN_COUNTRIES      countries whose presses may start a shop now, comma-separated codes   default CA (15.23: tax
+//                              presets, addresses and shipping are Canadian; other countries join a "later" list)
 //   SIGNUP_DAILY_CAP           new shops made a day; an invite skips it (6.13)       default 10
 //   FOUNDING_PERCENT_OFF       the founding offer's discount, for as long as they stay  default 25
 //   FOUNDING_PRESSES           how many paying presses get the founding offer        default 25
@@ -39,6 +41,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   platformUrl: "https://platform.example",
   signupOpen: false,
   signupDailyCap: 10,
+  openCountries: Object.freeze(["CA"]),
   foundingOffer: Object.freeze({ percentOff: 25, presses: 25 }),
   payAsYouSell: Object.freeze({ basisPoints: 200 }),
 });
@@ -100,6 +103,8 @@ export function platformSettings(env = process.env) {
   const platformUrl = text("PLATFORM_URL", `https://${domain}`).replace(/\/+$/, "");
   if (!/^https:\/\/[^/\s]+$/.test(platformUrl)) problems.push("PLATFORM_URL must be an https address with no path");
 
+  const openCountries = text("SIGNUP_OPEN_COUNTRIES", DEFAULT_SETTINGS.openCountries.join(",")).split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
+  if (!openCountries.length || openCountries.some((c) => !/^[A-Z]{2}$/.test(c))) problems.push("SIGNUP_OPEN_COUNTRIES must be two-letter country codes like CA,US");
   const settings = {
     platformName,
     domain,
@@ -117,6 +122,7 @@ export function platformSettings(env = process.env) {
     trialDays: whole("TRIAL_DAYS", DEFAULT_SETTINGS.trialDays, LIMITS.trialDays),
     platformUrl,
     signupOpen: yesNo("SIGNUP_OPEN", DEFAULT_SETTINGS.signupOpen),
+    openCountries,
     signupDailyCap: whole("SIGNUP_DAILY_CAP", DEFAULT_SETTINGS.signupDailyCap, LIMITS.signupDailyCap),
     foundingOffer: {
       percentOff: whole("FOUNDING_PERCENT_OFF", DEFAULT_SETTINGS.foundingOffer.percentOff, LIMITS["foundingOffer.percentOff"]),
