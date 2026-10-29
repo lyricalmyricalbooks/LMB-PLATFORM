@@ -144,6 +144,7 @@ async function load() {
   }
   try {
     await loadToday();
+    await loadTaxWatch();
     await loadTestShop();
     const { shops } = await api("GET", "/control/shops");
     allShops = shops;
@@ -332,6 +333,20 @@ async function loadTestShop() {
     el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: shop.pressName }), pill(TONE[shop.health.level], LEVEL[shop.health.level])),
     meta(shop.shopId, "only you can open it", check),
     el("div", { className: "cr-actions" }, link(shop.storefrontUrl, "Open the storefront", "primary"), link(shop.adminUrl, "Open its admin", "secondary"), reset)));
+}
+
+// ── Tax lines (plan 15.20): amber at 70% of each registration line, "over" at 100%. ──
+async function loadTaxWatch() {
+  const target = $("#tax-watch");
+  try {
+    const { lines } = await api("GET", "/control/tax-watch");
+    target.replaceChildren(...lines.map((l) => sheet({
+      title: l.label, tone: l.state === "ok" ? "success" : l.state === "amber" ? "warning" : "danger",
+      pillWords: l.state === "ok" ? "Fine" : l.state === "amber" ? "Close" : "Past the line", body: [el("p", { className: "rp-hint", textContent: l.words })],
+    })));
+  } catch (failure) {
+    target.replaceChildren(emptyState(failure.message));
+  }
 }
 
 async function loadToday() {

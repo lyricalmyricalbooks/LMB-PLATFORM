@@ -40,6 +40,7 @@
 //                   its plan (code plan 6.6), written on every change once the shop's database exists
 import { verifySignature } from "../payments/stripeSignature.js";
 import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
+import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
 import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 
 /** What each Stripe subscription status means for the shop: open, paused (a card fixes it) or closed. */
@@ -408,6 +409,25 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const closing = move.closes.length ? { closing: move.closes.map((app) => APP_NAMES[app]).join(" and "), date: dateText(move.closesAt), now: move.immediate } : {};
       await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing }, `${shopId}/plan/${changes}`);
       return { ...saved, changed: true };
+    },
+
+    /**
+     * Colophon's own plan sales over the last 12 months by the press's province, against the lines where registering
+     * for GST/HST, Quebec's tax and BC's tax becomes due (code plan 15.20, taxWatch.js). Reads Stripe's paid invoices.
+     */
+    async taxWatch() {
+      const since = Math.floor(now() / 1000) - WATCH_WINDOW_DAYS * 86400;
+      const invoices = [];
+      let after;
+      for (let page = 0; page < 200; page += 1) {
+        const list = await call("GET", "/v1/invoices", { params: { status: "paid", created: { gte: since }, limit: 100, ...(after ? { starting_after: after } : {}) } });
+        for (const inv of list?.data ?? []) {
+          invoices.push({ created: inv.created, amount: (inv.total ?? 0) - (inv.tax ?? 0), currency: inv.currency, state: inv.customer_address?.state });
+        }
+        if (!list?.has_more || !list.data?.length) break;
+        after = list.data.at(-1).id;
+      }
+      return watchTaxLines({ invoices, now: now() });
     },
 
     /** The plan's invoices, newest first, each with Stripe's own PDF and page (code plan 6.12). */

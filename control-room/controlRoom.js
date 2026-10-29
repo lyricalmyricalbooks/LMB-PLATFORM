@@ -142,7 +142,7 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, feeDefaults = NO_FEE, admins, now = () => new Date(),
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, admins, now = () => new Date(),
 }) {
   const at = () => now().toISOString();
 
@@ -337,6 +337,17 @@ export function createControlRoom({
         google: googleSteps ? await googleSteps.googleStatus(shopId).catch(() => null) : null,
         history: activity ? await activity.list({ shopId, limit: 50 }) : [],
       };
+    },
+
+    /** Colophon's plan sales by province against the lines where registering for tax is due (15.20). */
+    async taxWatch(claims) {
+      adminOf(claims, admins, now().getTime());
+      if (!taxWatch) throw new ControlError(503, "The control room can't reach the plan sales right now.");
+      try {
+        return await taxWatch();
+      } catch (failure) {
+        throw new ControlError(502, `Couldn't read the plan sales: ${failure.message}`);
+      }
     },
 
     /** What is still to do before Connect Google can be switched on (15.4), each item in plain words. */
