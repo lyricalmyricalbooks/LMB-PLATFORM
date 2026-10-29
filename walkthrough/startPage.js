@@ -31,10 +31,10 @@ export const START_SECTIONS = Object.freeze([
   {
     id: "shop",
     title: "2. As the press, in its website admin",
-    intro: "Everything the press runs its shop with. In the admin, Sign in with Google and pick owner@example.com (Demo Owner). Four sample orders are already there: one shipped, one to send, one refunded and one asking to cancel.",
+    intro: "Everything the press runs its shop with. In the admin, Sign in with Google and pick owner@example.com (Demo Owner). Five sample orders are already there: one shipped, one to send, one refunded, one asking to cancel and one asking to return a shirt for another size.",
     links: [
       { name: "Overview", href: DEMO("/admin"), demo: true, who: "owner@example.com", try: "Sales, orders to send and what needs you today." },
-      { name: "Orders", href: DEMO("/admin#orders"), demo: true, who: "owner@example.com", try: "Open Jun Park's order to pack and ship it, Tom Reyes's to answer the cancel request, or any paid order to refund it." },
+      { name: "Orders", href: DEMO("/admin#orders"), demo: true, who: "owner@example.com", try: "Open Jun Park's order to pack and ship it, Tom Reyes's to answer the cancel request, or Noor Haddad's to work her return: approve it, mark it received and inspected, then swap the shirt for an M or refund it." },
       { name: "Products", href: DEMO("/admin#catalog"), demo: true, who: "owner@example.com", try: "Edit a book or the T-shirt's sizes and colours, or add a product." },
       { name: "Import products from a spreadsheet", href: DEMO("/samples/new-products.csv", PORTS.practice), demo: true, who: "owner@example.com", try: "This link downloads a sample spreadsheet. In Products, press Import CSV and choose it: two new products come in as drafts, and Night Buses gets a new stock count if you pick to use the file's stock numbers." },
       { name: "Bring products from an old shop", href: DEMO("/samples/old-shop-products.csv", PORTS.practice), demo: true, who: "owner@example.com", try: "This link downloads a product export from a made-up old shop. Import it the same way: a hoodie in four sizes and two colours comes over with its size and colour buttons." },
@@ -42,6 +42,7 @@ export const START_SECTIONS = Object.freeze([
       { name: "Inventory", href: DEMO("/admin#inventory"), demo: true, who: "owner@example.com", try: "Stock for every product and every size." },
       { name: "Customers", href: DEMO("/admin#customers"), demo: true, who: "owner@example.com", try: "Who bought what." },
       { name: "Discounts and reviews", href: DEMO("/admin#discounts"), demo: true, who: "owner@example.com", try: "WELCOME10 is set up. Reviews (in the menu) has one review waiting to be approved." },
+      { name: "Returns", href: DEMO("/admin#settings/shipping/returns"), demo: true, who: "owner@example.com", try: "Whether shoppers may ask for a return, and for how many days after delivery. Off for a new press; Moth Press takes returns for 30 days." },
       { name: "Payments and emails", href: DEMO("/admin#settings/payments"), demo: true, who: "owner@example.com", try: "How the shop takes payments; then Email sender in the menu for the emails' words and look." },
       { name: "Studio, the designer", href: DEMO("/admin#designer"), demo: true, who: "owner@example.com", try: "Change any colour, word or section, see it on the page, then publish." },
       { name: "Themes, including Marquee and Shelf", href: DEMO("/admin#designer?tab=themes"), demo: true, who: "owner@example.com", try: "Every full template, tried on the shop before you choose." },

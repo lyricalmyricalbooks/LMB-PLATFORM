@@ -149,7 +149,9 @@ export async function seedSamplePress(fetch, shop, now = () => new Date()) {
       info: { name: SAMPLE_PRESS.name, description: SAMPLE_PRESS.description, website: SAMPLE_PRESS.website, email: SAMPLE_PRESS.email },
       // Studio › Text & labels › Site name: the wordmark, footer, checkout and emails follow it (shared/shopIdentity).
       design: { categories: [...SAMPLE_CATEGORIES], copy: { siteName: SAMPLE_PRESS.name } },
-    }, { fields: ["info", "design.categories", "design.copy.siteName"] });
+      // Settings › Shipping › Returns: the sample press takes returns for 30 days, so its order pages show Ask for a return.
+      returns: { enabled: true, windowDays: 30 },
+    }, { fields: ["info", "design.categories", "design.copy.siteName", "returns"] });
   }
   return added;
 }

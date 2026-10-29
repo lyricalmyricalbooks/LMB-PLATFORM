@@ -3,19 +3,27 @@
 // they land in Orders › Needs attention (order requests) or Settings › Privacy requests,
 // and the shop decides. Pure helpers here; the handlers live in index.js.
 
-// Shoppers may only ask to cancel, before the order ships; the shop takes no returns (owner's
-// decision, October 2026). Returns already open are still worked in Orders › Customer return.
-const ORDER_REQUEST_TYPES = ["cancel"];
+// Shoppers may ask to cancel before the order ships. They may ask for a return only when the press
+// takes returns (Settings › Shipping › Returns, off by default; shared/returnRequests): then within the
+// press's window after delivery. The request opens the returns desk on the order (Orders › Customer return).
+const { returnRequestProblem, returnSettings } = require("./shared/returnRequests");
+
+const ORDER_REQUEST_TYPES = ["cancel", "return"];
 const PRIVACY_REQUEST_TYPES = ["export", "delete"];
 const SHIPPED = ["shipped", "out_for_delivery", "delivered", "completed", "picked_up", "collected"];
 
 const clean = (value, max) => String(value || "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, max);
 
-// Why this order can't take this request, or null.
-function orderRequestProblem(order, type) {
+// Why this order can't take this request, or null. `returns` is the press's saved setting
+// (settings/website returns); without it, returns are off.
+function orderRequestProblem(order, type, { returns = null, now = Date.now() } = {}) {
   if (!order) return "not_found";
   if (!ORDER_REQUEST_TYPES.includes(type)) return "invalid";
   if (order.customerRequest && order.customerRequest.status === "open") return "already_open";
+  if (type === "return") {
+    const problem = returnRequestProblem(order, returnSettings(returns), now);
+    return problem === "returns_off" || problem === "not_paid" || problem === "nothing_to_return" ? "invalid" : problem;
+  }
   const status = String(order.status || "").toLowerCase();
   const payment = String(order.paymentStatus || "").toLowerCase();
   if (status === "cancelled" || status === "refunded" || payment.startsWith("refund")) return "closed";

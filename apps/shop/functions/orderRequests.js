@@ -254,6 +254,8 @@ function orderRequestActions({
       let problem = null;
       let order = null;
       const identity = await orderRequestIdentity(req);
+      // Whether the press takes returns (Settings › Shipping › Returns); read once, outside the order's transaction.
+      const returns = type === "return" ? (await db.collection("settings").doc("website").get()).data()?.returns ?? null : null;
       await db.runTransaction(async tx => {
         const snap = await tx.get(orderRef);
         order = snap.exists ? snap.data() : null;
@@ -261,7 +263,7 @@ function orderRequestActions({
           problem = "email_mismatch";
           return;
         }
-        problem = orderRequestProblem(order, type);
+        problem = orderRequestProblem(order, type, { returns });
         if (problem) return;
         const record = orderRequestRecord(type, message);
         tx.update(orderRef, {

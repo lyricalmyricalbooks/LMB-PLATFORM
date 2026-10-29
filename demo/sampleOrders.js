@@ -2,7 +2,8 @@
 // practice inbox aren't empty the first time the demo opens. Each one is placed the way a shopper's is: the order is
 // started as a guest (the shop's own rules decide), the shop's server code prices it and asks for the card payment, the
 // practice card pays, and the shop's webhook marks it paid and sends its emails. Then, like the press would: one is
-// shipped, one is refunded through the admin's refund, and one shopper asks to cancel.
+// shipped, one is refunded through the admin's refund, one shopper asks to cancel, and one, delivered, asks to return
+// a shirt for another size (the sample press takes returns).
 //
 // Only run the first time the sample press is added (seed.js). Everything goes to the local emulators and the
 // practice services; the people and addresses are made up.
@@ -24,6 +25,8 @@ export const SAMPLE_ORDERS = Object.freeze([
     lines: [["the-quiet-field", null, 1], ["night-buses", null, 1]], then: "refund" },
   { name: "Tom Reyes", email: "tom@example.com", address: { street: "9 Elm Ave", city: "Winnipeg", state: "MB", zip: "R3C 0V8" },
     lines: [["salt-and-static", null, 1], ["low-tide-print", "low-tide-print-a2", 1]], then: "cancel" },
+  { name: "Noor Haddad", email: "noor@example.com", address: { street: "21 King St W", city: "Toronto", state: "ON", zip: "M5H 1A1" },
+    lines: [["night-buses-t-shirt", "night-buses-tee-l-bone", 1]], then: "return" },
 ]);
 
 const value = (v) => {
@@ -131,20 +134,23 @@ export async function placeSampleOrders({ fetch, confirm }) {
   let token = null;
   for (const order of SAMPLE_ORDERS) {
     const { orderId, trackingKey } = await placeSampleOrder(fetch, order, products, confirm);
-    if (order.then === "ship") {
+    if (order.then === "ship" || order.then === "return") {
       const now = new Date().toISOString();
       const saved = await readOrder(fetch, orderId);
-      const patch = { status: "shipped", fulfillmentStatus: "shipped", trackingNumber: "7023 4567 8901 2345", trackingCarrier: "Canada Post", shippedAt: now, updatedAt: now,
-        activity: [...(saved.activity ?? []), { type: "event", message: "Shipped with Canada Post (tracking 7023 4567 8901 2345).", createdAt: now }] };
+      const delivered = order.then === "return";
+      const patch = { status: delivered ? "delivered" : "shipped", fulfillmentStatus: delivered ? "delivered" : "shipped", trackingNumber: "7023 4567 8901 2345", trackingCarrier: "Canada Post", shippedAt: now, ...(delivered ? { deliveredAt: now } : {}), updatedAt: now,
+        activity: [...(saved.activity ?? []), { type: "event", message: `Shipped with Canada Post (tracking 7023 4567 8901 2345)${delivered ? ", and delivered" : ""}.`, createdAt: now }] };
       const mask = Object.keys(patch).map((k) => `updateMask.fieldPaths=${k}`).join("&");
       await fetch(`${FIRESTORE}/orders/${orderId}?${mask}`, { method: "PATCH", headers: { Authorization: "Bearer owner", "Content-Type": "application/json" }, body: JSON.stringify({ fields: value(patch).mapValue.fields }) });
+      // Then the shopper asks for a return from the order page, as the shop's own order request does.
+      if (delivered) await call(fetch, "createStripeCheckoutSession", { action: "orderRequest", orderId, type: "return", message: "The L is too big. Could I swap it for an M?", key: trackingKey });
     } else if (order.then === "refund") {
       token ??= await ownerToken(fetch);
       await call(fetch, "refundOrder", { orderId, reason: "requested_by_customer", restock: true }, { Authorization: `Bearer ${token}` });
     } else if (order.then === "cancel") {
       await call(fetch, "createStripeCheckoutSession", { action: "orderRequest", orderId, type: "cancel", message: "Sorry, I ordered the wrong size of print.", key: trackingKey });
     }
-    done.push(`${orderId} ${order.name}${order.then ? ` (${order.then === "ship" ? "shipped" : order.then === "refund" ? "refunded" : "asked to cancel"})` : ""}`);
+    done.push(`${orderId} ${order.name}${order.then ? ` (${({ ship: "shipped", refund: "refunded", cancel: "asked to cancel", return: "delivered, asked to return" })[order.then]})` : ""}`);
   }
   return done;
 }

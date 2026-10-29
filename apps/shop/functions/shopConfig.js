@@ -124,7 +124,10 @@ function readShopConfig(env = {}) {
   const hosted = PROJECT.test(project) ? `https://${project}.web.app` : "";
   const region = REGION.test(text(env.SHOP_FUNCTIONS_REGION)) ? text(env.SHOP_FUNCTIONS_REGION) : PLACEHOLDER.region;
   const functionsProject = PROJECT.test(project) ? project : PLACEHOLDER.project;
-  const siteUrl = origin(env.SHOP_SITE_URL) || origin(env.SITE_URL) || hosted || PLACEHOLDER.siteUrl;
+  // The platform's walkthrough runs the shop on this computer (LMB-PLATFORM demo/run.js): on the emulators, and only
+  // there, its emails link to the local shop instead of a web address that doesn't exist.
+  const local = env.FUNCTIONS_EMULATOR === "true" && /^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(text(env.DEMO_SHOP_URL)) ? text(env.DEMO_SHOP_URL) : "";
+  const siteUrl = local || origin(env.SHOP_SITE_URL) || origin(env.SITE_URL) || hosted || PLACEHOLDER.siteUrl;
   const extraOrigins = env.SHOP_EXTRA_ORIGINS === undefined
     ? [...PLACEHOLDER.extraOrigins]
     : text(env.SHOP_EXTRA_ORIGINS).split(",").map(origin).filter(Boolean);

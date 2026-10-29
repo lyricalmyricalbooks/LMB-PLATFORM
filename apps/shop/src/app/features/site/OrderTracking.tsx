@@ -488,7 +488,7 @@ function OrderTrackingContent() {
                 </div>
               </section>
 
-              <OrderRequestBox design={settings?.design} order={order} access={access} onUpdated={setOrder} />
+              <OrderRequestBox design={settings?.design} order={order} access={access} onUpdated={setOrder} returns={settings?.returns} />
 
               <p {...regionProps("trackingHelp")} className="text-center text-sm leading-6 fm-muted">{getCopy(settings?.design, "trackHelp")}</p>
             </m.div>

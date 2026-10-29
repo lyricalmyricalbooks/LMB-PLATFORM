@@ -85,3 +85,10 @@ describe('readShopConfig', () => {
     expect(Object.isFrozen(config.allowedOrigins)).toBe(true);
   });
 });
+
+test("the walkthrough's local shop address is used on the emulators only", () => {
+  const local = { FUNCTIONS_EMULATOR: "true", DEMO_SHOP_URL: "http://127.0.0.1:5173", GCLOUD_PROJECT: "demo-colophon-test" };
+  expect(readShopConfig(local).siteUrl).toBe("http://127.0.0.1:5173");
+  expect(readShopConfig({ ...local, FUNCTIONS_EMULATOR: undefined }).siteUrl).toBe("https://demo-colophon-test.web.app");
+  expect(readShopConfig({ ...local, DEMO_SHOP_URL: "http://evil.example" }).siteUrl).toBe("https://demo-colophon-test.web.app");
+});

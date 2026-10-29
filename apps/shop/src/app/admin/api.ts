@@ -78,6 +78,7 @@ import { normalizeCategories } from "../features/site/navItems";
 import { withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Page } from "../features/site/types";
 import { validateLocalFulfillment } from "../features/site/localFulfillment";
+import { returnSettingsProblem, type ReturnSettings } from "../../shared/returnRequests";
 import type { LocalFulfillmentConfig } from "../features/site/types";
 import { dailyTrafficBetween } from "./dailyTrafficCache";
 
@@ -735,14 +736,23 @@ export const adminApi = {
     await setDoc(doc(db, "settings", "website"), { localFulfillment: JSON.parse(JSON.stringify(config)) }, { mergeFields: ["localFulfillment"] });
   },
 
+  /** Settings › Shipping › Returns: whether shoppers may ask for a return, and for how many days (shared/returnRequests). */
+  updateReturnSettings: async (returns: ReturnSettings) => {
+    if (!await currentAdminRole(auth.currentUser, refreshMyRole)) throw new Error("Unauthorized returns update.");
+    const problem = returnSettingsProblem(returns);
+    if (problem) throw new Error(problem);
+    await setDoc(doc(db, "settings", "website"), { returns: { enabled: returns.enabled, windowDays: returns.windowDays } }, { mergeFields: ["returns"] });
+  },
+
   updateSettings: async (settings: any, options: { publish?: boolean } = {}) => {
     const docRef = doc(db, "settings", "website");
     const { publicSettings, secrets } = splitWebsiteSecrets(settings);
     await adminApi.writePrivateKeys(secrets);
     // `analytics` (the Google Analytics measurement ID and the Microsoft Clarity project ID) is written only by
     // Settings › General › Google Analytics / Microsoft Clarity (googleAnalyticsApi.save, clarityApi.save); a settings
-    // form holding an older copy must never put either back.
-    const { analytics: _ownedByGaCard, ...ownedHere } = publicSettings as Record<string, any>;
+    // form holding an older copy must never put either back. `returns` is written only by Settings › Shipping › Returns
+    // (updateReturnSettings), for the same reason.
+    const { analytics: _ownedByGaCard, returns: _ownedByReturnsTab, ...ownedHere } = publicSettings as Record<string, any>;
     const { payload, options: writeOptions } = themeWrite(ownedHere, options.publish);
     await setDoc(docRef, payload, writeOptions);
     // The primary write already succeeded. An audit failure must not report a

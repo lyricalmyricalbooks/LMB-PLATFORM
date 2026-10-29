@@ -117,7 +117,7 @@ function startEmulators(withFunctions, sample = false) {
   const log = [];
   // No Google sign-in is needed or looked for: the emulators never call Google for a demo- project.
   // The shop's server code pays and mails through the practice services (practiceServices.js), never Stripe or Resend.
-  const env = { ...process.env, METADATA_SERVER_DETECTION: "none", ...(sample ? {} : practiceEnv(PRACTICE_URL)) };
+  const env = { ...process.env, METADATA_SERVER_DETECTION: "none", ...(sample ? {} : practiceEnv(PRACTICE_URL, url(PORTS.shop))) };
   const child = start("emulators", "npx", args, { cwd: WORK, shell: WINDOWS, env });
   const keep = (chunk) => {
     const text = chunk.toString();

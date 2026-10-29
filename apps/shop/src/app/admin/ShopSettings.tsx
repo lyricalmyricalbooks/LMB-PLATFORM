@@ -11,6 +11,7 @@ import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS } from "../features/site/shippingZones";
 import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones, carrierIssues, issuesForTab, shippingIssueTab, SHIPPING_ISSUE_TAB_LABELS, type ShippingIssue, type ShippingIssueTab } from "./shippingHealth";
 import { quoteShipping } from "../features/site/shippingEngine";
+import { ReturnSettings } from "./ReturnSettings";
 import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfillmentSettings";
 import { paymentHealth } from "./paymentHealth";
 import { stripeSecretKeyProblem } from "./privateKeys";
@@ -440,7 +441,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
   const [profileView, setProfileView] = useState<"zones" | "rules" | "books" | "test">("zones");
-  const [shippingView, setShippingView] = useSubTab<"overview" | "profiles" | "carrier" | "local">(onSubTabChange ? "overview" : initialView, subTab, onSubTabChange);
+  const [shippingView, setShippingView] = useSubTab<"overview" | "profiles" | "carrier" | "local" | "returns">(onSubTabChange ? "overview" : initialView, subTab, onSubTabChange);
   
   // Modals visibility
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -986,8 +987,10 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
           { id: "profiles", label: "Profiles", count: profileProblems.length || undefined },
           { id: "carrier", label: "Carrier & labels", count: carrierProblems.length || undefined },
           { id: "local", label: "Pickup & local delivery" },
+          { id: "returns", label: "Returns" },
         ]} />
         {shippingView === "local" && <LocalFulfillmentSettings draft={localFulfillmentDraft} />}
+        {shippingView === "returns" && <ReturnSettings />}
         {(shippingView === "overview" || shippingView === "profiles") && (profilesError || booksError) && (
           <ErrorState title="Couldn't load shipping details"
             description={profilesError ? "Your shipping profiles couldn't be read, so this page may look empty when it isn't. Check your connection and try again." : "Your catalog couldn't be read, so assigned-book counts and checks may be wrong. Check your connection and try again."}
