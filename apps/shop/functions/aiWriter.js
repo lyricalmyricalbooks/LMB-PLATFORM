@@ -10,6 +10,10 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 // Used when the owner names no model, in order; one OpenRouter no longer offers (404) moves on to the next.
 const OPENROUTER_MODELS = ["google/gemini-2.5-flash", "openai/gpt-4o-mini"];
 const VOICE_MAX = 1000;
+// A Colophon shop writes through Gemini on Google's cloud in the shop's own project, with the server's own account: no
+// key is pasted or stored (plan 16.4). The answer has the same shape as Gemini's, so buildRequest and parseResponse are shared.
+const VERTEX_ROOT = "https://aiplatform.googleapis.com/v1/projects/";
+const VERTEX_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
 
 const clip = (v, max) => (typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ").trim().slice(0, max) : "");
 const oneLine = v => String(v || "").replace(/\s+/g, " ").trim();
@@ -425,6 +429,61 @@ async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchI
   throw err;
 }
 
+/** Plain-English reason the shop's own AI refused; the press never sees a key or a setting. */
+function vertexErrorMessage(status, gStatus) {
+  if (status === 429 || gStatus === "RESOURCE_EXHAUSTED") return "The AI is busy right now. Wait a minute and try again.";
+  if (status === 403 || status === 401 || gStatus === "PERMISSION_DENIED") return "The AI helper isn't ready for your shop yet. Colophon's team has been told. Try again later.";
+  if (status >= 500 || gStatus === "UNAVAILABLE") return "The AI is busy right now. Try again in a minute.";
+  return "The AI couldn't take that request. Change the wording and try again.";
+}
+
+async function callVertex({ projectId, accessToken, model, body, fetchImpl }) {
+  const ctrl = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), TIMEOUT_MS) : null;
+  try {
+    const res = await fetchImpl(`${VERTEX_ROOT}${encodeURIComponent(projectId)}/locations/global/publishers/google/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(body),
+      ...(ctrl ? { signal: ctrl.signal } : {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data?.error?.message || `Google answered ${res.status}`);
+      err.status = res.status;
+      err.googleStatus = data?.error?.status || "";
+      throw err;
+    }
+    return data;
+  } catch (err) {
+    if (err?.name === "AbortError") throw Object.assign(new Error("The AI took too long to answer. Try again."), { status: 504, friendly: true });
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** One task through the shop's own Google AI: the first model it still serves. */
+async function generateVertex({ projectId, accessToken, task, input, ctx = {}, models = VERTEX_MODELS, fetchImpl = fetch }) {
+  const pctx = { ...ctx, aiName: "The AI" };
+  let lastErr = null;
+  for (const model of models) {
+    try {
+      const data = await callVertex({ projectId, accessToken, model, body: buildRequest(task, input, pctx, model), fetchImpl });
+      return { ...parseResponse(task, data, pctx), model };
+    } catch (err) {
+      lastErr = err;
+      if (err?.status === 404 || err?.googleStatus === "NOT_FOUND") continue;
+      break;
+    }
+  }
+  if (lastErr?.friendly) throw lastErr;
+  const err = new Error(vertexErrorMessage(lastErr?.status || 0, lastErr?.googleStatus));
+  err.status = lastErr?.status === 429 ? 429 : 502;
+  err.upstreamStatus = Number(lastErr?.status) || 0;
+  throw err;
+}
+
 /** Pure: Gemini's schema (OBJECT/STRING/ARRAY) as a standard JSON schema for OpenRouter. */
 function toJsonSchema(schema) {
   if (!schema || typeof schema !== "object") return schema;
@@ -546,9 +605,11 @@ function pickProvider(settings) {
   return options[settings?.provider] || options.openrouter || options.gemini || null;
 }
 
-const run = (provider, args) => (provider.name === "openrouter"
-  ? generateOpenRouter({ ...args, apiKey: provider.apiKey, model: provider.model })
-  : generate({ ...args, apiKey: provider.apiKey }));
+const run = (provider, args) => (provider.name === "vertex"
+  ? generateVertex({ ...args, projectId: provider.projectId, accessToken: provider.accessToken })
+  : provider.name === "openrouter"
+    ? generateOpenRouter({ ...args, apiKey: provider.apiKey, model: provider.model })
+    : generate({ ...args, apiKey: provider.apiKey }));
 
 /** The other saved AI, used when the chosen one has run out of allowance or is down; null when only one key is saved. */
 function backupProvider(settings, primary) {
@@ -622,10 +683,15 @@ async function fetchPhoto(url, fetchImpl) {
  * otherwise `task` is one of TASKS and `input` its facts. Deps keep it testable:
  * readSettings → { apiKey (Gemini), openrouterKey, openrouterModel, provider, voice }, allow → rate limit.
  */
-async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, siteName = "", bucket = "", now = Date.now }) {
+async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, siteName = "", bucket = "", now = Date.now, platformAi = null }) {
   const settings = await readSettings();
   const wanted = body?.op === "check" && (body?.provider === "gemini" || body?.provider === "openrouter") ? body.provider : settings?.provider;
-  const provider = pickProvider({ ...settings, provider: wanted });
+  let provider = pickProvider({ ...settings, provider: wanted });
+  // A Colophon shop with no key of its own writes through its own project (plan 16.4).
+  if (!provider && platformAi) {
+    const own = await platformAi().catch(() => null);
+    if (own?.projectId && own?.accessToken) provider = { name: "vertex", projectId: own.projectId, accessToken: own.accessToken };
+  }
   if (!provider || (body?.op === "check" && wanted && provider.name !== wanted)) {
     return { status: 412, body: { error: "Add an AI key first: Settings › General › AI writing assistant (a free Google AI key, or an OpenRouter key).", needsKey: true } };
   }
@@ -674,4 +740,4 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   }
 }
 
-module.exports = { backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { generateVertex, vertexErrorMessage, VERTEX_MODELS, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };

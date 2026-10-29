@@ -511,14 +511,14 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   (`shopWords.tsx`, `useShopWords()`); the menu, page titles, the product list and the product editor use it (the
   editor follows the product's own kind). Wrap new admin words with `w(...)` on those pages.
 
-## Get started: your press first (29 October 2026, code plan 16.1 and 16.2)
+## Get started: your press first (29 October 2026, code plan 17.1 and 17.2)
 
 The first-visit run at the top of a new shop's Overview (`overview/SetupStart.tsx`) now starts with **Get started,
 step 1 of 2** (`overview/PressDetailsStage.tsx`, pure logic in `pressDetails.ts`): press name, contact email, street,
 city, postal code and country (state optional). It writes the same settings fields Settings uses (`info.name`,
 `info.email`, `location.*`), through `adminApi.updateSettings` with only those two keys, so nothing else changes. Then
 it records `firstWeek/start` › `details: { at }` (admin-only, shape checked in `firestore.rules`) and the look comes
-next. A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (16.3 to 16.13):
+next. A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (17.3 to 17.13):
 the import step, the Google and payment stages, shipping, the stockroom and the final check. The run sits at the top of
 the Overview; it doesn't yet replace the whole screen (a separate start page is a later change).
 

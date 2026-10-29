@@ -29,6 +29,15 @@ The registry row's `google` also holds `accountEmail`, `connectedAt`, `closedAt`
 - **Plain words.** Every step's `detail` is shown to the press and in the control room, so it never names a technical
   term.
 
+## What the shop can ask for after connecting (plan 16.1, 16.2)
+
+| Door call | What it does | Permission |
+| --- | --- | --- |
+| `google.productProblems` | Lists the books Google Shopping turned down or demoted, with the reason (Merchant API v1 product status). Reads only | `content`, already asked |
+| `google.sheetSync { rows }` | Makes one spreadsheet, "<press> stock from Colophon", in the press's own Drive the first time and rewrites its Stock tab after that. Cells are written as plain text (never formulas). A sheet the press deleted is made again on the next send. Never deleted by the platform | `drive.file` (Google labels it non-sensitive), the Drive box |
+
+The shop's server builds the rows itself from the stockroom (`apps/shop/functions/googleConnect.js`); the browser never supplies them.
+
 ## Teardown (`teardown.js`)
 
 | Stage | Steps |

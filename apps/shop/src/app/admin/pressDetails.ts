@@ -1,4 +1,4 @@
-// Get started, step 1: the press's own details (plan 16.2). Pure: reads and writes the same settings fields the
+// Get started, step 1: the press's own details (plan 17.2). Pure: reads and writes the same settings fields the
 // Settings screen uses (info.name, info.email, location.*), so nothing is stored twice. Shown once, before the look,
 // in the Overview's first-visit run (overview/PressDetailsStage.tsx).
 

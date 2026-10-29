@@ -32,7 +32,7 @@ export const GOOGLE_PARTS: Record<string, { label: string; about: string }> = {
   searchConsole: { label: "Google search", about: "Tells Google about your shop and its books, and shows what people search for." },
   merchantCenter: { label: "Google Shopping", about: "Sends your books to Google Shopping's free listings each day." },
   email: { label: "Your emails", about: "Sends your shop's emails from your own address once it is ready." },
-  drive: { label: "Backups to your Google Drive", about: "A copy of your shop each night, in a folder you own." },
+  drive: { label: "Your Google Drive", about: "A copy of your shop each night in a folder you own, and your stock list in a Google Sheet you own." },
   youtube: { label: "YouTube", about: "Pick book trailers from your channel for your book pages." },
   calendar: { label: "Google Calendar", about: "Launches and fairs from your calendar on your website's events." },
   businessProfile: { label: "Google Business Profile", about: "Your opening hours and shop link on Google Maps." },
@@ -59,6 +59,33 @@ export function readGoogleStatus(answer: unknown): GoogleStatus {
       ? a.steps.filter((s: any) => s && typeof s.step === "string" && ["done", "failed", "waiting"].includes(s.state)).map((s: any) => ({ step: s.step, state: s.state, detail: String(s.detail ?? ""), at: s.at }))
       : [],
   };
+}
+
+export type ShoppingProblem = { offerId: string; title: string; issues: { severity: string; description: string; resolution: string }[] };
+export type ShoppingProblems = { available: boolean; problems: ShoppingProblem[] };
+
+/** Reads the platform's list of books Google Shopping turned down; anything unexpected is "nothing to show". */
+export function readShoppingProblems(answer: unknown): ShoppingProblems {
+  const a = (answer && typeof answer === "object" ? answer : {}) as Record<string, any>;
+  if (a.available !== true || !Array.isArray(a.problems)) return { available: false, problems: [] };
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+  return {
+    available: true,
+    problems: a.problems.filter((p: any) => p && Array.isArray(p.issues)).slice(0, 200).map((p: any) => ({
+      offerId: text(p.offerId, 120), title: text(p.title, 200),
+      issues: p.issues.slice(0, 10).map((i: any) => ({ severity: text(i?.severity, 30), description: text(i?.description, 300), resolution: text(i?.resolution, 400) })),
+    })),
+  };
+}
+
+export type StockSheet = { available: boolean; url?: string; writtenAt?: string; rows?: number; gone?: boolean };
+
+/** Reads the platform's answer to "send my stock list"; the address must be a Google Sheets one. */
+export function readStockSheet(answer: unknown): StockSheet {
+  const a = (answer && typeof answer === "object" ? answer : {}) as Record<string, any>;
+  if (a.available !== true) return { available: false };
+  const url = typeof a.url === "string" && /^https:\/\/docs\.google\.com\/spreadsheets\//.test(a.url) ? a.url : undefined;
+  return { available: true, url, writtenAt: typeof a.writtenAt === "string" ? a.writtenAt : undefined, rows: Number.isFinite(a.rows) ? a.rows : undefined, gone: a.gone === true };
 }
 
 /** What Google sent the press back with (`?google=connected|denied|failed`), then removed from the address. */
@@ -114,6 +141,10 @@ export const googleConnectApi = {
   connectLink: async (extras: GoogleExtra[], returnUrl = window.location.href): Promise<string> => (await call({ step: "connectLink", extras, returnUrl })).url,
   tryAgain: async (part: string) => { const next = readGoogleStatus(await call({ step: "tryAgain", part })); changed(next); return next; },
   disconnect: async () => { const next = readGoogleStatus(await call({ step: "disconnect" })); changed(next); return next; },
+  /** The books Google Shopping turned down, each with what to fix. */
+  shoppingProblems: async (): Promise<ShoppingProblems> => readShoppingProblems(await call({ step: "productProblems" })),
+  /** Writes the stockroom's stock list into the press's Google Sheet (made the first time). */
+  sendStockSheet: async (): Promise<StockSheet> => readStockSheet(await call({ step: "sheetSync" })),
   /** Test hook. */
   __reset: () => { shared = null; },
 };

@@ -33,7 +33,7 @@ export interface FirstWeekDoc {
   done?: Record<string, string>;
   /** Set when the owner hides the guide. */
   hiddenAt?: string;
-  /** Set once Get started's press details are saved (plan 16.2), before the look. */
+  /** Set once Get started's press details are saved (plan 17.2), before the look. */
   details?: { at: string };
   /** Set once Choose your look is done (plan 6.3): it never shows again. */
   welcome?: WelcomeDone;

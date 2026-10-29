@@ -6,7 +6,7 @@ import { friendlyError } from "../studio/friendlyError";
 import { LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField, TextField } from "../riso/components";
 
 /**
- * Get started, step 1 of 2 (plan 16.2): the press's own details, asked once before Choose your look. Shows at the top of
+ * Get started, step 1 of 2 (plan 17.2): the press's own details, asked once before Choose your look. Shows at the top of
  * the Overview for a new shop. `settings` is settings/website as the Overview read it: undefined while it loads, null
  * when it couldn't be read. `onDone` gets the time once the details are saved; the parent records it on `firstWeek`.
  */

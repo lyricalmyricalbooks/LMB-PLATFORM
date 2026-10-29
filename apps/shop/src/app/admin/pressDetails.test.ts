@@ -6,7 +6,7 @@ const full: PressDetails = {
   state: "Ontario", zip: "M5H 2N2", country: "Canada",
 };
 
-describe("Get started, step 1: the press's details (plan 16.2)", () => {
+describe("Get started, step 1: the press's details (plan 17.2)", () => {
   it("starts from what the shop already has, and on Canada when the country is blank", () => {
     expect(pressDetailsFrom({ info: { name: "Moth", email: "a@b.example" }, location: { street: "1 Main", city: "Hull" } }))
       .toEqual({ name: "Moth", email: "a@b.example", street: "1 Main", city: "Hull", state: "", zip: "", country: "Canada" });

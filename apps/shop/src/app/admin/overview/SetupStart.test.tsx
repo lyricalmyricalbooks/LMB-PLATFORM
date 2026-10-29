@@ -141,7 +141,7 @@ const waitFor = async (check: () => boolean) => {
   for (let i = 0; i < 200 && !check(); i++) await act(async () => { await new Promise(r => setTimeout(r, 25)); });
 };
 
-describe("Get started, step 1: the press's details (plan 16.2)", () => {
+describe("Get started, step 1: the press's details (plan 17.2)", () => {
   it("a new shop starts with its details, with the press name already in and Canada as the country", async () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both" });
     await mount({ waitForWelcome: false });
