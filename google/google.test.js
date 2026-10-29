@@ -315,6 +315,46 @@ test("with Gmail sending switched on, the shop's emails go from the press's Gmai
   assert.equal(resend.requests.length, 1);
 });
 
+test("Google ending the grant becomes 'needs reconnect': emails fall back at once, the control room lists it, signing in clears it (15.15)", async () => {
+  const t = await setup({ env: { ...ENV, GOOGLE_GMAIL_SENDING: "on" } });
+  await t.signIn();
+  assert.equal((await t.call("google.status")).body.needsReconnect, false);
+  // The press changes their Google password: the refresh token stops working and the access token has run out.
+  t.google.world.revoked.add([...t.google.world.refreshTokens.keys()][0]);
+  t.connections.map.set(SHOP, { ...t.connections.map.get(SHOP), accessExpiresAt: "2000-01-01T00:00:00.000Z" });
+  assert.equal(await t.link.tokens.fresh(SHOP), null, "no token, and no error thrown");
+  assert.ok(t.connections.map.get(SHOP).reconnectAt);
+  const asked = t.google.calls.length;
+  assert.equal(await t.link.tokens.fresh(SHOP), null);
+  assert.equal(t.google.calls.length, asked, "Google isn't asked again until they reconnect");
+
+  const answer = (await t.call("google.status")).body;
+  assert.equal(answer.connected, true);
+  assert.equal(answer.needsReconnect, true);
+  const resend = fakeResendFetch();
+  const email = createEmailService({ env: { RESEND_API_KEY: "re_test_not_real" }, fetch: resend.fetch, registry: t.registry, sentLog: fakeSentLog(), gmailSend: t.link.gmailSend });
+  await email.send(SHOP, { kind: "order-note", to: "reader@example.com", idempotencyKey: "note-r", subject: "Your order", text: "Thank you" });
+  assert.equal(resend.requests.length, 1, "the order email went from Colophon's sender");
+  const control = await t.link.status.googleStatus(SHOP);
+  assert.equal(control.stage, "needs reconnect");
+  assert.ok(control.reconnectSince);
+
+  // Signing in again clears it and keeps what the shop already had.
+  await t.signIn();
+  assert.equal((await t.call("google.status")).body.needsReconnect, false);
+  assert.equal((await t.link.status.googleStatus(SHOP)).stage, "connected");
+  assert.ok(await t.link.tokens.fresh(SHOP));
+});
+
+test("a Google outage while refreshing is not 'needs reconnect'", async () => {
+  const t = await setup();
+  await t.signIn();
+  t.connections.map.set(SHOP, { ...t.connections.map.get(SHOP), accessExpiresAt: "2000-01-01T00:00:00.000Z" });
+  t.google.refresh = async () => { throw new GoogleError(503, "Google is down"); };
+  await assert.rejects(t.link.tokens.fresh(SHOP), /down/);
+  assert.equal(t.connections.map.get(SHOP).reconnectAt ?? null, null);
+});
+
 test("tokens are kept sealed, bound to their shop", async () => {
   const t = await setup();
   await t.signIn();

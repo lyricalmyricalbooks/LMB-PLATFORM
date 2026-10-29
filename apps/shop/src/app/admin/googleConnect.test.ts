@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/firebase", () => ({ auth: { currentUser: null }, db: {} }));
 vi.mock("../lib/trackingGuard", () => ({ googleTrackingAllowed: vi.fn(async () => true) }));
-import { GOOGLE_PARTS, readGoogleStatus, readShoppingProblems, readStockSheet, stepWord } from "./googleConnect";
+import { GOOGLE_PARTS, RECONNECT_WORDS, readGoogleStatus, readShoppingProblems, readStockSheet, stepWord } from "./googleConnect";
 import { __resetGa4ForTests, configureGa4, ga4PageView } from "../lib/ga4";
 import { CONSENT_KEY } from "../lib/consent";
 
@@ -28,6 +28,17 @@ describe("reading the Google link's answer", () => {
     for (const banned of [/Firebase/, /\bAPI\b/, /OAuth/i, /\bproperty\b/i, /\bkey\b/i, /\bDNS\b/, /webhook/i, /secret/i, /deploy/i, /Google Cloud/]) {
       expect(words).not.toMatch(banned);
     }
+  });
+});
+
+describe("Google needs you to reconnect (15.15)", () => {
+  it("reads the flag only for a connected shop, and says so in plain words", () => {
+    expect(readGoogleStatus({ enabled: true, connected: true, needsReconnect: true }).needsReconnect).toBe(true);
+    expect(readGoogleStatus({ enabled: true, connected: false, needsReconnect: true }).needsReconnect).toBe(false);
+    expect(readGoogleStatus({ enabled: true, connected: true }).needsReconnect).toBe(false);
+    const words = Object.values(RECONNECT_WORDS).join(" ");
+    expect(words).toMatch(/order emails go out from Colophon's address/);
+    for (const banned of [/OAuth/i, /\btoken\b/i, /invalid_grant/, /\bAPI\b/]) expect(words).not.toMatch(banned);
   });
 });
 

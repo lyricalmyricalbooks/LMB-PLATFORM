@@ -18,7 +18,7 @@ export function createGoogleLink({ config, google, connections, states, registry
   const tokens = createTokens({ google, connections, config, now });
   const connect = createGoogleConnect({ google, tokens, shopFirebase, domainsCall, ownDomain, registry, auditLog, config, now });
   const teardown = createGoogleTeardown({ google, tokens, shopFirebase, domainsCall, ownDomain, registry, auditLog, now });
-  const status = createGoogleStatus({ registry, connect, teardown, now });
+  const status = createGoogleStatus({ registry, connect, teardown, tokens, now });
   const service = createGoogleService({ config, google, tokens, states, registry, connect, teardown, now });
   const gmailSend = createGmailSend({ google, tokens, registry, config });
   return { tokens, connect, teardown, status, service, gmailSend };

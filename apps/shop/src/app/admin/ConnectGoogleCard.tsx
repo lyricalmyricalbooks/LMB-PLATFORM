@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import toast from "react-hot-toast";
 import { Checkbox, ErrorState, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { GOOGLE_PARTS, googleConnectApi, stepTone, stepWord, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus, type ShoppingProblems, type StockSheet } from "./googleConnect";
+import { GOOGLE_PARTS, RECONNECT_WORDS, googleConnectApi, stepTone, stepWord, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus, type ShoppingProblems, type StockSheet } from "./googleConnect";
 
 // Connect Google (plan 6.17): one sign-in links Analytics, search, Google Shopping and the shop's email. `variant`
 // "full" (Settings › General › Visitors & Google) shows every part and its state, the extras and Disconnect;
@@ -40,7 +40,7 @@ export function ConnectGoogleCard({ variant = "full", fallback = null }: { varia
   if (variant === "prompt") return <GooglePrompt status={google.status} />;
   return (
     <SectionCard title="Google" description="Analytics, search, Google Shopping and your emails, with one sign-in."
-      actions={google.status?.connected ? <StatusBadge tone="success">Connected</StatusBadge> : google.status?.enabled ? <StatusBadge tone="neutral">Not connected</StatusBadge> : undefined}>
+      actions={google.status?.needsReconnect ? <StatusBadge tone="warning">Needs you</StatusBadge> : google.status?.connected ? <StatusBadge tone="success">Connected</StatusBadge> : google.status?.enabled ? <StatusBadge tone="neutral">Not connected</StatusBadge> : undefined}>
       {google.mode === "loading" ? <LoadingState label="Reading your Google connection…" />
         : google.mode === "error" ? <ErrorState title="Couldn't read your Google connection" description={google.error || undefined} onRetry={google.reload} />
         : !google.status?.enabled ? (
@@ -85,6 +85,13 @@ function GoogleDetails({ status }: { status: GoogleStatus }) {
   return (
     <div className="rp-stack" style={{ gap: 16 }}>
       <OutcomeLine />
+      {status.needsReconnect && (
+        <div role="alert" className="rp-stack" style={{ gap: 8 }}>
+          <strong>{RECONNECT_WORDS.title}</strong>
+          <p style={{ margin: 0 }}>{RECONNECT_WORDS.text}</p>
+          <div><PrimaryButton disabled={connect.busy} onClick={() => connect.go(status.extrasChosen ?? [])}>{connect.busy ? "Opening Google…" : RECONNECT_WORDS.button}</PrimaryButton></div>
+        </div>
+      )}
       {status.connected ? (
         <>
           <p className="rp-hint" style={{ margin: 0 }}>Signed in as <strong style={{ overflowWrap: "anywhere" }}>{status.accountEmail}</strong>.</p>

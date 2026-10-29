@@ -9,18 +9,20 @@ import { CLOSE_STEPS, DELETE_STEPS, deletionDue } from "./teardown.js";
 
 const PARTS = ["analytics", "searchConsole", "merchantCenter", "domain", "email", "drive", "youtube", "calendar", "businessProfile", "ads"];
 
-export function createGoogleStatus({ registry, connect, teardown, now = () => Date.now() }) {
+export function createGoogleStatus({ registry, connect, teardown, tokens = null, now = () => Date.now() }) {
   async function googleStatus(shopId) {
     const row = await registry.getShop(shopId);
     if (!row) throw new Error(`The registry has no shop ${shopId}`);
     const g = row.google ?? {};
-    const stage = g.deletedAt ? "deleted" : g.closedAt ? "closed" : g.connectedAt ? "connected" : "not connected";
+    const reconnect = !g.deletedAt && !g.closedAt && tokens ? await tokens.get(shopId).then((c) => tokens.needsReconnect(c) ? c.reconnectAt : null) : null;
+    const stage = g.deletedAt ? "deleted" : g.closedAt ? "closed" : reconnect ? "needs reconnect" : g.connectedAt ? "connected" : "not connected";
     return {
       shopId, stage,
       accountEmail: g.accountEmail ?? null,
       connectedAt: g.connectedAt ?? null,
       closedAt: g.closedAt ?? null,
       deletedAt: g.deletedAt ?? null,
+      reconnectSince: reconnect,
       parts: Object.fromEntries(PARTS.filter((p) => g[p]).map((p) => [p, g[p]])),
       steps: (g.steps ?? []).map((s) => ({ ...s, canRunAgain: s.state !== "done" })),
     };
