@@ -246,6 +246,8 @@ async function follow() {
 const WORDS = {
   // The daily cap (plan 6.13): the same words as signup.js IN_LINE_WORDS.
   "in-line": "We're making a few shops a day. You're next in line, and we'll email you when yours starts.",
+  // Colophon starts in Canada (plan 15.23): the same words as signup.js LATER_WORDS.
+  later: "Colophon starts in Canada. We've saved your place and we'll email you as soon as presses in your country can start.",
   queued: "Waiting for its turn. This takes a few minutes.",
   making: "Being made now. This takes a few minutes; you can close this page and we'll email you when it's ready.",
   ready: "Ready. We've emailed you the way in.",
@@ -258,7 +260,7 @@ function renderShops(shops) {
     const card = document.createElement("div");
     card.className = "card";
     const head = Object.assign(document.createElement("div"), { className: "row" });
-    const pill = Object.assign(document.createElement("span"), { className: "pill", textContent: { ready: "Ready", waiting: "Snag", "needs-help": "With us", "in-line": "In line" }[shop.status] ?? "Being made" });
+    const pill = Object.assign(document.createElement("span"), { className: "pill", textContent: { ready: "Ready", waiting: "Snag", "needs-help": "With us", "in-line": "In line", later: "Later" }[shop.status] ?? "Being made" });
     pill.dataset.tone = shop.status === "ready" ? "success" : shop.status === "waiting" || shop.status === "needs-help" ? "warning" : "info";
     head.append(Object.assign(document.createElement("h3"), { textContent: shop.pressName }), pill);
     card.append(head);
