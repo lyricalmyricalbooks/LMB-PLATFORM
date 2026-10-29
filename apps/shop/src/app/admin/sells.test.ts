@@ -72,5 +72,6 @@ describe("What a shop sells (plan 10.1)", () => {
     expect(w("Add your first title to start selling")).toBe("Add your first title to start selling");
     // Book-only and look-alike words are left alone.
     expect(goodsWords("E-book (PDF), e-books, Bookkeeping, bookkeeper, Facebook")).toBe("E-book (PDF), e-books, Bookkeeping, bookkeeper, Facebook");
+    expect(goodsWords("An author at a book fair, an author at Book Fairs")).toBe("A maker at a market, a maker at Markets");
   });
 });

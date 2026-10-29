@@ -56,6 +56,13 @@ test("switches are optional true/false values, and only the five known ones", ()
   assert.equal(schema.required.includes("switches"), false);
 });
 
+test("what the shop sells is an optional short answer (plan 10.23)", () => {
+  assert.deepEqual(profileProblems({ ...example, sells: "clothing" }), []);
+  assert.equal(schema.required.includes("sells"), false);
+  assert.ok(profileProblems({ ...example, sells: "Clothing!" }).includes("profile.sells has the wrong shape"));
+  assert.ok(profileProblems({ ...example, sells: 3 }).includes("profile.sells must be text"));
+});
+
 test("the press's name is optional text of up to 80 characters", () => {
   assert.deepEqual(profileProblems({ ...example, name: "Moth Press" }), []);
   assert.equal(schema.required.includes("name"), false);

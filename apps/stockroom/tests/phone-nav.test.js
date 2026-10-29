@@ -99,10 +99,10 @@ function todayApi({ activeBook, renderOrders = () => {}, books = {}, states = {}
   expect(start).toBeGreaterThan(-1);
   const src = mainJs.slice(start, end).replace('export function', 'function') + '; return { renderTodayHub, renderTodaySoFar };';
   const sync = [];
-  const api = new Function('$', 'activeBook', 'renderOrders', 'BOOKS', 'states', 'getBookCurrencyCode', 'salesForDay', 'today', 'fairTotalsText', 'renderFairSyncPill', 'escapeHtml', 'isTestBook', 'fmtWhole', 'renderBookChips', 'unsentSalesForDay', 'syncQueue', 'lastSavedHashes', src)(
+  const api = new Function('$', 'activeBook', 'renderOrders', 'BOOKS', 'states', 'getBookCurrencyCode', 'salesForDay', 'today', 'fairTotalsText', 'renderFairSyncPill', 'escapeHtml', 'isTestBook', 'fmtWhole', 'renderBookChips', 'unsentSalesForDay', 'syncQueue', 'lastSavedHashes', 'words', src)(
     (id) => document.getElementById(id), activeBook, renderOrders, books, states, () => 'CAD',
     salesForDayFn, () => '2026-10-08', (t) => Object.entries(t).map(([c, a]) => `${c} ${a.toFixed(2)}`).join(' + '), () => sync.push(1), (v) => String(v).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`),
-    (b) => !!b?.isTest, (v, c) => `${c}${Math.round(v)}`, () => {}, unsentSalesForDayFn, syncQueue, lastSavedHashes);
+    (b) => !!b?.isTest, (v, c) => `${c}${Math.round(v)}`, () => {}, unsentSalesForDayFn, syncQueue, lastSavedHashes, (text) => text);
   return { ...api, sync };
 }
 
