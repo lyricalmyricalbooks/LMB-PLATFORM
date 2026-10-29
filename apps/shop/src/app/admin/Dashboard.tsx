@@ -40,7 +40,7 @@ import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation"
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { adminWordsFor } from "./sells";
-import { ShopWordsContext } from "./shopWords";
+import { ShopSellsContext, ShopWordsContext } from "./shopWords";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
@@ -676,6 +676,7 @@ export function Dashboard() {
 
   return (
     <ShopWordsContext.Provider value={w}>
+    <ShopSellsContext.Provider value={sellsAnswer}>
     <ToastProvider>
       <Dialog open={!!bookLinkProblem} onClose={() => setBookLinkProblem(null)} title="Couldn't open that book"
         footer={<SecondaryButton data-autofocus onClick={() => setBookLinkProblem(null)}>Close</SecondaryButton>}>
@@ -875,6 +876,7 @@ export function Dashboard() {
         )}
       </AnimatePresence>
     </ToastProvider>
+    </ShopSellsContext.Provider>
     </ShopWordsContext.Provider>
   );
 }

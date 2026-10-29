@@ -55,7 +55,7 @@ test("the panel and the server offer the same open suggestions", () => {
 test("a product that isn't a book matches by its SKU; a book's numbered edition SKUs never count (plan 10.6)", () => {
   const goods = [
     { id: "t1", title: "Moth Tee", kind: "clothing", options: [{ name: "Size", values: ["S", "M"] }],
-      variants: [{ id: "s", name: "S", sku: "TEE-S", picks: { Size: "S" } }, { id: "m", name: "M", sku: "tee m", picks: { Size: "M" } }] },
+      variants: [{ id: "s", name: "S", sku: "TEE-S", options: { Size: "S" } }, { id: "m", name: "M", sku: "tee m", options: { Size: "M" } }] },
     { id: "r1", title: "Ring", kind: "jewelry", sku: "RING-01" },
     { id: "bk", title: "Hound Again", isbn: "9780000000002", sku: "SKU", variants: [{ id: "p", name: "Paperback", sku: "SKU-2" }] },
   ];

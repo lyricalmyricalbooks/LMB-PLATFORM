@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { findRedirect, MAX_REDIRECTS } from "../features/site/redirects";
+import { usesOptionPicker } from "../../shared/productOptions";
 import {
   htmlToDescription, importRedirects, MOVED_MARK, movedBooksCsv, newsletterJoiners, planCustomerNotes, planShopMove, readCustomerExport,
   readProductExport, recognizeExport, SHAPE_WORDS,
@@ -275,4 +276,56 @@ describe("customers", () => {
 it("the words a press sees never name another shop system", () => {
   const words = [...Object.values(SHAPE_WORDS), readFileSync(new URL("./ShopMoveDialogs.tsx", import.meta.url), "utf8")].join(" ").toLowerCase();
   for (const name of ["shopify", "squarespace", "woocommerce", "etsy", "big cartel", "bigcartel", "wix", "square online"]) expect(words).not.toContain(name);
+});
+
+describe("sizes and colours (plan 10.6)", () => {
+  const H = ["Handle", "Title", "Option1 Name", "Option1 Value", "Option2 Name", "Option2 Value", "Variant SKU", "Variant Inventory Qty", "Variant Price"];
+  const TEES = csv([H,
+    ["moth-tee", "Moth Tee", "Size", "S", "Colour", "Black", "TEE-S-B", "4", "30.00"],
+    ["moth-tee", "", "", "M", "", "Black", "TEE-M-B", "2", "30.00"],
+    ["moth-tee", "", "", "S", "", "White", "TEE-S-W", "5", "30.00"],
+    ["moth-tee", "", "", "M", "", "White", "TEE-M-W", "0", "32.00"],
+  ]);
+
+  it("a shop that doesn't sell books gets the old shop's options and each version's choices", () => {
+    const moved = readProductExport(TEES)!;
+    expect(moved.books[0].options).toEqual([{ name: "Size", values: ["S", "M"] }, { name: "Colour", values: ["Black", "White"] }]);
+    const patch = planShopMove(TEES, [], [], {}, { keepOptions: true }).plan.rows[0].patch as any;
+    expect(patch.options).toEqual([{ name: "Size", values: ["S", "M"] }, { name: "Colour", values: ["Black", "White"] }]);
+    expect(patch.variants.map((v: any) => [v.name, v.sku, v.options])).toEqual([
+      ["S / Black", "TEE-S-B", { Size: "S", Colour: "Black" }], ["M / Black", "TEE-M-B", { Size: "M", Colour: "Black" }],
+      ["S / White", "TEE-S-W", { Size: "S", Colour: "White" }], ["M / White", "TEE-M-W", { Size: "M", Colour: "White" }],
+    ]);
+    expect(usesOptionPicker(patch)).toBe(true);
+  });
+
+  it("a books shop keeps today's editions list, with no options", () => {
+    const patch = planShopMove(TEES, []).plan.rows[0].patch as any;
+    expect(patch.options).toBeUndefined();
+    expect(patch.variants.every((v: any) => v.options === undefined)).toBe(true);
+    expect(patch.variants.map((v: any) => v.name)).toEqual(["S / Black", "M / Black", "S / White", "M / White"]);
+  });
+
+  it("no options when two versions pick the same values, or one leaves a choice out", () => {
+    const twice = csv([H, ["t", "T", "Size", "S", "", "", "A", "1", "5"], ["t", "", "", "S", "", "", "B", "1", "5"]]);
+    expect(readProductExport(twice)!.books[0].options).toEqual([]);
+    const gap = csv([H, ["t", "T", "Size", "S", "Colour", "Red", "A", "1", "5"], ["t", "", "", "M", "", "", "B", "1", "5"]]);
+    expect(readProductExport(gap)!.books[0].options).toEqual([]);
+  });
+
+  it("product-line files and variation files name their options too", () => {
+    const productLines = csv([
+      ["Product ID [Non Editable]", "Variant ID [Non Editable]", "Title", "Option Name 1", "Option Value 1", "Price", "Stock", "SKU"],
+      ["p1", "v1", "Ring", "Size", "6", "80", "1", "R-6"],
+      ["p1", "v2", "", "", "7", "80", "2", "R-7"],
+    ]);
+    expect(readProductExport(productLines)!.books[0].options).toEqual([{ name: "Size", values: ["6", "7"] }]);
+    const variations = csv([
+      ["ID", "Type", "Parent", "Name", "SKU", "Regular price", "Stock", "Attribute 1 name", "Attribute 1 value(s)"],
+      ["10", "variable", "", "Cap", "CAP", "", "", "Colour", "Red, Blue"],
+      ["11", "variation", "id:10", "Cap - Red", "CAP-R", "25", "3", "Colour", "Red"],
+      ["12", "variation", "id:10", "Cap - Blue", "CAP-B", "25", "1", "Colour", "Blue"],
+    ]);
+    expect(readProductExport(variations)!.books[0].options).toEqual([{ name: "Colour", values: ["Red", "Blue"] }]);
+  });
 });

@@ -6,6 +6,8 @@ import { importRedirects, oldLinksMessage, planShopMove, SHAPE_WORDS, type Produ
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { Dialog, PrimaryButton, SecondaryButton, SelectField, StatusBadge, type BadgeTone } from "./riso/components";
 import { normalizeCategories } from "../features/site/navItems";
+import { sellsBooks } from "./sells";
+import { useShopSells } from "./shopWords";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const SHOWN_ROWS = 150;
@@ -46,12 +48,14 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
   const [results, setResults] = useState<Result[] | null>(null);
 
   const [stockMode, setStockMode] = useState<"leave" | "set">("leave");
+  // A shop that doesn't sell books keeps the old shop's sizes and colours as option buttons (plan 10.6).
+  const keepOptions = !sellsBooks(useShopSells());
   const [source, setSource] = useState<{ text: string; shopCategories: string[]; profiles: string[]; linkedBookIds: string[] } | null>(null);
   const work = plan ? plan.rows.filter(r => r.action === "create" || r.action === "update") : [];
 
   const replan = (src: typeof source, mode: "leave" | "set") => {
     if (!src) return;
-    const next = planShopMove(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles, linkedBookIds: src.linkedBookIds });
+    const next = planShopMove(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles, linkedBookIds: src.linkedBookIds }, { keepOptions });
     setPlan(next.plan); setMoved(next.moved); setOldPaths(next.oldPaths);
   };
 

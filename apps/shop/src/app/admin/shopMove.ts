@@ -10,6 +10,7 @@ import { metricWeightValue } from "../features/site/metricWeight";
 import { MAX_IMPORT_ROWS, parseCsv, parseMoney, planImport, validIsbn, type ImportOptions, type ImportPlan, type ImportRow } from "./catalogImport";
 import { parseTags } from "./customerInsights";
 import { addToIndex, MAX_REDIRECTS, normalizePath, redirectIndex, redirectProblemIn, type Redirect } from "../features/site/redirects";
+import { MAX_OPTIONS, MAX_VARIANTS, type ProductOption } from "../../shared/productOptions";
 
 /** Which shape an export has. Named after how its rows are laid out, not after who made it. */
 export type ExportShape =
@@ -18,7 +19,11 @@ export type ExportShape =
   | "parent-rows"     // product lines with Type simple/variable; editions are "variation" lines pointing at a Parent
   | "listing-rows";   // one line per listing with numbered photo columns (IMAGE1…)
 
-export interface MovedEdition { name: string; price: number; salePrice: number; stock: number | null; sku: string; weight: string; photoUrl: string }
+export interface MovedEdition {
+  name: string; price: number; salePrice: number; stock: number | null; sku: string; weight: string; photoUrl: string;
+  /** The old shop's choices for this version, by option name ({ Size: "M", Colour: "Black" }; plan 10.6). */
+  picks?: Record<string, string>;
+}
 
 /** One product from the old shop, in this shop's import columns (catalogImport IMPORT_COLUMNS labels). */
 export interface MovedBook {
@@ -27,6 +32,11 @@ export interface MovedBook {
   cells: Record<string, string>;
   /** Two or more when the product was sold in several versions (hardcover, signed copy…). */
   editions: MovedEdition[];
+  /**
+   * The product's options (Size, Colour…) when the old shop named them and every version picks one value of each
+   * (plan 10.6): the product page then shows a button per value. Empty: the versions stay a plain editions list.
+   */
+  options: ProductOption[];
   /** The product's addresses on the old shop, for the redirects that keep old links working (plan 3.2). */
   oldPaths: string[];
   notes: string[];
@@ -114,6 +124,32 @@ function prices(price: string, other: string, otherIsWas: boolean): { price: num
   return b < a ? { price: a, salePrice: b } : { price: a, salePrice: 0 };
 }
 
+/** A version's choices from (option name, value) pairs, or undefined when it names none. "Title" is no option. */
+function picksOf(pairs: [string, string][]): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  const seen = new Set<string>();
+  for (const [name, value] of pairs) {
+    if (!name || !value || key(name) === "title" || seen.has(key(name))) continue;
+    seen.add(key(name));
+    out[name] = value;
+  }
+  return seen.size ? out : undefined;
+}
+
+/**
+ * The options of a product whose versions all pick one value of the same options, each version a different
+ * combination; [] otherwise, and the versions stay a plain editions list.
+ */
+function optionsOf(editions: MovedEdition[]): ProductOption[] {
+  const names = Object.keys(editions[0]?.picks || {});
+  if (!names.length || names.length > MAX_OPTIONS || editions.length > MAX_VARIANTS) return [];
+  const same = (e: MovedEdition) => !!e.picks && Object.keys(e.picks).length === names.length && names.every(n => e.picks![n]);
+  if (!editions.every(same)) return [];
+  const combos = new Set(editions.map(e => names.map(n => e.picks![n].toLowerCase()).join("\u0000")));
+  if (combos.size !== editions.length) return [];
+  return names.map(name => ({ name, values: [...new Map(editions.map(e => [e.picks![name].toLowerCase(), e.picks![name]])).values()] }));
+}
+
 function book(line: number, cells: Record<string, string>, editions: MovedEdition[], photos: string[], oldPaths: string[], notes: string[] = []): MovedBook {
   const out: Record<string, string> = { ...cells };
   const urls = [...new Set(photos.map(https).filter(Boolean))];
@@ -129,7 +165,7 @@ function book(line: number, cells: Record<string, string>, editions: MovedEditio
       if (e.sku) out.SKU = e.sku;
       if (e.weight && !out.Weight) out.Weight = e.weight;
     }
-    return { line, cells: out, editions: [], oldPaths, notes };
+    return { line, cells: out, editions: [], options: [], oldPaths, notes };
   }
   if (editions.length > 1) {
     const unpriced = editions.filter(e => Number.isNaN(e.price));
@@ -140,9 +176,9 @@ function book(line: number, cells: Record<string, string>, editions: MovedEditio
     const stock = kept.map(e => e.stock).filter((n): n is number => n !== null);
     if (stock.length) out.Stock = String(stock.reduce((t, n) => t + n, 0));
     if (!out.Weight && kept[0]?.weight) out.Weight = kept[0].weight;
-    return { line, cells: out, editions: kept, oldPaths, notes };
+    return { line, cells: out, editions: kept, options: optionsOf(kept), oldPaths, notes };
   }
-  return { line, cells: out, editions: [], oldPaths, notes };
+  return { line, cells: out, editions: [], options: [], oldPaths, notes };
 }
 
 // One line per edition comes in two sets of headings: the older one (Handle, Variant Price, Image Src…) and the one
@@ -177,9 +213,11 @@ function fromHandleRows(table: string[][]): MovedBook[] {
       if (src) photos.push({ at: Number(c.get(r, "Image Position")) || 1000 + i, url: src });
       if (!c.get(r, ...PRICE) && !c.get(r, ...SKU) && !c.get(r, "Option1 Value")) return;
       const name = ["Option1 Value", "Option2 Value", "Option3 Value"].map(n => c.get(r, n)).filter(v => v && v.toLowerCase() !== "default title").join(" / ");
+      // Option names are on the product's first line only.
+      const picks = picksOf([1, 2, 3].map(n => [c.get(head, `Option${n} Name`), c.get(r, `Option${n} Value`)]));
       const p = prices(c.get(r, ...PRICE), c.get(r, ...WAS_PRICE), true);
       const variantImage = c.get(r, ...EDITION_PHOTO);
-      editions.push({ name, ...p, stock: count(c.get(r, ...STOCK)), sku: c.get(r, ...SKU), weight: grams(c.get(r, ...GRAMS)), photoUrl: https(variantImage) });
+      editions.push({ name, ...p, stock: count(c.get(r, ...STOCK)), sku: c.get(r, ...SKU), weight: grams(c.get(r, ...GRAMS)), photoUrl: https(variantImage), ...(picks ? { picks } : {}) });
       if (variantImage) photos.push({ at: 2000 + i, url: variantImage });
     });
     const cells: Record<string, string> = { Title: c.get(head, "Title") };
@@ -213,7 +251,9 @@ function fromProductIdRows(table: string[][]): MovedBook[] {
       const onSale = /^(yes|true|1)$/i.test(c.get(r, "On Sale"));
       const p = prices(c.get(r, "Price"), onSale ? c.get(r, "Sale Price") : "", false);
       const stock = /^unlimited$/i.test(c.get(r, "Stock")) ? null : count(c.get(r, "Stock"));
-      return { name: optionHeads.map(h => c.get(r, h)).filter(Boolean).join(" / "), ...p, stock, sku: c.get(r, "SKU"), weight: "", photoUrl: "" };
+      // "Option Value 2" is named by "Option Name 2", on the product's first line.
+      const picks = picksOf(optionHeads.map(h => [c.get(head, h.replace("value", "name")) || c.get(r, h.replace("value", "name")), c.get(r, h)]));
+      return { name: optionHeads.map(h => c.get(r, h)).filter(Boolean).join(" / "), ...p, stock, sku: c.get(r, "SKU"), weight: "", photoUrl: "", ...(picks ? { picks } : {}) };
     });
     const cells: Record<string, string> = { Title: c.get(head, "Title") };
     const description = htmlToDescription(c.get(head, "Description"));
@@ -256,9 +296,12 @@ function fromParentRows(table: string[][], notices: string[]): MovedBook[] {
   }
   if (orphans.length) notices.push(`${orphans.length} variation line${orphans.length === 1 ? "" : "s"} (${orphans.slice(0, 3).join(", ")}${orphans.length > 3 ? "…" : ""}) belonged to no product in the file, so ${orphans.length === 1 ? "it was" : "they were"} left out.`);
   return products.map(({ line, row, variations: vs }) => {
-    const editionRow = (r: string[], name: string): MovedEdition => ({ name, ...prices(c.get(r, "Regular price"), c.get(r, "Sale price"), false), stock: count(c.get(r, "Stock")), sku: c.get(r, "SKU"), weight: weight(r), photoUrl: https(list(c.get(r, "Images"))[0] || "") });
+    const editionRow = (r: string[], name: string, picks?: Record<string, string>): MovedEdition => ({ name, ...prices(c.get(r, "Regular price"), c.get(r, "Sale price"), false), stock: count(c.get(r, "Stock")), sku: c.get(r, "SKU"), weight: weight(r), photoUrl: https(list(c.get(r, "Images"))[0] || ""), ...(picks ? { picks } : {}) });
+    // "Attribute 1 value(s)" is named by "Attribute 1 name", on the variation's line or else the product's.
+    const attributeName = (v: string[], h: string) => { const n = h.replace(/ value s$/, " name"); return c.get(v, n) || c.get(row, n); };
     const editions = vs.length
-      ? vs.map(v => editionRow(v, attributeHeads.map(h => c.get(v, h)).filter(Boolean).join(" / ") || c.get(v, "Name")))
+      ? vs.map(v => editionRow(v, attributeHeads.map(h => c.get(v, h)).filter(Boolean).join(" / ") || c.get(v, "Name"),
+        picksOf(attributeHeads.map(h => [attributeName(v, h), c.get(v, h)]))))
       : [editionRow(row, "")];
     const cells: Record<string, string> = { Title: c.get(row, "Name") };
     const description = htmlToDescription(text(row, "Description") || text(row, "Short description"));
@@ -323,6 +366,8 @@ const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? c
 export function editionsFor(moved: MovedBook): Record<string, any>[] {
   return moved.editions.map(e => ({
     id: newId(), name: e.name || "Edition", price: e.price, stock: e.stock ?? 0, stockLevel: e.stock ?? 0, sku: e.sku, weight: e.weight, photoUrl: e.photoUrl,
+    // Each version's choices, so the product page shows a button per size and colour (plan 10.6).
+    ...(moved.options.length && e.picks ? { options: { ...e.picks } } : {}),
   }));
 }
 
@@ -331,9 +376,10 @@ export interface MovePlan { plan: ImportPlan; moved: ProductMove | null; oldPath
 /**
  * The preview for any file chosen in Books › Import: another shop's export is read and translated first; anything
  * else goes to the spreadsheet import unchanged. Rows keep the old file's line numbers, and a new book sold in
- * several editions is created with them.
+ * several editions is created with them. With `keepOptions` (a shop that doesn't sell books), a product whose old
+ * shop named its choices (Size, Colour) is created with them as options, so its page shows a button per value.
  */
-export function planShopMove(text: string, books: any[], shopCategories: string[] = [], opts: ImportOptions = {}): MovePlan {
+export function planShopMove(text: string, books: any[], shopCategories: string[] = [], opts: ImportOptions = {}, { keepOptions = false }: { keepOptions?: boolean } = {}): MovePlan {
   const moved = readProductExport(text);
   if (!moved) return { plan: planImport(text, books, shopCategories, opts), moved: null, oldPaths: new Map() };
   if (moved.problems.length) return { plan: { rows: [], ignoredColumns: [], problems: moved.problems, counts: { create: 0, update: 0, unchanged: 0, error: 0 } }, moved, oldPaths: new Map() };
@@ -342,14 +388,17 @@ export function planShopMove(text: string, books: any[], shopCategories: string[
   const relabel = (s: string) => s.replace(/\bLine (\d+)\b/g, (_m, n) => `Line ${lineOf(Number(n))}`);
   const oldPaths = new Map<number, string[]>();
   const rows: ImportRow[] = plan.rows.map(row => {
-    const m = moved.books[row.line - 2];
+    let m = moved.books[row.line - 2];
     const next: ImportRow = { ...row, line: m.line, errors: row.errors.map(relabel), warnings: [...row.warnings.map(relabel), ...m.notes] };
     if (m.oldPaths.length) oldPaths.set(m.line, m.oldPaths);
     if (m.editions.length > 1) {
+      // A books shop keeps today's editions list: an old shop's "Format: Hardcover" stays an edition (plan 10.20).
+      if (!keepOptions) m = { ...m, options: [] };
       const names = m.editions.map(e => e.name || "Edition").join("; ");
       if (row.action === "create") {
-        next.patch = { ...row.patch, variants: editionsFor(m) };
+        next.patch = { ...row.patch, variants: editionsFor(m), ...(m.options.length ? { options: m.options } : {}) };
         next.changes = [...row.changes, { field: "variants", label: "Editions", from: "", to: names }];
+        if (m.options.length) next.changes.push({ field: "options", label: "Options", from: "", to: m.options.map(o => `${o.name}: ${o.values.join(", ")}`).join("; ") });
       } else if (row.action !== "error") {
         next.warnings.push(`Editions (${names}) weren't added: this book is already in your shop, so add or change its editions in the book editor.`);
       }
