@@ -26,6 +26,7 @@
 import { regionsFor } from "../features/site/postalRegion";
 import { suggestedTaxBookName } from "../../shared/taxBooks";
 import type { TaxRate } from "./taxRatesEdit";
+import { sellsBooks } from "../../shared/shopSells";
 
 export type TaxPreset = { id: string; label: string; description: string; country: string; rates: Record<string, string> };
 
@@ -83,4 +84,9 @@ export function applyTaxPreset(rates: TaxRate[], preset: TaxPreset): { rates: Ta
     added += 1;
   }
   return { rates: next, added, kept };
+}
+
+/** The preset the Taxes page starts on (plan 10.4): printed books for a books shop, GST/HST on other goods for any other. */
+export function suggestedTaxPresetId(sells?: string | null): string {
+  return sellsBooks(sells) ? TAX_PRESETS[0].id : "ca-goods";
 }

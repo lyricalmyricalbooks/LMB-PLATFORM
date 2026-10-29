@@ -8,7 +8,7 @@ const { addressMissing } = require("./shared/addressRules");
 const { isPhysicalItem } = require("./shared/localFulfillment");
 const { lineCopyGrams, parcelGrams, FALLBACK_COPY_GRAMS } = require("./parcelWeight");
 const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isCanadaPostRate: isCanadaPostRateName, soldName } = require("./labelRates");
-const { needsCustoms, customsItems, customsDeclaration } = require("./customs");
+const { needsCustoms, customsItems, customsDeclaration, parcelContents } = require("./customs");
 
 function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors, admin, requireAdmin, db, getShippoToken, callShippo, IS_EMULATOR, originAddress, getStateCode, getCountryCode }) {
   const createShippingLabel = onBrowserRequest(
@@ -417,7 +417,7 @@ function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors,
             const itemIds = [];
             for (const item of items) itemIds.push((await callShippo("customs/items/", "POST", item, shippoToken)).object_id);
             const declaration = await callShippo("customs/declarations/", "POST",
-              customsDeclaration(itemIds, order, addressFrom.name || addressFrom.company, addressFrom.country), shippoToken);
+              customsDeclaration(itemIds, order, addressFrom.name || addressFrom.company, addressFrom.country, parcelContents(items, order, booksById)), shippoToken);
             if (String(declaration.object_status || declaration.object_state || "").toUpperCase() === "INVALID") {
               const why = (declaration.messages || []).map(m => m?.text || m).filter(Boolean).join("; ");
               throw new Error(`Shippo rejected the customs details${why ? `: ${why}` : "."} Check the book's customs fields in Books › edit › Details.`);
