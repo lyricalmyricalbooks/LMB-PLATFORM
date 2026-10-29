@@ -89,7 +89,8 @@ const WEEKLY_PDF_LINE = `<p style="margin:24px 0 0;">The attached PDF has last w
  * `firstOrderIds` the ids of each customer's first-ever paid order (for "new customers"), `daily` the analytics docs.
  * `toDo` is what still needs the owner today ({ toShip: paid orders waiting 3+ days, as in the daily digest }). Returns { subject, html, figures }.
  */
-function buildWeeklySummary({ orders, daily, week, firstOrderIds = new Set(), toDo = {}, link = p => p, withPdf = false }) {
+// `words` puts the report's own words in the shop's (plan 10.23, src/shared/shopSells.ts wordsFor); product names are never changed.
+function buildWeeklySummary({ orders, daily, week, firstOrderIds = new Set(), toDo = {}, link = p => p, withPdf = false, words = t => t }) {
   const sales = (orders || []).filter(countsAsSale);
   const cur = figures(sales, week.start, week.end, firstOrderIds);
   const prev = figures(sales, week.prevStart, week.prevEnd, firstOrderIds);
@@ -119,6 +120,8 @@ function buildWeeklySummary({ orders, daily, week, firstOrderIds = new Set(), to
   const todo = toShip > 0
     ? `<p style="margin:24px 0 0;"><strong>${toShip} paid ${toShip === 1 ? "order has" : "orders have"} waited 3 days or more to ship.</strong> <a href="${link("/admin#orders")}">Open Orders &rarr;</a></p>`
     : "";
+  // The PDF line, so the caller can take it out when the PDF couldn't be made.
+  const pdfLine = words(WEEKLY_PDF_LINE);
   const html = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
       <p style="margin:0;color:#777;font-size:13px;">Week of ${escapeHtml(dayWords(week.start))} – ${escapeHtml(dayWords(week.end))}, compared with the week before</p>
@@ -126,12 +129,12 @@ function buildWeeklySummary({ orders, daily, week, firstOrderIds = new Set(), to
       <table style="width:100%;border-collapse:collapse;">${rows}</table>
       ${top}
       ${todo}
-      ${withPdf ? WEEKLY_PDF_LINE : ""}
+      ${withPdf ? pdfLine : ""}
       <p style="margin:24px 0 0;"><a href="${link("/admin#overview")}">See everything on the Overview &rarr;</a></p>
       <p style="margin:24px 0 0;color:#999;font-size:12px;">Test orders and your own orders are left out. Turn this email off in Settings › Email sender › Shop alerts.</p>
     </div>`;
   const subject = `[WEEKLY] ${cur.orders === 0 ? "No sales" : `${money(cur.revenue)} · ${cur.orders} ${cur.orders === 1 ? "order" : "orders"}`} last week`;
-  return { subject, html, figures: { cur, prev, traffic: tCur, conversion: conv } };
+  return { subject, html, pdfLine, figures: { cur, prev, traffic: tCur, conversion: conv } };
 }
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -148,7 +151,7 @@ function sumMap(rows, field) {
  * buildWeeklySummary. `bookTitles` maps a book id to its title (for "most viewed"). Signals the shop never recorded
  * that week come back empty (`recorded: false` / []), never as made-up zeros.
  */
-function weeklyHighlights({ orders, daily, week, firstOrderIds = new Set(), bookTitles = new Map() }) {
+function weeklyHighlights({ orders, daily, week, firstOrderIds = new Set(), bookTitles = new Map(), words = t => t }) {
   const sales = (orders || []).filter(countsAsSale);
   const cur = figures(sales, week.start, week.end, firstOrderIds);
   const prev = figures(sales, week.prevStart, week.prevEnd, firstOrderIds);
@@ -160,7 +163,7 @@ function weeklyHighlights({ orders, daily, week, firstOrderIds = new Set(), book
   const revenueOn = key => sales.filter(o => torontoDay(timeOf(o.createdAt)) === key)
     .reduce((s, o) => s + Math.max(0, num(o.total) - refundedAmount(o)), 0);
   const series = (start, fn) => daysOf(start).map(fn);
-  const title = id => bookTitles.get(id) || bookTitles.get(String(id)) || "A book no longer in the catalogue";
+  const title = id => bookTitles.get(id) || bookTitles.get(String(id)) || words("A book no longer in the catalogue");
 
   const adds = new Map(sumMap(rows, "bookAdds").map(r => [r.key, r.count]));
   const funnel = rows.reduce((f, d) => {

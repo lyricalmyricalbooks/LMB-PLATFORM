@@ -267,13 +267,15 @@ function pageTwo(h) {
   const colW = (PAGE_W - 2 * M - colGap) / 2;
   const left = M, right = M + colW + colGap;
 
-  // Left column: books.
+  // Left column: books. `w` puts the fixed words in the shop's (plan 10.23); a shop that doesn't sell books counts "sold".
+  const w = h.words || (t => t);
+  const books = w("book") === "book";
   let l = sectionTitle(c, "Best sellers", left, top, colW);
-  l = rankedList(c, left, l, colW, h.bestSellers.map(b => ({ label: b.title, value: `${whole(b.units)} ${b.units === 1 ? "copy" : "copies"}`, count: b.units })),
+  l = rankedList(c, left, l, colW, h.bestSellers.map(b => ({ label: b.title, value: `${whole(b.units)} ${books ? (b.units === 1 ? "copy" : "copies") : "sold"}`, count: b.units })),
     { empty: "Nothing sold last week." }) + 14;
-  l = sectionTitle(c, "Most looked-at books", left, l, colW);
+  l = sectionTitle(c, w("Most looked-at books"), left, l, colW);
   l = rankedList(c, left, l, colW, h.mostViewed.map(b => ({ label: b.title, value: `${whole(b.views)} views`, count: b.views })),
-    { empty: "Book views are not recorded yet." });
+    { empty: w("Book views are not recorded yet.") });
   if (h.mostViewed.length) {
     const added = h.mostViewed.filter(b => b.adds > 0);
     if (added.length) c.text(fit(`Added to bag: ${added.map(b => `${b.title} (${whole(b.adds)})`).join(", ")}`, 7.5, colW), left, l + 4, { size: 7.5, color: C.muted });
@@ -301,7 +303,7 @@ function pageTwo(h) {
   if (!h.funnel) {
     c.text("The shopper journey is not recorded yet.", right, r + 12, { size: 9, color: C.muted });
   } else {
-    const steps = [["Looked at a book", h.funnel.view], ["Added to bag", h.funnel.add_to_cart], ["Started checkout", h.funnel.checkout_start], ["Bought", h.funnel.purchase]];
+    const steps = [[w("Looked at a book"), h.funnel.view], ["Added to bag", h.funnel.add_to_cart], ["Started checkout", h.funnel.checkout_start], ["Bought", h.funnel.purchase]];
     const max = Math.max(...steps.map(s => s[1])) || 1;
     steps.forEach(([label, n], i) => {
       const y = r + i * 30;
@@ -317,8 +319,8 @@ function pageTwo(h) {
 
 /** The two-page highlights PDF for weeklyHighlights() output. */
 /** The PDF, headed with the press's own name (plan 5.8; pressName, else the placeholder for an unnamed shop). */
-function buildWeeklyPdf(highlights, { shopName = "" } = {}) {
-  const h = { ...highlights, shopName: String(shopName || "").trim() || DEFAULT_SHOP_NAME };
+function buildWeeklyPdf(highlights, { shopName = "", words = t => t } = {}) {
+  const h = { ...highlights, words, shopName: String(shopName || "").trim() || DEFAULT_SHOP_NAME };
   return writePdf([pageOne(h), pageTwo(h)], { title: `Weekly highlights, week of ${dayWords(h.week.start)}`, producer: h.shopName });
 }
 

@@ -10,6 +10,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GOODS_EMAILS = exports.SELLS = void 0;
 exports.sellsBooks = sellsBooks;
+exports.goodsWords = goodsWords;
+exports.wordsFor = wordsFor;
 exports.goodsDownloadNote = goodsDownloadNote;
 exports.emailDefaultsFor = emailDefaultsFor;
 exports.withShopEmailWords = withShopEmailWords;
@@ -20,6 +22,25 @@ const BOOK_ANSWERS = new Set(["books", "zines", "comics", "mix"]);
 /** True for a shop that sells books: a book answer, a skipped answer or one this version doesn't know. */
 function sellsBooks(answer) {
     return !answer || BOOK_ANSWERS.has(answer) || !exports.SELLS.includes(answer);
+}
+// Words (plan 10.23): the shop is written for books. For a shop that sells something else, the words people see pass
+// through `goodsWords` ("Add book" → "Add product", "author" → "maker"). Book-only words (e-book, ISBN, publisher,
+// bookkeeping) are left alone.
+const GOODS_SWAPS = [
+    [/\ban author\b/g, "a maker"], [/\bAn author\b/g, "A maker"],
+    [/\bBook [Ff]airs\b/g, "Markets"], [/\bBook [Ff]air\b/g, "Market"], [/\bbook fairs\b/g, "markets"], [/\bbook fair\b/g, "market"],
+    [/(?<![-\w])books\b/g, "products"], [/(?<![-\w])Books\b/g, "Products"], [/(?<![-\w])BOOKS\b/g, "PRODUCTS"],
+    [/(?<![-\w])book\b/g, "product"], [/(?<![-\w])Book\b/g, "Product"], [/(?<![-\w])BOOK\b/g, "PRODUCT"],
+    [/\bauthors\b/g, "makers"], [/\bAuthors\b/g, "Makers"], [/\bauthor\b/g, "maker"], [/\bAuthor\b/g, "Maker"],
+];
+/** Words for a shop or product that isn't books: book → product, author → maker. */
+function goodsWords(text) {
+    return GOODS_SWAPS.reduce((out, [from, to]) => out.replace(from, to), text);
+}
+const same = (text) => text;
+/** The word function for a sign-up answer: unchanged for a books shop. */
+function wordsFor(answer) {
+    return sellsBooks(answer) ? same : goodsWords;
 }
 const FIELDS = ["subject", "body", "buttonText", "signoff"];
 /** A shop that doesn't sell books: the default words that differ from a books shop's, per email. */

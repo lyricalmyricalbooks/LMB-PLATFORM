@@ -33,7 +33,7 @@ const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./live
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./shared/addressRules");
 const { pressName } = require("./shared/shopIdentity");
-const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords } = require("./shared/shopSells");
+const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./shared/discountCategories");
@@ -3372,7 +3372,7 @@ async function handleOrderUpdated(event) {
 }
 
 const { digestSince, digestNeedsOperations, DIGEST_ORDER_LIMIT } = require("./orderDigest");
-const { lastWeek, buildWeeklySummary, weeklyHighlights, weeklySummaryEnabled, firstOrders, WEEKLY_PDF_LINE } = require("./weeklySummary");
+const { lastWeek, buildWeeklySummary, weeklyHighlights, weeklySummaryEnabled, firstOrders } = require("./weeklySummary");
 const { buildWeeklyPdf, weeklyPdfName } = require("./weeklyPdf");
 const { pruneOldCarts } = require("./cartCleanup");
 
@@ -3410,7 +3410,9 @@ async function sendWeeklySummary(nowMs = Date.now()) {
     .where("createdAt", ">=", digestSince(nowMs)).orderBy("createdAt", "desc").limit(DIGEST_ORDER_LIMIT).get();
   const toShip = buildOrderDigest(recentSnap.docs.map(d => ({ id: d.id, ...d.data() })), new Map(), nowMs).unshipped.length;
   const firstOrderIds = firstOrders(paid);
-  const { subject, html } = buildWeeklySummary({ orders: paid, daily, week, firstOrderIds, toDo: { toShip }, link: siteLink, withPdf: true });
+  // A shop that doesn't sell books reads "products" in the report's own words (plan 10.23).
+  const words = wordsFor(await shopSellsAnswer());
+  const { subject, html, pdfLine } = buildWeeklySummary({ orders: paid, daily, week, firstOrderIds, toDo: { toShip }, link: siteLink, withPdf: true, words });
   // The attached PDF (functions/weeklyPdf.js) names the most looked-at books, so it needs their titles.
   const bookTitles = new Map();
   await db.collection("books").select("title").get()
@@ -3420,12 +3422,12 @@ async function sendWeeklySummary(nowMs = Date.now()) {
   try {
     // Headed with the press's own name (Text & labels › Site name, plan 5.8).
     const website = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
-    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles }), { shopName: pressName(website, shopConfig.senderName) });
+    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles, words }), { shopName: pressName(website, shopConfig.senderName), words });
     attachments = [{ filename: weeklyPdfName(week), content: pdf, contentType: "application/pdf" }];
   } catch (err) {
     console.error("Weekly summary PDF failed; sending the email without it:", err);
   }
-  await sendEmail({ to: ADMIN_TO, subject, html: attachments.length ? html : html.replace(WEEKLY_PDF_LINE, ""), secret: RESEND_API_KEY.value(), attachments });
+  await sendEmail({ to: ADMIN_TO, subject, html: attachments.length ? html : html.replace(pdfLine, ""), secret: RESEND_API_KEY.value(), attachments });
   return { subject };
 }
 

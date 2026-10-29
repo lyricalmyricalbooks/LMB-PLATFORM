@@ -11,7 +11,7 @@
 
 import type { ProductKind } from "../../shared/productOptions";
 import { DEFAULT_COPY } from "../features/site/storeCopy";
-import { sellsBooks, type Sells } from "../../shared/shopSells";
+import { sellsBooks, wordsFor, type Sells } from "../../shared/shopSells";
 
 // The answers and the books-shop rule live in src/shared/shopSells.ts, which the server's emails use too.
 export { SELLS, sellsBooks } from "../../shared/shopSells";
@@ -115,25 +115,8 @@ export function firstProductWords(answer?: string | null): { title: string; why:
   return { title: "Add your first product", why: "A name, a price and a photo are enough to start. Sizes, colours and the rest can come later." };
 }
 
-// Admin words (plan 10.23): the admin is written for books. For a shop that sells something else, the words people
-// see in the admin pass through `goodsWords` ("Add book" → "Add product", "author" → "maker"). Book-only words
-// (e-book, ISBN, publisher, bookkeeping) are left alone.
-const GOODS_SWAPS: [RegExp, string][] = [
-  [/\ban author\b/g, "a maker"], [/\bAn author\b/g, "A maker"],
-  [/\bBook [Ff]airs\b/g, "Markets"], [/\bBook [Ff]air\b/g, "Market"], [/\bbook fairs\b/g, "markets"], [/\bbook fair\b/g, "market"],
-  [/(?<![-\w])books\b/g, "products"], [/(?<![-\w])Books\b/g, "Products"], [/(?<![-\w])BOOKS\b/g, "PRODUCTS"],
-  [/(?<![-\w])book\b/g, "product"], [/(?<![-\w])Book\b/g, "Product"], [/(?<![-\w])BOOK\b/g, "PRODUCT"],
-  [/\bauthors\b/g, "makers"], [/\bAuthors\b/g, "Makers"], [/\bauthor\b/g, "maker"], [/\bAuthor\b/g, "Maker"],
-];
-
-/** Admin words for a shop or product that isn't books: book → product, author → maker. */
-export function goodsWords(text: string): string {
-  return GOODS_SWAPS.reduce((out, [from, to]) => out.replace(from, to), text);
-}
-
-const same = (text: string) => text;
+// Admin words (plan 10.23): `goodsWords` lives in src/shared/shopSells.ts, which the server's reports use too.
+export { goodsWords } from "../../shared/shopSells";
 
 /** The admin's word function for a sign-up answer: unchanged for a books shop. */
-export function adminWordsFor(answer?: string | null): (text: string) => string {
-  return sellsBooks(answer) ? same : goodsWords;
-}
+export const adminWordsFor = wordsFor;
