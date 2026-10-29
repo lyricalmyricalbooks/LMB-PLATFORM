@@ -10,10 +10,10 @@ import { fileURLToPath } from 'node:url';
 const realRequire = createRequire(import.meta.url);
 const source = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.js'), 'utf8');
 
-function harness() {
+function harness(extraDocs = {}) {
   const sent = [];
   const intents = [];
-  const docs = { settings: { website: { payments: {} }, notifications: {} } };
+  const docs = { settings: { website: { payments: {} }, notifications: {} }, ...extraDocs };
   const db = {
     collection(name) {
       return {
@@ -42,7 +42,8 @@ function harness() {
   // Capture every email instead of sending it; skip the address check (network).
   const patched = `${source}
 sendEmail = async (m) => { __sent.push(m); return { ok: true }; };
-autoApproveShippingAddress = async () => {};`;
+autoApproveShippingAddress = async () => {};
+module.exports.__words = { loadNotificationSettings, compileEmailTemplate };`;
   vm.runInNewContext(patched, { module, exports: module.exports, require: mockRequire, process, Buffer, console, setTimeout, clearTimeout, URL, AbortController, __sent: sent, fetch: async () => { throw new Error('no network'); } }, { filename: 'index.js' });
   return { sent, intents, exports: module.exports };
 }
@@ -110,4 +111,40 @@ test('the card payment asks Stripe for no receipt email', () => {
   const call = payment.slice(payment.indexOf('stripe.paymentIntents.create({'), payment.indexOf('metadata: { order_id: orderId, checkout: "payment_element" }'));
   expect(call.length).toBeGreaterThan(0);
   expect(call).not.toMatch(/^\s*receipt_email\s*:/m);
+});
+
+// Plan 10.23: a shop that doesn't sell books gets its own words in customer emails; a books shop keeps every word.
+const BOOK_REVIEW_SUBJECT = 'How are you finding your book?';
+test('a clothing shop\'s customer emails say "your order", never "your book" or "reading"', async () => {
+  const app = harness({ firstWeek: { start: { publishes: 'clothing' } } });
+  const settings = await app.exports.__words.loadNotificationSettings();
+  expect(settings.review_request.subject).toBe('How are you finding your order?');
+  expect(settings.customer_welcome.body).toContain('download your digital purchases');
+  const gift = app.exports.__words.compileEmailTemplate('gift_card', settings, { recipient_name: 'Sam', sender_name: 'Jo', amount: 'CA$5.00', code: 'ABCD', message: '', expires: '' });
+  expect(gift.html).toContain('Enjoy,');
+  for (const id of ['customer_welcome', 'gift_card', 'review_request']) {
+    const { subject, html } = app.exports.__words.compileEmailTemplate(id, settings, { customer_name: 'Sam', recipient_name: 'Sam', code: 'ABCD' });
+    expect(`${subject} ${html}`, id).not.toMatch(/\b(books?|reading|readers?)\b/i);
+  }
+  // An emptied field falls back to the shop's own words too.
+  const emptied = app.exports.__words.compileEmailTemplate('gift_card', { ...settings, gift_card: { ...settings.gift_card, signoff: '' } }, { code: 'ABCD' });
+  expect(emptied.html).toContain('Enjoy,');
+});
+
+test('saved words still at the books default read as the shop\'s; words the owner wrote are kept', async () => {
+  const notifications = { review_request: { subject: BOOK_REVIEW_SUBJECT, body: 'Our own words about your new shirt.', enabled: true } };
+  const app = harness({ firstWeek: { start: { publishes: 'jewelry' } }, settings: { website: { payments: {} }, notifications } });
+  const settings = await app.exports.__words.loadNotificationSettings();
+  expect(settings.review_request.subject).toBe('How are you finding your order?');
+  expect(settings.review_request.body).toBe('Our own words about your new shirt.');
+});
+
+test('a books shop, a skipped answer or an unknown one keeps the book words', async () => {
+  for (const start of [undefined, { publishes: 'books' }, { publishes: 'zines' }, { publishes: 'spaceships' }, {}]) {
+    const app = harness(start ? { firstWeek: { start } } : {});
+    const settings = await app.exports.__words.loadNotificationSettings();
+    expect(settings.review_request.subject, JSON.stringify(start)).toBe(BOOK_REVIEW_SUBJECT);
+    expect(settings.gift_card.signoff).toBe('Happy reading,\nThe {{shop_name}} team');
+    expect(settings.customer_welcome.body).toContain('digital library books');
+  }
 });

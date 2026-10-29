@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode, type SyntheticEvent } from "react";
+import { useState, useEffect, useMemo, type ReactNode, type SyntheticEvent } from "react";
 import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
 import toast from "react-hot-toast";
@@ -18,6 +18,8 @@ import { emailFunction, lastGmailProblem } from "./notificationApi";
 import { plainError } from "./plainError";
 import { runsOnColophon } from "../../lib/shopProfile";
 import { useSubTab } from "./settingsLayout";
+import { useShopSells } from "./shopWords";
+import { emailDefaultsFor, sellsBooks, withShopEmailWords } from "../../shared/shopSells";
 import {
   DataTable, ErrorState, GhostButton, PrimaryButton, LoadingState, SaveBar, SectionCard, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
@@ -195,14 +197,14 @@ const TEMPLATE_IDS = Object.keys(DEFAULT_SETTINGS).filter((k) => k !== "brand" &
 const TABS = TEMPLATE_IDS.map((id) => ({ id, label: TAB_META[id]?.label || id.replace(/_/g, " "), group: TAB_META[id]?.group || "other" }));
 const GROUP_IDS = [...Object.keys(GROUP_LABELS).filter((g) => TABS.some((t) => t.group === g)), "shopAlerts"];
 
-function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings, order: any = null, shopName = DEFAULT_SHOP_NAME) {
+function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings, order: any = null, shopName = DEFAULT_SHOP_NAME, defaults = DEFAULT_SETTINGS) {
   const brand: Partial<NotificationSettings["brand"]> = data.brand || {};
   const brandColor = brand.brandColor || "#e8402a";
   
-  const template = data[templateId] || DEFAULT_SETTINGS[templateId];
+  const template = data[templateId] || defaults[templateId];
   // Same rules as the server: empty fields fall back to the default, required lines come back,
   // unknown placeholders read as blank.
-  const fallback = DEFAULT_SETTINGS[templateId];
+  const fallback = defaults[templateId];
   const body = withRequiredPlaceholders(templateId, template.body || fallback.body);
   const values = { shop_name: shopName, ...orderPreviewVars(order) };
   const buttonText = fillSample(templateId, template.buttonText || "", values);
@@ -239,6 +241,15 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const [activeTab, setActiveTab] = useState<TemplateKey>("order_confirmation");
   const [saving, setSaving] = useState(false);
   const [original, setOriginal] = useState("");
+  // What the shop sells (plan 10.23): a shop that doesn't sell books gets its own default words, as the server sends.
+  // Words still at the books default read as the shop's, also when the answer arrives after the templates loaded.
+  const sells = useShopSells();
+  const shopDefaults = useMemo(() => emailDefaultsFor(sells, DEFAULT_SETTINGS), [sells]);
+  useEffect(() => {
+    if (sellsBooks(sells) || loading) return;
+    setData((prev) => withShopEmailWords(sells, prev, DEFAULT_SETTINGS));
+    setOriginal((prev) => (prev ? JSON.stringify(withShopEmailWords(sells, JSON.parse(prev), DEFAULT_SETTINGS)) : prev));
+  }, [sells, loading]);
   const [resendDraft, setResendDraft] = useState("");
   const [removingResend, setRemovingResend] = useState(false);
   // Settings › Email sender: the stored `communications` map and the three sender fields being edited.
@@ -498,7 +509,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   if (loading) return <LoadingState label="Loading notification templates…" />;
   if (loadFailed) return <ErrorState title="Your email templates couldn't be loaded" description="Nothing has been changed. Saving is switched off until they load, so the defaults can't replace your saved emails." onRetry={() => { void loadSettings(); }} />;
 
-  const currentTemplate = data[activeTab] || DEFAULT_SETTINGS[activeTab];
+  const currentTemplate = data[activeTab] || shopDefaults[activeTab];
   const dirty = JSON.stringify(data) !== original;
   const groupTabs = TABS.filter((t) => t.group === group);
   const pickGroup = (g: string) => {
@@ -521,10 +532,10 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const enabled = activeTab === "review_request" ? currentTemplate.enabled === true : currentTemplate.enabled !== false;
   // The shop name in the preview: the saved sender name, which the server reads first (loadNotificationSettings).
   const previewShopName = (senderSaved.fromName || "").trim() || shopNameDefault;
-  const subjectPreview = fillSample(activeTab, currentTemplate.subject || DEFAULT_SETTINGS[activeTab].subject, { shop_name: previewShopName, ...orderPreviewVars((recentOrders || []).find((o) => o.id === previewOrderId)) });
+  const subjectPreview = fillSample(activeTab, currentTemplate.subject || shopDefaults[activeTab].subject, { shop_name: previewShopName, ...orderPreviewVars((recentOrders || []).find((o) => o.id === previewOrderId)) });
   const badColor = !!data.brand?.brandColor && !/^#[0-9a-f]{3,8}$/i.test(data.brand.brandColor.trim());
   const problems = templateProblems(activeTab, currentTemplate);
-  const defaults = DEFAULT_SETTINGS[activeTab];
+  const defaults = shopDefaults[activeTab];
   const isDefault = (["subject", "body", "buttonText", "signoff"] as const).every((k) => (currentTemplate[k] || "") === (defaults[k] || ""));
   const resetTemplate = () => {
     setData((prev) => ({ ...prev, [activeTab]: { ...defaults, enabled: prev[activeTab]?.enabled } }));
@@ -823,7 +834,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
               {(recentOrders || []).map((o) => <option key={o.id} value={o.id}>{o.orderId || o.id} · {o.customer?.name || o.customer?.email || "Customer"}</option>)}
             </SelectField>
           </div>
-          <iframe srcDoc={compilePreviewHtml(activeTab, data, previewOrder, previewShopName)} sandbox="" title={`Preview of the ${TABS.find((t) => t.id === activeTab)?.label} email`}
+          <iframe srcDoc={compilePreviewHtml(activeTab, data, previewOrder, previewShopName, shopDefaults)} sandbox="" title={`Preview of the ${TABS.find((t) => t.id === activeTab)?.label} email`}
             style={{ width: "100%", height: 560, border: "1px solid var(--rp-border)", background: "var(--rp-surface)" }} />
         </SectionCard>
       </div>

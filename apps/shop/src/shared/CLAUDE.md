@@ -49,3 +49,7 @@ wrong-typed field is refused with a plain message before any write. `records.ts`
 `orders` and `books` shapes: the common fields typed, the rest open. The Overview's `Order` / `Book` (`overviewInsights.ts`)
 and the other admin files that used `Record<string, any>` for them now use these; type new admin code with them too. Next: one schema per Firestore collection for what
 browsers may write (mirroring `firestore.rules`).
+- What a shop sells (plan 10.23, 29 October 2026): `shopSells.ts` holds the sign-up answers and `sellsBooks` (the admin's
+  `sells.ts` re-exports them) plus the customer-email words for a shop that doesn't sell books (`GOODS_EMAILS`,
+  `emailDefaultsFor`, `withShopEmailWords`, `goodsDownloadNote`). The server's `loadNotificationSettings` reads
+  `firstWeek/start` › `publishes` and sets `settings.sells`; Settings › Notifications shows the same defaults.

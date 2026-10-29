@@ -33,6 +33,7 @@ const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./live
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./shared/addressRules");
 const { pressName } = require("./shared/shopIdentity");
+const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./shared/discountCategories");
@@ -2675,6 +2676,17 @@ const DEFAULT_NOTIFICATIONS = {
   }
 };
 
+/** Sign-up's "What do you sell?" answer (`firstWeek/start` › `publishes`), or "" when there is none or it can't be read. */
+async function shopSellsAnswer() {
+  try {
+    const answer = (await db.collection("firstWeek").doc("start").get()).data()?.publishes;
+    return typeof answer === "string" ? answer : "";
+  } catch (err) {
+    console.warn("Failed to read what the shop sells, using the books words:", err);
+    return "";
+  }
+}
+
 async function loadNotificationSettings() {
   let dbSettings = {};
   try {
@@ -2686,14 +2698,20 @@ async function loadNotificationSettings() {
     console.warn("Failed to load notifications from Firestore, using default fallback:", err);
   }
 
-  const merged = { ...DEFAULT_NOTIFICATIONS };
+  // What the shop sells (plan 10.23): a shop that doesn't sell books gets "your order" and "items" in place of "your
+  // book" and "reading" (src/shared/shopSells.ts). No answer, or one that can't be read, keeps the books words.
+  const sells = await shopSellsAnswer();
+  const defaults = emailDefaultsFor(sells, DEFAULT_NOTIFICATIONS);
+  let merged = { ...defaults };
   for (const key of Object.keys(DEFAULT_NOTIFICATIONS)) {
     if (key === "brand") {
       merged.brand = { ...DEFAULT_NOTIFICATIONS.brand, ...(dbSettings.brand || {}) };
     } else {
-      merged[key] = { ...DEFAULT_NOTIFICATIONS[key], ...(dbSettings[key] || {}) };
+      merged[key] = { ...defaults[key], ...(dbSettings[key] || {}) };
     }
   }
+  merged = withShopEmailWords(sells, merged, DEFAULT_NOTIFICATIONS);
+  merged.sells = sells;
   // Emails to the shop itself (Settings › Notifications › Emails to the shop). On unless switched off;
   // an older saved new_order_admin.enabled is honoured too.
   // {{shop_name}} in every email (plan 1.16): Settings › Email sender name, else the shop's name, else the deploy's.
@@ -2814,12 +2832,14 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   const logoUrl = brand.logoUrl || "";
   const brandColor = brand.brandColor || "#e8402a";
   
-  const template = settings[templateId] || DEFAULT_NOTIFICATIONS[templateId];
-  let subject = template.subject || DEFAULT_NOTIFICATIONS[templateId].subject;
+  // An emptied field falls back to this shop's default words (plan 10.23: settings.sells from loadNotificationSettings).
+  const fallback = emailDefaultsFor(settings.sells, DEFAULT_NOTIFICATIONS)[templateId];
+  const template = settings[templateId] || fallback;
+  let subject = template.subject || fallback.subject;
   // A required line (the gift-card code) comes back even if an edit removed it.
-  let body = withRequiredPlaceholders(templateId, template.body || DEFAULT_NOTIFICATIONS[templateId].body);
-  let buttonText = template.buttonText !== undefined ? template.buttonText : DEFAULT_NOTIFICATIONS[templateId].buttonText;
-  let signoff = template.signoff || DEFAULT_NOTIFICATIONS[templateId].signoff;
+  let body = withRequiredPlaceholders(templateId, template.body || fallback.body);
+  let buttonText = template.buttonText !== undefined ? template.buttonText : fallback.buttonText;
+  let signoff = template.signoff || fallback.signoff;
 
   // Replace placeholders in subject and body
   // Values are shopper-controlled (names, messages, statuses): HTML-escaped in the
@@ -3034,7 +3054,8 @@ async function handleOrderUpdated(event) {
       let downloadSection = "";
       if (digitalItems.length > 0) {
         const linkFor = item => `${functionLink(shopConfig, "downloadDigitalAsset")}?orderId=${encodeURIComponent(orderId)}&itemId=${encodeURIComponent(item.itemId)}${item.variantId ? `&variantId=${encodeURIComponent(item.variantId)}` : ""}&token=${encodeURIComponent(order.downloadToken || "")}`;
-        const note = String(notificationSettings.order_confirmation?.downloadNote || digitalDelivery.DEFAULT_DOWNLOAD_NOTE);
+        const note = String(notificationSettings.order_confirmation?.downloadNote
+          || (sellsBooks(notificationSettings.sells) ? digitalDelivery.DEFAULT_DOWNLOAD_NOTE : goodsDownloadNote(digitalDelivery.DOWNLOAD_LIMIT)));
         downloadSection = `
           <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
             <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">Digital Library Access</h3>
