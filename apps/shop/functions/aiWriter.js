@@ -11,7 +11,7 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODELS = ["google/gemini-2.5-flash", "openai/gpt-4o-mini"];
 const VOICE_MAX = 1000;
 // A Colophon shop writes through Gemini on Google's cloud in the shop's own project, with the server's own account: no
-// key is pasted or stored (plan 16.4). The answer has the same shape as Gemini's, so buildRequest and parseResponse are shared.
+// key is pasted or stored (plan 17.4). The answer has the same shape as Gemini's, so buildRequest and parseResponse are shared.
 const VERTEX_ROOT = "https://aiplatform.googleapis.com/v1/projects/";
 const VERTEX_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
 
@@ -687,7 +687,7 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   const settings = await readSettings();
   const wanted = body?.op === "check" && (body?.provider === "gemini" || body?.provider === "openrouter") ? body.provider : settings?.provider;
   let provider = pickProvider({ ...settings, provider: wanted });
-  // A Colophon shop with no key of its own writes through its own project (plan 16.4).
+  // A Colophon shop with no key of its own writes through its own project (plan 17.4).
   if (!provider && platformAi) {
     const own = await platformAi().catch(() => null);
     if (own?.projectId && own?.accessToken) provider = { name: "vertex", projectId: own.projectId, accessToken: own.accessToken };

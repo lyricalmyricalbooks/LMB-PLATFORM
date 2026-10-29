@@ -521,7 +521,7 @@ test("a closing step that fails is shown with Run again and never holds up the t
   assert.equal(t.shopFirebase.docs.get(SHOP).deleted, true);
 });
 
-// ---- Google Shopping problems (plan 16.2) ----
+// ---- Google Shopping problems (plan 17.2) ----
 
 test("the shop can read which books Google Shopping turned down, and nothing is changed in Google", async () => {
   const t = await setup();
@@ -561,7 +561,7 @@ test("the Google client reads product problems from Merchant API v1 and keeps on
   assert.match(seen[0], /\/products\/v1\/accounts\/7001\/products\?pageSize=250/);
 });
 
-// ---- One-click Google Sheet (plan 16.1) ----
+// ---- One-click Google Sheet (plan 17.1) ----
 
 const STOCK = [["Title", "Author", "ISBN", "Price", "On hand"], ["Moth Book", "A. Writer", "9780000000000", 18, 12], ["=HYPERLINK(\"x\")", "", "", "", 0]];
 

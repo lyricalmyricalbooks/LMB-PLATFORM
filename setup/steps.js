@@ -60,7 +60,7 @@ export const SERVICES = [
   "run.googleapis.com",
   "pubsub.googleapis.com",
   "firebaserules.googleapis.com",
-  // The AI writing helper on a Colophon shop (plan 16.4): Gemini in the shop's own project.
+  // The AI writing helper on a Colophon shop (plan 17.4): Gemini in the shop's own project.
   "aiplatform.googleapis.com",
   // The stockroom's Realtime Database.
   "firebasedatabase.googleapis.com",

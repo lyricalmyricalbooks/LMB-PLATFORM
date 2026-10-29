@@ -24,7 +24,7 @@ function argsFor(step, body) {
 const HEADINGS = ["Title", "Author", "Code (ISBN)", "Price", "On hand", "Stockroom last updated"];
 const cell = (v, max = 200) => (typeof v === "string" ? v.slice(0, max) : "");
 
-/** The stock list for the press's Google Sheet: a heading line and one line per stockroom product (plan 16.1). */
+/** The stock list for the press's Google Sheet: a heading line and one line per stockroom product (plan 17.1). */
 function stockSheetRows(books) {
   const lines = (Array.isArray(books) ? books : []).slice(0, 2000).map((b) => [
     cell(b?.title), cell(b?.author), cell(b?.isbn, 40),

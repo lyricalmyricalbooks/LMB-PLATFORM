@@ -202,7 +202,7 @@ describe("AI writing assistant: OpenRouter takes over when Google runs out", () 
   });
 });
 
-describe("AI writing assistant on a Colophon shop (plan 16.4)", () => {
+describe("AI writing assistant on a Colophon shop (plan 17.4)", () => {
   const { generateVertex } = createRequire(import.meta.url)("./aiWriter");
   const platformAi = async () => ({ projectId: "moth-press", accessToken: "server-token" });
 

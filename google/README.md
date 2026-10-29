@@ -29,7 +29,7 @@ The registry row's `google` also holds `accountEmail`, `connectedAt`, `closedAt`
 - **Plain words.** Every step's `detail` is shown to the press and in the control room, so it never names a technical
   term.
 
-## What the shop can ask for after connecting (plan 16.1, 16.2)
+## What the shop can ask for after connecting (plan 17.1, 17.2)
 
 | Door call | What it does | Permission |
 | --- | --- | --- |
