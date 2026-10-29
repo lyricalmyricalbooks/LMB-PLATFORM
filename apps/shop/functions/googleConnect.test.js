@@ -4,12 +4,12 @@ import { describe, expect, test } from "vitest";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const { googleConnectActions } = require("./googleConnect.js");
+const { googleConnectActions, stockSheetRows } = require("./googleConnect.js");
 
 const URL_ = "https://google.platform.example";
 const KEY = "service-key-moth-press-0123456789abcdef0123";
 
-function make({ url = URL_, key = KEY, answer } = {}) {
+function make({ url = URL_, key = KEY, answer, readStock } = {}) {
   const calls = [];
   const fetch = async (to, init) => {
     calls.push({ to, headers: init.headers, ...JSON.parse(init.body) });
@@ -17,7 +17,7 @@ function make({ url = URL_, key = KEY, answer } = {}) {
     return { ok: true, status: 200, json: async () => ({ enabled: true, connected: false, extrasOffered: ["drive"], steps: [] }) };
   };
   const { handleGoogleConnect } = googleConnectActions({
-    url, shopId: "moth-press", serviceKey: () => key, fetch,
+    url, shopId: "moth-press", serviceKey: () => key, fetch, ...(readStock ? { readStock } : {}),
     requireAdmin: async (req, res) => (req.admin ? { email: "owner@example.com" } : (res.status(403).json({ error: "Admin access required" }), null)),
   });
   const run = async (body, { admin = true } = {}) => {
@@ -43,6 +43,30 @@ describe("Connect Google in the admin", () => {
     ]);
     expect(calls[0].to).toBe(`${URL_}/shop`);
     expect(calls[0].headers).toMatchObject({ "X-Shop-Id": "moth-press", Authorization: `Bearer ${KEY}` });
+  });
+
+  test("the books Google Shopping turned down are asked for as this shop", async () => {
+    const { run, calls } = make();
+    await run({ step: "productProblems" });
+    expect(calls.map((c) => [c.op, c.args])).toEqual([["google.productProblems", {}]]);
+  });
+
+  test("the stock list is built on the server from the stockroom, never taken from the browser", async () => {
+    const { run, calls } = make({ readStock: async () => [{ title: "Moth Book", author: "A. Writer", isbn: "9780000000000", price: 18, onHand: 12, feedAt: "2026-10-29T10:00:00Z" }, { title: "=Sum", price: null, onHand: null }] });
+    await run({ step: "sheetSync", rows: [["from the browser"]] });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].op).toBe("google.sheetSync");
+    expect(calls[0].args.rows[0][0]).toBe("Title");
+    expect(calls[0].args.rows[1]).toEqual(["Moth Book", "A. Writer", "9780000000000", 18, 12, "2026-10-29T10:00:00Z"]);
+    expect(calls[0].args.rows[2]).toEqual(["=Sum", "", "", "", "", ""]);
+    expect(stockSheetRows(null)).toHaveLength(1);
+  });
+
+  test("a stockroom that can't be read sends nothing", async () => {
+    const { run, calls } = make({ readStock: async () => { throw new Error("NOT_FOUND"); } });
+    const res = await run({ step: "sheetSync" });
+    expect([res.statusCode, res.body.code]).toEqual([409, "no_stockroom"]);
+    expect(calls).toHaveLength(0);
   });
 
   test("only an admin may ask; a bad step, a shop without the link or without its key is refused before anything is sent", async () => {

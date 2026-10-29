@@ -11,6 +11,8 @@
 //   Gmail          developers.google.com/gmail/api/reference/rest/v1/users.messages/send
 //   Drive          developers.google.com/drive/api/reference/rest/v3/files/create (a folder)
 //   YouTube        developers.google.com/youtube/v3/docs/channels/list, search/list
+//   Sheets         developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets (create, values.clear, values.update);
+//                  the `drive.file` permission is enough for a sheet this app made (Google's Sheets scopes page)
 //   Calendar       developers.google.com/calendar/api/v3/reference/calendars/insert
 //   Business       developers.google.com/my-business/reference/accountmanagement/rest/v1/accounts/list
 //   Ads            developers.google.com/google-ads/api/reference/rpc (CustomerService.ListAccessibleCustomers,
@@ -29,6 +31,7 @@ export const MERCHANT = "https://merchantapi.googleapis.com";
 export const GMAIL = "https://gmail.googleapis.com/gmail/v1";
 export const DRIVE = "https://www.googleapis.com/drive/v3";
 export const YOUTUBE = "https://www.googleapis.com/youtube/v3";
+export const SHEETS = "https://sheets.googleapis.com/v4/spreadsheets";
 export const CALENDAR = "https://www.googleapis.com/calendar/v3";
 export const BUSINESS_ACCOUNTS = "https://mybusinessaccountmanagement.googleapis.com/v1";
 export const ADS = "https://googleads.googleapis.com/v18";

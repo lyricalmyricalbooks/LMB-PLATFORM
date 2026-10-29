@@ -201,3 +201,40 @@ describe("AI writing assistant: OpenRouter takes over when Google runs out", () 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("AI writing assistant on a Colophon shop (plan 16.4)", () => {
+  const { generateVertex } = createRequire(import.meta.url)("./aiWriter");
+  const platformAi = async () => ({ projectId: "moth-press", accessToken: "server-token" });
+
+  it("writes through the shop's own project with no key saved, and keeps no key", async () => {
+    const fetchImpl = vi.fn(async () => answer({ metaTitle: "Salt, a book about salt and the sea", metaDescription: "A book about salt." }));
+    const out = await handleAiWrite({ task: "bookSeo", input: { title: "Salt" } }, deps({ readSettings: async () => ({}), fetchImpl, platformAi }));
+    expect(out.status).toBe(200);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toMatch(/^https:\/\/aiplatform\.googleapis\.com\/v1\/projects\/moth-press\/locations\/global\/publishers\/google\/models\/gemini-2\.5-flash:generateContent$/);
+    expect(init.headers.Authorization).toBe("Bearer server-token");
+    expect(init.headers["x-goog-api-key"]).toBeUndefined();
+  });
+
+  it("a shop that saved its own key keeps using it", async () => {
+    const fetchImpl = vi.fn(async () => answer({ metaTitle: "Salt, a book about salt and the sea", metaDescription: "A book about salt." }));
+    await handleAiWrite({ task: "bookSeo", input: { title: "Salt" } }, deps({ fetchImpl, platformAi }));
+    expect(String(fetchImpl.mock.calls[0][0])).toMatch(/generativelanguage\.googleapis\.com/);
+  });
+
+  it("without a platform account and without a key it asks for a key, as before", async () => {
+    const out = await handleAiWrite({ task: "bookSeo", input: { title: "Salt" } }, deps({ readSettings: async () => ({}) }));
+    expect(out.status).toBe(412);
+    const none = await handleAiWrite({ task: "bookSeo", input: { title: "Salt" } }, deps({ readSettings: async () => ({}), platformAi: async () => { throw new Error("no token"); } }));
+    expect(none.status).toBe(412);
+  });
+
+  it("a refusal reads in plain words with no key or setting named", async () => {
+    const fetchImpl = vi.fn(async () => reply(403, { error: { status: "PERMISSION_DENIED", message: "Vertex AI API has not been used in project" } }));
+    await expect(generateVertex({ projectId: "moth-press", accessToken: "t", task: "bookSeo", input: { title: "Salt" }, fetchImpl }))
+      .rejects.toThrow(/isn't ready for your shop yet/);
+    const busy = vi.fn(async () => reply(429, { error: { status: "RESOURCE_EXHAUSTED" } }));
+    await expect(generateVertex({ projectId: "moth-press", accessToken: "t", task: "bookSeo", input: { title: "Salt" }, fetchImpl: busy }))
+      .rejects.toMatchObject({ status: 429, message: expect.not.stringMatching(/key|Vertex|API/i) });
+  });
+});

@@ -9,6 +9,9 @@
 //                                        Google's Allow page (one sign-in, every part ticked); Google sends the press
 //                                        back to `oauthCallback` (GET /google/oauth), which keeps the tokens sealed,
 //                                        runs the connect job and goes back to the shop
+//   google.productProblems               the books Google Shopping turned down, each with what to fix, in plain words
+//   google.sheetSync { rows }            writes the shop's stock list into one spreadsheet in the press's own Google Drive
+//                                        (made the first time; only with the Drive box ticked), and answers its address
 //   google.tryAgain { step }             one connect step again (the shop's Try again)
 //   google.disconnect                    the closing steps of the teardown job: the shop stays open
 import { randomBytes } from "node:crypto";
@@ -28,6 +31,17 @@ export class GoogleLinkError extends Error {
 }
 
 const STATE_MS = 15 * 60 * 1000;
+const MAX_SHEET_ROWS = 2001;
+const MAX_SHEET_COLUMNS = 12;
+
+/** The cells the shop sends: a heading row and up to 2,000 lines of text and numbers, nothing else. */
+function sheetRows(rows) {
+  if (!Array.isArray(rows) || rows.length < 1 || rows.length > MAX_SHEET_ROWS) throw bad("rows must be a heading line and up to 2,000 lines");
+  return rows.map((line) => {
+    if (!Array.isArray(line) || line.length > MAX_SHEET_COLUMNS) throw bad("every line must be a list of up to 12 cells");
+    return line.map((cell) => (typeof cell === "number" && Number.isFinite(cell) ? cell : typeof cell === "string" ? cell.slice(0, 300) : ""));
+  });
+}
 const bad = (message) => new GoogleLinkError(400, "bad_request", message);
 
 export function createGoogleService({ config, google, tokens, states, registry, connect, teardown, now = () => Date.now() }) {
@@ -73,6 +87,34 @@ export function createGoogleService({ config, google, tokens, states, registry, 
 
   const OPS = {
     "google.status": (row) => status(row),
+    async "google.sheetSync"(row, { rows } = {}) {
+      const values = sheetRows(rows);
+      const grant = await tokens.fresh(row.shopId);
+      if (!grant || !SCOPES.drive.every((scope) => grant.scopes.includes(scope))) return { available: false };
+      const known = row.google?.sheet ?? {};
+      let sheet = known.spreadsheetId ? known : null;
+      if (!sheet) {
+        const made = await google.createSpreadsheet(grant.token, `${row.pressName || row.shopId} stock from Colophon`);
+        sheet = { spreadsheetId: made.spreadsheetId, url: made.spreadsheetUrl, madeAt: new Date(now()).toISOString() };
+      }
+      try {
+        await google.writeStockSheet(grant.token, sheet.spreadsheetId, values);
+      } catch (err) {
+        // The press deleted the sheet in their Drive: make a fresh one next time rather than failing for good.
+        if (err?.status === 404 && known.spreadsheetId) { await registry.updateShop(row.shopId, { google: { ...(row.google ?? {}), sheet: null } }); return { available: true, gone: true }; }
+        throw err;
+      }
+      const next = { ...sheet, writtenAt: new Date(now()).toISOString(), rows: values.length - 1 };
+      await registry.updateShop(row.shopId, { google: { ...(row.google ?? {}), sheet: next } });
+      return { available: true, url: next.url, writtenAt: next.writtenAt, rows: next.rows };
+    },
+    async "google.productProblems"(row) {
+      const account = row.google?.merchantCenter?.account;
+      const grant = account ? await tokens.fresh(row.shopId) : null;
+      if (!grant || !SCOPES.merchantCenter.every((scope) => grant.scopes.includes(scope))) return { available: false, problems: [] };
+      const problems = await google.listProductProblems(grant.token, account);
+      return { available: true, checkedAt: new Date(now()).toISOString(), problems: problems.slice(0, 200) };
+    },
     "google.connectLink": (row, args) => connectLink(row, args),
     async "google.tryAgain"(row, { step } = {}) {
       if (!CONNECT_STEPS.includes(step)) throw bad("Unknown step.");
