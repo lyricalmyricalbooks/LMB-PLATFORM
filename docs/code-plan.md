@@ -475,8 +475,12 @@ them in the code. Built in this order, one pull request each. Nothing here chang
 | 13.7 | shop, platform | **See shoppers' errors before presses email you** [8]. The shop's pages send crashes and failed checkouts (no names, emails or addresses) to the control room, grouped by shop and error, with a Needs you line when one shop's checkout errors jump. Why: today a broken page is found when a press writes in, after lost sales | tests: personal details stripped, errors grouped, the jump alert fires once, a flood is capped | medium | |
 | 13.8 | platform, shop | **Keep data only as long as needed** [11]. A written keep-times list enforced by a nightly job: abandoned bags and stock holds after 30 days, sign-in and audit logs after two years, closed shops on the 6.8 timeline, orders kept six years for tax. Why: Canadian privacy law expects it, and less stored means less to leak | job tests with fakes: old records removed, orders under six years kept, re-run removes nothing new | medium | |
 
-Next after these, if wanted: one trust page in plain words [12], "Check my shop" for owners [17], a speed budget in CI
-[14] and per-shop feature switches [7].
+**Build order and how they depend on each other (refined 30 October 2026).** 13.1 and 13.6 first (small, nothing waits on
+them). 13.2 before 13.7, because the error reports travel through the content policy 13.2 sets. 13.3 and 13.4 are
+one pull request each and can run side by side; 13.4 reads the same spending level 13.3 does not touch. 13.5 before
+13.8, because the keep-times job must never remove what the restore drill counts. 13.7 and 13.8 last. Rows 13.3 and
+13.4 are the same work as 12.5 and 12.6: finish those rows by building these, and mark both in the same pull request.
+13.1 to 13.8 can each merge on their own; none needs Julian's accounts.
 
 ### 13B. Templates, back-end design and the phone version (added 29 October 2026)
 
@@ -499,6 +503,27 @@ change that needs a shared token goes through that thread.
 | 13.12 | platform | **Control room and platform pages on a phone** (waitlist, sign-up, plan and billing, help, status, control room): one column, big buttons, the Needs you list first | phone-width browser check on the walkthrough pages (9.11) | medium | |
 | 13.13 | platform | **Back-end design rules in one page** (`docs/admin-look-plan.md` extended): the admin screen patterns (list, record, form, empty, error), spacing and tap sizes for phone and desktop, so every new back-end screen is built the same way | a test fails a back-end screen that uses a loose colour or a tap target under size | medium | |
 | 13.14 | shop, stockroom | **Install to the home screen.** Both admins can be added to a phone's home screen like an app (name, icon, opens full screen), with the stockroom already working offline | manifest and offline tests; the install check passes | quick | |
+
+## Phase 14: after tonight (proposed 30 October 2026)
+
+What follows Phase 13, left out of anything another thread owns (the templates, Phase 11 and 13.9, 13.10, 13.13; the
+control room and the walkthrough; 12.8 to 12.13). Taken from the 28 and 29 October idea lists and not yet in code. Not
+started; Julian picks the order.
+
+| # | Repo | Pull request | Proven by | Effort | Status |
+| --- | --- | --- | --- | --- | --- |
+| 14.1 | platform | **Two-step sign-in for shop owners** [2]. Control-room admins already need it (9.1); owners on paid plans get the same authenticator-app step. Why: a stolen owner password can change where payouts go | account tests: paid plan without a second step is asked for one; a trial is not; recovery path works | medium | |
+| 14.2 | platform | **One trust page** [12] and a public list of the companies that handle data [10], in plain words: where data lives, who can see it, backups, what happens if Colophon closes. Why: it answers a careful press's questions without a call | page test: every promise on it has a matching check in the repo | quick | |
+| 14.3 | platform, shop | **"Check my shop" for owners** [17]. One button runs the self-checks the control room has (address, payments, email, stock link, backups) on the owner's own shop and explains each result with a fix button. Why: owners solve half their own problems without writing to you | tests over a shop with each fault; no technical words (6.16) | medium | |
+| 14.4 | platform, shop | **Every error says what to do** [16]. Each error a press can see gets a plain fix and a link to the exact help article | the 6.16 scan: every error has a fix line and a real help link | medium | |
+| 14.5 | platform | **Speed budget in CI** [14]. Each template's home and product page is measured at phone width; the release fails when one gets slower than the budget. Why: slow shops rank lower on Google, and one template change touches every shop | CI measures a fixed page set against a stored budget; a planted slowdown fails | medium | |
+| 14.6 | platform | **Per-shop feature switches** [7]. A new feature ships off, turns on for the test shop, then for presses who opt in, then everyone. Why: turn a misbehaving feature off in seconds without a release | switch tests: off by default, test shop first, one shop off without a release | medium | |
+| 14.7 | shop | **Readers help themselves** [11b]. A "Your data" page in the shopper's account: download what the shop holds, or ask for it to be erased, which the press approves with one tap | account tests: export holds only that reader's data; erase waits for approval; orders kept | medium | |
+| 14.8 | shop, stockroom | **Printable labels and hang tags** [18]; **bulk-order quote form** [17]; **a link per person for tracking** [23]. Small separate pull requests | one test each | quick each | |
+| 14.9 | platform | **Monthly shop check-up email** [15]: speed, pages Google has, broken links, products with no description, each with a fix link. Why: it shows a press the platform is looking after them | email test with fakes; no technical words | medium | |
+
+Ask Julian first (unchanged): French admin and shop [39]; Instagram and Facebook shop feeds. Needs his accounts, so
+later: key-free deploys [3c] and the service promise with automatic credits [9].
 
 ## Rules for every pull request
 
