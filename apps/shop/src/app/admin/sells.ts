@@ -126,6 +126,8 @@ export function firstProductWords(answer?: string | null): { title: string; why:
 // see in the admin pass through `goodsWords` ("Add book" → "Add product", "author" → "maker"). Book-only words
 // (e-book, ISBN, publisher, bookkeeping) are left alone.
 const GOODS_SWAPS: [RegExp, string][] = [
+  [/\ban author\b/g, "a maker"], [/\bAn author\b/g, "A maker"],
+  [/\bBook [Ff]airs\b/g, "Markets"], [/\bBook [Ff]air\b/g, "Market"], [/\bbook fairs\b/g, "markets"], [/\bbook fair\b/g, "market"],
   [/(?<![-\w])books\b/g, "products"], [/(?<![-\w])Books\b/g, "Products"], [/(?<![-\w])BOOKS\b/g, "PRODUCTS"],
   [/(?<![-\w])book\b/g, "product"], [/(?<![-\w])Book\b/g, "Product"], [/(?<![-\w])BOOK\b/g, "PRODUCT"],
   [/\bauthors\b/g, "makers"], [/\bAuthors\b/g, "Makers"], [/\bauthor\b/g, "maker"], [/\bAuthor\b/g, "Maker"],

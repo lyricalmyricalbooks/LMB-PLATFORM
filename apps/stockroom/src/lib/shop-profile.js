@@ -89,6 +89,8 @@ export function parseShopProfile(value) {
     version: 1,
     shopId: value.shopId,
     ...(value.name !== undefined ? { name: value.name } : {}),
+    // What the shop sells (plan 10.23). An answer of the wrong shape is left out, never a reason to refuse the profile.
+    ...(typeof value.sells === 'string' && /^[a-z][a-z-]{1,30}$/.test(value.sells) ? { sells: value.sells } : {}),
     firebase: {
       ...Object.fromEntries(FIREBASE_KEYS.map((key) => [key, firebase[key]])),
       databaseURL: firebase.databaseURL || `https://${firebase.projectId}-default-rtdb.firebaseio.com`,

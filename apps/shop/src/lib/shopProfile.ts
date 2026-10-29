@@ -12,6 +12,8 @@ export type ShopProfile = {
   shopId: string;
   /** The press's name as given at sign-up (the shop's own name lives in its settings). */
   name?: string;
+  /** What the shop sells, its sign-up answer (plan 10.23). The admin reads it from `firstWeek/start` today. */
+  sells?: string;
   firebase: {
     apiKey: string;
     authDomain: string;
