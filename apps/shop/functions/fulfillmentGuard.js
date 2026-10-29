@@ -1,6 +1,7 @@
 const { isPhysicalItem } = require("./shared/localFulfillment");
 const { waitingPreorderLines, shipDateOf } = require("./shared/preorder");
 const { providerName } = require("./payments");
+const { reviewProblem } = require("./orderReview");
 // The shop's card payment company, as the press sees it (code plan 5.2). Read when asked: shopConfig reads the env.
 const cardName = () => providerName(require("./shopConfig").paymentProvider);
 // Kept in parity with admin/fulfillment.ts; money-spending label operations recheck fresh records.
@@ -21,6 +22,7 @@ function labelProblem(order, operations = {}) {
  if (operations.labelPurchasePending) return "A label purchase is pending. Check Shippo before attempting another purchase.";
  if (order.customerRequest?.type === "return" && order.customerRequest.status === "open") return "Resolve the active return before buying a fulfillment label.";
  if (order.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(order.disputeStatus))) return `This payment is disputed. Don't buy a label until the dispute is settled in ${cardName()}.`;
+ { const review = reviewProblem(order, operations); if (review) return review; }
  if (operations.hold) return "Release the fulfillment hold before buying a label.";
  const waiting = waitingPreorderLines(order, operations);
  if (waiting.length) { const date = shipDateOf(waiting); return `This order includes a pre-order that releases ${date || "on a date not yet announced"}. Press "Ready to ship now" if the books have arrived.`; }
@@ -48,6 +50,7 @@ function externalDispatchProblem(order, operations = {}) {
  if (order.customerRequest?.status === "open") return "The customer asked to cancel this order. Answer their request in the website's Orders before shipping.";
  if (disputeOpen(order)) return `This payment is disputed. Don't ship until the dispute is settled in ${cardName()}.`;
  if (order.paymentStatus === "paid" && order.refund?.status === "failed") return "The refund for this order failed at the bank, so the customer was not refunded. Refund again or contact them before packing.";
+ { const review = reviewProblem(order, operations); if (review) return review; }
  if (operations.hold) return `Order on hold: ${operations.hold}`;
  // Stricter than Orders › Dispatch: a website label purchase in progress (or waiting to be checked in Shippo)
  // would give the order a second paid label.

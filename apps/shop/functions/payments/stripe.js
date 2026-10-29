@@ -426,7 +426,15 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
           if (refund.id && refundTxn) parts[refund.id] = partFrom(refundTxn);
         }
       }
-      return { parts };
+      // What the card company said about the payment, for the order review queue (orderReview.js). Square has none.
+      const card = charge?.payment_method_details?.card || null;
+      const risk = charge ? {
+        level: charge.outcome?.risk_level || null,
+        cvcCheck: card?.checks?.cvc_check || null,
+        postalCheck: card?.checks?.address_postal_code_check || null,
+        cardCountry: card?.country || null,
+      } : null;
+      return { parts, risk };
     });
   }
 
