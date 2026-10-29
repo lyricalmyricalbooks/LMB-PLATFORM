@@ -1,0 +1,40 @@
+/* The stockroom's own colour names, pointed at the shared admin look (shared/admin-look/, plan step 11.3).
+   Not a copy of the shared files: this one is the stockroom's and holds only the aliases.
+
+   <body class="rp"> gives the page the shared --rp-* tokens for the chosen look (Riso Press or Paper) and appearance
+   (day or night: data-rp-appearance on <body>, kept in step with <html data-theme> by src/lib/theme.js). Every old name
+   below then follows them, so the whole app changes look without touching its rules. In Riso Press the values are
+   identical to the old ones (tests/admin-look.test.js proves it for day and night); Paper is the new look.
+
+   Screen only, on purpose: printed pages stay on the light :root in style.css, as theme-dark.css does. */
+@media screen {
+body.rp {
+  --cream: var(--rp-canvas);
+  --cream2: var(--rp-surface-2);
+  --cream3: var(--rp-surface-inset);
+  --surface-card: var(--rp-surface);
+  --ink: var(--rp-inverse);
+  --ink2: var(--rp-inverse-2);
+  --text: var(--rp-text);
+  --text2: var(--rp-text-muted);
+  --text3: var(--rp-text-subtle);
+  --text4: var(--rp-text-faint);
+  --gold: var(--rp-primary);
+  --gold2: var(--rp-primary-hover);
+  --gold-text: var(--rp-primary-text);
+  --gold-bg: var(--rp-primary-tint);
+  --green: var(--rp-success);
+  --green-bg: var(--rp-success-tint);
+  --red: var(--rp-danger);
+  --red-bg: var(--rp-danger-tint);
+  --amber: var(--rp-warning);
+  --amber-bg: var(--rp-warning-tint);
+  --blue: var(--rp-info);
+  --blue-bg: var(--rp-info-tint);
+  --border: var(--rp-border);
+  --border2: var(--rp-divider);
+  --rule-ink: var(--rp-border-strong);
+  --on-inverse: var(--rp-on-inverse);
+  --on-inverse-2: var(--rp-on-inverse-2);
+}
+}

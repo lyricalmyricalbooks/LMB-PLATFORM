@@ -7,6 +7,9 @@ import './style.css';
 // Dark theme loads LAST: it re-points the primitives every rule above resolves
 // against, and its component corrections have to out-specify style.css.
 import './styles/theme-dark.css';
+// The shared admin look (Riso Press / Paper): tokens, then this app's old colour names pointed at them (plan 11.3).
+import './styles/admin-look/adminThemes.css';
+import './styles/admin-look/stockroom-bridge.css';
 import './styles/phone.css';
 // The Riso phone redesign sits on top of the phone layer above.
 import './styles/phone-riso.css';
@@ -338,6 +341,7 @@ import {
   writeThemePreference,
 } from './lib/theme.js';
 import { initStickyOffset } from './lib/sticky-header.js';
+import { ADMIN_LOOKS, ADMIN_LOOK_LABELS, ADMIN_LOOK_SUB_COPY, readAdminLook, writeAdminLook, applyAdminLook, normalizeAdminLook } from './lib/admin-look.js';
 import { SYNC_TONES, describeSyncStatus } from './lib/sync-status.js';
 import { STARTUP_HISTORY_KEY, recordStartup, describeStartup } from './lib/startup-timing.js';
 import { DEVICE_COPY_KEY, describeCopyAge } from './lib/device-copy.js';
@@ -3955,9 +3959,62 @@ function initTheme() {
   });
 }
 
+// ── LOOK (Riso Press / Paper) ─────────────────────────────────────────────
+// The same two looks as the website admin (shared/admin-look/). Kept in this browser for now (plan step 11.7 saves it
+// with the account). Rendered into every [data-look-seg] radiogroup, like the appearance control above.
+let adminLook = readAdminLook();
+
+function renderLookControls() {
+  document.querySelectorAll('[data-look-seg]').forEach((group) => {
+    group.style.setProperty('--tseg-index', String(Math.max(0, ADMIN_LOOKS.indexOf(adminLook))));
+    if (!group.children.length) {
+      group.innerHTML = ADMIN_LOOKS.map((look) => `
+        <button type="button" class="theme-seg-opt" role="radio" data-look-opt="${look}"
+                title="${ADMIN_LOOK_SUB_COPY[look]}">
+          <span class="tso-txt" style="display:inline">${ADMIN_LOOK_LABELS[look]}</span>
+        </button>`).join('');
+    }
+    group.querySelectorAll('[data-look-opt]').forEach((btn) => {
+      const on = btn.dataset.lookOpt === adminLook;
+      btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      btn.tabIndex = on ? 0 : -1;
+    });
+  });
+  document.querySelectorAll('[data-look-sub]').forEach((el) => { el.textContent = ADMIN_LOOK_SUB_COPY[adminLook]; });
+}
+
+export function setAdminLook(look) {
+  adminLook = normalizeAdminLook(look);
+  applyAdminLook(adminLook);
+  writeAdminLook(adminLook);
+  // Book accent text was derived against the old surface (as in setThemePreference).
+  if (activeBook) applyBookAccentTokens(activeBook);
+  renderLookControls();
+}
+
+function initLook() {
+  applyAdminLook(adminLook);
+  renderLookControls();
+  document.addEventListener('click', (e) => {
+    const opt = e.target?.closest?.('[data-look-opt]');
+    if (opt) setAdminLook(opt.dataset.lookOpt);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    const opt = e.target?.closest?.('[data-look-opt]');
+    if (!opt) return;
+    e.preventDefault();
+    const step = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : -1;
+    const next = ADMIN_LOOKS[(ADMIN_LOOKS.indexOf(adminLook) + step + ADMIN_LOOKS.length) % ADMIN_LOOKS.length];
+    setAdminLook(next);
+    opt.closest('[data-look-seg]')?.querySelector(`[data-look-opt="${next}"]`)?.focus();
+  });
+}
+
 // main.js is a deferred module, so the document is fully parsed by the time
 // this runs — the controls' host markup exists and needs no DOMContentLoaded.
 initTheme();
+initLook();
 
 // Publish the app header's height as --sticky-top so the ledger tables marked
 // .sys-sticky-head can pin their column labels just below it. Same reasoning as

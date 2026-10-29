@@ -778,6 +778,7 @@ tr.hist-row:hover {
   transform:translateX(calc(var(--tseg-index, 0) * 100%));
   transition:transform var(--dur-base) var(--ease-spring);
 }
+.look-seg::before{width:calc((100% - 4px) / 2);}
 .theme-seg-opt{
   appearance:none;border:none;background:transparent;cursor:pointer;
   /* Above the travelling pill so the label is never painted over. */
