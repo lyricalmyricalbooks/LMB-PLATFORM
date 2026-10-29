@@ -72,7 +72,7 @@ describe("the scheduled photo passes honour a limit", () => {
     const books = Array.from({ length: 5 }, (_, i) => ({ id: `b${i}`, data: () => ({ photos: [{ url: `https://firebasestorage.googleapis.com/v0/b/shop.firebasestorage.app/o/p${i}.jpg?alt=media` }] }) }));
     const writes = [];
     const db = {
-      collection: (name) => ({
+      collection: () => ({
         doc: () => ({ get: async () => ({ data: () => ({}) }), set: async (data) => { writes.push(data); } }),
         get: async () => ({ docs: books }),
         where: () => ({ get: async () => ({ docs: books }) }),
