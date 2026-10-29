@@ -1,5 +1,6 @@
 // In-memory stand-ins for the email service's sent log, Resend's answers and the newsletter reputation store, for tests. The real sent log is a
 // Firestore collection in the platform project (`emailSent/<idempotency key>`), with the same three calls.
+import { createEmailService } from "./index.js";
 
 export function fakeSentLog() {
   const entries = new Map();
@@ -93,4 +94,16 @@ export function fakeResendDomains() {
       if (found) domains.delete(found.name);
     },
   };
+}
+
+/**
+ * The real email service with a practice key, delivering through `deliver(resendBody) -> { id }` instead of Resend.
+ * The walkthrough uses it to show the platform's real emails in its practice inbox (walkthrough/practiceEmail.js).
+ */
+export function practiceEmailService({ env = {}, registry, deliver }) {
+  const fetch = async (_url, init = {}) => {
+    const { id } = await deliver(JSON.parse(init.body ?? "{}"));
+    return new Response(JSON.stringify({ id }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  return createEmailService({ env: { ...env, RESEND_API_KEY: "re_practice_walkthrough" }, fetch, registry, sentLog: fakeSentLog() });
 }
