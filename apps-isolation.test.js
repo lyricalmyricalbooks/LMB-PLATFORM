@@ -47,7 +47,8 @@ test("no app copy has a default Firebase project", () => {
 });
 
 // Nothing here may publish a site: no custom-domain file (GitHub Pages would claim that address) and no workflow in
-// the root folder, the only one GitHub runs, that deploys.
+// the root folder, the only one GitHub runs, that deploys. The one exception is walkthrough-site.yml (the owner asked
+// for the walkthrough on GitHub Pages, 29 October 2026): it publishes pictures of pretend data and nothing else.
 test("no app copy claims a web address", () => {
   const found = [...files("apps")].filter((path) => basename(path) === "CNAME");
   assert.deepEqual(found, []);
@@ -56,6 +57,7 @@ test("no app copy claims a web address", () => {
 test("no workflow deploys anything", () => {
   const dir = ".github/workflows";
   const deploys = readdirSync(dir).filter((name) =>
+    name !== "walkthrough-site.yml" &&
     /firebase\s+deploy|deploy-pages|FirebaseExtended\/action-hosting-deploy|peaceiris\/actions-gh-pages/i.test(readFileSync(join(dir, name), "utf8")),
   );
   assert.deepEqual(deploys, []);
