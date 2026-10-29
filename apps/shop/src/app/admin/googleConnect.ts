@@ -19,6 +19,8 @@ export type GoogleStatus = {
   connected?: boolean;
   accountEmail?: string | null;
   connectedAt?: string | null;
+  /** Google ended the link (password changed, access removed, unused for months): the press signs in again. */
+  needsReconnect?: boolean;
   extrasOffered?: GoogleExtra[];
   extrasChosen?: GoogleExtra[];
   steps?: GoogleStep[];
@@ -39,6 +41,12 @@ export const GOOGLE_PARTS: Record<string, { label: string; about: string }> = {
   ads: { label: "Google Ads", about: "Lets you advertise your books. Nothing is spent unless you start an ad yourself." },
 };
 
+export const RECONNECT_WORDS = {
+  title: "Google needs you to sign in again",
+  text: "Google stopped letting Colophon in, often after a password change or removing access. Your shop keeps working, and your order emails go out from Colophon's address until you reconnect. Nothing is lost.",
+  button: "Reconnect Google",
+} as const;
+
 const TONE = { done: "success", waiting: "warning", failed: "danger" } as const;
 export const stepTone = (state: GoogleStep["state"]) => TONE[state] ?? "neutral";
 export const stepWord = (state: GoogleStep["state"]) => (state === "done" ? "Linked" : state === "waiting" ? "Waiting" : "Didn't work");
@@ -53,6 +61,7 @@ export function readGoogleStatus(answer: unknown): GoogleStatus {
     connected: a.connected === true,
     accountEmail: typeof a.accountEmail === "string" ? a.accountEmail : null,
     connectedAt: typeof a.connectedAt === "string" ? a.connectedAt : null,
+    needsReconnect: a.connected === true && a.needsReconnect === true,
     extrasOffered: extras(a.extrasOffered),
     extrasChosen: extras(a.extrasChosen),
     steps: Array.isArray(a.steps)
