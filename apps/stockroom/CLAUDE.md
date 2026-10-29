@@ -114,3 +114,13 @@ optional `name` ("Moth_Press_Tax_Report_2026.csv", or `fileStem({ lower: true })
 or "Stockroom" when the profile names none. Never type one press's name into a file name or label: the platform's
 `apps-isolation.test.js` fails on it. The stockroom's own ids keep their old word on purpose (the `DATA_ROOT` database
 folder, the Apps Script `service` ids, browser-storage keys): renaming them would orphan saved data and deployed scripts.
+
+## Products sold in sizes (plan 10.5, 28 October 2026)
+A product in sizes or colours is one stock item per size, each with its own ledger, so counting, sales and payouts work
+exactly as for a book. Items of one product carry `group: { id, name }` (`src/lib/product-groups.js`); the catalogue
+shows a group of two or more as one block (`catalogGroups`). The website link sends `product` (the product's name) with
+each edition of a product that uses the shop's option picker; adding one such size from the website list then asks once
+to add the other sizes (`addOtherSizes` in `main.js`, run last in `saveBookFromModal`). Books and their editions carry
+no `product` and no group, so nothing changes for them. After a save the form closes with `closeM` + `resetBookForm`,
+not `closeAddBookModal`: the latter's "Discard your unsaved changes?" prompt shares `m-confirm` and swallowed the next
+question.
