@@ -21,6 +21,7 @@ import { TEST_SHOP } from "../setup/test-shop.js";
 import { PORTS, url } from "../demo/config.js";
 import { startPage } from "./startPage.js";
 import { statusSummary } from "../status/summary.js";
+import { seedRoom } from "./seedRoom.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const HERE = join(ROOT, "walkthrough");
@@ -47,11 +48,11 @@ export const PAGES = Object.freeze([
   { name: "Account", path: "/account/", note: "signs in as owner@example.com, who has three made-up presses" },
 ]);
 
-/** The two presses the walkthrough starts with, both owned by owner@example.com. */
+/** The three presses the walkthrough starts with, all owned by owner@example.com. */
 export const SEED_PRESSES = Object.freeze([
   { pressName: "Moth Press", address: "moth-press", plan: "both", note: "on its free trial, no card yet" },
   { pressName: "Paper Wasp Press", address: "paper-wasp", plan: "shop", note: "paused until a card is added" },
-  { pressName: "Lantern Editions", address: "lantern-editions", plan: "both", note: "paying monthly, with a card and two paid invoices" },
+  { pressName: "Fieldnote Editions", address: "fieldnote", plan: "both", note: "paying monthly, with a card and two paid invoices" },
 ]);
 
 /** People waiting on the waitlist, for the control room's Sign-ups and the waitlist. */
@@ -97,8 +98,9 @@ export const WALKTHROUGH_TEST_SHOP = Object.freeze({ ...TEST_SHOP, ownerEmail: "
 
 /**
  * Makes the platform's pretend world and fills it: three made-up presses for owner@example.com (one on its free trial,
- * one paused until a card is added, one paying with past invoices), a waitlist, an invite, a help request, health
- * checks, and the platform's test shop, which is the demo shop, with a passed release check. Returns the world.
+ * one paused until a card is added, one paying with past invoices), the platform's test shop, which is the demo shop,
+ * with a passed release check, three more presses with repairs, support requests and the rest (seedRoom.js), and an
+ * invite, a help request and health checks for the account and status pages. Returns the world.
  */
 export async function seedWalkthrough(world) {
   for (const press of SEED_PRESSES) {
@@ -111,6 +113,8 @@ export async function seedWalkthrough(world) {
     await world.registry.saveProfile(row.shopId, { ...((await world.registry.getProfile(row.shopId)) ?? {}), siteUrl });
     await world.registry.recordReleaseCheck(row.shopId, { ok: true, finishedAt: world.clock.date().toISOString(), version: "demo" });
   }
+  // The rest of the platform's day, so no control-room page starts empty (seedRoom.js).
+  await seedRoom(world);
   await seedHistory(world);
   return world;
 }
@@ -119,15 +123,15 @@ const OWNER_CLAIMS = Object.freeze({ ...SEED_OWNER });
 const DAY_SECONDS = 86_400;
 
 /**
- * What a few weeks of use leaves behind, so no page opens empty: Lantern Editions has a card and has paid two months
+ * What a few weeks of use leaves behind, so no page opens empty: Fieldnote Editions has a card and has paid two months
  * (two invoices), Moth Press has a teammate and an invite waiting, the owner has asked the help desk a question, and
  * every live shop has passed its latest health check (the status page reads those).
  */
 async function seedHistory(world) {
-  const lantern = "lantern-editions";
-  const sub = [...world.stripe.world.subscriptions.values()].find((one) => one.metadata?.lmb_shop_id === lantern);
+  const fieldnote = "fieldnote";
+  const sub = [...world.stripe.world.subscriptions.values()].find((one) => one.metadata?.lmb_shop_id === fieldnote);
   if (sub && !sub.default_payment_method) {
-    const asked = await world.ask(OWNER_CLAIMS, "POST", "/api/billing/card", { shopId: lantern });
+    const asked = await world.ask(OWNER_CLAIMS, "POST", "/api/billing/card", { shopId: fieldnote });
     const session = String(asked.body?.url ?? "").split("/").pop();
     if (session) await world.stripeEvent("checkout.session.completed", world.stripe.completeSetup(session));
     const now = Math.floor(world.clock.ms() / 1000);

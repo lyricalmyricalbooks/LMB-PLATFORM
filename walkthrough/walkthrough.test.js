@@ -114,9 +114,9 @@ test("the web door answers: plans open, the owner's three presses, and the newco
   assert.equal(plans.body.signupOpen, true);
   assert.equal(plans.body.plans.length, 3);
 
-  const order = ["Moth Press", "Paper Wasp Press", "Lantern Editions"];
+  const order = ["Moth Press", "Paper Wasp Press", "Fieldnote Editions"];
   const shops = (await call(OWNER, "GET", "/api/accounts/shops")).body.shops.sort((a, b) => order.indexOf(a.pressName) - order.indexOf(b.pressName));
-  assert.deepEqual(shops.map((shop) => [shop.pressName, shop.status, shop.role]), [["Moth Press", "live", "owner"], ["Paper Wasp Press", "live", "owner"], ["Lantern Editions", "live", "owner"]]);
+  assert.deepEqual(shops.map((shop) => [shop.pressName, shop.status, shop.role]), [["Moth Press", "live", "owner"], ["Paper Wasp Press", "live", "owner"], ["Fieldnote Editions", "live", "owner"]]);
   assert.deepEqual(shops.map((shop) => shop.access), ["open", "paused", "open"], "one on its trial, one paused until a card is added, one paying");
   assert.deepEqual(shops.map((shop) => shop.billing?.status), ["trialing", "incomplete", "active"]);
   assert.deepEqual((await call(NEWCOMER, "GET", "/api/signup")).body.shops, []);

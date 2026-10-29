@@ -52,6 +52,9 @@
       else root.setAttribute('data-theme', pref);
       root.classList.toggle('theme-dark', dark);
       root.classList.toggle('theme-light', !dark);
+      // The look (Riso Press or Paper, src/lib/admin-look.js) and the day/night mark <body> reads: the body script below.
+      if (localStorage.getItem('lm-admin-look') === 'paper') root.setAttribute('data-admin-look', 'paper');
+      root.setAttribute('data-boot-appearance', dark ? 'dark' : 'light');
       if (dark) {
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', '#141413');
@@ -324,7 +327,14 @@
 </style>
 
 </head>
-<body>
+<body class="rp">
+<script>
+  (function () {
+    var a = document.documentElement.getAttribute('data-boot-appearance');
+    document.documentElement.removeAttribute('data-boot-appearance');
+    if (a) document.body.setAttribute('data-rp-appearance', a);
+  })();
+</script>
 
 <!-- APP LAUNCH SPLASH SCREEN (Covers the split-second auth connection flash) -->
 <div id="splash-screen" style="position: fixed; inset: 0; background: var(--ink); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.4s ease;">
@@ -461,6 +471,13 @@
           <span class="tsr-sub" id="theme-sub-side">Following your device</span>
         </span>
         <div class="theme-seg" role="radiogroup" aria-label="Appearance" data-theme-seg></div>
+      </div>
+      <div class="theme-seg-row">
+        <span class="tsr-label">
+          <span class="tsr-title">Look</span>
+          <span class="tsr-sub" data-look-sub>Ink outlines on cream paper</span>
+        </span>
+        <div class="theme-seg look-seg" role="radiogroup" aria-label="Look" data-look-seg></div>
       </div>
       <!-- A display preference, so it lives with Appearance rather than in the
            nav list: it quiets the red menu badges without clearing the work. -->
@@ -618,6 +635,13 @@
             <span class="tsr-sub" id="theme-sub-header">Following your device</span>
           </span>
           <div class="theme-seg" role="radiogroup" aria-label="Appearance" data-theme-seg></div>
+        </div>
+        <div class="theme-seg-row">
+          <span class="tsr-label">
+            <span class="tsr-title">Look</span>
+            <span class="tsr-sub" data-look-sub>Ink outlines on cream paper</span>
+          </span>
+          <div class="theme-seg look-seg" role="radiogroup" aria-label="Look" data-look-seg></div>
         </div>
         <div class="header-menu-sep"></div>
         <button class="header-menu-item" onclick="forceSync()"><span class="hmi-ico">↺</span><span class="hmi-txt"><span class="hmi-label">Refresh sync</span><span class="hmi-sub">Pull the latest from Firestore</span></span></button>

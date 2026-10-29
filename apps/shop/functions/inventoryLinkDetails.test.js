@@ -51,6 +51,11 @@ describe("the website's linked editions", () => {
     expect(link.detailPatch(BOOKS[0], { field: "title", app: "" })).toBeNull();
     expect(link.detailPatch(BOOKS[1], { field: "price", variantId: "gone", app: "5.00" })).toBeNull();
   });
+  test("a product that isn't a book gets its SKU back, never an ISBN (plan 10.6)", () => {
+    const tee = { id: "t", title: "Moth Tee", kind: "clothing", sku: "TEE", variants: [{ id: "m", name: "M", sku: "TEE-M" }] };
+    expect(link.detailPatch(tee, { field: "isbn", variantId: "m", app: "TEE-MED" }).variants[0]).toEqual({ id: "m", name: "M", sku: "TEE-MED" });
+    expect(link.detailPatch({ id: "r", title: "Ring", kind: "jewelry" }, { field: "isbn", app: "RING-2" })).toEqual({ sku: "RING-2" });
+  });
   test("the app's books for the admin search", () => {
     expect(link.appBookIndex([{ id: "hound", title: "The Hound", isbn: "—" }, { id: "bad id!", title: "x" }]))
       .toEqual([{ id: "hound", title: "The Hound", author: "", isbn: "" }]);

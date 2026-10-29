@@ -199,8 +199,8 @@ npm run walkthrough:all
 - **Sign up** (`/signup/`): "Continue with Google" signs in as a made-up new press, **newcomer@example.com**. Fill in
   the form and watch the shop being made. Then open the account page to see it.
 - **Account** (`/account/`): signs in as **owner@example.com**, who has three made-up presses, Moth Press (on its free
-  trial), Paper Wasp Press (paused until a card is added) and Lantern Editions (paying, with two paid invoices).
-- **Plan & billing** (`/account/billing?shop=moth-press`, `?shop=paper-wasp` and `?shop=lantern-editions`): the plan, the card, changing plan,
+  trial), Paper Wasp Press (paused until a card is added) and Fieldnote Editions (paying, with two paid invoices).
+- **Plan & billing** (`/account/billing?shop=moth-press`, `?shop=paper-wasp` and `?shop=fieldnote`): the plan, the card, changing plan,
   invoices and cancelling. **Add a card** opens a stand-in card page; press its button to add a test card. No money
   moves.
 - **Waitlist** (`/waitlist/`): the page with the plans and **Start your free trial**.

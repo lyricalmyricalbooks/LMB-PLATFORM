@@ -15,6 +15,7 @@ import { controlRoomAdmins, createControlRoom, profilePublisher } from "../contr
 import { fakeActivity, fakeBreachStore, fakeInviteStore, fakePlatformState, fakeRepairStore, fakeShopAccess, fakeWaitlist } from "../control-room/fakes.js";
 import { createPlatformControls, platformRoutes } from "../control-room/platformControls.js";
 import { createBackupAccess, emergencyRoutes } from "../control-room/backupPerson.js";
+import { createBreachRegister } from "../control-room/breaches.js";
 import { runBook } from "../control-room/runbook.js";
 import { controlRoomPeople } from "../control-room/people.js";
 import { createInvites } from "../waitlist/invites.js";
@@ -126,7 +127,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const waitlist = fakeWaitlist(waitlisted);
   const room = createControlRoom({
     registry, auditLog, profileFiles, shopAccess: fakeShopAccess(), repairs, signups: stores.signups, shopData,
-    publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: fakeBreachStore(), people,
+    publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: fakeBreachStore(), registry, auditLog, now: clock.date }), people,
     activity, supportStore, recoveryStore, platformState, admins, now: clock.date,
   });
   const controls = createPlatformControls({

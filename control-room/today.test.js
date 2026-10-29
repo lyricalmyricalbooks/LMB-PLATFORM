@@ -50,5 +50,7 @@ test("needs you: broken shops, failed payments, the queues and stuck sign-ups, e
   assert.match(needs.find((n) => n.shopId === "broken").words, /checkout check is failing/);
   assert.equal(needs.find((n) => n.kind === "support").words, "2 support requests waiting");
   assert.equal(needs.find((n) => n.kind === "signup").go, "#making");
+  // The queues carry their count, for the badges in the side menu.
+  assert.equal(needs.find((n) => n.kind === "support").count, 2);
   assert.deepEqual(todaySummary({ rows: [], settings, now: NOW }).needs, []);
 });

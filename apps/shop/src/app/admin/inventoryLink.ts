@@ -3,6 +3,7 @@
 // { [websiteBookId]: { "_" | variantId: inventoryBookId } }.
 import { isBundle, isGiftCardProduct } from "../features/site/promotions";
 import { shopProfile } from "../../lib/shopProfile";
+import { isBookKind, productKind } from "../../shared/productOptions";
 
 export type InventoryLinks = Record<string, Record<string, string>>;
 
@@ -48,6 +49,12 @@ const isDigital = (book: any, variant: any) => (variant
   : book.digital === true || DIGITAL_RE.test(String(book.format || "")));
 
 /** Every printed website book/edition that can be linked (no e-books, box sets or gift cards). */
+/** An edition's code: its ISBN, or for a product that isn't a book its SKU (plan 10.6; mirrors functions/inventoryLink.js codeOf). */
+function codeOf(book: any, variant: any): string {
+  if (isBookKind(productKind(book))) return String(variant?.isbn || book.isbn || "");
+  return String((variant && (variant.isbn || variant.sku)) || book.isbn || book.sku || "");
+}
+
 export function linkableEditions(books: any[]): LinkableEdition[] {
   const out: LinkableEdition[] = [];
   for (const book of books || []) {
@@ -58,16 +65,18 @@ export function linkableEditions(books: any[]): LinkableEdition[] {
       for (const v of variants) {
         if (isDigital(book, v)) continue;
         out.push({ ...base, key: editionKey(book.id, v.id), variantId: v.id, edition: String(v.name || v.format || "Edition"),
-          isbn: String(v.isbn || book.isbn || ""), stock: whole(v.stockLevel !== undefined ? v.stockLevel : v.stock) });
+          isbn: codeOf(book, v), stock: whole(v.stockLevel !== undefined ? v.stockLevel : v.stock) });
       }
     } else if (!isDigital(book, null)) {
-      out.push({ ...base, key: editionKey(book.id, null), variantId: null, edition: "", isbn: String(book.isbn || ""), stock: whole(book.stockLevel) });
+      out.push({ ...base, key: editionKey(book.id, null), variantId: null, edition: "", isbn: codeOf(book, null), stock: whole(book.stockLevel) });
     }
   }
   return out.sort((a, b) => a.title.localeCompare(b.title) || a.edition.localeCompare(b.edition));
 }
 
 const isbnDigits = (v: unknown) => String(v || "").replace(/[^0-9Xx]/g, "").toUpperCase();
+// A product's own code ("TEE-M", plan 10.6): letters and digits, at least 3, and not an ISBN (matched above).
+const skuKey = (v: unknown) => { const s = String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); return s.length >= 3 && !/^[0-9X]{10,}$/.test(s) ? s : ""; };
 const norm = (v: unknown) => String(v || "").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
 /**
@@ -78,10 +87,13 @@ const norm = (v: unknown) => String(v || "").toLowerCase().normalize("NFKD").rep
 export function suggestLinks(editions: LinkableEdition[], appBooks: InventoryAppBook[], links: InventoryLinks): Record<string, string> {
   const used = new Set(Object.values(links || {}).flatMap((e) => Object.values(e || {})));
   const byIsbn = new Map<string, InventoryAppBook[]>();
+  const bySku = new Map<string, InventoryAppBook[]>();
   const byTitle = new Map<string, InventoryAppBook[]>();
   for (const b of appBooks || []) {
     const isbn = isbnDigits(b.isbn);
     if (isbn.length >= 10) byIsbn.set(isbn, [...(byIsbn.get(isbn) || []), b]);
+    const sku = skuKey(b.isbn);
+    if (sku) bySku.set(sku, [...(bySku.get(sku) || []), b]);
     const t = norm(b.title);
     if (t) byTitle.set(t, [...(byTitle.get(t) || []), b]);
   }
@@ -98,7 +110,9 @@ export function suggestLinks(editions: LinkableEdition[], appBooks: InventoryApp
     const isbn = isbnDigits(e.isbn);
     // A book whose only printed edition is this one may carry just the title in the inventory app.
     const onlyPrinted = printedPerBook.get(e.bookId) === 1;
+    const sku = skuKey(e.isbn);
     const id = (isbn.length >= 10 ? pick(byIsbn.get(isbn)) : null)
+      || (sku ? pick(bySku.get(sku)) : null)
       || (e.edition ? pick(byTitle.get(norm(`${e.title} ${e.edition}`))) : null)
       || (!e.edition || onlyPrinted ? pick(byTitle.get(norm(e.title))) : null);
     if (id) { out[e.key] = id; taken.add(id); }

@@ -9,7 +9,7 @@ modules, no packages of its own, no emulators, no network. The plain-words guide
 | File | What it does |
 | --- | --- |
 | `run.js` | The command. Prints the addresses. `--port <number>` (or `WALKTHROUGH_PORT`) picks another port than 5180; `--with-demo` also starts the demo in the same terminal (its `--fresh`, `--no-functions` and `--new-press` pass through) and waits for it to save on Ctrl+C. |
-| `server.js` | `startWalkthrough({ port })`: serves the pages' own files from their folders, the web door at `/api`, a stand-in card page, and the start page at `/` (and `/start`). Port 0 picks a free port (the tests). Seeds two presses, the platform's test shop (the demo shop, with a passed release check) and three waitlist entries. |
+| `server.js` | `startWalkthrough({ port })`: serves the pages' own files from their folders, the web door at `/api`, a stand-in card page, and the start page at `/` (and `/start`). Port 0 picks a free port (the tests). Seeds three presses for the owner (trial, paused, paying), the presses and history of `seedRoom.js`, the platform's test shop (the demo shop, with a passed release check) the waitlist, an invite, a help request and health checks. `/status/` reads `/walkthrough/status`. |
 | `startPage.js` | `START_SECTIONS` (every link, who it signs in as, what to try there) and `startPage()`. Walkthrough links name their person with `?as=`, so they open as that person whoever signed in last. |
 | `browser-check.js` | `node walkthrough/browser-check.js` (CI job `walkthrough-browser`): Chromium opens the start page and every walkthrough link on it as its person, and fails on a page error, a console error, a failed `/api` call or a page that never shows its signed-in view. The demo's links are left out. `WALKTHROUGH_SHOTS=<folder>` keeps screenshots. |
 | `world.js` | `platformWorld()`: the whole platform joined with pretend services (see below). The server and `road.test.js` both use it. |
@@ -24,7 +24,7 @@ modules, no packages of its own, no emulators, no network. The plain-words guide
 | `/control/` | `control-room/index.html` | Signs in as `admin@example.com` with two-step claims (`firebase.sign_in_second_factor: "totp"`, a fresh `auth_time`), so every panel opens. This sign-in is never remembered, so the other pages keep their own person. |
 | `/waitlist/` | `waitlist/index.html` | Plans from `/api/plans` and **Start your free trial** (the walkthrough turns sign-up on). The form keeps sign-ups in memory. |
 | `/signup/` | `signup/index.html` | "Continue with Google" signs in as `newcomer@example.com`, who has no shop yet. |
-| `/account/` (and `/accounts/`) | `accounts/index.html` | Signs in as `owner@example.com`, who has two presses. |
+| `/account/` (and `/accounts/`) | `accounts/index.html` | Signs in as `owner@example.com`, who has three presses: Moth Press (trial), Paper Wasp Press (paused) and Fieldnote Editions (paying). |
 | `/account/billing?shop=moth-press` | `accounts/billing.html` | The press on its free trial. |
 | `/account/billing?shop=paper-wasp` | `accounts/billing.html` | The press paused until a card is added. |
 | `/help/`, `/terms/` | `help/`, `terms/` | The pages the others link to. |

@@ -1,4 +1,4 @@
-// Copies the admin look from this folder (the one source) into both apps, or checks the copies still match it.
+// Copies the admin look from this folder (the one source) into both apps and the control room, or checks the copies still match it.
 //   node shared/admin-look/sync.mjs          write the copies
 //   node shared/admin-look/sync.mjs --check  fail if a copy differs (shared/admin-look/admin-look.test.js runs this)
 // Never edit a copy: the shop and the stockroom build from the copies, and this script overwrites them.
@@ -11,8 +11,8 @@ const root = resolve(here, "../..");
 
 /** source file -> where each app keeps its copy */
 export const COPIES = [
-  { from: "adminThemes.css", to: ["apps/shop/src/app/admin/riso/adminThemes.css", "apps/stockroom/src/styles/admin-look/adminThemes.css"] },
-  { from: "pressroom.css", to: ["apps/shop/src/app/admin/riso/riso.css", "apps/stockroom/src/styles/admin-look/pressroom.css"] },
+  { from: "adminThemes.css", to: ["apps/shop/src/app/admin/riso/adminThemes.css", "apps/stockroom/src/styles/admin-look/adminThemes.css", "control-room/look/adminThemes.css"] },
+  { from: "pressroom.css", to: ["apps/shop/src/app/admin/riso/riso.css", "apps/stockroom/src/styles/admin-look/pressroom.css", "control-room/look/pressroom.css"] },
 ];
 
 /** The platform's own pages (waitlist, sign-up, accounts, help, terms, status, walkthrough start page): each folder is
@@ -58,6 +58,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, expected(from));
     }
-    console.log("Admin look copied into the shop, the stockroom and the platform pages.");
+    console.log("Admin look copied into the shop, the stockroom, the control room and the platform pages.");
   }
 }
