@@ -64,6 +64,7 @@ export const START_SECTIONS = Object.freeze([
       { name: "Plan & billing on a free trial", href: "/account/billing?shop=moth-press&as=owner@example.com", who: "owner@example.com", try: "Moth Press, on its trial with no card yet. Change the plan, or press Add a card." },
       { name: "Plan & billing when paused", href: "/account/billing?shop=paper-wasp&as=owner@example.com", who: "owner@example.com", try: "Paper Wasp Press, paused until a card is added. Add a card: the page that opens takes the test card, and the shop opens again." },
       { name: "Plan & billing when paying", href: "/account/billing?shop=fieldnote&as=owner@example.com", who: "owner@example.com", try: "Fieldnote Editions, paying monthly: its card, two paid invoices and the next bill." },
+      { name: "The emails a press gets", href: "/inbox", who: null, try: "The platform's real emails, as they look in a mailbox: sign-in links, invites, the shop-ready email, trial and billing notices and support answers. Sign up or add a card above and the new email shows up here." },
       { name: "Help", href: "/help/", who: null, try: "The answers the pages link to, and what support includes." },
       { name: "Terms", href: "/terms/", who: null, try: "The terms and the privacy policy a press agrees to at sign-up." },
       { name: "Service status", href: "/status/", who: null, try: "Whether shops, checkout and backups are working, counted over the walkthrough's shops." },

@@ -22,6 +22,12 @@ import { PORTS, url } from "../demo/config.js";
 import { startPage } from "./startPage.js";
 import { statusSummary } from "../status/summary.js";
 import { seedRoom } from "./seedRoom.js";
+import { inboxPage } from "../demo/practiceServices.js";
+
+const PLATFORM_INBOX = {
+  intro: "Every email the platform itself sends lands here instead of anyone's mailbox: sign-in links, waitlist invites, trial and billing notices, support answers and the rest. These are the real emails a press would get. Nothing leaves this computer.",
+  empty: "No emails yet. Sign up as a new press, invite someone from the waitlist in the control room, or add a card on a paused shop, and the email shows up here. This page checks again every few seconds.",
+};
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const HERE = join(ROOT, "walkthrough");
@@ -256,6 +262,11 @@ export async function startWalkthrough({ port = 0, host = "127.0.0.1", world = n
     }
 
     // The status page's one public summary, made from the pretend shops' health checks as status/publish.js would.
+    // The platform's own emails (practiceEmail.js), shown as a mailbox would.
+    if (pathname === "/inbox" || pathname === "/inbox/") {
+      const open = new URL(request.url, "http://walkthrough.local").searchParams.get("open");
+      return send(response, 200, inboxPage(made.email.inbox.all(), open, PLATFORM_INBOX), TYPES[".html"]);
+    }
     if (pathname === "/walkthrough/status") return send(response, 200, statusSummary(await made.registry.listShops(), { now: made.clock.date }));
 
     if (pathname === "/walkthrough/waitlist" && request.method === "POST") {

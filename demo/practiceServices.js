@@ -20,8 +20,16 @@ async function readBody(req) {
 
 const when = (iso) => new Date(iso).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" });
 
-/** The practice inbox page: every email the shop sent, newest first, each opened in place. */
-export function inboxPage(mail, openId = null) {
+const SHOP_INBOX = {
+  intro: "Every email the demo shop sends lands here instead of anyone's mailbox: order confirmations, shipping and refund notices, your new-order alerts and the rest. Nothing leaves this computer.",
+  empty: `No emails yet. Buy something in the demo shop (pay with the practice card ${PRACTICE_CARDS.good}) and the order confirmation shows up here within a few seconds. This page checks again every few seconds.`,
+};
+
+/**
+ * The practice inbox page: every email sent, newest first, each opened in place. `words` changes the line under the
+ * heading and the empty message (the walkthrough's platform inbox uses its own); the shop's are the default.
+ */
+export function inboxPage(mail, openId = null, words = SHOP_INBOX) {
   const open = mail.find((m) => m.id === openId) ?? mail[0] ?? null;
   const rows = mail.map((m) => `<li><a href="/inbox?open=${encodeURIComponent(m.id)}"${open && m.id === open.id ? ' aria-current="true"' : ""}>
     <b>${escape(m.subject)}</b><span>To ${escape(m.to.join(", "))}</span><time>${escape(when(m.at))}</time></a></li>`).join("\n");
@@ -62,7 +70,7 @@ export function inboxPage(mail, openId = null) {
 <body>
 <header>
   <h1>Practice inbox</h1>
-  <p>Every email the demo shop sends lands here instead of anyone's mailbox: order confirmations, shipping and refund notices, your new-order alerts and the rest. Nothing leaves this computer.</p>
+  <p>${escape(words.intro)}</p>
 </header>
 ${mail.length ? `<main>
 <ul aria-label="Emails, newest first">
@@ -79,7 +87,7 @@ ${rows}
   </dl>
   ${body}
 </section>
-</main>` : `<p class="empty">No emails yet. Buy something in the demo shop (pay with the practice card ${escape(PRACTICE_CARDS.good)}) and the order confirmation shows up here within a few seconds. This page checks again every few seconds.</p>`}
+</main>` : `<p class="empty">${escape(words.empty)}</p>`}
 </body>
 </html>
 `;

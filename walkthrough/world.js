@@ -36,7 +36,8 @@ import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices 
 import { TEST_CONFIG } from "../setup/test-shop.js";
 import { createBilling } from "../services/billing/billing.js";
 import { createPaymentWay } from "../services/billing/paymentWay.js";
-import { fakeBillingStores, fakeBillingStripe, fakePlatformEmail } from "../services/billing/fakes.js";
+import { fakeBillingStores, fakeBillingStripe } from "../services/billing/fakes.js";
+import { practicePlatformEmail } from "./practiceEmail.js";
 import { fakeStockroomData } from "../services/billing/closingFakes.js";
 import { shopPlanCopies } from "../services/billing/shopPlan.js";
 import { fakeFeeLedgerStore } from "../services/payments/feeLedgerFakes.js";
@@ -84,7 +85,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   // Billing, on a pretend Stripe.
   const stripe = fakeBillingStripe({ clock: () => Math.floor(clock.ms() / 1000) });
-  const email = fakePlatformEmail();
+  // The platform's emails, written from their real templates into a practice inbox (practiceEmail.js).
+  const email = practicePlatformEmail({ env: settingsEnv, registry });
   const closed = [];
   const billingDeps = {
     stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),

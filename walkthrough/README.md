@@ -31,6 +31,7 @@ modules, no packages of its own, no emulators, no network. The plain-words guide
 | `/account/billing?shop=fieldnote` | `accounts/billing.html` | The press paying monthly. |
 | `/status/` | `status/` | Service status over the walkthrough's shops. |
 | `/help/`, `/terms/` | `help/`, `terms/` | The pages the others link to. |
+| `/inbox` | the practice inbox (`practiceEmail.js`) | Every platform email the walkthrough sends (sign-in links, invites, the shop-ready email, trial, billing and support), written by the real email service from its real templates (`services/email/fakes.js` `practiceEmailService`) and kept in memory. |
 | `/walkthrough/card` | a stand-in for Stripe's card page | **Add a card** sends the owner here; its button adds the test card. |
 
 `?as=name@example.com` on any page signs in as someone else. A press made on the sign-up page is made for real by the
