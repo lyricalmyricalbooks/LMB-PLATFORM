@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { appSource, extractDecl } from './helpers/extract-decl.js';
+import { catalogGroups } from '../src/lib/product-groups.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -91,8 +92,8 @@ describe('Test Book Sandbox Isolation & Google Sheets Protection', () => {
       { id: 'test', title: 'TEST PAGE', currency: '€', listPrice: 17 },
       { id: 'greatest', title: 'Greatest Hits', currency: 'CA$', listPrice: 20 },
     ];
-    const render = new Function('$', 'BOOK_LIST', 'escapeHtml', `${extractDecl('isTestBook')}\n${extractDecl('catalogCardHtml')}\n${extractDecl('renderCatalogList')}\nreturn renderCatalogList;`)(
-      id => containers[id], books, text => String(text),
+    const render = new Function('$', 'BOOK_LIST', 'escapeHtml', 'catalogGroups', `${extractDecl('isTestBook')}\n${extractDecl('catalogCardHtml')}\n${extractDecl('renderCatalogList')}\nreturn renderCatalogList;`)(
+      id => containers[id], books, text => String(text), catalogGroups,
     );
     render();
     const live = containers['catalog-list'].innerHTML;

@@ -35,6 +35,13 @@ describe("book lists", () => {
     // A suggestion the owner said "Not these" to is offered as a book to add instead.
     expect(link.shopBooksForApp(BOOKS, APP, STATE.links, { ignoredMatches: { "b5|": "altrove" } }).map(b => b.key)).toContain("b5|");
   });
+  test("plan 10.5: each size of a product sold in options names its product; plain editions don't", () => {
+    const tee = { id: "t1", title: "Moth Tee", kind: "clothing", options: [{ name: "Size", values: ["S", "M"] }],
+      variants: [{ id: "s", name: "S", options: { Size: "S" }, price: 30 }, { id: "m", name: "M", options: { Size: "M" }, price: 30 }] };
+    const list = link.shopBooksForApp([...BOOKS, tee], APP, STATE.links, { now: now.getTime() });
+    expect(list.filter(b => b.bookId === "t1").map(b => [b.key, b.edition, b.product])).toEqual([["t1|m", "M", "Moth Tee"], ["t1|s", "S", "Moth Tee"]]);
+    expect(list.find(b => b.key === "b3|s").product).toBeUndefined();
+  });
   test("app books the shop doesn't have: unmatched, not a suggestion, not marked Not for the shop", () => {
     expect(link.appBooksForShop(BOOKS, APP, STATE.links)).toEqual([{ id: "zine", title: "Fair Zine", author: "Your Press", isbn: "", price: 12, currency: "CA$" }]);
     expect(link.appBooksForShop(BOOKS, APP, STATE.links, { ignoredAppBooks: { zine: "x" } })).toEqual([]);

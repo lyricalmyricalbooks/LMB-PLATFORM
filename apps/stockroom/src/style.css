@@ -7175,6 +7175,25 @@ option,optgroup{background-color:var(--surface-raised);color:var(--content-prima
 .catalog-card:active {
   transform: scale(0.99);
 }
+/* Sizes of one product (plan 10.5): one heading, the sizes indented under it. */
+.catalog-group {
+  display: grid;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: var(--stroke) solid var(--border-default);
+}
+.catalog-group-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--content-primary);
+}
+.catalog-group-count {
+  margin-left: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: normal;
+  color: var(--content-secondary);
+}
 .catalog-dot {
   width: 14px;
   height: 14px;

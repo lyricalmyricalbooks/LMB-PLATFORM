@@ -28,6 +28,7 @@ import { localDay } from '../lib/calendar-day.js';
 import { bookCurrencyCode } from '../lib/currency-migration.js';
 import { missingFromNew, restoreRecords } from '../lib/storage-mode.js';
 import { deriveOnHand } from '../lib/inventory.js';
+import { otherSizes, websiteGroup } from '../lib/product-groups.js';
 import { confirmDialog } from '../lib/modal.js';
 import { countWebsiteOrdersNotSent, openOnWebsiteHtml, websiteAdmin } from '../lib/app-switch.js';
 import { isTestProfileActive } from '../lib/test-profile.js';
@@ -1230,7 +1231,10 @@ function addShopBook(key) {
   if (!shopHere()) return;
   const book = findShopBook(key);
   if (!book) { showToast('That book is no longer on the website’s list', 'warn'); renderWebsiteLinkCard(); return; }
-  openAddBookFromWebsite(bookPrefill(book), key);
+  // Plan 10.5: one size of a product brings its group and the other sizes on offer, added after it's saved.
+  const group = websiteGroup(book);
+  const sizes = otherSizes(book, offeredShopBooks()).map(o => ({ key: o.key, edition: o.edition, price: o.price, isbn: o.isbn, name: shopBookName(o) }));
+  openAddBookFromWebsite({ ...bookPrefill(book), ...(group ? { group, sizes } : {}) }, key);
 }
 
 /**
