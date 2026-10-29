@@ -63,6 +63,7 @@ import { framingStyle, photoAdjust, photoFraming } from "../features/site/photoF
 import { smallPhotoUrl } from "../features/site/photoSources";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { PhotoCropDialog } from "./PhotoCropDialog";
+import { ScanBarcodeButton } from "./ScanBarcodeButton";
 import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
@@ -735,10 +736,10 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     else if (todo.length) toast.success(todo.length === 1 ? "Video added. Save the book to show it in the shop." : `${todo.length} videos added. Save the book to show them in the shop.`);
   };
 
-  const fillFromIsbn = async () => {
+  const fillFromIsbn = async (isbn: string = formData.isbn) => {
     setIsbnBusy(true); setIsbnResult(null);
     try {
-      const facts = await lookupIsbn(formData.isbn);
+      const facts = await lookupIsbn(isbn);
       if (!facts) { setIsbnResult({ text: "No public record found for this ISBN (Open Library, Google Books). Fill the details in yourself." }); return; }
       const { filled } = fillEmpty(formData, facts);
       // Fill from the latest form, so anything typed during the lookup is kept.
@@ -1379,9 +1380,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                       title="Looks the ISBN up on Open Library (then Google Books) and fills only empty fields">
                       {isbnBusy ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <RefreshCw size={13} aria-hidden />} Fill from ISBN
                     </button>
+                    <ScanBarcodeButton label="Scan the ISBN" onCode={code => { setFormData((prev: any) => ({ ...prev, isbn: code })); void fillFromIsbn(code); }} />
                   </div>}
                   <TextField label="SKU" name="sku" value={formData.sku} onChange={handleChange} placeholder="LM-2024-…" />
-                  <TextField label="Barcode / UPC" name="barcode" value={formData.barcode || ""} onChange={handleChange} placeholder="0-00000-00000-0" />
+                  <div>
+                    <TextField label="Barcode / UPC" name="barcode" value={formData.barcode || ""} onChange={handleChange} placeholder="0-00000-00000-0" />
+                    <ScanBarcodeButton label="Scan the barcode" onCode={code => setFormData((prev: any) => ({ ...prev, barcode: code }))} />
+                  </div>
                   {bookKind ? <>
                   <SelectField label="Format" name="format" value={formData.format} onChange={handleChange}>
                     {["Paperback", "Hardcover", "Special Edition", "Box Set", "Zine", "E-book (PDF)", "E-book (EPUB)", "Audiobook"].map((f) => <option key={f}>{f}</option>)}
