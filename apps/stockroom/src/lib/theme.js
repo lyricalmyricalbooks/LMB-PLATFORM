@@ -109,6 +109,13 @@ export function applyThemeToDocument(preference, { document: doc = globalThis.do
   root.classList.toggle('theme-dark', resolved === 'dark');
   root.classList.toggle('theme-light', resolved === 'light');
 
+  // The shared admin look reads day or night from <body> (src/lib/admin-look.js).
+  const body = doc.body;
+  if (body) {
+    body.classList.add('rp');
+    body.setAttribute('data-rp-appearance', resolved);
+  }
+
   // The pre-paint bootstrap in index.html paints <html> inline to kill the
   // launch flash. By the time this runs the stylesheet owns the background, so
   // that inline value has to go — left in place it would pin the page dark
