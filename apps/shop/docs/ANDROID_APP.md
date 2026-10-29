@@ -8,7 +8,7 @@ at once, with no app update.
 ## What is already done
 
 - **The admin is installable.** While the admin is open, the page names its own app file
-  (`public/admin.webmanifest`): name "Shop Admin", short name "LM Admin", opens on the Overview,
+  (`public/admin.webmanifest`): name "Shop Admin", short name "Admin", opens on the Overview,
   runs full screen without the browser bar, and has its own icon (ink square, cream "LM", red rule).
   The shop keeps its own file, so customers never get offered the admin app.
 - **Icons:** `public/admin-icon-192.png`, `public/admin-icon-512.png`, and `public/admin-icon-maskable-512.png`.
@@ -27,7 +27,7 @@ at once, with no app update.
 1. On your Android phone, open Chrome and go to `https://yourpress.example/admin`.
 2. Sign in as usual.
 3. Tap Chrome's **⋮** menu, then **Install app** (on some phones it says **Add to Home screen**, then **Install**).
-4. "LM Admin" appears on your home screen and in your app list. It opens straight into the admin, full screen.
+4. "Admin" appears on your home screen and in your app list. It opens straight into the admin, full screen.
 
 This is a real installed app as far as Android is concerned. For personal use, it may be all you ever need.
 

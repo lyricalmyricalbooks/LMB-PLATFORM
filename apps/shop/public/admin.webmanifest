@@ -1,7 +1,7 @@
 {
   "id": "/admin",
   "name": "Shop Admin",
-  "short_name": "LM Admin",
+  "short_name": "Admin",
   "description": "Orders, stock and sales for Your Press.",
   "start_url": "/admin#overview",
   "scope": "/admin",
