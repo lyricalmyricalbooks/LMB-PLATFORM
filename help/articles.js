@@ -37,6 +37,25 @@ export const ARTICLES = Object.freeze([
     where: ["Books › a book › Editions"],
   },
   {
+    id: "sizes-and-colours",
+    topic: "Getting started",
+    question: "How do I sell something that comes in sizes or colours?",
+    answer: [
+      "Open the product, go to Editions and find Options: size, colour and more. Name an option, such as Size, and list its choices separated by commas, such as S, M, L, XL. Add a second option, such as Colour, if you need one.",
+      "The shop makes one line for every combination, and each line has its own price and its own stock. Shoppers pick their size and colour on the product's page, and a size that has run out shows as sold out.",
+    ],
+    where: ["Books › a product › Editions"],
+  },
+  {
+    id: "size-guide",
+    topic: "Getting started",
+    question: "How do I add a size guide?",
+    answer: [
+      "Open the product and look in its details for Size guide. Type the measurements in the box, or choose a picture of your size chart. Shoppers see it next to the sizes on the product's page.",
+    ],
+    where: ["Books › a product"],
+  },
+  {
     id: "first-week",
     topic: "Getting started",
     question: "What should I do first?",

@@ -9,7 +9,7 @@ import { renderHelp } from "./page.js";
 const words = (a) => [a.question, ...a.answer, ...(a.where || [])].join(" ");
 
 test("each article has its own id, a topic, a question and an answer", () => {
-  assert.equal(ARTICLES.length, 29);
+  assert.equal(ARTICLES.length, 31);
   assert.equal(new Set(ARTICLES.map((a) => a.id)).size, ARTICLES.length);
   for (const a of ARTICLES) {
     assert.match(a.id, /^[a-z][a-z-]+$/, a.id);
