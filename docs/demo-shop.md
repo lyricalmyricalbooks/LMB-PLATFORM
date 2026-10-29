@@ -96,6 +96,9 @@ and everything else, use both: `npm run demo -- --fresh --new-press`.
   refunds work. No money moves, and PayPal and Square can't be tried.
 - **Emails go to the practice inbox**, http://127.0.0.1:5175/inbox, not to anyone's mailbox. They are the shop's real
   emails: the order confirmation, your new-order alert, shipping, refunds and cancel requests.
+- **Files to try the importers with** are at http://127.0.0.1:5175/samples/new-products.csv (a plain product
+  spreadsheet), /samples/old-shop-products.csv (an export from an old shop: a hoodie in sizes and colours) and
+  /samples/old-shop-customers.csv (a customer list). They carry no photos: add those in the product editor.
 - Shipping labels and live carrier rates can't be bought.
 - **Stay online.** The practice sign-in window and the stockroom load a few files from the internet. Your shop's data
   never leaves your computer.
