@@ -15,14 +15,12 @@ the waitlist.
 
 ## Publishing it
 
-A deliberate step on the owner's machine, never from CI. The page is static, so any Hosting site in the platform
-project can serve this folder. Create a site for it once (`firebase hosting:sites:create <site>`), then from this
-folder: `firebase deploy --only hosting --project lmb-platform-prod` with that site in `firebase.json`. The rules go
-out with the waitlist's (`waitlist/`, `firebase deploy --only firestore:rules`).
+A deliberate step on the owner's machine, never from CI. The page goes out with the other platform pages, at
+`/status/` on the platform site (`site/`, see its README), and the rules with it.
 
 - **A note from the team**: the run book's status note (control room, plan 8.7) is shown above the headline, for a
   known problem ("we're looking into it"). It is saved in `platformState/statusNote` and goes out with the summary.
 
 ## Not yet
 
-- A Hosting site and address for it (Julian).
+- The health run that writes `publicStatus/current` (plan 15.6); until it runs, the page can't confirm the status.
