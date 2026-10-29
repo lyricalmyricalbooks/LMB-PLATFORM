@@ -17,15 +17,32 @@ export function rawEmail({ from, to, replyTo, subject, text, html }) {
   return Buffer.from(parts.join("\r\n"), "utf8").toString("base64url");
 }
 
-export function createGmailSend({ google, tokens, registry, config }) {
+/**
+ * Gmail's own sending limits (code plan 15.24): about 500 messages a day from a free Gmail address and 2,000 from a
+ * Google Workspace one. A press's address on gmail.com or googlemail.com is a free account; any other is Workspace.
+ * Shop emails stop going through Gmail at 80% of the limit and go the usual way until the next day (UTC), so a launch-day
+ * rush plus the press's own mail never reaches the limit and starts failing order emails.
+ */
+export const GMAIL_LIMITS = Object.freeze({ free: 500, workspace: 2000 });
+export const GMAIL_STOP_AT = 0.8;
+export const gmailDailyLimit = (address) => (/@(?:gmail|googlemail)\.com$/i.test(String(address ?? "").trim()) ? GMAIL_LIMITS.free : GMAIL_LIMITS.workspace);
+
+export function createGmailSend({ google, tokens, registry, config, now = () => Date.now() }) {
   return async function gmailSend(shopId, { to, replyTo, subject, text, html }) {
     if (!config.gmailSending) throw new Error("Gmail sending isn't switched on");
     const row = await registry.getShop(shopId);
     if (row?.gmailSender?.on !== true) throw new Error(`${shopId} doesn't send from Gmail`);
+    const day = new Date(now()).toISOString().slice(0, 10);
+    const sent24 = row.gmailSends?.day === day ? row.gmailSends.count : 0;
+    const stopAt = Math.floor(gmailDailyLimit(row.gmailSender.address) * GMAIL_STOP_AT);
+    if (sent24 >= stopAt) throw new Error(`${shopId} has sent ${sent24} emails through Gmail today, close to Gmail's daily limit; sending the usual way until tomorrow`);
     const access = await tokens.fresh(shopId);
     if (!access) throw new Error(`${shopId} has no Google link`);
     const name = String(row.pressName || shopId).replace(/[\r\n"<>\\]+/g, " ").trim();
     const sent = await google.sendGmail(access.token, rawEmail({ from: `"${name}" <${row.gmailSender.address}>`, to, replyTo, subject, text, html }));
+    // Counted after a send that worked. Two sends at the same moment can both read the same number: the 20% left under
+    // the limit is the room for that.
+    await registry.updateShop(shopId, { gmailSends: { day, count: sent24 + 1 } });
     return { id: sent.id };
   };
 }

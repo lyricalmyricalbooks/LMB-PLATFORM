@@ -83,7 +83,7 @@ The shop's calls: `google.status`, `google.connectLink { returnUrl, extras }`, `
   to the shop.
 - `domainBridge.js`: `domainsCall`, the one way in to `services/domains`. Until the domain service can add records
   (plan 6.15), it answers `{ waiting: true }` and the part that asked waits.
-- `gmail.js`: `gmailSend` for the email service, once Gmail sending is switched on.
+- `gmail.js`: `gmailSend` for the email service, once Gmail sending is switched on. It keeps a per-day count and stops at 80% of Gmail's daily limit (500 for a free address, 2,000 for Workspace); the email goes the usual way until the next day (plan 15.24).
 - `config.js`: the settings. `fakes.js`: pretend Google, shop project, domain service and stores. `google.test.js`.
 
 ## Settings
