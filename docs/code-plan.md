@@ -584,6 +584,51 @@ Row 15.22 also needs Julian to ask the lawyer whether Colophon must register as 
 
 Next after these: submit Google's review once 15.3, 15.4 and the privacy page are live; Connect Google for the test shop (inside the 100-person cap); the Stripe Connect live switch (step D); a design-partner discount code if the waitlist calls want one.
 
+## Phase 16: getting started (planned 29 October 2026)
+
+Julian (29 October 2026): before a press is given the website admin and the stockroom to enter things, a guided start.
+It covers their details, help moving a shop over, viewing and picking a look, and every Google and other sign-up. When
+they arrive, everything is set up and working. Research: `docs/research/2026-10-29-getting-started.md`. The plan in
+plain words: `plans/2026-10-29-getting-started.md` in the project files.
+
+This phase joins rows that exist (Phase 6 sign-up, Choose your look, the setup guide and Get paid; Phase 3 and 5B
+import; 6.15 domain; 6.17 and 6.20 Google; 1.21 stockroom link). It repeats none of them. Owned elsewhere and linked, not
+repeated: Google approval and permissions (6.17, 6.20, 15.1 to 15.4, 15.12 to 15.15; Google ideas thread); domains and
+email from the press's domain (6.15, 6.18, 15.19); templates and gallery designs (10B, 10.9 to 10.12, 13.9, 13.10, 13.13;
+templates thread); any merchandise and variants (Phase 10A; beyond-books thread); the shared admin look (Phase 11); GST
+wording (15.21); payments law wording (15.22).
+
+**Decisions Julian must make before the rows that depend on them** (each has a recommendation in the plan file):
+1. The gate: the admin opens after press details, look and shipping; Get paid is needed before the first real order.
+2. Google timing: "coming soon" until Google approves the sign-in, or hold new sign-ups until then.
+3. Rival names: the moving-in words stay generic ("your old shop"), per the platform rule.
+4. Past orders: out of the first version.
+
+| # | Repo | Pull request | Proven by | Effort | Status |
+| --- | --- | --- | --- | --- | --- |
+| 16.1 | platform, shop | | A new press with no finished start lands on **Get started** (`/start`) after sign-up, before the admin. Stages run in order, each saved when done; a press who leaves returns to the next unfinished stage. The admin's home sends a press there until the required stages are done. Plan & billing and the paused page stay reachable at all times. Why: today the admin opens with an optional checklist, so a press can start selling with nothing set up. Gate tests with fakes: new shop goes to Get started; finished goes to the admin; leave and return lands on the same stage; a paused or closed shop still reaches Plan & billing; the progress record is admin-only in the rules test | medium | planned |
+| 16.2 | shop | | **Stage 1, Your press.** Press name, the address on receipts (also the ship-from address), contact email (defaults to the owner's), currency and country (from sign-up, confirmed), and the GST/HST question in 15.21's words. Writes to the Settings fields the shop already uses, so nothing is stored twice. Tests: values land in Settings; re-running keeps what was typed; empty required fields refused | quick | planned |
+| 16.3 | shop | | **Stage 2, Bring your shop with you (optional).** "Where do you sell now?" (an online shop, a marketplace, fairs, bookshops, a spreadsheet, nowhere yet), then one drop zone for the product file and, if wanted, the customer file, through the importer of 3.1 and 5.5 to 5.7. The preview shows counts (books, editions, photos to copy, old links to keep) before anything saves. Starting fresh is allowed. Tests: the sample files import as previewed; skipping leaves the shop empty and the stage ticked as skipped; no rival name in any press-facing word | medium | planned |
+| 16.4 | shop, platform | | **Export help for each answer.** Short plain steps for getting a product file out of the old shop, one help answer per "where do you sell now" option (extends 3.4). Named guides for specific shop builders wait for decision 3. Tests: each option has an answer; plain-words check passes | quick | planned |
+| 16.5 | shop | | **More import layouts.** The importer knows four layouts by their column headings. Add the product layouts of the other common shop builders, from their public import templates (option rows under a product, image links separated by semicolons, variant lines pointing at a product): Wix's per-row template and Squarespace's option rows are the first two to check. Unknown files still fall back to the spreadsheet import with a plain message. Needs one real sample from each builder. Tests: each new layout previews the same books as its source file; unknown file gets the fallback | medium | planned |
+| 16.6 | shop | | **Photos given as links.** The other builders' files carry photos as web links, and many fail once the old shop closes. The preview says how many photos will be copied into the press's own storage and which links won't load; the rest import. Tests: a broken link is listed in the preview and the rest import; the copy count matches the preview | quick | planned |
+| 16.7 | shop | | **Past orders (decision 4; not in the first version unless Julian says yes).** Read a press's past orders from the old shop for history and bookkeeping, with each customer kept private. Larger: privacy, tax and matching to customers | larger | not started |
+| 16.8 | shop | | **Stage 3, Pick your look.** Hosts the Choose your look gallery (6.3) inside the run, shows the look suggested by the sign-up answer, previews at phone and desktop width, and Skip takes the suggestion. Previews show the press's first imported book photo when there is one. The gallery grows as the templates thread adds designs. Tests: the 6.3 tests inside the run; the stage never shows again once done | quick | planned |
+| 16.9 | shop | | **Stage 4, Google in one sign-in (optional until Google approves).** One Connect Google button (6.17), then a plain list of what was connected: search, shopping listings, visitor statistics, and order email sending if turned on. While `GOOGLE_CONNECT_ENABLED` is off the stage says it's coming and doesn't block. The connect job is 6.20. Tests with fakes: connecting ticks the stage; disabled shows "coming" and the run goes on; no technical names in the list | medium | planned |
+| 16.10 | shop, platform | | **Stage 5, Get paid (needed before real orders).** Stripe's hosted form (7.9), what Stripe still needs in plain words with its deadline, one Continue button; the stage ticks when cards and payouts work. Pay as you sell (6.19) needs no card but still needs this. Tests with fake Stripe states: not started, due, past due, done; no key or account ID shown | medium | planned |
+| 16.11 | shop | | **Stage 6, Shipping and your address.** The shipping starter for the press's country (6.9 step 4) to confirm, the ship-from address from Stage 1, the web address with Change (6.2), and an optional "connect a domain later" link to 6.15. Tests: the starter per country; an empty ship-from refused; the domain step is optional | quick | planned |
+| 16.12 | shop, stockroom | | **Stage 7, Your stockroom.** Every platform press gets the shop-to-stockroom link on at setup (today only the test shop does, setup step 16), so the stockroom opens with the press's books and sales flowing (1.21). The stockroom opens on a one-screen "Your stockroom is ready" check. The five-step guide stays for stockroom-only presses. Tests: setup dry run turns the link on for a new press; stockroom first-open fixture shows the imported books and the link | medium | planned |
+| 16.13 | shop, platform | | **Stage 8, final check and open.** Runs Ready to sell (2.10) and a practice order in test mode (6.9 step 7; recommended, not required, decision 1). Names anything still missing in plain words, then opens the shop. Tests with fakes: a missing item is named; opening lifts the coming-soon page only after the required stages | medium | planned |
+| 16.14 | platform | | **Trial nudges for an unfinished start.** Days 0, 2 and 4 for a press that has not finished the required stages, each with a link back to the next stage; tied to the same progress record as 6.10 and sent at most once per stage. Tests: right nudge per state, never twice, billing emails untouched | quick | planned |
+| 16.15 | shop, platform | | **Words, phone and help for every stage.** Each stage passes the plain-words check (6.16) and the phone-width check (13.9 pattern), and has a help answer (8.2 extended from the checklist to the stages). Tests: the plain-words list and the help list both cover every stage in 16.1 | quick | planned |
+| 16.16 | platform | | **One road through the start.** Extend `road.test.js` (6.14) to walk every stage with fakes: sign up, Your press, sample import, look, Google (disabled path and connected path), Get paid (fake Stripe states), shipping, stockroom, final check, open. Root `npm test` | medium | planned |
+| 16.17 | platform | | **Julian's account checklist for the start.** One page listing what Julian does for each stage with real accounts and the Phase 15 dates: Google sign-in approval (submission 1 December), Stripe's platform profile (13 November), a real sample file from each shop builder, the lawyer's word on payments (15.22). Cross-linked from 15.10. Doc test: every stage in 16.1 has a line | quick | planned |
+| 16.18 | platform | | **The first-hour test runs on the start** (3.6): five presses, one hour each, go through Get started; the 3.6 gate applies unchanged. Needs hosting (15.6) and the real test shop (15.7) | larger (people, not code) | after Phase 15 |
+
+Build order: first, with pretend services and no accounts: 16.1, 16.2, 16.8, 16.11, 16.13, 16.14, 16.15. Second: 16.3 to
+16.6, 16.9 and 16.10 on fakes. Third: 16.12 after the real test shop (15.7), 16.16 and 16.17. Fourth, after real accounts:
+the real Google connect (15.5, 15.12 to 15.15) and Stripe's live profile, then 16.18.
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
