@@ -19,7 +19,7 @@ export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
   general: [["store", "gs-store"], ["details", "gs-details"], ["visitors", "gs-visitors"], ["tools", "gs-tools"]],
   payments: [["status", "pay-status"], ["methods", "pay-methods"], ["more", "pay-more"]],
   notifications: [["templates", "email-templates"], ["setup", "email-setup"], ["deliveries", "email-deliveries"]],
-  shipping: [["overview", "overview"], ["profiles", "profiles"], ["carrier", "carrier"], ["local", "local"]],
+  shipping: [["overview", "overview"], ["profiles", "profiles"], ["carrier", "carrier"], ["local", "local"], ["returns", "returns"]],
   inventory: [["stock", "inv-stock"], ["link", "inv-link"]],
 };
 /** Old Settings page ids that open a particular sub tab (Email sender's address opens Sending setup). */

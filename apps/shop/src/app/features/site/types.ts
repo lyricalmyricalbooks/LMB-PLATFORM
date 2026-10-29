@@ -78,6 +78,8 @@ import type { LocalFulfillmentConfig } from "../../../shared/localFulfillment";
 
 export type SiteSettings = {
   localFulfillment?: LocalFulfillmentConfig;
+  /** Settings › Shipping › Returns (shared/returnRequests): off unless the press turns it on. */
+  returns?: { enabled: boolean; windowDays: number };
   announcements?: Array<{ message: string }>;
   maintenance?: { enabled: boolean; message: string };
   /** Most copies one shopper can have set aside at checkout (functions/stockHolds.js). */

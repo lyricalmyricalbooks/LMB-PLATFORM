@@ -9,8 +9,8 @@ import { SAMPLE_FILES } from "./sampleFiles.js";
 const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 /** What the emulators need in their environment so the shop's server code uses the practice services. */
-export function practiceEnv(serviceUrl) {
-  return { DEMO_STRIPE_URL: serviceUrl, RESEND_BASE_URL: serviceUrl };
+export function practiceEnv(serviceUrl, shopUrl = null) {
+  return { DEMO_STRIPE_URL: serviceUrl, RESEND_BASE_URL: serviceUrl, ...(shopUrl ? { DEMO_SHOP_URL: shopUrl } : {}) };
 }
 
 async function readBody(req) {

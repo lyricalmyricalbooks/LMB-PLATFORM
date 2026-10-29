@@ -61,8 +61,10 @@ stockroom open.
   colours, a print in two sizes and an enamel pin).
 - Reviews (one waiting to be approved), the discount code **WELCOME10** (10% off), and shipping for Canada ($5, plus $1
   for each extra item) and everywhere else ($15, plus $3).
-- Four orders, placed and paid the way a shopper's are: one shipped, one waiting to be sent, one refunded and one where
-  the shopper asks to cancel. Their emails are in the practice inbox.
+- Five orders, placed and paid the way a shopper's are: one shipped, one waiting to be sent, one refunded, one where
+  the shopper asks to cancel, and one delivered where the shopper asks to return a T-shirt that's too big. Their emails
+  are in the practice inbox. Returns are switched on for 30 days (Settings › Shipping › Returns); a new press starts
+  with them off.
 - The printed books in the stockroom, with their copies on hand. The platform's three test books are there too; in the
   shop they are drafts, so shoppers don't see them.
 
@@ -95,7 +97,9 @@ and everything else, use both: `npm run demo -- --fresh --new-press`.
   0002** is always declined. The order is marked paid by the shop's own code, exactly as a real payment would, and
   refunds work. No money moves, and PayPal and Square can't be tried.
 - **Emails go to the practice inbox**, http://127.0.0.1:5175/inbox, not to anyone's mailbox. They are the shop's real
-  emails: the order confirmation, your new-order alert, shipping, refunds and cancel requests.
+  emails: the order confirmation, your new-order alert, shipping, refunds, cancel and return requests. Their links open
+  this computer's shop (http://127.0.0.1:5173), not a real address: on the practice computer only, the functions read
+  `DEMO_SHOP_URL` and take it only when it is a `http://127.0.0.1:<port>` address.
 - **Files to try the importers with** are at http://127.0.0.1:5175/samples/new-products.csv (a plain product
   spreadsheet), /samples/old-shop-products.csv (an export from an old shop: a hoodie in sizes and colours) and
   /samples/old-shop-customers.csv (a customer list). They carry no photos: add those in the product editor.
