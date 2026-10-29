@@ -24,6 +24,7 @@ async function setup({ rows = [TEST, row("press-bravo"), row("press-alpha", { pl
     envFiles: fakeFiles("env", ids), profileFiles: fakeFiles("profile", ids),
     projects: { get: async (id) => ({ projectId: id, parent: folders[id] ?? FOLDER }) },
     config: { folder: FOLDER }, print: (line) => lines.push(line), runId: "run-1",
+    now: () => new Date("2026-11-03T15:00:00Z"), // a Tuesday: outside every closed window (plan 13.6)
   };
   const run = (version, extra = {}) => runRelease({ version, ...clients, ...extra });
   return { registry, world, auditLog, run, lines, clients };

@@ -776,6 +776,7 @@ async function loadEmergency() {
     parts.push(part("Releases",
       el("div", { className: "cr-row", style: "margin-top: 8px" }, state.releasesPaused ? pill("warning", "Paused") : pill("success", "Running"),
         el("span", { className: "rp-hint cr-grow", textContent: state.releasesPaused ? `Paused by ${state.releasesPaused.by}: ${state.releasesPaused.reason}` : "Releases go out to shops as normal." })),
+      state.releaseWindow ? el("p", { className: "rp-hint", textContent: state.releaseWindow.closedNow ? `Closed now: ${state.releaseWindow.reason}. A security fix can still go out.${state.releaseWindow.next ? ` Opens ${new Date(state.releaseWindow.next).toLocaleString()}.` : ""}` : `Open. Next closes ${state.releaseWindow.next ? new Date(state.releaseWindow.next).toLocaleString() : "later"} (weekends and the two weeks before Christmas).` }) : null,
       el("div", { className: "cr-actions" }, state.releasesPaused
         ? run("Resume releases", "/control/emergency/resume-releases", () => reason("Let releases go out again."), "Releases can go out again.", "primary")
         : run("Pause releases", "/control/emergency/pause-releases", () => reason("Stop every release; one already running stops before its next shop."), "Releases are paused.", "danger"))));

@@ -27,6 +27,7 @@
 // One release runs at a time (a registry lock), and each shop's own lock is held while it is deployed, so the shop
 // maker can't work on it at the same moment. Everything is recorded: the whole run in the registry
 // (`recordRelease`), each shop's part in its audit log, and the shop's row gets `release: { version, at }`.
+import { releaseWindowAt } from "./releaseWindow.js";
 import { randomUUID } from "node:crypto";
 import { appsOf } from "../../setup/later-steps.js";
 import { REGION } from "../../setup/steps.js";
@@ -40,10 +41,18 @@ const message = (error) => (error instanceof Error ? error.message : String(erro
 
 export async function runRelease({
   version, registry, auditLog, builder, deploy, envFiles, profileFiles, siteCheck, projects, releaseCheck,
-  config = {}, dryRun = false, print = () => {}, now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES, paused = async () => null,
+  config = {}, dryRun = false, print = () => {}, now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES, paused = async () => null, securityFix = false,
 }) {
   if (!VERSION.test(version ?? "")) throw new Error(`"${version}" isn't a release version (like 1.4.0)`);
   if (!config.folder) throw new Error("the release runner needs the shops folder, to make sure every shop it touches is the platform's");
+
+  // Plan 13.6: no release in the weekend or Christmas windows unless it is marked as a security fix (a dry run only prints).
+  const window = releaseWindowAt(now(), { securityFix });
+  if (!dryRun && !window.open) {
+    print(`Release ${version} doesn't start: it is ${window.reason}. Mark it as a security fix to send it anyway, or wait until ${window.next ?? "the window opens"}.`);
+    return { ok: false, version, closedWindow: window, shops: [] };
+  }
+  if (!dryRun && securityFix && window.closedNow) print(`Release ${version} goes out in a closed window because it is a security fix.`);
 
   const plan = planRings(await registry.listShops(), { exclude: config.exclude ?? [] });
   for (const { shopId, reason } of plan.skipped) print(`Left out ${shopId ?? "a row"}: ${reason}.`);

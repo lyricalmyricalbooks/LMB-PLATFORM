@@ -29,12 +29,12 @@ export function commandRunner({ print = console.log } = {}) {
   };
 }
 
-export async function realRelease({ version, dryRun = false, env = process.env, fetch = globalThis.fetch, token = gcloudToken, run = commandRunner(), chromium, print = console.log }) {
+export async function realRelease({ version, dryRun = false, securityFix = false, env = process.env, fetch = globalThis.fetch, token = gcloudToken, run = commandRunner(), chromium, print = console.log }) {
   for (const name of ["RELEASE_FOLDER", "RELEASE_BUILD_ROOT"]) if (!env[name]) throw new Error(`${name} is not set`);
   const builder = releaseBuilder({ run, root: env.RELEASE_BUILD_ROOT, source: REPO });
   const clients = realSetupClients({ fetch, token, run, buildDir: builder.dir });
   return runRelease({
-    version, dryRun, print, builder,
+    version, dryRun, securityFix, print, builder,
     registry: clients.registry, auditLog: clients.auditLog, deploy: clients.deploy, envFiles: clients.envFiles,
     profileFiles: clients.profileFiles, siteCheck: clients.siteCheck, projects: clients.google.projects,
     releaseCheck: (shopId, v) => realReleaseCheck({ shopId, env: { ...env, RELEASE_VERSION: v }, fetch, token, chromium, print }),
@@ -45,9 +45,10 @@ export async function realRelease({ version, dryRun = false, env = process.env, 
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const [version, flag] = process.argv.slice(2);
-  const dryRun = flag === "--dry-run";
+  const [version, ...flags] = process.argv.slice(2);
+  const dryRun = flags.includes("--dry-run");
+  const securityFix = flags.includes("--security-fix");
   const chromium = dryRun ? undefined : createRequire(import.meta.url)("playwright").chromium;
-  const result = await realRelease({ version, dryRun, chromium });
+  const result = await realRelease({ version, dryRun, securityFix, chromium });
   process.exitCode = result.ok ? 0 : 1;
 }
