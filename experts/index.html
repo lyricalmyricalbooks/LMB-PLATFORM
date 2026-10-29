@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" class="rp cp-page">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colophon experts</title>
+<meta name="description" content="Independent people who can help your shop with design, photos, packing, bookkeeping and writing.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="./look/adminThemes.css">
+<link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/platform-pages.css">
+<script src="./look/platform-look.js"></script>
+</head>
+<body class="cp">
+<a class="rp-skip-link" href="#main">Skip to content</a>
+<header class="cp-mast"><div class="cp-wrap"><a class="cp-word" href="./">Colophon<small>experts</small></a>
+  <nav aria-label="Colophon"><a href="../waitlist/">Plans</a><a href="../help/">Help</a><a href="./" aria-current="page">Experts</a><a href="../status/">Status</a><a href="../account/">Your shops</a></nav></div></header>
+<main id="main" tabindex="-1">
+  <div class="cp-wrap" style="padding-block:44px 8px">
+    <div class="mark">Colophon · experts</div>
+    <h1 class="cp-title">Need a hand with the rest?</h1>
+    <p id="note"></p>
+    <div class="cp-search">
+      <label for="kind" class="rp-sr-only">Kind of work</label><select id="kind"></select>
+      <label for="search" class="rp-sr-only">Search the experts</label><input type="search" id="search" placeholder="e.g. photos, Toronto" autocomplete="off">
+    </div>
+  </div>
+  <div class="cp-wrap"><div class="cp-sec"><div id="status" role="status" aria-live="polite"><div class="cp-grid3" id="experts"></div></div>
+    <noscript><p class="empty">The list doesn't show when your browser has scripts turned off. Turn them on and reload this page.</p></noscript>
+    <div id="apply"></div></div></div>
+</main>
+<footer>
+  <div class="cp-wrap"><span class="cp-word">Colophon</span><p style="margin:0">Questions about Colophon itself? <a href="../help/">Read the help</a> or ask from your account page.</p>
+    <div class="cp-links"><a href="../status/">Status</a><a href="../terms/">Terms &amp; privacy</a></div></div>
+</footer>
+<script type="module">
+  import { renderExperts, renderKindOptions, renderApply, EXPERT_NOTE } from "./page.js";
+  const kind = document.getElementById("kind");
+  const search = document.getElementById("search");
+  const box = document.getElementById("experts");
+  document.getElementById("note").textContent = EXPERT_NOTE;
+  document.getElementById("apply").innerHTML = renderApply();
+  kind.innerHTML = renderKindOptions();
+  const draw = () => { box.innerHTML = renderExperts({ kind: kind.value, search: search.value }); };
+  kind.addEventListener("change", draw);
+  search.addEventListener("input", draw);
+  draw();
+</script>
+</body>
+</html>

@@ -36,6 +36,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `accounts/` | One sign-in for every shop a person belongs to: the shop switcher, and invites with a role for each shop's team. |
 | `waitlist/` | The public waitlist page. |
 | `help/` | Plain answers to the questions presses ask most, one for every first-week step, and what our help includes, as one static page with search. |
+| `experts/` | A page of independent people for the work help doesn't cover (design, photos, packing, bookkeeping, writing); no booking, payment or fee here. |
 | `terms/` | The terms, privacy policy, data agreement and shutdown promise on one page, with the version sign-up records. |
 | `plain-words/` | The list of words no press may read (Firebase, key, webhook and the rest), and the tests that read the sign-up, account, billing and help pages, the setup steps, the emails, the shop's admin and the stockroom against it. Also a phone-width check of the press-facing pages. |
 | `demo/` | `npm run demo`: the test shop, admin, Studio and stockroom on your own computer, against the Firebase emulators (`docs/demo-shop.md`). |

@@ -17,7 +17,7 @@ export const COPIES = [
 
 /** The platform's own pages (waitlist, sign-up, accounts, help, terms, status, walkthrough start page): each folder is
  * served on its own, so each keeps a `look/` copy of the admin look plus the platform-pages layer. */
-export const PAGE_FOLDERS = ["waitlist", "signup", "accounts", "help", "terms", "status", "walkthrough"];
+export const PAGE_FOLDERS = ["waitlist", "signup", "accounts", "help", "experts", "terms", "status", "walkthrough"];
 export const PAGE_FILES = ["adminThemes.css", "pressroom.css", "platform-pages.css", "platform-look.js"];
 for (const from of PAGE_FILES) {
   const to = PAGE_FOLDERS.map((folder) => `${folder}/look/${from}`);
