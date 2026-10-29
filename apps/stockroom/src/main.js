@@ -701,7 +701,7 @@ registerActions({
   'backups.stockLocations': () => {
     const entries = Object.keys(BOOKS).filter(bid => !isTestBookId(bid))
       .map(bid => ({ book: BOOKS[bid], state: states[bid] || defaultState(BOOKS[bid]) }));
-    if (!entries.length) { showToast('No books to list yet.', 'err'); return; }
+    if (!entries.length) { showToast(words('No books to list yet.'), 'err'); return; }
     downloadCsv(stockLocationsCsv(entries), `stock-counts-${today()}.csv`);
     showToast(`✓ Stock counts for ${entries.length} book${entries.length === 1 ? '' : 's'} downloaded`, 'ok');
   },
@@ -1137,6 +1137,9 @@ import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
 import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, switchOn } from './lib/shop-profile.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 import { catalogGroups, groupOf, sizeItem } from './lib/product-groups.js';
+import { applyPageWords, words } from './lib/shop-words.js';
+// The page's own words follow what the shop sells (plan 10.23): "product" and "maker" for a shop that doesn't sell books.
+applyPageWords(document.body);
 
 
 // Tells the boot watchdog in index.html that the bundle and every import it
@@ -1687,7 +1690,7 @@ function resetBookForm() {
   _bookFromWebsiteGroup = null;
   _bookFromWebsiteSizes = [];
   if ($('book-modal-badge')) $('book-modal-badge').textContent = '✨ New Release';
-  $('add-book-modal-title').textContent = 'Add new book';
+  $('add-book-modal-title').textContent = words('Add new book');
   $('add-book-save-btn').textContent = 'Save Book';
   $('nb-id').disabled = false;
   $('nb-id').value = '';
@@ -1765,7 +1768,7 @@ function openEditBookModal(id) {
   if (!book) return;
   editingBookId = id;
   if ($('book-modal-badge')) $('book-modal-badge').textContent = '📖 Project Settings';
-  $('add-book-modal-title').textContent = `Edit book · ${book.title}`;
+  $('add-book-modal-title').textContent = `${words('Edit book')} · ${book.title}`;
   $('add-book-save-btn').textContent = 'Save Changes';
   $('nb-id').disabled = true;
   $('nb-id').value = book.id || '';
@@ -4893,7 +4896,7 @@ async function forceSync() {
 let _bookDropdownOutsideHandler = null;
 
 function bookSwitcherItems() {
-  return [{ id: 'all', title: 'All books', accent: 'rgba(255,255,255,.25)' }]
+  return [{ id: 'all', title: words('All books'), accent: 'rgba(255,255,255,.25)' }]
     .concat(BOOK_LIST.filter(b => !isTestBook(b)).map(b => ({ id: b.id, title: b.title, accent: b.accent })));
 }
 
@@ -5538,7 +5541,7 @@ export function switchBook(bookId) {
   const label = $('book-dropdown-label');
   const dot = $('book-dropdown-dot');
   if (bookId === 'all') {
-    if (label) label.textContent = 'All books';
+    if (label) label.textContent = words('All books');
     if (dot) dot.style.background = 'rgba(255,255,255,.25)';
   } else {
     const book = BOOKS[bookId];
@@ -5565,7 +5568,7 @@ export function switchBook(bookId) {
     // All-books overview isn't a sidebar destination; clear active nav + title.
     document.querySelectorAll('.snav.active').forEach(b => b.classList.remove('active'));
     const shellTitle = $('shell-page-title');
-    if (shellTitle) shellTitle.textContent = 'All books';
+    if (shellTitle) shellTitle.textContent = words('All books');
     applyBookAccentTokens('all');
     applyBodyTint('all');
     updateAllOverview();
@@ -5722,7 +5725,7 @@ export function renderTodayHub() {
   const sub = $('today-orders-sub');
   const has = Number.isFinite(waiting) && waiting > 0;
   if (count) { count.hidden = !has; count.textContent = has ? (waiting > 99 ? '99+' : String(waiting)) : ''; }
-  if (sub) sub.textContent = has ? `${waiting} ready to apply` : activeBook === 'all' ? 'Choose a book to review' : 'Review website orders';
+  if (sub) sub.textContent = has ? `${waiting} ready to apply` : activeBook === 'all' ? words('Choose a book to review') : 'Review website orders';
 }
 
 // ── Phone "More" sheet ───────────────────────────────────────────────
@@ -6159,7 +6162,7 @@ const BOOK_SCOPED_TABS = new Set(['website', 'manual', 'consignment', 'history',
 
 function showBookChoice(tabName) {
   const heading = $('select-book-heading');
-  if (heading) heading.textContent = SHELL_TAB_LABELS[tabName] || 'Choose a book';
+  if (heading) heading.textContent = SHELL_TAB_LABELS[tabName] || words('Choose a book');
   const descriptions = {
     website: 'Choose a book to review its website orders.',
     manual: 'Which book are you recording a sale for?',
@@ -6169,7 +6172,7 @@ function showBookChoice(tabName) {
     opencall: 'Choose a book to manage its contributors.',
   };
   const description = $('select-book-description');
-  if (description) description.textContent = descriptions[tabName] || 'Choose the title you want to work with.';
+  if (description) description.textContent = words(descriptions[tabName] || 'Choose the title you want to work with.');
   const actions = $('select-book-actions');
   if (!actions) return;
   actions.replaceChildren();
@@ -16013,7 +16016,7 @@ function psRenderSummary(book, cur, productionCost) {
 
 function addProfitTier() {
   if (!psActiveBookId || !BOOKS[psActiveBookId]) {
-    showToast('Select a book first', 'warn');
+    showToast(words('Select a book first'), 'warn');
     return;
   }
   const book = BOOKS[psActiveBookId];

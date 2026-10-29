@@ -1,4 +1,5 @@
 import { auth } from "../../lib/firebase";
+import { runsOnColophon } from "../../lib/shopProfile";
 import { functionFetch } from "../lib/functionsBase";
 import { bookCreators, searchText } from "../lib/bookSeo";
 import type { Book } from "../features/site/types";
@@ -7,7 +8,13 @@ import type { Book } from "../features/site/types";
 // adminSecrets/ai and are used only by the createStripeCheckoutSession `aiWrite` action (functions/aiWriter.js).
 // Every answer is a suggestion placed in the editor; nothing is saved until the owner saves the book or page.
 
-export type AiTask = "bookSeo" | "bookDescription" | "photoAlt" | "pageSeo" | "rewrite" | "sectionDraft";
+/**
+ * Whether the Write with AI buttons show. They need a writing assistant's own key, which a shop run by Colophon never
+ * asks its press for (code plan 6.16), so they are hidden there until Colophon runs the assistant itself.
+ */
+export const aiWriterAvailable = () => !runsOnColophon();
+
+export type AiTask ="bookSeo" | "bookDescription" | "photoAlt" | "pageSeo" | "rewrite" | "sectionDraft";
 /** Studio's section drafts carry lists (`items`) as well as words. Every answer also says which AI wrote it
  * (`provider`, `model`) and `fellBack: true` when the chosen one had run out and the other saved key answered. */
 export type AiResult = Record<string, any>;
@@ -16,8 +23,8 @@ export type AiResult = Record<string, any>;
 export function aiKeyProblem(value: string): string {
   const v = value.trim();
   if (!v) return "";
-  if (/^sk-or-/.test(v)) return "That's an OpenRouter key. Paste it in the OpenRouter box instead.";
-  return /^[A-Za-z0-9_.-]{30,200}$/.test(v) ? "" : "That doesn't look like a Google AI key (it usually starts with AIza and is 39 characters).";
+  if (/^sk-or-/.test(v)) return "That's an OpenRouter key. Paste it in the OpenRouter box instead."; // Own-account shops only: the AI writer is hidden on Colophon shops
+  return /^[A-Za-z0-9_.-]{30,200}$/.test(v) ? "" : "That doesn't look like a Google AI key (it usually starts with AIza and is 39 characters)."; // Own-account shops only: the AI writer is hidden on Colophon shops
 }
 
 export type AiProvider = "gemini" | "openrouter";
@@ -28,7 +35,7 @@ export const DEFAULT_OPENROUTER_MODEL = "google/gemini-2.5-flash";
 export function openRouterKeyProblem(value: string): string {
   const v = value.trim();
   if (!v) return "";
-  return /^sk-or-[A-Za-z0-9_-]{20,200}$/.test(v) ? "" : "That doesn't look like an OpenRouter key (it starts with sk-or- and comes from openrouter.ai/keys).";
+  return /^sk-or-[A-Za-z0-9_-]{20,200}$/.test(v) ? "" : "That doesn't look like an OpenRouter key (it starts with sk-or- and comes from openrouter.ai/keys)."; // Own-account shops only: the AI writer is hidden on Colophon shops
 }
 
 /** Same rule as functions/aiWriter.js openRouterModelProblem ("" = fine or empty, which means the default model). */
@@ -134,7 +141,7 @@ export async function askAi(task: AiTask, input: Record<string, unknown>, extra:
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data?.result) {
-    throw new AiWriteError(data?.error || `The shop's server answered ${res.status}. Check that Cloud Functions are deployed.`, data?.needsKey === true, res.status);
+    throw new AiWriteError(data?.error || `The shop's server answered ${res.status}. Try again in a moment.`, data?.needsKey === true, res.status);
   }
   return data.result as AiResult;
 }
@@ -150,13 +157,13 @@ export async function checkAiKey(provider: AiProvider = "gemini"): Promise<{ ok:
       body: JSON.stringify({ action: "aiWrite", op: "check", provider }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, message: data.error || `The shop's server answered ${res.status}. Check that Cloud Functions are deployed.` };
+    if (!res.ok) return { ok: false, message: data.error || `The shop's server answered ${res.status}. Try again in a moment.` };
     const who = provider === "openrouter" ? `OpenRouter${data.model ? ` (${data.model})` : ""}` : "Gemini";
     return data.ok
-      ? { ok: true, message: `${who} answered with this key. The Write with AI buttons are ready in Books and Studio.` }
-      : { ok: false, message: data.error || (provider === "openrouter" ? "OpenRouter refused the key." : "Google refused the key.") };
+      ? { ok: true, message: `${who} answered with this key. The Write with AI buttons are ready in Books and Studio.` } // Own-account shops only: the AI writer is hidden on Colophon shops
+      : { ok: false, message: data.error || (provider === "openrouter" ? "OpenRouter refused the key." : "Google refused the key.") }; // Own-account shops only: the AI writer is hidden on Colophon shops
   } catch (err: any) {
-    return { ok: false, message: err?.message || "Could not check the key." };
+    return { ok: false, message: err?.message || "Could not check the key." }; // Own-account shops only: the AI writer is hidden on Colophon shops
   }
 }
 

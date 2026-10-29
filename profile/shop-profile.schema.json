@@ -38,6 +38,11 @@
       "maxLength": 80,
       "description": "The press's name as given at sign-up. Optional. The stockroom starts its download file names with it; the shop's own name lives in its settings."
     },
+    "sells": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{1,30}$",
+      "description": "What the shop sells, its sign-up answer to \"What do you sell?\" (signup/form.js PUBLISHES: books, zines, comics, prints, mix, clothing, shoes, jewelry, music, other). Optional. A shop that doesn't sell books shows \"product\" and \"maker\" in the stockroom instead of \"book\" and \"author\" (plan 10.23). Missing, a book answer or one an app doesn't know: book words."
+    },
     "functionsRegion": { "type": "string", "pattern": "^[a-z]+-[a-z]+[0-9]$" },
     "siteUrl": { "type": "string", "pattern": "^https://[^/\\s]+$", "description": "The shop's address, no trailing slash." },
     "appCheckSiteKey": { "type": "string", "description": "Bot-protection site key. Empty or missing: the app's build setting is used." },

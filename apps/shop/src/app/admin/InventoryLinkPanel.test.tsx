@@ -57,7 +57,7 @@ describe("InventoryLinkPanel", () => {
     const text = document.body.textContent || "";
     expect(text).toContain("123-compute@developer.gserviceaccount.com");
     expect(text).toContain("Cloud Datastore User");
-    expect(text).toContain("stopped letting this shop reach its own stockroom");
+    expect(text).toContain("can't reach its own stockroom right now");
     const permissions = [...document.querySelectorAll("a")].find((a) => a.textContent?.includes("this shop's permissions"));
     expect(permissions?.getAttribute("href")).toContain("iam?project=lmb-test-shop");
   });

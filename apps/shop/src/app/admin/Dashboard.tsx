@@ -248,7 +248,7 @@ export function Dashboard() {
         .then(async (data) => {
           const failedParts: string[] = [];
           const [webhook, emailLog, backup, linkState, shopErrors, cardAccount] = await Promise.all([
-            adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push(`the ${providerName()} webhook status`); return null; }),
+            adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push(`the payment status`); return null; }),
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
             inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),

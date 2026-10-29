@@ -40,7 +40,7 @@ export function MediaLibraryDialog({ onClose, onChoose }: { onClose: () => void;
   useEffect(() => {
     let live = true;
     mediaApi.list().then((list) => { if (live) setItems(list); })
-      .catch((err) => { if (live) { setItems([]); setError(isMediaDenied(err) ? "The media library isn't switched on yet (deploy the Firestore rules)." : "The media library couldn't be loaded. Try again."); } });
+      .catch((err) => { if (live) { setItems([]); setError(isMediaDenied(err) ? "The media library isn't switched on yet. If this stays, ask support to switch it on." : "The media library couldn't be loaded. Try again."); } });
     return () => { live = false; };
   }, []);
   const shown = (items || []).filter((m) => `${m.name} ${m.alt}`.toLowerCase().includes(q.trim().toLowerCase()));

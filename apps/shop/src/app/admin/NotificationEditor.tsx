@@ -4,7 +4,8 @@ import { db, auth } from "../../lib/firebase";
 import toast from "react-hot-toast";
 import { placeItemsTable, risoButton, risoLayout, safeLogoUrl } from "./emailTheme";
 import { orderPreviewVars, previewItemsTable } from "./emailPreviewData";
-import { GmailSendingCard, PlatformSenderCard } from "./GmailSendingCard";
+import { GmailSendingCard } from "./GmailSendingCard";
+import { PlatformSenderCard } from "./PlatformSenderCard";
 import { useSenderStatus } from "./senderStatus";
 import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
 import { fillSample, insertAt, PLACEHOLDERS, problemTemplates, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
@@ -15,6 +16,7 @@ import { resendKeyProblem } from "./privateKeys";
 import { senderOf, senderProblems, withSender, type Sender } from "./senderSettings";
 import { emailFunction, lastGmailProblem } from "./notificationApi";
 import { plainError } from "./plainError";
+import { runsOnColophon } from "../../lib/shopProfile";
 import { useSubTab } from "./settingsLayout";
 import {
   DataTable, ErrorState, GhostButton, PrimaryButton, LoadingState, SaveBar, SectionCard, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
@@ -252,7 +254,8 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const [view, setView] = useSubTab<EmailView>(focus === "sender" ? "email-setup" : "email-templates", subTab, onSubTabChange);
   // On a platform shop the backup is the shared sender, so the shop's own Resend settings don't apply (plan 2.3b).
   const senderStatus = useSenderStatus();
-  const sharedBackup = senderStatus.backup === "platform";
+  // A shop run by Colophon never meets the backup sender's account key, even before the server has answered (code plan 6.16).
+  const sharedBackup = senderStatus.backup === "platform" || runsOnColophon();
   // "Preview with a real order": recent orders loaded on demand, filled in the browser only.
   const [recentOrders, setRecentOrders] = useState<any[] | null>(null);
   const [previewOrderId, setPreviewOrderId] = useState("");
@@ -378,7 +381,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
           } catch (err) {
             console.warn("Could not move Resend key:", err);
             loaded.brand.resendApiKey = dbData.brand?.resendApiKey || dbData.resendApiKey;
-            toast.error("Couldn't move your saved Resend key to the admin-only store. It has been kept; Save this page to try again.");
+            toast.error("Couldn't move your saved Resend key to the admin-only store. It has been kept; Save this page to try again."); // Own-account shops only: the mail service key is hidden on Colophon shops
           }
         }
         const flags = await adminApi.getPrivateKeyFlags();
@@ -584,7 +587,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   }
 
   async function removeResendKey() {
-    if (!(await confirm({ title: "Remove the stored Resend key?", message: "The backup sender will use the RESEND_API_KEY set in Firebase Functions (if any) until you enter a new key.", confirmLabel: "Remove key" }))) return;
+    if (!(await confirm({ title: "Remove the stored Resend key?", message: "The backup sender will use the RESEND_API_KEY set in Firebase Functions (if any) until you enter a new key.", confirmLabel: "Remove key" }))) return; // Own-account shops only: the mail service key is hidden on Colophon shops
     setRemovingResend(true);
     try {
       await adminApi.removeResendKey();
@@ -592,9 +595,9 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       setData(prev => ({ ...prev, brand: { ...prev.brand, resendApiKeyStored: false, resendApiKey: "" } }));
       setOriginal(clear);
       setResendDraft("");
-      toast.success("Stored Resend key removed");
+      toast.success("Stored Resend key removed"); // Own-account shops only: the mail service key is hidden on Colophon shops
     } catch (err: any) {
-      toast.error(plainError(err, "The key wasn't removed"));
+      toast.error(plainError(err, "The key wasn't removed")); // Own-account shops only: the mail service key is hidden on Colophon shops
     } finally {
       setRemovingResend(false);
     }
@@ -638,7 +641,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       <div className="rp-stack">
       {/* Plan 6.18: a shop run by Colophon sends through Colophon (or its own address once ready), so the Gmail app
           password panel is hidden there. */}
-      {senderStatus.backup === "platform" ? <PlatformSenderCard /> : <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} sender={senderStatus} />}
+      {sharedBackup ? <PlatformSenderCard /> : <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} sender={senderStatus} />}
 
       <div id="email-sender" style={{ scrollMarginTop: 16 }} />
       <SectionCard title="Email sender" description="Who it's from. Where replies go.">

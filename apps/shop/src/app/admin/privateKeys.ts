@@ -95,11 +95,11 @@ export function scrubSavedSecrets<T extends Record<string, any>>(data: T): T {
 export function stripeSecretKeyProblem(value: string, mode: "live" | "test"): string {
   const v = clean(value);
   if (!v) return "";
-  if (/^(sk|rk)_(live|test)_[A-Za-z0-9]+$/.test(v) === false) return "This doesn't look like a Stripe secret key (it should start with sk_ or rk_).";
+  if (/^(sk|rk)_(live|test)_[A-Za-z0-9]+$/.test(v) === false) return "This doesn't look like a Stripe secret key (it should start with sk_ or rk_)."; // Own-account shops only: Stripe keys are never typed on Colophon shops
   const keyMode = /_(live)_/.test(v) ? "live" : "test";
   if (keyMode !== mode) return mode === "live"
-    ? "That's a test key (sk_test_…). Put it in the Test secret key box; this box needs sk_live_…."
-    : "That's a live key (sk_live_…). Put it in the live Secret key box; this box needs sk_test_….";
+    ? "That's a test key (sk_test_…). Put it in the Test secret key box; this box needs sk_live_…." // Own-account shops only: Stripe keys are never typed on Colophon shops
+    : "That's a live key (sk_live_…). Put it in the live Secret key box; this box needs sk_test_…."; // Own-account shops only: Stripe keys are never typed on Colophon shops
   return "";
 }
 
@@ -107,7 +107,7 @@ export function stripeSecretKeyProblem(value: string, mode: "live" | "test"): st
 export function resendKeyProblem(value: string): string {
   const v = clean(value);
   if (!v) return "";
-  if (/\s/.test(v)) return "A Resend key has no spaces — check that you copied only the key.";
-  if (!/^re_[A-Za-z0-9_-]{8,}$/.test(v)) return "This doesn't look like a Resend API key (it starts with re_). Gmail app passwords and other keys don't go here.";
+  if (/\s/.test(v)) return "A Resend key has no spaces — check that you copied only the key."; // Own-account shops only: the mail service key is never typed on Colophon shops
+  if (!/^re_[A-Za-z0-9_-]{8,}$/.test(v)) return "This doesn't look like a Resend API key (it starts with re_). Gmail app passwords and other keys don't go here."; // Own-account shops only: the mail service key is never typed on Colophon shops
   return "";
 }

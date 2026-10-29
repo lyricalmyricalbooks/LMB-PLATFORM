@@ -21,7 +21,7 @@
   input[type=search]:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
   .article { border-bottom: 2px solid var(--ink); }
   .topic .article:first-of-type { border-top: 2px solid var(--ink); }
-  summary { cursor: pointer; padding: 14px 0; list-style: none; display: flex; gap: 12px; align-items: baseline; }
+  summary { cursor: pointer; padding: 14px 0; min-height: 44px; list-style: none; display: flex; gap: 12px; align-items: baseline; }
   summary::-webkit-details-marker { display: none; }
   summary::before { content: "+"; font: 600 20px "DM Mono", monospace; width: 16px; flex: none; }
   details[open] > summary::before { content: "−"; }
@@ -43,6 +43,7 @@
   <label for="search">Search the answers</label>
   <input type="search" id="search" placeholder="e.g. shipping, editions, old shop" autocomplete="off">
   <div id="answers" aria-live="polite"></div>
+  <noscript><p class="empty">The answers don't show when your browser has scripts turned off. Turn them on and reload this page, or ask us from your account page.</p></noscript>
   <div id="support"></div>
   <footer>
     <p>Didn't find it? Use <b>Get help from Colophon</b> on your account page and a person will answer.</p>

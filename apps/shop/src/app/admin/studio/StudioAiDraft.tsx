@@ -8,6 +8,7 @@ import { getBlocksKey, getSectionMeta } from "../ThemeEditorExtensions";
 import { DRAFT_TYPES, sectionFromDraft } from "./aiStudio";
 import { sanitizeRichText } from "./richText";
 import { StudioAiContext } from "./StudioAiRewrite";
+import { runsOnColophon } from "../../../lib/shopProfile";
 import type { Section } from "./studioModel";
 
 export function StudioAiDraft({ onPreview, onAdd, startOpen = false }: { onPreview: (section: Section | null) => void; onAdd: (section: Section) => void; startOpen?: boolean }) {
@@ -38,6 +39,8 @@ export function StudioAiDraft({ onPreview, onAdd, startOpen = false }: { onPrevi
       if (mine === run.current) setBusy(false);
     }
   };
+  // The AI writer needs its own account with a writing service; a shop run by Colophon doesn't have one (code plan 6.16).
+  if (runsOnColophon()) return null;
   const settingsHref = `${window.location.pathname}${window.location.search}#settings/general`;
 
   return (

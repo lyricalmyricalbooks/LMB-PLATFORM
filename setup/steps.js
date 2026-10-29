@@ -116,6 +116,8 @@ export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches =
     shopId: shop.shopId,
     // The press's name: the stockroom starts its download file names with it (plan 7.3).
     name: shop.pressName.trim().slice(0, 80),
+    // What the shop sells (sign-up's "What do you sell?"): the stockroom's words follow it (plan 10.23).
+    ...(/^[a-z][a-z-]{1,30}$/.test(shop.publishes ?? "") ? { sells: shop.publishes } : {}),
     firebase: { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId },
     functionsRegion: region,
     // The shop's main address (plan 5.9, services/domains `siteUrlOf`), else the one Firebase gave it.

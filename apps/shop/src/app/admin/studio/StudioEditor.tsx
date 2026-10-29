@@ -99,6 +99,7 @@ import { TemplatePicker } from "./TemplatePicker.tsx";
 import { currentOption, pickerOptions, type PickerOption } from "./templatePicker";
 import { loadUiState, saveUiState, uiStateKey, type Zoom } from "./studioUiState";
 import { auth } from "../../../lib/firebase";
+import { runsOnColophon } from "../../../lib/shopProfile";
 import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
@@ -2683,7 +2684,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   return (
     <StudioPickerProvider value={pickerData}>
     <DynamicSourcesContext.Provider value={dynamicSourcesValue}>
-    <StudioAiContext.Provider value={aiValue}>
+    <StudioAiContext.Provider value={runsOnColophon() ? null : aiValue}>
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
       <header className="studio-topbar">

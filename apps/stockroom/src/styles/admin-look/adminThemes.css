@@ -1,0 +1,316 @@
+/* GENERATED from shared/admin-look/adminThemes.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
+/*
+ * Admin themes — every colour the admin uses, in one file (plan 1.26).
+ * ---------------------------------------------------------------------
+ * Two admin looks, each with a day and a night appearance:
+ *   - Riso Press (the default): uncoated cream paper, ink outlines, flare-red primary, hard offset shadows.
+ *   - Paper: plain white paper, graphite ink, a calm blue primary, soft shadows and slightly rounded corners.
+ * The look is chosen in the account menu (Dashboard › "Paper look" / "Riso Press look") and set on the page as
+ * `<html data-admin-look="paper">`; the appearance stays on each `.rp` root (`data-rp-appearance`) and the legacy
+ * `.admin-reso` wrapper (`data-admin-theme`).
+ *
+ * Rules: no other admin stylesheet names a colour (riso.css, adminCompat.css, studio.css, books.css, … use
+ * `var(--rp-…)` only; adminThemes.test.ts fails on a colour anywhere else). A new colour is a new token here, with a
+ * value for every look. The `--rp-legacy-*` tokens are the old utility remaps in adminCompat.css (day only).
+ * adminThemes.test.ts also checks that words read on their backgrounds in all four combinations.
+ */
+
+/* The page behind the admin (html/body sit outside every .rp root). */
+:root {
+  --rp-page-light: #faf6ec;
+  --rp-page-dark: #262624;
+}
+:root[data-admin-look="paper"] {
+  --rp-page-light: #f6f6f4;
+  --rp-page-dark: #1c1d20;
+}
+
+/* ── Riso Press · day ─────────────────────────────────────────────────────── */
+.rp,
+.admin-reso {
+  /* Surfaces — newsprint, card stock, ink chrome */
+  --rp-canvas: #faf6ec;            /* cream */
+  --rp-surface: #ffffff;           /* surface-card */
+  --rp-surface-2: #f0e9da;         /* cream2 */
+  --rp-surface-sunken: #f0e9da;
+  --rp-surface-inset: #e4dac5;     /* cream3 */
+  --rp-inverse: #100f0d;           /* ink */
+  --rp-inverse-2: #1c1a17;
+  --rp-on-inverse: #faf6ec;
+  --rp-on-inverse-2: rgba(250, 246, 236, 0.74);
+  --rp-overlay: rgba(16, 15, 13, 0.34);
+  --rp-input-bg: #ffffff;
+  --rp-paper-dot: rgba(29, 26, 43, 0.07);
+
+  /* Lines */
+  --rp-border: rgba(16, 15, 13, 0.26);
+  --rp-border-strong: #100f0d;     /* rule-ink */
+  --rp-divider: rgba(16, 15, 13, 0.12);
+  --rp-scrollbar: #d3c6ab;
+
+  /* Text */
+  --rp-text: #100f0d;
+  --rp-text-muted: #3e3a34;        /* text2 */
+  --rp-text-subtle: #5f5950;       /* text3 — labels, captions */
+  --rp-text-faint: #9b9386;        /* text4 — placeholders only */
+
+  /* Flare (primary): FILL takes ink text; WORDS use -text */
+  --rp-primary: #e8402a;
+  --rp-primary-hover: #ff6b55;
+  --rp-primary-tint: rgba(232, 64, 42, 0.1);
+  --rp-primary-glow: rgba(232, 64, 42, 0.22);
+  --rp-primary-ring: rgba(232, 64, 42, 0.45);
+  --rp-primary-text: #b4271a;
+  --rp-on-primary: #100f0d;
+
+  /* Status — active/amber, settled/green, owed/red, info/blue */
+  --rp-info: #1b3fe0;
+  --rp-info-tint: #dee4fd;
+  --rp-info-ring: rgba(27, 63, 224, 0.5);
+  --rp-on-info: #ffffff;
+  --rp-success: #0a6b47;
+  --rp-success-tint: rgba(18, 160, 106, 0.12);
+  --rp-warning: #6b4600;
+  --rp-warning-tint: rgba(255, 201, 60, 0.3);
+  --rp-danger: #b4271a;
+  --rp-danger-hover: #8f1d13;
+  --rp-danger-tint: rgba(232, 64, 42, 0.1);
+  --rp-on-danger: #ffffff;
+
+  /* Focus: one flare ring everywhere */
+  --rp-focus: #e8402a;
+
+  /* Depth: flat ink offsets by day, soft shadows by night */
+  --rp-shadow-ink-faint: rgba(16, 15, 13, 0.18);
+  --rp-shadow-ink-soft: rgba(16, 15, 13, 0.3);
+  --rp-shadow-sm: 2px 2px 0 rgba(16, 15, 13, 0.18);   /* elev-1 */
+  --rp-shadow: 3px 3px 0 rgba(16, 15, 13, 0.3);       /* elev-2 */
+  --rp-shadow-lg: 6px 6px 0 #100f0d;                  /* elev-4 */
+  --rp-shadow-hover: 5px 5px 0 #100f0d;
+  --rp-shadow-kpi: 4px 4px 0 #100f0d;                 /* elev-3 */
+
+  /* Dark chrome: the tab bar on dark backgrounds, the photo crop guides */
+  --rp-tab-hover: rgba(255, 255, 255, 0.06);
+  --rp-tab-active-text: #ffb3a6;
+  --rp-photo-guide: rgba(255, 255, 255, 0.55);
+  --rp-photo-guide-fine: rgba(255, 255, 255, 0.5);
+
+  /* Legacy utility remaps (adminCompat.css, day only) */
+  --rp-legacy-059669: #059669;
+  --rp-legacy-065f46: #065f46;
+  --rp-legacy-0891b2: #0891b2;
+  --rp-legacy-0f172a: #0f172a;
+  --rp-legacy-155e75: #155e75;
+  --rp-legacy-1e293b: #1e293b;
+  --rp-legacy-334155: #334155;
+  --rp-legacy-3730a3: #3730a3;
+  --rp-legacy-475569: #475569;
+  --rp-legacy-64748b: #64748b;
+  --rp-legacy-7c3aed: #7c3aed;
+  --rp-legacy-92400e: #92400e;
+  --rp-legacy-9333ea: #9333ea;
+  --rp-legacy-94a3b8: #94a3b8;
+  --rp-legacy-9f1239: #9f1239;
+  --rp-legacy-a-0-0-0-0-02: rgba(0, 0, 0, 0.02);
+  --rp-legacy-a-0-0-0-0-05: rgba(0, 0, 0, 0.05);
+  --rp-legacy-a-0-0-0-0-1: rgba(0, 0, 0, 0.1);
+  --rp-legacy-a-124-58-237-0-12: rgba(124, 58, 237, 0.12);
+  --rp-legacy-a-124-58-237-0-45: rgba(124, 58, 237, 0.45);
+  --rp-legacy-a-15-23-42-0-03: rgba(15, 23, 42, 0.03);
+  --rp-legacy-a-15-23-42-0-04: rgba(15, 23, 42, 0.04);
+  --rp-legacy-a-15-23-42-0-4: rgba(15, 23, 42, 0.4);
+  --rp-legacy-a-250-246-236-0-85: rgba(250, 246, 236, 0.85);
+  --rp-legacy-a-255-255-255-0-95: rgba(255, 255, 255, 0.95);
+  --rp-legacy-a7f3d0: #a7f3d0;
+  --rp-legacy-c7d2fe: #c7d2fe;
+  --rp-legacy-cbd5e1: #cbd5e1;
+  --rp-legacy-cffafe: #cffafe;
+  --rp-legacy-d1fae5: #d1fae5;
+  --rp-legacy-d97706: #d97706;
+  --rp-legacy-e0e7ff: #e0e7ff;
+  --rp-legacy-e11d48: #e11d48;
+  --rp-legacy-e2e8f0: #e2e8f0;
+  --rp-legacy-ecfeff: #ecfeff;
+  --rp-legacy-f1f5f9: #f1f5f9;
+  --rp-legacy-f8fafc: #f8fafc;
+  --rp-legacy-fde68a: #fde68a;
+  --rp-legacy-fecdd3: #fecdd3;
+  --rp-legacy-fef3c7: #fef3c7;
+  --rp-legacy-ffe4e6: #ffe4e6;
+}
+
+/* The ink rail beside every admin page (not Studio). */
+.rp:not(.studio-editor) {
+  --rp-rail: #100f0d;
+  --rp-rail-text: rgba(250, 246, 236, 0.72);
+  --rp-rail-faint: rgba(250, 246, 236, 0.5);
+  --rp-rail-line: rgba(250, 246, 236, 0.12);
+  --rp-rail-hover: rgba(250, 246, 236, 0.06);
+  --rp-rail-hover-strong: rgba(250, 246, 236, 0.12);
+  --rp-shadow-float: 0 16px 40px rgba(16, 15, 13, 0.16), 0 2px 6px rgba(16, 15, 13, 0.08);
+}
+
+/* ── Riso Press · night — warm grey, outlines quiet, soft shadows ─────────── */
+.rp[data-rp-appearance="dark"],
+.admin-reso[data-admin-theme="dark"] {
+  --rp-canvas: #262624;
+  --rp-surface: #30302e;
+  --rp-surface-2: #2c2c29;
+  --rp-surface-sunken: #2c2c29;
+  --rp-surface-inset: #3a3935;
+  --rp-inverse: #141413;
+  --rp-inverse-2: #1a1918;
+  --rp-on-inverse: #faf6ec;
+  --rp-overlay: rgba(0, 0, 0, 0.55);
+  --rp-input-bg: #1f1e1d;
+  --rp-border: rgba(245, 244, 238, 0.13);
+  --rp-border-strong: #4a4843;
+  --rp-divider: rgba(245, 244, 238, 0.07);
+  --rp-text: #f5f4ee;
+  --rp-text-muted: #c9c7be;
+  --rp-text-subtle: #a8a59c;
+  --rp-text-faint: #85827a;
+  --rp-primary: #d97757;
+  --rp-primary-hover: #e08a6d;
+  --rp-primary-tint: rgba(217, 119, 87, 0.16);
+  --rp-primary-text: #eb9a7f;
+  --rp-on-primary: #141413;
+  --rp-on-info: #141413;
+  --rp-info: #93aef2;
+  --rp-info-tint: rgba(147, 174, 242, 0.15);
+  --rp-success: #6ccb98;
+  --rp-success-tint: rgba(108, 203, 152, 0.15);
+  --rp-warning: #e9bc5e;
+  --rp-warning-tint: rgba(233, 188, 94, 0.15);
+  --rp-danger: #f59c8b;
+  --rp-danger-hover: #f5ae9f;
+  --rp-danger-tint: rgba(240, 140, 122, 0.15);
+  --rp-on-danger: #141413;
+  --rp-focus: #d97757;
+  --rp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --rp-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --rp-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --rp-shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.35);
+  --rp-shadow-kpi: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.rp:not(.studio-editor)[data-rp-appearance="dark"] {
+  --rp-rule: #8a877e;
+  --rp-rail: #1a1918;
+  --rp-shadow-float: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Paper · day — white paper, graphite ink, calm blue ───────────────────── */
+:root[data-admin-look="paper"] .rp:not([data-rp-appearance="dark"]),
+:root[data-admin-look="paper"] .admin-reso:not([data-admin-theme="dark"]) {
+  --rp-canvas: #f6f6f4;
+  --rp-surface: #ffffff;
+  --rp-surface-2: #efefec;
+  --rp-surface-sunken: #efefec;
+  --rp-surface-inset: #e3e3df;
+  --rp-inverse: #23262b;
+  --rp-inverse-2: #2c3036;
+  --rp-on-inverse: #f6f6f4;
+  --rp-on-inverse-2: rgba(246, 246, 244, 0.74);
+  --rp-overlay: rgba(20, 22, 26, 0.34);
+  --rp-input-bg: #ffffff;
+  --rp-paper-dot: rgba(0, 0, 0, 0);
+  --rp-border: rgba(29, 31, 35, 0.2);
+  --rp-border-strong: #8d929a;
+  --rp-divider: rgba(29, 31, 35, 0.1);
+  --rp-scrollbar: #c9cbcf;
+  --rp-text: #1d1f23;
+  --rp-text-muted: #3f444b;
+  --rp-text-subtle: #5a6069;
+  --rp-text-faint: #8b9098;
+  --rp-primary: #2d5bd7;
+  --rp-primary-hover: #244bb5;
+  --rp-primary-tint: rgba(45, 91, 215, 0.1);
+  --rp-primary-glow: rgba(45, 91, 215, 0.2);
+  --rp-primary-ring: rgba(45, 91, 215, 0.45);
+  --rp-primary-text: #2448b0;
+  --rp-on-primary: #ffffff;
+  --rp-info: #0b6880;
+  --rp-info-tint: #dcf0f5;
+  --rp-info-ring: rgba(11, 104, 128, 0.45);
+  --rp-on-info: #ffffff;
+  --rp-success: #18794a;
+  --rp-success-tint: rgba(24, 121, 74, 0.1);
+  --rp-warning: #7a5200;
+  --rp-warning-tint: rgba(232, 175, 48, 0.22);
+  --rp-danger: #b42318;
+  --rp-danger-hover: #912018;
+  --rp-danger-tint: rgba(180, 35, 24, 0.08);
+  --rp-on-danger: #ffffff;
+  --rp-focus: #2d5bd7;
+  --rp-shadow-ink-faint: rgba(16, 24, 40, 0.12);
+  --rp-shadow-ink-soft: rgba(16, 24, 40, 0.16);
+  --rp-shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.14);
+  --rp-tab-active-text: #b9cbff;
+  --rp-radius-sm: 4px;
+  --rp-radius: 6px;
+  --rp-radius-lg: 8px;
+}
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) {
+  --rp-rule: #c9cbcf;
+  --rp-rail: #23262b;
+  --rp-rail-text: rgba(246, 246, 244, 0.76);
+  --rp-rail-faint: rgba(246, 246, 244, 0.52);
+  --rp-rail-line: rgba(246, 246, 244, 0.12);
+  --rp-rail-hover: rgba(246, 246, 244, 0.07);
+  --rp-rail-hover-strong: rgba(246, 246, 244, 0.13);
+  --rp-shadow-float: 0 16px 40px rgba(16, 24, 40, 0.14), 0 2px 6px rgba(16, 24, 40, 0.06);
+}
+
+/* Studio keeps raised controls; Paper draws them with soft shadows instead of ink offsets. (Admin pages stay flat:
+   the Pressroom layer in riso.css sets their shadows to none.) */
+:root[data-admin-look="paper"] .rp.studio-editor:not([data-rp-appearance="dark"]) {
+  --rp-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --rp-shadow: 0 1px 3px rgba(16, 24, 40, 0.1), 0 1px 2px rgba(16, 24, 40, 0.06);
+  --rp-shadow-hover: 0 6px 16px rgba(16, 24, 40, 0.1);
+  --rp-shadow-kpi: 0 2px 8px rgba(16, 24, 40, 0.08);
+}
+
+/* ── Paper · night — graphite, soft shadows ───────────────────────────────── */
+:root[data-admin-look="paper"] .rp[data-rp-appearance="dark"],
+:root[data-admin-look="paper"] .admin-reso[data-admin-theme="dark"] {
+  --rp-canvas: #1c1d20;
+  --rp-surface: #24262a;
+  --rp-surface-2: #212327;
+  --rp-surface-sunken: #212327;
+  --rp-surface-inset: #2e3035;
+  --rp-inverse: #141518;
+  --rp-inverse-2: #1a1b1e;
+  --rp-on-inverse: #ececee;
+  --rp-input-bg: #191a1d;
+  --rp-border: rgba(236, 236, 238, 0.13);
+  --rp-border-strong: #4a4d54;
+  --rp-divider: rgba(236, 236, 238, 0.07);
+  --rp-text: #ececee;
+  --rp-text-muted: #c6c8cc;
+  --rp-text-subtle: #a3a6ac;
+  --rp-text-faint: #80848b;
+  --rp-primary: #7aa2ff;
+  --rp-primary-hover: #93b4ff;
+  --rp-primary-tint: rgba(122, 162, 255, 0.15);
+  --rp-primary-text: #9ab8ff;
+  --rp-on-primary: #0d1117;
+  --rp-on-info: #0d1117;
+  --rp-info: #6fc6dc;
+  --rp-info-tint: rgba(111, 198, 220, 0.15);
+  --rp-success: #6dd3a0;
+  --rp-success-tint: rgba(109, 211, 160, 0.15);
+  --rp-warning: #e8c060;
+  --rp-warning-tint: rgba(232, 192, 96, 0.15);
+  --rp-danger: #f39a8f;
+  --rp-danger-hover: #f5aea5;
+  --rp-danger-tint: rgba(243, 154, 143, 0.15);
+  --rp-on-danger: #141518;
+  --rp-focus: #7aa2ff;
+  --rp-radius-sm: 4px;
+  --rp-radius: 6px;
+  --rp-radius-lg: 8px;
+}
+:root[data-admin-look="paper"] .rp:not(.studio-editor)[data-rp-appearance="dark"] {
+  --rp-rule: #6b6f76;
+  --rp-rail: #141518;
+}

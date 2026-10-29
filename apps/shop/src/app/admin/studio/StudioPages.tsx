@@ -10,7 +10,7 @@ import { useMediaPicker } from "./mediaPicker";
 import { uploadErrorMessage } from "./mediaUpload";
 import type { Page } from "../../features/site/types";
 import { reconcileSavedPage } from "./studioWorkflow";
-import { askAi } from "../aiWriter";
+import { askAi, aiWriterAvailable } from "../aiWriter";
 import { PAGE_STARTERS, pageFromStarter, type PageStarter } from "./pageStarters";
 
 // Where a page's link appears on the shop. "Header and footer" is the old "Include in the storefront header"
@@ -290,10 +290,10 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
                 title="Write the Google title and description from this page's title and opening sentences">
                 <Sparkles size={13} aria-hidden /> Auto-fill from page
               </button>
-              <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving || aiBusy} onClick={() => void writeWithAi()}
+              {aiWriterAvailable() && <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving || aiBusy} onClick={() => void writeWithAi()}
                 title="Draft the Google title and description with AI (Settings › General › AI writing assistant)">
                 <Sparkles size={13} aria-hidden /> {aiBusy ? "Writing…" : "Write with AI"}
-              </button>
+              </button>}
             </div>
           </div>
           <input className={input} value={editing.seoTitle || ""} placeholder={editing.title || "Title on Google"} aria-label="Title on Google" onChange={(e) => set({ seoTitle: e.target.value })} />

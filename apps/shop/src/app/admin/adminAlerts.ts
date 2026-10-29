@@ -75,7 +75,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
     `${providerName()} or PayPal took a different amount than the order expected: ${list(mismatch)}. Review and refund in ${providerName()} before shipping.`, mismatch));
 
   const reconciliation = orders.filter(o => o.reconciliationPending && o.paymentStatus !== "paid" && o.paymentStatus !== "refunded");
-  if (reconciliation.length) out.push(alert("payment-reconciliation", "danger", `${plural(reconciliation.length, "payment awaits", "payments await")} webhook reconciliation`, `Provider evidence needs reconciliation with a signed webhook: ${list(reconciliation)}. Review Payments webhook health before fulfillment.`, reconciliation));
+  if (reconciliation.length) out.push(alert("payment-reconciliation", "danger", `${plural(reconciliation.length, "payment awaits", "payments await")} confirmation`, `The payment still needs to be confirmed: ${list(reconciliation)}. Check these orders again before packing.`, reconciliation));
 
   const requests = orders.filter((o) => o.customerRequest?.status === "open");
   if (requests.length) out.push(alert("customer-request", "warning", `${plural(requests.length, "customer is", "customers are")} waiting on a cancel or return request`,
@@ -91,7 +91,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   const stuck = orders.filter((o) => o.paymentStatus === "unpaid" && hasStripePayment(o) && age(o, now) >= STRIPE_GRACE_MS && age(o, now) <= 7 * DAY && !o.paymentMismatch);
   if (stuck.length) out.push(alert("unpaid-stripe", "danger", `${plural(stuck.length, "order is", "orders are")} unpaid after starting a card payment`,
-    `The customer may have paid but ${providerName()} hasn't confirmed it to the shop: ${list(stuck)}. Open the order to review provider payment and pending webhook reconciliation. Only a verified payment webhook can mark it paid.`, stuck));
+    `The customer may have paid but ${providerName()} hasn't confirmed it to the shop: ${list(stuck)}. Open the order to check the payment. Only a confirmed payment can mark it paid.`, stuck));
 
   const disputes = orders.filter((o) => o.disputeStatus && ["needs_response", "warning_needs_response"].includes(o.disputeStatus));
   if (disputes.length) out.push(alert("dispute", "danger", `${plural(disputes.length, "payment dispute needs", "payment disputes need")} a response`,
@@ -103,7 +103,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   if (webhook?.lastFailureAt && (!webhook.lastReceivedAt || webhook.lastFailureAt > webhook.lastReceivedAt) && now - Date.parse(webhook.lastFailureAt) <= 7 * DAY) {
     out.push(alert("webhook", "danger", `${providerName()}'s payment messages are being rejected`,
-      `The last ${providerName()} webhook failed its security check, so paid orders may stay unpaid. Settings › Payments › Webhook health › Reset webhook signing.`, [], "webhook"));
+      `The last ${providerName()} payment message failed its security check, so paid orders may stay unpaid. Open payment checks for the next step.`, [], "webhook"));
   }
 
   const partial = orders.filter((o) => o.partiallyRefunded && o.paymentStatus === "paid" && !isFinished(o));
