@@ -6,12 +6,14 @@ import type { ReadinessItem } from "../launchReadiness";
 import { LoadingState, SecondaryButton, SectionCard } from "../riso/components";
 import { platformCardsProvider } from "../../../lib/shopProfile";
 import { SetupGuideCard } from "./SetupGuideCard";
+import { PressDetailsStage } from "./PressDetailsStage";
 
 // The welcome pulls in Studio's theme library and switcher, so it loads only for a shop that will show it.
 const ChooseLookWelcome = lazy(() => import("./ChooseLookWelcome").then(m => ({ default: m.ChooseLookWelcome })));
 
 /**
- * The top of a new shop's Overview: Choose your look the first time (plan 6.3), then Set up your shop (plan 6.9).
+ * The top of a new shop's Overview: Get started's press details (plan 16.2) and Choose your look the first time (plan 6.3),
+ * then Set up your shop (plan 6.9).
  * Both read the admin-only `firstWeek/start` the platform's setup writes; a shop without it shows neither.
  * `settings` is settings/website as the Overview read it: undefined while loading, null when it couldn't be read.
  */
@@ -56,6 +58,14 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   if (!doc) return null;
 
   if (welcomeShows(doc)) {
+    // Get started runs its steps in order: the press's details (plan 16.2), then the look.
+    if (!doc.details) {
+      const detailsDone = async (at: string) => {
+        await adminApi.updateFirstWeek({ details: { at } });
+        setDoc({ ...doc, details: { at } });
+      };
+      return <PressDetailsStage settings={settings} onDone={detailsDone} onRetrySettings={onRetrySettings} />;
+    }
     const done = async (welcome: WelcomeDone) => {
       await adminApi.updateFirstWeek({ welcome });
       setDoc({ ...doc, welcome });

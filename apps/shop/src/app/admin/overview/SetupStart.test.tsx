@@ -3,7 +3,7 @@ import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ getFirstWeek: vi.fn(), updateFirstWeek: vi.fn(async () => {}) }));
+const api = vi.hoisted(() => ({ getFirstWeek: vi.fn(), updateFirstWeek: vi.fn(async () => {}), updateSettings: vi.fn(async () => {}) }));
 const store = vi.hoisted(() => {
   class ThemeConflictError extends Error {}
   return {
@@ -45,7 +45,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("a new shop sees the welcome first, with the press's name, suggestions and every look", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "zines", plan: "both" });
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" } });
     await mount({});
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(text()).not.toContain("Set up your shop");
@@ -56,7 +56,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("choosing applies the look to the draft once, records it, and then shows the guide", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop" });
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" } });
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
     await flush();
@@ -72,7 +72,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("Skip takes the first suggestion and says so", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both" });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
     await mount({});
     await act(async () => { button("Skip for now")!.click(); });
     await flush();
@@ -80,7 +80,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("a failed save keeps the welcome up with a plain message", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both" });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
     store.saveDraft.mockRejectedValueOnce(new Error("offline"));
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
@@ -125,3 +125,75 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(text()).toBe("");
   });
 });
+
+// Form helpers: a press types into the labelled fields, so the tests do the same.
+const field = (label: string) => {
+  const l = [...document.querySelectorAll("label")].find(el => el.textContent?.trim() === label);
+  return (l ? document.getElementById(l.htmlFor) : null) as HTMLInputElement | HTMLSelectElement | null;
+};
+const fill = (label: string, value: string) => {
+  const el = field(label)!;
+  const isSelect = el instanceof HTMLSelectElement;
+  Object.getOwnPropertyDescriptor(isSelect ? HTMLSelectElement.prototype : HTMLInputElement.prototype, "value")!.set!.call(el, value);
+  act(() => { el.dispatchEvent(new Event(isSelect ? "change" : "input", { bubbles: true })); });
+};
+const waitFor = async (check: () => boolean) => {
+  for (let i = 0; i < 200 && !check(); i++) await act(async () => { await new Promise(r => setTimeout(r, 25)); });
+};
+
+describe("Get started, step 1: the press's details (plan 16.2)", () => {
+  it("a new shop starts with its details, with the press name already in and Canada as the country", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both" });
+    await mount({ waitForWelcome: false });
+    expect(text()).toContain("Get started · Step 1 of 2");
+    expect(text()).not.toContain("Choose your look");
+    expect((field("Press name") as HTMLInputElement).value).toBe("Moth Press");
+    expect((field("Country") as HTMLSelectElement).value).toBe("Canada");
+  });
+
+  it("a blank required field is named in plain words, and nothing is saved", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both" });
+    await mount({ waitForWelcome: false });
+    await act(async () => { button("Save and continue")!.click(); });
+    await flush();
+    expect(text()).toContain("Add the street address your orders ship from.");
+    expect(text()).toContain("Add an email address customers can write to.");
+    expect(api.updateSettings).not.toHaveBeenCalled();
+    expect(api.updateFirstWeek).not.toHaveBeenCalled();
+  });
+
+  it("saving writes the details to the shop, marks the step done, and then shows the look", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both" });
+    await mount({ waitForWelcome: false });
+    fill("Contact email", "hello@mothpress.example");
+    fill("Street address", "12 Queen Street");
+    fill("City", "Toronto");
+    fill("Postal code", "M5H 2N2");
+    await act(async () => { button("Save and continue")!.click(); });
+    await flush();
+    expect(api.updateSettings).toHaveBeenCalledWith({
+      info: { name: "Moth Press", email: "hello@mothpress.example" },
+      location: { street: "12 Queen Street", city: "Toronto", state: "", zip: "M5H 2N2", country: "Canada" },
+    });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ details: { at: expect.any(String) } });
+    await waitFor(() => /Choose your look/.test(text()));
+    expect(text()).toContain("Choose your look");
+    expect(text()).not.toContain("Step 1 of 2");
+  });
+
+  it("a failed save keeps the step open with a plain message, and records nothing", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both" });
+    api.updateSettings.mockRejectedValueOnce(new Error("offline"));
+    await mount({ waitForWelcome: false });
+    fill("Contact email", "hello@mothpress.example");
+    fill("Street address", "12 Queen Street");
+    fill("City", "Toronto");
+    fill("Postal code", "M5H 2N2");
+    await act(async () => { button("Save and continue")!.click(); });
+    await flush();
+    expect(document.querySelector("[role=alert]")).not.toBeNull();
+    expect(text()).toContain("Step 1 of 2");
+    expect(api.updateFirstWeek).not.toHaveBeenCalled();
+  });
+});
+
