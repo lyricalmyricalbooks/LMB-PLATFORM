@@ -321,13 +321,15 @@ service cloud.firestore {
       // Admin only. The sign-up answers themselves never change from the admin.
       allow read: if isAdminReader();
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "country", "plan", "done", "hiddenAt", "welcome", "progress", "createdAt", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "createdAt", "updatedAt"])
         && (resource == null || (request.resource.data.get("sellingToday", null) == resource.data.get("sellingToday", null)
           && request.resource.data.get("publishes", null) == resource.data.get("publishes", null)
           && request.resource.data.get("country", null) == resource.data.get("country", null)
           && request.resource.data.get("plan", null) == resource.data.get("plan", null)))
         && (!("done" in request.resource.data) || request.resource.data.done is map && request.resource.data.done.size() <= 20)
         && (!("hiddenAt" in request.resource.data) || request.resource.data.hiddenAt is string)
+        && (!("details" in request.resource.data) || (request.resource.data.details is map
+          && request.resource.data.details.keys().hasOnly(["at"]) && request.resource.data.details.at is string))
         && (!("welcome" in request.resource.data) || (request.resource.data.welcome is map
           && request.resource.data.welcome.keys().hasOnly(["theme", "at", "skipped"])
           && request.resource.data.welcome.theme is string && request.resource.data.welcome.theme.size() <= 80))

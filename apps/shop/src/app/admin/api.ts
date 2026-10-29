@@ -1966,7 +1966,7 @@ export const adminApi = {
    * Ticks a step by hand (`done.<id>`), hides the guide (`hiddenAt`), records Choose your look (`welcome`, plan 6.3) or
    * the guide's progress for the trial emails (`progress`, plan 6.10). Merges, so nothing else changes.
    */
-  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
+  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string; details?: { at: string }; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
     await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
   },
 
