@@ -44,3 +44,19 @@ describe("starter policy wording", () => {
     expect(src).toMatch(/withStarter\(prev\?\.policies\?\.\[k\]/);
   });
 });
+
+describe("starter wording for a shop that sells something other than books (plan 10.7)", () => {
+  const facts = { name: "Loom", address: "", email: "hi@example.com", returnDays: 14 };
+  it("reads product, not book, and offers a size swap", () => {
+    const text = starterPolicy("returns", { ...facts, sells: "clothing" });
+    expect(text).toContain("send a product back");
+    expect(text).not.toMatch(/\bbook\b/i);
+    expect(text).toMatch(/different size or colour/);
+    expect(starterPolicy("shipping", { ...facts, sells: "jewelry" })).toContain("Digital products");
+  });
+  it("leaves a books shop, a skipped answer and an unknown answer as they are", () => {
+    const books = starterPolicy("returns", facts);
+    for (const sells of ["books", "zines", "mix", null, "unknown"]) expect(starterPolicy("returns", { ...facts, sells })).toBe(books);
+    expect(books).toContain("send a book back");
+  });
+});

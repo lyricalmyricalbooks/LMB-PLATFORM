@@ -1,7 +1,7 @@
 // The test shop's starter catalogue (docs/test-shop.md, plan 1.32): what setup step 12 adds to the platform's own test
 // shop, on top of the release's starter documents. Every other shop gets none of it.
 //
-// - Shop: three printed books with 5 copies each (stock tracked), one pre-order, one e-book and one shipping zone.
+// - Shop: three printed books with 5 copies each (stock tracked), one pre-order, one e-book, one shirt in sizes and colours and one shipping zone.
 // - Stockroom: the three printed books, 5 copies printed and none sold, so the stockroom shows 5 on hand.
 // - Links: each printed shop book is linked to its stockroom book through the shop's own link (op "saveLinks"), so a
 //   test purchase lowers both counts (release check 4).
@@ -68,6 +68,35 @@ export function testShopDocs() {
         trackInventory: false,
         categories: ["publications"],
         description: "A made-up download on the platform's test shop.",
+      },
+    },
+    {
+      // Merchandise that isn't a book (plan 10.7): a shirt in two sizes and two colours, each with its own stock. Only in
+      // the shop (it has no stockroom book and no link), so the release checks on the printed books are unchanged.
+      path: "books/test-t-shirt",
+      data: {
+        title: "Test T-shirt",
+        slug: "test-t-shirt",
+        status: "published",
+        kind: "clothing",
+        retailPrice: 28,
+        stockLevel: 8,
+        trackInventory: true,
+        weight: "250",
+        categories: ["merchandise"],
+        description: "A made-up shirt on the platform's test shop, to show sizes and colours. Buying it moves test stock only.",
+        options: [{ name: "Size", values: ["S", "M"] }, { name: "Colour", values: ["Black", "White"] }],
+        variants: [
+          ["S", "Black"], ["S", "White"], ["M", "Black"], ["M", "White"],
+        ].map(([size, colour], i) => ({
+          id: `test-t-shirt-${i + 1}`,
+          name: `${size} / ${colour}`,
+          options: { Size: size, Colour: colour },
+          price: 28,
+          stock: 2,
+          stockLevel: 2,
+          sku: `TEST-TSHIRT-${size}-${colour.toUpperCase()}`,
+        })),
       },
     },
     {

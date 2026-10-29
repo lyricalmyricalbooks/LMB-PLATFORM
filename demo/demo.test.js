@@ -137,7 +137,7 @@ test("seeding fills the shop, the stockroom, the photos and the owner, all on th
   assert.equal(result.ownerCreated, true);
   assert.equal(result.created.length, demoShopDocs(() => "").length);
   assert.deepEqual(result.stockroomAdded, ["test-book-one", "test-book-two", "test-book-three"]);
-  assert.equal(emulators.files.size, 5);
+  assert.equal(emulators.files.size, 6);
   // Nothing went anywhere but the local emulators.
   for (const { url } of emulators.requests) assert.match(url, /^http:\/\/127\.0\.0\.1:(9099|9199|8080)\//);
   // The owner carries the Team owner role, which both apps accept.

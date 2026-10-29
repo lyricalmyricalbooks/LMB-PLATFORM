@@ -3,6 +3,7 @@ import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
 import { STARTER_POLICY_NOTE, starterFacts, withStarter } from "./starterPolicies";
+import { useShopSells } from "./shopWords";
 import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
@@ -144,6 +145,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const SECTIONS = ["maintenance", "stockHolds", "domain", "info", "location", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   useSettingsDirty("general", dirty.length > 0);
+  const sellsAnswer = useShopSells();
   const [confirmMaintenance, setConfirmMaintenance] = useState(false);
   // Functional update: a set after an await (e.g. the store-status confirm) must not restore stale values.
   const set = (section: string, patch: any) => setSettings((prev: any) => ({ ...prev, [section]: { ...prev?.[section], ...patch } }));
@@ -279,7 +281,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                     {!text.trim() && (
                       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>
                         {/* Reads the latest saved policy again so a click can never replace words typed meanwhile. */}
-                        <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev)) } }))}>Start from our wording</SecondaryButton>
+                        <SecondaryButton size="sm" onClick={() => setSettings((prev: any) => ({ ...prev, policies: { ...prev?.policies, [k]: withStarter(prev?.policies?.[k], k, starterFacts(prev, sellsAnswer)) } }))}>Start from our wording</SecondaryButton>
                         <span className="rp-hint">Filled with your shop name, address and returns window. {STARTER_POLICY_NOTE}</span>
                       </div>
                     )}

@@ -3,28 +3,40 @@
 // their lawyer) to edit, never legal advice, and it only ever fills a policy that is still empty.
 import { getCopy } from "../features/site/storeCopy";
 import type { PolicyKey } from "../features/site/policyPages";
+import { sellsBooks, goodsWords } from "../../shared/shopSells";
 
 export const STARTER_POLICY_NOTE = "A starting point, not legal advice.";
 
-export type StarterFacts = { name: string; address: string; email: string; returnDays: number };
+export type StarterFacts = { name: string; address: string; email: string; returnDays: number; sells?: string | null };
 
 const clean = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 /** The shop details the starter wording uses, read from the settings document the General tab edits. */
-export function starterFacts(settings: any): StarterFacts {
+export function starterFacts(settings: any, sells?: string | null): StarterFacts {
   const loc = settings?.location || {};
   const region = [clean(loc.state), clean(loc.zip)].filter(Boolean).join(" ");
   const address = [clean(loc.street), clean(loc.city), region, clean(loc.country)].filter(Boolean).join(", ");
   // The returns window is the one book pages already tell search engines (Text & labels › seoReturnDays): 0 = none.
   const days = Math.floor(Number(getCopy(settings?.design, "seoReturnDays")));
-  return { name: clean(settings?.info?.name), address, email: clean(settings?.info?.email), returnDays: Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 0 };
+  return { name: clean(settings?.info?.name), address, email: clean(settings?.info?.email), returnDays: Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 0, sells };
 }
 
 const contact = (f: StarterFacts) => (f.email ? `write to us at ${f.email}` : "contact us");
 const sentences = (...parts: Array<string | false>) => parts.filter(Boolean).join(" ");
 
-/** Starter text for one policy, with the shop's own name, address and returns window filled in. */
+/**
+ * Starter text for one policy, with the shop's own name, address and returns window filled in. A shop that doesn't sell
+ * books (sign-up's answer, plan 10.7) reads "product" for "book" and "title" (shared/shopSells.ts), and its returns
+ * wording mentions size and colour swaps.
+ */
 export function starterPolicy(key: PolicyKey, f: StarterFacts): string {
+  const text = bookPolicy(key, f);
+  if (sellsBooks(f.sells)) return text;
+  const goods = goodsWords(text).replace(/\b([Dd])igital titles\b/g, "$1igital products");
+  return key === "returns" ? `${goods}\n\nNeed a different size or colour? ${contact(f).replace(/^./, (c) => c.toUpperCase())} and we will arrange a swap while stock lasts.` : goods;
+}
+
+function bookPolicy(key: PolicyKey, f: StarterFacts): string {
   const we = f.name || "We";
   switch (key) {
     case "shipping":
