@@ -85,6 +85,8 @@ function scheduledJobs({
       // Carts nobody can still be reminded about are deleted, so this collection (and every later sweep)
       // stays small however many carts visitors have written. Own try/catch: never blocks the reminders.
       try { await pruneOldCarts(db); } catch (err) { console.warn("abandonedCartSweep: cart cleanup failed:", err.message); }
+      // Plan 13.8: admin history older than two years goes too (retention.js). Orders are never touched.
+      try { await require("./retention").pruneOldAuditLog(db); } catch (err) { console.warn("abandonedCartSweep: history cleanup failed:", err.message); }
       const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
       // Only the 7-day window a reminder can still be sent in, newest first, at most ABANDONED_CART_BATCH per run
       // (the same index as before: recovered + updatedAt). Older carts are not read at all.
