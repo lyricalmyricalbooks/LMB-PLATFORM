@@ -3,7 +3,7 @@
 // started as a guest (the shop's own rules decide), the shop's server code prices it and asks for the card payment, the
 // practice card pays, and the shop's webhook marks it paid and sends its emails. Then, like the press would: one is
 // shipped, one is refunded through the admin's refund, one shopper asks to cancel, and one, delivered, asks to return
-// a shirt for another size (the sample press takes returns).
+// a shirt for another size (the sample press takes returns). The last buys the box set and a gift card for a friend.
 //
 // Only run the first time the sample press is added (seed.js). Everything goes to the local emulators and the
 // practice services; the people and addresses are made up.
@@ -27,6 +27,9 @@ export const SAMPLE_ORDERS = Object.freeze([
     lines: [["salt-and-static", null, 1], ["low-tide-print", "low-tide-print-a2", 1]], then: "cancel" },
   { name: "Noor Haddad", email: "noor@example.com", address: { street: "21 King St W", city: "Toronto", state: "ON", zip: "M5H 1A1" },
     lines: [["night-buses-t-shirt", "night-buses-tee-l-bone", 1]], then: "return" },
+  // The box set, and a gift card for a friend: paying makes the card's code and emails it to Ravi.
+  { name: "Sam Whitfield", email: "sam@example.com", address: { street: "5 Water St", city: "St. John's", state: "NL", zip: "A1C 1A1" },
+    lines: [["night-and-tide-box-set", null, 1], ["moth-press-gift-card", "gift-50", 1, { giftCard: true, giftCardDetails: { recipientName: "Ravi", recipientEmail: "ravi@example.com", senderName: "Sam", message: "Happy birthday! Pick something good." } }]], then: null },
 ]);
 
 const value = (v) => {
@@ -88,12 +91,12 @@ export async function placeSampleOrder(fetch, order, products, confirm) {
   const orderId = newOrderId();
   const trackingKey = randomBytes(32).toString("hex");
   const now = new Date().toISOString();
-  const items = order.lines.map(([id, variantId, quantity]) => {
+  const items = order.lines.map(([id, variantId, quantity, extra = {}]) => {
     const product = products[id];
     const variant = variantId ? product.variants.find((v) => v.id === variantId) : null;
     return {
       id, variantId, variantName: variant?.name ?? null, title: product.title, price: variant?.price ?? (product.isOnSale ? product.salePrice : product.retailPrice),
-      quantity, photoUrl: variant?.photoUrl ?? product.photos?.[0]?.url ?? "", stripePriceId: null, shippingProfileId: null,
+      quantity, photoUrl: variant?.photoUrl ?? product.photos?.[0]?.url ?? "", stripePriceId: null, shippingProfileId: null, ...extra,
     };
   });
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);

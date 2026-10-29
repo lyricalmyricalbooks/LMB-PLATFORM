@@ -61,8 +61,10 @@ stockroom open.
   colours, a print in two sizes and an enamel pin).
 - Reviews (one waiting to be approved), the discount code **WELCOME10** (10% off), and shipping for Canada ($5, plus $1
   for each extra item) and everywhere else ($15, plus $3).
-- Five orders, placed and paid the way a shopper's are: one shipped, one waiting to be sent, one refunded, one where
-  the shopper asks to cancel, and one delivered where the shopper asks to return a T-shirt that's too big. Their emails
+- Six orders, placed and paid the way a shopper's are: one shipped, one waiting to be sent, one refunded, one where
+  the shopper asks to cancel, one delivered where the shopper asks to return a T-shirt that's too big, and one with
+  the box set and a CA$50 gift card for a friend (the card is made and emailed; a test order's gift card email goes to
+  the press, not the friend). Their emails
   are in the practice inbox. Returns are switched on for 30 days (Settings › Shipping › Returns); a new press starts
   with them off.
 - The printed books in the stockroom, with their copies on hand. The platform's three test books are there too; in the

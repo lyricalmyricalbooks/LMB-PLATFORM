@@ -75,7 +75,7 @@ export async function ensureArt(fetch, name, svg) {
 /** The sample press's printed books as the stockroom keeps them: what was printed, at the shop's prices. */
 export function sampleStockroomBooks() {
   return sampleProducts()
-    .filter(({ data }) => !data.kind && !data.digital && !data.preorder)
+    .filter(({ data }) => !data.kind && !data.digital && !data.preorder && !data.bundleItems)
     .map(({ id, author, data }) => ({
       id, title: data.title, author, isbn: data.isbn ?? "—",
       maxPrint: data.stockLevel, listPrice: data.retailPrice, currency: "CA$", threshold: 3, productionCost: Math.round(data.retailPrice * 0.3), urlParam: id,

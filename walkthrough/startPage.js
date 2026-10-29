@@ -22,6 +22,8 @@ export const START_SECTIONS = Object.freeze([
       { name: "A T-shirt in sizes and colours", href: DEMO("/books/night-buses-t-shirt"), demo: true, who: null, try: "Pick a size and a colour: the photo and the stock follow. XL in Bone is sold out." },
       { name: "A print in two sizes", href: DEMO("/books/low-tide-print"), demo: true, who: null, try: "A3 and A2 cost different amounts." },
       { name: "Sold out, and a pre-order", href: DEMO("/books/field-guide-to-small-moths"), demo: true, who: null, try: "The field guide is sold out: ask to be told when it's back. Harbour Lights (in Photobooks) is a pre-order." },
+      { name: "A gift card", href: DEMO("/books/moth-press-gift-card"), demo: true, who: null, try: "Pick an amount and who it's for. Paying makes a code and emails it; on this computer every gift card email goes to the press (owner@example.com) so no one else is written to. The code pays at checkout: try the one in the practice inbox." },
+      { name: "A box set", href: DEMO("/books/night-and-tide-box-set"), demo: true, who: null, try: "Two books in one, for less than the two apart. It sells while both books are in stock." },
       { name: "Bag and checkout", href: DEMO("/checkout"), demo: true, who: null, try: "Add things to the bag first. Try the code WELCOME10, then pay with 4242 4242 4242 4242. 4000 0000 0000 0002 shows a declined card." },
       { name: "The emails the shopper gets", href: DEMO("/inbox", PORTS.practice), demo: true, who: null, try: "The order confirmation, the shipping and refund emails, and your new-order alerts, as they look in a mailbox." },
       { name: "Track an order", href: DEMO("/track"), demo: true, who: null, try: "Use the order number and email from an order confirmation in the practice inbox." },
@@ -31,7 +33,7 @@ export const START_SECTIONS = Object.freeze([
   {
     id: "shop",
     title: "2. As the press, in its website admin",
-    intro: "Everything the press runs its shop with. In the admin, Sign in with Google and pick owner@example.com (Demo Owner). Five sample orders are already there: one shipped, one to send, one refunded, one asking to cancel and one asking to return a shirt for another size.",
+    intro: "Everything the press runs its shop with. In the admin, Sign in with Google and pick owner@example.com (Demo Owner). Six sample orders are already there: one shipped, two to send (one with a box set and a gift card), one refunded, one asking to cancel and one asking to return a shirt for another size.",
     links: [
       { name: "Overview", href: DEMO("/admin"), demo: true, who: "owner@example.com", try: "Sales, orders to send and what needs you today." },
       { name: "Orders", href: DEMO("/admin#orders"), demo: true, who: "owner@example.com", try: "Open Jun Park's order to pack and ship it, Tom Reyes's to answer the cancel request, or Noor Haddad's to work her return: approve it, mark it received and inspected, then swap the shirt for an M or refund it." },
@@ -42,6 +44,7 @@ export const START_SECTIONS = Object.freeze([
       { name: "Inventory", href: DEMO("/admin#inventory"), demo: true, who: "owner@example.com", try: "Stock for every product and every size." },
       { name: "Customers", href: DEMO("/admin#customers"), demo: true, who: "owner@example.com", try: "Who bought what." },
       { name: "Discounts and reviews", href: DEMO("/admin#discounts"), demo: true, who: "owner@example.com", try: "WELCOME10 is set up. Reviews (in the menu) has one review waiting to be approved." },
+      { name: "Gift cards", href: DEMO("/admin#giftCards"), demo: true, who: "owner@example.com", try: "The CA$50 card Sam bought for Ravi: its balance and history, and you can send the code again or issue a card yourself." },
       { name: "Returns", href: DEMO("/admin#settings/shipping/returns"), demo: true, who: "owner@example.com", try: "Whether shoppers may ask for a return, and for how many days after delivery. Off for a new press; Moth Press takes returns for 30 days." },
       { name: "Payments and emails", href: DEMO("/admin#settings/payments"), demo: true, who: "owner@example.com", try: "How the shop takes payments; then Email sender in the menu for the emails' words and look." },
       { name: "Studio, the designer", href: DEMO("/admin#designer"), demo: true, who: "owner@example.com", try: "Change any colour, word or section, see it on the page, then publish." },
