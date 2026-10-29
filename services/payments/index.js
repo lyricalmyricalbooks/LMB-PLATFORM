@@ -25,7 +25,7 @@ export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts
   const squareReady = Boolean((config.square.apps.live || config.square.apps.test) && squareTokens && squareStates);
   return createPaymentService({
     ...(squareReady ? { squareApi: createSquareApi({ fetch, apps: config.square.apps }), tokens: squareTokens, states: squareStates } : {}),
-    stripe: createStripeApi({ fetch, keys: config.keys }),
+    stripe: createStripeApi({ fetch, keys: config.keys, apiVersion: config.stripeApiVersion }),
     registry,
     auditLog,
     accounts,
@@ -42,7 +42,8 @@ export function createPaymentsFromEnv({ env, fetch, registry, auditLog, accounts
  * the platform's own Stripe account, not on a connected one. The platform key is still read only here.
  */
 export function platformBillingStripe({ env, fetch }) {
-  return createStripeApi({ fetch, keys: readServiceConfig(env).keys });
+  const config = readServiceConfig(env);
+  return createStripeApi({ fetch, keys: config.keys, apiVersion: config.stripeApiVersion });
 }
 
 /** The shop maker's Stripe client (setup/payments.js `providers.stripe`), backed by the service. */
