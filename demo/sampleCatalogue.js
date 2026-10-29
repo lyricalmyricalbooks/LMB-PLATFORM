@@ -173,6 +173,30 @@ export function sampleProducts() {
       art: [{ name: "print", svg: posterArt({ title: "Low Tide", ink: INKS.teal, ink2: INKS.blue }) }],
     },
     {
+      // A gift card: the amounts are its versions. Paying for one makes a code and emails it (to the buyer, or to the
+      // person it's for), and the code pays at checkout. Never taxed, discounted or counted as stock.
+      id: "moth-press-gift-card",
+      data: {
+        status: "published", productType: "giftCard", digital: true, trackInventory: false, allowBackorder: false, chargeTax: false,
+        publisher: SAMPLE_PRESS.name, title: "Moth Press Gift Card", retailPrice: 25, stockLevel: 0, categories: ["PRINTS & MERCH"],
+        description: "A gift card for anything in the shop. Choose an amount, and who it's for: they get the code by email.",
+        variants: [25, 50, 100].map((amount) => ({ id: `gift-${amount}`, name: `CA$${amount}`, price: amount, digital: true, stock: 0, stockLevel: 0 })),
+      },
+      art: [{ name: "card", svg: posterArt({ title: "Gift Card", ink: INKS.pink, ink2: INKS.yellow }) }],
+    },
+    {
+      // A box set: two books sold together. It has no stock of its own; it sells while both books are in stock.
+      id: "night-and-tide-box-set",
+      data: {
+        status: "published", trackInventory: false, publisher: SAMPLE_PRESS.name,
+        title: "Night and Tide Box Set", subtitle: "Low Tide Almanac and Night Buses", format: "Box set", retailPrice: 60, stockLevel: 0,
+        categories: ["PHOTOBOOKS", "ZINES"],
+        description: "Low Tide Almanac and Night Buses together in a printed slipcase, for less than the two apart.",
+        bundleItems: [{ bookId: "low-tide-almanac", variantId: null, quantity: 1 }, { bookId: "night-buses", variantId: null, quantity: 1 }],
+      },
+      art: [{ name: "box", svg: coverArt({ style: "horizon", title: "Night and Tide", author: "Box set", ink: INKS.blue, ink2: INKS.yellow }) }],
+    },
+    {
       id: "moth-enamel-pin",
       data: {
         status: "published", trackInventory: true, kind: "jewelry", publisher: SAMPLE_PRESS.name,
