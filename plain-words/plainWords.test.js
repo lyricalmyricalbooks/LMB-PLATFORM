@@ -36,7 +36,7 @@ function problemsIn(label, text, allowed = ALLOWED) {
 
 // ── The pages, as a press reads them ───────────────────────────────────────────────────────────────────────────────
 
-const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "help/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
+const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
 
 test("every page a press opens says nothing technical", () => {
   const found = PAGES.flatMap((page) => problemsIn(page, visibleText(read(page))));
@@ -50,7 +50,7 @@ const PRESS_FACING_CODE = [
   "signup/app.js", "signup/form.js", "signup/signup.js", "signup/shopMaker.js", "signup/api.js",
   "accounts/accounts.js", "accounts/app.js", "accounts/billing.js", "accounts/billingWords.js", "accounts/billingRoutes.js",
   "accounts/devices.js", "accounts/recovery.js", "accounts/recoveryRoutes.js", "accounts/roles.js", "accounts/routes.js", "accounts/teamSync.js",
-  "help/articles.js", "help/page.js", "help/support.js", "status/page.js", "status/summary.js", "terms/page.js", "terms/terms.js",
+  "help/articles.js", "help/page.js", "help/support.js", "experts/directory.js", "experts/page.js", "status/page.js", "status/summary.js", "terms/page.js", "terms/terms.js",
   "waitlist/pricing.js", "waitlist/signup.js", "waitlist/domain-check.js",
   "services/billing/billing.js", "services/billing/closing.js", "services/billing/paymentWay.js", "services/billing/plans.js",
   "services/support/inbox.js", "services/support/routes.js", "services/payments/requirements.js",
