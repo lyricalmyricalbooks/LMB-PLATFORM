@@ -202,3 +202,34 @@ test("the past-due email says what the card provider needs in plain words and li
   assert.doesNotMatch(parts.html, /<b>Press/);
   assert.throws(() => TEMPLATES["payments-past-due"]({ needs: [], link: "https://x.example" }, { settings, pressName: "P" }), /names nothing/);
 });
+
+test("every platform email ends with Colophon's name, mailing address and a contact; shop emails are left alone (15.8)", async () => {
+  const env = { PLATFORM_DOMAIN: "colophon.example", PLATFORM_MAILING_ADDRESS: "PO Box 12, Example City ON A1A 1A1" };
+  const { resend, service } = await make({ env });
+  const data = { links: { shopAdmin: "https://moth-press.web.app/admin" } };
+  await service.sendPlatform({ kind: OWNER_WELCOME, to: "owner@example.com", data, idempotencyKey: "p1" });
+  await service.sendPlatform({ kind: OWNER_WELCOME, to: "owner@example.com", data, idempotencyKey: "p2" });
+  const line = "Colophon, PO Box 12, Example City ON A1A 1A1. Contact: support@colophon.example.";
+  for (const request of resend.requests) {
+    assert.ok(request.body.text.endsWith(line), "the text ends with the identity line, once");
+    assert.equal(request.body.text.split(line).length, 2);
+    assert.ok(request.body.html.includes("PO Box 12, Example City ON A1A 1A1"));
+  }
+  await service.send("moth-press", { ...welcome, idempotencyKey: "s1" });
+  assert.ok(!resend.requests.at(-1).body.text.includes("PO Box 12"), "a press's own emails carry the press's words, not Colophon's address");
+  // Without an address the line still names the product and the contact.
+  const bare = await make({});
+  await bare.service.sendPlatform({ kind: OWNER_WELCOME, to: "owner@example.com", data, idempotencyKey: "p3" });
+  assert.ok(bare.resend.requests[0].body.text.endsWith("Colophon. Contact: support@platform.example."));
+});
+
+test("a launch or waitlist email is refused until Colophon has a mailing address, and says how to stop (15.8)", async () => {
+  const invite = { kind: "waitlist-invite", to: "newcomer@example.com", data: { link: "https://colophon.example/signup/" }, idempotencyKey: "w1" };
+  const bare = await make({});
+  await assert.rejects(bare.service.sendPlatform(invite), /PLATFORM_MAILING_ADDRESS is needed/);
+  assert.equal(bare.resend.requests.length, 0);
+  const { resend, service } = await make({ env: { PLATFORM_MAILING_ADDRESS: "PO Box 12, Example City ON A1A 1A1" } });
+  await service.sendPlatform(invite);
+  assert.match(resend.requests[0].body.text, /Reply STOP and we'll take you off the list at once/);
+  assert.match(resend.requests[0].body.text, /PO Box 12, Example City/);
+});

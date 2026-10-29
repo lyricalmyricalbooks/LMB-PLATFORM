@@ -26,6 +26,27 @@ export function layout({ subject, greeting, paragraphs, buttons = [], footer }) 
   return { subject, text, html };
 }
 
+/**
+ * Who the email is from, where, and how to reach us: the line every platform email ends with (code plan 15.8). The
+ * address is Colophon's mailing address (PLATFORM_MAILING_ADDRESS); until it is set the line names the product and
+ * the support address only, and an email that needs the address refuses to send (`sendPlatform`).
+ */
+export const identityLine = (settings) =>
+  `${settings.platformName}${settings.mailingAddress ? `, ${settings.mailingAddress}` : ""}. Contact: ${settings.supportEmail}.`;
+
+/** Adds the identity line to the end of a rendered email, once (an email that already carries it is left alone). */
+export function withIdentity(parts, settings) {
+  const line = identityLine(settings);
+  if (parts.text.includes(line)) return parts;
+  const html = parts.html.endsWith("</div>")
+    ? `${parts.html.slice(0, -6)}<p style="font-size:12px;color:#777">${escapeHtml(line)}</p></div>`
+    : `${parts.html}<p style="font-size:12px;color:#777">${escapeHtml(line)}</p>`;
+  return { ...parts, text: `${parts.text}\n\n${line}`, html };
+}
+
+/** Kinds that are commercial messages to people who asked to hear from us: they must carry the mailing address. */
+export const COMMERCIAL_KINDS = Object.freeze(new Set(["waitlist-invite"]));
+
 const signOff = (settings) => `Sent by ${settings.platformName}. Reply to this email if you need a hand.`;
 
 export const TEMPLATES = {
@@ -75,6 +96,7 @@ export const TEMPLATES = {
     paragraphs: [
       `Thanks for joining the ${settings.platformName} waitlist. Your place has come up: you can start your shop now.`,
       `Sign up with this email address. The first ${settings.trialDays ?? 14} days are free and no card is needed.`,
+      `You're getting this because you asked to hear from ${settings.platformName} when your place came up. Reply STOP and we'll take you off the list at once.`,
     ],
     buttons: [["Start your shop", safeLink(link)]],
     footer: signOff(settings),
