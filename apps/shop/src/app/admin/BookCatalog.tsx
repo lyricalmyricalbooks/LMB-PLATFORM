@@ -11,6 +11,8 @@ import { compareShopOrder, moveId, shopOrderWrites } from "../features/site/shop
 import { BookImportDialog } from "./BookImportDialog";
 import { MerchantFeedDialog } from "./MerchantFeedDialog";
 import { GoogleIndexDialog } from "./GoogleIndexDialog";
+import { lineSheetRows, printLineSheet } from "./lineSheet";
+import { getCopy } from "../features/site/storeCopy";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
@@ -221,6 +223,19 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     await finish(bad, `Updated ${changes.length - bad.length} price${changes.length === 1 ? "" : "s"}`, "change the price of");
   };
 
+  /** Prints the line sheet for the selected products (else the ones in view); products with no wholesale price are named and left out. */
+  const printSheet = async () => {
+    const list = selected.length ? selectedBooks : rows;
+    const { rows: sheet, skipped } = lineSheetRows(list);
+    if (!sheet.length) { toast.error(w("None of these products has a wholesale price yet. Add one in a product's Pricing tab.")); return; }
+    let shop: { name?: string; location?: any } = {};
+    try {
+      const s: any = await adminApi.getPublicSettings();
+      shop = { name: getCopy(s?.design || {}, "siteName"), location: s?.location };
+    } catch { /* print without the shop name */ }
+    printLineSheet(sheet, shop);
+    if (skipped.length) toast(`Left off the sheet (no wholesale price): ${skipped.slice(0, 5).join(", ")}${skipped.length > 5 ? `, and ${skipped.length - 5} more` : ""}.`);
+  };
   const bulkFeature = async (featured: boolean) => {
     const bad = await eachBook(selectedBooks, b => adminApi.updateBook(b.id, { title: b.title, isFeatured: featured, featured }));
     await finish(bad, featured ? "Marked as featured" : "Removed from featured", featured ? "feature" : "unfeature");
@@ -545,6 +560,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             { label: "Feature on the homepage", onSelect: () => bulkFeature(true) },
             { label: "Stop featuring", onSelect: () => bulkFeature(false) },
             { label: `Export ${selected.length} selected…`, onSelect: () => { setExportScope("selected"); setExportOpen(true); } },
+            { label: "Print a line sheet", onSelect: printSheet },
           ]} />
           <DestructiveButton size="sm" onClick={() => setConfirm({ kind: "bulk" })}>Delete…</DestructiveButton>
         </div>
@@ -558,6 +574,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <ActionMenu label="More catalog actions" actions={[
               { label: "Import CSV…", onSelect: () => setImportOpen(true) },
               { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
+              { label: "Print a line sheet", onSelect: printSheet },
               // Google's own tools: a Colophon shop sets those up on its own (Connect Google), so no step here (code plan 6.16).
               ...(runsOnColophon() ? [] : [
                 { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
