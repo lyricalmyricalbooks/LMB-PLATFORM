@@ -23,11 +23,11 @@ const SUGGESTED: Record<Publishes | "general", string[]> = {
   comics: ["press-poster", "press-riso-noir", "press-zine"],
   prints: ["press-index", "press-poster", "press-archive"],
   mix: ["press-riso", "press-broadsheet", "press-index"],
-  clothing: ["urban-streetwear", "modern-atelier", "nordic-minimal"],
+  clothing: ["press-marquee", "urban-streetwear", "modern-atelier"],
   shoes: ["urban-streetwear", "conversion-engine", "tech-minimal"],
-  jewelry: ["golden-noir", "velvet-rose", "editorial-luxe"],
+  jewelry: ["press-shelf", "golden-noir", "velvet-rose"],
   music: ["night-neon", "press-poster", "press-punk"],
-  other: ["artisan-market", "nordic-minimal", "modern-atelier"],
+  other: ["press-shelf", "artisan-market", "press-marquee"],
   general: ["press-riso-noir", "press-riso", "press-imprint"],
 };
 

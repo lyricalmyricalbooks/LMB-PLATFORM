@@ -118,14 +118,14 @@ export function createRecovery({ store, email, registry, auditLog, findAccount, 
     // ── Platform admins, from the control room ──
 
     async queue(claims, { status = "waiting" } = {}) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       const rows = await store.list({ status });
       return { requests: rows.sort((a, b) => (a.askedAt < b.askedAt ? -1 : 1)) };
     },
 
     /** Approve, with a note on how the person was checked. The move waits HOLD_HOURS for the old owner to object. */
     async approve(claims, { id, note } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       if (text(note).length < 10) throw new SignupError(400, "Say how you checked it's them (at least 10 characters).");
       const request = await load(id);
       if (request.status !== "waiting") throw new SignupError(409, "Only a waiting request can be approved.");
@@ -139,7 +139,7 @@ export function createRecovery({ store, email, registry, auditLog, findAccount, 
     },
 
     async deny(claims, { id, reason } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       if (text(reason).length < 10) throw new SignupError(400, "Give the reason the person will be sent (at least 10 characters).");
       const request = await load(id);
       if (!OPEN.includes(request.status)) throw new SignupError(409, "That request is already settled.");
@@ -153,7 +153,7 @@ export function createRecovery({ store, email, registry, auditLog, findAccount, 
 
     /** After the wait, with nobody objecting: the move itself. */
     async apply(claims, { id, doneByHand = false } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       const request = await load(id);
       if (request.status !== "approved") throw new SignupError(409, "Only an approved request can be applied.");
       if (now().toISOString() < request.holdUntil) throw new SignupError(409, `The old address has until ${request.holdUntil} to object.`);

@@ -1136,6 +1136,7 @@ import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
 import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, switchOn } from './lib/shop-profile.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
+import { catalogGroups, groupOf, sizeItem } from './lib/product-groups.js';
 
 
 // Tells the boot watchdog in index.html that the bundle and every import it
@@ -1683,6 +1684,8 @@ function resetBookForm() {
   // A website book offered here is linked only when its form is saved; a
   // closed or cancelled form forgets it.
   _bookFromWebsiteKey = '';
+  _bookFromWebsiteGroup = null;
+  _bookFromWebsiteSizes = [];
   if ($('book-modal-badge')) $('book-modal-badge').textContent = '✨ New Release';
   $('add-book-modal-title').textContent = 'Add new book';
   $('add-book-save-btn').textContent = 'Save Book';
@@ -1725,6 +1728,10 @@ function openAddBookModal() {
 // The website edition ("<bookId>|<variantId>") the open Add new book form was
 // filled from, so its save can ask the website to link the two. Empty otherwise.
 let _bookFromWebsiteKey = '';
+// Plan 10.5: when that edition is one size of a product (lib/product-groups.js), the
+// product's group and the website's other sizes, offered once the form is saved.
+let _bookFromWebsiteGroup = null;
+let _bookFromWebsiteSizes = [];
 
 /**
  * "Add to the app" on a book the website sells that isn't here yet: the usual
@@ -1746,6 +1753,8 @@ export function openAddBookFromWebsite(prefill, key) {
   // The print run is the owner's to fill in: the form won't save without it.
   $('nb-max').value = '';
   _bookFromWebsiteKey = String(key || '');
+  _bookFromWebsiteGroup = p.group || null;
+  _bookFromWebsiteSizes = Array.isArray(p.sizes) ? p.sizes : [];
   updateModalAccentPreview($('nb-accent'));
   updateBookModalFinancials();
   openM('add-book');
@@ -2504,6 +2513,8 @@ async function saveBookFromModal() {
     shipWeightUnit: $('nb-ship-weight-unit').value || 'lb',
     shipHsCode: $('nb-ship-hs').value.trim() || '490199'
   };
+  // A size of a website product joins its product's group (plan 10.5).
+  if (!editingBookId && _bookFromWebsiteGroup) book.group = _bookFromWebsiteGroup;
 
 
   // A currency change re-denominates every figure already on the books, so ask
@@ -2595,10 +2606,16 @@ async function saveBookFromModal() {
   // A new book filled in from the website: ask the website to link its edition
   // to this book (read before the form closes, which forgets it).
   const fromWebsiteKey = !editingBookId ? _bookFromWebsiteKey : '';
+  const fromWebsiteSizes = fromWebsiteKey ? _bookFromWebsiteSizes : [];
   _bookFromWebsiteKey = '';
+  _bookFromWebsiteGroup = null;
+  _bookFromWebsiteSizes = [];
 
   showToast(editingBookId ? '✓ Book updated' : '✓ Book added to catalog');
-  closeAddBookModal();
+  // Saved, so nothing is unsaved: close without the "Discard your unsaved changes?" question, which used to
+  // open over the saved form (and swallow the next question, such as the other sizes below).
+  closeM('add-book');
+  resetBookForm();
   if (fromWebsiteKey) noteBookAddedFromWebsite(fromWebsiteKey, id);
   buildBookSwitcher();
   renderCatalogList();
@@ -2615,6 +2632,8 @@ async function saveBookFromModal() {
   // Asked last, once the book modal is out of the way, so the two dialogs
   // don't stack.
   if (currencyResult) await offerSheetsResyncAfterRestate(currencyResult.to);
+  // Plan 10.5: the website's other sizes of this product, also asked once the form is closed.
+  if (fromWebsiteSizes.length) await addOtherSizes(id, fromWebsiteSizes);
 }
 
 /**
@@ -2661,6 +2680,40 @@ export async function applyBookDetailFromWebsite(bookId, patch, stillDiffers = (
 
 // One title's row in Settings → Catalogue. Live and test books share it, so
 // the two lists can't drift apart.
+/**
+ * Plan 10.5: the item just saved is one size of a website product. Offer to add
+ * the website's other sizes too, each its own item (own stock count and ledger)
+ * with the saved item's settings, and ask the website to link each one.
+ */
+async function addOtherSizes(savedId, sizes) {
+  const saved = BOOKS[savedId];
+  const group = groupOf(saved);
+  if (!saved || !group || !sizes.length) return;
+  const n = sizes.length;
+  const ok = await confirmDialog(
+    `Also add the other ${n === 1 ? 'size' : `${n} sizes`} of ${group.name}: ${sizes.map(x => x.name).join(', ')}? `
+    + `Each gets its own stock count, with the same settings as “${saved.title}”. You can change any of them later.`,
+    { title: 'Add the other sizes', okLabel: n === 1 ? 'Add it' : `Add ${n} more`, cancelLabel: 'Not now' });
+  if (!ok) return;
+  const taken = new Set(Object.keys(BOOKS));
+  const added = [];
+  for (const offer of sizes) {
+    const item = sizeItem(saved, offer, offer.name, taken);
+    taken.add(item.id);
+    BOOKS[item.id] = item;
+    states[item.id] = defaultState(item);
+    added.push([offer.key, item.id]);
+  }
+  refreshBookList();
+  await persistProductionCosts();
+  await saveCatalogWithDeletions();
+  added.forEach(([key, itemId]) => noteBookAddedFromWebsite(key, itemId));
+  buildBookSwitcher();
+  renderCatalogList();
+  renderProfitSettings();
+  showToast(`✓ ${added.length} more size${added.length === 1 ? '' : 's'} of ${group.name} added`);
+}
+
 function catalogCardHtml(b) {
   return `
       <div class="catalog-card">
@@ -2697,7 +2750,13 @@ function renderCatalogList() {
         <button class="btn gold lg" onclick="openAddBookModal()">+ Add your first book</button>
       </div>`;
   } else {
-    container.innerHTML = regularBooks.map(catalogCardHtml).join('');
+    // Sizes of one product sit together under its name (plan 10.5).
+    container.innerHTML = catalogGroups(regularBooks).map(entry => entry.kind === 'single'
+      ? catalogCardHtml(entry.item)
+      : `<section class="catalog-group" aria-label="${escapeHtml(entry.name)}">
+          <h4 class="catalog-group-title">${escapeHtml(entry.name)} <span class="catalog-group-count tnum">${entry.items.length} sizes</span></h4>
+          ${entry.items.map(catalogCardHtml).join('')}
+        </section>`).join('');
   }
 
   if (testContainer) {

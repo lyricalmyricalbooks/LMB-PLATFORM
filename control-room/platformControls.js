@@ -26,7 +26,7 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
   return {
     /** The editable settings: what each is now, what the environment alone says, and the words for the page. */
     async settings(claims) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       const saved = await settingsStore.get(SETTINGS_RECORD);
       const current = await liveSettings({ env, store: settingsStore });
       return {
@@ -44,7 +44,7 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
      * so the saved record only holds real changes; `reset: [path]` drops a change. Each changed value is logged.
      */
     async saveSettings(claims, { values = {}, reset = [], reason } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);
       if (!Array.isArray(reset) || reset.some((path) => !EDITABLE[path])) throw new ControlError(400, "Only settings on this page can be reset.");
       const problems = savedSettingsProblems(values);
@@ -68,7 +68,7 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
 
     /** The waitlist, newest first, each marked invited or not, with the shops in the making. */
     async waitlist(claims) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       const rows = waitlist ? await waitlist.list() : [];
       const people = [];
       for (const row of rows) {
@@ -89,7 +89,7 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
 
     /** Invites one address from the waitlist (or any address). A repeat sends nothing new. */
     async invite(claims, { email } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       if (!invites) throw new ControlError(503, "Invites aren't set up here, so nobody was invited.");
       let result;
       try {
@@ -107,7 +107,7 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
      * this also restarts a stop that needed a person, once the person (you) has fixed what stopped it. Logged.
      */
     async retry(claims, { shopId, reason } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);
       const row = signups && typeof shopId === "string" ? await signups.get(shopId) : null;
       if (!row) throw new ControlError(404, "There's no shop being made with that id.");
@@ -119,7 +119,7 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
 
     /** The activity log, newest first; one shop's only with `shopId`. Read only. */
     async activity(claims, { shopId, limit = 200 } = {}) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       if (!activity) return { entries: [] };
       const n = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 1000) : 200;
       return { entries: await activity.list({ shopId: typeof shopId === "string" && shopId ? shopId : null, limit: n }) };

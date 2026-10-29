@@ -204,7 +204,7 @@ export function createControlRoom({
 
     /** Every shop, for the control room's list. */
     async shops(claims) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       const rows = await registry.listShops();
       const shops = [];
       for (const row of rows) {
@@ -239,7 +239,7 @@ export function createControlRoom({
      * own audit log before the sign-in is made, with who, why and until when; with no log, no sign-in.
      */
     async actAs(claims, { shopId, reason, mode = "view" } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);
       // "view" (the default, plan 9.8) looks only: the shop's server and rules refuse its changes. "edit" is staff.
       if (mode !== "view" && mode !== "edit") throw new ControlError(400, "Choose to view the shop or to make changes.");
@@ -256,7 +256,7 @@ export function createControlRoom({
      * control room. Null until it exists; `npm run demo` is the test shop on Julian's computer until then.
      */
     async testShop(claims) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       const row = (await registry.listShops()).find((r) => r.testShop === true);
       if (!row) return { testShop: null };
       const profile = await registry.getProfile(row.shopId);
@@ -283,7 +283,7 @@ export function createControlRoom({
      * are. Logged.
      */
     async resetTestShop(claims, { shopId } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       const row = await shopOr404(shopId);
       if (row.testShop !== true) throw new ControlError(409, "Only the test shop's sample books can be reset.");
       if (row.status !== "live") throw new ControlError(409, "The test shop isn't live yet, so there are no sample books to reset.");
@@ -299,7 +299,7 @@ export function createControlRoom({
      * its control-room history. Customer details are never part of it.
      */
     async shop(claims, { shopId } = {}) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       const row = await shopOr404(shopId);
       const profile = await registry.getProfile(shopId);
       const checks = await registry.readReleaseChecks(shopId);
@@ -344,7 +344,7 @@ export function createControlRoom({
      * its own rules (nothing deleted ahead of 6.8's dates). Logged before it runs.
      */
     async googleRunAgain(claims, { shopId, step } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       await shopOr404(shopId);
       if (!googleSteps) throw new ControlError(503, "The control room can't reach the Google steps right now.");
       if (typeof step !== "string" || !step) throw new ControlError(400, "Choose a Google step to run again.");
@@ -362,7 +362,7 @@ export function createControlRoom({
      * change still waiting. Logged; safe to repeat.
      */
     async setFee(claims, { shopId, basisPoints, refunded, reason } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);
       if (!Number.isInteger(basisPoints) || basisPoints < 0 || basisPoints > MAX_BASIS_POINTS) throw new ControlError(400, "The fee must be a percentage from 0 to 100, in steps of 0.01.");
       if (typeof refunded !== "boolean") throw new ControlError(400, "Say whether a refund gives the fee back.");
@@ -395,7 +395,7 @@ export function createControlRoom({
      * shop's trouble doesn't stop the others and is reported.
      */
     async switchAll(claims, { name, on, reason } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       if (!SWITCHES.includes(name)) throw new ControlError(400, `There's no switch called ${name}.`);
       if (typeof on !== "boolean") throw new ControlError(400, "Say on or off.");
       reasonOf(reason);
@@ -414,13 +414,13 @@ export function createControlRoom({
 
     /** The switch defaults new shops get (9.7): every switch, off unless saved on. */
     async newShopSwitches(claims) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       const saved = platformState ? await platformState.get(NEW_SHOP_SWITCHES) : null;
       return { switches: shopSwitches(saved?.values), updatedAt: saved?.updatedAt ?? null, updatedBy: saved?.updatedBy ?? null };
     },
 
     async setNewShopSwitch(claims, { name, on, reason } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       if (!SWITCHES.includes(name)) throw new ControlError(400, `There's no switch called ${name}.`);
       if (typeof on !== "boolean") throw new ControlError(400, "Say on or off.");
       const why = reasonOf(reason);
@@ -436,7 +436,7 @@ export function createControlRoom({
 
     /** Today (9.2): the numbers, monthly income and everything that needs a person. */
     async today(claims) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       const rows = await registry.listShops();
       const profiles = {}, checks = {}, open = {};
       for (const row of rows) {
@@ -455,7 +455,7 @@ export function createControlRoom({
 
     /** The repair queue: open items (or fixed ones), newest first. */
     async repairs(claims, { status = "open" } = {}) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       if (!repairs) return { repairs: [] };
       if (!["open", "fixed"].includes(status)) throw new ControlError(400, "Choose open or fixed.");
       return { repairs: await repairs.list({ status }) };
@@ -463,7 +463,7 @@ export function createControlRoom({
 
     /** A person marks a repair fixed, with what they did. */
     async markFixed(claims, { id, note } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       if (!repairs) throw new ControlError(404, "There's no repair queue.");
       const item = await repairs.markFixed(id, { by, note: typeof note === "string" ? note.trim() : "" });
       if (!item) throw new ControlError(404, "That repair isn't there.");
@@ -472,7 +472,7 @@ export function createControlRoom({
 
     /** Runs the self-checks for one shop now (the page's "Check now"). */
     async checkNow(claims, { shopId } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       if (!selfCheck) throw new ControlError(404, "The self-checks aren't set up.");
       await shopOr404(shopId);
       return selfCheck.check(shopId, { why: `asked by ${by}` });
@@ -483,7 +483,7 @@ export function createControlRoom({
      * anything changes. Closing a closed shop changes nothing.
      */
     async closeShop(claims, { shopId, reason } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);
       const row = await shopOr404(shopId);
       if (row.closure) return { shopId, closed: true, changed: false, at: row.closure.at };
@@ -500,7 +500,7 @@ export function createControlRoom({
 
     /** Opens a closed shop again: its pause goes back to what it was before, with a reason in the log. */
     async reopenShop(claims, { shopId, reason } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);
       const row = await shopOr404(shopId);
       if (!row.closure) return { shopId, closed: false, changed: false };
@@ -517,7 +517,7 @@ export function createControlRoom({
      * keys ("own"), to Square ("square"), or back to the platform's Stripe ("platform"). Each press is emailed at once.
      */
     async movePayments(claims, { shopId, all, to, reason } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       if (!PAYMENT_ROUTES.includes(to)) throw new ControlError(400, "Choose own keys, Square or back to the platform.");
       const why = reasonOf(reason);
       if (all !== true) await shopOr404(shopId);
@@ -527,19 +527,19 @@ export function createControlRoom({
 
     /** The breach register (plan 8.6): every entry, newest first, and who the privacy contact is. */
     async breaches(claims) {
-      adminOf(claims, admins);
+      adminOf(claims, admins, now().getTime());
       if (!breaches) return { breaches: [], privacyContact: people.privacyContact ?? null };
       return { breaches: await breaches.list(), privacyContact: people.privacyContact ?? null };
     },
 
     async recordBreach(claims, details = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       if (!breaches) throw new ControlError(503, "The breach register isn't set up here, so nothing was written.");
       return { breach: await breaches.record({ ...details, by }) };
     },
 
     async updateBreach(claims, { id, reportedToCommissioner, peopleTold, note } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       if (!breaches) throw new ControlError(503, "The breach register isn't set up here, so nothing was written.");
       return { breach: await breaches.update({ by, id, reportedToCommissioner, peopleTold, note }) };
     },
@@ -549,7 +549,7 @@ export function createControlRoom({
      * press has cleaned its list. Logged with the reason; receipts never stopped, so there is nothing else to restart.
      */
     async resumeNewsletter(claims, { shopId, reason } = {}) {
-      const by = adminOf(claims, admins);
+      const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);
       if (!newsletters) throw new ControlError(404, "The newsletter pause isn't set up.");
       await shopOr404(shopId);
@@ -561,7 +561,7 @@ export function createControlRoom({
 
     /** The control room's switch button. */
     async switch(claims, { shopId, name, on, reason } = {}) {
-      return setSwitch({ by: adminOf(claims, admins), shopId, name, on, reason });
+      return setSwitch({ by: adminOf(claims, admins, now().getTime()), shopId, name, on, reason });
     },
   };
 }

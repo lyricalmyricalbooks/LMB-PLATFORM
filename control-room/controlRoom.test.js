@@ -422,7 +422,7 @@ test("only Julian's listed address, with two-step sign-in in the last 12 hours, 
   const noStep = await w.ask(oneStep, "GET", "/api/control/shops");
   assert.equal(noStep.status, 403);
   assert.match(noStep.body.message, /two-step/);
-  const old = await w.ask({ ...ADMIN, auth_time: Math.floor(Date.now() / 1000) - 13 * 3600 }, "GET", "/api/control/shops");
+  const old = await w.ask({ ...ADMIN, auth_time: Date.parse("2026-10-28T12:00:00Z") / 1000 - 13 * 3600 }, "GET", "/api/control/shops");
   assert.equal(old.status, 401);
   assert.match(old.body.message, /Sign in again/);
   // A stranger with two steps is still a stranger, and isn't told about two-step sign-in.

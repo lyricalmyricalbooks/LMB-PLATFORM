@@ -7,6 +7,7 @@
 const crypto = require("crypto");
 const { stockLines, isBundle, isGiftCardProduct } = require("./shared/promotions");
 const { isPhysicalItem } = require("./shared/localFulfillment");
+const { usesOptionPicker } = require("./shared/productOptions");
 const { shopDate } = require("./paymentGuards");
 
 const WEB_VERSION = 1;
@@ -541,6 +542,9 @@ function shopBooksForApp(books, appBooks, links, { ignoredMatches = {}, dismisse
         key: e.key, bookId: e.bookId, variantId: e.variantId, title: text(e.title, 200), edition: text(e.edition, 100),
         author: text(book.subtitle || book.authorName, 200), isbn: text(e.isbn, 40),
         price: positivePrice(variant ? variant.price : book.retailPrice), cover: smallCover(book), status: bookState(book, now),
+        // Plan 10.5: an edition of a product sold in options (sizes, colours) names its product, so the app can keep
+        // the sizes together and add them all at once. A book with plain editions sends none, as before.
+        ...(variant && usesOptionPicker(book) ? { product: text(book.title, 200) } : {}),
       };
     });
 }

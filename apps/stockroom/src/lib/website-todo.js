@@ -104,6 +104,8 @@ export function cleanShopBook(raw) {
     price: Number.isFinite(price) && price >= 0 ? Math.round(price * 100) / 100 : null,
     cover: httpsOrEmpty(raw.cover),
     status,
+    // Plan 10.5: the product an edition is a size or colour of (lib/product-groups.js); empty for a book's edition.
+    product: plainText(raw.product, 200),
   };
 }
 
@@ -132,6 +134,8 @@ export function shopBooksToOffer(catalog, { dismissed = {}, requested = {} } = {
 export function shopBookName(book) {
   const title = clean(book && book.title);
   const edition = clean(book && book.edition);
+  // A size of a product always shows its size: "M" is in "Moth Tee", but "Moth Tee" alone is not the M (plan 10.5).
+  if (edition && clean(book && book.product)) return `${title} — ${edition}`;
   if (!edition || title.toLowerCase().includes(edition.toLowerCase())) return title;
   return `${title} — ${edition}`;
 }
