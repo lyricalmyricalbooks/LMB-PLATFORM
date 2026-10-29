@@ -662,3 +662,18 @@ describe('the look choice', () => {
     expect(body.attrs['data-rp-appearance']).toBe('dark');
   });
 });
+
+describe('the stockroom frame in the shared admin look', () => {
+  const shell = rd('src/styles/admin-look/stockroom-shell.css');
+  it('takes every colour from the shared tokens', () => {
+    expect(shell).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+  });
+  it('is desktop and screen only, and loaded after the bridge', () => {
+    expect(shell).toMatch(/@media screen and \(min-width: 861px\)/);
+    const main = rd('src/main.js');
+    expect(main.indexOf('stockroom-shell.css')).toBeGreaterThan(main.indexOf('stockroom-bridge.css'));
+  });
+  it('makes the rail 264px, as wide as the website admin\'s', () => {
+    expect(shell).toMatch(/--rp-sidebar-w: 264px/);
+  });
+});

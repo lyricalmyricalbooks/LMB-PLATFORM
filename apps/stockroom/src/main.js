@@ -10,6 +10,7 @@ import './styles/theme-dark.css';
 // The shared admin look (Riso Press / Paper): tokens, then this app's old colour names pointed at them (plan 11.3).
 import './styles/admin-look/adminThemes.css';
 import './styles/admin-look/stockroom-bridge.css';
+import './styles/admin-look/stockroom-shell.css';
 import './styles/phone.css';
 // The Riso phone redesign sits on top of the phone layer above.
 import './styles/phone-riso.css';
