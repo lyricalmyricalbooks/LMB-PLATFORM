@@ -5,9 +5,9 @@
 
 /** One line about each plan, in the order the page shows them. */
 export const PLAN_LINES = Object.freeze({
-  shop: "Your own website for your books, zines and prints, with checkout and shipping.",
-  stockroom: "One count of every copy, online and at fairs, even offline at a table.",
-  both: "The shop and the stockroom, selling from the same count of every copy.",
+  shop: "Your own website for your books, zines, prints, clothing or jewellery, with checkout, sizes and shipping.",
+  stockroom: "One count of every item, online and at markets, even offline at a table.",
+  both: "The shop and the stockroom, selling from the same count of every item.",
 });
 const ORDER = Object.freeze(["shop", "stockroom", "both"]);
 
