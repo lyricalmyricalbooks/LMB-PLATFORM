@@ -115,6 +115,11 @@ export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, no
           service: [{ provider: `accounts/${providerId}`, accountManagement: {} }],
         },
       }),
+    // One-time developer registration (code plan 15.4, F13): links Colophon's Google project to its own Merchant Center
+    // account so the Merchant API can be called. Run once by hand with the platform's own token. The path and body follow
+    // Google's registration guide and are to be confirmed by the first real run (15.7).
+    registerMerchantDeveloper: (token, { account, developerEmail }) =>
+      call("POST", `${MERCHANT_ACCOUNTS}/${account}/developerRegistration:registerGcp`, token, { body: { developerEmail } }),
     listDataSources: async (token, account) => (await call("GET", `${MERCHANT_DATASOURCES}/${account}/dataSources`, token)).dataSources ?? [],
     createDataSource: (token, account, { displayName, fileUri, feedLabel, contentLanguage, countries }) =>
       call("POST", `${MERCHANT_DATASOURCES}/${account}/dataSources`, token, {

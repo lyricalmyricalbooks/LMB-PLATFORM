@@ -24,6 +24,7 @@
 //                               standard. Google ended developer tokens on 9 September 2026 (plan 15.13); "off" or
 //                               unset: the Ads tick box isn't offered
 import { sealingKey } from "../services/payments/tokenSeal.js";
+import { assertGoogleReady } from "./readiness.js";
 
 const text = (value) => (typeof value === "string" ? value.trim() : "");
 const onOff = (env, name) => {
@@ -32,7 +33,7 @@ const onOff = (env, name) => {
   return raw === "on";
 };
 
-export function readGoogleConfig(env = {}) {
+export function readGoogleConfig(env = {}, { now = Date.now() } = {}) {
   const enabled = text(env.GOOGLE_CONNECT_ENABLED).toLowerCase() === "true";
   const clientId = text(env.GOOGLE_CLIENT_ID);
   const clientSecret = text(env.GOOGLE_CLIENT_SECRET);
@@ -47,7 +48,9 @@ export function readGoogleConfig(env = {}) {
   if (!["off", "explorer", "basic", "standard"].includes(adsAccess)) throw new Error("GOOGLE_ADS_ACCESS must be off, explorer, basic or standard");
   const merchantProviderId = text(env.GOOGLE_MERCHANT_PROVIDER_ID);
   if (merchantProviderId && !/^\d+$/.test(merchantProviderId)) throw new Error("GOOGLE_MERCHANT_PROVIDER_ID is the number of Colophon's Merchant Center account");
-  return Object.freeze({
+  const yes = (name) => text(env[name]).toLowerCase() === "yes";
+  const readyChecks = onOff({ ...env, GOOGLE_READY_CHECKS: text(env.GOOGLE_READY_CHECKS) || "on" }, "GOOGLE_READY_CHECKS");
+  const config = Object.freeze({
     enabled,
     app: clientId ? Object.freeze({ clientId, clientSecret }) : null,
     redirectUrl: redirectUrl || null,
@@ -57,7 +60,14 @@ export function readGoogleConfig(env = {}) {
     businessProfile: onOff(env, "GOOGLE_BUSINESS_PROFILE"),
     adsAccess,
     merchantProviderId: merchantProviderId || null,
+    signInApproved: yes("GOOGLE_SIGNIN_APPROVED"),
+    merchantRegistered: yes("GOOGLE_MERCHANT_REGISTERED"),
+    testClientId: text(env.GOOGLE_TEST_CLIENT_ID) || null,
+    readyChecks,
   });
+  // Switching on is refused until everything outside the code is done (15.4); practice runs turn the check off.
+  if (enabled && readyChecks) assertGoogleReady(config, now);
+  return config;
 }
 
 /**

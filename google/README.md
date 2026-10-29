@@ -92,6 +92,18 @@ The shop's calls: `google.status`, `google.connectLink { returnUrl, extras }`, `
 `GOOGLE_GMAIL_SENDING` (off), `GOOGLE_BUSINESS_PROFILE` (off), `GOOGLE_ADS_DEVELOPER_TOKEN` (none: no Ads box). They
 live in this service's environment only.
 
+### The "is Google ready" check (plan 15.4)
+
+`readiness.js` lists what only Julian can do outside the code, in plain words: Google approved the sign-in screen
+(`GOOGLE_SIGNIN_APPROVED=yes`), Colophon's Merchant Center account registered and its number saved
+(`GOOGLE_MERCHANT_REGISTERED=yes` and `GOOGLE_MERCHANT_PROVIDER_ID`), the service versions checked in the last 90 days
+(`VERSION_CHECKS` in `endpoints.js`, automatic) and a separate test project (`GOOGLE_TEST_CLIENT_ID`). **With
+`GOOGLE_CONNECT_ENABLED=true` the settings refuse to load until every item is done** and name what is missing;
+`GOOGLE_READY_CHECKS=off` skips the check for practice runs with the pretend Google. The control room's Switches page
+shows the same list (`GET /api/control/google-ready`). `registerMerchantDeveloper` makes the one-time Merchant
+registration call (account and developer email); its path and body follow Google's guide and are confirmed by the
+first real run (plan 15.7).
+
 ### Switched on by Julian
 
 1. Make Colophon's Google app (a Web sign-in client). Turn on Analytics Admin, Site Verification, Search Console,

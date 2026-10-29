@@ -142,7 +142,7 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, feeDefaults = NO_FEE, admins, now = () => new Date(),
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, feeDefaults = NO_FEE, admins, now = () => new Date(),
 }) {
   const at = () => now().toISOString();
 
@@ -337,6 +337,13 @@ export function createControlRoom({
         google: googleSteps ? await googleSteps.googleStatus(shopId).catch(() => null) : null,
         history: activity ? await activity.list({ shopId, limit: 50 }) : [],
       };
+    },
+
+    /** What is still to do before Connect Google can be switched on (15.4), each item in plain words. */
+    async googleReadiness(claims) {
+      adminOf(claims, admins, now().getTime());
+      if (!googleReady) throw new ControlError(503, "The control room can't reach the Google settings right now.");
+      return googleReady(now().getTime());
     },
 
     /**

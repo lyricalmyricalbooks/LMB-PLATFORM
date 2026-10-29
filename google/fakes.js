@@ -170,6 +170,12 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
       world.merchantAccounts.set(name, { name, accountName });
       return { name, accountName };
     },
+    async registerMerchantDeveloper(token, { account, developerEmail }) {
+      who(token, "merchantCenter");
+      if (!/^accounts\/\d+$/.test(account ?? "") || !developerEmail) throw new GoogleError(400, "Registration needs the account and a developer email");
+      change("registerMerchantDeveloper", account);
+      return { name: `${account}/developerRegistration`, gcpIds: ["fake-project"] };
+    },
     listDataSources: async (token, account) => (who(token, "merchantCenter"), [...world.dataSources.values()].filter((d) => d.name.startsWith(`${account}/`)).map((d) => ({ ...d }))),
     async createDataSource(token, account, { displayName, fileUri }) {
       who(token, "merchantCenter");
