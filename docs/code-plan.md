@@ -433,7 +433,7 @@ looks and works the same, and nothing touches `LyricalmyricalWebsite` or `lyrica
 
 | # | Repo | Pull request | Proven by | Status |
 | --- | --- | --- | --- | --- |
-| 12.1 | shop, stockroom, platform | Finish 10.23: the other shop admin pages, the stockroom messages built in code, the setup guide and help articles read "product" and "maker" for a shop that doesn't sell books | the word scan for a clothing shop finds no "book" or "author"; books shop unchanged | |
+| 12.1 | shop, stockroom, platform | Finish 10.23: the other shop admin pages, the stockroom messages built in code, the setup guide and help articles read "product" and "maker" for a shop that doesn't sell books | the word scan for a clothing shop finds no "book" or "author"; books shop unchanged | **Status: started (29 October 2026).** Part 1: the setup guide (`firstWeek.ts`) reads product for a shop that doesn't sell books. Still to do: the other admin pages' body text, the stockroom messages built in code and the book-shop help articles. |
 | 12.2 | shop | Finish 10.4: a tax rate per product kind (an order can mix kinds) and a shipping profile per kind | tax and shipping tests with a mixed bag; one-kind orders price as before | |
 | 12.3 | stockroom | Finish 10.5: size-by-colour grid when adding by hand, low-stock level per size, suppliers and counts per location | ledger and offline-queue tests per variant | |
 | 12.4 | shop | 10.21 (Google Shopping per variant), 10.22 (swap for another size), 10.7 (mixed sample content) and 10.8 (words on the platform's own pages) | the tests named in those rows | |
