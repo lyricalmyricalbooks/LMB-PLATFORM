@@ -138,6 +138,13 @@ describe("firestore.rules round-2 security (#18, #111, #112)", () => {
     expect(read("src/app/Checkout.tsx")).toMatch(/customer: \{ \.\.\.customer, email:/);
   });
 
+  it("checks the billing block as the two fields checkout sends, keeping a guest order under 1000 expressions", () => {
+    // A whole-address check here made the database refuse every guest order (the platform walkthrough's emulator run).
+    expect(rules).toMatch(/\(!\('billingAddress' in c\) \|\| billingOk\(c\.billingAddress\)\)/);
+    expect(rules).toContain("b.keys().hasOnly(['state', 'country'])");
+    expect(read("src/app/Checkout.tsx")).toContain('billingAddress: { state: "", country: "Canada" }');
+  });
+
   it("expires server-only bookkeeping with Firestore TTL policies (#72)", () => {
     const indexes = JSON.parse(read("firestore.indexes.json"));
     const ttl = indexes.fieldOverrides.filter((o: any) => o.ttl === true && o.fieldPath === "expiresAt").map((o: any) => o.collectionGroup).sort();

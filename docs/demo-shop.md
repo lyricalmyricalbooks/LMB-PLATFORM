@@ -39,10 +39,12 @@ When it's ready, it prints the addresses to open:
 | What | Address |
 | --- | --- |
 | The shop | http://127.0.0.1:5173/ |
-| A book page | http://127.0.0.1:5173/books/test-book-one |
+| A book page | http://127.0.0.1:5173/books/low-tide-almanac |
+| A shirt in sizes | http://127.0.0.1:5173/books/night-buses-t-shirt |
 | The admin | http://127.0.0.1:5173/admin |
 | Studio (the theme editor) | http://127.0.0.1:5173/admin#designer |
 | The stockroom | http://127.0.0.1:5174/ |
+| The practice inbox (every email the shop sends) | http://127.0.0.1:5175/inbox |
 | The emulators' control panel (see and edit the raw data) | http://127.0.0.1:4000/ |
 
 ## Sign in
@@ -54,17 +56,23 @@ stockroom open.
 
 ## What's in it
 
-- Three printed test books with 5 copies each, a pre-order and an e-book, each with a placeholder cover.
-- One shipping zone for Canada ($5, plus $1 for each extra book).
-- The same three printed books in the stockroom, with 5 copies on hand.
-- The stockroom also shows its own sample books. A new stockroom does that today.
+- **Moth Press**, a made-up press, with eleven products and their pictures: photobooks, zines and poetry, one on sale,
+  one sold out, a pre-order and an e-book, and merch (a tote bag in two colours, a T-shirt in sizes S to XL and two
+  colours, a print in two sizes and an enamel pin).
+- Reviews (one waiting to be approved), the discount code **WELCOME10** (10% off), and shipping for Canada ($5, plus $1
+  for each extra item) and everywhere else ($15, plus $3).
+- Four orders, placed and paid the way a shopper's are: one shipped, one waiting to be sent, one refunded and one where
+  the shopper asks to cancel. Their emails are in the practice inbox.
+- The printed books in the stockroom, with their copies on hand. The platform's three test books are there too; in the
+  shop they are drafts, so shoppers don't see them.
 
 ## Stop it
 
 Press **Ctrl+C** in the terminal. If Windows asks "Terminate batch job (Y/N)?", type `Y` and press Enter. The demo saves
 the shop's and the stockroom's data on the way out, so your changes are still there next time.
 
-To start over from the starter books, run `npm run demo -- --fresh`.
+To start over from the sample press (and an empty practice inbox), run `npm run demo -- --fresh`. A demo saved before
+29 October 2026 has only the test books: run it once with `--fresh` to get Moth Press and its orders.
 
 ## See it as a brand-new press
 
@@ -82,9 +90,13 @@ and everything else, use both: `npm run demo -- --fresh --new-press`.
 
 ## What doesn't work on your computer
 
-- **Paying.** The checkout opens and works out shipping, but its Pay step says no payment method is available. Card
-  payments need Stripe, which can't run on your computer. No order is paid and no money moves.
-- **Emails** are not sent. Shipping labels and live carrier rates can't be bought.
+- **Paying is practice.** Checkout is the real one, but the card form talks to a practice card service on your
+  computer instead of Stripe. Pay with **4242 4242 4242 4242** (any future date, any three digits); **4000 0000 0000
+  0002** is always declined. The order is marked paid by the shop's own code, exactly as a real payment would, and
+  refunds work. No money moves, and PayPal and Square can't be tried.
+- **Emails go to the practice inbox**, http://127.0.0.1:5175/inbox, not to anyone's mailbox. They are the shop's real
+  emails: the order confirmation, your new-order alert, shipping, refunds and cancel requests.
+- Shipping labels and live carrier rates can't be bought.
 - **Stay online.** The practice sign-in window and the stockroom load a few files from the internet. Your shop's data
   never leaves your computer.
 - If the shop's server code can't start, the demo runs without it and says so. Then shipping prices, order tools and
@@ -93,7 +105,7 @@ and everything else, use both: `npm run demo -- --fresh --new-press`.
 ## If something goes wrong
 
 - **"The Firebase emulators are already running"**: another demo window is still open. Stop it with Ctrl+C first.
-- **A port is taken** (5173, 5174, 4000, 8080, 9000, 9099, 9199, 5001, 4400 or 4500): close the program using it, or
+- **A port is taken** (5173, 5174, 5175, 4000, 8080, 9000, 9099, 9199, 5001, 4400 or 4500): close the program using it, or
   restart the computer.
 - The emulators' own messages are in `.demo/emulators.log` in the `LMB-PLATFORM` folder.
 
@@ -155,6 +167,19 @@ The code is ready. Nothing is hosted yet. To host it:
    Team entry, the stockroom books, and a Google account with the `owner` role. Each item is added only when it's
    missing.
 5. Starts each app's own Vite (`demo/serve.js`), which answers `/shop-profile.js` with the demo profile.
+6. The first time the sample press is added, places its orders through the shop's own path (`demo/sampleOrders.js`):
+   the order as a guest under the shop's rules, the card payment from `createStripeCheckoutSession`, the practice card,
+   then the webhook marks it paid. One is then shipped, one refunded through `refundOrder` and one asks to cancel.
+
+**Practice services** (`demo/practiceServices.js`, port 5175, started before the emulators): a stand-in for Stripe's
+API and for the email sender's, and the inbox page. `practicePay.js` keeps payment intents, charges, refunds and events
+in memory and signs each webhook with the practice secret, as Stripe does; `practiceMail.js` keeps the last 200 emails
+in `.demo/inbox.json`. The shop's functions reach it only when `FUNCTIONS_EMULATOR` is `"true"` and `DEMO_STRIPE_URL` is
+set (the `Stripe` wrapper at the top of `apps/shop/functions/index.js`); the email library reads `RESEND_BASE_URL`.
+Seeding writes the practice keys (`PRACTICE_KEYS`, `PRACTICE_MAIL_KEY`, all test-shaped) into the emulator's
+`adminSecrets` and turns test mode on. In the browser, the demo profile defines a practice `window.Stripe` before the
+shop loads Stripe's, so the real checkout mounts the practice card form. The sample press on a server
+(`--sample-press`) gets none of this. Tests: `demo/practice.test.js`.
 
 The apps only use the emulators when built with `VITE_FIREBASE_EMULATORS=true` **and** opened with a `demo-` project.
 See `apps/shop/src/lib/emulators.ts` and `apps/stockroom/src/lib/emulators.js`. A real shop sets neither, so its
