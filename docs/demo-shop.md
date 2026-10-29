@@ -177,16 +177,25 @@ Tests: `demo/sample-press.test.js`. On 28 October 2026 it was also run against t
 loaded, a visitor's write was refused, the owner pass and the clear address were refused at the gate, and a change was
 gone after a reset. The database emulator couldn't start in that sandbox, for the plain demo too.
 
-## The sign-up, account and billing pages (no emulators needed)
+## Walk through everything, as the owner and as a press
 
-`npm run walkthrough` starts a small server on your computer with the platform's own pages on made-up data: the waitlist
-page with the plans, the sign-up page, the account page and each shop's **Plan & billing** page. It needs only Node.js,
-no Java and no download, and it starts in a second. It prints the addresses to open:
+`npm run walkthrough` starts a small server on your computer with the platform's own pages on made-up data. It needs
+only Node.js, no Java and no download, and it starts in a second. Then open the **start page**,
+http://127.0.0.1:5180/. It links every page, says who each one signs you in as, and what to try there:
 
 ```
 npm run walkthrough
 ```
 
+To start the shop and the stockroom at the same time (the demo above, so it needs Java), run this instead:
+
+```
+npm run walkthrough:all
+```
+
+- **As the platform owner** (`/control/`): the control room, signed in as **admin@example.com** with the two-step
+  sign-in already done (the real control room asks for a code from your authenticator app). It has three shops: Moth
+  Press, Paper Wasp Press and your test shop, whose links open the demo shop. Three people wait on the waitlist.
 - **Sign up** (`/signup/`): "Continue with Google" signs in as a made-up new press, **newcomer@example.com**. Fill in
   the form and watch the shop being made. Then open the account page to see it.
 - **Account** (`/account/`): signs in as **owner@example.com**, who has two made-up presses, Moth Press (on its free
@@ -195,7 +204,9 @@ npm run walkthrough
   invoices and cancelling. **Add a card** opens a stand-in card page; press its button to add a test card. No money
   moves.
 - **Waitlist** (`/waitlist/`): the page with the plans and **Start your free trial**.
+- **Inside a press's shop**: the start page's last section links the demo's shop, admin, Studio and stockroom, with
+  what to try (taxes presets, your web address, a practice order).
 - Add `?as=name@example.com` to any address to be a different made-up person.
 
-The address `/` shows only the words "Start page coming". Everything made here is forgotten when you press **Ctrl+C**.
+Everything made here is forgotten when you press **Ctrl+C**.
 `npm run walkthrough -- --port 5190` uses another port if 5180 is taken.

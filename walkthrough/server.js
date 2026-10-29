@@ -8,7 +8,8 @@
 // Everything the pages ask of `/api` goes to the same web door the road test uses (world.js), against a pretend Google
 // and a pretend Stripe. The card page is a stand-in for Stripe's too (`/walkthrough/card`). No network call is made.
 //
-// The path `/` holds only a one-line placeholder: the control room's start page goes there (or at `/start`).
+// The path `/` is the start page (startPage.js, plan 9.11): every page as the platform owner and as a press. The control
+// room is served at `/control/`, and the stand-in sign-in lets admin@example.com in with the two-step sign-in done.
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { dirname, extname, join, normalize, sep } from "node:path";
@@ -16,6 +17,9 @@ import { fileURLToPath } from "node:url";
 import { platformWorld } from "./world.js";
 import { randomSuffix } from "../signup/signup.js";
 import { TERMS_VERSION } from "../terms/terms.js";
+import { TEST_SHOP } from "../setup/test-shop.js";
+import { PORTS, url } from "../demo/config.js";
+import { startPage } from "./startPage.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const HERE = join(ROOT, "walkthrough");
@@ -28,11 +32,13 @@ export const MOUNTS = Object.freeze({
   "/accounts/": "accounts",
   "/help/": "help",
   "/terms/": "terms",
+  "/control/": "control-room",
 });
 
 /** The address of each page the walkthrough is for, with what to expect there. */
 export const PAGES = Object.freeze([
-  { name: "Start page", path: "/", note: 'only the placeholder "Start page coming" (the control room\'s start page goes here)' },
+  { name: "Start page", path: "/", note: "every page below, as the platform owner and as a press, with who each signs in as" },
+  { name: "Control room", path: "/control/", note: "signs in as admin@example.com, the platform owner, with the two-step sign-in done" },
   { name: "Waitlist", path: "/waitlist/", note: "the waitlist page with the plans and Start your free trial" },
   { name: "Sign up", path: "/signup/", note: "signs in as newcomer@example.com, who has no shop yet" },
   { name: "Account", path: "/account/", note: "signs in as owner@example.com, who has two made-up presses" },
@@ -44,12 +50,17 @@ export const SEED_PRESSES = Object.freeze([
   { pressName: "Paper Wasp Press", address: "paper-wasp", plan: "shop", note: "paused until a card is added" },
 ]);
 
+/** People waiting on the waitlist, for the control room's Sign-ups and the waitlist. */
+export const SEED_WAITLIST = Object.freeze([
+  { email: "riso@example.com", name: "Rae", press: "Riso Rabbit", plan: "shop", firstSignedUpAt: "2026-10-20T15:00:00Z" },
+  { email: "chapbooks@example.com", name: "Cy", press: "Chapbook Corner", plan: "both", firstSignedUpAt: "2026-10-26T09:30:00Z" },
+  { email: "stickers@example.com", name: "", press: "", plan: "stockroom", firstSignedUpAt: "2026-10-28T08:10:00Z" },
+]);
+
 const SEED_OWNER = Object.freeze({ uid: "uid-owner", email: "owner@example.com", email_verified: true, name: "Ada Owner" });
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };
 const SERVED = /\.(html|js|css|svg|png|ico)$/;
-
-const PLACEHOLDER = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Start page coming</title></head><body><p>Start page coming</p></body></html>\n";
 
 const CARD_PAGE = (session, shop) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Add a card</title>
@@ -73,15 +84,25 @@ document.getElementById("add").addEventListener("click", async () => {
 /** A clock that follows real time, shaped like world.js `fakeClock`. */
 const realClock = { ms: () => Date.now(), date: () => new Date(), tick() {}, days() {} };
 
+/** The platform's own test shop in the walkthrough: the demo shop (`npm run demo`) on this computer. */
+export const WALKTHROUGH_TEST_SHOP = Object.freeze({ ...TEST_SHOP, ownerEmail: "admin@example.com", siteUrl: url(PORTS.shop, "").replace(/\/$/, "") });
+
 /**
  * Makes the platform's pretend world and fills it: two made-up presses for owner@example.com (the first on its free
- * trial, the second paused until a card is added). Returns the world.
+ * trial, the second paused until a card is added), and the platform's test shop, which is the demo shop, with a passed
+ * release check. Returns the world.
  */
 export async function seedWalkthrough(world) {
   for (const press of SEED_PRESSES) {
     await world.signup.start(SEED_OWNER, { pressName: press.pressName, plan: press.plan, country: "CA", address: press.address, termsAccepted: true, termsVersion: TERMS_VERSION, sellingToday: "fairs", publishes: "books" });
   }
   await world.shopMaker.sweep();
+  const { siteUrl, ...row } = WALKTHROUGH_TEST_SHOP;
+  if (!(await world.registry.getShop(row.shopId))) {
+    await world.registry.createShop(row.shopId, { ...row, status: "live", createdAt: world.clock.date().toISOString() });
+    await world.registry.saveProfile(row.shopId, { ...((await world.registry.getProfile(row.shopId)) ?? {}), siteUrl });
+    await world.registry.recordReleaseCheck(row.shopId, { ok: true, finishedAt: world.clock.date().toISOString(), version: "demo" });
+  }
   return world;
 }
 
@@ -136,7 +157,7 @@ async function fileFor(folder, name) {
  * Starts the walkthrough. `port` 0 picks a free one (the tests do). Returns { server, url, world, waitlist, close }.
  */
 export async function startWalkthrough({ port = 0, host = "127.0.0.1", world = null, sweepEveryMs = 1000 } = {}) {
-  const made = world ?? (await seedWalkthrough(platformWorld({ clock: realClock, suffix: randomSuffix })));
+  const made = world ?? (await seedWalkthrough(platformWorld({ clock: realClock, suffix: randomSuffix, waitlisted: structuredClone(SEED_WAITLIST) })));
   const waitlist = new Map();
   const sweep = setInterval(() => made.shopMaker.sweep().catch(() => {}), sweepEveryMs);
   sweep.unref();
@@ -149,7 +170,7 @@ export async function startWalkthrough({ port = 0, host = "127.0.0.1", world = n
   async function handle(request, response) {
     const { pathname } = new URL(request.url, "http://walkthrough.local");
 
-    if (pathname === "/") return send(response, 200, PLACEHOLDER, TYPES[".html"]);
+    if (pathname === "/" || pathname === "/start" || pathname === "/start/") return send(response, 200, startPage(), TYPES[".html"]);
 
     // The platform's web door, the same one the road test walks.
     if (pathname.startsWith("/api/")) {
@@ -195,7 +216,7 @@ export async function startWalkthrough({ port = 0, host = "127.0.0.1", world = n
       return send(response, 200, { ok: true });
     }
 
-    // The pages: /waitlist/, /signup/, /account/ (and /accounts/), /help/, /terms/, and the Plan & billing page.
+    // The pages: /waitlist/, /signup/, /account/ (and /accounts/), /help/, /terms/, /control/, and the Plan & billing page.
     if (pathname === "/account/billing") {
       const page = await fileFor("accounts", "billing.html");
       return send(response, 200, page.body, page.type);

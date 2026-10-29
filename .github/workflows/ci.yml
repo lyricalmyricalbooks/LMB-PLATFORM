@@ -29,6 +29,20 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node release-check/local-proof.js
 
+  # The walkthrough (plan 9.11) in a real browser: the start page, then every walkthrough page on it as the person it
+  # signs in as, with no page error and no failed call (walkthrough/browser-check.js). Pretend data only.
+  walkthrough-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
+      - run: npx playwright install --with-deps chromium
+      - run: node walkthrough/browser-check.js
+
   # The platform's copy of the shop (apps/shop), with the same checks its original repo runs before merging.
   shop:
     runs-on: ubuntu-latest
