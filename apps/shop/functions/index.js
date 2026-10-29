@@ -42,6 +42,7 @@ const { pressName } = require("./shared/shopIdentity");
 const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
+const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
 const { expandDiscountCategories } = require("./shared/discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./shared/discountMath");
 const { taxLinesFor } = require("./shared/taxBooks");
@@ -1013,6 +1014,10 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     return booksById[id];
   };
   const items = [];
+  // An order claimed by an approved stockist (stockists.js) pays the wholesale price where a product has one. The registry
+  // is read again on every pricing, so a stockist who is paused after claiming pays the shop's price.
+  const stockist = await loadStockist(db, order.stockistId);
+  const wholesaleCache = new Map();
   for (const requested of order.items || []) {
     // A free gift is never taken from the browser: it is re-added below when the order earns it.
     if (!requested || requested.promoGift === true) continue;
@@ -1049,6 +1054,11 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
       throw new PricingError(err.message);
     }
     const giftCard = isGiftCardProduct(book);
+    let unitBase = basePrice;
+    if (stockist && !giftCard) {
+      const wholesale = wholesaleUnitPrice({ book, variant, wholesale: await privateWholesale(db, requested.id, wholesaleCache), basePrice });
+      if (wholesale != null) unitBase = wholesale;
+    }
     if (giftCard && !(basePrice > 0)) throw new PricingError(`"${book.title || label}" is not available to buy right now. Please remove it from your bag.`);
     let giftCardInfo = null;
     if (giftCard) {
@@ -1059,7 +1069,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
       }
     }
     // Only fields the browser may describe are kept; everything that prices or ships comes from the catalog.
-    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, ...rest } = requested;
+    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, wholesale: _w, ...rest } = requested;
     // Each part weighs what its chosen edition weighs (falling back to the book).
     const partWeights = components.map(part => {
       const partBook = booksById[part.id] || {};
@@ -1073,8 +1083,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
       title: book.title || requested.title || "",
       variantName: variant ? (variant.name || null) : null,
       quantity,
-      price: Math.round((basePrice + picked.price) * 100) / 100,
-      ...(picked.addOns.length ? { basePrice, addOns: picked.addOns } : {}),
+      price: Math.round((unitBase + picked.price) * 100) / 100,
+      ...(unitBase < basePrice ? { wholesale: true } : {}),
+      ...(picked.addOns.length ? { basePrice: unitBase, addOns: picked.addOns } : {}),
       ...(components.length ? { bundle: true, components } : {}),
       ...(giftCard ? { giftCard: true, giftCardDetails: giftCardInfo } : {}),
       format: giftCard ? "Gift card" : catalogFormat(book, variant),
@@ -1593,6 +1604,8 @@ const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTr
   releaseGiftCards, releaseStock, requireAdmin, sendEmail: lateSendEmail, siteLink, stripePaymentTaken,
 });
 
+const { handleStockistPricing } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
+
 const { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin } = privacyActions({
   db, admin, ADMIN_TO, GIFT_CARD_PERSONAL, LIMITS, RESEND_API_KEY, claimEmailSendDetailed, confirmationEmail,
   confirmedRecord, escapeHtml, findByEmailData, footerAddress, giftCardsFor, hitLimit, marketingUnsubscribeKey,
@@ -1624,6 +1637,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   cancelOrder: handleCancelOrder,
   resolvePaymentMismatch: handleResolveMismatch,
   orderRequest: handleOrderRequest,
+  stockistPricing: handleStockistPricing,
   privacyRequest: handlePrivacyRequest,
   privacyExport: handlePrivacyAdmin,
   privacyErase: handlePrivacyAdmin,

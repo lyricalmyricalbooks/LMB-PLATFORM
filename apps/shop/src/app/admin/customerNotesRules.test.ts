@@ -31,4 +31,10 @@ describe("admin-only customer data rules", () => {
     expect(b).toMatch(/allow read: if isAdminReader\(\);/);
     expect(b).toMatch(/allow write: if false;/);
   });
+  it("stockists (trade accounts) are readable by the admin and writable only by the admin", () => {
+    const b = block("stockists");
+    expect(b).toMatch(/allow read: if isAdminReader\(\);/);
+    expect(b).toMatch(/allow write: if isAdmin\(\);/);
+    expect(b).not.toMatch(/if true/);
+  });
 });
