@@ -34,6 +34,9 @@ export type Book = {
   care?: string;
   sizeChart?: string;
   sizeChartPhoto?: string;
+  /** Google Shopping, clothing and shoes only (plan 10.21): who the product is for and its age group. Blank = unisex adult. */
+  googleGender?: "male" | "female" | "unisex";
+  googleAgeGroup?: "newborn" | "infant" | "toddler" | "kids" | "adult";
   id: string;
   title: string;
   subtitle?: string;

@@ -128,7 +128,59 @@ function titleWithCreators(title, names) {
   return `${title} by ${names.join(', ')}`;
 }
 
-function googleCategory(format) {
+// Products beyond books (plan 10.21): src/shared/productOptions.ts PRODUCT_KINDS and productKind. This plain build script
+// can't import TypeScript, so merchantFeed.test.ts checks the two agree. A product with no kind is a printed book.
+const KINDS = ['book', 'ebook', 'clothing', 'shoes', 'jewelry', 'art', 'music', 'other'];
+export const kindOf = book => {
+  const kind = typeof book?.kind === 'string' ? book.kind.trim().toLowerCase() : '';
+  return KINDS.includes(kind) ? kind : 'book';
+};
+const isBook = kind => kind === 'book' || kind === 'ebook';
+
+// The kind picks Google's category; "other" has none to guess, so the item goes without one.
+const KIND_CATEGORY = {
+  clothing: 'Apparel & Accessories > Clothing',
+  shoes: 'Apparel & Accessories > Shoes',
+  jewelry: 'Apparel & Accessories > Jewelry',
+  art: 'Home & Garden > Decor > Artwork > Posters, Prints, & Visual Artwork',
+  music: 'Media > Music & Sound Recordings',
+  other: '',
+};
+
+/** Size, colour and material from a variant's option picks ({ Size: "M" }), by the option's name. */
+export function variantAttributes(variant) {
+  const out = { size: '', color: '', material: '' };
+  for (const [name, value] of Object.entries(variant?.options || {})) {
+    const key = String(name).trim().toLowerCase();
+    const text = plain(value);
+    if (!text) continue;
+    if (/^(shoe\s*|ring\s*)?sizes?$/.test(key)) out.size = out.size || text;
+    else if (/^colou?rs?$/.test(key)) out.color = out.color || text;
+    else if (/^materials?$/.test(key)) out.material = out.material || text;
+  }
+  return out;
+}
+
+const GENDERS = ['male', 'female', 'unisex'];
+const AGE_GROUPS = ['newborn', 'infant', 'toddler', 'kids', 'adult'];
+/** Clothing and shoes need a gender and an age group once per product; unset means unisex adult. */
+export function apparelAudience(book) {
+  const gender = String(book?.googleGender || '').toLowerCase();
+  const age = String(book?.googleAgeGroup || '').toLowerCase();
+  return { gender: GENDERS.includes(gender) ? gender : 'unisex', ageGroup: AGE_GROUPS.includes(age) ? age : 'adult' };
+}
+
+/** A valid GTIN (8, 12, 13 or 14 digits with a correct check digit) without spaces or hyphens, or ''. */
+export function gtinOf(value) {
+  const d = String(value ?? '').replace(/[\s-]/g, '');
+  if (!/^(\d{8}|\d{12}|\d{13}|\d{14})$/.test(d)) return '';
+  const body = [...d.slice(0, -1)].reverse();
+  const sum = body.reduce((t, c, i) => t + Number(c) * (i % 2 ? 1 : 3), 0);
+  return (10 - (sum % 10)) % 10 === Number(d.slice(-1)) ? d : '';
+}
+
+function googleCategory(format, kind = 'book') {
+  if (!isBook(kind)) return KIND_CATEGORY[kind] ?? '';
   const f = String(format || '').toLowerCase();
   if (/audio/.test(f)) return 'Media > Books > Audiobooks';
   if (/e-?book|epub|digital|pdf|kindle/.test(f)) return 'Media > Books > E-books';
@@ -149,18 +201,20 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
   const skipped = [];
   for (const book of resolveProductRoutes(live)) {
     const title = String(book.title || '').trim() || 'Untitled';
-    const creators = creatorNames(book);
+    const kind = kindOf(book);
+    // A book's subtitle line names its authors; for anything else it is just a subtitle.
+    const creators = isBook(kind) ? creatorNames(book) : [];
     if (book.productType === 'giftCard') continue;
     if (book.seoNoindex === true) { skipped.push({ id: book.id, title, reason: 'Hidden from search engines (Search (SEO) › Hide from search)' }); continue; }
     const link = `${base}/books/${encodeURIComponent(book.slug)}`;
     const photos = [...new Set((Array.isArray(book.photos) ? book.photos : []).map(p => httpsUrl(p?.url, base + '/')).filter(Boolean))];
     if (!photos.length && book.photoUrl) { const u = httpsUrl(book.photoUrl, base + '/'); if (u) photos.push(u); }
-    const description = cut(plain(book.metaDescription) || plain(book.description) || `${title}${book.subtitle ? ` by ${plain(book.subtitle)}` : ''}`, 5000);
+    const description = cut(plain(book.metaDescription) || plain(book.description) || `${title}${book.subtitle ? (isBook(kind) ? ` by ${plain(book.subtitle)}` : ` – ${plain(book.subtitle)}`) : ''}`, 5000);
     const pre = preorderDate(book, now);
     const bundle = bundleParts(book).length > 0;
     const common = {
       description, link, brand: plain(book.publisher) || shopName, condition: 'new',
-      googleCategory: googleCategory(book.format), productType: (book.categories || book.genres || [])[0] || '',
+      kind, googleCategory: googleCategory(book.format, kind), productType: (book.categories || book.genres || [])[0] || '',
       bundle, creators,
     };
     const variants = Array.isArray(book.variants) ? book.variants.filter(v => v && v.id) : [];
@@ -189,7 +243,9 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
         saleDates: '',
         availability,
         availabilityDate: pre ? `${pre}T00:00${torontoOffset(pre)}` : '',
-        gtin: isbn13(variant?.isbn) || isbn13(book.isbn),
+        gtin: isBook(kind) ? isbn13(variant?.isbn) || isbn13(book.isbn)
+          : gtinOf(variant?.barcode) || gtinOf(variant?.isbn) || gtinOf(book.barcode) || gtinOf(book.isbn),
+        ...(isBook(kind) ? {} : { ...variantAttributes(variant), ...(variantAttributes(variant).material ? {} : { material: cut(plain(book.material), 200) }), ...(kind === 'clothing' || kind === 'shoes' ? apparelAudience(book) : {}) }),
       };
       if (!variant && saleActive(book, now) && Number(book.retailPrice) > price) {
         item.salePrice = money(price);
@@ -219,8 +275,10 @@ export function merchantFeedXml(siteUrl, items, { shopName = UNNAMED_SHOP } = {}
     + tag('g:price', item.price) + tag('g:sale_price', item.salePrice) + tag('g:sale_price_effective_date', item.saleDates)
     + tag('g:brand', item.brand) + (item.gtin ? tag('g:gtin', item.gtin) : tag('g:identifier_exists', 'no'))
     + tag('g:condition', item.condition) + tag('g:google_product_category', item.googleCategory) + tag('g:product_type', item.productType)
+    + tag('g:size', item.size) + tag('g:color', item.color) + tag('g:material', item.material)
+    + tag('g:gender', item.gender) + tag('g:age_group', item.ageGroup)
     + (item.bundle ? tag('g:is_bundle', 'yes') : '')
     + (item.creators || []).map(person => `\n      <g:product_detail><g:section_name>Book</g:section_name><g:attribute_name>Author</g:attribute_name><g:attribute_value>${xml(person)}</g:attribute_value></g:product_detail>`).join('')
     + '\n    </item>').join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n  <channel>\n    <title>${xml(shopName)}</title>\n    <link>${xml(siteUrl.replace(/\/$/, '') + '/')}</link>\n    <description>${xml(`${shopName} books`)}</description>\n${body}${body ? '\n' : ''}  </channel>\n</rss>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n  <channel>\n    <title>${xml(shopName)}</title>\n    <link>${xml(siteUrl.replace(/\/$/, '') + '/')}</link>\n    <description>${xml(`${shopName} ${items.length && items.every(i => i.kind && !isBook(i.kind)) ? 'products' : 'books'}`)}</description>\n${body}${body ? '\n' : ''}  </channel>\n</rss>\n`;
 }
