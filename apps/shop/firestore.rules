@@ -498,6 +498,12 @@ service cloud.firestore {
       allow read: if isAdminReader() || isBookkeeper();
       allow write: if false;
     }
+    // Stockists (functions/stockists.js): the shops the owner approves to pay wholesale prices, one document per lower-case email.
+    // Only the owner's team reads and writes them; checkout reads them on the server.
+    match /stockists/{stockistId} {
+      allow read: if isAdminReader();
+      allow write: if isAdmin();
+    }
     match /discounts/{docId} {
       // Public code validation happens via the validateDiscountCode function.
       allow read: if isAdminReader();

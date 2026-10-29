@@ -31,12 +31,13 @@ function resolvePatch(current, patch) {
   return out;
 }
 
-function harness({ docs = {}, intents = {}, charge = null, refunds = [], stripeRefundStatus = 'succeeded', carrierRates = null, carrierFails = false, refundDefault = 3000 } = {}) {
+function harness({ identity = null, docs = {}, intents = {}, charge = null, refunds = [], stripeRefundStatus = 'succeeded', carrierRates = null, carrierFails = false, refundDefault = 3000 } = {}) {
   docs.settings ||= { website: {} };
   const stripeCalls = { refunds: [], intents: [] }, emails = [];
   const store = (name) => (docs[name] ||= {});
   const docRef = (name, id) => ({
     _name: name, _id: id, id,
+    collection: sub => ({ doc: subId => docRef(`${name}/${id}/${sub}`, subId) }),
     async get() { const data = store(name)[id]; return { exists: data !== undefined, id, data: () => data }; },
     async set(data, opts) { store(name)[id] = opts?.merge ? resolvePatch(store(name)[id], data) : data; },
     async update(change) { store(name)[id] = resolvePatch(store(name)[id], change); },
@@ -74,7 +75,7 @@ function harness({ docs = {}, intents = {}, charge = null, refunds = [], stripeR
   const admin = {
     initializeApp() {},
     firestore: Object.assign(() => db, { FieldValue }),
-    auth: () => ({ verifyIdToken: async () => ({ email: 'owner@example.com', email_verified: true, uid: 'admin1' }) }),
+    auth: () => ({ verifyIdToken: async () => identity || ({ email: 'owner@example.com', email_verified: true, uid: 'admin1' }) }),
   };
   const wrap = (...args) => args.at(-1);
   const Stripe = class {
@@ -116,7 +117,7 @@ function harness({ docs = {}, intents = {}, charge = null, refunds = [], stripeR
   vm.runInNewContext(exposed, { module: mod, exports: mod.exports, require: mockRequire, process, Buffer, console, setTimeout, clearTimeout, URL, AbortController, fetch: mockFetch }, { filename: 'index.js' });
   async function call(handler, body = {}, { admin: asAdmin = false, orderKey = 'a'.repeat(64) } = {}) {
     const response = { code: 200, value: null, set() { return this; }, status(code) { this.code = code; return this; }, json(value) { this.value = value; return this; }, send(value) { this.value = value; return this; } };
-    await mod.exports[handler]({ method: 'POST', body, headers: { origin: 'http://localhost:5173', 'x-order-key': orderKey, ...(asAdmin ? { authorization: 'Bearer tok' } : {}) }, socket: { remoteAddress: '127.0.0.1' } }, response);
+    await mod.exports[handler]({ method: 'POST', body, headers: { origin: 'http://localhost:5173', 'x-order-key': orderKey, ...(asAdmin || identity ? { authorization: 'Bearer tok' } : {}) }, socket: { remoteAddress: '127.0.0.1' } }, response);
     return response;
   }
   return { docs, call, stripeCalls, emails, ...mod.exports.__test };
@@ -381,4 +382,68 @@ test('fault 60: other shoppers\' unpaid claims count against the usage limit; a 
   await expect(stale.assertDiscountNotUsedByCustomer(discount, 'b@example.com', 'new')).resolves.toBeUndefined();
   expect(limitReached({ usageLimit: 0, usageCount: 5 }, [], 'x')).toBe(false);
   expect(openClaims([live('a@example.com', { isTest: true })], {})).toHaveLength(0);
+});
+
+// ── Stockists (plan 12.10): wholesale prices for an approved shop, by card ─────────────────────────────────────────────
+const stockistDocs = (extra = {}) => ({
+  settings: baseSettings(),
+  books: {
+    tee: { status: 'published', title: 'Tee', format: 'Apparel', retailPrice: 40 },
+    hoodie: { status: 'published', title: 'Hoodie', format: 'Apparel', retailPrice: 60, variants: [{ id: 'xl', name: 'XL', price: 66 }] },
+    mug: { status: 'published', title: 'Mug', format: 'Apparel', retailPrice: 20 },
+  },
+  'books/tee/private': { admin: { wholesalePrice: 20 } },
+  'books/hoodie/private': { admin: { wholesalePrice: 30 } },
+  stockists: { 'shop@boutique.example': { status: 'approved', name: 'Boutique' } },
+  ...extra,
+});
+const stockistOrder = (extra = {}) => ({ customer: { email: 'r@example.com', address: { country: 'CA', state: 'ON' }, billingAddress: { country: 'Canada', state: 'ON' } }, items: [{ id: 'tee', quantity: 2 }, { id: 'hoodie', variantId: 'xl', quantity: 1 }, { id: 'mug', quantity: 1 }], fulfillmentSelection: { method: 'pickup', optionId: 'pickup:shop' }, ...extra });
+const unitPrices = priced => priced.items.map(item => item.price);
+
+test('stockists: an order claimed by an approved stockist pays wholesale where a product has it, and the shop price elsewhere', async () => {
+  const app = harness({ docs: stockistDocs() });
+  const retail = await app.priceOrder(stockistOrder());
+  expect(unitPrices(retail)).toEqual([40, 66, 20]);
+  const wholesale = await app.priceOrder(stockistOrder({ stockistId: 'shop@boutique.example' }));
+  // The tee pays 20; the XL hoodie pays the same share of its own price (30 / 60 of 66); the mug has no wholesale price.
+  expect(unitPrices(wholesale)).toEqual([20, 33, 20]);
+  expect(wholesale.items.map(item => item.wholesale === true)).toEqual([true, true, false]);
+  expect(wholesale.subtotal).toBe(93);
+});
+
+test('stockists: a paused, unknown or malformed stockist pays the shop price, and the browser cannot mark a line wholesale', async () => {
+  const docs = stockistDocs({ stockists: { 'shop@boutique.example': { status: 'paused' } } });
+  const app = harness({ docs });
+  for (const stockistId of ['shop@boutique.example', 'nobody@example.com', 'not an email', '../x']) {
+    expect(unitPrices(await app.priceOrder(stockistOrder({ stockistId })))).toEqual([40, 66, 20]);
+  }
+  const forged = await app.priceOrder(stockistOrder({ items: [{ id: 'tee', quantity: 1, wholesale: true, price: 1 }] }));
+  expect(forged.items[0].price).toBe(40);
+  expect(forged.items[0].wholesale).toBeUndefined();
+});
+
+test('stockists: wholesale never beats a lower sale price, and a wholesale price above the shop price is ignored', async () => {
+  const sale = harness({ docs: stockistDocs({ books: { tee: { status: 'published', title: 'Tee', format: 'Apparel', retailPrice: 40, isOnSale: true, salePrice: 15 } } }) });
+  expect(unitPrices(await sale.priceOrder(stockistOrder({ stockistId: 'shop@boutique.example', items: [{ id: 'tee', quantity: 1 }] })))).toEqual([15]);
+  const high = harness({ docs: stockistDocs({ 'books/tee/private': { admin: { wholesalePrice: 99 } } }) });
+  expect(unitPrices(await high.priceOrder(stockistOrder({ stockistId: 'shop@boutique.example', items: [{ id: 'tee', quantity: 1 }] })))).toEqual([40]);
+});
+
+test('stockists: only a signed-in approved stockist can claim wholesale pricing, on an unpaid order they can open', async () => {
+  const stockistToken = { email: 'Shop@Boutique.example', email_verified: true, uid: 's1' };
+  const docs = () => stockistDocs({ orders: { o1: { ...stockistOrder(), paymentStatus: 'unpaid', status: 'pending_payment', trackingKey: 'a'.repeat(64) }, paid: { ...stockistOrder(), paymentStatus: 'paid', status: 'open', trackingKey: 'a'.repeat(64) } } });
+  const app = harness({ docs: docs(), identity: stockistToken });
+  const ok = await app.call('createStripeCheckoutSession', { action: 'stockistPricing', orderId: 'o1' });
+  expect(ok.code).toBe(200);
+  expect(ok.value).toMatchObject({ wholesale: true, name: 'Boutique' });
+  expect(app.docs.orders.o1.stockistId).toBe('shop@boutique.example');
+  expect((await app.call('createStripeCheckoutSession', { action: 'stockistPricing', orderId: 'paid' })).code).toBe(409);
+  expect((await app.call('createStripeCheckoutSession', { action: 'stockistPricing', orderId: 'o1' }, { orderKey: 'b'.repeat(64) })).code).toBe(403);
+  // A signed-in shopper who isn't a stockist, or whose email isn't verified, gets nothing and changes nothing.
+  const plain = harness({ docs: docs(), identity: { email: 'reader@example.com', email_verified: true, uid: 'r1' } });
+  expect((await plain.call('createStripeCheckoutSession', { action: 'stockistPricing', orderId: 'o1' })).value).toEqual({ wholesale: false });
+  expect(plain.docs.orders.o1.stockistId).toBeUndefined();
+  const unverified = harness({ docs: docs(), identity: { ...stockistToken, email_verified: false } });
+  expect((await unverified.call('createStripeCheckoutSession', { action: 'stockistPricing', orderId: 'o1' })).code).toBe(401);
+  expect(unverified.docs.orders.o1.stockistId).toBeUndefined();
 });
