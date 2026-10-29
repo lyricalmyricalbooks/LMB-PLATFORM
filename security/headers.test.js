@@ -5,7 +5,7 @@ import { safetyHeaders } from "./headers.js";
 
 // Each hosting file against the shared list. A rule applies to a page when its glob is "**" or its regex matches.
 const FILES = [
-  { file: "apps/shop/firebase.json", options: { camera: false } },
+  { file: "apps/shop/firebase.json", options: { camera: false, policy: false } },
   { file: "apps/stockroom/firebase.json", options: { camera: true } },
   { file: "waitlist/firebase.json", options: { framing: "DENY" } },
   { file: "status/firebase.json", options: { framing: "DENY" } },
@@ -26,6 +26,11 @@ test("every hosting file sends the safety headers on every page", () => {
       }
     }
   }
+});
+
+test("the shop sends no content policy, because Studio's custom code, embeds and Stripe would break", () => {
+  const { hosting } = JSON.parse(readFileSync("apps/shop/firebase.json", "utf8"));
+  assert.equal(headersFor(hosting, "/").some((h) => h.key === "Content-Security-Policy"), false);
 });
 
 test("the policy never blocks scripts, styles, images, fonts or payments", () => {

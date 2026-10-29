@@ -9,8 +9,8 @@ export const CONTENT_POLICY = "object-src 'none'; base-uri 'self'; frame-ancesto
 export const STRICT_TRANSPORT = "max-age=31536000; includeSubDomains";
 
 /** The headers every page gets, by who owns the page. `framing` is the old X-Frame-Options value. */
-export function safetyHeaders({ camera = false, framing = "SAMEORIGIN" } = {}) {
-  return [
+export function safetyHeaders({ camera = false, framing = "SAMEORIGIN", policy = true } = {}) {
+  const headers = [
     { key: "Strict-Transport-Security", value: STRICT_TRANSPORT },
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -19,4 +19,7 @@ export function safetyHeaders({ camera = false, framing = "SAMEORIGIN" } = {}) {
     // Payments stay allowed everywhere (Apple Pay and Google Pay need them); the rest a page never uses is switched off.
     { key: "Permissions-Policy", value: `camera=(${camera ? "self" : ""}), microphone=(), geolocation=(), usb=()` },
   ];
+  // The shop sends no content policy at all, on purpose (apps/shop/scripts/hostingConfig.test.ts): Studio's custom code,
+  // embeds and Stripe would break. Its framing rule is the header above.
+  return policy ? headers : headers.filter((h) => h.key !== "Content-Security-Policy");
 }
