@@ -1570,7 +1570,8 @@ const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, h
 const { handleCustomDomains } = customDomainActions({ url: shopConfig.platformDomainsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
 
 // Connect Google: one sign-in, through the platform's Google link (googleConnect.js, plan 6.17).
-const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin });
+const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformGoogleUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin,
+  readStock: () => require("./inventoryLinkStore").readCatalog() });
 
 // Settings › Bookkeeping: the QuickBooks link, through the platform's bookkeeping service (quickbooksLink.js, plan 7.16).
 // Send again builds the day from every order with the shared daily bookkeeping rules (dayFromOrders, Toronto days).

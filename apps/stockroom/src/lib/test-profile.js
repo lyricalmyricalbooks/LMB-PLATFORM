@@ -227,7 +227,6 @@ export const SAMPLE_BOOK = Object.freeze({
   accent: '#6B4FE8', /* token-ok: a book's own accent is data, stored with the book */
   accentBg: 'rgba(107,79,232,.1)',
   urlParam: 'paper-garden',
-  authorPassword: 'sample-password',
   // Profit-sharing, like a real co-published book, so the Test Profile shows
   // the Settle up statement: the artist earns 15% until the production cost is
   // back, then half.
