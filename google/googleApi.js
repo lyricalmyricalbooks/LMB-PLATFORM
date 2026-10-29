@@ -2,8 +2,8 @@
 // touch, over an injected `fetch` (tests use the pretend Google in fakes.js, which has the same calls). Every address is
 // in endpoints.js. Each call takes the press's access token first; the service refreshes it (google/service.js).
 import {
-  ADS, ANALYTICS_ADMIN, ANALYTICS_ADMIN_ALPHA, AUTHORIZE_URL, BUSINESS_ACCOUNTS, CALENDAR, DRIVE, GMAIL, MERCHANT_ACCOUNTS, MERCHANT_DATASOURCES,
-  REVOKE_URL, SEARCH_CONSOLE, SITE_VERIFICATION, TOKEN_URL, USERINFO_URL, YOUTUBE,
+  ADS, ANALYTICS_ADMIN, ANALYTICS_ADMIN_ALPHA, AUTHORIZE_URL, BUSINESS_ACCOUNTS, CALENDAR, DRIVE, GMAIL, MERCHANT, MERCHANT_ACCOUNTS,
+  MERCHANT_DATASOURCES, REVOKE_URL, SEARCH_CONSOLE, SHEETS, SITE_VERIFICATION, TOKEN_URL, USERINFO_URL, YOUTUBE,
 } from "./endpoints.js";
 
 export class GoogleError extends Error {
@@ -125,6 +125,20 @@ export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, no
         },
       }),
     deleteDataSource: (token, name) => call("DELETE", `${MERCHANT_DATASOURCES}/${name}`, token),
+    /** Products Google turned down or warned about, from Merchant API v1 (`productStatus.itemLevelIssues`). */
+    async listProductProblems(token, account) {
+      const found = [];
+      let pageToken;
+      do {
+        const page = await call("GET", `${MERCHANT}/products/v1/${account}/products`, token, { query: { pageSize: 250, pageToken } });
+        for (const product of page.products ?? []) {
+          const issues = (product.productStatus?.itemLevelIssues ?? []).filter((i) => i.severity === "DISAPPROVED" || i.severity === "DEMOTED" || i.severity === "ERROR");
+          if (issues.length) found.push({ offerId: product.offerId ?? "", title: product.productAttributes?.title ?? "", issues: issues.map((i) => ({ severity: i.severity, description: i.description ?? i.title ?? "", resolution: i.detail ?? "" })) });
+        }
+        pageToken = page.nextPageToken;
+      } while (pageToken && found.length < 500);
+      return found;
+    },
     enableFreeListings: (token, account) => call("POST", `${MERCHANT_ACCOUNTS}/${account}/programs/free-listings:enable`, token, { body: {} }),
 
     // ---- Gmail (only once Julian switches sending on) ----
@@ -136,6 +150,14 @@ export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, no
       return (await call("GET", `${DRIVE}/files`, token, { query: { q, fields: "files(id,name)" } })).files?.[0] ?? null;
     },
     createFolder: (token, name) => call("POST", `${DRIVE}/files`, token, { body: { name, mimeType: FOLDER }, query: { fields: "id,name" } }),
+    /** A new spreadsheet in the press's own Drive with one tab, \"Stock\". Allowed by `drive.file` because this app makes it. */
+    createSpreadsheet: (token, title) =>
+      call("POST", SHEETS, token, { body: { properties: { title }, sheets: [{ properties: { title: "Stock" } }] }, query: { fields: "spreadsheetId,spreadsheetUrl" } }),
+    /** Replaces the Stock tab's cells with `values`. RAW, so nothing typed into a title is ever read as a formula. */
+    async writeStockSheet(token, spreadsheetId, values) {
+      await call("POST", `${SHEETS}/${enc(spreadsheetId)}/values/Stock:clear`, token, { body: {} });
+      return call("PUT", `${SHEETS}/${enc(spreadsheetId)}/values/Stock!A1`, token, { query: { valueInputOption: "RAW" }, body: { range: "Stock!A1", majorDimension: "ROWS", values } });
+    },
     myChannel: async (token) => (await call("GET", `${YOUTUBE}/channels`, token, { query: { part: "snippet", mine: "true" } })).items?.[0] ?? null,
     channelVideos: async (token, channelId) =>
       (await call("GET", `${YOUTUBE}/search`, token, { query: { part: "snippet", channelId, type: "video", order: "date", maxResults: 50 } })).items ?? [],

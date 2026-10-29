@@ -22,6 +22,8 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
     webResources: new Map(), // id -> { id, site, owners }
     scSites: new Set(),
     sitemaps: new Set(),
+    spreadsheets: new Map(), // id -> { title, values }
+    productProblems: new Map(), // "accounts/n" -> [{ offerId, title, issues }]
     merchantAccounts: new Map(), // "accounts/n" -> { name, accountName }
     dataSources: new Map(), // name -> { name, displayName, fileUri }
     freeListings: new Set(),
@@ -182,12 +184,27 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
       if (!world.dataSources.delete(name)) throw new GoogleError(404, "not found");
       return {};
     },
+    listProductProblems: async (token, account) => (who(token, "merchantCenter"), structuredClone(world.productProblems.get(account) ?? [])),
     async enableFreeListings(token, account) { who(token, "merchantCenter"); change("enableFreeListings", account); world.freeListings.add(account); return {}; },
 
     async sendGmail(token, raw) { who(token, "email"); change("sendGmail"); world.gmail.push(raw); return { id: `gmail-${next()}` }; },
 
     findFolder: async (token, name) => (who(token, "drive"), world.folders.has(name) ? { id: world.folders.get(name), name } : null),
     async createFolder(token, name) { who(token, "drive"); change("createFolder", name); const id = `folder-${next()}`; world.folders.set(name, id); return { id, name }; },
+    async createSpreadsheet(token, title) {
+      who(token, "drive");
+      change("createSpreadsheet", title);
+      const spreadsheetId = `sheet-${next()}`;
+      world.spreadsheets.set(spreadsheetId, { title, values: [] });
+      return { spreadsheetId, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` };
+    },
+    async writeStockSheet(token, id, values) {
+      who(token, "drive");
+      if (!world.spreadsheets.has(id)) throw new GoogleError(404, "not found");
+      change("writeStockSheet", id, values.length);
+      world.spreadsheets.get(id).values = structuredClone(values);
+      return {};
+    },
     myChannel: async (token) => (who(token, "youtube"), world.channel ? structuredClone(world.channel) : null),
     channelVideos: async (token) => (who(token, "youtube"), [{ id: { videoId: "trailer1" }, snippet: { title: "Trailer" } }]),
     async getCalendar(token, id) { who(token, "calendar"); if (!world.calendars.has(id)) throw new GoogleError(404, "not found"); return { id }; },

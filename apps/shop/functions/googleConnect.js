@@ -5,9 +5,9 @@
 // searchConsole.js read them as before. The shop proves who it is with its service key, like the payment, email and
 // domain services. Admin-only. A shop without the link answers "not_available", and the admin keeps its older cards.
 //
-//   body { action: "googleConnect", step: "status" | "connectLink" | "tryAgain" | "disconnect", returnUrl?, extras?, part? }
+//   body { action: "googleConnect", step: "status" | "connectLink" | "tryAgain" | "disconnect" | "productProblems" | "sheetSync", returnUrl?, extras?, part? }
 
-const STEPS = Object.freeze({ status: "google.status", connectLink: "google.connectLink", tryAgain: "google.tryAgain", disconnect: "google.disconnect" });
+const STEPS = Object.freeze({ status: "google.status", connectLink: "google.connectLink", tryAgain: "google.tryAgain", disconnect: "google.disconnect", productProblems: "google.productProblems", sheetSync: "google.sheetSync" });
 const EXTRAS = Object.freeze(["drive", "youtube", "calendar", "businessProfile", "ads"]);
 
 function argsFor(step, body) {
@@ -21,7 +21,21 @@ function argsFor(step, body) {
   return {};
 }
 
-function googleConnectActions({ url, shopId, serviceKey, requireAdmin, fetch = globalThis.fetch, timeoutMs = 60000 }) {
+const HEADINGS = ["Title", "Author", "Code (ISBN)", "Price", "On hand", "Stockroom last updated"];
+const cell = (v, max = 200) => (typeof v === "string" ? v.slice(0, max) : "");
+
+/** The stock list for the press's Google Sheet: a heading line and one line per stockroom product (plan 16.1). */
+function stockSheetRows(books) {
+  const lines = (Array.isArray(books) ? books : []).slice(0, 2000).map((b) => [
+    cell(b?.title), cell(b?.author), cell(b?.isbn, 40),
+    typeof b?.price === "number" && b.price > 0 ? b.price : "",
+    typeof b?.onHand === "number" && Number.isFinite(b.onHand) ? b.onHand : "",
+    cell(b?.feedAt, 40),
+  ]);
+  return [HEADINGS, ...lines];
+}
+
+function googleConnectActions({ url, shopId, serviceKey, requireAdmin, readStock = async () => [], fetch = globalThis.fetch, timeoutMs = 60000 }) {
   async function handleGoogleConnect(req, res) {
     if (!await requireAdmin(req, res)) return;
     if (!url) {
@@ -29,7 +43,14 @@ function googleConnectActions({ url, shopId, serviceKey, requireAdmin, fetch = g
       return;
     }
     const step = req.body?.step;
-    const args = Object.hasOwn(STEPS, step) ? argsFor(step, req.body) : null;
+    let args = Object.hasOwn(STEPS, step) ? argsFor(step, req.body) : null;
+    if (step === "sheetSync") {
+      try { args = { rows: stockSheetRows(await readStock()) }; } catch (err) {
+        console.error("Stock list for the Google Sheet couldn't be read:", err?.message || err);
+        res.status(409).json({ error: "Your stockroom isn't set up in this shop yet, so there is no stock list to send.", code: "no_stockroom" });
+        return;
+      }
+    }
     if (!args) {
       res.status(400).json({ error: "Unknown step.", code: "bad_request" });
       return;
@@ -64,4 +85,4 @@ function googleConnectActions({ url, shopId, serviceKey, requireAdmin, fetch = g
   return { handleGoogleConnect };
 }
 
-module.exports = { googleConnectActions, STEPS, EXTRAS };
+module.exports = { googleConnectActions, stockSheetRows, STEPS, EXTRAS };

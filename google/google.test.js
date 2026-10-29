@@ -581,3 +581,90 @@ test("a closing step that fails is shown with Run again and never holds up the t
   assert.equal(row.closing.stage, "deleted");
   assert.equal(t.shopFirebase.docs.get(SHOP).deleted, true);
 });
+
+// ---- Google Shopping problems (plan 16.2) ----
+
+test("the shop can read which books Google Shopping turned down, and nothing is changed in Google", async () => {
+  const t = await setup();
+  assert.deepEqual((await t.call("google.productProblems")).body, { available: false, problems: [] }, "not connected yet");
+  await t.signIn();
+  const [account] = [...t.google.world.merchantAccounts.keys()];
+  assert.deepEqual((await t.call("google.productProblems")).body.problems, []);
+  t.google.world.productProblems.set(account, [{ offerId: "b1", title: "Moth Book", issues: [{ severity: "DISAPPROVED", description: "Missing price", resolution: "Add a price" }] }]);
+  const calls = t.google.calls.length;
+  const answer = await t.call("google.productProblems");
+  assert.equal(answer.status, 200);
+  assert.equal(answer.body.available, true);
+  assert.equal(answer.body.problems[0].title, "Moth Book");
+  assert.equal(t.google.calls.length, calls, "reading changes nothing");
+  assert.equal((await t.call("google.productProblems", {}, "wrong-key-wrong-key-wrong-key-0123456789")).status, 401);
+});
+
+test("without the Google Shopping permission there is nothing to read", async () => {
+  const t = await setup();
+  await t.signIn({ scopes: SCOPES.identity.concat(SCOPES.analytics) });
+  assert.deepEqual((await t.call("google.productProblems")).body, { available: false, problems: [] });
+});
+
+test("the Google client reads product problems from Merchant API v1 and keeps only serious ones", async () => {
+  const seen = [];
+  const api = createGoogleApi({
+    fetch: async (url) => {
+      seen.push(String(url));
+      return { ok: true, status: 200, json: async () => ({ products: [
+        { offerId: "a", productAttributes: { title: "A" }, productStatus: { itemLevelIssues: [{ severity: "DISAPPROVED", description: "No price", detail: "Add one" }] } },
+        { offerId: "b", productAttributes: { title: "B" }, productStatus: { itemLevelIssues: [{ severity: "NOT_IMPACTED", description: "Note" }] } },
+      ] }) };
+    },
+  });
+  const found = await api.listProductProblems("tok", "accounts/7001");
+  assert.deepEqual(found.map((p) => p.offerId), ["a"]);
+  assert.match(seen[0], /\/products\/v1\/accounts\/7001\/products\?pageSize=250/);
+});
+
+// ---- One-click Google Sheet (plan 16.1) ----
+
+const STOCK = [["Title", "Author", "ISBN", "Price", "On hand"], ["Moth Book", "A. Writer", "9780000000000", 18, 12], ["=HYPERLINK(\"x\")", "", "", "", 0]];
+
+test("the stock list goes into one spreadsheet in the press's own Drive, made once and rewritten after that", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  const first = await t.call("google.sheetSync", { rows: STOCK });
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.equal(first.body.available, true);
+  assert.equal(first.body.rows, 2);
+  assert.equal(t.google.world.spreadsheets.size, 1);
+  const [[id, sheet]] = [...t.google.world.spreadsheets];
+  assert.equal(sheet.title, "Moth Press stock from Colophon");
+  assert.deepEqual(sheet.values, STOCK);
+  assert.equal(first.body.url, `https://docs.google.com/spreadsheets/d/${id}/edit`);
+  // Again with new numbers: the same sheet is written, no second one is made.
+  const second = await t.call("google.sheetSync", { rows: [STOCK[0], ["Moth Book", "A. Writer", "9780000000000", 18, 11]] });
+  assert.equal(second.body.rows, 1);
+  assert.equal(t.google.world.spreadsheets.size, 1);
+  assert.equal(t.google.world.spreadsheets.get(id).values[1][4], 11);
+  assert.equal((await t.shopRow()).google.sheet.spreadsheetId, id);
+  // Nothing in the press's Drive is ever deleted by the platform.
+  assert.ok(!changeNames(t).some((name) => /delete/i.test(name) && /sheet/i.test(name)));
+});
+
+test("without the Drive box ticked, or before connecting, there is no sheet and nothing is written", async () => {
+  const t = await setup();
+  assert.deepEqual((await t.call("google.sheetSync", { rows: STOCK })).body, { available: false });
+  await t.signIn({ scopes: [...SCOPES.identity, ...SCOPES.analytics, ...SCOPES.searchConsole, ...SCOPES.merchantCenter] });
+  assert.deepEqual((await t.call("google.sheetSync", { rows: STOCK })).body, { available: false });
+  assert.equal(t.google.world.spreadsheets.size, 0);
+});
+
+test("a sheet the press deleted is made again on the next send, and bad cells are refused", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["drive"] });
+  await t.call("google.sheetSync", { rows: STOCK });
+  t.google.world.spreadsheets.clear();
+  assert.equal((await t.call("google.sheetSync", { rows: STOCK })).body.gone, true);
+  assert.equal((await t.call("google.sheetSync", { rows: STOCK })).body.available, true);
+  assert.equal(t.google.world.spreadsheets.size, 1);
+  for (const rows of [[], "x", [["a"], "b"], Array.from({ length: 2002 }, () => ["a"]), [Array.from({ length: 13 }, () => "a")]]) {
+    assert.equal((await t.call("google.sheetSync", { rows })).status, 400);
+  }
+});
