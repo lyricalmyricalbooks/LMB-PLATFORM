@@ -572,3 +572,11 @@ because those are what `shopMove.ts` reads (`shopExport.test.ts` round-trips the
 the newer headings only together with shopMove. Gift cards stay out. Customers: buyers from orders plus newsletter
 sign-ups; "Accepts Email Marketing" is yes only for a current subscriber who has not opted out. Words on screen never
 name another system. The stockroom's matching stock file is `apps/stockroom/src/lib/stock-locations.js` (7.19).
+
+## Import keeps sizes and colours (plan 10.6, 29 October 2026)
+`shopMove.ts` reads each version's choices by the old shop's option names (`picksOf`) and gives the product
+`options` only when every version picks one value of the same options and no two versions match (`optionsOf`).
+`planShopMove(…, { keepOptions })` writes them (`options` + `variants[].options`) only for a shop that doesn't sell
+books: `BookImportDialog` reads the sign-up answer from `ShopSellsContext` (Dashboard). A books shop keeps today's
+editions list, so an old shop's "Format: Hardcover" never turns into option buttons. `productsForAnotherShop` writes a
+product's own Option1–3 Name/Value (names on its first line), so the export and import round-trip.

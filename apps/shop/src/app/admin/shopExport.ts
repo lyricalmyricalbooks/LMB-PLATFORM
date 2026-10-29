@@ -17,10 +17,12 @@
 // opted out). Everyone else gets "no", as the source says for people who never agreed or unsubscribed.
 import { parseWeightGrams } from "../../shared/weightGrams";
 import { saleActive } from "../../shared/promotions";
+import { productOptions, usesOptionPicker, variantPicks } from "../../shared/productOptions";
 import { buildCustomers } from "./customerInsights";
 
 export const PRODUCT_HEADINGS = [
   "Handle", "Title", "Body (HTML)", "Vendor", "Type", "Tags", "Published", "Option1 Name", "Option1 Value",
+  "Option2 Name", "Option2 Value", "Option3 Name", "Option3 Value",
   "Variant SKU", "Variant Grams", "Variant Inventory Qty", "Variant Inventory Policy", "Variant Fulfillment Service",
   "Variant Price", "Variant Compare At Price", "Variant Requires Shipping", "Variant Taxable", "Variant Barcode",
   "Image Src", "Image Position", "Image Alt Text", "Gift Card", "SEO Title", "SEO Description", "Variant Image", "Status",
@@ -107,10 +109,14 @@ export function productsForAnotherShop(books: any[], { vendor = "", now = new Da
         stock: tracked ? String(Math.max(0, Number(b.stockLevel ?? 0) || 0)) : "", grams: grams(b.weight),
         barcode: String(b.isbn || b.barcode || ""), image: "",
       }];
+    // A product sold in sizes and colours writes its own options (plan 10.6); anything else, "Edition" or "Title".
+    const options = usesOptionPicker(b) ? productOptions(b) : [];
     editions.forEach((e: (typeof editions)[number], i: number) => {
+      const picks = options.length ? variantPicks(variants[i], options) : null;
       const line: ProductLine = {
         Handle: handle,
         "Option1 Name": variants.length ? "Edition" : "Title", "Option1 Value": variants.length ? e.name : "Default Title",
+        ...(picks ? Object.fromEntries(options.flatMap((o, n) => [[`Option${n + 1} Name`, i === 0 ? o.name : ""], [`Option${n + 1} Value`, picks[o.name]]])) : {}),
         "Variant SKU": e.sku, "Variant Grams": e.grams, "Variant Inventory Qty": e.stock,
         "Variant Inventory Policy": b.allowBackorder === true || b.preorder === true ? "continue" : "deny",
         "Variant Fulfillment Service": "manual", "Variant Price": e.price, "Variant Compare At Price": e.was,

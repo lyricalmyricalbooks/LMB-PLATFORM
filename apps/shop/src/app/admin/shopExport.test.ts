@@ -74,6 +74,21 @@ describe("books for another shop system", () => {
     expect({ retail: other.retailPrice, stock: other.stockLevel }).toEqual({ retail: 12, stock: 0 });
   });
 
+  it("a product sold in sizes and colours comes back with the same options (plan 10.6)", () => {
+    const tee = {
+      id: "t", title: "Moth Tee", kind: "clothing", status: "published", retailPrice: 30,
+      options: [{ name: "Size", values: ["S", "M"] }, { name: "Colour", values: ["Black"] }],
+      variants: [
+        { id: "a", name: "S / Black", price: 30, sku: "TEE-S", stock: 4, options: { Size: "S", Colour: "Black" } },
+        { id: "b", name: "M / Black", price: 32, sku: "TEE-M", stock: 1, options: { Size: "M", Colour: "Black" } },
+      ],
+    };
+    const file = productsForAnotherShop([tee]);
+    const patch = planShopMove(file, [], [], {}, { keepOptions: true }).plan.rows[0].patch as any;
+    expect(patch.options).toEqual(tee.options);
+    expect(patch.variants.map((v: any) => [v.sku, v.price, v.options])).toEqual([["TEE-S", 30, { Size: "S", Colour: "Black" }], ["TEE-M", 32, { Size: "M", Colour: "Black" }]]);
+  });
+
   it("an untracked book leaves its stock empty, and a sale that has ended goes out at the full price", () => {
     const [, line] = parseCsv(productsForAnotherShop([{ id: "x", title: "Loose", retailPrice: 8, trackInventory: false, isOnSale: true, salePrice: 5, saleEndsAt: "2026-01-01" }], { now: NOW }));
     expect([at(line, "Variant Inventory Qty"), at(line, "Variant Price"), at(line, "Variant Compare At Price")]).toEqual(["", "8.00", ""]);
