@@ -9,7 +9,7 @@ import { createGoogleApi, GoogleError } from "./googleApi.js";
 import { handleGoogle } from "./http.js";
 import { deletionDue } from "./teardown.js";
 import { domainsBridge, liveDomainOf } from "./domainBridge.js";
-import { rawEmail } from "./gmail.js";
+import { gmailDailyLimit, rawEmail } from "./gmail.js";
 import { AUTHORIZE_URL, SCOPES, TOKEN_URL } from "./endpoints.js";
 import { fakeConnections, fakeDomainsCall, fakeGoogle, fakeShopFirebase, fakeStates } from "./fakes.js";
 import { fakeAuditLog, fakeRegistry } from "../setup/fakes.js";
@@ -708,4 +708,35 @@ test("a sheet the press deleted is made again on the next send, and bad cells ar
   for (const rows of [[], "x", [["a"], "b"], Array.from({ length: 2002 }, () => ["a"]), [Array.from({ length: 13 }, () => "a")]]) {
     assert.equal((await t.call("google.sheetSync", { rows })).status, 400);
   }
+});
+
+test("Gmail sending stops at 80% of the daily limit, the email goes the usual way, and it starts again the next day (15.24)", async () => {
+  const t = await setup({ env: { ...ENV, GOOGLE_GMAIL_SENDING: "on" } });
+  await t.signIn();
+  assert.equal((await t.shopRow()).gmailSender.address, "owner@example.com");
+  assert.equal(gmailDailyLimit("owner@gmail.com"), 500);
+  assert.equal(gmailDailyLimit("OWNER@GMAIL.COM"), 500);
+  assert.equal(gmailDailyLimit("orders@moth-press.example"), 2000);
+
+  const resend = fakeResendFetch();
+  const email = createEmailService({ env: { RESEND_API_KEY: "re_test_not_real" }, fetch: resend.fetch, registry: t.registry, sentLog: fakeSentLog(), gmailSend: t.link.gmailSend });
+  const send = (n) => email.send(SHOP, { kind: "order-note", to: "reader@example.com", idempotencyKey: `n-${n}`, subject: "Your order", text: "Thank you" });
+  // A Workspace address (owner@example.com isn't gmail.com): 2,000 a day, so 1,600 is the stopping point.
+  const day = new Date(t.now()).toISOString().slice(0, 10);
+  await t.registry.updateShop(SHOP, { gmailSends: { day, count: 1598 } });
+  await send(1);
+  await send(2);
+  assert.equal(resend.requests.length, 0, "both went through Gmail");
+  assert.equal((await t.shopRow()).gmailSends.count, 1600);
+  await send(3);
+  assert.equal(resend.requests.length, 1, "at 1,600 the email went from the usual sender");
+  assert.equal(t.google.world.gmail.length, 2);
+  assert.equal((await t.shopRow()).gmailSends.count, 1600, "a fallback isn't counted");
+
+  // The next day the count starts again.
+  t.tick(DAY);
+  await send(4);
+  assert.equal(resend.requests.length, 1);
+  assert.equal(t.google.world.gmail.length, 3);
+  assert.equal((await t.shopRow()).gmailSends.count, 1);
 });

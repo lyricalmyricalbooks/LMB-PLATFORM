@@ -20,6 +20,6 @@ export function createGoogleLink({ config, google, connections, states, registry
   const teardown = createGoogleTeardown({ google, tokens, shopFirebase, domainsCall, ownDomain, registry, auditLog, now });
   const status = createGoogleStatus({ registry, connect, teardown, tokens, now });
   const service = createGoogleService({ config, google, tokens, states, registry, connect, teardown, now });
-  const gmailSend = createGmailSend({ google, tokens, registry, config });
+  const gmailSend = createGmailSend({ google, tokens, registry, config, now });
   return { tokens, connect, teardown, status, service, gmailSend };
 }
