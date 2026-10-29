@@ -61,7 +61,7 @@ describe("Studio › Themes", () => {
     const denied = Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
     await mount(setup({ links: { create: vi.fn(), list: vi.fn(async () => { throw denied; }), revoke: vi.fn() } }));
     await click(button("Share a preview link"));
-    expect(document.body.textContent).toContain("Preview links need the updated Firestore rules");
+    expect(document.body.textContent).toContain("Preview links aren't switched on for your shop yet");
     expect(button("Create link")).toBeUndefined();
   });
 

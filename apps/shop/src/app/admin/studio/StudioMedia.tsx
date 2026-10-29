@@ -59,7 +59,7 @@ function StatusNote({ status, onRetry }: { status: MediaLibraryStatus; onRetry: 
     <div className="studio-media-note" role="note" data-media-status={status}>
       <strong>{status === "denied" ? "The media library isn't switched on yet" : "Couldn't load your images"}</strong>
       <p>{status === "denied"
-        ? "Its security rules haven't been deployed, so Studio can't list or save library images yet. Image fields still take a link or Upload image, exactly as before."
+        ? "It isn't set up for your shop yet, so Studio can't list or save library images. Image fields still take a link or Upload image, exactly as before."
         : "Check your connection and try again. Image fields still take a link or Upload image."}</p>
       <SecondaryButton onClick={onRetry}><RefreshCw size={14} aria-hidden /> Try again</SecondaryButton>
     </div>

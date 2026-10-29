@@ -2269,7 +2269,7 @@ exports.stripeWebhook = onRequest(
 
       if (orderId && settled) {
         try {
-          await markStripeOrderPaid(orderId, session, { authority: STRIPE_WEBHOOK_AUTHORITY, account: event.account || null, message: isElementPayment ? `Payment completed (${CARD} card form)` : `Payment completed (${CARD} Webhook)` });
+          await markStripeOrderPaid(orderId, session, { authority: STRIPE_WEBHOOK_AUTHORITY, account: event.account || null, message: isElementPayment ? `Payment completed (${CARD} card form)` : `Payment completed (${CARD} confirmed it)` });
           console.log(`Order ${orderId} successfully processed via webhook.`);
           // The real card fee, once the provider has it (code plan 7.10). Best effort: the payout fills it in later.
           await recordOrderMoney({ db, payments, orderId }).catch(err => console.warn(`Order ${orderId}: the card fee wasn't read yet (${err?.message || err}).`));
@@ -4151,7 +4151,7 @@ exports.unpaidPaymentSweep = onSchedule(
       try {
         await sendEmail({
           to: ADMIN_TO,
-          subject: `⚠ ${CARD} webhook missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
+          subject: `⚠ ${CARD} missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
           html: alertHtml(found, CARD),
           secret: RESEND_API_KEY.value(),
         });

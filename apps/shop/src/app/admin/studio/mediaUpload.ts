@@ -29,7 +29,7 @@ export function uploadErrorMessage(error: unknown): string {
   const code = String((error as any)?.code || "");
   if (code === "storage/unauthorized") return "Upload refused — sign in again as the shop admin and retry.";
   if (code === "storage/quota-exceeded") return "Upload refused — the storage allowance is full.";
-  if (code === "permission-denied") return "The media library isn't switched on yet — its security rules haven't been deployed. Use Upload image on the field instead.";
+  if (code === "permission-denied") return "The media library isn't switched on yet. Use Upload image on the field instead.";
   if (code === "storage/retry-limit-exceeded" || code === "storage/canceled") return "Upload interrupted — check your connection and retry.";
   return "Upload failed — check your connection and try again.";
 }

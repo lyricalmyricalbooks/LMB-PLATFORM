@@ -33,7 +33,7 @@ describe('payment settings fold away', () => {
     for (const id of ['recon-keyrow', 'stripe-sale-auto-wrap', 'stripe-sale-auto-cb', 'sale-codes-box', 'stripe-sale-codes', 'stripe-paid-notify-wrap', 'stripe-paid-notify-cb']) {
       expect(block).toContain(id);
     }
-    expect(block).toMatch(/<summary>Payment settings · Stripe key, short codes, alerts<\/summary>/);
+    expect(block).toMatch(/<summary>Payment settings · short codes, alerts<\/summary>/);
   });
 
   test('Accepted Payment Methods is its own fold and keeps its container id', () => {

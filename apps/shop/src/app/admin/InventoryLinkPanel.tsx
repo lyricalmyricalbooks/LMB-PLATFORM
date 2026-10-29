@@ -13,11 +13,12 @@ import {
   shopDraftFrom, suggestLinks, type AppOnlyBook, type DetailDiff, type InventoryAppBook, type InventoryLinks, type LinkableEdition, type StockRow,
 } from "./inventoryLink";
 import { inventoryApi } from "./inventoryApi";
+import { runsOnColophon } from "../../lib/shopProfile";
 import { waitingReaders, wakesRestockEmails } from "./inventoryInsights";
 
 const PROBLEM_WORDS: Record<string, string> = {
   "no-stockroom": "This shop doesn't have the stockroom yet, so there is nothing to link. Once the stockroom is part of your plan, check again.",
-  "not-granted": "Google Cloud has stopped letting this shop reach its own stockroom. Follow the steps above to give its access back, then check again.",
+  "not-granted": "This shop can't reach its own stockroom right now. Check again in a minute; if it stays, contact support.",
   "api-disabled": "The stockroom's database isn't switched on. Check that the stockroom still opens normally, then try again.",
   unreachable: "The stockroom's database didn't answer. Try again in a minute.",
 };
@@ -328,7 +329,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
         description="The stockroom is part of this shop, so there is nothing to grant: check once to start."
         actions={<StatusBadge tone={connection.ok ? "success" : "warning"}>{connection.ok ? "Connected" : "Not connected yet"}</StatusBadge>}>
         {/* Only when someone removed the shop's own access to its project (plan 1.21: one project, no second grant). */}
-        {!connection.ok && connection.problem === "not-granted" && (
+        {!connection.ok && connection.problem === "not-granted" && !runsOnColophon() && (
           <ol style={{ margin: "6px 0 4px", paddingLeft: 20, display: "grid", gap: 10, listStyle: "decimal" }}>
             <li>
               Copy this address:{" "}

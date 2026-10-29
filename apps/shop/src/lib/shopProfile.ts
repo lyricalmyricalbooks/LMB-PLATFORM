@@ -12,6 +12,8 @@ export type ShopProfile = {
   shopId: string;
   /** The press's name as given at sign-up (the shop's own name lives in its settings). */
   name?: string;
+  /** What the shop sells, its sign-up answer (plan 10.23). The admin reads it from `firstWeek/start` today. */
+  sells?: string;
   firebase: {
     apiKey: string;
     authDomain: string;
@@ -156,6 +158,15 @@ export function platformTakesCards(profile: ShopProfile = shopProfile): boolean 
 /** The provider a shop's cards go through on the platform (plan 2.2 / 2.2b), or null on the shop's own keys. */
 export function platformCardsProvider(profile: ShopProfile = shopProfile): "stripe" | "square" | null {
   return profile.payments?.mode === "platform" ? profile.payments.provider : null;
+}
+
+/**
+ * The shop is run by Colophon (code plan 6.16): its cards go through the platform, so the press never meets a key, a
+ * connection address or a release. Panels that ask for those are hidden here, and the words that remain are plain
+ * (platformPlainWords.test.ts reads them). A shop on its own payment keys still shows them.
+ */
+export function runsOnColophon(profile: ShopProfile = shopProfile): boolean {
+  return platformCardsProvider(profile) !== null;
 }
 
 /** The shop takes cards through Square (plan 2.2b): shoppers pay on Square's own page, with no card form here. */

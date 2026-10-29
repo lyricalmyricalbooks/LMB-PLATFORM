@@ -6,6 +6,7 @@ import type { Book } from "./overviewInsights";
 import {
   exitRows, exitsHeadline, fetchJourneys, journeyFoot, journeyRows, journeysHeadline, journeyWindow, pathWords, type JourneyAnswer,
 } from "../bigQueryJourneys";
+import { runsOnColophon } from "../../../lib/shopProfile";
 import "./overviewVisitors.css";
 
 // Overview › Traffic: "Visitor journeys" (the commonest first-4-page paths) and "Last page before leaving", from Google
@@ -86,6 +87,8 @@ export function OverviewJourneys({ only, books, range, full, setActiveTab }: {
 
 /** Not linked yet / no access / API off: the server's fixed sentence plus what to do. */
 function NotLinked({ answer, setActiveTab, onRetry }: { answer: JourneyAnswer; setActiveTab?: (tab: string) => void; onRetry: () => void }) {
+  // A shop run by Colophon has no analytics account to link and no cloud project to read (code plan 6.16).
+  if (runsOnColophon()) return <EmptyState icon="◌" title="Visitor paths aren't available yet" description="This view isn't part of your plan yet." />;
   if (answer.code === "no_property") return <NotConnected setActiveTab={setActiveTab} />;
   const setup = setActiveTab ? <SecondaryButton size="sm" onClick={() => setActiveTab("general")}>Open Google Analytics settings</SecondaryButton> : null;
   return (

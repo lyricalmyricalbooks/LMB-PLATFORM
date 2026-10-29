@@ -41,6 +41,7 @@
   .hint { color: var(--muted); font-size: 15px; margin: 0; }
   .error { color: var(--danger); font-weight: 600; font-size: 15px; margin: 0; }
   .empty { border: 2px dashed var(--muted); padding: 18px; color: var(--muted); }
+  .loading { border: 2px dashed var(--muted); padding: 18px; color: var(--muted); font: 15px "DM Mono", monospace; text-transform: uppercase; }
   ul.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   ul.list li { border-top: 2px solid var(--ink); padding-top: 8px; }
   #status { min-height: 1.5em; font-weight: 600; }
@@ -51,7 +52,12 @@
   <div class="mark">Colophon</div>
   <h1>Your shops</h1>
 
-  <section id="view-signin" class="stack" aria-labelledby="signin-title">
+  <!-- Shown first, until the page knows whether someone is signed in and has their shops. -->
+  <section id="view-loading" aria-live="polite">
+    <p class="loading">Loading your shops…</p>
+  </section>
+
+  <section id="view-signin" class="stack" hidden aria-labelledby="signin-title">
     <h2 id="signin-title">Sign in</h2>
     <p class="hint" id="invite-hint" hidden>Sign in with the email address your invite was sent to.</p>
     <button type="button" id="google" class="primary">Continue with Google</button>
@@ -67,6 +73,12 @@
     <h2 id="check-title">Check your email</h2>
     <p>We sent a sign-in link to <strong id="check-email"></strong>. Open it on this device to carry on.</p>
     <button type="button" class="ghost" id="check-again">Use another email</button>
+  </section>
+
+  <section id="view-error" class="stack" hidden aria-labelledby="error-title">
+    <h2 id="error-title" tabindex="-1">We couldn't open your shops</h2>
+    <p class="error" id="error-words" role="alert"></p>
+    <button type="button" id="retry">Try again</button>
   </section>
 
   <!-- The shop switcher: every shop this person belongs to, with their role. -->

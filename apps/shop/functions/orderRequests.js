@@ -48,7 +48,7 @@ function orderRequestActions({
         const { intent = null, session = null } = found;
         if (stripePaymentTaken(intent, session)) {
           await recordStripeReconciliation(orderId, { id: session?.id || null, payment_intent: intent?.id || session?.payment_intent || null }).catch(() => {});
-          return res.status(409).json({ error: `${CARD} shows this order as paid. Don't cancel it: resend the payment event from ${CARD} (Webhook health), then ship or refund it.`, code: "paid_in_stripe" });
+          return res.status(409).json({ error: `${CARD} shows this order as paid. Don't cancel it: ask ${CARD} to confirm the payment again, then ship or refund it.`, code: "paid_in_stripe" });
         }
       }
       const order = await db.runTransaction(async tx => {

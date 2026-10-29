@@ -52,7 +52,7 @@ describe("orders desk", () => {
 
   it("Stripe-paid orders awaiting the webhook show why and sit in Needs me (display only)", () => {
     const o = { id: "R", paymentStatus: "unpaid", reconciliationPending: { provider: "stripe" }, createdAt: "2026-10-05T00:00:00Z", items: [{ id: "b", quantity: 1 }] };
-    expect(rowStatus(o).text).toMatch(/Paid in Stripe — awaiting webhook/);
+    expect(rowStatus(o).text).toMatch(/Paid in Stripe — waiting for confirmation/);
     expect(deskOrders([o], "needs").map((x) => x.id)).toEqual(["R"]);
     expect(o.paymentStatus).toBe("unpaid");
   });

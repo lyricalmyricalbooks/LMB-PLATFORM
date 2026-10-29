@@ -245,6 +245,9 @@ test("shopProfile writes all five switches, keeping only true or false from what
 test("shopProfile carries the press's name for the stockroom's file names (plan 7.3)", () => {
   const settings = { apiKey: "k", authDomain: "a", projectId: "lmb-test-shop", storageBucket: "b", messagingSenderId: "1", appId: "x" };
   assert.equal(shopProfile({ ...TEST_SHOP, pressName: "  Moth Press " }, settings).name, "Moth Press");
+  // What the shop sells travels to the stockroom's words (plan 10.23); none, none written.
+  assert.equal(shopProfile({ ...TEST_SHOP, publishes: "clothing" }, settings).sells, "clothing");
+  assert.equal("sells" in shopProfile({ ...TEST_SHOP, publishes: null }, settings), false);
   assert.equal(shopProfile({ ...TEST_SHOP, pressName: "x".repeat(90) }, settings).name.length, 80);
 });
 

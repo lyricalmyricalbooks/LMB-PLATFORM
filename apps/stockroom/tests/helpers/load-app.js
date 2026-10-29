@@ -103,7 +103,8 @@ export function makeBook(overrides = {}) {
 }
 
 let bodyMarkup = null;
-function indexBody() {
+/** The <body> markup of index.html, without the module script (what loadApp puts in the document). */
+export function indexBody() {
   if (bodyMarkup === null) {
     const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
     const start = html.indexOf('>', html.indexOf('<body')) + 1;

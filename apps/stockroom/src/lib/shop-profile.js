@@ -61,6 +61,11 @@ function stockroomPlace(value) {
   return { firestoreDatabase: value.firestoreDatabase, storageBucket: value.storageBucket };
 }
 
+/** How the shop takes card payments ('own' keys or 'platform'), or '' when the profile says nothing. Only the mode is kept. */
+function paymentMode(value) {
+  return value && (value.mode === 'own' || value.mode === 'platform') ? value.mode : '';
+}
+
 /**
  * Checks a profile the page was handed. All or nothing: a profile with any problem is ignored as a whole.
  * `firebase.databaseURL` is optional; without it the project's default database address is used.
@@ -84,6 +89,8 @@ export function parseShopProfile(value) {
     version: 1,
     shopId: value.shopId,
     ...(value.name !== undefined ? { name: value.name } : {}),
+    // What the shop sells (plan 10.23). An answer of the wrong shape is left out, never a reason to refuse the profile.
+    ...(typeof value.sells === 'string' && /^[a-z][a-z-]{1,30}$/.test(value.sells) ? { sells: value.sells } : {}),
     firebase: {
       ...Object.fromEntries(FIREBASE_KEYS.map((key) => [key, firebase[key]])),
       databaseURL: firebase.databaseURL || `https://${firebase.projectId}-default-rtdb.firebaseio.com`,
@@ -92,6 +99,7 @@ export function parseShopProfile(value) {
     siteUrl: value.siteUrl,
     apps: { shop: apps.shop, stockroom: apps.stockroom },
     ...(place ? { stockroom: place } : {}),
+    ...(paymentMode(value.payments) ? { payments: { mode: paymentMode(value.payments) } } : {}),
     ...(on.length ? { switches: Object.fromEntries(on.map((name) => [name, true])) } : {}),
   };
 }
@@ -133,3 +141,16 @@ export function readShopProfile(source = typeof window === 'undefined' ? undefin
 }
 
 export const shopProfile = readShopProfile();
+
+/**
+ * Is this a shop the platform made and runs (code plan 6.16)? Its press sets up no keys or accounts of its own: every
+ * panel marked `data-own-accounts` in index.html (AI, carrier, Stripe-reading and Google Sheet connections) is hidden
+ * there. The built-in test settings (local dev, tests) are not such a shop, and neither is a shop that says it uses its
+ * own payment keys.
+ */
+export function runsOnColophon(profile = shopProfile) {
+  return profile !== DEFAULT_SHOP_PROFILE && profile?.payments?.mode !== 'own';
+}
+
+// CSS reads this mark (src/style.css, `[data-colophon] [data-own-accounts]`), so the panels never flash before the app starts.
+if (typeof document !== 'undefined' && runsOnColophon()) document.documentElement.setAttribute('data-colophon', '');

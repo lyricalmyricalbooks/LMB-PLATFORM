@@ -1,0 +1,16 @@
+{
+  "about": "Words a press never reads (code plan 6.16, Julian, 28 October 2026). One list for every check: the platform's own pages and emails (plain-words/plainWords.test.js), the shop's admin (apps/shop/src/app/admin/platformPlainWords.test.ts) and the stockroom (apps/stockroom/tests/platformPlainWords.test.js). Add to it freely; never weaken it. A word used in a plain, non-technical sense is allowed only in the checking test that reads it, with a comment saying why.",
+  "banned": [
+    { "word": "Firebase", "pattern": "\\bfirebase", "flags": "i" },
+    { "word": "Google Cloud", "pattern": "\\bgoogle[\\s-]+cloud\\b", "flags": "i" },
+    { "word": "API", "pattern": "\\bapis?\\b", "flags": "i" },
+    { "word": "key", "pattern": "\\bkeys?\\b", "flags": "i" },
+    { "word": "webhook", "pattern": "\\bweb[\\s-]?hooks?\\b", "flags": "i" },
+    { "word": "secret", "pattern": "\\bsecrets?\\b", "flags": "i" },
+    { "word": "DNS", "pattern": "\\bdns\\b", "flags": "i" },
+    { "word": "CNAME", "pattern": "\\bcnames?\\b", "flags": "i" },
+    { "word": "TXT", "pattern": "\\btxt\\b", "flags": "i" },
+    { "word": "Resend", "pattern": "\\bresend\\b", "flags": "i" },
+    { "word": "deploy", "pattern": "\\bdeploy", "flags": "i" }
+  ]
+}

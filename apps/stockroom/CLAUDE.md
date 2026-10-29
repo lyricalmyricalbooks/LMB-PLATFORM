@@ -124,3 +124,12 @@ to add the other sizes (`addOtherSizes` in `main.js`, run last in `saveBookFromM
 no `product` and no group, so nothing changes for them. After a save the form closes with `closeM` + `resetBookForm`,
 not `closeAddBookModal`: the latter's "Discard your unsaved changes?" prompt shares `m-confirm` and swallowed the next
 question.
+
+## Words for what the shop sells (plan 10.23, 29 October 2026)
+A shop whose sign-up answer isn't a book answer (the profile's `sells`) reads "product", "maker" and "market" instead
+of "book", "author" and "book fair" (`src/lib/shop-words.js`, the same swaps as the shop admin's `sells.ts`). The page's
+own text is rewritten once at start-up (`applyPageWords(document.body)` in `main.js`): text, `placeholder`, `title`,
+`aria-label` and `data-tip`; an `<option>` with no `value` first gets its old text as its value, so saved data never
+changes; `[data-keep-words]` keeps a part as written. Messages built in code go through `words(...)` one by one. Never
+run the words over owner data (product names, notes): a product called "Sketch book" must stay as named.
+`tests/shop-words.test.js` scans the whole page for a clothing shop.

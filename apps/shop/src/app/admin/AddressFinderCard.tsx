@@ -53,7 +53,7 @@ export function AddressFinderCard() {
         body: JSON.stringify({ action: "addressKeyCheck" }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `The shop's server answered ${res.status}. Check that Cloud Functions are deployed.`);
+      if (!res.ok) throw new Error(data.error || `The shop's server answered ${res.status}. Try again in a moment.`);
       setCheck(data.ok
         ? { ok: true, message: "Google found addresses with this key. Shoppers now get complete addresses with postal codes at checkout." }
         : { ok: false, message: data.error || "Google refused the key." });
