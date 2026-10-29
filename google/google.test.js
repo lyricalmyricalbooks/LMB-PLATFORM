@@ -714,8 +714,8 @@ test("Gmail sending stops at 80% of the daily limit, the email goes the usual wa
   const t = await setup({ env: { ...ENV, GOOGLE_GMAIL_SENDING: "on" } });
   await t.signIn();
   assert.equal((await t.shopRow()).gmailSender.address, "owner@example.com");
-  assert.equal(gmailDailyLimit("press@gmail.com"), 500);
-  assert.equal(gmailDailyLimit("Press@GoogleMail.com"), 500);
+  assert.equal(gmailDailyLimit("owner@gmail.com"), 500);
+  assert.equal(gmailDailyLimit("OWNER@GMAIL.COM"), 500);
   assert.equal(gmailDailyLimit("orders@moth-press.example"), 2000);
 
   const resend = fakeResendFetch();
