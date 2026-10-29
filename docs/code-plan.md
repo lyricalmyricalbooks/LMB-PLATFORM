@@ -455,6 +455,51 @@ looks and works the same, and nothing touches `LyricalmyricalWebsite` or `lyrica
 Ask Julian first: idea 39 (French admin and shop) is larger and moves the product toward Quebec; Instagram and Facebook
 shop feeds sit outside the all-in-Google rule.
 
+## Phase 13: tonight's batch (planned 29 October 2026)
+
+Julian (29 October 2026): "for tonight let's have a plan to improve the platform". An overnight batch that needs no real
+accounts: every row is built and proven with fakes. It leaves out what other threads own (12.1 to 12.4 and 10A, 10B and
+Phase 11, the control room's walkthrough, and 12.8 to 12.13). Most rows come from the 28 October best-practices list
+(`ideation/2026-10-28-platform-best-practices.md`, idea number in brackets); the search on 29 October found none of
+them in the code. Built in this order, one pull request each. Nothing here changes `LyricalmyricalWebsite` or
+`lyrical-inventory`, deploys, or touches a live project.
+
+| # | Repo | Pull request | Proven by | Effort | Status |
+| --- | --- | --- | --- | --- | --- |
+| 13.1 | platform | **Lock down the code** [1]. A CI step that fails when a key, password or private key is pushed (shop, stockroom and platform folders), weekly dependency-update requests for the platform and both app copies, and a check that no package has a known high-risk flaw. Why: the repo is public, and one leaked key on a platform reaches every shop. *Julian, later:* GitHub's own secret scanning with push protection and making the repo private are settings clicks | the scan test fails on a planted fake key and passes on `main`; the update file names every package folder | quick | |
+| 13.2 | platform, shop | **Safety headers and a security contact** [3, 12]. Every platform page (waitlist, sign-up, account, control room, status, help) and every shop sends the usual safety headers (no framing by other sites, HTTPS only, a content policy), with an allow list for Studio fonts, payments and embeds; a `security.txt` names where to report a problem. Why: it stops someone else's script running on a page, including checkout | a test reads the hosting files and finds each header; the shop's Studio fonts and the payment form still load in the browser checks | quick for the platform, medium for shops | |
+| 13.3 | platform | **The overnight leftovers** (row 12.5). Stripe secrets no longer declared on platform shops' functions (2.2), a scheduled caller for the shop-maker sweep (2.6), automatic refund of a late Square or Stripe payment (5.1), the team-changed door and nightly sync wired up (5.11), and a demo flag so the local demo shows practice checkout. Why: each is a small gap where something is built but nothing calls it | one test per item with fakes; the demo shows practice checkout | medium | |
+| 13.4 | shop | **Costly jobs read the spending level** (row 12.6, finishing 8.9). Photo copies, AI writing and imports slow down when a shop passes its budget; checkout never does. Why: one runaway shop can't run up the platform's Google bill | health test with a fake budget alert; checkout never slowed | quick | |
+| 13.5 | platform | **Prove the backups work** [4, 5]. A monthly restore drill: the latest backup of one shop goes into a scratch copy, its products, orders and customers are counted against the live shop, the result goes to the control room, and the scratch copy is removed. Setup turns on the seven-day "roll back to the minute" for each new shop's database, and the run book gains that step. Why: nightly backups exist but nothing has ever restored one | drill test with fakes: a match passes, a missing order fails and lands in Needs you; setup step test; re-running changes nothing | medium | |
+| 13.6 | platform | **No releases at the worst times** [6]. The release runner refuses to start Friday 15:00 to Sunday night and in the two weeks before Christmas, unless a security fix is marked as such; the control room shows the next window. Why: presses sell most at weekend fairs and in December | release-runner tests with a fixed clock: inside a window refused, security fix allowed, logged | quick | |
+| 13.7 | shop, platform | **See shoppers' errors before presses email you** [8]. The shop's pages send crashes and failed checkouts (no names, emails or addresses) to the control room, grouped by shop and error, with a Needs you line when one shop's checkout errors jump. Why: today a broken page is found when a press writes in, after lost sales | tests: personal details stripped, errors grouped, the jump alert fires once, a flood is capped | medium | |
+| 13.8 | platform, shop | **Keep data only as long as needed** [11]. A written keep-times list enforced by a nightly job: abandoned bags and stock holds after 30 days, sign-in and audit logs after two years, closed shops on the 6.8 timeline, orders kept six years for tax. Why: Canadian privacy law expects it, and less stored means less to leak | job tests with fakes: old records removed, orders under six years kept, re-run removes nothing new | medium | |
+
+Next after these, if wanted: one trust page in plain words [12], "Check my shop" for owners [17], a speed budget in CI
+[14] and per-shop feature switches [7].
+
+### 13B. Templates, back-end design and the phone version (added 29 October 2026)
+
+Julian asked tonight to also focus on **template creation**, the **design of the back ends** (read here as the admin
+screens: the shop's admin, the stockroom and the control room) and **the phone version of the platform**. Row owners:
+the templates thread owns 10.9 to 10.12 and the Phase 11 admin look, so these rows add what those do not cover and are
+built with that thread, not instead of it.
+
+**Split agreed with the templates thread (29 October 2026):** the templates thread owns 13.9, 13.10 and 13.13 as well as
+10.9 to 10.12 and Phase 11. The tonight thread owns 13.11, 13.12 and 13.14. The phone layer of the stockroom
+(`phone.css`, `phone-riso.css` and the `max-width: 860px` rules in `style.css`) belongs to 13.11; the shared admin-look
+kit, the shop's Studio files and the stockroom's desktop frame (861px and up) stay with the templates thread. A phone
+change that needs a shared token goes through that thread.
+
+| # | Repo | Pull request | Proven by | Effort | Status |
+| --- | --- | --- | --- | --- | --- |
+| 13.9 | shop | **Phone check for every template and look.** Marquee, Shelf and each later template are drawn at phone width (home, product page with sizes, bag, checkout) with tap targets, readable type and no sideways scrolling, in the template foundation (10.9) so no template ships unchecked | browser check over every template at phone width: no horizontal scroll, buttons at least 44 pixels, text readable | medium | |
+| 13.10 | shop | **More templates, one pull request each** (10.12): the next ones Julian picks from Atlas, Mosaic, Spine, Arch and Feature, each a full design system that suits a shirt, a ring and a book | the template checks of 10.9 to 10.11 | larger per template | waits on Julian's pick |
+| 13.11 | shop, stockroom | **The admin on a phone.** The shop admin and the stockroom get the Pressroom bottom bar (11.4) and phone layouts for the busiest jobs: orders, packing, stock counts, adding a product with a photo, scanning at a fair | browser check at phone width over those screens; stock counts and sales still queue offline | larger | |
+| 13.12 | platform | **Control room and platform pages on a phone** (waitlist, sign-up, plan and billing, help, status, control room): one column, big buttons, the Needs you list first | phone-width browser check on the walkthrough pages (9.11) | medium | |
+| 13.13 | platform | **Back-end design rules in one page** (`docs/admin-look-plan.md` extended): the admin screen patterns (list, record, form, empty, error), spacing and tap sizes for phone and desktop, so every new back-end screen is built the same way | a test fails a back-end screen that uses a loose colour or a tap target under size | medium | |
+| 13.14 | shop, stockroom | **Install to the home screen.** Both admins can be added to a phone's home screen like an app (name, icon, opens full screen), with the stockroom already working offline | manifest and offline tests; the install check passes | quick | |
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
