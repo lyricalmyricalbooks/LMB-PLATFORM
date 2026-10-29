@@ -252,7 +252,7 @@ html.cp-page { background: var(--rp-canvas); }
 @media (max-width: 1023px) {
   .cp .rp-sidebar { display: none; }
   .cp-phone-nav { display: flex; gap: 6px; flex-wrap: wrap; padding-block: 12px 0; }
-  .cp-phone-nav a, .cp-phone-nav button { min-height: 36px !important; font-size: 13px !important; }
+  .cp-phone-nav a, .cp-phone-nav button { min-height: 44px !important; font-size: 13px !important; }
 }
 .cp .rp-workspace-inner { max-width: 1040px; }
 .cp .rp-workspace > .rp-workspace-inner > main { display: block; }
@@ -337,3 +337,18 @@ html.cp-page { background: var(--rp-canvas); }
 .cp-links-grid .card p { overflow-wrap: anywhere; }
 .cp-start-page .cp-ledger { --n: 5; }
 .cp-links-grid .cp-who { white-space: normal; }
+
+/* Phone (plan 13.12): everything you press is at least 44px tall on a touch screen or a narrow window, and the pages'
+   header and footer links are not squeezed together. Links inside running text stay inline. A real-browser check
+   (walkthrough/phone-check.js) measures this on every walkthrough page. */
+@media (pointer: coarse), (max-width: 640px) {
+  .cp-mast nav, .cp-footer .cp-wrap, .cp-links { column-gap: 4px; }
+  .cp-mast nav a, .cp-footer a, .cp-chip, .cp a.button, .cp a.rp-status-pill, .cp-word, .cp-links-grid h3 a, .cp-start-page .card > a,
+  .cp-links a, .cp-toc a, .cp-phone-nav a, .cp a.cp-kicker {
+    display: inline-flex; align-items: center; min-height: 44px; padding-block: 0;
+  }
+  .cp-mast nav a, .cp-footer a, .cp-links a { padding-inline: 8px; }
+  .cp-chip { padding-inline: 12px; }
+  .cp button { min-height: 44px; }
+  .cp input[type="checkbox"], .cp input[type="radio"] { min-width: 24px; min-height: 24px; }
+}

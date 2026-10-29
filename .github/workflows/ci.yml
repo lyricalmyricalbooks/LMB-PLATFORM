@@ -42,6 +42,8 @@ jobs:
       - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
       - run: npx playwright install --with-deps chromium
       - run: node walkthrough/browser-check.js
+      # Plan 13.12: the same pages at 390px as a touch screen: no sideways scroll, nothing you press under 44px tall.
+      - run: node walkthrough/phone-check.js
 
   # The platform's copy of the shop (apps/shop), with the same checks its original repo runs before merging.
   shop:
