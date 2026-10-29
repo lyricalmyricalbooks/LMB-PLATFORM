@@ -7,6 +7,7 @@
 
 import type { ReadinessItem } from "./launchReadiness";
 import { firstProductWords } from "./sells";
+import { wordsFor } from "../../shared/shopSells";
 
 /** The sign-up answers (signup/form.js QUESTION.options). Anything else, or none, gets the general order. */
 export type SellingToday = "starting" | "fairs" | "online" | "shops" | "spreadsheet";
@@ -154,7 +155,10 @@ export function firstWeekSteps(doc: FirstWeekDoc, facts: FirstWeekFacts): FirstW
     if (id === "look" && doc.welcome && !facts.settings?.design?.themeBase?.id) words.why = "Your look is saved as a draft. Open Design and press Publish so shoppers see it.";
     const auto = autoDone(id, facts);
     const ticked = !!doc.done?.[id];
-    const { tab, action, title, why } = words;
+    // A shop that doesn't sell books reads product and maker (plan 12.1); a books shop's words are untouched.
+    const w = wordsFor(doc.publishes);
+    const { tab, action } = words;
+    const title = w(words.title), why = w(words.why);
     const kind = MANUAL.has(id) || auto === null ? "manual" : "auto";
     return { id, title, why, ...(tab || action ? { ...(tab ? { tab } : {}), action } : {}), kind, done: auto === true || (kind === "manual" && ticked) };
   });
@@ -189,6 +193,10 @@ export function openBlockers(readiness: ReadinessItem[] | null): ReadinessItem[]
 
 /** The intro line, in the owner's words. */
 export function firstWeekIntro(doc: FirstWeekDoc): string {
+  return wordsFor(doc.publishes)(introFor(doc));
+}
+
+function introFor(doc: FirstWeekDoc): string {
   switch (doc.sellingToday) {
     case "online": return "You told us you sell through another online shop, so bringing it over comes first.";
     case "fairs": return "You told us you sell at fairs and markets, so your books and getting paid come first.";

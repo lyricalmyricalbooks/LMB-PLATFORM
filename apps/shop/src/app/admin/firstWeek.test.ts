@@ -125,3 +125,17 @@ describe("showing the guide", () => {
     expect(firstWeekIntro({})).toContain("first sale");
   });
 });
+
+describe("setup guide words for a shop that sells something other than books (plan 12.1)", () => {
+  const all = (doc: any) => firstWeekSteps(doc, none).map(s => `${s.title} ${s.why}`).join(" ") + " " + firstWeekIntro(doc);
+  it("reads product, not book", () => {
+    const text = all({ sellingToday: "fairs", publishes: "clothing" });
+    expect(text).not.toMatch(/\bbooks?\b|\bauthors?\b/i);
+    expect(text).toContain("products");
+  });
+  it("leaves a books shop, a skipped answer and an unknown answer as they are", () => {
+    const books = all({ sellingToday: "fairs", publishes: "books" });
+    expect(books).toMatch(/\bbook\b/);
+    for (const publishes of [undefined, null, "zines", "mix", "mystery"]) expect(all({ sellingToday: "fairs", publishes })).toBe(books);
+  });
+});
