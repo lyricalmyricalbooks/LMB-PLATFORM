@@ -11,7 +11,7 @@ import { REDIRECTS_COLLECTION, REDIRECTS_DOC, redirectPageIds, redirectsToPages,
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
-import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
+import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, reviewOpen, REVIEW_PROBLEM, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { deleteRefusal } from "./orderListHelpers";
 import { restampPreorderItems } from "../features/site/preorder";
 import { themeWrite } from "./themeWrite";
@@ -1049,7 +1049,7 @@ export const adminApi = {
     });
   },
 
-  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email" | "clear_app_label", payload: any = {}) => {
+  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email" | "clear_app_label" | "clear_review", payload: any = {}) => {
     await runTransaction(db, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
@@ -1076,6 +1076,9 @@ export const adminApi = {
         if (!String(payload.reason || "").trim()) throw new Error("Enter a hold reason.");
         operations.hold = String(payload.reason).trim().slice(0, 500); message = `Order held: ${operations.hold}`;
       } else if (action === "release") { operations.hold = ""; message = "Fulfillment hold released.";
+      } else if (action === "clear_review") {
+        if (!o.review || o.review.status !== "needs_review") throw new Error("This order has nothing to review.");
+        operations.reviewCleared = now; message = "Publisher checked the risky-looking payment and cleared the order.";
       } else if (action === "release_preorder") {
         // The pre-ordered books arrived before their release date: let this order be packed now.
         if (queueOf(o) !== "Awaiting release") throw new Error("This order is not waiting for a pre-order release.");
@@ -1137,6 +1140,7 @@ export const adminApi = {
         if (!['pickup', 'local_delivery'].includes(method)) throw new Error("Only local orders can use this workflow.");
         const current = String(o.fulfillmentStatus || "");
         if (current !== String(payload.expectedStatus || "")) throw new Error("This order changed. Reload before continuing.");
+        if (reviewOpen(o)) throw new Error(REVIEW_PROBLEM);
         if (operations.hold) throw new Error("Release the fulfillment hold before continuing.");
         if (queueOf(o) === "Awaiting release") throw new Error("This pre-order hasn't been released yet. Press \"Ready to ship now\" if the books have arrived.");
         // Books already on their way may still be marked delivered (proof for the dispute).

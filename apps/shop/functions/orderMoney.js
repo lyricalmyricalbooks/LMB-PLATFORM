@@ -19,6 +19,8 @@
 // Reading a payment or a payout again finds the same parts, so it changes nothing; a part seen first in a payout and
 // then again after payment (or the other way round) is one part, keeping its payout.
 
+const { recordReview } = require("./orderReview");
+
 const PART_KEY = /^(charge|[A-Za-z0-9_-]{1,100})$/;
 const FIELDS = ["fee", "net", "platformFee", "currency", "exchangeRate", "payoutId", "payoutDate"];
 
@@ -118,6 +120,8 @@ async function recordOrderMoney({ db, payments, orderId, keys = null, now }) {
   if (!order.stripePaymentIntentId || typeof payments.paymentMoney !== "function") return false;
   const found = await payments.paymentMoney(orderId, order, { keys });
   if (!found?.parts) return false;
+  // The same read tells whether the payment looks risky (orderReview.js); a failure there must not lose the money.
+  await recordReview(db, orderId, order.stripePaymentIntentId, found.risk, now).catch(() => {});
   return recordMoney(db, orderId, order.stripePaymentIntentId, found.parts, now);
 }
 

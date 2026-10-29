@@ -57,6 +57,8 @@ export function queueOf(o: any): string {
  if (disputeOpen(o)) return "Needs attention";
  // A refund the bank rejected: the customer thinks they were refunded. Refund again or contact them before packing.
  if (refundFailed(o)) return "Needs attention";
+ // A payment the card company flagged waits for the owner's look before anything is packed.
+ if (reviewOpen(o)) return "Needs attention";
  // Paid pre-orders wait here until their release date (or "Ready to ship now"), then join the
  // normal queues by themselves. A hold or address problem is still dealt with on release.
  if (awaitingRelease(o) && !["ready_for_pickup", "ready_for_delivery"].includes(o.fulfillmentStatus)) return "Awaiting release";
@@ -74,6 +76,9 @@ export const preorderShipDate = (o: any) => shipDateOf(waitingPreorderLines(o, o
 /** A card dispute the shop hasn't won or closed yet. */
 /** A refund the bank rejected after it was accepted: the order is paid again but the customer was told it was refunded. */
 export const refundFailed = (o: any) => o?.paymentStatus === "paid" && o?.refund?.status === "failed";
+/** A risky-looking payment the owner hasn't cleared yet (functions/orderReview.js, kept in parity). */
+export const reviewOpen = (o: any) => o?.review?.status === "needs_review" && !o?.operations?.reviewCleared;
+export const REVIEW_PROBLEM = "This payment looks risky. Check the order, then press \"It looks fine\" to continue, or refund it.";
 export const disputeOpen = (o: any) => !!o?.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(o.disputeStatus));
 // Books that already left the shop (sent, out for delivery, delivered, collected) aren't back on
 // the shelf, so a refund only restocks them by default before dispatch or hand-over.
@@ -95,6 +100,7 @@ export function dispatchProblem(o: any): string {
  if (o.customerRequest?.type === "return" && o.customerRequest.status === "open") return "Resolve the active return before dispatching the order.";
  if (disputeOpen(o)) return `This payment is disputed. Don't ship until the dispute is settled in ${providerName()}.`;
  if (refundFailed(o)) return "The refund for this order failed at the bank, so the customer was not refunded. Refund again or contact them before packing.";
+ if (reviewOpen(o)) return REVIEW_PROBLEM;
  if (o.operations?.hold) return `Order on hold: ${o.operations.hold}`;
  if (q === "Awaiting release") return `Pre-order: releases ${preorderShipDate(o) || "on a date not yet announced"}. Press "Ready to ship now" if the books have arrived.`;
  if (addressIssues(o).length || o.operations?.addressReviewed !== addressKey(o)) return "Review and confirm the shipping address first.";

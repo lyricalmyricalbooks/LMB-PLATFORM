@@ -117,6 +117,18 @@ describe("Stripe: after payment, on refund and when the payout lands", () => {
     expect(db.writes).toHaveLength(1);
   });
 
+  test("a payment the card company rates as risky puts the order in the review queue, even before the fee is known", async () => {
+    const db = fakeDb({ "orders/o1": paidOrder({ customer: { address: { country: "CA" } } }) });
+    const risky = intent({ latest_charge: { id: "ch_1", balance_transaction: "txn_charge", outcome: { risk_level: "elevated" }, payment_method_details: { card: { country: "US", checks: { cvc_check: "pass" } } } } });
+    await recordOrderMoney({ db, payments: makePayments("stripe", service(risky)), orderId: "o1", now: NOW });
+    expect(db.store["orders/o1"].review).toMatchObject({ status: "needs_review" });
+    expect(db.store["orders/o1"].review.reasons).toHaveLength(2);
+    // A normal payment is not flagged.
+    const calm = fakeDb({ "orders/o1": paidOrder() });
+    await recordOrderMoney({ db: calm, payments: makePayments("stripe", service(intent())), orderId: "o1", now: NOW });
+    expect(calm.store["orders/o1"].review).toBeUndefined();
+  });
+
   test("a charge Stripe hasn't settled yet, or another order's payment, writes nothing", async () => {
     const db = fakeDb({ "orders/o1": paidOrder() });
     expect(await recordOrderMoney({ db, payments: makePayments("stripe", service(intent({ latest_charge: { id: "ch_1", balance_transaction: "txn_charge" } }))), orderId: "o1" })).toBe(false);

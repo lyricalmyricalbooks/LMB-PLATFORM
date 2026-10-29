@@ -19,6 +19,7 @@ import {
   packingTicksKey,
   isDigitalItem,
   disputeOpen,
+  reviewOpen,
   terminal,
 } from "./fulfillment";
 import { printOrders, type SlipShop } from "./orderPrint";
@@ -615,7 +616,7 @@ export function OrderDetail({
   };
 
   const perform = async (
-    action: "review" | "pack" | "hold" | "release" | "release_preorder" | "local_transition" | "clear_app_label",
+    action: "review" | "pack" | "hold" | "release" | "release_preorder" | "local_transition" | "clear_app_label" | "clear_review",
     payload: any = {},
   ) => {
     if (working) return;
@@ -635,6 +636,8 @@ export function OrderDetail({
                   ? "Hold released"
                   : action === "release_preorder"
                     ? "Pre-order ready to pack"
+                    : action === "clear_review"
+                      ? "Order cleared"
                     : action === "clear_app_label"
                       ? "Inventory app label removed from the order"
                       : "Local fulfillment updated",
@@ -939,6 +942,18 @@ export function OrderDetail({
                 (the inventory app shows them as a gratuity). If the books are still with you, put them back.
               </p>
               <SecondaryButton disabled={working} onClick={() => setConfirmAction("restockRefunded")}>Put the books back in stock</SecondaryButton>
+            </SectionCard>
+          )}
+          {reviewOpen(order) && (
+            <SectionCard title="Check this payment">
+              <p className="fw-summary">This payment looks risky, so the order waits for you. Packing, labels and dispatch are blocked until you decide.</p>
+              <ul className="fw-summary">
+                {(order.review.reasons || []).map((reason: string) => <li key={reason}>{reason}</li>)}
+              </ul>
+              <p className="fw-summary">Look at the customer, the address and what they ordered. If it looks fine, continue. If not, refund the order.</p>
+              <div className="fw-actions">
+                <PrimaryButton disabled={working} onClick={() => perform("clear_review")}>It looks fine</PrimaryButton>
+              </div>
             </SectionCard>
           )}
           {disputeOpen(order) && (

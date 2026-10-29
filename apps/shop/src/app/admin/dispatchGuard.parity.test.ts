@@ -30,6 +30,8 @@ const cases: Array<[string, any, any?]> = [
   ["dispute open", { disputeStatus: "needs_response" }],
   ["dispute won", { disputeStatus: "won" }],
   ["refund failed", { refund: { status: "failed" } }],
+  ["risky payment waiting", { review: { status: "needs_review", reasons: ["x"] } }],
+  ["risky payment cleared", { review: { status: "needs_review", reasons: ["x"] } }, { reviewCleared: "2026-10-29T00:00:00Z" }],
   ["on hold", {}, { hold: "Customer asked to wait" }],
   ["pre-order waiting", { items: [{ id: "b1", quantity: 1, preorder: true, releaseDate: "2099-01-01" }] }],
   ["pre-order released early", { preorderReleasedAt: "2026-10-01T00:00:00Z", items: [{ id: "b1", quantity: 1, preorder: true, releaseDate: "2099-01-01" }] }],
