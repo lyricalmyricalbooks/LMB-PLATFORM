@@ -109,14 +109,16 @@ test("only the pages' files are served: no tests, notes or files outside their f
   }
 });
 
-test("the web door answers: plans open, the owner's two presses, and the newcomer has none", async () => {
+test("the web door answers: plans open, the owner's three presses, and the newcomer has none", async () => {
   const plans = await call(null, "GET", "/api/plans");
   assert.equal(plans.body.signupOpen, true);
   assert.equal(plans.body.plans.length, 3);
 
-  const shops = (await call(OWNER, "GET", "/api/accounts/shops")).body.shops;
-  assert.deepEqual(shops.map((shop) => [shop.pressName, shop.status, shop.role]), [["Moth Press", "live", "owner"], ["Paper Wasp Press", "live", "owner"]]);
-  assert.deepEqual(shops.map((shop) => shop.access), ["open", "paused"], "one on its trial, one paused until a card is added");
+  const order = ["Moth Press", "Paper Wasp Press", "Lantern Editions"];
+  const shops = (await call(OWNER, "GET", "/api/accounts/shops")).body.shops.sort((a, b) => order.indexOf(a.pressName) - order.indexOf(b.pressName));
+  assert.deepEqual(shops.map((shop) => [shop.pressName, shop.status, shop.role]), [["Moth Press", "live", "owner"], ["Paper Wasp Press", "live", "owner"], ["Lantern Editions", "live", "owner"]]);
+  assert.deepEqual(shops.map((shop) => shop.access), ["open", "paused", "open"], "one on its trial, one paused until a card is added, one paying");
+  assert.deepEqual(shops.map((shop) => shop.billing?.status), ["trialing", "incomplete", "active"]);
   assert.deepEqual((await call(NEWCOMER, "GET", "/api/signup")).body.shops, []);
   assert.equal((await call(null, "GET", "/api/signup")).status, 401);
 

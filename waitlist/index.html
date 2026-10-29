@@ -1,94 +1,102 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="rp cp-page">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Colophon: a shop and stockroom for small presses</title>
 <meta name="description" content="Colophon: a shop and stockroom built by a small press, for small presses. Join the waitlist.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600&family=DM+Mono&display=swap">
-<style>
-  :root { --paper: #f4efe6; --ink: #1d1a17; --pink: #ff48b0; --blue: #0078bf; --yellow: #ffe800; --muted: #5a534c; }
-  @media (prefers-color-scheme: dark) { :root { --paper: #23201d; --ink: #f1ebe1; --muted: #b9b0a5; } }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font: 18px/1.55 Archivo, system-ui, sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
-  .mark { font: 14px "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
-  h1 { font: 400 clamp(44px, 9vw, 84px)/1.12 Anton, Impact, sans-serif; text-transform: uppercase; margin: 16px 0 20px; }
-  h1 span { background: var(--pink); color: #1d1a17; padding: 0 .12em; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-  .lead { font-size: 21px; max-width: 34em; }
-  form { margin: 32px 0 8px; display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
-  label { display: grid; gap: 4px; font: 13px "DM Mono", monospace; text-transform: uppercase; }
-  input, select, button { font: inherit; font-size: 17px; border: 2px solid var(--ink); border-radius: 0; padding: 12px; background: var(--paper); color: var(--ink); min-height: 48px; }
-  .wide { grid-column: 1 / -1; }
-  button { background: var(--yellow); color: #1d1a17; font-weight: 600; cursor: pointer; box-shadow: 4px 4px 0 var(--ink); }
-  button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
-  button:disabled { opacity: .6; cursor: default; }
-  #status { min-height: 1.5em; font-weight: 600; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 48px 0; }
-  .card { border: 2px solid var(--ink); padding: 18px; box-shadow: 4px 4px 0 var(--blue); }
-  .card h2 { font: 400 24px/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 0 0 8px; }
-  .card p { margin: 0; color: var(--muted); }
-  .section { font: 400 32px/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 40px 0 8px; }
-  #pricing .lead { margin: 0 0 8px; }
-  .plans { margin: 24px 0; }
-  .plan h3 { font: 400 24px/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 0 0 8px; }
-  .plan .price { color: var(--ink); font-size: 20px; margin: 0 0 8px; }
-  .plan .price s { color: var(--muted); }
-  .plan .or-pay { margin-top: 8px; font-size: 15px; }
-  .founding { font-weight: 600; background: var(--yellow); color: #1d1a17; display: inline-block; padding: 4px 8px; margin: 0; }
-  .start { display: inline-flex; align-items: center; min-height: 48px; padding: 12px 20px; border: 2px solid var(--ink); background: var(--yellow); color: #1d1a17; font-weight: 600; text-decoration: none; box-shadow: 4px 4px 0 var(--ink); }
-  .start:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
-  .start:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
-  footer { font: 13px "DM Mono", monospace; color: var(--muted); }
-  @media (max-width: 560px) { form { grid-template-columns: 1fr; } }
-</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="./look/adminThemes.css">
+<link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/platform-pages.css">
+<script src="./look/platform-look.js"></script>
 </head>
-<body>
-<main>
-  <div class="mark">Colophon · founding presses</div>
-  <h1>Your press, <span>your shop</span>, your stockroom.</h1>
-  <p class="lead">A shop and stockroom made by a working small press, for small presses. Sell books, zines and prints, keep count of every copy, and see what's selling, without a pile of add-ons.</p>
+<body class="cp">
+<a class="rp-skip-link" href="#main">Skip to content</a>
+<header class="cp-mast"><div class="cp-wrap"><a class="cp-word" href="./">Colophon<small>shop + stockroom for small presses</small></a>
+  <nav aria-label="Colophon"><a href="#pricing">Plans</a><a href="../help/">Help</a><a href="../status/">Status</a><a href="../account/">Sign in</a></nav></div></header>
+<main id="main" tabindex="-1">
+  <div class="cp-wrap">
+  <div class="cp-hero">
+    <div>
+      <div class="mark">Colophon · founding presses</div>
+      <h1 class="cp-display">Your press, <mark>your shop</mark>, your stockroom.</h1>
+      <p class="cp-lede">A shop and stockroom made by a working small press, for small presses. Sell books, zines and prints, keep count of every copy, and see what's selling, without a pile of add-ons.</p>
+      <div class="cp-hero-actions"><a class="button primary" href="#waitlist">Join the waitlist</a><a class="button" href="#what-you-get">What you get</a></div>
+      <div class="hint" style="margin-top:14px"><p id="sample-press" hidden>Want to look around first? <a href="">Try a sample press</a>. Nothing you do there is saved.</p></div>
+    </div>
+    <!-- A drawing of a press's shop: made-up books, to show what a shop and its stockroom look like together. -->
+    <div class="cp-mock" role="img" aria-label="A sample shop with three made-up books and this week's figures">
+      <div class="cp-mock-bar"><i></i><i></i><i></i><span style="margin-left:8px">yourpress.web.app</span></div>
+      <div class="cp-books">
+        <div><div class="cp-cover">Night Flight</div><p><span>Riso, 48 pp.</span><b>$18</b></p></div>
+        <div><div class="cp-cover">Field Notes 3</div><p><span>Zine</span><b>$8</b></p></div>
+        <div><div class="cp-cover">Small Hours</div><p><span>Print</span><b>$35</b></p></div>
+      </div>
+      <div class="cp-mock-strip"><div>Sold this week<b>23</b></div><div>Copies left<b>412</b></div><div>At the fair<b>$640</b></div></div>
+    </div>
+  </div>
+  </div>
 
   <!-- Pricing (plan 6.1): hidden, and the page is today's waitlist, until the platform says sign-up is open
        (waitlist/pricing.js). -->
-  <section id="pricing" hidden aria-labelledby="pricing-title">
-    <h2 id="pricing-title" class="section">Plans</h2>
-    <p class="lead" id="pricing-trial">Free for 14 days, no card needed.</p>
+  <div class="cp-wrap"><section id="pricing" hidden class="cp-sec" aria-labelledby="pricing-title">
+    <div class="cp-sec-head"><div><div class="cp-kicker">Pick what you need</div><h2 id="pricing-title" class="cp-h2">Plans</h2></div><p id="pricing-trial">Free for 14 days, no card needed.</p></div>
     <p id="pricing-founding" class="founding" hidden></p>
-    <div class="grid plans" id="plan-cards"></div>
-    <a class="start" id="start-trial" href="">Start your free trial</a>
-  </section>
-  <h2 id="not-ready" class="section" hidden>Not ready yet? Join the waitlist</h2>
+    <div class="cp-grid3 plans" id="plan-cards"></div>
+    <div class="cp-hero-actions"><a class="button primary" id="start-trial" href="">Start your free trial</a><span class="note">Change or cancel any month from your account.</span></div>
+  </section></div>
 
-  <form id="waitlist" novalidate>
-    <label>Your name<input name="name" autocomplete="name" required></label>
-    <label>Email<input name="email" type="email" autocomplete="email" required></label>
-    <label>Press name<input name="press" autocomplete="organization"></label>
-    <label>What do you need?
-      <select name="plan">
-        <option value="both">Shop and stockroom</option>
-        <option value="shop">Just the shop</option>
-        <option value="stockroom">Just the stockroom</option>
-      </select>
-    </label>
-    <label class="wide">How do you sell today? (optional)<input name="today" placeholder="Website, fairs, a spreadsheet…"></label>
-    <!-- Left empty by people; bots that fill it are quietly ignored (waitlist/signup.js). -->
-    <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
-    <button class="wide" type="submit">Join the waitlist</button>
-    <p id="status" class="wide" role="status" aria-live="polite"></p>
-  </form>
-  <p id="sample-press" hidden>Want to look around first? <a href="">Try a sample press</a>. Nothing you do there is saved.</p>
+  <div class="cp-wrap"><section class="cp-sec" id="join" aria-labelledby="join-title">
+    <div class="cp-split">
+      <div class="card">
+        <div><h2 id="not-ready" class="section" hidden>Not ready yet? Join the waitlist</h2><h2 id="join-title" class="cp-h2">Join the waitlist</h2>
+        <p class="hint">We open a few new shops a day, in the order people join. We'll only email you about your place.</p></div>
+        <form id="waitlist" class="cp-form" novalidate>
+          <label>Your name<input name="name" autocomplete="name" required></label>
+          <label>Email<input name="email" type="email" autocomplete="email" required></label>
+          <label>Press name<input name="press" autocomplete="organization"></label>
+          <label>What do you need?
+            <select name="plan">
+              <option value="both">Shop and stockroom</option>
+              <option value="shop">Just the shop</option>
+              <option value="stockroom">Just the stockroom</option>
+            </select>
+          </label>
+          <label class="cp-span">How do you sell today? (optional)<input name="today" placeholder="Website, fairs, a spreadsheet…"></label>
+          <!-- Left empty by people; bots that fill it are quietly ignored (waitlist/signup.js). -->
+          <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
+          <div class="cp-span"><button class="primary" type="submit">Join the waitlist</button></div>
+          <p id="status" class="cp-span" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+      <div>
+        <div class="cp-kicker">First questions</div>
+        <div class="cp-faq" style="margin-top:12px">
+          <details open><summary>Can I bring my books over from my old shop?</summary><p>Yes. Upload your old shop's file or a spreadsheet and your books, photos and customers come with you. Links to your old shop keep working.</p></details>
+          <details><summary>Do I need to know anything technical?</summary><p>No. You sign in with Google once and we set up your web address, payments and email for you.</p></details>
+          <details><summary>What happens after the free trial?</summary><p>Add a card to keep going. If you don't, your shop pauses and nothing is deleted. You can download everything at any time.</p></details>
+          <details><summary>Can I sell at fairs too?</summary><p>Yes. The stockroom works on a phone or tablet at the table, even offline, and takes the copies off the same count as your website.</p></details>
+        </div>
+      </div>
+    </div>
+  </section></div>
 
-  <div class="grid">
-    <div class="card"><h2>A shop that looks like you</h2><p>Themes made for presses: photobooks, zines, poetry, art books. Change every word and colour yourself.</p></div>
-    <div class="card"><h2>One count of every copy</h2><p>Sales online and at fairs come off the same stock, even when you're offline at a table.</p></div>
-    <div class="card"><h2>Bring your shop with you</h2><p>Move your books, photos and customers over from your current shop or a spreadsheet.</p></div>
-    <div class="card"><h2>Founding presses</h2><p>The first presses get set up first, a founding price, and a say in what gets built next.</p></div>
-  </div>
-
-  <footer>Colophon, from a working small press. We'll only email you about the launch.</footer>
+  <div class="cp-wrap"><section class="cp-sec" id="what-you-get" aria-labelledby="get-title">
+    <div class="cp-sec-head"><h2 id="get-title" class="cp-h2">What you get</h2></div>
+    <div class="cp-grid4">
+      <div class="card"><h3>A shop that looks like you</h3><p class="hint">Themes made for presses: photobooks, zines, poetry, art books. Change every word and colour yourself.</p></div>
+      <div class="card"><h3>One count of every copy</h3><p class="hint">Sales online and at fairs come off the same stock, even when you're offline at a table.</p></div>
+      <div class="card"><h3>Bring your shop with you</h3><p class="hint">Move your books, photos and customers over from your current shop or a spreadsheet.</p></div>
+      <div class="card"><h3>Founding presses</h3><p class="hint">The first presses get set up first, a founding price, and a say in what gets built next.</p></div>
+    </div>
+  </section></div>
 </main>
+<footer>
+  <div class="cp-wrap"><span class="cp-word">Colophon</span><span>Colophon, from a working small press. We'll only email you about the launch.</span>
+    <div class="cp-links"><a href="../help/">Help</a><a href="../status/">Status</a><a href="../terms/">Terms &amp; privacy</a></div></div>
+</footer>
 <script type="module">
   import { handleSignup } from "./signup.js";
   import { firestoreStore } from "./firestoreStore.js";
@@ -117,7 +125,7 @@
       status.textContent = "The waitlist opens soon. Please check back in a few days.";
       return;
     }
-    const button = form.querySelector("button");
+    const button = form.querySelector("button[type=submit]");
     button.disabled = true;
     status.textContent = "Adding you…";
     try {

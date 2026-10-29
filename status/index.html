@@ -1,51 +1,45 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="rp cp-page">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Colophon status</title>
 <meta name="description" content="Whether Colophon shops, checkout, payments and backups are working right now.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600&family=DM+Mono&display=swap">
-<style>
-  :root { --paper: #f4efe6; --ink: #1d1a17; --pink: #ff48b0; --blue: #0078bf; --yellow: #ffe800; --green: #00a95c; --muted: #5a534c; }
-  @media (prefers-color-scheme: dark) { :root { --paper: #23201d; --ink: #f1ebe1; --muted: #b9b0a5; } }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font: 18px/1.55 Archivo, system-ui, sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
-  .mark { font: 14px "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
-  h1 { font: 400 clamp(40px, 8vw, 72px)/1.12 Anton, Impact, sans-serif; text-transform: uppercase; margin: 16px 0 24px; }
-  .headline { font-size: 22px; font-weight: 600; border: 2px solid var(--ink); padding: 16px 18px; margin: 0 0 24px; color: #1d1a17; }
-  .tone-good { background: var(--green); box-shadow: 4px 4px 0 var(--ink); }
-  .tone-warn { background: var(--yellow); box-shadow: 4px 4px 0 var(--ink); }
-  .tone-bad { background: var(--pink); box-shadow: 4px 4px 0 var(--ink); }
-  .tone-quiet { background: transparent; color: var(--ink); }
-  .note { border-left: 6px solid var(--blue); padding: 4px 0 4px 14px; margin: 0 0 20px; font-size: 18px; }
-  .parts { list-style: none; padding: 0; margin: 0 0 16px; border-top: 2px solid var(--ink); }
-  .part { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 14px 0; border-bottom: 2px solid var(--ink); }
-  .part strong { font: 15px "DM Mono", monospace; }
-  .state-some strong, .state-most strong { text-decoration: underline; text-decoration-thickness: 2px; }
-  .checked, footer { font: 13px "DM Mono", monospace; color: var(--muted); }
-  a { color: inherit; }
-</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="./look/adminThemes.css">
+<link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/platform-pages.css">
+<script src="./look/platform-look.js"></script>
 </head>
-<body>
-<main>
-  <div class="mark">Colophon · status</div>
-  <h1>Is everything working?</h1>
-  <div id="status" role="status" aria-live="polite"><p class="headline tone-quiet">Loading…</p></div>
-  <footer>
-    <p>Checked every five minutes. This page shows how many shops each part is working for; it never names a shop.</p>
-    <p>Need a hand with your own shop? Reply to any email from Colophon and it reaches our support inbox.</p>
-  </footer>
+<body class="cp">
+<a class="rp-skip-link" href="#main">Skip to content</a>
+<header class="cp-mast"><div class="cp-wrap"><a class="cp-word" href="../waitlist/">Colophon<small>status</small></a>
+  <nav aria-label="Colophon"><a href="../waitlist/">Plans</a><a href="../help/">Help</a><a href="./" aria-current="page">Status</a><a href="../account/">Your shops</a></nav></div></header>
+<main id="main" tabindex="-1">
+  <div class="cp-wrap" style="padding-block:44px 64px">
+    <div class="mark">Colophon · status</div>
+    <h1 class="cp-title">Is everything working?</h1>
+    <div class="cp-split">
+      <div id="status" role="status" aria-live="polite"><p class="headline tone-quiet">Loading…</p></div>
+      <aside class="stack">
+        <div class="card"><h3>How this page works</h3><p class="hint">Checked every five minutes. It shows how many shops each part is working for, and never names a shop.</p></div>
+        <div class="card"><h3>Trouble with your own shop?</h3><p class="hint">Reply to any email from Colophon, or ask from your account page. A person answers.</p><div class="cp-actions cp-start"><a class="button primary" href="../account/#get-help">Get help</a></div></div>
+      </aside>
+    </div>
+  </div>
 </main>
+<footer>
+  <div class="cp-wrap"><span class="cp-word">Colophon</span><p style="margin:0">This page refreshes itself every minute.</p>
+    <div class="cp-links"><a href="../help/">Help</a><a href="../terms/">Terms &amp; privacy</a></div></div>
+</footer>
 <script type="module">
-  import { STATUS_PROJECT } from "./config.js";
+  import { STATUS_PROJECT, STATUS_URL } from "./config.js";
   import { loadStatus, renderStatus } from "./page.js";
   const box = document.getElementById("status");
   async function refresh() {
     try {
-      box.innerHTML = renderStatus(await loadStatus({ projectId: STATUS_PROJECT }));
+      box.innerHTML = renderStatus(await loadStatus({ projectId: STATUS_PROJECT, url: STATUS_URL }));
     } catch (error) {
       box.innerHTML = renderStatus(null, { error });
     }

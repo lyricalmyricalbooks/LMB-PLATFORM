@@ -24,11 +24,21 @@ const PAGES = {
   "help": { html: "help/index.html", scripts: ["help/page.js"] },
 };
 
-// ── A small reader for the pages' own style blocks ─────────────────────────────────────────────────────────────────
+// ── A small reader for the pages' own styles ───────────────────────────────────────────────────────────────────────
+// The pages wear the shared admin look (shared/admin-look): adminThemes.css holds every colour, pressroom.css the
+// admin's pieces, and platform-pages.css the pages' own layer. The checks below read the page's inline styles plus
+// its copy of that layer, which is what styles everything these pages draw; colours come from adminThemes.css.
 
-function styleOf(html) {
-  return [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("\n");
+const folderOf = (path) => path.slice(0, path.lastIndexOf("/") + 1);
+
+function styleOf(html, path = "") {
+  const inline = [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]);
+  const layer = /href="\.\/look\/platform-pages\.css"/.test(html) ? [read(`${folderOf(path)}look/platform-pages.css`)] : [];
+  return [...inline, ...layer].join("\n");
 }
+
+/** A rule's selector without the pages' `.cp ` scope or its `:not(…)` filters, so `.cp input:not([type=radio])` reads as `input`. */
+const plainSelector = (selector) => selector.replace(/^\.cp\s+/, "").replace(/:not\([^)]*\)/g, "").trim();
 
 /** Rules as { selectors, decls } (media blocks are flattened; the dark-mode block is read separately). */
 function rulesOf(css) {
@@ -40,7 +50,7 @@ function rulesOf(css) {
       const i = d.indexOf(":");
       if (i > 0) decls[d.slice(0, i).trim().toLowerCase()] = d.slice(i + 1).trim();
     }
-    rules.push({ selectors: m[1].split(",").map((s) => s.trim()), decls });
+    rules.push({ selectors: m[1].split(",").map((s) => plainSelector(s.trim())), decls });
   }
   return rules;
 }
@@ -49,8 +59,11 @@ const px = (value) => { const m = /(^|\s)(\d+(?:\.\d+)?)px\b/.exec(value ?? "");
 /** The biggest `property` (in px) declared by a rule whose selector list contains `selector`. */
 const biggest = (rules, selector, property) => Math.max(0, ...rules.filter((r) => r.selectors.includes(selector)).map((r) => px(r.decls[property]) ?? 0));
 
-function variables(css, scope) {
-  const block = scope === "dark" ? /prefers-color-scheme:\s*dark\)\s*\{\s*:root\s*\{([^}]*)\}/.exec(css)?.[1] ?? "" : /:root\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+/** The look's colour tokens for day or night (the Riso Press look the pages wear), as { "rp-text": "#100f0d", … }. */
+function variables(scope) {
+  const themes = read("shared/admin-look/adminThemes.css");
+  const head = scope === "dark" ? /\n\.rp\[data-rp-appearance="dark"\],[^{]*\{([^}]*)\}/ : /\n\.rp,\s*\n\.admin-reso\s*\{([^}]*)\}/;
+  const block = head.exec(themes)?.[1] ?? "";
   return Object.fromEntries([...block.matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((m) => [m[1], m[2]]));
 }
 
@@ -62,13 +75,13 @@ const contrast = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort(
 
 for (const [name, page] of Object.entries(PAGES)) {
   const html = read(page.html);
-  const css = styleOf(html);
+  const css = styleOf(html, page.html);
   const rules = rulesOf(css);
   const scripts = page.scripts.map(read).join("\n");
   const everything = `${html}\n${scripts}`;
 
   test(`${name} page: scales to the phone and says its language`, () => {
-    assert.match(html, /<html lang="en">/);
+    assert.match(html, /<html lang="en"[\s>]/);
     const viewport = /<meta name="viewport" content="([^"]*)"/.exec(html)?.[1] ?? "";
     assert.match(viewport, /width=device-width/);
     assert.match(viewport, /initial-scale=1/);
@@ -86,16 +99,29 @@ for (const [name, page] of Object.entries(PAGES)) {
       for (const m of grid?.matchAll(/minmax\((\d+)px/g) ?? []) if (Number(m[1]) > 328) wide.push(`${rule.selectors.join(", ")} { grid-template-columns: ${grid} }`);
     }
     assert.deepEqual(wide, [], "a fixed width over 328px (360 less the 16px sides) would scroll on a small phone");
-    const main = rules.find((r) => r.selectors.includes("main"));
-    assert.ok(px(main.decls["max-width"]) >= 600, "the page column has a maximum, not a fixed width");
-    assert.match(main.decls.padding, /\b16px\b/, "main keeps a 16px gutter on each side");
-    assert.match(css, /\*\s*\{\s*box-sizing:\s*border-box/);
-    assert.doesNotMatch(everything, /<table\b|<pre\b/, "a table or a pre-formatted block can push the page sideways");
+    // The page column: the public pages' .cp-wrap, or the account pages' admin workspace (pressroom.css).
+    if (/class="cp-wrap/.test(html)) {
+      const wrap = rules.find((r) => r.selectors.includes(".cp-wrap"));
+      assert.ok(px(wrap.decls["max-width"]) >= 600, "the page column has a maximum, not a fixed width");
+      assert.match(wrap.decls["padding-inline"], /\b16px\b/, "the column keeps at least a 16px gutter on each side");
+    } else {
+      assert.match(html, /class="rp-workspace"/);
+      const pressroom = read(`${folderOf(page.html)}look/pressroom.css`);
+      assert.match(pressroom, /\.rp-workspace-inner \{ max-width: var\(--rp-content-max\)/, "the page column has a maximum, not a fixed width");
+      assert.match(pressroom, /--rp-gutter: clamp\(16px/, "the workspace keeps at least a 16px gutter on each side");
+    }
+    assert.ok(rules.some((r) => r.selectors.includes("*") && r.decls["box-sizing"] === "border-box"), "every box counts its border and padding in its width");
+    assert.doesNotMatch(everything, /<pre\b/, "a pre-formatted block can push the page sideways");
+    // A table (the invoices) sits in a box that scrolls on its own, so it never pushes the page.
+    if (/<table\b|el\("table"/.test(everything)) {
+      assert.match(everything, /cp-table-wrap/);
+      assert.equal(rules.find((r) => r.selectors.includes(".cp-table-wrap"))?.decls["overflow-x"], "auto");
+    }
     assert.doesNotMatch(css, /overflow-x:\s*hidden/, "hiding sideways overflow only hides the problem");
   });
 
   test(`${name} page: buttons and fields are easy to tap, and text is easy to read`, () => {
-    const body = rules.find((r) => r.selectors.includes("body"));
+    const body = rules.find((r) => r.selectors.includes("body") || r.selectors.includes(".cp"));
     assert.ok(px(body.decls.font) >= 16 || px(body.decls["font-size"]) >= 16, "body text is at least 16px");
     // Every control the page has, and the smallest height its rules give it.
     const controls = [
@@ -116,7 +142,7 @@ for (const [name, page] of Object.entries(PAGES)) {
     }
     // The small "ghost" text buttons, and a tick box's row, are the smallest things; they keep 44px too.
     if (rules.some((r) => r.selectors.includes(".ghost"))) assert.ok(biggest(rules, ".ghost", "min-height") >= 44);
-    for (const selector of ["input, select, button", "input, select, button, textarea", "textarea", "input[type=search]"]) {
+    for (const selector of ["input, select, button", "input, select, button, textarea", "input, select, textarea", "textarea", "input[type=search]"]) {
       const rule = rules.find((r) => r.selectors.join(", ") === selector);
       if (!rule) continue;
       const size = px(rule.decls["font-size"]) ?? px(rule.decls.font);
@@ -126,15 +152,20 @@ for (const [name, page] of Object.entries(PAGES)) {
 
   test(`${name} page: colours are readable in light and dark mode`, () => {
     for (const scope of ["light", "dark"]) {
-      const light = variables(css, "light");
-      const v = { ...light, ...(scope === "dark" ? variables(css, "dark") : {}) };
-      assert.ok(v.paper && v.ink, `${scope}: paper and ink are set`);
-      assert.ok(contrast(v.ink, v.paper) >= 4.5, `${scope}: ink on paper`);
-      if (v.muted) assert.ok(contrast(v.muted, v.paper) >= 4.5, `${scope}: muted text on paper`);
-      if (v.danger) assert.ok(contrast(v.danger, v.paper) >= 4.5, `${scope}: error text on paper`);
-      if (v.yellow) assert.ok(contrast("#1d1a17", v.yellow) >= 4.5, `${scope}: button text on yellow`);
+      const light = variables("light");
+      const v = { ...light, ...(scope === "dark" ? variables("dark") : {}) };
+      assert.ok(v["rp-canvas"] && v["rp-text"], `${scope}: paper and ink are set`);
+      for (const paper of ["rp-canvas", "rp-surface"]) {
+        assert.ok(contrast(v["rp-text"], v[paper]) >= 4.5, `${scope}: ink on ${paper}`);
+        assert.ok(contrast(v["rp-text-muted"], v[paper]) >= 4.5, `${scope}: muted text on ${paper}`);
+        assert.ok(contrast(v["rp-text-subtle"], v[paper]) >= 4.5, `${scope}: small print on ${paper}`);
+        assert.ok(contrast(v["rp-danger"], v[paper]) >= 4.5, `${scope}: error text on ${paper}`);
+      }
+      assert.ok(contrast(v["rp-on-primary"], v["rp-primary"]) >= 4.5, `${scope}: button text on the main button`);
     }
-    assert.match(css, /prefers-color-scheme:\s*dark/);
+    // Day or night follows the device: the page loads the switch, and the layer names no colour of its own.
+    assert.match(html, /<script src="\.\/look\/platform-look\.js"><\/script>/);
+    assert.match(read(`${folderOf(page.html)}look/platform-look.js`), /prefers-color-scheme:\s*dark/);
   });
 
   test(`${name} page: the keyboard sees where it is, and changes are spoken`, () => {
@@ -186,6 +217,7 @@ test("every page that fetches something shows loading, empty and error states", 
 
 test("the account page's loading and error screens use styles the page defines", () => {
   const html = read("accounts/index.html");
-  assert.match(styleOf(html), /\.loading\s*\{/);
-  assert.match(styleOf(html), /\.empty\s*\{/);
+  const rules = rulesOf(styleOf(html, "accounts/index.html"));
+  assert.ok(rules.some((r) => r.selectors.includes(".loading")));
+  assert.ok(rules.some((r) => r.selectors.includes(".empty")));
 });

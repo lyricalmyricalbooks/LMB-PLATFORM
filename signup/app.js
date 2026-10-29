@@ -23,8 +23,17 @@ const EMAIL_KEY = "colophon.signin.email";
 const remember = (value) => { try { value ? localStorage.setItem(EMAIL_KEY, value) : localStorage.removeItem(EMAIL_KEY); } catch {} };
 const recalled = () => { try { return localStorage.getItem(EMAIL_KEY) || ""; } catch { return ""; } };
 
+const STEPS = ["signin", "details", "making"];
 function show(view) {
-  for (const section of document.querySelectorAll("main > section")) section.hidden = section.id !== `view-${view}`;
+  for (const section of document.querySelectorAll("main section[id^='view-']")) section.hidden = section.id !== `view-${view}`;
+  // The steps over the page: done, this one, still to come. Checking your email is still the sign-in step.
+  const at = STEPS.indexOf(view === "check" ? "signin" : view);
+  for (const step of document.querySelectorAll("[data-step]")) {
+    const index = STEPS.indexOf(step.dataset.step);
+    if (index === at) step.setAttribute("aria-current", "step"); else step.removeAttribute("aria-current");
+    step.toggleAttribute("data-done", index < at);
+  }
+  $("#summary").hidden = view === "making";
   status.textContent = "";
   $(`#view-${view} h2`)?.focus?.();
 }
@@ -98,8 +107,30 @@ function fillDetails(info) {
   $("#publishes-hint").textContent = PUBLISHES.hint;
   $("#publishes").replaceChildren(...PUBLISHES.options.map((o) => choice(PUBLISHES.id, o.id, o.label, "", false)));
   termsVersion = info.termsVersion ?? "";
+  planInfo = { byPlan, founding: Boolean(info.foundingOffer?.percentOff), plusTax: Boolean(info.plusTax) };
+  updateSummary();
 }
 let termsVersion = "";
+
+// The summary beside the form: the new shop as it's being described (plan 6.2's address, the plan and its price).
+let planInfo = {};
+function updateSummary() {
+  const form = $("#details-form");
+  const name = form.pressName.value.trim();
+  $("#summary-press").textContent = name || "Your press";
+  const address = $("#address-text").textContent;
+  $("#summary-address").textContent = address.endsWith(ADDRESS_SUFFIX) && !address.startsWith("…") ? address : `yourpress${ADDRESS_SUFFIX}`;
+  const plan = planInfo.byPlan?.[form.plan?.value];
+  if (plan) {
+    $("#summary-plan").textContent = plan.name;
+    $("#summary-price").textContent = `${plan.foundingPriceText && planInfo.founding ? plan.foundingPriceText : plan.priceText} a month${planInfo.plusTax ? " + tax" : ""}`;
+  }
+  const sells = [...form.querySelectorAll(`input[name="${PUBLISHES.id}"]:checked`)].map((input) => input.closest("label").textContent.trim());
+  $("#summary-sells").textContent = sells.length ? sells.join(" & ") : "Your shop";
+}
+$("#details-form").addEventListener("input", updateSummary);
+$("#details-form").addEventListener("change", updateSummary);
+new MutationObserver(updateSummary).observe($("#address-text"), { childList: true, characterData: true, subtree: true });
 
 // The web address preview (plan 6.2): made from the press name until the press presses Change, then checked as they
 // type. The server checks it again on sign-up.
@@ -226,10 +257,14 @@ function renderShops(shops) {
   $("#shops").replaceChildren(...shops.map((shop) => {
     const card = document.createElement("div");
     card.className = "card";
-    card.append(Object.assign(document.createElement("strong"), { textContent: shop.pressName }));
+    const head = Object.assign(document.createElement("div"), { className: "row" });
+    const pill = Object.assign(document.createElement("span"), { className: "pill", textContent: { ready: "Ready", waiting: "Snag", "needs-help": "With us", "in-line": "In line" }[shop.status] ?? "Being made" });
+    pill.dataset.tone = shop.status === "ready" ? "success" : shop.status === "waiting" || shop.status === "needs-help" ? "warning" : "info";
+    head.append(Object.assign(document.createElement("h3"), { textContent: shop.pressName }), pill);
+    card.append(head);
     card.append(Object.assign(document.createElement("p"), { textContent: shop.message || WORDS[shop.status] || WORDS.queued }));
     if (shop.status === "ready" && shop.siteUrl) {
-      const link = Object.assign(document.createElement("a"), { href: `${shop.siteUrl}/admin`, textContent: "Open your shop's admin" });
+      const link = Object.assign(document.createElement("a"), { className: "button primary", href: `${shop.siteUrl}/admin`, textContent: "Open your shop's admin" });
       card.append(link);
     }
     if (shop.canRetry) {

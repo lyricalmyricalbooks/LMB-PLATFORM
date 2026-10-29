@@ -73,7 +73,8 @@ export function renderPricing(doc, view, { signupUrl }) {
     const price = view.founding && p.foundingPriceText
       ? el("p", { className: "price" }, el("s", { textContent: p.priceText }), " ", el("strong", { textContent: p.foundingPriceText }), " a month")
       : el("p", { className: "price" }, el("strong", { textContent: p.priceText }), " a month");
-    const card = el("div", { className: "card plan" }, el("h3", { textContent: p.name }), price, el("p", { textContent: p.line }));
+    // "Shop and stockroom" is drawn as the one most presses pick (platform-pages.css).
+    const card = el("div", { className: p.plan === "both" ? "card plan cp-pick" : "card plan" }, el("div", { className: "cp-kicker", textContent: p.name }), price, el("p", { className: "hint", textContent: p.line }));
     if (p.payAsYouSell) card.append(el("p", { className: "or-pay", textContent: p.payAsYouSell }));
     return card;
   }));

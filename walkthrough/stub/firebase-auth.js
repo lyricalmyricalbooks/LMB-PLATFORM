@@ -3,7 +3,7 @@
 //
 // Who signs in: `?as=person@example.com` on the page, else (outside the control room) whoever signed in last in this browser, else the page's usual
 // person: a new press on the sign-up page (nobody has a shop yet, so the form shows), the platform owner in the control
-// room (admin@example.com, with the two-step sign-in done, as the control room asks) and the owner of two made-up
+// room (admin@example.com, with the two-step sign-in done, as the control room asks) and the owner of three made-up
 // presses everywhere else.
 const KEY = "walkthrough.user";
 const PEOPLE = {

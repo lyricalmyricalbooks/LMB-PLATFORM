@@ -57,6 +57,11 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
   }
 
   // The addresses a person uses for a shop: its admin and, when the plan has it, its stockroom.
+  const planSummary = (billing) => ({
+    status: billing.status ?? null, trialEnd: billing.trialEnd ?? null, currentPeriodEnd: billing.currentPeriodEnd ?? null,
+    hasCard: Boolean(billing.hasCard), cancelAtPeriodEnd: Boolean(billing.cancelAtPeriodEnd),
+  });
+
   async function placesOf(shopId) {
     const row = await registry.getShop(shopId);
     const profile = await registry.getProfile(shopId);
@@ -66,6 +71,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       plan: row?.plan ?? null,
       status: row?.status ?? "creating",
       access: row?.billing?.access ?? null,
+      siteUrl: profile?.siteUrl ?? null,
       adminUrl: profile?.siteUrl && profile.apps?.shop ? `${profile.siteUrl}/admin` : null,
       // The stockroom is its own Hosting site in the shop's project, `<project id>-stockroom` (docs/shop-setup.md).
       stockroomUrl: projectId && profile.apps?.stockroom ? `https://${projectId}-stockroom.web.app` : null,
@@ -84,7 +90,10 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       const shops = [];
       for (const shopId of ids) {
         const role = await roleIn(person, shopId);
-        if (role) shops.push({ shopId, role, ...(await placesOf(shopId)) });
+        if (!role) continue;
+        // The plan's dates show on the owner's shop card (trial days left, the next bill); only owners see them.
+        const billing = role === "owner" ? (await registry.getShop(shopId))?.billing : null;
+        shops.push({ shopId, role, ...(await placesOf(shopId)), ...(billing ? { billing: planSummary(billing) } : {}) });
       }
       return { email: person.email, shops: shops.sort((a, b) => a.pressName.localeCompare(b.pressName)) };
     },

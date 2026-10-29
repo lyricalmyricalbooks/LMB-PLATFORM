@@ -96,18 +96,64 @@ if (isSignInWithEmailLink(auth, location.href)) {
 
 // ── The shop switcher ──
 const ACCESS_WORDS = { paused: "Paused until a card is added", closed: "Closed" };
+const PLAN_NAMES = { shop: "Shop", stockroom: "Stockroom", both: "Shop and stockroom" };
+const DAY = 86_400_000;
+const shortDay = (iso) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "long" });
+const daysLeft = (iso) => Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / DAY));
 let myShops = [];
+
+/** Where a shop stands, in a few words and a tone, for its card and the strip at the top. */
+function standing(shop) {
+  if (shop.access === "paused") return { badge: "Paused", tone: "danger", line: "Paused until a card is added. Shoppers see a \"back soon\" page; nothing is deleted." };
+  if (shop.access === "closed") return { badge: "Closed", tone: "neutral", line: "Closed." };
+  if (shop.status !== "live") return { badge: "Being made", tone: "info", line: "Still being made. It's usually ready in a minute or two." };
+  const plan = shop.billing;
+  if (plan?.status === "trialing" && plan.trialEnd) {
+    const left = daysLeft(plan.trialEnd);
+    return { badge: "Free trial", tone: "info", line: `Free trial: ${left} ${left === 1 ? "day" : "days"} left, until ${shortDay(plan.trialEnd)}.${plan.hasCard ? "" : " Add a card to keep it open after that."}`, trialLeft: left };
+  }
+  if (plan?.cancelAtPeriodEnd && plan.currentPeriodEnd) return { badge: "Cancelled", tone: "warning", line: `Open until ${shortDay(plan.currentPeriodEnd)}, then the plan ends.` };
+  if (plan?.currentPeriodEnd) return { badge: "Live", tone: "success", line: `Next bill ${shortDay(plan.currentPeriodEnd)}.` };
+  return { badge: "Live", tone: "success", line: "" };
+}
+
+function renderLedger(shops) {
+  const states = shops.map(standing);
+  const trials = states.filter((s) => s.trialLeft !== undefined);
+  const needs = shops.filter((shop) => shop.access === "paused");
+  const cells = [
+    ["Shops", String(shops.length), shops.length === 1 ? "you're on one team" : `you're on ${shops.length} teams`],
+    ["Open", String(shops.filter((shop) => shop.status === "live" && !["paused", "closed"].includes(shop.access)).length), "open to shoppers"],
+    trials.length ? ["Trial left", `${Math.min(...trials.map((s) => s.trialLeft))} days`, trials.length === 1 ? "on your free trial" : `${trials.length} shops on a trial`, "warning"] : ["Free trials", "0", "none running"],
+    ["Needs you", String(needs.length), needs.length ? `${needs[0].pressName}${needs.length > 1 ? ` and ${needs.length - 1} more` : ""}` : "nothing waiting", needs.length ? "danger" : undefined],
+  ];
+  const ledger = $("#ledger");
+  ledger.style.setProperty("--n", String(cells.length));
+  ledger.replaceChildren(...cells.map(([label, value, foot, tone]) => {
+    const cell = el("div", {}, el("span", { className: "cp-kicker", textContent: label }), el("b", { textContent: value }), el("em", { textContent: foot }));
+    if (tone) cell.dataset.tone = tone;
+    return cell;
+  }));
+  ledger.hidden = !shops.length;
+  // One line per shop that needs its owner, with the button that fixes it.
+  $("#shop-alerts").replaceChildren(...needs.filter((shop) => shop.role === "owner").map((shop) => el("div", { className: "cp-alertline", role: "alert" },
+    el("p", {}, el("b", { textContent: `${shop.pressName} is paused. ` }), "Its plan payment didn't go through, so shoppers see a \"back soon\" page. Add a card and it opens again straight away."),
+    el("a", { className: "button primary", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Add a card" }))));
+}
 
 async function loadShops() {
   const { email, shops } = await api("GET", "/accounts/shops");
   myShops = shops;
   $("#me").textContent = email;
+  $("#topbar-who").textContent = `Signed in as ${email}`;
+  $("#page-desc").textContent = shops.length > 1 ? `${shops.length} shops. Open one to run it, or look after its team and plan.` : "Open your shop to run it, or look after its team and plan.";
   const list = $("#shops");
   if (!shops.length) {
-    list.replaceChildren(el("p", { className: "empty", textContent: "You're not on any shop's team yet. Start a shop, or ask a shop's owner to invite you." }));
+    list.replaceChildren(el("div", { className: "empty" }, "You're not on any shop's team yet. ", el("a", { href: "../signup/", textContent: "Start a shop" }), ", or ask a shop's owner to invite you."));
   } else {
     list.replaceChildren(...shops.map(shopCard));
   }
+  renderLedger(shops);
   await loadRecoveryAlerts().catch(() => {});
   show("shops");
 }
@@ -124,7 +170,7 @@ function shopCard(shop) {
       open.disabled = false;
     }
   });
-  const actions = el("div", { className: "row" }, open);
+  const actions = el("div", { className: "cp-actions" }, open);
   if (shop.role === "owner") {
     const team = el("button", { type: "button", textContent: "Team" });
     team.addEventListener("click", () => openTeam(shop));
@@ -132,11 +178,39 @@ function shopCard(shop) {
     const plan = el("a", { className: "button", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Plan & billing" });
     actions.append(team, plan);
   }
-  const state = ACCESS_WORDS[shop.access] ?? (shop.status === "live" ? "" : "Still being made");
-  return el("div", { className: "card" },
-    el("div", { className: "row" }, el("strong", { textContent: shop.pressName }), el("span", { className: "pill", textContent: ROLE_NAMES[shop.role] ?? shop.role })),
-    state ? el("p", { className: "hint", textContent: state }) : null,
+  const where = standing(shop);
+  const address = shop.siteUrl ? shop.siteUrl.replace(/^https?:\/\//, "") : "";
+  const meta = el("div", { className: "cp-meta" },
+    address ? el("span", { textContent: address }) : null,
+    shop.plan ? el("span", { textContent: `${PLAN_NAMES[shop.plan] ?? shop.plan} plan` }) : null);
+  let trial = null;
+  if (where.trialLeft !== undefined) {
+    trial = el("div", { className: "cp-bar", role: "img" }, el("i", { style: `width:${Math.round(((14 - Math.min(14, where.trialLeft)) / 14) * 100)}%` }));
+    trial.setAttribute("aria-label", `${where.trialLeft} of 14 trial days left`);
+  }
+  const badge = el("span", { className: "pill", textContent: where.badge });
+  badge.dataset.tone = where.tone;
+  const thumb = el("div", { className: "cp-thumb", textContent: (shop.pressName.trim()[0] ?? "?").toUpperCase() });
+  thumb.setAttribute("aria-hidden", "true");
+  if (shop.access === "paused") thumb.dataset.tone = "primary";
+  return el("div", { className: "cp-shop" },
+    thumb,
+    el("div", {},
+      el("h3", {}, shop.pressName, " ", badge, el("span", { className: "pill", textContent: ROLE_NAMES[shop.role] ?? shop.role })),
+      meta,
+      where.line ? el("p", { className: "hint", style: "margin-top:6px", textContent: where.line }) : null,
+      trial),
     actions);
+}
+
+// The rail's links that open a view on this page (Get help) press its button.
+for (const link of document.querySelectorAll("[data-press]")) {
+  link.addEventListener("click", (event) => {
+    const target = $(link.dataset.press);
+    if (!target || target.closest("[hidden]")) return;
+    event.preventDefault();
+    target.click();
+  });
 }
 
 // ── One shop's team ──

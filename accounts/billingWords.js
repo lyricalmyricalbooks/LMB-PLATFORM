@@ -45,7 +45,7 @@ export function billingWords(billing, now = new Date()) {
   const closing = billing.appsClosing?.apps?.length
     ? `Your new plan doesn't have ${appList(billing.appsClosing.apps)}. It stays open until ${day(billing.appsClosing.at)}, then closes. You can download everything in it for 90 days after that.`
     : "";
-  const card = billing.card ? `${BRANDS[billing.card.brand] ?? "Card"} ending ${billing.card.last4}, runs out ${String(billing.card.expMonth).padStart(2, "0")}/${billing.card.expYear}.` : billing.hasCard ? "A card is on file." : "No card yet. Your trial needs none; add one to keep your shop open after it.";
+  const card = billing.card ? `${BRANDS[billing.card.brand] ?? "Card"} ending ${billing.card.last4}, runs out ${String(billing.card.expMonth).padStart(2, "0")}/${billing.card.expYear}.` : billing.hasCard ? "A card is on file." : billing.status === "trialing" ? "No card yet. Your trial needs none; add one to keep your shop open after it." : "No card on file. Add one to keep your shop open.";
   const cancel = billing.cancelAtPeriodEnd
     ? `Changed your mind? Keep your plan any time before ${day(until)}.`
     : billing.access === "closed" ? "" : `Your shop stays open until ${day(until)}, and you won't be charged again. You can keep your plan until then.`;

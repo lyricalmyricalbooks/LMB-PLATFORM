@@ -19,6 +19,7 @@ export const SIGNED_IN_VIEW = Object.freeze({
   "/waitlist/": "form",
   "/help/": "main",
   "/terms/": "main",
+  "/status/": "#status .parts",
 });
 
 async function loadPlaywright() {

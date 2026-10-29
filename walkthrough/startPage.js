@@ -29,11 +29,13 @@ export const START_SECTIONS = Object.freeze([
     links: [
       { name: "Waitlist", href: "/waitlist/", who: null, try: "The plans and Start your free trial. Joining the waitlist keeps your email only in this walkthrough." },
       { name: "Sign up", href: "/signup/?as=newcomer@example.com", who: "newcomer@example.com", try: "Continue with Google, answer the questions and pick a plan. The new shop is made in about a minute, then shows on the account page." },
-      { name: "Your shops (the account page)", href: "/account/?as=owner@example.com", who: "owner@example.com", try: "Two made-up presses with their plans. Invite someone to help with a shop, or open its Plan & billing." },
+      { name: "Your shops (the account page)", href: "/account/?as=owner@example.com", who: "owner@example.com", try: "Three made-up presses: one on its trial, one paused, one paying. Invite someone to help with a shop, or open its Plan & billing." },
       { name: "Plan & billing on a free trial", href: "/account/billing?shop=moth-press&as=owner@example.com", who: "owner@example.com", try: "Moth Press, on its trial with no card yet. Change the plan, or press Add a card." },
       { name: "Plan & billing when paused", href: "/account/billing?shop=paper-wasp&as=owner@example.com", who: "owner@example.com", try: "Paper Wasp Press, paused until a card is added. Add a card: the page that opens takes the test card, and the shop opens again." },
+      { name: "Plan & billing when paying", href: "/account/billing?shop=lantern-editions&as=owner@example.com", who: "owner@example.com", try: "Lantern Editions, paying monthly: its card, two paid invoices and the next bill." },
       { name: "Help", href: "/help/", who: null, try: "The answers the pages link to, and what support includes." },
       { name: "Terms", href: "/terms/", who: null, try: "The terms and the privacy policy a press agrees to at sign-up." },
+      { name: "Service status", href: "/status/", who: null, try: "Whether shops, checkout and backups are working, counted over the walkthrough's shops." },
     ],
   },
   {
@@ -55,54 +57,56 @@ export const START_SECTIONS = Object.freeze([
 const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 const link = (item) => `<li class="card">
-  <a href="${escape(item.href)}"${item.demo ? ' target="_blank" rel="noopener"' : ""}>${escape(item.name)}</a>
-  <p class="who">${item.who ? `Signs in as ${escape(item.who)}` : "No sign-in"}${item.demo ? " · needs npm run demo" : ""}</p>
-  <p>${escape(item.try)}</p>
+  <h3><a href="${escape(item.href)}"${item.demo ? ' target="_blank" rel="noopener"' : ""}>${escape(item.name)}</a></h3>
+  <p class="cp-who">${item.who ? `Signs in as ${escape(item.who)}` : "No sign-in"}${item.demo ? " · needs npm run demo" : ""}</p>
+  <p class="hint">${escape(item.try)}</p>
 </li>`;
 
-/** The start page's HTML. */
-export function startPage() {
+/** The sample world at a glance: the made-up presses and the waitlist the walkthrough starts with. */
+function ledger(presses, waitlist) {
+  if (!presses.length) return "";
+  const cells = [
+    ["Sample presses", presses.length, presses.map((p) => p.pressName).join(", ")],
+    ...presses.map((p) => [p.pressName, p.plan === "both" ? "Both" : p.plan === "shop" ? "Shop" : "Stockroom", p.note]),
+    ["Waitlist", waitlist.length, "people waiting for an invite"],
+  ];
+  return `<div class="cp-ledger" style="--n:${cells.length}">${cells.map(([label, value, foot]) => `<div><span class="cp-kicker">${escape(label)}</span><b>${escape(value)}</b><em>${escape(foot)}</em></div>`).join("")}</div>`;
+}
+
+/** The start page's HTML. `presses` and `waitlist` are the sample world it starts with (server.js). */
+export function startPage({ presses = [], waitlist = [] } = {}) {
   return `<!doctype html>
-<html lang="en">
+<html lang="en" class="rp cp-page">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Walkthrough · Colophon</title>
 <meta name="robots" content="noindex">
-<style>
-  :root { --paper: #f4efe6; --ink: #1d1a17; --yellow: #ffe800; --pink: #ff48b0; --muted: #5a534c; }
-  @media (prefers-color-scheme: dark) { :root { --paper: #23201d; --ink: #f1ebe1; --muted: #b9b0a5; } }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.5 Archivo, system-ui, sans-serif; }
-  main { max-width: 1000px; margin: 0 auto; padding: 32px 16px 64px; }
-  .mark { font: 14px "DM Mono", ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
-  h1 { font: 400 clamp(32px, 7vw, 52px)/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 8px 0 16px; }
-  h2 { font: 400 26px/1.15 Anton, Impact, sans-serif; text-transform: uppercase; margin: 32px 0 8px; }
-  .lead { max-width: 70ch; }
-  .note { border: 2px solid var(--ink); background: var(--yellow); color: #1d1a17; padding: 12px 16px; box-shadow: 4px 4px 0 var(--ink); max-width: 70ch; }
-  ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-  .card { border: 2px solid var(--ink); padding: 16px; display: grid; gap: 6px; align-content: start; }
-  .card a { color: inherit; font-weight: 600; font-size: 19px; min-height: 44px; display: inline-flex; align-items: center; }
-  .card p { margin: 0; overflow-wrap: anywhere; }
-  .who { font: 14px "DM Mono", ui-monospace, monospace; color: var(--muted); }
-  .hint { color: var(--muted); font-size: 15px; max-width: 70ch; }
-  code { font-family: "DM Mono", ui-monospace, monospace; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="/look/adminThemes.css">
+<link rel="stylesheet" href="/look/pressroom.css">
+<link rel="stylesheet" href="/look/platform-pages.css">
+<script src="/look/platform-look.js"></script>
 </head>
-<body>
-<main>
-  <div class="mark">Colophon · walkthrough</div>
-  <h1>Walk through the platform</h1>
-  <p class="lead">Every page of the platform on this computer, as the platform owner and as a press. The sign-ins are made-up people and the money is pretend, so try anything.</p>
-  <p class="note">Nothing here is saved, sent or charged, and nothing reaches a real shop, Google account or bank. Stop the walkthrough and everything made in it is forgotten.</p>
+<body class="cp">
+<header class="cp-mast"><div class="cp-wrap"><span class="cp-word">Colophon<small>walkthrough</small></span></div></header>
+<main id="main">
+  <div class="cp-wrap cp-start-page">
+    <div class="mark">Colophon · walkthrough</div>
+    <h1 class="cp-title">Walk through the platform</h1>
+    <p class="cp-lede">Every page of the platform on this computer, as the platform owner and as a press. The sign-ins are made-up people and the money is pretend, so try anything.</p>
+    <div class="cp-alertline" data-tone="info" role="note"><p><b>Nothing here is real.</b> Nothing is saved, sent or charged, and nothing reaches a real shop, Google account or bank. Stop the walkthrough and everything made in it is forgotten.</p></div>
+    ${ledger(presses, waitlist)}
 ${START_SECTIONS.map((section) => `  <section id="${section.id}">
-  <h2>${escape(section.title)}</h2>
+  <h2 class="cp-h2">${escape(section.title)}</h2>
   <p class="hint">${escape(section.intro)}</p>
-  <ul>
+  <ul class="cp-grid3 cp-links-grid">
 ${section.links.map(link).join("\n")}
   </ul>
   </section>`).join("\n")}
-  <p class="hint">To be someone else on a walkthrough page, add <code>?as=name@example.com</code> to its address.</p>
+    <p class="hint">To be someone else on a walkthrough page, add <code>?as=name@example.com</code> to its address.</p>
+  </div>
 </main>
 </body>
 </html>

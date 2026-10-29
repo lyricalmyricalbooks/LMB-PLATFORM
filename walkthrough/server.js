@@ -20,6 +20,7 @@ import { TERMS_VERSION } from "../terms/terms.js";
 import { TEST_SHOP } from "../setup/test-shop.js";
 import { PORTS, url } from "../demo/config.js";
 import { startPage } from "./startPage.js";
+import { statusSummary } from "../status/summary.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const HERE = join(ROOT, "walkthrough");
@@ -33,6 +34,8 @@ export const MOUNTS = Object.freeze({
   "/help/": "help",
   "/terms/": "terms",
   "/control/": "control-room",
+  "/status/": "status",
+  "/look/": "walkthrough/look",
 });
 
 /** The address of each page the walkthrough is for, with what to expect there. */
@@ -41,13 +44,14 @@ export const PAGES = Object.freeze([
   { name: "Control room", path: "/control/", note: "signs in as admin@example.com, the platform owner, with the two-step sign-in done" },
   { name: "Waitlist", path: "/waitlist/", note: "the waitlist page with the plans and Start your free trial" },
   { name: "Sign up", path: "/signup/", note: "signs in as newcomer@example.com, who has no shop yet" },
-  { name: "Account", path: "/account/", note: "signs in as owner@example.com, who has two made-up presses" },
+  { name: "Account", path: "/account/", note: "signs in as owner@example.com, who has three made-up presses" },
 ]);
 
 /** The two presses the walkthrough starts with, both owned by owner@example.com. */
 export const SEED_PRESSES = Object.freeze([
   { pressName: "Moth Press", address: "moth-press", plan: "both", note: "on its free trial, no card yet" },
   { pressName: "Paper Wasp Press", address: "paper-wasp", plan: "shop", note: "paused until a card is added" },
+  { pressName: "Lantern Editions", address: "lantern-editions", plan: "both", note: "paying monthly, with a card and two paid invoices" },
 ]);
 
 /** People waiting on the waitlist, for the control room's Sign-ups and the waitlist. */
@@ -55,6 +59,10 @@ export const SEED_WAITLIST = Object.freeze([
   { email: "riso@example.com", name: "Rae", press: "Riso Rabbit", plan: "shop", firstSignedUpAt: "2026-10-20T15:00:00Z" },
   { email: "chapbooks@example.com", name: "Cy", press: "Chapbook Corner", plan: "both", firstSignedUpAt: "2026-10-26T09:30:00Z" },
   { email: "stickers@example.com", name: "", press: "", plan: "stockroom", firstSignedUpAt: "2026-10-28T08:10:00Z" },
+  { email: "linocut@example.com", name: "Lou", press: "Linocut Lane", plan: "both", firstSignedUpAt: "2026-10-21T11:20:00Z" },
+  { email: "poems@example.com", name: "Priya", press: "Small Hours Poetry", plan: "shop", firstSignedUpAt: "2026-10-23T16:45:00Z" },
+  { email: "comics@example.com", name: "Marco", press: "Gutter Comics", plan: "both", firstSignedUpAt: "2026-10-25T10:05:00Z" },
+  { email: "tees@example.com", name: "Jo", press: "Ink & Thread", plan: "shop", firstSignedUpAt: "2026-10-27T19:30:00Z" },
 ]);
 
 const SEED_OWNER = Object.freeze({ uid: "uid-owner", email: "owner@example.com", email_verified: true, name: "Ada Owner" });
@@ -88,9 +96,9 @@ const realClock = { ms: () => Date.now(), date: () => new Date(), tick() {}, day
 export const WALKTHROUGH_TEST_SHOP = Object.freeze({ ...TEST_SHOP, ownerEmail: "admin@example.com", siteUrl: url(PORTS.shop, "").replace(/\/$/, "") });
 
 /**
- * Makes the platform's pretend world and fills it: two made-up presses for owner@example.com (the first on its free
- * trial, the second paused until a card is added), and the platform's test shop, which is the demo shop, with a passed
- * release check. Returns the world.
+ * Makes the platform's pretend world and fills it: three made-up presses for owner@example.com (one on its free trial,
+ * one paused until a card is added, one paying with past invoices), a waitlist, an invite, a help request, health
+ * checks, and the platform's test shop, which is the demo shop, with a passed release check. Returns the world.
  */
 export async function seedWalkthrough(world) {
   for (const press of SEED_PRESSES) {
@@ -103,7 +111,40 @@ export async function seedWalkthrough(world) {
     await world.registry.saveProfile(row.shopId, { ...((await world.registry.getProfile(row.shopId)) ?? {}), siteUrl });
     await world.registry.recordReleaseCheck(row.shopId, { ok: true, finishedAt: world.clock.date().toISOString(), version: "demo" });
   }
+  await seedHistory(world);
   return world;
+}
+
+const OWNER_CLAIMS = Object.freeze({ ...SEED_OWNER });
+const DAY_SECONDS = 86_400;
+
+/**
+ * What a few weeks of use leaves behind, so no page opens empty: Lantern Editions has a card and has paid two months
+ * (two invoices), Moth Press has a teammate and an invite waiting, the owner has asked the help desk a question, and
+ * every live shop has passed its latest health check (the status page reads those).
+ */
+async function seedHistory(world) {
+  const lantern = "lantern-editions";
+  const sub = [...world.stripe.world.subscriptions.values()].find((one) => one.metadata?.lmb_shop_id === lantern);
+  if (sub && !sub.default_payment_method) {
+    const asked = await world.ask(OWNER_CLAIMS, "POST", "/api/billing/card", { shopId: lantern });
+    const session = String(asked.body?.url ?? "").split("/").pop();
+    if (session) await world.stripeEvent("checkout.session.completed", world.stripe.completeSetup(session));
+    const now = Math.floor(world.clock.ms() / 1000);
+    world.stripe.addInvoice(sub.id, { created: now - 61 * DAY_SECONDS });
+    world.stripe.addInvoice(sub.id, { created: now - 31 * DAY_SECONDS });
+    await world.stripeEvent("customer.subscription.updated", world.stripe.payMonth(sub.id));
+  }
+  await world.ask(OWNER_CLAIMS, "POST", "/api/accounts/invite", { shopId: "moth-press", email: "sam@example.com", role: "staff" }).catch(() => {});
+  await world.ask(OWNER_CLAIMS, "POST", "/api/support/open", {
+    shopId: "moth-press", requestId: "walkthrough-1", subject: "Can I sell one book in two editions?",
+    body: "We have a hardcover and a riso edition of the same book. Can they share one page?",
+  }).catch(() => {});
+  const checkedAt = world.clock.date().toISOString();
+  const checks = Object.fromEntries(["pages", "checkout", "webhook", "backup"].map((id) => [id, { ok: true }]));
+  for (const row of await world.registry.listShops()) {
+    if (row.status === "live" && !row.health?.checks) await world.registry.updateShop(row.shopId, { health: { checkedAt, ok: true, checks } });
+  }
 }
 
 const readBody = (request) => new Promise((resolve, reject) => {
@@ -149,6 +190,7 @@ async function fileFor(folder, name) {
         .replace(/export const SIGNUP_URL = .*;/, 'export const SIGNUP_URL = "/signup/";'),
     };
   }
+  if (key === "status/config.js") return { type: TYPES[".js"], body: text.toString("utf8").replace(/export const STATUS_URL = .*;/, 'export const STATUS_URL = "/walkthrough/status";') };
   if (key === "waitlist/firestoreStore.js") return { type: TYPES[".js"], body: await readFile(join(HERE, "stub", "waitlistStore.js")) };
   return { type: TYPES[extname(wanted)] ?? "application/octet-stream", body: text };
 }
@@ -170,7 +212,7 @@ export async function startWalkthrough({ port = 0, host = "127.0.0.1", world = n
   async function handle(request, response) {
     const { pathname } = new URL(request.url, "http://walkthrough.local");
 
-    if (pathname === "/" || pathname === "/start" || pathname === "/start/") return send(response, 200, startPage(), TYPES[".html"]);
+    if (pathname === "/" || pathname === "/start" || pathname === "/start/") return send(response, 200, startPage({ presses: SEED_PRESSES, waitlist: SEED_WAITLIST }), TYPES[".html"]);
 
     // The platform's web door, the same one the road test walks.
     if (pathname.startsWith("/api/")) {
@@ -208,6 +250,9 @@ export async function startWalkthrough({ port = 0, host = "127.0.0.1", world = n
         return send(response, answer.status, { ok: answer.status === 200 });
       }
     }
+
+    // The status page's one public summary, made from the pretend shops' health checks as status/publish.js would.
+    if (pathname === "/walkthrough/status") return send(response, 200, statusSummary(await made.registry.listShops(), { now: made.clock.date }));
 
     if (pathname === "/walkthrough/waitlist" && request.method === "POST") {
       const { id, record } = JSON.parse((await readBody(request)) || "{}");

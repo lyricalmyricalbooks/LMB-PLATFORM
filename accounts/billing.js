@@ -5,7 +5,7 @@
 // shop's owner in.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
-import { billingWords, planChangeWords } from "./billingWords.js";
+import { billingWords, day, planChangeWords } from "./billingWords.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
@@ -70,6 +70,7 @@ async function load() {
     if (!billing) return show("none");
     render(billing);
     show("billing");
+    loadPressName();
     loadInvoices();
     loadPaymentWay();
   } catch (failure) {
@@ -77,8 +78,52 @@ async function load() {
   }
 }
 
+// The shop's name over the page, from the shops page's list (the billing status doesn't carry it).
+async function loadPressName() {
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const response = await fetch(`${API_BASE}/accounts/shops`, { headers: { Authorization: `Bearer ${token}`, "X-Device-Id": deviceId() } });
+    const shop = (await response.json()).shops?.find((one) => one.shopId === shopId);
+    if (shop) {
+      $("#press").textContent = shop.pressName;
+      document.title = `Plan & billing · ${shop.pressName} · Colophon`;
+    }
+  } catch {
+    // The name is a nicety; the page works without it.
+  }
+}
+
+/** The strip over the page: the price, the trial or the next bill, the card and where the plan stands. */
+function renderLedger(billing, words) {
+  const tax = billing.plusTax ? " + tax" : "";
+  const cells = [["Plan", billing.price, `${billing.planName}, monthly${tax}`]];
+  if (billing.access === "paused" || billing.access === "closed") cells.push(["Shop", words.state, billing.access === "paused" ? "nothing is deleted" : "your files are kept", "danger"]);
+  else if (billing.status === "trialing") cells.push(["Free trial", `${billing.trialDaysLeft ?? 0} days`, `until ${day(billing.trialEnd)}`, "warning"]);
+  else if (billing.cancelAtPeriodEnd) cells.push(["Open until", day(billing.currentPeriodEnd).replace(/ \d{4}$/, ""), "then the plan ends", "warning"]);
+  else cells.push(["Status", words.state, billing.status === "past_due" ? "update your card" : "all paid up", billing.status === "past_due" ? "danger" : undefined]);
+  cells.push(billing.nextPaymentAt ? ["Next bill", day(billing.nextPaymentAt).replace(/ \d{4}$/, ""), `${billing.price}${tax}`] : ["Next bill", "None", billing.hasCard ? "nothing due" : "until a card is added"]);
+  cells.push(billing.card ? ["Card", `•••• ${billing.card.last4}`, `runs out ${String(billing.card.expMonth).padStart(2, "0")}/${billing.card.expYear}`] : billing.hasCard ? ["Card", "On file", ""] : ["Card", "None", billing.status === "trialing" ? `needed before ${day(billing.trialEnd).replace(/ \d{4}$/, "")}` : "add one to keep the shop open", billing.status === "trialing" ? undefined : "danger"]);
+  $("#plan-ledger").replaceChildren(...cells.map(([label, value, foot, tone]) => {
+    const cell = el("div", {}, el("span", { className: "cp-kicker", textContent: label }), el("b", { textContent: value }), el("em", { textContent: foot }));
+    if (tone) cell.dataset.tone = tone;
+    return cell;
+  }));
+  const trouble = billing.access === "paused" || billing.status === "past_due";
+  $("#plan-alert").hidden = !trouble;
+  if (trouble) {
+    // The first sentence in bold: what happened. The rest: what to do.
+    const [first, ...rest] = words.when.split(/(?<=\.) /);
+    $("#plan-alert-words").replaceChildren(el("b", { textContent: first }), rest.length ? ` ${rest.join(" ")}` : "");
+    $("#plan-alert-button").textContent = billing.hasCard ? "Change card" : "Add a card";
+  }
+}
+
+const TONES = { "Free trial": "info", Active: "success", Paused: "danger", Closed: "neutral", Cancelled: "warning", "Payment problem": "danger" };
+
 function render(billing) {
   const words = billingWords(billing, new Date());
+  renderLedger(billing, words);
+  $("#plan-state").dataset.tone = TONES[words.state] ?? "";
   $("#plan-state").textContent = words.state;
   $("#plan-price").textContent = billing.price;
   $("#plan-per").textContent = billing.plusTax ? "a month, plus tax" : "a month";
@@ -95,9 +140,9 @@ function render(billing) {
   $("#cancel-button").hidden = billing.cancelAtPeriodEnd || ended;
   $("#keep-button").hidden = !billing.cancelAtPeriodEnd || ended;
   $("#change-form").hidden = ended;
-  $("#plan-choices").replaceChildren(el("legend", { textContent: "Choose a plan" }), ...billing.plans.map((plan) => {
+  $("#plan-choices").replaceChildren(el("legend", { className: "rp-sr-only", textContent: "Choose a plan" }), ...billing.plans.map((plan) => {
     const input = el("input", { type: "radio", name: "plan", value: plan.plan, checked: plan.plan === billing.plan });
-    return el("label", { className: "choice" }, input, el("span", { textContent: plan.name }), el("strong", { textContent: `${plan.price}${billing.plusTax ? " + tax" : ""}` }));
+    return el("label", { className: "choice" }, input, el("strong", { textContent: plan.name }), el("strong", { textContent: `${plan.price}${billing.plusTax ? " + tax" : ""}` }));
   }));
   resetPreview();
 }
@@ -110,24 +155,35 @@ function resetPreview() {
 }
 $("#plan-choices").addEventListener("change", resetPreview);
 
+const INVOICE_WORDS = { paid: ["Paid", "success"], open: ["Due", "warning"], uncollectible: ["Not paid", "danger"], void: ["Cancelled", "neutral"], draft: ["Coming up", "neutral"] };
+
 async function loadInvoices() {
   const list = $("#invoices");
   try {
     const { invoices } = await api("/billing/invoices");
-    if (!invoices.length) {
+    const rows = invoices.map((invoice) => {
+      const date = invoice.date ? new Date(invoice.date).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+      const pdf = invoice.pdfUrl ? el("a", { href: invoice.pdfUrl, textContent: "PDF", target: "_blank", rel: "noopener" }) : null;
+      if (pdf) pdf.setAttribute("aria-label", `Invoice ${invoice.number || date} as a PDF`);
+      const [word, tone] = INVOICE_WORDS[invoice.status] ?? [invoice.status, "neutral"];
+      const pill = el("span", { className: "pill", textContent: word });
+      pill.dataset.tone = tone;
+      return el("tr", {}, el("td", { textContent: date }), el("td", { textContent: invoice.number || "" }), el("td", { className: "cp-amount", textContent: invoice.amount }), el("td", {}, pill), el("td", {}, pdf));
+    });
+    // The bill that's coming, so a new shop sees when its first one lands instead of an empty box.
+    const coming = current?.nextPaymentAt ?? (current?.status === "trialing" && !current?.cancelAtPeriodEnd ? current.trialEnd : null);
+    if (coming) {
+      const pill = el("span", { className: "pill", textContent: current.hasCard ? "Coming up" : "Needs a card" });
+      pill.dataset.tone = current.hasCard ? "neutral" : "warning";
+      rows.unshift(el("tr", {}, el("td", { textContent: new Date(coming).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) }), el("td", { textContent: "Next bill" }), el("td", { className: "cp-amount", textContent: current.price }), el("td", {}, pill), el("td")));
+    }
+    if (!rows.length) {
       list.replaceChildren(el("p", { className: "empty", textContent: "No invoices yet. Your first one comes with your first payment." }));
       return;
     }
-    list.replaceChildren(el("ul", { className: "list" }, ...invoices.map((invoice) => {
-      const date = invoice.date ? new Date(invoice.date).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) : "";
-      const pdf = invoice.pdfUrl ? el("a", { href: invoice.pdfUrl, textContent: "PDF", target: "_blank", rel: "noopener" }) : null;
-      if (pdf) pdf.setAttribute("aria-label", `Invoice ${invoice.number || date} as a PDF`);
-      return el("li", { className: "row" },
-        el("span", { textContent: `${date}${invoice.number ? ` · ${invoice.number}` : ""}` }),
-        el("strong", { textContent: invoice.amount }),
-        el("span", { className: "pill", textContent: invoice.status === "paid" ? "Paid" : invoice.status === "open" ? "Due" : invoice.status }),
-        pdf);
-    })));
+    const head = el("tr", {}, ...["Date", "Invoice", "Amount", "State", ""].map((word, i) => el("th", { scope: "col", textContent: word, className: i === 2 ? "cp-amount" : "" })));
+    list.replaceChildren(el("div", { className: "cp-table-wrap" }, el("table", { className: "cp-table" }, el("caption", { className: "rp-sr-only", textContent: "Your invoices" }), el("thead", {}, head), el("tbody", {}, ...rows))),
+      invoices.length ? null : el("p", { className: "hint", textContent: "Every invoice is emailed to you as well." }));
   } catch (failure) {
     list.replaceChildren(el("p", { className: "error", textContent: `We couldn't load your invoices: ${failure.message}` }));
   }
@@ -144,8 +200,8 @@ function renderPaymentWay(view) {
     renderPaymentWay(answer.view);
   }));
   section.replaceChildren(
-    el("h2", { textContent: view.title }),
-    ...view.lines.map((line) => el("p", { textContent: line })),
+    el("h3", { textContent: view.title }),
+    ...view.lines.filter(Boolean).map((line) => el("p", { textContent: line })),
     view.note ? el("p", { className: "hint", textContent: view.note }) : null,
     button,
   );
@@ -172,10 +228,12 @@ async function act(button, run) {
   }
 }
 
-$("#card-button").addEventListener("click", (event) => act(event.currentTarget, async () => {
+const addCard = (event) => act(event.currentTarget, async () => {
   const { url } = await api("/billing/card");
   location.assign(url);
-}));
+});
+$("#card-button").addEventListener("click", addCard);
+$("#plan-alert-button").addEventListener("click", addCard);
 
 $("#cancel-button").addEventListener("click", (event) => act(event.currentTarget, async () => {
   if (!window.confirm(billingWords(current, new Date()).cancelAsk)) return;
