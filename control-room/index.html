@@ -6,168 +6,333 @@
 <title>Control room · Colophon</title>
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<!-- The website admin's look (Pressroom), copied by control-room/look.test.js's rule: never edit these copies here. -->
+<link rel="stylesheet" href="./look/adminThemes.css">
+<link rel="stylesheet" href="./look/riso.css">
 <style>
-  :root { --paper: #f4efe6; --ink: #1d1a17; --pink: #ff48b0; --blue: #0078bf; --yellow: #ffe800; --green: #00a95c; --muted: #5a534c; --danger: #c2261d; }
-  @media (prefers-color-scheme: dark) { :root { --paper: #23201d; --ink: #f1ebe1; --muted: #b9b0a5; --danger: #ff7a70; } }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.5 Archivo, system-ui, sans-serif; }
-  main { max-width: 1000px; margin: 0 auto; padding: 32px 16px 64px; }
-  .mark { font: 14px "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
-  h1 { font: 400 clamp(32px, 7vw, 52px)/1.1 Anton, Impact, sans-serif; text-transform: uppercase; margin: 8px 0 16px; }
-  section[hidden] { display: none; }
-  button { font: inherit; font-weight: 600; border: 2px solid var(--ink); border-radius: 0; padding: 8px 12px; min-height: 44px; background: var(--paper); color: var(--ink); cursor: pointer; }
-  button:disabled { opacity: .6; cursor: default; }
-  .primary { background: var(--yellow); color: #1d1a17; box-shadow: 4px 4px 0 var(--ink); }
-  .stack { display: grid; gap: 16px; }
-  .stack > *, .card > * { min-width: 0; }
-  input, select, textarea { max-width: 100%; }
-  .card { border: 2px solid var(--ink); padding: 16px; display: grid; gap: 10px; }
-  .card.problem { box-shadow: 4px 4px 0 var(--danger); }
-  .card.watch { box-shadow: 4px 4px 0 var(--yellow); }
-  .card.ok { box-shadow: 4px 4px 0 var(--green); }
-  .row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
-  .row > strong { flex: 1 1 220px; font-size: 19px; overflow-wrap: anywhere; }
-  .facts { font: 14px "DM Mono", monospace; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
-  .pill { font: 13px "DM Mono", monospace; text-transform: uppercase; border: 2px solid var(--ink); padding: 2px 8px; }
-  ul { margin: 0; padding-left: 20px; }
-  .switch { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 14px "DM Mono", monospace; min-height: 44px; }
-  .switch input { width: 22px; height: 22px; }
-  h2 { font: 400 26px/1.15 Anton, Impact, sans-serif; text-transform: uppercase; margin: 24px 0 0; }
-  .field { display: grid; gap: 4px; font-weight: 600; }
-  .field input, #emergency input { font: inherit; font-weight: 400; border: 2px solid var(--ink); border-radius: 0; padding: 8px; min-height: 44px; background: var(--paper); color: var(--ink); }
-  select { font: inherit; border: 2px solid var(--ink); border-radius: 0; padding: 8px; min-height: 44px; background: var(--paper); color: var(--ink); }
-  textarea { font: inherit; border: 2px solid var(--ink); border-radius: 0; padding: 10px; min-height: 110px; background: var(--paper); color: var(--ink); resize: vertical; }
-  .message { border-left: 4px solid var(--blue); padding-left: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .message.from-support { border-left-color: var(--pink); }
-  .filters button[aria-pressed="true"], .repair-filters button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-  .hint { color: var(--muted); font-size: 15px; margin: 0; }
-  #status { min-height: 1.5em; font-weight: 600; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-  .tile { border: 2px solid var(--ink); padding: 12px; display: grid; gap: 2px; }
-  .tile strong { font: 400 30px/1.1 Anton, Impact, sans-serif; }
-  .tile span { font: 13px "DM Mono", monospace; text-transform: uppercase; color: var(--muted); }
-  .record ul { padding-left: 20px; }
-  .needs a, #test-shop a { color: inherit; font-weight: 600; }
-  .qr { width: 220px; max-width: 100%; background: #fff; border: 2px solid var(--ink); }
-  .qr img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+  /* Layout only: every colour, line and type size comes from the admin's tokens above. */
+  body { margin: 0; }
+  [hidden] { display: none !important; }
+  .rp a.rp-nav-item { text-decoration: none; }
+  .rp .rp-page-header { margin-bottom: 24px; }
+  .rp .rp-page-desc { margin: 12px 0 0; max-width: 70ch; font-size: 14px; color: var(--rp-text-muted); }
+  .rp .rp-page-actions { display: flex; flex-wrap: wrap; align-items: center; }
+  .rp .rp-kpi-grid { margin-bottom: 32px; }
+  .rp .rp-alert { color: var(--rp-text); text-decoration: none; }
+  .rp a.rp-alert:hover .rp-alert-title { text-decoration: underline; text-underline-offset: 3px; }
+  .rp .rp-alerts { display: grid; }
+  .cr-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin: 40px 0 12px; }
+  .cr-head h2 { margin: 0; font: 400 11px/1.3 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
+  .cr-head:first-child { margin-top: 0; }
+  .cr-grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); align-items: start; }
+  .cr-list { display: grid; gap: 16px; }
+  .cr-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin-bottom: 16px; }
+  .cr-toolbar .rp-field { flex: 0 1 200px; }
+  .cr-toolbar .rp-field.cr-grow { flex: 1 1 280px; }
+  .cr-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .cr-row > .cr-grow { flex: 1 1 220px; min-width: 0; }
+  .cr-title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+  .cr-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 0; font: 400 12px/1.5 var(--rp-font-mono); color: var(--rp-text-subtle); overflow-wrap: anywhere; }
+  .cr-body { margin: 12px 0 0; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cr-quote { margin: 12px 0 0; padding: 8px 0 8px 14px; border-left: 2px solid var(--rp-border); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cr-quote[data-from="support"] { border-left-color: var(--rp-primary); }
+  .cr-quote .cr-meta { margin: 0 0 4px; }
+  .cr-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+  .cr-actions .rp-textarea, .cr-actions .rp-input { flex: 1 1 100%; }
+  .cr-history { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font: 400 12px/1.5 var(--rp-font-mono); color: var(--rp-text-subtle); overflow-wrap: anywhere; }
+  .cr-facts { display: grid; grid-template-columns: minmax(96px, max-content) 1fr; gap: 8px 16px; margin: 0; font-size: 14px; }
+  .cr-facts dt { font: 400 11px/1.7 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
+  .cr-facts dd { margin: 0; overflow-wrap: anywhere; }
+  .cr-section { margin: 24px 0 8px; font: 400 11px/1.3 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
+  .cr-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; }
+  .cr-switches { display: flex; flex-wrap: wrap; gap: 0 20px; }
+  .cr-form { display: grid; gap: 16px; }
+  .cr-form-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
+  .rp .rp-table td .cr-title { font-size: 14px; }
+  .rp .rp-table td .cr-meta { margin: 2px 0 0; }
+  .rp .rp-table .cr-actions { margin: 0; flex-wrap: nowrap; justify-content: flex-end; }
+  .rp .rp-table th.cr-end, .rp .rp-table td.cr-end { text-align: right; }
+  .rp .rp-table tbody tr[data-clickable="true"] { cursor: pointer; }
+  .rp .rp-table-wrap { background: var(--rp-surface); }
+  .rp .rp-card { background: var(--rp-surface); }
+  .rp .rp-state { border: 1px dashed var(--rp-border); background: var(--rp-surface); }
+  .cr-topbar-title { font: 400 13px/1 var(--rp-font-mono); color: var(--rp-text-subtle); }
+  .cr-look { display: inline-flex; gap: 4px; }
+  .cr-look .rp-btn[aria-pressed="true"] { background: var(--rp-text); border-color: var(--rp-text); color: var(--rp-canvas); }
+  .rp-sidebar-foot .cr-who { padding: 12px; border-top: 1px solid var(--rp-rail-line); color: var(--rp-on-inverse); font-size: 13px; overflow-wrap: anywhere; }
+  .rp-sidebar-foot .cr-who span { display: block; color: var(--rp-rail-faint); font: 400 11px/1.5 var(--rp-font-mono); }
+  .rp-sidebar-foot .cr-signout { margin-top: 8px; padding: 0; min-height: 32px; border: 0; background: none; color: var(--rp-on-inverse); font: 400 13px var(--rp-font-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .cr-qr { width: 220px; max-width: 100%; margin: 16px auto; padding: 8px; background: var(--rp-surface); border: 1px solid var(--rp-border); }
+  .cr-qr:empty { display: none; }
+  .cr-qr img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+  .rp-login-card ol { margin: 0 0 16px; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; }
+  .rp-login-card code { font-family: var(--rp-font-mono); overflow-wrap: anywhere; }
+  .cr-status { position: fixed; left: 50%; bottom: 24px; z-index: 500; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); }
+  .cr-status:empty { display: none; }
+  .cr-status { padding: 12px 16px; background: var(--rp-inverse); color: var(--rp-on-inverse); font-size: 14px; font-weight: 600; box-shadow: var(--rp-shadow-float); }
+  @media (max-width: 767px) {
+    .cr-facts { grid-template-columns: 1fr; gap: 2px; }
+    .cr-facts dd { margin-bottom: 8px; }
+    .cr-topbar-title, .cr-look { display: none; }
+    .cr-toolbar .rp-field { flex: 1 1 90px; min-width: 0; }
+    .cr-toolbar .rp-field.cr-grow { flex: 1 1 100%; }
+    .rp .rp-table .cr-actions { flex-wrap: wrap; justify-content: flex-start; }
+    .rp .rp-table td.cr-end { text-align: left; }
+  }
 </style>
 </head>
 <body>
-<main>
-  <div class="mark">Colophon</div>
-  <h1>Control room</h1>
-  <section id="view-signin" class="stack">
-    <p>For platform admins only. You'll need the code from your authenticator app too.</p>
-    <button type="button" id="google" class="primary">Sign in with Google</button>
-  </section>
-  <section id="view-code" class="stack" hidden>
-    <form id="code-form" class="card">
-      <label class="field">The 6-digit code from your authenticator app <input name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></label>
-      <div class="row"><button type="submit" class="primary">Sign in</button></div>
-    </form>
-  </section>
-  <section id="view-setup" class="stack" hidden>
-    <h2>Set up two-step sign-in</h2>
-    <p>The control room asks for a code from an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password…) every time you sign in, so nobody gets in with your Google password alone.</p>
-    <ol>
-      <li>Open the app on your phone and add an account by scanning this code. On the phone itself, <a id="setup-link" href="#">tap here to add it</a> instead.</li>
-      <li>Or type this key into the app: <code id="setup-key" class="mark"></code></li>
-      <li>Type the 6-digit code the app shows.</li>
-    </ol>
-    <div id="setup-qr" class="qr"></div>
-    <form id="setup-form" class="card">
-      <label class="field">The 6-digit code <input name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></label>
-      <div class="row"><button type="submit" class="primary">Turn on two-step sign-in</button></div>
-    </form>
-  </section>
-  <section id="view-shops" class="stack" hidden>
-    <h2>Your test shop</h2>
-    <div id="test-shop" class="card stack"></div>
-    <h2>Today</h2>
-    <div id="today-numbers" class="tiles"></div>
-    <div id="needs" class="stack"></div>
-    <h2>Shops</h2>
-    <form id="shop-filters" class="row" role="search">
-      <label class="field">Search (press, shop id or owner email) <input type="search" name="q" autocomplete="off"></label>
-      <label class="field">Health <select name="health"><option value="">All</option><option value="problem">Problem</option><option value="watch">Look</option><option value="ok">OK</option></select></label>
-      <label class="field">Plan <select name="plan"><option value="">All</option><option value="shop">Shop</option><option value="stockroom">Stockroom</option><option value="both">Both</option></select></label>
-      <label class="field">Billing <select name="billing"><option value="">All</option><option value="trialing">Free trial</option><option value="active">Paying</option><option value="past_due">Payment failing</option><option value="paused">Paused</option><option value="canceled">Ended</option></select></label>
-    </form>
-    <div class="row"><span id="summary"></span> <button type="button" id="refresh">Refresh</button></div>
-    <div id="shops" class="stack"></div>
-    <h2>Sign-ups and the waitlist</h2>
-    <p class="hint" id="waitlist-summary"></p>
-    <div id="making" class="stack" tabindex="-1"></div>
-    <div id="waitlist" class="stack"></div>
-    <form id="invite-form" class="row">
-      <label class="field">Invite someone not on the list <input type="email" name="email" required autocomplete="off" placeholder="name@press.example"></label>
-      <button type="submit">Send invite</button>
-    </form>
-    <h2>Switches for every shop</h2>
-    <p class="hint">Turn one feature on or off for every live shop at once, and choose what a new shop starts with. Each shop's own switch is on its card.</p>
-    <div id="every-switch" class="stack"></div>
-    <h2>Platform settings</h2>
-    <p class="hint">Changes here reach sign-up and new plans at once, with no release. A new price is for new subscriptions only; presses already paying keep theirs.</p>
-    <form id="settings-form" class="card">
-      <div id="settings-fields" class="stack"></div>
-      <label class="field">Why are you changing this? (goes in the activity log) <input name="reason" required minlength="10" maxlength="500"></label>
-      <div class="row"><button type="submit" class="primary">Save settings</button> <span class="hint" id="settings-updated"></span></div>
-    </form>
-    <h2>Emergency payments</h2>
-    <p class="hint">Only if the platform's Stripe account is paused: move every live shop's card payments at once. Each press is emailed straight away. Move them back the same way.</p>
-    <div id="all-payments"></div>
-    <h2>Repair queue</h2>
-    <p class="hint">Problems the self-checks and the shop maker found that need a person. A check that passes again closes its own.</p>
-    <div class="row repair-filters" role="group" aria-label="Which repairs">
-      <button type="button" data-status="open" aria-pressed="true">To fix</button>
-      <button type="button" data-status="fixed" aria-pressed="false">Fixed</button>
+<div class="rp" id="room" data-rp-appearance="light">
+  <a class="rp-skip-link" href="#rp-main">Skip to content</a>
+
+  <!-- Signing in: the website admin's sign-in card. -->
+  <main class="rp-login" id="gate">
+    <div class="rp-card rp-login-card">
+      <div class="rp-login-brand">
+        <h1 class="rp-page-title rp-login-title">Colophon <span>control room</span></h1>
+        <p class="rp-wordmark-sub">The platform owner's room</p>
+      </div>
+      <section id="view-signin">
+        <p class="rp-card-desc rp-login-lede">For platform admins only. After Google you'll need the code from your authenticator app too.</p>
+        <button type="button" id="google" class="rp-btn rp-btn-primary rp-btn-lg" style="width: 100%">Sign in with Google</button>
+      </section>
+      <section id="view-code" hidden>
+        <form id="code-form" class="cr-form">
+          <div class="rp-field">
+            <label class="rp-label" for="code-input">The 6-digit code from your authenticator app</label>
+            <input id="code-input" class="rp-input" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7">
+          </div>
+          <button type="submit" class="rp-btn rp-btn-primary rp-btn-lg">Sign in</button>
+        </form>
+      </section>
+      <section id="view-setup" hidden>
+        <p class="rp-card-desc rp-login-lede">Set up two-step sign-in. The control room asks for a code from an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password…) every time you sign in, so nobody gets in with your Google password alone.</p>
+        <ol>
+          <li>Open the app on your phone and add an account by scanning this code. On the phone itself, <a id="setup-link" href="#">tap here to add it</a> instead.</li>
+          <li>Or type this key into the app: <code id="setup-key"></code></li>
+          <li>Type the 6-digit code the app shows.</li>
+        </ol>
+        <div id="setup-qr" class="cr-qr"></div>
+        <form id="setup-form" class="cr-form">
+          <div class="rp-field">
+            <label class="rp-label" for="setup-input">The 6-digit code</label>
+            <input id="setup-input" class="rp-input" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7">
+          </div>
+          <button type="submit" class="rp-btn rp-btn-primary rp-btn-lg">Turn on two-step sign-in</button>
+        </form>
+      </section>
+      <div class="rp-login-foot"><span class="rp-hint">Private area: only the platform owner's account, with two-step sign-in.</span></div>
     </div>
-    <div id="repairs" class="stack"></div>
-    <h2>Support requests</h2>
-    <div class="row filters" id="ticket-filters" role="group" aria-label="Which requests">
-      <button type="button" data-status="open" aria-pressed="true">Waiting</button>
-      <button type="button" data-status="answered" aria-pressed="false">Answered</button>
-      <button type="button" data-status="closed" aria-pressed="false">Closed</button>
+  </main>
+
+  <!-- Signed in: the website admin's shell, one page at a time. -->
+  <div class="rp-app" id="shell" hidden>
+    <div class="rp-scrim" id="scrim" hidden></div>
+    <aside class="rp-sidebar" id="sidebar" data-open="false" aria-label="Control room menu">
+      <div class="rp-sidebar-brand">
+        <a class="rp-brand-link" href="#today" aria-label="Control room: go to Today">
+          <span class="rp-brand-text"><span class="rp-wordmark">Colophon</span><span class="rp-wordmark-sub">Control room</span></span>
+        </a>
+        <button type="button" class="rp-icon-btn rp-drawer-close" id="menu-close" aria-label="Close menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <nav class="rp-nav" aria-label="Control room pages">
+        <ul class="rp-nav-list" id="nav">
+          <li data-admin><a class="rp-nav-item" href="#today" data-nav="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Today</a></li>
+          <li data-admin><a class="rp-nav-item" href="#shops" data-nav="shops"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9 5 4h14l2 5"/><path d="M4 9v11h16V9"/><path d="M3 9h18"/><path d="M9 20v-6h6v6"/></svg>Shops<span class="rp-nav-badge" data-badge="shops" hidden></span></a></li>
+          <li data-admin><a class="rp-nav-item" href="#signups" data-nav="signups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M19 8v6M16 11h6"/></svg>Sign-ups<span class="rp-nav-badge" data-badge="signups" hidden></span></a></li>
+          <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Help presses</div></li>
+          <li data-admin><a class="rp-nav-item" href="#support" data-nav="support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Support<span class="rp-nav-badge" data-badge="support" hidden></span></a></li>
+          <li data-admin><a class="rp-nav-item" href="#repairs" data-nav="repairs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Repairs<span class="rp-nav-badge" data-badge="repairs" hidden></span></a></li>
+          <li data-admin><a class="rp-nav-item" href="#recovery" data-nav="recovery"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></svg>Account recovery<span class="rp-nav-badge" data-badge="recovery" hidden></span></a></li>
+          <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Run the platform</div></li>
+          <li data-admin><a class="rp-nav-item" href="#switches" data-nav="switches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="16" cy="12" r="2.5"/></svg>Switches</a></li>
+          <li data-admin><a class="rp-nav-item" href="#settings" data-nav="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Prices and sign-up</a></li>
+          <li data-admin><a class="rp-nav-item" href="#payments" data-nav="payments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14"/><path d="M2 10h20M6 15h4"/></svg>Emergency payments</a></li>
+          <li><a class="rp-nav-item" href="#runbook" data-nav="runbook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/></svg>Run book</a></li>
+          <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Records</div></li>
+          <li data-admin><a class="rp-nav-item" href="#breaches" data-nav="breaches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M12 9v4M12 16h0"/></svg>Breach register</a></li>
+          <li data-admin><a class="rp-nav-item" href="#activity" data-nav="activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Activity log</a></li>
+        </ul>
+      </nav>
+      <div class="rp-sidebar-foot">
+        <div class="cr-who"><span>Signed in with two steps</span><strong id="who"></strong><br><button type="button" class="cr-signout" id="sign-out">Sign out</button></div>
+      </div>
+    </aside>
+    <div class="rp-app-body">
+      <header class="rp-topbar">
+        <button type="button" class="rp-icon-btn rp-menu-only" id="menu-open" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <a class="rp-topbar-wordmark" href="#today">Control room</a>
+        <span class="cr-topbar-title" id="topbar-title">Colophon · control room</span>
+        <div class="rp-topbar-actions">
+          <div class="cr-look" role="group" aria-label="Look">
+            <button type="button" class="rp-btn rp-btn-ghost rp-btn-sm" data-look="riso" aria-pressed="true">Riso Press</button>
+            <button type="button" class="rp-btn rp-btn-ghost rp-btn-sm" data-look="paper" aria-pressed="false">Paper</button>
+          </div>
+          <button type="button" class="rp-btn rp-btn-ghost rp-btn-sm" id="appearance" aria-pressed="false">Night</button>
+          <span class="rp-status-pill" title="The control room only opens with your account and a code from your authenticator app"><span class="rp-status-dot" aria-hidden="true"></span>Two-step on</span>
+        </div>
+      </header>
+      <main id="rp-main" class="rp-workspace" tabindex="-1">
+        <div class="rp-workspace-inner">
+          <div id="view-shops">
+
+            <section data-page="today" aria-labelledby="h-today">
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-today">Today</h1><p class="rp-page-desc">The platform at a glance: money coming in, shops by state, and what needs you.</p></div>
+                <div class="rp-page-actions"><button type="button" id="refresh" class="rp-btn rp-btn-secondary">Refresh</button></div>
+              </div>
+              <div id="today-numbers" class="rp-kpi-grid" aria-label="Today in numbers"></div>
+              <div class="cr-head"><h2>Needs you</h2></div>
+              <div id="needs"></div>
+              <div class="cr-head"><h2>Your test shop</h2></div>
+              <div id="test-shop" class="rp-card"></div>
+            </section>
+
+            <section data-page="shops" aria-labelledby="h-shops" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-shops">Shops</h1><p class="rp-page-desc">Every press's shop with its plan, billing and health. Open one for its record and everything you can do for it.</p></div>
+              </div>
+              <form id="shop-filters" class="cr-toolbar" role="search">
+                <div class="rp-field cr-grow"><label class="rp-label" for="shop-q">Search</label><input id="shop-q" class="rp-input" type="search" name="q" autocomplete="off" placeholder="Press, shop id or owner email"></div>
+                <div class="rp-field"><label class="rp-label" for="shop-health">Health</label><select id="shop-health" class="rp-select" name="health"><option value="">All</option><option value="problem">Problem</option><option value="watch">Look</option><option value="ok">OK</option></select></div>
+                <div class="rp-field"><label class="rp-label" for="shop-plan">Plan</label><select id="shop-plan" class="rp-select" name="plan"><option value="">All</option><option value="shop">Shop</option><option value="stockroom">Stockroom</option><option value="both">Both</option></select></div>
+                <div class="rp-field"><label class="rp-label" for="shop-billing">Billing</label><select id="shop-billing" class="rp-select" name="billing"><option value="">All</option><option value="trialing">Free trial</option><option value="active">Paying</option><option value="past_due">Payment failing</option><option value="paused">Paused</option><option value="canceled">Ended</option></select></div>
+              </form>
+              <p class="rp-hint" id="summary"></p>
+              <div id="shops"></div>
+            </section>
+
+            <section data-page="signups" aria-labelledby="h-signups" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-signups">Sign-ups</h1><p class="rp-page-desc" id="waitlist-summary"></p></div>
+              </div>
+              <div class="cr-head"><h2>Shops being made</h2></div>
+              <div id="making" class="cr-list" tabindex="-1"></div>
+              <div class="cr-head"><h2>The waitlist</h2></div>
+              <div id="waitlist"></div>
+              <div class="cr-head"><h2>Invite someone not on the list</h2></div>
+              <form id="invite-form" class="cr-toolbar">
+                <div class="rp-field cr-grow"><label class="rp-label" for="invite-email">Email address</label><input id="invite-email" class="rp-input" type="email" name="email" required autocomplete="off" placeholder="name@press.example"></div>
+                <button type="submit" class="rp-btn rp-btn-primary">Send invite</button>
+              </form>
+            </section>
+
+            <section data-page="support" aria-labelledby="h-support" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-support">Support</h1><p class="rp-page-desc">Questions from presses. Your answer is emailed to them; close a request when it's done.</p></div>
+              </div>
+              <div class="rp-tabs cr-toolbar" id="ticket-filters" role="group" aria-label="Which requests">
+                <button type="button" class="rp-tab" data-status="open" aria-pressed="true" aria-selected="true">Waiting</button>
+                <button type="button" class="rp-tab" data-status="answered" aria-pressed="false" aria-selected="false">Answered</button>
+                <button type="button" class="rp-tab" data-status="closed" aria-pressed="false" aria-selected="false">Closed</button>
+              </div>
+              <div id="tickets" class="cr-list"></div>
+            </section>
+
+            <section data-page="repairs" aria-labelledby="h-repairs" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-repairs">Repairs</h1><p class="rp-page-desc">Problems the self-checks and the shop maker found that need a person. A check that passes again closes its own.</p></div>
+              </div>
+              <div class="rp-tabs cr-toolbar repair-filters" role="group" aria-label="Which repairs">
+                <button type="button" class="rp-tab" data-status="open" aria-pressed="true" aria-selected="true">To fix</button>
+                <button type="button" class="rp-tab" data-status="fixed" aria-pressed="false" aria-selected="false">Fixed</button>
+              </div>
+              <div id="repairs" class="cr-list"></div>
+            </section>
+
+            <section data-page="recovery" aria-labelledby="h-recovery" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-recovery">Account recovery</h1><p class="rp-page-desc">People who lost the email address their account uses. Approve only once you've checked it's them; the move then waits three days for the old address to object, and you make it by hand (accounts/README.md, "Recovery: applying").</p></div>
+              </div>
+              <div class="rp-tabs cr-toolbar" id="recovery-filters" role="group" aria-label="Which recovery requests">
+                <button type="button" class="rp-tab" data-status="waiting" aria-pressed="true" aria-selected="true">To check</button>
+                <button type="button" class="rp-tab" data-status="approved" aria-pressed="false" aria-selected="false">Approved, waiting</button>
+                <button type="button" class="rp-tab" data-status="applied" aria-pressed="false" aria-selected="false">Moved</button>
+                <button type="button" class="rp-tab" data-status="denied" aria-pressed="false" aria-selected="false">Denied</button>
+                <button type="button" class="rp-tab" data-status="cancelled" aria-pressed="false" aria-selected="false">Stopped</button>
+              </div>
+              <div id="recoveries" class="cr-list"></div>
+            </section>
+
+            <section data-page="switches" aria-labelledby="h-switches" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-switches">Switches</h1><p class="rp-page-desc">Turn one feature on or off for every live shop at once, and choose what a new shop starts with. Each shop's own switches are in its record.</p></div>
+              </div>
+              <div id="every-switch" class="cr-grid"></div>
+            </section>
+
+            <section data-page="settings" aria-labelledby="h-settings" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-settings">Prices and sign-up</h1><p class="rp-page-desc">Changes here reach sign-up and new plans at once, with no release. A new price is for new subscriptions only; presses already paying keep theirs.</p></div>
+              </div>
+              <form id="settings-form" class="rp-card">
+                <div class="rp-card-body cr-form" style="padding-top: 20px">
+                  <div id="settings-fields" class="cr-form-grid"></div>
+                  <div class="rp-field"><label class="rp-label" for="settings-reason">Why are you changing this? (goes in the activity log)</label><input id="settings-reason" class="rp-input" name="reason" required minlength="10" maxlength="500"></div>
+                  <div class="cr-row"><button type="submit" class="rp-btn rp-btn-primary">Save settings</button> <span class="rp-hint" id="settings-updated"></span></div>
+                </div>
+              </form>
+            </section>
+
+            <section data-page="payments" aria-labelledby="h-payments" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-payments">Emergency payments</h1><p class="rp-page-desc">Only if the platform's Stripe account is paused: move every live shop's card payments at once. Each press is emailed straight away. Move them back the same way. One shop at a time is in its record.</p></div>
+              </div>
+              <div class="rp-card"><div class="rp-card-body" style="padding-top: 20px" id="all-payments"></div></div>
+            </section>
+
+            <section data-page="breaches" aria-labelledby="h-breaches" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-breaches">Breach register</h1><p class="rp-page-desc">Write down every privacy breach, even one that didn't need reporting. Entries are kept at least two years and can't be deleted here. <span id="privacy-contact"></span></p></div>
+              </div>
+              <div id="breaches" class="cr-list"></div>
+              <div class="cr-head"><h2>Write a new entry</h2></div>
+              <form id="breach-form" class="rp-card">
+                <div class="rp-card-body cr-form" style="padding-top: 20px">
+                  <div class="cr-form-grid">
+                    <div class="rp-field"><label class="rp-label" for="breach-found">Day it was found</label><input id="breach-found" class="rp-input" type="date" name="foundOn" required></div>
+                    <div class="rp-field"><label class="rp-label" for="breach-shops">Shops affected</label><input id="breach-shops" class="rp-input" name="shops"><span class="rp-hint">Shop ids, separated by commas; empty if none.</span></div>
+                  </div>
+                  <div class="rp-field"><label class="rp-label" for="breach-what">What happened</label><textarea id="breach-what" class="rp-textarea" name="what" required maxlength="4000"></textarea></div>
+                  <div class="rp-field"><label class="rp-label" for="breach-people">People affected (who, and about how many)</label><input id="breach-people" class="rp-input" name="people" required maxlength="1000"></div>
+                  <div class="cr-switches">
+                    <label class="rp-check"><input type="checkbox" name="reportedToCommissioner"> Reported to the Privacy Commissioner</label>
+                    <label class="rp-check"><input type="checkbox" name="peopleTold"> The people affected were told</label>
+                  </div>
+                  <div><button type="submit" class="rp-btn rp-btn-primary">Write it in the register</button></div>
+                </div>
+              </form>
+            </section>
+
+            <section data-page="activity" aria-labelledby="h-activity" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-activity">Activity log</h1><p class="rp-page-desc">Everything anyone did in the control room, newest first. Kept for a year; nothing here can be changed.</p></div>
+              </div>
+              <form id="activity-form" class="cr-toolbar">
+                <div class="rp-field cr-grow"><label class="rp-label" for="activity-shop">Only this shop</label><input id="activity-shop" class="rp-input" name="shopId" autocomplete="off" placeholder="Shop id, empty for all"></div>
+                <button type="submit" class="rp-btn rp-btn-secondary">Show</button>
+              </form>
+              <div id="activity"></div>
+            </section>
+          </div>
+
+          <section data-page="runbook" id="view-emergency" aria-labelledby="h-runbook" hidden>
+            <div class="rp-page-header">
+              <div><h1 class="rp-page-title" id="h-runbook">Run book</h1><p class="rp-page-desc">For when the platform owner can't be reached: pause releases, roll back one shop, or post a note on the status page. The backup person opens this with a reason first; the owner is emailed at once, and every use after it.</p></div>
+            </div>
+            <div id="emergency" class="cr-list"></div>
+          </section>
+        </div>
+      </main>
     </div>
-    <div id="tickets" class="stack"></div>
-    <h2>Account recovery</h2>
-    <p>People who lost the email address their account uses. Approve only once you've checked it's them; the move then waits three days for the old address to object, and you make it by hand (accounts/README.md, "Recovery: applying").</p>
-    <div class="row filters" id="recovery-filters" role="group" aria-label="Which recovery requests">
-      <button type="button" data-status="waiting" aria-pressed="true">To check</button>
-      <button type="button" data-status="approved" aria-pressed="false">Approved, waiting</button>
-      <button type="button" data-status="applied" aria-pressed="false">Moved</button>
-      <button type="button" data-status="denied" aria-pressed="false">Denied</button>
-      <button type="button" data-status="cancelled" aria-pressed="false">Stopped</button>
-    </div>
-    <div id="recoveries" class="stack"></div>
-    <h2>Breach register</h2>
-    <p class="hint">Write down every privacy breach, even one that didn't need reporting. Entries are kept at least two years and can't be deleted here. <span id="privacy-contact"></span></p>
-    <form id="breach-form" class="card">
-      <label class="field">Day it was found <input type="date" name="foundOn" required></label>
-      <label class="field">What happened <textarea name="what" required maxlength="4000"></textarea></label>
-      <label class="field">Shops affected (shop ids, separated by commas; empty if none) <input name="shops"></label>
-      <label class="field">People affected (who, and about how many) <input name="people" required maxlength="1000"></label>
-      <label class="switch"><input type="checkbox" name="reportedToCommissioner"> Reported to the Privacy Commissioner</label>
-      <label class="switch"><input type="checkbox" name="peopleTold"> The people affected were told</label>
-      <div class="row"><button type="submit" class="primary">Write it in the register</button></div>
-    </form>
-    <div id="breaches" class="stack"></div>
-    <h2>Activity log</h2>
-    <p class="hint">Everything anyone did in the control room, newest first. Kept for a year; nothing here can be changed.</p>
-    <form id="activity-form" class="row">
-      <label class="field">Only this shop (shop id, empty for all) <input name="shopId" autocomplete="off"></label>
-      <button type="submit">Show</button>
-    </form>
-    <div id="activity" class="stack"></div>
-  </section>
-  <section id="view-emergency" class="stack" hidden>
-    <h2>Run book</h2>
-    <p class="hint">For when Julian can't be reached: pause releases, roll back one shop, or post a note on the status page. The backup person opens this with a reason first; Julian is emailed at once, and every use after it.</p>
-    <div id="emergency" class="stack"></div>
-  </section>
-  <p id="status" role="status" aria-live="polite"></p>
-</main>
+  </div>
+  <p id="status" class="cr-status" role="status" aria-live="polite"></p>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script type="module" src="./app.js"></script>
 </body>
