@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { isDigitalItem } from "./fulfillment";
 import { RETURN_STEPS, chargedOf, formatMinor, parseMoneyToMinor, refundableMinor, returnStepLabel, returnStepsDone, returnedValueMinor } from "./orderLines";
+import { ReturnExchange } from "./ReturnExchange";
 import { SectionCard, TextArea, TextField, SelectField, PrimaryButton, SecondaryButton, GhostButton, ConfirmDialog } from "./riso/components";
 
 type Row = { quantity: string; condition: string; restockQuantity?: string };
@@ -29,6 +30,15 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
   const amountMinor = parseMoneyToMinor(amount);
   const amountError = amountMinor == null || amountMinor <= 0 ? "Enter an amount like 12.50." : amountMinor > refundableMinor(order) ? `At most ${formatMinor(refundableMinor(order), currency)}.` : "";
 
+  const swapFor = async (swaps: { index: number; toVariantId: string; quantity: number }[]) => {
+    setBusy(true);
+    try {
+      await adminApi.manageReturn(order.id, "exchange", { swaps });
+      toast.success("Swapped. Send the new items to the customer.");
+      await onUpdated();
+    } catch (error: any) { toast.error(error.message || "Could not swap."); }
+    finally { setBusy(false); }
+  };
   const run = async (action: string) => {
     setBusy(true);
     try {
@@ -112,10 +122,13 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
             hint={`Suggested from the returned books' prices: ${formatMinor(suggested, currency)}. Up to ${formatMinor(refundableMinor(order), currency)} can be refunded.`} />
           <PrimaryButton disabled={busy || !!amountError} onClick={() => setConfirmRefund(true)}>Refund returned books and restock eligible copies</PrimaryButton>
         </>)}
+      {state === "inspected" && <ReturnExchange order={order} inspected={inspected} busy={busy} onExchange={swapFor} />}
       {["approved", "received", "inspected"].includes(state) && <div><GhostButton size="sm" disabled={busy} onClick={() => setConfirmCloseApproved(true)}>Close return without a refund</GhostButton></div>}
       {state === "closed" && <p role="status">Closed without a refund. Nothing was restocked.</p>}
       {state === "refund_pending" && <p role="status">The provider is processing the refund. Inventory has already been handled; do not refund again.</p>}
-      {state === "completed" && <p role="status">Refund completed. Returned inventory has been handled once.</p>}
+      {state === "completed" && (order.exchanges?.length
+        ? <p role="status">Swapped for another version. Stock has been updated once; send the new items to the customer.</p>
+        : <p role="status">Refund completed. Returned inventory has been handled once.</p>)}
     </div>
     <ConfirmDialog open={confirmRefund}
       title={everythingBack ? "Refund the full order?" : "Refund the returned books?"}

@@ -968,3 +968,8 @@ with the claim `support: { by, reason, until }` (`until` in seconds, at most an 
   then on even if a tab stays open.
 - **Tests:** `scripts/firestore-rules-emulator.mjs` covers support, an expired visit and a Google pass claiming support.
 
+
+## Swap for another size (plan 10.22)
+
+- `manageReturn` with `action: "exchange"` and `swaps: [{ index, toVariantId, quantity }]` swaps an inspected return for another version of the same product. The rules are in `exchanges.js` (`planExchange`, pure): the order is paid with no refund request, the return is inspected, one swap per line, up to the copies that came back, the new version has the same price and enough stock, never a box set. The resellable copies go back and the new version comes off in one write per product (stock is never written twice from one snapshot).
+- It ends the return as `completed` (no new customer words), sets the request to handled, keeps `order.exchanges[]` and adds an activity line. No money moves; a price difference is refused (refund the return instead). A second swap is refused because the return is no longer `inspected`.

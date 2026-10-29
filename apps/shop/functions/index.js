@@ -43,6 +43,7 @@ const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, gi
 const { expiryChange } = require("./giftCards");
 const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, chargedRedemptions, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
 const { readBooks, writeStock } = require("./inventory");
+const { planExchange } = require("./exchanges");
 const { resolveCountry } = require("./shared/shippingZones");
 const { emailIdentity, openClaims, limitReached } = require("./discountClaims");
 const { REQUIRED_WEBHOOK_EVENTS, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, failedRefundId } = require("./stripeRecovery");
@@ -2415,7 +2416,7 @@ exports.manageReturn = onBrowserRequest({}, async (req, res) => {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
   const user = await requireAdmin(req, res);
   if (!user) return;
-  const { orderId, action, instructions, inspection } = req.body || {};
+  const { orderId, action, instructions, inspection, swaps } = req.body || {};
   if (typeof orderId !== "string" || !orderId || orderId.length > 64 || orderId.includes("/")) return res.status(400).json({ error: "Invalid order ID." });
   try {
     const progress = await db.runTransaction(async tx => {
@@ -2425,6 +2426,26 @@ exports.manageReturn = onBrowserRequest({}, async (req, res) => {
       if (!orderSnap.exists) { const error = new Error("Order not found."); error.status = 404; throw error; }
       const order = orderSnap.data(), ops = opsSnap.data() || {};
       const now = new Date().toISOString();
+      if (action === "exchange") {
+        // Swap for another size (plan 10.22): the returned copies go back, the new version comes off the shelf, no money moves.
+        const wanted = (Array.isArray(swaps) ? swaps : []).map(swap => ({ id: (order.items || [])[swap?.index]?.id, quantity: 1 })).filter(row => row.id);
+        const books = await readBooks(tx, db, wanted);
+        const plan = planExchange(order, ops.returnCase, swaps, books);
+        const actor = user.email || user.uid;
+        const progress = { ...publicReturn(ops.returnCase), state: "completed", updatedAt: now };
+        if (!(order.sandboxPayment === true && !sandboxStockTaken(order, shopConfig.testShop))) {
+          for (const { id, data } of plan.updates) tx.update(db.collection("books").doc(id), { ...data, updatedAt: now });
+        }
+        tx.set(opsRef, { ...ops, returnCase: { ...ops.returnCase, state: "completed", exchangedAt: now, actor, updatedAt: now }, updatedAt: now,
+          activity: [...(ops.activity || []), { type: "event", message: "Return exchanged for another version.", createdAt: now, actor }] });
+        tx.update(orderRef, {
+          returnProgress: progress, customerRequest: { ...order.customerRequest, status: "handled" },
+          exchanges: [...(Array.isArray(order.exchanges) ? order.exchanges : []), { at: now, actor, lines: plan.lines }],
+          updatedAt: now,
+          activity: [...(order.activity || []), { type: "event", message: `Exchanged for another version: ${plan.lines.map(l => `${l.quantity} × ${l.toName || l.toVariantId}`).join(", ")}. Send the new items.`, createdAt: now, actor }],
+        });
+        return progress;
+      }
       const next = returnTransition(order, ops.returnCase, action, { instructions, inspection }, now, user.email || user.uid);
       if (next === ops.returnCase) return publicReturn(next);
       const progress = publicReturn(next);
