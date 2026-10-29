@@ -2,13 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { formEncode, createStripeApi, StripeApiError } from "./stripeApi.js";
+import { formEncode, createStripeApi, StripeApiError, DEFAULT_STRIPE_API_VERSION } from "./stripeApi.js";
 import { signatureHeader, verifySignature } from "./stripeSignature.js";
 import { feeFor, feeForShop, readFeeSettings } from "./fees.js";
 import { readServiceConfig } from "./config.js";
 import { createPaymentService, shopWebhookUrl, SHOP_OP_NAMES } from "./service.js";
 import { handlePayments } from "./http.js";
-import { createPaymentsFromEnv, setupClient } from "./index.js";
+import { createPaymentsFromEnv, platformBillingStripe, setupClient } from "./index.js";
 import { fakeAccounts, fakeDeliver, fakeStripeFetch } from "./fakes.js";
 import { fakeAuditLog, fakeProfileFiles, fakeRegistry } from "../../setup/fakes.js";
 import { connectPaymentsStep } from "../../setup/payments.js";
@@ -74,9 +74,28 @@ test("each Stripe call carries the mode's key, the press's account and the idemp
   const api = createStripeApi({ fetch, keys: { live: "sk_live_x", test: "sk_test_x" } });
   await api.call("test", "POST", "/v1/payment_intents", { params: { amount: 5 }, account: "acct_a", idempotencyKey: "k1" });
   await api.call("live", "GET", "/v1/accounts/acct_fake1", {}).catch(() => {});
-  assert.deepEqual(requests[0].headers, { Authorization: "Bearer sk_test_x", "Stripe-Account": "acct_a", "Idempotency-Key": "k1", "Content-Type": "application/x-www-form-urlencoded" });
+  assert.deepEqual(requests[0].headers, { Authorization: "Bearer sk_test_x", "Stripe-Version": DEFAULT_STRIPE_API_VERSION, "Stripe-Account": "acct_a", "Idempotency-Key": "k1", "Content-Type": "application/x-www-form-urlencoded" });
   assert.equal(requests[1].headers.Authorization, "Bearer sk_live_x");
   assert.equal(requests[1].headers["Stripe-Account"], undefined);
+});
+
+test("every Stripe call pins the API version, from one setting; a wrong setting stops the service at start (plan 15.2)", async () => {
+  const { fetch, requests } = fakeStripeFetch();
+  const api = createStripeApi({ fetch, keys: { live: "sk_live_x", test: "sk_test_x" } });
+  await api.call("test", "GET", "/v1/refunds", {});
+  await api.call("live", "POST", "/v1/refunds", { params: { amount: 1 } }).catch(() => {});
+  for (const request of requests) assert.equal(request.headers["Stripe-Version"], DEFAULT_STRIPE_API_VERSION);
+  const set = createStripeApi({ fetch, keys: { test: "sk_test_x" }, apiVersion: "2026-01-01.fig" });
+  await set.call("test", "GET", "/v1/refunds", {});
+  assert.equal(requests.at(-1).headers["Stripe-Version"], "2026-01-01.fig");
+  assert.equal(readServiceConfig({}).stripeApiVersion, DEFAULT_STRIPE_API_VERSION);
+  assert.equal(readServiceConfig({ STRIPE_API_VERSION: "2026-01-01.fig" }).stripeApiVersion, "2026-01-01.fig");
+  assert.throws(() => readServiceConfig({ STRIPE_API_VERSION: "latest" }), /STRIPE_API_VERSION must be a Stripe version name/);
+  assert.throws(() => createStripeApi({ fetch, keys: {}, apiVersion: "" }), /not a Stripe version name/);
+  // The billing client built from the same environment pins it too.
+  const billing = platformBillingStripe({ env: { STRIPE_PLATFORM_TEST_KEY: "sk_test_x", STRIPE_API_VERSION: "2026-01-01.fig" }, fetch });
+  await billing.call("test", "GET", "/v1/refunds", {});
+  assert.equal(requests.at(-1).headers["Stripe-Version"], "2026-01-01.fig");
 });
 
 test("Stripe's refusals keep their type, code and status; a missing key or a dropped line is a plain refusal", async () => {

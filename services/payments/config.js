@@ -4,6 +4,8 @@
 //   STRIPE_PLATFORM_LIVE_KEY / STRIPE_PLATFORM_TEST_KEY   the platform's secret keys (sk_live_… / sk_test_…)
 //   STRIPE_CONNECT_WEBHOOK_SECRET_LIVE / _TEST            the signing secrets of the one Connect events address;
 //                                                         several, comma-separated, while one is being rolled
+//   STRIPE_API_VERSION                                    the Stripe API version every call asks for (stripeApi.js has the
+//                                                         default); a value that is not a Stripe version name stops the service
 //   PLATFORM_FEE_BASIS_POINTS / PLATFORM_FEE_REFUNDED     the platform's default per-order fee (fees.js), 0% by default
 //
 // Square (code plan 2.2b), each optional; without an environment's application, Square shops there are refused:
@@ -14,6 +16,7 @@
 //   SQUARE_WEBHOOK_SIGNATURE_KEY_LIVE / _TEST  their signature keys; several, comma-separated, while one is rolled
 //   SQUARE_TOKEN_KEY                           32 random bytes in Base64: seals each press's Square tokens (tokenSeal.js)
 import { readFeeSettings } from "./fees.js";
+import { DEFAULT_STRIPE_API_VERSION, isStripeApiVersion } from "./stripeApi.js";
 import { sealingKey } from "./tokenSeal.js";
 
 function squareApp(env, mode) {
@@ -56,8 +59,11 @@ export function readServiceConfig(env = {}) {
   // A key in the wrong slot would take real money in test mode, or the reverse.
   if (live && !/^(sk|rk)_live_/.test(live)) throw new Error("STRIPE_PLATFORM_LIVE_KEY is not a live secret key");
   if (test && !/^(sk|rk)_test_/.test(test)) throw new Error("STRIPE_PLATFORM_TEST_KEY is not a test secret key");
+  const stripeApiVersion = text(env.STRIPE_API_VERSION) || DEFAULT_STRIPE_API_VERSION;
+  if (!isStripeApiVersion(stripeApiVersion)) throw new Error(`STRIPE_API_VERSION must be a Stripe version name like ${DEFAULT_STRIPE_API_VERSION}`);
   return Object.freeze({
     keys: Object.freeze({ live: live || null, test: test || null }),
+    stripeApiVersion,
     webhookSecrets: Object.freeze({ live: list(env.STRIPE_CONNECT_WEBHOOK_SECRET_LIVE), test: list(env.STRIPE_CONNECT_WEBHOOK_SECRET_TEST) }),
     fee: readFeeSettings(env),
     square: readSquareConfig(env),

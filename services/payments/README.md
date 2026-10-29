@@ -134,7 +134,10 @@ again; the email's idempotency key holds `pastDueSince`, so a retry never sends 
 
 `STRIPE_PLATFORM_LIVE_KEY`, `STRIPE_PLATFORM_TEST_KEY`, `STRIPE_CONNECT_WEBHOOK_SECRET_LIVE`,
 `STRIPE_CONNECT_WEBHOOK_SECRET_TEST` (comma-separated while rolling a secret) and the fee settings above, in this
-service's environment only. A key in the wrong slot stops the service. A test fails if any code outside this folder
+service's environment only. `STRIPE_API_VERSION` sets the Stripe API version every call asks for (default in
+`stripeApi.js`, plan 15.2; a value that is not a Stripe version name stops the service). When Julian registers the
+Connect events address in Stripe, he creates it with the same `api_version`, so the events and the calls agree.
+A key in the wrong slot stops the service. A test fails if any code outside this folder
 names the platform key.
 
 Square: `SQUARE_APPLICATION_ID_LIVE` / `_SECRET_LIVE` (production) and `_TEST` (Sandbox, values starting `sandbox-`),
