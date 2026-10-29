@@ -422,6 +422,39 @@ Product work happens only in `apps/`.
 | 11.16 | shop, stockroom | Gallery of every email and document with sample data in each admin | |
 | 11.17 | shop, stockroom, platform | Remove old per-document styles; a check fails on a stray colour or font | |
 
+## Phase 12: next steps (planned 29 October 2026)
+
+What comes after the rows still open in Phases 8, 10 and 11. Two kinds of rows: finishing what is half built (12A), and
+the best of the 29 October idea re-check (12B, from `ideation/2026-10-29-fifty-ideas-recheck.md`; the idea number is in
+brackets). Nothing here needs Julian's accounts except where a row says so. Every row keeps the rule that a books shop
+looks and works the same, and nothing touches `LyricalmyricalWebsite` or `lyrical-inventory`.
+
+### 12A. Finish what is half built
+
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 12.1 | shop, stockroom, platform | Finish 10.23: the other shop admin pages, the stockroom messages built in code, the setup guide and help articles read "product" and "maker" for a shop that doesn't sell books | the word scan for a clothing shop finds no "book" or "author"; books shop unchanged | |
+| 12.2 | shop | Finish 10.4: a tax rate per product kind (an order can mix kinds) and a shipping profile per kind | tax and shipping tests with a mixed bag; one-kind orders price as before | |
+| 12.3 | stockroom | Finish 10.5: size-by-colour grid when adding by hand, low-stock level per size, suppliers and counts per location | ledger and offline-queue tests per variant | |
+| 12.4 | shop | 10.21 (Google Shopping per variant), 10.22 (swap for another size), 10.7 (mixed sample content) and 10.8 (words on the platform's own pages) | the tests named in those rows | |
+| 12.5 | platform | The leftovers from the overnight batches: Stripe secrets still declared on platform shops' functions (2.2), a scheduled caller for the shop-maker sweep (2.6), auto-refund of late Square and Stripe payments (5.1), the hosted team-changed door and nightly sync (5.11), and a demo flag so the local demo can show practice checkout | one test per item with fakes; the demo shows practice checkout | |
+| 12.6 | shop | Finish 8.9: photo copies, AI writing and imports read the spending level | health test with a fake budget alert; checkout never slowed | |
+| 12.7 | shop | Templates 10.9 to 10.12 (foundation, Marquee, Shelf, then the options Julian picks), and the Phase 11 admin look in its listed order | the checks in those rows | |
+
+### 12B. From the idea re-check
+
+| # | Repo | Pull request | Proven by | Status |
+| --- | --- | --- | --- | --- |
+| 12.8 | stockroom, platform | **One-click Google Sheet** [1]: the stockroom's Sheet connection uses the press's one Google sign-in instead of pasting a script, and syncs products with their sizes both ways | connect test with a fake Google account; no pasted code anywhere in the flow | |
+| 12.9 | shop | **Order review queue** [40]: orders the payment provider flags, or that look unusual (new buyer, high value, mismatched addresses), wait for the owner before they are packed | order tests: flagged order held, one tap to release or refund; normal orders unchanged | |
+| 12.10 | shop, stockroom | **Stockist accounts and a line sheet** [16, 53]: trade log-in with wholesale prices, a net-30 order on the stockroom's invoices, and one button for a PDF line sheet on the shared document look (11.13) | trade-price tests; line sheet draws from the document kit | |
+| 12.11 | shop | **Duties and tax abroad** [15, 46]: checkout shows duties for parcels abroad, and sales tax outside Canada for presses that choose it | tax tests per country with fakes; Canadian orders price as before | |
+| 12.12 | shop, stockroom | **Quick wins** [51, 52, 2, 4]: a "ships in 2 to 3 weeks" label, low-size alerts inside a product group, camera barcode scan, and example products that vanish with the first real one | one test each; the book fields unchanged | |
+| 12.13 | platform | **Experts directory** [48]: a page of freelancers (design, photos, fulfilment) so help beyond the product goes to them, not to Julian | page and listing tests; no booking or payment inside the platform | |
+
+Ask Julian first: idea 39 (French admin and shop) is larger and moves the product toward Quebec; Instagram and Facebook
+shop feeds sit outside the all-in-Google rule.
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
