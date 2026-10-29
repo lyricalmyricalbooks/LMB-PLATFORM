@@ -8,7 +8,7 @@
 // take the private value when it exists and the public one otherwise, and the next save moves them.
 
 /** Top-level book fields that belong in the private document. */
-export const PRIVATE_BOOK_KEYS = ["costPrice", "usdCostPrice", "eurCostPrice", "shelfLocation", "legacyInventoryKey", "digitalFileUrl", "digitalFilePath"] as const;
+export const PRIVATE_BOOK_KEYS = ["costPrice", "usdCostPrice", "eurCostPrice", "shelfLocation", "wholesalePrice", "legacyInventoryKey", "digitalFileUrl", "digitalFilePath"] as const;
 
 export const PRIVATE_DOC_PATH = ["private", "admin"] as const;
 
