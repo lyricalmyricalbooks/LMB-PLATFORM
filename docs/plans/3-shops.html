@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan 3 of 3: the shops</title><style>body{font-family:Georgia,'Times New Roman',serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.55;color:#1d1b18;background:#fbf9f4}
+h1{font-size:1.7rem;margin-bottom:.4rem}h2{font-size:1.2rem;margin-top:2rem;border-bottom:1px solid #ddd6c8;padding-bottom:.2rem}
+table{border-collapse:collapse;width:100%;font-size:.95rem;margin:.6rem 0}th,td{border:1px solid #d9d2c3;padding:.4rem .5rem;text-align:left;vertical-align:top}
+th{background:#f1ece0}code{font-size:.9em;background:#eee9dc;padding:0 .25rem;border-radius:3px}
+@media (max-width:600px){table{font-size:.85rem}body{margin:1rem auto}}</style></head><body>
+<h1>Plan 3 of 3: the shops</h1>
+<p>Written 30 October 2026. This is what each press gets: getting started, the website and its admin, the stockroom, templates, Google extras, wholesale and tax. Each press has its own Firebase project. Plan 1 is the front door. Plan 2 is the engine. Numbers in brackets are rows in <code>docs/code-plan.md</code>.</p>
+<p>Key: <strong>Done</strong> is built and checked. <strong>Being built</strong> has a thread on it now. <strong>Not started</strong> has no one on it yet.</p>
+<h2>Next step</h2>
+<p><strong>Build the guided start.</strong> A new press should land on "Get started" before the admin: their details, bring their old shop over, pick a look, Google, get paid, shipping, stockroom, then open (17.1 to 17.18). Thread: *Getting started*. First batch uses pretend services and needs none of your accounts.</p>
+<p><strong>Your next step:</strong> answer the four questions it is waiting on. (1) Does the admin open after details, look and shipping, with Get paid needed only before the first real order? (2) If Google hasn't approved by launch, say "coming soon" or hold sign-ups? (3) Keep the moving-in words generic ("your old shop")? (4) Past orders out of the first version? Each has a recommendation in the Getting started plan.</p>
+<h2>Your steps for this chunk</h2>
+<table>
+<tr><th>By</th><th>You do</th><th>What it unblocks</th></tr>
+<tr><td>Now</td><td>Answer the four Getting started questions</td><td>The guided start (17.x)</td></tr>
+<tr><td>Soon</td><td>Pick more templates from Atlas, Mosaic, Spine, Arch, Feature</td><td>Next templates (10.12, 13.10)</td></tr>
+<tr><td>Soon</td><td>Get a real sample product file from each common shop builder</td><td>More import layouts (17.5, 17.17)</td></tr>
+<tr><td>Soon</td><td>Change the sample author passwords in your own stockroom (they sit in public repos)</td><td>Your stockroom's safety</td></tr>
+<tr><td>4 Dec</td><td>Sign the founding press's agreement; first press goes live by hand</td><td>15.10</td></tr>
+<tr><td>19 Feb</td><td>Five-person first-hour test: four of five live in under an hour (3.6, 17.18)</td><td>Public launch on 8 March</td></tr>
+</table>
+<h2>Being built</h2>
+<table>
+<tr><th>What</th><th>Who</th></tr>
+<tr><td>Guided start, 18 rows (17.1 to 17.18); planned, first batch not yet merged</td><td>Getting started</td></tr>
+<tr><td>Any merchandise, not only books: sell-what, variants, fields, customs, stockroom per variant, link and import, sample content (10.1 to 10.8, 10.20, 10.23, 12.1)</td><td>Beyond books</td></tr>
+<tr><td>Full website templates: foundation, Marquee, Shelf (10.9 to 10.11). Code plan still shows blank</td><td>Templates</td></tr>
+<tr><td>One look for the admin, emails and documents (Phase 11). Code plan still shows blank</td><td>Templates</td></tr>
+<tr><td>Order review queue, wholesale line sheet and stockist accounts, quick wins: barcode scan, ships-in label (12.9, 12.10, 12.12)</td><td>/supermatt</td></tr>
+</table>
+<h2>Not started</h2>
+<ul>
+<li>More templates, one at a time, after your pick (10.12, 13.10).</li>
+<li>Phone version of every template and of the admin and stockroom (13.9, 13.11); admin design rules in one page (13.13).</li>
+<li>Tax rate and shipping per product kind (12.2); size-by-colour grid and per-size low stock (12.3).</li>
+<li>Duties and tax abroad (12.11).</li>
+<li>Past orders from the old shop (17.7), only if you say yes.</li>
+<li>Shop owners' two-step sign-in (14.1); "Check my shop" button (14.3); every error says what to do (14.4); speed budget (14.5); readers download their own data (14.7); labels, quote form, tracking link (14.8); monthly check-up email (14.9). Thread: Plan tonight's platform improvements.</li>
+<li>Photo copies, AI writing and imports read the spending level on the shop side (8.9, 13.4).</li>
+<li>The five-person first-hour test (3.6). Dropping the old email fallback (1.10), deferred.</li>
+<li>"Are you registered for GST/HST?" question in Settings (15.21).</li>
+</ul>
+<h2>Done</h2>
+<ul>
+<li><strong>One shop from one profile</strong>; members and roles; one door for money and for email; your shop as a folder with nothing of Lyricalmyrical in it (1.0 to 1.21).</li>
+<li><strong>Stockroom</strong> inside each shop's own project, linked to the website (1.20 to 1.21c); owner of a stockroom-only shop gets in (1.20b).</li>
+<li><strong>One designer</strong> for every theme and six themes (1.22 to 1.27, 2.12, 3.5).</li>
+<li><strong>Moving a shop over</strong>: import, photos copied, old links kept (3.1 to 3.2, 5.5 to 5.7). First-week checklist (3.3).</li>
+<li><strong>Open like the big shops</strong>: choose your look (6.3), setup guide (6.9), Ready to sell checklist (2.10), practice checkout (7.6), starter policy words (7.5).</li>
+<li><strong>Money and tax</strong>: Square fixes (5.1 to 5.3), Canadian tax presets (5.10), real card fees (7.10), bookkeeping file and QuickBooks link (7.11 to 7.16), bookkeeper role (7.17), take your shop with you (7.18).</li>
+<li><strong>Products</strong>: variants and fields beyond books (10.2, 10.3); Shopping feed per variant and size swaps built (10.21, 10.22).</li>
+<li><strong>Google in the shop</strong>: Gemini writing help with no key, Google-only sign-in for staff (16.3, 16.4). Phone-ready install (13.14). Experts directory (12.13).</li>
+</ul>
+</body></html>
