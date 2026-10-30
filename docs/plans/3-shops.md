@@ -12,16 +12,14 @@ Key: **Done** is built and checked. **Being built** has a thread on it now. **No
 over, pick a look, Google, get paid, shipping, stockroom, then open (17.1 to 17.18). Thread: *Getting started*. First
 batch uses pretend services and needs none of your accounts.
 
-**Your next step:** answer the four questions it is waiting on. (1) Does the admin open after details, look and shipping,
-with Get paid needed only before the first real order? (2) If Google hasn't approved by launch, say "coming soon" or hold
-sign-ups? (3) Keep the moving-in words generic ("your old shop")? (4) Past orders out of the first version? Each has a
-recommendation in the Getting started plan.
+Stage 1, "Your press", is merged (#181). You answered the four guided-start questions on 29 October, yes to each, so the
+build goes ahead on those answers.
 
 ## Your steps for this chunk
 
 | By | You do | What it unblocks |
 | --- | --- | --- |
-| Now | Answer the four Getting started questions | The guided start (17.x) |
+| 29 Oct | Answered the four guided-start questions (yes to each) | Guided start can go ahead (17.x) |
 | Soon | Pick more templates from Atlas, Mosaic, Spine, Arch, Feature | Next templates (10.12, 13.10) |
 | Soon | Get a real sample product file from each common shop builder | More import layouts (17.5, 17.17) |
 | Soon | Change the sample author passwords in your own stockroom (they sit in public repos) | Your stockroom's safety |
@@ -34,8 +32,8 @@ recommendation in the Getting started plan.
 | --- | --- |
 | Guided start, 18 rows (17.1 to 17.18); planned, first batch not yet merged | Getting started |
 | Any merchandise, not only books: sell-what, variants, fields, customs, stockroom per variant, link and import, sample content (10.1 to 10.8, 10.20, 10.23, 12.1) | Beyond books |
-| Full website templates: foundation, Marquee, Shelf (10.9 to 10.11). Code plan still shows blank | Templates |
-| One look for the admin, emails and documents (Phase 11). Code plan still shows blank | Templates |
+| Full website templates: Marquee and Shelf are in the theme picker on the main branch; the foundation and the rest are still to come (10.9 to 10.11) | Templates |
+| One look for the admin, emails and documents (Phase 11), not started yet | Templates |
 | Order review queue, wholesale line sheet and stockist accounts, quick wins: barcode scan, ships-in label (12.9, 12.10, 12.12) | /supermatt |
 
 ## Not started
@@ -52,7 +50,7 @@ recommendation in the Getting started plan.
 
 ## Done
 
-- **One shop from one profile**; members and roles; one door for money and for email; your shop as a folder with nothing of Lyricalmyrical in it (1.0 to 1.21).
+- **One shop from one profile**; members and roles; one door for money and for email; your shop as a folder with nothing from the first press left in it (1.0 to 1.21).
 - **Stockroom** inside each shop's own project, linked to the website (1.20 to 1.21c); owner of a stockroom-only shop gets in (1.20b).
 - **One designer** for every theme and six themes (1.22 to 1.27, 2.12, 3.5).
 - **Moving a shop over**: import, photos copied, old links kept (3.1 to 3.2, 5.5 to 5.7). First-week checklist (3.3).

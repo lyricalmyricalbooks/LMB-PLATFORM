@@ -9,7 +9,8 @@ Key: **Done** is built and checked. **Being built** has a thread on it now. **No
 ## Next step
 
 **Put the finished pages online for real**, with no pretend data: sign-up, account, plans and billing, help, terms and
-status. Thread: *Put the walkthrough online*. Until they are online, only the waitlist can be used by a stranger.
+status. Pull request #212 has the two deploy steps, with a preview link. Nothing goes live until you say go. Until they
+are online, only the waitlist can be used by a stranger.
 
 **Your next step:** pick and buy the domain by **5 November**. The pages work on the web.app address until then, so this
 doesn't hold up the build. It does hold up the email address presses see.
