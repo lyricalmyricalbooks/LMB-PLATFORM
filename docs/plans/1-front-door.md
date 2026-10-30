@@ -11,7 +11,7 @@ questions, a welcome screen, a setup guide) with Colophon's own name, words and 
 
 ## The one rule that shapes everything
 
-**A press gets its own Firebase backend only after it has subscribed.** (Julian, 30 October 2026.) Before that, nothing
+**A press gets its own Firebase backend only when it finishes the setup guide, pays, and launches its shop live.** (Julian, 30 October 2026.) The whole guide, including payments, shipping, Google and the stockroom choice, is done in setup mode; launching is its last step. Before that, nothing
 is made for it except one small record in the platform's own project. This keeps the cost of a stranger signing up at
 close to nothing, and it means there is no half-made shop to clean up when someone walks away.
 
@@ -34,8 +34,8 @@ no card.
 | 5 | Three questions | Press name, what you sell (any merchandise), country. Each can be skipped | No |
 | 6 | Setting up | A short wait while the account and the setup record are saved | No |
 | 7 | Welcome | "Welcome to Colophon. Let's set up Moth Press." Inside the shop admin's own look | No |
-| 8 | Setup guide, before opening | Your press, your look, bring your shop (a preview only). The other steps show "Opens with your shop" | No |
-| 9 | Open my shop | Pick a plan, add a card (or choose Pay as you sell), see the price and the 14 free days | **Yes, starts here** |
+| 8 | Setup guide | Every step: press, look, bring your shop, Google, get paid, shipping, stockroom, final check. Answers are saved on the setup record. Pages that need a live shop (Orders, Customers) show "Opens when you launch" | No |
+| 9 | Pay and launch | Last step of the guide: pick a plan, add a card (or choose Pay as you sell), see the price and the 14 free days, press Launch | **Yes, starts here** |
 | 10 | Making your shop | Plain progress while the shop maker runs. Setup answers, look and any import are carried across | Being made |
 | 11 | Your shop admin | The press lands in its real admin, signed in already. Setup guide continues: get paid, Google, shipping, stockroom, final check | Yes |
 
@@ -63,7 +63,7 @@ Log-in is email first or Google, a code if the email is new on that device, then
    would live in one project, which the platform rule forbids, and it needs far more code. Not recommended.
 3. **In the browser only.** No record on our side. It works on one device and the work is lost if the browser is cleared.
 
-Rows 18.6 to 18.9 assume option 1. If you pick another, those rows change and the rest stay.
+Rows 18.6 to 18.9 assume option 1. Open question this rule raises: "Get paid" and "Google" normally need a live shop to connect to. In setup mode we collect the choices and sign-ins, and connect them at launch (Stripe and Google connect are redone by the shop maker, 6.17, 6.20). If you pick another, those rows change and the rest stay.
 
 ## What already exists, and what changes
 
