@@ -1,52 +1,139 @@
-# Plan 1 of 3: the front door
+# Plan 1 of 3: the front door (rewritten 30 October 2026)
 
-Written 30 October 2026. This is the part strangers see: the waitlist, sign-up, plans and billing, help, terms and status
-pages, all at lmb-platform-prod.web.app. Plan 2 is the engine behind it. Plan 3 is each press's own shop. The numbers in
-brackets are rows in `docs/code-plan.md`, so a thread can find the detail.
+This is the part a stranger sees and the road from there to the press's own shop admin. It covers the home page, pricing,
+sign-up, log-in, the first questions, the setup guide, opening the shop, plan and billing, help, terms and status, all at
+lmb-platform-prod.web.app until the domain is bought. Plan 2 is the engine behind it. Plan 3 is each press's own shop.
+Numbers in brackets are rows in `docs/code-plan.md`. The new rows are Phase 18.
 
-Key: **Done** is built and checked. **Being built** has a thread on it now. **Not started** has no one on it yet.
+The design to click through: the front door prototype, https://claude.ai/artifact/KTirgdvCTD2AWaJQscTVX9. It copies the
+flow of the big store builders (an email box on the home page, email or Google sign-in, a short code, three skippable
+questions, a welcome screen, a setup guide) with Colophon's own name, words and look. It uses none of their logos or text.
 
-## Next step
+## The one rule that shapes everything
 
-**Put the finished pages online for real**, with no pretend data: sign-up, account, plans and billing, help, terms and
-status. Pull request #212 has the two deploy steps, with a preview link. Nothing goes live until you say go. Until they
-are online, only the waitlist can be used by a stranger.
+**A press gets its own Firebase backend only when it finishes the setup guide, pays, and launches its shop live.** (Julian, 30 October 2026.) The whole guide, including payments, shipping, Google and the stockroom choice, is done in setup mode; launching is its last step. Before that, nothing
+is made for it except one small record in the platform's own project. This keeps the cost of a stranger signing up at
+close to nothing, and it means there is no half-made shop to clean up when someone walks away.
 
-**Your next step:** pick and buy the domain by **5 November**. The pages work on the web.app address until then, so this
-doesn't hold up the build. It does hold up the email address presses see.
+"Subscribed" means one of two things:
+- a plan is chosen and a card is on file (the 14 free days start at that moment, and the first charge comes on day 15), or
+- Pay as you sell is chosen, which needs no card.
+
+This overturns two earlier answers, so please check them: "a trial shop can take real orders" (there is no unsubscribed
+shop any more) and "the 14 days start at sign-up" (they now start when the shop opens). Setup itself stays free and needs
+no card.
+
+## The journey, in order
+
+| # | Screen | What happens | Backend made? |
+| --- | --- | --- | --- |
+| 1 | Home | Big headline, an email box, a picture of a shop, pricing, questions. The waitlist form shows instead when sign-up is closed | No |
+| 2 | Pricing | Shop $29, stockroom $19, both $39, Canadian dollars plus tax; the founding offer; Pay as you sell | No |
+| 3 | Create account | Continue with Google, or an email. One account can own several presses | An account only |
+| 4 | Code | A six-digit code sent to the email (replaces the sign-in link) | No |
+| 5 | Three questions | Press name, what you sell (any merchandise), country. Each can be skipped | No |
+| 6 | Setting up | A short wait while the account and the setup record are saved | No |
+| 7 | Welcome | "Welcome to Colophon. Let's set up Moth Press." Inside the shop admin's own look | No |
+| 8 | Setup guide | Every step: press, look, bring your shop, Google, get paid, shipping, stockroom, final check. Answers are saved on the setup record. Pages that need a live shop (Orders, Customers) show "Opens when you launch" | No |
+| 9 | Pay and launch | Last step of the guide: pick a plan, add a card (or choose Pay as you sell), see the price and the 14 free days, press Launch | **Yes, starts here** |
+| 10 | Making your shop | Plain progress while the shop maker runs. Setup answers, look and any import are carried across | Being made |
+| 11 | Your shop admin | The press lands in its real admin, signed in already. Setup guide continues: get paid, Google, shipping, stockroom, final check | Yes |
+
+Log-in is email first or Google, a code if the email is new on that device, then straight to wherever the press left off.
+
+## What a press has before and after it subscribes
+
+| | Before (setup mode) | After (open shop) |
+| --- | --- | --- |
+| Where it lives | One record in the platform's project, owner only | Its own Firebase project, its own stockroom database |
+| Admin pages that work | Home with the setup guide, Design (pick a look), Books (import preview), Plan and billing, Help, Settings for press details | Every page |
+| Pages that say "Opens with your shop" | Orders, Customers, Discounts, Gift cards, Messages, Inventory, the rest of Settings | None |
+| Can sell | No | Once payments are connected |
+| Public shop address | None yet | Yes |
+| Google connections, email, domain | None | Made at opening (Phase 6.17, 6.20) |
+| Leaving | Record kept 60 days after the last visit, warnings at 30 and 7 days, then deleted with any staged file | The existing pause, close, download and delete timeline (6.8) |
+
+## Decision for Julian
+
+**Where does the setup live before the press pays?** Three ways, with the cost of each.
+1. **Setup mode in the real admin (recommended).** The admin's own shell and look, served from the platform site, with
+   the pages above working and the rest locked. One small record per press. Smallest change, and it keeps the rule that a
+   shop's data never shares a database with another press.
+2. **A full practice database in the platform's project.** Every admin page works before paying, but two presses' data
+   would live in one project, which the platform rule forbids, and it needs far more code. Not recommended.
+3. **In the browser only.** No record on our side. It works on one device and the work is lost if the browser is cleared.
+
+Rows 18.6 to 18.9 assume option 1. Open question this rule raises: "Get paid" and "Google" normally need a live shop to connect to. In setup mode we collect the choices and sign-ins, and connect them at launch (Stripe and Google connect are redone by the shop maker, 6.17, 6.20). If you pick another, those rows change and the rest stay.
+
+## What already exists, and what changes
+
+Built and kept: the waitlist and daily cap (6.13), pricing (6.1), the shop maker and its sixteen steps (2.6, Phase 1),
+Choose your look (6.3), the import (3.1, 5.5 to 5.7), billing, pause, close and invoices (6.4 to 6.8), pay as you sell
+(6.19), the Google connect and teardown (6.17, 6.20), the guided start (Phase 17), help, terms and status.
+
+Changed by the rule:
+- Sign-up (2.5, 6.2) makes an account and a setup record only. It no longer starts billing or the shop maker.
+- The shop maker (2.6) is queued when the press opens its shop, not at sign-up.
+- Billing (6.4, 6.5) starts the 14 days at opening. Plan and billing shows "Open my shop" for a press with no shop yet.
+- The guided start (Phase 17) splits in two: stages 1 to 3 before opening, stages 4 to 8 after.
+- Trial emails (6.10) become setup tips before opening and trial tips after.
+- The control room (Phase 9) lists presses not yet open apart from shops.
+- Google connect (6.20) runs at opening, never at sign-up. Nothing is connected for a press that never opens.
+
+New: the email-first front door pages, the code sign-in, the setup-mode admin, the open-my-shop step, carrying setup
+across, a handoff with no second sign-in, and the unsubscribed clock.
+
+## Build order (Phase 18)
+
+1. **Decide and record** the rule and the three-way decision above (18.1).
+2. **The record and the account** (18.2, 18.3): the setup record, sign-up that makes only an account, the code sign-in.
+3. **The front door pages** (18.4, 18.5): home, pricing, sign-up, log-in, questions, in the new flow. They can ship before
+   the rest because they only make an account. Pull request #212's pages should wait for this, since the old sign-up
+   would still start a shop.
+4. **Setup mode** (18.6, 18.7): the real admin served from the platform site, locked pages, setup data saved through the
+   platform's own door.
+5. **Open my shop** (18.8, 18.9, 18.10): plan and card, the shop maker, carrying setup across, the handoff.
+6. **The unsubscribed clock and emails** (18.11) and the control room view (18.12).
+7. **Guards, the road test and the checks** (18.13 to 18.16).
+8. **Retire the old pages** and deploy in order (18.17).
+
+## Things that can go wrong, and what the plan does about each
+
+- **The same email signs up twice, or with Google and with a code.** One account per verified email; the second way in
+  signs into the first. Tested.
+- **Someone starts a shop and never returns.** Nothing was made, so nothing is billed or left running. The record
+  expires on its clock.
+- **The card fails when opening.** No shop is made. The press sees a plain message and stays in setup mode with its work.
+- **The shop maker fails halfway after a card is added.** The press sees "Making your shop", the maker retries by itself
+  (2.6), and the control room shows it. The 14 days start only when the shop is ready.
+- **Opening twice** (double click, two tabs). One subscription and one shop, found again by the press record. Tested.
+- **A big import file before paying.** Size and count limits; only the preview is read in the browser, and the file is kept
+  only until the shop exists.
+- **Bots creating accounts.** The email code, a limit per address and per network, App Check on the door, and the
+  daily cap staying on sign-ups at launch.
+- **A press wants its data deleted.** One button on the account page removes the setup record and any staged file.
+- **A press's look or name changes between setup and opening.** The record is copied at the moment of opening, then the
+  shop's own settings take over.
+- **Pay as you sell with no card.** Allowed only for the Shop and Both plans. The shop opens at once. Fees come from the
+  per-order fee, as in 6.19.
 
 ## Your steps for this chunk
 
 | By | You do | What it unblocks |
 | --- | --- | --- |
-| 5 Nov | Buy the domain (two: one for the front door, one only for shop addresses) | Email from our own address; the shop addresses |
-| 13 Nov | Give Colophon a mailing address | Every platform email must carry one by law (15.8) |
-| 13 Nov | Fill in the Stripe platform profile. Ask the accountant when to register for GST/HST | Taking money for plans; "plus tax" on prices (15.9) |
+| Now | Pick one of the three ways for setup before paying | Rows 18.6 to 18.9 |
+| Now | Confirm the two overturned answers: no unsubscribed shop, and the 14 days start when the shop opens | Rows 18.8, 18.11 |
+| 5 Nov | Buy the domain (two: one for the front door, one for shop addresses) | Email from our own address; shop addresses |
+| 13 Nov | Mailing address for platform email; the Stripe platform profile; ask the accountant about GST/HST | Taking money for plans; "plus tax" (15.8, 15.9) |
 | 20 Nov | Send the terms and privacy pages to a lawyer | Terms must be public before sign-up opens (8.1) |
-| November | Talk to five to ten waitlist presses. Decide if Quebec presses join at launch (French terms first) | Who gets invited first |
-| 29 Jan | Goal: a stranger signs up, pays and takes a real order alone | The go-live gate for this chunk |
+| November | Talk to five to ten waitlist presses; decide if Quebec presses join at launch | Who gets invited first |
+| 29 Jan | Goal: a stranger signs up, subscribes and takes a real order alone | The go-live gate |
 | 8 Mar | Public sign-up opens to everyone | Launch |
 
-## Being built
+## Still open from before
 
-| What | Who |
-| --- | --- |
-| Sign-up, account, plans and billing, help, terms and status pages put online, real and not pretend | Put the walkthrough online |
-
-## Not started
-
-- "Plus GST/HST" on Colophon's own plan prices and invoices (15.9). Needs your accountant's answer first.
-- A person named for privacy, and a breach record, on the terms page (15.11).
-- One trust page, plus a public list of the companies that handle data (14.2). Thread to own it: Plan tonight's platform improvements.
-- The control room's Invite button for waitlist emails (rest of 6.13). It belongs to Plan 2 but decides who gets in.
-
-## Done
-
-- **Waitlist** live, with the name Colophon (0.1 to 0.4).
-- **Pricing page** with the three plans ($29 shop, $19 stockroom, $39 both), a 14-day trial with no card, and the founding offer (6.1).
-- **Sign-up** screens, the daily cap on new shops and the "you're next in line" wait (2.5, 6.2, 6.13 without the Invite button). One account for many shops (2.7).
-- **Plans and billing** page, the billing behind it, pause and close with a download of everything, downgrading, invoices and card-expiring emails (6.4 to 6.8, 6.11, 6.12), trial emails (6.10), and "pay as you sell" (6.19).
-- **Terms, privacy, data agreement** written, and what support does and doesn't cover (8.1, 8.2). **Help**: the top 20 answers (3.4).
-- **Status page** and support inbox built; hosting waits for you (4.4). **New-device alerts** and account recovery built (4.5).
-- **Sample press** anyone can try before signing up (7.7), built; you switch it on.
-- **Checks**: no technical words reach a press (6.16), phone-width check of every platform page (13.12), safety headers (13.2), anti-spam basics (part of 15.8), Canada first, other countries on a "later" list (15.23).
+- "Plus GST/HST" on Colophon's own prices and invoices (15.9), waiting for the accountant.
+- A named person for privacy and a breach record on the terms page (15.11).
+- One trust page and a public list of the companies that handle data (14.2).
+- The control room's Invite button for waitlist emails (rest of 6.13).
+- Pay as you sell numbers, still marked "to confirm".
