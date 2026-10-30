@@ -1,0 +1,60 @@
+# Plan 3 of 3: the shops
+
+Written 30 October 2026. This is what each press gets: getting started, the website and its admin, the stockroom,
+templates, Google extras, wholesale and tax. Each press has its own Firebase project. Plan 1 is the front door. Plan 2 is
+the engine. Numbers in brackets are rows in `docs/code-plan.md`.
+
+Key: **Done** is built and checked. **Being built** has a thread on it now. **Not started** has no one on it yet.
+
+## Next step
+
+**Build the guided start.** A new press should land on "Get started" before the admin: their details, bring their old shop
+over, pick a look, Google, get paid, shipping, stockroom, then open (17.1 to 17.18). Thread: *Getting started*. First
+batch uses pretend services and needs none of your accounts.
+
+Stage 1, "Your press", is merged (#181). You answered the four guided-start questions on 29 October, yes to each, so the
+build goes ahead on those answers.
+
+## Your steps for this chunk
+
+| By | You do | What it unblocks |
+| --- | --- | --- |
+| 29 Oct | Answered the four guided-start questions (yes to each) | Guided start can go ahead (17.x) |
+| Soon | Pick more templates from Atlas, Mosaic, Spine, Arch, Feature | Next templates (10.12, 13.10) |
+| Soon | Get a real sample product file from each common shop builder | More import layouts (17.5, 17.17) |
+| Soon | Change the sample author passwords in your own stockroom (they sit in public repos) | Your stockroom's safety |
+| 4 Dec | Sign the founding press's agreement; first press goes live by hand | 15.10 |
+| 19 Feb | Five-person first-hour test: four of five live in under an hour (3.6, 17.18) | Public launch on 8 March |
+
+## Being built
+
+| What | Who |
+| --- | --- |
+| Guided start, 18 rows (17.1 to 17.18); planned, first batch not yet merged | Getting started |
+| Any merchandise, not only books: sell-what, variants, fields, customs, stockroom per variant, link and import, sample content (10.1 to 10.8, 10.20, 10.23, 12.1) | Beyond books |
+| Full website templates: Marquee and Shelf are in the theme picker on the main branch; the foundation and the rest are still to come (10.9 to 10.11) | Templates |
+| One look for the admin, emails and documents (Phase 11), not started yet | Templates |
+| Order review queue, wholesale line sheet and stockist accounts, quick wins: barcode scan, ships-in label (12.9, 12.10, 12.12) | /supermatt |
+
+## Not started
+
+- More templates, one at a time, after your pick (10.12, 13.10).
+- Phone version of every template and of the admin and stockroom (13.9, 13.11); admin design rules in one page (13.13).
+- Tax rate and shipping per product kind (12.2); size-by-colour grid and per-size low stock (12.3).
+- Duties and tax abroad (12.11).
+- Past orders from the old shop (17.7), only if you say yes.
+- Shop owners' two-step sign-in (14.1); "Check my shop" button (14.3); every error says what to do (14.4); speed budget (14.5); readers download their own data (14.7); labels, quote form, tracking link (14.8); monthly check-up email (14.9). Thread: Plan tonight's platform improvements.
+- Photo copies, AI writing and imports read the spending level on the shop side (8.9, 13.4).
+- The five-person first-hour test (3.6). Dropping the old email fallback (1.10), deferred.
+- "Are you registered for GST/HST?" question in Settings (15.21).
+
+## Done
+
+- **One shop from one profile**; members and roles; one door for money and for email; your shop as a folder with nothing from the first press left in it (1.0 to 1.21).
+- **Stockroom** inside each shop's own project, linked to the website (1.20 to 1.21c); owner of a stockroom-only shop gets in (1.20b).
+- **One designer** for every theme and six themes (1.22 to 1.27, 2.12, 3.5).
+- **Moving a shop over**: import, photos copied, old links kept (3.1 to 3.2, 5.5 to 5.7). First-week checklist (3.3).
+- **Open like the big shops**: choose your look (6.3), setup guide (6.9), Ready to sell checklist (2.10), practice checkout (7.6), starter policy words (7.5).
+- **Money and tax**: Square fixes (5.1 to 5.3), Canadian tax presets (5.10), real card fees (7.10), bookkeeping file and QuickBooks link (7.11 to 7.16), bookkeeper role (7.17), take your shop with you (7.18).
+- **Products**: variants and fields beyond books (10.2, 10.3); Shopping feed per variant and size swaps built (10.21, 10.22).
+- **Google in the shop**: Gemini writing help with no key, Google-only sign-in for staff (16.3, 16.4). Phone-ready install (13.14). Experts directory (12.13).

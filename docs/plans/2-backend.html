@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan 2 of 3: the platform backend</title><style>body{font-family:Georgia,'Times New Roman',serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.55;color:#1d1b18;background:#fbf9f4}
+h1{font-size:1.7rem;margin-bottom:.4rem}h2{font-size:1.2rem;margin-top:2rem;border-bottom:1px solid #ddd6c8;padding-bottom:.2rem}
+table{border-collapse:collapse;width:100%;font-size:.95rem;margin:.6rem 0}th,td{border:1px solid #d9d2c3;padding:.4rem .5rem;text-align:left;vertical-align:top}
+th{background:#f1ece0}code{font-size:.9em;background:#eee9dc;padding:0 .25rem;border-radius:3px}
+@media (max-width:600px){table{font-size:.85rem}body{margin:1rem auto}}</style></head><body>
+<h1>Plan 2 of 3: the platform backend</h1>
+<p>Written 30 October 2026. This is the engine nobody outside sees: your control room and the platform's server program (sign-in, billing, emails, the shop maker, the scheduler, the release runner). Plan 1 is the front door. Plan 3 is each press's own shop. Numbers in brackets are rows in <code>docs/code-plan.md</code>.</p>
+<p>Key: <strong>Done</strong> is built and checked, mostly against pretend accounts. <strong>Being built</strong> has a thread on it now. <strong>Not started</strong> has no one on it yet.</p>
+<h2>Next step</h2>
+<p><strong>Make it real.</strong> Today the shop maker, payments and billing run against pretend Google and Stripe. The next code step is to host the platform services in the real platform project (15.6). The step after is the real shop maker (15.5) and the real test shop (15.7). Thread: *Research paths*. All of it waits on your Google Cloud setup.</p>
+<p><strong>Your next step:</strong> by <strong>7 November</strong>, set up the Google organization on your new domain (free Cloud Identity is enough), one "shops" folder, one billing account, and ask Google for room for 50 projects. The shop maker can only create projects inside an organization.</p>
+<h2>Your steps for this chunk</h2>
+<table>
+<tr><th>By</th><th>You do</th><th>What it unblocks</th></tr>
+<tr><td>5 Nov</td><td>Buy the domain</td><td>The Google organization</td></tr>
+<tr><td>7 Nov</td><td>Google organization, "shops" folder, billing account, ask for 50 projects</td><td>Real shop maker (15.5), real test shop (15.7)</td></tr>
+<tr><td>13 Nov</td><td>Stripe platform profile</td><td>Billing and payments for real</td></tr>
+<tr><td>Before the first paying press</td><td>Make the platform repo private (it is public today)</td><td>Safety of the platform code</td></tr>
+<tr><td>20 Nov</td><td>Lawyer's answer in writing: does Colophon need to register to handle press payments? (15.22)</td><td>Taking a per-order fee</td></tr>
+<tr><td>27 Nov</td><td>Company and business bank account (check with the accountant)</td><td>Stripe and Google bill the business</td></tr>
+<tr><td>1 Dec</td><td>Submit Google's sign-in review. It needs the live privacy page from Plan 1</td><td>One-sign-in Google connection (6.17)</td></tr>
+<tr><td>When ready</td><td>Switch on two-step sign-in for the control room (9.1), the budgets (8.9), the release schedule (4.3, 4.1)</td><td>The safety checks run for real</td></tr>
+<tr><td>Jan</td><td>Register the domain-connect template with GoDaddy, IONOS, Cloudflare (15.19)</td><td>One-click domain setup</td></tr>
+</table>
+<h2>Being built</h2>
+<p>Nothing is under way today. Rows 15.4 to 15.7 are Research paths' next work, in that order.</p>
+<h2>Not started</h2>
+<ul>
+<li>Google "is it ready" self-check in the control room (15.4).</li>
+<li>The real Google client for the shop maker, with a waiting state when Google's project limit is hit (15.5).</li>
+<li>Host the platform services in the real platform project (15.6).</li>
+<li>The real test shop, and the practice purchase that runs after every change (15.7; also finishes 1.32).</li>
+<li>First press by hand: a run-book and checklist (15.10). First press is planned for 4 December.</li>
+<li>"Google needs you to reconnect" handling (15.15).</li>
+<li>Cut an idle shop's bill: ten scheduled jobs become one (15.16).</li>
+<li>Spend guards per shop and for the platform (15.17).</li>
+<li>Keep the bot check inside its free amount (15.18).</li>
+<li>Domain template for GoDaddy and Cloudflare (15.19).</li>
+<li>A daily count of Gmail sends per press (15.24).</li>
+<li>Per-shop feature switches: new things ship off, then test shop, then willing presses (14.6). Thread: Plan tonight's platform improvements.</li>
+<li>Real release (4.1) and the scheduled health checks (4.3): code done, need the real project.</li>
+</ul>
+<h2>Done</h2>
+<ul>
+<li><strong>Payments service</strong>: Stripe, and Square as a second choice, with the press's own account, refunds, fee refunded with the order (2.1, 2.2, 2.2b).</li>
+<li><strong>Email service</strong>: sends for every shop in the press's name (2.3).</li>
+<li><strong>Billing service</strong>: plans, trial, card, cancel, failed-payment emails, on a pretend Stripe (2.4).</li>
+<li><strong>Shop maker</strong>: setup script and steps, retry in plain words (1.28 to 1.31, 2.6), self-checks (2.11), test shop catalogue.</li>
+<li><strong>Control room</strong>: every shop, today's numbers, search, platform settings, sign-ups, per-order fee, switches, view-as-owner, activity log, tax threshold watch (9.1 to 9.11, 15.20, 2.8).</li>
+<li><strong>Running many shops</strong>: release runner, numbered data changes, health checks and backups (4.1 to 4.3), emergency payments switch, privacy records, backup person, email reputation, sign-up screening, spending limits on the platform side (8.3 to 8.9).</li>
+<li><strong>Google</strong>: one connect and one teardown (6.17, 6.20), email from the press's domain (6.18), domain connect (6.15), up to date with Google's current rules (15.1 to 15.3, 15.12 to 15.14), one-click Sheet (16.1), Shopping problems (16.2).</li>
+<li><strong>Tonight's safety batch</strong>: secret scan, restore drill, no Friday releases, error reports, keep-times (13.1 to 13.8). Stripe version pinned (15.2).</li>
+<li><strong>One test of the whole road</strong> with fakes (6.14).</li>
+</ul>
+</body></html>
