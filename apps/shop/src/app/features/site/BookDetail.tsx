@@ -53,6 +53,7 @@ import PdpFreeShipping from "./extras/pdp-free-shipping/PdpFreeShipping.tsx";
 import { madeToOrderTime } from "./madeToOrder";
 import PdpShipBy from "./extras/pdp-ship-by/PdpShipBy";
 import PdpAskQuestion from "./extras/pdp-ask-question/PdpAskQuestion";
+import PdpBulkQuote from "./extras/pdp-bulk-quote/PdpBulkQuote";
 import PdpInBag from "./extras/pdp-in-bag/PdpInBag";
 import PdpPaymentIcons from "./extras/pdp-payment-icons/PdpPaymentIcons";
 import { resolveFooterBadges } from "./paymentBadges";
@@ -189,6 +190,7 @@ export default function BookDetail() {
   const showPdpFreeShipping    = storefrontDesign.showPdpFreeShipping === true;
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
+  const showPdpBulkQuote       = storefrontDesign.showPdpBulkQuote === true;
   const showPdpInBag           = storefrontDesign.showPdpInBag === true;
   const showPdpPaymentIcons    = storefrontDesign.showPdpPaymentIcons === true;
   const showPdpTaxNote         = storefrontDesign.showPdpTaxNote === true;
@@ -1321,6 +1323,10 @@ export default function BookDetail() {
                   {/* Ask a question (off by default): any book, sold out or not; sends to Admin › Messages. */}
                   {showPdpAskQuestion && book && regionVisible(regionDesign, "productAskQuestion") && (
                     <PdpAskQuestion key={book.id} design={settings?.design} title={book.title} edition={selectedVariant?.name} />
+                  )}
+                  {/* Ask for a bulk quote (off by default): any book; sends to Admin › Messages. */}
+                  {showPdpBulkQuote && book && regionVisible(regionDesign, "productBulkQuote") && (
+                    <PdpBulkQuote key={book.id} design={settings?.design} title={book.title} edition={selectedVariant?.name} />
                   )}
         </Fragment>;
       }
