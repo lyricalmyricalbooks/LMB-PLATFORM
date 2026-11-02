@@ -95,6 +95,15 @@ export function adminOf(claims, admins, nowMs = Date.now()) {
 }
 
 /**
+ * What a shop has cost so far this month, from its budget notices (services/health/spending.js, plan 15.17), or null before
+ * the first one.
+ */
+export function costOf(spending) {
+  if (!spending || !Number.isFinite(spending.costAmount) || !spending.at) return null;
+  return { amount: spending.costAmount, budget: spending.budgetAmount || null, currency: spending.currency || "", at: spending.at };
+}
+
+/**
  * A shop's health in three levels, with the reasons in plain words: "ok", "watch" (nothing broken, but look) or
  * "problem" (something is broken or waiting on a person).
  */
@@ -255,6 +264,7 @@ export function createControlRoom({
           billingStatus: row.billing?.status ?? null,
           createdAt: row.createdAt ?? null,
           closed: row.closure ? { by: row.closure.by, reason: row.closure.reason, at: row.closure.at } : null,
+          costThisMonth: costOf(row.spending),
           paymentsMoved: row.paymentsEmergency ? { to: row.paymentsEmergency.to, by: row.paymentsEmergency.by, at: row.paymentsEmergency.at } : null,
         });
       }
