@@ -84,6 +84,9 @@
     .rp .rp-table .cr-actions { flex-wrap: wrap; justify-content: flex-start; }
     .rp .rp-table td.cr-end { text-align: left; }
   }
+  /* Tags on a shop (19.13) and the timeline's filters (19.10). */
+  .cr-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .cr-timeline-more { margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -156,6 +159,7 @@
           <li data-admin><a class="rp-nav-item" href="#settings" data-nav="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Prices and sign-up</a></li>
           <li data-admin><a class="rp-nav-item" href="#payments" data-nav="payments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14"/><path d="M2 10h20M6 15h4"/></svg>Emergency payments</a></li>
           <li><a class="rp-nav-item" href="#runbook" data-nav="runbook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/></svg>Run book</a></li>
+          <li data-admin><a class="rp-nav-item" href="#jobs" data-nav="jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Jobs<span class="rp-nav-badge" data-badge="jobs" hidden></span></a></li>
           <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Records</div></li>
           <li data-admin><a class="rp-nav-item" href="#breaches" data-nav="breaches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M12 9v4M12 16h0"/></svg>Breach register</a></li>
           <li data-admin><a class="rp-nav-item" href="#activity" data-nav="activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Activity log</a></li>
@@ -205,7 +209,7 @@
                 <div><h1 class="rp-page-title" id="h-shops">Shops</h1><p class="rp-page-desc">Every press's shop with its plan, billing and health. Open one for its record and everything you can do for it.</p></div>
               </div>
               <form id="shop-filters" class="cr-toolbar" role="search">
-                <div class="rp-field cr-grow"><label class="rp-label" for="shop-q">Search</label><input id="shop-q" class="rp-input" type="search" name="q" autocomplete="off" placeholder="Press, shop id or owner email"></div>
+                <div class="rp-field cr-grow"><label class="rp-label" for="shop-q">Search</label><input id="shop-q" class="rp-input" type="search" name="q" autocomplete="off" placeholder="Press, shop id, owner email or tag"></div>
                 <div class="rp-field"><label class="rp-label" for="shop-health">Health</label><select id="shop-health" class="rp-select" name="health"><option value="">All</option><option value="problem">Problem</option><option value="watch">Look</option><option value="ok">OK</option></select></div>
                 <div class="rp-field"><label class="rp-label" for="shop-plan">Plan</label><select id="shop-plan" class="rp-select" name="plan"><option value="">All</option><option value="shop">Shop</option><option value="stockroom">Stockroom</option><option value="both">Both</option></select></div>
                 <div class="rp-field"><label class="rp-label" for="shop-billing">Billing</label><select id="shop-billing" class="rp-select" name="billing"><option value="">All</option><option value="trialing">Free trial</option><option value="active">Paying</option><option value="past_due">Payment failing</option><option value="paused">Paused</option><option value="canceled">Ended</option></select></div>
@@ -327,6 +331,14 @@
                 <button type="submit" class="rp-btn rp-btn-secondary">Show</button>
               </form>
               <div id="activity"></div>
+            </section>
+
+            <section data-page="jobs" aria-labelledby="h-jobs" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-jobs">Jobs</h1><p class="rp-page-desc">Everything the platform does on a schedule: how often, when it last ran, how long it took and how it went. A job that stops running on time is emailed to the alert address once.</p></div>
+                <div class="rp-page-actions"><button type="button" id="jobs-refresh" class="rp-btn rp-btn-secondary">Refresh</button></div>
+              </div>
+              <div id="jobs"></div>
             </section>
           </div>
 

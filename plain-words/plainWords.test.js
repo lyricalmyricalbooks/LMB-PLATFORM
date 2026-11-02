@@ -194,7 +194,7 @@ const PRESS_EMAILS = {
   "shop-deleted": [{}],
 };
 // Emails that go to Julian or to the support address, never to a press.
-const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new"];
+const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late"];
 
 test("every kind of email is either read here or goes only to the platform's own people", () => {
   const kinds = Object.keys(TEMPLATES).sort();

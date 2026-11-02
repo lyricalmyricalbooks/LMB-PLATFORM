@@ -47,6 +47,13 @@ import { fakeFeeLedgerStore } from "../services/payments/feeLedgerFakes.js";
 import { signatureHeader } from "../services/payments/stripeSignature.js";
 import { createStripeApi } from "../services/payments/stripeApi.js";
 import { liveSettings, platformSettings } from "../services/settings.js";
+import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
+import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
+import { createShopNotes, notesRoutes } from "../control-room/notes.js";
+import { deliveryReader } from "../control-room/delivery.js";
+import { fakeDeliveryStats, fakeShopNotes } from "../control-room/visibilityFakes.js";
+import { createJobs } from "../services/jobs/index.js";
+import { fakeJobRuns } from "../services/jobs/fakes.js";
 
 export const DAY = 86_400_000;
 const WEBHOOK_SECRET = "whsec_pretend_billing";
@@ -130,6 +137,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const supportStore = fakeSupportStore();
   const recoveryStore = fakeRecoveryStore();
   const waitlist = fakeWaitlist(waitlisted);
+  // Payments and email delivery per shop (19.12): nothing counts payment events in the practice world yet.
+  const deliveryStats = fakeDeliveryStats();
   const room = createControlRoom({
     registry, auditLog, profileFiles, shopAccess: fakeShopAccess(), repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: fakeBreachStore(), registry, auditLog, now: clock.date }), people,
@@ -137,6 +146,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     // Nothing of Google is set up in the practice world, so the control room shows every item still to do.
     googleReady: (at) => googleReadiness(readGoogleConfig({}), at),
     taxWatch: async () => watchTaxLines({ invoices: [], now: clock.date().getTime() }),
+    delivery: deliveryReader({ deliveryStats, now: clock.date }),
   });
   const controls = createPlatformControls({
     admins, settingsStore: platformState, env: settingsEnv, activity, waitlist, signups: stores.signups, now: clock.date,
@@ -156,6 +166,17 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     applyRecovery: async (move) => recoveryByHand(move),
   });
 
+  // One timeline per shop, the jobs page and the private notes (19.10, 19.11, 19.13). The jobs this world can run by
+  // hand are the ones with nothing outside it; the rest answer "only on the server".
+  const timeline = createTimeline({ admins, registry, activity, supportStore, now: clock.date });
+  const jobRuns = fakeJobRuns();
+  const jobs = createJobs({ store: jobRuns, email, alertTo: ADMIN_EMAIL, now: clock.date });
+  const jobsPage = createJobsPage({
+    admins, runner: jobs, activity, now: clock.date,
+    jobs: { "shop-maker": () => shopMaker.sweep(), "dropped-apps": () => billing.closeDroppedApps(), "card-expiry": () => billing.cardExpiryReminders() },
+  });
+  const notes = createShopNotes({ admins, store: fakeShopNotes(), registry, activity, now: clock.date });
+
   // The platform's one web door: sign-up, the shop maker's Try again, accounts, billing and the control room.
   const door = createApi({
     signup, verifyIdToken: fakeVerifyIdToken, settings, live,
@@ -168,6 +189,9 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
       ...emergencyRoutes(backup),
       ...supportRoutes(support),
       ...recoveryRoutes(recovery),
+      ...timelineRoutes(timeline),
+      ...jobsRoutes(jobsPage),
+      ...notesRoutes(notes),
     },
     log: () => {},
   });
@@ -176,6 +200,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
     stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, ask, invites,
+    deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
     /** The shop's own database as the platform wrote it: a document, or null. */
     doc: (shopId, path) => services.world.docs.get(`${shopId} ${path}`) ?? null,
   };
