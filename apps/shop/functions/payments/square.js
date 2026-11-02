@@ -384,7 +384,16 @@ function createSquareProvider({ db, platform = null }) {
           parts[refund.id] = { fee: refundFee, net: -refund.amountMinor - refundFee, platformFee: -(refund.appFeeMinor || 0), currency };
         }
       }
-      return { parts };
+      // What Square said about the payment, in the words orderReview.js reads (Stripe's): Square's HIGH is its highest
+      // rating, MODERATE the elevated one; a rejected security code or postal code check is a fail.
+      const r = payment.risk;
+      const risk = r ? {
+        level: r.level === "HIGH" ? "highest" : r.level === "MODERATE" ? "elevated" : r.level ? "normal" : null,
+        cvcCheck: r.cvvStatus === "CVV_REJECTED" ? "fail" : r.cvvStatus ? "pass" : null,
+        postalCheck: r.avsStatus === "AVS_REJECTED" ? "fail" : r.avsStatus ? "pass" : null,
+        cardCountry: r.cardCountry || null,
+      } : null;
+      return { parts, risk };
     });
   }
 

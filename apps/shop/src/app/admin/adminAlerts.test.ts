@@ -60,6 +60,21 @@ describe("buildAdminAlerts", () => {
   });
 });
 
+describe("orders held for review", () => {
+  const held = (id: string, extra: object = {}) => ({ id, orderId: id, paymentStatus: "paid", status: "open", createdAt: ago(60), review: { status: "needs_review" }, ...extra });
+  it("counts paid orders flagged as risky until the owner clears them", () => {
+    const a = buildAdminAlerts([held("A"), held("B"), held("C", { operations: { reviewCleared: true } })], null, now);
+    expect(a.find((x) => x.id === "review-held")).toMatchObject({ tone: "warning", title: "2 orders are held for review", orderIds: ["A", "B"], action: "orders" });
+  });
+  it("says it in the singular and ignores shipped, cancelled and test orders", () => {
+    const a = buildAdminAlerts([held("A"), held("S", { fulfillmentStatus: "shipped" }), held("X", { status: "cancelled" }), held("T", { isTest: true })], null, now);
+    expect(a.find((x) => x.id === "review-held")).toMatchObject({ title: "1 order is held for review", orderIds: ["A"], action: "order" });
+  });
+  it("shows nothing when no order is held", () => {
+    expect(ids(buildAdminAlerts([{ id: "A", paymentStatus: "paid", status: "open", createdAt: ago(60) }], null, now))).not.toContain("review-held");
+  });
+});
+
 describe("operational alerts", () => {
   it("ages fulfillment from payment, with legacy creation fallback", () => {
     const rows = buildAdminAlerts([
