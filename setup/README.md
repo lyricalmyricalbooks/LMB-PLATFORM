@@ -134,7 +134,7 @@ real clients, all from `clients/` (each tested there with a fake `fetch` that ch
 | `deploy` | `clients/deploy.js` | Reads what is live over REST (rules stamp, functions' `SHOP_RELEASE_VERSION`, Hosting release message); deploys with the Firebase command line in the release's build folder |
 | `envFiles`, `profileFiles` | `clients/shop.js` | Registry documents `shops/<id>/files/<name>`, copied into each shop's deploy by the release build |
 | `shopData`, `stockroom` | `clients/shop.js` | Firestore: the shop's database, the stockroom's named database `stockroom` (plan 1.20) |
-| `inventoryLink` | `clients/shop.js` | The shop's own link admin call, as the test owner (`clients/identity.js`); test shop only |
+| `inventoryLink` | `clients/shop.js` | The shop's own link admin call, as the test owner (`clients/identity.js`); every shop with both apps (step 16, plan 17.12) |
 | `siteCheck` | `clients/shop.js` | A plain GET |
 | `registry`, `auditLog` | `clients/registry.js` | Firestore in the platform project, and the shop's `audit-log` |
 | `providers.stripe`, `email` | `services/payments`, `services/email` | The services themselves; their stores are `clients/stores.js` |
