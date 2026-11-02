@@ -66,8 +66,8 @@ export function StockistsCard() {
         : !items ? <p className="rp-hint">Loading trade accounts…</p> : (
         <div style={{ display: "grid", gap: 16 }}>
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", alignItems: "start" }}>
-            <TextField label="Shop name" placeholder="Corner Books" value={name} onChange={e => setName(e.target.value)} />
-            <TextField label="Sign-in email" placeholder="orders@cornerbooks.example" value={email} onChange={e => setEmail(e.target.value)} hint="They must sign in with this email at checkout." />
+            <TextField label="Shop name" placeholder="Main Street Goods" value={name} onChange={e => setName(e.target.value)} />
+            <TextField label="Sign-in email" placeholder="orders@mainstreetgoods.example" value={email} onChange={e => setEmail(e.target.value)} hint="They must sign in with this email at checkout." />
           </div>
           {problem && <p className="rp-hint" role="alert" style={{ margin: 0 }}>{problem}</p>}
           <div><PrimaryButton onClick={add} disabled={busy || !!problem || !id || !name.trim()}>Approve shop</PrimaryButton></div>
