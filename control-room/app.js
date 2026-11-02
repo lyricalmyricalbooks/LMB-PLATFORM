@@ -38,6 +38,13 @@ async function api(method, path, body) {
 }
 
 const askWhy = (what) => (window.prompt(`${what}\n\nWhy? This goes in the shop's log (at least 10 characters).`) ?? "").trim();
+/** "$1.20 of $10" from a shop's budget notices (plan 15.17), or a dash before the first one. */
+function costCell(cost) {
+  if (!cost) return el("span", { className: "rp-hint", textContent: "—" });
+  const money = (n) => `${cost.currency === "USD" || !cost.currency ? "$" : `${cost.currency} `}${Number(n).toFixed(Number(n) % 1 ? 2 : 0)}`;
+  return el("div", {}, el("span", { textContent: money(cost.amount) }), cost.budget ? meta(`of ${money(cost.budget)} alert`) : null);
+}
+
 const LEVEL = { problem: "Problem", watch: "Look", ok: "OK" };
 const SWITCH_WORDS = {
   legacyStockroomSignIn: "Old stockroom sign-in",
@@ -192,6 +199,7 @@ function showShops() {
       { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null)) },
       { header: "Plan", render: (shop) => PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" },
       { header: "Billing", render: (shop) => (shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : el("span", { className: "rp-hint", textContent: shop.access ?? "none" })) },
+      { header: "Cost this month", render: (shop) => costCell(shop.costThisMonth) },
       { header: "Health", render: (shop) => el("div", {}, pill(TONE[shop.health.level], LEVEL[shop.health.level]), shop.health.reasons[0] ? meta(shop.health.reasons[0]) : null) },
       { header: "Version", render: (shop) => el("span", { className: "rp-mono", style: "white-space: nowrap", textContent: shop.version ?? "none yet" }) },
       { header: "", end: true, render: (shop) => { const open = button("Open", "secondary"); open.addEventListener("click", () => openShop(shop)); return open; } },

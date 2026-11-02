@@ -135,6 +135,8 @@ export function fakeGoogle({ failOnce = [] } = {}) {
     unsignedReadStatus: 403,
     // Scheduled jobs by project (a set of job ids) and the projects whose build repository has the cleanup rule (plan 15.16).
     schedulerJobs: new Map(), buildCleanup: new Set(),
+    // Budgets on the billing account (plan 15.17): { id, displayName, body }.
+    budgets: [],
   };
   const calls = [];
   const failures = [...failOnce];
@@ -271,6 +273,16 @@ export function fakeGoogle({ failOnce = [] } = {}) {
         change("scheduler.deleteJob", projectId, id);
         world.schedulerJobs.get(projectId)?.delete(id);
       },
+    },
+    budgets: {
+      list: async () => world.budgets.map(({ id, displayName, body }) => ({ id, name: `billingAccounts/x/budgets/${id}`, displayName, cap: Boolean(body.spendCap) })),
+      async create(billingAccount, body) {
+        change("budgets.create", body.displayName);
+        const id = `budget-${world.budgets.length + 1}`;
+        world.budgets.push({ id, displayName: body.displayName, body, billingAccount });
+        return { id, name: `${billingAccount}/budgets/${id}` };
+      },
+      projectNumber: async (projectId) => number(projectId),
     },
     buildCleanup: {
       has: async (projectId) => (world.firebase.has(projectId) ? world.buildCleanup.has(projectId) : null),

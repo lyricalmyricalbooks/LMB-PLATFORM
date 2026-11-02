@@ -30,7 +30,7 @@ export function BringShopStage({ books, onDone }: { books: any[] | null; onDone:
   if (books === null) {
     return (
       <SectionCard title="Get started · Step 2 of 8: bring your shop with you" collapsible={false}>
-        <LoadingState label="Opening your products…" />
+        <LoadingState label="Opening your shop…" />
       </SectionCard>
     );
   }

@@ -238,3 +238,18 @@ test("the page: one sign-in, every shop, owners manage the team; built without m
   const words = (page + app).toLowerCase();
   for (const rival of ["big cartel", "bigcartel", "shopify", "squarespace", "etsy", "wix", "woocommerce"]) assert.ok(!words.includes(rival), rival);
 });
+
+test("a paid shop's owner needs the second step to change the team; looking and a trial don't (plan 14.1)", async () => {
+  const w = world();
+  const TWO = { ...OWNER, firebase: { sign_in_second_factor: "totp" } };
+  // On the trial (no paid plan yet) nothing is asked.
+  assert.equal((await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: CAL.email, role: "staff" })).status, 200);
+  w.registry.shops.get(SHOP).billing = { access: "open", status: "active" };
+  assert.equal((await w.ask(OWNER, "POST", "/api/accounts/team", { shopId: SHOP })).status, 200);
+  for (const [path, body] of [["invite", { email: BEA.email, role: "staff" }], ["role", { email: CAL.email, role: "author" }], ["remove", { email: CAL.email }]]) {
+    const refused = await w.ask(OWNER, "POST", `/api/accounts/${path}`, { shopId: SHOP, ...body });
+    assert.equal(refused.status, 403, path);
+    assert.match(refused.body.message, /two-step/);
+  }
+  assert.equal((await w.ask(TWO, "POST", "/api/accounts/invite", { shopId: SHOP, email: BEA.email, role: "staff" })).status, 200);
+});
