@@ -39,6 +39,7 @@ import { ensureServiceKey, hasServiceKey } from "./serviceKey.js";
 import { testCatalogue } from "./test-catalogue.js";
 import { upkeepStep } from "./upkeep.js";
 import { spendGuardsStep } from "./spend.js";
+import { botCheckStep } from "./botCheck.js";
 import { domainOrigins, siteUrlOf } from "../services/domains/names.js";
 
 export const OWNER_WELCOME = "owner-welcome";
@@ -340,6 +341,8 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     upkeepStep({ number: 17, google, config }),
     // Plan 15.17: a spend alert and a spend cap per shop (setup/spend.js); nothing until the platform's side is set up.
     spendGuardsStep({ number: 18, google, registry, config }),
+    // Plan 15.18: a longer bot check token lifetime, to stay inside the free assessments (setup/botCheck.js).
+    botCheckStep({ number: 19, google, config }),
   ];
 }
 
@@ -361,7 +364,7 @@ function shopOnly(step) {
   };
 }
 
-/** All eighteen steps, in order. One `config` holds the platform settings both halves read (see each for its keys). */
+/** All nineteen steps, in order. One `config` holds the platform settings both halves read (see each for its keys). */
 export function shopSteps({ config, ...clients }) {
   return [...firstSteps({ ...clients, config }), ...laterSteps({ ...clients, config })];
 }

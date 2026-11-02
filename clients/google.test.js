@@ -308,3 +308,30 @@ test("budgets: lists every page by name and creates one (plan 15.17)", async () 
   assert.equal(await google.budgets.projectNumber(P), "123456789012");
   fetch.done();
 });
+
+test("app check: the token lifetime is read in minutes (60 when unset), null without a configuration, and set as seconds (plan 15.18)", async () => {
+  const cfg = "https://firebaseappcheck.googleapis.com/v1/projects/123456789012/apps/1:1:web:a/recaptchaEnterpriseConfig";
+  const { fetch, google } = clients([
+    firebaseProject, { method: "GET", url: cfg, ...notFound },
+    firebaseProject, { method: "GET", url: cfg, json: { siteKey: "k" } },
+    firebaseProject, { method: "GET", url: cfg, json: { siteKey: "k", tokenTtl: "43200s" } },
+    firebaseProject, { method: "PATCH", url: `${cfg}?updateMask=tokenTtl`, body: { tokenTtl: "43200s" }, json: {} },
+  ]);
+  assert.equal(await google.appCheck.tokenMinutes(P, "1:1:web:a"), null);
+  assert.equal(await google.appCheck.tokenMinutes(P, "1:1:web:a"), 60);
+  assert.equal(await google.appCheck.tokenMinutes(P, "1:1:web:a"), 720);
+  await google.appCheck.setTokenMinutes(P, "1:1:web:a", 720);
+  fetch.done();
+});
+
+test("monitoring: the month's assessments are summed from the metric (plan 15.18)", async () => {
+  const url = `https://monitoring.googleapis.com/v3/projects/${P}/timeSeries?filter=metric.type%3D%22recaptchaenterprise.googleapis.com%2Fassessment_count%22&interval.startTime=2026-11-01T00%3A00%3A00.000Z&interval.endTime=2026-11-02T00%3A00%3A00.000Z&aggregation.alignmentPeriod=86400s&aggregation.perSeriesAligner=ALIGN_SUM&aggregation.crossSeriesReducer=REDUCE_SUM`;
+  const { fetch, google } = clients([
+    { method: "GET", url, json: { timeSeries: [{ points: [{ value: { int64Value: "120" } }, { value: { int64Value: "30" } }] }] } },
+    { method: "GET", url, json: {} },
+  ]);
+  const range = { from: "2026-11-01T00:00:00.000Z", to: "2026-11-02T00:00:00.000Z" };
+  assert.equal(await google.monitoring.assessments(P, range), 150);
+  assert.equal(await google.monitoring.assessments(P, range), 0);
+  fetch.done();
+});
