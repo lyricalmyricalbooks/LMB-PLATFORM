@@ -884,6 +884,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "coLineIncludes", label: "Box set contents under a line", default: "Includes {items}", hint: "Use {items} for the books, e.g. “2 × Title, 1 × Title”." },
       { key: "coLineGiftCardFor", label: "Gift card recipient under a line", default: "For {recipient}", hint: "Use {recipient} for the recipient’s name or email." },
       { key: "coTaxLater", label: "Tax placeholder", default: "Calculated at checkout" },
+      { key: "coDuties", label: "Duties note · parcels abroad", multiline: true, default: "Parcels to {country} may be charged import duties and taxes when they arrive. These are paid to the carrier or customs, not to us, and aren’t in your total.", hint: "Use {country} for the shopper’s country." },
+      { key: "coDutiesEstimate", label: "Duties note · with an estimate", multiline: true, default: "Parcels to {country} may be charged import duties and taxes when they arrive: roughly {amount} ({rate}% of your goods). These are paid to the carrier or customs, not to us, and aren’t in your total.", hint: "Use {country}, {amount} and {rate}." },
       { key: "coPacked", label: "Reassurance title", default: "Carefully packed and tracked" },
       { key: "coPickup", label: "Pickup note", default: "Collect in person — no delivery" },
       { key: "coCarrierTransit", label: "Carrier transit estimate", default: "Estimated {days} business days after dispatch", hint: "Use {days} for the carrier transit estimate for this address and service." },
