@@ -47,7 +47,7 @@ test("every page a press opens says nothing technical", () => {
 
 // Files whose quoted words reach a press: the page scripts, the replies the services give them, and their words.
 const PRESS_FACING_CODE = [
-  "help/errorHelp.js", "signup/app.js", "signup/form.js", "signup/signup.js", "signup/shopMaker.js", "signup/api.js",
+  "help/errorHelp.js", "services/checkup/index.js", "signup/app.js", "signup/form.js", "signup/signup.js", "signup/shopMaker.js", "signup/api.js",
   "accounts/accounts.js", "accounts/app.js", "accounts/billing.js", "accounts/billingWords.js", "accounts/billingRoutes.js",
   "accounts/devices.js", "accounts/recovery.js", "accounts/recoveryRoutes.js", "accounts/roles.js", "accounts/routes.js", "accounts/teamSync.js",
   "help/articles.js", "help/page.js", "help/support.js", "experts/directory.js", "experts/page.js", "status/page.js", "status/summary.js", "terms/page.js", "terms/terms.js",
@@ -191,6 +191,10 @@ const PRESS_EMAILS = {
   "recovery-denied": [{ oldEmail: "old@example.com", reason: "We couldn't check who you are." }],
   "recovery-applied": [{ oldEmail: "old@example.com", newEmail: "new@example.com" }],
   "trial-tip": Object.values(TIPS).map((tip) => ({ subject: tip.subject, paragraphs: tip.paragraphs, action: tip.action, link: LINK, offLink: LINK })),
+  "shop-checkup": [
+    { lines: [{ state: "ok", words: "Every link we tried on your shop works." }], offLink: LINK },
+    { lines: [{ state: "fix", words: "3 items have no description. A few lines about each helps people choose, and helps your shop show up in searches.", fix: { label: "Write the descriptions", link: LINK } }, { state: "ok", words: "Your shop opens quickly on a phone." }], offLink: LINK },
+  ],
   "shop-closed": [{ date: "30 January 2027", link: LINK }],
   "shop-deletion-warning": [{ date: "30 January 2027", days: 30, link: LINK }, { date: "30 January 2027", days: 7, link: LINK }],
   "shop-deleted": [{}],
