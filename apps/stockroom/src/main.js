@@ -1139,10 +1139,10 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, switchOn } from './lib/shop-profile.js';
+import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, shopProfile, switchOn } from './lib/shop-profile.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
-import { catalogGroups, groupOf, sizeItem } from './lib/product-groups.js';
-import { applyPageWords, words } from './lib/shop-words.js';
+import { catalogGroups, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
+import { applyPageWords, sellsBooks, words } from './lib/shop-words.js';
 // The page's own words follow what the shop sells (plan 10.23): "product" and "maker" for a shop that doesn't sell books.
 applyPageWords(document.body);
 
@@ -1707,6 +1707,9 @@ function resetBookForm() {
   $('nb-price').value = '40';
   $('nb-cur').value = '€';
   $('nb-thresh').value = '10';
+  if ($('nb-grid-sizes')) { $('nb-grid-sizes').value = ''; $('nb-grid-colours').value = ''; }
+  // Sizes and colours are for a new product in a shop that doesn't sell books.
+  if ($('nb-grid')) $('nb-grid').hidden = sellsBooks(shopProfile?.sells);
   $('nb-accent').value = '#E8402A';
   onCustomAccentInput('#E8402A');
   $('nb-pw').value = '';
@@ -1772,6 +1775,7 @@ function openEditBookModal(id) {
   const book = BOOKS[id];
   if (!book) return;
   editingBookId = id;
+  if ($('nb-grid')) $('nb-grid').hidden = true;
   if ($('book-modal-badge')) $('book-modal-badge').textContent = '📖 Project Settings';
   $('add-book-modal-title').textContent = `${words('Edit book')} · ${book.title}`;
   $('add-book-save-btn').textContent = 'Save Changes';
@@ -2460,7 +2464,11 @@ async function saveBookFromModal() {
   // Book id doubles as a database key and is used in URLs/handlers, so
   // restrict it to a safe slug (lowercase letters, digits, dashes).
   const rawId = $('nb-id').value.trim();
-  const id = rawId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  let id = rawId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  // Plan 12.3: sizes and colours typed on a new product make one item per combination; the saved item is the first.
+  const gridBase = $('nb-title').value.trim();
+  const gridMore = !editingBookId ? gridOffers($('nb-grid-sizes')?.value, $('nb-grid-colours')?.value) : [];
+  if (gridMore.length) id = freeItemId(`${id} ${gridMore[0].edition}`, new Set(Object.keys(BOOKS)));
 
   await syncCatalog();
   if (catalogLoadFailed) {
@@ -2494,7 +2502,7 @@ async function saveBookFromModal() {
     // Start from the stored book so fields this form doesn't list survive an edit.
     ...currentBook,
     id,
-    title: $('nb-title').value.trim(),
+    title: gridMore.length ? `${gridBase} · ${gridMore[0].edition}` : $('nb-title').value.trim(),
     author: $('nb-author').value.trim(),
     isbn: $('nb-isbn').value.trim() || '—',
     maxPrint: parseInt($('nb-max').value, 10),
@@ -2523,6 +2531,7 @@ async function saveBookFromModal() {
   };
   // A size of a website product joins its product's group (plan 10.5).
   if (!editingBookId && _bookFromWebsiteGroup) book.group = _bookFromWebsiteGroup;
+  if (gridMore.length) book.group = { id: `grid-${freeItemId(gridBase, new Set())}`, name: gridBase };
 
 
   // A currency change re-denominates every figure already on the books, so ask
@@ -2615,6 +2624,7 @@ async function saveBookFromModal() {
   // to this book (read before the form closes, which forgets it).
   const fromWebsiteKey = !editingBookId ? _bookFromWebsiteKey : '';
   const fromWebsiteSizes = fromWebsiteKey ? _bookFromWebsiteSizes : [];
+  const gridRest = gridMore.slice(1);
   _bookFromWebsiteKey = '';
   _bookFromWebsiteGroup = null;
   _bookFromWebsiteSizes = [];
@@ -2642,6 +2652,31 @@ async function saveBookFromModal() {
   if (currencyResult) await offerSheetsResyncAfterRestate(currencyResult.to);
   // Plan 10.5: the website's other sizes of this product, also asked once the form is closed.
   if (fromWebsiteSizes.length) await addOtherSizes(id, fromWebsiteSizes);
+  if (gridRest.length) await addGridSizes(id, gridRest, gridBase);
+}
+
+/**
+ * Plan 12.3: the other combinations of sizes and colours typed on the new product's form. The owner asked for them
+ * by typing them, so there is no question: each is its own item (own stock count, ledger and low-stock alert) with
+ * the saved item's settings.
+ */
+async function addGridSizes(savedId, offers, baseName) {
+  const saved = BOOKS[savedId];
+  if (!saved || !groupOf(saved) || !offers.length) return;
+  const taken = new Set(Object.keys(BOOKS));
+  for (const offer of offers) {
+    const item = sizeItem(saved, { ...offer, price: saved.listPrice, isbn: '' }, `${baseName} · ${offer.edition}`, taken);
+    taken.add(item.id);
+    BOOKS[item.id] = item;
+    states[item.id] = defaultState(item);
+  }
+  refreshBookList();
+  await persistProductionCosts();
+  await saveCatalogWithDeletions();
+  buildBookSwitcher();
+  renderCatalogList();
+  renderProfitSettings();
+  showToast(`✓ ${offers.length + 1} sizes and colours of ${baseName} added`);
 }
 
 /**
