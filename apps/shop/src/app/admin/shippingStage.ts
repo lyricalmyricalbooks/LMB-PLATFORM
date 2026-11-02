@@ -60,7 +60,7 @@ export function starterProfile(starter: ShippingStarter, newId: () => string) {
   return buildNewProfile({ name: STARTER_PROFILE_NAME, starter, prices: starterPrices(starter) }, newId);
 }
 
-/** Whether the step is still to show: a press that went through step 1 (its details), is not a stockroom-only plan, has its look, and hasn't finished this step. Shops made before Get started never see it. */
-export function shippingStepShows(doc: { details?: unknown; plan?: string; welcome?: unknown; shipping?: unknown } | null): boolean {
-  return !!doc && !!doc.details && doc.plan !== "stockroom" && !!doc.welcome && !doc.shipping;
+/** Whether the step is still to show: a press that went through step 1 (its details), is not a stockroom-only plan, has its look and Google (step 4), and hasn't finished this step. Shops made before Get started never see it. */
+export function shippingStepShows(doc: { details?: unknown; plan?: string; welcome?: unknown; google?: unknown; shipping?: unknown } | null): boolean {
+  return !!doc && !!doc.details && doc.plan !== "stockroom" && !!doc.welcome && !!doc.google && !doc.shipping;
 }

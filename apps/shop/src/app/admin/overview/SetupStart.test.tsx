@@ -46,7 +46,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("a new shop sees the welcome first, with the press's name, suggestions and every look", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(text()).not.toContain("Set up your shop");
@@ -57,7 +57,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("choosing applies the look to the draft once, records it, and then shows the guide", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
     await flush();
@@ -73,7 +73,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("Skip takes the first suggestion and says so", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { button("Skip for now")!.click(); });
     await flush();
@@ -81,7 +81,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("a failed save keeps the welcome up with a plain message", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     store.saveDraft.mockRejectedValueOnce(new Error("offline"));
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
@@ -256,7 +256,7 @@ describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
 
 describe("Choose your look as step 3 of 8, with the press's first book (plan 17.8)", () => {
   it("the look says it is step 3 of 8, and its previews show the first book's photo", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({ books: [{ id: "b1", title: "Salt", photos: [{ url: "https://cdn.example/salt.jpg" }] }] });
     expect(text()).toContain("Step 3 of 8");
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
@@ -266,7 +266,7 @@ describe("Choose your look as step 3 of 8, with the press's first book (plan 17.
 
 describe("Get started, step 8 inside the run (plan 17.13)", () => {
   it("after shipping, the final check shows; Finish later hands back to the setup guide", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, welcome: { theme: "zine", at: "then" }, shipping: { at: "then", skipped: true } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, welcome: { theme: "zine", at: "then" }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true } });
     await mount({ waitForWelcome: false });
     expect(text()).toContain("Get started · Step 8 of 8: final check and open");
     await act(async () => { button("Finish later")!.click(); });

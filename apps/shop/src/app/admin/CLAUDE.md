@@ -511,7 +511,7 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   (`shopWords.tsx`, `useShopWords()`); the menu, page titles, the product list and the product editor use it (the
   editor follows the product's own kind). Wrap new admin words with `w(...)` on those pages.
 
-## Get started: your press first (29 October 2026, code plan 17.1 to 17.4, 17.8, 17.11 and 17.13)
+## Get started: your press first (29 October 2026, code plan 17.1 to 17.4, 17.8, 17.9, 17.11 and 17.13)
 
 The first-visit run at the top of a new shop's Overview (`overview/SetupStart.tsx`) is **Get started**, eight steps in
 order. Built so far:
@@ -541,7 +541,15 @@ order. Built so far:
   `onSetWall` the guide uses) and records `finalCheck: { at, opened: true }`. **Finish later** shows the setup guide without
   recording anything. The step doesn't show once the shop is open.
 
-A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (17.5, 17.6, 17.9, 17.10 and
+- **Step 4 of 8, Google in one sign-in** (`overview/GoogleStage.tsx`, pure marker and lines in `googleStage.ts`, plan 17.9):
+  one **Connect Google** (`googleConnectApi.connectLink`, the 6.17 sign-in). While Google hasn't approved it for Colophon
+  shops, the step says it is coming and the run goes on (decision 2). Once connected it lists each part Google linked, in
+  plain words. **Connect later** is always there. Recorded as `google: { at, connected? | coming? | skipped? }`.
+
+**The order of the run lives in one place**, `startRun.ts` (`nextRunStep`): your press, bring your shop, the look, Google,
+shipping, the final check. Steps 5 and 7 join that function when they are built.
+
+A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (17.5, 17.6, 17.10 and
 17.12): more import layouts (needs a real sample from each builder), photos given as links, Google, payments and
 the stockroom. The run sits at the top of the Overview;
 it doesn't yet replace the whole screen (a separate start page is a later change).

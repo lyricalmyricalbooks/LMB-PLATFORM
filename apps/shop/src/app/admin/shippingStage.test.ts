@@ -42,10 +42,13 @@ describe("the ship-from address is checked the way step 1 checks it", () => {
 });
 
 describe("the step shows only for a press that went through Get started", () => {
-  const started = { details: { at: "a" }, plan: "both", welcome: { theme: "x", at: "a" } };
+  const started = { details: { at: "a" }, plan: "both", welcome: { theme: "x", at: "a" }, google: { at: "a", coming: true } };
   it("shows after the look, until it is finished", () => {
     expect(shippingStepShows(started)).toBe(true);
     expect(shippingStepShows({ ...started, shipping: { at: "b" } })).toBe(false);
+  });
+  it("waits for Google (step 4) before it shows", () => {
+    expect(shippingStepShows({ ...started, google: undefined })).toBe(false);
   });
   it("never shows for an older shop, a stockroom-only plan, or before the look", () => {
     expect(shippingStepShows({ plan: "both", welcome: { theme: "x", at: "a" } })).toBe(false);
