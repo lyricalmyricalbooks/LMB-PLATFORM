@@ -53,6 +53,13 @@ once and logged (done, refused or failed) in the registry and the shop's audit l
 The web door adds them with `routes: { ...accountRoutes(accounts), ...billingRoutes({ billing, accounts, registry,
 auditLog, settings }) }`.
 
+## Two-step sign-in for owners (`twoStep.js`, plan 14.1)
+
+When a shop's plan is paid, its owner needs a code from an authenticator app (the second step on the sign-in pass) to
+change the card, the plan, cancel, switch how the shop pays, or change the team. Looking, previewing a plan change and a
+trial need nothing. The page asks for the code at sign-in and has **Set up two-step sign-in** with a QR code. It needs
+two-step sign-in turned on in the platform's Firebase project, the same switch as the control room's (9.1).
+
 ## Roles
 
 The shop's own roles (`apps/shop/functions/roles.js`), named in `roles.js`:

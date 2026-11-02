@@ -21,6 +21,7 @@
 import { createHash } from "node:crypto";
 import { personOf, SignupError } from "../signup/signup.js";
 import { paymentWayView } from "../services/billing/paymentWay.js";
+import { ownerTwoStepProblem } from "./twoStep.js";
 
 /** This shop's Plan & billing page: the one place a card page may send people back to. */
 export const billingPage = (settings, shopId) => `${settings.platformUrl}/account/billing?shop=${encodeURIComponent(shopId)}`;
@@ -42,7 +43,7 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
   }
 
   /** Runs one call for the shop's owner, logging it either way. */
-  function ownerCall(call, run) {
+  function ownerCall(call, run, { secondStep = false } = {}) {
     return async (claims, request) => {
       const person = personOf(claims);
       const { shopId } = body(request);
@@ -50,6 +51,13 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
       if ((await accounts.roleIn(person, shopId)) !== "owner") {
         await log(shopId, call, person.email, "refused");
         throw new SignupError(403, "Only the shop's owner can see or change its plan.");
+      }
+      // A paid plan's changes need the second step (plan 14.1); looking is free.
+      const asked = body(request);
+      const problem = (typeof secondStep === "function" ? secondStep(asked) : secondStep) ? ownerTwoStepProblem(claims, await registry.getShop(shopId)) : null;
+      if (problem) {
+        await log(shopId, call, person.email, "refused: needs two-step sign-in");
+        throw new SignupError(problem.status, problem.message);
       }
       try {
         const answer = await run(shopId, body(request));
@@ -64,11 +72,11 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
 
   return {
     "POST /api/billing/status": ownerCall("status", async (shopId) => ({ billing: await billing.status(shopId) })),
-    "POST /api/billing/card": ownerCall("card", async (shopId) => billing.cardLink({ shopId, returnUrl: billingPage(settings, shopId) })),
+    "POST /api/billing/card": ownerCall("card", async (shopId) => billing.cardLink({ shopId, returnUrl: billingPage(settings, shopId) }), { secondStep: true }),
     "POST /api/billing/cancel": ownerCall("cancel", async (shopId, { reason, words }) => {
       const row = await billing.cancel({ shopId, reason, words });
       return { cancelAtPeriodEnd: Boolean(row.cancelAtPeriodEnd) };
-    }),
+    }, { secondStep: true }),
     "POST /api/billing/keep": ownerCall("keep", async (shopId) => {
       const row = await billing.keep({ shopId });
       return { cancelAtPeriodEnd: Boolean(row.cancelAtPeriodEnd) };
@@ -77,7 +85,7 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
       if (preview === true) return { preview: await billing.changePlan({ shopId, plan, preview: true }) };
       const row = await billing.changePlan({ shopId, plan });
       return { plan: row.plan, changed: row.changed };
-    }),
+    }, { secondStep: (asked) => asked.preview !== true }),
     "POST /api/billing/invoices": ownerCall("invoices", async (shopId) => ({ invoices: await billing.invoices(shopId) })),
     ...(paymentWay ? {
       "POST /api/billing/payment-way": ownerCall("payment-way", async (shopId) => {
@@ -87,7 +95,7 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
       "POST /api/billing/payment-way/switch": ownerCall("payment-way-switch", async (shopId, { to }) => {
         const { changed, ...status } = await paymentWay.switchPaymentWay({ shopId, to });
         return { view: paymentWayView(status, settings), status, changed };
-      }),
+      }, { secondStep: true }),
     } : {}),
   };
 }

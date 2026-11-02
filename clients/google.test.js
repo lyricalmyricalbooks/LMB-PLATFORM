@@ -294,3 +294,17 @@ test("build cleanup: the rule is added next to others and the dry run is turned 
   assert.equal(await google.buildCleanup.has(P, region), true);
   fetch.done();
 });
+
+test("budgets: lists every page by name and creates one (plan 15.17)", async () => {
+  const base = "https://billingbudgets.googleapis.com/v1/billingAccounts/0-0-0/budgets";
+  const { fetch, google } = clients([
+    { method: "GET", url: `${base}?pageSize=100`, json: { budgets: [{ name: "billingAccounts/0-0-0/budgets/b1", displayName: `shop:${P}` }], nextPageToken: "n" } },
+    { method: "GET", url: `${base}?pageSize=100&pageToken=n`, json: { budgets: [{ name: "billingAccounts/0-0-0/budgets/b2", displayName: `cap:${P}`, spendCap: { inputState: "CONFIGURED" } }] } },
+    { method: "POST", url: base, body: { displayName: "x" }, json: { name: "billingAccounts/0-0-0/budgets/b3" } },
+    firebaseProject,
+  ]);
+  assert.deepEqual((await google.budgets.list("billingAccounts/0-0-0")).map((b) => [b.id, b.displayName, b.cap]), [["b1", `shop:${P}`, false], ["b2", `cap:${P}`, true]]);
+  assert.deepEqual(await google.budgets.create("billingAccounts/0-0-0", { displayName: "x" }), { id: "b3", name: "billingAccounts/0-0-0/budgets/b3" });
+  assert.equal(await google.budgets.projectNumber(P), "123456789012");
+  fetch.done();
+});
