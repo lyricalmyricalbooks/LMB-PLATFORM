@@ -3,6 +3,7 @@ import { BookImportDialog } from "../BookImportDialog";
 import { BRING_ANSWERS, bringHelp, bringMarker, type BringAnswer, type BringMarker } from "../bringShop";
 import { friendlyError } from "../studio/friendlyError";
 import { LoadingState, PrimaryButton, SecondaryButton, SectionCard } from "../riso/components";
+import { useShopWords } from "../shopWords";
 
 /**
  * Get started, step 2 (plan 17.3): "Where do you sell now?", the plain steps for that answer (17.4), then the Books
@@ -10,6 +11,7 @@ import { LoadingState, PrimaryButton, SecondaryButton, SectionCard } from "../ri
  * starts fresh (recorded as skipped). `books` is null while the catalog loads, so an import can't mistake a book for a new one.
  */
 export function BringShopStage({ books, onDone }: { books: any[] | null; onDone: (bring: BringMarker) => Promise<void> }) {
+  const w = useShopWords();
   const [answer, setAnswer] = useState<BringAnswer | "">("");
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState<number | null>(null);
@@ -30,7 +32,7 @@ export function BringShopStage({ books, onDone }: { books: any[] | null; onDone:
   if (books === null) {
     return (
       <SectionCard title="Get started · Step 2 of 8: bring your shop with you" collapsible={false}>
-        <LoadingState label="Opening your books…" />
+        <LoadingState label={w("Opening your books…")} />
       </SectionCard>
     );
   }
