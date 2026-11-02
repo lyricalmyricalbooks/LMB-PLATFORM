@@ -591,3 +591,12 @@ name another system. The stockroom's matching stock file is `apps/stockroom/src/
 books: `BookImportDialog` reads the sign-up answer from `ShopSellsContext` (Dashboard). A books shop keeps today's
 editions list, so an old shop's "Format: Hardcover" never turns into option buttons. `productsForAnotherShop` writes a
 product's own Option1–3 Name/Value (names on its first line), so the export and import round-trip.
+
+## Messages from Colophon (plan 19.14, 2 November 2026)
+
+The platform's control room writes the admin-only `platform/messages` document (`{ messages: [{ id, words, level,
+startsAt, endsAt }] }`, rules: admins read, no browser writes). `PlatformMessagesBar` (`PlatformMessages.tsx`, under
+`PlanBannerBar` in `Dashboard.tsx`) shows each message between its dates as an `rp-alert` banner over every admin page
+(important ones in the warning tone), at most three, with Close kept in `localStorage` (`platformMessages.ts`
+`pickPlatformMessages`, tested in `platformMessages.test.ts`, which also checks nothing outside `app/admin` reads it). The
+storefront never imports it. Admin-only words, Studio-free.

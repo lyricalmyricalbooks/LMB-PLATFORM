@@ -47,6 +47,12 @@ import { fakeFeeLedgerStore } from "../services/payments/feeLedgerFakes.js";
 import { signatureHeader } from "../services/payments/stripeSignature.js";
 import { createStripeApi } from "../services/payments/stripeApi.js";
 import { liveSettings, platformSettings } from "../services/settings.js";
+import { createPressMessages, messageRoutes } from "../control-room/messages.js";
+import { fakePressMessages } from "../control-room/messagesFakes.js";
+import { costRoutes, createCostsDesk } from "../control-room/costs.js";
+import { createCostReader } from "../services/costs/costs.js";
+import { createDataExports, exportRoutes } from "../services/export/export.js";
+import { fakeExportStorage, fakeExportStore } from "../services/export/fakes.js";
 
 export const DAY = 86_400_000;
 const WEBHOOK_SECRET = "whsec_pretend_billing";
@@ -156,6 +162,19 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     applyRecovery: async (move) => recoveryByHand(move),
   });
 
+  // Messages to presses (19.14), what each shop costs (19.15; no billing export in the practice world, so the empty
+  // state) and a press's data on request (19.16).
+  const pressMessages = createPressMessages({ store: fakePressMessages(), registry, auditLog, shopData, email, activity, admins, now: clock.date });
+  const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now: clock.date });
+  const exportStorage = fakeExportStorage();
+  const listDocs = async (projectId, collection) => [...services.world.docs.entries()]
+    .filter(([k]) => k.startsWith(`${projectId} ${collection}/`) && !k.slice(`${projectId} ${collection}/`.length).includes("/"))
+    .map(([k, data]) => ({ id: k.slice(`${projectId} ${collection}/`.length), data: structuredClone(data) }));
+  const dataExports = createDataExports({
+    shopData: { ...shopData, list: listDocs }, stockroomData, storage: exportStorage, store: fakeExportStore(), registry, auditLog, activity, email,
+    roleIn: (who, shopId) => accounts.roleIn(who, shopId), admins, now: clock.date,
+  });
+
   // The platform's one web door: sign-up, the shop maker's Try again, accounts, billing and the control room.
   const door = createApi({
     signup, verifyIdToken: fakeVerifyIdToken, settings, live,
@@ -168,6 +187,9 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
       ...emergencyRoutes(backup),
       ...supportRoutes(support),
       ...recoveryRoutes(recovery),
+      ...messageRoutes(pressMessages),
+      ...costRoutes(costsDesk),
+      ...exportRoutes(dataExports),
     },
     log: () => {},
   });
@@ -176,6 +198,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
     stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, ask, invites,
+    pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */
     doc: (shopId, path) => services.world.docs.get(`${shopId} ${path}`) ?? null,
   };

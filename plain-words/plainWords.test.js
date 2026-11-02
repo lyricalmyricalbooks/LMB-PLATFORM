@@ -27,6 +27,9 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 const ALLOWED = [
   // Route tables name web addresses such as "POST /api/signup"; they are the platform's doors, never shown.
   // (Skipped by `isRouteLabel`, not allowed here.)
+  // The name of the note inside a press's data download (services/export, 19.16): a file name every computer opens,
+  // not the TXT record of web addresses.
+  "README.txt",
 ];
 const isRouteLabel = (text) => /^(GET|POST|PUT|PATCH|DELETE) \//.test(text);
 
@@ -57,6 +60,8 @@ const PRESS_FACING_CODE = [
   "services/email/templates.js", "services/email/closingTemplates.js", "services/email/reputation.js", "services/email/streams.js",
   // The steps of Connect Google, shown on the shop's Overview (6.17).
   "google/status.js", "google/service.js", "google/teardown.js", "google/gmail.js",
+  // Messages to presses and a press's data on request (19.14, 19.16): the emails, the export's README and refusals.
+  "services/email/pressTemplates.js", "services/export/export.js",
 ];
 // Not read, with the reason: services/domains and the domain card are row 6.15's; the control room, health alerts and
 // the backup person's emails go to Julian, not to a press; setup/steps.js names the steps for the audit log (the press
@@ -192,6 +197,8 @@ const PRESS_EMAILS = {
   "shop-closed": [{ date: "30 January 2027", link: LINK }],
   "shop-deletion-warning": [{ date: "30 January 2027", days: 30, link: LINK }, { date: "30 January 2027", days: 7, link: LINK }],
   "shop-deleted": [{}],
+  "press-message": [{ words: "New: shipping labels from your admin.", endsOn: "9 November 2026", link: SHOP_LINKS.shopAdmin }, { words: "Card payments pause tonight.\n\nNothing to do.", endsOn: "9 November 2026", link: null }],
+  "data-export-ready": [{ link: LINK, until: "9 November 2026", asked: "owner" }, { link: LINK, until: "9 November 2026", asked: "platform", reason: "your privacy request" }],
 };
 // Emails that go to Julian or to the support address, never to a press.
 const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new"];

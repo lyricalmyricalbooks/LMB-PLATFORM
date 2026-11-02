@@ -268,3 +268,50 @@ with `routes: platformRoutes(controls)`. Platform admins only.
   `PLATFORM_PRIVACY_CONTACT`.
 - **Permissions:** the platform's service account needs permission to manage each shop's users. It already has it as
   owner of the projects it makes.
+
+## Messages to presses (`messages.js`, plan 19.14)
+
+A note from the control room at the top of every shop admin it reaches, from a start to an end date. The status page's
+note (the run book) stays for outages.
+
+- **Who:** every shop, the shops on one plan (`shop`, `stockroom`, `both`), or one shop. Only live shops; a shop being
+  made or deleted gets nothing.
+- **What:** plain words, at most 400 characters, no page markup; `info` or `important`; an end date is required and at
+  most 60 days away; a start date is optional (now). A reason goes in the activity log (and a one-shop message in that
+  shop's history and audit log).
+- **Important** also emails each targeted owner once (`press-message`, key `press-message/<id>/<shopId>`, and the
+  message row keeps `emailed`), the stockroom-only presses too. Without an email service an important message is refused.
+- **How it reaches the shop:** the admin-only `platform/messages` document in the shop's own database, like billing's
+  `platform/plan`: `{ messages: [{ id, words, level, startsAt, endsAt }], updatedAt }`, every message for the shop that
+  hasn't ended, upcoming ones too. The shop admin shows each between its dates as a banner over every page, with Close
+  (kept in that browser), under the plan's banner (`apps/shop/src/app/admin/platformMessages.ts`, `PlatformMessages.tsx`).
+  The shop's rules let only its admins read it and no browser write it; the storefront never reads it. Not the shop
+  profile: `/shop-profile.js` is public and changing it means putting the shop's pages live again.
+- **End now** takes it off every shop at once. **`sweep()`** (nightly, beside the self-checks) rewrites every live shop's
+  document, so ended ones drop off and shops made since get theirs, and emails an important message still showing to an
+  owner who hasn't had it. Everything is safe to run twice; adding the same message again changes nothing.
+- Store: `pressMessages/<id>` in the platform project (`messagesFakes.js` `fakePressMessages`). The banner on the
+  stockroom's own pages is not built: a stockroom-only press gets the important ones by email.
+
+`createPressMessages({ store, registry, auditLog, shopData, email, activity, admins })`, added to the web door with
+`messageRoutes(messages)`:
+
+| Route | What |
+| --- | --- |
+| `GET /api/control/messages` | every message, newest first, with its state (showing, upcoming, ended) and how many shops it reaches |
+| `POST /api/control/messages/add` | `{ words, level, audience: { all: true } \| { plan } \| { shopId }, startsAt?, endsAt, reason }` |
+| `POST /api/control/messages/end` | `{ id, reason }` |
+
+## Costs (`costs.js`, plan 19.15)
+
+The **Costs** page: this month's Google bill per shop next to what the shop pays, the shops costing more than they pay
+first, then the projects that aren't a shop. `GET /api/control/costs` (`createCostsDesk({ registry, reader, settings,
+fees, admins })`, `costRoutes(desk)`); the sums and Julian's step to switch Google's billing export on are in
+`services/costs/README.md`. Until then the page says "Costs appear once Google's billing export is switched on."
+
+## A press's data (plan 19.16)
+
+**Email the press its data** in a shop's drawer: every collection of the shop and the stockroom's records as
+spreadsheet files, emailed to the owner as a link that works 7 days. It asks why; logged in the registry, the shop's
+audit log and the activity log before anything is built. `POST /api/control/export { shopId, reason }`
+(`services/export/README.md`).

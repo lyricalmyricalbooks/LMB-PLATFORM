@@ -32,6 +32,8 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `services/domains/` | A press's own web address from their shop's settings: saved, allowed to call the shop's server code, served by Firebase Hosting, then registered for Apple Pay and Google Pay. |
 | `google/` | Connect Google: one sign-in links the press's Analytics, Search Console, Google Shopping, own web address, email sending and the optional extras, and one teardown undoes it on the closing timeline. Off until switched on. |
 | `services/accounting/` | The QuickBooks link: a press connects their QuickBooks company from their shop's settings and each night's sales, refunds, card fees and payouts are sent once. Off until switched on (`docs/accounting.md`). |
+| `services/costs/` | What each shop costs the platform: Google's bill per shop project from the billing export, next to what the shop pays, for the control room's Costs page and the spend guards. Waits for the billing export to be switched on. |
+| `services/export/` | A press's data, on request: every collection of its shop and stockroom as spreadsheet files and one zip, with a download link emailed to the owner that works 7 days. |
 | `signup/` | Sign-up, plan choice and billing. |
 | `accounts/` | One sign-in for every shop a person belongs to: the shop switcher, and invites with a role for each shop's team. |
 | `waitlist/` | The public waitlist page. |
