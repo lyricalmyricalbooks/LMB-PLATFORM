@@ -233,3 +233,67 @@ test("a snag giving the new shop its plan never holds the press up: it goes to t
   await w.billing.publishPlan(shopId);
   assert.equal(planDoc(w, shopId).state, "trial");
 });
+
+// ── The start (code plan 17.16): every stage of Get started, walked the way the shop's admin writes it ──────────────
+// A press signed up and its shop made (both apps, cards through the platform). Each stage writes its marker into
+// firstWeek/start, the shape firestore.rules checks. The run's stages are read from startRun.ts, so a stage added there
+// fails this walk until it is walked here. Not walked: sample import (plan 17.5, waiting on real sample files); the bring
+// stage stands in for it. Stripe's own connection states are not in the fake world, so Get paid writes the markers the
+// page writes once Stripe says ready, or the press skips it.
+const startedShop = async () => {
+  const w = platformWorld({ suffix: () => "k3f9q" });
+  const { shopId } = (await w.ask(ADA, "POST", "/api/signup", signUpDetails)).body;
+  assert.deepEqual(await w.shopMaker.sweep(), [{ shopId, status: "ready" }]);
+  const doc = () => w.doc(shopId, "firstWeek/start");
+  const write = (patch) => w.services.shopData.set(shopId, "firstWeek/start", { ...doc(), ...patch });
+  return { w, shopId, doc, write };
+};
+
+const runStages = () => {
+  const source = readFileSync("apps/shop/src/app/admin/startRun.ts", "utf8");
+  return [...source.match(/export type RunStep = ([^;]+);/)[1].matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
+};
+
+test("the start, connected path: every stage of Get started is walked in order, from Your press to the shop open", async () => {
+  const { w, shopId, doc, write } = await startedShop();
+  const at = () => w.clock.date().toISOString();
+  const walked = [];
+  const stage = async (key, patch) => {
+    await write(patch);
+    for (const field of Object.keys(patch)) assert.ok(doc()[field], `${key}: ${field} is saved`);
+    walked.push(key);
+  };
+
+  assert.equal(doc().details, undefined, "the run starts at Your press: nothing done yet");
+  await stage("details", { details: { at: at() } });
+  await stage("bring", { bring: { at: at(), skipped: true } }); // the press brings the shop over later
+  await stage("look", { welcome: { theme: "press-zine", at: at() } });
+  await stage("google", { google: { at: at(), connected: true } });
+  await stage("payments", { payments: { at: at(), ready: true } }); // Stripe says the card account is ready
+  await stage("shipping", { shipping: { at: at(), skipped: true } });
+  await write({ finalCheck: { at: at(), opened: false } }); // the final check is shown and ticked through
+  await stage("final", { finalCheck: { at: at(), opened: true } }); // then Open your shop
+
+  assert.deepEqual(walked, runStages(), "every stage the run shows was walked, in the run's order");
+  assert.equal(statusDoc(w, shopId).access, "open");
+  assert.equal((await shopOf(w, shopId)).access, "open", "the control room sees the shop open");
+  // Setup step 16 turned the stockroom link on, from today (plan 17.12), for a press with both apps.
+  assert.match(w.services.world.links.get(shopId)?.startDay ?? "", /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test("the start, disabled path: Google coming soon and Get paid skipped still carry the press through to the shop open", async () => {
+  const { w, shopId, doc, write } = await startedShop();
+  const at = () => w.clock.date().toISOString();
+  await write({
+    details: { at: at() },
+    bring: { at: at(), skipped: true },
+    welcome: { theme: "press-zine", at: at() },
+    google: { at: at(), coming: true }, // Google hasn't approved the sign-in yet: the step waits, the run goes on
+    payments: { at: at(), skipped: true }, // the press chose to set up Get paid later
+    shipping: { at: at(), skipped: true },
+    finalCheck: { at: at(), opened: true },
+  });
+  assert.equal(doc().google.coming, true);
+  assert.equal(doc().payments.skipped, true);
+  assert.equal((await shopOf(w, shopId)).access, "open", "a skipped Google and Get paid never hold the press up");
+});
