@@ -47,7 +47,7 @@ test("every page a press opens says nothing technical", () => {
 
 // Files whose quoted words reach a press: the page scripts, the replies the services give them, and their words.
 const PRESS_FACING_CODE = [
-  "signup/app.js", "signup/form.js", "signup/signup.js", "signup/shopMaker.js", "signup/api.js",
+  "help/errorHelp.js", "signup/app.js", "signup/form.js", "signup/signup.js", "signup/shopMaker.js", "signup/api.js",
   "accounts/accounts.js", "accounts/app.js", "accounts/billing.js", "accounts/billingWords.js", "accounts/billingRoutes.js",
   "accounts/devices.js", "accounts/recovery.js", "accounts/recoveryRoutes.js", "accounts/roles.js", "accounts/routes.js", "accounts/teamSync.js",
   "help/articles.js", "help/page.js", "help/support.js", "experts/directory.js", "experts/page.js", "status/page.js", "status/summary.js", "terms/page.js", "terms/terms.js",
