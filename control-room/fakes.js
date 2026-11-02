@@ -75,3 +75,25 @@ export function fakeInviteStore() {
 }
 
 export const fakeWaitlist = (rows = []) => ({ list: async () => structuredClone(rows) });
+
+/**
+ * Support-access requests (accessRequests.js, plan 19.6), in memory. `update` reads and writes with nothing awaited in
+ * between, so it is atomic like the real store's transaction.
+ */
+export function fakeAccessRequestStore() {
+  const rows = new Map();
+  return {
+    rows,
+    get: async (id) => structuredClone(rows.get(id) ?? null),
+    create: async (id, row) => {
+      if (rows.has(id)) throw new Error(`request ${id} already exists`);
+      rows.set(id, structuredClone(row));
+    },
+    listByShop: async (shopId) => structuredClone([...rows.values()].filter((row) => row.shopId === shopId)),
+    update: async (id, fn) => {
+      const next = fn(structuredClone(rows.get(id) ?? null));
+      if (next) rows.set(id, structuredClone(next));
+      return structuredClone(next ?? null);
+    },
+  };
+}

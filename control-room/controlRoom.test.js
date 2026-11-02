@@ -127,15 +127,15 @@ test("act as this shop: a reason is required, the use is logged first, and no lo
 
   // Making changes is asked for by name; anything else is refused before the log.
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help with tax", mode: "owner" })).status, 400);
+  // "edit" waits for the press's yes (19.6, accessRequests.test.js): with no way to ask them, nothing is opened.
   const edit = await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked me to fix a price", mode: "edit" });
-  assert.equal(edit.body.mode, "edit");
-  assert.equal(w.shopAccess.calls.at(-1).mode, "edit");
-  assert.equal(w.events().at(-1).mode, "edit");
+  assert.equal(edit.status, 503);
+  assert.equal(w.shopAccess.calls.length, 1);
 
   // A log that can't be written stops the sign-in.
   w.registry.recordEvent = async () => { throw new Error("the registry is down (pretend error)"); };
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help again" })).status, 500);
-  assert.equal(w.shopAccess.calls.length, 2);
+  assert.equal(w.shopAccess.calls.length, 1);
 });
 
 test("a switch: the saved profile, its file and the live pages change, with a log entry; repeating it is safe", async () => {

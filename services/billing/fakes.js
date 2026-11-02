@@ -2,11 +2,11 @@
 // customers, subscriptions with trials that pause without a card, setup-mode Checkout, cards, invoices with PDFs, plan
 // change previews and Stripe Tax's switches). Nothing reaches Stripe.
 import { formPairs } from "../payments/fakes.js";
+import { CLAIM_HOLD_MS } from "./eventClaims.js";
 
 export function fakeBillingStores() {
   const customers = new Map();
   const subs = new Map();
-  const seen = new Map();
   return {
     customers: { rows: customers, get: async (id) => (customers.has(id) ? { ...customers.get(id) } : null), set: async (id, row) => void customers.set(id, { ...row }) },
     subscriptions: {
@@ -16,7 +16,35 @@ export function fakeBillingStores() {
       findBySubscriptionId: async (id) => structuredClone([...subs.values()].find((row) => row.subscriptionId === id) ?? null),
       list: async () => structuredClone([...subs.values()]),
     },
-    events: { rows: seen, seen: async (id) => seen.has(id), mark: async (id, entry) => void seen.set(id, { ...entry }) },
+    events: fakeEventClaims(),
+  };
+}
+
+/**
+ * The billing events store (eventClaims.js), in memory, with real create-if-absent: `claim` checks and writes with
+ * nothing awaited in between, so of two calls started together exactly one wins. `rows` holds claims
+ * ({ state: "claimed", claimedAt }) and handled events ({ state: "done", ...entry }).
+ */
+export function fakeEventClaims() {
+  const rows = new Map();
+  return {
+    rows,
+    async claim(eventId, { at, holdMs = CLAIM_HOLD_MS } = {}) {
+      const row = rows.get(eventId);
+      if (row?.state === "done") return false;
+      if (row && Date.parse(at) - Date.parse(row.claimedAt) < holdMs) return false;
+      rows.set(eventId, { state: "claimed", claimedAt: at, ...(row ? { tookOverFrom: row.claimedAt } : {}) });
+      return true;
+    },
+    async release(eventId) {
+      if (rows.get(eventId)?.state === "claimed") rows.delete(eventId);
+    },
+    async mark(eventId, entry) {
+      rows.set(eventId, { ...entry, state: "done" });
+    },
+    async seen(eventId) {
+      return rows.get(eventId)?.state === "done";
+    },
   };
 }
 

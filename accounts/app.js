@@ -155,6 +155,7 @@ async function loadShops() {
   }
   renderLedger(shops);
   await loadRecoveryAlerts().catch(() => {});
+  await loadAccessRequests().catch(() => {});
   show("shops");
 }
 
@@ -475,3 +476,49 @@ onAuthStateChanged(auth, async (user) => {
   }
   await openShops();
 });
+
+// ── Colophon support asks before making changes (plan 19.6): approve or decline, and the shop's past support visits. ──
+async function loadAccessRequests() {
+  const owned = myShops.filter((shop) => shop.role === "owner" && shop.status === "live");
+  const cards = [];
+  for (const shop of owned) {
+    const { requests, visits } = await api("GET", `/account/access-requests?shopId=${encodeURIComponent(shop.shopId)}`);
+    const waiting = requests.filter((request) => request.status === "waiting");
+    if (!waiting.length && !visits.length) continue;
+    cards.push(accessCard(shop, waiting, visits));
+  }
+  $("#access-requests").replaceChildren(...cards);
+}
+
+function accessCard(shop, waiting, visits) {
+  const asks = waiting.map((request) => {
+    const answer = (approve) => async (event) => {
+      event.currentTarget.disabled = true;
+      try {
+        await api("POST", "/account/access-requests/answer", { id: request.id, approve });
+        status.textContent = approve
+          ? `Approved. ${request.by} can open ${shop.pressName}'s admin once, for 30 minutes, within the day. It goes in your shop's log.`
+          : "Declined. Nobody can make changes in your shop on that request.";
+      } catch (failure) {
+        status.textContent = failure.message;
+      }
+      await loadAccessRequests().catch(() => {});
+    };
+    const yes = el("button", { type: "button", className: "primary", textContent: "Approve" });
+    yes.addEventListener("click", answer(true));
+    const no = el("button", { type: "button", textContent: "Decline" });
+    no.addEventListener("click", answer(false));
+    return el("div", { className: "card warning", role: "alert" },
+      el("strong", { textContent: `Colophon support asks to make changes in ${shop.pressName}` }),
+      el("p", { style: "margin:0", textContent: `${request.by} would like to open your admin for 30 minutes, able to make changes. Why: ${request.reason}. Answer by ${day(request.expiresAt)}; nothing changes unless you say yes.` }),
+      el("div", { className: "row" }, yes, no));
+  });
+  const visitList = visits.length
+    ? el("ul", { className: "list" }, ...visits.map((visit) => el("li", { className: "hint", textContent: `${day(visit.at)} · ${visit.by} · ${visit.mode === "edit" ? "made changes" : "looked only"} · ${visit.reason}` })))
+    : null;
+  return el("div", { className: "card stack" },
+    el("h3", { textContent: `${shop.pressName}: support visits` }),
+    ...asks,
+    visitList ? el("p", { className: "hint", style: "margin:0", textContent: "The last visits from Colophon support, newest first:" }) : null,
+    visitList);
+}

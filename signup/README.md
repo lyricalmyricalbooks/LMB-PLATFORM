@@ -46,6 +46,24 @@ behind `/api` in the platform project:
   `{ termsVersion, termsAcceptedAt }` from the first sign-up; a re-run never changes it. "What do you sell?" is kept as
   `publishes` and travels with the shop (`shopFromSignup` › `publishes`, read by the welcome screen, 6.3).
 
+## Fair-use limits on the whole door (`limits.js`, plan 19.5)
+
+`createApi({ limits })` takes an optional limiter (`createLimits({ throttle, admins })`), on the same throttle store as
+the sign-in links (`count(key, sinceIso)`, `add(key, atIso)`):
+
+| What | Limit | Counted per |
+| --- | --- | --- |
+| every signed-in call | 120 a minute | signed-in person (`uid`); control-room admins (on the list, two-step) skip it |
+| costly calls: `POST /api/signup/retry`, `/api/control/check`, `/api/control/google-run-again`, `/api/billing/card` | 10 per 10 minutes, each call on its own | person, admins included |
+| `GET /api/plans` | 300 a minute | network |
+| `POST /api/signin-link` | 20 an hour (on top of 5 an hour per address) | network |
+
+The network is the first `x-forwarded-for` address, else `request.ip`; keys are hashed, so the store never holds an
+address or id in the clear. Over a limit: 429, "You're going a bit fast. Wait a minute and try again." and `retryAfter`
+(seconds). Refused calls aren't counted. If the counter can't be read or written the call goes through and it's logged,
+so a broken counter never locks everyone out. The walkthrough wires it with an in-memory counter and limits a hundred
+times higher. A path may carry a query (`?shopId=…`), handed to routes as `request.query`.
+
 ## The daily cap and invites (plan 6.13)
 
 At most `signupDailyCap` new shops (live settings, default 10) start each Toronto day. A press over the cap gets status

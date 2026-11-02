@@ -41,3 +41,21 @@ export function fakeInvites(emails = []) {
     markUsed: async (email, shopId) => void (used.has(email.toLowerCase()) || used.set(email.toLowerCase(), shopId)),
   };
 }
+
+/** A throttle store on its own (the fair-use limits, limits.js), in memory: `hits` by key; `fail` makes calls throw. */
+export function fakeThrottle() {
+  const hits = new Map();
+  const store = {
+    hits,
+    fail: false,
+    count: async (key, since) => {
+      if (store.fail) throw new Error("the counter is down (pretend error)");
+      return (hits.get(key) ?? []).filter((at) => at >= since).length;
+    },
+    add: async (key, at) => {
+      if (store.fail) throw new Error("the counter is down (pretend error)");
+      hits.set(key, [...(hits.get(key) ?? []), at]);
+    },
+  };
+  return store;
+}

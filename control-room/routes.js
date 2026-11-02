@@ -21,6 +21,9 @@
 //   POST /api/control/breaches/record  { foundOn, what, shops, people, reportedToCommissioner, peopleTold }
 //   POST /api/control/breaches/update  { id, reportedToCommissioner?, peopleTold?, note? }
 //   POST /api/control/newsletter/resume  { shopId, reason }: turn a paused newsletter back on
+//   POST /api/control/access-requests    { shopId }: the shop's support-access requests (19.6). "Make changes" is
+//                              act-as with mode "edit": without a requestId it asks the press; with an approved one
+//                              it makes the 30-minute staff sign-in, once
 
 export function controlRoutes(room) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
@@ -49,5 +52,6 @@ export function controlRoutes(room) {
     "POST /api/control/breaches/record": (claims, request) => room.recordBreach(claims, body(request)),
     "POST /api/control/breaches/update": (claims, request) => room.updateBreach(claims, body(request)),
     "POST /api/control/newsletter/resume": (claims, request) => room.resumeNewsletter(claims, body(request)),
+    "POST /api/control/access-requests": (claims, request) => room.accessRequests(claims, body(request)),
   };
 }

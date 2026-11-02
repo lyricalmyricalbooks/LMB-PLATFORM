@@ -47,8 +47,14 @@ import { fakeFeeLedgerStore } from "../services/payments/feeLedgerFakes.js";
 import { signatureHeader } from "../services/payments/stripeSignature.js";
 import { createStripeApi } from "../services/payments/stripeApi.js";
 import { liveSettings, platformSettings } from "../services/settings.js";
+import { DEFAULT_LIMITS, createLimits } from "../signup/limits.js";
+import { fakeThrottle } from "../signup/fakes.js";
+import { createAccessRequests } from "../control-room/accessRequests.js";
+import { fakeAccessRequestStore } from "../control-room/fakes.js";
+import { accessRequestRoutes } from "../accounts/accessRequestRoutes.js";
 
 export const DAY = 86_400_000;
+const generousLimits = () => Object.fromEntries(Object.entries(DEFAULT_LIMITS).map(([kind, limit]) => [kind, { ...limit, max: limit.max * 100 }]));
 const WEBHOOK_SECRET = "whsec_pretend_billing";
 
 /** The platform admin the control room lets in (two-step sign-in, as the real one asks). */
@@ -130,10 +136,12 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const supportStore = fakeSupportStore();
   const recoveryStore = fakeRecoveryStore();
   const waitlist = fakeWaitlist(waitlisted);
+  // "Make changes" asks the press first (19.6): the requests, answered on the account page.
+  const accessRequests = createAccessRequests({ store: fakeAccessRequestStore(), email, settings, now: clock.date });
   const room = createControlRoom({
     registry, auditLog, profileFiles, shopAccess: fakeShopAccess(), repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: fakeBreachStore(), registry, auditLog, now: clock.date }), people,
-    activity, supportStore, recoveryStore, platformState, admins, now: clock.date,
+    activity, supportStore, recoveryStore, platformState, accessRequests, admins, now: clock.date,
     // Nothing of Google is set up in the practice world, so the control room shows every item still to do.
     googleReady: (at) => googleReadiness(readGoogleConfig({}), at),
     taxWatch: async () => watchTaxLines({ invoices: [], now: clock.date().getTime() }),
@@ -168,14 +176,17 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
       ...emergencyRoutes(backup),
       ...supportRoutes(support),
       ...recoveryRoutes(recovery),
+      ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now: clock.date }),
     },
+    // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
+    limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},
   });
   const ask = (claims, method, path, body) => door({ method, path, body, headers: claims ? { Authorization: `Bearer ${JSON.stringify(claims)}` } : {} });
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, ask, invites,
+    stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, ask, invites, accessRequests,
     /** The shop's own database as the platform wrote it: a document, or null. */
     doc: (shopId, path) => services.world.docs.get(`${shopId} ${path}`) ?? null,
   };
