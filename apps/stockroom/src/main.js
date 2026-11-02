@@ -708,7 +708,7 @@ registerActions({
       .map(bid => ({ book: BOOKS[bid], state: states[bid] || defaultState(BOOKS[bid]) }));
     if (!entries.length) { showToast(words('No books to list yet.'), 'err'); return; }
     downloadCsv(stockLocationsCsv(entries), `stock-counts-${today()}.csv`);
-    showToast(`✓ Stock counts for ${entries.length} book${entries.length === 1 ? '' : 's'} downloaded`, 'ok');
+    showToast(`✓ Stock counts for ${entries.length}${words(` book`)}${entries.length === 1 ? '' : 's'} downloaded`, 'ok');
   },
   // The money card's own buttons.
   'moneyCard.askPayLink': () => askAuthorForPayLink(),
@@ -1445,7 +1445,7 @@ export function saveCatalogWithDeletions() {
   // The last catalog read failed, so BOOKS may be the built-in defaults rather
   // than the real catalog. Writing it would overwrite the real one.
   if (catalogLoadFailed) {
-    showToast('⚠ Not saving — the book catalog never loaded. Reload first.', 'err', 6000);
+    showToast(words('⚠ Not saving — the book catalog never loaded. Reload first.'), 'err', 6000);
     return Promise.resolve();
   }
   // Still the device's copy from startup: the server's may hold changes this
@@ -1501,7 +1501,7 @@ async function loadCatalog(early = null) {
       deletedDefaultIds = [];
       posExtraBooks = {};
     }
-    showToast('⚠ Could not load the book catalog — showing what is saved on this device. Reload once you are back online.', 'err', 7000);
+    showToast(words('⚠ Could not load the book catalog — showing what is saved on this device. Reload once you are back online.'), 'err', 7000);
   }
 }
 
@@ -2387,7 +2387,7 @@ export async function restateBookCurrency() {
   // A restatement rewrites one book's ledger, so it needs a book actually
   // selected — the "All books" view has no single currency to restate into.
   if (!activeBook || activeBook === 'all') {
-    showToast('⚠ Pick a single book first — a restatement applies to one book', 'warn');
+    showToast(words('⚠ Pick a single book first — a restatement applies to one book'), 'warn');
     return;
   }
   const book = getBook(), s = getState();
@@ -2433,7 +2433,7 @@ async function offerSheetsResyncAfterRestate(toCode) {
 async function saveBookFromModal() {
   // Validate fields and automatically switch to the correct tab if validation fails
   const isValid = validateFields([
-    { id: 'nb-id', test: val => val.trim().length > 0, msg: 'Book ID is required' },
+    { id: 'nb-id', test: val => val.trim().length > 0, msg: words('Book ID is required') },
     { id: 'nb-title', test: val => val.trim().length > 0, msg: 'Title is required' },
     { id: 'nb-payment-link', test: val => isValidPaymentLink(val.trim()), msg: 'Must be a valid URL or email address' },
     // A blank or nonsense price/print run used to be saved silently as 40 / 100.
@@ -2479,7 +2479,7 @@ async function saveBookFromModal() {
   // An id that already belongs to a different book must never be overwritten
   // (adding "The Hound" twice, or renaming one book onto another's id).
   if (BOOKS[id] && editingBookId !== id) {
-    showToast(`⚠ A book with the id "${id}" already exists — choose a different Book ID.`, 'err', 5000);
+    showToast(`${words(`⚠ A book with the id "`)}${id}${words(`" already exists — choose a different Book ID.`)}`, 'err', 5000);
     switchBookModalTab('general');
     return;
   }
@@ -2821,7 +2821,7 @@ function renderCatalogList() {
 async function deleteBook(id) {
   await syncCatalog();
   if (!BOOKS[id]) {
-    showToast('Book already removed or does not exist', 'warn');
+    showToast(words('Book already removed or does not exist'), 'warn');
     buildBookSwitcher();
     renderCatalogList();
     renderProfitSettings();
@@ -2848,7 +2848,7 @@ async function deleteBook(id) {
   // If the deleted book was being viewed, fall back to the All Books overview.
   if (activeBook === id) switchBook('all');
   else renderCurrent();
-  showToast('Book removed');
+  showToast(words('Book removed'));
 }
 
 window.saveBookFromModal = saveBookFromModal;
@@ -3099,7 +3099,7 @@ export function copyTextWithFallback(text) {
 }
 
 window.copyBookQR = function (bookId, url) {
-  if (!url) { showToast('No link set for this book', 'warn'); return; }
+  if (!url) { showToast(words('No link set for this book'), 'warn'); return; }
   copyTextWithFallback(url).then(() => showToast('Link copied'));
 };
 
@@ -3165,7 +3165,7 @@ window.copyAuthorQR = function () {
   if (!book) return;
   // The same link the QR above encodes.
   const url = getEffectiveBookPaymentLink(book);
-  if (!url) { showToast('No link configured for this book', 'warn'); return; }
+  if (!url) { showToast(words('No link configured for this book'), 'warn'); return; }
   copyTextWithFallback(url).then(() => showToast('Link copied'));
 };
 
@@ -4672,7 +4672,7 @@ export async function loadBook(bookId) {
     Object.defineProperty(states[bookId], '_loadFailed', { value: true, enumerable: false, configurable: true });
     setSyncState('error', '<b>Firestore</b> · connection failed');
     const title = (BOOKS[bookId] && BOOKS[bookId].title) || bookId;
-    showToast(`⚠ Could not load ${title} — showing an empty book, not real data. Reload once you're back online.`, 'err', 7000);
+    showToast(`⚠ Could not load ${title}${words(` — showing an empty book, not real data. Reload once you're back online.`)}`, 'err', 7000);
   }
 }
 
@@ -4730,7 +4730,7 @@ async function toggleFirestoreMode() {
     } catch (e) {
       console.error('Book migration failed:', e);
       window._setBookFirestoreMode(activeBook, false);
-      showToast('⚠ Failed to migrate book data', 'err');
+      showToast(words('⚠ Failed to migrate book data'), 'err');
     }
 
   } else {
@@ -5366,7 +5366,7 @@ function selectProfileTab(type) {
       switchBook(testBook.id);
       updateProfileTabs('test');
     } else {
-      showToast('Test profile book not found in catalog', 'warn');
+      showToast(words('Test profile book not found in catalog'), 'warn');
     }
   } else {
     const restoreId = window.lastActiveBookId || 'all';
@@ -9255,7 +9255,7 @@ function unapplyOne(id) {
   const targetBook = o.bookId && BOOKS[o.bookId] ? o.bookId : activeBook;
   const state = states[targetBook];
   const book = BOOKS[targetBook];
-  if (!state || !book) { showToast('Cannot find book for this order', 'err'); return; }
+  if (!state || !book) { showToast(words('Cannot find book for this order'), 'err'); return; }
 
   const histIndex = (state.hist || []).findIndex(h => h.num === o.orderNum && h.chan === 'Website');
   if (histIndex === -1) {
@@ -9308,7 +9308,7 @@ function reapplyOne(id) {
   const targetBook = o.bookId && BOOKS[o.bookId] ? o.bookId : activeBook;
   const state = states[targetBook];
   const book = BOOKS[targetBook];
-  if (!state || !book) { showToast('Cannot find book for this order', 'err'); return; }
+  if (!state || !book) { showToast(words('Cannot find book for this order'), 'err'); return; }
   const history = (state.hist || []).find(h => h.num === o.orderNum && h.chan === 'Website');
   if (!history) { showToast('Applied order history not found', 'warn'); return; }
   const newPrice = Number(o.price) || Number(history.price) || Number(book.listPrice) || 0;
@@ -9359,7 +9359,7 @@ export function applyOne(id, { deferRender = false } = {}) {
   const targetBook = o.bookId && BOOKS[o.bookId] ? o.bookId : activeBook;
   const targetState = states[targetBook];
   const targetBk = BOOKS[targetBook];
-  if (!targetState || !targetBk) { showToast('Cannot find book for this order', 'err'); return; }
+  if (!targetState || !targetBk) { showToast(words('Cannot find book for this order'), 'err'); return; }
   // Use target book's price if not on order
   const price = o.price || targetBk.listPrice;
   if (!targetState.doneIds) targetState.doneIds = [];
@@ -10324,7 +10324,7 @@ function undoImport(importId) {
   const isLocked = h => h.artistSettlementId || h.webOrderId;
   const locked = rows.filter(isLocked);
   const undoable = rows.filter(h => !isLocked(h));
-  if (!undoable.length) { showToast('Every row of this import is in an author settlement or matched to a website order, so it stays.', 'warn', 5000); return; }
+  if (!undoable.length) { showToast(words('Every row of this import is in an author settlement or matched to a website order, so it stays.'), 'warn', 5000); return; }
   const name = rows[0].importName ? ` from “${rows[0].importName}”` : '';
   if (!confirm(`Undo this import${name}? ${undoable.length} order${undoable.length === 1 ? '' : 's'} will be voided, and their stock and revenue reversed.`)) return;
   undoable.forEach(h => {
@@ -10649,7 +10649,7 @@ window.approveSubmission = async function (type, subKey) {
 window.rejectSubmission = async function (type, subKey) {
   const flightKey = `${activeBook}:${type}:${subKey}`;
   if (_submissionsInFlight.has(flightKey)) return;
-  if (!(await confirmDialog('Reject this submission from the author?', { okLabel: 'Reject', danger: true }))) return;
+  if (!(await confirmDialog(words('Reject this submission from the author?'), { okLabel: 'Reject', danger: true }))) return;
   _submissionsInFlight.add(flightKey);
   try {
     await window._fbDeleteSubmission(activeBook, type, subKey);
@@ -10697,7 +10697,7 @@ async function mintArtistTransferPayLink(bookId, transferId, { quiet = false } =
     t.payLinkV = TRANSFER_LINK_VERSION;
     saveState(bookId);
     if (bookId === activeBook) renderArtistTransfers();
-    if (!quiet) showToast(`✓ Stripe link ready — the author's Send button now fills in ${fmt(amt, book.currency)}`);
+    if (!quiet) showToast(`${words(`✓ Stripe link ready — the author's Send button now fills in `)}${fmt(amt, book.currency)}`);
     return url;
   } catch (e) {
     if (!quiet) showToast(`Couldn't make the Stripe link: ${e.message}`, 'err', 5000);
@@ -11239,9 +11239,9 @@ function askAuthorForPayLink() {
     window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     return;
   }
-  const done = () => showToast('No author email saved for this book — message copied, paste it to them', 'warn', 5000);
-  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(`${subject}\n\n${body}`).then(done).catch(() => showToast('Add the author’s email in the book settings to send this', 'warn', 5000));
-  else showToast('Add the author’s email in the book settings to send this', 'warn', 5000);
+  const done = () => showToast(words('No author email saved for this book — message copied, paste it to them'), 'warn', 5000);
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(`${subject}\n\n${body}`).then(done).catch(() => showToast(words('Add the author’s email in the book settings to send this'), 'warn', 5000));
+  else showToast(words('Add the author’s email in the book settings to send this'), 'warn', 5000);
 }
 window.askAuthorForPayLink = askAuthorForPayLink;
 
@@ -11744,7 +11744,7 @@ window.backfillGratuityExpenses = async function () {
 
   const unitCost = (book.productionCost || 0) / (book.maxPrint || 1);
   if (unitCost <= 0) {
-    showToast('⚠ Book has no production cost to expense', 'warn');
+    showToast(words('⚠ Book has no production cost to expense'), 'warn');
     return;
   }
 
@@ -12144,7 +12144,7 @@ function confirmSend() {
   s.ledger.push({ id: Date.now(), storeId: st.id, storeName: st.name, type: 'Shipment', date, qty, rate, amountDue: 0, paid: 'n/a', notes, status: 'sent', sheetsId });
   closeM('send-books'); renderStores(); renderLedger(); updateDash(); saveState(activeBook);
   syncToSheets({ type: 'consignment', book: book.title, date, store: st.name, event: 'Shipment', qty, rate, amountDue: 0, notes, status: 'sent', sheetsId, currency: getBookCurrencyCode(book) });
-  showToast(`✓ ${qty} books sent to ${st.name}`);
+  showToast(`✓ ${qty}${words(` books sent to `)}${st.name}`);
 }
 
 // ── BULK SEND (ship to several stores in one pass) ──────────────────────
@@ -12230,7 +12230,7 @@ function confirmBulkSend() {
     syncToSheets({ type: 'consignment', book: book.title, date, store: st.name, event: 'Shipment', qty, rate, amountDue: 0, notes, status: 'sent', sheetsId, currency: getBookCurrencyCode(book) });
   });
   closeM('bulk-send'); renderStores(); renderLedger(); updateDash(); saveState(activeBook);
-  showToast(`✓ Sent ${totalQty} book${totalQty > 1 ? 's' : ''} to ${picks.length} store${picks.length > 1 ? 's' : ''}`);
+  showToast(`✓ Sent ${totalQty}${words(` book`)}${totalQty > 1 ? 's' : ''} to ${picks.length} store${picks.length > 1 ? 's' : ''}`);
 }
 // ── Consignment in another currency ─────────────────────────────────────
 // A shop abroad sells at its own price and may pay in its own money. The ledger
@@ -13139,7 +13139,7 @@ async function convertKeptAllToReceived() {
 export function openEditHist(idx) {
   const s = getState(), book = getBook(), h = s.hist[idx];
   if (!h) return;
-  if (h.artistSettlementId) { showToast('Undo the author settlement before changing this sale.', 'warn'); return; }
+  if (h.artistSettlementId) { showToast(words('Undo the author settlement before changing this sale.'), 'warn'); return; }
   // A consignment sale shown here is a mirror of its ledger row, and the ledger
   // row is the record that reaches the Google Sheet and gets re-derived on every
   // recompute. Editing the mirror directly would be overwritten, so send the
@@ -13447,7 +13447,7 @@ function saveLedgerEntryEdit(s, book) {
 function saveEntryEdit() {
   if (!editCtx) return;
   const s = getState(), book = getBook();
-  if (editCtx.kind === 'hist' && s.hist[editCtx.idx]?.artistSettlementId) { showToast('Undo the author settlement before changing this sale.', 'warn'); return; }
+  if (editCtx.kind === 'hist' && s.hist[editCtx.idx]?.artistSettlementId) { showToast(words('Undo the author settlement before changing this sale.'), 'warn'); return; }
   if (editCtx.kind === 'hist') {
     saveHistEntryEdit(s, book);
   } else {
@@ -13718,7 +13718,7 @@ function voidEntry() {
   if (editCtx.kind === 'hist') {
     const h = s.hist[editCtx.idx];
     if (!h) return;
-    if (h.artistSettlementId) { showToast('Undo the author settlement before voiding this sale.', 'warn'); return; }
+    if (h.artistSettlementId) { showToast(words('Undo the author settlement before voiding this sale.'), 'warn'); return; }
     if (h.webOrderId) { showToast(WEBSITE_SALE_LOCKED, 'warn', 5000); return; }
     if (!h.voided) {
       voidHistEntry(s, book, h);
@@ -13775,7 +13775,7 @@ async function resetBookData() {
   if (!(await confirmDialog(`Reset ALL data for "${book.title}"? Orders, history and consignment will be cleared. Your Google Sheet backup is untouched.`, { okLabel: 'Continue', danger: true }))) return;
   if (!(await confirmDialog('Last chance — this cannot be undone. Reset now?', { okLabel: 'Reset everything', danger: true }))) return;
   states[activeBook] = defaultState(book); lastSavedHashes[activeBook] = '';
-  renderAll(); saveState(activeBook); showToast('✓ Book data reset. Sheet backup untouched.', 'warn', 4000);
+  renderAll(); saveState(activeBook); showToast(words('✓ Book data reset. Sheet backup untouched.'), 'warn', 4000);
 }
 
 let _sheetsRestoreData = null;
@@ -13852,7 +13852,7 @@ async function restoreBookDataFromSheets() {
     const postageRows = rows.filter(r => String(r.Type).trim().toLowerCase() === 'shipping');
     const recordRows = rows.filter(r => String(r.Type).trim().toLowerCase() !== 'shipping');
     if (!recordRows.length) {
-      showToast('No records found in Google Sheet for this book', 'warn');
+      showToast(words('No records found in Google Sheet for this book'), 'warn');
       if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = originalBtnHtml; }
       return;
     }
@@ -15037,7 +15037,7 @@ async function applyBookRestore(bid) {
   if (!_bookRestoreCtx) return;
   const { snapshot } = _bookRestoreCtx;
   const book = snapshot.BOOKS?.[bid];
-  if (!book) { showToast('That book is not in this backup', 'err'); return; }
+  if (!book) { showToast(words('That book is not in this backup'), 'err'); return; }
 
   const title = book.title || bid;
   const exists = !!BOOKS[bid];
@@ -15097,7 +15097,7 @@ async function applyBookRestore(bid) {
     setTimeout(() => location.reload(), 1500);
   } catch (e) {
     console.error('Single-book restore failed', e);
-    showToast('Error restoring book', 'err');
+    showToast(words('Error restoring book'), 'err');
   }
 }
 
@@ -16149,7 +16149,7 @@ function updateProfitTierField(idx, field, val) {
 }
 
 async function saveProfitTiers() {
-  if (!psActiveBookId) { showToast('No book selected', 'warn'); return; }
+  if (!psActiveBookId) { showToast(words('No book selected'), 'warn'); return; }
   const ind = $('ps-save-indicator');
   if (ind) ind.classList.add('show');
 
@@ -16437,7 +16437,7 @@ async function boot(forcedBook) {
     if (forcedBook) {
       // Author mode — load only this book
       setActiveBook(forcedBook);
-      if (!BOOKS[forcedBook]) { showToast('Book not found', 'err'); return; }
+      if (!BOOKS[forcedBook]) { showToast(words('Book not found'), 'err'); return; }
       showAuthorBookFrame(forcedBook);
       Promise.all([loadBook(forcedBook), settingsLoaded]).then(() => {
         setSyncState('ok', '<b>Firestore</b> · connected');
@@ -17521,7 +17521,7 @@ function reconcileRecordSale(idSafe) {
   }
   const bookId = document.getElementById('recon-book-' + idSafe)?.value;
   const qty = Math.max(1, parseInt(document.getElementById('recon-qty-' + idSafe)?.value, 10) || 1);
-  if (!bookId || !BOOKS[bookId]) { showToast('Pick a book first', 'warn'); return; }
+  if (!bookId || !BOOKS[bookId]) { showToast(words('Pick a book first'), 'warn'); return; }
   const saleInputs = _reconReadSaleInputs(idSafe, bookId);
   if (!saleInputs) return;
   saleInputs.num ||= stripeOrderNumber(p);
@@ -19038,7 +19038,7 @@ function reconRecordGroup(gi) {
   if (!ids || !ids.length) return;
   const bookId = document.getElementById('recon-gbook-' + gi)?.value;
   const qty = Math.max(1, parseInt(document.getElementById('recon-gqty-' + gi)?.value, 10) || 1);
-  if (!bookId || !BOOKS[bookId]) { showToast('Pick a book first', 'warn'); return; }
+  if (!bookId || !BOOKS[bookId]) { showToast(words('Pick a book first'), 'warn'); return; }
   const saleInputs = _reconReadSaleInputs(gi, bookId, true);
   if (!saleInputs) return;
   const mem = getReconMemory();
@@ -19188,13 +19188,13 @@ async function generateBookStripeLink() {
   const listPrice = parseFloat(document.getElementById('nb-price')?.value) || 0;
   const currency = document.getElementById('nb-cur')?.value || '€';
   const isbn = (document.getElementById('nb-isbn')?.value || '').trim();
-  if (!id || !title) { showToast('Set a book ID and title first', 'warn'); return; }
+  if (!id || !title) { showToast(words('Set a book ID and title first'), 'warn'); return; }
   if (!(listPrice > 0)) { showToast('Set a list price first', 'warn'); return; }
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Creating…'; }
   try {
     const url = await createStripePaymentLinkForBook({ id, title, listPrice, currency, isbn });
     if (field) field.value = url;
-    showToast('✓ SKU-tagged Stripe link created — Save the book to keep it');
+    showToast(words('✓ SKU-tagged Stripe link created — Save the book to keep it'));
   } catch (e) {
     showToast('Stripe: ' + (e.message || e), 'err', 6000);
   } finally {
@@ -19371,7 +19371,7 @@ async function fetchRecentChanges() {
 async function showWhatsNew(event) {
   console.log('[showWhatsNew] Invoked. IS_PUBLISHER:', window.IS_PUBLISHER, 'isAuthor():', isAuthor());
   if (!window.IS_PUBLISHER || isAuthor()) {
-    showToast(`⚠️ Role verification failed (Publisher: ${!!window.IS_PUBLISHER}, Author: ${isAuthor()})`, 'warn');
+    showToast(`⚠️ Role verification failed (Publisher: ${!!window.IS_PUBLISHER}${words(`, Author: `)}${isAuthor()})`, 'warn');
     return;
   }
   if (event) event.stopPropagation();

@@ -4,12 +4,14 @@
 // src/shared/taxBooks.ts; blank = the suggested name).
 import { TAX_BOOK_NAME_MAX } from "../../shared/taxBooks";
 
-export type TaxRate = { country: string; region: string; rate: string; bookName?: string };
+// A rate may be limited to one kind of product (plan 12.2, src/shared/taxByKind.ts): `kinds: ["clothing"]`. No list = every
+// product the place's other rates don't cover by kind.
+export type TaxRate = { country: string; region: string; rate: string; bookName?: string; kinds?: string[] };
 
 const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
 
 /** Problem with a new/edited rate, or "" when it can be added. `others` excludes the row being edited. */
-export function taxRateProblem(draft: { country?: string; region?: string; rate?: string }, others: TaxRate[]): string {
+export function taxRateProblem(draft: { country?: string; region?: string; rate?: string; kind?: string }, others: TaxRate[]): string {
   const country = String(draft.country ?? "").trim();
   const rateText = String(draft.rate ?? "").trim();
   if (!country) return "Choose a country.";
@@ -18,16 +20,19 @@ export function taxRateProblem(draft: { country?: string; region?: string; rate?
   const rate = Number(rateText);
   if (!(rate >= 0 && rate <= 100)) return "A tax rate must be between 0 and 100%.";
   const region = norm(draft.region);
-  if (others.some((r) => norm(r.country) === norm(country) && norm(r.region) === region)) {
+  const kind = norm(draft.kind);
+  if (others.some((r) => norm(r.country) === norm(country) && norm(r.region) === region && (norm(r.kinds?.[0]) === kind))) {
+    if (kind) return "There is already a rate for this kind of product in this place.";
     return region ? "There is already a rate for this province/state." : "There is already a country-wide rate for this country.";
   }
   return "";
 }
 
 /** The row to store: trimmed, rate kept as text with no trailing junk. */
-export function cleanTaxRate(draft: { country?: string; region?: string; rate?: string; bookName?: string }): TaxRate {
+export function cleanTaxRate(draft: { country?: string; region?: string; rate?: string; bookName?: string; kind?: string }): TaxRate {
   const bookName = cleanBookName(draft.bookName);
-  return { country: String(draft.country ?? "").trim(), region: String(draft.region ?? "").trim(), rate: String(Number(String(draft.rate ?? "").trim())), ...(bookName ? { bookName } : {}) };
+  const kind = norm(draft.kind);
+  return { country: String(draft.country ?? "").trim(), region: String(draft.region ?? "").trim(), rate: String(Number(String(draft.rate ?? "").trim())), ...(bookName ? { bookName } : {}), ...(kind ? { kinds: [kind] } : {}) };
 }
 
 /** A typed name in the books: trimmed, single spaces, at most 40 characters ("" = use the suggestion). */
