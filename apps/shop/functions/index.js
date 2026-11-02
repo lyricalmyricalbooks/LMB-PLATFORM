@@ -45,6 +45,8 @@ const { addressMissing } = require("./shared/addressRules");
 const { pressName } = require("./shared/shopIdentity");
 const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
+const { taxPartsByKind } = require("./shared/taxByKind");
+const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
 const { expandDiscountCategories } = require("./shared/discountCategories");
@@ -929,25 +931,25 @@ function authoritativeTax(items, discountAmount, discount, booksById, settings, 
   const taxableTotal = Math.max(0, items.reduce((sum, item) => sum + item.price * item.quantity, 0) - discountAmount);
   const address = order.customer?.address || {};
   const charged = parts => ({ tax: parts.reduce((sum, part) => sum + part.amount, 0), taxLines: taxLinesFor(parts) });
+  const lineKinds = lines => lines.map(item => ({ kind: productKind(booksById[item.id]), value: item.price * item.quantity }));
   if (fulfillment?.method === 'pickup') {
     const pickup = fulfillment.address;
     // Pickup limited to an area collects the shopper's address instead of a separate billing location.
     const given = order.customer?.billingAddress;
     const billing = given?.country && given?.state ? given : order.customer?.address;
     if (!billing || !billing.country || !billing.state) throw new Error('Billing country and province or state are required for pickup.');
-    const physicalRate = matchTaxRate(rates, pickup.country, pickup.state);
-    const digitalRate = matchTaxRate(rates, billing.country, billing.state);
+    // Plan 12.2: a rate listing product kinds taxes only those; with none listed this is the plain pair of rates.
     return charged([
-      { rate: physicalRate, amount: discountedPhysical * (Number(physicalRate?.rate || 0) / 100) },
-      { rate: digitalRate, amount: (taxableTotal - discountedPhysical) * (Number(digitalRate?.rate || 0) / 100) },
+      ...taxPartsByKind(lineKinds(items.filter(isPhysicalItem)), discountedPhysical, rates, set => matchTaxRate(set, pickup.country, pickup.state)),
+      ...taxPartsByKind(lineKinds(items.filter(item => !isPhysicalItem(item))), taxableTotal - discountedPhysical, rates, set => matchTaxRate(set, billing.country, billing.state)),
     ]);
   }
   const basis = Object.keys(address).length ? address : order.customer?.billingAddress || {};
   if (!basis.country) throw new Error('Destination country is required for tax.');
-  const taxRate = matchTaxRate(rates, basis.country, basis.state);
+  const parts = taxPartsByKind(lineKinds(items), taxableTotal, rates, set => matchTaxRate(set, basis.country, basis.state));
   // Not silent: a country with rates but none for this province is flagged in Ready to sell.
-  if (!taxRate && taxableTotal > 0 && rates.length) console.warn(`No tax rate matches ${basis.country}/${basis.state || "-"}; charging no tax.`);
-  return charged([{ rate: taxRate, amount: taxableTotal * (Number(taxRate?.rate || 0) / 100) }]);
+  if (parts.some(part => !part.rate) && taxableTotal > 0 && rates.length) console.warn(`No tax rate matches ${basis.country}/${basis.state || "-"}; charging no tax.`);
+  return charged(parts);
 }
 
 function itemWeightGrams(book, variant) {

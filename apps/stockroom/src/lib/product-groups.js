@@ -62,6 +62,27 @@ export function otherSizes(offer, offers = []) {
   return offers.filter(o => o && o.key !== offer.key && websiteGroup(o)?.id === group.id);
 }
 
+/**
+ * Plan 12.3: "S, M, L" and "Black, White" typed into the Add new product form become one edition per
+ * combination ("S / Black"), sizes first. Duplicates (any case) are dropped; at most 20 of each and 100 in all.
+ */
+export function gridOffers(sizesText, coloursText) {
+  const list = (text) => {
+    const seen = new Set();
+    return String(text == null ? '' : text).split(/[,\n;]/).map(x => clean(x, 40)).filter(x => {
+      const key = x.toLowerCase();
+      if (!x || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 20);
+  };
+  const sizes = list(sizesText), colours = list(coloursText);
+  const out = [];
+  if (sizes.length && colours.length) sizes.forEach(s => colours.forEach(c => out.push({ edition: `${s} / ${c}` })));
+  else (sizes.length ? sizes : colours).forEach(x => out.push({ edition: x }));
+  return out.slice(0, 100);
+}
+
 const slug = (value) => clean(value, 120).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
 /** An item id built from `base` that no item in `taken` has: "moth-tee-m", then "moth-tee-m-2", ... */

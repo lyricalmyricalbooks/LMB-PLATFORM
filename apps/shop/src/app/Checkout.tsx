@@ -59,6 +59,8 @@ import { bagPreorder } from "./features/site/preorder";
 import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
 import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
+import { taxPartsByKind } from "../shared/taxByKind";
+import { productKind } from "../shared/productOptions";
 import { bagNote, orderNoteBoxOn, rememberBagNote } from "./features/site/bagNote";
 import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./features/site/promotions";
 import { isLiveBook } from "./features/site/liveBook";
@@ -881,21 +883,23 @@ export function Checkout() {
 
   useEffect(() => {
     // Same matching as the server's charge, so the tax shown is the tax paid.
-    const rateFor = (address: any) => matchTaxRate(taxRates, address?.country, address?.state);
+    // Plan 12.2: a rate that lists product kinds taxes only those (src/shared/taxByKind.ts); with none listed this is the
+    // single rate on the whole taxable amount it has always been.
+    const rateFor = (rates: any[], address: any) => matchTaxRate(rates, address?.country, address?.state);
+    const kindLines = (lines: any[]) => lines.map(item => ({ kind: productKind(booksMap.get(item.id)), value: Number(item.price) * Number(item.quantity) }));
+    const taxOf = (lines: any[], amount: number, address: any) => taxPartsByKind(kindLines(lines), amount, taxRates, (set: any[]) => rateFor(set, address)).reduce((sum, part) => sum + part.amount, 0);
     const taxable = Math.max(0, cartTotal - giftCardLinesTotal + freeGiftPrice - discountAmount);
     if (fulfillmentSelection.method === "pickup") {
       const pickup = localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === "pickup");
       const physicalTaxable = Math.min(taxable, physicalSubtotalAfterDiscount);
       const digitalTaxable = Math.max(0, taxable - physicalTaxable);
-      const physicalRate = rateFor(pickup?.address);
       // Area-limited pickup already has the shopper's address, so no separate billing box is shown.
-      const digitalRate = rateFor(pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress);
-      setTaxCost(physicalTaxable * (Number(physicalRate?.rate || 0) / 100) + digitalTaxable * (Number(digitalRate?.rate || 0) / 100));
+      const digitalAddress = pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress;
+      setTaxCost(taxOf((taxLines || []).filter(item => item.physical), physicalTaxable, pickup?.address) + taxOf((taxLines || []).filter(item => !item.physical), digitalTaxable, digitalAddress));
       return;
     }
-    const matchedTaxRate = rateFor(customer.address);
-    setTaxCost(taxable * (Number(matchedTaxRate?.rate || 0) / 100));
-  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, taxRates, discountAmount, giftCardLinesTotal, freeGiftPrice]);
+    setTaxCost(taxOf(taxLines || [], taxable, customer.address));
+  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, taxRates, discountAmount, giftCardLinesTotal, freeGiftPrice, taxLines, booksMap]);
 
   const applyDiscount = async () => {
     // Pasted codes often carry spaces; the server trims too.

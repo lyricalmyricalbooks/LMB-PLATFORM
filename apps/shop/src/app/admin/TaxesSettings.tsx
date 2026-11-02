@@ -18,6 +18,8 @@ import { useShopWords } from "./shopWords";
 // Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
 // nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
 // Each rate's "name in your books" (bookName, plan 7.11) is what orders and the bookkeeping file call that tax.
+const KIND_LABELS: Record<string, string> = { book: "Printed books", ebook: "E-books", clothing: "Clothing", shoes: "Shoes", jewelry: "Jewelry", art: "Art and prints", music: "Music", other: "Other items" };
+
 export function TaxesSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
   const w = useShopWords();
   const [ask, confirmNode] = useConfirm();
@@ -25,6 +27,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   const [region, setRegion] = useState("");
   const [rate, setRate] = useState("");
   const [bookName, setBookName] = useState("");
+  const [kind, setKind] = useState("");
   const [tried, setTried] = useState(false);
   const sells = useShopSells();
   const [presetId, setPresetId] = useState(suggestedTaxPresetId(sells));
@@ -36,20 +39,20 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   useSettingsDirty("taxes", dirty);
 
   const regionChoices = regionsFor(country);
-  const problem = taxRateProblem({ country, region, rate }, rates);
+  const problem = taxRateProblem({ country, region, rate, kind }, rates);
   const gaps = useMemo(() => (collecting && rates.length ? uncoveredTaxRegions(rates) : []), [collecting, rates]);
   // Off keeps every rate saved, so switching back on restores them.
   const setCollecting = (on: boolean) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates, collect: on } });
   const setDuties = (patch: Record<string, unknown>) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), duties: { ...(settings.taxes?.duties || {}), ...patch } } });
   const setRates = (next: TaxRate[]) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates: next } });
-  const savedKey = (r: TaxRate) => `${r.country}|${r.region}|${r.rate}|${r.bookName || ""}`.toLowerCase();
+  const savedKey = (r: TaxRate) => `${r.country}|${r.region}|${r.rate}|${r.bookName || ""}|${(r.kinds || []).join(",")}`.toLowerCase();
   const saved = new Set(savedRates.map(savedKey));
 
   const add = () => {
     setTried(true);
     if (problem) return;
-    setRates([...rates, cleanTaxRate({ country, region, rate, bookName: bookName || suggestedTaxBookName({ country, region, rate }) })]);
-    setRegion(""); setRate(""); setBookName(""); setTried(false);
+    setRates([...rates, cleanTaxRate({ country, region, rate, kind, bookName: bookName || suggestedTaxBookName({ country, region, rate }) })]);
+    setRegion(""); setRate(""); setBookName(""); setKind(""); setTried(false);
   };
   // A preset fills only the places with no rate yet, in the draft: nothing applies until Save.
   const registration = taxRegistration(settings);
@@ -75,6 +78,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
 
   const columns: Column<TaxRate & { index: number }>[] = [
     { key: "place", header: "Where", lead: true, render: (r) => <>{r.country}{r.region ? ` · ${r.region}` : <span className="rp-hint"> · whole country</span>}</> },
+    { key: "kinds", header: "Applies to", render: (r) => (r.kinds?.length ? KIND_LABELS[r.kinds[0]] || r.kinds[0] : <span className="rp-hint">Everything else</span>) },
     { key: "rate", header: "Rate", numeric: true, render: (r) => <span className="rp-mono">{r.rate}%</span> },
     { key: "book", header: "In your books", render: (r) => (
       <TextField label={`Name in your books for ${r.country}${r.region ? ` ${r.region}` : ""}`} hideLabel list="tax-book-names" maxLength={TAX_BOOK_NAME_MAX}
@@ -171,6 +175,10 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           ) : (
             <TextField label="Region (optional)" value={region} placeholder="Blank = whole country" onChange={(e) => setRegion(e.target.value)} />
           )}
+          <SelectField label="Applies to" value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="">{w("Everything (all products)")}</option>
+            {Object.entries(KIND_LABELS).map(([id, name]) => <option key={id} value={id}>{name} only</option>)}
+          </SelectField>
           <TextField label="Rate (%)" inputMode="decimal" data-tax-rate value={rate} placeholder="13" error={tried && problem ? problem : undefined}
             onChange={(e) => setRate(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
           <TextField label={w("Name in your books")} list="tax-book-names" maxLength={TAX_BOOK_NAME_MAX} value={bookName}

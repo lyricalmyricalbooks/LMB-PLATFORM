@@ -194,3 +194,21 @@ test('a released pre-order (publication date passed) checks out as an ordinary b
   expect((await app.call('createStripeCheckoutSession')).code).toBe(200);
   expect(app.order.items[0]).toMatchObject({ preorder: false, releaseDate: null });
 });
+test('a clothing-only 0% rate leaves the book taxed and the shirt untaxed in a mixed bag (plan 12.2)', async () => {
+  const app = harness();
+  app.docs.books.shirt = { status: 'published', kind: 'clothing', format: '', retailPrice: 20, stockLevel: 9 };
+  app.order.items.push({ id: 'shirt', quantity: 1, price: 0, format: '' });
+  app.docs.settings.website.taxes.rates.push({ country: 'Canada', region: 'ON', rate: 0, kinds: ['clothing'] });
+  const response = await app.call('createPayPalOrder');
+  expect(response.code).toBe(200);
+  expect(app.order.tax).toBeCloseTo(3.9, 2);
+  expect(app.paypalCalls.some(call => String(call.options?.body).includes('"value":"55.90"'))).toBe(true);
+});
+test('without a kind-limited rate the same mixed bag is taxed on everything, as before (plan 12.2)', async () => {
+  const app = harness();
+  app.docs.books.shirt = { status: 'published', kind: 'clothing', format: '', retailPrice: 20, stockLevel: 9 };
+  app.order.items.push({ id: 'shirt', quantity: 1, price: 0, format: '' });
+  const response = await app.call('createPayPalOrder');
+  expect(response.code).toBe(200);
+  expect(app.order.tax).toBeCloseTo(6.5, 2);
+});
