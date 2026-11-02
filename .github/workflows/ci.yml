@@ -95,6 +95,28 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:a11y
 
+  # Plan 13.11: the shop admin's busiest pages at phone width in a real browser (apps/shop/scripts/admin-phone-check.mjs):
+  # each opens with content, does not scroll sideways and does not crash. Sample orders and books only; nothing real is read.
+  shop-admin-phone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/shop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/shop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:admin-phone
+
   # Plan 14.5: every theme's home and book page at phone width stays inside its stored budget (apps/shop/scripts/speed-check.mjs).
   shop-speed:
     runs-on: ubuntu-latest
