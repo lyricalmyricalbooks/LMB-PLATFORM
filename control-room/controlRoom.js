@@ -28,6 +28,8 @@
 //                 defaults new shops get (9.7, record `newShopSwitches`)
 //   feeDefaults   the platform's default per-order fee (services/payments/fees.js readFeeSettings), shown with a shop's fee
 //   activity      optional: the activity log (activity.js, plan 9.9): record(entry); every logged action goes there too
+//   accessRequests optional: support-access requests (accessRequests.js createAccessRequests, plan 19.6). "Make
+//                 changes" asks the press first and opens only on their yes; without it, "Make changes" is refused
 import { testShopDocs } from "../setup/test-catalogue.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
@@ -40,6 +42,7 @@ import { todaySummary } from "./today.js";
 import { MAX_BASIS_POINTS, NO_FEE, feeForShop } from "../services/payments/fees.js";
 import { dateText } from "../services/billing/billing.js";
 import { platformSettings } from "../services/settings.js";
+import { editVisit } from "./accessRequests.js";
 
 export const ACT_AS_MINUTES = 30;
 /** A change to a press's per-order fee starts this many days after the press is emailed (Julian, 28 October 2026). */
@@ -142,7 +145,7 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, admins, now = () => new Date(),
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(),
 }) {
   const at = () => now().toISOString();
 
@@ -238,8 +241,10 @@ export function createControlRoom({
      * "Act as this shop": a short sign-in to the shop's admin for support. It is logged in the registry and the shop's
      * own audit log before the sign-in is made, with who, why and until when; with no log, no sign-in.
      */
-    async actAs(claims, { shopId, reason, mode = "view" } = {}) {
+    async actAs(claims, { shopId, reason, mode = "view", requestId } = {}) {
       const by = adminOf(claims, admins, now().getTime());
+      // "Make changes" waits for the press's yes (19.6): it asks them, or opens on an approved request, once.
+      if (mode === "edit") return editVisit({ requests: accessRequests, shopAccess, log, reasonOf, shopOr404, minutes: ACT_AS_MINUTES, now }, by, { shopId, reason, requestId });
       const why = reasonOf(reason);
       // "view" (the default, plan 9.8) looks only: the shop's server and rules refuse its changes. "edit" is staff.
       if (mode !== "view" && mode !== "edit") throw new ControlError(400, "Choose to view the shop or to make changes.");
@@ -580,6 +585,13 @@ export function createControlRoom({
     /** The control room's switch button. */
     async switch(claims, { shopId, name, on, reason } = {}) {
       return setSwitch({ by: adminOf(claims, admins, now().getTime()), shopId, name, on, reason });
+    },
+
+    /** A shop's support-access requests (19.6), newest first, for the shop drawer's "Ask the press". */
+    async accessRequests(claims, { shopId } = {}) {
+      adminOf(claims, admins, now().getTime());
+      await shopOr404(shopId);
+      return { requests: accessRequests ? await accessRequests.forShop(shopId) : [] };
     },
   };
 }
