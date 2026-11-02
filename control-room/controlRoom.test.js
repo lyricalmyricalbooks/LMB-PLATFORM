@@ -101,6 +101,17 @@ test("the list: every shop with its plan, version, health and switches, problems
   assert.deepEqual(answer.body.switchNames, SWITCHES);
 });
 
+test("the list: cost this month from the budget notices, and a notice past the alert amount marks the shop watch (15.17)", async () => {
+  const w = await world({ repairs: fakeRepairQueue({ "press-two": [] }) });
+  const before = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === "press-two");
+  assert.equal(before.costThisMonth, null);
+  await w.registry.updateShop("press-two", { status: "live", spending: { level: "slow", costAmount: 12.5, budgetAmount: 10, currency: "USD", at: "2026-11-02T12:00:00Z" } });
+  const after = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === "press-two");
+  assert.deepEqual(after.costThisMonth, { amount: 12.5, budget: 10, currency: "USD", at: "2026-11-02T12:00:00Z" });
+  assert.match(after.health.reasons.join(" "), /past its budget/);
+  assert.ok(["watch", "problem"].includes(after.health.level));
+});
+
 test("health: ok, watch and problem, in plain words", () => {
   const live = { status: "live" };
   assert.deepEqual(shopHealth({ row: live, profile: {}, checks: [{ ok: true }] }), { level: "ok", reasons: [] });
@@ -127,15 +138,15 @@ test("act as this shop: a reason is required, the use is logged first, and no lo
 
   // Making changes is asked for by name; anything else is refused before the log.
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help with tax", mode: "owner" })).status, 400);
+  // "edit" waits for the press's yes (19.6, accessRequests.test.js): with no way to ask them, nothing is opened.
   const edit = await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked me to fix a price", mode: "edit" });
-  assert.equal(edit.body.mode, "edit");
-  assert.equal(w.shopAccess.calls.at(-1).mode, "edit");
-  assert.equal(w.events().at(-1).mode, "edit");
+  assert.equal(edit.status, 503);
+  assert.equal(w.shopAccess.calls.length, 1);
 
   // A log that can't be written stops the sign-in.
   w.registry.recordEvent = async () => { throw new Error("the registry is down (pretend error)"); };
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "the owner asked for help again" })).status, 500);
-  assert.equal(w.shopAccess.calls.length, 2);
+  assert.equal(w.shopAccess.calls.length, 1);
 });
 
 test("a switch: the saved profile, its file and the live pages change, with a log entry; repeating it is safe", async () => {

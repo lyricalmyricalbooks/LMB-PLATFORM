@@ -50,6 +50,13 @@ once and logged (done, refused or failed) in the registry and the shop's audit l
 The web door adds them with `routes: { ...accountRoutes(accounts), ...billingRoutes({ billing, accounts, registry,
 auditLog, settings }) }`.
 
+## Two-step sign-in for owners (`twoStep.js`, plan 14.1)
+
+When a shop's plan is paid, its owner needs a code from an authenticator app (the second step on the sign-in pass) to
+change the card, the plan, cancel, switch how the shop pays, or change the team. Looking, previewing a plan change and a
+trial need nothing. The page asks for the code at sign-in and has **Set up two-step sign-in** with a QR code. It needs
+two-step sign-in turned on in the platform's Firebase project, the same switch as the control room's (9.1).
+
 ## Roles
 
 The shop's own roles (`apps/shop/functions/roles.js`), named in `roles.js`:
@@ -158,8 +165,27 @@ Until the move is automatic (`recoveryByHand` stands in for it), the admin does 
    new owner address is the one the shop trusts.
 5. Record it in the control room (**I've moved it by hand**, then **Record as moved**).
 
+## Support asks before making changes (`accessRequestRoutes.js`, plan 19.6)
+
+When Colophon support wants to make changes in a shop, the control room asks first (`control-room/accessRequests.js`)
+and the owner is emailed. On this page each live shop the person owns gets a small **support visits** card: waiting
+requests with who and why, **Approve** and **Decline**, and the shop's last 10 support visits (the control room's
+act-as entries in the activity log: when, who, looked only or made changes, why).
+
+| Route | What |
+| --- | --- |
+| `GET /api/account/access-requests?shopId=` | `{ requests, visits }`: the shop's requests, newest first, and its last 10 visits |
+| `POST /api/account/access-requests/answer` | `{ id, approve }` -> `{ request }`: approve or decline a waiting request |
+
+Owners only (`roleIn`); anyone else gets the same 403, whether or not the request exists. Only a waiting request that
+hasn't run out (24 hours) can be answered; answering the same way twice changes nothing. Each answer is logged in the
+registry and the shop's audit log (`support-access-approved` / `support-access-declined`). A yes lets support open the
+admin once, for 30 minutes.
+
 ## Not yet
 
+- The real store for support-access requests (`supportAccessRequests/<id>` in the platform project, with a
+  transaction for `update`).
 - The real stores (Firestore in the platform project: `memberships`, `invites`) and the real `shopData` writes into
   each shop's project.
 - Moving a recovered account automatically (`applyRecovery` is `recoveryByHand` for now).

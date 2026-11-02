@@ -71,4 +71,4 @@ shows. Its first big moment is connecting the bank so the books fill in. Free se
 - Shopify and QuickBooks onboarding: project files, `research/2026-10-27-shopify-quickbooks-onboarding.md` (which lists its own sources)
 
 Limits: Big Cartel's article was read once in full; the Squarespace and Wix pages were read once each, the Squarespace page
-in its first 100,000 characters only. Their import rules change; re-check before the importer work (16.5).
+in its first 100,000 characters only. Their import rules change; re-check before the importer work (17.5).

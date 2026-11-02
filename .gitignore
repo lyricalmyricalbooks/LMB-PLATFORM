@@ -4,3 +4,4 @@ node_modules/
 .firebase/
 # The demo shop's working files and saved data (demo/run.js)
 .demo/
+.claude/worktrees/

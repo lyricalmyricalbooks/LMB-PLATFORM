@@ -10,6 +10,7 @@ import { deviceId } from "../signup/device.js";
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const {
   getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, isSignInWithEmailLink, signInWithEmailLink,
+  getMultiFactorResolver, multiFactor, TotpMultiFactorGenerator,
 } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
 
 const auth = getAuth(initializeApp(PLATFORM_FIREBASE));
@@ -55,8 +56,76 @@ $("#google").addEventListener("click", async () => {
   try {
     await signInWithPopup(auth, new GoogleAuthProvider());
   } catch (error) {
-    if (error?.code !== "auth/popup-closed-by-user") status.textContent = "Google sign-in didn't finish. Try again, or use an email link.";
+    if (error?.code === "auth/multi-factor-auth-required") {
+      // This person turned on two-step sign-in (plan 14.1): ask for the code from their authenticator app.
+      resolver = getMultiFactorResolver(auth, error);
+      show("code");
+      $("#code-form").code.focus();
+    } else if (error?.code !== "auth/popup-closed-by-user") status.textContent = "Google sign-in didn't finish. Try again, or use an email link.";
   }
+});
+
+// ── Two-step sign-in (plan 14.1) ──
+let resolver = null;
+let setupSecret = null;
+const WRONG_CODE = "That code didn't work. Codes change every 30 seconds: try the one on screen now.";
+const clean = (value) => String(value).replace(/\s+/g, "");
+
+$("#code-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const hint = resolver?.hints.find((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID);
+  if (!hint) { status.textContent = "Your account has no authenticator app set up. Ask for help."; return; }
+  form.querySelector("button").disabled = true;
+  try {
+    await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(hint.uid, clean(form.code.value)));
+    form.reset();
+    resolver = null;
+    status.textContent = "";
+  } catch {
+    status.textContent = WRONG_CODE;
+  }
+  form.querySelector("button").disabled = false;
+});
+
+$("#open-twostep").addEventListener("click", async () => {
+  try {
+    setupSecret = await TotpMultiFactorGenerator.generateSecret(await multiFactor(auth.currentUser).getSession());
+  } catch (error) {
+    status.textContent = error?.code === "auth/requires-recent-login"
+      ? "Sign in again, then set up two-step sign-in straight away."
+      : "Two-step sign-in isn't switched on yet. Ask for help and we'll turn it on.";
+    return;
+  }
+  const link = setupSecret.generateQrCodeUrl(auth.currentUser.email, "Colophon");
+  $("#setup-key").textContent = setupSecret.secretKey.replace(/(.{4})/g, "$1 ").trim();
+  $("#setup-link").href = link;
+  try {
+    const qr = window.qrcode(0, "M");
+    qr.addData(link);
+    qr.make();
+    $("#setup-qr").replaceChildren(el("img", { src: qr.createDataURL(5, 2), alt: "Code to scan with your authenticator app" }));
+  } catch {
+    $("#setup-qr").textContent = "";
+  }
+  status.textContent = "";
+  show("twostep");
+});
+$("#twostep-back").addEventListener("click", () => show("shops"));
+
+$("#setup-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  form.querySelector("button").disabled = true;
+  try {
+    await multiFactor(auth.currentUser).enroll(TotpMultiFactorGenerator.assertionForEnrollment(setupSecret, clean(form.code.value)), "Authenticator app");
+    form.reset();
+    await signOut(auth);
+    status.textContent = "Two-step sign-in is on. Sign in again, then type the code from the app.";
+  } catch {
+    status.textContent = WRONG_CODE;
+  }
+  form.querySelector("button").disabled = false;
 });
 
 $("#link-form").addEventListener("submit", async (event) => {
@@ -155,6 +224,7 @@ async function loadShops() {
   }
   renderLedger(shops);
   await loadRecoveryAlerts().catch(() => {});
+  await loadAccessRequests().catch(() => {});
   show("shops");
 }
 
@@ -475,3 +545,49 @@ onAuthStateChanged(auth, async (user) => {
   }
   await openShops();
 });
+
+// ── Colophon support asks before making changes (plan 19.6): approve or decline, and the shop's past support visits. ──
+async function loadAccessRequests() {
+  const owned = myShops.filter((shop) => shop.role === "owner" && shop.status === "live");
+  const cards = [];
+  for (const shop of owned) {
+    const { requests, visits } = await api("GET", `/account/access-requests?shopId=${encodeURIComponent(shop.shopId)}`);
+    const waiting = requests.filter((request) => request.status === "waiting");
+    if (!waiting.length && !visits.length) continue;
+    cards.push(accessCard(shop, waiting, visits));
+  }
+  $("#access-requests").replaceChildren(...cards);
+}
+
+function accessCard(shop, waiting, visits) {
+  const asks = waiting.map((request) => {
+    const answer = (approve) => async (event) => {
+      event.currentTarget.disabled = true;
+      try {
+        await api("POST", "/account/access-requests/answer", { id: request.id, approve });
+        status.textContent = approve
+          ? `Approved. ${request.by} can open ${shop.pressName}'s admin once, for 30 minutes, within the day. It goes in your shop's log.`
+          : "Declined. Nobody can make changes in your shop on that request.";
+      } catch (failure) {
+        status.textContent = failure.message;
+      }
+      await loadAccessRequests().catch(() => {});
+    };
+    const yes = el("button", { type: "button", className: "primary", textContent: "Approve" });
+    yes.addEventListener("click", answer(true));
+    const no = el("button", { type: "button", textContent: "Decline" });
+    no.addEventListener("click", answer(false));
+    return el("div", { className: "card warning", role: "alert" },
+      el("strong", { textContent: `Colophon support asks to make changes in ${shop.pressName}` }),
+      el("p", { style: "margin:0", textContent: `${request.by} would like to open your admin for 30 minutes, able to make changes. Why: ${request.reason}. Answer by ${day(request.expiresAt)}; nothing changes unless you say yes.` }),
+      el("div", { className: "row" }, yes, no));
+  });
+  const visitList = visits.length
+    ? el("ul", { className: "list" }, ...visits.map((visit) => el("li", { className: "hint", textContent: `${day(visit.at)} · ${visit.by} · ${visit.mode === "edit" ? "made changes" : "looked only"} · ${visit.reason}` })))
+    : null;
+  return el("div", { className: "card stack" },
+    el("h3", { textContent: `${shop.pressName}: support visits` }),
+    ...asks,
+    visitList ? el("p", { className: "hint", style: "margin:0", textContent: "The last visits from Colophon support, newest first:" }) : null,
+    visitList);
+}

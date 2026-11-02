@@ -2,6 +2,7 @@
 import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { bringHelp } from "../bringShop";
 
 const api = vi.hoisted(() => ({ getFirstWeek: vi.fn(), updateFirstWeek: vi.fn(async () => {}), updateSettings: vi.fn(async () => {}) }));
 const store = vi.hoisted(() => {
@@ -45,7 +46,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("a new shop sees the welcome first, with the press's name, suggestions and every look", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" } });
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "zines", plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true } });
     await mount({});
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(text()).not.toContain("Set up your shop");
@@ -56,7 +57,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("choosing applies the look to the draft once, records it, and then shows the guide", async () => {
-    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" } });
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true } });
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
     await flush();
@@ -72,7 +73,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("Skip takes the first suggestion and says so", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true } });
     await mount({});
     await act(async () => { button("Skip for now")!.click(); });
     await flush();
@@ -80,7 +81,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
   });
 
   it("a failed save keeps the welcome up with a plain message", async () => {
-    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" } });
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true } });
     store.saveDraft.mockRejectedValueOnce(new Error("offline"));
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
@@ -145,7 +146,7 @@ describe("Get started, step 1: the press's details (plan 17.2)", () => {
   it("a new shop starts with its details, with the press name already in and Canada as the country", async () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both" });
     await mount({ waitForWelcome: false });
-    expect(text()).toContain("Get started · Step 1 of 2");
+    expect(text()).toContain("Get started · Step 1 of 8");
     expect(text()).not.toContain("Choose your look");
     expect((field("Press name") as HTMLInputElement).value).toBe("Moth Press");
     expect((field("Country") as HTMLSelectElement).value).toBe("Canada");
@@ -176,9 +177,11 @@ describe("Get started, step 1: the press's details (plan 17.2)", () => {
       location: { street: "12 Queen Street", city: "Toronto", state: "", zip: "M5H 2N2", country: "Canada" },
     });
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ details: { at: expect.any(String) } });
-    await waitFor(() => /Choose your look/.test(text()));
-    expect(text()).toContain("Choose your look");
-    expect(text()).not.toContain("Step 1 of 2");
+    // The next step is bringing the shop over (17.3); the look comes after it.
+    await waitFor(() => /bring your shop with you/.test(text()));
+    expect(text()).toContain("Step 2 of 8");
+    expect(text()).not.toContain("Step 1 of 8");
+    expect(text()).not.toContain("Choose your look");
   });
 
   it("a failed save keeps the step open with a plain message, and records nothing", async () => {
@@ -192,8 +195,62 @@ describe("Get started, step 1: the press's details (plan 17.2)", () => {
     await act(async () => { button("Save and continue")!.click(); });
     await flush();
     expect(document.querySelector("[role=alert]")).not.toBeNull();
-    expect(text()).toContain("Step 1 of 2");
+    expect(text()).toContain("Step 1 of 8");
     expect(api.updateFirstWeek).not.toHaveBeenCalled();
+  });
+});
+
+const radio = (value: string) => document.querySelector(`input[type=radio][value="${value}"]`) as HTMLInputElement;
+
+describe("Get started, step 2: bring your shop with you (plan 17.3)", () => {
+  const withDetails = { plan: "both", details: { at: "then" } };
+
+  it("after the press's details, a new shop is asked where it sells now, before the look", async () => {
+    api.getFirstWeek.mockResolvedValue(withDetails);
+    await mount({ waitForWelcome: false });
+    expect(text()).toContain("Get started · Step 2 of 8: bring your shop with you");
+    expect(text()).toContain("Where do you sell now?");
+    expect(text()).not.toContain("Choose your look");
+    expect(text()).not.toContain("Step 1 of 8");
+  });
+
+  it("choosing an answer shows its plain steps, and nothing is saved until the press asks for the import", async () => {
+    api.getFirstWeek.mockResolvedValue(withDetails);
+    await mount({ waitForWelcome: false });
+    expect(text()).not.toContain(bringHelp("spreadsheet")[0]);
+    await act(async () => { radio("spreadsheet").click(); });
+    expect(text()).toContain(bringHelp("spreadsheet")[0]);
+    expect(text()).toContain("Nothing is saved until you press Import");
+    expect(api.updateFirstWeek).not.toHaveBeenCalled();
+  });
+
+  it("starting fresh records the step as skipped, with the answer, and then shows the look", async () => {
+    api.getFirstWeek.mockResolvedValue(withDetails);
+    await mount({ waitForWelcome: false });
+    await act(async () => { radio("fairs").click(); });
+    await act(async () => { button("Start fresh")!.click(); });
+    await flush();
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ bring: { at: expect.any(String), from: "fairs", skipped: true } });
+    await waitFor(() => /Choose your look/.test(text()));
+    expect(text()).toContain("Choose your look");
+    expect(text()).not.toContain("bring your shop with you");
+  });
+
+  it("a failed save keeps the step open with a plain message", async () => {
+    api.getFirstWeek.mockResolvedValue(withDetails);
+    api.updateFirstWeek.mockRejectedValueOnce(new Error("offline"));
+    await mount({ waitForWelcome: false });
+    await act(async () => { button("Start fresh")!.click(); });
+    await flush();
+    expect(document.querySelector("[role=alert]")).not.toBeNull();
+    expect(text()).toContain("Step 2 of 8");
+  });
+
+  it("a shop that already finished step 2 goes straight to the look", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then" } });
+    await mount({});
+    await waitFor(() => /Choose your look/.test(text()));
+    expect(text()).not.toContain("Where do you sell now?");
   });
 });
 

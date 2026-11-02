@@ -20,6 +20,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { personOf, SignupError } from "../signup/signup.js";
 import { ROLES, ROLE_WORDS } from "./roles.js";
+import { ownerTwoStepProblem } from "./twoStep.js";
 
 export { ROLES, ROLE_WORDS };
 export const INVITE_DAYS = 7;
@@ -50,9 +51,12 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
     return row && normal(row.ownerEmail) === person.email ? "owner" : null;
   }
 
-  async function ownerOnly(claims, shopId) {
+  // `change` is true for the calls that alter the team: on a paid plan they need the second step (plan 14.1).
+  async function ownerOnly(claims, shopId, change = false) {
     const person = personOf(claims);
     if (typeof shopId !== "string" || (await roleIn(person, shopId)) !== "owner") throw new SignupError(403, "Only the shop's owner can do that.");
+    const problem = change ? ownerTwoStepProblem(claims, await registry.getShop(shopId)) : null;
+    if (problem) throw new SignupError(problem.status, problem.message);
     return person;
   }
 
@@ -122,7 +126,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
 
     /** Invites someone by email with a role. Inviting the same address again replaces the open invite. */
     async invite(claims, { shopId, email: address, role }) {
-      const person = await ownerOnly(claims, shopId);
+      const person = await ownerOnly(claims, shopId, true);
       const to = normal(address);
       if (!EMAIL.test(to) || to.length > 254) throw new SignupError(400, "Enter the email address to invite.", { email: "Enter the email address to invite." });
       if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff, author or bookkeeper.", { role: "Choose a role." });
@@ -149,7 +153,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
 
     /** Cancels an open invite. */
     async cancelInvite(claims, { shopId, id }) {
-      const person = await ownerOnly(claims, shopId);
+      const person = await ownerOnly(claims, shopId, true);
       const invite = await invites.get(id);
       if (!invite || invite.shopId !== shopId) throw new SignupError(404, "That invite isn't there.");
       if (invite.acceptedAt || invite.cancelledAt) return { id, cancelled: false };
@@ -184,7 +188,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
 
     /** Changes a team member's role. The shop always keeps at least one owner. */
     async setRole(claims, { shopId, email: address, role }) {
-      const person = await ownerOnly(claims, shopId);
+      const person = await ownerOnly(claims, shopId, true);
       const who = normal(address);
       if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff, author or bookkeeper.");
       const member = await memberships.get(shopId, who);
@@ -199,7 +203,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
 
     /** Takes someone off the team. The shop's sign-up owner and the last owner can't be removed. */
     async remove(claims, { shopId, email: address }) {
-      const person = await ownerOnly(claims, shopId);
+      const person = await ownerOnly(claims, shopId, true);
       const who = normal(address);
       const member = await memberships.get(shopId, who);
       if (!member) throw new SignupError(404, "That person isn't on the team.");

@@ -6,6 +6,7 @@
 // order, open your shop. Gmail is not a step: platform email works from the start and Gmail stays in Settings.
 
 import type { ReadinessItem } from "./launchReadiness";
+import type { BringMarker } from "./bringShop";
 import { firstProductWords } from "./sells";
 import { wordsFor } from "../../shared/shopSells";
 
@@ -35,6 +36,8 @@ export interface FirstWeekDoc {
   hiddenAt?: string;
   /** Set once Get started's press details are saved (plan 17.2), before the look. */
   details?: { at: string };
+  /** Set once Get started's bring-your-shop step is finished or skipped (plan 17.3), before the look. */
+  bring?: BringMarker;
   /** Set once Choose your look is done (plan 6.3): it never shows again. */
   welcome?: WelcomeDone;
   /** The guide's progress as the admin last worked it out, read by the platform's trial emails (plan 6.10). */

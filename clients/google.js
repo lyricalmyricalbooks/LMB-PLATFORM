@@ -20,6 +20,8 @@
 //                         state is read back with get. Delete stops Hosting serving the shop there.
 //   Cloud Scheduler v1    projects.locations.jobs.list (pageSize, pageToken), projects.locations.jobs.delete: the shop's
 //                         scheduled jobs (plan 15.16). Google bills every job after the free three, a paused one too.
+//   Billing Budgets v1    billingAccounts.budgets.list (pageSize, pageToken), billingAccounts.budgets.create: each shop's
+//                         alerts-only budget (Pub/Sub topic) and its Cloud Run functions spend cap (plan 15.17).
 //   Artifact Registry v1  projects.locations.repositories.get/patch (updateMask cleanupPolicies,cleanupPolicyDryRun): the
 //                         functions' build repository `gcf-artifacts` keeps only a day of old images (plan 15.16).
 //   Firebase Storage (the address the shop's pages read files through, where storage rules apply):
@@ -43,6 +45,7 @@ const SECRETS = "https://secretmanager.googleapis.com/v1";
 const HOSTING = "https://firebasehosting.googleapis.com/v1beta1";
 const SCHEDULER = "https://cloudscheduler.googleapis.com/v1";
 const ARTIFACTS = "https://artifactregistry.googleapis.com/v1";
+const BUDGETS = "https://billingbudgets.googleapis.com/v1";
 
 /** The repository 2nd-generation functions put their built images in, and the cleanup rule on it (plan 15.16). */
 export const BUILD_REPOSITORY = "gcf-artifacts";
@@ -349,6 +352,28 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
         } catch (error) {
           if (!isNotFound(error)) throw error;
         }
+      },
+    },
+    // Budgets sit on the billing account and are filtered to one project (plan 15.17, setup/spend.js).
+    budgets: {
+      /** Every budget on the account: { id, name, displayName, cap }. */
+      async list(billingAccount) {
+        const out = [];
+        let pageToken;
+        do {
+          const page = await call("GET", `${BUDGETS}/${billingAccount}/budgets`, { query: { pageSize: 100, pageToken } });
+          for (const b of page.budgets ?? []) out.push({ id: b.name.split("/").at(-1), name: b.name, displayName: b.displayName ?? "", cap: Boolean(b.spendCap) });
+          pageToken = page.nextPageToken;
+        } while (pageToken);
+        return out;
+      },
+      async create(billingAccount, budget) {
+        const made = await call("POST", `${BUDGETS}/${billingAccount}/budgets`, { body: budget });
+        return { id: made.name.split("/").at(-1), name: made.name };
+      },
+      /** The project's number, which budget filters use (`projects/<number>`). */
+      async projectNumber(projectId) {
+        return projectNumber(projectId);
       },
     },
     buildCleanup: {
