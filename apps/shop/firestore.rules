@@ -321,7 +321,7 @@ service cloud.firestore {
       // Admin only. The sign-up answers themselves never change from the admin.
       allow read: if isAdminReader();
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "shipping", "finalCheck", "createdAt", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
         && (resource == null || (request.resource.data.get("sellingToday", null) == resource.data.get("sellingToday", null)
           && request.resource.data.get("publishes", null) == resource.data.get("publishes", null)
           && request.resource.data.get("country", null) == resource.data.get("country", null)
@@ -346,6 +346,10 @@ service cloud.firestore {
           && (!("connected" in request.resource.data.google) || request.resource.data.google.connected is bool)
           && (!("coming" in request.resource.data.google) || request.resource.data.google.coming is bool)
           && (!("skipped" in request.resource.data.google) || request.resource.data.google.skipped is bool)))
+        && (!("payments" in request.resource.data) || (request.resource.data.payments is map
+          && request.resource.data.payments.keys().hasOnly(["at", "ready", "skipped"]) && request.resource.data.payments.at is string
+          && (!("ready" in request.resource.data.payments) || request.resource.data.payments.ready is bool)
+          && (!("skipped" in request.resource.data.payments) || request.resource.data.payments.skipped is bool)))
         && (!("welcome" in request.resource.data) || (request.resource.data.welcome is map
           && request.resource.data.welcome.keys().hasOnly(["theme", "at", "skipped"])
           && request.resource.data.welcome.theme is string && request.resource.data.welcome.theme.size() <= 80))
