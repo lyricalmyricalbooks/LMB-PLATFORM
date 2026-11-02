@@ -35,7 +35,7 @@ import { SupportBanner } from "./SupportBanner";
 import { PlanBannerBar, PlanDesk } from "./PlanParts";
 import { planLocked } from "./platformPlan";
 import { usePlatformPlan } from "./platformPlanApi";
-import { PlatformMessagesBar } from "./PlatformMessages";
+import { PlatformMessagesBar } from "./PlatformMessagesBar";
 import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";

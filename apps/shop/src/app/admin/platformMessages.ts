@@ -3,7 +3,7 @@
 // The platform's control room writes the admin-only `platform/messages` document into the shop's database: every
 // message for this shop that hasn't ended, upcoming ones included (control-room/messages.js in the platform repo). No
 // browser can write it and only admins can read it (firestore.rules). The admin shows the ones between their start and
-// end as a banner over every admin page (PlatformMessages.tsx); the storefront never reads it.
+// end as a banner over every admin page (PlatformMessagesBar.tsx); the storefront never reads it.
 //
 // A press can close a banner; that is kept in this browser only. Admin-only words, plain (no technical terms).
 

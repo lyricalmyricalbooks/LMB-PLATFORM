@@ -410,7 +410,7 @@ note (the run book) stays for outages.
 - **How it reaches the shop:** the admin-only `platform/messages` document in the shop's own database, like billing's
   `platform/plan`: `{ messages: [{ id, words, level, startsAt, endsAt }], updatedAt }`, every message for the shop that
   hasn't ended, upcoming ones too. The shop admin shows each between its dates as a banner over every page, with Close
-  (kept in that browser), under the plan's banner (`apps/shop/src/app/admin/platformMessages.ts`, `PlatformMessages.tsx`).
+  (kept in that browser), under the plan's banner (`apps/shop/src/app/admin/platformMessages.ts`, `PlatformMessagesBar.tsx`).
   The shop's rules let only its admins read it and no browser write it; the storefront never reads it. Not the shop
   profile: `/shop-profile.js` is public and changing it means putting the shop's pages live again.
 - **End now** takes it off every shop at once. **`sweep()`** (nightly, beside the self-checks) rewrites every live shop's

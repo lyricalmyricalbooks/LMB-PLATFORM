@@ -609,7 +609,7 @@ product's own Option1–3 Name/Value (names on its first line), so the export an
 ## Messages from Colophon (plan 19.14, 2 November 2026)
 
 The platform's control room writes the admin-only `platform/messages` document (`{ messages: [{ id, words, level,
-startsAt, endsAt }] }`, rules: admins read, no browser writes). `PlatformMessagesBar` (`PlatformMessages.tsx`, under
+startsAt, endsAt }] }`, rules: admins read, no browser writes). `PlatformMessagesBar` (`PlatformMessagesBar.tsx`, under
 `PlanBannerBar` in `Dashboard.tsx`) shows each message between its dates as an `rp-alert` banner over every admin page
 (important ones in the warning tone), at most three, with Close kept in `localStorage` (`platformMessages.ts`
 `pickPlatformMessages`, tested in `platformMessages.test.ts`, which also checks nothing outside `app/admin` reads it). The
