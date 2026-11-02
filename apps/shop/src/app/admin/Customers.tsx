@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
+import { StockistsCard } from "./StockistsCard";
 import { copyText } from "./clipboard";
 import { getOrdersCached } from "./ordersCache";
 import {
@@ -261,6 +262,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
             notesState={notesState} onRetryNotes={loadNotes} savingNote={savingNote} onSaveNote={saveNote} knownTags={allTags} onOpenOrder={() => setOpen(null)} />
         </Dialog>
       )}
+      <StockistsCard />
       {confirmNode}
     </div>
   );

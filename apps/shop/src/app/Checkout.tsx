@@ -34,7 +34,8 @@ import { accountsEnabled } from "./features/site/customerAccounts";
 import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { subscribePreview } from "./features/site/previewTab";
-import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess } from "./lib/orderAccessClient";
+import { claimTradePricing } from "./lib/tradePricing";
+import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "./lib/orderAccessClient";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
 import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, onPageRestored } from "./features/site/stripeLifecycle";
@@ -1446,6 +1447,9 @@ export function Checkout() {
           }
         }
         if (!clientSecret) {
+          // An approved trade account (signed in with its approved email) is priced at wholesale by the server; the
+          // total check below then shows the shopper the real amount before anything is charged.
+          await claimTradePricing(orderId, savedOrderAccess(orderId));
           const intentResponse = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
