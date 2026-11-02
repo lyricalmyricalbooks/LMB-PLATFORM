@@ -11,6 +11,7 @@ import {
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { smallPhotoUrl } from "../features/site/photoSources";
 import { shopFrameShapes } from "./photoCrop";
+import { useShopWords } from "./shopWords";
 
 export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
   photo: { url: string; altText?: string; framing?: unknown; adjust?: unknown } | null;
@@ -19,6 +20,7 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
   onSave: (edit: { framing: PhotoFraming | undefined; adjust: PhotoAdjust | undefined }) => void;
   onClose: () => void;
 }) {
+  const w = useShopWords();
   const [framing, setFraming] = useState<PhotoFraming>(DEFAULT_FRAMING);
   const [adjust, setAdjust] = useState<PhotoAdjust>(DEFAULT_ADJUST);
   const [comparing, setComparing] = useState(false);
@@ -234,7 +236,7 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
               </figure>
             ))}
           </div>
-          <p className="be-note">The enlarged photo viewer on the book page shows the whole photo, with your straighten, light, colour, detail and flip edits.</p>
+          <p className="be-note">{w("The enlarged photo viewer on the book page shows the whole photo, with your straighten, light, colour, detail and flip edits.")}</p>
         </div>
       </div>
     </Dialog>

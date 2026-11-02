@@ -148,6 +148,23 @@ page (`<PLATFORM_URL>/account/billing?shop=<id>`), never to a Stripe page, since
 Every change is kept in the billing store, copied to the shop's registry row (`billing: { plan, status, access, trialEnd,
 currentPeriodEnd, cancelAtPeriodEnd, hasCard }`) and logged in the registry and the shop's audit log.
 
+### Each event exactly once (`eventClaims.js`, plan 19.4)
+
+Stripe can send the same event twice at the same moment. Before handling one, `handleEvent` **claims** its id in the
+events store (`claim(eventId, { at, holdMs })`, create-if-absent: only one caller wins). The winner handles it and
+`mark`s it done; a failure `release`s the claim and answers 500, so Stripe's next try is handled. A copy that arrives
+while another is being handled answers **409** ("in progress"): Stripe resends anything that isn't 2xx, so it comes
+back later and finds the event done (200, duplicate). A claim older than 5 minutes (`CLAIM_HOLD_MS`, a handler that
+crashed) is taken over by the next delivery. `seen` still answers "handled?" for older callers, and a store with no
+`claim` falls back to it. The real `billingEvents` store makes the claim with Firestore's `create()` (or a
+transaction for the take-over). Tests: `eventClaims.test.js`.
+
+The same check on the other event doors: `services/payments` `stripeEvent` / `squareEvent` keep no event list, and
+need none: every step they take is already keyed (the account's state is written as it is, its log entry by the event
+id, the past-due email by an idempotency key the email service sends once, pay-as-you-sell fees by payment id inside a
+transaction), and the shop itself handles each event once. Resend's events (`services/email/webhook.js`) are counted
+through `addEvent`, which already adds an event id only if it isn't there. So no claim was added to either.
+
 ## Settings
 
 `BILLING_MODE` (`test` by default, or `live`), `STRIPE_BILLING_WEBHOOK_SECRET` and `BILLING_TAX` (`off` by default, or

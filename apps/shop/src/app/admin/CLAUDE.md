@@ -511,16 +511,30 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   (`shopWords.tsx`, `useShopWords()`); the menu, page titles, the product list and the product editor use it (the
   editor follows the product's own kind). Wrap new admin words with `w(...)` on those pages.
 
-## Get started: your press first (29 October 2026, code plan 17.1 and 17.2)
+## Get started: your press first (29 October 2026, code plan 17.1 to 17.4)
 
-The first-visit run at the top of a new shop's Overview (`overview/SetupStart.tsx`) now starts with **Get started,
-step 1 of 2** (`overview/PressDetailsStage.tsx`, pure logic in `pressDetails.ts`): press name, contact email, street,
-city, postal code and country (state optional). It writes the same settings fields Settings uses (`info.name`,
-`info.email`, `location.*`), through `adminApi.updateSettings` with only those two keys, so nothing else changes. Then
-it records `firstWeek/start` › `details: { at }` (admin-only, shape checked in `firestore.rules`) and the look comes
-next. A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (17.3 to 17.13):
-the import step, the Google and payment stages, shipping, the stockroom and the final check. The run sits at the top of
-the Overview; it doesn't yet replace the whole screen (a separate start page is a later change).
+The first-visit run at the top of a new shop's Overview (`overview/SetupStart.tsx`) is **Get started**, eight steps in
+order. Built so far:
+
+- **Step 1 of 8, your press** (`overview/PressDetailsStage.tsx`, pure logic in `pressDetails.ts`, code plan 17.2): press
+  name, contact email, street, city, postal code and country (state optional). It writes the same settings fields Settings
+  uses (`info.name`, `info.email`, `location.*`), through `adminApi.updateSettings` with only those two keys, so nothing
+  else changes. Then it records `firstWeek/start` › `details: { at }`.
+- **Step 2 of 8, bring your shop with you** (`overview/BringShopStage.tsx`, pure logic and the plain steps in
+  `bringShop.ts`, code plan 17.3 and 17.4): "Where do you sell now?" (six answers, none names another shop system), the
+  steps for that answer, then **Choose my product file**, which opens the Books importer (`BookImportDialog`) and its
+  preview. Continue records `firstWeek/start` › `bring: { at, from?, skipped? }`; **Start fresh** records `skipped: true`.
+  The `firestore.rules` shape for `bring` is checked by `customerNotesRules.test.ts`.
+
+Then the look (Choose your look, plan 6.3) comes next, and a shop with a `welcome` already, or no `firstWeek` document,
+never sees the run. Still to come (17.5 to 17.13): more import layouts (needs a real sample from each builder), photos
+given as links, Google, payments, shipping, the stockroom and the final check. The run sits at the top of the Overview;
+it doesn't yet replace the whole screen (a separate start page is a later change).
+
+**Phase 18 rule (planned on main):** a press gets its own backend only at launch. Every write above goes to
+`firstWeek/start` and `settings/website` of the shop that already exists. Phase 18's setup mode (18.6 and 18.7) moves
+these writes to the press's record in the platform project before the shop opens, through one adapter; the stages
+themselves don't change.
 
 ## Going live on Colophon (28 October 2026, code plan 2.10)
 

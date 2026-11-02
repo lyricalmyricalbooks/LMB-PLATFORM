@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { matchesCustomerService } from "./fulfillment";
 import { PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
 import { formatGrams } from "../features/site/metricWeight";
+import { useShopWords } from "./shopWords";
 
 export type Parcel = { length: string; width: string; height: string; weight: string; distance_unit: string; mass_unit: string };
 export type ParcelPreset = { name: string; parcel: Partial<Parcel> };
@@ -43,6 +44,7 @@ export function LabelBuyer({
   order, parcel, onParcel, presets, onPreset, suggestedWeight, rates, searched, selectedRate, onSelectRate,
   finding, buying, busy, problem, onFindRates, onBuy, onDispatch, onSavePreset,
 }: Props) {
+  const w = useShopWords();
   const [presetName, setPresetName] = useState("");
   const [savingPreset, setSavingPreset] = useState(false);
   const valid = (["length", "width", "height", "weight"] as const).every((k) => Number.isFinite(Number(parcel[k])) && Number(parcel[k]) > 0);
@@ -86,7 +88,7 @@ export function LabelBuyer({
           ))}
         </div>
         <p className="rp-hint" style={{ margin: 0 }}>
-          Suggested weight {formatGrams(Number(suggestedWeight))}, from the books' catalog weights plus packaging.
+          Suggested weight {formatGrams(Number(suggestedWeight))}{w(", from the books' catalog weights plus packaging.")}
         </p>
         <details className="ss-preset">
           <summary>Save this size as a parcel</summary>

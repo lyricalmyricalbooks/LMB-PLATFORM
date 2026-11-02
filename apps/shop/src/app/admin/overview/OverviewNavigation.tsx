@@ -5,6 +5,7 @@ import type { Book } from "./overviewInsights";
 import type { WidgetConfig } from "./overviewBoard";
 import { Frame, NeedsUpdate, NotAnswered, NotConnected, NotYet, OWN_HOSTS } from "./OverviewVisitors.tsx";
 import { deviceSteps, followPage, landingJourneys, listClicks, pageMoves, type PageLink } from "./overviewNavigation";
+import { useShopWords } from "../shopWords";
 
 // Overview › Visitors › how visitors move (20 October 2026): four widgets from the Google Analytics report's 5th batch
 // (maths in overviewNavigation.ts). Same frame as the other visitor widgets: a headline that answers the question, the
@@ -21,6 +22,7 @@ export function OverviewNavigation({ only, ga, books, config, onConfig, full, se
   config?: WidgetConfig; onConfig?: (patch: WidgetConfig) => void; full?: boolean;
   setActiveTab?: (tab: string) => void; periodLabel?: string;
 }) {
+  const w = useShopWords();
   if (ga.status === "loading") return <LoadingState label="Reading Google Analytics…" />;
   const report = ga.status === "connected" ? ga.answer?.report : undefined;
   if (!report) return <NotConnected setActiveTab={setActiveTab} />;
@@ -113,7 +115,7 @@ export function OverviewNavigation({ only, ga, books, config, onConfig, full, se
       const cap = isFull ? 20 : 6;
       return (
         <Frame headline={headline} foot={`${source} · every list of book cards · click rate shown once a list's cards were seen 20 times`}>
-          <RankBars label="Book lists by share of books opened" rows={rows.slice(0, cap).map((r): RankRow => ({
+          <RankBars label={w("Book lists by share of books opened")} rows={rows.slice(0, cap).map((r): RankRow => ({
             key: r.key, label: r.label, value: r.rate === null ? 0 : r.rate * 100,
             valueText: r.rate === null ? "too few views" : `${pct(r.rate)} opened`,
             sub: `${plural(r.seen, "card")} seen · ${plural(r.opened, "book")} opened`,

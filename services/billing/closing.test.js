@@ -296,3 +296,26 @@ test("the closing emails render with the date and the link, and the warning only
   }
   assert.throws(() => TEMPLATES["shop-deletion-warning"]({ ...data, days: 3 }, { settings, pressName: "P" }), /30 or 7/);
 });
+
+test("a pause and a closing run the job hooks once, and a card brings the jobs back (plan 15.16)", async () => {
+  const calls = [];
+  let failRedeploy = true;
+  const hooks = {
+    onPause: [async (shop) => { calls.push(["onPause", shop.shopId]); }],
+    onReopen: [async (shop) => { calls.push(["onReopen", shop.shopId]); if (failRedeploy) throw new Error("deploy busy"); }],
+  };
+  const t = await make({ hooks });
+  await t.pause();
+  await t.sweep.sweep();
+  await t.sweep.sweep();
+  assert.deepEqual(calls, [["onPause", SHOP]], "once, not on every run");
+  t.tick(30);
+  const { url } = await t.billing.cardLink({ shopId: SHOP, returnUrl: "https://platform.example/account/billing" });
+  await t.event("checkout.session.completed", t.stripe.completeSetup(url.split("/").pop()));
+  await t.sweep.sweep();
+  assert.match((await t.closing()).problem, /onReopen: deploy busy/, "a failed redeploy keeps the shop's timeline until it works");
+  failRedeploy = false;
+  await t.sweep.sweep();
+  assert.equal(await t.closing(), null);
+  assert.deepEqual(calls.map(([name]) => name), ["onPause", "onReopen", "onReopen"]);
+});

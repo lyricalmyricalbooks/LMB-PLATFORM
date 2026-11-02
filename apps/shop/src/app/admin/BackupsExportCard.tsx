@@ -15,6 +15,7 @@ import { shopNameFromSettings } from "../features/site/shopIdentity";
 import { describeBackup, describeBackupDay, type BackupDay, type BackupRecord } from "./backupStatus";
 import { friendlyError } from "./settingsLayout";
 import { DataTable, GhostButton, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge } from "./riso/components";
+import { useShopWords } from "./shopWords";
 
 const IAM_URL = `https://console.cloud.google.com/iam-admin/iam?project=${encodeURIComponent(shopProfile.firebase.projectId)}`;
 
@@ -49,6 +50,7 @@ function download(name: string, text: string, type: string) {
 // downloads of the catalog, customers and orders (built in the browser from admin reads), plus the month's
 // bookkeeping sheets (plan 7.12, bookkeepingCsv.ts).
 export function BackupsExportCard() {
+  const w = useShopWords();
   const [record, setRecord] = useState<BackupRecord | undefined>(undefined);
   const [busy, setBusy] = useState("");
   const months = bookkeepingMonths(new Date());
@@ -189,7 +191,7 @@ export function BackupsExportCard() {
       </div>
       <p className="rp-hint" style={{ margin: "12px 0 0" }}>No test orders. Unpaid and cancelled included.</p>
       <h3 className="rp-label" style={{ margin: "16px 0 8px" }}>Download for your bookkeeper</h3>
-      <p className="rp-hint" style={{ margin: "0 0 8px" }}>One month, three sheets: a line per day, per order and per payout. Paid orders only, to the cent, each tax by its name in your books (Taxes). Card fees and payouts show once your payment service reports them.</p>
+      <p className="rp-hint" style={{ margin: "0 0 8px" }}>{w("One month, three sheets: a line per day, per order and per payout. Paid orders only, to the cent, each tax by its name in your books (Taxes). Card fees and payouts show once your payment service reports them.")}</p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "end" }}>
         <SelectField label="Month" value={month} onChange={(e) => setMonth(e.target.value)}>
           {months.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
@@ -199,7 +201,7 @@ export function BackupsExportCard() {
         <SecondaryButton size="sm" disabled={!!busy} onClick={() => bookkeeping("payouts", bookkeepingPayoutsCsv)}>{busy === "book-payouts" ? "Preparing…" : "Payouts sheet"}</SecondaryButton>
       </div>
       <h3 className="rp-label" style={{ margin: "16px 0 8px" }}>Download for another shop system</h3>
-      <p className="rp-hint" style={{ margin: "0 0 8px" }}>Moving to a different shop system? These files use the layouts most of them read: books with one line per edition and each extra photo on its own line, and customers with their address, orders and whether they agreed to marketing email (yes only for people on your newsletter now).</p>
+      <p className="rp-hint" style={{ margin: "0 0 8px" }}>{w("Moving to a different shop system? These files use the layouts most of them read: books with one line per edition and each extra photo on its own line, and customers with their address, orders and whether they agreed to marketing email (yes only for people on your newsletter now).")}</p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <SecondaryButton size="sm" disabled={!!busy} onClick={() => run("books-elsewhere", async () => {
           const books = await adminApi.getAllBooks();

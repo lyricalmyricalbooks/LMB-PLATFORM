@@ -9,6 +9,7 @@ import { autoBookSeo, bookCreators, bookMetadata, defaultBookTitle, seoChecks } 
 import type { Book } from '../features/site/types';
 import { askAi, aiWriterAvailable, bookAiInput } from './aiWriter';
 import { runsOnColophon } from '../../lib/shopProfile';
+import { useShopWords } from "./shopWords";
 
 // Settings + whole catalog, shared by every opening of this pane for a minute (it used to reload both each time).
 let seoCache: { at: number; promise: Promise<[any, Book[]]> } | null = null;
@@ -21,6 +22,7 @@ function loadSeoData(): Promise<[any, Book[]]> {
 }
 
 export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange: (key: string, value: unknown) => void }) {
+  const w = useShopWords();
   const [design, setDesign] = useState<any>(null);
   const [catalog, setCatalog] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -77,13 +79,13 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
   };
   return <>
     {confirmNode}
-    <SectionCard title="Search engine listing" description="Edit this book’s search and sharing details. Google may rewrite titles and snippets; rankings are not guaranteed.">
+    <SectionCard title="Search engine listing" description={w("Edit this book’s search and sharing details. Google may rewrite titles and snippets; rankings are not guaranteed.")}>
       <div><button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={autoFill}
-        title="Write the search title and description from this book's title, author and description">Auto-fill from book</button>
+        title={w("Write the search title and description from this book's title, author and description")}>{w("Auto-fill from book")}</button>
         {aiWriterAvailable() && <>{' '}<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void writeWithAi()} disabled={aiBusy}
           title="Draft the search title and description with AI (Settings › General › AI writing assistant)">{aiBusy ? 'Writing…' : '✦ Write with AI'}</button></>}</div>
       <label className="rp-hint"><input type="checkbox" checked={book.seoNoindex === true} onChange={event => onChange('seoNoindex', event.target.checked)} /> Exclude this listing from search engines</label>
-      <p className="rp-hint">Useful for test and duplicate listings. The book stays available in the shop; Google receives noindex and the sitemap omits it.</p>
+      <p className="rp-hint">{w("Useful for test and duplicate listings. The book stays available in the shop; Google receives noindex and the sitemap omits it.")}</p>
       <div className="be-grid">
         <div className="be-span-2"><TextField label="Search title" value={book.metaTitle || ''} onChange={e => onChange('metaTitle', e.target.value)} placeholder={getCopy(design, 'siteTitleFormat', { title: book.title || '' })} hint={`${title.length} characters in the effective title. A custom title is used exactly as written.`} /></div>
         <div className="be-span-2"><TextArea label="Search description" value={book.metaDescription || ''} onChange={e => onChange('metaDescription', e.target.value)} rows={3} placeholder={meta.description} hint={`${description.length} characters. Leave blank to use a plain-text summary of the book description.`} /></div>
@@ -99,12 +101,12 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { onChange('metaTitle', ''); onChange('metaDescription', ''); onChange('seoImage', ''); }}>Use catalog defaults</button>
     </SectionCard>
     <ArtistLinks book={book} onChange={onChange} />
-    <SectionCard title={`SEO checks · ${checks.filter(c => c.ok).length}/${checks.length}`} description="Content checks are guidance, not a Google ranking score. Changes save with the book.">
+    <SectionCard title={`SEO checks · ${checks.filter(c => c.ok).length}/${checks.length}`} description={w("Content checks are guidance, not a Google ranking score. Changes save with the book.")}>
       <ul className="be-check">{checks.map(c => <li key={c.id} className={c.ok ? 'is-ok' : ''}><span aria-hidden>{c.ok ? '✓' : '○'}</span> {c.label}<span className="rp-sr-only">{c.ok ? ' Complete.' : ' Needs attention.'}</span></li>)}</ul>
       {/* A shop run by Colophon sets up its search listing on its own: there is no sitemap or tool for the press to use (code plan 6.16). */}
       {runsOnColophon()
-        ? <p className="rp-hint">Your shop's web addresses and book details are set up for search engines automatically. Nothing to do here.</p>
-        : <p className="rp-hint">Canonical URLs and product details are generated automatically. The public price, currency and availability feed structured data. Submit the deployed sitemap in Google Search Console and inspect the book URL after publishing.</p>}
+        ? <p className="rp-hint">{w("Your shop's web addresses and book details are set up for search engines automatically. Nothing to do here.")}</p>
+        : <p className="rp-hint">{w("Canonical URLs and product details are generated automatically. The public price, currency and availability feed structured data. Submit the deployed sitemap in Google Search Console and inspect the book URL after publishing.")}</p>}
       {url && !runsOnColophon() && <a className="rp-btn rp-btn-ghost rp-btn-sm" href={`https://search.google.com/test/rich-results?url=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer">Test deployed URL with Google</a>}
     </SectionCard>
   </>;
@@ -115,6 +117,7 @@ type LinkRow = { name: string; url: string };
 /** Books › edit › Search (SEO) › Artist links: each credited artist's own website. It is linked from the book page's
  *  Details tab and given to Google with the artist's name, which is how a search for the name finds the book. */
 function ArtistLinks({ book, onChange }: { book: Partial<Book>; onChange: (key: string, value: unknown) => void }) {
+  const w = useShopWords();
   const rows: LinkRow[] = Array.isArray(book.creatorLinks) ? book.creatorLinks.map(r => ({ name: String(r?.name || ''), url: String(r?.url || '') })) : [];
   const creators = bookCreators(book as any);
   const save = (next: LinkRow[]) => onChange('creatorLinks', next);
@@ -122,7 +125,7 @@ function ArtistLinks({ book, onChange }: { book: Partial<Book>; onChange: (key: 
   const unlinked = creators.find(name => !rows.some(r => r.name.trim().toLowerCase() === name.toLowerCase()));
   const badUrl = (url: string) => !!url.trim() && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(url.trim());
   return (
-    <SectionCard title="Artist links" description="The artist’s own website (or main profile). It shows as a link in the book page’s Details tab and tells Google which person this book is by. Google decides rankings; the strongest help is the artist linking back to this book page from their site.">
+    <SectionCard title="Artist links" description={w("The artist’s own website (or main profile). It shows as a link in the book page’s Details tab and tells Google which person this book is by. Google decides rankings; the strongest help is the artist linking back to this book page from their site.")}>
       {rows.map((row, i) => (
         <div className="be-grid" key={i}>
           <div><TextField label="Artist name" value={row.name} list="be-artist-names" onChange={e => edit(i, 'name', e.target.value)}

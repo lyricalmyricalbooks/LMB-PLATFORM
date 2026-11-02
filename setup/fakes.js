@@ -133,6 +133,10 @@ export function fakeGoogle({ failOnce = [] } = {}) {
     namedDatabases: new Map(), extraBuckets: new Map(), realtimeDatabases: new Map(),
     // What an unsigned read of the storage test file gets; 403 is private, as the shop's storage rules make it.
     unsignedReadStatus: 403,
+    // Scheduled jobs by project (a set of job ids) and the projects whose build repository has the cleanup rule (plan 15.16).
+    schedulerJobs: new Map(), buildCleanup: new Set(),
+    // Budgets on the billing account (plan 15.17): { id, displayName, body }.
+    budgets: [],
   };
   const calls = [];
   const failures = [...failOnce];
@@ -260,6 +264,31 @@ export function fakeGoogle({ failOnce = [] } = {}) {
         const backup = { name: `backups/${projectId}/${list.length + 1}` };
         world.backups.set(projectId, [...list, backup]);
         return backup;
+      },
+    },
+    // Plan 15.16: the shop's scheduled jobs and the build repository's cleanup rule.
+    scheduler: {
+      listJobs: async (projectId) => [...(world.schedulerJobs.get(projectId) ?? [])],
+      async deleteJob(projectId, region, id) {
+        change("scheduler.deleteJob", projectId, id);
+        world.schedulerJobs.get(projectId)?.delete(id);
+      },
+    },
+    budgets: {
+      list: async () => world.budgets.map(({ id, displayName, body }) => ({ id, name: `billingAccounts/x/budgets/${id}`, displayName, cap: Boolean(body.spendCap) })),
+      async create(billingAccount, body) {
+        change("budgets.create", body.displayName);
+        const id = `budget-${world.budgets.length + 1}`;
+        world.budgets.push({ id, displayName: body.displayName, body, billingAccount });
+        return { id, name: `${billingAccount}/budgets/${id}` };
+      },
+      projectNumber: async (projectId) => number(projectId),
+    },
+    buildCleanup: {
+      has: async (projectId) => (world.firebase.has(projectId) ? world.buildCleanup.has(projectId) : null),
+      async set(projectId) {
+        change("buildCleanup.set", projectId);
+        world.buildCleanup.add(projectId);
       },
     },
     storageProbe: {

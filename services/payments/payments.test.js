@@ -602,7 +602,7 @@ test("the web doors route shop calls and Stripe events", async () => {
 
 test("no code outside services/payments reads the Stripe platform key", () => {
   const hits = [];
-  const skip = new Set(["node_modules", ".git", "dist", "payments"]);
+  const skip = new Set(["node_modules", ".git", ".claude", "dist", "payments"]);
   const walk = (dir) => {
     for (const name of readdirSync(dir)) {
       if (skip.has(name) && !(name === "payments" && !dir.endsWith("services"))) continue;

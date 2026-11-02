@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { SectionCard, TextField } from "./riso/components";
 import { MAX_OPTIONS, optionCombinations, optionProblems, productOptions, type ProductOption } from "../../shared/productOptions";
+import { useShopWords } from "./shopWords";
 
 type Row = { name: string; values: string };
 
@@ -23,6 +24,7 @@ export function ProductOptionsEditor({ form, onApply, onClear }: {
   /** Stop using options: the editions stay as a plain list. */
   onClear: () => void;
 }) {
+  const w = useShopWords();
   const saved = productOptions(form);
   const [rows, setRows] = useState<Row[]>(() => rowsOf(form));
   // A different product (or a saved change from elsewhere) resets the rows.
@@ -40,7 +42,7 @@ export function ProductOptionsEditor({ form, onApply, onClear }: {
 
   return (
     <SectionCard title="Options: size, colour and more"
-      description="For anything sold in sizes, colours or materials. List the choices, then make the editions: every combination becomes an edition below with its own price, stock and photo. Leave this empty for a book with plain editions."
+      description={w("For anything sold in sizes, colours or materials. List the choices, then make the editions: every combination becomes an edition below with its own price, stock and photo. Leave this empty for a book with plain editions.")}
       actions={<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={rows.length >= MAX_OPTIONS}
         onClick={() => setRows([...rows, { name: rows.length ? "" : "Size", values: "" }])}><Plus size={14} aria-hidden /> Add option</button>}>
       {!rows.length && <p className="be-note">No options. Shoppers pick from the editions below, as they do today.</p>}

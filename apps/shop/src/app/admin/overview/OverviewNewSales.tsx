@@ -12,6 +12,7 @@ import {
   shipWeeks, signedMix,
 } from "./overviewNewSales";
 import "./overviewNew.css";
+import { useShopWords } from "../shopWords";
 
 export type NewSalesWidget = "calendar" | "goal" | "shipDays" | "launches" | "bookOfWeek" | "signed";
 
@@ -241,11 +242,12 @@ function ShipDaysWidget({ paid, today }: { paid: Order[]; today: string }) {
 
 const LAUNCH_PAD = { l: 34, t: 10, b: 24 };
 function LaunchCurvesWidget({ paid, books, today, full }: { paid: Order[]; books: Book[]; today: string; full?: boolean }) {
+  const w = useShopWords();
   const curves = useMemo(() => launchCurves(paid, books, today, full ? 6 : 4), [paid, books, today, full]);
   const [box, width] = useWidth<HTMLDivElement>();
   if (!curves.length) {
-    return <EmptyState inline title="No book has sold yet"
-      description="Each book's first 30 days of sales draw here as a line, starting from its first paid order. Publish a book and share it to start one." />;
+    return <EmptyState inline title={w("No book has sold yet")}
+      description={w("Each book's first 30 days of sales draw here as a line, starting from its first paid order. Publish a book and share it to start one.")} />;
   }
   // Drawn at the widget's real width, so text stays at its true size (no scaled-up SVG lettering).
   const W = Math.max(260, width || 320), H = full ? 280 : 200;
@@ -282,7 +284,7 @@ function LaunchCurvesWidget({ paid, books, today, full }: { paid: Order[]; books
           </text>
         ))}
       </svg>
-      <ul className="rp-nw-legend" aria-label="Books in the chart">
+      <ul className="rp-nw-legend" aria-label={w("Books in the chart")}>
         {curves.map((c, i) => (
           <li key={c.id}>
             <i className="rp-nw-key" data-rank={Math.min(i, 3)} aria-hidden="true" />
@@ -291,16 +293,17 @@ function LaunchCurvesWidget({ paid, books, today, full }: { paid: Order[]; books
           </li>
         ))}
       </ul>
-      <p className="rp-viz-note">Copies sold, counted from each book's first paid order. The newest launch is red; older ones are grey.</p>
+      <p className="rp-viz-note">{w("Copies sold, counted from each book's first paid order. The newest launch is red; older ones are grey.")}</p>
     </div>
   );
 }
 
 function BookOfWeekWidget({ paid, books, today, onEditBook }: { paid: Order[]; books: Book[]; today: string; onEditBook?: (id: string) => void }) {
+  const w = useShopWords();
   const top = useMemo(() => bookOfTheWeek(paid, today), [paid, today]);
   if (!top) {
     return <EmptyState inline title="No sales in the last 7 days"
-      description="The book that sells the most copies in the last 7 days shows here, against the week before. A post or newsletter about one title is a quick way to wake it up." />;
+      description={w("The book that sells the most copies in the last 7 days shows here, against the week before. A post or newsletter about one title is a quick way to wake it up.")} />;
   }
   const book = books.find(b => String(b.id) === top.id);
   const diff = top.copies - top.before;
@@ -322,25 +325,26 @@ function BookOfWeekWidget({ paid, books, today, onEditBook }: { paid: Order[]; b
 }
 
 function SignedWidget({ current, books, phrase }: { current: Order[]; books: Book[]; phrase: string }) {
+  const w = useShopWords();
   const mix = useMemo(() => signedMix(current, books), [current, books]);
   if (!mix.rows.length) {
     return <EmptyState inline title={mix.booksWithSigned ? `No signed or unsigned copies sold in ${phrase}` : "No signed editions yet"}
-      description='A copy counts as signed when its edition is named with the word "Signed" (for example "Signed hardcover"). Name an edition that way in Books › edit › Editions and it shows up here.' />;
+      description={w("A copy counts as signed when its edition is named with the word \"Signed\" (for example \"Signed hardcover\"). Name an edition that way in Books › edit › Editions and it shows up here.")} />;
   }
   return (
     <div className="rp-nw">
       <div className="rp-nw-head">
         <div><span className="rp-viz-hero">{Math.round(mix.share)}%</span><span className="rp-viz-hero-sub">of these copies sold signed · {mix.signed} of {mix.all}</span></div>
       </div>
-      <RankBars label="Share of copies sold signed, by book" scaleMax={100}
+      <RankBars label={w("Share of copies sold signed, by book")} scaleMax={100}
         rows={mix.rows.map(r => ({
           key: r.id, label: r.title, value: r.share,
           valueText: `${Math.round(r.share)}% signed`,
           sub: `${r.signed} signed · ${r.unsigned} not${r.signedPrice !== null && r.unsignedPrice !== null ? ` · signed ${money(r.signedPrice)} vs ${money(r.unsignedPrice)}` : ""}`,
         }))} />
       <p className="rp-hint rp-nw-foot">
-        {mix.premium !== null ? <>Readers paid <strong>{money(Math.abs(mix.premium))} {mix.premium >= 0 ? "more" : "less"}</strong> on average for a signed copy of the same book. </> : null}
-        Books with a signed edition, {phrase}. Bar = share of copies sold signed.
+        {mix.premium !== null ? <>Readers paid <strong>{money(Math.abs(mix.premium))} {mix.premium >= 0 ? "more" : "less"}</strong> {w("on average for a signed copy of the same book.")} </> : null}
+        {w("Books with a signed edition,")} {phrase}. Bar = share of copies sold signed.
       </p>
     </div>
   );

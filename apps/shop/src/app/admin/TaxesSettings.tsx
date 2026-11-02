@@ -13,11 +13,13 @@ import { SettingsAnchor, jumpTo } from "./settingsLayout";
 import { applyTaxPreset, suggestedTaxPresetId, TAX_PRESETS } from "./taxPresets";
 import { useShopSells } from "./shopWords";
 import { REGISTRATION_WORDS, answerTaxRegistration, provincialPlaces, provincialQuestion, taxRegistration } from "./taxRegistration";
+import { useShopWords } from "./shopWords";
 
 // Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
 // nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
 // Each rate's "name in your books" (bookName, plan 7.11) is what orders and the bookkeeping file call that tax.
 export function TaxesSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
+  const w = useShopWords();
   const [ask, confirmNode] = useConfirm();
   const [country, setCountry] = useState("Canada");
   const [region, setRegion] = useState("");
@@ -138,7 +140,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           ? <EmptyState icon="%" title="No tax rates yet" description="No rate, no tax." />
           : <>
             <DataTable caption="Tax rates" rows={rates.map((r, index) => ({ ...r, index }))} rowKey={(r) => `${r.index}`} columns={columns} />
-            <p className="rp-hint" style={{ margin: "12px 0 0" }}>"In your books" is what your bookkeeper calls each tax. Orders and the bookkeeping file split tax by it.</p>
+            <p className="rp-hint" style={{ margin: "12px 0 0" }}>{w("\"In your books\" is what your bookkeeper calls each tax. Orders and the bookkeeping file split tax by it.")}</p>
           </>}
       </SectionCard>
 
@@ -171,7 +173,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           )}
           <TextField label="Rate (%)" inputMode="decimal" data-tax-rate value={rate} placeholder="13" error={tried && problem ? problem : undefined}
             onChange={(e) => setRate(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
-          <TextField label="Name in your books" list="tax-book-names" maxLength={TAX_BOOK_NAME_MAX} value={bookName}
+          <TextField label={w("Name in your books")} list="tax-book-names" maxLength={TAX_BOOK_NAME_MAX} value={bookName}
             placeholder={suggestedTaxBookName({ country, region, rate })} onChange={(e) => setBookName(e.target.value)} />
           <div><PrimaryButton onClick={add}>Add rate</PrimaryButton></div>
         </div>

@@ -8,6 +8,7 @@ import { Dialog, PrimaryButton, SecondaryButton, SelectField, StatusBadge, type 
 import { normalizeCategories } from "../features/site/navItems";
 import { sellsBooks } from "./sells";
 import { useShopSells } from "./shopWords";
+import { useShopWords } from "./shopWords";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const SHOWN_ROWS = 150;
@@ -35,6 +36,7 @@ function download(name: string, text: string) {
  * for its Publish review.
  */
 export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onClose: () => void; onDone: (createdIds: string[]) => void }) {
+  const w = useShopWords();
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
   const [plan, setPlan] = useState<ImportPlan | null>(null);
@@ -134,16 +136,16 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
       </>;
 
   return (
-    <Dialog open size="lg" onClose={() => { if (!busy) onClose(); }} title="Import books from a spreadsheet" footer={footer}
-      description="Add new books or update many at once from a CSV file. You'll see every change before anything is saved.">
+    <Dialog open size="lg" onClose={() => { if (!busy) onClose(); }} title={w("Import books from a spreadsheet")} footer={footer}
+      description={w("Add new books or update many at once from a CSV file. You'll see every change before anything is saved.")}>
       <div className="rp-stack">
         {!results && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
-            <li>Easiest: in Books, open <strong>⋯ More catalog actions › Export…</strong>, edit the file in Excel, Numbers or Google Sheets, save as CSV and import it here.</li>
-            <li>Books are matched by <strong>ID</strong>, then <strong>ISBN</strong>, then <strong>SKU</strong>. Rows that match nothing become <strong>new draft books</strong>.</li>
-            <li>A blank cell keeps what the book has now. To end a sale, type 0 in Sale price. Stock numbers are only written when you choose “Set stock to the file's numbers”. Extra image URLs are separated with “|”.</li>
-            <li>Import never publishes. Publish new books from the catalog afterwards; it checks each one first.</li>
-            <li><strong>Bring your shop with you:</strong> choose the product export from your old shop as it is. Books, photos and editions come over as new drafts.</li>
+            <li>{w("Easiest: in Books, open")} <strong>⋯ More catalog actions › Export…</strong>, edit the file in Excel, Numbers or Google Sheets, save as CSV and import it here.</li>
+            <li>{w("Books are matched by")} <strong>ID</strong>, then <strong>ISBN</strong>, then <strong>SKU</strong>. Rows that match nothing become <strong>{w("new draft books")}</strong>.</li>
+            <li>{w("A blank cell keeps what the book has now. To end a sale, type 0 in Sale price. Stock numbers are only written when you choose “Set stock to the file's numbers”. Extra image URLs are separated with “|”.")}</li>
+            <li>{w("Import never publishes. Publish new books from the catalog afterwards; it checks each one first.")}</li>
+            <li><strong>Bring your shop with you:</strong> {w("choose the product export from your old shop as it is. Books, photos and editions come over as new drafts.")}</li>
           </ul>
           <p className="rp-hint" style={{ margin: 0 }}>Columns it reads: {IMPORT_COLUMNS.map(c => c.label).join(", ")}. Categories are separated with “;”.</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
@@ -180,7 +182,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
                 <option value="set">Set stock to the file's numbers</option>
               </SelectField>
               {moved && <p className="rp-hint" style={{ margin: 0 }}>Read as {SHAPE_WORDS[moved.shape]}: {moved.books.length} product{moved.books.length === 1 ? "" : "s"}. Line numbers are the old file's.</p>}
-              {moved && oldPaths.size > 0 && <p className="rp-hint" style={{ margin: 0 }}>Links to these books on your old shop will open them here once your address points at this shop. They are added to Settings › General › URL redirects.</p>}
+              {moved && oldPaths.size > 0 && <p className="rp-hint" style={{ margin: 0 }}>{w("Links to these books on your old shop will open them here once your address points at this shop. They are added to Settings › General › URL redirects.")}</p>}
               {moved && moved.notices.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{n}</p>)}
               {!moved && plan.ignoredColumns.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Ignored columns: {plan.ignoredColumns.join(", ")}.</p>}
               <ol aria-label="Import preview" style={{ margin: 0, padding: 0, listStyle: "none", maxHeight: 380, overflow: "auto", borderTop: "1px solid var(--rp-border)" }}>
@@ -216,7 +218,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
           {links && <p className="rp-hint" style={{ margin: 0 }}>
             {oldLinksMessage(links)}
           </p>}
-          {(plan?.counts.create || 0) > 0 && <p className="rp-hint" style={{ margin: 0 }}>New books are drafts and are now selected in the catalog. Choose <strong>Publish</strong> to review and put them on sale.</p>}
+          {(plan?.counts.create || 0) > 0 && <p className="rp-hint" style={{ margin: 0 }}>{w("New books are drafts and are now selected in the catalog. Choose")} <strong>Publish</strong> to review and put them on sale.</p>}
         </div>}
       </div>
     </Dialog>

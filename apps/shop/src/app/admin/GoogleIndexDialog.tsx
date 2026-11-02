@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import { googleAnalyticsApi, type SearchConsoleAnswer } from "./googleAnalytics";
 import { indexPages, indexStatus, otherCanonical, type Inspection } from "./googleIndex";
+import { useShopWords } from "./shopWords";
 
 const siteUrl = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}`;
 const when = (iso?: string) => { const t = iso ? Date.parse(iso) : NaN; return Number.isFinite(t) ? new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : ""; };
@@ -12,6 +13,7 @@ const when = (iso?: string) => { const t = iso ? Date.parse(iso) : NaN; return N
  * for the shop to request indexing itself.
  */
 export function GoogleIndexDialog({ open, onClose, books }: { open: boolean; onClose: () => void; books: any[] }) {
+  const w = useShopWords();
   const pages = useMemo(() => (open ? indexPages(books, siteUrl()) : []), [open, books]);
   const [answer, setAnswer] = useState<SearchConsoleAnswer | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,7 +37,7 @@ export function GoogleIndexDialog({ open, onClose, books }: { open: boolean; onC
 
   return (
     <Dialog open={open} onClose={onClose} size="lg" title="Google indexing"
-      description="Which of your book pages Google has added to its search results. Only indexed pages can show up when people search a book or an artist's name."
+      description={w("Which of your book pages Google has added to its search results. Only indexed pages can show up when people search a book or an artist's name.")}
       footer={<><SecondaryButton onClick={onClose}>Close</SecondaryButton><PrimaryButton onClick={() => void check()} disabled={busy || !pages.length}>{busy ? "Asking Google…" : answer ? "Check again" : "Check with Google"}</PrimaryButton></>}>
       <div className="rp-stack">
         {error && <div role="alert"><StatusBadge tone="warning">{error}</StatusBadge>

@@ -37,6 +37,8 @@ import { PLANS, REGION, STOCKROOM_DATABASE, firstSteps } from "./steps.js";
 import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
 import { ensureServiceKey, hasServiceKey } from "./serviceKey.js";
 import { testCatalogue } from "./test-catalogue.js";
+import { upkeepStep } from "./upkeep.js";
+import { spendGuardsStep } from "./spend.js";
 import { domainOrigins, siteUrlOf } from "../services/domains/names.js";
 
 export const OWNER_WELCOME = "owner-welcome";
@@ -334,6 +336,10 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         await inventoryLink.startSales(shop.shopId, { startDay: torontoDay(now()) });
       },
     },
+    // Plan 15.16: one scheduled job and a build cleanup rule (setup/upkeep.js). Last, so an existing shop gets it on a re-run.
+    upkeepStep({ number: 17, google, config }),
+    // Plan 15.17: a spend alert and a spend cap per shop (setup/spend.js); nothing until the platform's side is set up.
+    spendGuardsStep({ number: 18, google, registry, config }),
   ];
 }
 
@@ -355,7 +361,7 @@ function shopOnly(step) {
   };
 }
 
-/** All sixteen steps, in order. One `config` holds the platform settings both halves read (see each for its keys). */
+/** All eighteen steps, in order. One `config` holds the platform settings both halves read (see each for its keys). */
 export function shopSteps({ config, ...clients }) {
   return [...firstSteps({ ...clients, config }), ...laterSteps({ ...clients, config })];
 }

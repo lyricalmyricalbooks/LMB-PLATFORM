@@ -38,6 +38,13 @@ async function api(method, path, body) {
 }
 
 const askWhy = (what) => (window.prompt(`${what}\n\nWhy? This goes in the shop's log (at least 10 characters).`) ?? "").trim();
+/** "$1.20 of $10" from a shop's budget notices (plan 15.17), or a dash before the first one. */
+function costCell(cost) {
+  if (!cost) return el("span", { className: "rp-hint", textContent: "—" });
+  const money = (n) => `${cost.currency === "USD" || !cost.currency ? "$" : `${cost.currency} `}${Number(n).toFixed(Number(n) % 1 ? 2 : 0)}`;
+  return el("div", {}, el("span", { textContent: money(cost.amount) }), cost.budget ? meta(`of ${money(cost.budget)} alert`) : null);
+}
+
 const LEVEL = { problem: "Problem", watch: "Look", ok: "OK" };
 const SWITCH_WORDS = {
   legacyStockroomSignIn: "Old stockroom sign-in",
@@ -192,6 +199,7 @@ function showShops() {
       { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null)) },
       { header: "Plan", render: (shop) => PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" },
       { header: "Billing", render: (shop) => (shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : el("span", { className: "rp-hint", textContent: shop.access ?? "none" })) },
+      { header: "Cost this month", render: (shop) => costCell(shop.costThisMonth) },
       { header: "Health", render: (shop) => el("div", {}, pill(TONE[shop.health.level], LEVEL[shop.health.level]), shop.health.reasons[0] ? meta(shop.health.reasons[0]) : null) },
       { header: "Version", render: (shop) => el("span", { className: "rp-mono", style: "white-space: nowrap", textContent: shop.version ?? "none yet" }) },
       { header: "", end: true, render: (shop) => { const open = button("Open", "secondary"); open.addEventListener("click", () => openShop(shop)); return open; } },
@@ -417,8 +425,11 @@ function card(shop) {
   };
   const act = button("View this shop", "primary", { disabled: shop.status !== "live" });
   act.addEventListener("click", actAs("view"));
-  const change = button("Make changes", "secondary", { disabled: shop.status !== "live" });
-  change.addEventListener("click", actAs("edit"));
+  // Making changes waits for the press's yes (19.6): "Ask the press" emails them; once they approve, "Open their admin".
+  const change = button("Ask the press", "secondary", { disabled: shop.status !== "live" });
+  const accessSlot = el("div", { className: "cr-access" });
+  change.addEventListener("click", () => askThePress(shop, change, accessSlot));
+  if (shop.status === "live") showAccess(shop, accessSlot);
 
   // Self-checks now (2.11): what's off goes to the repair queue.
   const check = button("Check now", "secondary", { disabled: shop.status !== "live" });
@@ -491,6 +502,7 @@ function card(shop) {
     meta(`status: ${shop.status ?? "?"}`, shop.access ? `billing: ${shop.access}` : null, shop.paymentsMoved ? `cards: ${PAYMENT_WORDS[shop.paymentsMoved.to]}` : null),
     shop.health.reasons.length ? el("ul", { className: "cr-steps", style: "margin-top: 12px" }, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
     el("div", { className: "cr-actions" }, act, change, check, closing),
+    accessSlot,
     switches ? el("h3", { className: "cr-section", textContent: "Switches for this shop" }) : null,
     switches,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Card payments" }) : null,
@@ -945,6 +957,7 @@ const ACTIVITY_WORDS = {
   "act-as": "opened the shop's admin as support", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again",
+  "access-asked": "asked the press for a yes to make changes",
 };
 
 async function loadActivity() {
@@ -1206,4 +1219,57 @@ async function loadEverySwitch() {
   } catch (failure) {
     status.textContent = failure.message;
   }
+}
+
+// ── Support asks before making changes (plan 19.6): "Ask the press", their answer, then "Open their admin" once. ──
+const ACCESS_STATE = {
+  waiting: ["warning", "Waiting for the press"], approved: ["success", "The press said yes"], declined: ["danger", "The press said no"],
+  expired: ["neutral", "Ran out after 24 hours"], used: ["neutral", "Yes used for a visit"],
+};
+
+async function showAccess(shop, slot) {
+  try {
+    const { requests } = await api("POST", "/control/access-requests", { shopId: shop.shopId });
+    const latest = requests[0];
+    if (!latest) {
+      slot.replaceChildren(el("p", { className: "rp-hint", style: "margin-top: 12px", textContent: "To make changes in this shop, ask the press first. They get an email and say yes or no on their account page." }));
+      return;
+    }
+    const [tone, words] = ACCESS_STATE[latest.status] ?? ["neutral", latest.status];
+    const open = latest.status === "approved" ? button("Open their admin", "primary") : null;
+    open?.addEventListener("click", async () => {
+      if (!window.confirm(`Anything you change is changed in ${shop.pressName}'s real shop, and the press sees it in their log. Go on?`)) return;
+      open.disabled = true;
+      try {
+        const { url } = await api("POST", "/control/act-as", { shopId: shop.shopId, mode: "edit", requestId: latest.id });
+        window.open(url, "_blank", "noopener");
+        status.textContent = `Logged. ${shop.pressName}'s admin opened in a new tab for 30 minutes, able to make changes. Their yes is used.`;
+      } catch (failure) {
+        status.textContent = failure.message;
+      }
+      await showAccess(shop, slot);
+    });
+    slot.replaceChildren(el("div", { style: "margin-top: 12px" },
+      el("div", { className: "cr-row" }, pill(tone, words)),
+      meta(`asked by ${latest.by} on ${when(latest.askedAt)}`, `why: ${latest.reason}`, latest.status === "waiting" || latest.status === "approved" ? `until ${when(latest.expiresAt)}` : null),
+      open ? el("div", { className: "cr-actions", style: "margin-top: 8px" }, open) : null));
+  } catch (failure) {
+    slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message }));
+  }
+}
+
+async function askThePress(shop, clicked, slot) {
+  const reason = askWhy(`Ask ${shop.pressName} to let you make changes in their admin for 30 minutes. They get an email and answer on their account page.`);
+  if (!reason) return;
+  clicked.disabled = true;
+  try {
+    const { emailed } = await api("POST", "/control/act-as", { shopId: shop.shopId, reason, mode: "edit" });
+    status.textContent = emailed
+      ? `Asked. ${shop.pressName}'s owner has an email; "Open their admin" shows here once they say yes.`
+      : `Asked, but the email to ${shop.pressName}'s owner didn't go. They can still answer on their account page.`;
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+  clicked.disabled = false;
+  await showAccess(shop, slot);
 }

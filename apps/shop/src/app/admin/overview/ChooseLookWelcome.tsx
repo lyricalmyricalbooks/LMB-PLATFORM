@@ -4,6 +4,7 @@ import { applyChosenLook, galleryThemes, lookPreview, pressNameOf, type LibraryT
 import type { WelcomeDone } from "../firstWeek";
 import { friendlyError } from "../studio/friendlyError";
 import { Dialog, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "../riso/components";
+import { useShopWords } from "../shopWords";
 
 /**
  * Choose your look (plan 6.3): the welcome before the setup guide, shown once. `settings` is settings/website as the
@@ -16,6 +17,7 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
   onDone: (welcome: WelcomeDone) => Promise<void>;
   onRetrySettings?: () => void;
 }) {
+  const w = useShopWords();
   const { suggested, others } = galleryThemes(publishes);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -90,7 +92,7 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
             <SecondaryButton size="sm" aria-pressed={width === "desktop"} icon={<Monitor size={14} aria-hidden />} onClick={() => setWidth("desktop")}>Desktop</SecondaryButton>
           </div>
           <div style={{ overflowX: "auto" }}><LookPicture look={lookPreview(preview)} press={press} width={width} /></div>
-          <p className="rp-hint">Sample books. Your own books, words and logo take their places.</p>
+          <p className="rp-hint">{w("Sample books. Your own books, words and logo take their places.")}</p>
         </>}
       </Dialog>
     </SectionCard>
@@ -102,6 +104,7 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
  * button, in the look's own colours and type. Drawn from the theme itself, so every theme has one.
  */
 export function LookPicture({ look, press, width, compact }: { look: ReturnType<typeof lookPreview>; press: string; width: "phone" | "desktop"; compact?: boolean }) {
+  const w = useShopWords();
   const cols = width === "phone" ? look.columns.phone + (compact ? 1 : 0) : look.columns.desktop;
   const books = Array.from({ length: width === "phone" ? 2 * cols : cols }, (_, i) => i);
   const scale = compact ? 0.8 : 1;
@@ -114,7 +117,7 @@ export function LookPicture({ look, press, width, compact }: { look: ReturnType<
         <span aria-hidden style={{ fontSize: 11 * scale, opacity: 0.8 }}>Shop · Bag</span>
       </div>
       <div style={{ padding: 12 * scale }}>
-        <div style={{ fontFamily: look.headingFont, fontSize: (width === "phone" ? 18 : 24) * scale, lineHeight: 1.1, marginBottom: 10 * scale }}>New books</div>
+        <div style={{ fontFamily: look.headingFont, fontSize: (width === "phone" ? 18 : 24) * scale, lineHeight: 1.1, marginBottom: 10 * scale }}>{w("New books")}</div>
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8 * scale }}>
           {books.map(i => (
             <div key={i}>

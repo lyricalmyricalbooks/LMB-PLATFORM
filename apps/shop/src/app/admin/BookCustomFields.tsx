@@ -6,10 +6,12 @@ import { Plus, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
 import { BOOK_FIELD_KINDS, fieldKeyFor, MAX_BOOK_FIELDS, MAX_FIELD_VALUE, type BookFieldDef, type BookFieldKind } from "../features/site/bookFields";
 import { SectionCard, SelectField, TextArea, TextField } from "./riso/components";
+import { useShopWords } from "./shopWords";
 
 type Status = { tone: "ok" | "err"; text: string } | null;
 
 export function BookCustomFields({ form, set, onDefinitionsDirty }: { form: any; set: (name: string, value: any) => void; onDefinitionsDirty?: (dirty: boolean) => void }) {
+  const w = useShopWords();
   const [fields, setFields] = useState<BookFieldDef[] | null>(null);
   const [draft, setDraft] = useState<BookFieldDef[]>([]);
   const [newLabel, setNewLabel] = useState("");
@@ -52,12 +54,12 @@ export function BookCustomFields({ form, set, onDefinitionsDirty }: { form: any;
     setNewLabel("");
   };
 
-  if (fields === null) return <SectionCard title="More details"><p className="be-note">Loading your book fields…</p></SectionCard>;
+  if (fields === null) return <SectionCard title="More details"><p className="be-note">{w("Loading your book fields…")}</p></SectionCard>;
 
   return (
     <>
-      <SectionCard title="More details" description="Extra details you've defined for every book. Design studio sections can show them on book pages: in a section's Content tab, use Connect to a detail.">
-        {!fields.length && <p className="be-note">No book fields yet. Add one below — for example Series, Translator or Awards.</p>}
+      <SectionCard title="More details" description={w("Extra details you've defined for every book. Design studio sections can show them on book pages: in a section's Content tab, use Connect to a detail.")}>
+        {!fields.length && <p className="be-note">{w("No book fields yet. Add one below — for example Series, Translator or Awards.")}</p>}
         <div className="be-custom-fields">
           {fields.map(f => {
             const common = { label: f.label, hint: f.help, value: values[f.key] || "", "data-book-field": f.key } as any;
@@ -67,10 +69,10 @@ export function BookCustomFields({ form, set, onDefinitionsDirty }: { form: any;
               onChange={e => setValue(f.key, e.target.value)} />;
           })}
         </div>
-        {fields.length > 0 && <p className="be-note">These are saved with the book when you press Save.</p>}
+        {fields.length > 0 && <p className="be-note">{w("These are saved with the book when you press Save.")}</p>}
       </SectionCard>
 
-      <SectionCard title="Book fields (shared by every book)" description="Add, rename or remove the fields above. Removing a field hides it everywhere, but answers already saved on books are kept, so adding it back brings them back.">
+      <SectionCard title={w("Book fields (shared by every book)")} description={w("Add, rename or remove the fields above. Removing a field hides it everywhere, but answers already saved on books are kept, so adding it back brings them back.")}>
         <ul className="be-field-defs">
           {draft.map((f, i) => (
             <li key={f.key} className="be-field-def">
@@ -98,7 +100,7 @@ export function BookCustomFields({ form, set, onDefinitionsDirty }: { form: any;
           <button type="button" className="rp-btn rp-btn-primary rp-btn-sm" onClick={saveFields} disabled={!changed || saving}>
             {saving ? "Saving…" : "Save book fields"}
           </button>
-          {changed && <span className="be-note">Unsaved changes to the fields (separate from saving this book).</span>}
+          {changed && <span className="be-note">{w("Unsaved changes to the fields (separate from saving this book).")}</span>}
           {status && <p role={status.tone === "err" ? "alert" : "status"} className={status.tone === "err" ? "rp-error-text" : "be-note"}>{status.text}</p>}
         </div>
       </SectionCard>

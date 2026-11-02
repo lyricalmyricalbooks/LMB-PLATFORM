@@ -260,3 +260,51 @@ test("secrets: a missing key is null; adding creates the secret once, then a ver
   assert.equal(await google.secrets.latest(P, "PLATFORM_SERVICE_KEY"), value);
   fetch.done();
 });
+
+test("scheduler: lists every page of jobs by id and deletes one; a job already gone is fine (plan 15.16)", async () => {
+  const base = `https://cloudscheduler.googleapis.com/v1/projects/${P}/locations/northamerica-northeast1/jobs`;
+  const name = (id) => `projects/${P}/locations/northamerica-northeast1/jobs/${id}`;
+  const { fetch, google } = clients([
+    { method: "GET", url: `${base}?pageSize=100`, json: { jobs: [{ name: name("firebase-schedule-a-northamerica-northeast1") }], nextPageToken: "n" } },
+    { method: "GET", url: `${base}?pageSize=100&pageToken=n`, json: { jobs: [{ name: name("firebase-schedule-b-northamerica-northeast1") }] } },
+    { method: "DELETE", url: `${base}/firebase-schedule-a-northamerica-northeast1`, json: {} },
+    { method: "DELETE", url: `${base}/firebase-schedule-b-northamerica-northeast1`, ...notFound },
+  ]);
+  const region = "northamerica-northeast1";
+  assert.deepEqual(await google.scheduler.listJobs(P, region), ["firebase-schedule-a-northamerica-northeast1", "firebase-schedule-b-northamerica-northeast1"]);
+  await google.scheduler.deleteJob(P, region, "firebase-schedule-a-northamerica-northeast1");
+  await google.scheduler.deleteJob(P, region, "firebase-schedule-b-northamerica-northeast1");
+  fetch.done();
+});
+
+test("build cleanup: the rule is added next to others and the dry run is turned off (plan 15.16)", async () => {
+  const url = `https://artifactregistry.googleapis.com/v1/projects/${P}/locations/northamerica-northeast1/repositories/gcf-artifacts`;
+  const region = "northamerica-northeast1";
+  const rule = { id: "colophon-delete-old-builds", action: "DELETE", condition: { tagState: "ANY", olderThan: "86400s" } };
+  const { fetch, google } = clients([
+    { method: "GET", url, ...notFound },
+    { method: "GET", url, json: { name: "x", cleanupPolicies: { keepers: { id: "keepers", action: "KEEP" } }, cleanupPolicyDryRun: true } },
+    { method: "GET", url, json: { name: "x", cleanupPolicies: { keepers: { id: "keepers", action: "KEEP" } }, cleanupPolicyDryRun: true } },
+    { method: "PATCH", url: `${url}?updateMask=cleanupPolicies%2CcleanupPolicyDryRun`, body: { cleanupPolicies: { keepers: { id: "keepers", action: "KEEP" }, [rule.id]: rule }, cleanupPolicyDryRun: false }, json: {} },
+    { method: "GET", url, json: { name: "x", cleanupPolicies: { [rule.id]: rule }, cleanupPolicyDryRun: false } },
+  ]);
+  assert.equal(await google.buildCleanup.has(P, region), null, "no repository yet");
+  assert.equal(await google.buildCleanup.has(P, region), false, "another rule only, still a dry run");
+  await google.buildCleanup.set(P, region);
+  assert.equal(await google.buildCleanup.has(P, region), true);
+  fetch.done();
+});
+
+test("budgets: lists every page by name and creates one (plan 15.17)", async () => {
+  const base = "https://billingbudgets.googleapis.com/v1/billingAccounts/0-0-0/budgets";
+  const { fetch, google } = clients([
+    { method: "GET", url: `${base}?pageSize=100`, json: { budgets: [{ name: "billingAccounts/0-0-0/budgets/b1", displayName: `shop:${P}` }], nextPageToken: "n" } },
+    { method: "GET", url: `${base}?pageSize=100&pageToken=n`, json: { budgets: [{ name: "billingAccounts/0-0-0/budgets/b2", displayName: `cap:${P}`, spendCap: { inputState: "CONFIGURED" } }] } },
+    { method: "POST", url: base, body: { displayName: "x" }, json: { name: "billingAccounts/0-0-0/budgets/b3" } },
+    firebaseProject,
+  ]);
+  assert.deepEqual((await google.budgets.list("billingAccounts/0-0-0")).map((b) => [b.id, b.displayName, b.cap]), [["b1", `shop:${P}`, false], ["b2", `cap:${P}`, true]]);
+  assert.deepEqual(await google.budgets.create("billingAccounts/0-0-0", { displayName: "x" }), { id: "b3", name: "billingAccounts/0-0-0/budgets/b3" });
+  assert.equal(await google.budgets.projectNumber(P), "123456789012");
+  fetch.done();
+});

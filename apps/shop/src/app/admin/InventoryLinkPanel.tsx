@@ -15,6 +15,7 @@ import {
 import { inventoryApi } from "./inventoryApi";
 import { runsOnColophon } from "../../lib/shopProfile";
 import { waitingReaders, wakesRestockEmails } from "./inventoryInsights";
+import { useShopWords } from "./shopWords";
 
 const PROBLEM_WORDS: Record<string, string> = {
   "no-stockroom": "This shop doesn't have the stockroom yet, so there is nothing to link. Once the stockroom is part of your plan, check again.",
@@ -30,6 +31,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
   /** "Add to the shop": open a new website book with these values; `onCreated` gets its id once saved. */
   onAddBook?: (prefill: Record<string, any>, onCreated: (id: string) => void) => void;
 }) {
+  const w = useShopWords();
   const toast = useRisoToast();
   const [confirm, confirmNode] = useConfirm();
   const [status, setStatus] = useState<LinkStatus | null>(null);
@@ -364,27 +366,26 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
         </div>
       </SectionCard>
 
-      <SectionCard flush title="Match books"
-        description="Each printed edition, paired with its book in the app."
+      <SectionCard flush title={w("Match books")}
+        description={w("Each printed edition, paired with its book in the app.")}
         actions={<StatusBadge tone={editions.length && linkedCount === editions.length ? "success" : "neutral"}>{linkedCount} of {editions.length} matched</StatusBadge>}>
         {(step === "connect" || catalogError) && anyLinks && (
           <div style={{ padding: 16, display: "grid", gap: 8 }} role="status">
             <p className="rp-hint" style={{ margin: 0 }}>
-              Matched books' stock can only change from the inventory app.
-              If the link can't be fixed, unmatch them to edit their stock on the website again.
+              {w("Matched books' stock can only change from the inventory app. If the link can't be fixed, unmatch them to edit their stock on the website again.")}
             </p>
-            <div><SecondaryButton disabled={!!busy} onClick={() => setConfirmUnlink(true)}>Unmatch all books</SecondaryButton></div>
+            <div><SecondaryButton disabled={!!busy} onClick={() => setConfirmUnlink(true)}>{w("Unmatch all books")}</SecondaryButton></div>
           </div>
         )}
         {step === "connect"
-          ? (anyLinks ? null : <EmptyState title="Connect first" description="Once Connect shows Connected, the app's books appear here." />)
+          ? (anyLinks ? null : <EmptyState title="Connect first" description={w("Once Connect shows Connected, the app's books appear here.")} />)
           : catalogError ? <ErrorState description={catalogError} onRetry={loadCatalog} />
-          : !appBooks ? <LoadingState label="Reading the inventory app's books…" />
+          : !appBooks ? <LoadingState label={w("Reading the inventory app's books…")} />
           : <>
               {newMatches.length > 0 && (
                 <div style={{ padding: 16, display: "grid", gap: 8, borderBottom: "1px solid var(--rp-border)" }} role="status">
-                  <div style={{ fontWeight: 600 }}>New books to match</div>
-                  <p className="rp-hint" style={{ margin: 0 }}>These books have the same ISBN or title in both shops. Until they're matched, their website sales don't reach the inventory app.</p>
+                  <div style={{ fontWeight: 600 }}>{w("New books to match")}</div>
+                  <p className="rp-hint" style={{ margin: 0 }}>{w("These books have the same ISBN or title in both shops. Until they're matched, their website sales don't reach the inventory app.")}</p>
                   <ul className="rp-list" aria-label="Suggested new matches" style={{ margin: 0 }}>
                     {newMatches.map((m) => (
                       <li key={m.key} style={{ overflowWrap: "anywhere" }}>{editionName(m)} → <strong>{m.inventoryTitle}</strong></li>
@@ -399,8 +400,8 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
               {onlyInApp.length > 0 && (
                 <div style={{ padding: 16, display: "grid", gap: 8, borderBottom: "1px solid var(--rp-border)" }} role="group" aria-labelledby="ilp-app-only-title">
                   <div id="ilp-app-only-title" style={{ fontWeight: 600 }}>In the inventory app, not in the shop</div>
-                  <p className="rp-hint" style={{ margin: 0 }}>Add one as a draft website book filled in from the app. It's matched for you, and nothing is published until you publish it.</p>
-                  <ul className="rp-list" aria-label="Inventory app books not in the shop" style={{ margin: 0 }}>
+                  <p className="rp-hint" style={{ margin: 0 }}>{w("Add one as a draft website book filled in from the app. It's matched for you, and nothing is published until you publish it.")}</p>
+                  <ul className="rp-list" aria-label={w("Inventory app books not in the shop")} style={{ margin: 0 }}>
                     {onlyInApp.map((b) => (
                       <li key={b.id} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                         <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
@@ -419,8 +420,8 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
               {differing.length > 0 && (
                 <div style={{ padding: 16, display: "grid", gap: 8, borderBottom: "1px solid var(--rp-border)" }} role="group" aria-labelledby="ilp-details-title">
                   <div id="ilp-details-title" style={{ fontWeight: 600 }}>Details that differ from the app</div>
-                  <p className="rp-hint" style={{ margin: 0 }}>Matched books whose title, author, ISBN or price isn't the same in both. Nothing changes until you choose.</p>
-                  <ul className="rp-list" aria-label="Book details that differ from the inventory app" style={{ margin: 0 }}>
+                  <p className="rp-hint" style={{ margin: 0 }}>{w("Matched books whose title, author, ISBN or price isn't the same in both. Nothing changes until you choose.")}</p>
+                  <ul className="rp-list" aria-label={w("Book details that differ from the inventory app")} style={{ margin: 0 }}>
                     {differing.map((d) => (
                       <li key={d.id} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                         <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
@@ -437,14 +438,14 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
                 </div>
               )}
               <DataTable caption="Book matches" columns={linkColumns} rows={shown} rowKey={(e) => e.key}
-                empty={<EmptyState title="No printed books on the website yet" />} />
+                empty={<EmptyState title={w("No printed books on the website yet")} />} />
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", padding: 16 }}>
                 <PrimaryButton disabled={!!busy || !dirty} onClick={saveLinks}>{busy === "links" ? "Saving…" : "Save matches"}</PrimaryButton>
                 <SecondaryButton disabled={!!busy || !Object.keys(suggestions).length}
                   onClick={() => setChoices((c) => ({ ...c, ...Object.fromEntries(Object.entries(suggestions).filter(([k]) => !c[k])) }))}>
                   Use suggestions ({Object.keys(suggestions).length})
                 </SecondaryButton>
-                <Toggle label="Show archived books" checked={showArchived} onChange={setShowArchived} />
+                <Toggle label={w("Show archived books")} checked={showArchived} onChange={setShowArchived} />
               </div>
             </>}
       </SectionCard>
@@ -486,8 +487,8 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
             </li>
             {!!status.unlinkedOrders && (
               <li>
-                <div style={{ fontWeight: 600 }}><StatusBadge tone="warning">{status.unlinkedOrders} order{status.unlinkedOrders === 1 ? "" : "s"} with unmatched books</StatusBadge></div>
-                <div className="rp-hint">Those copies aren't counted in the inventory app yet. Match the books in step 2 and they follow.</div>
+                <div style={{ fontWeight: 600 }}><StatusBadge tone="warning">{status.unlinkedOrders} order{status.unlinkedOrders === 1 ? "" : "s"} {w("with unmatched books")}</StatusBadge></div>
+                <div className="rp-hint">{w("Those copies aren't counted in the inventory app yet. Match the books in step 2 and they follow.")}</div>
               </li>
             )}
             {!!status.undelivered && (
@@ -501,7 +502,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
         {state.startDay && <div style={{ marginTop: 16 }}>
           <Toggle label="Practice with Stripe test orders for 24 hours" checked={!!state.rehearsalUntil && Date.parse(state.rehearsalUntil) > Date.now()}
             disabled={!!busy} onChange={(on) => setOption({ rehearsal: on })} />
-          <p className="rp-hint" style={{ margin: "6px 0 0" }}>Test-mode orders then show in the inventory app as practice runs: it shows what it would record and never changes its books.</p>
+          <p className="rp-hint" style={{ margin: "6px 0 0" }}>{w("Test-mode orders then show in the inventory app as practice runs: it shows what it would record and never changes its books.")}</p>
         </div>}
       </SectionCard>
 
@@ -522,7 +523,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
         {preview?.catchingUp && <p className="rp-hint" role="status" style={{ margin: "0 16px 16px" }}>Some recent website sales are still being recorded. Preview again in a few minutes, so their copies aren't put back on sale.</p>}
         {preview?.rows && !preview.notReady && !preview.catchingUp && (
           <DataTable caption="Stock preview" columns={stockColumns} rows={preview.rows}
-            rowKey={(r) => editionKey(r.bookId, r.variantId)} empty={<EmptyState title="No matched books" description="Pair them under Match books." />} />
+            rowKey={(r) => editionKey(r.bookId, r.variantId)} empty={<EmptyState title={w("No matched books")} description={w("Pair them under Match books.")} />} />
         )}
         {!preview && state.lastSync && (
           <ul className="rp-list" aria-label="Last stock update">
@@ -544,24 +545,23 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
         footer={<><SecondaryButton data-autofocus onClick={() => setConfirmStart(false)}>Cancel</SecondaryButton><PrimaryButton onClick={startSales}>{state.startDay ? "Send older orders" : "Start sending"}</PrimaryButton></>}>
         <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
           {state.startDay
-            ? <>Every paid website order from {startDay} up to {state.startDay} goes to the inventory app as well, and comes into its books by itself. Sales you already typed in there by hand are linked, not counted twice; any it can't match for certain wait under Needs you in the inventory app. Website stock waits until they've all been sent. The date can only move earlier, never later.</>
-            : <>Every paid website order from {startDay} on goes to the inventory app, then each new one as it's paid. They come into the inventory app's books by themselves; sales you already typed in there by hand are linked, not counted twice. You can move this date earlier later to send older orders, but not later.</>}
+            ? <>Every paid website order from {startDay} up to {state.startDay} {w("goes to the inventory app as well, and comes into its books by itself. Sales you already typed in there by hand are linked, not counted twice; any it can't match for certain wait under Needs you in the inventory app. Website stock waits until they've all been sent. The date can only move earlier, never later.")}</>
+            : <>Every paid website order from {startDay} {w("on goes to the inventory app, then each new one as it's paid. They come into the inventory app's books by themselves; sales you already typed in there by hand are linked, not counted twice. You can move this date earlier later to send older orders, but not later.")}</>}
         </p>
       </Dialog>
-      <Dialog open={confirmUnlink} onClose={() => setConfirmUnlink(false)} title="Unmatch all books?"
+      <Dialog open={confirmUnlink} onClose={() => setConfirmUnlink(false)} title={w("Unmatch all books?")}
         footer={<><SecondaryButton data-autofocus onClick={() => setConfirmUnlink(false)}>Cancel</SecondaryButton><PrimaryButton onClick={unlinkAll}>Unmatch all</PrimaryButton></>}>
         <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
-          The website stops following the inventory app's count, and every book's stock can be edited on the website again. Website sales already sent stay in the inventory app.
-          You can match the books again later.
+          {w("The website stops following the inventory app's count, and every book's stock can be edited on the website again. Website sales already sent stay in the inventory app. You can match the books again later.")}
         </p>
       </Dialog>
       <Dialog open={!!confirmApply} onClose={() => setConfirmApply(null)} title="Apply these stock numbers?"
         footer={<><SecondaryButton data-autofocus onClick={() => setConfirmApply(null)}>Cancel</SecondaryButton><PrimaryButton onClick={apply}>Apply</PrimaryButton></>}>
         <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
-          The website's stock for matched books changes to the numbers in the preview, and stock counting is switched on for any matched book that had it off.
+          {w("The website's stock for matched books changes to the numbers in the preview, and stock counting is switched on for any matched book that had it off.")}
           {confirmApply?.readers ? ` ${confirmApply.readers} reader${confirmApply.readers === 1 ? " is" : "s are"} waiting for a book that comes back in stock and will be emailed.` : ""}
           {confirmApply?.unknown ? " Some back-in-stock sign-ups couldn't be checked just now, so readers who asked to hear when a book is back may be emailed too." : ""}
-          {" "}Each change is kept in the book's stock history.
+          {" "}{w("Each change is kept in the book's stock history.")}
         </p>
       </Dialog>
     </div>

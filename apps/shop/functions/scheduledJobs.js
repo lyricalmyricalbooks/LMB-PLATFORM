@@ -19,7 +19,7 @@ function scheduledJobs({
   // 3 days, parcels in transit 14+ days and label purchases that need checking in
   // Shippo. Nothing is sent on days with nothing to report.
   const dailyOrderDigest = onSchedule(
-    { schedule: "every day 08:00", timeZone: "America/Toronto", secrets: withPlatformKey([RESEND_API_KEY]) },
+    { schedule: "every day 08:00", name: "dailyOrderDigest", timeZone: "America/Toronto", secrets: withPlatformKey([RESEND_API_KEY]) },
     async () => {
       // Settings › Notifications › Shop alerts › Daily "orders needing you" email.
       const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
@@ -64,7 +64,7 @@ function scheduledJobs({
   // The Monday summary email: last week's sales and visits against the week before (functions/weeklySummary.js).
   // Reads every paid order once a week (only the fields it needs) so "new customers" means first-ever orders.
   const weeklySummary = onSchedule(
-    { schedule: "every monday 08:00", timeZone: "America/Toronto", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
+    { schedule: "every monday 08:00", name: "weeklySummary", timeZone: "America/Toronto", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
     async () => {
       const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
       if (!weeklySummaryEnabled(notificationDoc?.data?.() || {})) return;
@@ -79,7 +79,7 @@ function scheduledJobs({
   const ABANDONED_CART_BATCH = 500;
 
   const abandonedCartSweep = onSchedule(
-    { schedule: "every 60 minutes", timeoutSeconds: 300, secrets: withPlatformKey([RESEND_API_KEY]) },
+    { schedule: "every 60 minutes", name: "abandonedCartSweep", timeoutSeconds: 300, secrets: withPlatformKey([RESEND_API_KEY]) },
     async () => {
       const sweepDeadline = Date.now() + 240 * 1000;
       // Carts nobody can still be reminded about are deleted, so this collection (and every later sweep)
@@ -235,7 +235,7 @@ function scheduledJobs({
   // no file is deleted or overwritten. Once everything is done a run reads the status doc and recent books only.
   // Hourly: new uploads make their own copies, so this only catches older photos, and each run starts a 1 GiB machine.
   const storageImageSweep = onSchedule(
-    { schedule: "every 60 minutes", timeoutSeconds: 300, memory: "1GiB" },
+    { schedule: "every 60 minutes", name: "storageImageSweep", timeoutSeconds: 300, memory: "1GiB" },
     async () => {
       const { runImageCopies, runCacheControl } = require("./imageCopies");
       const sharp = require("sharp");
@@ -267,7 +267,7 @@ function scheduledJobs({
   );
 
   const backInStockSweep = onSchedule(
-    { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: withPlatformKey([RESEND_API_KEY]) },
+    { schedule: "every 15 minutes", name: "backInStockSweep", timeoutSeconds: 300, secrets: withPlatformKey([RESEND_API_KEY]) },
     async () => {
       const deadline = Date.now() + RESTOCK_BUDGET_MS;
       const snap = await db.collection("stockAlerts").where("restockPending", "==", true).limit(300).get();

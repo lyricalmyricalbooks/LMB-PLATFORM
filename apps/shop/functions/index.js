@@ -10,7 +10,11 @@
  */
 
 const { onDocumentUpdated, onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
-const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onSchedule: onScheduleReal } = require("firebase-functions/v2/scheduler");
+// Code plan 15.16: sweeps register with the tick (tick.js) instead of each owning a Cloud Scheduler job.
+const { TICK_EVERY_MINUTES, createTickRegistry, runTick } = require("./tick");
+const tickRegistry = createTickRegistry();
+const onSchedule = tickRegistry.register;
 const { onRequest } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2/options");
 const { defineSecret } = require("firebase-functions/params");
@@ -737,7 +741,7 @@ function validateDiscountCustomer(discount, email) {
 const { FALLBACK_RATES, createRateReader, refreshStoredRates } = require("./exchangeRates");
 const getExchangeRates = createRateReader({ db });
 
-exports.refreshExchangeRates = onSchedule({ schedule: "every 3 hours", timeoutSeconds: 60 }, async () => {
+exports.refreshExchangeRates = onSchedule({ schedule: "every 3 hours", name: "refreshExchangeRates", timeoutSeconds: 60 }, async () => {
   const saved = await refreshStoredRates({ db });
   if (saved) console.log(`Exchange rates saved: 1 CAD = ${saved.usd} USD, ${saved.eur} EUR (feed updated ${saved.providerUpdatedAt || "unknown"}).`);
   else console.warn("Exchange-rate refresh failed: the shop keeps its last saved rates.");
@@ -3939,7 +3943,7 @@ exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}",
 
 // The link's regular check: labels bought in the inventory app, missed or failed pushes, past orders,
 // and (every 15 minutes, once the owner switched it on) linked books' stock.
-exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", timeoutSeconds: 300 }, async () => {
+exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", name: "inventoryLinkSweep", timeoutSeconds: 300 }, async () => {
   const out = await require("./inventoryLinkJobs").runSweep(inventoryLinkDeps(), { stock: "auto" });
   if (out.error) console.error("inventoryLinkSweep:", out.error);
 });
@@ -4150,7 +4154,7 @@ async function checkLabelRefunds(now = Date.now()) {
 // Square payment pages close when their stock hold ends; late refunds that failed are tried again (code plan 5.1,
 // paymentPages.js). Stripe's own Checkout Sessions expire by themselves, so a Stripe shop has nothing to do here.
 exports.paymentPageSweep = onSchedule(
-  { schedule: "every 5 minutes", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
+  { schedule: "every 5 minutes", name: "paymentPageSweep", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
   async () => {
     if (payments.provider !== "square") return;
     const result = await paymentPages.closeDuePages();
@@ -4158,7 +4162,7 @@ exports.paymentPageSweep = onSchedule(
   });
 
 exports.unpaidPaymentSweep = onSchedule(
-  { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: withPlatformKey([STRIPE_SECRET_KEY, RESEND_API_KEY, SHIPPO_API_TOKEN]) },
+  { schedule: "every 15 minutes", name: "unpaidPaymentSweep", timeoutSeconds: 300, secrets: withPlatformKey([STRIPE_SECRET_KEY, RESEND_API_KEY, SHIPPO_API_TOKEN]) },
   async () => {
     const runStartedAt = Date.now();
     // Studio 3.5: scheduled theme publishes and campaigns ride on this sweep (own try/catch: never blocks payments).
@@ -4394,7 +4398,7 @@ async function runFirestoreBackup({ trigger, budgetMs }) {
 }
 
 exports.nightlyFirestoreBackup = onSchedule(
-  { schedule: "every day 03:17", timeZone: "America/Toronto", timeoutSeconds: 540, memory: "512MiB" },
+  { schedule: "every day 03:17", name: "nightlyFirestoreBackup", timeZone: "America/Toronto", timeoutSeconds: 540, memory: "512MiB" },
   async () => {
     const result = await runFirestoreBackup({ trigger: "nightly", budgetMs: 480 * 1000 });
     if (result.busy) { console.warn("nightlyFirestoreBackup: another backup is running; skipped."); return; }
@@ -4433,3 +4437,12 @@ async function handleBackupNow(req, res) {
     res.status(500).json({ error: "The backup didn't finish. Try again in a minute." });
   }
 }
+
+// The one scheduled job (code plan 15.16, tick.js): every sweep above registered itself with the tick, so a shop has one
+// Cloud Scheduler job instead of ten. It declares every sweep's secrets and the largest memory any sweep asked for.
+exports.tick = onScheduleReal(
+  { schedule: `every ${TICK_EVERY_MINUTES} minutes`, timeoutSeconds: 1800, memory: "1GiB", secrets: tickRegistry.secrets() },
+  async () => {
+    const { ran } = await runTick({ jobs: tickRegistry.jobs, db });
+    if (ran.length) console.log("tick ran:", ran.join(", "));
+  });
