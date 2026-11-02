@@ -1,56 +1,258 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan 2 of 3: the platform backend</title><style>body{font-family:Georgia,'Times New Roman',serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.55;color:#1d1b18;background:#fbf9f4}
-h1{font-size:1.7rem;margin-bottom:.4rem}h2{font-size:1.2rem;margin-top:2rem;border-bottom:1px solid #ddd6c8;padding-bottom:.2rem}
-table{border-collapse:collapse;width:100%;font-size:.95rem;margin:.6rem 0}th,td{border:1px solid #d9d2c3;padding:.4rem .5rem;text-align:left;vertical-align:top}
-th{background:#f1ece0}code{font-size:.9em;background:#eee9dc;padding:0 .25rem;border-radius:3px}
-@media (max-width:600px){table{font-size:.85rem}body{margin:1rem auto}}</style></head><body>
-<h1>Plan 2 of 3: the platform backend</h1>
-<p>Written 30 October 2026. This is the engine nobody outside sees: your control room and the platform's server program (sign-in, billing, emails, the shop maker, the scheduler, the release runner). Plan 1 is the front door. Plan 3 is each press's own shop. Numbers in brackets are rows in <code>docs/code-plan.md</code>.</p>
-<p>Key: <strong>Done</strong> is built and checked, mostly against pretend accounts. <strong>Being built</strong> has a thread on it now. <strong>Not started</strong> has no one on it yet.</p>
-<h2>Next step</h2>
-<p><strong>Make it real.</strong> Today the shop maker, payments and billing run against pretend Google and Stripe. The next code step is to host the platform services in the real platform project (15.6). The step after is the real shop maker (15.5) and the real test shop (15.7). Thread: *Research paths*. All of it waits on your Google Cloud setup.</p>
-<p><strong>Your next step:</strong> by <strong>7 November</strong>, set up the Google organization on your new domain (free Cloud Identity is enough), one "shops" folder, one billing account, and ask Google for room for 50 projects. The shop maker can only create projects inside an organization.</p>
-<h2>Your steps for this chunk</h2>
-<table>
-<tr><th>By</th><th>You do</th><th>What it unblocks</th></tr>
-<tr><td>5 Nov</td><td>Buy the domain</td><td>The Google organization</td></tr>
-<tr><td>7 Nov</td><td>Google organization, "shops" folder, billing account, ask for 50 projects</td><td>Real shop maker (15.5), real test shop (15.7)</td></tr>
-<tr><td>13 Nov</td><td>Stripe platform profile</td><td>Billing and payments for real</td></tr>
-<tr><td>Before the first paying press</td><td>Make the platform repo private (it is public today)</td><td>Safety of the platform code</td></tr>
-<tr><td>20 Nov</td><td>Lawyer's answer in writing: does Colophon need to register to handle press payments? (15.22)</td><td>Taking a per-order fee</td></tr>
-<tr><td>27 Nov</td><td>Company and business bank account (check with the accountant)</td><td>Stripe and Google bill the business</td></tr>
-<tr><td>1 Dec</td><td>Submit Google's sign-in review. It needs the live privacy page from Plan 1</td><td>One-sign-in Google connection (6.17)</td></tr>
-<tr><td>When ready</td><td>Switch on two-step sign-in for the control room (9.1), the budgets (8.9), the release schedule (4.3, 4.1)</td><td>The safety checks run for real</td></tr>
-<tr><td>Jan</td><td>Register the domain-connect template with GoDaddy, IONOS, Cloudflare (15.19)</td><td>One-click domain setup</td></tr>
-</table>
-<h2>Being built</h2>
-<p>Nothing is under way today. Rows 15.4 to 15.7 are Research paths' next work, in that order.</p>
-<h2>Not started</h2>
-<ul>
-<li>Google "is it ready" self-check in the control room (15.4).</li>
-<li>The real Google client for the shop maker, with a waiting state when Google's project limit is hit (15.5).</li>
-<li>Host the platform services in the real platform project (15.6).</li>
-<li>The real test shop, and the practice purchase that runs after every change (15.7; also finishes 1.32).</li>
-<li>First press by hand: a run-book and checklist (15.10). First press is planned for 4 December.</li>
-<li>"Google needs you to reconnect" handling (15.15).</li>
-<li>Cut an idle shop's bill: ten scheduled jobs become one (15.16).</li>
-<li>Spend guards per shop and for the platform (15.17).</li>
-<li>Keep the bot check inside its free amount (15.18).</li>
-<li>Domain template for GoDaddy and Cloudflare (15.19).</li>
-<li>A daily count of Gmail sends per press (15.24).</li>
-<li>Per-shop feature switches: new things ship off, then test shop, then willing presses (14.6). Thread: Plan tonight's platform improvements.</li>
-<li>Real release (4.1) and the scheduled health checks (4.3): code done, need the real project.</li>
-</ul>
-<h2>Done</h2>
-<ul>
-<li><strong>Payments service</strong>: Stripe, and Square as a second choice, with the press's own account, refunds, fee refunded with the order (2.1, 2.2, 2.2b).</li>
-<li><strong>Email service</strong>: sends for every shop in the press's name (2.3).</li>
-<li><strong>Billing service</strong>: plans, trial, card, cancel, failed-payment emails, on a pretend Stripe (2.4).</li>
-<li><strong>Shop maker</strong>: setup script and steps, retry in plain words (1.28 to 1.31, 2.6), self-checks (2.11), test shop catalogue.</li>
-<li><strong>Control room</strong>: every shop, today's numbers, search, platform settings, sign-ups, per-order fee, switches, view-as-owner, activity log, tax threshold watch (9.1 to 9.11, 15.20, 2.8).</li>
-<li><strong>Running many shops</strong>: release runner, numbered data changes, health checks and backups (4.1 to 4.3), emergency payments switch, privacy records, backup person, email reputation, sign-up screening, spending limits on the platform side (8.3 to 8.9).</li>
-<li><strong>Google</strong>: one connect and one teardown (6.17, 6.20), email from the press's domain (6.18), domain connect (6.15), up to date with Google's current rules (15.1 to 15.3, 15.12 to 15.14), one-click Sheet (16.1), Shopping problems (16.2).</li>
-<li><strong>Tonight's safety batch</strong>: secret scan, restore drill, no Friday releases, error reports, keep-times (13.1 to 13.8). Stripe version pinned (15.2).</li>
-<li><strong>One test of the whole road</strong> with fakes (6.14).</li>
-</ul>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Platform backend plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column in the website admin's Riso Press look: cream stock, ink rules, flat flare red, square corners. */
+:root {
+  --canvas: #faf6ec;
+  --card: #ffffff;
+  --sunken: #f0e9da;
+  --ink: #100f0d;
+  --muted: #3e3a34;
+  --subtle: #5f5950;
+  --rule: rgba(16, 15, 13, 0.26);
+  --flare: #e8402a;
+  --flare-words: #b4271a;
+  --done: #0a6b47;
+  --done-tint: #dcefe6;
+  --next: #8a5a00;
+  --next-tint: #f7e7c4;
+  --plan: #1b3fe0;
+  --plan-tint: #dee4fd;
+  --display: "Anton", Impact, "Archivo", sans-serif;
+  --body: "Archivo", "Helvetica Neue", system-ui, sans-serif;
+  --mono: "DM Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #262624; --card: #30302e; --sunken: #2c2c29; --ink: #f5f4ee; --muted: #c9c7be; --subtle: #a8a59c;
+    --rule: rgba(245, 244, 238, 0.18); --flare: #d97757; --flare-words: #eb9a7f;
+    --done: #7fd3ab; --done-tint: rgba(127, 211, 171, 0.14); --next: #f0c46b; --next-tint: rgba(240, 196, 107, 0.14);
+    --plan: #9fb2ff; --plan-tint: rgba(159, 178, 255, 0.14); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --canvas: #262624; --card: #30302e; --sunken: #2c2c29; --ink: #f5f4ee; --muted: #c9c7be; --subtle: #a8a59c;
+  --rule: rgba(245, 244, 238, 0.18); --flare: #d97757; --flare-words: #eb9a7f;
+  --done: #7fd3ab; --done-tint: rgba(127, 211, 171, 0.14); --next: #f0c46b; --next-tint: rgba(240, 196, 107, 0.14);
+  --plan: #9fb2ff; --plan-tint: rgba(159, 178, 255, 0.14); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--canvas); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55;
+  padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 48rem; margin: 0 auto; display: grid; gap: 40px; }
+section { display: grid; gap: 14px; min-width: 0; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--subtle); margin: 0; }
+h1 { font-family: var(--display); font-weight: 400; font-size: clamp(34px, 1.6rem + 2.6vw, 54px); line-height: 1.02; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+h2 { font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1.1; margin: 0; padding-bottom: 8px; border-bottom: 2px solid var(--ink); text-wrap: balance; letter-spacing: .01em; }
+h3 { font-size: 17px; margin: 0; text-wrap: balance; }
+p, li { max-width: 65ch; margin: 0; }
+.lede { font-size: 18px; color: var(--muted); }
+a { color: var(--flare-words); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--flare); outline-offset: 2px; }
+ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+.num { font-family: var(--mono); font-size: 13px; color: var(--subtle); white-space: nowrap; }
+
+.short { border: 2px solid var(--ink); background: var(--card); padding: 18px 20px; display: grid; gap: 10px; box-shadow: 4px 4px 0 var(--ink); }
+.short p { font-size: 17px; }
+
+.fixes { display: grid; gap: 12px; }
+.fix { border-left: 4px solid var(--done); background: var(--card); padding: 12px 16px; display: grid; gap: 4px; }
+.fix .before { color: var(--muted); font-size: 15px; }
+
+.found { display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.found > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 12px 0; border-bottom: 1px solid var(--rule); align-items: start; }
+.found .what { font-weight: 600; }
+.found .ours { grid-column: 1 / -1; color: var(--muted); font-size: 15px; }
+
+.pill { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid currentColor; }
+.pill.have { color: var(--done); background: var(--done-tint); }
+.pill.part { color: var(--next); background: var(--next-tint); }
+.pill.miss { color: var(--flare-words); background: transparent; }
+.pill.done { color: var(--done); background: var(--done-tint); }
+.pill.plan { color: var(--plan); background: var(--plan-tint); }
+
+.group { display: grid; gap: 10px; }
+.group h3 { font-family: var(--mono); font-weight: 500; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--subtle); }
+.rows { display: grid; gap: 10px; }
+.row { background: var(--card); border: 1px solid var(--rule); padding: 14px 16px; display: grid; gap: 6px; }
+.row .top { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; }
+.row .title { font-weight: 700; font-size: 17px; }
+.row .why { color: var(--muted); font-size: 15px; }
+.row .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.ask { border: 2px solid var(--flare); padding: 16px 18px; display: grid; gap: 8px; background: var(--card); }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); background: var(--card); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--rule); }
+th { font-family: var(--mono); font-weight: 500; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--subtle); background: var(--sunken); }
+td:first-child { white-space: nowrap; font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: 0; }
+
+.sources { font-size: 14px; color: var(--subtle); }
+.sources ul { gap: 4px; }
+@media (max-width: 480px) {
+  .found > div { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+</head><body>
+
+<main>
+  <header style="display:grid;gap:12px">
+    <p class="eyebrow">Plan 2 of 3 · updated 2 November 2026</p>
+    <h1>The platform backend</h1>
+    <p class="lede">Your control room and the platform's server program: sign-in, billing, emails, the shop maker, the jobs that run by themselves, and releases. Plan 1 is the front door. Plan 3 is each press's own shop.</p>
+  </header>
+
+  <section class="short" aria-label="In short">
+    <p><strong>In short.</strong> The backend already does a lot, but all of it runs on pretend Google and Stripe, and the control room is strong at fixing one shop and weak at showing how the business is doing.</p>
+    <p>Today I fixed three real bugs and made the shop list faster. The new plan (Phase 19) adds the things big shop platforms give the people who run them: income over time, why presses leave, recovering failed payments, one timeline per shop, a jobs page, and asking a press before changing their shop.</p>
+    <p>The biggest step is still the one from before: put the platform on the real Google and Stripe accounts. That waits on your Google organization, due <strong>7 November</strong>.</p>
+  </section>
+
+  <section>
+    <h2>Fixed today</h2>
+    <p>In <a href="https://github.com/lyricalmyricalbooks/LMB-PLATFORM/pull/216">pull request #216</a>. It merges by itself once every check passes.</p>
+    <div class="fixes">
+      <div class="fix">
+        <h3>Other companies' error messages no longer reach presses</h3>
+        <p class="before">Before: when Google, the email sender or QuickBooks refused something, the press saw that company's own English, and a Google refusal could read as "your sign-in ran out". Unexpected errors were never written down anywhere.</p>
+        <p>Now: the press sees plain words and a short code, like <span class="num">a3f09c1d</span>. The same code is in the server's log, so you can find exactly what happened.</p>
+      </div>
+      <div class="fix">
+        <h3>A cancelled plan can't reopen itself</h3>
+        <p class="before">Before: Stripe sometimes delivers its messages out of order. A late "plan updated" arriving after "plan cancelled" would put the cancelled plan back.</p>
+        <p>Now: a message older than the last one we took is ignored.</p>
+      </div>
+      <div class="fix">
+        <h3>Cards can't switch themselves back on</h3>
+        <p class="before">Before: the same problem for a press's own payment account. If Stripe paused their cards, a late, older message could mark the cards as working again.</p>
+        <p>Now: the same rule, older messages are ignored.</p>
+      </div>
+      <div class="fix">
+        <h3>The shop list and Today open faster</h3>
+        <p class="before">Before: the control room read each shop one after another, three reads per shop. At 100 shops that is about nine seconds of waiting.</p>
+        <p>Now: eight shops at a time, so the same page takes about a second.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What the big platforms give their owners</h2>
+    <p>I looked at what Shopify's partner tools, Stripe Billing and subscription-metrics tools give the people who run a platform, and checked each one against our code.</p>
+    <div class="found">
+      <div><span class="what">One list of every shop, with search and filters</span><span class="pill have">we have it</span><span class="ours">Our shop list has health, plan, billing state and search.</span></div>
+      <div><span class="what">Logs of messages and errors per shop, for fixing problems</span><span class="pill part">partly</span><span class="ours">We have the activity log and health checks. We don't count failed payment messages or bounced emails per shop. Errors now have a code (fixed today).</span></div>
+      <div><span class="what">The owner asks before entering a shop to make changes</span><span class="pill part">partly</span><span class="ours">Shopify's helpers send a request the store owner approves. Our "Make changes" is logged and limited to 30 minutes, but the press isn't asked first.</span></div>
+      <div><span class="what">Income over time, new, lost and upgraded customers</span><span class="pill miss">missing</span><span class="ours">Today shows this month's income only. There is no history, so you can't see if things are growing.</span></div>
+      <div><span class="what">Automatic recovery of failed card payments</span><span class="pill part">partly</span><span class="ours">We email the press when a payment fails. Stripe's smart retries and card updater aren't switched on, and nothing warns about a card before it expires.</span></div>
+      <div><span class="what">Why customers leave</span><span class="pill miss">missing</span><span class="ours">Closing a shop doesn't ask why.</span></div>
+      <div><span class="what">Alerts, most serious first</span><span class="pill have">we have it</span><span class="ours">Health alerts by email and the Needs you list on Today.</span></div>
+      <div><span class="what">Each message handled once, in order</span><span class="pill part">partly</span><span class="ours">Duplicates are caught. Order is fixed today. Two copies arriving at the same instant can still both run.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The new plan: Phase 19</h2>
+    <p>Rows 19.4 to 19.16 in the code plan, in the order I'd build them. None of it needs your accounts except where it says so. None of it touches your own shop or stockroom.</p>
+
+    <div class="group">
+      <h3>Safe and sturdy first</h3>
+      <div class="rows">
+        <div class="row"><div class="top"><span class="title">Each payment message handled exactly once</span><span class="meta"><span class="num">19.4</span><span class="pill plan">quick</span></span></div><p class="why">If Stripe sends the same message twice at the same moment, both copies can run today. This makes the first one claim it, so a press is never emailed or charged twice.</p></div>
+        <div class="row"><div class="top"><span class="title">Fair-use limits on every page call</span><span class="meta"><span class="num">19.5</span><span class="pill plan">medium</span></span></div><p class="why">Only the sign-in link has a limit now. Without limits, one broken script or one bad actor can run up the platform's bill or slow it for every press.</p></div>
+        <div class="row"><div class="top"><span class="title">The press says yes before "Make changes"</span><span class="meta"><span class="num">19.6</span><span class="pill plan">medium</span></span></div><p class="why">Like Shopify's collaborator requests: looking stays as it is, but changing their shop sends the owner a request to approve. It builds trust, and protects you if a press later says "someone changed my shop". Closing a shop for abuse still works without it.</p></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Know how the business is doing</h3>
+      <div class="rows">
+        <div class="row"><div class="top"><span class="title">Income over time</span><span class="meta"><span class="num">19.7</span><span class="pill plan">medium</span></span></div><p class="why">A snapshot each night, and a 12-month line on Today: money coming in, presses gained and lost, and how many trials turn into paying presses. Without it you can't tell if a month was good.</p></div>
+        <div class="row"><div class="top"><span class="title">Why presses leave</span><span class="meta"><span class="num">19.8</span><span class="pill plan">quick</span></span></div><p class="why">One optional question when a press closes: price, a missing feature, the press closed, or something else. Answers grouped by month tell you what to build next.</p></div>
+        <div class="row"><div class="top"><span class="title">Win back failed payments</span><span class="meta"><span class="num">19.9</span><span class="pill plan">medium</span></span></div><p class="why">Stripe's smart retries and card updater (your switch), an email 30 days before a card expires, a one-click card page, and a list of shops paused for payment with days left. Failed cards are the most common reason a paying press quietly drops away.</p></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>See every shop clearly</h3>
+      <div class="rows">
+        <div class="row"><div class="top"><span class="title">One timeline per shop</span><span class="meta"><span class="num">19.10</span><span class="pill plan">medium</span></span></div><p class="why">Billing, releases, health, support, switches, visits and emails in one list, newest first. When a press writes in, you see their whole story on one screen.</p></div>
+        <div class="row"><div class="top"><span class="title">The jobs page</span><span class="meta"><span class="num">19.11</span><span class="pill plan">medium</span></span></div><p class="why">Every job that runs by itself (health checks, backups, trial emails, tax watch) with when it last ran and a Run now button. A job that silently stops is the hardest problem to notice; this alerts you.</p></div>
+        <div class="row"><div class="top"><span class="title">Payments and email delivery per shop</span><span class="meta"><span class="num">19.12</span><span class="pill plan">medium</span></span></div><p class="why">Payment messages received and failed, emails sent and bounced, over the last week. A shop whose order emails bounce loses customers without knowing.</p></div>
+        <div class="row"><div class="top"><span class="title">Notes and tags on a shop</span><span class="meta"><span class="num">19.13</span><span class="pill plan">quick</span></span></div><p class="why">"Founding press", "needs a call", a short note. So you and your backup person remember the context.</p></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Look after presses at scale</h3>
+      <div class="rows">
+        <div class="row"><div class="top"><span class="title">Messages to presses</span><span class="meta"><span class="num">19.14</span><span class="pill plan">medium</span></span></div><p class="why">A banner in every shop admin (or one plan, or one shop) with an end date, plus an email for important ones. For new features, price notices and planned maintenance.</p></div>
+        <div class="row"><div class="top"><span class="title">What each shop costs us</span><span class="meta"><span class="num">19.15</span><span class="pill plan">medium</span></span></div><p class="why">Google's bill for each shop next to what that shop pays. A shop that costs more than it pays shows up before it hurts.</p></div>
+        <div class="row"><div class="top"><span class="title">A press's data, on request</span><span class="meta"><span class="num">19.16</span><span class="pill plan">larger</span></span></div><p class="why">One button builds a press's whole export (books, orders, customers, stockroom, settings) and emails a link for 7 days. Needed for leaving, for privacy requests, and for the 90 days a closed press has to download.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Your steps</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>By</th><th>You do</th><th>What it unblocks</th></tr></thead>
+        <tbody>
+          <tr><td>5 Nov</td><td>Buy the domain</td><td>The Google organization</td></tr>
+          <tr><td>7 Nov</td><td>Google organization, "shops" folder, billing account, ask Google for 50 projects</td><td>The real shop maker and the real test shop</td></tr>
+          <tr><td>13 Nov</td><td>Stripe platform profile. While there, switch on Smart Retries and the card account updater (new)</td><td>Billing for real, and failed-payment recovery (19.9)</td></tr>
+          <tr><td>20 Nov</td><td>Lawyer's written answer on handling press payments</td><td>Taking a per-order fee</td></tr>
+          <tr><td>27 Nov</td><td>Company and business bank account</td><td>Stripe and Google bill the business</td></tr>
+          <tr><td>1 Dec</td><td>Submit Google's sign-in review</td><td>The one-sign-in Google connection</td></tr>
+          <tr><td>Before the first paying press</td><td>Make the platform code private</td><td>Safety of the platform code</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Still waiting from before</h2>
+    <p>These were planned already and still come first, because nothing above is real until the platform runs on real accounts.</p>
+    <ul>
+      <li>Put the platform's server program in the real platform project <span class="num">15.6</span></li>
+      <li>The real shop maker, with a waiting state when Google's project limit is hit <span class="num">15.5</span></li>
+      <li>The real test shop and the practice purchase after every change <span class="num">15.7</span></li>
+      <li>"Google needs you to reconnect" handling <span class="num">15.15</span></li>
+      <li>One scheduled job per shop instead of ten, to cut an idle shop's bill <span class="num">15.16</span></li>
+      <li>Spend guards per shop and for the platform <span class="num">15.17</span></li>
+      <li>First press by hand, with a checklist, planned for 4 December <span class="num">15.10</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Already built</h2>
+    <ul>
+      <li><strong>Payments</strong>: Stripe and Square with the press's own account, refunds, the per-order fee refunded with the order.</li>
+      <li><strong>Billing</strong>: plans, card, cancel, failed-payment emails, plan changes, pay as you sell.</li>
+      <li><strong>Email</strong>: sent in each press's name, reputation watch, Gmail daily limit.</li>
+      <li><strong>Shop maker</strong>: setup steps that can be run again, self-checks, repair queue.</li>
+      <li><strong>Control room</strong>: Today, every shop, one shop's record, sign-ups, support, switches, fee, view-as-owner, closing a shop, emergency payments, breach register, activity log, tax watch, backup person.</li>
+      <li><strong>Running many shops</strong>: release runner, health checks every five minutes, backups and a restore drill, the public status page.</li>
+    </ul>
+  </section>
+
+  <section class="sources">
+    <h2 style="font-size:20px">Sources</h2>
+    <ul>
+      <li><a href="https://help.shopify.com/partners/manage-account/dashboard">Shopify: overview of the Partner Dashboard and Dev Dashboard</a></li>
+      <li><a href="https://shopify.dev/docs/apps/build/dev-dashboard/stores/collaborations">Shopify: collaborator access to stores</a></li>
+      <li><a href="https://www.stigg.io/blog-posts/best-practices-i-wish-we-knew-when-integrating-stripe-webhooks">Stigg: Stripe webhook practices (order, duplicates)</a></li>
+      <li><a href="https://dev.to/alexcloudstar/stripe-webhooks-in-production-idempotency-retries-and-the-mistakes-that-cost-me-real-money-5haf">Stripe webhooks in production: duplicates and retries</a></li>
+      <li>The full row list: <span class="num">docs/code-plan.md</span>, Phase 19, in the platform code.</li>
+    </ul>
+  </section>
+</main>
 </body></html>

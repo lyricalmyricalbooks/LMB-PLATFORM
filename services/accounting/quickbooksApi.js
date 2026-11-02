@@ -17,6 +17,8 @@ export class QuickBooksError extends Error {
     this.code = code;
     this.grant = grant;
     this.detail = detail;
+    // The other service's answer, never words for a press (signup/api.js isOurError).
+    this.fromProvider = "quickbooks";
   }
 }
 
