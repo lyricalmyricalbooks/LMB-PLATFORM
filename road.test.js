@@ -172,7 +172,9 @@ test("the whole road: sign up, a shop made, a look picked, a trial, a card, a fa
   const periodEnd = (await w.billing.status(shopId)).currentPeriodEnd ?? preview.body.preview.closesAt;
   assert.equal(preview.body.preview.closesAt, periodEnd);
   assert.equal((await w.ask(STRANGER, "POST", "/api/billing/change-plan", { shopId, plan: "shop" })).status, 403);
-  const changed = await w.ask(ADA, "POST", "/api/billing/change-plan", { shopId, plan: "shop" });
+  // The plan is paid now, so the change needs the owner's second step (plan 14.1).
+  assert.equal((await w.ask(ADA, "POST", "/api/billing/change-plan", { shopId, plan: "shop" })).status, 403);
+  const changed = await w.ask({ ...ADA, firebase: { sign_in_second_factor: "totp" } }, "POST", "/api/billing/change-plan", { shopId, plan: "shop" });
   assert.deepEqual([changed.body.plan, changed.body.changed], ["shop", true]);
   assert.equal(sent(w, "plan-changed")[0].data.closing, "the stockroom");
   assert.equal((await w.registry.getShop(shopId)).plan, "both", "the stockroom is paid for to the month's end");

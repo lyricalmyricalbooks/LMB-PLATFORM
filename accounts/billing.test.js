@@ -191,3 +191,22 @@ test("the page: every part of the plan, a spot for the two ways to pay, text onl
   // The account page's shop card links here for owners.
   assert.match(readFileSync(new URL("./app.js", import.meta.url), "utf8"), /\/account\/billing\?shop=/);
 });
+
+test("a paid plan's changes need the second step from the owner; looking, previewing and a trial don't (plan 14.1)", async () => {
+  const w = await world();
+  const TWO = { ...OWNER, firebase: { sign_in_second_factor: "totp" } };
+  // On the trial nothing is asked.
+  assert.equal((await w.ask(OWNER, "cancel")).status, 200);
+  await w.ask(OWNER, "keep");
+  // Make the plan a paid one.
+  await w.registry.updateShop(SHOP, { billing: { status: "active", plan: "both", access: "open" } });
+  assert.equal((await w.ask(OWNER, "status")).status, 200);
+  assert.equal((await w.ask(OWNER, "change-plan", { plan: "shop", preview: true })).status, 200);
+  for (const [route, extra] of [["card", {}], ["cancel", {}], ["change-plan", { plan: "shop" }]]) {
+    const refused = await w.ask(OWNER, route, extra);
+    assert.equal(refused.status, 403, route);
+    assert.match(refused.body.message, /two-step/);
+  }
+  assert.equal((await w.ask(TWO, "cancel")).status, 200);
+  assert.ok(w.logged().some((e) => e.outcome === "refused: needs two-step sign-in"));
+});

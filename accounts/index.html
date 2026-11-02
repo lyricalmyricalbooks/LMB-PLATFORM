@@ -72,7 +72,7 @@
     <div id="shops" class="cp-shops"></div>
     <div class="cp-grid2">
       <div class="card"><h3>Need a hand?</h3><p class="hint">Most questions have a written answer in the help centre. A person answers anything else, usually within a day.</p><div class="cp-actions cp-start"><button type="button" class="primary" id="open-help">Get help from Colophon</button><a class="button" href="../help/">Help centre</a></div></div>
-      <div class="card"><h3>Signed in as <span id="me"></span></h3><p class="hint">One sign-in for every shop you're on.</p><div class="cp-actions cp-start"><button type="button" id="sign-out">Sign out</button><button type="button" class="ghost" id="open-recovery">Lost access to the email your shops use?</button></div></div>
+      <div class="card"><h3>Signed in as <span id="me"></span></h3><p class="hint">One sign-in for every shop you're on.</p><div class="cp-actions cp-start"><button type="button" id="sign-out">Sign out</button><button type="button" id="open-twostep">Set up two-step sign-in</button><button type="button" class="ghost" id="open-recovery">Lost access to the email your shops use?</button></div></div>
     </div>
   </section>
 
@@ -127,11 +127,37 @@
     </form>
   </section>
 
+  <!-- Two-step sign-in (plan 14.1): the code at sign-in, and the one-time set-up of the authenticator app. -->
+  <section id="view-code" class="stack" hidden aria-labelledby="code-title">
+    <h2 id="code-title" tabindex="-1" class="cp-view-title">Type your code</h2>
+    <form id="code-form" class="card" novalidate>
+      <label>The 6-digit code from your authenticator app<input name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></label>
+      <button type="submit" class="primary">Sign in</button>
+    </form>
+  </section>
+
+  <section id="view-twostep" class="stack" hidden aria-labelledby="twostep-title">
+    <button type="button" class="ghost" id="twostep-back">← All your shops</button>
+    <h2 id="twostep-title" tabindex="-1" class="cp-view-title">Set up two-step sign-in</h2>
+    <p>Once your plan is paid, changes to your card, your plan and your team ask for a code from an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password…). Then nobody can make them with your Google password alone.</p>
+    <ol>
+      <li>In the app, add an account by scanning this code. On the phone itself, <a id="setup-link" href="#">tap here to add it</a> instead.</li>
+      <li>Or type this setup code into the app: <code id="setup-key"></code></li>
+      <li>Type the 6-digit code the app shows.</li>
+    </ol>
+    <div id="setup-qr"></div>
+    <form id="setup-form" class="card" novalidate>
+      <label>The 6-digit code<input name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></label>
+      <button type="submit" class="primary">Turn on two-step sign-in</button>
+    </form>
+  </section>
+
   <p id="status" role="status" aria-live="polite"></p>
 </main>
     </div></div>
   </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

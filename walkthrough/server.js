@@ -126,7 +126,8 @@ export async function seedWalkthrough(world) {
   return world;
 }
 
-const OWNER_CLAIMS = Object.freeze({ ...SEED_OWNER });
+// The pretend owner has already set up two-step sign-in (plan 14.1), so a paid shop's changes work in the walkthrough.
+const OWNER_CLAIMS = Object.freeze({ ...SEED_OWNER, firebase: { sign_in_second_factor: "totp" } });
 const DAY_SECONDS = 86_400;
 
 /**
