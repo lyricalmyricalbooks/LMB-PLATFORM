@@ -56,7 +56,7 @@ Google is reached only through the injected `google` clients (shape at the top o
 in this folder yet, so nothing here can create a real project. `fakes.js` has a pretend Google; `test-shop.js` holds the
 made-up test shop (`lmb-test-shop`) and made-up folder and billing ids.
 
-## Steps 7–16 (`later-steps.js`, `payments.js`)
+## Steps 7–17 (`later-steps.js`, `payments.js`)
 
 `laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, registry, config })` returns steps 7–15;
 `shopSteps({ config, ...clients })` returns all fifteen. `config` adds `release` (`{ version, starterContent(shop) }`)
@@ -109,6 +109,9 @@ when what it finds is neither done nor untouched:
 16. **Test shop only** (`testShop: true`, plan "both"): turn on the shop's stockroom link through the shop's own link
     calls (`inventoryLink` client): its connection check first (a failure stops the run for a person), then sales sent
     from today, Toronto time. Done once a start day is set, so a re-run changes nothing. Every other shop skips it.
+17. Cut the idle bill (`upkeep.js`, plan 15.16): delete the ten old per-sweep Cloud Scheduler jobs (the shop's server code now
+    runs them from one `tick` job) and set a one-day cleanup rule on the functions' build repository. A re-run changes
+    nothing; an existing shop gets it the next time its steps run. A paused or closed shop has no jobs (`createJobHooks`).
 
 Dry run for the test shop: `node setup/dry-run.js` (pretend Google and services, changes nothing).
 

@@ -133,6 +133,8 @@ export function fakeGoogle({ failOnce = [] } = {}) {
     namedDatabases: new Map(), extraBuckets: new Map(), realtimeDatabases: new Map(),
     // What an unsigned read of the storage test file gets; 403 is private, as the shop's storage rules make it.
     unsignedReadStatus: 403,
+    // Scheduled jobs by project (a set of job ids) and the projects whose build repository has the cleanup rule (plan 15.16).
+    schedulerJobs: new Map(), buildCleanup: new Set(),
   };
   const calls = [];
   const failures = [...failOnce];
@@ -260,6 +262,21 @@ export function fakeGoogle({ failOnce = [] } = {}) {
         const backup = { name: `backups/${projectId}/${list.length + 1}` };
         world.backups.set(projectId, [...list, backup]);
         return backup;
+      },
+    },
+    // Plan 15.16: the shop's scheduled jobs and the build repository's cleanup rule.
+    scheduler: {
+      listJobs: async (projectId) => [...(world.schedulerJobs.get(projectId) ?? [])],
+      async deleteJob(projectId, region, id) {
+        change("scheduler.deleteJob", projectId, id);
+        world.schedulerJobs.get(projectId)?.delete(id);
+      },
+    },
+    buildCleanup: {
+      has: async (projectId) => (world.firebase.has(projectId) ? world.buildCleanup.has(projectId) : null),
+      async set(projectId) {
+        change("buildCleanup.set", projectId);
+        world.buildCleanup.add(projectId);
       },
     },
     storageProbe: {

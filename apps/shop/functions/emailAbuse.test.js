@@ -285,7 +285,7 @@ test('sendEmail called without a secret still uses the Functions RESEND_API_KEY'
 test('every function that can send email declares RESEND_API_KEY, including the Stripe webhook', () => {
   const app = load();
   const names = (fn) => (fn.__opts?.secrets || []).map(s => s.name);
-  for (const fn of ['stripeWebhook', 'createStripeCheckoutSession', 'onOrderUpdated', 'onOrderCreated', 'abandonedCartSweep', 'onBookRestocked', 'unpaidPaymentSweep', 'onContactMessage', 'shippoWebhook']) {
+  for (const fn of ['stripeWebhook', 'createStripeCheckoutSession', 'onOrderUpdated', 'onOrderCreated', 'abandonedCartSweep', 'onBookRestocked', 'unpaidPaymentSweep', 'tick', 'onContactMessage', 'shippoWebhook']) {
     expect(names(app.exports[fn]), fn).toContain('RESEND_API_KEY');
   }
 });
