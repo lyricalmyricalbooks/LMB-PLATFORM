@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
+import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -28,7 +28,8 @@ function closure(entry) {
     }
   };
   walk(resolve(ROOT, entry));
-  return { files: [...files].map((f) => relative(ROOT, f)), packages: [...packages] };
+  // Forward slashes on every system (Windows gives back-slashes), so the folder check reads the same everywhere.
+  return { files: [...files].map((f) => relative(ROOT, f).split(sep).join("/")), packages: [...packages] };
 }
 
 const dockerFolders = () => [...readFileSync(resolve(ROOT, "server/Dockerfile"), "utf8").matchAll(/^COPY (\S+) \.\/\1$/gm)].map((m) => m[1]).sort();
