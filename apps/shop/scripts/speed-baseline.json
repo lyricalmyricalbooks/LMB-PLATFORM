@@ -1,0 +1,266 @@
+{
+  "artisan-market book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "artisan-market home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "botanical-boutique book": {
+    "nodes": 274,
+    "images": 0
+  },
+  "botanical-boutique home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "coastal-breeze book": {
+    "nodes": 274,
+    "images": 0
+  },
+  "coastal-breeze home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "coastal-living book": {
+    "nodes": 274,
+    "images": 0
+  },
+  "coastal-living home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "conversion-engine book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "conversion-engine home": {
+    "nodes": 212,
+    "images": 0
+  },
+  "earthy-studio book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "earthy-studio home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "editorial-luxe book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "editorial-luxe home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "forest-cabin book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "forest-cabin home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "golden-noir book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "golden-noir home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "inkline-tech book": {
+    "nodes": 274,
+    "images": 0
+  },
+  "inkline-tech home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "luxe-dark-commerce book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "luxe-dark-commerce home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "modern-atelier book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "modern-atelier home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "night-neon book": {
+    "nodes": 274,
+    "images": 0
+  },
+  "night-neon home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "nordic-minimal book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "nordic-minimal home": {
+    "nodes": 212,
+    "images": 0
+  },
+  "photo-reference book": {
+    "nodes": 261,
+    "images": 0
+  },
+  "photo-reference home": {
+    "nodes": 205,
+    "images": 0
+  },
+  "press-archive book": {
+    "nodes": 261,
+    "images": 0
+  },
+  "press-archive home": {
+    "nodes": 248,
+    "images": 0
+  },
+  "press-broadsheet book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-broadsheet home": {
+    "nodes": 250,
+    "images": 0
+  },
+  "press-chapbook book": {
+    "nodes": 261,
+    "images": 0
+  },
+  "press-chapbook home": {
+    "nodes": 273,
+    "images": 0
+  },
+  "press-imprint book": {
+    "nodes": 261,
+    "images": 0
+  },
+  "press-imprint home": {
+    "nodes": 273,
+    "images": 0
+  },
+  "press-index book": {
+    "nodes": 261,
+    "images": 0
+  },
+  "press-index home": {
+    "nodes": 247,
+    "images": 0
+  },
+  "press-letterpress book": {
+    "nodes": 261,
+    "images": 0
+  },
+  "press-letterpress home": {
+    "nodes": 273,
+    "images": 0
+  },
+  "press-marquee book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-marquee home": {
+    "nodes": 252,
+    "images": 0
+  },
+  "press-poster book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-poster home": {
+    "nodes": 283,
+    "images": 0
+  },
+  "press-punk book": {
+    "nodes": 274,
+    "images": 0
+  },
+  "press-punk home": {
+    "nodes": 284,
+    "images": 0
+  },
+  "press-riso book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-riso home": {
+    "nodes": 252,
+    "images": 0
+  },
+  "press-riso-noir book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-riso-noir home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "press-shelf book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-shelf home": {
+    "nodes": 282,
+    "images": 0
+  },
+  "press-zine book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-zine home": {
+    "nodes": 252,
+    "images": 0
+  },
+  "royal-gallery book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "royal-gallery home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "starting-look book": {
+    "nodes": 274,
+    "images": 0
+  },
+  "starting-look home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "tech-minimal book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "tech-minimal home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "urban-streetwear book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "urban-streetwear home": {
+    "nodes": 213,
+    "images": 0
+  },
+  "velvet-rose book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "velvet-rose home": {
+    "nodes": 213,
+    "images": 0
+  }
+}
