@@ -24,8 +24,8 @@ test("setup answers change while in setup", () => {
   assert.deepEqual(result, { ok: true, fields: { pressName: "Moth Press", sells: "Zines", country: "CA" } });
 });
 
-test("a press cannot set its status, owner or last-seen time", () => {
-  for (const key of ["status", "ownerUid", "ownerEmail", "lastSeenAt", "createdAt"]) {
+test("a press cannot set its status, owner, import file or timestamps", () => {
+  for (const key of ["status", "ownerUid", "ownerEmail", "lastSeenAt", "createdAt", "stagedImportPath", "pressId"]) {
     assert.equal(setupChange(record(), { [key]: "x" }).ok, false, key);
   }
 });
@@ -52,4 +52,16 @@ test("a setup record unseen for 60 days is due for removal, a recent one is not"
   assert.equal(setupExpired(r, new Date("2026-12-30T12:00:00Z")), false);
   assert.equal(setupExpired(r, new Date("2027-01-02T12:00:00Z")), true);
   assert.equal(setupExpired({ ...r, status: "opening" }, new Date("2027-06-01T00:00:00Z")), false);
+});
+
+// The rules file is checked by its text here; the Firestore emulator run (waitlist/firestore-emulator.mjs) is the full test.
+test("the setup record rules bind the owner's verified email, the press id and the locked fields", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const rules = await readFile(new URL("../waitlist/firestore.rules", import.meta.url), "utf8");
+  const block = rules.slice(rules.indexOf("match /presses/{pressId}"), rules.indexOf("// status/publish.js"));
+  assert.match(block, /ownerEmail == request\.auth\.token\.email/);
+  assert.match(block, /pressId == pressId/);
+  assert.match(block, /email_verified == true/);
+  assert.match(block, /stagedImportPath == resource\.data\.stagedImportPath/);
+  assert.match(block, /allow delete: if false/);
 });
