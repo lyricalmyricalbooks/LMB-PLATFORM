@@ -153,3 +153,9 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
     },
   };
 }
+
+/**
+ * The email service's key as the hosted server gets it (server/deploy.js): the environment name this service reads and
+ * the Secret Manager secret Cloud Run fills it from. The name stays in this folder.
+ */
+export const EMAIL_SECRETS = Object.freeze([Object.freeze({ env: "RESEND_API_KEY", secret: "resend-api-key", api: true, jobs: true })]);

@@ -5,6 +5,8 @@
 import { createSign, generateKeyPairSync } from "node:crypto";
 import { fakeFirestore } from "../clients/fake-firestore.js";
 import { SECURETOKEN_KEYS } from "./verifyIdToken.js";
+import { pretendEmailEnv } from "../services/email/fakes.js";
+import { pretendPaymentsEnv } from "../services/payments/fakes.js";
 
 export const TEST_PROJECT = "lmb-platform-prod";
 
@@ -46,8 +48,8 @@ export const TEST_ENV = Object.freeze({
   PLATFORM_PROJECT: TEST_PROJECT,
   PLATFORM_ADMIN_EMAILS: "admin@example.com",
   HEALTH_ALERT_TO: "alerts@example.com",
-  RESEND_API_KEY: "re_test_pretend",
-  STRIPE_PLATFORM_TEST_KEY: "sk_test_pretend",
+  ...pretendEmailEnv(),
+  ...pretendPaymentsEnv(),
   STRIPE_BILLING_WEBHOOK_SECRET: "whsec_pretend_billing",
   TRIAL_TIPS_SECRET: "tips-signing-phrase-123",
   CHECKUP_SECRET: "checkup-signing-phrase-123",

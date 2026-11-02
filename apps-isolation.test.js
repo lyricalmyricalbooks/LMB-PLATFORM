@@ -184,7 +184,7 @@ const THROWAWAY_DOMAIN = /^[a-z]\.[a-z]{2,3}$/; // a@x.com, b@y.co: made up by c
 const SENDER_DOMAINS = new Set([
   "bigcartel.com", "email.bigcartel.com", "resend.dev", "stripe.com", "intl.paypal.com", "google.com", "github.com",
   "amazon.ca", "adobe.com", "interac.ca", "freedommobile.ca", "shippo.com", "canadapost.ca", "canadapost.postescanada.ca",
-  "anthropic.com", "developer.gserviceaccount.com",
+  "anthropic.com", "developer.gserviceaccount.com", "system.gserviceaccount.com",
 ]);
 // Stock "type your address here" examples in forms and help text, and the Gmail spellings the code folds together.
 const PLACEHOLDER_ADDRESSES = new Set([

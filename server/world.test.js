@@ -5,6 +5,7 @@ import { signatureHeader } from "../services/payments/stripeSignature.js";
 import { offToken as tipsOffToken } from "../services/trial-tips/index.js";
 import { assertTestMode, hostedWorld, proxyHopsOf } from "./world.js";
 import { TEST_ENV, TEST_PROJECT, fakeOutside } from "./fakes.js";
+import { pretendLiveKeyEnv } from "../services/payments/fakes.js";
 
 const build = (env = TEST_ENV, outside = fakeOutside()) => ({ outside, world: hostedWorld({ env, fetch: outside.fetch, token: outside.token, log: () => {} }) });
 
@@ -117,7 +118,7 @@ test("an address no door has is 'nothing here'", async () => {
 
 test("the hosted server bills in test mode only: live mode or a live key stops it before anything is built", () => {
   assert.throws(() => assertTestMode({ BILLING_MODE: "live" }), /test mode only/);
-  assert.throws(() => assertTestMode({ STRIPE_PLATFORM_LIVE_KEY: "sk_live_x" }), /live Stripe key/);
+  assert.throws(() => assertTestMode(pretendLiveKeyEnv()), /live Stripe settings/);
   assert.doesNotThrow(() => assertTestMode({}));
   const outside = fakeOutside();
   assert.throws(() => hostedWorld({ env: { ...TEST_ENV, BILLING_MODE: "live" }, fetch: outside.fetch, token: outside.token }), /test mode only/);

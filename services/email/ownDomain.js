@@ -141,3 +141,6 @@ export function createOwnDomainSender({ resendDomains, registry, auditLog, domai
     },
   };
 }
+
+/** The Resend domains client with the email service's own key, read here so no other folder names it. */
+export const resendDomainsFromEnv = ({ env = {}, fetch }) => resendDomainsClient({ apiKey: env.RESEND_API_KEY, fetch });

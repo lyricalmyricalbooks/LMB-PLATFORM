@@ -13,7 +13,7 @@ import { JOBS, jobNamed } from "../services/jobs/index.js";
 import { realHealth } from "../services/health/run.js";
 import { realRetention } from "../services/retention/run.js";
 import { runBusinessNightly } from "../control-room/nightly.js";
-import { createOwnDomainSender, resendDomainsClient } from "../services/email/ownDomain.js";
+import { createOwnDomainSender, resendDomainsFromEnv } from "../services/email/ownDomain.js";
 import { NOT_CONNECTED, NotConnected, notConnectedFn } from "./notConnected.js";
 
 const quiet = () => {};
@@ -23,7 +23,7 @@ export const RUNNERS = Object.freeze({
   "shop-maker": () => notConnectedFn(NOT_CONNECTED.shopMaking),
   "web-addresses": () => notConnectedFn(NOT_CONNECTED.domains),
   "own-email-addresses": ({ parts }) => () => createOwnDomainSender({
-    resendDomains: resendDomainsClient({ apiKey: parts.env.RESEND_API_KEY, fetch: parts.fetch }), registry: parts.registry, auditLog: parts.auditLog,
+    resendDomains: resendDomainsFromEnv({ env: parts.env, fetch: parts.fetch }), registry: parts.registry, auditLog: parts.auditLog,
     // Only a shop that started its own address has anything to check, and starting one needs the domain service.
     domainsCall: notConnectedFn(NOT_CONNECTED.domains), email: parts.email, now: () => parts.now().getTime(),
   }).checkAll(),

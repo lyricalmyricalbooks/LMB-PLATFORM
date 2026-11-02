@@ -14,13 +14,13 @@
 //   PLATFORM_ADMIN_EMAILS       who may open the control room (controlRoom.js); PLATFORM_ADMIN_EMAIL,
 //                               PLATFORM_BACKUP_PERSON, PLATFORM_PRIVACY_CONTACT as control-room/people.js reads them
 //   HEALTH_ALERT_TO             where a late job or a failed health check is emailed
-//   RESEND_API_KEY              the email sender's key (services/email reads it)
-//   STRIPE_PLATFORM_TEST_KEY    the platform's Stripe test key (services/payments reads it)
-//   STRIPE_BILLING_WEBHOOK_SECRET, STRIPE_CONNECT_WEBHOOK_SECRET_TEST   the two Stripe events addresses' signing secrets
+//   the keys                    the email sender's key, the platform's Stripe test key and the two Stripe events
+//                               addresses' signing secrets: each read only by its own service (services/email,
+//                               services/payments, services/billing), which also names it for the deploy
 //   TRIAL_TIPS_SECRET, CHECKUP_SECRET   signing phrases for the emails' "turn off" links (16+ characters each)
 //   LIMIT_PROXY_HOPS            how many of our own proxies add to x-forwarded-for (signup/limits.js proxyHops)
-//   BILLING_MODE                "test" (the default). The hosted server refuses "live" and a live Stripe key until
-//                               Julian's go: every charge stays a test charge.
+//   BILLING_MODE                "test" (the default). The hosted server refuses "live", and live Stripe settings
+//                               (services/payments refuseLiveKeys), until Julian's go: every charge stays a test charge.
 //   and the platform settings services/settings.js reads (PLATFORM_URL, SIGNUP_OPEN, prices…).
 //
 // Besides the door it answers the addresses that aren't signed-in calls:
@@ -57,7 +57,7 @@ import { createBillingFromEnv, readBillingConfig } from "../services/billing/ind
 import { createPaymentWay } from "../services/billing/paymentWay.js";
 import { shopPlanCopies } from "../services/billing/shopPlan.js";
 import { createClosingSweep } from "../services/billing/closing.js";
-import { createPaymentsFromEnv, handlePayments, platformBillingStripe } from "../services/payments/index.js";
+import { createPaymentsFromEnv, handlePayments, platformBillingStripe, refuseLiveKeys } from "../services/payments/index.js";
 import { createEmailService } from "../services/email/index.js";
 import { handleShopEmail } from "../services/email/http.js";
 import { liveSettings, platformSettings } from "../services/settings.js";
@@ -97,7 +97,7 @@ export const DEFAULT_PROJECT = "lmb-platform-prod";
 export function assertTestMode(env) {
   const { mode } = readBillingConfig(env);
   if (mode !== "test") throw new Error("The hosted server bills in Stripe's test mode only until Julian's go (code plan 15.6). Set BILLING_MODE=test.");
-  if (String(env.STRIPE_PLATFORM_LIVE_KEY ?? "").trim()) throw new Error("The hosted server must not hold a live Stripe key yet (code plan 15.6). Remove STRIPE_PLATFORM_LIVE_KEY.");
+  refuseLiveKeys(env);
 }
 
 /** LIMIT_PROXY_HOPS as a small whole number (0 when unset). */
