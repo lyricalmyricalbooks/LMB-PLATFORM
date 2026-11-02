@@ -50,6 +50,13 @@ once and logged (done, refused or failed) in the registry and the shop's audit l
 The web door adds them with `routes: { ...accountRoutes(accounts), ...billingRoutes({ billing, accounts, registry,
 auditLog, settings }) }`.
 
+## Check my shop (`checkMyShop.js`, plan 14.3)
+
+An owner's **Check my shop** button (`POST /api/accounts/check`) runs six checks on their own shop and answers in plain
+words: web address, payments, emails, shop and stockroom joined, saved copies, plan and card. Each is good, needs the
+owner (with a button to connect payments, update the card or ask for help) or can't be told yet. It only looks. Saved
+copies read `shopBackup(shopId)` when the door is given one; until then they say so.
+
 ## Two-step sign-in for owners (`twoStep.js`, plan 14.1)
 
 When a shop's plan is paid, its owner needs a code from an authenticator app (the second step on the sign-in pass) to
