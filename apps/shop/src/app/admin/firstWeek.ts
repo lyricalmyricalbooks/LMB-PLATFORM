@@ -7,6 +7,9 @@
 
 import type { ReadinessItem } from "./launchReadiness";
 import type { BringMarker } from "./bringShop";
+import type { ShippingMarker } from "./shippingStage";
+import type { FinalCheckMarker } from "./finalCheckStage";
+import type { GoogleMarker } from "./googleStage";
 import { firstProductWords } from "./sells";
 import { wordsFor } from "../../shared/shopSells";
 
@@ -38,6 +41,12 @@ export interface FirstWeekDoc {
   details?: { at: string };
   /** Set once Get started's bring-your-shop step is finished or skipped (plan 17.3), before the look. */
   bring?: BringMarker;
+  /** Set once Get started's shipping and address step is finished or skipped (plan 17.11), after the look. */
+  shipping?: ShippingMarker;
+  /** Set once Get started's Google step is done, skipped or waiting for Google's approval (plan 17.9). */
+  google?: GoogleMarker;
+  /** Set once Get started's final check is done and the shop opened from it (plan 17.13). */
+  finalCheck?: FinalCheckMarker;
   /** Set once Choose your look is done (plan 6.3): it never shows again. */
   welcome?: WelcomeDone;
   /** The guide's progress as the admin last worked it out, read by the platform's trial emails (plan 6.10). */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { galleryThemes, lookPreview, pressNameOf, suggestedThemes, welcomeShows } from "./chooseLook";
+import { firstBookPhoto, galleryThemes, lookPreview, pressNameOf, suggestedThemes, welcomeShows } from "./chooseLook";
 import { THEME_LIBRARY } from "./studio/themeLibrary";
 
 const HEX = /^#[0-9a-f]{3,8}$/i;
@@ -40,3 +40,14 @@ describe("Choose your look (plan 6.3)", () => {
     expect(pressNameOf(null)).toBe("Your press");
   });
 });
+
+describe("the look previews show the first book's photo (plan 17.8)", () => {
+  it("uses the first book that has a secure photo, and nothing else", () => {
+    expect(firstBookPhoto([{ photos: [] }, { photos: [{ url: "https://cdn.example/a.jpg" }] }, { photos: [{ url: "https://cdn.example/b.jpg" }] }])).toBe("https://cdn.example/a.jpg");
+    expect(firstBookPhoto([{ photoUrl: "https://cdn.example/c.jpg" }])).toBe("https://cdn.example/c.jpg");
+    expect(firstBookPhoto([{ photos: [{ url: "http://insecure.example/x.jpg" }] }])).toBe("");
+    expect(firstBookPhoto([])).toBe("");
+    expect(firstBookPhoto(null)).toBe("");
+  });
+});
+
