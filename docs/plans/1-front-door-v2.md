@@ -87,22 +87,22 @@ shipping rule, no first book). Why it matters: a new shop with no books and no s
 - No backend for a press before launch. The setup record is the only thing made before then.
 - No free-form chat assistant on the front door in this version. It can come later, after the plain path is proven.
 
-## Build order (Phase 19, after Phase 18 rows 18.1 to 18.9)
+## Build order (Phase 20, after Phase 18 rows 18.1 to 18.9)
 
-Phase 18 is the one-flow rebuild. Phase 19 adds the functions above. Each row ships on its own, behind the same
+Phase 18 is the one-flow rebuild. Phase 20 adds the functions above. Each row ships on its own, behind the same
 sign-up gate, and each has a test that proves it.
 
 | # | Row | Proven by | Effort |
 | --- | --- | --- | --- |
-| 19.1 | Private live preview of the press's own shop during setup (A) | the preview shows the press name and look; nothing is public; a stranger cannot open another press's preview | medium |
-| 19.2 | Continue-anywhere link and the once-a-day email (B) | the link opens the exact step; the email stops once the press is open; no email after launch | medium |
-| 19.3 | Launch checklist with plain blockers (C) | each blocker names what it needs; launch is refused until every blocker is clear; refusal writes nothing | medium |
-| 19.4 | Price and first-charge date on the home page and the launch step (D) | the amount matches the billing service in tests; pay as you sell example matches the cap | quick |
-| 19.5 | Import in pieces with a preview per piece (E) | a file over the limit is refused with the reason; a skipped piece leaves no trace | larger |
-| 19.6 | Several presses per login and a switcher (F) | a person sees only their presses; each press keeps its own subscription | medium |
-| 19.7 | Plain-words errors on the front door and in setup (G) | a scan of every error text for technical words finds none; detail goes to the control room | quick |
-| 19.8 | Practice order in test mode before launch (H) | the practice order uses test mode only; it is removed on request; no live key is ever used | larger |
-| 19.9 | "What to do this week" card after launch (I) | suggestions match what is missing; each one disappears once done | quick |
+| 20.1 | Private live preview of the press's own shop during setup (A) | the preview shows the press name and look; nothing is public; a stranger cannot open another press's preview | medium |
+| 20.2 | Continue-anywhere link and the once-a-day email (B) | the link opens the exact step; the email stops once the press is open; no email after launch | medium |
+| 20.3 | Launch checklist with plain blockers (C) | each blocker names what it needs; launch is refused until every blocker is clear; refusal writes nothing | medium |
+| 20.4 | Price and first-charge date on the home page and the launch step (D) | the amount matches the billing service in tests; pay as you sell example matches the cap | quick |
+| 20.5 | Import in pieces with a preview per piece (E) | a file over the limit is refused with the reason; a skipped piece leaves no trace | larger |
+| 20.6 | Several presses per login and a switcher (F) | a person sees only their presses; each press keeps its own subscription | medium |
+| 20.7 | Plain-words errors on the front door and in setup (G) | a scan of every error text for technical words finds none; detail goes to the control room | quick |
+| 20.8 | Practice order in test mode before launch (H) | the practice order uses test mode only; it is removed on request; no live key is ever used | larger |
+| 20.9 | "What to do this week" card after launch (I) | suggestions match what is missing; each one disappears once done | quick |
 
 ## Risks, and what the plan does about each
 
@@ -119,7 +119,7 @@ sign-up gate, and each has a test that proves it.
 
 | By | You do | What it unblocks |
 | --- | --- | --- |
-| Now | Say yes or no to the nine functions, or name which to drop | Rows 19.1 to 19.9 |
+| Now | Say yes or no to the nine functions, or name which to drop | Rows 20.1 to 20.9 |
 | Now | Confirm the setup-mode choice from version 1 (setup mode in the real admin) | Rows 18.6 to 18.9 |
 | 20 Nov | Send the terms and privacy pages to a lawyer | Terms public before sign-up opens |
 | 8 Mar | Public sign-up opens to everyone | Launch |
