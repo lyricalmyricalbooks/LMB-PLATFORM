@@ -13,6 +13,8 @@ import { ShippingStage } from "./ShippingStage";
 import type { ShippingMarker } from "../shippingStage";
 import type { FinalCheckMarker } from "../finalCheckStage";
 import type { GoogleMarker } from "../googleStage";
+import type { PaymentsMarker } from "../paymentsStage";
+import { PaymentsStage } from "./PaymentsStage";
 import { nextRunStep } from "../startRun";
 import { GoogleStage } from "./GoogleStage";
 import { FinalCheckStage } from "./FinalCheckStage";
@@ -51,10 +53,11 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   }, []);
   useEffect(load, [load]);
 
+  const platform = platformCardsProvider();
   const facts = useMemo(() => ({
-    books, orders, readiness, platform: platformCardsProvider(),
+    books, orders, readiness, platform,
     settings: opened && settings ? { ...settings, design: { ...settings.design, showUnderConstruction: false } } : settings,
-  }), [books, orders, readiness, settings, opened]);
+  }), [books, orders, readiness, settings, opened, platform]);
 
   // A shop setup never wrote a document for (most shops made before the platform) sees nothing while it loads.
   if (state === "loading") return null;
@@ -68,8 +71,8 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   }
   if (!doc) return null;
 
-  // Get started's steps in order (startRun.ts): your press, bring your shop, the look, Google, shipping, the final check.
-  const step = nextRunStep(doc, settings);
+  // Get started's steps in order (startRun.ts): your press, bring your shop, the look, Google, Get paid, shipping, the final check.
+  const step = nextRunStep(doc, settings, platform);
   if (step === "details") {
     const detailsDone = async (at: string) => {
       await adminApi.updateFirstWeek({ details: { at } });
@@ -105,6 +108,14 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
       setDoc({ ...doc, google });
     };
     return <GoogleStage onDone={googleDone} />;
+  }
+  if (step === "payments" && platform) {
+    // Step 5 (plan 17.10): Get paid, through the press's own card account the platform connects.
+    const paymentsDone = async (payments: PaymentsMarker) => {
+      await adminApi.updateFirstWeek({ payments });
+      setDoc({ ...doc, payments });
+    };
+    return <PaymentsStage provider={platform} onDone={paymentsDone} />;
   }
   if (step === "shipping") {
     // Step 6 (plan 17.11): shipping and the address.

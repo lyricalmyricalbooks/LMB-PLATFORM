@@ -511,7 +511,7 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   (`shopWords.tsx`, `useShopWords()`); the menu, page titles, the product list and the product editor use it (the
   editor follows the product's own kind). Wrap new admin words with `w(...)` on those pages.
 
-## Get started: your press first (29 October 2026, code plan 17.1 to 17.4, 17.8, 17.9, 17.11 and 17.13)
+## Get started: your press first (29 October 2026, code plan 17.1 to 17.4, 17.8, 17.9, 17.10, 17.11 and 17.13)
 
 The first-visit run at the top of a new shop's Overview (`overview/SetupStart.tsx`) is **Get started**, eight steps in
 order. Built so far:
@@ -529,6 +529,13 @@ order. Built so far:
 - **Step 3 of 8, Choose your look** (`overview/ChooseLookWelcome.tsx`, plan 17.8, built in plan 6.3): the suggested looks
   from the sign-up answer, every look, phone and desktop previews. Previews show the press's first book photo
   (`firstBookPhoto` in `chooseLook.ts`, secure addresses only).
+- **Step 5 of 8, get paid** (`overview/PaymentsStage.tsx`, pure logic in `paymentsStage.ts`, plan 17.10): only for a press
+  whose cards go through the platform (Stripe or Square; `platformCardsProvider`). It reads the card status the Settings
+  card reads (`platformPayments.ts`, plan 7.9): one **Continue with Stripe** (or **Connect Square**) sends the press to the
+  company's own page and back, "What Stripe still needs, by when" is shown in plain words, and **Continue** records
+  `payments: { at, ready: true }` once cards and payouts work. **Set up later** records `skipped: true`; the final check
+  keeps its card blocker until they work. No key or account ID is shown. Shown after Google, before shipping.
+
 - **Step 6 of 8, shipping and your address** (`overview/ShippingStage.tsx`, pure logic in `shippingStage.ts`, plan 17.11):
   the ship-from address from step 1 (named gaps block confirming), the starter for the country (Canada, the United States,
   or start empty elsewhere), and one **Set up this shipping** that makes the Settings starter profile through
@@ -547,11 +554,10 @@ order. Built so far:
   plain words. **Connect later** is always there. Recorded as `google: { at, connected? | coming? | skipped? }`.
 
 **The order of the run lives in one place**, `startRun.ts` (`nextRunStep`): your press, bring your shop, the look, Google,
-shipping, the final check. Steps 5 and 7 join that function when they are built.
+Get paid (only for a platform press), shipping, the final check. Step 7 joins that function when it is built.
 
-A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (17.5, 17.6, 17.10 and
-17.12): more import layouts (needs a real sample from each builder), photos given as links, Google, payments and
-the stockroom. The run sits at the top of the Overview;
+A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (17.5, 17.6 and
+17.12): more import layouts (needs a real sample from each builder), photos given as links, and the stockroom. The run sits at the top of the Overview;
 it doesn't yet replace the whole screen (a separate start page is a later change).
 
 **Phase 18 rule (planned on main):** a press gets its own backend only at launch. Every write above goes to

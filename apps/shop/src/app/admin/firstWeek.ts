@@ -10,6 +10,7 @@ import type { BringMarker } from "./bringShop";
 import type { ShippingMarker } from "./shippingStage";
 import type { FinalCheckMarker } from "./finalCheckStage";
 import type { GoogleMarker } from "./googleStage";
+import type { PaymentsMarker } from "./paymentsStage";
 import { firstProductWords } from "./sells";
 import { wordsFor } from "../../shared/shopSells";
 
@@ -45,6 +46,8 @@ export interface FirstWeekDoc {
   shipping?: ShippingMarker;
   /** Set once Get started's Google step is done, skipped or waiting for Google's approval (plan 17.9). */
   google?: GoogleMarker;
+  /** Set once Get started's Get paid step is done or skipped (plan 17.10). Only for a press whose cards go through the platform. */
+  payments?: PaymentsMarker;
   /** Set once Get started's final check is done and the shop opened from it (plan 17.13). */
   finalCheck?: FinalCheckMarker;
   /** Set once Choose your look is done (plan 6.3): it never shows again. */
