@@ -174,7 +174,7 @@ export async function deploy({ project = DEFAULT_PROJECT, region = REGION, versi
     done.push({ title: step.title });
   }
   print(apply
-    ? "Done. Next: node server/setup-schedules.js --apply, then node server/smoke.js."
+    ? "Done. Next: node server/setup-schedules.js --apply, then node server/smoke.js --jobs-url <the platform-jobs address>."
     : "Nothing was changed. Run again with --apply to do it.");
   return { ok: true, image, done };
 }

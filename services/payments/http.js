@@ -1,4 +1,4 @@
-// The payment service's two web doors, hosted later as one function in the platform project. Like the email service's
+// The payment service's two web doors, served by the platform's web server under /api/payments (server/world.js). Like the email service's
 // door (services/email/http.js), the handler takes a plain request and returns { status, body }, so tests need no
 // server.
 //

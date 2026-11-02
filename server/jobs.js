@@ -42,7 +42,8 @@ export const RUNNERS = Object.freeze({
 
 /**
  * The jobs that can't run yet, whatever the settings: their schedules are made paused. (Trial tips and the check-up
- * also wait on their secrets; setup-schedules reads that from the jobs server's settings at deploy, see schedules.js.)
+ * also need their secrets; server/deploy.js stops before deploying when a secret is missing, so on a deployed server
+ * they run, and without them each run answers "not connected yet" and fails, which the late-job alert reports.)
  */
 export const WAITING_JOBS = Object.freeze({
   "shop-maker": NOT_CONNECTED.shopMaking,

@@ -1,5 +1,5 @@
 // The payment service, put together from its environment (config.js) and the clients it is handed. The function that
-// hosts it (platform project, not built yet) calls this once and routes requests to `handlePayments` (http.js).
+// hosts it (server/world.js, under /api/payments) calls this once and routes requests to `handlePayments` (http.js).
 import { readServiceConfig } from "./config.js";
 import { createStripeApi } from "./stripeApi.js";
 import { createPaymentService, httpDeliver } from "./service.js";
