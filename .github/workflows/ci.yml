@@ -95,6 +95,46 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:a11y
 
+  # Plan 14.5: every theme's home and book page at phone width stays inside its stored budget (apps/shop/scripts/speed-check.mjs).
+  shop-speed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/shop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/shop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:speed
+
+  # Plan 13.11: every stockroom screen at phone width in a real browser (no sideways scroll, bottom bar big enough to
+  # tap), then the fair-day tap-through. Same fake cloud as the unit tests; nothing real is touched.
+  stockroom-phone:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/stockroom
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/stockroom/package-lock.json
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run e2e:phone
+      - run: npm run e2e
+
   # The platform's copy of the stockroom (apps/stockroom).
   stockroom:
     runs-on: ubuntu-latest

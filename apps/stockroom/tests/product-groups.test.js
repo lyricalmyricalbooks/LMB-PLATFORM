@@ -39,3 +39,21 @@ describe('product groups', () => {
     expect(freeItemId('Moth Tee M', new Set(['moth-tee-m', 'moth-tee-m-2']))).toBe('moth-tee-m-3');
   });
 });
+
+import { gridOffers as _gridOffers } from '../src/lib/product-groups.js';
+import { describe as _d, it as _it, expect as _e } from 'vitest';
+_d('gridOffers (plan 12.3)', () => {
+  _it('makes one edition per size and colour, sizes first', () => {
+    _e(_gridOffers('S, M', 'Black, White').map(o => o.edition)).toEqual(['S / Black', 'S / White', 'M / Black', 'M / White']);
+  });
+  _it('takes sizes or colours alone, drops blanks and repeats in any case', () => {
+    _e(_gridOffers('S,, s, M', '').map(o => o.edition)).toEqual(['S', 'M']);
+    _e(_gridOffers('', 'Red\nBlue').map(o => o.edition)).toEqual(['Red', 'Blue']);
+    _e(_gridOffers('', '')).toEqual([]);
+    _e(_gridOffers(undefined, null)).toEqual([]);
+  });
+  _it('stops at 100 combinations', () => {
+    const n = Array.from({ length: 20 }, (_, i) => `s${i}`).join(',');
+    _e(_gridOffers(n, n)).toHaveLength(100);
+  });
+});

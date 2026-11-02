@@ -39,8 +39,21 @@ async function api(method, path, body) {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const answer = await response.json().catch(() => ({ ok: false, message: "We couldn't reach Colophon. Check your connection and try again." }));
-  if (!response.ok || answer.ok === false) throw Object.assign(new Error(answer.message || "Something went wrong."), { problems: answer.problems });
+  if (!response.ok || answer.ok === false) throw Object.assign(new Error(answer.message || "Something went wrong."), { problems: answer.problems, fix: answer.fix, helpLink: answer.helpLink });
   return answer;
+}
+
+// 14.4: the message, then what to do next, with a link to the exact help answer.
+function showFailure(target, failure) {
+  target.textContent = failure.message;
+  if (!failure.fix) return;
+  target.append(" ", failure.fix);
+  if (failure.helpLink) {
+    const link = document.createElement("a");
+    link.href = failure.helpLink;
+    link.textContent = "Read the help answer";
+    target.append(" ", link);
+  }
 }
 
 // An invite link: keep its secret through sign-in (an emailed sign-in link comes back without it).
@@ -143,7 +156,7 @@ $("#link-form").addEventListener("submit", async (event) => {
     $("#check-email").textContent = email;
     show("check");
   } catch (failure) {
-    error.textContent = failure.message;
+    showFailure(error, failure);
     error.hidden = false;
   } finally {
     button.disabled = false;
@@ -236,7 +249,7 @@ function shopCard(shop) {
       const { url } = await api("POST", "/accounts/switch", { shopId: shop.shopId });
       location.assign(url);
     } catch (failure) {
-      status.textContent = failure.message;
+      showFailure(status, failure);
       open.disabled = false;
     }
   });
@@ -246,7 +259,9 @@ function shopCard(shop) {
     team.addEventListener("click", () => openTeam(shop));
     // The Plan & billing page (accounts/billing.html, served at /account/billing).
     const plan = el("a", { className: "button", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Plan & billing" });
-    actions.append(team, plan, dataButton(shop));
+    const checkShop = el("button", { type: "button", textContent: "Check my shop" });
+    checkShop.addEventListener("click", () => openCheck(shop));
+    actions.append(team, plan, checkShop, dataButton(shop));
   }
   const where = standing(shop);
   const address = shop.siteUrl ? shop.siteUrl.replace(/^https?:\/\//, "") : "";
@@ -283,9 +298,31 @@ for (const link of document.querySelectorAll("[data-press]")) {
   });
 }
 
+// ── Check my shop (plan 14.3) ──
+$("#checkshop-back").addEventListener("click", () => show("shops"));
+const FIX_TO = (shop, to) => (to === "billing" ? `/account/billing?shop=${encodeURIComponent(shop.shopId)}` : to === "admin" ? `${shop.siteUrl ?? ""}/admin` : "../help/");
+async function openCheck(shop) {
+  status.textContent = "Checking your shop…";
+  try {
+    const { ok, results } = await api("POST", "/accounts/check", { shopId: shop.shopId });
+    $("#checkshop-title").textContent = `${shop.pressName}: check my shop`;
+    $("#checkshop-summary").textContent = ok ? "Everything we can check looks good." : "A few things need your attention.";
+    $("#checkshop-list").replaceChildren(...results.map((r) => {
+      const mark = el("span", { className: "pill", textContent: r.state === "ok" ? "Good" : r.state === "fix" ? "Needs you" : "Can't tell yet" });
+      mark.dataset.tone = r.state === "ok" ? "success" : r.state === "fix" ? "warning" : "neutral";
+      return el("li", {}, el("div", {}, el("strong", { textContent: r.title }), " ", mark, el("p", { className: "hint", textContent: r.words })),
+        r.fix ? el("a", { className: "button", href: FIX_TO(shop, r.fix.to), textContent: r.fix.label }) : null);
+    }));
+    status.textContent = "";
+    show("check-shop");
+  } catch (failure) {
+    showFailure(status, failure);
+  }
+}
+
 // ── One shop's team ──
 let current = null;
-$("#back").addEventListener("click", () => loadShops().catch((failure) => { status.textContent = failure.message; }));
+$("#back").addEventListener("click", () => loadShops().catch((failure) => { showFailure(status, failure); }));
 $("#invite-role").replaceChildren(...ROLES.map((role) => new Option(ROLE_NAMES[role], role, role === "staff", role === "staff")));
 const roleHint = () => { $("#role-hint").textContent = ROLE_HINTS[$("#invite-role").value]; };
 $("#invite-role").addEventListener("change", roleHint);
@@ -328,7 +365,7 @@ async function act(control, path, body, done) {
     await api("POST", path, { shopId: current.shopId, ...body });
     status.textContent = done;
   } catch (failure) {
-    status.textContent = failure.message;
+    showFailure(status, failure);
   }
   control.disabled = false;
   await loadTeam().catch(() => {});
@@ -359,8 +396,8 @@ $("#invite-form").addEventListener("submit", async (event) => {
 
 // ── Get help (services/support) ──
 const STATUS_WORDS = { open: "Waiting for an answer", answered: "Answered", closed: "Closed" };
-$("#open-help").addEventListener("click", () => openHelp().catch((failure) => { status.textContent = failure.message; }));
-$("#help-back").addEventListener("click", () => loadShops().catch((failure) => { status.textContent = failure.message; }));
+$("#open-help").addEventListener("click", () => openHelp().catch((failure) => { showFailure(status, failure); }));
+$("#help-back").addEventListener("click", () => loadShops().catch((failure) => { showFailure(status, failure); }));
 
 async function openHelp() {
   $("#help-shop").replaceChildren(new Option("Not about one shop", ""), ...myShops.map((shop) => new Option(shop.pressName, shop.shopId)));
@@ -424,7 +461,7 @@ $("#help-form").addEventListener("submit", async (event) => {
       const p = form.querySelector(`[data-problem="${field}"]`);
       if (p) { p.textContent = words; p.hidden = false; }
     }
-    if (!Object.keys(problems).length) status.textContent = failure.message;
+    if (!Object.keys(problems).length) showFailure(status, failure);
   } finally {
     button.disabled = false;
   }
@@ -433,8 +470,8 @@ $("#help-form").addEventListener("submit", async (event) => {
 // ── Account recovery (accounts/recovery.js) ──
 const RECOVERY_WORDS = { waiting: "Waiting for a person to check", approved: "Approved, waiting", denied: "Not moved", cancelled: "Stopped by the old address", withdrawn: "You withdrew it", applied: "Moved" };
 const day = (at) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-$("#open-recovery").addEventListener("click", () => openRecovery().catch((failure) => { status.textContent = failure.message; }));
-$("#recovery-back").addEventListener("click", () => loadShops().catch((failure) => { status.textContent = failure.message; }));
+$("#open-recovery").addEventListener("click", () => openRecovery().catch((failure) => { showFailure(status, failure); }));
+$("#recovery-back").addEventListener("click", () => loadShops().catch((failure) => { showFailure(status, failure); }));
 
 /** Someone asked to move THIS account away: say so first, with a way to stop it. */
 async function loadRecoveryAlerts() {
@@ -448,7 +485,7 @@ async function loadRecoveryAlerts() {
         status.textContent = "Stopped. Nothing has moved, and we've told our team.";
         await loadRecoveryAlerts();
       } catch (failure) {
-        status.textContent = failure.message;
+        showFailure(status, failure);
         stop.disabled = false;
       }
     });
@@ -484,7 +521,7 @@ function recoveryCard(request) {
         status.textContent = "Withdrawn.";
         await loadRecoveries();
       } catch (failure) {
-        status.textContent = failure.message;
+        showFailure(status, failure);
         withdraw.disabled = false;
       }
     });
@@ -510,7 +547,7 @@ $("#recovery-form").addEventListener("submit", async (event) => {
       const p = form.querySelector(`[data-problem="${field}"]`);
       if (p) { p.textContent = words; p.hidden = false; }
     }
-    if (!Object.keys(problems).length) status.textContent = failure.message;
+    if (!Object.keys(problems).length) showFailure(status, failure);
   } finally {
     button.disabled = false;
   }
@@ -522,7 +559,7 @@ async function openShops() {
   try {
     await loadShops();
   } catch (failure) {
-    $("#error-words").textContent = failure.message;
+    showFailure($("#error-words"), failure);
     show("error");
   }
 }
@@ -538,7 +575,7 @@ onAuthStateChanged(auth, async (user) => {
       status.textContent = "You've joined the team.";
       store(INVITE_KEY, "");
     } catch (failure) {
-      status.textContent = failure.message;
+      showFailure(status, failure);
       // Keep it only when signing in with another address could still accept it.
       if (!/Sign in with that address/.test(failure.message)) store(INVITE_KEY, "");
     }
@@ -569,7 +606,7 @@ function accessCard(shop, waiting, visits) {
           ? `Approved. ${request.by} can open ${shop.pressName}'s admin once, for 30 minutes, within the day. It goes in your shop's log.`
           : "Declined. Nobody can make changes in your shop on that request.";
       } catch (failure) {
-        status.textContent = failure.message;
+        showFailure(status, failure);
       }
       await loadAccessRequests().catch(() => {});
     };

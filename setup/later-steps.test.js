@@ -376,15 +376,27 @@ test("Toronto's day is the link's day, not UTC's", () => {
   assert.equal(torontoDay(new Date("2026-10-28T05:00:00Z")), "2026-10-28");
 });
 
-test("only the test shop with both apps gets its link turned on; every other shop is left alone", async () => {
+test("every shop with both apps turns its stockroom link on (plan 17.12); a shop or a stockroom alone is left alone", async () => {
   const { testShop: _, ...press } = TEST_SHOP;
   assert.equal(needsStockroomLink(TEST_SHOP), true);
-  assert.equal(needsStockroomLink(press), false);
-  assert.equal(needsStockroomLink({ ...TEST_SHOP, plan: "shop" }), false);
-  const { services, run } = setup({ shop: press });
+  assert.equal(needsStockroomLink(press), true);
+  assert.equal(needsStockroomLink({ ...press, plan: "shop" }), false);
+  assert.equal(needsStockroomLink({ ...press, plan: "stockroom" }), false);
+  const { services, run } = setup({ shop: { ...press, plan: "stockroom" } });
   const result = await run();
   assert.equal(result.ok, true, result.error);
   assert.equal(called(services, "inventoryLink.check").length + called(services, "inventoryLink.startSales").length, 0);
+});
+
+test("a new press's setup checks its link and starts its sales from today (Toronto), with no test catalogue", async () => {
+  const { testShop: _, ...press } = TEST_SHOP;
+  const { services, run } = setup({ shop: press });
+  const result = await run();
+  assert.equal(result.ok, true, result.error);
+  assert.equal(called(services, "inventoryLink.check").length, 1);
+  assert.equal(called(services, "inventoryLink.startSales").length, 1);
+  assert.equal(called(services, "inventoryLink.startSales")[0][2], torontoDay(new Date()));
+  assert.equal(called(services, "stockroom.addBooks").length, 0, "a press's books are its own, not the test catalogue");
 });
 
 test("a shop marked abandoned is never made live", async () => {

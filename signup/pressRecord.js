@@ -3,8 +3,9 @@
 // needs a live shop. Status moves one way: setup, then opening, then open (or expired, which a timer sets).
 
 export const PRESS_STATUSES = Object.freeze(["setup", "opening", "open", "expired"]);
-export const SETUP_FIELDS = Object.freeze(["pressName", "sells", "country", "look", "stagedImportPath", "lastSeenAt"]);
-const TEXT_LIMITS = Object.freeze({ pressName: 120, sells: 300, country: 2, look: 40, stagedImportPath: 300 });
+// Only these four come from the press. The staged import file and the timestamps are written by the platform.
+export const SETUP_FIELDS = Object.freeze(["pressName", "sells", "country", "look"]);
+const TEXT_LIMITS = Object.freeze({ pressName: 120, sells: 300, country: 2, look: 40 });
 
 const NEXT_STATUS = Object.freeze({ setup: "opening", opening: "open", open: null, expired: null });
 
@@ -22,7 +23,7 @@ export function setupChange(current, change) {
   if (current.status !== "setup") return { ok: false, message: "Your shop is already opening, so setup is locked." };
   const fields = {};
   for (const [key, value] of Object.entries(change ?? {})) {
-    if (!SETUP_FIELDS.includes(key) || key === "lastSeenAt") return { ok: false, message: `"${key}" can't be set here.` };
+    if (!SETUP_FIELDS.includes(key)) return { ok: false, message: `"${key}" can't be set here.` };
     if (key in TEXT_LIMITS) {
       if (typeof value !== "string" || value.length > TEXT_LIMITS[key]) {
         return { ok: false, message: `${key} is too long. Keep it under ${TEXT_LIMITS[key]} characters.` };

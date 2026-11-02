@@ -19,3 +19,17 @@ describe("tax rate editing", () => {
     expect(cleanTaxRate({ country: " Canada ", region: " Ontario", rate: "13.0" })).toEqual({ country: "Canada", region: "Ontario", rate: "13" });
   });
 });
+
+describe("rates limited to a kind of product (plan 12.2)", () => {
+  const on: any = { country: "Canada", region: "Ontario", rate: "13" };
+  it("allows a clothing rate beside the place's general rate, once", () => {
+    expect(taxRateProblem({ country: "Canada", region: "Ontario", rate: "0", kind: "clothing" }, [on])).toBe("");
+    const clothing = cleanTaxRate({ country: "Canada", region: "Ontario", rate: "0", kind: "clothing" });
+    expect(clothing.kinds).toEqual(["clothing"]);
+    expect(taxRateProblem({ country: "Canada", region: "Ontario", rate: "0", kind: "clothing" }, [on, clothing])).toMatch(/kind of product/);
+  });
+  it("still refuses a second general rate for a place and stores no kinds without one", () => {
+    expect(taxRateProblem({ country: "Canada", region: "Ontario", rate: "5" }, [on])).toMatch(/already a rate/);
+    expect(cleanTaxRate({ country: "Canada", region: "Ontario", rate: "13" })).not.toHaveProperty("kinds");
+  });
+});

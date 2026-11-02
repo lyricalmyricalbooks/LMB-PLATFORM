@@ -471,6 +471,26 @@ export const TEMPLATES = {
     });
   },
 
+  /**
+   * The monthly shop check-up (services/checkup, plan 14.9). `data`: { pressName, lines: [{ state, words, fix?: { label,
+   * link } }], offLink }. Every line that needs doing has its own button; a month with nothing to fix says so.
+   */
+  "shop-checkup": ({ lines = [], offLink }, { settings, pressName }) => {
+    if (!lines.length) throw new Error("the check-up has no lines");
+    const fixes = lines.filter((l) => l.state === "fix");
+    return layout({
+      subject: fixes.length ? `${pressName}: ${fixes.length === 1 ? "one thing" : `${fixes.length} things`} to fix in your shop` : `${pressName}: your shop is in good shape`,
+      greeting: "Hello,",
+      paragraphs: [
+        `Here is this month's check-up of ${pressName}. ${fixes.length ? "Each thing that needs you has a button." : "Nothing needs you this month."}`,
+        ...lines.map((l) => `${l.state === "ok" ? "Good: " : "To do: "}${l.words}`),
+        `Don't want this email each month? Turn it off here: ${safeLink(offLink)}. Emails about your plan and payments still come.`,
+      ],
+      buttons: fixes.filter((l) => l.fix).map((l) => [l.fix.label, safeLink(l.fix.link)]),
+      footer: signOff(settings),
+    });
+  },
+
   // Closing a shop (code plan 6.8): shop-closed, shop-deletion-warning, shop-deleted.
   ...closingTemplates({ layout, safeLink, signOff }),
 

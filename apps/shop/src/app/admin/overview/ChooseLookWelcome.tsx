@@ -11,8 +11,10 @@ import { useShopWords } from "../shopWords";
  * Overview read it: undefined while it loads, null when it couldn't be read. `onDone` gets what to record once the
  * look is in the draft; the parent saves it (and puts the welcome away).
  */
-export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings }: {
+export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onRetrySettings }: {
   publishes?: string | null;
+  /** The press's first book photo (firstBookPhoto), shown in each look's preview (plan 17.8). */
+  photo?: string;
   settings: any;
   onDone: (welcome: WelcomeDone) => Promise<void>;
   onRetrySettings?: () => void;
@@ -37,7 +39,7 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
     }
   };
 
-  const intro = "Pick a look for your shop. It goes into your draft, and you can change it any time in Design.";
+  const intro = "Step 3 of 8. Pick a look for your shop. It goes into your draft, and you can change it any time in Design.";
   if (settings === undefined) return <SectionCard title="Choose your look" description={intro}><LoadingState label="Opening the looks…" /></SectionCard>;
   if (settings === null) {
     return (
@@ -52,7 +54,7 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
     const look = lookPreview(theme);
     return (
       <li key={theme.id} style={{ display: "grid", gap: 10, alignContent: "start", border: "1px solid var(--rp-border)", padding: 12, minWidth: 0 }}>
-        <LookPicture look={look} press={press} width="phone" compact />
+        <LookPicture look={look} press={press} width="phone" compact photo={photo} />
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
           <strong>{theme.name}</strong>
           {suggestion && <StatusBadge tone="info" glyph={false}>Suggested</StatusBadge>}
@@ -91,7 +93,7 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
             <SecondaryButton size="sm" aria-pressed={width === "phone"} icon={<Smartphone size={14} aria-hidden />} onClick={() => setWidth("phone")}>Phone</SecondaryButton>
             <SecondaryButton size="sm" aria-pressed={width === "desktop"} icon={<Monitor size={14} aria-hidden />} onClick={() => setWidth("desktop")}>Desktop</SecondaryButton>
           </div>
-          <div style={{ overflowX: "auto" }}><LookPicture look={lookPreview(preview)} press={press} width={width} /></div>
+          <div style={{ overflowX: "auto" }}><LookPicture look={lookPreview(preview)} press={press} width={width} photo={photo} /></div>
           <p className="rp-hint">{w("Sample books. Your own books, words and logo take their places.")}</p>
         </>}
       </Dialog>
@@ -103,7 +105,7 @@ export function ChooseLookWelcome({ publishes, settings, onDone, onRetrySettings
  * A small picture of the shop in a look: the header with the press's name, a heading, a row of sample books and a
  * button, in the look's own colours and type. Drawn from the theme itself, so every theme has one.
  */
-export function LookPicture({ look, press, width, compact }: { look: ReturnType<typeof lookPreview>; press: string; width: "phone" | "desktop"; compact?: boolean }) {
+export function LookPicture({ look, press, width, compact, photo }: { look: ReturnType<typeof lookPreview>; press: string; width: "phone" | "desktop"; compact?: boolean; photo?: string }) {
   const w = useShopWords();
   const cols = width === "phone" ? look.columns.phone + (compact ? 1 : 0) : look.columns.desktop;
   const books = Array.from({ length: width === "phone" ? 2 * cols : cols }, (_, i) => i);
@@ -121,7 +123,9 @@ export function LookPicture({ look, press, width, compact }: { look: ReturnType<
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8 * scale }}>
           {books.map(i => (
             <div key={i}>
-              <div style={{ aspectRatio: "3 / 4", background: i % 2 ? look.accent : look.surface, border: `1px solid ${look.border}`, borderRadius: look.radius }} />
+              {i === 0 && photo
+                ? <img src={photo} alt="" loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "3 / 4", objectFit: "cover", border: `1px solid ${look.border}`, borderRadius: look.radius }} />
+                : <div style={{ aspectRatio: "3 / 4", background: i % 2 ? look.accent : look.surface, border: `1px solid ${look.border}`, borderRadius: look.radius }} />}
               <div style={{ height: 6 * scale, width: "80%", background: look.text, opacity: 0.7, marginTop: 6 * scale }} />
               <div style={{ height: 6 * scale, width: "40%", background: look.text, opacity: 0.4, marginTop: 4 * scale }} />
             </div>

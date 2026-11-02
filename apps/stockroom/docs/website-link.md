@@ -93,11 +93,13 @@ plan 1.21). Website Cloud Functions open it on the project's own Admin SDK app:
   },
   firstBook: "<inventoryBookId>" | null, // the row that carries the order's shipping/tax/discount/totals
   unlinked: [{ title, qty }],            // physical copies of website editions not linked to an inventory book
+  invoice: { days, dueAt, paidAt },      // only on a trade account's order placed on invoice terms (net `days`); paidAt is null until the owner records the payment
 }
 ```
 
 - **What counts.** `books` covers physical copies of **linked** editions only. Box sets count
   as the books inside them. Gift cards and e-books are never included.
+- **Trade invoices.** An order with `invoice` was sold on terms, so it is already a sale in the books. The app lists it under Trade invoices to send and opens its invoice editor filled in from the order (`src/lib/trade-invoice.js`). Nothing is written back; the website tracks when the money arrives.
 - **Order pushed, but unlinked.** An order with only unlinked copies is still pushed, so the
   app can say so.
 - **Refunds.**

@@ -34,7 +34,8 @@ import { accountsEnabled } from "./features/site/customerAccounts";
 import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { subscribePreview } from "./features/site/previewTab";
-import { claimTradePricing } from "./lib/tradePricing";
+import { dutiesNote } from "./features/site/importDuties";
+import { claimTradePricing, tradeInvoiceTerms, tradeAuthHeader, INVOICE_METHOD_ID } from "./lib/tradePricing";
 import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "./lib/orderAccessClient";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
@@ -58,6 +59,8 @@ import { bagPreorder } from "./features/site/preorder";
 import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
 import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
+import { taxPartsByKind } from "../shared/taxByKind";
+import { productKind } from "../shared/productOptions";
 import { bagNote, orderNoteBoxOn, rememberBagNote } from "./features/site/bagNote";
 import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./features/site/promotions";
 import { isLiveBook } from "./features/site/liveBook";
@@ -189,6 +192,9 @@ export function Checkout() {
   useEffect(() => { if (settings?.design?.checkoutSummaryOpenOnPhones) setSummaryOpen(true); }, [settings?.design?.checkoutSummaryOpenOnPhones]);
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
+  // A trade account with invoice terms may order now and pay later (plan 12.10); the server checks it again on placing.
+  const [invoiceTerms, setInvoiceTerms] = useState<{ days: number; name: string } | null>(null);
+  useEffect(() => { let live = true; void tradeInvoiceTerms().then(t => { if (live) setInvoiceTerms(t); }); return () => { live = false; }; }, []);
   const [successOrder, setSuccessOrder] = useState<any>(null);
   // Stripe card form shown on this page; a failed attempt keeps its order +
   // PaymentIntent so retrying with the same bag doesn't create another order.
@@ -322,9 +328,10 @@ export function Checkout() {
       ...(payments.stripe?.connected || platformTakesCards() ? ["stripe"] : []),
       ...(payments.paypal?.connected ? ["paypal"] : []),
       ...(Array.isArray(payments.manualMethods) ? payments.manualMethods : []).filter((m: any) => m?.enabled).map((m: any) => `manual_${m.id}`),
+      ...(invoiceTerms ? [`manual_${INVOICE_METHOD_ID}`] : []),
     ];
     if (offered.length && !offered.includes(selectedPaymentMethod)) setSelectedPaymentMethod(offered[0]);
-  }, [settings?.payments, selectedPaymentMethod]);
+  }, [settings?.payments, selectedPaymentMethod, invoiceTerms]);
 
   // Preview only replaces appearance; fulfillment and payment settings stay server-sourced.
   useEffect(() => {
@@ -880,21 +887,23 @@ export function Checkout() {
 
   useEffect(() => {
     // Same matching as the server's charge, so the tax shown is the tax paid.
-    const rateFor = (address: any) => matchTaxRate(taxRates, address?.country, address?.state);
+    // Plan 12.2: a rate that lists product kinds taxes only those (src/shared/taxByKind.ts); with none listed this is the
+    // single rate on the whole taxable amount it has always been.
+    const rateFor = (rates: any[], address: any) => matchTaxRate(rates, address?.country, address?.state);
+    const kindLines = (lines: any[]) => lines.map(item => ({ kind: productKind(booksMap.get(item.id)), value: Number(item.price) * Number(item.quantity) }));
+    const taxOf = (lines: any[], amount: number, address: any) => taxPartsByKind(kindLines(lines), amount, taxRates, (set: any[]) => rateFor(set, address)).reduce((sum, part) => sum + part.amount, 0);
     const taxable = Math.max(0, cartTotal - giftCardLinesTotal + freeGiftPrice - discountAmount);
     if (fulfillmentSelection.method === "pickup") {
       const pickup = localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === "pickup");
       const physicalTaxable = Math.min(taxable, physicalSubtotalAfterDiscount);
       const digitalTaxable = Math.max(0, taxable - physicalTaxable);
-      const physicalRate = rateFor(pickup?.address);
       // Area-limited pickup already has the shopper's address, so no separate billing box is shown.
-      const digitalRate = rateFor(pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress);
-      setTaxCost(physicalTaxable * (Number(physicalRate?.rate || 0) / 100) + digitalTaxable * (Number(digitalRate?.rate || 0) / 100));
+      const digitalAddress = pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress;
+      setTaxCost(taxOf((taxLines || []).filter(item => item.physical), physicalTaxable, pickup?.address) + taxOf((taxLines || []).filter(item => !item.physical), digitalTaxable, digitalAddress));
       return;
     }
-    const matchedTaxRate = rateFor(customer.address);
-    setTaxCost(taxable * (Number(matchedTaxRate?.rate || 0) / 100));
-  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, taxRates, discountAmount, giftCardLinesTotal, freeGiftPrice]);
+    setTaxCost(taxOf(taxLines || [], taxable, customer.address));
+  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, taxRates, discountAmount, giftCardLinesTotal, freeGiftPrice, taxLines, booksMap]);
 
   const applyDiscount = async () => {
     // Pasted codes often carry spaces; the server trims too.
@@ -1010,6 +1019,14 @@ export function Checkout() {
   const taxKnown = catalogState === "ready" && (fulfillmentSelection.method === "pickup"
     ? !!pickupQuote && taxAddressKnown(pickupQuote.address) && (physicalSubtotalAfterDiscount >= Math.max(0, cartTotal - discountAmount) || taxAddressKnown(pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress))
     : taxAddressKnown(customer.address));
+
+  // Parcels abroad: a note that duties and import tax may be due on arrival (Settings › Taxes › Duties). Display only.
+  const duties = dutiesNote(settings?.taxes?.duties, fulfillmentSelection.method === "shipping" ? customer.address.country : "", Math.max(0, itemsSubtotal - discountAmount));
+  const dutiesText = duties
+    ? duties.rate !== null && duties.amount !== null
+      ? c("coDutiesEstimate", { country: duties.country, amount: formatPrice(duties.amount), rate: duties.rate })
+      : c("coDuties", { country: duties.country })
+    : null;
 
   const getActiveShippingDetails = () => {
     if (fulfillmentSelection.method === "pickup" && selectedLocalQuote) return { serviceName: selectedLocalQuote.name };
@@ -1239,7 +1256,7 @@ export function Checkout() {
       let manualMethod = null;
       if (isManual) {
         const manualId = selectedPaymentMethod.replace("manual_", "");
-        manualMethod = (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
+        manualMethod = manualId === INVOICE_METHOD_ID && invoiceTerms ? { id: INVOICE_METHOD_ID } : (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
       }
 
       const referralSource = typeof window !== "undefined" ? window.sessionStorage.getItem("referral_source") : null;
@@ -1330,10 +1347,11 @@ export function Checkout() {
       if (isManual) {
         const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(manualMethod?.id === INVOICE_METHOD_ID ? await tradeAuthHeader() : {}) },
           body: JSON.stringify({
             action: "createManualLocalOrder",
             manualMethodId: manualMethod?.id,
+            ...(manualMethod?.id === INVOICE_METHOD_ID ? { tradeInvoice: true } : {}),
             previousOrderId: previousAttempt(),
             currency: currency.toLowerCase(),
             orderDraft: {
@@ -1837,7 +1855,10 @@ export function Checkout() {
   const hasStripe = Boolean(settings?.payments?.stripe?.connected) || platformTakesCards();
   const hasPaypal = Boolean(settings?.payments?.paypal?.connected);
   const configuredManualMethods = settings?.payments?.manualMethods;
-  const enabledManualMethods = (Array.isArray(configuredManualMethods) ? configuredManualMethods : []).filter((method: any) => method.enabled);
+  const enabledManualMethods = [
+    ...(Array.isArray(configuredManualMethods) ? configuredManualMethods : []).filter((method: any) => method.enabled),
+    ...(invoiceTerms ? [{ id: INVOICE_METHOD_ID, enabled: true, name: c("coPayInvoice", { days: String(invoiceTerms.days) }) }] : []),
+  ];
   // Physical books with no delivery option chosen yet: the total isn't final, so don't present one.
   const needsDeliveryChoice = physicalItems.length > 0 && !(fulfillmentSelection.method === "shipping" ? selectedShippingQuote : selectedLocalQuote);
   const showTotalOnPay = !checkoutDesign.hidePayButtonTotal && cart.length > 0 && !needsDeliveryChoice;
@@ -2101,7 +2122,7 @@ export function Checkout() {
           itemCount={itemCount} slipDate={slipDate} slipNumbers={slipNumbers} formatPrice={formatPrice} freeGift={freeGift} preorderShip={preorderShip}
           hasCodeBoxes={hasCodeBoxes} codeBoxes={codeBoxes} itemsSubtotal={itemsSubtotal} discountAmount={discountAmount} appliedDiscount={appliedDiscount} autoPick={autoPick}
           getActiveShippingDetails={getActiveShippingDetails} needsDeliveryChoice={needsDeliveryChoice} isFreeShipping={isFreeShipping} shippingCost={shippingCost}
-          finalShipping={finalShipping} taxCost={taxCost} taxKnown={taxKnown} giftCardUse={giftCardUse} freeShipNudge={freeShipNudge} cartTotal={cartTotal} finalTotal={finalTotal} />
+          finalShipping={finalShipping} taxCost={taxCost} taxKnown={taxKnown} giftCardUse={giftCardUse} freeShipNudge={freeShipNudge} cartTotal={cartTotal} finalTotal={finalTotal} dutiesNote={dutiesText} />
       </div>
 
       {payBar && (

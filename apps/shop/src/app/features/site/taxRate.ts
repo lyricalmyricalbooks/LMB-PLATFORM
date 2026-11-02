@@ -40,7 +40,8 @@ export function matchTaxRate<T extends { country?: string; region?: string }>(ra
 export function uncoveredTaxRegions(rates: { country?: string; region?: string }[]): { country: string; regions: string[] }[] {
   const out: { country: string; regions: string[] }[] = [];
   for (const [key, label] of [["ca", "Canada"], ["us", "United States"]] as const) {
-    const countryRates = (rates || []).filter(r => normalizeCountry(r.country) === key);
+    // A rate limited to one kind of product (plan 12.2) leaves other products with no rate here.
+    const countryRates = (rates || []).filter(r => normalizeCountry(r.country) === key && !(r as any).kinds?.length);
     if (!countryRates.length) continue;
     const regions = (regionsFor(label) || []).filter(([code]) => !matchTaxRate(countryRates, label, code)).map(([, name]) => name);
     if (regions.length) out.push({ country: label, regions });

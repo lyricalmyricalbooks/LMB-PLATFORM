@@ -81,6 +81,13 @@ export function paymentShape(payment, referenceId = null) {
     orderId: payment.order_id ?? null,
     referenceId,
     refundIds: Array.isArray(payment.refund_ids) ? payment.refund_ids : [],
+    // What Square said about the card, for the shop's order review queue (apps/shop/functions/orderReview.js).
+    risk: {
+      level: payment.risk_evaluation?.risk_level ?? null,
+      cvvStatus: payment.card_details?.cvv_status ?? null,
+      avsStatus: payment.card_details?.avs_status ?? null,
+      cardCountry: payment.card_details?.card?.billing_address?.country ?? null,
+    },
     locationId: payment.location_id ?? null,
     createdAt: payment.created_at ?? null,
   };

@@ -970,6 +970,9 @@
   <!-- Set up your stockroom (plan 6.9): a stockroom-only plan's five steps, rendered by renderSetupGuide (main.js). -->
   <div id="stockroom-setup-guide" hidden></div>
 
+  <!-- Your stockroom is ready (plan 17.12): a press with both apps sees this one-screen check, rendered by renderSetupGuide (main.js). -->
+  <div id="stockroom-ready-check" hidden></div>
+
   <div class="overview-section">
     <div class="sec-head">
       <div class="sec-head-titles">
@@ -4617,6 +4620,7 @@
             </div>
             <div id="fk-summary" class="fk-summary" aria-live="polite"></div>
             <button type="button" class="btn gold fk-print-btn" id="fk-print-btn" onclick="printFairKit()"><span class="lead-emoji" aria-hidden="true">🖨 </span>Print both sheets</button>
+            <button type="button" class="btn ghost fk-print-btn" id="fk-tags-btn" data-action="fairkit.hangTags"><span class="lead-emoji" aria-hidden="true">🏷 </span>Print hang tags for the ticked books</button>
           </div>
 
           <details class="fk-acc" id="fk-opts-tracker">
@@ -6158,6 +6162,13 @@
           <input id="nb-thresh" type="number" inputmode="numeric" value="10" min="0" style="font-family:var(--font-mono);">
           <span style="font-size:var(--text-xs);color:var(--text3);white-space:nowrap;">copies remaining</span>
         </div>
+      </div>
+      <div class="form-group" id="nb-grid" hidden>
+        <label for="nb-grid-sizes">Sizes <span style="font-weight:400;font-size:var(--text-2xs);color:var(--text3);">(optional, separated by commas)</span></label>
+        <input id="nb-grid-sizes" type="text" placeholder="S, M, L, XL">
+        <label for="nb-grid-colours" style="margin-top:8px;">Colours <span style="font-weight:400;font-size:var(--text-2xs);color:var(--text3);">(optional)</span></label>
+        <input id="nb-grid-colours" type="text" placeholder="Black, White">
+        <p style="font-size:var(--text-xs);color:var(--text3);margin:6px 0 0;">Each size and colour becomes its own item with its own stock count and low-stock alert, using the settings on this form.</p>
       </div>
     </div>
     <div class="form-group" style="margin-bottom:6px;">

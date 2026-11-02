@@ -38,7 +38,9 @@ test("a signed-in person gets 120 calls a minute; the next is 429 with plain wor
   assert.ok(answers.every((a) => a.status === 200));
   const over = await w.ask(PRESS, "GET", "/api/signup/ping");
   assert.equal(over.status, 429);
-  assert.deepEqual(over.body, { ok: false, message: TOO_FAST, retryAfter: 60 });
+  assert.equal(over.body.message, TOO_FAST);
+  assert.equal(over.body.retryAfter, 60);
+  assert.ok(over.body.fix);
   assert.equal(over.body.message, "You're going a bit fast. Wait a minute and try again.");
   // Someone else isn't held up by it.
   assert.equal((await w.ask(OTHER, "GET", "/api/signup/ping")).status, 200);

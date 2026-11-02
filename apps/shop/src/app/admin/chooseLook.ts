@@ -106,5 +106,17 @@ export async function applyChosenLook(theme: LibraryTheme, settings: any, publis
   }
 }
 
+/**
+ * The first book's photo, for the look previews (plan 17.8), so a press sees its own cover in each look. Only a secure
+ * web address is used; a book with no photo, or a broken one, is skipped.
+ */
+export function firstBookPhoto(books: any[] | null | undefined): string {
+  for (const book of books || []) {
+    const url = String(book?.photos?.[0]?.url || book?.photoUrl || "");
+    if (url.startsWith("https://")) return url;
+  }
+  return "";
+}
+
 /** The press's name for the preview header. */
 export const pressNameOf = (settings: any) => String(settings?.info?.name || settings?.shopName || "Your press").slice(0, 60);

@@ -81,6 +81,7 @@ import { validateLocalFulfillment } from "../features/site/localFulfillment";
 import { returnSettingsProblem, type ReturnSettings } from "../../shared/returnRequests";
 import type { LocalFulfillmentConfig } from "../features/site/types";
 import { dailyTrafficBetween } from "./dailyTrafficCache";
+import { exampleProducts } from "./exampleProducts";
 
 /** books/{id}/private/admin: cost prices, shelf codes and other fields shoppers must not read (bookPrivate.ts). */
 const privateBookRef = (bookId: string) => doc(db, "books", bookId, "private", "admin");
@@ -247,7 +248,28 @@ export const adminApi = {
     });
     if (Object.keys(priv).length) await setDoc(privateBookRef(docRef.id), { ...priv, updatedAt: new Date().toISOString() });
     await adminApi.recordAuditLog("catalog", `Created book: ${dataToSave.title}`);
+    // The first real product clears the example products (Products › Show examples), so none is left on a live shop.
+    if (dataToSave.isExample !== true) await adminApi.clearExampleProducts().catch(() => {});
     return { id: docRef.id, ...dataToSave };
+  },
+
+  /** Adds the three example products (only into an empty catalog; the caller checks). */
+  addExampleProducts: async () => {
+    for (const product of exampleProducts()) await adminApi.createBook(product);
+    await adminApi.recordAuditLog("catalog", "Added example products");
+  },
+
+  /** Deletes every example product. Safe to run any time: it touches only documents flagged `isExample`. */
+  clearExampleProducts: async () => {
+    const snap = await getDocs(query(collection(db, "books"), where("isExample", "==", true), limit(50)));
+    if (!snap.empty) {
+      for (const d of snap.docs) {
+        await deleteDoc(privateBookRef(d.id)).catch(() => {});
+        await deleteDoc(d.ref);
+      }
+      await adminApi.recordAuditLog("catalog", "Cleared example products");
+    }
+    return snap.size;
   },
 
   /**
@@ -1966,7 +1988,7 @@ export const adminApi = {
    * Ticks a step by hand (`done.<id>`), hides the guide (`hiddenAt`), records Choose your look (`welcome`, plan 6.3) or
    * the guide's progress for the trial emails (`progress`, plan 6.10). Merges, so nothing else changes.
    */
-  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string; details?: { at: string }; bring?: import("./bringShop").BringMarker; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
+  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string; details?: { at: string }; bring?: import("./bringShop").BringMarker; shipping?: import("./shippingStage").ShippingMarker; finalCheck?: import("./finalCheckStage").FinalCheckMarker; google?: import("./googleStage").GoogleMarker; payments?: import("./paymentsStage").PaymentsMarker; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
     await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
   },
 
@@ -1978,10 +2000,10 @@ export const adminApi = {
   // Trade accounts (plan 12.10): shops approved to pay wholesale prices (`stockists/{lower-case email}`, admin-only).
   listStockists: async () => {
     const snap = await getDocs(query(collection(db, "stockists"), limit(500)));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; name: string; status: "approved" | "paused"; createdAt: string }>;
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; name: string; status: "approved" | "paused"; createdAt: string; terms?: number }>;
   },
-  saveStockist: async (id: string, data: { name: string; status: "approved" | "paused"; createdAt?: string }) => {
-    await setDoc(doc(db, "stockists", id), { name: data.name, status: data.status, createdAt: data.createdAt || new Date().toISOString() });
+  saveStockist: async (id: string, data: { name: string; status: "approved" | "paused"; createdAt?: string; terms?: number }) => {
+    await setDoc(doc(db, "stockists", id), { name: data.name, status: data.status, createdAt: data.createdAt || new Date().toISOString(), terms: Math.max(0, Math.min(365, Math.floor(Number(data.terms) || 0))) });
   },
   deleteStockist: async (id: string) => { await deleteDoc(doc(db, "stockists", id)); },
   saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[] }) => {
