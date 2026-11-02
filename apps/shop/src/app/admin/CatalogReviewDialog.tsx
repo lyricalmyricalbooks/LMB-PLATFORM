@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { catalogPublishIssues } from "./catalogPublishReview";
 import { Dialog, Checkbox, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
+import { useShopWords } from "./shopWords";
 
 /**
  * Books › Publish / Move to draft (and the editor's publish check): one row per book with what needs a look,
  * then an explicit "I reviewed" tick before the change is applied.
  */
 export function CatalogReviewDialog({ books, action, onClose, onConfirm }: { books: any[]; action: "publish" | "draft"; onClose: () => void; onConfirm: (books: any[]) => Promise<void> }) {
+  const w = useShopWords();
   const [selected, setSelected] = useState(() => books.filter(book => action === "draft" || !catalogPublishIssues(book).some(issue => issue.blocking)).map(book => book.id));
   const [reviewed, setReviewed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -19,7 +21,7 @@ export function CatalogReviewDialog({ books, action, onClose, onConfirm }: { boo
       : "Books marked “Fix before publishing” can't go live yet: close this, fix the title or price, then publish again. Other notes are worth a look but don't stop publishing."}
     footer={<><SecondaryButton disabled={busy} onClick={onClose}>Cancel</SecondaryButton><PrimaryButton busy={busy} disabled={!reviewed || !chosen.length} onClick={async () => { setBusy(true); try { await onConfirm(chosen); } finally { setBusy(false); } }}>{busy ? "Applying…" : `${verb} ${chosen.length} book${chosen.length === 1 ? "" : "s"}`}</PrimaryButton></>}>
     <div className="rp-stack">
-      <ul style={{ listStyle: "none", margin: 0, padding: 0, borderTop: "1px solid var(--rp-divider)" }} aria-label="Books to review">
+      <ul style={{ listStyle: "none", margin: 0, padding: 0, borderTop: "1px solid var(--rp-divider)" }} aria-label={w("Books to review")}>
         {books.map(book => {
           const issues = catalogPublishIssues(book);
           const blocked = action === "publish" && issues.some(issue => issue.blocking);

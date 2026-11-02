@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { Checkbox, ErrorState, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
 import { GOOGLE_PARTS, RECONNECT_WORDS, googleConnectApi, stepTone, stepWord, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus, type ShoppingProblems, type StockSheet } from "./googleConnect";
+import { useShopWords } from "./shopWords";
 
 // Connect Google (plan 6.17): one sign-in links Analytics, search, Google Shopping and the shop's email. `variant`
 // "full" (Settings › General › Visitors & Google) shows every part and its state, the extras and Disconnect;
@@ -35,6 +36,7 @@ function useConnect() {
 }
 
 export function ConnectGoogleCard({ variant = "full", fallback = null }: { variant?: "full" | "prompt"; fallback?: ReactNode }) {
+  const w = useShopWords();
   const google = useGoogleConnect();
   if (google.mode === "own") return <>{fallback}</>;
   if (variant === "prompt") return <GooglePrompt status={google.status} />;
@@ -44,7 +46,7 @@ export function ConnectGoogleCard({ variant = "full", fallback = null }: { varia
       {google.mode === "loading" ? <LoadingState label="Reading your Google connection…" />
         : google.mode === "error" ? <ErrorState title="Couldn't read your Google connection" description={google.error || undefined} onRetry={google.reload} />
         : !google.status?.enabled ? (
-          <p className="rp-hint" style={{ margin: 0 }}>Connecting Google is on its way. Until then, your Overview counts visits with your shop's own counter, and your books are already set up for Google search.</p>
+          <p className="rp-hint" style={{ margin: 0 }}>{w("Connecting Google is on its way. Until then, your Overview counts visits with your shop's own counter, and your books are already set up for Google search.")}</p>
         ) : <GoogleDetails status={google.status} />}
     </SectionCard>
   );
@@ -147,10 +149,11 @@ function GoogleDetails({ status }: { status: GoogleStatus }) {
 }
 
 function GooglePrompt({ status }: { status: GoogleStatus | null }) {
+  const w = useShopWords();
   const connect = useConnect();
   if (!status?.enabled || status.connected) return null;
   return (
-    <SectionCard title="Connect Google" description="See where visitors come from, put your shop on Google search and your books on Google Shopping, with one sign-in."
+    <SectionCard title="Connect Google" description={w("See where visitors come from, put your shop on Google search and your books on Google Shopping, with one sign-in.")}
       actions={<PrimaryButton size="sm" disabled={connect.busy} onClick={() => connect.go([])}>{connect.busy ? "Opening Google…" : "Connect Google"}</PrimaryButton>}>
       <OutcomeLine />
       <p className="rp-hint" style={{ margin: 0 }}>Until then, visit figures come from your shop's own counter. Extras like backups to your Google Drive are in Settings › General › Visitors & Google.</p>
@@ -160,6 +163,7 @@ function GooglePrompt({ status }: { status: GoogleStatus | null }) {
 
 /** Google Shopping's "not shown" list, in plain words. Nothing is shown while it loads or when it can't be read. */
 function ShoppingProblemsList() {
+  const w = useShopWords();
   const [found, setFound] = useState<ShoppingProblems | null>(null);
   useEffect(() => {
     let live = true;
@@ -167,11 +171,11 @@ function ShoppingProblemsList() {
     return () => { live = false; };
   }, []);
   if (!found?.available) return null;
-  if (found.problems.length === 0) return <p className="rp-hint" style={{ margin: 0 }}>Google Shopping has no problems with your books.</p>;
+  if (found.problems.length === 0) return <p className="rp-hint" style={{ margin: 0 }}>{w("Google Shopping has no problems with your books.")}</p>;
   return (
     <div className="rp-stack" style={{ gap: 8 }}>
       <strong>{found.problems.length === 1 ? "1 book" : `${found.problems.length} books`} Google Shopping isn't showing</strong>
-      <ul className="rp-list" aria-label="Books Google Shopping isn't showing" style={{ margin: 0 }}>
+      <ul className="rp-list" aria-label={w("Books Google Shopping isn't showing")} style={{ margin: 0 }}>
         {found.problems.map((p) => (
           <li key={p.offerId || p.title} style={{ padding: "8px 0" }}>
             <strong>{p.title || p.offerId}</strong>
@@ -185,6 +189,7 @@ function ShoppingProblemsList() {
 
 /** "Send my stock list to my Google Sheet": the sheet is made in the press's own Drive the first time. */
 function StockSheetRow() {
+  const w = useShopWords();
   const [busy, setBusy] = useState(false);
   const [sheet, setSheet] = useState<StockSheet | null>(null);
   const send = async () => {
@@ -204,7 +209,7 @@ function StockSheetRow() {
       <div style={{ minWidth: 0, flex: "1 1 220px" }}>
         <strong>Stock list in Google Sheets</strong>
         <p className="rp-hint" style={{ margin: "2px 0 0" }}>
-          A sheet in your own Google Drive with each product's title, author, code, price and how many you have.
+          {w("A sheet in your own Google Drive with each product's title, author, code, price and how many you have.")}
           {sheet?.url ? <> <a href={sheet.url} target="_blank" rel="noreferrer noopener">Open your sheet</a>{sheet.rows !== undefined ? ` (${sheet.rows} products)` : ""}.</> : " It only goes one way: change your stock in the stockroom, not in the sheet."}
         </p>
       </div>

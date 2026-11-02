@@ -7,6 +7,7 @@ import { resolveProductRoutes } from "../features/site/productRoutes";
 import { db } from "../../lib/firebase";
 import { reviewsApi, type Review } from "../lib/reviews";
 import { loadMorePending, loadReviewQueue, PENDING_PAGE, type QueueDoc } from "./reviewQueue";
+import { useShopWords } from "./shopWords";
 import {
   ActionMenu, Checkbox, ConfirmButton, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, MetricCard, PrimaryButton,
   SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast, type BadgeTone,
@@ -28,6 +29,7 @@ function Stars({ rating }: { rating: number }) {
 }
 
 function Queue() {
+  const w = useShopWords();
   const toast = useRisoToast();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,7 +184,7 @@ function Queue() {
         })} />
 
       <FilterBar>
-        <div className="rp-grow"><SearchField label="Search reviews" placeholder="Search reviewer, book or text…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div className="rp-grow"><SearchField label="Search reviews" placeholder={w("Search reviewer, book or text…")} value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <SelectField label="Rating" hideLabel value={rating} onChange={(e) => setRating(e.target.value)}>
           <option value="all">All ratings</option>
           {[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} star{n === 1 ? "" : "s"}</option>)}
@@ -274,7 +276,7 @@ function Queue() {
           </ul>
         </SectionCard>
       )}
-      <Dialog open={!!replying} onClose={() => setReplying(null)} title="Reply publicly" description="Shown under the review on the book page once the review is approved. Leave empty to remove your reply."
+      <Dialog open={!!replying} onClose={() => setReplying(null)} title="Reply publicly" description={w("Shown under the review on the book page once the review is approved. Leave empty to remove your reply.")}
         footer={<>
           <SecondaryButton onClick={() => setReplying(null)}>Cancel</SecondaryButton>
           {replying && replying.status !== "approved"

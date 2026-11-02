@@ -4,6 +4,7 @@ import { adminApi } from "./api";
 import { friendlyError } from "./settingsLayout";
 import { DataTable, ErrorState, PrimaryButton, SecondaryButton, SectionCard, TextArea, TextField, useConfirm } from "./riso/components";
 import { MAX_REDIRECTS, normalizePath, normalizeTarget, parseRedirectLines, redirectProblem, type Redirect } from "../features/site/redirects";
+import { useShopWords } from "./shopWords";
 
 /**
  * Settings › General › URL redirects. Sends an old shop address to a new one after a book or page is renamed, so
@@ -14,6 +15,7 @@ const LIMIT = MAX_REDIRECTS.toLocaleString("en");
 const SHOWN = 100;
 
 export function RedirectsCard() {
+  const w = useShopWords();
   const [items, setItems] = useState<Redirect[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [from, setFrom] = useState("");
@@ -70,14 +72,14 @@ export function RedirectsCard() {
         : !items ? <p className="rp-hint">Loading redirects…</p> : (
         <div style={{ display: "grid", gap: 16 }}>
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", alignItems: "start" }}>
-            <TextField label="Old address" placeholder="/books/old-title" value={from} onChange={e => setFrom(e.target.value)} hint="Everything after the domain." />
-            <TextField label="Send visitors to" placeholder="/books/new-title or https://…" value={to} onChange={e => setTo(e.target.value)} />
+            <TextField label="Old address" placeholder={w("/books/old-title")} value={from} onChange={e => setFrom(e.target.value)} hint="Everything after the domain." />
+            <TextField label="Send visitors to" placeholder={w("/books/new-title or https://…")} value={to} onChange={e => setTo(e.target.value)} />
           </div>
           {problem && <p className="rp-hint" role="alert" style={{ margin: 0, color: "var(--rp-danger-text, inherit)" }}>{problem}</p>}
           <div><PrimaryButton onClick={add} disabled={busy || !!problem || !from.trim() || !to.trim()}>Add redirect</PrimaryButton></div>
 
           <p className="rp-hint" style={{ margin: 0 }}>{items.length.toLocaleString("en")} of {LIMIT} redirects used.</p>
-          {items.length > SHOWN && <TextField label="Find a redirect" placeholder="/books/old-title" value={find} onChange={e => setFind(e.target.value)} hint={matching.length > SHOWN ? `Showing the first ${SHOWN} of ${matching.length.toLocaleString("en")}.` : undefined} />}
+          {items.length > SHOWN && <TextField label="Find a redirect" placeholder={w("/books/old-title")} value={find} onChange={e => setFind(e.target.value)} hint={matching.length > SHOWN ? `Showing the first ${SHOWN} of ${matching.length.toLocaleString("en")}.` : undefined} />}
           <DataTable<Redirect>
             caption="URL redirects" rows={shown} rowKey={r => r.from}
             empty={<p className="rp-hint" style={{ margin: 0, padding: "12px 0" }}>{needle && items.length ? "No redirect matches that." : "No redirects yet."}</p>}

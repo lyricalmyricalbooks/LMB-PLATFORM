@@ -6,6 +6,7 @@ import { Copy, Download, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { copyText } from "./clipboard";
+import { useShopWords } from "./shopWords";
 import {
   DataTable, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column,
@@ -306,6 +307,7 @@ function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => vo
 }
 
 export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpened?: () => void }) {
+  const w = useShopWords();
   const [cards, setCards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -382,7 +384,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
       {cards.length === 0 ? (
         <SectionCard>
           <EmptyState icon="🎁" title="No gift cards yet"
-            description="Cards appear here when a shopper buys a gift-card product (Books › add a book › Product type: Gift card) or when you issue one yourself."
+            description={w("Cards appear here when a shopper buys a gift-card product (Books › add a book › Product type: Gift card) or when you issue one yourself.")}
             action={issueButton} />
         </SectionCard>
       ) : (

@@ -33,6 +33,7 @@ import { inventoryOrderUrl, orderInInventoryApp, useInventoryLink } from "./appS
 import { InventoryOrderLink } from "./AppSwitcher";
 import toast from "react-hot-toast";
 import { providerDashboardUrl, providerName } from "./providerWords";
+import { useShopWords } from "./shopWords";
 import {
   ActionMenu,
   Checkbox,
@@ -75,6 +76,7 @@ export function OrderDetail({
   /** Called after an action (or a Stripe sync) changed the order — not on the first load — so a list beside it can refresh. */
   onChanged?: (order: any) => void;
 }) {
+  const w = useShopWords();
   const inventoryLink = useInventoryLink();
   const queueIndex = queueIds.indexOf(orderId);
   const prevId = queueIndex > 0 ? queueIds[queueIndex - 1] : "";
@@ -936,12 +938,11 @@ export function OrderDetail({
             </SectionCard>
           )}
           {booksLeftOutAfterRefund(order) && (
-            <SectionCard title="Books not back in stock">
+            <SectionCard title={w("Books not back in stock")}>
               <p className="fw-summary">
-                This order was refunded without putting its books back in stock, so they still count as gone
-                (the inventory app shows them as a gratuity). If the books are still with you, put them back.
+                {w("This order was refunded without putting its books back in stock, so they still count as gone (the inventory app shows them as a gratuity). If the books are still with you, put them back.")}
               </p>
-              <SecondaryButton disabled={working} onClick={() => setConfirmAction("restockRefunded")}>Put the books back in stock</SecondaryButton>
+              <SecondaryButton disabled={working} onClick={() => setConfirmAction("restockRefunded")}>{w("Put the books back in stock")}</SecondaryButton>
             </SectionCard>
           )}
           {reviewOpen(order) && (
@@ -1525,7 +1526,7 @@ export function OrderDetail({
         open={showRefund}
         onClose={() => !isVoiding && setShowRefund(false)}
         title="Refund order"
-        description="Choose the refund reason and whether books should return to stock. You will review the refund before it is submitted."
+        description={w("Choose the refund reason and whether books should return to stock. You will review the refund before it is submitted.")}
         footer={
           <>
             <SecondaryButton onClick={() => setShowRefund(false)}>
@@ -1693,15 +1694,15 @@ export function OrderDetail({
         open={confirmReleasePreorder}
         title="Ship this pre-order now?"
         confirmLabel="Ready to ship now"
-        message="Only continue if every pre-ordered book on this order is in the shop. The order moves to Ready to pack before its release date and stays there even if the date changes."
+        message={w("Only continue if every pre-ordered book on this order is in the shop. The order moves to Ready to pack before its release date and stays there even if the date changes.")}
         onConfirm={() => { setConfirmReleasePreorder(false); void perform("release_preorder"); }}
         onCancel={() => setConfirmReleasePreorder(false)}
       />
       <ConfirmDialog
         open={confirmAction === "restockRefunded"}
-        title="Put the books back in stock?"
+        title={w("Put the books back in stock?")}
         confirmLabel="Put them back"
-        message="Only continue if the books from this order are still with you. Their copies go back in stock, and the inventory app turns this order's gratuity into a void sale. No money moves."
+        message={w("Only continue if the books from this order are still with you. Their copies go back in stock, and the inventory app turns this order's gratuity into a void sale. No money moves.")}
         onConfirm={runConfirmed}
         onCancel={() => setConfirmAction(null)}
       />

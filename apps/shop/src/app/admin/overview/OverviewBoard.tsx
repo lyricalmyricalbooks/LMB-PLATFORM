@@ -15,6 +15,7 @@ import {
 import { CHART_METRICS, type ChartMetric } from "./overviewSeries";
 import { readLocalBoards, readRemoteBoards, writeLocalBoards, writeRemoteBoards } from "./overviewBoardStore";
 import { OVERVIEW_HASH_EVENT } from "../adminRoute";
+import { useShopWords } from "../shopWords";
 import {
   DEFAULT_TAB, hashForTab, readSavedTab, saveTab, settleTab, tabForType, tabFromHash, topTabs,
   type OverviewTab, type TopTab,
@@ -1050,6 +1051,7 @@ export function goalProblem(text: string): string {
 function WidgetSettingsDialog({ widget, onClose, onSave }: {
   widget: BoardWidget; onClose: () => void; onSave: (patch: { size: WidgetSize; height: WidgetHeight }, config: WidgetConfig | null) => void;
 }) {
+  const w = useShopWords();
   const cfg = widget.config || {};
   const [size, setSize] = useState<WidgetSize>(widget.size);
   const [height, setHeight] = useState<WidgetHeight>(widget.height);
@@ -1105,7 +1107,7 @@ function WidgetSettingsDialog({ widget, onClose, onSave }: {
         )}
         {t === "soldOut" && (
           <TextField label="A reprint takes (days)" inputMode="numeric" value={lead} onChange={e => setLead(e.target.value)}
-            hint="Books that sell out sooner than this are flagged." error={tried ? leadError || undefined : undefined} />
+            hint={w("Books that sell out sooner than this are flagged.")} error={tried ? leadError || undefined : undefined} />
         )}
         <fieldset className="rp-wb-templates">
           <legend className="rp-label">Width</legend>

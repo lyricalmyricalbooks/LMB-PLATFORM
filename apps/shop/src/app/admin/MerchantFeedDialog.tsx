@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { FEED_FILE, merchantFeedItems } from "../features/site/merchantFeed.mjs";
 import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import { sharedIsbns } from "./catalogList";
+import { useShopWords } from "./shopWords";
 
 const feedUrl = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/${FEED_FILE}`;
 const siteUrl = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}`;
@@ -14,6 +15,7 @@ const siteUrl = () => `${window.location.origin}${import.meta.env.BASE_URL.repla
  * the same rules as the file the site build writes (features/site/merchantFeed.mjs).
  */
 export function MerchantFeedDialog({ open, onClose, books }: { open: boolean; onClose: () => void; books: any[] }) {
+  const w = useShopWords();
   const [live, setLive] = useState<"checking" | "yes" | "no">("checking");
   const feed = useMemo(() => (open ? merchantFeedItems(siteUrl(), books) : { items: [], skipped: [] }), [open, books]);
   const noIsbn = feed.items.filter(i => !i.gtin).length;
@@ -36,7 +38,7 @@ export function MerchantFeedDialog({ open, onClose, books }: { open: boolean; on
 
   return (
     <Dialog open={open} onClose={onClose} size="lg" title="Google Shopping feed"
-      description="List your books on Google Shopping for free. Google reads this file from your site every day."
+      description={w("List your books on Google Shopping for free. Google reads this file from your site every day.")}
       footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
       <div className="rp-stack">
         <div className="rp-stack" style={{ gap: 8 }}>
@@ -50,7 +52,7 @@ export function MerchantFeedDialog({ open, onClose, books }: { open: boolean; on
             {live === "yes" && <StatusBadge tone="success">Live on your site</StatusBadge>}
             {live === "no" && <StatusBadge tone="warning">Not on the live site yet. It appears after the next site update.</StatusBadge>}
           </div>
-          <p className="rp-hint" style={{ margin: 0 }}>The file is rebuilt automatically when you publish book or page changes (usually within 15 minutes).</p>
+          <p className="rp-hint" style={{ margin: 0 }}>{w("The file is rebuilt automatically when you publish book or page changes (usually within 15 minutes).")}</p>
         </div>
 
         <div className="rp-stack" style={{ gap: 8 }}>
@@ -61,8 +63,7 @@ export function MerchantFeedDialog({ open, onClose, books }: { open: boolean; on
             {noIsbn > 0 && <StatusBadge tone="info">{noIsbn} without a valid ISBN-13</StatusBadge>}
           </div>
           <p className="rp-hint" style={{ margin: 0 }}>
-            Every published book you can buy today, one listing per edition, in CA$, with its sale price, stock and pre-order date.
-            Drafts, scheduled books and gift cards are never listed.
+            {w("Every published book you can buy today, one listing per edition, in CA$, with its sale price, stock and pre-order date. Drafts, scheduled books and gift cards are never listed.")}
             {noIsbn > 0 && " Books with a valid ISBN-13 match Google's book data and usually show more often."}
           </p>
           {shared.length > 0 && (
@@ -74,7 +75,7 @@ export function MerchantFeedDialog({ open, onClose, books }: { open: boolean; on
             </div>
           )}
           {feed.skipped.length > 0 && (
-            <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18, maxHeight: 180, overflow: "auto" }} aria-label="Books left out of the feed">
+            <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18, maxHeight: 180, overflow: "auto" }} aria-label={w("Books left out of the feed")}>
               {feed.skipped.map((s, i) => <li key={`${s.id}-${i}`}><strong>{s.title}</strong>: {s.reason}</li>)}
             </ul>
           )}

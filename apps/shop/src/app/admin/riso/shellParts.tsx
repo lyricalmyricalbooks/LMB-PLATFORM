@@ -4,6 +4,7 @@ import { adminApi } from "../api";
 import { getOrdersCached } from "../ordersCache";
 import { matchCustomers, matchOrders } from "../globalSearch";
 import { INVENTORY_APP_URL, inventoryBookUrl, inventorySearchUrl, matchAppBooks, openInventoryApp, type AppBookEntry } from "../appSwitch";
+import { useShopWords } from "../shopWords";
 import {
   Dialog, EmptyState, ErrorState, IconButton, LoadingState, SearchField, SecondaryButton, StatusBadge, Tabs,
   type BadgeTone,
@@ -37,6 +38,7 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
   /** Open the search with this text (a `#search=` link from the inventory app); `n` makes a repeat count. */
   request?: { q: string; n: number } | null;
 }) {
+  const w = useShopWords();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -139,12 +141,12 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
         else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
         else if (e.key === "Enter") { e.preventDefault(); if (showList) choose(results[active]); }
       }}>
-      <IconButton ref={toggleRef} label="Search books, orders, customers and admin pages" className="rp-search-toggle"
+      <IconButton ref={toggleRef} label={w("Search books, orders, customers and admin pages")} className="rp-search-toggle"
         aria-expanded={phoneOpen} onClick={openOnPhone}>
         <Search size={20} aria-hidden />
       </IconButton>
       <div className="rp-search-box">
-        <SearchField label="Search books, orders, customers and admin screens" placeholder="Search books, orders, customers…" value={q}
+        <SearchField label={w("Search books, orders, customers and admin screens")} placeholder={w("Search books, orders, customers…")} value={q}
           role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list" aria-keyshortcuts="Control+K Meta+K"
           aria-activedescendant={showList && results[active] ? `${listId}-${active}` : undefined}
           onFocus={() => { setOpen(true); ensureData(); }}
@@ -156,7 +158,7 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
       </div>
       {open && !q.trim() && (
         <div className="rp-search-results rp-search-tip" role="note">
-          Type a book title, author or ISBN, an order number (with or without #), a customer's name or email, or a page such as <em>Shipping</em>.
+          {w("Type a book title, author or ISBN, an order number (with or without #), a customer's name or email, or a page such as")} <em>Shipping</em>.
           {appConnected && " Books in the inventory app are found too."}
         </div>
       )}
@@ -193,6 +195,7 @@ const LOG_TONES: Record<string, BadgeTone> = {
 const CATEGORIES = ["all", "catalog", "shipping", "campaigns", "settings", "inventory"] as const;
 
 export function ActivityLogDialog({ open, onClose, appearance }: { open: boolean; onClose: () => void; appearance: "light" | "dark" }) {
+  const w = useShopWords();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -222,7 +225,7 @@ export function ActivityLogDialog({ open, onClose, appearance }: { open: boolean
         {loading ? <LoadingState label="Loading activity…" />
           : error ? <ErrorState title="Couldn't load the activity log" description="Check your connection, then try again." onRetry={load} />
           : shown.length === 0 ? (logs.length === 0
-            ? <EmptyState title="Nothing recorded yet" description="Changes to books, shipping, discounts, settings and stock appear here as you make them." />
+            ? <EmptyState title="Nothing recorded yet" description={w("Changes to books, shipping, discounts, settings and stock appear here as you make them.")} />
             : <EmptyState title="No matching activity" description="Try another category or search word." />)
           : (
             <ul className="rp-list" aria-label="Activity entries">

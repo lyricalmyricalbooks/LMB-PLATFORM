@@ -14,6 +14,7 @@ import { CampaignsCard, CheckoutJourneyCard, FoundOnGoogleCard, LandingSalesCard
 import type { Ga4Range } from "../googleAnalytics";
 import { ConnectGoogleCard } from "../ConnectGoogleCard";
 import { useGoogleConnect } from "../googleConnect";
+import { useShopWords } from "../shopWords";
 
 const since = (key: string | null) => (key ? new Date(`${key}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null);
 const NOT_YET = (what: string) => <EmptyState icon="⏳" title="Not recorded yet" description={`${what} start counting once shoppers visit the updated storefront. Until then there is nothing to show — not even zero.`} />;
@@ -34,6 +35,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
   ga: GaState; traffic: TrafficFigures; dailyCurrent: Daily[]; dailyAll: Daily[]; current: Order[]; paidAll: Order[]; range: Ga4Range; books: Book[];
   lastReset: { at: string; removedDays: number } | null; firstDay: string | null; onReset: () => Promise<void>; setActiveTab?: (tab: string) => void;
 }) {
+  const w = useShopWords();
   const [confirm, confirmNode] = useConfirm();
   const [resetting, setResetting] = useState(false);
   const [pickedSource, setPickedSource] = useState<string | null>(null);
@@ -163,7 +165,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
         {show("funnel") && <SectionCard title="Shopping funnel"
           description={`${traffic.source === "google" ? "Google Analytics shop events" : "The shop's own counter"} · ${funnel[0].count > 0 ? `${percent((funnel[3].count / funnel[0].count) * 100, 2)} of book views end in a purchase` : "only recorded events are shown"}`}>
           {funnel[0].count === 0 && funnel[1].count === 0 ? (
-            <EmptyState title="No shopping events recorded" description="Book views, add-to-bag, checkout and purchase events chart here once shoppers generate them." />
+            <EmptyState title="No shopping events recorded" description={w("Book views, add-to-bag, checkout and purchase events chart here once shoppers generate them.")} />
           ) : (
             <div style={{ margin: -20 }}>
               <Funnel label="Shopping funnel" steps={funnel.map(step => ({
@@ -208,7 +210,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
           </SectionCard>
         )}
 
-        {show("searches") && <SectionCard flush title="What people search for" description="Most common searches that found books">
+        {show("searches") && <SectionCard flush title="What people search for" description={w("Most common searches that found books")}>
           {searches.length === 0 ? NOT_YET("Search terms") : (
             <ul className="rp-list" aria-label="Top searches">
               {searches.map(s => <StatRow key={s.key} label={s.key} value={`${s.count}×`}
@@ -217,7 +219,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
           )}
         </SectionCard>}
 
-        {show("missed") && <SectionCard flush title="Searches that found nothing" description="Books or topics shoppers want that the shop doesn't show">
+        {show("missed") && <SectionCard flush title="Searches that found nothing" description={w("Books or topics shoppers want that the shop doesn't show")}>
           {missed.length === 0
             ? (recordedSince(dailyAll, "noResults") || recordedSince(dailyAll, "searches")
                 ? <EmptyState icon="✓" title="No empty searches" description="Every recorded search found something." />
@@ -230,9 +232,9 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
             )}
         </SectionCard>}
 
-        {show("viewed") && <SectionCard flush title="Most viewed books" description="Product-page views beside copies sold in this period">
+        {show("viewed") && <SectionCard flush title={w("Most viewed books")} description="Product-page views beside copies sold in this period">
           {interest.rows.length === 0 ? NOT_YET("Book views") : (
-            <ul className="rp-list" aria-label="Most viewed books">
+            <ul className="rp-list" aria-label={w("Most viewed books")}>
               {interest.rows.slice(0, 8).map(r => (
                 <StatRow key={r.id} label={r.title}
                   hint={`${r.views.toLocaleString()} views · ${r.sold} sold${r.viewToSale !== null ? ` · ${percent(r.viewToSale)} of viewers bought` : ""}`}
@@ -240,7 +242,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
                   details={<>
                     <strong style={{ display: "block", marginBottom: 6 }}>Views by day</strong>
                     <DrillList label={`Views of ${r.title} by day`} items={countsByDay(dailyCurrent, "bookViews", r.id, "view")} />
-                    <strong style={{ display: "block", margin: "12px 0 6px" }}>Orders with this book</strong>
+                    <strong style={{ display: "block", margin: "12px 0 6px" }}>{w("Orders with this book")}</strong>
                     <OrdersDrill label={`Orders with ${r.title}`} books={false} orders={ordersWithBook(current, r.id)} empty="Nobody bought it in this period."
                       extra={o => `${copiesOf(o, r.id)} cop${copiesOf(o, r.id) === 1 ? "y" : "ies"} of this title`} />
                   </>} />
@@ -254,7 +256,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
         {(!only || only in GOOGLE_PARTS) && <FoundOnGoogleCard range={range} setActiveTab={setActiveTab} part={only ? GOOGLE_PARTS[only] : undefined} />}
 
         {show("counter") && <SectionCard title="The shop's own counter"
-          description="A simple first-party count of visits, bag adds, checkouts, searches, sources and book views, kept even without Google Analytics."
+          description={w("A simple first-party count of visits, bag adds, checkouts, searches, sources and book views, kept even without Google Analytics.")}
           actions={<SecondaryButton size="sm" onClick={reset} disabled={resetting}>{resetting ? "Resetting…" : "Start traffic counts again"}</SecondaryButton>}>
           <p className="rp-hint" style={{ margin: 0 }}>
             {lastReset ? `Counting since ${new Date(lastReset.at).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })} (reset by you; ${lastReset.removedDays} earlier day${lastReset.removedDays === 1 ? "" : "s"} cleared).`
