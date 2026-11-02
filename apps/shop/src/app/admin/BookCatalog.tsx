@@ -1,3 +1,4 @@
+import { isExampleProduct } from "./exampleProducts";
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
@@ -489,6 +490,10 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
             <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import CSV</SecondaryButton>
+            <SecondaryButton onClick={async () => {
+              try { await adminApi.addExampleProducts(); toast.success("Example products added. They disappear when you add your first real product."); setLoading(true); await loadBooks(); }
+              catch { toast.error("Couldn't add the examples. Try again."); }
+            }}>Show example products</SecondaryButton>
           </div>} />
         {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
       </SectionCard>
@@ -509,6 +514,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       <Tabs label="Publication status" value={statusFilter} onChange={setStatusFilter}
         tabs={STATUS_CHIPS.map((v) => ({ id: v, label: v, count: statusCounts[v] }))} />
       <div className="bk-filters" data-open={filtersOpen}>
+      {books.some(isExampleProduct) && <p className="rp-hint" role="status" style={{ margin: "0 0 12px" }}>Some of these are examples so your shop isn't empty. They disappear when you add your first real product.</p>}
       <FilterBar>
         <div className="rp-grow"><SearchField label={w("Search books")} placeholder={w("Search title, author, ISBN or SKU…")} value={search} onChange={e => setSearch(e.target.value)} /></div>
         <SecondaryButton className="bk-filter-toggle" icon={<SlidersHorizontal size={16} aria-hidden />} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(o => !o)}>

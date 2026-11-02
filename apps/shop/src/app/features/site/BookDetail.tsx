@@ -50,6 +50,7 @@ import BackInStockForm from "./BackInStockForm";
 import PickupAvailability from "./PickupAvailability.tsx";
 import { isPickupItem, pickupSpots } from "./pickupAvailability";
 import PdpFreeShipping from "./extras/pdp-free-shipping/PdpFreeShipping.tsx";
+import { madeToOrderTime } from "./madeToOrder";
 import PdpShipBy from "./extras/pdp-ship-by/PdpShipBy";
 import PdpAskQuestion from "./extras/pdp-ask-question/PdpAskQuestion";
 import PdpInBag from "./extras/pdp-in-bag/PdpInBag";
@@ -720,12 +721,14 @@ export default function BookDetail() {
   const isPreorder    = !isComingSoon && preorderActive(book);
   const preorderDate  = isPreorder ? formatReleaseDate(releaseDateOf(book)) : "";
   const comingDate    = isComingSoon ? formatReleaseDate(releaseDateOf(book)) : "";
+  const madeTime      = madeToOrderTime(book);
   const stockText     = isComingSoon
     ? (comingDate ? getCopy(settings?.design, "pdpComingSoonDate", { date: comingDate }) : getCopy(settings?.design, "pdpComingSoon"))
     : isOutOfStock
     ? getCopy(settings?.design, "soldOutLabel")
     : isPreorder ? (preorderDate ? getCopy(settings?.design, "pdpPreorder", { date: preorderDate }) : getCopy(settings?.design, "pdpPreorderTba"))
     : isBackorder ? getCopy(settings?.design, "pdpBackorder")
+    : madeTime ? getCopy(settings?.design, "pdpMadeToOrder", { time: madeTime })
     : isLowStock ? getCopy(settings?.design, "pdpInStockCount", { count: stockLevel }) : getCopy(settings?.design, "pdpInStock");
   // Books › edit › Publishing details › Details tab rows: the owner's order, wording and own rows.
   const SPEC_ICONS: Record<string, React.ReactNode> = { specLanguage: <Globe size={11} />, specDimensions: <Ruler size={11} />, specIsbn: <Package size={11} />, specWeight: <Weight size={11} /> };
@@ -1305,7 +1308,7 @@ export default function BookDetail() {
                     <PdpFreeShipping info={freeShipInfo} design={settings?.design} formatPrice={formatPrice} />
                   )}
                   {/* Ships-by line (off by default): printed copies in stock now only (not pre-orders or backorders). */}
-                  {showPdpShipBy && !isOutOfStock && !isComingSoon && !isPreorder && !isBackorder && stockLevel > 0 && book && isPickupItem(book, selectedVariant) && regionVisible(regionDesign, "productShipBy") && (
+                  {showPdpShipBy && !isOutOfStock && !isComingSoon && !isPreorder && !isBackorder && !madeTime && stockLevel > 0 && book && isPickupItem(book, selectedVariant) && regionVisible(regionDesign, "productShipBy") && (
                     <PdpShipBy design={settings?.design} look={storefrontDesign} />
                   )}
                   {showPdpPickup && !isOutOfStock && !isComingSoon && regionVisible(regionDesign, "productPickup") && (
