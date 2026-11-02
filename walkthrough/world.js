@@ -47,8 +47,11 @@ import { fakeFeeLedgerStore } from "../services/payments/feeLedgerFakes.js";
 import { signatureHeader } from "../services/payments/stripeSignature.js";
 import { createStripeApi } from "../services/payments/stripeApi.js";
 import { liveSettings, platformSettings } from "../services/settings.js";
+import { DEFAULT_LIMITS, createLimits } from "../signup/limits.js";
+import { fakeThrottle } from "../signup/fakes.js";
 
 export const DAY = 86_400_000;
+const generousLimits = () => Object.fromEntries(Object.entries(DEFAULT_LIMITS).map(([kind, limit]) => [kind, { ...limit, max: limit.max * 100 }]));
 const WEBHOOK_SECRET = "whsec_pretend_billing";
 
 /** The platform admin the control room lets in (two-step sign-in, as the real one asks). */
@@ -169,6 +172,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
       ...supportRoutes(support),
       ...recoveryRoutes(recovery),
     },
+    // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
+    limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},
   });
   const ask = (claims, method, path, body) => door({ method, path, body, headers: claims ? { Authorization: `Bearer ${JSON.stringify(claims)}` } : {} });

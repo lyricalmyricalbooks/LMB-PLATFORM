@@ -13,6 +13,9 @@
 // Later items add their routes through `routes` (the shop maker's "try again", accounts, invites).
 // `onSignedIn(claims, request)` sees every signed-in call (the new-device alerts, accounts/devices.js); a failure there
 // is logged and never stops the call.
+// `limits` (optional, limits.js createLimits, plan 19.5): fair-use limits per person, per costly call and per network;
+// over one the call answers 429 with `retryAfter`. A path may carry a query (`?shopId=…`); it reaches routes as
+// `request.query`.
 import { planList } from "../services/billing/plans.js";
 import { priceText } from "../services/settings.js";
 import { currentTermsVersion } from "../terms/terms.js";
@@ -30,7 +33,10 @@ const header = (headers, name) => {
   return typeof found?.[1] === "string" ? found[1] : "";
 };
 
-export function createApi({ signup, verifyIdToken, settings, routes = {}, onSignedIn, live = () => liveSettings(), log = console.error }) {
+export function createApi({ signup, verifyIdToken, settings, routes = {}, onSignedIn, limits = null, live = () => liveSettings(), log = console.error }) {
+  const pathOf = (request) => String(request?.path ?? "").split("?")[0].replace(/\/+$/, "");
+  const queryOf = (request) => String(request?.path ?? "").split("?")[1] ?? "";
+  const routeOf = (request) => `${request?.method} ${pathOf(request)}`;
   const claimsOf = async (request) => {
     const token = header(request.headers, "authorization").replace(/^Bearer\s+/i, "");
     if (!token) throw new SignupError(401, "Sign in first.");
@@ -47,6 +53,7 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, onSign
         log(`onSignedIn failed: ${error?.message ?? error}`);
       }
     }
+    if (limits) await limits.signedIn(routeOf(request), claims, request);
     return claims;
   };
 
@@ -83,13 +90,15 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, onSign
   };
 
   return async function handle(request) {
-    const route = table[`${request?.method} ${String(request?.path ?? "").replace(/\/+$/, "")}`];
+    const route = table[routeOf(request)];
     if (!route) return { status: 404, body: { ok: false, message: "There's nothing here." } };
     try {
+      if (queryOf(request) && !request.query) request = { ...request, query: Object.fromEntries(new URLSearchParams(queryOf(request))) };
+      if (limits) await limits.beforeCall(routeOf(request), request);
       return { status: 200, body: { ok: true, ...(await route(request)) } };
     } catch (error) {
       if (error instanceof SignupError || Number.isInteger(error?.status)) {
-        return { status: error.status, body: { ok: false, message: error.message, ...(error.problems ? { problems: error.problems } : {}) } };
+        return { status: error.status, body: { ok: false, message: error.message, ...(error.problems ? { problems: error.problems } : {}), ...(Number.isInteger(error.retryAfter) ? { retryAfter: error.retryAfter } : {}) } };
       }
       return { status: 500, body: { ok: false, message: "Something went wrong on our side. Try again in a minute." } };
     }
