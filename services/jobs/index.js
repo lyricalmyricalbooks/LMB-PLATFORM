@@ -20,7 +20,8 @@
 //   email   sendPlatform(message) (services/email)
 //   alertTo the platform's alert address; without it nothing is emailed and the page still shows the late jobs
 //
-// The hosted schedules wrap each job: `jobs.runJob("health-checks", () => realHealth({ job: "checks" }))`.
+// The hosted schedules wrap each job: `jobs.runJob("health-checks", () => realHealth({ job: "checks" }))`; server/jobs.js
+// gives every job here its runner and server/schedules.js its time (a test fails when one is missing).
 export const KEEP_RUNS = 50;
 export const LATE_TIMES = 2;
 export const JOB_LATE = "job-late";
@@ -40,6 +41,7 @@ export const JOBS = Object.freeze([
   { name: "closing", words: "Close unpaid or ended shops on their dates", every: DAY, code: "services/billing/closing.js sweep" },
   { name: "dropped-apps", words: "Close an app a plan dropped once its month ends", every: DAY, code: "services/billing/billing.js closeDroppedApps" },
   { name: "trial-tips", words: "Setup tips during the free trial", every: DAY, code: "services/trial-tips/index.js run" },
+  { name: "shop-checkup", words: "The monthly check-up email to each live shop (it runs daily and sends each shop one a month)", every: DAY, code: "services/checkup/index.js run" },
   { name: "bookkeeping", words: "Send the day's sales to each press's bookkeeping", every: DAY, code: "services/accounting/index.js nightly" },
   { name: "income-record", words: "Write down the night's income, and remind presses a month before their card runs out", every: DAY, code: "control-room/nightly.js runBusinessNightly" },
   { name: "press-messages", words: "Take ended messages off shop admins, and reach shops opened since", every: 60, code: "control-room/messages.js sweep" },

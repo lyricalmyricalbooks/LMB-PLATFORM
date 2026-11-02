@@ -6,7 +6,9 @@ control room's **Jobs** page shows it (`control-room/jobs.js`).
 
 ## The jobs
 
-Found in the code; `every` is the intended gap. Nothing hosts the schedules yet, so each still needs one.
+Found in the code; `every` is the intended gap. The hosted server (`server/`) runs each one on a schedule: `server/jobs.js`
+gives every job its runner, `server/schedules.js` its time (Toronto time), and `server/setup-schedules.js` makes them
+in Cloud Scheduler. A job whose parts aren't connected yet is made paused (`server/README.md` lists them).
 
 | Job | Every | Runs |
 | --- | --- | --- |
@@ -22,6 +24,7 @@ Found in the code; `every` is the intended gap. Nothing hosts the schedules yet,
 | `income-record` | 1 day | `control-room/nightly.js` `runBusinessNightly()`: the income record (19.7) and the card-expiry reminders (19.9) |
 | `press-messages` | 1 hour | `control-room/messages.js` `sweep()`: ended messages off shop admins, new shops reached (19.14) |
 | `trial-tips` | 1 day | `services/trial-tips/index.js` `run()` |
+| `shop-checkup` | 1 day | `services/checkup/index.js` `run()`: the monthly check-up email, at most one per shop a month (14.9) |
 | `bookkeeping` | 1 day | `services/accounting/index.js` `nightly()` |
 | `restore-drill` | 30 days | `services/health/run.js drill` |
 
