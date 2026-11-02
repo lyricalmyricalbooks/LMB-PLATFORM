@@ -95,6 +95,27 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:a11y
 
+  # Plan 14.5: every theme's home and book page at phone width stays inside its stored budget (apps/shop/scripts/speed-check.mjs).
+  shop-speed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/shop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/shop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:speed
+
   # The platform's copy of the stockroom (apps/stockroom).
   stockroom:
     runs-on: ubuntu-latest

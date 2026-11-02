@@ -17,6 +17,7 @@
     "test:studio": "node scripts/studio-e2e.mjs",
     "test:storefront": "node scripts/storefront-smoke.mjs",
     "test:a11y": "node scripts/a11y-check.mjs",
+    "test:speed": "node scripts/speed-check.mjs",
     "test:studio-controls": "AUDIT_CHECK=1 node scripts/studio-control-audit.mjs"
   },
   "dependencies": {
