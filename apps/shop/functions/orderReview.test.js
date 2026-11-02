@@ -41,6 +41,25 @@ describe("which payments look risky", () => {
   });
 });
 
+describe("the owner's own rule: big orders", () => {
+  test("an order at or above the amount is held even when the card looks fine, and below it is not", () => {
+    expect(reviewReasons({ level: "normal" }, { total: 600 }, { above: 500 })).toHaveLength(1);
+    expect(reviewReasons({ level: "normal" }, { total: 500 }, { above: 500 })).toHaveLength(1);
+    expect(reviewReasons({ level: "normal" }, { total: 499.99 }, { above: 500 })).toEqual([]);
+    expect(reviewReasons(null, { total: 900 }, { above: 500 })).toHaveLength(1);
+  });
+  test("off by default, and added to the card company's reasons when both apply", () => {
+    expect(reviewReasons({ level: "normal" }, { total: 9999 })).toEqual([]);
+    expect(reviewReasons({ level: "normal" }, { total: 9999 }, { above: 0 })).toEqual([]);
+    expect(reviewReasons({ level: "elevated" }, { total: 900 }, { above: 500 })).toHaveLength(2);
+  });
+  test("recordReview flags a big order using the rule", async () => {
+    const db = fakeDb({ stripePaymentIntentId: "pi_1", paymentStatus: "paid", total: 750 });
+    expect(await recordReview(db, "o1", "pi_1", { level: "normal" }, NOW, { above: 500 })).toBe(true);
+    expect(db.store["orders/o1"].review.reasons[0]).toMatch(/750\.00.*500\.00/);
+  });
+});
+
 describe("flagging an order", () => {
   const paid = { stripePaymentIntentId: "pi_1", paymentStatus: "paid" };
   test("flags once, for the order's own payment only", async () => {

@@ -447,3 +447,38 @@ test('stockists: only a signed-in approved stockist can claim wholesale pricing,
   expect((await unverified.call('createStripeCheckoutSession', { action: 'stockistPricing', orderId: 'o1' })).code).toBe(401);
   expect(unverified.docs.orders.o1.stockistId).toBeUndefined();
 });
+
+// ── Trade invoices (plan 12.10): an approved shop with terms orders now and pays later ────────────────────────────────
+const invoiceDocs = (terms = 30) => stockistDocs({ stockists: { 'shop@boutique.example': { status: 'approved', name: 'Boutique', terms } } });
+const invoiceBody = (extra = {}) => ({ action: 'createManualLocalOrder', tradeInvoice: true, orderDraft: manualDraft([{ id: 'tee', quantity: 2 }]), ...extra });
+const boutique = { email: 'Shop@Boutique.example', email_verified: true, uid: 's1' };
+
+test('invoices: an approved shop with terms places a wholesale order that counts as a sale with the money still owed', async () => {
+  const app = harness({ docs: invoiceDocs(30), identity: boutique });
+  const status = await app.call('createStripeCheckoutSession', { action: 'stockistStatus' });
+  expect(status.value).toEqual({ wholesale: true, name: 'Boutique', terms: 30 });
+  const placed = await app.call('createStripeCheckoutSession', invoiceBody());
+  expect(placed.code).toBe(200);
+  expect(placed.value.invoice).toBe(true);
+  const order = app.docs.orders[placed.value.orderId];
+  expect(order).toMatchObject({ stockistId: 'shop@boutique.example', paymentMethod: 'Invoice (net 30)', paymentStatus: 'paid' });
+  expect(order.items[0].price).toBe(20);
+  expect(order.invoice).toMatchObject({ days: 30, paidAt: null });
+  expect(Date.parse(order.invoice.dueAt) - Date.parse(order.createdAt)).toBeGreaterThan(29.9 * 86400000);
+});
+
+test('invoices: a shop without terms, a paused shop, an unverified email or a stranger cannot order on invoice', async () => {
+  for (const [docs, identity] of [
+    [invoiceDocs(0), boutique],
+    [stockistDocs({ stockists: { 'shop@boutique.example': { status: 'paused', name: 'Boutique', terms: 30 } } }), boutique],
+    [invoiceDocs(30), { ...boutique, email_verified: false }],
+    [invoiceDocs(30), { email: 'reader@example.com', email_verified: true, uid: 'r1' }],
+    [invoiceDocs(30), null],
+  ]) {
+    const app = harness({ docs, identity });
+    const refused = await app.call('createStripeCheckoutSession', invoiceBody());
+    expect(refused.code).toBe(400);
+    expect(Object.keys(app.docs.orders || {})).toHaveLength(0);
+  }
+  expect((await harness({ docs: invoiceDocs(0), identity: boutique }).call('createStripeCheckoutSession', { action: 'stockistStatus' })).value).toMatchObject({ wholesale: true, terms: 0 });
+});

@@ -121,7 +121,8 @@ async function recordOrderMoney({ db, payments, orderId, keys = null, now }) {
   const found = await payments.paymentMoney(orderId, order, { keys });
   if (!found?.parts) return false;
   // The same read tells whether the payment looks risky (orderReview.js); a failure there must not lose the money.
-  await recordReview(db, orderId, order.stripePaymentIntentId, found.risk, now).catch(() => {});
+  const own = { above: Number((await db.collection("settings").doc("website").get().catch(() => null))?.data?.()?.payments?.reviewAbove) || 0 };
+  await recordReview(db, orderId, order.stripePaymentIntentId, found.risk, now, own).catch(() => {});
   return recordMoney(db, orderId, order.stripePaymentIntentId, found.parts, now);
 }
 
