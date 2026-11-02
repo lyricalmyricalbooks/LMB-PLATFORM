@@ -854,6 +854,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "coGuarantee", label: "Promise under Pay button (e.g. returns)", default: "", hint: "Leave blank to hide. Only promise what your policy really offers." },
       { key: "coPayPal", label: "Pay button (PayPal)", default: "Continue to PayPal" },
       { key: "coPlaceOrder", label: "Pay button (manual)", default: "Place order" },
+      { key: "coPayInvoice", label: "Trade accounts · pay by invoice option", default: "Pay by invoice (net {days})", hint: "Only trade accounts with invoice terms see it. Use {days} for the days to pay." },
       { key: "coProcessing", label: "Pay button (processing)", default: "Processing order…" },
       { key: "coTrust1", label: "Trust badge 1", default: "Secure payment" },
       { key: "coTrust2", label: "Trust badge 2", default: "Order support" },

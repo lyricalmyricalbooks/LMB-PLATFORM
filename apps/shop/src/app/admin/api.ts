@@ -2000,10 +2000,10 @@ export const adminApi = {
   // Trade accounts (plan 12.10): shops approved to pay wholesale prices (`stockists/{lower-case email}`, admin-only).
   listStockists: async () => {
     const snap = await getDocs(query(collection(db, "stockists"), limit(500)));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; name: string; status: "approved" | "paused"; createdAt: string }>;
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; name: string; status: "approved" | "paused"; createdAt: string; terms?: number }>;
   },
-  saveStockist: async (id: string, data: { name: string; status: "approved" | "paused"; createdAt?: string }) => {
-    await setDoc(doc(db, "stockists", id), { name: data.name, status: data.status, createdAt: data.createdAt || new Date().toISOString() });
+  saveStockist: async (id: string, data: { name: string; status: "approved" | "paused"; createdAt?: string; terms?: number }) => {
+    await setDoc(doc(db, "stockists", id), { name: data.name, status: data.status, createdAt: data.createdAt || new Date().toISOString(), terms: Math.max(0, Math.min(365, Math.floor(Number(data.terms) || 0))) });
   },
   deleteStockist: async (id: string) => { await deleteDoc(doc(db, "stockists", id)); },
   saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[] }) => {

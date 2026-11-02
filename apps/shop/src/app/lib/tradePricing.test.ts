@@ -33,3 +33,21 @@ describe("claimTradePricing", () => {
     expect(await claimTradePricing("o1")).toBe(false);
   });
 });
+
+import { tradeInvoiceTerms } from "./tradePricing";
+
+describe("tradeInvoiceTerms", () => {
+  test("a signed-in trade account with terms gets its days; anyone else gets null", async () => {
+    expect(await tradeInvoiceTerms()).toBeNull();
+    user.current = { email: "shop@boutique.example", getIdToken: async () => "tok" };
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ wholesale: true, name: "Boutique", terms: 30 }) });
+    expect(await tradeInvoiceTerms()).toEqual({ days: 30, name: "Boutique" });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ action: "stockistStatus" });
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ wholesale: true, name: "Boutique", terms: 0 }) });
+    expect(await tradeInvoiceTerms()).toBeNull();
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ wholesale: false, terms: 30 }) });
+    expect(await tradeInvoiceTerms()).toBeNull();
+    fetchMock.mockRejectedValueOnce(new Error("offline"));
+    expect(await tradeInvoiceTerms()).toBeNull();
+  });
+});

@@ -22,6 +22,7 @@ import {
   reviewOpen,
   terminal,
 } from "./fulfillment";
+import { invoiceLine, invoiceOpen } from "./invoices";
 import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
 import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, telHref } from "./orderLines";
@@ -173,7 +174,7 @@ export function OrderDetail({
   const [refundAmount, setRefundAmount] = useState("");
   const [refundOther, setRefundOther] = useState("");
   const [refundRestockLines, setRefundRestockLines] = useState<Record<number, number>>({});
-  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "giftConflict" | "requestHandled" | "resendConfirmation" | "resetDownloads" | "restockRefunded">(null);
+  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "giftConflict" | "requestHandled" | "resendConfirmation" | "resetDownloads" | "restockRefunded" | "invoicePaid">(null);
   const [confirmReleasePreorder, setConfirmReleasePreorder] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState<
     "all" | "event" | "note"
@@ -563,6 +564,9 @@ export function OrderDetail({
       } else if (action === "restockRefunded") {
         const result = await adminApi.restockRefundedOrder(orderId);
         toast.success(`${result?.restocked || "The"} book${result?.restocked === 1 ? " is" : "s are"} back in stock`);
+      } else if (action === "invoicePaid") {
+        await adminApi.updateOrder(orderId, { invoice: { ...order.invoice, paidAt: new Date().toISOString() } });
+        toast.success("Invoice marked paid.");
       } else if (action === "resetDownloads") {
         await adminApi.updateOrder(orderId, { downloadCounts: {} });
         toast.success("Download limits reset: the buyer can download each digital book again");
@@ -943,6 +947,12 @@ export function OrderDetail({
                 {w("This order was refunded without putting its books back in stock, so they still count as gone (the inventory app shows them as a gratuity). If the books are still with you, put them back.")}
               </p>
               <SecondaryButton disabled={working} onClick={() => setConfirmAction("restockRefunded")}>{w("Put the books back in stock")}</SecondaryButton>
+            </SectionCard>
+          )}
+          {order.invoice && (
+            <SectionCard title="Invoice">
+              <p className="fw-summary">{invoiceLine(order)} {money(order.total)} on net {order.invoice.days} terms{order.invoice.paidAt ? "" : "; the books are already counted as sold."}</p>
+              {invoiceOpen(order) && <SecondaryButton disabled={working} onClick={() => setConfirmAction("invoicePaid")}>Record payment received</SecondaryButton>}
             </SectionCard>
           )}
           {reviewOpen(order) && (
@@ -1663,6 +1673,14 @@ export function OrderDetail({
         title="Payment received?"
         confirmLabel="Mark paid"
         message={`Only continue once ${money(order.total)} has arrived by ${order.paymentMethod || "the manual method"}. The order becomes paid, its books come off stock and the customer gets their order confirmation email.`}
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        open={confirmAction === "invoicePaid"}
+        title="Invoice paid?"
+        confirmLabel="Mark paid"
+        message={`Only continue once ${money(order.total)} has arrived from ${order.customer?.name || "the trade account"}. This clears the overdue reminder. The order itself was already counted as a sale.`}
         onConfirm={runConfirmed}
         onCancel={() => setConfirmAction(null)}
       />

@@ -1610,7 +1610,7 @@ const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTr
   releaseGiftCards, releaseStock, requireAdmin, sendEmail: lateSendEmail, siteLink, stripePaymentTaken,
 });
 
-const { handleStockistPricing } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
+const { handleStockistPricing, handleStockistStatus } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
 
 const { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin } = privacyActions({
   db, admin, ADMIN_TO, GIFT_CARD_PERSONAL, LIMITS, RESEND_API_KEY, claimEmailSendDetailed, confirmationEmail,
@@ -1644,6 +1644,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   resolvePaymentMismatch: handleResolveMismatch,
   orderRequest: handleOrderRequest,
   stockistPricing: handleStockistPricing,
+  stockistStatus: handleStockistStatus,
   privacyRequest: handlePrivacyRequest,
   privacyExport: handlePrivacyAdmin,
   privacyErase: handlePrivacyAdmin,
