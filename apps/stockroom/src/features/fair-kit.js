@@ -27,6 +27,7 @@ import {
 import { codeToSymbol, convertCurrency, currencyToCode, posBooksMap, posResolveBook } from './pos.js';
 import { closeM, confirmDialog, openM, promptDialog } from '../lib/modal.js';
 import { escapeHtml } from '../lib/html.js';
+import { hangTagsHtml } from '../lib/hang-tags.js';
 import { deriveOnHand } from '../lib/inventory.js';
 import { computeTallyRowHeights, computeQrCardSize, estimateTallyPages, estimateQrPages } from '../lib/print-sheet-layout.js';
 import {
@@ -1581,6 +1582,39 @@ renderQRs();
 // the printer; the QR sheet opens alongside it and waits on its own Print
 // button, because minting Stripe links for any door prices can take a moment
 // and a print dialog that fires mid-render prints half a page of blank squares.
+// ── PRINTABLE HANG TAGS ──
+// One tag per ticked book (title, author, price, ISBN), eight to a sheet. The price is the book's list price when it
+// has one, else a blank line to write in. Uses the same ticked books as the tally sheet.
+function printHangTags() {
+  const currencyCode = document.getElementById('st-currency')?.value || 'EUR';
+  const symbol = codeToSymbol(currencyCode);
+  const books = Array.from(document.querySelectorAll('.st-book-check'))
+    .filter((el) => el.checked && el.dataset.kind !== 'custom')
+    .map((el) => posResolveBook(el.value))
+    .filter(Boolean)
+    .map((b) => ({
+      title: b.title,
+      author: b.author || '',
+      price: b.priceOverrides?.[currencyCode] ?? (currencyToCode(b.currency) === currencyCode ? b.listPrice : ''),
+      currency: symbol,
+      isbn: b.isbn || '',
+    }));
+  if (!books.length) {
+    showToast('Tick at least one book to print tags for', 'warn');
+    return false;
+  }
+  const html = hangTagsHtml({ books, copies: 1, eventName: (document.getElementById('st-event')?.value || '').trim() });
+  const win = window.open('', '_blank', 'width=900,height=800');
+  if (!win) {
+    showToast('Pop-up blocked — allow pop-ups to print', 'warn');
+    return false;
+  }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  return true;
+}
+
 async function printFairKit() {
   const mode = fairKitMode();
 
@@ -1651,4 +1685,5 @@ export {
   printSalesTracker,
   printPaymentQRCodes,
   printFairKit,
+  printHangTags,
 };
