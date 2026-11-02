@@ -155,6 +155,16 @@ async function seedHistory(world) {
   for (const row of await world.registry.listShops()) {
     if (row.status === "live" && !row.health?.checks) await world.registry.updateShop(row.shopId, { health: { checkedAt, ok: true, checks } });
   }
+  // Income over time (19.7): a few pretend month-ends so Today's line has a shape, then tonight's real record.
+  if (world.incomeHistory) {
+    const at = world.clock.date();
+    for (const [back, incomeCents, paying] of [[5, 2900, 1], [4, 2900, 1], [3, 6800, 2], [2, 4800, 2], [1, 7700, 3]]) {
+      const end = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() - back + 1, 0, 12));
+      const day = end.toISOString().slice(0, 10);
+      await world.incomeHistory.set(day, { day, at: end.toISOString(), currency: world.settings.currency, incomeCents, paying, trial: 1, paused: 0, closed: 0, first: back === 5, moves: {} });
+    }
+    await world.nightly();
+  }
 }
 
 const readBody = (request) => new Promise((resolve, reject) => {

@@ -59,6 +59,8 @@ const PRESS_FACING_CODE = [
   "google/status.js", "google/service.js", "google/teardown.js", "google/gmail.js",
   // Support asks before making changes (19.6), and the fair-use limits' words (19.5).
   "accounts/accessRequestRoutes.js", "control-room/accessRequests.js", "signup/limits.js",
+  // The "why are you leaving?" answer's refusals (19.8).
+  "services/billing/leaving.js",
 ];
 // Not read, with the reason: services/domains and the domain card are row 6.15's; the control room, health alerts and
 // the backup person's emails go to Julian, not to a press; setup/steps.js names the steps for the audit log (the press

@@ -97,3 +97,14 @@ export function fakeAccessRequestStore() {
     },
   };
 }
+
+/** The nightly income records (incomeHistory.js, plan 19.7), in memory (clients/stores.js `firestoreIncomeHistory`). */
+export function fakeIncomeHistory() {
+  const rows = new Map();
+  return {
+    rows,
+    get: async (day) => structuredClone(rows.get(day) ?? null),
+    set: async (day, record) => void rows.set(day, structuredClone(record)),
+    list: async ({ since = "" } = {}) => structuredClone([...rows.values()].filter((r) => r.day >= since).sort((a, b) => (a.day < b.day ? -1 : 1))),
+  };
+}

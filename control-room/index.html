@@ -75,6 +75,15 @@
   .cr-status { position: fixed; left: 50%; bottom: 24px; z-index: 500; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); }
   .cr-status:empty { display: none; }
   .cr-status { padding: 12px 16px; background: var(--rp-inverse); color: var(--rp-on-inverse); font-size: 14px; font-weight: 600; box-shadow: var(--rp-shadow-float); }
+  /* Income over time (plan 19.7): one line, drawn in the theme's own colours. */
+  .cr-chart { display: block; width: 100%; height: auto; overflow: visible; }
+  .cr-chart .cr-chart-grid { stroke: var(--rp-border); stroke-width: 1; }
+  .cr-chart .cr-chart-axis { fill: var(--rp-text-subtle); font: 400 11px var(--rp-font-mono); }
+  .cr-chart .cr-chart-line { fill: none; stroke: var(--rp-primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .cr-chart .cr-chart-dot { fill: var(--rp-surface); stroke: var(--rp-primary); stroke-width: 2; }
+  .cr-chart .cr-chart-last { fill: var(--rp-primary); stroke: var(--rp-surface); stroke-width: 2; }
+  .cr-chart .cr-chart-label { fill: var(--rp-text); font: 600 12px var(--rp-font-body); }
+  .cr-chart .cr-chart-hit { fill: transparent; }
   @media (max-width: 767px) {
     .cr-facts { grid-template-columns: 1fr; gap: 2px; }
     .cr-facts dd { margin-bottom: 8px; }
@@ -198,6 +207,18 @@
               <div id="tax-watch" class="cr-grid"></div>
               <div class="cr-head"><h2>Your test shop</h2></div>
               <div id="test-shop" class="rp-card"></div>
+              <!-- The business side (plan 19.7-19.9): income over 12 months, failed plan payments, why presses leave. -->
+              <div class="cr-head"><h2 id="h-income">Income over time</h2></div>
+              <div id="income-figures" class="rp-kpi-grid" aria-label="Money kept and lost this month"></div>
+              <div id="income-chart" class="rp-card"></div>
+              <div class="cr-head"><h2>Failed plan payments</h2></div>
+              <p class="rp-hint">Shops whose plan payment is failing or paused for a card. A paused shop closes 60 days after the pause began; the press can then download everything for 90 days.</p>
+              <div id="payment-trouble"></div>
+              <div class="cr-head"><h2>Why presses leave</h2></div>
+              <div id="leaving" class="cr-grid"></div>
+              <div class="cr-head"><h2>Still time to talk</h2></div>
+              <p class="rp-hint">Shops whose plan is set to end, or paused for a missing card, soonest first. A word from you may keep them.</p>
+              <div id="save-list"></div>
             </section>
 
             <section data-page="shops" aria-labelledby="h-shops" hidden>

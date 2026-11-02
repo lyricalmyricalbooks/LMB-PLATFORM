@@ -46,6 +46,10 @@ import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
 import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
 import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
+import { CARD_WARNING_DAYS, cardEnds, cardWarningDue } from "./cardExpiry.js";
+import { leavingAnswer } from "./leaving.js";
+
+export { CARD_WARNING_DAYS, cardEnds };
 
 /** What each Stripe subscription status means for the shop: open, paused (a card fixes it) or closed. */
 export const ACCESS = Object.freeze({
@@ -66,8 +70,6 @@ const PAID = new Set(["active", "past_due"]);
 const DAY = 86400_000;
 /** How long the download of a closed app is kept (code plan 6.11, the same 90 days as a closed shop). */
 export const DOWNLOAD_DAYS = 90;
-/** How long before a card runs out the press is told (code plan 6.12). */
-export const CARD_WARNING_DAYS = 30;
 /** The apps, in words, for the page and the emails. */
 export const APP_NAMES = Object.freeze({ shop: "the shop", stockroom: "the stockroom" });
 const APPS = Object.keys(APP_NAMES);
@@ -103,12 +105,6 @@ export function planOpening(apps) {
   return PLAN_IDS.find((plan) => APPS.every((app) => PLAN_APPS[plan][app] === apps.includes(app))) ?? null;
 }
 
-/** The last moment a card works: the end of its expiry month, in UTC. */
-export function cardEnds({ expMonth, expYear }) {
-  if (!Number.isInteger(expMonth) || !Number.isInteger(expYear)) return null;
-  return new Date(Date.UTC(expYear, expMonth, 1) - 1).toISOString();
-}
-
 const moneyText = (cents, currency) =>
   new Intl.NumberFormat("en-CA", { style: "currency", currency: currency.toUpperCase(), currencyDisplay: "narrowSymbol" }).format(cents / 100);
 
@@ -139,6 +135,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const row = { ...before, ...fields, shopId, updatedAt: at() };
     // A press paying as they sell (6.19, paymentWay.js) has no subscription running, and the shop stays open.
     row.access = payAsYouSellAccess(row, now(), row.access) ?? row.access;
+    // When a payment problem or a pause began (19.9): kept while it lasts, for the control room's payment-trouble list.
+    row.troubleSince = inTrouble(row) ? (inTrouble(before) ? before.troubleSince ?? row.updatedAt : row.updatedAt) : null;
     await subscriptions.set(shopId, row);
     await mirror(shopId, row);
     await copyToShop(shopId, row);
@@ -150,7 +148,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   async function mirror(shopId, row) {
     if (!(await registry.getShop(shopId))) return;
     const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing: row.appsClosing ?? null, updatedAt: row.updatedAt } });
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing: row.appsClosing ?? null, updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
@@ -347,13 +345,21 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       return { url: session.url };
     },
 
-    /** Cancels at the end of the paid period (or the trial). The shop stays open until then. */
-    async cancel({ shopId }) {
+    /**
+     * Cancels at the end of the paid period (or the trial). The shop stays open until then. `reason` and `words` are the
+     * press's optional answer to "why are you leaving?" (19.8, leaving.js), kept on the row as `leaving` and logged;
+     * cancelling with no answer works the same.
+     */
+    async cancel({ shopId, reason, words }) {
+      const leaving = leavingAnswer({ reason, words, at: at() });
       const row = await rowFor(shopId);
       if (ENDED.has(row.status)) return row;
       if (row.cancelAtPeriodEnd) return row;
       const sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { cancel_at_period_end: true } });
-      const saved = await sync(shopId, sub, "cancel-requested");
+      const fields = fromSubscription(sub);
+      if (!fields.plan) delete fields.plan;
+      const saved = await save(shopId, { ...fields, leaving }, null);
+      await logChange(shopId, "cancel-requested", { status: saved.status, plan: saved.plan, access: saved.access, ...(leaving ? { reason: leaving.reason, words: leaving.words } : {}) });
       const until = saved.status === "trialing" ? saved.trialEnd : saved.currentPeriodEnd;
       await notify(shopId, "subscription-cancelled", { date: dateText(until) }, `${shopId}/cancel/${saved.subscriptionId}/${at()}`);
       return saved;
@@ -375,6 +381,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const row = await rowFor(shopId);
       if (!row.cancelAtPeriodEnd || ENDED.has(row.status)) return row;
       const sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { cancel_at_period_end: false } });
+      // The press's answer stays, marked as one who stayed (19.8).
+      if (row.leaving) await save(shopId, { leaving: { ...row.leaving, keptAt: at() } }, null);
       return sync(shopId, sub, "cancel-undone");
     },
 
@@ -488,18 +496,18 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     },
 
     /**
-     * The daily sweep for 6.12: a month before the card on file runs out, the person who pays is emailed, once per
-     * card (a new card gets its own email when its time comes).
+     * The daily sweep for 6.12 (cardExpiry.js, run nightly since 19.9): a month before the card on file runs out, the
+     * person who pays is emailed, once per card and expiry (a new card, or a new expiry date, gets its own email when its
+     * time comes). Only for a plan still running and not cancelled.
      */
     async cardExpiryReminders() {
       const sent = [];
       for (const row of await subscriptions.list()) {
-        if (ENDED.has(row.status) || row.cancelAtPeriodEnd || !row.hasCard || !row.card?.id) continue;
-        const ends = cardEnds(row.card);
-        if (!ends || Date.parse(ends) - now() > CARD_WARNING_DAYS * DAY || Date.parse(ends) < now()) continue;
-        if (row.cardWarned === row.card.id) continue;
-        await notify(row.shopId, "card-expiring", { card: cardWords(row.card), date: dateText(ends), month: new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(ends)) }, `${row.customerId}/card-expiring/${row.card.id}`);
-        await save(row.shopId, { cardWarned: row.card.id }, "card-expiring-sent");
+        const due = cardWarningDue(row, now());
+        if (!due) continue;
+        const { ends, key } = due;
+        await notify(row.shopId, "card-expiring", { card: cardWords(row.card), date: dateText(ends), month: new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(ends)) }, `${row.customerId}/card-expiring/${key}`);
+        await save(row.shopId, { cardWarned: key }, "card-expiring-sent");
         sent.push(row.shopId);
       }
       return sent;
@@ -605,11 +613,27 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         await sync(shopId, sub, "card-added");
         return "card added";
       }
+      case "payment_method.automatically_updated": {
+        // The card company gave the card a new number or expiry date (Stripe's card updater): keep the plan's copy in
+        // step, so the expiry warning follows the new date (19.9).
+        const details = object.card ?? {};
+        let updated = 0;
+        for (const row of await subscriptions.list()) {
+          if (row.card?.id !== object.id) continue;
+          await save(row.shopId, { card: { ...row.card, brand: details.brand ?? row.card.brand, last4: details.last4 ?? row.card.last4, expMonth: details.exp_month ?? row.card.expMonth, expYear: details.exp_year ?? row.card.expYear } }, "card-updated");
+          updated += 1;
+        }
+        return updated ? "card updated" : "not ours";
+      }
       default:
         return "not handled";
     }
   }
 }
+
+/** A plan payment failing, or the plan paused or waiting for a card (the control room's payment-trouble list). */
+const TROUBLE = new Set(["past_due", "unpaid", "incomplete", "paused"]);
+const inTrouble = (row) => TROUBLE.has(row?.status) && row?.paymentWay !== "payAsYouSell";
 
 const httpsOrNull = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);
 

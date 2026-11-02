@@ -52,6 +52,9 @@ import { fakeThrottle } from "../signup/fakes.js";
 import { createAccessRequests } from "../control-room/accessRequests.js";
 import { fakeAccessRequestStore } from "../control-room/fakes.js";
 import { accessRequestRoutes } from "../accounts/accessRequestRoutes.js";
+import { businessRoutes, createBusinessRoom } from "../control-room/business.js";
+import { fakeIncomeHistory } from "../control-room/fakes.js";
+import { runBusinessNightly } from "../control-room/nightly.js";
 
 export const DAY = 86_400_000;
 const generousLimits = () => Object.fromEntries(Object.entries(DEFAULT_LIMITS).map(([kind, limit]) => [kind, { ...limit, max: limit.max * 100 }]));
@@ -164,6 +167,10 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     applyRecovery: async (move) => recoveryByHand(move),
   });
 
+  // The business side of Today (19.7-19.9): income records written by the nightly run, read with the registry.
+  const incomeHistory = fakeIncomeHistory();
+  const business = createBusinessRoom({ registry, incomeHistory, admins, now: clock.date });
+
   // The platform's one web door: sign-up, the shop maker's Try again, accounts, billing and the control room.
   const door = createApi({
     signup, verifyIdToken: fakeVerifyIdToken, settings, live,
@@ -177,6 +184,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
       ...supportRoutes(support),
       ...recoveryRoutes(recovery),
       ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now: clock.date }),
+      ...businessRoutes(business),
     },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
@@ -189,5 +197,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, ask, invites, accessRequests,
     /** The shop's own database as the platform wrote it: a document, or null. */
     doc: (shopId, path) => services.world.docs.get(`${shopId} ${path}`) ?? null,
+    // Income over time, why presses leave and failed plan payments (19.7-19.9), and their nightly run.
+    business, incomeHistory,
+    nightly: () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }),
   };
 }

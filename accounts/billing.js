@@ -5,7 +5,7 @@
 // shop's owner in.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
-import { billingWords, day, planChangeWords } from "./billingWords.js";
+import { LEAVING_CHOICES, billingWords, day, planChangeWords } from "./billingWords.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
@@ -137,7 +137,8 @@ function render(billing) {
   $("#cancel-title").textContent = billing.cancelAtPeriodEnd ? "Your plan is cancelled" : "Cancel plan";
   $("#cancel-words").textContent = words.cancel;
   const ended = billing.access === "closed";
-  $("#cancel-button").hidden = billing.cancelAtPeriodEnd || ended;
+  if (billing.cancelAtPeriodEnd || ended) $("#cancel-form").hidden = true;
+  $("#cancel-button").hidden = billing.cancelAtPeriodEnd || ended || !$("#cancel-form").hidden;
   $("#keep-button").hidden = !billing.cancelAtPeriodEnd || ended;
   $("#change-form").hidden = ended;
   $("#plan-choices").replaceChildren(el("legend", { className: "rp-sr-only", textContent: "Choose a plan" }), ...billing.plans.map((plan) => {
@@ -183,7 +184,7 @@ async function loadInvoices() {
     }
     const head = el("tr", {}, ...["Date", "Invoice", "Amount", "State", ""].map((word, i) => el("th", { scope: "col", textContent: word, className: i === 2 ? "cp-amount" : "" })));
     list.replaceChildren(el("div", { className: "cp-table-wrap" }, el("table", { className: "cp-table" }, el("caption", { className: "rp-sr-only", textContent: "Your invoices" }), el("thead", {}, head), el("tbody", {}, ...rows))),
-      invoices.length ? null : el("p", { className: "hint", textContent: "Every invoice is emailed to you as well." }));
+      ...(invoices.length ? [] : [el("p", { className: "hint", textContent: "Every invoice is emailed to you as well." })]));
   } catch (failure) {
     list.replaceChildren(el("p", { className: "error", textContent: `We couldn't load your invoices: ${failure.message}` }));
   }
@@ -199,12 +200,13 @@ function renderPaymentWay(view) {
     status.textContent = answer.changed ? "Done. The lines above say when the change starts." : "Nothing to change.";
     renderPaymentWay(answer.view);
   }));
-  section.replaceChildren(
+  // replaceChildren would write an empty part as the word "null", so only real parts go in.
+  section.replaceChildren(...[
     el("h3", { textContent: view.title }),
     ...view.lines.filter(Boolean).map((line) => el("p", { textContent: line })),
     view.note ? el("p", { className: "hint", textContent: view.note }) : null,
     button,
-  );
+  ].filter(Boolean));
   section.hidden = false;
 }
 
@@ -235,12 +237,46 @@ const addCard = (event) => act(event.currentTarget, async () => {
 $("#card-button").addEventListener("click", addCard);
 $("#plan-alert-button").addEventListener("click", addCard);
 
-$("#cancel-button").addEventListener("click", (event) => act(event.currentTarget, async () => {
-  if (!window.confirm(billingWords(current, new Date()).cancelAsk)) return;
-  await api("/billing/cancel");
-  status.textContent = "Your plan is cancelled. Your shop stays open until the date below, and you can keep your plan until then.";
-  await load();
-}));
+// Cancelling (19.8): the confirmation says what happens and asks one optional question, why; no answer is fine.
+function closeCancelForm() {
+  $("#cancel-form").hidden = true;
+  $("#cancel-button").hidden = false;
+  $("#cancel-button").focus();
+}
+
+$("#cancel-button").addEventListener("click", () => {
+  $("#cancel-ask").textContent = billingWords(current, new Date()).cancelAsk;
+  $("#leaving-choices").replaceChildren($("#leaving-choices legend"), ...LEAVING_CHOICES.map(([value, words]) =>
+    el("label", { className: "choice" }, el("input", { type: "radio", name: "reason", value }), el("span", { textContent: words }))));
+  $("#leaving-words").value = "";
+  $("#cancel-error").hidden = true;
+  $("#cancel-button").hidden = true;
+  $("#cancel-form").hidden = false;
+  $("#leaving-choices input")?.focus();
+});
+
+$("#cancel-back").addEventListener("click", closeCancelForm);
+$("#cancel-form").addEventListener("keydown", (event) => { if (event.key === "Escape") closeCancelForm(); });
+
+$("#cancel-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  act($("#cancel-confirm"), async () => {
+    const reason = $("#cancel-form").querySelector("input[name=reason]:checked")?.value ?? null;
+    const words = $("#leaving-words").value.trim();
+    try {
+      await api("/billing/cancel", { ...(reason ? { reason } : {}), ...(words ? { words } : {}) });
+    } catch (failure) {
+      $("#cancel-error").textContent = failure.message;
+      $("#cancel-error").hidden = false;
+      return;
+    }
+    $("#cancel-form").hidden = true;
+    status.textContent = reason || words
+      ? "Your plan is cancelled. Thank you for telling us why. Your shop stays open until the date below, and you can keep your plan until then."
+      : "Your plan is cancelled. Your shop stays open until the date below, and you can keep your plan until then.";
+    await load();
+  });
+});
 
 $("#keep-button").addEventListener("click", (event) => act(event.currentTarget, async () => {
   await api("/billing/keep");
