@@ -73,7 +73,7 @@ import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/si
 import { customsDefaultsFor, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
 import { ProductOptionsEditor } from "./ProductOptionsEditor";
-import { goodsWords, startingKind } from "./sells";
+import { currentSells, goodsWords, startingKind } from "./sells";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
@@ -377,7 +377,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       // (sells.ts). The starting kind isn't an edit, so it goes into both the form and what "unsaved" compares with.
       if (!(prefill as any)?.kind) {
         Promise.resolve().then(() => adminApi.getFirstWeek()).then(doc => {
-          const kind = startingKind(doc?.publishes);
+          const kind = startingKind(currentSells(doc));
           if (kind === "book") return;
           const start = (prev: any) => (prev && !prev.kind && !prev.id && !prev.productType ? { ...prev, kind, format: "" } : prev);
           setFormData(start);

@@ -7,7 +7,7 @@
 
 import type { ReadinessItem } from "./launchReadiness";
 import type { BringMarker } from "./bringShop";
-import { firstProductWords } from "./sells";
+import { currentSells, firstProductWords } from "./sells";
 import { wordsFor } from "../../shared/shopSells";
 
 /** The sign-up answers (signup/form.js QUESTION.options). Anything else, or none, gets the general order. */
@@ -27,6 +27,8 @@ export interface FirstWeekDoc {
   sellingToday?: string | null;
   /** "What do you sell?" from sign-up (plans 6.2 and 10.1, sells.ts SELLS); null when skipped. */
   publishes?: string | null;
+  /** What the shop sells now, chosen in Settings; reads before `publishes` (sells.ts `currentSells`). */
+  sells?: string | null;
   /** The country the press signed up from (two letters), for the shipping starter. */
   country?: string | null;
   plan?: string;
@@ -154,14 +156,14 @@ export function firstWeekSteps(doc: FirstWeekDoc, facts: FirstWeekFacts): FirstW
   return ORDER[answer].map(entry => {
     const id: StepId = entry === "books" ? FIRST_BOOK[answer] : entry;
     const words = { ...WORDS[id] };
-    if (id === "add-books") Object.assign(words, firstProductWords(doc.publishes));
+    if (id === "add-books") Object.assign(words, firstProductWords(currentSells(doc)));
     if (id === "shipping") words.why = `${words.why} ${shippingStarterWords(doc.country ?? facts.settings?.country)}`;
     if (id === "payments" && facts.platform === "square") words.why = "Connect your Square account, so card payments go straight to you. Square's own page asks for your details.";
     if (id === "look" && doc.welcome && !facts.settings?.design?.themeBase?.id) words.why = "Your look is saved as a draft. Open Design and press Publish so shoppers see it.";
     const auto = autoDone(id, facts);
     const ticked = !!doc.done?.[id];
     // A shop that doesn't sell books reads product and maker (plan 12.1); a books shop's words are untouched.
-    const w = wordsFor(doc.publishes);
+    const w = wordsFor(currentSells(doc));
     const { tab, action } = words;
     const title = w(words.title), why = w(words.why);
     const kind = MANUAL.has(id) || auto === null ? "manual" : "auto";
@@ -198,7 +200,7 @@ export function openBlockers(readiness: ReadinessItem[] | null): ReadinessItem[]
 
 /** The intro line, in the owner's words. */
 export function firstWeekIntro(doc: FirstWeekDoc): string {
-  return wordsFor(doc.publishes)(introFor(doc));
+  return wordsFor(currentSells(doc))(introFor(doc));
 }
 
 function introFor(doc: FirstWeekDoc): string {
