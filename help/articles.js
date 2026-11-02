@@ -66,6 +66,27 @@ export const ARTICLES = Object.freeze([
     where: ["Overview"],
   },
   {
+    id: "your-press",
+    topic: "Getting started",
+    question: "What goes in Your press, the first step?",
+    answer: [
+      "Your press is the name, contact email and address that go on your receipts, labels and contact page. Fill in the press name, the contact email, the street address, the city, the postal code and the country.",
+      "Your changes are saved when you finish the step. You can change any of them later in Settings.",
+    ],
+    where: ["Overview › Get started"],
+  },
+  {
+    id: "google-sign-in",
+    topic: "Getting started",
+    question: "Do I have to connect Google?",
+    answer: [
+      "Connecting Google is optional for now. It links your shop to the Google tools it uses, such as search and shopping, and the step tells you what it linked.",
+      "Find step 4 of 8, Google in one sign-in, and press Connect Google. Google asks you to say yes, and you come straight back to your shop.",
+      "While Google is still approving the sign-in for shops on Colophon, the step says it is coming soon. Carry on with the other steps, and we'll remind you once it's ready.",
+    ],
+    where: ["Overview › Get started"],
+  },
+  {
     id: "import-spreadsheet",
     topic: "Getting started",
     question: "How do I bring in my books from a spreadsheet?",
@@ -354,6 +375,20 @@ export const CHECKLIST_ANSWERS = Object.freeze({
   address: "own-address",
   practice: "test-order",
   open: "open-shop",
+});
+
+/**
+ * The Get started run's stages (apps/shop startRun.ts `RunStep`, plan 17.15): the help answer for each. Kept apart from
+ * CHECKLIST_ANSWERS, which is the setup guide's own list. help.test.js checks this list against the run's stages.
+ */
+export const RUN_ANSWERS = Object.freeze({
+  details: "your-press",
+  bring: "bring-books",
+  look: "look",
+  google: "google-sign-in",
+  payments: "get-paid",
+  shipping: "shipping",
+  final: "open-shop",
 });
 
 /** The articles for a plan ("both", "shop" or "stockroom"); everyone gets the ones with no plan. */
