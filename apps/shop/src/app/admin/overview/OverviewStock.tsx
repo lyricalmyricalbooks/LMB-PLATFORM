@@ -12,6 +12,7 @@ import { DrillList, ROW, SPLIT, StatRow, money, shopWhen, type DrillItem } from 
 import { countsByDay } from "./overviewDrill";
 import { sharedLoad } from "./overviewShared";
 import { useSharedLeadDays } from "./OverviewNewLive.tsx";
+import { useShopWords } from "../shopWords";
 
 export const LOW_STOCK = 5;
 
@@ -30,6 +31,7 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
   reprint: TitleStock[]; dormant: TitleStock[];
   setActiveTab?: (tab: string) => void;
 }) {
+  const w = useShopWords();
   // Back-in-stock sign-ups are read only when this tab is opened.
   const [alerts, setAlerts] = useState<{ rows: any[] | null; error: boolean }>({ rows: null, error: false });
   const needsAlerts = !only || only === "kpis" || only === "wanted" || only === "backInStock";
@@ -90,14 +92,14 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
           {foot(act("Open inventory", "inventory"))}
         </SectionCard>}
 
-        {show("wanted") && <SectionCard flush title="Wanted but can't be bought" description="Books people looked at while sold out or coming soon, saved to their wishlist, or asked to hear about, in this period"
+        {show("wanted") && <SectionCard flush title="Wanted but can't be bought" description={w("Books people looked at while sold out or coming soon, saved to their wishlist, or asked to hear about, in this period")}
           actions={head(act("Open books", "catalog"))}>
           {!wanted ? <LoadingState label="Loading…" />
             : wanted.length === 0 ? (wantedRecorded || (alerts.rows && alerts.rows.length)
-              ? <EmptyState icon="✓" title="Nothing waiting" description="No one looked for a book they couldn't buy in this period." />
-              : <EmptyState icon="⏳" title="Not recorded yet" description="Views of sold-out and coming-soon books and wishlist saves start counting once shoppers use the updated storefront." />)
+              ? <EmptyState icon="✓" title="Nothing waiting" description={w("No one looked for a book they couldn't buy in this period.")} />
+              : <EmptyState icon="⏳" title="Not recorded yet" description={w("Views of sold-out and coming-soon books and wishlist saves start counting once shoppers use the updated storefront.")} />)
             : (
-              <ul className="rp-list" aria-label="Books wanted but unavailable">
+              <ul className="rp-list" aria-label={w("Books wanted but unavailable")}>
                 {wanted.slice(0, 8).map(r => (
                   <StatRow key={r.id} label={r.title}
                     hint={[r.views && `${r.views} ${r.views === 1 ? "view" : "views"} while unavailable`, r.saves && `${r.saves} wishlist ${r.saves === 1 ? "save" : "saves"}`, r.waiting && `${r.waiting} waiting for an email`].filter(Boolean).join(" · ")}

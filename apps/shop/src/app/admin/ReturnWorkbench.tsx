@@ -5,12 +5,14 @@ import { isDigitalItem } from "./fulfillment";
 import { RETURN_STEPS, chargedOf, formatMinor, parseMoneyToMinor, refundableMinor, returnStepLabel, returnStepsDone, returnedValueMinor } from "./orderLines";
 import { ReturnExchange } from "./ReturnExchange";
 import { SectionCard, TextArea, TextField, SelectField, PrimaryButton, SecondaryButton, GhostButton, ConfirmDialog } from "./riso/components";
+import { useShopWords } from "./shopWords";
 
 type Row = { quantity: string; condition: string; restockQuantity?: string };
 // An empty box means "not entered yet", never zero.
 const whole = (text: string | undefined) => (text != null && /^\d+$/.test(text.trim()) ? Number(text) : null);
 
 export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: () => Promise<void> }) {
+  const w = useShopWords();
   const saved = order.operations?.returnCase;
   const state = order.returnProgress?.state || "requested";
   const [instructions, setInstructions] = useState(saved?.instructions || "");
@@ -86,10 +88,10 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
         </li>)}
       </ol>}
       {order.customerRequest?.message && <div className="fw-notice" style={{ margin: 0 }}><div><span className="rp-label">Customer wrote</span><p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{order.customerRequest.message}</p></div></div>}
-      <p className="rp-hint">When every book comes back, the whole order is refunded (shipping, tax and digital items too). When only some come back, you refund what they're worth — you can change the amount. Only inspected, resellable printed copies go back to stock.</p>
+      <p className="rp-hint">{w("When every book comes back, the whole order is refunded (shipping, tax and digital items too). When only some come back, you refund what they're worth — you can change the amount. Only inspected, resellable printed copies go back to stock.")}</p>
       {state === "requested" && <>
         <TextArea label="Instructions for the customer, or why you are declining" hint="Include the return address, packing instructions, deadline and who pays postage. These appear on the secure order tracking page." maxLength={3000} value={instructions} onChange={event => setInstructions(event.target.value)} />
-        {!lines.length && <p className="rp-hint">This order has no printed books to send back. Refund it from More order actions if you agree, then close the request.</p>}
+        {!lines.length && <p className="rp-hint">{w("This order has no printed books to send back. Refund it from More order actions if you agree, then close the request.")}</p>}
         <div className="fw-actions" style={{ marginTop: 0 }}>
           <PrimaryButton disabled={busy || !instructions.trim() || !lines.length} onClick={() => run("approved")}>Approve and publish instructions</PrimaryButton>
           <SecondaryButton disabled={busy || !instructions.trim()} onClick={() => setConfirmDecline(true)}>Decline with explanation</SecondaryButton>
@@ -120,7 +122,7 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
         : <>
           <TextField label={`Refund for the returned books (${currency})`} inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} error={amountError || undefined}
             hint={`Suggested from the returned books' prices: ${formatMinor(suggested, currency)}. Up to ${formatMinor(refundableMinor(order), currency)} can be refunded.`} />
-          <PrimaryButton disabled={busy || !!amountError} onClick={() => setConfirmRefund(true)}>Refund returned books and restock eligible copies</PrimaryButton>
+          <PrimaryButton disabled={busy || !!amountError} onClick={() => setConfirmRefund(true)}>{w("Refund returned books and restock eligible copies")}</PrimaryButton>
         </>)}
       {state === "inspected" && <ReturnExchange order={order} inspected={inspected} busy={busy} onExchange={swapFor} />}
       {["approved", "received", "inspected"].includes(state) && <div><GhostButton size="sm" disabled={busy} onClick={() => setConfirmCloseApproved(true)}>Close return without a refund</GhostButton></div>}

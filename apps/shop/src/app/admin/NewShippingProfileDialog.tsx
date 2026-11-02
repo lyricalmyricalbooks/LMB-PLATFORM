@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, PrimaryButton, SecondaryButton, SelectField, TextField } from "./riso/components";
 import { PROFILE_STARTERS, buildNewProfile, newProfileProblems, profileSummary, starterPrices, type ProfileStarterId, type QuickZonePrice } from "./shippingProfileStarters";
+import { useShopWords } from "./shopWords";
 
 const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
 
@@ -10,6 +11,7 @@ export function NewShippingProfileDialog({ open, onClose, profiles, onCreate }: 
   /** Saves the profile; resolves once it exists (the dialog stays open on failure). */
   onCreate: (draft: ReturnType<typeof buildNewProfile>) => Promise<boolean>;
 }) {
+  const w = useShopWords();
   const [name, setName] = useState("");
   const [starter, setStarter] = useState<ProfileStarterId>("world");
   const [prices, setPrices] = useState<QuickZonePrice[]>(() => starterPrices("world"));
@@ -55,7 +57,7 @@ export function NewShippingProfileDialog({ open, onClose, profiles, onCreate }: 
         <PrimaryButton onClick={create} busy={saving} disabled={saving}>{saving ? "Creating…" : "Create profile"}</PrimaryButton>
       </>}>
       <div className="rp-stack">
-        <TextField label="Profile name" value={name} placeholder="e.g. Heavy books, Prints in a tube…" data-autofocus
+        <TextField label="Profile name" value={name} placeholder={w("e.g. Heavy books, Prints in a tube…")} data-autofocus
           error={tried && !name.trim() ? "Give the profile a name." : undefined}
           onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") create(); }} />
 
@@ -78,9 +80,9 @@ export function NewShippingProfileDialog({ open, onClose, profiles, onCreate }: 
                 <li key={p.key} style={{ padding: "10px 12px" }}>
                   <strong style={{ display: "block", marginBottom: 6 }}>{p.zone}</strong>
                   <div style={grid}>
-                    <TextField label="First book ($)" type="number" min={0} step="0.01" inputMode="decimal" value={p.first}
+                    <TextField label={w("First book ($)")} type="number" min={0} step="0.01" inputMode="decimal" value={p.first}
                       onChange={(e) => setPrice(p.key, "first", e.target.value)} />
-                    <TextField label="Each extra book ($)" type="number" min={0} step="0.01" inputMode="decimal" value={p.extra}
+                    <TextField label={w("Each extra book ($)")} type="number" min={0} step="0.01" inputMode="decimal" value={p.extra}
                       onChange={(e) => setPrice(p.key, "extra", e.target.value)} />
                     <TextField label="Transit days (optional)" value={p.days} placeholder="e.g. 3-7"
                       onChange={(e) => setPrice(p.key, "days", e.target.value)} />

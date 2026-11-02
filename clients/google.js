@@ -18,6 +18,10 @@
 //                         projects.sites.customDomains.delete: a press's own web address on the shop's default site
 //                         (plan 2.9, 5.9, services/domains). Create starts a long-running setup on Google's side; its
 //                         state is read back with get. Delete stops Hosting serving the shop there.
+//   Cloud Scheduler v1    projects.locations.jobs.list (pageSize, pageToken), projects.locations.jobs.delete: the shop's
+//                         scheduled jobs (plan 15.16). Google bills every job after the free three, a paused one too.
+//   Artifact Registry v1  projects.locations.repositories.get/patch (updateMask cleanupPolicies,cleanupPolicyDryRun): the
+//                         functions' build repository `gcf-artifacts` keeps only a day of old images (plan 15.16).
 //   Firebase Storage (the address the shop's pages read files through, where storage rules apply):
 //                         GET https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{name}?alt=media, with no sign-in.
 //                         Not in a discovery document; it is the address Firebase's web SDK reads files from.
@@ -37,6 +41,12 @@ const FILES = "https://firebasestorage.googleapis.com/v0";
 const RTDB = "https://firebasedatabase.googleapis.com/v1beta";
 const SECRETS = "https://secretmanager.googleapis.com/v1";
 const HOSTING = "https://firebasehosting.googleapis.com/v1beta1";
+const SCHEDULER = "https://cloudscheduler.googleapis.com/v1";
+const ARTIFACTS = "https://artifactregistry.googleapis.com/v1";
+
+/** The repository 2nd-generation functions put their built images in, and the cleanup rule on it (plan 15.16). */
+export const BUILD_REPOSITORY = "gcf-artifacts";
+export const BUILD_CLEANUP_POLICY = Object.freeze({ id: "colophon-delete-old-builds", action: "DELETE", condition: { tagState: "ANY", olderThan: "86400s" } });
 
 /** The role the nightly backup's account needs to export the database (the shop's runScheduledBackup). */
 export const BACKUP_ROLE = "roles/datastore.importExportAdmin";
@@ -317,6 +327,45 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
         } catch (error) {
           if (!isNotFound(error)) throw error;
         }
+      },
+    },
+    // The shop's scheduled jobs (plan 15.16). Only jobs this module is asked to delete by id are deleted.
+    scheduler: {
+      /** The ids of every scheduled job in the region (the last part of each job's name). */
+      async listJobs(projectId, region) {
+        const ids = [];
+        let pageToken;
+        do {
+          const page = await call("GET", `${SCHEDULER}/projects/${projectId}/locations/${region}/jobs`, { query: { pageSize: 100, pageToken } });
+          ids.push(...(page.jobs ?? []).map((job) => job.name.split("/").at(-1)));
+          pageToken = page.nextPageToken;
+        } while (pageToken);
+        return ids;
+      },
+      /** Deletes one job; one that is already gone is fine. */
+      async deleteJob(projectId, region, id) {
+        try {
+          await call("DELETE", `${SCHEDULER}/projects/${projectId}/locations/${region}/jobs/${id}`);
+        } catch (error) {
+          if (!isNotFound(error)) throw error;
+        }
+      },
+    },
+    buildCleanup: {
+      /** Is Colophon's cleanup rule on the functions' build repository? Null when the repository doesn't exist yet. */
+      async has(projectId, region) {
+        const repo = await orNull(call("GET", `${ARTIFACTS}/projects/${projectId}/locations/${region}/repositories/${BUILD_REPOSITORY}`));
+        if (!repo) return null;
+        return Boolean(repo.cleanupPolicies?.[BUILD_CLEANUP_POLICY.id]) && repo.cleanupPolicyDryRun !== true;
+      },
+      /** Adds the rule next to any other, and turns the dry run off so it deletes. */
+      async set(projectId, region) {
+        const url = `${ARTIFACTS}/projects/${projectId}/locations/${region}/repositories/${BUILD_REPOSITORY}`;
+        const repo = await call("GET", url);
+        await call("PATCH", url, {
+          query: { updateMask: "cleanupPolicies,cleanupPolicyDryRun" },
+          body: { cleanupPolicies: { ...(repo.cleanupPolicies ?? {}), [BUILD_CLEANUP_POLICY.id]: { ...BUILD_CLEANUP_POLICY } }, cleanupPolicyDryRun: false },
+        });
       },
     },
     storageProbe: {

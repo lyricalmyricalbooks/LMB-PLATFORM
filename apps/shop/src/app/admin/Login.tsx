@@ -4,6 +4,7 @@ import { adminApi } from "./api";
 import { PrimaryButton } from "./riso/components";
 import { loginErrorMessage } from "./loginError";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
+import { useShopWords } from "./shopWords";
 
 interface LoginProps {
   onLogin: (token: string) => void;
@@ -17,6 +18,7 @@ function shopHref() {
 }
 
 export function Login({ onLogin }: LoginProps) {
+  const w = useShopWords();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   // The shop's own name (plan 1.16), read from the public settings; nothing is shown until it arrives.
@@ -51,7 +53,7 @@ export function Login({ onLogin }: LoginProps) {
             <p className="rp-wordmark-sub">Publishing House · Admin</p>
           </div>
           <p className="rp-card-desc rp-login-lede">
-            Sign in with the shop's Google account to manage books, orders and settings.
+            {w("Sign in with the shop's Google account to manage books, orders and settings.")}
           </p>
           <PrimaryButton size="lg" icon={<LogIn size={16} aria-hidden />} onClick={handleGoogleLogin} disabled={loading}
             aria-busy={loading || undefined} style={{ width: "100%" }}>

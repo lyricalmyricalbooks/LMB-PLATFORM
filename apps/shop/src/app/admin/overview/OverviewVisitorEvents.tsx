@@ -3,6 +3,7 @@ import { Funnel, RankBars, type RankRow } from "./OverviewViz";
 import type { GaState } from "./OverviewMarketing";
 import type { Book } from "./overviewInsights";
 import { Frame, NeedsUpdate, NotAnswered, NotConnected, NotYet, OWN_HOSTS } from "./OverviewVisitors.tsx";
+import { useShopWords } from "../shopWords";
 import {
   bagPeeks, bookPageActions, brokenInside, eventCount, filtersUsed, missingDefinitions, missingPages, navLinks, readDepth, sourceState,
   type CustomKey, type StandardKey,
@@ -57,6 +58,7 @@ export function OverviewVisitorEvents({ only, ga, books, full, setActiveTab, per
   only: VisitorEventWidget; ga: GaState; books: Book[]; full?: boolean;
   setActiveTab?: (tab: string) => void; periodLabel?: string;
 }) {
+  const w = useShopWords();
   if (ga.status === "loading") return <LoadingState label="Reading Google Analytics…" />;
   const report = ga.status === "connected" ? ga.answer?.report : undefined;
   if (!report) return <NotConnected setActiveTab={setActiveTab} />;
@@ -108,7 +110,7 @@ export function OverviewVisitorEvents({ only, ga, books, full, setActiveTab, per
       return (
         <Frame headline={`On book pages, people most often ${lower(top.label)} (${plural(top.count, "time")}).${tabNote}`}
           foot={`${source} · ${plural(res.total, "action")} on ${plural(res.books.length, "book page")}`}>
-          <RankBars label="What people do on book pages" rows={res.actions.slice(0, cap).map((a): RankRow => ({
+          <RankBars label={w("What people do on book pages")} rows={res.actions.slice(0, cap).map((a): RankRow => ({
             key: a.key, label: a.label, value: a.count, valueText: plural(a.count, "time"), tone: "info",
             sub: a.books[0] ? `most on ${a.books[0].label}` : undefined,
             details: <RankBars label={`Books where people ${lower(a.label)}`} rows={a.books.slice(0, 8).map((b): RankRow => ({ key: b.path, label: b.label, value: b.count, valueText: plural(b.count, "time"), tone: "ink" }))} />,
@@ -116,7 +118,7 @@ export function OverviewVisitorEvents({ only, ga, books, full, setActiveTab, per
           {more(res.actions.length, isFull, cap)}
           {res.tabs && <>
             <div className="rp-viz-eyebrow rp-vw-gap">Tabs opened</div>
-            <RankBars label="Book-page tabs opened" rows={res.tabs.map((t): RankRow => ({ key: t.key, label: t.label, value: t.count, valueText: plural(t.count, "time"), tone: "ink" }))} />
+            <RankBars label={w("Book-page tabs opened")} rows={res.tabs.map((t): RankRow => ({ key: t.key, label: t.label, value: t.count, valueText: plural(t.count, "time"), tone: "ink" }))} />
           </>}
           {tabsMissing && <p className="rp-vw-quiet">To see which tab people open, add <code>tab</code> in Google Analytics › Admin › Custom definitions (Scope: Event).</p>}
         </Frame>

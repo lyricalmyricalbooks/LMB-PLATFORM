@@ -5,6 +5,7 @@ import { db } from "../../lib/firebase";
 import { HowTo, friendlyError } from "./settingsLayout";
 import { DEFAULT_OPENROUTER_MODEL, aiKeyProblem, checkAiKey, openRouterKeyProblem, openRouterModelProblem, type AiProvider } from "./aiWriter";
 import { GhostButton, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField, useConfirm } from "./riso/components";
+import { useShopWords } from "./shopWords";
 
 type Check = { ok: boolean; message: string } | null;
 const VOICE_MAX = 1000;
@@ -17,6 +18,7 @@ const aiDoc = () => doc(db, "adminSecrets", "ai");
 // adminSecrets/ai doc (firestore.rules) and used only by the createStripeCheckoutSession `aiWrite` action; never
 // sent to shoppers. With both saved, `provider` says which one writes (functions/aiWriter.js pickProvider).
 export function AiWriterCard() {
+  const w = useShopWords();
   const [stored, setStored] = useState<Record<AiProvider, boolean> | null>(null);
   const [readFailed, setReadFailed] = useState(false);
   const [provider, setProvider] = useState<AiProvider | "">("");
@@ -143,7 +145,7 @@ export function AiWriterCard() {
 
       <div style={{ marginTop: 16 }}>
         <TextArea label="House style (optional)" rows={3} maxLength={VOICE_MAX} value={voice}
-          placeholder="e.g. Warm and plain-spoken. Canadian spelling. Mention that our books are risograph-printed in Toronto when it's true."
+          placeholder={w("e.g. Warm and plain-spoken. Canadian spelling. Mention that our books are risograph-printed in Toronto when it's true.")}
           hint={`Guidance the AI follows for every draft. ${voice.length}/${VOICE_MAX} characters.`}
           onChange={(e) => setVoice(e.target.value)} />
         <div style={{ marginTop: 8 }}>

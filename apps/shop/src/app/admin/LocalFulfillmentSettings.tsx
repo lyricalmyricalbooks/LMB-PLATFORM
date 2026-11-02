@@ -5,6 +5,7 @@ import { quoteLocalFulfillment, validateLocalFulfillment } from '../features/sit
 import { SecondaryButton, DestructiveButton, SectionCard, TextField, TextArea, Toggle, SelectField, SaveBar, useConfirm } from './riso/components';
 import { useSettingsDirty } from './settingsDirty';
 import { friendlyError } from './settingsLayout';
+import { useShopWords } from "./shopWords";
 
 const ROW = { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--rp-border)' } as const;
 const GRID = { display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', alignItems: 'start' } as const;
@@ -41,6 +42,7 @@ export function useLocalFulfillmentDraft(load = true) {
 }
 
 export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof useLocalFulfillmentDraft> } = {}) {
+  const w = useShopWords();
   const localDraft = useLocalFulfillmentDraft(!draft);
   const { config, setConfig, notice, setNotice, busy, setBusy, loaded, saved, setSaved } = draft ?? localDraft;
   const dirty = loaded && !!saved && JSON.stringify(saved) !== JSON.stringify(config);
@@ -131,7 +133,7 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
         <Toggle label="Offer this delivery zone at checkout" checked={record.enabled} onChange={enabled => patch('deliveryZones', record.id, { enabled })} />
         <TextField label="Name shoppers see" value={record.name} onChange={e => patch('deliveryZones', record.id, { name: e.target.value })} />
         <div style={GRID}><TextField label="Delivery fee (CAD)" hint="Use 0 for free delivery." type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch('deliveryZones', record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
-        <TextField label="Minimum physical merchandise subtotal (CAD)" hint="Printed books, after discounts. 0 = none." type="number" min={0} step="0.01" value={Number.isFinite(record.minimumSubtotal) ? record.minimumSubtotal : ''} onChange={e => patch('deliveryZones', record.id, { minimumSubtotal: e.target.value === '' ? NaN : Number(e.target.value) })} /></div>
+        <TextField label="Minimum physical merchandise subtotal (CAD)" hint={w("Printed books, after discounts. 0 = none.")} type="number" min={0} step="0.01" value={Number.isFinite(record.minimumSubtotal) ? record.minimumSubtotal : ''} onChange={e => patch('deliveryZones', record.id, { minimumSubtotal: e.target.value === '' ? NaN : Number(e.target.value) })} /></div>
         <TextArea label="Postal prefixes" rows={2} hint="Three characters each, separated by commas or new lines." value={record.postalPrefixes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
         <TextArea label="Exact postal codes" rows={2} hint="Comma or line separated." value={record.postalCodes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalCodes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
         <TextArea label="Delivery instructions shoppers see" value={record.instructions ?? ''} onChange={e => patch('deliveryZones', record.id, { instructions: e.target.value })} />

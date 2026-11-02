@@ -3,6 +3,7 @@ import { DataTable, EmptyState, GhostButton, SearchField, SecondaryButton, Secti
 import { sortTitles, titlesCsv, TITLE_SORTS, type TitleRow, type TitleSort } from "./overviewProfit";
 import { TITLE_FLAG_WORDS, titleFlags } from "./overviewSignals";
 import { money, percent } from "./OverviewParts";
+import { useShopWords } from "../shopWords";
 
 const PAGE = 25;
 
@@ -11,6 +12,7 @@ export function OverviewTitles({ rows, startKey, endKey, viewsRecorded, addsReco
   rows: TitleRow[]; startKey: string; endKey: string; viewsRecorded: boolean; addsRecorded?: boolean; costsKnown: boolean;
   onEditBook: (id: string) => void; fetchingBookId: string | null;
 }) {
+  const w = useShopWords();
   const [sort, setSort] = useState<TitleSort>("revenue");
   const [query, setQuery] = useState("");
   const [shown, setShown] = useState(PAGE);
@@ -52,7 +54,7 @@ export function OverviewTitles({ rows, startKey, endKey, viewsRecorded, addsReco
       { key: "conv", header: "Views → sale", numeric: true, render: (r: TitleRow) => (r.viewToSale === null ? "—" : percent(r.viewToSale)) },
     ] : []),
     ...(costsKnown ? [
-      { key: "profit", header: "Profit", numeric: true, render: (r: TitleRow) => (r.profit === null ? <span title="No cost price saved for this book">cost?</span> : money(r.profit)) },
+      { key: "profit", header: "Profit", numeric: true, render: (r: TitleRow) => (r.profit === null ? <span title={w("No cost price saved for this book")}>cost?</span> : money(r.profit)) },
       { key: "margin", header: "Margin", numeric: true, render: (r: TitleRow) => (r.margin === null ? "—" : percent(r.margin, 0)) },
     ] : []),
     { key: "stock", header: "Stock", numeric: true, render: r => (r.stock === null ? "—" : r.coverDays !== null ? `${r.stock} · ~${r.coverDays}d` : r.stock) },
@@ -83,7 +85,7 @@ export function OverviewTitles({ rows, startKey, endKey, viewsRecorded, addsReco
         </p>
       )}
       {!costsKnown && (
-        <p className="rp-hint" style={{ padding: "12px 20px 16px", margin: 0 }}>Add cost prices in Inventory (or Books › edit › Pricing) to see profit and margin per title.</p>
+        <p className="rp-hint" style={{ padding: "12px 20px 16px", margin: 0 }}>{w("Add cost prices in Inventory (or Books › edit › Pricing) to see profit and margin per title.")}</p>
       )}
     </SectionCard>
   );

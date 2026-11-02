@@ -40,6 +40,7 @@ export const MOUNTS = Object.freeze({
   "/accounts/": "accounts",
   "/help/": "help",
   "/terms/": "terms",
+  "/trust/": "trust",
   "/control/": "control-room",
   "/status/": "status",
   "/look/": "walkthrough/look",

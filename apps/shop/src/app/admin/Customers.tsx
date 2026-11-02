@@ -2,8 +2,10 @@ import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
+import { StockistsCard } from "./StockistsCard";
 import { copyText } from "./clipboard";
 import { getOrdersCached } from "./ordersCache";
+import { useShopWords } from "./shopWords";
 import {
   buildCustomers, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
   type Consent, type CustomerRow, type CustomerSegment,
@@ -261,6 +263,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
             notesState={notesState} onRetryNotes={loadNotes} savingNote={savingNote} onSaveNote={saveNote} knownTags={allTags} onOpenOrder={() => setOpen(null)} />
         </Dialog>
       )}
+      <StockistsCard />
       {confirmNode}
     </div>
   );
@@ -272,6 +275,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
   draft: Draft | null; onDraft: (d: Draft) => void; notesState: "loading" | "ok" | "failed"; onRetryNotes: () => void;
   savingNote: boolean; onSaveNote: () => void; knownTags?: string[]; onOpenOrder: () => void;
 }) {
+  const w = useShopWords();
   const row = (label: string, value: React.ReactNode) => (
     <div style={{ display: "contents" }}><dt className="rp-hint">{label}</dt><dd style={{ margin: 0 }}>{value}</dd></div>
   );
@@ -316,7 +320,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
             <TextArea label="Private note" hint="Only you can see this. Never shown to the customer. Ctrl (or ⌘) + Enter saves." value={draft.note} maxLength={5000}
               onChange={(e) => onDraft({ ...draft, note: e.target.value })}
               onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && draft.loaded && !savingNote) { e.preventDefault(); onSaveNote(); } }} />
-            <TextField label="Tags" hint="Separate with commas, e.g. wholesale, author, festival" value={draft.tags}
+            <TextField label="Tags" hint={w("Separate with commas, e.g. wholesale, author, festival")} value={draft.tags}
               onChange={(e) => onDraft({ ...draft, tags: e.target.value })} />
             {(() => {
               const have = parseTags(draft.tags).map((t) => t.toLowerCase());

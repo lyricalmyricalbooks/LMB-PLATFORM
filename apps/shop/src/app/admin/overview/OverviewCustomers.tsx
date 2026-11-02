@@ -11,6 +11,7 @@ import { ShadeGrid } from "./OverviewViz";
 import { newsletterWeeks, reminderResults } from "./overviewSignals";
 import { isShopOwner } from "../../lib/ownerDevice";
 import { sharedLoad } from "./overviewShared";
+import { useShopWords } from "../shopWords";
 
 /** One abandoned cart as a drill-down line: who, what, when, the reminder and what happened. */
 function cartItem(c: CartRow): DrillItem {
@@ -48,6 +49,7 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
   paid: Order[]; current: Order[]; startKey: string; mix: Mix; startMs: number; reviews: Reviews; subs: Subs; audienceFailed: boolean; setActiveTab?: (tab: string) => void;
   newsletter?: { subscribers: any[]; pending: any[] } | null;
 }) {
+  const w = useShopWords();
   // Carts are read only when this tab is opened (the panel mounts then), so the Overview itself stays light.
   const [carts, setCarts] = useState<{ rows: any[] | null; error: boolean }>({ rows: null, error: false });
   const needsCarts = !only || only === "carts" || only === "reminders";
@@ -127,11 +129,11 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
                   details={<DrillList label="Carts left behind" items={cartList.map(cartItem)} />} />
                 <StatRow label="Came back and bought" hint={`${percent(recovery.recoveryRate, 0)} of carts`} value={`${recovery.recovered} · ${money(recovery.recoveredValue)}`}
                   details={<DrillList label="Carts that came back" empty="No cart has come back yet in this period." items={cartList.filter(c => c.recovered).map(cartItem)} />} />
-                <StatRow label="Still waiting" hint="value of books left in bags" value={money(recovery.openValue)} tone={recovery.openValue > 0 ? "danger" : "muted"}
+                <StatRow label="Still waiting" hint={w("value of books left in bags")} value={money(recovery.openValue)} tone={recovery.openValue > 0 ? "danger" : "muted"}
                   details={<DrillList label="Carts still waiting" empty="Every cart from this period came back." items={cartList.filter(c => !c.recovered).map(cartItem)} />} />
                 {leftBooks.length > 0 && (
-                  <StatRow label="Books left in bags" hint="which titles people put down most" value={`${leftBooks.length} title${leftBooks.length === 1 ? "" : "s"}`}
-                    details={<DrillList label="Books left in bags" items={leftBooks.map(b => ({ key: b.title, title: b.title, sub: `in ${b.carts} cart${b.carts === 1 ? "" : "s"} · ${b.copies} cop${b.copies === 1 ? "y" : "ies"}${b.came ? ` · ${b.came} came back` : ""}`, value: money(b.value) }))} />} />
+                  <StatRow label={w("Books left in bags")} hint="which titles people put down most" value={`${leftBooks.length} title${leftBooks.length === 1 ? "" : "s"}`}
+                    details={<DrillList label={w("Books left in bags")} items={leftBooks.map(b => ({ key: b.title, title: b.title, sub: `in ${b.carts} cart${b.carts === 1 ? "" : "s"} · ${b.copies} cop${b.copies === 1 ? "y" : "ies"}${b.came ? ` · ${b.came} came back` : ""}`, value: money(b.value) }))} />} />
                 )}
               </ul>
             )}
@@ -169,7 +171,7 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
           )}
         </SectionCard>}
 
-        {show("reviews") && <SectionCard flush title="Reader reviews" description="What readers say about your books"
+        {show("reviews") && <SectionCard flush title="Reader reviews" description={w("What readers say about your books")}
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("reviews")}>Moderate</SecondaryButton>}>
           {!reviews ? (audienceFailed ? <ErrorState title="Reviews unavailable" description="Reviews could not be loaded." /> : <LoadingState label="Loading reviews…" />) : (
             <ul className="rp-list" aria-label="Reviews">

@@ -74,6 +74,7 @@ export const START_SECTIONS = Object.freeze([
       { name: "The emails a press gets", href: "/inbox", who: null, try: "The platform's real emails, as they look in a mailbox: sign-in links, invites, the shop-ready email, trial and billing notices and support answers. Sign up or add a card above and the new email shows up here." },
       { name: "Help", href: "/help/", who: null, try: "The answers the pages link to, and what support includes." },
       { name: "Terms", href: "/terms/", who: null, try: "The terms and the privacy policy a press agrees to at sign-up." },
+      { name: "Trust", href: "/trust/", who: null, try: "Where a press's data lives, who else handles it, and what happens if Colophon closes." },
       { name: "Service status", href: "/status/", who: null, try: "Whether shops, checkout and backups are working, counted over the walkthrough's shops." },
     ],
   },

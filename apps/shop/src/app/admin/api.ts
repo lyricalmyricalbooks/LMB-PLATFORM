@@ -1966,7 +1966,7 @@ export const adminApi = {
    * Ticks a step by hand (`done.<id>`), hides the guide (`hiddenAt`), records Choose your look (`welcome`, plan 6.3) or
    * the guide's progress for the trial emails (`progress`, plan 6.10). Merges, so nothing else changes.
    */
-  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string; details?: { at: string }; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
+  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string; details?: { at: string }; bring?: import("./bringShop").BringMarker; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
     await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
   },
 
@@ -1975,6 +1975,15 @@ export const adminApi = {
     const snap = await getDocs(query(collection(db, "customerNotes"), limit(10000)));
     return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; email: string; note: string; tags: string[]; updatedAt: string }>;
   },
+  // Trade accounts (plan 12.10): shops approved to pay wholesale prices (`stockists/{lower-case email}`, admin-only).
+  listStockists: async () => {
+    const snap = await getDocs(query(collection(db, "stockists"), limit(500)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; name: string; status: "approved" | "paused"; createdAt: string }>;
+  },
+  saveStockist: async (id: string, data: { name: string; status: "approved" | "paused"; createdAt?: string }) => {
+    await setDoc(doc(db, "stockists", id), { name: data.name, status: data.status, createdAt: data.createdAt || new Date().toISOString() });
+  },
+  deleteStockist: async (id: string) => { await deleteDoc(doc(db, "stockists", id)); },
   saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[] }) => {
     await setDoc(doc(db, "customerNotes", id), { ...data, updatedAt: new Date().toISOString() });
   },

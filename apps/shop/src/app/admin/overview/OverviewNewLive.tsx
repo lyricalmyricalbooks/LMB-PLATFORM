@@ -11,6 +11,7 @@ import { formatReleaseDate } from "../../features/site/preorder";
 import { sharedLoad } from "./overviewShared";
 import { readNotes, writeNotes } from "./overviewNotesStore";
 import { money, moneyFigure, moneyShort } from "./OverviewParts";
+import { useShopWords } from "../shopWords";
 import {
   cityMap, cleanLeadDays, dailyRevenue, giftOwed, liveNow, newNoteId, noteEffect, preorderRows, readLeadDays, reprintState, shortDay, soldOutCountdown,
   DEFAULT_LEAD_DAYS, MAX_NOTE_TEXT, REPRINT_WORDS, type SalesNote,
@@ -104,6 +105,7 @@ function LiveNow({ allOrders, activeNow }: { allOrders: Order[]; activeNow: numb
 // ── Sales with your notes ─────────────────────────────────────────────────────────────────────────────────────────
 
 function SalesNotes({ paid, range }: { paid: Order[]; range: Range }) {
+  const w = useShopWords();
   const [notes, setNotes] = useState<{ rows: SalesNote[] | null; error: boolean }>({ rows: null, error: false });
   const today = shopDayKey(Date.now());
   const yesterday = shopDayKey(Date.now() - 86_400_000);
@@ -223,7 +225,7 @@ function SalesNotes({ paid, range }: { paid: Order[]; range: Range }) {
             </p>
           )}
           {inRange.length === 0 && !draft && (
-            <p className="rp-nl-note">No notes {range.phrase}. Add one for a post, a newsletter, a fair or a review, and the next three days' sales show beside it, so you can see whether it sold books.</p>
+            <p className="rp-nl-note">No notes {range.phrase}{w(". Add one for a post, a newsletter, a fair or a review, and the next three days' sales show beside it, so you can see whether it sold books.")}</p>
           )}
           {inRange.length > 0 && (
             <ol className="rp-nl-notelist" aria-label="Your notes in this period">
@@ -262,7 +264,7 @@ function SalesNotes({ paid, range }: { paid: Order[]; range: Range }) {
               </div>
               <label className="rp-field rp-nl-form-text">
                 <span className="rp-label">What happened</span>
-                <input ref={textRef} className="rp-input" type="text" maxLength={MAX_NOTE_TEXT} placeholder="Instagram reel, newsletter, book fair…" value={draft.text}
+                <input ref={textRef} className="rp-input" type="text" maxLength={MAX_NOTE_TEXT} placeholder={w("Instagram reel, newsletter, book fair…")} value={draft.text}
                   onChange={e => { setDraft({ ...draft, text: e.target.value }); if (saveError) setSaveError(""); }} />
               </label>
               <span className="rp-nl-form-actions">
@@ -286,14 +288,15 @@ function SalesNotes({ paid, range }: { paid: Order[]; range: Range }) {
 // ── Pre-order tracker ─────────────────────────────────────────────────────────────────────────────────────────────
 
 function Preorders({ paid, books, setActiveTab }: { paid: Order[]; books: Book[]; setActiveTab?: (tab: string) => void }) {
+  const w = useShopWords();
   const rows = useMemo(() => preorderRows(paid, books), [paid, books]);
   if (!rows.length) {
-    return <EmptyState inline title="No books on pre-order"
-      description="Switch on Pre-order for a book (Books › edit › Inventory) and the copies readers have promised to buy show here, against the copies you can sell."
-      action={setActiveTab ? <SecondaryButton size="sm" onClick={() => setActiveTab("catalog")}>Open books</SecondaryButton> : undefined} />;
+    return <EmptyState inline title={w("No books on pre-order")}
+      description={w("Switch on Pre-order for a book (Books › edit › Inventory) and the copies readers have promised to buy show here, against the copies you can sell.")}
+      action={setActiveTab ? <SecondaryButton size="sm" onClick={() => setActiveTab("catalog")}>{w("Open books")}</SecondaryButton> : undefined} />;
   }
   return (
-    <ul className="rp-nl-pre" aria-label="Pre-orders by book">
+    <ul className="rp-nl-pre" aria-label={w("Pre-orders by book")}>
       {rows.map(r => {
         const share = r.run ? Math.min(100, (r.promised / r.run) * 100) : 0;
         const when = r.release ? `out ${formatReleaseDate(r.release)}` : "date to be announced";
@@ -313,13 +316,13 @@ function Preorders({ paid, books, setActiveTab }: { paid: Order[]; books: Book[]
                     aria-valuetext={`${r.promised} of ${r.run} copies pre-ordered (${Math.round(share)}%)`}><span style={{ width: `${share}%` }} /></div>
                   <div className="rp-nl-meter-ticks" aria-hidden="true"><span>0</span><span>{Math.round(share)}% promised</span><span>{r.run}</span></div>
                 </>
-              : <p className="rp-nl-note">Stock isn't counted for this book, so any number of pre-orders can come in.</p>}
+              : <p className="rp-nl-note">{w("Stock isn't counted for this book, so any number of pre-orders can come in.")}</p>}
             {r.full && <p className="rp-nl-warn"><span aria-hidden="true">! </span>{r.left === 0 ? "Every copy is promised" : `Only ${r.left} cop${r.left === 1 ? "y" : "ies"} left`} before release.</p>}
           </li>
         );
       })}
       <li className="rp-nl-pre-foot"><span className="rp-nl-note">Copies in all = copies on the shelf plus those already pre-ordered.</span>
-        {setActiveTab && <GhostButton size="sm" onClick={() => setActiveTab("catalog")}>Open books</GhostButton>}</li>
+        {setActiveTab && <GhostButton size="sm" onClick={() => setActiveTab("catalog")}>{w("Open books")}</GhostButton>}</li>
     </ul>
   );
 }
@@ -390,6 +393,7 @@ function OrderMap({ current, full, range }: { current: Order[]; full: boolean; r
 // ── Gift card money owed ──────────────────────────────────────────────────────────────────────────────────────────
 
 function GiftOwed({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
+  const w = useShopWords();
   const [cards, setCards] = useState<{ rows: any[] | null; error: boolean }>({ rows: null, error: false });
   const load = (fresh = false) => {
     setCards({ rows: null, error: false });
@@ -401,7 +405,7 @@ function GiftOwed({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
   if (!s) return <LoadingState label="Reading gift cards…" />;
   if (!s.total) {
     return <EmptyState inline title="No gift cards sold yet"
-      description="Add a book with Product type “Gift card” (its editions are the amounts) and, once readers buy one, the money still to be spent shows here."
+      description={w("Add a book with Product type “Gift card” (its editions are the amounts) and, once readers buy one, the money still to be spent shows here.")}
       action={setActiveTab ? <SecondaryButton size="sm" onClick={() => setActiveTab("giftCards")}>Open gift cards</SecondaryButton> : undefined} />;
   }
   const cad = (minor: number) => money(minor / 100);
@@ -433,6 +437,7 @@ function SoldOutWithLead({ paid, books, configured, onConfig, full }: { paid: Or
 
 const SCALE = 120;
 function SoldOut({ paid, books, leadDays, onLead, full }: { paid: Order[]; books: Book[]; leadDays: number; onLead: (d: number) => void; full: boolean }) {
+  const w = useShopWords();
   const rows = useMemo(() => soldOutCountdown(paid, books, leadDays, Date.now(), full ? 25 : 10), [paid, books, leadDays, full]);
   const [editing, setEditing] = useState(false);
   const [lead, setLead] = useState(String(leadDays));
@@ -476,10 +481,10 @@ function SoldOut({ paid, books, leadDays, onLead, full }: { paid: Order[]; books
         </div>
       )}
       {rows.length === 0 ? <EmptyState inline title="Nothing on course to sell out"
-        description="No counted print book sold in the last 30 days. Books whose stock you count (Books › edit › Inventory) appear here as soon as they sell." /> : (
+        description={w("No counted print book sold in the last 30 days. Books whose stock you count (Books › edit › Inventory) appear here as soon as they sell.")} /> : (
         <>
           <p className="rp-viz-takeaway rp-nl-count-take">
-            {soon.length ? <><strong>{soon.length} book{soon.length === 1 ? "" : "s"}</strong> will sell out before a reprint could arrive.</> : "Nothing sells out before a reprint could arrive."}
+            {soon.length ? <><strong>{soon.length} {w("book")}{soon.length === 1 ? "" : "s"}</strong> will sell out before a reprint could arrive.</> : "Nothing sells out before a reprint could arrive."}
           </p>
           <div className="rp-nl-time" aria-hidden="true">
             <span className="rp-nl-time-lead" style={{ left: at(leadDays) }} />

@@ -13,7 +13,7 @@
 //                    the press always gets its full 30 and 7 days' notice
 //     warned30At     when the 30-day warning went out (null until then)
 //     warned7At      when the 7-day warning went out (null until then)
-//     hooks          { onClose: doneAt, beforeDelete: doneAt }: the hooks below, once they have all succeeded
+//     hooks          { onPause, onReopen, onClose, beforeDelete: doneAt }: the hooks below, once they have all succeeded
 //     deletedAt      when the project was deleted
 //     problem        the last thing that went wrong, in plain words (cleared when the step works)
 //   }
@@ -52,12 +52,13 @@ export const DOWNLOAD_DAYS = 90;
 export const WARNING_DAYS = Object.freeze([30, 7]);
 
 /**
- * The hooks the sweep calls, by name. `onClose(shop)` runs once the shop is closed (after its emails and plan copy);
+ * The hooks the sweep calls, by name. `onPause(shop)` runs once the shop is paused and `onReopen(shop)` when a paused shop
+ * opens again (plan 15.16: a paused shop's scheduled jobs are deleted and come back on reopening). `onClose(shop)` runs once the shop is closed (after its emails and plan copy);
  * `beforeDelete(shop)` runs before the project is deleted, and a hook that throws or answers `{ refused: true }` stops
  * the deletion until the next run. Both are retried on the next run until they all succeed, so each must be safe to run twice. Defaults: none.
  */
-export const HOOK_NAMES = Object.freeze(["onClose", "beforeDelete"]);
-export const noHooks = () => ({ onClose: [], beforeDelete: [] });
+export const HOOK_NAMES = Object.freeze(["onPause", "onReopen", "onClose", "beforeDelete"]);
+export const noHooks = () => ({ onPause: [], onReopen: [], onClose: [], beforeDelete: [] });
 
 /** The registry field that records one warning: warned30At, warned7At. */
 export const warnedField = (days) => `warned${days}At`;
@@ -179,6 +180,8 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
     if (access === "open") {
       // A card (or a new plan) came before the deletion: the shop is open again.
       if (closing) {
+        // What a pause or closing took away (the scheduled jobs) comes back first; a failure is tried again next run.
+        if (!(await runHooks(shop, closing, "onReopen"))) return closing.stage;
         await setClosing(shop.shopId, null);
         await log(shop.shopId, "reopened", { from: closing.stage });
         await billing.publishPlan(shop.shopId);
@@ -191,8 +194,9 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
         await close(shop, null);
         return "closed";
       }
-      await setClosing(shop.shopId, { stage: "paused", pausedAt: iso(now()) });
+      const paused = await setClosing(shop.shopId, { stage: "paused", pausedAt: iso(now()) });
       await log(shop.shopId, "paused");
+      await runHooks(shop, paused, "onPause");
       return "paused";
     }
 
@@ -201,6 +205,7 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
         await close(shop, closing);
         return "closed";
       }
+      await runHooks(shop, closing, "onPause"); // a hook that failed last time is tried again
       return "paused";
     }
 

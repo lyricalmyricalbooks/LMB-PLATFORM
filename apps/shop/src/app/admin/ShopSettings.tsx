@@ -48,6 +48,7 @@ import { SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError, useSubTab, 
 import { testSaleSteps } from "./testSaleWalkthrough";
 import { practiceCheckout, type PracticeState } from "../lib/practiceCheckout";
 import { studioHash } from "../lib/studioLocation";
+import { useShopWords } from "./shopWords";
 
 export function ShopSettings({ 
   activeTab, 
@@ -331,6 +332,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
 }
 
 function RateTester({ profile }: { profile: any }) {
+  const w = useShopWords();
   const [country, setCountry] = useState("Canada");
   const [total, setTotal] = useState("40");
   const [count, setCount] = useState("2");
@@ -347,7 +349,7 @@ function RateTester({ profile }: { profile: any }) {
           {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
         </SelectField>
         <TextField label="Order total ($)" type="number" min={0} value={total} onChange={(e) => setTotal(e.target.value)} />
-        <TextField label="Books in cart" type="number" min={1} value={count} onChange={(e) => setCount(e.target.value)} />
+        <TextField label={w("Books in cart")} type="number" min={1} value={count} onChange={(e) => setCount(e.target.value)} />
         <TextField label="Total weight (g)" type="number" min={0} placeholder="auto" value={grams} onChange={(e) => setGrams(e.target.value)} />
       </div>
       {quotes.length === 0 ? (
@@ -432,6 +434,7 @@ function LiveRateExtraField({ config, onSave }: { config: any; onSave: (extra: {
 }
 
 export function ShippingSettings({ profiles, profilesError = false, refreshProfiles, initialView = "overview", subTab, onSubTabChange }: any) {
+  const w = useShopWords();
   const localFulfillmentDraft = useLocalFulfillmentDraft();
   const [askConfirm, confirmNode] = useConfirm();
   // A shop run by Colophon never meets a carrier account's key (code plan 6.16).
@@ -840,7 +843,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
           <PrimaryButton onClick={handleSaveProducts} disabled={savingProducts}>{savingProducts ? "Saving…" : `Save assignments (${selectedProductIds.length})`}</PrimaryButton>
         </>}>
         <SearchField label="Search catalog" placeholder="Search catalog by title…" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} data-autofocus />
-        <ul className="rp-list" style={{ marginTop: 12, maxHeight: 360, overflowY: "auto", border: "1px solid var(--rp-border)" }} aria-label="Books">
+        <ul className="rp-list" style={{ marginTop: 12, maxHeight: 360, overflowY: "auto", border: "1px solid var(--rp-border)" }} aria-label={w("Books")}>
           {books.filter((b) => String(b.title || "").toLowerCase().includes(productSearch.toLowerCase())).map((b) => {
             const isChecked = selectedProductIds.includes(b.id);
             const other = b.shippingProfileId && b.shippingProfileId !== editingProfile.id
@@ -945,7 +948,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
                 <TextField label="Base rate ($)" type="number" min={0} step="0.01" value={activeRate.base} placeholder="15.00" onChange={(e) => set("base", e.target.value)} />
                 {t === "flat" && <TextField label="Each additional item ($)" type="number" min={0} step="0.01" value={activeRate.additional} placeholder="5.00" onChange={(e) => set("additional", e.target.value)} />}
                 {t === "weight" && <TextField label="Per kg ($)" type="number" min={0} step="0.01" value={activeRate.perKg ?? ""} placeholder="8.00" onChange={(e) => set("perKg", e.target.value)} />}
-                {t === "percent" && <TextField label="% of book subtotal" type="number" min={0} step="0.1" value={activeRate.percent ?? ""} placeholder="10" onChange={(e) => set("percent", e.target.value)} />}
+                {t === "percent" && <TextField label={w("% of book subtotal")} type="number" min={0} step="0.1" value={activeRate.percent ?? ""} placeholder="10" onChange={(e) => set("percent", e.target.value)} />}
                 <TextField label="Handling fee ($)" type="number" min={0} step="0.01" value={activeRate.handlingFee ?? ""} placeholder="0.00" hint="Added once per order." onChange={(e) => set("handlingFee", e.target.value)} />
               </div>
             )}
@@ -1195,7 +1198,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
           <MetricCard label="Zones" value={zones.length} footer={zones.length ? "" : "Add one to ship"} tone={zones.length ? undefined : "warn"} />
           <MetricCard label="Rates" value={rateCount} footer={profileSummary({ zones }).split(" · ").pop()} tone={rateCount ? undefined : "warn"} />
           <MetricCard label="Countries" value={countryCount} footer={shipsEverywhere ? "plus everywhere else" : ""} />
-          <MetricCard label="Books" value={isGeneral ? "All others" : assignedBooks.length} footer="" />
+          <MetricCard label={w("Books")} value={isGeneral ? "All others" : assignedBooks.length} footer="" />
         </section>
       </header>
 
@@ -1267,7 +1270,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
               value={editingProfile.freeShippingOver ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, freeShippingOver: e.target.value === "" ? null : Number(e.target.value) })} />
             <TextField label="Packing fee per order ($)" type="number" min={0} step="0.01" placeholder="0.00"
               value={editingProfile.handlingFee ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, handlingFee: e.target.value === "" ? null : Number(e.target.value) })} />
-            <TextField label="Weight of a book with none set (g)" type="number" min={0} placeholder="e.g. 350"
+            <TextField label={w("Weight of a book with none set (g)")} type="number" min={0} placeholder="e.g. 350"
               value={editingProfile.defaultItemWeightG ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, defaultItemWeightG: e.target.value === "" ? null : Number(e.target.value) })} />
           </div>
         </SectionCard>
@@ -1277,15 +1280,15 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
         <div className="rp-stack">
           {!isGeneral && (
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <PrimaryButton size="sm" onClick={() => openProductModal()}>Choose books ({assignedBooks.length})</PrimaryButton>
+              <PrimaryButton size="sm" onClick={() => openProductModal()}>{w("Choose books (")}{assignedBooks.length})</PrimaryButton>
             </div>
           )}
           {isGeneral ? (
-            <p className="rp-hint" style={{ margin: 0 }}>Every book not moved to another profile ships with these prices.</p>
+            <p className="rp-hint" style={{ margin: 0 }}>{w("Every book not moved to another profile ships with these prices.")}</p>
           ) : assignedBooks.length === 0 ? (
-            <EmptyState icon="📦" title="No books yet" description="Books you choose here use this profile's prices." />
+            <EmptyState icon="📦" title={w("No books yet")} description={w("Books you choose here use this profile's prices.")} />
           ) : (
-            <ul className="rp-list" style={{ margin: 0, border: "var(--rp-hair) solid var(--rp-border)" }} aria-label="Books that use this profile">
+            <ul className="rp-list" style={{ margin: 0, border: "var(--rp-hair) solid var(--rp-border)" }} aria-label={w("Books that use this profile")}>
               {assignedBooks.map((b: any) => <li key={b.id} style={{ padding: "10px 14px", overflowWrap: "anywhere" }}>{b.title}</li>)}
             </ul>
           )}

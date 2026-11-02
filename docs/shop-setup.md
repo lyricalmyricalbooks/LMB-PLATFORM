@@ -47,6 +47,7 @@ the first presses; Phase 2 runs the same code from sign-up. Write the code once,
 | 14 | Email the owner their sign-in link (via the email service) | email logged as sent | email sent |
 | 15 | Run the shop check: home page, a book page, admin sign-in | — | all pass; registry `status: live` |
 | 16 | Test shop only: turn on its stockroom link (the shop's connection check, then sales sent from today) | link has a start day | link on |
+| 17 | Cut the idle bill: delete the ten old scheduled jobs (the shop runs them from one tick job) and set a one-day cleanup rule on the old server-code builds | no old jobs left, cleanup rule on | one scheduled job in the shop's project |
 
 Steps 2–5 borrow the service list and backup permission from a public Firebase project factory
 (https://github.com/cilly-yllic/terraform-google-firebase-project-factory). Plain Node scripts using Google's APIs are

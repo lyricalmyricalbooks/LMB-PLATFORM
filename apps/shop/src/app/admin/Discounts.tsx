@@ -12,6 +12,7 @@ import { describeDiscount } from "./discountDescribe";
 import { copyText } from "./clipboard";
 import { discountShareLink } from "../features/site/sharedDiscount";
 import { MAX_BATCH, batchCodes, cleanPrefix, codesCsv, randomCode } from "./discountCodes";
+import { useShopWords } from "./shopWords";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
   MetricCard, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
@@ -49,6 +50,7 @@ const EMPTY: any = {
 
 
 function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClose, onSave, onSaveBatch }: { initial?: any; otherCodes?: string[]; books: any[] | null; shopCategories: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void>; onSaveBatch: (data: any, codes: string[]) => Promise<void> }) {
+  const w = useShopWords();
   const isEdit = !!initial?.id;
   const [form, setForm] = useState<any>(initial ? draftFrom(initial, EMPTY) : EMPTY);
   const [saving, setSaving] = useState(false);
@@ -228,13 +230,13 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
         {form.type === "gift" && (
           <div className="rp-card" style={{ padding: 16, boxShadow: "none" }}>
             <div className="rp-sect">Free gift</div>
-            <p className="rp-hint" style={{ marginTop: 0 }}>When an order meets the conditions below, this book is added to it for free. It uses the book's stock; if it runs out, the offer simply stops applying.</p>
+            <p className="rp-hint" style={{ marginTop: 0 }}>{w("When an order meets the conditions below, this book is added to it for free. It uses the book's stock; if it runs out, the offer simply stops applying.")}</p>
             {books === null ? <p className="rp-hint">Loading catalog…</p> : (
               <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-                <TextField label="Find a book" value={giftSearch} onChange={e => setGiftSearch(e.target.value)} placeholder="Type part of the title" />
-                <SelectField label="Book to give away" value={form.giftBookId || ""} error={errors.gift && !form.giftBookId ? errors.gift : undefined}
+                <TextField label={w("Find a book")} value={giftSearch} onChange={e => setGiftSearch(e.target.value)} placeholder="Type part of the title" />
+                <SelectField label={w("Book to give away")} value={form.giftBookId || ""} error={errors.gift && !form.giftBookId ? errors.gift : undefined}
                   onChange={e => setForm((f: any) => ({ ...f, giftBookId: e.target.value, giftVariantId: "" }))}>
-                  <option value="">Choose a book</option>
+                  <option value="">{w("Choose a book")}</option>
                   {giftBook && <option value={giftBook.id}>{giftBook.title}</option>}
                   {books.filter(b => b.id !== form.giftBookId && b.productType !== "giftCard" && !(Array.isArray(b.bundleItems) && b.bundleItems.length) && String(b.title || "").toLowerCase().includes(giftSearch.trim().toLowerCase()))
                     .map(b => <option key={b.id} value={b.id}>{b.title}{b.status !== "published" ? " (not published)" : ""}</option>)}
@@ -249,7 +251,7 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
               </div>
             )}
             {errors.gift && form.giftBookId && !(giftBook && (giftBook.variants || []).length) && <p role="alert" className="rp-error-text">{errors.gift}</p>}
-            {giftBook && giftBook.status !== "published" && <p className="rp-hint" role="status">⚠ This book isn't published, so shoppers won't get it until it is.</p>}
+            {giftBook && giftBook.status !== "published" && <p className="rp-hint" role="status">{w("⚠ This book isn't published, so shoppers won't get it until it is.")}</p>}
           </div>
         )}
 
@@ -269,7 +271,7 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
                   <Checkbox key={cat.name} checked={(form.selectedCategories || []).includes(cat.name)} onChange={() => toggleIn("selectedCategories", cat.name)}
                     label={cat.parent ? `${cat.parent} › ${cat.name}` : cat.missing ? `${cat.name} (no longer a shop category)` : cat.renamedTo ? `${cat.name} (old name of ${cat.renamedTo})` : cat.name} />
                 ))}
-              {shopCategories !== null && <p className="rp-hint" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>Categories come from Studio › Menus › Shop categories. A parent category also covers its sub-categories’ books, just like the shop’s category pages.</p>}
+              {shopCategories !== null && <p className="rp-hint" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>{w("Categories come from Studio › Menus › Shop categories. A parent category also covers its sub-categories’ books, just like the shop’s category pages.")}</p>}
             </div>
           )}
           {form.appliesTo === "products" && (() => {
@@ -279,13 +281,13 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
             return (
               <div style={{ marginTop: 12 }}>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-                  <div className="rp-grow"><SearchField label="Find books" placeholder="Search by title or ISBN…" value={bookSearch} onChange={e => setBookSearch(e.target.value)} /></div>
+                  <div className="rp-grow"><SearchField label={w("Find books")} placeholder="Search by title or ISBN…" value={bookSearch} onChange={e => setBookSearch(e.target.value)} /></div>
                   <span className="rp-hint" role="status">{chosen.length} selected</span>
                 </div>
                 <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 8, border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
                   {books === null ? <p className="rp-hint">Loading catalog…</p>
-                    : books.length === 0 ? <p className="rp-hint">No books in the catalog yet.</p>
-                    : shown.length === 0 ? <p className="rp-hint">No books match “{bookSearch}”.</p>
+                    : books.length === 0 ? <p className="rp-hint">{w("No books in the catalog yet.")}</p>
+                    : shown.length === 0 ? <p className="rp-hint">{w("No books match “")}{bookSearch}”.</p>
                     : shown.map(b => <Checkbox key={b.id} label={b.title} checked={chosen.includes(b.id)} onChange={() => toggleIn("selectedProducts", b.id)} />)}
                 </div>
               </div>
