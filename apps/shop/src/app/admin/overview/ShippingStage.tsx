@@ -113,7 +113,7 @@ export function ShippingStage({ settings, onDone, onOpen }: {
                 {CHOICES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
               </SelectField>
               <ul className="rp-hint" aria-label="Starting prices" style={{ margin: 0, paddingLeft: 18 }}>
-                {summary.map(z => <li key={z.zone}>{z.zone}: ${z.first} for the first book, ${z.extra} for each extra one</li>)}
+                {summary.map(z => <li key={z.zone}>{z.zone}: ${z.first} for the first one, ${z.extra} for each extra one</li>)}
               </ul>
             </div>
           )}

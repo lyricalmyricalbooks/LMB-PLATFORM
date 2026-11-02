@@ -32,7 +32,7 @@ describe("Get started, step 6: shipping and your address (plan 17.11)", () => {
     expect(text()).toContain("Get started · Step 6 of 8: shipping and your address");
     expect(text()).toContain("12 Queen Street, Toronto, ON, M5H 2N2, Canada");
     expect((document.querySelector("select") as HTMLSelectElement).value).toBe("world");
-    expect(text()).toContain("Canada: $8.00 for the first book, $3.00 for each extra one");
+    expect(text()).toContain("Canada: $8.00 for the first one, $3.00 for each extra one");
   });
 
   it("confirming makes one shipping profile with the starter's zones, then records the starter", async () => {

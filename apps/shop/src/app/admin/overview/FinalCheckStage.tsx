@@ -56,7 +56,7 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
 
       <section aria-label="Practice order" style={{ marginTop: 18 }}>
         <p className="rp-hint" style={{ margin: 0 }}>
-          We recommend placing a practice order first: it buys a book with the practice card, and no money moves.
+          We recommend placing a practice order first: it buys one item with the practice card, and no money moves.
           It isn't required.
         </p>
         <SecondaryButton size="sm" style={{ marginTop: 8 }} onClick={() => onOpen?.("payments")}>Open Payments</SecondaryButton>
