@@ -53,6 +53,18 @@ export function billingWords(billing, now = new Date()) {
   return { state, when, closing, card, cancel, cancelAsk };
 }
 
+/**
+ * The optional "why are you leaving?" choices on the cancel confirmation (19.8), in the press's own words. The ids are
+ * services/billing/leaving.js LEAVING_REASONS (a test keeps the two lists the same).
+ */
+export const LEAVING_CHOICES = Object.freeze([
+  ["price", "It costs too much"],
+  ["missing-feature", "Something I need is missing"],
+  ["closed-press", "My press is closing"],
+  ["moving", "I'm moving to something else"],
+  ["other", "Something else"],
+]);
+
 /** What a plan change does, in a few lines, before the press confirms it. */
 export function planChangeWords(preview, billing) {
   const tax = billing?.plusTax ? ", plus tax" : "";

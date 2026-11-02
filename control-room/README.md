@@ -257,9 +257,46 @@ with `routes: platformRoutes(controls)`. Platform admins only.
 | `POST /api/control/retry` | `{ shopId, reason }`: make a stopped shop again |
 | `POST /api/control/activity` | `{ shopId?, limit? }` |
 
+## Income, leaving and failed payments (`incomeHistory.js`, `leaving.js`, `paymentTrouble.js`, `business.js`, `nightly.js`, plan 19.7-19.9)
+
+The business side of the Today page, below the test shop. Admins only (`adminOf`); nothing here changes anything, so
+nothing asks for a reason. The routes come from `businessRoutes(createBusinessRoom({ registry, incomeHistory, admins }))`,
+joined to the web door next to `controlRoutes` (walkthrough/world.js).
+
+- **Income over time** (19.7). Once a night `snapshotIncome({ registry, settings, store, now })` writes
+  `incomeHistory/<YYYY-MM-DD>` (Toronto's day): monthly income in cents, paying, on trial, paused and closed, counted with
+  Today's own `monthlyCents` and `planCounts` (`today.js`), the test shop never; and the movements since the last record
+  before today: new paying (`trialToPaid` among them), bigger and smaller plans, shops lost, trials ended. Run twice the
+  same day, it writes the same key with the same numbers. `history({ store, months: 12, now })` answers the 13 month-end
+  values (12 months plus this one so far, `null` for a month with no record), money kept (new paying plus bigger plans)
+  and lost (smaller plans plus shops lost) this month in cents, and trials that became paying over the last 90 days.
+  The page draws the line as inline SVG in the theme's colours (months along the bottom, income on the left, the last
+  point marked and labelled, a hidden table for screen readers), with the three figures above it. Before the first
+  night: "The line starts the first night the platform runs."
+- **Failed plan payments** (19.9). Shops whose plan payment is failing, unpaid, waiting for a first payment or paused for
+  a card, with days since it began (`billing.troubleSince`, or the closing sweep's `pausedAt`) and, for a paused shop, the
+  days left before it closes (`PAUSED_DAYS` from `services/billing/closing.js`; download for `DOWNLOAD_DAYS` after). Most
+  urgent first: shops closing soonest, then payments still being tried (no closing date yet), longest first. A table;
+  a row opens the shop's record.
+- **Why presses leave** (19.8). The answers presses gave when they cancelled (`billing.leaving`), by month and reason,
+  newest first; counts this month and over the last six months (answers from presses who then kept their plan counted
+  apart); the latest words. **Still time to talk**: shops whose plan is set to end, or paused for a missing card, soonest
+  first, with their reason and the date it ends.
+- **The nightly run**: `runBusinessNightly({ registry, settings, incomeHistory, billing, now, print })` writes the income
+  record and runs billing's card-expiry warnings (`services/billing/cardExpiry.js`); each part runs even if the other
+  fails. For real: `node control-room/nightly.js` once a night (platform registry, `firestoreIncomeHistory`, live
+  settings; the card warnings join once billing is hosted).
+
+| Route | What |
+| --- | --- |
+| `GET /api/control/income` | `{ months: [{ month, incomeCents, paying, … }], kept, lost, trials, started, currency }` |
+| `GET /api/control/leaving` | `{ reasons, months, thisMonth, lastSixMonths, latest, saveList }` |
+| `GET /api/control/payment-trouble` | `{ shops: [{ shopId, state, daysSince, daysLeft, closesAt, … }] }` |
+
 ## Not yet
 
-- **Schedules:** the daily self-check sweep and the shop maker's sweep (Cloud Scheduler in the platform project).
+- **Schedules:** the daily self-check sweep, the shop maker's sweep and the nightly business run
+  (`node control-room/nightly.js`) (Cloud Scheduler in the platform project).
 - **More callers:** the release runner and billing changes don't run the self-checks yet; the daily sweep covers them.
 - **Hosting** the page and the `/api` function, with the clients the newer actions take: `shopData`, `envFiles`,
   `deploy`, `build`, `email` and `squareAccount` for closing a shop and the payments switch, `breaches`

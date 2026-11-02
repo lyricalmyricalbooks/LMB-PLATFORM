@@ -138,3 +138,18 @@ export function firestoreInvites(firestore) {
     set: (id, row) => firestore.set(`invites/${id}`, row),
   };
 }
+
+/**
+ * incomeHistory/<YYYY-MM-DD>: one record a night of the platform's own income (control-room/incomeHistory.js, plan
+ * 19.7). `list` reads one range on the record's own `day` field, which needs no extra index.
+ */
+export function firestoreIncomeHistory(firestore) {
+  return {
+    get: (day) => firestore.get(`incomeHistory/${day}`),
+    set: (day, record) => firestore.set(`incomeHistory/${day}`, record),
+    async list({ since = "" } = {}) {
+      const rows = await firestore.query("incomeHistory", { where: [["day", ">=", since]], orderBy: [["day", "asc"]], limit: 1000 });
+      return rows.map((row) => row.data);
+    },
+  };
+}

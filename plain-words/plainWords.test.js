@@ -57,6 +57,8 @@ const PRESS_FACING_CODE = [
   "services/email/templates.js", "services/email/closingTemplates.js", "services/email/reputation.js", "services/email/streams.js",
   // The steps of Connect Google, shown on the shop's Overview (6.17).
   "google/status.js", "google/service.js", "google/teardown.js", "google/gmail.js",
+  // The "why are you leaving?" answer's refusals (19.8).
+  "services/billing/leaving.js",
 ];
 // Not read, with the reason: services/domains and the domain card are row 6.15's; the control room, health alerts and
 // the backup person's emails go to Julian, not to a press; setup/steps.js names the steps for the audit log (the press

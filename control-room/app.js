@@ -160,6 +160,7 @@ async function load() {
     await loadGoogleReady();
     await loadSettings();
     await loadActivity();
+    await loadBusiness();
   } catch (failure) {
     status.textContent = failure.message;
     // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
@@ -1205,5 +1206,176 @@ async function loadEverySwitch() {
     }) : [emptyState("No switches yet.")]));
   } catch (failure) {
     status.textContent = failure.message;
+  }
+}
+
+// ── The business side of Today (plan 19.7-19.9): income over time, failed plan payments, why presses leave. Each part
+// shows its own trouble in its own place, so one that can't load never hides the others. ──
+async function loadBusiness() {
+  await Promise.all([loadIncome(), loadPaymentTrouble(), loadLeaving()]);
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+function svg(tag, attrs = {}, ...children) {
+  const node = document.createElementNS(SVG, tag);
+  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, String(value));
+  node.append(...children.filter(Boolean));
+  return node;
+}
+const monthWords = (month, style = "short") => new Date(`${month}-15T12:00:00Z`).toLocaleDateString(undefined, { month: style, ...(style === "long" ? { year: "numeric" } : {}), timeZone: "UTC" });
+const wholeMoney = (cents, currency) => new Intl.NumberFormat(undefined, { style: "currency", currency, currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 }).format(cents / 100);
+
+/** A tidy top for the income axis: 1, 2 or 5 times a power of ten, in whole currency units. */
+function axisTop(cents) {
+  const units = Math.max(1, cents / 100);
+  const power = 10 ** Math.floor(Math.log10(units));
+  const step = [1, 2, 5, 10].find((m) => m * power >= units);
+  return step * power * 100;
+}
+
+/** The 12-month line as inline SVG: months along the bottom, income on the left, the last point marked and labelled. */
+function incomeChart(months, currency, wide = 720) {
+  // Drawn at the width it is shown, so its words keep their size on a phone; a narrow chart names every third month.
+  const width = Math.max(300, Math.round(wide)), height = 260, left = 64, right = 24, top = 28, bottom = 32;
+  const every = width < 560 ? 3 : 1;
+  const points = months.map((m, i) => ({ ...m, i })).filter((m) => m.incomeCents !== null);
+  const topCents = axisTop(Math.max(...points.map((p) => p.incomeCents), 0));
+  const x = (i) => left + (i * (width - left - right)) / Math.max(1, months.length - 1);
+  const y = (cents) => top + (height - top - bottom) * (1 - cents / topCents);
+  const ticks = [0, topCents / 2, topCents];
+  const last = points.at(-1);
+  const titleId = "income-chart-title";
+  const descId = "income-chart-desc";
+  const chart = svg("svg", { class: "cr-chart", viewBox: `0 0 ${width} ${height}`, role: "img", "aria-labelledby": `${titleId} ${descId}` },
+    svg("title", { id: titleId }, "Monthly income, last 12 months"),
+    svg("desc", { id: descId }, last ? `Now ${wholeMoney(last.incomeCents, currency)} a month, from ${last.paying} paying shop${last.paying === 1 ? "" : "s"}.` : "No income recorded yet."),
+    ...ticks.map((cents) => svg("line", { class: "cr-chart-grid", x1: left, x2: width - right, y1: y(cents), y2: y(cents) })),
+    ...ticks.map((cents) => {
+      const label = svg("text", { class: "cr-chart-axis", x: left - 8, y: y(cents) + 4, "text-anchor": "end" });
+      label.textContent = wholeMoney(cents, currency);
+      return label;
+    }),
+    ...months.map((m, i) => {
+      if ((months.length - 1 - i) % every) return null;
+      const label = svg("text", { class: "cr-chart-axis", x: x(i), y: height - 8, "text-anchor": i === 0 ? "start" : i === months.length - 1 ? "end" : "middle" });
+      // January carries its year, so the line says where one year ends and the next begins.
+      label.textContent = every === 1 && m.month.endsWith("-01") ? `${monthWords(m.month)} ${m.month.slice(0, 4)}` : monthWords(m.month);
+      return label;
+    }),
+    points.length > 1 ? svg("polyline", { class: "cr-chart-line", points: points.map((p) => `${x(p.i)},${y(p.incomeCents)}`).join(" ") }) : null,
+    ...points.map((p) => {
+      const isLast = p === last;
+      const hover = svg("title");
+      hover.textContent = `${monthWords(p.month, "long")}${p === last && p.i === months.length - 1 ? " so far" : ""}: ${wholeMoney(p.incomeCents, currency)} a month, ${p.paying} paying`;
+      return svg("g", {},
+        svg("circle", { class: "cr-chart-hit", cx: x(p.i), cy: y(p.incomeCents), r: 14 }),
+        svg("circle", { class: isLast ? "cr-chart-last" : "cr-chart-dot", cx: x(p.i), cy: y(p.incomeCents), r: isLast ? 6 : 4 }),
+        hover);
+    }),
+    last ? (() => {
+      const label = svg("text", { class: "cr-chart-label", x: x(last.i), y: y(last.incomeCents) - 14, "text-anchor": last.i === months.length - 1 ? "end" : "middle" });
+      label.textContent = wholeMoney(last.incomeCents, currency);
+      return label;
+    })() : null);
+  // The same numbers as a table, for screen readers.
+  const rows = points.map((p) => el("tr", {}, el("th", { scope: "row", textContent: monthWords(p.month, "long") }), el("td", { textContent: wholeMoney(p.incomeCents, currency) }), el("td", { textContent: String(p.paying) })));
+  const tableView = el("table", { className: "rp-sr-only" }, el("caption", { textContent: "Monthly income by month" }),
+    el("thead", {}, el("tr", {}, el("th", { scope: "col", textContent: "Month" }), el("th", { scope: "col", textContent: "Income a month" }), el("th", { scope: "col", textContent: "Paying shops" }))),
+    el("tbody", {}, ...rows));
+  return [chart, tableView];
+}
+
+let lastIncome = null;
+const chartWidth = () => ($("#income-chart").clientWidth || 768) - 48;
+let resizing = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizing);
+  resizing = setTimeout(() => {
+    const body = $("#income-chart .rp-card-body");
+    if (lastIncome?.started && body) body.replaceChildren(...incomeChart(lastIncome.months, lastIncome.currency ?? "CAD", chartWidth()));
+  }, 150);
+});
+
+async function loadIncome() {
+  const figures = $("#income-figures");
+  const box = $("#income-chart");
+  try {
+    const income = await api("GET", "/control/income");
+    const currency = income.currency ?? "CAD";
+    const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric" },
+      el("div", { className: "rp-metric-label", textContent: label }),
+      el("div", { className: "rp-metric-value", textContent: value, dataset: tone ? { tone } : {} }),
+      foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
+    const rate = income.trials.rate === null ? "None yet" : `${Math.round(income.trials.rate * 100)}%`;
+    figures.replaceChildren(
+      figure("Kept this month", wholeMoney(income.kept.cents, currency), `${income.kept.newPaying} new paying, ${income.kept.upgrades} bigger plan${income.kept.upgrades === 1 ? "" : "s"}`),
+      figure("Lost this month", wholeMoney(income.lost.cents, currency), `${income.lost.lost} stopped paying, ${income.lost.downgrades} smaller plan${income.lost.downgrades === 1 ? "" : "s"}`, income.lost.cents ? "danger" : null),
+      figure("Trials that became paying", rate, income.trials.ended ? `${income.trials.converted} of ${income.trials.ended} trials, last ${income.trials.days} days` : `No trials ended in the last ${income.trials.days} days`),
+    );
+    lastIncome = income;
+    box.replaceChildren(income.started
+      ? el("div", { className: "rp-card-body", style: "padding-top: 16px" }, ...incomeChart(income.months, currency, chartWidth()))
+      : emptyState("The line starts the first night the platform runs.", "Each night the platform writes down its monthly income; the line grows from there."));
+  } catch (failure) {
+    figures.replaceChildren();
+    box.replaceChildren(emptyState(failure.message));
+  }
+}
+
+async function loadPaymentTrouble() {
+  const target = $("#payment-trouble");
+  try {
+    const { shops } = await api("GET", "/control/payment-trouble");
+    if (!shops.length) {
+      target.replaceChildren(emptyState("No failed plan payments.", "Every paying shop's card is going through."));
+      return;
+    }
+    const days = (n) => `${n} day${n === 1 ? "" : "s"}`;
+    target.replaceChildren(table({
+      caption: "Failed plan payments, most urgent first",
+      columns: [
+        { header: "Shop", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.shopId, s.ownerEmail)) },
+        { header: "What's wrong", render: (s) => pill(s.open ? "danger" : "warning", s.state) },
+        { header: "Since", render: (s) => (s.daysSince === null ? "Not known" : `${days(s.daysSince)} (${dateOnly(s.since)})`) },
+        { header: "Time left", render: (s) => (s.daysLeft === null ? "Open while the card is tried again" : `${days(s.daysLeft)}: closes ${dateOnly(s.closesAt)}`) },
+      ],
+      rows: shops,
+      open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
+    }));
+  } catch (failure) {
+    target.replaceChildren(emptyState(failure.message));
+  }
+}
+
+async function loadLeaving() {
+  const target = $("#leaving");
+  const saves = $("#save-list");
+  try {
+    const answer = await api("GET", "/control/leaving");
+    const countList = (counts) => el("dl", { className: "cr-facts" }, ...answer.reasons.flatMap((r) => [el("dt", { textContent: r.label }), el("dd", { textContent: String(counts[r.id] ?? 0) })]));
+    const total = (counts) => Object.values(counts).reduce((sum, n) => sum + n, 0);
+    target.replaceChildren(
+      sheet({ title: "This month", tone: "neutral", pillWords: `${total(answer.thisMonth)} answer${total(answer.thisMonth) === 1 ? "" : "s"}`, body: [countList(answer.thisMonth), answer.stayedThisMonth ? el("p", { className: "rp-hint", textContent: `${answer.stayedThisMonth} answered, then kept their plan.` }) : null] }),
+      sheet({ title: "The last 6 months", tone: "neutral", pillWords: `${total(answer.lastSixMonths)} answer${total(answer.lastSixMonths) === 1 ? "" : "s"}`, body: [countList(answer.lastSixMonths), answer.stayedLastSixMonths ? el("p", { className: "rp-hint", textContent: `${answer.stayedLastSixMonths} answered, then kept their plan.` }) : null] }),
+      sheet({ title: "In their words", tone: "neutral", body: answer.latest.length
+        ? answer.latest.map((a) => el("blockquote", { className: "cr-quote" }, meta(a.pressName, a.label, dateOnly(a.at), a.stayed ? "kept their plan" : null), a.words))
+        : [el("p", { className: "rp-hint", textContent: "Nobody has left a few words yet." })] }),
+    );
+    saves.replaceChildren(answer.saveList.length
+      ? table({
+        caption: "Shops whose plan is set to end, soonest first",
+        columns: [
+          { header: "Shop", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.shopId, s.ownerEmail)) },
+          { header: "Why it ends", render: (s) => pill(s.why === "cancelled" ? "warning" : "danger", s.why === "cancelled" ? "Cancelled" : "No card") },
+          { header: "Ends", render: (s) => (s.endsAt ? `${dateOnly(s.endsAt)} (${s.daysLeft} day${s.daysLeft === 1 ? "" : "s"})` : "Not known") },
+          { header: "What they said", render: (s) => (s.label ? `${s.label}${s.words ? `: ${s.words}` : ""}` : "Nothing") },
+        ],
+        rows: answer.saveList,
+        open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
+      })
+      : emptyState("No plan is set to end.", "Nobody has cancelled, and no shop is waiting for a card."));
+  } catch (failure) {
+    target.replaceChildren(emptyState(failure.message));
+    saves.replaceChildren();
   }
 }

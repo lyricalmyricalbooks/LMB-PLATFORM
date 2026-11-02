@@ -38,7 +38,8 @@ makes a new Stripe price; presses on the old one stay there until moved on purpo
 - **Invoices** (6.12): `invoices(shopId)`, newest first, with Stripe's own PDF and page links (https only), fetched fresh
   each time because Stripe's links don't last forever.
 - **Card on file**: when a card is added, its brand, last four digits and expiry are kept (never the number). The daily
-  `cardExpiryReminders` sweep emails `card-expiring` a month before the end of its expiry month, once per card.
+  `cardExpiryReminders` sweep emails `card-expiring` a month before the end of its expiry month, once per card and
+  expiry (see "Failed plan payments, recovered" below).
 - **Tax** (6.12): `BILLING_TAX=on` turns on Stripe Tax. Prices are made "plus tax" (`tax_behavior: exclusive`; an older
   price is marked once), and the subscription gets `automatic_tax` once a card is added, from the card's billing
   address copied onto the customer (the trial needs no card, so it needs no address). Off by default: nothing about
@@ -141,12 +142,13 @@ so Stripe sends it again.
 | `customer.subscription.created/updated/resumed` | state kept | none |
 | `invoice.payment_failed` | logged, shop stays open | `payment-failed`, with the amount and the next try |
 | `checkout.session.completed` (setup) | card attached, plan resumed or paid | none |
+| `payment_method.automatically_updated` | the card's new expiry (or number) kept (19.9) | none |
 
 Cancelling sends `subscription-cancelled`; changing plan sends `plan-changed` (with what closes and when); the card sweep sends `card-expiring`; the closing sweep sends `shop-closed`, `shop-deletion-warning` and `shop-deleted`. Emails link to the platform's account
 page (`<PLATFORM_URL>/account/billing?shop=<id>`), never to a Stripe page, since those expire.
 
 Every change is kept in the billing store, copied to the shop's registry row (`billing: { plan, status, access, trialEnd,
-currentPeriodEnd, cancelAtPeriodEnd, hasCard }`) and logged in the registry and the shop's audit log.
+currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing, leaving, troubleSince }`) and logged in the registry and the shop's audit log.
 
 ## Settings
 
@@ -154,6 +156,39 @@ currentPeriodEnd, cancelAtPeriodEnd, hasCard }`) and logged in the registry and 
 `on`), in this service's environment.
 
 The Plan & billing page and its calls (`/api/billing/*`, owner only) live in `accounts/` (code plan 6.4, 6.5).
+
+## Why presses leave (19.8)
+
+`leaving.js`: cancelling takes an optional answer, `cancel({ shopId, reason, words })`. `reason` is one of
+`LEAVING_REASONS` (`price`, `missing-feature`, `closed-press`, `moving`, `other`); `words` is plain text, trimmed, at most
+500 characters (words alone count as `other`). The answer is checked before anything reaches Stripe: a reason off the list
+is refused with "Choose one of the reasons on the list, or leave the question blank." (400). It is kept on the billing
+row and the registry's copy as `leaving: { reason, words, at }` and in the `cancel-requested` log entry; `keep` marks it
+`keptAt`. No answer cancels exactly as before. The Plan & billing page asks the question on its cancel confirmation
+(`accounts/`); the control room reads the answers (`control-room/leaving.js`).
+
+## Failed plan payments, recovered (19.9)
+
+- **Card-expiry warning** (`cardExpiry.js`): `cardExpiryReminders()` emails `card-expiring` (to the person who pays, with
+  the Plan & billing link) a month before the card runs out, once per card id and expiry (`cardWarned:
+  "pm_…@2027-02"`), and logs `card-expiring-sent`. Only for a plan still running (trial, paid month or a payment being
+  retried) and not cancelled. When Stripe's card updater gives the same card a new expiry
+  (`payment_method.automatically_updated`), the kept card follows, so the next warning is for the new date. Run nightly
+  by `control-room/nightly.js`.
+- **When the trouble began**: every save keeps `troubleSince` while the plan is past due, unpaid, waiting for a first
+  payment or paused (cleared once it's fixed), copied to the registry row. The control room's failed-payments list
+  (`control-room/paymentTrouble.js`) counts days from it, and the days left from the closing sweep's own `PAUSED_DAYS`
+  and `DOWNLOAD_DAYS` (`closing.js`).
+- **Julian's own step, in the Stripe platform account** (not done in code; Dashboard › Settings › Billing):
+  1. **Subscriptions and emails › Manage failed payments**: turn on **Smart Retries** (Stripe picks the best times to try
+     a failed card again; the recommended 8 tries within 2 weeks), and choose what happens after the last try: **mark
+     the subscription as unpaid**, so the shop pauses and the 60 days of the closing sweep start (cancelling straight
+     away would skip them).
+  2. **Card account updater**: check that Stripe's automatic card updates are on for the platform account (Stripe
+     usually turns them on itself for the card networks that offer them; its support can confirm), so renewed cards
+     keep working and the expiry warning follows the new date.
+  3. Add `payment_method.automatically_updated` to the platform account's events address, next to the subscription,
+     invoice and checkout events.
 
 ## Not yet
 
