@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addOnLines, bundlePartsText, discountLabel, giftCardConflictOpen, giftCardLineText, lineDetails, lineDetailsSummary } from "./orderLines";
+import { addOnLines, bundlePartsText, customerTrackUrl, discountLabel, giftCardConflictOpen, giftCardLineText, lineDetails, lineDetailsSummary } from "./orderLines";
 import { buildPickList, isDigitalItem, physicalItems, queueOf } from "./fulfillment";
 
 const boxSet = {
@@ -58,5 +58,17 @@ describe("returnStepsDone", () => {
     expect(["requested", "approved", "received", "inspected", "refund_pending", "completed"].map(returnStepsDone)).toEqual([0, 1, 2, 3, 4, 4]);
     expect(returnStepsDone("closed")).toBe(-1);
     expect(returnStepsDone("rejected")).toBe(-1);
+  });
+});
+
+describe("customerTrackUrl", () => {
+  it("builds a private link with the order and its key", () => {
+    expect(customerTrackUrl({ id: "a b", trackingKey: "k/1" }, "https://shop.example/", "/")).toBe("https://shop.example/track?orderId=a%20b&key=k%2F1");
+  });
+  it("keeps a sub-path", () => {
+    expect(customerTrackUrl({ id: "o1", trackingKey: "k" }, "https://x.example", "/shop/")).toBe("https://x.example/shop/track?orderId=o1&key=k");
+  });
+  it("gives nothing without a key", () => {
+    expect(customerTrackUrl({ id: "o1" }, "https://x.example")).toBe("");
   });
 });

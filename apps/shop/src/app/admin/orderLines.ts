@@ -162,6 +162,14 @@ export function customerMailto(order: any): string {
   if (!email || /[\s<>"?&]/.test(email)) return "";
   return `mailto:${email}?subject=${encodeURIComponent(`Your order ${order?.orderId || order?.id || ""}`.trim())}`;
 }
+/** Private tracking link to send one customer, or "" when the order has no key yet. Needs the key: a bare order number is not enough to open it. */
+export function customerTrackUrl(order: any, origin: string, base = "/"): string {
+  const id = String(order?.id || "").trim();
+  const key = typeof order?.trackingKey === "string" ? order.trackingKey.trim() : "";
+  if (!id || !key) return "";
+  const root = `${origin.replace(/\/$/, "")}${base.replace(/\/$/, "")}`;
+  return `${root}/track?orderId=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`;
+}
 /** tel: link (digits and a leading +), or "" when the phone has too few digits. */
 export function telHref(phone: any): string {
   const raw = String(phone || "").trim();

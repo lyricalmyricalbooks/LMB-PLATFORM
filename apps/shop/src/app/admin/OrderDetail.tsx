@@ -25,7 +25,7 @@ import {
 import { invoiceLine, invoiceOpen } from "./invoices";
 import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
-import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, telHref } from "./orderLines";
+import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, customerTrackUrl, telHref } from "./orderLines";
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
@@ -1097,6 +1097,24 @@ export function OrderDetail({
               >
                 Copy address
               </SecondaryButton>
+              {customerTrackUrl(order, window.location.origin, import.meta.env.BASE_URL || "/") && (
+                <SecondaryButton
+                  size="sm"
+                  icon={<Copy size={14} aria-hidden />}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        customerTrackUrl(order, window.location.origin, import.meta.env.BASE_URL || "/"),
+                      );
+                      toast.success("Tracking link copied");
+                    } catch {
+                      toast.error("Could not copy the link");
+                    }
+                  }}
+                >
+                  Copy tracking link
+                </SecondaryButton>
+              )}
             </div>
             {order.ipCountryMatchesShipping === false && (
               <p className="fw-problems">
