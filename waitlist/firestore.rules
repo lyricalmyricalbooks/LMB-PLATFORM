@@ -27,27 +27,47 @@ service cloud.firestore {
         && request.resource.data.signups == 1;
     }
 
-    // The setup record (signup/pressRecord.js, code plan 18.2). Only the press's owner reads it and changes its setup
-    // answers; the platform's own server changes its status. A press cannot set its status, owner or creation time.
+    // The setup record (signup/pressRecord.js, code plan 18.2). The press's owner reads it and changes only its setup
+    // answers. The platform's own server sets status, the staged import file and the timestamps; a press can set none of
+    // them. The document id is the press id, and the owner's email must be the verified email on the sign-in.
     match /presses/{pressId} {
-      allow read: if request.auth != null && resource.data.ownerUid == request.auth.uid;
-      allow create: if request.auth != null
+      function signedIn() {
+        return request.auth != null && request.auth.token.email_verified == true;
+      }
+      function ownsIt() {
+        return signedIn() && resource.data.ownerUid == request.auth.uid;
+      }
+      function setupKeys() {
+        return ["pressName", "sells", "country", "look"];
+      }
+      allow read: if ownsIt();
+      allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerEmail == request.auth.token.email
+        && request.resource.data.pressId == pressId
         && request.resource.data.status == "setup"
+        && request.resource.data.stagedImportPath == ""
         && request.resource.data.keys().hasOnly(["pressId", "ownerUid", "ownerEmail", "status", "pressName", "sells",
             "country", "look", "stagedImportPath", "createdAt", "lastSeenAt"])
-        && request.resource.data.keys().hasAll(["pressId", "ownerUid", "ownerEmail", "status", "createdAt", "lastSeenAt"]);
-      allow update: if request.auth != null
-        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.keys().hasAll(["pressId", "ownerUid", "ownerEmail", "status", "createdAt", "lastSeenAt"])
+        && text(request.resource.data.get("pressName", ""), 0, 120)
+        && text(request.resource.data.get("sells", ""), 0, 300)
+        && text(request.resource.data.get("country", ""), 0, 2)
+        && text(request.resource.data.get("look", ""), 0, 40);
+      allow update: if ownsIt()
         && resource.data.status == "setup"
+        && request.resource.data.pressId == resource.data.pressId
         && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.ownerEmail == resource.data.ownerEmail
         && request.resource.data.status == resource.data.status
+        && request.resource.data.stagedImportPath == resource.data.stagedImportPath
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.keys().hasOnly(["pressId", "ownerUid", "ownerEmail", "status", "pressName", "sells",
             "country", "look", "stagedImportPath", "createdAt", "lastSeenAt"])
         && text(request.resource.data.get("pressName", ""), 0, 120)
         && text(request.resource.data.get("sells", ""), 0, 300)
-        && text(request.resource.data.get("country", ""), 0, 2);
+        && text(request.resource.data.get("country", ""), 0, 2)
+        && text(request.resource.data.get("look", ""), 0, 40);
       allow delete: if false;
     }
 
