@@ -9,6 +9,11 @@ import { SetupGuideCard } from "./SetupGuideCard";
 import { PressDetailsStage } from "./PressDetailsStage";
 import { BringShopStage } from "./BringShopStage";
 import type { BringMarker } from "../bringShop";
+import { firstBookPhoto } from "../chooseLook";
+import { ShippingStage } from "./ShippingStage";
+import { shippingStepShows, type ShippingMarker } from "../shippingStage";
+import { finalCheckShows, type FinalCheckMarker } from "../finalCheckStage";
+import { FinalCheckStage } from "./FinalCheckStage";
 
 // The welcome pulls in Studio's theme library and switcher, so it loads only for a shop that will show it.
 const ChooseLookWelcome = lazy(() => import("./ChooseLookWelcome").then(m => ({ default: m.ChooseLookWelcome })));
@@ -32,6 +37,8 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   // Set once Open your shop took the wall down here, so the step ticks before the Overview reads the settings again.
   const [opened, setOpened] = useState(false);
+  // Set when the press chooses Finish later on the final check (plan 17.13): the setup guide shows until the next visit.
+  const [finalLater, setFinalLater] = useState(false);
   const load = useCallback(() => {
     let live = true;
     setState("loading");
@@ -82,9 +89,33 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
     };
     return (
       <Suspense fallback={<SectionCard title="Choose your look"><LoadingState label="Opening the looks…" /></SectionCard>}>
-        <ChooseLookWelcome publishes={doc.publishes} settings={settings} onDone={done} onRetrySettings={onRetrySettings} />
+        <ChooseLookWelcome publishes={doc.publishes} photo={firstBookPhoto(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} />
       </Suspense>
     );
+  }
+
+  // Step 6 (plan 17.11): shipping and the address, after the look, for a press that went through Get started.
+  if (shippingStepShows(doc)) {
+    const shippingDone = async (shipping: ShippingMarker) => {
+      await adminApi.updateFirstWeek({ shipping });
+      setDoc({ ...doc, shipping });
+    };
+    return <ShippingStage settings={settings} onDone={shippingDone} onOpen={onOpen} />;
+  }
+
+  // Step 8 (plan 17.13): the final check and open. "Finish later" shows the setup guide for now, without recording anything.
+  if (finalCheckShows(doc, settings) && !finalLater) {
+    const finalDone = async (finalCheck: FinalCheckMarker) => {
+      await adminApi.updateFirstWeek({ finalCheck });
+      setDoc({ ...doc, finalCheck });
+    };
+    const openNow = async () => {
+      if (!onSetWall) return false;
+      const ok = await onSetWall(false);
+      if (ok) setOpened(true);
+      return ok;
+    };
+    return <FinalCheckStage readiness={readiness} onOpen={onOpen} onOpenShop={openNow} onDone={finalDone} onFinishLater={() => setFinalLater(true)} />;
   }
 
   const setWall = onSetWall && (async (on: boolean) => {

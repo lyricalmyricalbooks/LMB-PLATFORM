@@ -511,7 +511,7 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   (`shopWords.tsx`, `useShopWords()`); the menu, page titles, the product list and the product editor use it (the
   editor follows the product's own kind). Wrap new admin words with `w(...)` on those pages.
 
-## Get started: your press first (29 October 2026, code plan 17.1 to 17.4)
+## Get started: your press first (29 October 2026, code plan 17.1 to 17.4, 17.8, 17.11 and 17.13)
 
 The first-visit run at the top of a new shop's Overview (`overview/SetupStart.tsx`) is **Get started**, eight steps in
 order. Built so far:
@@ -526,9 +526,24 @@ order. Built so far:
   preview. Continue records `firstWeek/start` › `bring: { at, from?, skipped? }`; **Start fresh** records `skipped: true`.
   The `firestore.rules` shape for `bring` is checked by `customerNotesRules.test.ts`.
 
-Then the look (Choose your look, plan 6.3) comes next, and a shop with a `welcome` already, or no `firstWeek` document,
-never sees the run. Still to come (17.5 to 17.13): more import layouts (needs a real sample from each builder), photos
-given as links, Google, payments, shipping, the stockroom and the final check. The run sits at the top of the Overview;
+- **Step 3 of 8, Choose your look** (`overview/ChooseLookWelcome.tsx`, plan 17.8, built in plan 6.3): the suggested looks
+  from the sign-up answer, every look, phone and desktop previews. Previews show the press's first book photo
+  (`firstBookPhoto` in `chooseLook.ts`, secure addresses only).
+- **Step 6 of 8, shipping and your address** (`overview/ShippingStage.tsx`, pure logic in `shippingStage.ts`, plan 17.11):
+  the ship-from address from step 1 (named gaps block confirming), the starter for the country (Canada, the United States,
+  or start empty elsewhere), and one **Set up this shipping** that makes the Settings starter profile through
+  `adminApi.createShippingProfile`. A shop that already has a profile makes nothing new. Recorded as `shipping: { at,
+  starter?, skipped? }`, shown after the look for a press that went through step 1 only (`shippingStepShows`).
+
+- **Step 8 of 8, final check and open** (`overview/FinalCheckStage.tsx`, pure gate in `finalCheckStage.ts`, plan 17.13):
+  lists what the setup guide's open step still blocks (`openBlockers`, the same checks), with a button to each. It
+  recommends a practice order and never requires one. **Open my shop** takes the shop out of private mode (the same
+  `onSetWall` the guide uses) and records `finalCheck: { at, opened: true }`. **Finish later** shows the setup guide without
+  recording anything. The step doesn't show once the shop is open.
+
+A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (17.5, 17.6, 17.9, 17.10 and
+17.12): more import layouts (needs a real sample from each builder), photos given as links, Google, payments and
+the stockroom. The run sits at the top of the Overview;
 it doesn't yet replace the whole screen (a separate start page is a later change).
 
 **Phase 18 rule (planned on main):** a press gets its own backend only at launch. Every write above goes to
