@@ -554,10 +554,10 @@ order. Built so far:
   plain words. **Connect later** is always there. Recorded as `google: { at, connected? | coming? | skipped? }`.
 
 **The order of the run lives in one place**, `startRun.ts` (`nextRunStep`): your press, bring your shop, the look, Google,
-Get paid (only for a platform press), shipping, the final check. Step 7 joins that function when it is built.
+Get paid (only for a platform press), shipping, the final check. Step 7, your stockroom, is the stockroom's own one-screen check (`apps/stockroom/CLAUDE.md`), not part of this run.
 
-A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (17.5, 17.6 and
-17.12): more import layouts (needs a real sample from each builder), photos given as links, and the stockroom. The run sits at the top of the Overview;
+A shop with a `welcome` already, or no `firstWeek` document, never sees the run. Still to come (17.5 and
+17.6): more import layouts (needs a real sample from each builder), and photos given as links. The run sits at the top of the Overview;
 it doesn't yet replace the whole screen (a separate start page is a later change).
 
 **Phase 18 rule (planned on main):** a press gets its own backend only at launch. Every write above goes to

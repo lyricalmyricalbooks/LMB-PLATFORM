@@ -133,3 +133,15 @@ own text is rewritten once at start-up (`applyPageWords(document.body)` in `main
 changes; `[data-keep-words]` keeps a part as written. Messages built in code go through `words(...)` one by one. Never
 run the words over owner data (product names, notes): a product called "Sketch book" must stay as named.
 `tests/shop-words.test.js` scans the whole page for a clothing shop.
+
+## Your stockroom is ready (plan 17.12, code plan 17.12)
+
+A press with both apps (a shop and a stockroom) sees a one-screen check above All Books the first time its stockroom opens:
+**Your stockroom is ready** (`src/lib/stockroom-ready.js`, rendered by `renderSetupGuide` in `main.js` into
+`#stockroom-ready-check`). It says how many titles the stockroom holds, and that the shop's sales are linked to it. **Open
+books** goes to the Books tab; **Got it** hides it in this browser (`localStorage`, key `stockroom-ready-check`). It never
+shows for the author view, a stockroom-only press (its five-step guide shows instead, `setup-guide.js`) or the built-in profile.
+
+The link itself is set up by the platform (`setup/later-steps.js`, step 16): every shop with both apps turns its stockroom
+link on at setup and starts its sales from that day (Toronto time). A new press's own books are not the test catalogue, so
+step 12 writes that catalogue for the test shop only. Tests: `tests/stockroom-ready.test.js`, `setup/later-steps.test.js`.
