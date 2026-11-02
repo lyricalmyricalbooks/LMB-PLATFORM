@@ -27,6 +27,9 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 const ALLOWED = [
   // Route tables name web addresses such as "POST /api/signup"; they are the platform's doors, never shown.
   // (Skipped by `isRouteLabel`, not allowed here.)
+  // The name of the note inside a press's data download (services/export, 19.16): a file name every computer opens,
+  // not the TXT record of web addresses.
+  "README.txt",
 ];
 const isRouteLabel = (text) => /^(GET|POST|PUT|PATCH|DELETE) \//.test(text);
 
@@ -59,6 +62,10 @@ const PRESS_FACING_CODE = [
   "google/status.js", "google/service.js", "google/teardown.js", "google/gmail.js",
   // Support asks before making changes (19.6), and the fair-use limits' words (19.5).
   "accounts/accessRequestRoutes.js", "control-room/accessRequests.js", "signup/limits.js",
+  // The "why are you leaving?" answer's refusals (19.8).
+  "services/billing/leaving.js",
+  // Messages to presses and a press's data on request (19.14, 19.16): the emails, the export's README and refusals.
+  "services/email/pressTemplates.js", "services/export/export.js",
 ];
 // Not read, with the reason: services/domains and the domain card are row 6.15's; the control room, health alerts and
 // the backup person's emails go to Julian, not to a press; setup/steps.js names the steps for the audit log (the press
@@ -199,9 +206,11 @@ const PRESS_EMAILS = {
   "shop-deletion-warning": [{ date: "30 January 2027", days: 30, link: LINK }, { date: "30 January 2027", days: 7, link: LINK }],
   "shop-deleted": [{}],
   "support-access-request": [{ by: "admin@example.com", reason: "You asked us to fix the price of a book.", until: "4 November 2026", link: LINK }],
+  "press-message": [{ words: "New: shipping labels from your admin.", endsOn: "9 November 2026", link: SHOP_LINKS.shopAdmin }, { words: "Card payments pause tonight.\n\nNothing to do.", endsOn: "9 November 2026", link: null }],
+  "data-export-ready": [{ link: LINK, until: "9 November 2026", asked: "owner" }, { link: LINK, until: "9 November 2026", asked: "platform", reason: "your privacy request" }],
 };
 // Emails that go to Julian or to the support address, never to a press.
-const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new"];
+const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late"];
 
 test("every kind of email is either read here or goes only to the platform's own people", () => {
   const kinds = Object.keys(TEMPLATES).sort();

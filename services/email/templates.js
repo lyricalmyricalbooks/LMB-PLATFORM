@@ -2,6 +2,7 @@
 // and returns { subject, text, html }. Every value from a press or a person is escaped in the HTML, and links must be
 // https. Customer-facing words: name the product (settings.platformName), never a rival.
 import { closingTemplates } from "./closingTemplates.js";
+import { pressTemplates } from "./pressTemplates.js";
 
 export const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -508,6 +509,27 @@ export const TEMPLATES = {
     buttons: [["Approve or decline", safeLink(link)]],
     footer: signOff(settings),
   }),
+
+  /**
+   * A scheduled job stopped running on time (services/jobs, plan 19.11), to the platform's alert address only.
+   * `data`: { job, words, every (minutes), lastRunAt }.
+   */
+  "job-late": ({ job, words, every, lastRunAt }, { settings }) => {
+    if (!job || !Number.isFinite(every)) throw new Error("the late job alert names no job");
+    const gap = every < 60 ? `${every} minute${every === 1 ? "" : "s"}` : every < 1440 ? `${every / 60} hour${every === 60 ? "" : "s"}` : `${every / 1440} day${every === 1440 ? "" : "s"}`;
+    return layout({
+      subject: `Job late: ${words ?? job}`,
+      greeting: "",
+      paragraphs: [
+        `The job "${job}" (${words ?? job}) should run every ${gap}, but its last run started at ${lastRunAt ?? "an unknown time"}.`,
+        "Open the Jobs page in the control room to see its runs, or press Run now. You get this email once; another comes only if it runs on time and then stops again.",
+      ],
+      footer: `${settings.platformName} jobs`,
+    });
+  },
+
+  // From the control room to a press (code plan 19.14, 19.16): press-message, data-export-ready.
+  ...pressTemplates({ layout, safeLink, signOff }),
 };
 
 /** Problems with a free-form email a shop asks to send (its own order and account emails), in plain words. */

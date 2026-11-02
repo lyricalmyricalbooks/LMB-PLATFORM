@@ -76,7 +76,7 @@ test("control-room admins (two-step, on the list) skip the per-person limit; wit
 
 test("public calls: the plans 300 a minute and sign-in links 20 an hour per network, from x-forwarded-for or the ip", async () => {
   const w = make();
-  const from = (address) => ({ headers: { "X-Forwarded-For": `${address}, 10.0.0.1` } });
+  const from = (address) => ({ headers: { "X-Forwarded-For": `192.0.2.9, ${address}` } });
   const plans = await times(300, () => w.ask(null, "GET", "/api/plans", from("203.0.113.5")));
   assert.ok(plans.every((a) => a.status === 200));
   assert.equal((await w.ask(null, "GET", "/api/plans", from("203.0.113.5"))).status, 429);
@@ -87,11 +87,23 @@ test("public calls: the plans 300 a minute and sign-in links 20 an hour per netw
   const over = await w.ask(null, "POST", "/api/signin-link", { ...from("203.0.113.5"), body: { email: "a@example.com" } });
   assert.deepEqual([over.status, over.body.retryAfter], [429, 3600]);
 
-  assert.equal(networkOf({ headers: { "x-forwarded-for": " 198.51.100.7 , 10.0.0.1" }, ip: "10.9.9.9" }), "198.51.100.7");
+  // The caller writes the left of the header; only the right, added by our own proxies, is trusted.
+  assert.equal(networkOf({ headers: { "x-forwarded-for": " 198.51.100.7 , 10.0.0.1" }, ip: "10.9.9.9" }), "10.0.0.1");
+  assert.equal(networkOf({ headers: { "x-forwarded-for": "1.1.1.1, 198.51.100.7, 10.0.0.1" } }, { proxyHops: 1 }), "198.51.100.7");
+  assert.equal(networkOf({ headers: { "x-forwarded-for": "198.51.100.7" } }, { proxyHops: 1 }), "198.51.100.7", "fewer entries than hops: the left-most there is");
   assert.equal(networkOf({ headers: {}, ip: "10.9.9.9" }), "10.9.9.9");
   assert.equal(networkOf({}), "unknown");
   // The store never holds an address in the clear.
   assert.ok([...w.throttle.hits.keys()].every((key) => !key.includes("203.0.113") && !key.includes("uid-")));
+});
+
+test("a caller can't get a fresh sign-in-link limit by writing their own x-forwarded-for", async () => {
+  const w = make();
+  const spoofed = (i) => ({ headers: { "x-forwarded-for": `192.0.2.${i}, 203.0.113.5` }, body: { email: `p${i}@example.com` } });
+  let i = 0;
+  const links = await times(20, () => w.ask(null, "POST", "/api/signin-link", spoofed((i += 1))));
+  assert.ok(links.every((a) => a.status === 200));
+  assert.equal((await w.ask(null, "POST", "/api/signin-link", spoofed(99))).status, 429);
 });
 
 test("a broken counter never locks anyone out: the call goes through and it is logged", async () => {

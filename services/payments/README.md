@@ -167,3 +167,11 @@ platform's publishable key and the press's account (`payments` in the shop profi
 - Square: the platform's Square applications (Julian: a Square developer account, production and Sandbox apps with the
   redirect address `/square/oauth`, and the two webhook subscriptions), the Firestore token and state stores, and the
   shop side (`functions/payments/square.js` and the admin's Connect Square button).
+
+## Counting events per shop (plan 19.12)
+
+With an optional `deliveryStats` (`clients/stores.js` `firestoreDeliveryStats`), `stripeEvent` counts each event for a
+shop as `payment-event`, and each one it answers with a failure (the owner couldn't be emailed, the fee couldn't be
+counted, the shop didn't take it) as `payment-event-failed` as well. A retried event counts again: these are messages
+received, not payments. The control room shows the last 7 days on the shop's record and asks for a look past 3 failed
+(`control-room/delivery.js`). A counter that fails is printed and never stops the event.

@@ -21,6 +21,12 @@ export function firestoreSentLog(firestore) {
       const rows = await firestore.query("emailSent", { where: [["shopId", "==", shopId], ["status", "==", "sent"]], limit: 20000 });
       return rows.filter((row) => row.data.at >= since).length;
     },
+    // The platform's own emails about one shop, newest first (control-room/timeline.js, plan 19.10). Equality filters
+    // only; the date order is put here.
+    async listForShop(shopId, { limit = 200 } = {}) {
+      const rows = await firestore.query("emailSent", { where: [["shopId", "==", shopId], ["platform", "==", true]], limit: 5000 });
+      return rows.map((row) => row.data).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, limit);
+    },
   };
 }
 
@@ -47,6 +53,10 @@ export function firestoreSupport(firestore) {
     },
     async countSince(email, since) {
       return (await rows([["email", "==", email]], 500)).filter((t) => t.openedAt >= since).length;
+    },
+    // One shop's requests, newest first (control-room/timeline.js, plan 19.10).
+    async listByShop(shopId) {
+      return (await rows([["shopId", "==", shopId]], 500)).sort((a, b) => (a.openedAt < b.openedAt ? 1 : -1));
     },
   };
 }
@@ -136,5 +146,68 @@ export function firestoreInvites(firestore) {
   return {
     get: (id) => firestore.get(`invites/${id}`),
     set: (id, row) => firestore.set(`invites/${id}`, row),
+  };
+}
+
+/**
+ * incomeHistory/<YYYY-MM-DD>: one record a night of the platform's own income (control-room/incomeHistory.js, plan
+ * 19.7). `list` reads one range on the record's own `day` field, which needs no extra index.
+ */
+export function firestoreIncomeHistory(firestore) {
+  return {
+    get: (day) => firestore.get(`incomeHistory/${day}`),
+    set: (day, record) => firestore.set(`incomeHistory/${day}`, record),
+    async list({ since = "" } = {}) {
+      const rows = await firestore.query("incomeHistory", { where: [["day", ">=", since]], orderBy: [["day", "asc"]], limit: 1000 });
+      return rows.map((row) => row.data);
+    },
+  };
+}
+
+/**
+ * jobRuns/<name>-<startedAt>: the scheduled jobs' runs (services/jobs, plan 19.11), the newest 50 kept per job;
+ * jobState/<name>: whether that job's late alert was sent.
+ */
+export function firestoreJobRuns(firestore, { keep = 50 } = {}) {
+  const id = (name, run) => `${name}-${run.startedAt}`.replace(/[^0-9A-Za-z_-]/g, "_");
+  const newestFirst = (a, b) => (a.data.startedAt < b.data.startedAt ? 1 : a.data.startedAt > b.data.startedAt ? -1 : 0);
+  const rows = async (name) => (await firestore.query("jobRuns", { where: [["name", "==", name]], limit: 500 })).sort(newestFirst);
+  return {
+    async add(name, run) {
+      await firestore.set(`jobRuns/${id(name, run)}`, { ...run, name });
+      for (const old of (await rows(name)).slice(keep)) await firestore.remove(`jobRuns/${old.id}`);
+    },
+    list: async (name, { limit = keep } = {}) => (await rows(name)).slice(0, limit).map((row) => row.data),
+    getState: (name) => firestore.get(`jobState/${name}`),
+    setState: (name, state) => firestore.set(`jobState/${name}`, state),
+  };
+}
+
+/**
+ * deliveryStats/<shopId>_<kind>_<day>: per shop, per day, how many payment events came in and how many failed
+ * (services/payments, plan 19.12). One counter a day, raised in a transaction.
+ */
+export function firestoreDeliveryStats(firestore) {
+  const docOf = (shopId, kind, day) => `deliveryStats/${`${shopId}_${kind}_${day}`.replace(/[^0-9A-Za-z_-]/g, "_")}`;
+  return {
+    add: (shopId, kind, at) => firestore.transaction(async (tx) => {
+      const day = String(at).slice(0, 10);
+      const path = docOf(shopId, kind, day);
+      const found = await tx.get(path);
+      tx.set(path, { shopId, kind, day, count: (found?.count ?? 0) + 1 });
+    }),
+    async count(shopId, kind, sinceIso) {
+      const rows = await firestore.query("deliveryStats", { where: [["shopId", "==", shopId], ["kind", "==", kind]], limit: 1000 });
+      return rows.filter((row) => row.data.day >= String(sinceIso).slice(0, 10)).reduce((sum, row) => sum + (row.data.count ?? 0), 0);
+    },
+  };
+}
+
+/** shopNotes/<shopId>: the control room's private notes and tags on a shop (control-room/notes.js, plan 19.13). */
+export function firestoreShopNotes(firestore) {
+  return {
+    get: (shopId) => firestore.get(`shopNotes/${shopId}`),
+    set: (shopId, doc) => firestore.set(`shopNotes/${shopId}`, doc),
+    list: async () => (await firestore.query("shopNotes", { limit: 5000 })).map((row) => row.data),
   };
 }

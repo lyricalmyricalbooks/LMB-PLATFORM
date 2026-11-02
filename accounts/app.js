@@ -261,7 +261,7 @@ function shopCard(shop) {
     const plan = el("a", { className: "button", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Plan & billing" });
     const checkShop = el("button", { type: "button", textContent: "Check my shop" });
     checkShop.addEventListener("click", () => openCheck(shop));
-    actions.append(team, plan, checkShop);
+    actions.append(team, plan, checkShop, dataButton(shop));
   }
   const where = standing(shop);
   const address = shop.siteUrl ? shop.siteUrl.replace(/^https?:\/\//, "") : "";
@@ -627,4 +627,22 @@ function accessCard(shop, waiting, visits) {
     ...asks,
     visitList ? el("p", { className: "hint", style: "margin:0", textContent: "The last visits from Colophon support, newest first:" }) : null,
     visitList);
+}
+
+// ── All your data (plan 19.16): every file of the shop and stockroom, with a link emailed to the owner. Once a day. ──
+function dataButton(shop) {
+  const data = el("button", { type: "button", className: "ghost", textContent: "Download all your data" });
+  data.addEventListener("click", async () => {
+    if (!window.confirm(`We'll gather everything in ${shop.pressName} (books, orders, customers, stockroom and settings) and email you a link that works for 7 days. Go ahead?`)) return;
+    data.disabled = true;
+    status.textContent = "Gathering your data…";
+    try {
+      const { emailedTo } = await api("POST", "/account/export", { shopId: shop.shopId });
+      status.textContent = `Done. We've emailed the link to ${emailedTo}. It works for 7 days.`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    data.disabled = false;
+  });
+  return data;
 }

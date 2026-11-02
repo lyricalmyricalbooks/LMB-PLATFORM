@@ -72,7 +72,7 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
     return { subject: message.subject.trim(), text: message.text, html: message.html };
   };
 
-  const deliver = async ({ shopId, kind, stream = "orders", to, idempotencyKey, from, replyTo, parts }) => {
+  const deliver = async ({ shopId, kind, stream = "orders", to, idempotencyKey, from, replyTo, parts, platform = false }) => {
     const done = await sentLog.get(idempotencyKey);
     if (done?.status === "sent") return { id: done.id, alreadySent: true };
     const at = now().toISOString();
@@ -81,10 +81,10 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
         from, to, replyTo, idempotencyKey, ...parts,
         tags: [tag("kind", kind), ...(shopId ? [tag("shop", shopId)] : []), tag("stream", stream)],
       });
-      await sentLog.put(idempotencyKey, { shopId, kind, stream, to, id, status: "sent", at });
+      await sentLog.put(idempotencyKey, { shopId, kind, stream, to, id, status: "sent", at, ...(platform ? { platform: true } : {}) });
       return { id, alreadySent: false };
     } catch (error) {
-      await sentLog.put(idempotencyKey, { shopId, kind, stream, to, status: "failed", error: error.message, retryable: error.retryable !== false, at });
+      await sentLog.put(idempotencyKey, { shopId, kind, stream, to, status: "failed", error: error.message, retryable: error.retryable !== false, at, ...(platform ? { platform: true } : {}) });
       throw error;
     }
   };
@@ -148,7 +148,7 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
       const parts = withIdentity(TEMPLATES[message.kind](message.data ?? {}, { settings, pressName: message.data?.pressName ?? "" }), settings);
       return deliver({
         shopId: message.shopId ?? null, kind: message.kind, to: message.to.trim(), idempotencyKey: message.idempotencyKey,
-        from: fromLine(settings.platformName, settings.senderEmail), replyTo: settings.supportEmail, parts,
+        from: fromLine(settings.platformName, settings.senderEmail), replyTo: settings.supportEmail, parts, platform: true,
       });
     },
   };

@@ -27,14 +27,16 @@ presses leave, failed-payment recovery beyond one email, a per-shop timeline, a 
 older Stripe messages can't reopen a cancelled plan or turn a press's cards back on (19.2); the shop list and Today read
 eight shops at a time instead of one after another (19.3).
 
-**Next, in order:** each payment message handled exactly once (19.4); fair-use limits (19.5); the press says yes before
-"Make changes" (19.6); income over time (19.7); why presses leave (19.8); failed-payment recovery (19.9); one timeline
-per shop (19.10); the jobs page (19.11); payment and email delivery per shop (19.12); notes and tags (19.13); messages
-to presses (19.14); what each shop costs us (19.15); a press's data on request (19.16). Make-it-real (15.5 to 15.7)
-still comes first.
+**Built (2 November, PR #223 and the batch 2-4 PR):** each payment message handled exactly once (19.4); fair-use
+limits (19.5); the press says yes before "Make changes" (19.6); income over time (19.7); why presses leave (19.8);
+failed-payment recovery (19.9); one timeline per shop (19.10); the jobs page (19.11); payment and email delivery per
+shop (19.12); notes and tags (19.13); messages to presses (19.14); what each shop costs us (19.15); a press's data on
+request (19.16). All run on pretend accounts in tests and go live with the server program (15.6).
 
-**New step for you:** with the Stripe platform profile (13 November), switch on Smart Retries and the card account
-updater.
+**Steps for you:** with the Stripe platform profile (13 November), switch on Smart Retries (if all retries fail, mark
+the plan unpaid rather than cancel it), the card account updater, and the "card automatically updated" webhook message.
+After the Google organization, turn on Google's billing export to BigQuery (feeds 19.15). Scheduling the jobs and the
+health-alert address are done with 15.6, nothing for you.
 
 ## Your steps for this chunk
 

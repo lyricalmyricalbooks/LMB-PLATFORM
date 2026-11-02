@@ -280,9 +280,46 @@ with `routes: platformRoutes(controls)`. Platform admins only.
 | `POST /api/control/retry` | `{ shopId, reason }`: make a stopped shop again |
 | `POST /api/control/activity` | `{ shopId?, limit? }` |
 
+## Income, leaving and failed payments (`incomeHistory.js`, `leaving.js`, `paymentTrouble.js`, `business.js`, `nightly.js`, plan 19.7-19.9)
+
+The business side of the Today page, below the test shop. Admins only (`adminOf`); nothing here changes anything, so
+nothing asks for a reason. The routes come from `businessRoutes(createBusinessRoom({ registry, incomeHistory, admins }))`,
+joined to the web door next to `controlRoutes` (walkthrough/world.js).
+
+- **Income over time** (19.7). Once a night `snapshotIncome({ registry, settings, store, now })` writes
+  `incomeHistory/<YYYY-MM-DD>` (Toronto's day): monthly income in cents, paying, on trial, paused and closed, counted with
+  Today's own `monthlyCents` and `planCounts` (`today.js`), the test shop never; and the movements since the last record
+  before today: new paying (`trialToPaid` among them), bigger and smaller plans, shops lost, trials ended. Run twice the
+  same day, it writes the same key with the same numbers. `history({ store, months: 12, now })` answers the 13 month-end
+  values (12 months plus this one so far, `null` for a month with no record), money kept (new paying plus bigger plans)
+  and lost (smaller plans plus shops lost) this month in cents, and trials that became paying over the last 90 days.
+  The page draws the line as inline SVG in the theme's colours (months along the bottom, income on the left, the last
+  point marked and labelled, a hidden table for screen readers), with the three figures above it. Before the first
+  night: "The line starts the first night the platform runs."
+- **Failed plan payments** (19.9). Shops whose plan payment is failing, unpaid, waiting for a first payment or paused for
+  a card, with days since it began (`billing.troubleSince`, or the closing sweep's `pausedAt`) and, for a paused shop, the
+  days left before it closes (`PAUSED_DAYS` from `services/billing/closing.js`; download for `DOWNLOAD_DAYS` after). Most
+  urgent first: shops closing soonest, then payments still being tried (no closing date yet), longest first. A table;
+  a row opens the shop's record.
+- **Why presses leave** (19.8). The answers presses gave when they cancelled (`billing.leaving`), by month and reason,
+  newest first; counts this month and over the last six months (answers from presses who then kept their plan counted
+  apart); the latest words. **Still time to talk**: shops whose plan is set to end, or paused for a missing card, soonest
+  first, with their reason and the date it ends.
+- **The nightly run**: `runBusinessNightly({ registry, settings, incomeHistory, billing, now, print })` writes the income
+  record and runs billing's card-expiry warnings (`services/billing/cardExpiry.js`); each part runs even if the other
+  fails. For real: `node control-room/nightly.js` once a night (platform registry, `firestoreIncomeHistory`, live
+  settings; the card warnings join once billing is hosted).
+
+| Route | What |
+| --- | --- |
+| `GET /api/control/income` | `{ months: [{ month, incomeCents, paying, … }], kept, lost, trials, started, currency }` |
+| `GET /api/control/leaving` | `{ reasons, months, thisMonth, lastSixMonths, latest, saveList }` |
+| `GET /api/control/payment-trouble` | `{ shops: [{ shopId, state, daysSince, daysLeft, closesAt, … }] }` |
+
 ## Not yet
 
-- **Schedules:** the daily self-check sweep and the shop maker's sweep (Cloud Scheduler in the platform project).
+- **Schedules:** the daily self-check sweep, the shop maker's sweep and the nightly business run
+  (`node control-room/nightly.js`) (Cloud Scheduler in the platform project).
 - **More callers:** the release runner and billing changes don't run the self-checks yet; the daily sweep covers them.
 - **Hosting** the page and the `/api` function, with the clients the newer actions take: `shopData`, `envFiles`,
   `deploy`, `build`, `email` and `squareAccount` for closing a shop and the payments switch, `breaches`
@@ -291,3 +328,116 @@ with `routes: platformRoutes(controls)`. Platform admins only.
   `PLATFORM_PRIVACY_CONTACT`.
 - **Permissions:** the platform's service account needs permission to manage each shop's users. It already has it as
   owner of the projects it makes.
+
+## One timeline per shop (`timeline.js`, plan 19.10)
+
+`shopTimeline({ shopId, registry, auditLog?, activity, supportStore?, releases?, emailLog?, limit, before?, kinds? })`
+merges, newest first, everything the platform already records about one shop: the registry's events (`readEvents`:
+billing, payments, fee, switches, closures, act-as, health, backups, repairs, email…), its release checks and the
+release runs that name it (`listReleases`), the control room's activity log for it, its support requests
+(`listByShop`) and the platform's own emails about it (the email service's sent log, entries marked `platform`; a
+shop's emails to its shoppers are never read). Each entry is `{ at, kind, words, by? }`, `kind` one of billing,
+release, health, support, switch, visit, email, other. A control-room action is in the registry and the activity log
+at once; it shows once. `kinds` filters; `next` is the `before` of the page after (stable when entries share a time).
+The shop's drawer has a **Timeline** section with a chip per kind and **Show older**.
+
+`createTimeline({ admins, registry, activity, supportStore, emailLog })`, on the door with `timelineRoutes(timeline)`:
+
+| Route | What |
+| --- | --- |
+| `POST /api/control/timeline` | `{ shopId, kinds?, before? }` -> `{ entries, next }` (admins only) |
+
+## The Jobs page (`jobs.js`, plan 19.11)
+
+The jobs and their run log are `services/jobs` (its README lists every scheduled job). The **Jobs** page in the side
+menu shows each job, how often it runs, its last run, how long it took and its result (worked, failed, late or not
+run yet), with **Run now**. Looking at the page also sends a late alert not sent yet. `createJobsPage({ admins,
+runner, jobs, activity })` takes `jobs`, a map of the jobs this server can run itself; **Run now** logs the reason in
+the activity log first, then runs it through `runJob`, so it lands in the run log like a scheduled run. A job not in
+the map answers 409 "This job can only run on the server."
+
+| Route | What |
+| --- | --- |
+| `GET /api/control/jobs` | every job with its last run, last success, time taken, `late`, `never`, `canRun` |
+| `POST /api/control/jobs/run` | `{ name, reason }`: run one job now (logged) |
+
+## Payments and email delivery (`delivery.js`, plan 19.12)
+
+The shop's record (`POST /api/control/shop`) gains `delivery: { payments: { received, failed }, email: { sent,
+bounced, complained } }` over the last 7 days, when `createControlRoom` is given `delivery:
+deliveryReader({ deliveryStats, sentLog, reputation })`. Payment events are counted by the payment service
+(`deliveryStats`, below); emails sent come from the email service's sent log; bounces and spam reports from the
+newsletter guard's own events (`services/email/reputation.js`), so nothing is counted twice. Those reports only come
+back for newsletter emails, so the bounce rate shown is never higher than the real one. `shopHealth` takes the counts
+as an optional `delivery` and adds a "look" reason when more than 5% of at least 20 emails bounced, or more than 3
+payment events failed. Old callers, without it, get what they always got. The drawer shows the counts under the facts.
+
+`deliveryStats` (`clients/stores.js` `firestoreDeliveryStats`, `visibilityFakes.js` `fakeDeliveryStats`):
+`add(shopId, kind, at)` raises one counter a day per shop and kind (`deliveryStats/<shopId>_<kind>_<day>`), and
+`count(shopId, kind, sinceIso)` adds them up. The payment service takes it as an optional `deliveryStats`.
+
+## Notes and tags on a shop (`notes.js`, plan 19.13)
+
+Private notes (up to 1000 characters) and up to 10 tags (lowercase words or short phrases, 30 characters at most) on a
+shop, for the platform only. **Notes are private to the platform: they are never written to the shop's own audit log
+or the registry's events**, which a press can come to see. Every add, delete and tag change is written to the control
+room's activity log instead (`note-added`, `note-deleted`, `tags-set`), without the note's words; deleting a note and
+changing tags ask for a reason. Stored as `shopNotes/<shopId>` (`clients/stores.js` `firestoreShopNotes`,
+`visibilityFakes.js` `fakeShopNotes`). The Shops list shows each shop's tags as small pills and its search also matches
+tags (`shopSearch.js`, shared by the page and its test); the drawer has a **Notes** section.
+
+`createShopNotes({ admins, store, registry, activity })`, on the door with `notesRoutes(notes)`:
+
+| Route | What |
+| --- | --- |
+| `POST /api/control/notes` | `{ shopId }`: its notes and tags; `{}`: every shop's tags (`tagsByShop`) |
+| `POST /api/control/notes/add` | `{ shopId, words }` |
+| `POST /api/control/notes/delete` | `{ shopId, id, reason }` |
+| `POST /api/control/tags` | `{ shopId, tags, reason }` |
+
+## Messages to presses (`messages.js`, plan 19.14)
+
+A note from the control room at the top of every shop admin it reaches, from a start to an end date. The status page's
+note (the run book) stays for outages.
+
+- **Who:** every shop, the shops on one plan (`shop`, `stockroom`, `both`), or one shop. Only live shops; a shop being
+  made or deleted gets nothing.
+- **What:** plain words, at most 400 characters, no page markup; `info` or `important`; an end date is required and at
+  most 60 days away; a start date is optional (now). A reason goes in the activity log (and a one-shop message in that
+  shop's history and audit log).
+- **Important** also emails each targeted owner once (`press-message`, key `press-message/<id>/<shopId>`, and the
+  message row keeps `emailed`), the stockroom-only presses too. Without an email service an important message is refused.
+- **How it reaches the shop:** the admin-only `platform/messages` document in the shop's own database, like billing's
+  `platform/plan`: `{ messages: [{ id, words, level, startsAt, endsAt }], updatedAt }`, every message for the shop that
+  hasn't ended, upcoming ones too. The shop admin shows each between its dates as a banner over every page, with Close
+  (kept in that browser), under the plan's banner (`apps/shop/src/app/admin/platformMessages.ts`, `PlatformMessagesBar.tsx`).
+  The shop's rules let only its admins read it and no browser write it; the storefront never reads it. Not the shop
+  profile: `/shop-profile.js` is public and changing it means putting the shop's pages live again.
+- **End now** takes it off every shop at once. **`sweep()`** (nightly, beside the self-checks) rewrites every live shop's
+  document, so ended ones drop off and shops made since get theirs, and emails an important message still showing to an
+  owner who hasn't had it. Everything is safe to run twice; adding the same message again changes nothing.
+- Store: `pressMessages/<id>` in the platform project (`messagesFakes.js` `fakePressMessages`). The banner on the
+  stockroom's own pages is not built: a stockroom-only press gets the important ones by email.
+
+`createPressMessages({ store, registry, auditLog, shopData, email, activity, admins })`, added to the web door with
+`messageRoutes(messages)`:
+
+| Route | What |
+| --- | --- |
+| `GET /api/control/messages` | every message, newest first, with its state (showing, upcoming, ended) and how many shops it reaches |
+| `POST /api/control/messages/add` | `{ words, level, audience: { all: true } \| { plan } \| { shopId }, startsAt?, endsAt, reason }` |
+| `POST /api/control/messages/end` | `{ id, reason }` |
+
+## Costs (`costs.js`, plan 19.15)
+
+The **Costs** page: this month's Google bill per shop next to what the shop pays, the shops costing more than they pay
+first, then the projects that aren't a shop. `GET /api/control/costs` (`createCostsDesk({ registry, reader, settings,
+fees, admins })`, `costRoutes(desk)`); the sums and Julian's step to switch Google's billing export on are in
+`services/costs/README.md`. Until then the page says "Costs appear once Google's billing export is switched on."
+
+## A press's data (plan 19.16)
+
+**Email the press its data** in a shop's drawer: every collection of the shop and the stockroom's records as
+spreadsheet files, emailed to the owner as a link that works 7 days. It asks why; logged in the registry, the shop's
+audit log and the activity log before anything is built. `POST /api/control/export { shopId, reason }`
+(`services/export/README.md`).

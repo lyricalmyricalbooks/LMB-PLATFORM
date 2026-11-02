@@ -123,6 +123,11 @@ export function createAccessRequests({ store, email = null, settings, now = () =
       let refused = null;
       const row = await store.update(id, (current) => {
         const status = statusAt(current, nowMs());
+        // The press said yes to the person named on the request, not to any admin.
+        if (status === "approved" && current.by !== by) {
+          refused = "someone-else";
+          return current;
+        }
         if (status !== "approved") {
           refused = status;
           return current;
@@ -130,6 +135,7 @@ export function createAccessRequests({ store, email = null, settings, now = () =
         return { ...current, status: "used", usedAt: new Date(nowMs()).toISOString(), usedBy: by };
       });
       // No yes (waiting, declined) is "not allowed"; a yes that ran out or was used conflicts with what happened.
+      if (refused === "someone-else") throw new AccessRequestError(403, "The press said yes to the person who asked. Only they can use this request; ask the press yourself.");
       if (refused) throw new AccessRequestError(refused === "waiting" || refused === "declined" ? 403 : 409, NOT_OPEN[refused] ?? "That request can't open the shop.");
       return row;
     },
