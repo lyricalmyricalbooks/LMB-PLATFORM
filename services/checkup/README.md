@@ -23,7 +23,12 @@ A fact that is not known is left out of the email, never guessed. When none is k
 Every email ends with `<PLATFORM_URL>/checkup/off?shop=<id>&sig=<signature>` (`offToken`, signed with the check-up's own
 secret). `handleOff(url)` answers that page. Billing emails never pass through here.
 
+## Hosting
+
+The platform's server program runs it (`server/`): the `shop-checkup` job every day at 10:00 Toronto time (each shop
+gets one email a month), and the `/checkup/off` page on the web door. Its record is `checkups/<shop id>` in the
+platform project. Without `CHECKUP_SECRET` the job and the page answer "not connected yet".
+
 ## Not yet
 
-- Hosting: the daily run and the `/checkup/off` page become one scheduled function and one route (like the trial tips).
 - The three missing readers above, which need the shop live and Julian's Google connection.

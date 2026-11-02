@@ -17,6 +17,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | --- | --- |
 | `apps/` | Copies of the shop and the stockroom for the platform. Julian's own repos are never changed. |
 | `setup/` | The shop maker. It creates a press's Firebase copy in numbered steps, each safe to re-run. |
+| `server/` | The platform's server program, hosted in the platform project: the web door every `/api` address goes to, and the scheduled jobs. How to put it online is in its README. |
 | `clients/` | The platform's real connections to Google (Firestore, the registry, sign-in for the test owner), each tested with a fake `fetch`. |
 | `release-check/` | The full purchase every update must pass on the test shop: buy, stock drop in the shop and stockroom, email, refund. |
 | `releases/` | Notes on how a new shop and stockroom version reaches every press. |

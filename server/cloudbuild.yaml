@@ -1,0 +1,7 @@
+# Builds the server's image from the repository's root and stores it in the platform's image store (Artifact
+# Registry). server/deploy.js runs: gcloud builds submit --config=server/cloudbuild.yaml --substitutions=_IMAGE=<image>
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "--file", "server/Dockerfile", "--tag", "${_IMAGE}", "."]
+images:
+  - "${_IMAGE}"
