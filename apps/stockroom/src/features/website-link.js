@@ -32,6 +32,7 @@ import { otherSizes, websiteGroup } from '../lib/product-groups.js';
 import { confirmDialog } from '../lib/modal.js';
 import { countWebsiteOrdersNotSent, openOnWebsiteHtml, websiteAdmin } from '../lib/app-switch.js';
 import { isTestProfileActive } from '../lib/test-profile.js';
+import { tradeInvoiceDraft, tradeInvoicesToSend } from '../lib/trade-invoice.js';
 import {
   bookPrefill,
   buildAppTodo,
@@ -913,6 +914,7 @@ function wireCard() {
     else if (action === 'detail-use') useWebsiteDetail(btn.dataset.id, btn);
     else if (action === 'detail-keep') keepDetail(btn.dataset.id);
     else if (action === 'detail-more') { _detailsOpen = !_detailsOpen; renderWebsiteLinkCard(); }
+    else if (action === 'trade-invoice') prepareTradeInvoice(order);
   });
 }
 
@@ -1106,6 +1108,31 @@ function unlinkedHtml() {
     </div>`;
 }
 
+/** Trade accounts' orders placed on invoice terms that have no invoice yet (lib/trade-invoice.js). */
+function tradeInvoicesHtml() {
+  const invoices = Object.keys(states || {}).flatMap(id => ((states[id] || {}).invoices) || []);
+  const list = tradeInvoicesToSend([..._docs.values()], invoices);
+  if (!list.length) return '';
+  const items = list.map(o => `<li class="wl-item">
+        <div class="wl-item-head"><strong class="wl-num">${escapeHtml(o.number)}</strong><span class="wl-sub">${escapeHtml(o.name)}</span></div>
+        <p class="wl-why">${escapeHtml(`${fmt(o.total, getSym('CAD'))} on net ${o.days} terms${o.dueDay ? `, due ${fmtD(o.dueDay)}` : ''}. Already counted as a sale.`)}</p>
+        <div class="wl-actions"><button class="btn gold sm" type="button" data-wl-action="trade-invoice" data-order="${escapeHtml(o.orderId)}">Prepare the invoice</button></div>
+      </li>`).join('');
+  return `<div class="wl-section">
+      <h4 class="wl-subhead">Trade invoices to send <span class="wl-count wl-mono">${list.length}</span></h4>
+      <p class="wl-note">A trade account ordered on the website and will pay later. The sale is already in your books; this makes the bill to send.</p>
+      <ul class="wl-list">${items}</ul>
+    </div>`;
+}
+
+/** Opens the invoice editor filled in from a trade order (main.js listens and opens it). */
+function prepareTradeInvoice(orderId) {
+  const doc = _docs.get(orderId);
+  const draft = doc && doc.web ? tradeInvoiceDraft(doc.web, { today: localDay() }) : null;
+  if (!draft) return;
+  window.dispatchEvent(new CustomEvent('trade-invoice-open', { detail: { draft } }));
+}
+
 function testsHtml() {
   if (!_tests.length) return '';
   const items = _tests.map(plan => {
@@ -1169,7 +1196,7 @@ function renderWebsiteLinkCard() {
   const statusEl = $('wl-status');
   if (statusEl && statusEl.textContent !== s.text) statusEl.textContent = s.text;
   const body = $('wl-body');
-  if (body) body.innerHTML = [factsHtml(), reviewHtml(), shopBooksHtml(), detailDiffsHtml(), promisedHtml(), blockedHtml(), unlinkedHtml(), storageHtml(), testsHtml()].join('');
+  if (body) body.innerHTML = [factsHtml(), reviewHtml(), tradeInvoicesHtml(), shopBooksHtml(), detailDiffsHtml(), promisedHtml(), blockedHtml(), unlinkedHtml(), storageHtml(), testsHtml()].join('');
   // The app switcher's "not sent yet" count follows the same orders.
   try { window.dispatchEvent(new Event('website-link-changed')); } catch (_) { /* old browser */ }
 }

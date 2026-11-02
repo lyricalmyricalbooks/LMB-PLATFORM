@@ -7524,6 +7524,7 @@ export function refreshAttentionSurfaces() {
   renderOverviewRail();
 }
 // The website link's waiting orders and storage check feed the To-do list.
+if (typeof window !== 'undefined') window.addEventListener('trade-invoice-open', (e) => { try { openCreateInvoice(null, null, { draft: e.detail && e.detail.draft }); } catch (_) { /* the editor stays closed */ } });
 if (typeof window !== 'undefined') window.addEventListener('website-link-todo', () => { try { refreshAttentionSurfaces(); } catch (_) { /* next render picks it up */ } });
 
 /** Tick one order off as sent, from the to-do list or the landing page. */
