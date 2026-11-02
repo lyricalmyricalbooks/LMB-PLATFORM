@@ -7,6 +7,7 @@ import { catalogFulfillmentItems } from "./checkoutFulfillment";
 import { preorderActive, linePreorderOpen } from "./preorder";
 import { comingSoonActive } from "./comingSoon";
 import { isBundle } from "./promotions";
+import { madeToOrderTime } from "./madeToOrder";
 
 type BagLine = { id: string; variantId?: string; price: number; quantity: number; preorder?: boolean; releaseDate?: string | null; promoGift?: boolean };
 
@@ -25,7 +26,7 @@ export function bagShipsOnSchedule(cart: BagLine[], books: Map<string, any>, now
     const line = cart[i];
     const book = books.get(line.id);
     const qty = Math.max(1, Math.floor(Number(line.quantity) || 1));
-    if (!book || isBundle(book) || comingSoonActive(book) || preorderActive(book, now) || linePreorderOpen(line, now)) return false;
+    if (!book || isBundle(book) || comingSoonActive(book) || madeToOrderTime(book) || preorderActive(book, now) || linePreorderOpen(line, now)) return false;
     const variant = line.variantId ? (book.variants || []).find((v: any) => v.id === line.variantId) : null;
     if ((variant ? variant.onBackorder : book.onBackorder) === true) return false;
     if (variant) {

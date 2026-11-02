@@ -81,6 +81,7 @@ import { validateLocalFulfillment } from "../features/site/localFulfillment";
 import { returnSettingsProblem, type ReturnSettings } from "../../shared/returnRequests";
 import type { LocalFulfillmentConfig } from "../features/site/types";
 import { dailyTrafficBetween } from "./dailyTrafficCache";
+import { exampleProducts } from "./exampleProducts";
 
 /** books/{id}/private/admin: cost prices, shelf codes and other fields shoppers must not read (bookPrivate.ts). */
 const privateBookRef = (bookId: string) => doc(db, "books", bookId, "private", "admin");
@@ -247,7 +248,28 @@ export const adminApi = {
     });
     if (Object.keys(priv).length) await setDoc(privateBookRef(docRef.id), { ...priv, updatedAt: new Date().toISOString() });
     await adminApi.recordAuditLog("catalog", `Created book: ${dataToSave.title}`);
+    // The first real product clears the example products (Products › Show examples), so none is left on a live shop.
+    if (dataToSave.isExample !== true) await adminApi.clearExampleProducts().catch(() => {});
     return { id: docRef.id, ...dataToSave };
+  },
+
+  /** Adds the three example products (only into an empty catalog; the caller checks). */
+  addExampleProducts: async () => {
+    for (const product of exampleProducts()) await adminApi.createBook(product);
+    await adminApi.recordAuditLog("catalog", "Added example products");
+  },
+
+  /** Deletes every example product. Safe to run any time: it touches only documents flagged `isExample`. */
+  clearExampleProducts: async () => {
+    const snap = await getDocs(query(collection(db, "books"), where("isExample", "==", true), limit(50)));
+    if (!snap.empty) {
+      for (const d of snap.docs) {
+        await deleteDoc(privateBookRef(d.id)).catch(() => {});
+        await deleteDoc(d.ref);
+      }
+      await adminApi.recordAuditLog("catalog", "Cleared example products");
+    }
+    return snap.size;
   },
 
   /**

@@ -220,6 +220,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "pdpCaption", label: "Photo caption", default: "Fig. {n}", hint: "Use {n} for the photo number." },
       { key: "pdpCaptionCount", label: "Photo caption counter", default: "{n} of {total}", hint: "Use {n} for the photo number and {total} for how many photos." },
       { key: "pdpInStock", label: "Stock line (plenty left)", default: "In stock" },
+      { key: "pdpMadeToOrder", label: "Stock line (made to order)", default: "Made to order · ships in {time}", hint: "Shown when a product has a lead time (Products › edit › Shipping › Made to order). Use {time} for what the owner typed, e.g. 2 to 3 weeks." },
       { key: "pdpBackorder", label: "Stock line (backorder)", default: "Out of stock · ships when restocked", hint: "Shown when a book is sold out but set to keep selling (Books › Inventory › Allow backorders)." },
       { key: "pdpPreorder", label: "Stock line (pre-order)", default: "Pre-order · ships {date}", hint: "Shown while a book is on pre-order (Books › Inventory › Pre-order). Use {date} for the release date." },
       { key: "pdpPreorderTba", label: "Stock line (pre-order, no date yet)", default: "Pre-order · release date to be announced", hint: "Shown for a pre-order with no publication date set." },
