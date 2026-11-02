@@ -109,7 +109,7 @@ platform's one web door with `routes: controlRoutes(room)`:
 | `GET /api/control/test-shop` | `{ testShop }`: the test shop's card, or null |
 | `POST /api/control/test-shop/reset` | `{ shopId }` -> `{ shopId, reset }` |
 | `POST /api/control/google-run-again` | `{ shopId, step }` -> `{ outcome }`: one Google step again (needs `googleSteps`) |
-| `POST /api/control/act-as` | `{ shopId, reason, mode? }` (`"view"`, the default, or `"edit"`) -> `{ url, expiresAt, mode }` |
+| `POST /api/control/act-as` | `{ shopId, reason, mode? }` (`"view"`, the default, or `"edit"`) -> `{ url, expiresAt, mode }`; `"edit"` asks the press first and opens only with an approved `requestId` (19.6, below) |
 | `POST /api/control/switch` | `{ shopId, name, on, reason }` |
 
 ## The support sign-in (`supportAccess.js`)
@@ -125,6 +125,29 @@ The shop copy does the rest (`apps/shop/functions/CLAUDE.md` › Platform suppor
 - its rules check the same time;
 - the admin takes the token out of the address and shows a banner with who, why and until when;
 - it signs out at the end.
+
+## The press says yes before "Make changes" (`accessRequests.js`, plan 19.6)
+
+**View this shop** (act as, `mode: "view"`) is unchanged: logged, then a 30-minute look-only sign-in, no yes needed.
+Making changes now waits for the press:
+
+1. **Ask the press** in the shop's drawer (`POST /api/control/act-as { shopId, reason, mode: "edit" }`, no
+   `requestId`) makes a support-access request `{ id, shopId, by, reason, askedAt, expiresAt (24 hours), status }`,
+   logs `access-asked` like every action (registry, the shop's audit log, the activity log), and emails the shop's
+   owner (`support-access-request`: who, why, and **Approve or decline** on their account page). No sign-in is made.
+2. The owner approves or declines on their account page (`accounts/accessRequestRoutes.js`); the answer goes in the
+   registry and the shop's audit log.
+3. Once approved, the drawer shows **Open their admin**: `act-as { shopId, mode: "edit", requestId }` uses the request
+   (an atomic `update`, so two clicks make one sign-in), logs the visit and makes the 30-minute staff sign-in. A
+   request that is waiting or declined is refused (403); one that ran out or was used is refused (409), in plain
+   words. A sign-in that can't be made gives the yes back.
+
+Status: `waiting`, `approved`, `declined`, `expired` (a waiting or approved request past its 24 hours) or `used`.
+`POST /api/control/access-requests { shopId }` lists a shop's requests for the drawer. Without `accessRequests`
+passed to `createControlRoom`, "edit" is refused (503) rather than opened without a yes.
+
+**Emergencies don't wait for a yes.** Closing a shop for abuse (`closeShop`) and moving its card payments
+(`movePayments`) still act at once, with a reason and a log entry, as before.
 
 ## Support requests
 

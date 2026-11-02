@@ -472,6 +472,22 @@ export const TEMPLATES = {
 
   // Closing a shop (code plan 6.8): shop-closed, shop-deletion-warning, shop-deleted.
   ...closingTemplates({ layout, safeLink, signOff }),
+
+  /**
+   * Support asks before making changes in a shop (control-room/accessRequests.js, plan 19.6): who, why, and the way to
+   * say yes or no on the account page. Nothing happens without a yes.
+   */
+  "support-access-request": ({ by, reason, until, link }, { settings, pressName }) => layout({
+    subject: `${settings.platformName} support asks to make changes in ${pressName}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `${by} from ${settings.platformName} support would like to open ${pressName}'s admin for 30 minutes, able to make changes.`,
+      `Why: ${reason}`,
+      `Nothing changes unless you say yes. Approve or decline on your account page${until ? ` by ${until}` : ""}; after that the request runs out. Every visit is written in your shop's log.`,
+    ],
+    buttons: [["Approve or decline", safeLink(link)]],
+    footer: signOff(settings),
+  }),
 };
 
 /** Problems with a free-form email a shop asks to send (its own order and account emails), in plain words. */

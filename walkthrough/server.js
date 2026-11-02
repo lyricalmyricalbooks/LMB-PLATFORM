@@ -236,7 +236,9 @@ export async function startWalkthrough({ port = 0, host = "127.0.0.1", world = n
           return send(response, error.status ?? 400, { ok: false, message: "That request couldn't be read." });
         }
       }
-      const answer = await made.door({ method: request.method, path: pathname, headers: request.headers, body });
+      // The query rides on the path (`?shopId=…`): the door hands it to the route as `request.query`.
+      const { search } = new URL(request.url, "http://walkthrough.local");
+      const answer = await made.door({ method: request.method, path: `${pathname}${search}`, headers: request.headers, body });
       // Stripe's card page is pretend here: send the owner to the stand-in.
       if (pathname === "/api/billing/card" && typeof answer.body?.url === "string" && answer.body.url.startsWith("https://checkout.stripe.example/")) {
         const session = answer.body.url.split("/").pop();
