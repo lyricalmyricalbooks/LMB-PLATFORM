@@ -25,7 +25,7 @@ describe("admin words for a shop that doesn't sell books", () => {
   it("has no plain text or label that says book or author outside w(...)", () => {
     const found: string[] = [];
     for (const f of files(ROOT)) {
-      const rel = f.slice(ROOT.length + 1);
+      const rel = f.slice(ROOT.length + 1).replace(/\\/g, "/");
       if (KEEP.has(rel)) continue;
       const src = readFileSync(f, "utf8");
       const sf = ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
