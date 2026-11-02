@@ -8,6 +8,7 @@ import { listDate, orderMoney, waitedText } from "./orderListHelpers";
 import { printOrders } from "./orderPrint";
 import { queueOf } from "./fulfillment";
 import type { CatalogSearchIndex } from "./orderSearch";
+import { useShopWords } from "./shopWords";
 
 const REFRESH_MS = 60 * 1000;
 const PAGE = 40;
@@ -30,6 +31,7 @@ const typingIn = (t: EventTarget | null) => {
 // the station IS the full order page (OrderDetail), so payment sync with Stripe, refunds, disputes,
 // labels and dispatch all work exactly as before, and finishing an order moves straight to the next one.
 export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string | null) => void }) {
+  const w = useShopWords();
   const [orders, setOrders] = useState<any[] | null>(null);
   const [failed, setFailed] = useState(false);
   // Orders always opens on All orders › Open, newest first, as covers (owner's choice, 18 October 2026);
@@ -197,7 +199,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
           ]}
         />
         {header}
-        <SearchField label="Find an order" placeholder="Name, order or book" value={search}
+        <SearchField label="Find an order" placeholder={w("Name, order or book")} value={search}
           onChange={(e) => (shipping ? setQuery(e.target.value) : setGridQuery(e.target.value))} />
         {only ? (
           <p className="od-only" role="status">
@@ -289,7 +291,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
             tabs={[{ id: "open", label: "Open", count: counts.open }, { id: "completed", label: "Completed", count: counts.completed }, { id: "all", label: "All orders", count: counts.all }]}
           />
           <div className="od-grid-tools">
-            <SearchField label="Find an order" placeholder="Order, name, email, book or ISBN" value={gridQuery} onChange={(e) => setGridQuery(e.target.value)} />
+            <SearchField label="Find an order" placeholder={w("Order, name, email, book or ISBN")} value={gridQuery} onChange={(e) => setGridQuery(e.target.value)} />
             <SelectField label="Sort" hideLabel value={sort} onChange={(e) => setSort(e.target.value === "oldest" ? "oldest" : "newest")}>
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
@@ -355,7 +357,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const listPane = (
     <aside aria-label="Ship queue" className="od-list">
       <div className="od-list-head">
-        <SearchField label="Find an order" placeholder="Order, name, email, phone, postcode, book or ISBN" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <SearchField label="Find an order" placeholder={w("Order, name, email, phone, postcode, book or ISBN")} value={query} onChange={(e) => setQuery(e.target.value)} />
         <div className="od-head-actions" style={{ gap: 8 }}>
           <SecondaryButton size="sm" disabled={!toPack.length} onClick={printPickList} title={toPack.length ? `Every book for the ${toPack.length} order${toPack.length === 1 ? "" : "s"} still to pack` : "Nothing to pack right now"}>
             Print pick list

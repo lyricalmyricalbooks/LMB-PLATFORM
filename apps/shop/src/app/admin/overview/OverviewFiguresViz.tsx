@@ -6,6 +6,7 @@ import { bucketSeries, buildRangeSeries, metricValue, type ChartMetric } from ".
 import { smallPhotoUrl } from "../../features/site/photoSources";
 import { Cover, Spark } from "./OverviewViz";
 import { money, orderHref, shopWhen } from "./OverviewParts";
+import { useShopWords } from "../shopWords";
 
 // Key figures and Newest orders, drawn (19 October 2026): a small line under each figure, and the newest orders with
 // covers and status pills. Same data the board already loads; nothing here reads Firestore.
@@ -60,6 +61,7 @@ const placeOf = (o: Order) => {
 
 /** Newest orders as rows: the first book's cover, who and where, how many books, when, the total and a status pill. */
 export function NewestOrdersList({ orders, books }: { orders: Order[]; books: Book[] }) {
+  const w = useShopWords();
   const byId = new Map(books.map(b => [b.id, b]));
   return (
     <ol className="rp-viz-rank rp-viz-orders" aria-label="Newest orders">
@@ -78,7 +80,7 @@ export function NewestOrdersList({ orders, books }: { orders: Order[]; books: Bo
                 <span className="rp-viz-rank-label">{name}</span>
                 <span className="rp-viz-rank-sub">
                   <a className="rp-mono" href={orderHref(o.id)} aria-label={`Open order ${o.orderId || o.id}`}>{o.orderId || o.id}</a>
-                  {place && ` · ${place}`} · {n} book{n === 1 ? "" : "s"}{shopWhen(o.createdAt) && ` · ${shopWhen(o.createdAt)}`}
+                  {place && ` · ${place}`} · {n} {w("book")}{n === 1 ? "" : "s"}{shopWhen(o.createdAt) && ` · ${shopWhen(o.createdAt)}`}
                 </span>
               </span>
               <span className="rp-viz-order-end">

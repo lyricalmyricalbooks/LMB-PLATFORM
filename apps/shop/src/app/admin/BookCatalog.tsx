@@ -668,7 +668,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <option value="set">Set exact price</option>
           </SelectField>
           <TextField label="Value" type="number" step="0.01" value={priceValue} onChange={e => setPriceValue(e.target.value)} />
-          <Checkbox label="Include edition prices (books sold in editions)" checked={includeEditions} onChange={e => setIncludeEditions(e.target.checked)} />
+          <Checkbox label={w("Include edition prices (books sold in editions)")} checked={includeEditions} onChange={e => setIncludeEditions(e.target.checked)} />
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18, maxHeight: 200, overflow: "auto" }} aria-label="Price preview">
             {pricePlan.changes.slice(0, 20).map(c => <li key={c.id}>{c.title}: {c.editions
               ? c.editions.map(e => `${e.name} CA$${e.from.toFixed(2)} → CA$${e.to.toFixed(2)}`).join(", ")

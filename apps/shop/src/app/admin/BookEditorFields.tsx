@@ -6,6 +6,7 @@ import { mainUrl, mediaRefOf, type MediaItem } from "./studio/mediaLibrary";
 import type { BookPhotoFile } from "./bookPhotoUpload";
 import { Dialog, SelectField, TextField } from "./riso/components";
 import { safeHref } from "../features/site/descriptionLinks";
+import { useShopWords } from "./shopWords";
 
 /** Metric only, stored as "450 g" / "0.5 kg" — the format shippingEngine.parseWeightGrams (client and server) reads. An older "1 lb" opens in grams. */
 export function WeightField({ label, value, onChange, hint }: { label: string; value: string; onChange: (weight: string) => void; hint?: string }) {
@@ -34,6 +35,7 @@ function librarySizes(m: MediaItem): Omit<BookPhotoFile, "url"> {
 }
 
 export function MediaLibraryDialog({ onClose, onChoose }: { onClose: () => void; onChoose: (url: string, alt: string, sizes: Omit<BookPhotoFile, "url">) => void }) {
+  const w = useShopWords();
   const [items, setItems] = useState<MediaItem[] | null>(null);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
@@ -45,7 +47,7 @@ export function MediaLibraryDialog({ onClose, onChoose }: { onClose: () => void;
   }, []);
   const shown = (items || []).filter((m) => `${m.name} ${m.alt}`.toLowerCase().includes(q.trim().toLowerCase()));
   return (
-    <Dialog open onClose={onClose} size="lg" title="Choose from library" description="Pictures uploaded in Design › Media. Click one to add it to this book."
+    <Dialog open onClose={onClose} size="lg" title="Choose from library" description={w("Pictures uploaded in Design › Media. Click one to add it to this book.")}
       footer={<button type="button" className="rp-btn rp-btn-secondary" onClick={onClose}>Cancel</button>}>
       <div className="rp-stack">
         <TextField label="Search pictures" value={q} onChange={(e) => setQ(e.target.value)} />

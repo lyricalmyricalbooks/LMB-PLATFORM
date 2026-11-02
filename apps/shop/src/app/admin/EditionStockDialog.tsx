@@ -8,8 +8,10 @@ import { inventoryApi } from "./inventoryApi";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { ADJUST_REASONS, kindOf, variantStock, type AdjustReason } from "./inventoryInsights";
+import { useShopWords } from "./shopWords";
 
 export function EditionStockDialog({ book, onClose, onSaved }: { book: any | null; onClose: () => void; onSaved: () => void }) {
+  const w = useShopWords();
   const editions: any[] = Array.isArray(book?.variants) ? book.variants.filter((v: any) => v && v.id) : [];
   const [values, setValues] = useState<Record<string, string>>({});
   const [reason, setReason] = useState<AdjustReason>("Count correction");
@@ -63,11 +65,11 @@ export function EditionStockDialog({ book, onClose, onSaved }: { book: any | nul
 
   return (
     <Dialog open onClose={onClose} title={`Stock · ${book.title || "Untitled"}`}
-      description="This book is sold in editions, so each edition has its own count. Shoppers see it as sold out only when every edition is at 0."
+      description={w("This book is sold in editions, so each edition has its own count. Shoppers see it as sold out only when every edition is at 0.")}
       footer={<><SecondaryButton onClick={onClose} disabled={busy}>Cancel</SecondaryButton>
         <PrimaryButton onClick={save} disabled={busy || invalid}>{busy ? "Saving…" : "Save stock"}</PrimaryButton></>}>
       <div className="rp-stack">
-        {!book.trackInventory && <p className="rp-hint">Inventory tracking is off for this book, so it never sells out. Turn it on in Edit › Inventory to count copies.</p>}
+        {!book.trackInventory && <p className="rp-hint">{w("Inventory tracking is off for this book, so it never sells out. Turn it on in Edit › Inventory to count copies.")}</p>}
         {editions.map((v) => counted(v) ? (
           <TextField key={v.id} label={v.name || "Edition"} type="number" min={0} step={1} inputMode="numeric"
             value={values[v.id] ?? ""} onChange={(e) => setValues((p) => ({ ...p, [v.id]: e.target.value }))}

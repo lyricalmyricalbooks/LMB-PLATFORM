@@ -12,6 +12,7 @@ import {
 import { SPLIT, StatRow, money, percent } from "./OverviewParts";
 import { Columns, HeatGrid, RankBars, Stack, Waterfall, type FallStep } from "./OverviewViz";
 import { smallPhotoUrl } from "../../features/site/photoSources";
+import { useShopWords } from "../shopWords";
 
 /** Overview › Dig deeper › Sales: what is selling, in which format, where, when and at what discount. */
 export function OverviewSales({ current, previous, books, categoriesSetting, dailyCurrent, onEditBook, fetchingBookId, only }: {
@@ -20,6 +21,7 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
   current: Order[]; previous: Order[]; books: Book[]; categoriesSetting: unknown; dailyCurrent: Daily[];
   onEditBook: (id: string) => void; fetchingBookId: string | null;
 }) {
+  const w = useShopWords();
   const cur = useMemo(() => totals(current), [current]);
   const best = useMemo(() => bestSellers(current, 5), [current]);
   const prevUnits = useMemo(() => unitsById(previous), [previous]);
@@ -57,7 +59,7 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
               move: before < 0 ? "new" as const : before - i,
               details: (
                 <>
-                  <GhostButton size="sm" onClick={() => onEditBook(b.id)} disabled={fetchingBookId === b.id} aria-label={`Edit ${b.title}`} style={{ paddingLeft: 0 }}>Edit book</GhostButton>
+                  <GhostButton size="sm" onClick={() => onEditBook(b.id)} disabled={fetchingBookId === b.id} aria-label={`Edit ${b.title}`} style={{ paddingLeft: 0 }}>{w("Edit book")}</GhostButton>
                   <OrdersDrill label={b.title} books={false} orders={ordersWithBook(current, b.id)} extra={o => `${copiesOf(o, b.id)} cop${copiesOf(o, b.id) === 1 ? "y" : "ies"} of this title`} />
                 </>
               ),
@@ -69,13 +71,13 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
       {show("money") && <SectionCard flush title="Where the money goes" description="What customers paid, broken down">
         {cur.orders === 0 ? <EmptyState title="No sales in this period" description="The breakdown appears once paid orders arrive." /> : (
           <>
-          <Waterfall label="From books sold to what you received" format={money} steps={fall} />
+          <Waterfall label={w("From books sold to what you received")} format={money} steps={fall} />
           <p className="rp-hint" style={{ margin: "0 20px 12px" }}>
             Customers paid {money(cur.revenue)}{cur.refunded > 0 ? `; after ${money(cur.refunded)} refunded` : ""}, so you received <strong>{money(cur.net)}</strong>. Of that, {money(cur.tax)} is sales tax owed to the tax office and {money(cur.shipping)} pays for postage.
           </p>
           <Fold label="the lines">
           <ul className="rp-list" aria-label="Revenue breakdown">
-            <StatRow label="Books" hint="before discounts" value={money(cur.subtotal)} details={<OrdersDrill label="Orders in this period" orders={current} />} />
+            <StatRow label={w("Books")} hint="before discounts" value={money(cur.subtotal)} details={<OrdersDrill label="Orders in this period" orders={current} />} />
             <StatRow label="Discounts" hint={`${percent(cur.discountRate)} of list price`} value={`− ${money(cur.discounts)}`} details={<OrdersDrill label="Orders with a discount" orders={discountedOrders(current)} extra={discountName} empty="No order had a discount in this period." />} />
             <StatRow label="Shipping charged" value={money(cur.shipping)} />
             <StatRow label="Sales tax collected" hint="owed to the tax office; included in what customers paid" value={money(cur.tax)} />
@@ -93,7 +95,7 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
 
       {show("formats") && <SectionCard flush title="Format mix"
         description={formats.total > 0 ? `${formats.printShare.toFixed(0)}% print · ${formats.digitalShare.toFixed(0)}% digital` : "Revenue by book format"}>
-        {formats.formats.length === 0 ? <EmptyState title="No sales in this period" description="Print vs digital revenue shows here once books sell." /> : (
+        {formats.formats.length === 0 ? <EmptyState title="No sales in this period" description={w("Print vs digital revenue shows here once books sell.")} /> : (
           <>
             <Stack label="Revenue by format, this period and the period before" unit={money}
               parts={formats.formats.map(f => ({ key: f.format, label: f.format, value: f.revenue }))}

@@ -7,6 +7,7 @@ import {
   ADD_ON_PRESETS, MAX_ADD_ONS, MAX_BUNDLE_PARTS, bundleAvailable, bundlePartProblem, newAddOn, saleStatus, saleWindowProblem,
 } from "./productExtras";
 import { productKind, type ProductKind } from "../../shared/productOptions";
+import { useShopWords } from "./shopWords";
 
 type Setter = (name: string, value: any) => void;
 
@@ -34,6 +35,7 @@ export function SaleWindowFields({ form, set }: { form: any; set: Setter }) {
 
 // ── Add-ons tab ────────────────────────────────────────────────────
 export function AddOnsEditor({ form, set }: { form: any; set: Setter }) {
+  const w = useShopWords();
   const addOns: any[] = Array.isArray(form.addOns) ? form.addOns : [];
   const full = addOns.length >= MAX_ADD_ONS;
   const update = (id: string, patch: any) => set("addOns", addOns.map((a) => (a.id === id ? { ...a, ...patch } : a)));
@@ -55,7 +57,7 @@ export function AddOnsEditor({ form, set }: { form: any; set: Setter }) {
           </button>
         ))}
       </div>
-      {addOns.length === 0 && <p className="be-note">No add-ons. Shoppers buy the book as it is.</p>}
+      {addOns.length === 0 && <p className="be-note">{w("No add-ons. Shoppers buy the book as it is.")}</p>}
       <div className="be-variants mt-4">
         {addOns.map((a, i) => (
           <fieldset key={a.id} className="be-variant">
@@ -90,6 +92,7 @@ export function AddOnsEditor({ form, set }: { form: any; set: Setter }) {
 export function BoxSetEditor({ form, set, bookId, catalog, catalogError, on, onToggle }: {
   form: any; set: Setter; bookId?: string | null; catalog: any[]; catalogError: boolean; on: boolean; onToggle: (on: boolean) => void;
 }) {
+  const w = useShopWords();
   const [search, setSearch] = useState("");
   const parts: any[] = Array.isArray(form.bundleItems) ? form.bundleItems : [];
   const byId = useMemo(() => Object.fromEntries(catalog.map((b) => [b.id, b])), [catalog]);
@@ -105,11 +108,11 @@ export function BoxSetEditor({ form, set, bookId, catalog, catalogError, on, onT
   const choices = catalog.filter((b) => !bundlePartProblem(b, bookId) && !parts.some((p) => p.bookId === b.id) && String(b.title || "").toLowerCase().includes(q));
 
   return (
-    <SectionCard title="Box set" description="Sell several of your books together at one price. The set has no stock of its own: each set sold takes copies from every book inside it, so it sells out when any of them does.">
-      <Toggle label="This product is a box set of other books" checked={on} onChange={onToggle} />
+    <SectionCard title="Box set" description={w("Sell several of your books together at one price. The set has no stock of its own: each set sold takes copies from every book inside it, so it sells out when any of them does.")}>
+      <Toggle label={w("This product is a box set of other books")} checked={on} onChange={onToggle} />
       {on && (
         <>
-          <p className="be-note">Stock comes from the books inside, so inventory tracking is switched off for the set itself when you save. Add-ons aren't offered on box sets.</p>
+          <p className="be-note">{w("Stock comes from the books inside, so inventory tracking is switched off for the set itself when you save. Add-ons aren't offered on box sets.")}</p>
           <ol className="be-variants" style={{ listStyle: "none", padding: 0 }}>
             {parts.map((part, i) => {
               const book = byId[part.bookId];
@@ -142,21 +145,21 @@ export function BoxSetEditor({ form, set, bookId, catalog, catalogError, on, onT
               );
             })}
           </ol>
-          {parts.length === 0 && <p className="be-warn" role="status">⚠ Add at least one book below, or turn this off. A box set with no books is saved as an ordinary product.</p>}
+          {parts.length === 0 && <p className="be-warn" role="status">{w("⚠ Add at least one book below, or turn this off. A box set with no books is saved as an ordinary product.")}</p>}
           {parts.length > 0 && (
             <p className="be-note" aria-live="polite"><strong>Sets available from current stock: {Number.isFinite(sets) ? sets : "unlimited (no book inside tracks stock)"}</strong></p>
           )}
-          {catalogError ? <p role="alert">The catalog could not be loaded. Your saved books are kept; reopen this editor to retry.</p> : parts.length < MAX_BUNDLE_PARTS && (
+          {catalogError ? <p role="alert">{w("The catalog could not be loaded. Your saved books are kept; reopen this editor to retry.")}</p> : parts.length < MAX_BUNDLE_PARTS && (
             <div className="be-grid">
-              <TextField label="Find a book to add" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Type part of the title" />
-              <SelectField label="Add a book to the set" value="" onChange={(e) => {
+              <TextField label={w("Find a book to add")} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Type part of the title" />
+              <SelectField label={w("Add a book to the set")} value="" onChange={(e) => {
                 const id = e.target.value;
                 if (!id) return;
                 const book = byId[id];
                 const editions = Array.isArray(book?.variants) ? book.variants : [];
                 set("bundleItems", [...parts, { bookId: id, variantId: editions.length === 1 ? editions[0].id : null, quantity: 1 }]);
               }}>
-                <option value="">Choose a book</option>
+                <option value="">{w("Choose a book")}</option>
                 {choices.map((b) => <option key={b.id} value={b.id}>{b.title}{b.status !== "published" ? " (not published)" : ""}</option>)}
               </SelectField>
             </div>
