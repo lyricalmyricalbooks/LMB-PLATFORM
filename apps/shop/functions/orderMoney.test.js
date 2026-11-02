@@ -184,6 +184,22 @@ describe("Square: the payment's processing fee and the payout's entries", () => 
     expect(db.store["orders/o1"]).toMatchObject({ fee: 140, net: 2860, platformFee: 30 });
   });
 
+  test("a Square payment Square rates as high risk, or whose security code was rejected, is held for review", async () => {
+    const risky = fakeService({ ...{}, "square.payments.retrieve": { ...payment, refundIds: [], risk: { level: "HIGH", cvvStatus: "CVV_REJECTED", avsStatus: "AVS_ACCEPTED", cardCountry: "GB" } } });
+    const db = fakeDb({ "orders/o1": paidOrder({ stripePaymentIntentId: "sqpay_PAY1", customer: { address: { country: "CA" } } }) });
+    await recordOrderMoney({ db, payments: makePayments("square", risky), orderId: "o1", now: NOW });
+    expect(db.store["orders/o1"].review).toMatchObject({ status: "needs_review" });
+    expect(db.store["orders/o1"].review.reasons.join(" ")).toMatch(/very high risk/);
+    expect(db.store["orders/o1"].review.reasons.join(" ")).toMatch(/security code/);
+  });
+
+  test("a normal Square payment is not held", async () => {
+    const calm = fakeService({ "square.payments.retrieve": { ...payment, refundIds: [], risk: { level: "NORMAL", cvvStatus: "CVV_ACCEPTED", avsStatus: "AVS_ACCEPTED", cardCountry: "CA" } } });
+    const db = fakeDb({ "orders/o1": paidOrder({ stripePaymentIntentId: "sqpay_PAY1" }) });
+    await recordOrderMoney({ db, payments: makePayments("square", calm), orderId: "o1", now: NOW });
+    expect(db.store["orders/o1"].review).toBeUndefined();
+  });
+
   test("payout.paid: the payout's own lines are the truth, with the bank date; again changes nothing", async () => {
     const db = fakeDb({ "orders/o1": order() });
     const svc = square();

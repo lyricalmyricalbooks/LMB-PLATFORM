@@ -17,4 +17,11 @@ describe("dutiesNote", () => {
     expect(dutiesNote({ on: true, estimateRate: "12.5" }, "Germany", 80)).toEqual({ country: "Germany", rate: 12.5, amount: 10 });
     expect(dutiesNote({ on: true, estimateRate: 250 }, "Germany", 80)?.rate).toBeNull();
   });
+  test("a country can have its own estimate, the general one covers the rest", () => {
+    const setting = { on: true, estimateRate: 5, countryRates: "Germany 19\nunited states: 10%\nnonsense\nFrance 400" };
+    expect(dutiesNote(setting, "Germany", 100)?.rate).toBe(19);
+    expect(dutiesNote(setting, "USA", 100)?.rate).toBe(10);
+    expect(dutiesNote(setting, "France", 100)?.rate).toBe(5);
+    expect(dutiesNote({ on: true, countryRates: "Germany 19" }, "Japan", 100)?.rate).toBeNull();
+  });
 });
