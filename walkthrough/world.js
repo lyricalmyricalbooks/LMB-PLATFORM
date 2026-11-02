@@ -209,27 +209,28 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), admins, now: clock.date,
   });
 
-  // The platform's one web door: sign-up, the shop maker's Try again, accounts, billing and the control room.
+  // The platform's one web door: sign-up, the shop maker's Try again, accounts, billing and the control room. The hosted
+  // door (server/world.js) has the same routes; server/world.test.js checks none is missing there.
+  const routes = {
+    "POST /api/signup/retry": (claims, request) => shopMaker.retry(claims, request.body?.shopId),
+    ...accountRoutes(accounts),
+    ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now: clock.date }),
+    ...controlRoutes(room),
+    ...platformRoutes(controls),
+    ...emergencyRoutes(backup),
+    ...supportRoutes(support),
+    ...recoveryRoutes(recovery),
+    ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now: clock.date }),
+    ...businessRoutes(business),
+    ...timelineRoutes(timeline),
+    ...jobsRoutes(jobsPage),
+    ...notesRoutes(notes),
+    ...messageRoutes(pressMessages),
+    ...costRoutes(costsDesk),
+    ...exportRoutes(dataExports),
+  };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live,
-    routes: {
-      "POST /api/signup/retry": (claims, request) => shopMaker.retry(claims, request.body?.shopId),
-      ...accountRoutes(accounts),
-      ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now: clock.date }),
-      ...controlRoutes(room),
-      ...platformRoutes(controls),
-      ...emergencyRoutes(backup),
-      ...supportRoutes(support),
-      ...recoveryRoutes(recovery),
-      ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now: clock.date }),
-      ...businessRoutes(business),
-      ...timelineRoutes(timeline),
-      ...jobsRoutes(jobsPage),
-      ...notesRoutes(notes),
-      ...messageRoutes(pressMessages),
-      ...costRoutes(costsDesk),
-      ...exportRoutes(dataExports),
-    },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes,
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},
@@ -238,7 +239,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, ask, invites, accessRequests,
+    stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
     deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
     pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */

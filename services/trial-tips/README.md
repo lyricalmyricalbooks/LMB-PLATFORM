@@ -33,8 +33,9 @@ Every tip ends with a link, `<PLATFORM_URL>/tips/off?shop=<id>&sig=<signature>`,
 (`offToken`). `handleOff(url)` answers that page: a right signature turns the shop's tips off for good (logged), a wrong
 one changes nothing. Billing emails never pass through this module, so they keep coming.
 
-## Not yet
+## Hosting
 
-- Hosting: the daily run and the `/tips/off` page become one scheduled function and one route in the platform project.
-- The real stores: `trialTips/<shop id>` in the platform project for the sweep's record, and the shop's
-  `firstWeek/start` read with the platform's token (`clients/shop.js` `shopDataClient`).
+The platform's server program runs it (`server/`): the `trial-tips` job every day at 09:00 Toronto time, and the
+`/tips/off` page on the web door. The sweep's record is `trialTips/<shop id>` in the platform project
+(`clients/platformStores.js`), and each shop's `firstWeek/start` is read with the platform's token (`clients/shop.js`).
+Without `TRIAL_TIPS_SECRET` the job and the page answer "not connected yet".

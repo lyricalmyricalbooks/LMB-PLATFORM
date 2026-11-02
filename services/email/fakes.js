@@ -110,3 +110,6 @@ export function practiceEmailService({ env = {}, registry, deliver }) {
   };
   return createEmailService({ env: { ...env, RESEND_API_KEY: "re_practice_walkthrough" }, fetch, registry, sentLog: fakeSentLog() });
 }
+
+/** The email service's settings with a made-up key, for tests that build the hosted server (server/fakes.js). */
+export const pretendEmailEnv = () => ({ RESEND_API_KEY: "re_test_pretend" });

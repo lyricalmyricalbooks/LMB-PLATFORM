@@ -1,5 +1,5 @@
 // The door shops knock on to send an email through the platform (a shop that has not connected its own Gmail, or whose
-// Gmail refused a send). One HTTP handler, hosted later as one function in the platform project; it takes a plain
+// Gmail refused a send). One HTTP handler, served by the platform's web server at /api/email/shop (server/world.js); it takes a plain
 // { method, headers, body } and returns { status, body }, so tests need no server.
 //
 // Who is asking: `X-Shop-Id` names the shop and `Authorization: Bearer <shop service key>` proves it. Each shop has its
