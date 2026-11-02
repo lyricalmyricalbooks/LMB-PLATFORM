@@ -973,3 +973,11 @@ with the claim `support: { by, reason, until }` (`until` in seconds, at most an 
 
 - `manageReturn` with `action: "exchange"` and `swaps: [{ index, toVariantId, quantity }]` swaps an inspected return for another version of the same product. The rules are in `exchanges.js` (`planExchange`, pure): the order is paid with no refund request, the return is inspected, one swap per line, up to the copies that came back, the new version has the same price and enough stock, never a box set. The resellable copies go back and the new version comes off in one write per product (stock is never written twice from one snapshot).
 - It ends the return as `completed` (no new customer words), sets the request to handled, keeps `order.exchanges[]` and adds an activity line. No money moves; a price difference is refused (refund the return instead). A second swap is refused because the return is no longer `inspected`.
+
+## Your data in the shopper's account (2 November 2026, platform plan 14.7)
+
+- `myDataExport` / `myDataErase` on `createStripeCheckoutSession` (`privacyRequests.js` `handleMyData`): the shopper's Firebase ID token
+  with a verified email is the proof of whose data it is, so a copy downloads at once (`exportBody`, the same file the admin gets) and a
+  deletion request is recorded in `privacyRequests` with `verified: true, source: "account", uid`. Nothing is erased until the owner presses
+  *Approve and delete their data* in Settings › General › Privacy requests (`handlePrivacyAdmin`, unchanged). A second request while one is open adds nothing.
+- Storefront: `features/site/YourDataCard.tsx` on the account page (region `accountYourData`, words `yourData*` in Text & labels › Customer account › Your data).

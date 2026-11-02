@@ -57,12 +57,12 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "wishlistActions", label: "Saved-book actions" },
     { id: "wishlistShareBar", label: "Share wishlist / shared list bar" },
   ] },
-  { id: "accountLayout", title: "Customer account · layout & elements", copy: "Customer account", files: ["features/site/Account.tsx"], regions: [
+  { id: "accountLayout", title: "Customer account · layout & elements", copy: "Customer account", files: ["features/site/Account.tsx", "features/site/YourDataCard.tsx"], regions: [
     { id: "accountLogin", label: "Sign-in panel", required: true }, { id: "accountIntro", label: "Sign-in heading & description" },
     { id: "accountHeader", label: "Account navigation", required: true }, { id: "accountProfile", label: "Customer profile" },
     { id: "accountVitals", label: "Account cards", grid: true }, { id: "accountSaved", label: "Wishlist card" },
     { id: "accountOrders", label: "Order count card" }, { id: "accountAddress", label: "Address card", required: true },
-    { id: "accountAddressForm", label: "Address form", required: true }, { id: "accountHistory", label: "Order history", required: true },
+    { id: "accountAddressForm", label: "Address form", required: true }, { id: "accountHistory", label: "Order history", required: true }, { id: "accountYourData", label: "Your data" },
     { id: "accountDownloads", label: "Purchased downloads", required: true }, { id: "accountShipment", label: "Shipment information", required: true },
     { id: "accountTrackOrder", label: "Track order link" }, { id: "accountBuyAgain", label: "Buy again button" },
     { id: "accountLineDetails", label: "Extras, gift cards & box sets under ordered books" },
