@@ -359,7 +359,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
   "Product page": [
     { title: "Photos & breadcrumb", match: /^(pdpCrumb|pdpBreadcrumb|pdpCaption|pdpPhotos|ariaGoToPhoto|ariaPrevPhoto|ariaNextPhoto|ariaEnlargePhoto|ariaClosePhoto|ariaPhotoViewer|bookPhotoAlt|bookVideoLabel|ariaGoToVideo|backToCatalog|categoryFallback)/ },
     { title: "Buy box, options, stock, pre-orders & coming soon", match: /^(pdpInStock|pdpBackorder|pdpMadeToOrder|pdpPreorder|pdpComingSoon|comingSoon|pdpSaleEnds|pdpSaleCountdown|pdpTaxNote|pdpReleaseCountdown|pdpPaymentIcons|pdpInBag|pdpFreeShip|pdpShipBy|pdpPickup|saleBadge|preorder|addToBag|pdpBuyNow|quickAdd|onlyLeft|saveAmount|priceOnRequest|ariaQty|bookAdded|bookFormat|pdpEdition|pdpOption|wishlist|bookShare|bookLinkCopied)/ },
-    { title: "Extras, questions, box sets & gift cards", match: /^(pdpAddOn|pdpBoxSet|pdpGift|pdpAsk)/ },
+    { title: "Extras, questions, box sets & gift cards", match: /^(pdpAddOn|pdpBoxSet|pdpGift|pdpAsk|pdpQuote)/ },
     { title: "Description, details & tabs", match: /^(tab|spec|productDescriptionLabel|pdpDescription|noDescription|pdpDetailsAria|pdpPolicy)/ },
     { title: "Back-in-stock alert", match: /^alert/ },
     { title: "Related books & bundles", match: /^(related|bundle)/ },

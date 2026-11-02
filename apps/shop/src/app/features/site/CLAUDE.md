@@ -725,3 +725,11 @@ put plan, test mode, Stripe account or emails in it (they are server-only).
 - `lib/bookSeo.ts` `bookStructuredData`: a non-book goes to `goodsStructuredData` (a Product, no ISBN, creators or publisher); with
   versions it is an AggregateOffer (low/high price, count, stock per version). BookDetail passes the whole product, not the chosen
   version, for such a product.
+
+## Bulk quote on book pages (2 November 2026, platform plan 14.8)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Ask for a bulk quote** (`showPdpBulkQuote`, off by default) draws
+`features/site/extras/pdp-bulk-quote/PdpBulkQuote.tsx` under the buy buttons (region `productBulkQuote`): a folded form (name, email, how many,
+note, honeypot) that sends one `contactMessages` row through `submitContactMessage`, like Ask a question, so Admin › Messages and the
+budgeted "new message" email apply. The message starts with `Quantity: N`. Rules in pure `bulkQuote.ts` (whole number 1 to 100000). Never
+sends from the Studio preview. Words: Text & labels › Product page (`pdpQuote*`). No rule or Function change.
