@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { ACT_AS_MINUTES, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, profilePublisher, shopHealth, twoStepProblem } from "./controlRoom.js";
+import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, profilePublisher, shopHealth, twoStepProblem } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
 import { platformRoutes } from "./platformControls.js";
 import { parseSwitchArgs, switchCommand } from "./switch.js";
@@ -592,4 +592,22 @@ test("the control room shows the tax lines, admins only, and says plainly when t
   const failed = await broken.ask(ADMIN, "GET", "/api/control/tax-watch");
   assert.equal(failed.status, 502);
   assert.match(failed.body.error ?? failed.body.message ?? JSON.stringify(failed.body), /Stripe didn't answer/);
+});
+
+test("the shop list and Today read shops a few at a time, not one after another, and keep every shop", async () => {
+  let running = 0, most = 0;
+  const seen = [];
+  await eachInTurn([...Array(30).keys()], SHOPS_AT_ONCE, async (n) => {
+    running += 1;
+    most = Math.max(most, running);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    seen.push(n);
+    running -= 1;
+  });
+  assert.equal(most, SHOPS_AT_ONCE);
+  assert.deepEqual(seen.sort((a, b) => a - b), [...Array(30).keys()]);
+  await assert.rejects(eachInTurn([1, 2, 3], 2, async (n) => {
+    if (n === 2) throw new Error("the registry didn't answer");
+  }), /didn't answer/);
+  await eachInTurn([], 8, async () => assert.fail("nothing to do"));
 });

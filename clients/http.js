@@ -11,6 +11,8 @@ export class GoogleError extends Error {
     this.code = code;
     this.url = url;
     this.body = body;
+    // The other service's answer, never words for a press (signup/api.js isOurError).
+    this.fromProvider = "google";
   }
 }
 

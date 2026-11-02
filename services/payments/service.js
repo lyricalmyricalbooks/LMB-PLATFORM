@@ -538,15 +538,23 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
         };
         const saved = row.payments;
         let payments = saved;
-        if (Object.entries(state).some(([key, value]) => saved[key] !== value)) {
+        // Stripe doesn't promise order: an account.updated older than the one the row took would put old state back
+        // (cards on again after Stripe paused them), so it changes nothing.
+        const created = Number.isFinite(event.created) ? event.created : null;
+        const stale = created !== null && Number.isFinite(saved.accountEventCreated) && created < saved.accountEventCreated;
+        if (!stale && Object.entries(state).some(([key, value]) => saved[key] !== value)) {
           // When it turned past due; cleared once it isn't, so the next time emails the owner again.
           const { pastDueSince, pastDueEmailedAt, ...rest } = saved;
-          payments = { ...rest, ...state, stateAt: iso(), ...(needs.pastDue ? { pastDueSince: pastDueSince ?? iso(), ...(pastDueEmailedAt ? { pastDueEmailedAt } : {}) } : {}) };
+          payments = { ...rest, ...state, stateAt: iso(), ...(created !== null ? { accountEventCreated: created } : {}), ...(needs.pastDue ? { pastDueSince: pastDueSince ?? iso(), ...(pastDueEmailedAt ? { pastDueEmailedAt } : {}) } : {}) };
           await registry.updateShop(row.shopId, { payments });
           await logChange(row.shopId, `payments-account-${event.id}`, { kind: "payments.account-updated", accountId: event.account, ...state });
+        } else if (!stale && created !== null && created > (saved.accountEventCreated ?? -Infinity)) {
+          // Nothing changed, but this is now the newest word from Stripe: an older one arriving later must not win.
+          payments = { ...saved, accountEventCreated: created };
+          await registry.updateShop(row.shopId, { payments });
         }
         // Past due: Stripe has paused cards or payouts. The owner is emailed once (the admin shows a banner as well).
-        if (needs.pastDue && !payments.pastDueEmailedAt && email) {
+        if (!stale && needs.pastDue && !payments.pastDueEmailedAt && email) {
           const emailed = await emailPastDue(row, payments, needs, event.account);
           if (!emailed) return { status: 502, body: { error: "The owner couldn't be emailed; Stripe will send the event again." } };
         }

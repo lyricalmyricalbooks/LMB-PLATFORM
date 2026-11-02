@@ -441,6 +441,33 @@ test("the account's state is kept in the registry and logged once, in the regist
   assert.equal(auditLog.entries.get(SHOP).get("payments-account-evt_4").kind, "payments.account-updated");
 });
 
+test("an older account.updated arriving late never turns cards back on after Stripe paused them", async () => {
+  const email = fakeEmail();
+  const { service, registry } = await world({ email });
+  const send = (id, created, object) => {
+    const event = { id, created, livemode: true, account: "acct_moth", type: "account.updated", data: { object: { id: "acct_moth", details_submitted: true, ...object } } };
+    return service.stripeEvent(signed(event).headers, signed(event).raw);
+  };
+  const paused = { charges_enabled: false, payouts_enabled: false, requirements: { past_due: ["external_account"] } };
+  const open = { charges_enabled: true, payouts_enabled: true, requirements: { past_due: [] } };
+  assert.equal((await send("evt_new", 200, paused)).status, 200);
+  assert.equal((await send("evt_old", 100, open)).status, 200);
+  let payments = (await registry.getShop(SHOP)).payments;
+  assert.deepEqual([payments.chargesEnabled, payments.pastDue, payments.accountEventCreated], [false, true, 200]);
+  assert.equal(email.sent.size, 1);
+
+  // The same state again, newer: nothing logged, but it becomes the line an older event must beat.
+  await send("evt_same", 300, paused);
+  await send("evt_between", 250, open);
+  payments = (await registry.getShop(SHOP)).payments;
+  assert.deepEqual([payments.chargesEnabled, payments.accountEventCreated], [false, 300]);
+
+  // A newer event that opens cards again is taken.
+  await send("evt_fixed", 400, open);
+  payments = (await registry.getShop(SHOP)).payments;
+  assert.deepEqual([payments.chargesEnabled, payments.pastDue, payments.accountEventCreated], [true, false, 400]);
+});
+
 test("a requirement past its deadline emails the owner once, with the admin's address, never Stripe's link", async () => {
   const email = fakeEmail();
   const { service, registry, auditLog } = await world({ email, row: shopRow({ siteUrl: "https://shop.mothpress.example/" }) });

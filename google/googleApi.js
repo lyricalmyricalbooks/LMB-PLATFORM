@@ -13,6 +13,8 @@ export class GoogleError extends Error {
     this.status = status;
     this.reason = reason;
     this.grant = grant;
+    // The other service's answer, never words for a press (signup/api.js isOurError).
+    this.fromProvider = "google";
   }
 }
 

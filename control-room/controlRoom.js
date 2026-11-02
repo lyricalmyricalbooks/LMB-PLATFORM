@@ -141,6 +141,18 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
   };
 }
 
+/** How many shops the shop list and Today read at the same time. */
+export const SHOPS_AT_ONCE = 8;
+
+/** Runs `work` for every item, at most `limit` at a time. Rejects with the first failure, like a plain loop would. */
+export async function eachInTurn(items, limit, work) {
+  let next = 0;
+  const runner = async () => {
+    while (next < items.length) await work(items[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, runner));
+}
+
 export function createControlRoom({
   registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, admins, now = () => new Date(),
 }) {
@@ -166,6 +178,23 @@ export function createControlRoom({
     if (text.length < MIN_REASON) throw new ControlError(400, `Say why, in at least ${MIN_REASON} characters. It goes in the shop's log.`);
     return text.slice(0, 500);
   };
+
+  /**
+   * Each shop's profile, release checks and open repairs, for the shop list and Today. A few shops at a time with the
+   * three reads side by side: one shop after another made the page wait on three reads per shop in a row.
+   */
+  async function shopFacts(rows) {
+    const facts = new Map();
+    await eachInTurn(rows, SHOPS_AT_ONCE, async (row) => {
+      const [profile, checks, open] = await Promise.all([
+        registry.getProfile(row.shopId),
+        registry.readReleaseChecks(row.shopId),
+        repairs ? repairs.open(row.shopId) : [],
+      ]);
+      facts.set(row.shopId, { profile, checks, open });
+    });
+    return facts;
+  }
 
   async function shopOr404(shopId) {
     const row = typeof shopId === "string" ? await registry.getShop(shopId) : null;
@@ -206,11 +235,10 @@ export function createControlRoom({
     async shops(claims) {
       adminOf(claims, admins, now().getTime());
       const rows = await registry.listShops();
+      const facts = await shopFacts(rows);
       const shops = [];
       for (const row of rows) {
-        const profile = await registry.getProfile(row.shopId);
-        const checks = await registry.readReleaseChecks(row.shopId);
-        const open = repairs ? await repairs.open(row.shopId) : [];
+        const { profile, checks, open } = facts.get(row.shopId);
         shops.push({
           shopId: row.shopId,
           pressName: row.pressName ?? row.shopId,
@@ -456,11 +484,13 @@ export function createControlRoom({
     async today(claims) {
       adminOf(claims, admins, now().getTime());
       const rows = await registry.listShops();
+      const facts = await shopFacts(rows);
       const profiles = {}, checks = {}, open = {};
       for (const row of rows) {
-        profiles[row.shopId] = await registry.getProfile(row.shopId);
-        checks[row.shopId] = await registry.readReleaseChecks(row.shopId);
-        open[row.shopId] = repairs ? await repairs.open(row.shopId) : [];
+        const fact = facts.get(row.shopId);
+        profiles[row.shopId] = fact.profile;
+        checks[row.shopId] = fact.checks;
+        open[row.shopId] = fact.open;
       }
       return todaySummary({
         rows, profiles, checks, open, now: now(),
