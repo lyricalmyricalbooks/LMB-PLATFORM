@@ -7,6 +7,8 @@ import { LoadingState, SecondaryButton, SectionCard } from "../riso/components";
 import { platformCardsProvider } from "../../../lib/shopProfile";
 import { SetupGuideCard } from "./SetupGuideCard";
 import { PressDetailsStage } from "./PressDetailsStage";
+import { BringShopStage } from "./BringShopStage";
+import type { BringMarker } from "../bringShop";
 
 // The welcome pulls in Studio's theme library and switcher, so it loads only for a shop that will show it.
 const ChooseLookWelcome = lazy(() => import("./ChooseLookWelcome").then(m => ({ default: m.ChooseLookWelcome })));
@@ -58,13 +60,21 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   if (!doc) return null;
 
   if (welcomeShows(doc)) {
-    // Get started runs its steps in order: the press's details (plan 17.2), then the look.
+    // Get started runs its steps in order: the press's details (plan 17.2), bringing the shop over (plan 17.3), then the look.
     if (!doc.details) {
       const detailsDone = async (at: string) => {
         await adminApi.updateFirstWeek({ details: { at } });
         setDoc({ ...doc, details: { at } });
       };
       return <PressDetailsStage settings={settings} onDone={detailsDone} onRetrySettings={onRetrySettings} />;
+    }
+    if (!doc.bring) {
+      // Step 2 (plan 17.3): where the press sells now, and its products brought over (or started fresh).
+      const bringDone = async (bring: BringMarker) => {
+        await adminApi.updateFirstWeek({ bring });
+        setDoc({ ...doc, bring });
+      };
+      return <BringShopStage books={books} onDone={bringDone} />;
     }
     const done = async (welcome: WelcomeDone) => {
       await adminApi.updateFirstWeek({ welcome });
