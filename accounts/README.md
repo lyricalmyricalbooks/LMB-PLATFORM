@@ -189,3 +189,11 @@ admin once, for 30 minutes.
   Firebase account lookup (`findAccount`) into the hosted web door.
 - Hosting the team door and running `syncAll` on a schedule (each night, to catch a missed notice), then writing
   `PLATFORM_ACCOUNTS_URL` into the shops' settings (setup step 8 does it once `config.platformAccountsUrl` is set).
+
+## All your data (plan 19.16)
+
+**Download all your data** on an owner's shop card: everything in the shop and its stockroom as spreadsheet files,
+emailed to the owner as a link that works 7 days. Owners only (`accounts.roleIn`), at most once a day per shop (the
+second ask says when the next one can be made, and that the first link still works). `POST /api/account/export
+{ shopId }` -> `{ emailedTo, expiresAt }`; logged in the registry and the shop's audit log. The export itself is
+`services/export/README.md`.

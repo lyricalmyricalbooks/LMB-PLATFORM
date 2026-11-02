@@ -165,6 +165,8 @@ async function load() {
 
     await loadTags();
     await loadJobs();
+    await loadMessages();
+    await loadCosts();
   } catch (failure) {
     status.textContent = failure.message;
     // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
@@ -501,7 +503,7 @@ function card(shop) {
       shop.closed ? pill("danger", `closed by ${shop.closed.by}`) : null),
     meta(`status: ${shop.status ?? "?"}`, shop.access ? `billing: ${shop.access}` : null, shop.paymentsMoved ? `cards: ${PAYMENT_WORDS[shop.paymentsMoved.to]}` : null),
     shop.health.reasons.length ? el("ul", { className: "cr-steps", style: "margin-top: 12px" }, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
-    el("div", { className: "cr-actions" }, act, change, check, closing),
+    el("div", { className: "cr-actions" }, act, change, check, closing, exportButton(shop)),
     accessSlot,
     switches ? el("h3", { className: "cr-section", textContent: "Switches for this shop" }) : null,
     switches,
@@ -1643,3 +1645,137 @@ async function loadJobs() {
   }
 }
 $("#jobs-refresh").addEventListener("click", loadJobs);
+
+// ── Messages to presses (plan 19.14): a note at the top of shop admins, until its end date. ──
+Object.assign(ACTIVITY_WORDS, {
+  "press-message-added": "sent a message to presses", "press-message-ended": "ended a message to presses", "data-export": "made a copy of the press's data",
+});
+const MESSAGE_STATE = { showing: ["success", "Showing"], upcoming: ["info", "Starts later"], ended: ["neutral", "Ended"] };
+const audienceWords = (audience) => (audience.all ? "every shop" : audience.plan ? `the ${PLAN_WORDS[audience.plan] ?? audience.plan} plan` : `only ${audience.shopId}`);
+
+async function loadMessages() {
+  try {
+    const { messages } = await api("GET", "/control/messages");
+    $("#messages").replaceChildren(messages.length ? table({
+      caption: "Messages to presses",
+      rows: messages,
+      columns: [
+        { header: "Message", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), meta(`by ${m.by}`, `why: ${m.reason}`, m.endedAt ? `ended by ${m.endedBy}: ${m.endReason}` : null)) },
+        { header: "Who", render: (m) => el("span", { textContent: `${audienceWords(m.audience)} (${m.reaches} shop${m.reaches === 1 ? "" : "s"})` }) },
+        { header: "When", render: (m) => el("span", { className: "rp-mono", textContent: `${when(m.startsAt)} to ${when(m.endedAt ?? m.endsAt)}` }) },
+        { header: "State", render: (m) => el("div", { className: "cr-row" }, m.level === "important" ? pill("warning", "Important") : null, pill(...MESSAGE_STATE[m.state])) },
+        { header: "", end: true, render: (m) => {
+          if (m.state === "ended") return el("span");
+          const end = button("End now", "ghost");
+          end.addEventListener("click", async () => {
+            const reason = askWhy("End this message now. It leaves every shop's admin.");
+            if (!reason) return;
+            end.disabled = true;
+            try {
+              await api("POST", "/control/messages/end", { id: m.id, reason });
+              status.textContent = "The message has ended.";
+              await loadMessages();
+            } catch (failure) {
+              status.textContent = failure.message;
+              end.disabled = false;
+            }
+          });
+          return end;
+        } },
+      ],
+    }) : emptyState("No messages yet.", "A message you send shows at the top of the shop admins it reaches."));
+  } catch (failure) {
+    $("#messages").replaceChildren(emptyState("Couldn't load the messages.", failure.message));
+  }
+}
+
+$("#message-words").addEventListener("input", (event) => {
+  const left = 400 - event.target.value.length;
+  $("#message-count").textContent = `${left} character${left === 1 ? "" : "s"} left.`;
+});
+$("#message-audience").addEventListener("change", (event) => {
+  $("#message-shop-field").hidden = event.target.value !== "shop";
+  $("#message-shop").required = event.target.value === "shop";
+});
+$("#message-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const pick = form.audience.value;
+  const audience = pick === "all" ? { all: true } : pick === "shop" ? { shopId: form.shopId.value.trim() } : { plan: pick.slice(5) };
+  const important = form.level.value === "important";
+  if (important && !window.confirm(`Also email this once to the owner of each shop on ${audienceWords(audience)}?`)) return;
+  const submit = form.querySelector("button[type=submit]");
+  submit.disabled = true;
+  try {
+    const { shops, emailed } = await api("POST", "/control/messages/add", {
+      words: form.words.value, level: form.level.value, audience, reason: form.reason.value,
+      startsAt: form.startsAt.value ? new Date(form.startsAt.value).toISOString() : undefined,
+      endsAt: form.endsAt.value ? new Date(form.endsAt.value).toISOString() : undefined,
+    });
+    status.textContent = `Sent to ${shops} shop admin${shops === 1 ? "" : "s"}${important ? `, and emailed to ${emailed} owner${emailed === 1 ? "" : "s"}` : ""}.`;
+    form.reset();
+    $("#message-shop-field").hidden = true;
+    $("#message-count").textContent = "400 characters left.";
+    await loadMessages();
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+  submit.disabled = false;
+});
+
+// ── Costs (plan 19.15): this month's Google bill per shop against what it pays, most losing first. ──
+async function loadCosts() {
+  const target = $("#costs");
+  try {
+    const report = await api("GET", "/control/costs");
+    if (report.empty) {
+      target.replaceChildren(emptyState(report.empty, "Switching it on is a step in services/costs/README.md."));
+      return;
+    }
+    const inPlans = (cents) => money(cents, report.currency);
+    const shops = report.shops.length ? table({
+      caption: `Costs per shop, ${report.month}`,
+      rows: report.shops,
+      open: (row) => { const shop = allShops.find((s) => s.shopId === row.shopId); if (shop) openShop(shop); },
+      columns: [
+        { header: "Shop", lead: true, render: (row) => el("div", {}, el("p", { className: "cr-title", textContent: row.pressName }), meta(row.shopId, row.testShop ? "test shop" : null, row.otherCurrencies ? `also ${Object.entries(row.otherCurrencies).map(([c, n]) => money(n, c)).join(", ")}` : null)) },
+        { header: "Google this month", end: true, render: (row) => el("span", { className: "rp-mono", textContent: inPlans(row.googleCents) }) },
+        { header: "Pays this month", end: true, render: (row) => el("span", { className: "rp-mono", textContent: `${inPlans(row.paidCents)}${row.feeCents ? ` (${inPlans(row.feeCents)} in sales fees)` : ""}` }) },
+        { header: "Margin", end: true, render: (row) => el("span", { className: "rp-mono", textContent: row.marginCents === null ? "another currency" : inPlans(row.marginCents) }) },
+        { header: "State", render: (row) => (row.losing ? pill("danger", "Losing") : row.losing === false ? pill("success", "Covered") : pill("neutral", "Can't compare")) },
+      ],
+    }) : emptyState("No shops yet.");
+    const others = report.notShops.length ? table({
+      caption: "Not a shop",
+      rows: report.notShops,
+      columns: [
+        { header: "Project", lead: true, render: (row) => el("span", { className: "rp-mono", textContent: row.projectId ?? "no project (account charges)" }) },
+        { header: "Google this month", end: true, render: (row) => el("span", { className: "rp-mono", textContent: money(row.googleCents, row.currency) }) },
+      ],
+    }) : null;
+    target.replaceChildren(
+      el("p", { className: "rp-hint", textContent: `${report.month}: ${report.losing} shop${report.losing === 1 ? "" : "s"} costing more than ${report.losing === 1 ? "it pays" : "they pay"}. Google's whole bill: ${Object.entries(report.totals).map(([c, n]) => money(n, c)).join(", ") || "nothing yet"}.` }),
+      shops,
+      ...(others ? [el("div", { className: "cr-head" }, el("h2", { textContent: "Not a shop" })), others] : []));
+  } catch (failure) {
+    target.replaceChildren(emptyState("Couldn't load the costs.", failure.message));
+  }
+}
+
+// ── A press's data, on request (plan 19.16): every file of the shop and stockroom, a link emailed to the owner. ──
+function exportButton(shop) {
+  const b = button("Email the press its data", "secondary");
+  b.addEventListener("click", async () => {
+    const reason = askWhy(`Make a copy of everything in ${shop.pressName}'s shop and stockroom, and email the owner a link that works 7 days.`);
+    if (!reason) return;
+    b.disabled = true;
+    try {
+      const { emailedTo } = await api("POST", "/control/export", { shopId: shop.shopId, reason });
+      status.textContent = `Logged. The link to ${shop.pressName}'s data is emailed to ${emailedTo}.`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    b.disabled = false;
+  });
+  return b;
+}

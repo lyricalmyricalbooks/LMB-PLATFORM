@@ -2,6 +2,7 @@
 // and returns { subject, text, html }. Every value from a press or a person is escaped in the HTML, and links must be
 // https. Customer-facing words: name the product (settings.platformName), never a rival.
 import { closingTemplates } from "./closingTemplates.js";
+import { pressTemplates } from "./pressTemplates.js";
 
 export const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -506,6 +507,9 @@ export const TEMPLATES = {
       footer: `${settings.platformName} jobs`,
     });
   },
+
+  // From the control room to a press (code plan 19.14, 19.16): press-message, data-export-ready.
+  ...pressTemplates({ layout, safeLink, signOff }),
 };
 
 /** Problems with a free-form email a shop asks to send (its own order and account emails), in plain words. */

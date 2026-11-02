@@ -19,7 +19,8 @@ Found in the code; `every` is the intended gap. Nothing hosts the schedules yet,
 | `self-checks` | 1 day | `control-room/self-check.js` |
 | `closing` | 1 day | `services/billing/closing.js` `sweep()` |
 | `dropped-apps` | 1 day | `services/billing/billing.js` `closeDroppedApps()` |
-| `card-expiry` | 1 day | `services/billing/billing.js` `cardExpiryReminders()` |
+| `income-record` | 1 day | `control-room/nightly.js` `runBusinessNightly()`: the income record (19.7) and the card-expiry reminders (19.9) |
+| `press-messages` | 1 hour | `control-room/messages.js` `sweep()`: ended messages off shop admins, new shops reached (19.14) |
 | `trial-tips` | 1 day | `services/trial-tips/index.js` `run()` |
 | `bookkeeping` | 1 day | `services/accounting/index.js` `nightly()` |
 | `restore-drill` | 30 days | `services/health/run.js drill` |

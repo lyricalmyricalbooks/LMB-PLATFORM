@@ -172,6 +172,9 @@
           <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Records</div></li>
           <li data-admin><a class="rp-nav-item" href="#breaches" data-nav="breaches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M12 9v4M12 16h0"/></svg>Breach register</a></li>
           <li data-admin><a class="rp-nav-item" href="#activity" data-nav="activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Activity log</a></li>
+          <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Presses and costs</div></li>
+          <li data-admin><a class="rp-nav-item" href="#messages" data-nav="messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v3l12 5V6L3 11z"/><path d="M15 9h2a3 3 0 0 1 0 6h-2"/><path d="M7 15v4h3"/></svg>Messages to presses</a></li>
+          <li data-admin><a class="rp-nav-item" href="#costs" data-nav="costs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Costs</a></li>
         </ul>
       </nav>
       <div class="rp-sidebar-foot">
@@ -360,6 +363,35 @@
                 <div class="rp-page-actions"><button type="button" id="jobs-refresh" class="rp-btn rp-btn-secondary">Refresh</button></div>
               </div>
               <div id="jobs"></div>
+            </section>
+
+            <section data-page="messages" aria-labelledby="h-messages" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-messages">Messages to presses</h1><p class="rp-page-desc">A note at the top of every shop admin it reaches, until its end date. Shoppers never see it. An important one is also emailed once to each press's owner. For outages, use the status page note in the run book.</p></div>
+              </div>
+              <form id="message-form" class="rp-card">
+                <div class="rp-card-body cr-form" style="padding-top: 20px">
+                  <div class="rp-field"><label class="rp-label" for="message-words">The message (plain words)</label><textarea id="message-words" class="rp-textarea" name="words" required maxlength="400"></textarea><span class="rp-hint" id="message-count">400 characters left.</span></div>
+                  <div class="cr-form-grid">
+                    <div class="rp-field"><label class="rp-label" for="message-level">How important</label><select id="message-level" class="rp-select" name="level"><option value="info">Info: a note in the admin</option><option value="important">Important: also emailed to each owner</option></select></div>
+                    <div class="rp-field"><label class="rp-label" for="message-audience">Who sees it</label><select id="message-audience" class="rp-select" name="audience"><option value="all">Every shop</option><option value="plan:shop">Shops on the Shop plan</option><option value="plan:stockroom">Shops on the Stockroom plan</option><option value="plan:both">Shops on Shop and stockroom</option><option value="shop">One shop</option></select></div>
+                    <div class="rp-field" id="message-shop-field" hidden><label class="rp-label" for="message-shop">Shop id</label><input id="message-shop" class="rp-input" name="shopId" autocomplete="off"></div>
+                    <div class="rp-field"><label class="rp-label" for="message-start">Starts (empty: now)</label><input id="message-start" class="rp-input" type="datetime-local" name="startsAt"></div>
+                    <div class="rp-field"><label class="rp-label" for="message-end">Ends (at most 60 days away)</label><input id="message-end" class="rp-input" type="datetime-local" name="endsAt" required></div>
+                  </div>
+                  <div class="rp-field"><label class="rp-label" for="message-reason">Why are you sending this? (goes in the activity log)</label><input id="message-reason" class="rp-input" name="reason" required minlength="10" maxlength="500"></div>
+                  <div><button type="submit" class="rp-btn rp-btn-primary">Send the message</button></div>
+                </div>
+              </form>
+              <div class="cr-head"><h2>Sent</h2></div>
+              <div id="messages"></div>
+            </section>
+
+            <section data-page="costs" aria-labelledby="h-costs" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-costs">Costs</h1><p class="rp-page-desc">This month's Google bill for each shop next to what the shop pays, the shops costing more than they bring in first. Credits are taken off.</p></div>
+              </div>
+              <div id="costs"></div>
             </section>
           </div>
 
