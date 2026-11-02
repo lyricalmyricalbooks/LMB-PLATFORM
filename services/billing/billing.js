@@ -564,6 +564,9 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const created = Number.isFinite(event.created) ? event.created : null;
         const last = known.lastEvent?.subscriptionId === object.id ? known.lastEvent.created : null;
         if (created !== null && last !== null && created < last) return "older than what we have";
+        // An ended Stripe subscription never comes back, and Stripe stamps events in whole seconds: an "updated" from the
+        // same second as the "deleted" could otherwise pass the check above and reopen the plan.
+        if (ENDED.has(known.status) && event.type !== "customer.subscription.deleted") return "already ended";
         const saved = await sync(shopId, object, event.type.replace("customer.subscription.", "stripe-"), created === null ? null : { subscriptionId: object.id, created });
         // Paying as they sell: the subscription ending is the switch itself, and no card is asked for.
         if (saved.paymentWay === "payAsYouSell") return saved.status;

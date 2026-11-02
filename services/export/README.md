@@ -30,9 +30,11 @@ apostrophe so opening the file never runs it. The zip is written by `files.js` `
 | `POST /api/account/export` | the shop's owner (`accounts.roleIn`) | `{ shopId }`: at most one a day per shop (429 in plain words after); logged in the registry and the shop's audit log |
 
 Both email the owner (`data-export-ready`) and answer `{ emailedTo, expiresAt }`; the link itself goes only to the
-owner's inbox. Each export is a row in the store (`dataExports/<id>`: making, ready or failed). The row is written as
-"making" before the build, so two clicks can't both pass the once-a-day check; a failed build sends nothing and
-doesn't count.
+owner's inbox. Each export is a row in the store (`dataExports/<id>`: making, ready or failed). "Ready" is written only
+after the email has gone; a failed build or a failed email marks the row "failed", sends nothing and doesn't count. The
+owner's once-a-day check and claim are one `store.update(id, fn)` on the shop's lock row (`owner-lock-<shopId>`, a
+transaction in the real store), so two clicks at once can't both pass. A lock still "making" after 15 minutes (a build
+that was stopped) no longer holds the owner back.
 
 `closingExportHook(exports)` is the closing sweep's `onClose` hook (`services/billing/closing.js`): when a shop closes,
 its owner is emailed the whole export, so the 90 days to download start with the files in hand.

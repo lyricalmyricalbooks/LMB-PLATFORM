@@ -167,6 +167,31 @@ test("important: each targeted owner is emailed once, even when it is added twic
   assert.equal(w.email.list().length, 4);
 });
 
+test("sending again after one owner's email failed finishes the same message: no second message, nobody emailed twice", async () => {
+  const w = await world();
+  const send = w.email.sendPlatform;
+  let failOnce = true;
+  w.email.sendPlatform = async (message) => {
+    if (message.shopId === "owl-press" && failOnce) {
+      failOnce = false;
+      throw new Error("the email service hiccuped (pretend)");
+    }
+    return send(message);
+  };
+  const important = { ...base, level: "important", audience: { all: true } };
+  const first = await w.messages.add(w.admin(), important);
+  assert.deepEqual(first.failed, ["owl-press"]);
+  assert.equal(first.emailed, 2, "one shop's failure doesn't stop the shops after it");
+  w.tick(5 * 60_000);
+  const retry = await w.messages.add(w.admin(), important);
+  assert.equal(retry.added, false);
+  assert.equal(retry.message.id, first.message.id);
+  assert.equal((await w.store.list()).length, 1);
+  const sent = w.email.list();
+  assert.equal(sent.length, 3);
+  assert.deepEqual(sent.map((m) => m.to).sort(), ["fern-press@example.com", "moth-press@example.com", "owl-press@example.com"]);
+});
+
 test("an important message with no way to email is refused, so nobody thinks the presses were told", async () => {
   const w = await world({ withEmail: false });
   await assert.rejects(w.messages.add(w.admin(), { ...base, level: "important", audience: { all: true } }), (e) => e.status === 503);

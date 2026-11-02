@@ -202,3 +202,42 @@ test("the email says how long the link works and keeps a press's words as words"
   assert.doesNotMatch(parts.html, /<b>privacy/);
   assert.throws(() => TEMPLATES["data-export-ready"]({ link: "http://x.example", until: "x", asked: "owner" }, { settings, pressName: "P" }), /https/);
 });
+
+test("a copy whose email fails isn't counted: the owner can ask again at once, and isn't told it was emailed", async () => {
+  const w = await world();
+  const send = w.email.sendPlatform;
+  w.email.sendPlatform = async () => { throw new Error("the email service is down (pretend)"); };
+  const failed = await w.ask(OWNER, "/api/account/export", { shopId: "moth-press" });
+  assert.equal(failed.status, 502);
+  assert.match(failed.body.message, /couldn't be sent/);
+  assert.ok([...w.store.rows.values()].some((r) => r.shopId === "moth-press" && r.status === "failed"));
+  assert.ok(![...w.store.rows.values()].some((r) => r.shopId === "moth-press" && r.status === "ready"));
+  w.email.sendPlatform = send;
+  const again = await w.ask(OWNER, "/api/account/export", { shopId: "moth-press" });
+  assert.equal(again.status, 200);
+  assert.equal(w.email.list().length, 1);
+});
+
+test("two clicks at the same moment make one copy; a copy stopped part-way stops holding the owner back", async () => {
+  const w = await world();
+  const [a, b] = await Promise.all([w.ask(OWNER, "/api/account/export", { shopId: "moth-press" }), w.ask(OWNER, "/api/account/export", { shopId: "moth-press" })]);
+  assert.deepEqual([a.status, b.status].sort(), [200, 429]);
+  assert.equal(w.email.list().length, 1);
+
+  // A build killed part-way leaves the lock "making": it holds for a few minutes, then not.
+  const w2 = await world();
+  await w2.store.update("owner-lock-moth-press", () => ({ id: "owner-lock-moth-press", kind: "owner-lock", asked: "owner", status: "making", at: w2.now().toISOString() }));
+  const busy = await w2.ask(OWNER, "/api/account/export", { shopId: "moth-press" });
+  assert.equal(busy.status, 429);
+  assert.match(busy.body.message, /being made right now/);
+  w2.tick(16 * 60_000);
+  assert.equal((await w2.ask(OWNER, "/api/account/export", { shopId: "moth-press" })).status, 200);
+});
+
+test("the refusal's date doesn't end in two dots", async () => {
+  const w = await world();
+  assert.equal((await w.ask(OWNER, "/api/account/export", { shopId: "moth-press" })).status, 200);
+  const again = await w.ask(OWNER, "/api/account/export", { shopId: "moth-press" });
+  assert.equal(again.status, 429);
+  assert.doesNotMatch(again.body.message, /\.\.$/);
+});

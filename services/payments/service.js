@@ -533,7 +533,9 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
         try { if (deliveryStats) await deliveryStats.add(row.shopId, kind, iso()); } catch (err) { console.error(`couldn't count ${kind} for ${row.shopId}: ${err?.message || err}`); }
       };
       const failed = async (answer) => { await tally("payment-event-failed"); return answer; };
-      await tally("payment-event");
+      // Counted alongside the work, not before it: on a busy day every event counts on the same record, and the shop's
+      // forward mustn't wait in line for it. A lost count is only a number on the control room's page.
+      void tally("payment-event");
 
       // The account's own state, kept in the registry for the go-live checklist (2.10) and the control room.
       if (event.type === "account.updated" && event.data?.object?.id === event.account && mode === row.payments.mode) {

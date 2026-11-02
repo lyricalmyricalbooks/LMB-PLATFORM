@@ -25,7 +25,7 @@
 //   roleIn         (person, shopId) -> role | null (accounts.js roleIn): the owner check for the press's own button
 import { createHash } from "node:crypto";
 import { toCsv, withoutPrivate, zipFiles } from "./files.js";
-import { ControlError, MIN_REASON, adminOf } from "../../control-room/controlRoom.js";
+import { ControlError, MIN_REASON, adminOf, eachInTurn } from "../../control-room/controlRoom.js";
 import { activityEntry } from "../../control-room/activity.js";
 import { PLANS } from "../../setup/steps.js";
 import { dateText } from "../billing/billing.js";
@@ -35,6 +35,8 @@ import { personOf, SignupError } from "../../signup/signup.js";
 export const EXPORT_DAYS = 7;
 /** A press can ask for one export a day per shop. */
 export const OWNER_EVERY_HOURS = 24;
+/** A build still "making" after this long was stopped part-way (a killed request): it no longer holds the owner back. */
+export const MAKING_STALE_MINUTES = 15;
 
 /**
  * The shop's collections, each one file, with what the README says it holds. Settings are nested, so they are a JSON
@@ -120,14 +122,19 @@ export async function buildExport({ shopId, pressName = shopId, apps = { shop: t
     const books = Object.entries(catalog).filter(([id, book]) => !id.startsWith("_") && book && typeof book === "object");
     files.push({ name: "stockroom-books", file: "stockroom-books.csv", words: "the books in your stockroom", rows: books.length, content: toCsv(books.map(([id, data]) => ({ id, data }))), contentType: "text/csv; charset=utf-8" });
     const parts = Object.fromEntries(STOCKROOM_PARTS.map(({ part }) => [part, []]));
-    for (const [bookId] of books) {
-      for (const { part } of STOCKROOM_PARTS) {
-        const doc = await stockroomData.get(shopId, `books/${bookId}/data/${part}`);
+    // A book's parts are read together, eight books at a time (300 books was 2,100 reads one after another).
+    const perBook = new Array(books.length);
+    await eachInTurn(books.map(([bookId], b) => ({ bookId, b })), 8, async ({ bookId, b }) => {
+      perBook[b] = await Promise.all(STOCKROOM_PARTS.map(({ part }) => stockroomData.get(shopId, `books/${bookId}/data/${part}`)));
+    });
+    books.forEach(([bookId], b) => {
+      STOCKROOM_PARTS.forEach(({ part }, p) => {
+        const doc = perBook[b][p];
         const list = doc ? parse(doc.data) : null;
-        if (!Array.isArray(list)) continue;
+        if (!Array.isArray(list)) return;
         list.forEach((entry, i) => parts[part].push({ bookId, id: entry?.id ?? `${bookId}-${i + 1}`, data: entry && typeof entry === "object" ? entry : { value: entry } }));
-      }
-    }
+      });
+    });
     for (const spec of STOCKROOM_PARTS) {
       files.push({ name: `stockroom-${spec.part}`, file: spec.file, words: `stockroom: ${spec.words}`, rows: parts[spec.part].length, content: toCsv(parts[spec.part], { lead: ["bookId"] }), contentType: "text/csv; charset=utf-8" });
     }
@@ -150,26 +157,40 @@ export function createDataExports({ shopData, stockroomData, storage, store, reg
     if (toActivity && activity) await activity.record(activityEntry({ at: stamp, by: detail.by, what, shopId, detail }));
   }
 
-  /** Builds, records and emails one export. The record is written first ("making"), so two clicks can't both pass the once-a-day check. */
+  /**
+   * Builds, records and emails one export. The row is "making" during the build, "ready" only once the email has gone,
+   * and "failed" when the build or the email fails (a failed one doesn't count against the owner's once a day).
+   */
   async function make(row, { asked, by, reason = null }) {
     if (!row.ownerEmail) throw new ControlError(409, "That shop has no owner email to send the link to.");
     const started = now();
     const id = `${row.shopId}-${stampOf(started)}`;
-    await store.set(id, { id, shopId: row.shopId, asked, by, reason, status: "making", at: started.toISOString() });
+    const base = { id, shopId: row.shopId, asked, by, reason, at: started.toISOString() };
+    await store.set(id, { ...base, status: "making" });
     let built;
     try {
       built = await buildExport({ shopId: row.shopId, pressName: row.pressName ?? row.shopId, apps: PLANS[row.plan] ?? { shop: true, stockroom: true }, shopData, stockroomData, storage, now: started });
     } catch (failure) {
-      await store.set(id, { id, shopId: row.shopId, asked, by, reason, status: "failed", at: started.toISOString(), problem: failure.message });
+      await store.set(id, { ...base, status: "failed", problem: failure.message });
       throw new ControlError(502, "The copy of the shop's data couldn't be made just now. Nothing was sent; try again in a few minutes.");
     }
-    await store.set(id, { id, shopId: row.shopId, asked, by, reason, status: "ready", at: started.toISOString(), folder: built.folder, zip: built.zip, expiresAt: built.expiresAt, files: built.files, emailedTo: row.ownerEmail });
-    await email.sendPlatform({
-      kind: "data-export-ready", to: row.ownerEmail, shopId: row.shopId, idempotencyKey: `data-export/${id}`,
-      data: { pressName: row.pressName ?? row.shopId, link: built.link, until: dateText(built.expiresAt), asked, reason: asked === "platform" ? reason : null },
-    });
+    const files = { folder: built.folder, zip: built.zip, expiresAt: built.expiresAt, files: built.files };
+    try {
+      await email.sendPlatform({
+        kind: "data-export-ready", to: row.ownerEmail, shopId: row.shopId, idempotencyKey: `data-export/${id}`,
+        data: { pressName: row.pressName ?? row.shopId, link: built.link, until: dateText(built.expiresAt), asked, reason: asked === "platform" ? reason : null },
+      });
+    } catch (failure) {
+      await store.set(id, { ...base, status: "failed", ...files, problem: `email: ${failure.message}` });
+      throw new ControlError(502, "The copy was made, but the email with its link couldn't be sent just now. Nothing was emailed; try again in a few minutes.");
+    }
+    await store.set(id, { ...base, status: "ready", ...files, emailedTo: row.ownerEmail });
     return { id, built };
   }
+
+  /** The newest owner export that still counts: emailed (ready), or being made right now (not stale). */
+  const counts = (e, nowMs) => e.asked === "owner" && Date.parse(e.at) > nowMs - OWNER_EVERY_HOURS * 3600_000
+    && (e.status === "ready" || (e.status === "making" && Date.parse(e.at) > nowMs - MAKING_STALE_MINUTES * 60_000));
 
   return {
     /** The control room's button: any shop, with a reason; logged everywhere before it is built. */
@@ -190,15 +211,34 @@ export function createDataExports({ shopData, stockroomData, storage, store, reg
       if (typeof shopId !== "string" || (await roleIn(person, shopId)) !== "owner") throw new SignupError(403, "Only the shop's owner can download all its data.");
       const row = await registry.getShop(shopId);
       if (!row) throw new SignupError(404, "There's no shop with that id.");
-      const since = now().getTime() - OWNER_EVERY_HOURS * 3600_000;
-      const recent = (await store.list({ shopId })).filter((e) => e.asked === "owner" && e.status !== "failed" && Date.parse(e.at) > since);
-      if (recent.length) {
-        const next = new Date(Math.max(...recent.map((e) => Date.parse(e.at))) + OWNER_EVERY_HOURS * 3600_000);
-        throw new SignupError(429, `You asked for a copy less than a day ago, and we emailed the link to ${row.ownerEmail}. It still works. You can ask again after ${next.toLocaleString("en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" })}.`);
+      const nowMs = now().getTime();
+      // The check and the claim are one step on the shop's lock row (a transaction in the real store), so two clicks
+      // at the same moment can't both pass.
+      const lockId = `owner-lock-${shopId}`;
+      let held = null;
+      await store.update(lockId, (lock) => {
+        if (lock && counts(lock, nowMs)) {
+          held = lock;
+          return null;
+        }
+        return { id: lockId, kind: "owner-lock", lockFor: shopId, asked: "owner", status: "making", at: new Date(nowMs).toISOString() };
+      });
+      if (held) {
+        const next = new Date(Date.parse(held.at) + OWNER_EVERY_HOURS * 3600_000);
+        const when = next.toLocaleString("en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" }).replace(/\.$/, "");
+        if (held.status === "making") throw new SignupError(429, `Your copy is being made right now. We'll email the link to ${row.ownerEmail} in a few minutes.`);
+        throw new SignupError(429, `You asked for a copy less than a day ago, and we emailed the link to ${row.ownerEmail}. It still works. You can ask again after ${when}.`);
       }
-      await log(shopId, "data-export", { by: person.email, asked: "owner" });
-      const { built } = await make(row, { asked: "owner", by: person.email });
-      return { shopId, emailedTo: row.ownerEmail, expiresAt: built.expiresAt };
+      const settle = (status) => store.update(lockId, (lock) => ({ ...lock, status }));
+      try {
+        await log(shopId, "data-export", { by: person.email, asked: "owner" });
+        const { built } = await make(row, { asked: "owner", by: person.email });
+        await settle("ready");
+        return { shopId, emailedTo: row.ownerEmail, expiresAt: built.expiresAt };
+      } catch (failure) {
+        await settle("failed");
+        throw failure;
+      }
     },
 
     /**

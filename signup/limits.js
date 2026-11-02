@@ -8,8 +8,10 @@
 //   GET /api/plans            300 a minute per network (cheap, but public)
 //   POST /api/signin-link     20 an hour per network, on top of the 5 an hour per address it already has
 //
-// The network is the first address in `x-forwarded-for` (Hosting puts the caller's there), else `request.ip`. Keys are
-// hashed, so the store never holds an address or a person's id in the clear. Over a limit the call answers 429 with
+// The network is read from the right of `x-forwarded-for`: each proxy adds the address it was called from at the end,
+// and anything to the left can be written by the caller, so the left-most entry is never trusted. `proxyHops` is how
+// many of our own proxies add an entry after the caller's (0: the right-most entry is the caller). Check the hosted
+// header once at go-live (15.6) and set it to match. With no header, `request.ip`. Keys are hashed, so the store never holds an address or a person's id in the clear. Over a limit the call answers 429 with
 // plain words and `retryAfter` (seconds). Refused calls aren't counted, so waiting is always enough.
 //
 // If the store can't be read or written the call goes through and the failure is logged: a broken counter must never
@@ -53,9 +55,13 @@ const header = (headers, name) => {
   return typeof found?.[1] === "string" ? found[1] : "";
 };
 
-/** The caller's network: the first `x-forwarded-for` address, else `request.ip`, else "unknown". */
-export function networkOf(request) {
-  const forwarded = header(request?.headers, "x-forwarded-for").split(",")[0].trim();
+/**
+ * The caller's network: the `x-forwarded-for` entry `proxyHops` from the right (the caller can't write it), else
+ * `request.ip`, else "unknown".
+ */
+export function networkOf(request, { proxyHops = 0 } = {}) {
+  const entries = header(request?.headers, "x-forwarded-for").split(",").map((entry) => entry.trim()).filter(Boolean);
+  const forwarded = entries[Math.max(0, entries.length - 1 - proxyHops)];
   if (forwarded) return forwarded.slice(0, 100);
   return typeof request?.ip === "string" && request.ip ? request.ip.slice(0, 100) : "unknown";
 }
@@ -66,7 +72,7 @@ const hashed = (text) => createHash("sha256").update(String(text)).digest("hex")
  * The limiter. `throttle` is the store; `admins` the control room's admin list (controlRoomAdmins); `limits` and
  * `costly` change the numbers and the costly calls (the walkthrough is generous).
  */
-export function createLimits({ throttle, admins = [], limits = DEFAULT_LIMITS, costly = COSTLY_ROUTES, now = () => new Date(), log = console.error }) {
+export function createLimits({ throttle, admins = [], limits = DEFAULT_LIMITS, costly = COSTLY_ROUTES, proxyHops = 0, now = () => new Date(), log = console.error }) {
   const isAdmin = (claims) => {
     try {
       adminOf(claims, admins, now().getTime());
@@ -94,7 +100,7 @@ export function createLimits({ throttle, admins = [], limits = DEFAULT_LIMITS, c
     /** Before any call: the per-network limit of a public call. */
     async beforeCall(route, request) {
       const kind = NETWORK_ROUTES[route];
-      if (kind) await take(kind, `${route} ${networkOf(request)}`);
+      if (kind) await take(kind, `${route} ${networkOf(request, { proxyHops })}`);
     },
 
     /** Once a signed-in call's person is known: their per-minute limit (not for admins), then a costly call's own. */

@@ -8,6 +8,12 @@ export function fakeExportStore() {
     get: async (id) => structuredClone(rows.get(id) ?? null),
     set: async (id, row) => void rows.set(id, structuredClone(row)),
     list: async ({ shopId } = {}) => structuredClone([...rows.values()].filter((row) => !shopId || row.shopId === shopId)),
+    /** Reads and writes with nothing awaited in between, so it is atomic like the real store's transaction. `fn` returning null writes nothing. */
+    update: async (id, fn) => {
+      const next = fn(structuredClone(rows.get(id) ?? null));
+      if (next) rows.set(id, structuredClone(next));
+      return structuredClone(next ?? null);
+    },
   };
 }
 

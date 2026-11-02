@@ -43,8 +43,9 @@ process.exitCode = run.ok ? 0 : 1;
   than twice its gap ago, and `never` when it has never run (never counted late: until a schedule calls it, nothing
   could have run it).
 - `alertLate({ now })`: one `job-late` email to the alert address (`HEALTH_ALERT_TO`, the health checks' address) per
-  job that goes late; another only after the job has run on time and gone late again. `runJob` calls it after every
-  run, and opening the Jobs page calls it too. An email that couldn't be sent is tried again on the next check.
+  job that goes late; another only after the job has run on time and gone late again. `runJob` calls it after a
+  run at most once every 5 minutes (`LATE_CHECK_MINUTES`; it reads only each job's newest run), and opening the Jobs
+  page calls it too. An email that couldn't be sent is tried again on the next check.
 
 ## The run log
 

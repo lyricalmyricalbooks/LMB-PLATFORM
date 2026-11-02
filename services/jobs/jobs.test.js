@@ -84,6 +84,9 @@ test("a missed run alerts once; it alerts again only after it runs on time and g
   w.tick(2);
   await w.jobs.runJob("shop-maker", async () => ({}));
   assert.equal((await late()).late, true);
+  assert.equal(w.sent.length, 0, "a run checks the others at most every 5 minutes (the shop maker runs every minute)");
+  w.tick(3);
+  await w.jobs.runJob("shop-maker", async () => ({}));
   assert.equal(w.sent.length, 1);
   assert.deepEqual([w.sent[0].kind, w.sent[0].to, w.sent[0].data.job], [JOB_LATE, "alerts@example.com", "health-checks"]);
   for (let i = 0; i < 5; i += 1) {
@@ -95,8 +98,10 @@ test("a missed run alerts once; it alerts again only after it runs on time and g
 
   // It runs again: back on time, no email. Then it stops again: a second alert.
   await w.jobs.runJob("health-checks", async () => ({}));
+  w.tick(5);
+  await w.jobs.runJob("shop-maker", async () => ({}));
   assert.equal(w.sent.length, 1);
-  w.tick(11);
+  w.tick(6);
   await w.jobs.runJob("shop-maker", async () => ({}));
   assert.equal(w.sent.length, 2);
   assert.notEqual(w.sent[1].idempotencyKey, w.sent[0].idempotencyKey);

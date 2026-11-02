@@ -5,7 +5,8 @@
 //   createJobs({ store, email, alertTo, now })
 //     runJob(name, fn)        runs one job and records it: { name, startedAt, finishedAt, ms, ok, error, summary }.
 //                             Never throws: a failed job is a run with ok false (the hosted scheduler reads `ok`).
-//                             Each job keeps its last 50 runs. After every run it checks the other jobs are on time.
+//                             Each job keeps its last 50 runs. After a run it checks the other jobs are on time (at
+//                             most once every 5 minutes, reading only each job's newest run).
 //     jobsStatus({ now })     each job: its last run, last success, how long it took, and `late` when the last run
 //                             started more than twice its gap ago. A job that has never run is `never`, not late: until
 //                             a schedule calls it, nothing could have run it.
@@ -23,6 +24,8 @@
 export const KEEP_RUNS = 50;
 export const LATE_TIMES = 2;
 export const JOB_LATE = "job-late";
+/** How often, at most, a finished run also checks the other jobs are on time. */
+export const LATE_CHECK_MINUTES = 5;
 const DAY = 24 * 60;
 
 /** Every scheduled job in the platform's code. `every` is the intended gap, in minutes. */
@@ -61,11 +64,12 @@ export function summaryOf(result) {
 export function createJobs({ store, email = null, alertTo = null, now = () => new Date() }) {
   if (!store) throw new Error("the jobs page needs its run log");
 
-  async function jobsStatus({ now: at = now() } = {}) {
+  /** `newestOnly` reads just each job's last run (enough to tell late from on time): what the late check uses. */
+  async function jobsStatus({ now: at = now(), newestOnly = false } = {}) {
     const nowMs = at.getTime();
     const rows = [];
     for (const job of JOBS) {
-      const runs = await store.list(job.name, { limit: KEEP_RUNS });
+      const runs = await store.list(job.name, { limit: newestOnly ? 1 : KEEP_RUNS });
       const last = runs[0] ?? null;
       const lastOk = runs.find((run) => run.ok) ?? null;
       const late = Boolean(last) && nowMs - Date.parse(last.startedAt) > LATE_TIMES * job.every * 60_000;
@@ -83,7 +87,7 @@ export function createJobs({ store, email = null, alertTo = null, now = () => ne
 
   async function alertLate({ now: at = now() } = {}) {
     const sent = [];
-    for (const row of await jobsStatus({ now: at })) {
+    for (const row of await jobsStatus({ now: at, newestOnly: true })) {
       const state = (await store.getState(row.name)) ?? {};
       if (!row.late) {
         // Back on time: the next time it goes late is a new alert.
@@ -106,6 +110,10 @@ export function createJobs({ store, email = null, alertTo = null, now = () => ne
     }
     return { alerted: sent };
   }
+
+  // The check after each run happens at most once every LATE_CHECK_MINUTES (the shop maker runs every minute, and each
+  // check reads two records per job).
+  let lastCheckMs = -Infinity;
 
   return {
     jobsStatus,
@@ -134,10 +142,13 @@ export function createJobs({ store, email = null, alertTo = null, now = () => ne
         ok, error, summary: summaryOf(result), ...(by ? { by } : {}), ...(reason ? { reason } : {}),
       };
       await store.add(name, run);
-      try {
-        await alertLate({ now: finished });
-      } catch (failure) {
-        console.error(`couldn't check the jobs are on time: ${plainError(failure)}`);
+      if (finished.getTime() - lastCheckMs >= LATE_CHECK_MINUTES * 60_000) {
+        lastCheckMs = finished.getTime();
+        try {
+          await alertLate({ now: finished });
+        } catch (failure) {
+          console.error(`couldn't check the jobs are on time: ${plainError(failure)}`);
+        }
       }
       return run;
     },

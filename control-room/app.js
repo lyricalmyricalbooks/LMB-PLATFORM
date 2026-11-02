@@ -1707,12 +1707,13 @@ $("#message-form").addEventListener("submit", async (event) => {
   const submit = form.querySelector("button[type=submit]");
   submit.disabled = true;
   try {
-    const { shops, emailed } = await api("POST", "/control/messages/add", {
+    const { shops, emailed, failed = [] } = await api("POST", "/control/messages/add", {
       words: form.words.value, level: form.level.value, audience, reason: form.reason.value,
       startsAt: form.startsAt.value ? new Date(form.startsAt.value).toISOString() : undefined,
       endsAt: form.endsAt.value ? new Date(form.endsAt.value).toISOString() : undefined,
     });
-    status.textContent = `Sent to ${shops} shop admin${shops === 1 ? "" : "s"}${important ? `, and emailed to ${emailed} owner${emailed === 1 ? "" : "s"}` : ""}.`;
+    status.textContent = `Sent to ${shops} shop admin${shops === 1 ? "" : "s"}${important ? `, and emailed to ${emailed} owner${emailed === 1 ? "" : "s"}` : ""}.`
+      + (failed.length ? ` ${failed.length} shop${failed.length === 1 ? "" : "s"} didn't take it yet (${failed.join(", ")}); they're tried again within the hour.` : "");
     form.reset();
     $("#message-shop-field").hidden = true;
     $("#message-count").textContent = "400 characters left.";

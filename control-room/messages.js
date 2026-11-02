@@ -160,16 +160,23 @@ export function createPressMessages({ store, registry, auditLog, shopData, email
     let shops = 0;
     let emailed = 0;
     const sentTo = { ...(message.emailed ?? {}) };
+    const failed = [];
     for (const row of await targets(message)) {
-      if (await publishShop(row, all)) shops += 1;
-      if (await emailOnce({ ...message, emailed: sentTo }, row)) {
-        sentTo[row.shopId] = at();
-        emailed += 1;
-        // Recorded after each email, so a run that stops half-way never emails a press twice.
-        await store.set(message.id, { ...message, emailed: sentTo });
+      // One shop's failure never stops the rest; the hourly sweep tries the failed ones again.
+      try {
+        if (await publishShop(row, all)) shops += 1;
+        if (await emailOnce({ ...message, emailed: sentTo }, row)) {
+          sentTo[row.shopId] = at();
+          emailed += 1;
+          // Recorded after each email, so a run that stops half-way never emails a press twice.
+          await store.set(message.id, { ...message, emailed: sentTo });
+        }
+      } catch (error) {
+        failed.push(row.shopId);
+        console.error(`press message ${message.id} to ${row.shopId} failed: ${error?.message ?? error}`);
       }
     }
-    return { shops, emailed };
+    return { shops, emailed, failed };
   }
 
   const shown = (message) => ({ ...message, state: messageState(message, nowMs()) });
@@ -197,7 +204,10 @@ export function createPressMessages({ store, registry, auditLog, shopData, email
       const why = reasonOf(reason);
       if (who.shopId && !(await registry.getShop(who.shopId))) throw new ControlError(404, "There's no shop with that id.");
       if (level === "important" && !email) throw new ControlError(503, "The control room can't email presses here, so the important message wasn't added.");
-      const id = `msg-${hash({ words: text, level, audience: who, ...dates, by }).slice(0, 20)}`;
+      // With no start date given, "now" is left out of the id, so sending the same message again after a failure
+      // finishes the first one instead of making a second message (and emailing presses twice).
+      const startGiven = !(startsAt === undefined || startsAt === null || startsAt === "");
+      const id = `msg-${hash({ words: text, level, audience: who, startsAt: startGiven ? dates.startsAt : null, endsAt: dates.endsAt, by }).slice(0, 20)}`;
       let message = await store.get(id);
       const added = !message;
       if (!message) {
@@ -206,9 +216,9 @@ export function createPressMessages({ store, registry, auditLog, shopData, email
         await log("press-message-added", message, { by, reason: why, level, audience: who, endsAt: dates.endsAt });
         await store.set(id, message);
       }
-      if (message.endedAt) return { message: shown(message), added: false, shops: 0, emailed: 0 };
-      const { shops, emailed } = await deliver(message);
-      return { message: shown((await store.get(id)) ?? message), added, shops, emailed };
+      if (message.endedAt) return { message: shown(message), added: false, shops: 0, emailed: 0, failed: [] };
+      const { shops, emailed, failed } = await deliver(message);
+      return { message: shown((await store.get(id)) ?? message), added, shops, emailed, failed };
     },
 
     /** Ends a message now, with a reason: it leaves every shop's admin. Ending it twice changes nothing. */
