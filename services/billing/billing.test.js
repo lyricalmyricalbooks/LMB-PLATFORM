@@ -203,3 +203,24 @@ test("billing runs in test mode unless told otherwise, and refuses a mode it doe
   assert.deepEqual(readBillingConfig({ BILLING_MODE: "live", STRIPE_BILLING_WEBHOOK_SECRET: "a, b" }), { mode: "live", webhookSecrets: ["a", "b"], tax: false });
   assert.throws(() => readBillingConfig({ BILLING_MODE: "prod" }), /BILLING_MODE/);
 });
+
+test("Stripe's events out of order: an older event never puts old state back over a newer one", async () => {
+  const { billing, stripe, stores, email } = make();
+  const row = await billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  const at = (type, object, created) => {
+    const rawBody = JSON.stringify({ id: `evt_${type}_${created}`, type, created, livemode: false, data: { object } });
+    return billing.handleEvent({ headers: { "Stripe-Signature": signatureHeader(SECRET, rawBody, NOW / 1000) }, rawBody });
+  };
+  const ended = { ...stripe.subscription(row.subscriptionId), status: "canceled" };
+  const earlier = { ...stripe.subscription(row.subscriptionId), status: "active" };
+  assert.equal((await at("customer.subscription.deleted", ended, NOW / 1000 + 20)).body.handled, "canceled");
+  // The "updated" from before the cancel arrives after it: answered 200 (so Stripe stops), and nothing changes.
+  const late = await at("customer.subscription.updated", earlier, NOW / 1000 + 10);
+  assert.equal(late.status, 200);
+  assert.equal(late.body.handled, "older than what we have");
+  assert.equal(stores.subscriptions.rows.get("moth-press").status, "canceled");
+  // An event in the same second still counts, and a newer one is taken as usual.
+  assert.equal((await at("customer.subscription.updated", earlier, NOW / 1000 + 30)).body.handled, "active");
+  assert.equal(stores.subscriptions.rows.get("moth-press").lastEvent.created, NOW / 1000 + 30);
+  assert.equal(email.list().filter((m) => m.kind === "subscription-ended").length, 1);
+});

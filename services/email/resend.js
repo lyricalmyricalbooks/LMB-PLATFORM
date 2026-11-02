@@ -16,6 +16,8 @@ export class ResendError extends Error {
     this.status = status;
     this.code = code;
     this.retryable = retryable;
+    // The other service's answer, never words for a press (signup/api.js isOurError).
+    this.fromProvider = "resend";
   }
 }
 

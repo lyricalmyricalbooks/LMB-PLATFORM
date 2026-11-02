@@ -217,9 +217,10 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     });
   }
 
-  async function sync(shopId, sub, what) {
+  async function sync(shopId, sub, what, lastEvent = null) {
     const fields = fromSubscription(sub);
     if (!fields.plan) delete fields.plan;
+    if (lastEvent) fields.lastEvent = lastEvent;
     return save(shopId, fields, what);
   }
 
@@ -541,7 +542,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const shopId = object.metadata?.lmb_shop_id;
         const known = shopId ? await subscriptions.get(shopId) : null;
         if (!known || known.subscriptionId !== object.id) return "not ours";
-        const saved = await sync(shopId, object, event.type.replace("customer.subscription.", "stripe-"));
+        // Stripe doesn't promise to send events in order: an "updated" from before a "deleted" can come after it. An
+        // event older than the last one this subscription's row took would put old state back, so it is left alone.
+        const created = Number.isFinite(event.created) ? event.created : null;
+        const last = known.lastEvent?.subscriptionId === object.id ? known.lastEvent.created : null;
+        if (created !== null && last !== null && created < last) return "older than what we have";
+        const saved = await sync(shopId, object, event.type.replace("customer.subscription.", "stripe-"), created === null ? null : { subscriptionId: object.id, created });
         // Paying as they sell: the subscription ending is the switch itself, and no card is asked for.
         if (saved.paymentWay === "payAsYouSell") return saved.status;
         if (event.type === "customer.subscription.trial_will_end") {

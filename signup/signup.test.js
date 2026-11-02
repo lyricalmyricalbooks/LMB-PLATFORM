@@ -153,3 +153,35 @@ test("the page: email link or Google, one skippable question, no card asked, no 
   const words = (page + app + readFileSync(new URL("./form.js", import.meta.url), "utf8")).toLowerCase();
   for (const rival of ["big cartel", "bigcartel", "shopify", "squarespace", "etsy", "wix", "woocommerce"]) assert.ok(!words.includes(rival), rival);
 });
+
+test("the web door: our own words reach the press; another service's answer and crashes are logged with a code instead", async () => {
+  const lines = [];
+  const boom = (error) => async () => {
+    throw error;
+  };
+  const api = createApi({
+    signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), log: (line) => lines.push(line),
+    routes: {
+      "POST /api/ours": boom(Object.assign(new Error("That isn't an email address."), { status: 400 })),
+      "POST /api/google": boom(Object.assign(new Error("Request had invalid authentication credentials."), { status: 401, fromProvider: "google" })),
+      "POST /api/crash": boom(new TypeError("Cannot read properties of undefined (reading 'shopId')")),
+    },
+  });
+  const ask = (path) => api({ method: "POST", path, body: {}, headers: { Authorization: `Bearer ${JSON.stringify(ADA)}` } });
+
+  const ours = await ask("/api/ours");
+  assert.deepEqual([ours.status, ours.body.message], [400, "That isn't an email address."]);
+  assert.equal(lines.length, 0);
+
+  // Google's 401 is not "your sign-in ran out", and its words are not for a press.
+  const google = await ask("/api/google");
+  assert.equal(google.status, 502);
+  assert.doesNotMatch(google.body.message, /credentials/);
+  assert.match(google.body.message, new RegExp(google.body.ref));
+  assert.match(lines[0], new RegExp(`\\[${google.body.ref}\\] \\(google\\).*invalid authentication`));
+
+  const crash = await ask("/api/crash");
+  assert.equal(crash.status, 500);
+  assert.doesNotMatch(crash.body.message, /undefined/);
+  assert.match(lines[1], /POST \/api\/crash failed .*TypeError/);
+});

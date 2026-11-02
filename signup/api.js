@@ -18,12 +18,24 @@ import { priceText } from "../services/settings.js";
 import { currentTermsVersion } from "../terms/terms.js";
 import { SignupError } from "./signup.js";
 import { LIVE_DEFAULTS, liveSettings } from "./live.js";
+import { randomBytes } from "node:crypto";
 
 /** The plans that have a website, so can be paid for as a share of its sales. */
 export const PAY_AS_YOU_SELL_PLANS = Object.freeze(["shop", "both"]);
 
 /** 200 basis points -> "2%", 250 -> "2.5%". */
 export const percentText = (basisPoints) => `${(basisPoints / 100).toLocaleString("en-CA", { maximumFractionDigits: 2 })}%`;
+
+/**
+ * Whether an error's message is ours to show a press. Our own errors (SignupError, ControlError, BillingError and the
+ * rest) carry a `status` and plain words. An error from Google, Resend or QuickBooks also carries a `status`, but its
+ * status is the other service's answer (a 401 there is not "your sign-in ran out") and its words are theirs, so it is
+ * marked `fromProvider` and never shown.
+ */
+export const isOurError = (error) => error instanceof SignupError || (Number.isInteger(error?.status) && error.status >= 400 && error.status < 600 && !error?.fromProvider);
+
+/** A short code a press can quote to support, which is also in the log line. */
+export const errorRef = () => randomBytes(4).toString("hex");
 
 const header = (headers, name) => {
   const found = Object.entries(headers ?? {}).find(([key]) => key.toLowerCase() === name);
@@ -88,10 +100,21 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, onSign
     try {
       return { status: 200, body: { ok: true, ...(await route(request)) } };
     } catch (error) {
-      if (error instanceof SignupError || Number.isInteger(error?.status)) {
+      if (isOurError(error) && error.status < 500) {
         return { status: error.status, body: { ok: false, message: error.message, ...(error.problems ? { problems: error.problems } : {}) } };
       }
-      return { status: 500, body: { ok: false, message: "Something went wrong on our side. Try again in a minute." } };
+      // Anything else is ours to look into: it goes in the log with a code, and the press sees the same code.
+      const ref = errorRef();
+      try {
+        log(`${request?.method} ${request?.path} failed [${ref}]${error?.fromProvider ? ` (${error.fromProvider})` : ""}: ${error?.stack ?? error?.message ?? error}`);
+      } catch {
+        // A broken log never turns a plain answer into a crash.
+      }
+      if (isOurError(error)) return { status: error.status, body: { ok: false, message: error.message, ref } };
+      return {
+        status: error?.fromProvider ? 502 : 500,
+        body: { ok: false, ref, message: `Something went wrong on our side. Try again in a minute. If it keeps happening, tell us this code: ${ref}.` },
+      };
     }
   };
 }
