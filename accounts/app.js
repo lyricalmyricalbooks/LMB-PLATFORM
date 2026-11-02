@@ -246,7 +246,9 @@ function shopCard(shop) {
     team.addEventListener("click", () => openTeam(shop));
     // The Plan & billing page (accounts/billing.html, served at /account/billing).
     const plan = el("a", { className: "button", href: `/account/billing?shop=${encodeURIComponent(shop.shopId)}`, textContent: "Plan & billing" });
-    actions.append(team, plan);
+    const checkShop = el("button", { type: "button", textContent: "Check my shop" });
+    checkShop.addEventListener("click", () => openCheck(shop));
+    actions.append(team, plan, checkShop);
   }
   const where = standing(shop);
   const address = shop.siteUrl ? shop.siteUrl.replace(/^https?:\/\//, "") : "";
@@ -281,6 +283,28 @@ for (const link of document.querySelectorAll("[data-press]")) {
     event.preventDefault();
     target.click();
   });
+}
+
+// ── Check my shop (plan 14.3) ──
+$("#checkshop-back").addEventListener("click", () => show("shops"));
+const FIX_TO = (shop, to) => (to === "billing" ? `/account/billing?shop=${encodeURIComponent(shop.shopId)}` : to === "admin" ? `${shop.siteUrl ?? ""}/admin` : "../help/");
+async function openCheck(shop) {
+  status.textContent = "Checking your shop…";
+  try {
+    const { ok, results } = await api("POST", "/accounts/check", { shopId: shop.shopId });
+    $("#checkshop-title").textContent = `${shop.pressName}: check my shop`;
+    $("#checkshop-summary").textContent = ok ? "Everything we can check looks good." : "A few things need your attention.";
+    $("#checkshop-list").replaceChildren(...results.map((r) => {
+      const mark = el("span", { className: "pill", textContent: r.state === "ok" ? "Good" : r.state === "fix" ? "Needs you" : "Can't tell yet" });
+      mark.dataset.tone = r.state === "ok" ? "success" : r.state === "fix" ? "warning" : "neutral";
+      return el("li", {}, el("div", {}, el("strong", { textContent: r.title }), " ", mark, el("p", { className: "hint", textContent: r.words })),
+        r.fix ? el("a", { className: "button", href: FIX_TO(shop, r.fix.to), textContent: r.fix.label }) : null);
+    }));
+    status.textContent = "";
+    show("check-shop");
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
 }
 
 // ── One shop's team ──

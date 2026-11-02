@@ -253,3 +253,14 @@ test("a paid shop's owner needs the second step to change the team; looking and 
   }
   assert.equal((await w.ask(TWO, "POST", "/api/accounts/invite", { shopId: SHOP, email: BEA.email, role: "staff" })).status, 200);
 });
+
+test("only the shop's owner can run Check my shop, and it only looks (plan 14.3)", async () => {
+  const w = world();
+  const before = JSON.stringify([...w.registry.shops.entries()]);
+  const answer = await w.ask(OWNER, "POST", "/api/accounts/check", { shopId: SHOP });
+  assert.equal(answer.status, 200);
+  assert.ok(answer.body.results.length >= 5);
+  assert.equal(answer.body.results.find((r) => r.id === "backups").state, "unknown");
+  assert.equal((await w.ask(CAL, "POST", "/api/accounts/check", { shopId: SHOP })).status, 403);
+  assert.equal(JSON.stringify([...w.registry.shops.entries()]), before);
+});

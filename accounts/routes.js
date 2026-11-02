@@ -6,6 +6,7 @@
 //   POST /api/accounts/team           { shopId } -> the team and open invites (owners only)
 //   POST /api/accounts/invite         { shopId, email, role } (owners only)
 //   POST /api/accounts/cancel-invite  { shopId, id } (owners only)
+//   POST /api/accounts/check         { shopId } -> { ok, results }: "Check my shop", in plain words (owners only)
 //   POST /api/accounts/accept         { invite }: the secret from the emailed link
 //   POST /api/accounts/role           { shopId, email, role } (owners only)
 //   POST /api/accounts/remove         { shopId, email } (owners only)
@@ -18,6 +19,7 @@ export function accountRoutes(accounts) {
     "POST /api/accounts/team": (claims, request) => accounts.team(claims, body(request).shopId),
     "POST /api/accounts/invite": (claims, request) => accounts.invite(claims, body(request)),
     "POST /api/accounts/cancel-invite": (claims, request) => accounts.cancelInvite(claims, body(request)),
+    "POST /api/accounts/check": (claims, request) => accounts.check(claims, body(request).shopId),
     "POST /api/accounts/accept": (claims, request) => accounts.accept(claims, body(request).invite),
     "POST /api/accounts/role": (claims, request) => accounts.setRole(claims, body(request)),
     "POST /api/accounts/remove": (claims, request) => accounts.remove(claims, body(request)),

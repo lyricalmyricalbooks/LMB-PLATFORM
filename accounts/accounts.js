@@ -16,11 +16,13 @@
 //   shopData      set(projectId, path, data) / remove(projectId, path): the shop's own database (the same client as
 //                 setup's, with writes that may replace or delete a document). A shop's project id is its shop id.
 //   auditLog      ready(shopId); write(shopId, id, entry)
+//   shopBackup    optional: async (shopId) -> ISO time of the shop's last nightly copy, or null ("Check my shop", 14.3)
 //   email         sendPlatform({ kind, to, data, idempotencyKey, shopId }) (services/email)
 import { createHash, randomBytes } from "node:crypto";
 import { personOf, SignupError } from "../signup/signup.js";
 import { ROLES, ROLE_WORDS } from "./roles.js";
 import { ownerTwoStepProblem } from "./twoStep.js";
+import { checkMyShop } from "./checkMyShop.js";
 
 export { ROLES, ROLE_WORDS };
 export const INVITE_DAYS = 7;
@@ -30,7 +32,7 @@ const EMAIL = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
 const hash = (token) => createHash("sha256").update(String(token)).digest("hex");
 const normal = (email) => String(email ?? "").trim().toLowerCase();
 
-export function createAccounts({ accounts, memberships, invites, registry, shopData, auditLog, email, settings, now = () => new Date(), token = () => randomBytes(32).toString("base64url") }) {
+export function createAccounts({ accounts, memberships, invites, registry, shopData, auditLog, email, settings, shopBackup = null, now = () => new Date(), token = () => randomBytes(32).toString("base64url") }) {
   const at = () => now().toISOString();
 
   async function log(shopId, what, detail) {
@@ -112,6 +114,15 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       const url = role === "author" ? places.stockroomUrl : places.adminUrl ?? places.stockroomUrl;
       if (!url) throw new SignupError(409, "That shop isn't ready yet.");
       return { shopId, role, url };
+    },
+
+    /** "Check my shop" (plan 14.3): the shop's checks in plain words, for its owner. Only looks; changes nothing. */
+    async check(claims, shopId) {
+      await ownerOnly(claims, shopId);
+      const row = await registry.getShop(shopId);
+      if (!row) throw new SignupError(404, "We can't find that shop.");
+      const shopBackupAt = shopBackup ? await shopBackup(shopId).catch(() => undefined) : undefined;
+      return checkMyShop({ row, profile: await registry.getProfile(shopId), now: now(), shopBackupAt });
     },
 
     /** The shop's team and open invites, for its owner. */
