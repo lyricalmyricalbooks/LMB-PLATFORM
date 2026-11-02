@@ -34,6 +34,7 @@ import { accountsEnabled } from "./features/site/customerAccounts";
 import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { subscribePreview } from "./features/site/previewTab";
+import { dutiesNote } from "./features/site/importDuties";
 import { claimTradePricing } from "./lib/tradePricing";
 import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "./lib/orderAccessClient";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
@@ -1010,6 +1011,14 @@ export function Checkout() {
   const taxKnown = catalogState === "ready" && (fulfillmentSelection.method === "pickup"
     ? !!pickupQuote && taxAddressKnown(pickupQuote.address) && (physicalSubtotalAfterDiscount >= Math.max(0, cartTotal - discountAmount) || taxAddressKnown(pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress))
     : taxAddressKnown(customer.address));
+
+  // Parcels abroad: a note that duties and import tax may be due on arrival (Settings › Taxes › Duties). Display only.
+  const duties = dutiesNote(settings?.taxes?.duties, fulfillmentSelection.method === "shipping" ? customer.address.country : "", Math.max(0, itemsSubtotal - discountAmount));
+  const dutiesText = duties
+    ? duties.rate !== null && duties.amount !== null
+      ? c("coDutiesEstimate", { country: duties.country, amount: formatPrice(duties.amount), rate: duties.rate })
+      : c("coDuties", { country: duties.country })
+    : null;
 
   const getActiveShippingDetails = () => {
     if (fulfillmentSelection.method === "pickup" && selectedLocalQuote) return { serviceName: selectedLocalQuote.name };
@@ -2101,7 +2110,7 @@ export function Checkout() {
           itemCount={itemCount} slipDate={slipDate} slipNumbers={slipNumbers} formatPrice={formatPrice} freeGift={freeGift} preorderShip={preorderShip}
           hasCodeBoxes={hasCodeBoxes} codeBoxes={codeBoxes} itemsSubtotal={itemsSubtotal} discountAmount={discountAmount} appliedDiscount={appliedDiscount} autoPick={autoPick}
           getActiveShippingDetails={getActiveShippingDetails} needsDeliveryChoice={needsDeliveryChoice} isFreeShipping={isFreeShipping} shippingCost={shippingCost}
-          finalShipping={finalShipping} taxCost={taxCost} taxKnown={taxKnown} giftCardUse={giftCardUse} freeShipNudge={freeShipNudge} cartTotal={cartTotal} finalTotal={finalTotal} />
+          finalShipping={finalShipping} taxCost={taxCost} taxKnown={taxKnown} giftCardUse={giftCardUse} freeShipNudge={freeShipNudge} cartTotal={cartTotal} finalTotal={finalTotal} dutiesNote={dutiesText} />
       </div>
 
       {payBar && (
