@@ -855,6 +855,7 @@ import {
   printSalesTracker,
   printPaymentQRCodes,
   printFairKit,
+  printHangTags,
 } from './features/fair-kit.js';
 import {
   setInventoryAdjustmentMode,
@@ -19316,6 +19317,7 @@ Object.assign(window, {
   printPaymentQRCodes,
   printFairKit,
 });
+registerActions({ 'fairkit.hangTags': () => printHangTags() });
 // Declared in features/pos-books.js, likewise free of import-time side
 // effects, so the register-only book dialog's handlers are registered here.
 Object.assign(window, {
