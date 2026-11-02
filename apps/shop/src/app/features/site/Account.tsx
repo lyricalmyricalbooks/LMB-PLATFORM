@@ -41,6 +41,7 @@ import { isLiveBook } from "./liveBook";
 import { useSiteData } from "./useSiteData";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { getCopy } from "./storeCopy";
+import { YourDataCard } from "./YourDataCard";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
@@ -1036,6 +1037,8 @@ function AccountContent() {
             </ul>
           )}
         </section>
+
+        {user && <YourDataCard design={settings?.design} user={user} />}
       </main>
 
       <TemplateSections design={settings?.design} templateId="accountPage" books={books} />

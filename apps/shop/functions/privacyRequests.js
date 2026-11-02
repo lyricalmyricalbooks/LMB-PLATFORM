@@ -143,6 +143,64 @@ function privacyActions({
     return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, operations, incompleteScan };
   }
 
+  // The personal-data file for one person: what the admin downloads, and what a signed-in shopper downloads for themselves.
+  function exportBody(data, email) {
+    const rows = docs => docs.map(d => ({ id: d.id, ...d.data() }));
+    const strip = o => { const { downloadToken, trackingKey, clientIp, ...rest } = o; return rest; };
+    return {
+      email,
+      exportedAt: new Date().toISOString(),
+      account: data.user ? { uid: data.user.uid, createdAt: data.user.metadata?.creationTime || null } : null,
+      profile: data.profile?.exists ? data.profile.data() : null,
+      newsletter: data.newsletter.exists ? data.newsletter.data() : null,
+      orders: rows(data.orders).map(strip),
+      orderNotesAndHistory: rows(data.operations),
+      backInStockAlerts: rows(data.alerts),
+      savedCarts: rows(data.carts),
+      reviews: data.reviews.map(r => ({ id: r.id, ...r.data() })),
+      contactMessages: rows(data.messages),
+      giftCards: rows(data.giftCards).map(({ code, holds, ...card }) => card),
+      emailDeliveryLog: rows(data.emailRows).map(({ toLower, ...row }) => row),
+      emailsWaitingToSend: data.queuedEmails.map(d => publicOutboxEntry(d.id, d.data())),
+      ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
+    };
+  }
+
+  // "Your data" in the shopper's own account (plan 14.7). The shopper is signed in with a verified email, so there is no
+  // doubt whose data it is: a copy downloads at once, and a deletion request goes to the owner marked as verified, who
+  // approves it with one tap in Settings › General › Privacy requests. Nothing is erased until the owner approves.
+  async function handleMyData(req, res) {
+    if (!(await hitLimit(db, "track", req, LIMITS.track))) return res.status(429).json({ error: "too_many" });
+    const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+    let decoded = null;
+    try { decoded = match ? await admin.auth().verifyIdToken(match[1]) : null; } catch { decoded = null; }
+    const email = String(decoded?.email || "").trim().toLowerCase();
+    if (!decoded || !email || decoded.email_verified === false) return res.status(401).json({ error: "sign_in" });
+    try {
+      if (req.body?.action === "myDataExport") {
+        return res.status(200).json(exportBody(await personalDataFor(email), email));
+      }
+      const open = await db.collection("privacyRequests").where("email", "==", email).where("status", "==", "open").get();
+      if (open.docs.some(d => d.data()?.verified === true && d.data()?.type === "delete")) return res.status(200).json({ ok: true, already: true });
+      const record = privacyRequestRecord(email, "delete", "Asked from the shopper's signed-in account.");
+      await db.collection("privacyRequests").add({ ...record, verified: true, source: "account", uid: decoded.uid });
+      const claim = await claimEmailSendDetailed(db, "privacyNotify", email, { failOpen: true });
+      if (claim.allowed) {
+        await sendEmail({
+          queue: "privacyRequest",
+          secret: RESEND_API_KEY.value(),
+          to: ADMIN_TO,
+          subject: `Privacy request (delete data, signed in) · ${email}`,
+          html: `<p><strong>${escapeHtml(email)}</strong> asked, from their signed-in account, for their personal data to be deleted. Their sign-in already proves the address is theirs.</p><p>Approve it with one tap in Admin › Settings › General › Privacy requests.</p>`,
+        }).catch(err => console.warn("privacy request email failed:", err.message));
+      }
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("My data request failed:", err);
+      return res.status(500).json({ error: "failed" });
+    }
+  }
+
   async function handlePrivacyAdmin(req, res) {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
@@ -154,26 +212,8 @@ function privacyActions({
     const requestId = typeof req.body?.requestId === "string" ? req.body.requestId : "";
     try {
       const data = await personalDataFor(email);
-      const rows = docs => docs.map(d => ({ id: d.id, ...d.data() }));
       if (req.body.action === "privacyExport") {
-        const strip = o => { const { downloadToken, trackingKey, clientIp, ...rest } = o; return rest; };
-        res.status(200).json({
-          email,
-          exportedAt: new Date().toISOString(),
-          account: data.user ? { uid: data.user.uid, createdAt: data.user.metadata?.creationTime || null } : null,
-          profile: data.profile?.exists ? data.profile.data() : null,
-          newsletter: data.newsletter.exists ? data.newsletter.data() : null,
-          orders: rows(data.orders).map(strip),
-          orderNotesAndHistory: rows(data.operations),
-          backInStockAlerts: rows(data.alerts),
-          savedCarts: rows(data.carts),
-          reviews: data.reviews.map(r => ({ id: r.id, ...r.data() })),
-          contactMessages: rows(data.messages),
-          giftCards: rows(data.giftCards).map(({ code, holds, ...card }) => card),
-          emailDeliveryLog: rows(data.emailRows).map(({ toLower, ...row }) => row),
-          emailsWaitingToSend: data.queuedEmails.map(d => publicOutboxEntry(d.id, d.data())),
-          ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
-        });
+        res.status(200).json(exportBody(data, email));
         if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "exported", handledAt: new Date().toISOString(), handledBy: adminUser.email }, { merge: true });
         return;
       }
@@ -221,7 +261,7 @@ function privacyActions({
     }
   }
 
-  return { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin };
+  return { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin, handleMyData };
 }
 
 module.exports = { privacyActions };
