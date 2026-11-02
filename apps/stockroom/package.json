@@ -23,6 +23,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "node scripts/e2e/fair-day.mjs",
+    "e2e:phone": "node scripts/e2e/phone-fit.mjs",
     "check:styles": "node scripts/e2e/style-snapshot.mjs",
     "shots": "node scripts/phone-shots/capture.mjs",
     "android:assets": "node scripts/android-assets.mjs"
