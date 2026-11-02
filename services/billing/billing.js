@@ -30,7 +30,10 @@
 //   mode            "test" or "live": the Stripe mode billing runs in
 //   customers       get(accountId) -> { customerId, email, name, trialUsedAt? } | null; set(accountId, row)
 //   subscriptions   get(shopId) -> row | null; set(shopId, row); findBySubscriptionId(id) -> row | null; list() -> rows
-//   events          seen(eventId) -> boolean; mark(eventId, entry)
+//   events          claim(eventId, { at, holdMs }) -> boolean (create-if-absent; a claim older than holdMs may be
+//                   taken over); release(eventId); mark(eventId, entry); seen(eventId) -> boolean (true once marked).
+//                   One delivery of an event wins the claim and handles it; a copy arriving meanwhile is answered 409
+//                   so Stripe sends it again later (eventClaims.js, plan 19.4). A store with no claim falls back to seen.
 //   registry        getShop(shopId) -> row | null; updateShop(shopId, fields); recordEvent(shopId, entry)
 //   auditLog        ready(shopId); write(shopId, id, entry)
 //   email           sendPlatform({ kind, to, data, idempotencyKey, shopId }) (services/email)
@@ -42,6 +45,7 @@ import { verifySignature } from "../payments/stripeSignature.js";
 import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
 import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
 import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
+import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
 
 /** What each Stripe subscription status means for the shop: open, paused (a card fixes it) or closed. */
 export const ACCESS = Object.freeze({
@@ -503,7 +507,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     /**
      * Stripe's events for the platform account. `rawBody` is the request body exactly as received (the signature
      * covers it). Answers { status, body }: 400 for a bad signature, 200 once handled or when the event isn't ours.
-     * A failure answers 500, so Stripe sends the event again; nothing is marked handled until it succeeds.
+     * A failure answers 500 and releases the claim, so Stripe sends the event again; nothing is marked handled until it
+     * succeeds. A copy that arrives while another is being handled answers 409, so Stripe sends it again later.
      */
     async handleEvent({ headers, rawBody }) {
       const signature = Object.entries(headers ?? {}).find(([name]) => name.toLowerCase() === "stripe-signature")?.[1];
@@ -517,12 +522,16 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         return { status: 400, body: { ok: false, message: "The event isn't JSON." } };
       }
       if (Boolean(event.livemode) !== (mode === "live")) return { status: 200, body: { ok: true, ignored: "other mode" } };
-      if (await events.seen(event.id)) return { status: 200, body: { ok: true, duplicate: true } };
+      // One copy of the event claims it (19.4); a copy arriving meanwhile is sent back to try later.
+      const claim = await claimEvent(events, event.id, { at: at() });
+      if (claim === "duplicate") return { status: 200, body: { ok: true, duplicate: true } };
+      if (claim === "in-progress") return { status: IN_PROGRESS_STATUS, body: { ok: false, inProgress: true, message: "This event is being handled right now. Send it again later." } };
       try {
         const handled = await handle(event);
         await events.mark(event.id, { type: event.type, at: at(), handled });
         return { status: 200, body: { ok: true, handled } };
       } catch (error) {
+        await releaseEvent(events, event.id);
         return { status: 500, body: { ok: false, message: error.message } };
       }
     },
