@@ -1,6 +1,6 @@
 # Plan 2 of 3: the platform backend
 
-Written 30 October 2026. This is the engine nobody outside sees: your control room and the platform's server program
+Written 30 October 2026, updated 2 November 2026 (Phase 19). The page: https://claude.ai/artifact/FHnXpGuqLxb7Be1FNaFXe7. This is the engine nobody outside sees: your control room and the platform's server program
 (sign-in, billing, emails, the shop maker, the scheduler, the release runner). Plan 1 is the front door. Plan 3 is each
 press's own shop. Numbers in brackets are rows in `docs/code-plan.md`.
 
@@ -15,6 +15,26 @@ real test shop (15.7). Thread: *Research paths*. All of it waits on your Google 
 **Your next step:** by **7 November**, set up the Google organization on your new domain (free Cloud Identity is enough),
 one "shops" folder, one billing account, and ask Google for room for 50 projects. The shop maker can only create
 projects inside an organization.
+
+## Phase 19: a stronger backend (2 November 2026)
+
+Research: what Shopify's partner tools, Stripe Billing and subscription-metrics tools give the people who run a
+platform, checked against our code. We have the shop list, alerts and duplicate checks. We lack income over time, why
+presses leave, failed-payment recovery beyond one email, a per-shop timeline, a jobs page, and asking a press before
+"Make changes". Rows 19.1 to 19.16 in `docs/code-plan.md`.
+
+**Fixed (PR #216):** other companies' error words never reach presses, and crashes are logged with a code (19.1); late,
+older Stripe messages can't reopen a cancelled plan or turn a press's cards back on (19.2); the shop list and Today read
+eight shops at a time instead of one after another (19.3).
+
+**Next, in order:** each payment message handled exactly once (19.4); fair-use limits (19.5); the press says yes before
+"Make changes" (19.6); income over time (19.7); why presses leave (19.8); failed-payment recovery (19.9); one timeline
+per shop (19.10); the jobs page (19.11); payment and email delivery per shop (19.12); notes and tags (19.13); messages
+to presses (19.14); what each shop costs us (19.15); a press's data on request (19.16). Make-it-real (15.5 to 15.7)
+still comes first.
+
+**New step for you:** with the Stripe platform profile (13 November), switch on Smart Retries and the card account
+updater.
 
 ## Your steps for this chunk
 
