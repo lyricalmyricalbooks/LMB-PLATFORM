@@ -40,6 +40,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   const gaps = useMemo(() => (collecting && rates.length ? uncoveredTaxRegions(rates) : []), [collecting, rates]);
   // Off keeps every rate saved, so switching back on restores them.
   const setCollecting = (on: boolean) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates, collect: on } });
+  const setDuties = (patch: Record<string, unknown>) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), duties: { ...(settings.taxes?.duties || {}), ...patch } } });
   const setRates = (next: TaxRate[]) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates: next } });
   const savedKey = (r: TaxRate) => `${r.country}|${r.region}|${r.rate}|${r.bookName || ""}`.toLowerCase();
   const saved = new Set(savedRates.map(savedKey));
@@ -100,6 +101,19 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           {collecting
             ? <StatusBadge tone="success">Collecting tax</StatusBadge>
             : <StatusBadge tone="warning">Tax switched off</StatusBadge>}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Duties on parcels abroad" description="A checkout note so buyers abroad aren't surprised.">
+        <div style={{ display: "grid", gap: 12 }}>
+          <p className="rp-hint" style={{ margin: 0 }}>Buyers outside your country can owe duties and import tax when the parcel arrives. You don't collect or pay these; the note just tells them.</p>
+          <Toggle label="Warn buyers abroad about duties and import tax" checked={settings.taxes?.duties?.on === true} onChange={(on: boolean) => setDuties({ on })} />
+          {settings.taxes?.duties?.on === true && (
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", alignItems: "start" }}>
+              <TextField label="Your country" value={settings.taxes?.duties?.home ?? "Canada"} onChange={(e) => setDuties({ home: e.target.value })} hint="Parcels staying here show no note." />
+              <TextField label="Estimate to show (percent, optional)" inputMode="decimal" value={String(settings.taxes?.duties?.estimateRate ?? "")} onChange={(e) => setDuties({ estimateRate: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) })} hint="Leave empty to show the note without a number." />
+            </div>
+          )}
         </div>
       </SectionCard>
 
