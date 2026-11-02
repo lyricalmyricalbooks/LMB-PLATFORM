@@ -328,3 +328,69 @@ joined to the web door next to `controlRoutes` (walkthrough/world.js).
   `PLATFORM_PRIVACY_CONTACT`.
 - **Permissions:** the platform's service account needs permission to manage each shop's users. It already has it as
   owner of the projects it makes.
+
+## One timeline per shop (`timeline.js`, plan 19.10)
+
+`shopTimeline({ shopId, registry, auditLog?, activity, supportStore?, releases?, emailLog?, limit, before?, kinds? })`
+merges, newest first, everything the platform already records about one shop: the registry's events (`readEvents`:
+billing, payments, fee, switches, closures, act-as, health, backups, repairs, email…), its release checks and the
+release runs that name it (`listReleases`), the control room's activity log for it, its support requests
+(`listByShop`) and the platform's own emails about it (the email service's sent log, entries marked `platform`; a
+shop's emails to its shoppers are never read). Each entry is `{ at, kind, words, by? }`, `kind` one of billing,
+release, health, support, switch, visit, email, other. A control-room action is in the registry and the activity log
+at once; it shows once. `kinds` filters; `next` is the `before` of the page after (stable when entries share a time).
+The shop's drawer has a **Timeline** section with a chip per kind and **Show older**.
+
+`createTimeline({ admins, registry, activity, supportStore, emailLog })`, on the door with `timelineRoutes(timeline)`:
+
+| Route | What |
+| --- | --- |
+| `POST /api/control/timeline` | `{ shopId, kinds?, before? }` -> `{ entries, next }` (admins only) |
+
+## The Jobs page (`jobs.js`, plan 19.11)
+
+The jobs and their run log are `services/jobs` (its README lists every scheduled job). The **Jobs** page in the side
+menu shows each job, how often it runs, its last run, how long it took and its result (worked, failed, late or not
+run yet), with **Run now**. Looking at the page also sends a late alert not sent yet. `createJobsPage({ admins,
+runner, jobs, activity })` takes `jobs`, a map of the jobs this server can run itself; **Run now** logs the reason in
+the activity log first, then runs it through `runJob`, so it lands in the run log like a scheduled run. A job not in
+the map answers 409 "This job can only run on the server."
+
+| Route | What |
+| --- | --- |
+| `GET /api/control/jobs` | every job with its last run, last success, time taken, `late`, `never`, `canRun` |
+| `POST /api/control/jobs/run` | `{ name, reason }`: run one job now (logged) |
+
+## Payments and email delivery (`delivery.js`, plan 19.12)
+
+The shop's record (`POST /api/control/shop`) gains `delivery: { payments: { received, failed }, email: { sent,
+bounced, complained } }` over the last 7 days, when `createControlRoom` is given `delivery:
+deliveryReader({ deliveryStats, sentLog, reputation })`. Payment events are counted by the payment service
+(`deliveryStats`, below); emails sent come from the email service's sent log; bounces and spam reports from the
+newsletter guard's own events (`services/email/reputation.js`), so nothing is counted twice. Those reports only come
+back for newsletter emails, so the bounce rate shown is never higher than the real one. `shopHealth` takes the counts
+as an optional `delivery` and adds a "look" reason when more than 5% of at least 20 emails bounced, or more than 3
+payment events failed. Old callers, without it, get what they always got. The drawer shows the counts under the facts.
+
+`deliveryStats` (`clients/stores.js` `firestoreDeliveryStats`, `visibilityFakes.js` `fakeDeliveryStats`):
+`add(shopId, kind, at)` raises one counter a day per shop and kind (`deliveryStats/<shopId>_<kind>_<day>`), and
+`count(shopId, kind, sinceIso)` adds them up. The payment service takes it as an optional `deliveryStats`.
+
+## Notes and tags on a shop (`notes.js`, plan 19.13)
+
+Private notes (up to 1000 characters) and up to 10 tags (lowercase words or short phrases, 30 characters at most) on a
+shop, for the platform only. **Notes are private to the platform: they are never written to the shop's own audit log
+or the registry's events**, which a press can come to see. Every add, delete and tag change is written to the control
+room's activity log instead (`note-added`, `note-deleted`, `tags-set`), without the note's words; deleting a note and
+changing tags ask for a reason. Stored as `shopNotes/<shopId>` (`clients/stores.js` `firestoreShopNotes`,
+`visibilityFakes.js` `fakeShopNotes`). The Shops list shows each shop's tags as small pills and its search also matches
+tags (`shopSearch.js`, shared by the page and its test); the drawer has a **Notes** section.
+
+`createShopNotes({ admins, store, registry, activity })`, on the door with `notesRoutes(notes)`:
+
+| Route | What |
+| --- | --- |
+| `POST /api/control/notes` | `{ shopId }`: its notes and tags; `{}`: every shop's tags (`tagsByShop`) |
+| `POST /api/control/notes/add` | `{ shopId, words }` |
+| `POST /api/control/notes/delete` | `{ shopId, id, reason }` |
+| `POST /api/control/tags` | `{ shopId, tags, reason }` |

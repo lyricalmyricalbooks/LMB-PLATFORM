@@ -9,5 +9,7 @@ export function fakeSupportStore() {
     list: async ({ status, limit = 200 }) => all().filter((t) => t.status === status).slice(0, limit),
     listByEmail: async (email) => all().filter((t) => t.email === email).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)),
     countSince: async (email, since) => all().filter((t) => t.email === email && t.openedAt >= since).length,
+    // One shop's requests, newest first (control-room/timeline.js, plan 19.10).
+    listByShop: async (shopId) => all().filter((t) => t.shopId === shopId).sort((a, b) => (a.openedAt < b.openedAt ? 1 : -1)),
   };
 }

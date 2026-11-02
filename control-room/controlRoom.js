@@ -30,6 +30,8 @@
 //   activity      optional: the activity log (activity.js, plan 9.9): record(entry); every logged action goes there too
 //   accessRequests optional: support-access requests (accessRequests.js createAccessRequests, plan 19.6). "Make
 //                 changes" asks the press first and opens only on their yes; without it, "Make changes" is refused
+//   delivery      optional: (shopId) -> the last 7 days' payment events and emails (delivery.js deliveryReader, plan
+//                 19.12), shown on the shop's record and in its health
 import { testShopDocs } from "../setup/test-catalogue.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
@@ -43,6 +45,7 @@ import { MAX_BASIS_POINTS, NO_FEE, feeForShop } from "../services/payments/fees.
 import { dateText } from "../services/billing/billing.js";
 import { platformSettings } from "../services/settings.js";
 import { editVisit } from "./accessRequests.js";
+import { deliveryReasons } from "./delivery.js";
 
 export const ACT_AS_MINUTES = 30;
 /** A change to a press's per-order fee starts this many days after the press is emailed (Julian, 28 October 2026). */
@@ -101,7 +104,7 @@ export function adminOf(claims, admins, nowMs = Date.now()) {
  * A shop's health in three levels, with the reasons in plain words: "ok", "watch" (nothing broken, but look) or
  * "problem" (something is broken or waiting on a person).
  */
-export function shopHealth({ row, profile, checks = [], repairs = [] }) {
+export function shopHealth({ row, profile, checks = [], repairs = [], delivery = null }) {
   const problems = [];
   const watch = [];
   if (row.status !== "live") watch.push(`not live yet (${row.status ?? "being made"})`);
@@ -116,6 +119,8 @@ export function shopHealth({ row, profile, checks = [], repairs = [] }) {
   // Spending limits (services/health/spending.js): past its budget, a shop's costly jobs slow down or wait.
   if (row.spending?.level === "slow") watch.push("past its budget: photo copies, AI writing and imports run slowly");
   if (row.spending?.level === "held") watch.push("twice its budget: photo copies, AI writing and imports wait until next month");
+  // Payments and email delivery over the last 7 days (19.12, delivery.js), when the caller read them.
+  watch.push(...deliveryReasons(delivery));
   for (const repair of repairs) problems.push(`in the repair queue: ${repair.problem}`);
   // The five-minute watch (services/health) keeps its latest results on the row.
   for (const [name, result] of Object.entries(row.health?.checks ?? {})) {
@@ -157,7 +162,7 @@ export async function eachInTurn(items, limit, work) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(),
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery,
 }) {
   const at = () => now().toISOString();
 
@@ -342,6 +347,8 @@ export function createControlRoom({
       for (const step of steps) lastByStep.set(step.step, step);
       const fee = feeForShop(row, feeDefaults, now());
       const next = row.platformFee?.next && Date.parse(row.platformFee.next.from) > now().getTime() ? row.platformFee.next : null;
+      // Payments and email delivery (19.12); a count that can't be read leaves the rest of the record.
+      const counts = delivery ? await delivery(shopId).catch(() => null) : null;
       return {
         shopId,
         pressName: row.pressName ?? shopId,
@@ -362,13 +369,14 @@ export function createControlRoom({
         },
         fee: { ...fee, next, defaults: feeDefaults },
         lastChecks: checks.slice(-5).reverse(),
-        health: shopHealth({ row, profile, checks, repairs: open }),
+        health: shopHealth({ row, profile, checks, repairs: open, delivery: counts }),
         closed: row.closure ?? null,
         // Closing an unpaid or dropped shop (6.8): stage, dates and the warning emails sent.
         closing: row.closing ?? null,
         // Every Google step with its state (6.20, google/status.js); a failed read leaves the rest of the record.
         google: googleSteps ? await googleSteps.googleStatus(shopId).catch(() => null) : null,
         history: activity ? await activity.list({ shopId, limit: 50 }) : [],
+        delivery: counts ? { payments: counts.payments, email: counts.email } : null,
       };
     },
 

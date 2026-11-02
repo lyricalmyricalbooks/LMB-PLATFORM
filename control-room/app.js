@@ -8,6 +8,7 @@
 // class names the website admin's React pieces use (apps/shop/src/app/admin/riso/components.tsx).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
+import { shopMatches } from "./shopSearch.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const {
@@ -161,6 +162,9 @@ async function load() {
     await loadSettings();
     await loadActivity();
     await loadBusiness();
+
+    await loadTags();
+    await loadJobs();
   } catch (failure) {
     status.textContent = failure.message;
     // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
@@ -170,12 +174,14 @@ async function load() {
 
 // ── Shops: search and filters (plan 9.3), over the list already loaded. ──
 let allShops = [];
+// Every shop's tags (19.13), for the list's pills and search.
+let shopTags = {};
 const BILLING_TONE = { trialing: "info", active: "success", past_due: "danger", paused: "warning", unpaid: "warning", incomplete: "warning", canceled: "neutral", incomplete_expired: "neutral" };
 const PLAN_WORDS = { shop: "Shop", stockroom: "Stockroom", both: "Shop and stockroom" };
 function showShops() {
   const form = $("#shop-filters");
   const words = form.q.value.trim().toLowerCase();
-  const shown = allShops.filter((shop) => (!words || [shop.pressName, shop.shopId, shop.ownerEmail].some((v) => String(v ?? "").toLowerCase().includes(words)))
+  const shown = allShops.filter((shop) => shopMatches(shop, words, shopTags[shop.shopId])
     && (!form.health.value || shop.health.level === form.health.value)
     && (!form.plan.value || shop.plan === form.plan.value)
     && (!form.billing.value || shop.billingStatus === form.billing.value));
@@ -190,7 +196,7 @@ function showShops() {
     rows: shown,
     open: (shop) => openShop(shop),
     columns: [
-      { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null)) },
+      { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null), tagPills(shopTags[shop.shopId])) },
       { header: "Plan", render: (shop) => PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" },
       { header: "Billing", render: (shop) => (shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : el("span", { className: "rp-hint", textContent: shop.access ?? "none" })) },
       { header: "Health", render: (shop) => el("div", {}, pill(TONE[shop.health.level], LEVEL[shop.health.level]), shop.health.reasons[0] ? meta(shop.health.reasons[0]) : null) },
@@ -292,6 +298,7 @@ function recordView(record) {
   ].filter(([, value]) => value);
   return el("div", { className: "record" },
     el("dl", { className: "cr-facts" }, ...facts.flatMap(([label, value]) => [el("dt", { textContent: label }), el("dd", { textContent: value })])),
+    ...deliveryView(record.delivery),
     el("h3", { className: "cr-section", textContent: "Setup" }),
     record.setup.length ? el("ol", { className: "cr-steps" }, ...record.setup.map((step) => el("li", {}, `${step.name ?? `Step ${step.step}`} `, step.ok ? pill("success", "done") : pill("danger", `stopped: ${step.error}`)))) : el("p", { className: "rp-hint", textContent: "No setup steps yet." }),
     ...closingView(record.closing),
@@ -502,6 +509,7 @@ function card(shop) {
     shop.status === "live" ? paymentsMenu(shop.paymentsMoved?.to ?? "platform", { shopId: shop.shopId }, shop.pressName) : null,
     el("h3", { className: "cr-section", textContent: "The record" }),
     recordSlot,
+    ...privateSections(shop),
   ].filter(Boolean);
 }
 
@@ -951,6 +959,8 @@ const ACTIVITY_WORDS = {
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again",
   "access-asked": "asked the press for a yes to make changes",
+
+  "note-added": "added a private note", "note-deleted": "deleted a private note", "tags-set": "changed the shop's tags", "job-run": "ran a job by hand",
 };
 
 async function loadActivity() {
@@ -1437,3 +1447,199 @@ async function loadLeaving() {
     saves.replaceChildren();
   }
 }
+
+// ── Payments and email delivery (plan 19.12): the last 7 days, on the shop's record. ──
+function deliveryView(delivery) {
+  if (!delivery) return [];
+  const { payments, email } = delivery;
+  return [
+    el("h3", { className: "cr-section", textContent: "Payments and email, last 7 days" }),
+    el("dl", { className: "cr-facts" },
+      el("dt", { textContent: "Payments" }), el("dd", { textContent: `${payments.received} message${payments.received === 1 ? "" : "s"} from Stripe, ${payments.failed} not passed on` }),
+      el("dt", { textContent: "Email" }), el("dd", { textContent: `${email.sent} sent, ${email.bounced} bounced, ${email.complained} marked as spam` })),
+  ];
+}
+
+// ── Notes and tags (plan 19.13): private to the platform, never in the shop's own log. ──
+function tagPills(tags) {
+  return tags?.length ? el("div", { className: "cr-tags" }, ...tags.map((tag) => pill("neutral", tag))) : null;
+}
+
+async function loadTags() {
+  try {
+    shopTags = (await api("POST", "/control/notes", {})).tagsByShop ?? {};
+    showShops();
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+function notesSection(shop) {
+  const slot = el("div", { className: "cr-list" }, el("p", { className: "rp-hint", textContent: "Opening the notes…" }));
+  const draw = async () => {
+    let found;
+    try {
+      found = await api("POST", "/control/notes", { shopId: shop.shopId });
+    } catch (failure) {
+      slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message }));
+      return;
+    }
+    const list = found.notes.length
+      ? el("ul", { className: "cr-steps" }, ...found.notes.map((note) => {
+        const remove = button("Delete", "ghost");
+        remove.addEventListener("click", async () => {
+          const reason = askWhy(`Delete this note on ${shop.pressName}.`);
+          if (!reason) return;
+          remove.disabled = true;
+          try {
+            await api("POST", "/control/notes/delete", { shopId: shop.shopId, id: note.id, reason });
+            status.textContent = "Note deleted. It's in the activity log.";
+            await draw();
+          } catch (failure) {
+            status.textContent = failure.message;
+            remove.disabled = false;
+          }
+        });
+        return el("li", {}, el("p", { className: "cr-body", style: "margin: 0", textContent: note.words }), meta(when(note.at), note.by), remove);
+      }))
+      : el("p", { className: "rp-hint", textContent: "No notes yet." });
+    const words = el("textarea", { className: "rp-textarea", maxLength: 1000, rows: 3, ariaLabel: `New note on ${shop.pressName}` });
+    const add = button("Add note", "secondary");
+    add.addEventListener("click", async () => {
+      if (!words.value.trim()) { status.textContent = "Write the note first."; return; }
+      add.disabled = true;
+      try {
+        await api("POST", "/control/notes/add", { shopId: shop.shopId, words: words.value });
+        status.textContent = "Note added.";
+        await draw();
+      } catch (failure) {
+        status.textContent = failure.message;
+        add.disabled = false;
+      }
+    });
+    const tagsField = el("input", { className: "rp-input", value: found.tags.join(", "), autocomplete: "off", ariaLabel: `Tags for ${shop.pressName}` });
+    const saveTags = button("Save tags", "secondary");
+    saveTags.addEventListener("click", async () => {
+      const tags = tagsField.value.split(",").map((t) => t.trim()).filter(Boolean);
+      const reason = askWhy(`Set ${shop.pressName}'s tags to: ${tags.join(", ") || "none"}.`);
+      if (!reason) return;
+      saveTags.disabled = true;
+      try {
+        const done = await api("POST", "/control/tags", { shopId: shop.shopId, tags, reason });
+        shopTags[shop.shopId] = done.tags;
+        showShops();
+        status.textContent = done.changed ? "Tags saved." : "Those are already the tags.";
+        await draw();
+      } catch (failure) {
+        status.textContent = failure.message;
+        saveTags.disabled = false;
+      }
+    });
+    slot.replaceChildren(
+      el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: "Tags (separated by commas, up to 10)" }), tagsField),
+      el("div", { className: "cr-actions", style: "margin-top: 0" }, saveTags),
+      list,
+      el("div", { className: "cr-actions" }, words, add));
+  };
+  draw();
+  return slot;
+}
+
+// ── One timeline per shop (plan 19.10): everything recorded about it, newest first, by kind, with Show older. ──
+const TIMELINE_WORDS = { billing: "Billing", release: "Releases", health: "Health", support: "Support", switch: "Switches", visit: "Visits", email: "Email", other: "Other" };
+function timelineSection(shop) {
+  let kind = null;
+  let next = null;
+  const list = el("ul", { className: "cr-history" });
+  const more = button("Show older", "secondary", { hidden: true, className: "rp-btn rp-btn-secondary rp-btn-sm cr-timeline-more" });
+  const chips = el("div", { className: "rp-tabs cr-toolbar", role: "group", ariaLabel: "Which kind of entries" },
+    ...[["", "All"], ...Object.entries(TIMELINE_WORDS)].map(([value, words]) => el("button", { type: "button", className: "rp-tab", textContent: words, dataset: { kind: value } })));
+  const page = async (fresh) => {
+    if (fresh) { next = null; list.replaceChildren(el("li", { textContent: "Loading…" })); }
+    try {
+      const found = await api("POST", "/control/timeline", { shopId: shop.shopId, ...(kind ? { kinds: [kind] } : {}), ...(next ? { before: next } : {}) });
+      const lines = found.entries.map((e) => el("li", { textContent: `${when(e.at)} · ${TIMELINE_WORDS[e.kind] ?? e.kind} · ${e.words}${e.by ? ` · ${e.by}` : ""}` }));
+      if (fresh) list.replaceChildren(...(lines.length ? lines : [el("li", { textContent: "Nothing recorded yet." })]));
+      else list.append(...lines);
+      next = found.next;
+      more.hidden = !next;
+    } catch (failure) {
+      list.replaceChildren(el("li", { textContent: failure.message }));
+      more.hidden = true;
+    }
+  };
+  for (const chip of chips.querySelectorAll("button")) {
+    const pressed = chip.dataset.kind === "";
+    chip.setAttribute("aria-pressed", String(pressed));
+    chip.setAttribute("aria-selected", String(pressed));
+    chip.addEventListener("click", () => {
+      for (const other of chips.querySelectorAll("button")) {
+        other.setAttribute("aria-pressed", String(other === chip));
+        other.setAttribute("aria-selected", String(other === chip));
+      }
+      kind = chip.dataset.kind || null;
+      page(true);
+    });
+  }
+  more.addEventListener("click", async () => {
+    more.disabled = true;
+    await page(false);
+    more.disabled = false;
+  });
+  page(true);
+  return el("div", {}, chips, list, more);
+}
+
+/** The drawer's private sections: notes and tags, then the timeline. */
+function privateSections(shop) {
+  return [
+    el("h3", { className: "cr-section", textContent: "Notes (only the platform sees these)" }),
+    notesSection(shop),
+    el("h3", { className: "cr-section", textContent: "Timeline" }),
+    timelineSection(shop),
+  ];
+}
+
+// ── Jobs (plan 19.11): every scheduled job, its last run, and Run now. ──
+const everyWords = (minutes) => (minutes < 60 ? `${minutes} min` : minutes < 1440 ? `${minutes / 60} h` : minutes % 1440 === 0 && minutes > 1440 ? `${minutes / 1440} days` : "day");
+const tookWords = (ms) => (ms == null ? "" : ms < 1000 ? `${ms} ms` : ms < 60_000 ? `${Math.round(ms / 100) / 10} s` : `${Math.round(ms / 6000) / 10} min`);
+
+async function loadJobs() {
+  try {
+    const { jobs } = await api("GET", "/control/jobs");
+    setBadge("jobs", jobs.filter((j) => j.late).length);
+    $("#jobs").replaceChildren(jobs.length ? table({
+      caption: "Jobs",
+      rows: jobs,
+      columns: [
+        { header: "Job", lead: true, render: (job) => el("div", {}, el("p", { className: "cr-title", textContent: job.words }), meta(job.name)) },
+        { header: "Every", render: (job) => everyWords(job.every) },
+        { header: "Last run", render: (job) => (job.lastRun ? el("span", { className: "rp-mono", textContent: when(job.lastRun.startedAt) }) : el("span", { className: "rp-hint", textContent: "never" })) },
+        { header: "Took", render: (job) => tookWords(job.lastRun?.ms) },
+        { header: "Result", render: (job) => el("div", {},
+          job.late ? pill("danger", "late") : job.never ? pill("neutral", "not run yet") : job.lastRun.ok ? pill("success", "worked") : pill("danger", "failed"),
+          meta(job.lastRun?.error ?? job.lastRun?.summary ?? null, job.lastSuccessAt && !job.lastRun?.ok ? `last worked ${when(job.lastSuccessAt)}` : null)) },
+        { header: "", end: true, render: (job) => {
+          const run = button("Run now", "secondary", { disabled: !job.canRun, title: job.canRun ? "" : "This job can only run on the server." });
+          run.addEventListener("click", async () => {
+            const reason = askWhy(`Run "${job.words}" now.`);
+            if (!reason) return;
+            run.disabled = true;
+            try {
+              const done = await api("POST", "/control/jobs/run", { name: job.name, reason });
+              status.textContent = done.run.ok ? `${job.words}: done${done.run.summary ? ` (${done.run.summary})` : ""}.` : `${job.words} failed: ${done.run.error}`;
+              await loadJobs();
+            } catch (failure) {
+              status.textContent = failure.message;
+              run.disabled = false;
+            }
+          });
+          return run;
+        } },
+      ],
+    }) : emptyState("No jobs yet."));
+  } catch (failure) {
+    $("#jobs").replaceChildren(emptyState(failure.message));
+  }
+}
+$("#jobs-refresh").addEventListener("click", loadJobs);

@@ -36,6 +36,9 @@
 //              Stripe account goes past its deadline (code plan 7.9)
 //   feeLedger  the pay-as-you-sell ledger store (payAsYouSell.js, code plan 6.19); optional: without it a shop on pay
 //              as you sell takes no fee (and it is logged), never the wrong one
+//   deliveryStats  optional: add(shopId, kind, atIso), the control room's per-shop counts (plan 19.12): every Stripe
+//              event for a shop is counted as "payment-event", and one the service answers with a failure as
+//              "payment-event-failed" too. A counter that fails never stops the event.
 import { StripeApiError } from "./stripeApi.js";
 import { SquareApiError } from "./squareApi.js";
 import { createSquareService, SQUARE_OP_NAMES } from "./square.js";
@@ -232,7 +235,7 @@ const header = (headers, name) => {
  * @param {object} deps see the header comment
  * @param {{ webhookSecrets: { live: string[], test: string[] }, fee: object }} deps.config readServiceConfig()
  */
-export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, email = null, feeLedger = null, now = () => Date.now() }) {
+export function createPaymentService({ stripe, registry, auditLog, accounts, deliver, config, squareApi = null, tokens = null, states = null, email = null, feeLedger = null, deliveryStats = null, now = () => Date.now() }) {
   const { webhookSecrets } = config;
   const iso = () => new Date(now()).toISOString();
   const ledger = feeLedger ? createFeeLedger({ store: feeLedger, now }) : null;
@@ -525,6 +528,12 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
         return { status: 200, body: { ignored: "no shop has this account" } };
       }
       if (mode === "live" && row.payments?.mode !== "live") return { status: 200, body: { ignored: "live event for a test-only shop" } };
+      // Per-shop counts for the control room (19.12).
+      const tally = async (kind) => {
+        try { if (deliveryStats) await deliveryStats.add(row.shopId, kind, iso()); } catch (err) { console.error(`couldn't count ${kind} for ${row.shopId}: ${err?.message || err}`); }
+      };
+      const failed = async (answer) => { await tally("payment-event-failed"); return answer; };
+      await tally("payment-event");
 
       // The account's own state, kept in the registry for the go-live checklist (2.10) and the control room.
       if (event.type === "account.updated" && event.data?.object?.id === event.account && mode === row.payments.mode) {
@@ -556,7 +565,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
         // Past due: Stripe has paused cards or payouts. The owner is emailed once (the admin shows a banner as well).
         if (!stale && needs.pastDue && !payments.pastDueEmailedAt && email) {
           const emailed = await emailPastDue(row, payments, needs, event.account);
-          if (!emailed) return { status: 502, body: { error: "The owner couldn't be emailed; Stripe will send the event again." } };
+          if (!emailed) return failed({ status: 502, body: { error: "The owner couldn't be emailed; Stripe will send the event again." } });
         }
       }
       if (event.type === "account.application.deauthorized" && mode === row.payments.mode && !row.payments.disconnectedAt) {
@@ -569,14 +578,14 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
           await ledgerEvent(row, event);
         } catch (err) {
           console.error(`Stripe event ${event.id} for ${row.shopId} wasn't counted for pay as you sell: ${err?.message || err}`);
-          return { status: 500, body: { error: "The event couldn't be counted; Stripe will send it again." } };
+          return failed({ status: 500, body: { error: "The event couldn't be counted; Stripe will send it again." } });
         }
       }
 
       const result = await deliver(row, rawBody);
       if (result.status >= 200 && result.status < 300) return { status: 200, body: { forwarded: row.shopId } };
       console.error(`Stripe event ${event.id} for ${row.shopId} wasn't taken (${result.status}${result.error ? `: ${result.error}` : ""})`);
-      return { status: 502, body: { error: "The shop didn't take the event; Stripe will send it again." } };
+      return failed({ status: 502, body: { error: "The shop didn't take the event; Stripe will send it again." } });
     },
 
     /** Square sends the press back here after Connect Square (GET /square/oauth). */

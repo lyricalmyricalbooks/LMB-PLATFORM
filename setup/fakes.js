@@ -89,6 +89,13 @@ export function fakeRegistry(seed = {}) {
       if (!steps.has(shopId)) steps.set(shopId, []);
       steps.get(shopId).push({ ...entry });
     },
+    // One shop's timeline (control-room/timeline.js, plan 19.10): its events, and the release runs.
+    async readEvents(shopId) {
+      return structuredClone([...(events.get(shopId)?.values() ?? [])]);
+    },
+    async listReleases() {
+      return structuredClone([...releases.values()]);
+    },
   };
 }
 

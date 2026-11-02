@@ -10,6 +10,9 @@ export function fakeSentLog() {
     put: async (key, entry) => void entries.set(key, { ...entry }),
     findSent: async (shopId, kind) => [...entries.values()].find((e) => e.shopId === shopId && e.kind === kind && e.status === "sent") ?? null,
     countSince: async (shopId, since, stream) => [...entries.values()].filter((e) => e.shopId === shopId && e.status === "sent" && e.at >= since && (!stream || (e.stream ?? "orders") === stream)).length,
+    // The platform's own emails about one shop, newest first (control-room/timeline.js, plan 19.10).
+    listForShop: async (shopId, { limit = 200 } = {}) => [...entries.values()].filter((e) => e.shopId === shopId && e.platform === true)
+      .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, limit).map((e) => ({ ...e })),
   };
 }
 
