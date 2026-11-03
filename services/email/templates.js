@@ -401,6 +401,18 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** A closed app's records were deleted after its 90 days (billing closedApps.js). `data`: { closing, link }. */
+  "app-records-deleted": ({ closing, link }, { settings, pressName }) => layout({
+    subject: `Everything that was in ${closing || "your closed app"} for ${pressName} is now deleted`,
+    greeting: "Hello,",
+    paragraphs: [
+      `As we wrote before, the 90 days to download ${closing || "the app you dropped"} are over, so everything that was in it has now been deleted for good.`,
+      "Nothing else changed: your plan, your other app and your account are as they were. If you want it again one day, you can add it back to your plan; it starts empty.",
+    ],
+    buttons: [["Open your account", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The card on file runs out within a month (code plan 6.12). Sent once per card. `data`: { card, month, date, link }. */
   "card-expiring": ({ card, date, month, link }, { settings, pressName }) => layout({
     subject: `Your card for ${pressName} runs out soon`,

@@ -274,7 +274,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // The billing hub inside each shop's admin (22.3): signed in to the shop's own project, one sign-in check per project.
   const shopVerifiers = new Map();
   const shopBilling = createShopBillingDoor({
-    billing, paymentWay, accounts, registry, auditLog, settings, now, log,
+    billing, paymentWay, exports: dataExports, accounts, registry, auditLog, settings, now, log,
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     verifierFor: (shopProject) => {
       if (!shopVerifiers.has(shopProject)) shopVerifiers.set(shopProject, createIdTokenVerifier({ projectId: shopProject, fetch, now: nowMs }));

@@ -380,6 +380,34 @@ test("three days before a closed app's download ends, one last email; then its r
   assert.ok((await w.registry.getShop(SHOP)).closedApps.stockroom.deletedAt);
   await w.billing.closeDroppedApps();
   assert.equal(deleted.length, 1, "deleted once");
+  const told = w.email.list().filter((m) => m.kind === "app-records-deleted");
+  assert.equal(told.length, 1, "the press hears once that it's done");
+  assert.equal(told[0].data.closing, "the stockroom");
+  const mail = TEMPLATES["app-records-deleted"](told[0].data, { settings: platformSettings({}), pressName: "Moth Press" });
+  assert.equal(mail.subject, "Everything that was in the stockroom for Moth Press is now deleted");
+  assert.ok((await w.stores.subscriptions.get(SHOP)).closedApps.stockroom.toldAt);
+});
+
+test("the note that a closed app's records are deleted is tried again for a week when the email fails", async () => {
+  const w = await reminded({ deleteApp: async () => {} });
+  w.tick(7);
+  await w.billing.closeDroppedApps();
+  const { downloadUntil } = (await w.stores.subscriptions.get(SHOP)).closedApps.stockroom;
+  w.tick((Date.parse(downloadUntil) - w.now()) / DAY - 2.9);
+  await w.billing.closeDroppedApps();
+  const send = w.email.sendPlatform;
+  w.email.sendPlatform = async (message) => { if (message.kind === "app-records-deleted") throw new Error("email down"); return send(message); };
+  w.tick(3.5);
+  await w.billing.closeDroppedApps();
+  const row = (await w.stores.subscriptions.get(SHOP)).closedApps.stockroom;
+  assert.ok(row.deletedAt, "deleted even though the note failed");
+  assert.equal(row.toldAt, undefined);
+  w.email.sendPlatform = send;
+  w.tick(1);
+  await w.billing.closeDroppedApps();
+  await w.billing.closeDroppedApps();
+  assert.equal(w.email.list().filter((m) => m.kind === "app-records-deleted").length, 1, "sent on the next sweep, once");
+  assert.ok((await w.stores.subscriptions.get(SHOP)).closedApps.stockroom.toldAt);
 });
 
 test("an email sent late pushes the deletion back; a failed deletion is kept and tried again", async () => {

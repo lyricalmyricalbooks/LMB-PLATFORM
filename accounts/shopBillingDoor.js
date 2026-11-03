@@ -2,6 +2,7 @@
 // shop admin (Settings › Plan, Settings › Billing), so Colophon does too: the admin calls the platform directly.
 //
 //   POST /api/shop-billing/<call>   { shopId, ... }   the same calls as /api/billing/<call> (billingRoutes.js billingCalls)
+//   POST /api/shop-billing/download  { shopId }  the owner's copy of everything (given `exports`; services/export)
 //   OPTIONS /api/shop-billing/<call>                  the browser's "may I?" before a call from the shop's address
 //
 // Who is asking: the admin is signed in to the **shop's own** Firebase project, not the platform's, so the sign-in pass
@@ -58,8 +59,8 @@ class DoorError extends Error {
  * `verifierFor(projectId)` -> async verify(token) -> claims (server/verifyIdToken.js createIdTokenVerifier, one per
  * shop project). `limits` is the platform door's fair-use limits (optional).
  */
-export function createShopBillingDoor({ billing, paymentWay = null, accounts, registry, auditLog, settings, verifierFor, limits = null, now = () => new Date(), log = console.error }) {
-  const calls = billingCalls({ billing, paymentWay, settings });
+export function createShopBillingDoor({ billing, paymentWay = null, exports = null, accounts, registry, auditLog, settings, verifierFor, limits = null, now = () => new Date(), log = console.error }) {
+  const calls = billingCalls({ billing, paymentWay, settings, exports });
   const record = billingCallLog({ registry, auditLog, now, source: "shop-billing-door" });
 
   async function signedIn(request, row) {
@@ -104,7 +105,7 @@ export function createShopBillingDoor({ billing, paymentWay = null, accounts, re
       throw new DoorError(problem.status, "Your plan is paid, so this change needs your two-step sign-in. Finish it on your account page.", { twoStep: true, accountPage });
     }
     try {
-      const answer = await entry.run(shopId, body, { returnUrl: hubPage(row) });
+      const answer = await entry.run(shopId, body, { returnUrl: hubPage(row), claims });
       await record(shopId, call, email, "done");
       // The status says up front which changes will need the account page, so the hub can say so on the button.
       if (call === "status") return { ...answer, accountPage, changesNeedTwoStep: Boolean(ownerTwoStepProblem(claims, row)) };

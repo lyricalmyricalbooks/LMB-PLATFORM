@@ -15,6 +15,8 @@ import { PLAN_APPS } from "./plans.js";
 const DAY = 86_400_000;
 /** How long before a closed app's download ends its last email goes out (and the least time between that email and deletion). */
 export const DOWNLOAD_ENDING_DAYS = 3;
+/** After a closed app's records are deleted, the note saying so is tried for this many days. */
+export const TELL_DAYS = 7;
 
 /** The answers to "why are you dropping it?", in the press's own words. */
 export const DROP_REASONS = Object.freeze({
@@ -88,7 +90,7 @@ export function downloadHolds(apps) {
 }
 
 /** The platform's emails about a closing app: a bounce on one of them means the press may never hear it is closing. */
-export const CLOSING_EMAILS = Object.freeze(["app-closing-soon", "app-closed", "app-download-ending"]);
+export const CLOSING_EMAILS = Object.freeze(["app-closing-soon", "app-closed", "app-download-ending", "app-records-deleted"]);
 
 /**
  * For the email webhook (services/email/webhook.js `onBounce`): a closing email that bounced for good is marked on the
@@ -101,13 +103,18 @@ export const closingBounceRecorder = ({ registry }) => async ({ shopId, kind, at
 };
 
 /**
- * What each closed app needs now: "warn" (the last email before the download ends) or "delete" (its records go). A
- * closed app back on the plan, already deleted, or still in its 90 days needs nothing.
+ * What each closed app needs now: "warn" (the last email before the download ends), "delete" (its records go) or
+ * "tell" (the note that they went). A closed app back on the plan, told, or still in its 90 days needs nothing.
  */
 export function closedAppSteps(row, now) {
   const steps = [];
   for (const [app, closed] of Object.entries(row?.closedApps ?? {})) {
-    if (!closed?.downloadUntil || closed.deletedAt || PLAN_APPS[row.plan]?.[app]) continue;
+    // Deleted: one short note to the press that it's done ("tell"), tried for a week if the email fails.
+    if (closed?.deletedAt) {
+      if (!closed.toldAt && now - Date.parse(closed.deletedAt) < TELL_DAYS * DAY) steps.push({ app, step: "tell" });
+      continue;
+    }
+    if (!closed?.downloadUntil || PLAN_APPS[row.plan]?.[app]) continue;
     const until = Date.parse(closed.downloadUntil);
     if (!closed.warnedAt) {
       if (until - now <= DOWNLOAD_ENDING_DAYS * DAY) steps.push({ app, step: "warn" });

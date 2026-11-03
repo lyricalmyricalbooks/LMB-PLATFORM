@@ -6,7 +6,7 @@ import {
 } from "./riso/components";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
-  BillingCallError, DROP_CHOICES, LEAVING_CHOICES, PROVINCES, appsInWords, billState, billingCall, previewWords, statusBadge,
+  BillingCallError, DROP_CHOICES, LEAVING_CHOICES, downloadableClosedApps, PROVINCES, appsInWords, billState, billingCall, previewWords, statusBadge,
   type Bill, type BillingDetails, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
 } from "./platformBilling";
 
@@ -99,6 +99,7 @@ export function PlanPage({ plan }: Hub) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [dropReason, setDropReason] = useState("");
+  const [emailedTo, setEmailedTo] = useState<string | null>(null);
   const [words, setWords] = useState("");
   const [way, setWay] = useState<PaymentWayView | null>(null);
 
@@ -125,6 +126,18 @@ export function PlanPage({ plan }: Hub) {
   if (billing.appsClosing) facts.push(["Closing", <>
     <span style={{ display: "block" }}>{`${appsInWords(billing.appsClosing.apps).replace(/^./, (c) => c.toUpperCase())} on ${planDate(billing.appsClosing.at)}`}</span>
     {!ended && <span style={{ display: "block", marginTop: 6 }}><SecondaryButton size="sm" busy={change.busy === "keep-closing"} onClick={() => void change.run("keep-closing", () => billingCall(plan, "keep-closing-apps"))}>{`Keep ${appsInWords(billing.appsClosing.apps)}`}</SecondaryButton></span>}
+  </>]);
+  // A closed app's records, while they're kept: the same once-a-day copy as the account page's button, emailed.
+  const closedNow = downloadableClosedApps(billing);
+  if (closedNow.length) facts.push(["Closed", <>
+    {closedNow.map(({ app, downloadUntil }) => (
+      <span key={app} style={{ display: "block" }}>{`${appsInWords([app]).replace(/^./, (c) => c.toUpperCase())} is closed. You can download everything in it until ${planDate(downloadUntil)}; after that it's deleted.`}</span>
+    ))}
+    <span style={{ display: "block", marginTop: 6 }}>
+      {emailedTo
+        ? <span className="rp-hint" role="status">{`We're making your copy and will email the link to ${emailedTo} in a few minutes.`}</span>
+        : <SecondaryButton size="sm" busy={change.busy === "download"} onClick={() => void change.run("download", async () => { setEmailedTo((await billingCall<{ emailedTo: string }>(plan, "download")).emailedTo); })}>Download all your data</SecondaryButton>}
+    </span>
   </>]);
   facts.push(["Card", billing.card?.words ?? (billing.paymentWay === "payAsYouSell" ? "Not needed while you pay as you sell" : "No card yet")]);
 
