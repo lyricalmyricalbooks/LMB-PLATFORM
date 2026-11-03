@@ -7,6 +7,8 @@
 //   firestoreBillingStores      billingCustomers/<accountId>,            services/billing/fakes.js fakeBillingStores
 //                               billingSubscriptions/<shopId>,
 //                               billingEvents/<eventId>                  (fakeEventClaims)
+//   firestoreFoundingSeats      foundingPlaces/<shopId>,                 services/billing/fakes.js fakeFoundingSeats
+//                               billingCounters/founding
 //   firestoreFeeLedger          feeMonths/<shopId>_<month>,              services/payments/feeLedgerFakes.js
 //                               feePayments/<shopId>_<paymentId>
 //   firestoreAccountStores      memberships/<shopId>_<email>,            accounts/fakes.js fakeAccountStores
@@ -135,6 +137,26 @@ export function firestoreBillingStores(firestore) {
       list: async () => rowsOf(await firestore.query("billingSubscriptions", { limit: 5000 })),
     },
     events: firestoreEventClaims(firestore),
+  };
+}
+
+/**
+ * The founding places (services/billing/founding.js): one row per shop given a place, and a count, changed together in
+ * one transaction so two presses paying at the same moment can't both take the last place.
+ */
+export function firestoreFoundingSeats(firestore) {
+  const COUNT = "billingCounters/founding";
+  return {
+    claim: (shopId, { limit, at, percentOff }) => firestore.transaction(async (tx) => {
+      const place = `foundingPlaces/${safe(shopId)}`;
+      if (await tx.get(place)) return true;
+      const count = (await tx.get(COUNT))?.count ?? 0;
+      if (count >= limit) return false;
+      tx.set(place, { shopId, at, percentOff });
+      tx.set(COUNT, { count: count + 1, updatedAt: at });
+      return true;
+    }),
+    count: async () => (await firestore.get(COUNT))?.count ?? 0,
   };
 }
 

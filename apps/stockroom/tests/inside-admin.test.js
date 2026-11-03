@@ -112,3 +112,40 @@ describe('starting inside the admin', () => {
     expect(posted.map(([m]) => m)).toEqual([{ source: FROM_STOCKROOM, type: 'page', tab: 'dashboard' }]);
   });
 });
+
+describe('questions from the admin', () => {
+  const win = framed();
+  const ev = (data) => ({ source: win.parent, origin: ORIGIN, data });
+  it('takes a book question, a find question and a page to open with its book', () => {
+    expect(adminMessage(ev({ source: FROM_ADMIN, type: 'ask', id: 'q1', what: 'book', book: 'b-12' }), win)).toEqual({ type: 'ask', id: 'q1', what: 'book', book: 'b-12' });
+    expect(adminMessage(ev({ source: FROM_ADMIN, type: 'ask', id: 'q2', what: 'find', isbn: '978-1', title: 'Poems' }), win)).toEqual({ type: 'ask', id: 'q2', what: 'find', isbn: '978-1', title: 'Poems' });
+    expect(adminMessage(ev({ source: FROM_ADMIN, type: 'open', tab: 'dashboard', book: 'b-12' }), win)).toEqual({ type: 'open', tab: 'dashboard', book: 'b-12' });
+  });
+  it('ignores any other question or a bad id', () => {
+    expect(adminMessage(ev({ source: FROM_ADMIN, type: 'ask', id: 'q1', what: 'everything' }), win)).toBe(null);
+    expect(adminMessage(ev({ source: FROM_ADMIN, type: 'ask', id: '<x>', what: 'book', book: 'b' }), win)).toBe(null);
+    expect(adminMessage(ev({ source: FROM_ADMIN, type: 'ask', id: 'q1', what: 'book' }), win)).toBe(null);
+  });
+  it('answers in its own name, with the id it was asked under', async () => {
+    const { startInsideAdmin } = await import('../src/lib/inside-admin.js?answers');
+    const listeners = {};
+    const posted = [];
+    const parent = { location: { origin: ORIGIN }, postMessage: (m) => posted.push(m) };
+    const w = {
+      location: { origin: ORIGIN, hash: '', pathname: '/stockroom/app', search: '' }, parent,
+      history: { state: null, replaceState() {} },
+      document: { documentElement: { classList: { add() {} } } },
+      addEventListener: (type, fn) => { listeners[type] = fn; },
+    };
+    w.self = w; w.top = parent;
+    const selectBook = vi.fn();
+    const switchTab = vi.fn();
+    startInsideAdmin({ switchTab, setAdminLook() {}, setThemePreference() {}, selectBook, answer: async (what, args) => ({ what, ...args }) }, { win: w, profile: BOTH });
+    listeners.message({ source: parent, origin: ORIGIN, data: { source: FROM_ADMIN, type: 'ask', id: 'q9', what: 'book', book: 'b-1' } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(posted.at(-1)).toEqual({ source: FROM_STOCKROOM, type: 'answer', id: 'q9', result: { what: 'book', book: 'b-1' } });
+    listeners.message({ source: parent, origin: ORIGIN, data: { source: FROM_ADMIN, type: 'open', tab: 'dashboard', book: 'b-1' } });
+    expect(selectBook).toHaveBeenCalledWith('b-1');
+    expect(switchTab).toHaveBeenLastCalledWith('dashboard');
+  });
+});

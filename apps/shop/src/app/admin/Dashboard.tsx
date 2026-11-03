@@ -44,6 +44,7 @@ import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
 import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
 import { DEFAULT_STOCKROOM_PAGE, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
@@ -99,6 +100,11 @@ export function Dashboard() {
   // The combined admin's stockroom frame: opened the first time a stockroom page is picked, then kept (StockroomFrame).
   const [stockroomOpened, setStockroomOpened] = useState(false);
   useEffect(() => { if (activeTab === STOCKROOM_TAB) setStockroomOpened(true); }, [activeTab]);
+  // Another page needs the stockroom (the book page's Stock and sales): the frame opens hidden, and is kept.
+  useEffect(() => (COMBINED ? stockroomBridge.onNeed(() => setStockroomOpened(true)) : undefined), []);
+  // "Open in the stockroom" from another page shows that stockroom page (set below, after the page helpers).
+  const openStockroomRef = useRef<(page: string) => void>(() => {});
+  useEffect(() => (COMBINED ? stockroomBridge.onOpen((page) => openStockroomRef.current(page)) : undefined), []);
   const [user, setUser] = useState<any>(null);
   // Signed in with the Team's bookkeeper role: the Bookkeeping page instead of the admin.
   const [bookkeeper, setBookkeeper] = useState<{ email: string | null } | null>(null);
@@ -583,6 +589,7 @@ export function Dashboard() {
     setSelectedOrder(null);
     setSidebarOpen(false);
   };
+  openStockroomRef.current = (page) => { void openStockroomPage(page); };
   const onStockroomPage = activeTab === STOCKROOM_TAB;
   const stockroomPageId = stockroomPage(onStockroomPage ? subTab : undefined)?.id ?? DEFAULT_STOCKROOM_PAGE;
 
@@ -649,7 +656,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan"));
+  const migrated = activeTab === STOCKROOM_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing"));
   const content = (() => {
     switch (activeTab) {
       case "overview":

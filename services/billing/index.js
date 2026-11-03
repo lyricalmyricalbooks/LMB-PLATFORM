@@ -27,9 +27,9 @@ export function readBillingConfig(env = {}) {
   return { mode, webhookSecrets, tax: ["on", "true", "yes", "1"].includes(taxWord) };
 }
 
-export function createBillingFromEnv({ env = process.env, fetch = globalThis.fetch, customers, subscriptions, events, registry, auditLog, email, closeApp, shopPlan, now }) {
+export function createBillingFromEnv({ env = process.env, fetch = globalThis.fetch, customers, subscriptions, events, registry, auditLog, email, closeApp, shopPlan, live, foundingSeats, now }) {
   const { mode, webhookSecrets, tax } = readBillingConfig(env);
-  return createBilling({ stripe: platformBillingStripe({ env, fetch }), mode, settings: platformSettings(env), customers, subscriptions, events, registry, auditLog, email, webhookSecrets, tax, closeApp, shopPlan, now });
+  return createBilling({ stripe: platformBillingStripe({ env, fetch }), mode, settings: platformSettings(env), customers, subscriptions, events, registry, auditLog, email, webhookSecrets, tax, closeApp, shopPlan, live, foundingSeats, now });
 }
 
 /** Billing's events secret as the hosted server gets it (server/deploy.js), from Secret Manager. Only the web door takes events. */

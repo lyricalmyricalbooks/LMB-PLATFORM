@@ -86,10 +86,12 @@ export function planChangeWords(preview, billing) {
 const ADMIN_APP_WORDS = { shop: "website", stockroom: "stockroom" };
 const adminApps = (apps) => apps.map((app) => ADMIN_APP_WORDS[app] ?? app).join(" and ");
 
-/** The account page's shop card: a plan change in progress, a line each (an app being set up; one closing). */
+/** The account page's shop card: a plan change in progress, a line each (an app being set up; one closing; one closed). */
 export function changingLines(shop) {
   const lines = [];
   if (shop?.adding?.length) lines.push(`Your ${adminApps(shop.adding)} ${shop.adding.length > 1 ? "are" : "is"} being set up. We'll email you a link when it's ready.`);
   if (shop?.closing?.apps?.length && shop.closing.at) lines.push(`Your ${adminApps(shop.closing.apps)} ${shop.closing.apps.length > 1 ? "close" : "closes"} on ${day(shop.closing.at)}. Changed your mind? Keep it under Plan & billing.`);
+  // A dropped app that has closed: its 90 days to download, with the button right under this card.
+  for (const { app, downloadUntil } of shop?.closed ?? []) lines.push(`Your ${adminApps([app])} is closed. You can download everything that was in it until ${day(downloadUntil)}, with Download all your data.`);
   return lines;
 }

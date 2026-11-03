@@ -281,6 +281,27 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The bank wants the press to confirm this month's payment (Stripe keeps the bill open meanwhile, code plan 22.5). */
+  "payment-needs-confirming": ({ price, link }, { settings, pressName }) => layout({
+    subject: `Your bank wants you to confirm ${pressName}'s payment`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your bank asked you to confirm this month's ${price} payment for ${pressName} before it goes through. It's a normal safety step some banks take.`,
+      `Use the button below to confirm it with your bank. Your shop stays open meanwhile.`,
+    ],
+    buttons: [["Confirm the payment", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A payment that had failed went through after all (22.5). Only sent after a problem, never for an ordinary month. */
+  "payment-received": ({ price, link }, { settings, pressName }) => layout({
+    subject: `Thanks, ${pressName}'s payment went through`,
+    greeting: "Hello,",
+    paragraphs: [`Your ${price} payment for ${pressName} went through, so everything is back to normal. Your bills are on your billing page whenever you need them.`],
+    buttons: [["See your bills", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The press asked to cancel: the shop stays open until the end of the period already paid for. */
   "subscription-cancelled": ({ date, link }, { settings, pressName }) => layout({
     subject: `${pressName} will close on ${date}`,
@@ -338,7 +359,7 @@ export const TEMPLATES = {
 
   /** A week before an app a plan change dropped closes (billing.js closeDroppedApps). `data`: { closing, date, link }. */
   "app-closing-soon": ({ closing, date, link }, { settings, pressName }) => layout({
-    subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} closes on ${date}`,
+    subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} ${/ and /.test(closing) ? "close" : "closes"} on ${date}`,
     greeting: "Hello,",
     paragraphs: [
       `When you changed your plan, you left out ${closing || "an app"}. It closes on ${date}, the end of the month you've paid for.`,
@@ -347,6 +368,23 @@ export const TEMPLATES = {
     buttons: [["Keep it or see your plan", safeLink(link)]],
     footer: signOff(settings),
   }),
+
+  /** A dropped app closed today (billing closeDroppedApps). `data`: { closing, date (the last day to download), link }. */
+  "app-closed": ({ closing, date, link }, { settings, pressName }) => {
+    const many = / and /.test(closing ?? "");
+    const [it, them] = many ? ["they", "them"] : ["it", "it"];
+    return layout({
+      subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} ${many ? "are" : "is"} closed. Download ${them} by ${date}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `Your plan no longer has ${closing || "this app"}, so ${it} closed today, at the end of the month you paid for.`,
+        `Everything that was in ${them} is kept until ${date}. To save a copy, open your account and choose Download all your data: we'll email you a link to every file.`,
+        `Changed your mind? Add ${them} back to your plan before ${date} and ${many ? "they open" : "it opens"} again with everything in ${them}.`,
+      ],
+      buttons: [["Download your data", safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
 
   /** The card on file runs out within a month (code plan 6.12). Sent once per card. `data`: { card, month, date, link }. */
   "card-expiring": ({ card, date, month, link }, { settings, pressName }) => layout({

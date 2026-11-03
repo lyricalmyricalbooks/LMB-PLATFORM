@@ -70,12 +70,28 @@ async function load() {
     if (!billing) return show("none");
     render(billing);
     show("billing");
+    readyToKeep();
     loadPressName();
     loadInvoices();
     loadPaymentWay();
   } catch (failure) {
     fail(failure.message);
   }
+}
+
+// From the reminder email a week before a dropped app closes (`keep=closing`): the Keep it button, ready to press. Once.
+function readyToKeep() {
+  if (params.get("keep") !== "closing") return;
+  params.delete("keep");
+  history.replaceState(null, "", `${location.pathname}?${params}`);
+  const keep = $("#keep-closing");
+  if (keep.hidden) {
+    status.textContent = "Nothing on your plan is closing now, so there's nothing to keep.";
+    return;
+  }
+  status.textContent = `To keep it, press "${keep.textContent}". Your plan goes back to what it was, at the same price as before.`;
+  keep.scrollIntoView({ block: "center" });
+  keep.focus();
 }
 
 // The shop's name over the page, from the shops page's list (the billing status doesn't carry it).
