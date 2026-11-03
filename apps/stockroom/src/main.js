@@ -697,6 +697,9 @@ export { BOOKS, BOOK_LIST, states, activeBook, defaultState, getState, getBook, 
 // see lib/actions.js. Screens move onto this one at a time.
 registerActions({
   ...intelActions, ...bigCartelActions,
+  // The book form's cover photo for the Fair till (features/book-cover.js).
+  'book.coverPick': (_el, event) => pickBookCover(event),
+  'book.coverRemove': () => removeBookCover(),
   // The Settle up ledger's per-receipt button. Ids come back as strings from
   // the data attribute, so the expense is found by its string form.
   'settleUp.markExpenseReceived': el => {
@@ -20221,7 +20224,7 @@ function exposeLegacyInlineHandlers() {
     dismissDeductionGap, renderDeductionGaps, restoreDeductionGaps, snoozeDeductionGap,
     revealUpdatingScreen, hideUpdatePrompt, bindUpdatePromptInteractions, isTestBook, isTestBookId,
     ownersFromBooks, saveCatalogWithDeletions, loadCatalog, syncCatalog, switchBookModalTab,
-    stepBookModal, updateBookModalFinancials, onBookTitleInput, selectBookAccentPreset, onCustomAccentInput, applyBookParcelPreset, pickBookCover, removeBookCover,
+    stepBookModal, updateBookModalFinancials, onBookTitleInput, selectBookAccentPreset, onCustomAccentInput, applyBookParcelPreset,
     resetBookForm, openAddBookModal, openEditBookModal, closeAddBookModal, isValidPaymentLink,
     openProductionCostCalculator, closeProductionCostCalculator, renderProdCostCalcList, toggleProdCostCalcExpense, setProdCostCalcFilter, toggleAllFilteredProdCost, applyCalculatedProdCost,
     updateUnsavedIndicator, saveBookFromModal, renderCatalogList, deleteBook, openPaymentQRModal,

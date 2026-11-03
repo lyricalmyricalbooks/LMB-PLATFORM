@@ -31,6 +31,10 @@
 //   Checkout
 //   forCheckout(settings)                           { settlePreviousIntent, createCardIntent, createCheckoutSession }
 //
+//   A payment with no shop order (a fair helper's card payment by QR, fairHelperPay.js)
+//   standaloneCheckout(mode)                        { open(params, idempotencyKey), read(id), close(id) }, or null when
+//                                                   the provider has none (the caller then offers another way to pay)
+//
 //   Admin (Settings › Payments)
 //   deployedLiveKey(), checkKey(key), webhookEndpoints(), registerPaymentDomain(domainName)
 //
@@ -54,7 +58,7 @@ const DEFAULT_MODE = "own";
 const INTERFACE = Object.freeze([
   "testMode", "readKeys", "clientForMode", "findOrderPayment", "readAttempt", "stopAttempt", "checkReversal", "refund",
   "webhookClient", "verifyWebhookEvent", "forCheckout", "deployedLiveKey", "checkKey", "webhookEndpoints", "registerPaymentDomain",
-  "paymentMoney", "payoutMoney",
+  "paymentMoney", "payoutMoney", "standaloneCheckout",
 ]);
 
 /**

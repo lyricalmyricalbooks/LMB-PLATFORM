@@ -507,14 +507,14 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
     res.status(429).json({ error: "Too many tries in a row. Wait a few minutes, then try again." });
     return;
   }
-  if (payments.provider !== "stripe") {
-    res.status(409).json({ error: "Card payments by QR aren't available for this shop. Use the card reader or cash.", code: "not_available" });
-    return;
-  }
   const action = String(req.body?.action || "");
   try {
     const mode = (await shopTestMode()) ? "test" : "live";
-    const { stripe, requestOptions } = await payments.clientForMode(mode);
+    const checkout = await payments.standaloneCheckout(mode);
+    if (!checkout) {
+      res.status(409).json({ error: "Card payments by QR aren't available for this shop. Use the card reader or cash.", code: "not_available" });
+      return;
+    }
     if (action === "start") {
       const till = await require("./inventoryLinkStore").readFairTill();
       if (!till.open) {
@@ -529,7 +529,7 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
       }
       const params = fairHelperPay.fairCheckoutParams(plan, { saleId, helper, shopName: shopConfig.senderName, returnUrl: siteLink("/"), nowSeconds: Math.floor(Date.now() / 1000) });
       // The same sale and amount always open the same checkout, so a resent tap never makes a second one.
-      const session = await stripe.checkout.sessions.create(params, { ...requestOptions, idempotencyKey: `fair-${saleId}-${plan.amountMinor}-${plan.currency}` });
+      const session = await checkout.open(params, `fair-${saleId}-${plan.amountMinor}-${plan.currency}`);
       res.json({ url: session.url, sessionId: session.id, amount: plan.amountMinor, currency: plan.currency, test: mode === "test" });
       return;
     }
@@ -538,14 +538,14 @@ exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_
       res.status(400).json({ error: "Unknown request.", code: "bad_request" });
       return;
     }
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {}, requestOptions);
+    const session = await checkout.read(sessionId);
     const state = fairHelperPay.fairPaymentState(session, helper);
     if (!state) {
       res.status(404).json({ error: "That payment isn't one of yours.", code: "not_found" });
       return;
     }
     if (action === "cancel" && state.open && !state.paid) {
-      await stripe.checkout.sessions.expire(sessionId, {}, requestOptions).catch(() => {});
+      await checkout.close(sessionId).catch(() => {});
       res.json({ paid: false, open: false });
       return;
     }
