@@ -329,3 +329,69 @@ describe("sizes and colours (plan 10.6)", () => {
     expect(readProductExport(variations)!.books[0].options).toEqual([{ name: "Colour", values: ["Red", "Blue"] }]);
   });
 });
+
+describe("more export layouts (plan 23.1)", () => {
+  // A line marked Product, then its versions marked Variant under the same handleId.
+  const FIELD_TYPE_ROWS = csv([
+    ["handleId", "fieldType", "name", "description", "productImageUrl", "collection", "sku", "ribbon", "price", "surcharge", "visible", "discountMode", "discountValue", "inventory", "weight", "cost", "productOptionName1", "productOptionType1", "productOptionDescription1", "productOptionName2", "productOptionType2", "productOptionDescription2"],
+    ["p_1", "Product", "Moth Tee", "<p>Soft <em>cotton</em>.</p>", "https://img.example/tee1.jpg;https://img.example/tee2.jpg", "Shirts;Merch", "TEE", "", "30", "", "true", "PERCENT", "10", "", "0.2", "", "Size", "DROP_DOWN", "S;M", "Colour", "COLOR", "Black;White"],
+    ["p_1", "Variant", "", "", "", "", "TEE-S-B", "", "", "0", "", "", "", "4", "", "", "", "", "S", "", "", "Black"],
+    ["p_1", "Variant", "", "", "", "", "TEE-M-B", "", "", "2", "", "", "", "OutOfStock", "", "", "", "", "M", "", "", "Black"],
+    ["p_1", "Variant", "", "", "", "", "TEE-S-W", "", "", "0", "", "", "", "InStock", "", "", "", "", "S", "", "", "White"],
+    ["p_1", "Variant", "", "", "", "", "TEE-M-W", "", "", "2", "", "", "", "5", "", "", "", "", "M", "", "", "White"],
+    ["p_2", "Product", "Salt Zine", "Plain.", "", "", "SALT", "", "8", "", "false", "AMOUNT", "2", "7", "", "", "", "", "", "", "", ""],
+    ["p_9", "Variant", "", "", "", "", "LOST", "", "", "", "", "", "", "1", "", "", "", "", "S", "", "", ""],
+  ]);
+
+  // One line per variation, grouped by Item Name, stock per place.
+  const VARIATION_NAME_ROWS = csv([
+    ["Token", "Item Name", "Variation Name", "SKU", "Description", "Categories", "SEO Title", "GTIN", "Price", "Online Sale Price", "Archived", "Option Name 1", "Option Value 1", "Current Quantity Main Shop", "Current Quantity Fair Stall", "New Quantity Main Shop"],
+    ["T1", "Moth Songs", "Paperback", "MS-PB", "Poems.", "Poetry", "Moth Songs, poems", "", "20.00", "", "N", "Format", "Paperback", "10", "2", ""],
+    ["T2", "Moth Songs", "Signed", "MS-SG", "", "", "", "", "35.00", "30.00", "N", "Format", "Signed", "3", "", ""],
+    ["T3", "River Zine", "Regular", "RZ", "", "Zines, Art", "", "9780306406157", "8.00", "", "N", "", "", "40", "1", ""],
+    ["T4", "Old Thing", "Regular", "OLD", "", "", "", "", "5.00", "", "Y", "", "", "1", "", ""],
+  ]);
+
+  it("tells both new layouts apart by their headings", () => {
+    const head = (text: string) => text.split("\n")[0].split(",");
+    expect(recognizeExport(head(FIELD_TYPE_ROWS))).toBe("field-type-rows");
+    expect(recognizeExport(head(VARIATION_NAME_ROWS))).toBe("variation-name-rows");
+  });
+
+  it("product and version lines: surcharges on the price, the discount, stock words, options, photos and the old address", () => {
+    const moved = readProductExport(FIELD_TYPE_ROWS)!;
+    expect(moved.books.map(b => b.cells.Title)).toEqual(["Moth Tee", "Salt Zine"]);
+    const [tee, salt] = moved.books;
+    expect(tee.editions.map(e => [e.name, e.price, e.salePrice, e.stock, e.sku])).toEqual([
+      ["S / Black", 30, 27, 4, "TEE-S-B"], ["M / Black", 32, 28.8, 0, "TEE-M-B"], ["S / White", 30, 27, null, "TEE-S-W"], ["M / White", 32, 28.8, 5, "TEE-M-W"],
+    ]);
+    expect(tee.options).toEqual([{ name: "Size", values: ["S", "M"] }, { name: "Colour", values: ["Black", "White"] }]);
+    expect(tee.cells).toMatchObject({ Description: "Soft *cotton*.", Categories: "Shirts;Merch", Weight: "0.2 kg", "Image URL": "https://img.example/tee1.jpg", "Extra image URLs": "https://img.example/tee2.jpg" });
+    expect(tee.oldPaths).toEqual(["/product-page/moth-tee"]);
+    expect(salt.cells).toMatchObject({ Price: "8", "Sale price": "6", Stock: "7", SKU: "SALT" });
+    expect(salt.notes).toEqual(["This product was hidden in your old shop."]);
+    expect(moved.notices.join(" ")).toContain("1 version line belonged to no product");
+  });
+
+  it("variation lines: grouped by name, stock added up across places, sale prices, ISBN, archived lines left out", () => {
+    const moved = readProductExport(VARIATION_NAME_ROWS)!;
+    expect(moved.books.map(b => b.cells.Title)).toEqual(["Moth Songs", "River Zine"]);
+    const [moth, river] = moved.books;
+    expect(moth.editions.map(e => [e.name, e.price, e.salePrice, e.stock])).toEqual([["Paperback", 20, 0, 12], ["Signed", 35, 30, 3]]);
+    expect(moth.options).toEqual([{ name: "Format", values: ["Paperback", "Signed"] }]);
+    expect(moth.cells).toMatchObject({ Description: "Poems.", Categories: "Poetry", "SEO title": "Moth Songs, poems", Stock: "15" });
+    expect(river.editions).toEqual([]);
+    expect(river.cells).toMatchObject({ Price: "8", Stock: "41", SKU: "RZ", ISBN: "9780306406157", Categories: "Zines;Art" });
+    expect(moved.notices).toEqual(["1 archived line was left out."]);
+  });
+
+  it("both go through the same preview: new products are drafts with their versions", () => {
+    for (const file of [FIELD_TYPE_ROWS, VARIATION_NAME_ROWS]) {
+      const { plan, moved } = planShopMove(file, [], [], {}, { keepOptions: true });
+      expect(moved).not.toBeNull();
+      expect(plan.problems).toEqual([]);
+      expect(plan.rows.every(r => r.action === "create")).toBe(true);
+      expect((plan.rows[0].patch as any).variants.length).toBeGreaterThan(1);
+    }
+  });
+});
