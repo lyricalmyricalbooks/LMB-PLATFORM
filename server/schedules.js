@@ -29,6 +29,8 @@ export const FIXED_TIMES = Object.freeze({
   // Emails a press reads: in the morning, never at night.
   "trial-tips": "0 9 * * *",
   "shop-checkup": "0 10 * * *",
+  // Monday mornings: the week's deletions, while there is still time to act on them.
+  "deletion-note": "0 8 * * 1",
   // The first of each month, before anyone is up.
   "restore-drill": "0 4 1 * *",
 });

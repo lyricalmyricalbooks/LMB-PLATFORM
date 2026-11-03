@@ -45,6 +45,7 @@ export const JOBS = Object.freeze([
   { name: "bookkeeping", words: "Send the day's sales to each press's bookkeeping", every: DAY, code: "services/accounting/index.js nightly" },
   { name: "income-record", words: "Write down the night's income, and remind presses a month before their card runs out", every: DAY, code: "control-room/nightly.js runBusinessNightly" },
   { name: "press-messages", words: "Take ended messages off shop admins, and reach shops opened since", every: 60, code: "control-room/messages.js sweep" },
+  { name: "deletion-note", words: "Weekly note to the platform owner listing closed apps about to be deleted", every: 7 * DAY, code: "control-room/deletionNote.js weeklyDeletionNote" },
   { name: "restore-drill", words: "Monthly test that a backup can be restored", every: 30 * DAY, code: "services/health/run.js drill" },
 ]);
 

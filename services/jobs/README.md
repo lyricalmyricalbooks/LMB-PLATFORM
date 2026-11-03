@@ -26,6 +26,7 @@ in Cloud Scheduler. A job whose parts aren't connected yet is made paused (`serv
 | `trial-tips` | 1 day | `services/trial-tips/index.js` `run()` |
 | `shop-checkup` | 1 day | `services/checkup/index.js` `run()`: the monthly check-up email, at most one per shop a month (14.9) |
 | `bookkeeping` | 1 day | `services/accounting/index.js` `nightly()` |
+| `deletion-note` | 7 days | `control-room/deletionNote.js` `weeklyDeletionNote()`: a Monday note to the platform owner listing closed apps deleted within the week |
 | `restore-drill` | 30 days | `services/health/run.js drill` |
 
 Not jobs, so not listed: the tax watch (worked out when the control room opens), support requests and the newsletter

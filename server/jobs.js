@@ -13,6 +13,8 @@ import { JOBS, jobNamed } from "../services/jobs/index.js";
 import { realHealth } from "../services/health/run.js";
 import { realRetention } from "../services/retention/run.js";
 import { runBusinessNightly } from "../control-room/nightly.js";
+import { weeklyDeletionNote } from "../control-room/deletionNote.js";
+import { controlRoomPeople } from "../control-room/people.js";
 import { createOwnDomainSender, resendDomainsFromEnv } from "../services/email/ownDomain.js";
 import { NOT_CONNECTED, NotConnected, notConnectedFn } from "./notConnected.js";
 
@@ -37,6 +39,7 @@ export const RUNNERS = Object.freeze({
   bookkeeping: () => notConnectedFn(NOT_CONNECTED.bookkeeping),
   "income-record": ({ parts }) => async () => runBusinessNightly({ registry: parts.registry, settings: await parts.live(), incomeHistory: parts.incomeHistory, billing: parts.billing, now: parts.now }),
   "press-messages": ({ pressMessages }) => () => pressMessages.sweep(),
+  "deletion-note": ({ parts }) => () => weeklyDeletionNote({ registry: parts.registry, email: parts.email, to: controlRoomPeople(parts.env).adminEmail ?? (String(parts.env.HEALTH_ALERT_TO ?? "").trim() || null), now: parts.now }),
   "restore-drill": ({ parts }) => () => realHealth({ job: "drill", env: parts.env, fetch: parts.fetch, token: parts.token, print: quiet }),
 });
 

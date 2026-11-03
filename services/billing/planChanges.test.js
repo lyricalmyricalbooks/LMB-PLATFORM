@@ -280,6 +280,7 @@ test("the day a dropped app closes, the press is emailed where to download it an
   const mail = TEMPLATES["app-closed"](sent[0].data, { settings: platformSettings({}), pressName: "Moth Press" });
   assert.match(mail.subject, /^The stockroom for Moth Press is closed\. Download it by /);
   assert.ok(mail.subject.endsWith(sent[0].data.date) && sent[0].data.date.length > 0, "the last day to download");
+  assert.match(mail.text, /a link to every file, with a spreadsheet each of the books in your stockroom, the stock ledger, /, "says which files the press gets");
   assert.equal(Date.parse(downloadUntil) - (START + 31 * DAY), 90 * DAY);
 });
 
@@ -368,6 +369,7 @@ test("three days before a closed app's download ends, one last email; then its r
   const ending = w.email.list().filter((m) => m.kind === "app-download-ending");
   assert.equal(ending.length, 1, "once");
   assert.equal(ending[0].data.closing, "the stockroom");
+  assert.match(ending[0].data.holds, /^a spreadsheet each of the books in your stockroom, /);
   assert.deepEqual(deleted, [], "not before the 90 days are over");
   w.tick(daysToEnd() + 0.1);
   await w.billing.closeDroppedApps();
