@@ -27,7 +27,7 @@ export function monthlyCents(row, settings) {
  * The numbers and the "needs you" list. `rows` are registry rows; `open` gives a shop's open repairs; the rest are
  * lists already read: waiting support requests, recoveries to check, shops being made.
  */
-export function todaySummary({ rows, settings, profiles = {}, checks = {}, open = {}, support = [], recoveries = [], making = [], now = new Date() }) {
+export function todaySummary({ rows, settings, profiles = {}, checks = {}, open = {}, support = [], recoveries = [], making = [], opening = [], now = new Date() }) {
   const shops = rows.filter((row) => row.testShop !== true);
   const counts = {
     shops: shops.length,
@@ -64,6 +64,10 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
   if (support.length) needs.push({ kind: "support", count: support.length, words: `${support.length} support request${support.length === 1 ? "" : "s"} waiting`, go: "#tickets" });
   if (recoveries.length) needs.push({ kind: "recovery", count: recoveries.length, words: `${recoveries.length} account recover${recoveries.length === 1 ? "y" : "ies"} to check`, go: "#recoveries" });
   const stuck = making.filter((s) => s.status === "failed" || s.status === "stopped" || s.canRetry);
+  for (const press of opening) {
+    const hours = Math.floor((now.getTime() - Date.parse(press.openedAt)) / 3_600_000);
+    needs.push({ kind: "opening", pressId: press.pressId, words: `${press.pressName || press.ownerEmail}: pressed Open my shop ${hours < 48 ? `${hours} hours` : `${Math.floor(hours / 24)} days`} ago and the shop isn't live yet`, go: "#setting-up" });
+  }
   if (stuck.length) needs.push({ kind: "signup", count: stuck.length, words: `${stuck.length} new shop${stuck.length === 1 ? "" : "s"} stuck while being made`, go: "#making" });
 
   return { counts, monthlyIncome, currency: settings.currency, needs };

@@ -67,3 +67,13 @@ test("needs you: a web address that stopped opening its shop, or runs out within
     "wasp: wasp.example runs out in 5 days unless renewed",
   ]);
 });
+
+test("needs you: a press that pressed Open my shop over a day ago, pointing at the Setting up page", () => {
+  const opening = [{ pressId: "press-1", pressName: "Wren & Ash", openedAt: new Date(NOW.getTime() - 30 * 3_600_000).toISOString() },
+    { pressId: "press-2", pressName: "", ownerEmail: "ivy@example.com", openedAt: new Date(NOW.getTime() - 3 * 86_400_000).toISOString() }];
+  const { needs } = todaySummary({ rows: [], settings, opening, now: NOW });
+  assert.deepEqual(needs.filter((n) => n.kind === "opening").map((n) => [n.words, n.go]), [
+    ["Wren & Ash: pressed Open my shop 30 hours ago and the shop isn't live yet", "#setting-up"],
+    ["ivy@example.com: pressed Open my shop 3 days ago and the shop isn't live yet", "#setting-up"],
+  ]);
+});

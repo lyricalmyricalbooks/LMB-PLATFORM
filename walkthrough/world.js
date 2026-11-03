@@ -177,7 +177,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const room = createControlRoom({
     registry, auditLog, profileFiles, shopAccess, repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: fakeBreachStore(), registry, auditLog, now: clock.date }), people,
-    activity, supportStore, recoveryStore, platformState, accessRequests, admins, now: clock.date,
+    activity, supportStore, recoveryStore, platformState, accessRequests, admins, now: clock.date, presses: frontDoorStores.presses,
     // Nothing of Google is set up in the practice world, so the control room shows every item still to do.
     googleReady: (at) => googleReadiness(readGoogleConfig({}), at),
     taxWatch: async () => watchTaxLines({ invoices: [], now: clock.date().getTime() }),
