@@ -758,6 +758,29 @@ billing details, the next bill, Pay now and the bank's "confirm this payment" we
 | 22.7 | platform + shop | **The card running out, on Settings › Billing.** `cardRunningOut` (`cardExpiry.js`): the status says when the paying card runs out within a month or has, and the Billing page asks for a new card until one is saved (the email alone was easy to miss) | `hub.test.js`, `BillingHub.test.tsx` | quick | built |
 | 22.8 | platform | **A founding place given back.** A press that held a founding place and whose plan ended before it paid anything (`paidOnce`, set by a paid bill over $0) gives the place back (`foundingSeats.release`). On by default; the control room's "give a place back" setting (`foundingOffer.giveBackUnpaid`) turns it off, so Julian can reverse it | `hub.test.js` | quick | built |
 
+## Phase 23: easy switching, round two (planned 3 November 2026)
+
+Julian (3 November 2026): "make it easy for customers to transition to my platform from other platforms." Phases 3 and
+17 built the base: four export layouts read by their headings (`shopMove.ts`), customers with consent, old product links
+kept as redirects, photos copied into the shop's storage, the setup Books page's preview (18.7). Research:
+`docs/research/2026-11-03-easy-switching.md` (what the big shop builders' own moving tools do, and the gaps here).
+
+The press's road stays one question and one action: **"Where do you sell now?"**, then either **type your old shop's
+address** (we read what it shows the public) or **drop the files** your old shop gives you. Everything lands in a
+preview first; nothing is published, charged or emailed by moving in. Words never name another shop system.
+
+| # | Repo | Pull request | Proven by | Effort | Status |
+| --- | --- | --- | --- | --- | --- |
+| 23.1 | shop | **Two more file layouts** (replaces 17.5's first two). A product line then its version lines under one `handleId` (surcharges, percent or amount off, InStock/OutOfStock, up to six options, photos by semicolon, the old page address from the name) and an item list with one line per variation (grouped by Item Name, stock added up over every "Current Quantity" place, Option Name/Value pairs, archived lines left out, GTIN as ISBN). Same preview, same safety rules | `shopMove.test.ts` › more export layouts | quick | built (3 November 2026) |
+| 23.2 | shop | **Bring it from your old shop's address.** The press types the old shop's web address; a server function reads the public product list the common builders publish (no sign-in, no key), page by page, with `photoImport.js`'s safe fetch rules (public https hosts only, size and time limits), and returns the same `MovedBook` list, so the same preview and old-link redirects follow. Covers the shop builders whose catalog is public; anything else asks for the file | function tests with recorded sample answers; the preview equals the file route's for the same products | medium | next |
+| 23.3 | shop | **Photos given as links** (17.6). The preview counts photos to copy and lists the links that don't load now, before saving | preview test with a broken link | quick | planned |
+| 23.4 | shop | **A mailing list on its own.** Customers › Bring customers over takes a file from an email-list tool (Email Address, Status/subscribed): being on that list is the consent, so subscribed rows join with the owner's tick and unsubscribed or cleaned rows are kept as opted out, never emailed | `shopMove.test.ts` subscribers | quick | planned |
+| 23.5 | shop | **Gift cards keep their balance.** A gift card file (code, balance, expiry, who it was for) becomes this shop's gift cards through an admin-only server action (balances are money: only the server writes them); a code already here is skipped, a re-run adds nothing, every card is logged | function tests; re-run adds nothing | medium | planned |
+| 23.6 | shop | **Pages and old page links.** Read the old shop's public pages (About, Shipping, Returns, FAQ; from its site map) as draft pages here, and add redirects for their old addresses and for collection pages, so old links and search results keep working | tests with a recorded site map | medium | planned |
+| 23.7 | shop | **Past orders as history** (17.7, needs Julian's yes on decision 4). An order export becomes read-only past orders: no stock change, no emails, no payment, each tied to the customer by email for their history and the sales reports | tests: stock and email untouched, a re-run adds nothing | larger | waits for Julian |
+| 23.8 | shop | **Switch day.** A short "Move your address" list on the first-week card: last orders in the old shop, the address moved (6.15), the old-link check run, subscribers told. **Old-link check**: reads the old shop's site map and tries every old address on the new shop, listing any that land on a missing page with a one-click redirect | tests with a recorded site map | medium | planned |
+| 23.9 | stockroom | **Stock counts arrive as opening counts.** Moved-in stock enters the stockroom ledger as one opening count per item (one entry type the ledger already has), so the books and the stockroom agree from day one | stockroom test: one entry per item, re-run adds none | quick | planned |
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
