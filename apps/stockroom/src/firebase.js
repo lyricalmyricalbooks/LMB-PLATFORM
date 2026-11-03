@@ -1092,7 +1092,9 @@ window._fbClaimFairSale = async (saleId, device = '') => {
   const ref = doc(fs, 'fairSales', String(saleId));
   return runTransaction(fs, async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists() || (snap.data() || {}).imported) return false;
+    const data = snap.exists() ? (snap.data() || {}) : null;
+    // Gone, already brought in, or undone by the helper who rang it up: nothing to bring in.
+    if (!data || data.imported || data.cancelled) return false;
     tx.update(ref, { imported: { at: new Date().toISOString(), device: String(device || '').slice(0, 80) } });
     return true;
   });
@@ -1125,6 +1127,8 @@ window._fbWatchMyFairSales = (email, cb, onErr) => {
 // One sale into the inbox, stamped by the server's clock. Offline it waits on this device and goes when the signal
 // is back; the returned promise settles only then, so callers don't wait on it.
 window._fbAddFairSale = (id, sale) => setDoc(doc(fs, 'fairSales', String(id)), { ...sale, at: serverTimestamp() });
+// The helper's Undo: marks their own sale cancelled (the rules allow it within the hour, until it is in the books).
+window._fbCancelFairSale = (id) => setDoc(doc(fs, 'fairSales', String(id)), { cancelled: true }, { merge: true });
 
 // The till's menu for helpers, replaced whole (lib/fair-helper.js fairMenu).
 window._fbWriteFairMenu = async (menu) => {

@@ -30,11 +30,39 @@ describe("the helper's till", () => {
     expect(booksHtml(null, '', {}, {}, true)).toContain("couldn't load");
   });
 
+  test('each book shows its cover photo, or its colour, or a plain box', () => {
+    const covers = { books: [
+      { id: 'p', title: 'Photo', price: 1, cur: 'CAD', onHand: null, cover: 'https://img.example/p.jpg' },
+      { id: 'q', title: 'Colour', price: 1, cur: 'CAD', onHand: null, accent: '#336699' },
+      { id: 'r', title: 'Plain', price: 1, cur: 'CAD', onHand: null },
+    ] };
+    const html = booksHtml(covers, '', {}, {});
+    expect(html).toContain('<img class="fh-cover" src="https://img.example/p.jpg"');
+    expect(html).toContain('style="background:#336699"');
+    expect(html.match(/class="fh-cover"/g)).toHaveLength(3);
+  });
+
   test('the cart totals the sale and offers every way of paying', () => {
     const html = cartHtml(menu, { b1: 2, b2: 1 });
     expect(html).toContain('CAD 66.00');
     for (const label of ['Card reader', 'QR / Stripe', 'E-transfer', 'Cash', 'Comp']) expect(html).toContain(label);
     expect(cartHtml(menu, {})).toContain('Tap a book');
+    // Straight after a sale: the note and its Undo.
+    const done = cartHtml(menu, {}, '✓ Sold 2 books · Cash', true);
+    expect(done).toContain('data-action="helper.undo"');
+    expect(cartHtml(menu, {}, '✓ Sold 2 books · Cash', false)).not.toContain('helper.undo');
+  });
+
+  test('an undone sale stays listed, struck out, and counts in nothing', () => {
+    const undone = [{ ...mine[0], cancelled: true, pending: false }, mine[1]];
+    expect(helperCopiesLeft(menu, undone)).toEqual({ b1: 3, b2: null });
+    const day = helperDay(undone, '2026-11-03');
+    expect(day).toMatchObject({ units: 1, kept: 1, totals: { CAD: 24 } });
+    const html = todayHtml(day);
+    expect(html).toContain('1 book in 1 sale');
+    expect(html).toContain('is-undone');
+    expect(html).toContain('Undone');
+    expect(todayHtml(helperDay([{ ...mine[0], cancelled: true }], '2026-11-03'))).toContain('No sales kept today');
   });
 
   test("today's sales and the sync line say what is still waiting for signal", () => {

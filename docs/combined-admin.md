@@ -189,6 +189,20 @@ only writer of a book's records, the same way the website's orders reach it (an 
   - A sale is `helperSaleDoc` (prices from the menu, never typed) written with the server's time and not awaited:
     offline it waits in Firestore's queue on the phone, and the screen says how many are waiting.
   - Copies left are the menu's count less the helper's own sales not yet brought in (`helperCopiesLeft`).
-  - A helper can't void a sale; the screen says to ask the owner, who voids it in History like any till sale.
+  - A helper can undo their own last sale for a short while (the Undo button after a sale). The rules let them set
+    `cancelled` on their own sale, not yet brought in, within an hour of it; the owner's stockroom never brings in a
+    cancelled sale. Anything older is voided by the owner in History like any till sale.
+- [x] **H4. Round two (3 November 2026), built.**
+  - **Stuck sales:** a helper's sale the owner's stockroom can't bring in (a book it no longer has) shows on the to-do
+    list and Home ("N sales from a fair helper couldn't be added", naming the helpers) until it is in or undone.
+  - **Fair day email by person:** when a helper sold that day, the email adds "By person" (You, then each helper's
+    address, with sales and books).
+  - **First sign-in:** someone added as a helper before they ever signed in has no role on their pass yet. On the
+    plan with both apps, the stockroom asks the shop's `refreshMyRole` (as the shop admin does after sign-in), renews
+    the pass and opens the till (`publisher-access.js askShopForRole`).
+  - **Invitation:** adding someone as a fair helper in Settings › Team emails them the till's address and how to sign
+    in (`functions/teamInvite.js`, sent once per person through `email-claims` in the `syncMemberRole` trigger).
+  - **Covers:** each book on the till shows the website's cover photo (`catalog.linked[].cover`, short addresses only)
+    or, without one, the book's colour as on the owner's till.
 - Not planned: a helper writing a book's records directly. Rules can't check a single row inside those records, so
   that would mean trusting the helper with every book's money.

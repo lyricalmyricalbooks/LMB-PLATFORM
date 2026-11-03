@@ -7,14 +7,15 @@
 // when the signal comes back; the screen says how many are waiting. Nothing else of the press is read or written.
 import { escapeHtml } from '../lib/html.js';
 import { registerActions } from '../lib/actions.js';
-import { FAIR_METHODS } from '../lib/fair-mode.js';
+import { FAIR_METHODS, FAIR_UNDO_MS } from '../lib/fair-mode.js';
 import { helperCopiesLeft, helperDay, helperSaleDoc, newSaleId } from '../lib/fair-helper.js';
 import '../styles/fair-helper-view.css';
 
 const FAIR_KEY = 'lm-helper-fair';
 const SHOWN_LIMIT = 60;
 
-const state = { email: '', menu: null, sales: [], cart: {}, search: '', fair: '', menuFailed: false, note: '' };
+const state = { email: '', menu: null, sales: [], cart: {}, search: '', fair: '', menuFailed: false, note: '', undoId: '' };
+let undoTimer = null;
 let api = null;
 
 const localDay = (d = new Date()) => {
@@ -97,6 +98,7 @@ function booksHtml(menu, search, left, cart, failed = false) {
     const inCart = cart[b.id] || 0;
     const stock = n == null ? '' : n - inCart <= 0 ? '<span class="fh-none">None left</span>' : `${n - inCart} left`;
     return `<li><button type="button" class="fh-book" data-action="helper.add" data-book="${escapeHtml(b.id)}" aria-label="Add ${escapeHtml(b.title)}">
+      ${coverHtml(b)}
       <span class="fh-book-title">${escapeHtml(b.title)}</span>
       <span class="fh-book-meta"><strong class="tnum">${escapeHtml(money(b.price, b.cur))}</strong>${stock ? ` · ${stock}` : ''}${inCart ? ` · <span class="fh-in-cart">${inCart} in this sale</span>` : ''}</span>
     </button></li>`;
@@ -105,12 +107,22 @@ function booksHtml(menu, search, left, cart, failed = false) {
   return `<ul class="fh-book-list">${rows}</ul>${more}`;
 }
 
+/** A book's cover on the till: the website's photo, or its colour (the owner's till shows the same), or a plain box. */
+function coverHtml(b) {
+  if (b.cover && /^https:\/\//.test(b.cover)) {
+    return `<img class="fh-cover" src="${escapeHtml(b.cover)}" alt="" width="36" height="48" loading="lazy" decoding="async" referrerpolicy="no-referrer">`;
+  }
+  const colour = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(String(b.accent || '')) ? b.accent : '';
+  return `<span class="fh-cover" aria-hidden="true"${colour ? ` style="background:${colour}"` : ''}></span>`;
+}
+
 /** The cart, its total and the ways of paying. Pure. */
-function cartHtml(menu, cart, note = '') {
+function cartHtml(menu, cart, note = '', canUndo = false) {
   const byId = new Map((menu?.books || []).map((b) => [b.id, b]));
   const lines = Object.entries(cart).filter(([id, qty]) => qty > 0 && byId.has(id));
   const head = '<h2 class="fh-h">This sale</h2>';
-  const noteHtml = note ? `<p class="fh-done" role="status">${escapeHtml(note)}</p>` : '';
+  const undo = canUndo ? ' <button type="button" class="btn sm fh-undo" data-action="helper.undo">Undo</button>' : '';
+  const noteHtml = note ? `<p class="fh-done" role="status">${escapeHtml(note)}${undo}</p>` : '';
   if (!lines.length) return `${head}${noteHtml}<p class="fh-note">Tap a book to add it.</p>`;
   const totals = {};
   const rows = lines.map(([id, qty]) => {
@@ -141,12 +153,13 @@ function todayHtml(day) {
     const totals = {};
     for (const l of s.lines || []) totals[l.cur] = (totals[l.cur] || 0) + l.qty * l.price;
     const method = FAIR_METHODS.find((m) => m.value === s.method)?.label || s.method;
-    const status = s.pending ? '<span class="fh-wait">Waiting for signal</span>' : s.imported ? 'In the books' : 'Uploaded';
-    return `<li class="fh-sale"><span class="fh-sale-what">${escapeHtml(what)}</span><span class="fh-sale-meta">${escapeHtml(method)} · ${status}</span><strong class="tnum">${escapeHtml(totalsText(totals))}</strong></li>`;
+    const status = s.cancelled ? 'Undone' : s.pending ? '<span class="fh-wait">Waiting for signal</span>' : s.imported ? 'In the books' : 'Uploaded';
+    return `<li class="fh-sale${s.cancelled ? ' is-undone' : ''}"><span class="fh-sale-what">${escapeHtml(what)}</span><span class="fh-sale-meta">${escapeHtml(method)} · ${status}</span><strong class="tnum">${escapeHtml(totalsText(totals))}</strong></li>`;
   }).join('');
-  return `${head}<p class="fh-day tnum">${plural(day.units, 'book', 'books')} in ${plural(day.sales.length, 'sale', 'sales')} · ${escapeHtml(totalsText(day.totals))}</p>
+  const summary = day.kept ? `${plural(day.units, 'book', 'books')} in ${plural(day.kept, 'sale', 'sales')} · ${escapeHtml(totalsText(day.totals))}` : 'No sales kept today';
+  return `${head}<p class="fh-day tnum">${summary}</p>
     <ul class="fh-sales">${rows}</ul>
-    <p class="fh-note">Rang one up by mistake? Tell the press's owner: they can void it in their stockroom.</p>`;
+    <p class="fh-note">Rang one up by mistake? Tap Undo straight after the sale. Later, tell the press's owner: they can void it in their stockroom.</p>`;
 }
 
 function paint(parts = ['sync', 'books', 'cart', 'today']) {
@@ -156,7 +169,7 @@ function paint(parts = ['sync', 'books', 'cart', 'today']) {
   const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
   if (parts.includes('sync')) set('fh-sync', syncHtml(day, navigator.onLine !== false));
   if (parts.includes('books')) set('fh-books', booksHtml(state.menu, state.search, left, state.cart, state.menuFailed));
-  if (parts.includes('cart')) set('fh-cart', cartHtml(state.menu, state.cart, state.note));
+  if (parts.includes('cart')) set('fh-cart', cartHtml(state.menu, state.cart, state.note, !!state.undoId));
   if (parts.includes('today')) set('fh-today', todayHtml(day));
 }
 
@@ -175,7 +188,26 @@ function charge(method) {
   const label = FAIR_METHODS.find((m) => m.value === method)?.label || method;
   state.cart = {};
   state.note = `✓ Sold ${plural(count, 'book', 'books')} · ${label}`;
+  // A short Undo for a wrong tap, like the owner's own till.
+  state.undoId = made.id;
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { state.undoId = ''; paint(['cart']); }, FAIR_UNDO_MS);
   paint(['books', 'cart']);
+}
+
+function undoLast() {
+  const id = state.undoId;
+  if (!id) return;
+  state.undoId = '';
+  clearTimeout(undoTimer);
+  // Offline it waits in the same queue as the sale, so the two reach the server together.
+  api.cancelSale(id).catch((e) => {
+    console.error('Fair helper undo refused', e);
+    state.note = 'That sale is already in the books, so it can\'t be undone here. Tell the press\'s owner: they can void it.';
+    paint(['cart']);
+  });
+  state.note = '↩ Sale undone';
+  paint(['cart']);
 }
 
 let registered = false;
@@ -183,10 +215,11 @@ function registerHelperActions() {
   if (registered) return;
   registered = true;
   registerActions({
-    'helper.add': (el) => { const id = el.dataset.book; state.cart[id] = (state.cart[id] || 0) + 1; state.note = ''; paint(['books', 'cart']); },
+    'helper.add': (el) => { const id = el.dataset.book; state.cart[id] = (state.cart[id] || 0) + 1; state.note = ''; state.undoId = ''; paint(['books', 'cart']); },
     'helper.less': (el) => { const id = el.dataset.book; state.cart[id] = Math.max(0, (state.cart[id] || 0) - 1); paint(['books', 'cart']); },
     'helper.clear': () => { state.cart = {}; state.note = ''; paint(['books', 'cart']); },
     'helper.charge': (el) => charge(el.dataset.method),
+    'helper.undo': () => undoLast(),
     'helper.search': (el) => { state.search = el.value; paint(['books']); },
     'helper.fair': (el) => { state.fair = el.value.replace(/\s+/g, ' ').trim().slice(0, 80); saveFair(state.fair, localDay()); },
     'helper.signOut': () => api.signOut(),
@@ -194,11 +227,11 @@ function registerHelperActions() {
 }
 
 /**
- * Shows the helper's till in place of the app. `watchMenu`, `watchMySales` and `addSale` are firebase.js's
- * _fbWatchFairMenu, _fbWatchMyFairSales and _fbAddFairSale; `signOut` signs out.
+ * Shows the helper's till in place of the app. `watchMenu`, `watchMySales`, `addSale` and `cancelSale` are
+ * firebase.js's _fbWatchFairMenu, _fbWatchMyFairSales, _fbAddFairSale and _fbCancelFairSale; `signOut` signs out.
  */
-function showFairHelperView({ email, watchMenu, watchMySales, addSale, signOut }) {
-  api = { addSale, signOut };
+function showFairHelperView({ email, watchMenu, watchMySales, addSale, cancelSale, signOut }) {
+  api = { addSale, cancelSale, signOut };
   state.email = String(email || '').toLowerCase();
   state.fair = readFair(localDay());
   for (const id of ['pw-gate', 'pw-app']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }

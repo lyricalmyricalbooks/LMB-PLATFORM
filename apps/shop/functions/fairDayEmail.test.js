@@ -38,6 +38,21 @@ describe("the fair day email", () => {
     expect(email.html).toContain("https://shop.example/admin#sales");
   });
 
+  test("splits the day by person once a fair helper sold, and not before", () => {
+    const helped = [{ id: "c", title: "Field Notes", hist: [
+      { chan: "Book Fair", date: "2026-11-03", num: "fs-1", qty: 2, price: 10, notes: "Cash (rung up by sam@example.com) · Harbour Fair", fairHelper: "Sam@Example.com" },
+      { chan: "Book Fair", date: "2026-11-03", num: "fs-2", qty: 1, price: 10, notes: "Card (rung up by sam@example.com) · Harbour Fair", fairHelper: "sam@example.com" },
+    ] }, ...books];
+    const sum = fairDaySummary(helped, "2026-11-03");
+    expect(sum.people.map((p) => [p.by, p.sales, p.units])).toEqual([["", 2, 4], ["sam@example.com", 2, 3]]);
+    expect(sum.people[1].totals).toEqual([{ cur: "CAD", amount: 30 }]);
+    const email = buildFairDayEmail(sum);
+    expect(email.html).toContain("By person");
+    expect(email.html).toContain("sam@example.com");
+    expect(email.html).toContain("2 sales · 3 books");
+    expect(buildFairDayEmail(fairDaySummary(books, "2026-11-03")).html).not.toContain("By person");
+  });
+
   test("sends nothing on a day the till sold nothing", () => {
     expect(buildFairDayEmail(fairDaySummary(books, "2026-11-04"))).toBeNull();
     expect(buildFairDayEmail(fairDaySummary([], "2026-11-03"))).toBeNull();

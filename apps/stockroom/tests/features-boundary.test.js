@@ -183,8 +183,9 @@ const MAIN_IMPORT_BUDGET = {
   'app-switch.js': 7,
   // Stock in more than one place: the shared $, the role check, the save, the toast, today's date and the overview repaint.
   'stock-places.js': 6,
-  // Written as a feature module from the start: the History repaint after it brings a helper's sale in.
-  'fair-helpers.js': 1,
+  // Written as a feature module from the start: the History repaint after it brings a helper's sale in, and the
+  // to-do list's repaint when one can't be.
+  'fair-helpers.js': 2,
 };
 
 const featureFiles = fs.existsSync(featureDir)
@@ -348,7 +349,7 @@ const MIN_EXPORTS = {
   // and open it (from a #search= link or the book deep link's fallback).
   'app-search.js': 2,
   // Written as a feature module from the start: start it, bring helpers' sales in, and build their price list.
-  'fair-helpers.js': 3,
+  'fair-helpers.js': 4,
   // The bookkeeper's read-only screen: its markup and the call that shows it.
   'bookkeeper-view.js': 2,
   // Show the helper's till, and its four parts' markup for the tests.

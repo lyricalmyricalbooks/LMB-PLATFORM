@@ -134,6 +134,7 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
 const { adminRole, booksReader, supportOf, syncMemberRole } = require("./roles");
+const { becameFairHelper, fairHelperInviteEmail } = require("./teamInvite");
 const { shopConfig, functionLink } = require("./shopConfig");
 
 // Who may call the functions from a browser: local dev, this shop's Hosting address and its own domain (shopConfig.js).
@@ -219,17 +220,6 @@ async function requireBooksReader(req, res) {
   }
 }
 
-// Team (functions/roles.js). Adding, changing or removing someone in Settings › Team updates their sign-in pass at once.
-// On a platform shop (PLATFORM_ACCOUNTS_URL), the platform is then told, so the person sees the shop in its account
-// switcher (teamNotice.js); a failed notice is logged and never undoes the change.
-exports.syncMemberRole = onDocumentWritten("members/{email}", async event => {
-  await syncMemberRole({ auth: admin.auth(), db, email: event.params.email });
-  if (shopConfig.platformAccountsUrl) {
-    const notice = await tellPlatformTeamChanged({ url: shopConfig.platformAccountsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey });
-    if (!notice.ok) console.warn("The platform wasn't told about the Team change:", notice.reason);
-  }
-});
-
 // The admin calls this right after Google sign-in: someone added before they ever signed in gets their role now.
 exports.refreshMyRole = onBrowserRequest(async (req, res) => {
   if (applyCors(req, res)) return;
@@ -302,6 +292,31 @@ const PAYPAL_CLIENT_SECRET = defineSecret("PAYPAL_CLIENT_SECRET");
 const PAYPAL_WEBHOOK_ID = defineSecret("PAYPAL_WEBHOOK_ID");
 const SHIPPO_API_TOKEN = defineSecret("SHIPPO_API_TOKEN");
 const SHIPPO_CONFIG_DOC = db.collection("private-integrations").doc("shippo");
+
+// Team (functions/roles.js). Adding, changing or removing someone in Settings › Team updates their sign-in pass at once.
+// On a platform shop (PLATFORM_ACCOUNTS_URL), the platform is then told, so the person sees the shop in its account
+// switcher (teamNotice.js); a failed notice is logged and never undoes the change.
+exports.syncMemberRole = onDocumentWritten({ document: "members/{email}", secrets: withPlatformKey([RESEND_API_KEY]) }, async event => {
+  await syncMemberRole({ auth: admin.auth(), db, email: event.params.email });
+  // A new fair helper is told where the Fair till is and how to sign in (teamInvite.js), once per person.
+  const before = event.data?.before?.exists ? event.data.before.data() : null;
+  const after = event.data?.after?.exists ? event.data.after.data() : null;
+  if (becameFairHelper(before, after)) {
+    const invite = fairHelperInviteEmail({ email: event.params.email, shopName: shopConfig.senderName, tillLink: siteLink("/stockroom/app") });
+    if (invite) {
+      try {
+        await sendOrderEmailOnce(`team-${invite.to}`, "fairHelperInvite", { ...invite, secret: resendSecretValue() });
+      } catch (err) {
+        // The role is already on the pass; the owner can still pass the address on by hand.
+        console.warn("The fair helper's invitation wasn't sent:", err?.message || err);
+      }
+    }
+  }
+  if (shopConfig.platformAccountsUrl) {
+    const notice = await tellPlatformTeamChanged({ url: shopConfig.platformAccountsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey });
+    if (!notice.ok) console.warn("The platform wasn't told about the Team change:", notice.reason);
+  }
+});
 
 async function getShippoToken() {
   const configDoc = await SHIPPO_CONFIG_DOC.get();

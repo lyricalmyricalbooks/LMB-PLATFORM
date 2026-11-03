@@ -2,9 +2,9 @@
 // ledger's own sale path, only after the server says this device may, and leaves a sale with a problem alone.
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 
-const app = vi.hoisted(() => ({ BOOKS: {}, states: {}, written: [], handlers: {} }));
+const app = vi.hoisted(() => ({ BOOKS: {}, states: {}, written: [], handlers: {}, refreshed: 0 }));
 
-vi.mock('../src/main.js', () => ({ renderHist: () => {} }));
+vi.mock('../src/main.js', () => ({ renderHist: () => {}, refreshAttentionSurfaces: () => { app.refreshed++; } }));
 vi.mock('../src/features/dashboard.js', () => ({ updateDash: () => {} }));
 vi.mock('../src/core/store.js', () => ({
   BOOKS: app.BOOKS,
@@ -18,7 +18,7 @@ vi.mock('../src/features/sales-ledger.js', () => ({
   },
 }));
 
-const { bringInSales, currentMenu, startFairHelpers } = await import('../src/features/fair-helpers.js');
+const { bringInSales, currentMenu, fairHelperTodo, startFairHelpers } = await import('../src/features/fair-helpers.js');
 
 const sale = (id, extra = {}) => ({
   id, by: 'sam@example.com', day: '2026-11-03', fair: 'Harbour Fair', method: 'Card',
@@ -59,6 +59,10 @@ describe("bringing helpers' sales in", () => {
     await bringInSales([sale('fs-three-1234567')], { claim });
     expect(app.written).toHaveLength(0);
     expect(await bringInSales([sale('fs-four-12345678')], { claim: async () => false })).toBe(0);
+    // Undone by the helper: never claimed, never added.
+    const never = vi.fn(async () => true);
+    await bringInSales([sale('fs-undone-1234567', { cancelled: true })], { claim: never });
+    expect(never).not.toHaveBeenCalled();
     expect(app.written).toHaveLength(0);
   });
 
@@ -68,6 +72,23 @@ describe("bringing helpers' sales in", () => {
     await bringInSales([sale('fs-six-123456789', { lines: [{ bookId: 'b1', qty: 1.5, price: 5 }] })], { claim });
     expect(claim).not.toHaveBeenCalled();
     expect(app.written).toHaveLength(0);
+  });
+
+  test('a stuck sale shows as a to-do until its book is back, then comes in by itself', async () => {
+    const claim = vi.fn(async () => true);
+    const stuck = sale('fs-seven-1234567', { lines: [{ bookId: 'b3', qty: 1, price: 9 }] });
+    app.refreshed = 0;
+    await bringInSales([stuck], { claim });
+    expect(fairHelperTodo()).toMatchObject({ by: ['sam@example.com'] });
+    expect(app.refreshed).toBe(1);
+    await bringInSales([stuck], { claim });
+    expect(app.refreshed).toBe(1);
+    app.BOOKS.b3 = { id: 'b3', title: 'Back again', listPrice: 9, currency: 'CAD' };
+    app.states.b3 = { stock: 4, hist: [] };
+    expect(await bringInSales([stuck], { claim })).toBe(1);
+    expect(app.written.map((w) => w.bookId)).toEqual(['b3']);
+    // Only the two problem sales from the test before are still listed.
+    expect(fairHelperTodo().stuck).toBe(2);
   });
 });
 

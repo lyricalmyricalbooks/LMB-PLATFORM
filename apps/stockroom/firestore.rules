@@ -199,9 +199,17 @@ service cloud.firestore {
         && request.resource.data.lines.size() >= 1 && request.resource.data.lines.size() <= 50;
       allow read: if isPublisher()
         || (isFairHelper() && resource.data.by == request.auth.token.email.lower());
-      // The publisher's stockroom marks a sale brought in, and changes nothing else.
-      allow update: if isPublisher() && planOpen()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imported']);
+      // The publisher's stockroom marks a sale brought in, and changes nothing else. A helper may undo their own sale
+      // (marking it `cancelled`, nothing else) within the hour after it reached the server, and only while it isn't in
+      // the books yet; the stockroom never brings in a cancelled sale.
+      allow update: if (isPublisher() && planOpen()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imported']))
+        || (isFairHelper() && planOpen()
+          && resource.data.by == request.auth.token.email.lower()
+          && !('imported' in resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancelled'])
+          && request.resource.data.cancelled == true
+          && request.time < resource.data.at + duration.value(1, 'h'));
       allow delete: if false;
     }
 

@@ -183,6 +183,10 @@ await check("helper can't list everyone's sales", assertFails(getDocs(collection
 await check("helper can't read another helper's sale", assertFails(getDoc(doc(helper, "fairSales/other-helper-sale"))));
 await check("helper can't change a sale once sent", assertFails(setDoc(doc(helper, "fairSales/sale-0000001"), sale({ lines: [{ bookId: "b1", qty: 9 }] }))));
 await check("helper can't mark their sale brought in", assertFails(updateDoc(doc(helper, "fairSales/sale-0000001"), { imported: { at: "x" } })));
+await check("helper can't undo another helper's sale", assertFails(setDoc(doc(helper, "fairSales/other-helper-sale"), { cancelled: true }, { merge: true })));
+await check("helper can't undo with other changes", assertFails(setDoc(doc(helper, "fairSales/sale-0000001"), { cancelled: true, method: "Card" }, { merge: true })));
+await check("helper can't mark a sale anything but undone", assertFails(setDoc(doc(helper, "fairSales/sale-0000001"), { cancelled: "yes" }, { merge: true })));
+await check("helper undoes their own sale", assertSucceeds(setDoc(doc(helper, "fairSales/sale-0000001"), { cancelled: true }, { merge: true })));
 await check("helper can't delete a sale", assertFails(deleteDoc(doc(helper, "fairSales/sale-0000001"))));
 await check("helper can't add a sale under another address", assertFails(setDoc(doc(helper, "fairSales/sale-0000002"), sale({ by: "owner@example.com" }))));
 await check("helper can't backdate a sale", assertFails(setDoc(doc(helper, "fairSales/sale-0000003"), sale({ at: new Date("2026-01-01") }))));
@@ -200,6 +204,7 @@ await check("publisher's menu keeps its shape", assertFails(setDoc(doc(publisher
 await check("publisher reads every helper's sales", assertSucceeds(getDocs(collection(publisher, "fairSales"))));
 await check("publisher marks a sale brought in", assertSucceeds(updateDoc(doc(publisher, "fairSales/sale-0000001"), { imported: { at: "2026-11-03T12:00:00Z" } })));
 await check("publisher can't rewrite a helper's sale", assertFails(updateDoc(doc(publisher, "fairSales/sale-0000001"), { lines: [] })));
+await check("helper can't undo a sale once it is in the books", assertFails(setDoc(doc(helper, "fairSales/sale-0000001"), { cancelled: true }, { merge: true })));
 await check("publisher can't delete a helper's sale", assertFails(deleteDoc(doc(publisher, "fairSales/sale-0000001"))));
 await check("no one else reads the inbox", assertFails(getDocs(collection(shutOut["bookkeeper role"].firestore(), "fairSales"))));
 await env.withSecurityRulesDisabled(async ctx => { await setDoc(doc(ctx.firestore(), "platform/plan"), { access: "paused" }); });

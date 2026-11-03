@@ -43,10 +43,12 @@
 
 .fh-book-list, .fh-lines, .fh-sales { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .fh-book {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "cover title" "cover meta";
+  align-items: center;
+  justify-items: start;
+  gap: var(--space-1) var(--space-3);
   width: 100%;
   min-height: var(--target-min);
   padding: var(--space-3);
@@ -59,8 +61,20 @@
 }
 .fh-book:hover { background: var(--surface-raised); }
 .fh-book:focus-visible { outline: var(--stroke) solid var(--rule-ink); outline-offset: 2px; }
-.fh-book-title { font-weight: 700; overflow-wrap: anywhere; }
-.fh-book-meta { font-size: var(--text-sm); color: var(--content-secondary); }
+.fh-book-title { grid-area: title; font-weight: 700; overflow-wrap: anywhere; }
+.fh-book-meta { grid-area: meta; font-size: var(--text-sm); color: var(--content-secondary); }
+/* The cover: the website's photo, or the book's colour as on the owner's till (fm-tile-cover). */
+.fh-cover {
+  grid-area: cover;
+  display: block;
+  width: 36px;
+  height: 48px;
+  box-sizing: border-box;
+  object-fit: cover;
+  border: var(--stroke) solid var(--rule-ink);
+  background: var(--surface-inset);
+  box-shadow: var(--riso-off-sm);
+}
 .fh-none { color: var(--status-critical); font-weight: 700; }
 .fh-in-cart { color: var(--content-primary); font-weight: 700; }
 
@@ -85,6 +99,8 @@
 .fh-pay-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
 .fh-pay { min-height: var(--target-min); justify-content: center; }
 .fh-clear { align-self: flex-start; min-height: var(--target-min); }
-.fh-done { margin: 0; color: var(--status-positive); font-weight: 700; }
+.fh-done { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--status-positive); font-weight: 700; }
+.fh-undo { min-height: var(--target-min); }
+.fh-sale.is-undone .fh-sale-what, .fh-sale.is-undone > strong { text-decoration: line-through; color: var(--content-muted); }
 .fh-day { margin: 0; font-weight: 700; }
 .fh-note { margin: 0; font-size: var(--text-sm); color: var(--content-secondary); }
