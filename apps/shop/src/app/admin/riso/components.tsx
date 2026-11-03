@@ -82,7 +82,7 @@ export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, 
                     onClick={() => onSelect(item.id)}
                   >
                     <Icon size={18} aria-hidden />
-                    {item.label}
+                    <span className="rp-nav-label">{item.label}</span>
                     {!!item.badge && (
                       <span className="rp-nav-badge" aria-label={`${item.badge} need attention`}>{item.badge > 99 ? "99+" : item.badge}</span>
                     )}

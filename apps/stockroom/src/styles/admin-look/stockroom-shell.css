@@ -85,6 +85,14 @@
   :root[data-admin-look="pop"] body.rp .pub-shell .snav.active,
   :root[data-admin-look="pop"] body.rp[data-rp-appearance="dark"] .pub-shell .snav.active { background: var(--rp-on-inverse); color: var(--rp-inverse); box-shadow: 3px 3px 0 var(--rp-primary); }
 
+  :root[data-admin-look="desk"] body.rp { --rp-nav-radius: 4px; }
+  :root[data-admin-look="desk"] body.rp .pub-shell .snav.active,
+  :root[data-admin-look="desk"] body.rp[data-rp-appearance="dark"] .pub-shell .snav.active { background: var(--rp-rail-hover-strong); color: var(--rp-on-inverse); box-shadow: inset 2px 0 0 var(--rp-primary-hover); }
+  :root[data-admin-look="bento"] body.rp { --rp-nav-radius: 999px; }
+  :root[data-admin-look="bento"] body.rp .pub-shell .snav.active,
+  :root[data-admin-look="bento"] body.rp[data-rp-appearance="dark"] .pub-shell .snav.active { background: var(--rp-tile-b); color: var(--rp-tile-ink); box-shadow: none; }
+  :root[data-admin-look="bento"] body.rp .pub-shell .snav.active .snav-ic { color: var(--rp-tile-ink); }
+
   /* Top bar: the page colour with a hairline under it, as the website admin's. */
   body.rp .pub-shell .app-header {
     --ink: var(--rp-canvas);
@@ -130,4 +138,18 @@
 @media screen and (min-width: 1101px) {
   body.rp .pub-shell #pub-sidebar { width: var(--rp-sidebar-w); }
   body.rp .pub-shell { padding-left: var(--rp-sidebar-w); }
+}
+
+/* Desk: the same icon rail as the website admin's Desk. 64px of flow space; it opens over the page while hovered or
+   holding focus. The stockroom already has an icon rail for mid-width screens (style.css); this brings it to wide ones. */
+@media screen and (min-width: 1101px) {
+  :root[data-admin-look="desk"] body.rp { --rp-sidebar-w: 64px; }
+  :root[data-admin-look="desk"] body.rp .pub-shell #pub-sidebar { transition: width var(--rp-dur, .18s) ease; overflow-x: hidden; }
+  :root[data-admin-look="desk"] body.rp .pub-shell #pub-sidebar:is(:hover, :focus-within) { width: 232px; z-index: 300; box-shadow: var(--rp-shadow-float); }
+  :root[data-admin-look="desk"] body.rp .pub-shell #pub-sidebar:not(:hover):not(:focus-within) {
+    align-items: center; padding-left: 8px; padding-right: 8px;
+  }
+  :root[data-admin-look="desk"] body.rp .pub-shell #pub-sidebar:not(:hover):not(:focus-within) :is(.pub-wordmark, .pub-tag, .o3-grouplabel, .o3-subgrouplabel, .pub-side-who, .pub-side-caret, .pub-side-updated, .snav-label) { display: none; }
+  :root[data-admin-look="desk"] body.rp .pub-shell #pub-sidebar:not(:hover):not(:focus-within) .snav { justify-content: center; gap: 0; padding: 0; }
+  :root[data-admin-look="desk"] body.rp .pub-shell #pub-sidebar:not(:hover):not(:focus-within) :is(.pub-brand, .pub-side-trigger) { justify-content: center; gap: 0; padding-left: 0; padding-right: 0; }
 }
