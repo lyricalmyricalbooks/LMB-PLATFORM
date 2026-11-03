@@ -1,6 +1,5 @@
 // What setup mode shows (code plan 18.6): the real admin's menu, with the pages that work before a shop exists and
 // every other page locked until the shop opens. Pure, so the menu and the locks are tested without a browser.
-import { HelpCircle, Wallet } from "lucide-react";
 import type { NavEntry } from "../app/admin/riso/components";
 import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
@@ -17,27 +16,25 @@ export const SETUP_PAGES: ReadonlySet<string> = new Set([HOME_PAGE, DESIGN_PAGE,
 export const setupLocked = (page: string): boolean => !SETUP_PAGES.has(page);
 
 /**
- * The menu: the admin's own five items, with Plan and billing and Help as items of their own (Plan moves out of
- * Settings). The admin a press meets in setup is the one it keeps.
+ * The menu: exactly the admin's own (Plan sits under Settings, as it does once the shop opens), so the admin a press
+ * meets in setup is the one it keeps. Help is in the sidebar's footer, not the menu.
  */
 export function setupMenu(nav: NavEntry[] = NAV): NavEntry[] {
-  const items = sidebarItems(nav).map((item) => (item.children
-    ? { ...item, children: item.children.filter((c) => c.id !== PLAN_PAGE) }
-    : item));
-  return [
-    ...items,
-    { id: PLAN_PAGE, label: "Plan and billing", icon: Wallet },
-    { id: HELP_PAGE, label: "Help", icon: HelpCircle },
-  ];
+  return sidebarItems(nav);
 }
+
+/** Pages that are not in the menu but can be opened (Help, from the sidebar's footer). */
+const EXTRA_PAGES: Record<string, string> = { [HELP_PAGE]: "Help" };
 
 /** The menu item that holds a page (a Settings page sits under Settings' first page). */
 export function setupMenuItemFor(page: string, menu: NavEntry[] = setupMenu()): string {
+  if (EXTRA_PAGES[page]) return "";
   return menu.find((item) => item.id === page || item.children?.some((c) => c.id === page))?.id ?? page;
 }
 
 /** A page's name, for the locked page and the page title. */
 export function setupPageLabel(page: string, menu: NavEntry[] = setupMenu()): string {
+  if (EXTRA_PAGES[page]) return EXTRA_PAGES[page];
   for (const item of menu) {
     if (item.id === page && !item.children) return item.label;
     const child = item.children?.find((c) => c.id === page);
@@ -76,6 +73,6 @@ export function pageFromHash(hash: string, menu: NavEntry[] = setupMenu()): stri
   let page: string;
   try { page = decodeURIComponent(hash.replace(/^#/, "").split("?")[0]); } catch { return null; }
   if (!page) return HOME_PAGE;
-  const known = menu.some((item) => item.id === page || item.children?.some((c) => c.id === page));
+  const known = !!EXTRA_PAGES[page] || menu.some((item) => item.id === page || item.children?.some((c) => c.id === page));
   return known ? page : null;
 }

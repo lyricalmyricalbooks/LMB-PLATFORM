@@ -652,16 +652,16 @@ built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; 
   Firebase SDK the front door uses, so the front door's sign-in carries over) and never imports `../main`,
   `lib/firebase` or `adminApi`. Every answer goes to the press's setup record through `door.ts` (`GET /api/press`,
   `POST /api/press/setup`); the shop maker (18.9) carries it into the new shop.
-- **Same shell and menu** (`pages.ts` `setupMenu`): the admin's five items plus Plan and billing and Help. Home is the
-  setup guide; Design (the Choose your look gallery), Settings › General, Plan and billing and Help work; every other
+- **Same shell and menu** (`pages.ts` `setupMenu` is `sidebarItems(NAV)`, nothing added): Plan stays under Settings, as in
+  the open shop, and Help is a sidebar-footer button (`#help`). Home is the
+  setup guide; Design (the Choose your look gallery), Settings › General, Settings › Plan and Help work; every other
   page is `OpensWithShop` and writes nothing. Pages live in the address (`#settings/general`); an address that names no
   page (the skip link's `#rp-main`) leaves the page alone, so nothing typed is lost. General saves only the fields that
   changed, so an answer saved meanwhile at the front door isn't written over.
 - **Look gallery without the database:** `lookGallery.ts` holds the pure gallery parts; `ChooseLookWelcome` takes
   `apply` (setup mode passes one that does nothing) and loads `chooseLook.applyChosenLook` only when it isn't given.
-- **Not yet:** Open my shop (18.8) is shown disabled; the import preview (18.7) is locked; an open shop's real admin
-  doesn't have the Plan and billing / Help / Setup guide items yet (rest of 18.6).
-- **Plan and billing words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
+- **Not yet:** Open my shop (18.8) is shown disabled; the import preview (18.7) is locked.
+- **Plan words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
   (billing gives one trial per account). Prices that fail to load say so with Try again.
 
 ## One admin for shop + stockroom (3 November 2026)
