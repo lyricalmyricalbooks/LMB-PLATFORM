@@ -6,7 +6,7 @@ import { sitemapArtifacts } from './sitemapData.mjs';
 import { readPublicStorefront, publishedFingerprint, effectivePublishedSettings } from './publicStorefrontData.mjs';
 import { llmsTxt } from './llmsTxt.mjs';
 import { shopSiteUrl } from './shopProfile.mjs';
-import { FEED_FILE, feedShopName, merchantFeedItems, merchantFeedXml } from '../src/app/features/site/merchantFeed.mjs';
+import { FEED_FILE, SOCIAL_FEED_FILE, feedShopName, merchantFeedItems, merchantFeedXml, socialFeedCsv } from '../src/app/features/site/merchantFeed.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const siteUrl = await shopSiteUrl();
 const { books, pages, settings, reviews } = await readPublicStorefront();
@@ -26,6 +26,8 @@ const shopName = feedShopName(effectivePublishedSettings(settings));
 const feed = merchantFeedItems(siteUrl, books, { shopName });
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist', FEED_FILE), merchantFeedXml(siteUrl, feed.items, { shopName }));
+// Meta (Facebook and Instagram) and Pinterest fetch the same items as CSV (Books › Instagram, Facebook and Pinterest).
+writeFileSync(resolve(root, 'dist', SOCIAL_FEED_FILE), socialFeedCsv(feed.items));
 // AI assistants and AI search read /llms.txt for a plain summary of the shop and its books.
 writeFileSync(resolve(root, 'dist', 'llms.txt'), llmsTxt(siteUrl, books, pages, settings, { shopName }));
 console.log(`Google Shopping feed: ${feed.items.length} items, ${feed.skipped.length} published books left out.`);

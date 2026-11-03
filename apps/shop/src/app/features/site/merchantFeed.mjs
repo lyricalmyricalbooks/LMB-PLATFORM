@@ -298,3 +298,33 @@ export function merchantFeedXml(siteUrl, items, { shopName = UNNAMED_SHOP } = {}
     + '\n    </item>').join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n  <channel>\n    <title>${xml(shopName)}</title>\n    <link>${xml(siteUrl.replace(/\/$/, '') + '/')}</link>\n    <description>${xml(`${shopName} ${items.length && items.every(i => i.kind && !isBook(i.kind)) ? 'products' : 'books'}`)}</description>\n${body}${body ? '\n' : ''}  </channel>\n</rss>\n`;
 }
+
+// ── Instagram, Facebook and Pinterest (code plan 24.7) ──────────────────────────────────────────────────────────────
+// Meta's Commerce Manager (one catalog for Facebook and Instagram shopping) and Pinterest's catalogs both read a CSV data
+// feed with Google's column names. It is built from the same items as the Google file, so price, sale and stock agree
+// everywhere. Their availability words have spaces, and neither has "backorder": an item that can be ordered now and
+// ships later is "preorder" on both.
+export const SOCIAL_FEED_FILE = 'social-product-feed.csv';
+
+const SOCIAL_AVAILABILITY = { in_stock: 'in stock', out_of_stock: 'out of stock', preorder: 'preorder', backorder: 'preorder' };
+const SOCIAL_COLUMNS = [
+  ['id', i => i.id], ['item_group_id', i => i.groupId], ['title', i => i.title], ['description', i => i.description],
+  ['availability', i => SOCIAL_AVAILABILITY[i.availability] || 'out of stock'], ['condition', i => i.condition],
+  ['price', i => i.price], ['sale_price', i => i.salePrice], ['sale_price_effective_date', i => i.saleDates],
+  ['link', i => i.link], ['image_link', i => i.image], ['additional_image_link', i => (i.additionalImages || []).join(',')],
+  ['brand', i => i.brand], ['gtin', i => i.gtin], ['google_product_category', i => i.googleCategory], ['product_type', i => i.productType],
+  ['size', i => i.size], ['color', i => i.color], ['material', i => i.material], ['gender', i => i.gender], ['age_group', i => i.ageGroup],
+];
+
+// One line per item: line breaks become spaces, control characters go, and a field with a comma or quote is quoted.
+const csvField = value => {
+  const text = String(value ?? '').replace(/[\r\n]+/g, ' ').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  return /[",]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+/** The CSV file Meta Commerce Manager and Pinterest fetch, from merchantFeedItems' items. */
+export function socialFeedCsv(items) {
+  const header = SOCIAL_COLUMNS.map(([name]) => name).join(',');
+  const rows = items.map(item => SOCIAL_COLUMNS.map(([, read]) => csvField(read(item))).join(','));
+  return [header, ...rows].join('\n') + '\n';
+}

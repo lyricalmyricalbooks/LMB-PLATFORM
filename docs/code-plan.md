@@ -812,7 +812,7 @@ The review compared Colophon with what Shopify gives a small shop, checked again
 | 24.4 | platform | Warn about paying presses drifting away, and web addresses about to expire (with the control-room thread) | control-room tests | |
 | 24.5 | shop | Ship part of an order now and the rest later | fulfilment tests | |
 | 24.6 | shop | Change an order after it is paid | order and payment tests | |
-| 24.7 | shop | Instagram, Facebook and Pinterest product feeds from the Google feed | feed tests | |
+| 24.7 | shop | **Instagram, Facebook and Pinterest.** The site build writes `social-product-feed.csv` from the Google feed's items (Meta and Pinterest column names and availability words); Books › More catalog actions › Instagram, Facebook and Pinterest shows the address and one-time steps, on every shop | `socialFeed.test.ts`, `hostingConfig.test.ts` | open |
 | 24.8 | platform | Press-to-press referral and partner codes | billing tests | |
 
 ## Rules for every pull request
