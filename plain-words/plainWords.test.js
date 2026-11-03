@@ -17,6 +17,7 @@ import { renderHelp } from "../help/page.js";
 import { billingWords, planChangeWords } from "../accounts/billingWords.js";
 import { statusWords } from "../status/summary.js";
 import { TIPS } from "../services/trial-tips/index.js";
+import { START_NUDGE_WORDS } from "../services/trial-tips/startNudges.js";
 import { createShopMaker, STEP_WORDS } from "../signup/shopMaker.js";
 import { fakeSignupStores } from "../signup/fakes.js";
 import { fakeRegistry } from "../setup/fakes.js";
@@ -198,7 +199,7 @@ const PRESS_EMAILS = {
   "recovery-approved": [{ oldEmail: "old@example.com", newEmail: "new@example.com", holdUntil: "4 November 2026" }],
   "recovery-denied": [{ oldEmail: "old@example.com", reason: "We couldn't check who you are." }],
   "recovery-applied": [{ oldEmail: "old@example.com", newEmail: "new@example.com" }],
-  "trial-tip": Object.values(TIPS).map((tip) => ({ subject: tip.subject, paragraphs: tip.paragraphs, action: tip.action, link: LINK, offLink: LINK })),
+  "trial-tip": [...Object.values(TIPS), ...Object.values(START_NUDGE_WORDS)].map((tip) => ({ subject: tip.subject, paragraphs: tip.paragraphs, action: tip.action, link: LINK, offLink: LINK })),
   "shop-checkup": [
     { lines: [{ state: "ok", words: "Every link we tried on your shop works." }], offLink: LINK },
     { lines: [{ state: "fix", words: "3 items have no description. A few lines about each helps people choose, and helps your shop show up in searches.", fix: { label: "Write the descriptions", link: LINK } }, { state: "ok", words: "Your shop opens quickly on a phone." }], offLink: LINK },
