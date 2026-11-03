@@ -10,6 +10,8 @@ import { shopHealth } from "./controlRoom.js";
 const DAY = 86_400_000;
 export const PAYING = new Set(["active", "past_due"]);
 export const PAYMENT_PROBLEM = new Set(["past_due", "unpaid", "incomplete"]);
+/** A web address that runs out this soon shows on Today. */
+export const DOMAIN_SOON_DAYS = 14;
 
 /** One shop's monthly charge in cents, or 0 when it isn't paying. */
 export function monthlyCents(row, settings) {
@@ -43,6 +45,15 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
   }
   for (const row of shops.filter((r) => PAYMENT_PROBLEM.has(r.billing?.status))) {
     needs.push({ kind: "payment", shopId: row.shopId, words: `${row.pressName ?? row.shopId}: their plan payment failed`, go: "#shops" });
+  }
+  // Web addresses (services/domains, the daily watch): one that stopped opening its shop, or runs out within two weeks.
+  for (const row of rows) {
+    for (const d of Array.isArray(row.domains) ? row.domains : []) {
+      const name = `${row.pressName ?? row.shopId}: ${d.name}`;
+      const left = Date.parse(d.expiresAt ?? "") - now.getTime();
+      if (d.brokeAt) needs.push({ kind: "domain", shopId: row.shopId, words: `${name} stopped opening the shop${d.brokenEmailedAt ? " (the press was emailed)" : ""}`, go: "#shops" });
+      else if (left > 0 && left <= DOMAIN_SOON_DAYS * DAY) needs.push({ kind: "domain", shopId: row.shopId, words: `${name} runs out in ${Math.ceil(left / DAY)} day${Math.ceil(left / DAY) === 1 ? "" : "s"} unless renewed`, go: "#shops" });
+    }
   }
   const repairCount = Object.values(open).reduce((n, list) => n + list.length, 0);
   if (repairCount) needs.push({ kind: "repairs", count: repairCount, words: `${repairCount} item${repairCount === 1 ? "" : "s"} in the repair queue`, go: "#repairs" });

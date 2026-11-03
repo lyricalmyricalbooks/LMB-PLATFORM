@@ -326,7 +326,7 @@ function recordView(record) {
     ["Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan],
     ["Emails", EMAIL_LANGUAGE_WORDS[record.emailLanguage] ?? ""],
     ["Payments", connections.payments ? `${connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"],
-    ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map((d) => `${d.name} (${d.state})`).join(", ") : "the shop's own .web.app address"],
+    ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map((d) => `${d.name} (${d.brokeAt ? "stopped opening the shop" : d.state}${d.expiresAt ? `, paid up until ${dateOnly(d.expiresAt)}` : ""})`).join(", ") : "the shop's own .web.app address"],
     ["Version", record.version ?? "none yet"],
   ].filter(([, value]) => value);
   return el("div", { className: "record" },

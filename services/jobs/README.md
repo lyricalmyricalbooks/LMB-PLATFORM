@@ -14,7 +14,7 @@ in Cloud Scheduler. A job whose parts aren't connected yet is made paused (`serv
 | --- | --- | --- |
 | `health-checks` | 5 minutes | `services/health/run.js checks` (and the status page) |
 | `shop-maker` | 1 minute | `signup/shopMaker.js` `sweep()` |
-| `web-addresses` | 10 minutes | `services/domains/domains.js` `checkAll()` |
+| `web-addresses` | 10 minutes (each live address once a day) | `services/domains/domains.js` `checkAll()` |
 | `own-email-addresses` | 6 hours | `services/email/ownDomain.js` `checkAll()` |
 | `nightly-backups` | 1 day | `services/health/run.js nightly` |
 | `keep-times` | 1 day | `services/retention/run.js` |

@@ -297,6 +297,31 @@ export const PRESS_TEMPLATES_FR = {
     footer: signOff(settings),
   }),
 
+  /** French twin of "domain-expiring". */
+  "domain-expiring": ({ domain, daysLeft, date, seller, own }, { settings }) => layout({
+    subject: `${domain} expire dans ${daysLeft} jour${daysLeft === 1 ? "" : "s"}`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `Votre adresse Web ${domain} est payée jusqu'au ${frenchDay(date)}. Si elle n'est pas renouvelée d'ici là, votre boutique ne s'ouvrira plus à ${domain}, et tout ce qui utilise cette adresse s'arrêtera aussi.`,
+      `Pour la garder, renouvelez-la là où vous l'avez achetée${seller ? ` (${seller})` : ""}. La plupart des vendeurs peuvent la renouveler pour vous chaque année : cherchez le renouvellement automatique dans votre compte chez eux.`,
+      `Si vous l'avez déjà renouvelée, vous n'avez rien à faire. Votre boutique continue aussi de fonctionner à ${own}.`,
+    ],
+    footer: signOff(settings),
+  }),
+
+  /** French twin of "domain-not-pointing". */
+  "domain-not-pointing": ({ domain, own, link }, { settings }) => layout({
+    subject: `${domain} n'ouvre plus votre boutique`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `${domain} ne mène plus à votre boutique. Cela veut souvent dire que les réglages ont changé là où vous avez acheté ${domain}, ou que l'adresse n'a pas été renouvelée.`,
+      `Votre boutique fonctionne toujours à ${own}, et vos commandes sont en sécurité.`,
+      `Les réglages de votre adresse Web montrent les lignes à remettre là où vous avez acheté ${domain}. Une fois qu'elles y sont, votre boutique s'ouvre de nouveau à ${domain} d'elle-même.`,
+    ],
+    buttons: [["Ouvrir les réglages de votre adresse Web", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** French twin of "own-email-paused". */
   "own-email-paused": ({ domain }, { settings, pressName }) => layout({
     subject: `Les courriels de ${pressName} partent de ${settings.platformName} pour l'instant`,
