@@ -82,19 +82,20 @@ export function findBook(books, { isbn, title } = {}) {
 
 /**
  * The stockroom's to-do list for the combined admin's Home ("Needs you now"), from `visibleAttentionResult()`:
- * plain fields only, the ones that need doing (`blocked` or `warn`). The website's own items (group `website`) and the
- * website orders still to send (`orders-unshipped`) are left out: Home counts those from the website's orders itself.
+ * plain fields only, the ones that need doing (`blocked` or `warn`). The website's own items (group `website`) are left
+ * out: Home counts those itself. `orders-unshipped` stays: it lists only orders the website doesn't hold (payment
+ * links, older imported orders), never the website's own (lib/order-followups.js `unshippedOrders`).
  * @param {{ signals?: Array<{ id: string, group: string, status: string, label?: string, detail?: string }> }} result
  */
 export function todoItems(result) {
   return ((result && result.signals) || [])
-    .filter((s) => s && s.id && s.group !== 'website' && s.id !== 'orders-unshipped' && (s.status === 'blocked' || s.status === 'warn'))
+    .filter((s) => s && s.id && s.group !== 'website' && (s.status === 'blocked' || s.status === 'warn'))
     .map((s) => ({ id: String(s.id), group: String(s.group), status: String(s.status || 'info'), label: String(s.label || ''), detail: String(s.detail || '') }));
 }
 
 /**
  * Every sale the stockroom recorded on or after `since` (YYYY-MM-DD), across all books, for the combined admin's
- * one list of sales. Website sales are left out: they are the website's own orders there. `partial` says some
+ * one list of sales. The website's own orders (`webOrderId`) are left out: the admin lists them from the website. `partial` says some
  * book's records weren't loaded, so the list may be short.
  */
 export function salesRows(books, states, { since = '' } = {}) {
@@ -104,7 +105,9 @@ export function salesRows(books, states, { since = '' } = {}) {
     const s = states && states[id];
     if (!s || s._loadFailed) { partial = true; continue; }
     for (const h of s.hist || []) {
-      if (!h || h.voided || h.gratuity || h.chan === 'Website' || h.webOrderId) continue;
+      // A sale the website link wrote or adopted carries `webOrderId`: it is the website's own order there. Other
+      // 'Website' sales (payment links, older imported orders, recovered orders) exist only here, so they stay.
+      if (!h || h.voided || h.gratuity || h.webOrderId) continue;
       const date = String(h.date || '');
       if (since && date && date < since) continue;
       const cur = h.cur ? normalizeCurrencyCode(h.cur, bookCurrencyCode(book)) : bookCurrencyCode(book);

@@ -15,6 +15,9 @@ export type SaleRow = {
 /** The shop's own money: website orders are charged in it. */
 export const SHOP_CURRENCY = "CAD";
 
+/** The channel of online sales only the stockroom recorded. */
+export const OTHER_ONLINE = "Other online sales";
+
 /** How far back the list goes. */
 export const PERIODS = [
   { id: "30", label: "Last 30 days", days: 30 },
@@ -36,6 +39,19 @@ const lineWords = (items: Order["items"] = []) => {
   return titles.length === 1 ? titles[0] : `${titles[0]} and ${titles.length - 1} more`;
 };
 
+/**
+ * What an order's books brought in: their price after discounts, less any part refunded, without the shipping and tax
+ * it also charged, so it compares with a stockroom sale (copies × price).
+ */
+export function bookTakings(o: Order): number {
+  const total = Number(o.total) || 0;
+  const goods = o.subtotal !== undefined
+    ? (Number(o.subtotal) || 0) - (Number(o.discount) || 0)
+    : total - (Number(o.shipping) || 0) - (Number(o.tax) || 0);
+  const kept = total > 0 ? 1 - refundedAmount(o) / total : 1;
+  return Math.max(0, Math.round(goods * kept * 100) / 100);
+}
+
 /** Paid website orders (refunded ones too, marked) since a day, as rows; test orders and unpaid attempts are no sale. */
 export function websiteSaleRows(orders: Order[], since: string): SaleRow[] {
   return orders.filter((o) => o && o.isTest !== true && (o.paymentStatus === "paid" || o.paymentStatus === "refunded"))
@@ -45,7 +61,7 @@ export function websiteSaleRows(orders: Order[], since: string): SaleRow[] {
       return {
         key: `web:${o.id}`, date, channel: "Website", what: lineWords(o.items),
         qty: (o.items || []).reduce((n: number, i: any) => n + (Number(i?.quantity) || 0), 0),
-        amount: refunded ? 0 : Math.round(((Number(o.total) || 0) - refundedAmount(o)) * 100) / 100,
+        amount: refunded ? 0 : bookTakings(o),
         cur: SHOP_CURRENCY, who: String(o.customer?.name || o.customer?.email || ""), orderId: o.id, refunded,
       };
     })
@@ -55,7 +71,8 @@ export function websiteSaleRows(orders: Order[], since: string): SaleRow[] {
 /** The stockroom's sales as rows. */
 export function stockroomSaleRows(sales: StockroomSale[]): SaleRow[] {
   return sales.map((s) => ({
-    key: `stock:${s.key}`, date: s.date, channel: s.chan, what: s.title, qty: s.qty, amount: s.amount, cur: s.cur,
+    // The stockroom's own online sales (payment links, older imported orders) aren't the website's orders.
+    key: `stock:${s.key}`, date: s.date, channel: s.chan === "Website" ? OTHER_ONLINE : s.chan, what: s.title, qty: s.qty, amount: s.amount, cur: s.cur,
     who: s.stockist || (s.invoice ? `Invoice ${s.invoice}` : ""), bookId: s.bookId,
   }));
 }

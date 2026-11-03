@@ -36,13 +36,19 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
   useEffect(() => {
     let alive = true;
     setStockroom("loading");
-    void stockroomBridge.askUntil<{ rows: StockroomSale[]; partial: boolean } | { refused: true }>({ what: "sales", since }).then((answer) => {
+    let again: number | undefined;
+    const ask = (more: number) => stockroomBridge.askUntil<{ rows: StockroomSale[]; partial: boolean } | { refused: true }>({ what: "sales", since }).then((answer) => {
       if (!alive) return;
-      if (!answer) setStockroom("failed");
+      if (!answer) setStockroom((s) => (typeof s === "object" ? s : "failed"));
       else if ("refused" in answer) setStockroom("refused");
-      else setStockroom({ sales: Array.isArray(answer.rows) ? answer.rows : [], partial: !!answer.partial });
+      else {
+        setStockroom({ sales: Array.isArray(answer.rows) ? answer.rows : [], partial: !!answer.partial });
+        // Some books' records were still loading: ask again a little later, a few times.
+        if (answer.partial && more > 0) again = window.setTimeout(() => { void ask(more - 1); }, 5_000);
+      }
     });
-    return () => { alive = false; };
+    void ask(3);
+    return () => { alive = false; window.clearTimeout(again); };
   }, [since, tries]);
   useEffect(() => { setShown(PAGE_SIZE); }, [period, channel]);
 
@@ -93,7 +99,7 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
       <div className="rp-kpi-grid">
         <MetricCard label="Sales" value={totals.sales.toLocaleString()} footer={PERIODS.find((p) => p.id === period)?.label} />
         <MetricCard label="Copies sold" value={totals.copies.toLocaleString()} footer={channels.find((c) => c.id === active)?.label || "Every channel"} />
-        <MetricCard label="Takings" value={takings} footer="After refunds" />
+        <MetricCard label="Takings" value={takings} footer={w("Books only, after discounts and refunds")} />
       </div>
       <Tabs label="Channel" value={active || "all"} onChange={(v) => setChannel(v === "all" ? "" : v)}
         tabs={[{ id: "all", label: "Every channel", count: rows.length }, ...channels]} />

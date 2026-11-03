@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("../stockroomBridge", () => ({ stockroomBridge: { openPage: vi.fn(), askUntil: vi.fn() } }));
-import { groupTodos, stockroomRunRows } from "./StockroomTodos";
+import { groupTodos, onHomeOnce, stockroomRunRows } from "./StockroomTodos";
 import { stockroomBridge } from "../stockroomBridge";
 
 const todo = (id: string, group: string, label = id) => ({ id, group, status: "warn", label, detail: "" });
@@ -23,6 +23,10 @@ describe("stockroom to-dos on Home", () => {
     expect(money.props.detail).toBe("m1 and 1 more");
     money.props.onOpen();
     expect(stockroomBridge.openPage).toHaveBeenLastCalledWith("todo");
+  });
+
+  it("leaves out low-stock alerts, which Home already lists as books to reprint or sold out", () => {
+    expect([todo("stock-low:a", "stock"), todo("stock-getting-low:b", "stock"), todo("stock-drift:a", "stock")].filter(onHomeOnce).map((t) => t.id)).toEqual(["stock-drift:a"]);
   });
 
   it("waits while the stockroom is asked, and never says all clear when it couldn't answer", () => {

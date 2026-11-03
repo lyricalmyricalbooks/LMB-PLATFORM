@@ -13,11 +13,18 @@ const REFRESH_MS = 5 * 60_000;
 export const TODO_GROUPS: Array<{ group: string; label: string; one: string }> = [
   { group: "orders", label: "stockroom sales to sort out", one: "stockroom sale to sort out" },
   { group: "money", label: "payments to chase or record", one: "payment to chase or record" },
-  { group: "stock", label: "stock alerts from the stockroom", one: "stock alert from the stockroom" },
+  { group: "stock", label: "stock counts to check", one: "stock count to check" },
   { group: "catalogue", label: "book details to fill in", one: "book detail to fill in" },
   { group: "setup", label: "stockroom things to check", one: "stockroom thing to check" },
 ];
 const OTHER = { group: "", label: "other stockroom to-dos", one: "other stockroom to-do" };
+
+/**
+ * Home already lists books to reprint and sold out from the website's own figures, so the stockroom's "running low" and
+ * "getting low" alerts would count the same book twice there; its other stock to-dos (a count that doesn't match the
+ * records) stay. The stockroom's To-do page still shows them all.
+ */
+export const onHomeOnce = (item: StockroomTodo) => !/^stock-(low|getting-low):/.test(item.id);
 
 export type StockroomTodoState = { items: StockroomTodo[] | null; loading: boolean; failed: boolean };
 
@@ -31,7 +38,7 @@ export function useStockroomTodos(enabled: boolean): StockroomTodoState {
       const answer = await stockroomBridge.askUntil<{ items: StockroomTodo[] } | { refused: true }>({ what: "todo" });
       if (!alive) return;
       // An author signed in to the stockroom sees no press to-dos here; a quiet stockroom keeps the last answer.
-      if (answer && "items" in answer && Array.isArray(answer.items)) setState({ items: answer.items, loading: false, failed: false });
+      if (answer && "items" in answer && Array.isArray(answer.items)) setState({ items: answer.items.filter(onHomeOnce), loading: false, failed: false });
       else if (answer && "refused" in answer) setState({ items: [], loading: false, failed: false });
       else setState((s) => ({ items: s.items, loading: false, failed: !s.items }));
     };

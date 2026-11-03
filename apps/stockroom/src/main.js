@@ -11188,6 +11188,9 @@ startInsideAdmin({
     // Until the catalog is in, every book looks missing: answer nothing yet, and the admin asks again.
     if (!catalogReady) return null;
     if (what === 'find') return { match: findBook(BOOKS, args) };
+    // The to-do list and the sales judge every book's records: wait until all of them are in, as the stockroom's own
+    // to-do page does, so Home never counts a half-loaded stockroom as "all clear".
+    if ((what === 'todo' || what === 'sales') && !_attentionReady) return null;
     if (what === 'todo') return { items: todoItems(visibleAttentionResult()) };
     if (what === 'sales') return salesRows(BOOKS, states, { since: args.since });
     const book = BOOKS[args.book];

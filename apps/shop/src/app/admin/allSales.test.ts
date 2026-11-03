@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelCounts, inChannel, mergeSales, saleTotals, sinceFor, stockroomSaleRows, websiteSaleRows } from "./allSales";
+import { bookTakings, channelCounts, inChannel, mergeSales, saleTotals, sinceFor, stockroomSaleRows, websiteSaleRows } from "./allSales";
 import { routeFromHash, hashForRoute } from "./adminRoute";
 import { COMBINED_MENU, MENU, NAV, sidebarItems } from "./riso/nav";
 
@@ -38,6 +38,17 @@ describe("one list of every sale", () => {
   it("adds takings up per currency, the shop's own first", () => {
     const rows = mergeSales(websiteSaleRows(orders, "2026-10-01"), stockroomSaleRows(sales));
     expect(saleTotals(rows)).toEqual({ sales: 5, copies: 12, takings: [{ cur: "CAD", amount: 115 }, { cur: "USD", amount: 9 }] });
+  });
+
+  it("counts a website order's books only, after discounts and refunds, like a stockroom sale", () => {
+    expect(bookTakings({ id: "x", total: 33, subtotal: 30, discount: 5, shipping: 6, tax: 2 } as any)).toBe(25);
+    expect(bookTakings({ id: "x", total: 40, shipping: 8, tax: 2, refundedAmountMinor: 2000, checkoutCurrency: "CAD" } as any)).toBe(15);
+  });
+
+  it("names the stockroom's own online sales apart from website orders", () => {
+    const [row] = stockroomSaleRows([{ ...sales[0], chan: "Website" }]);
+    expect(row.channel).toBe("Other online sales");
+    expect(channelCounts([row])[0].id).toBe("other-online-sales");
   });
 
   it("goes back by whole shop days, or to the first sale", () => {
