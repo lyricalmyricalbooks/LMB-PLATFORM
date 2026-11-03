@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ADMIN_LOOKS, applyAdminLook, readAdminLook, type AdminLookId } from "../riso/adminLook";
 import { Monitor, Smartphone } from "lucide-react";
 import { applyChosenLook, galleryThemes, lookPreview, pressNameOf, type LibraryTheme } from "../chooseLook";
 import type { WelcomeDone } from "../firstWeek";
@@ -24,6 +25,7 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<LibraryTheme | null>(null);
+  const [adminLook, setAdminLook] = useState<AdminLookId>(() => readAdminLook());
   const [width, setWidth] = useState<"phone" | "desktop">("phone");
   const press = pressNameOf(settings);
 
@@ -32,7 +34,7 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
     setBusy(theme.id); setError("");
     try {
       await applyChosenLook(theme, settings, publishes);
-      await onDone({ theme: theme.id, at: new Date().toISOString(), ...(skipped ? { skipped: true } : {}) });
+      await onDone({ theme: theme.id, at: new Date().toISOString(), adminLook, ...(skipped ? { skipped: true } : {}) });
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
       setBusy("");
@@ -78,6 +80,19 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
       actions={first && <GhostButton size="sm" disabled={!!busy} onClick={() => void choose(first, true)}>Skip for now</GhostButton>}>
       {error && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>{error}</p>}
       {first && <p className="rp-hint" style={{ marginTop: 0 }}>Skip uses “{first.name}”, our suggestion for you. Every look keeps your words, products and pages.</p>}
+      <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "8px 0 4px" }}>Your admin</h3>
+      <p className="rp-hint" style={{ marginTop: 0 }}>How this admin looks to you, not to your customers. It changes right now, and you can change it any time from the top bar.</p>
+      <div role="radiogroup" aria-label="Admin look" style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 160px), 1fr))", marginBottom: 24 }}>
+        {ADMIN_LOOKS.map(l => (
+          <button key={l.id} type="button" role="radio" aria-checked={adminLook === l.id} disabled={!!busy}
+            onClick={() => { setAdminLook(l.id); applyAdminLook(l.id); }}
+            style={{ textAlign: "left", minHeight: 44, padding: 12, display: "grid", gap: 4, background: "var(--rp-surface)", color: "var(--rp-text)",
+              border: adminLook === l.id ? "3px solid var(--rp-primary)" : "1px solid var(--rp-border-strong)", cursor: "pointer" }}>
+            <strong>{l.name}</strong>
+            <span className="rp-hint">{l.description}</span>
+          </button>
+        ))}
+      </div>
       <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "8px 0 12px" }}>Suggested for you</h3>
       <ul aria-label="Suggested looks" style={grid}>{suggested.map(t => card(t, true))}</ul>
       <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "24px 0 12px" }}>Every look</h3>

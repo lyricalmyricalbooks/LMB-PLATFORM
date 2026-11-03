@@ -64,6 +64,48 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "press-atlas",
+    name: "Atlas",
+    description: "Clean catalogue homepage: a short pale band, every product in a tidy grid, good-to-know notes and newsletter.",
+    sections: [
+      { type: "HeroSection", settings: {
+        title: "Everything in one place", subtitle: "Browse the whole range, filter by what you need.",
+        ctaText: "Shop all", height: "small", align: "left", bgColor: "#dfeae7", overlayOpacity: 0,
+        textTransform: "none", headingWeight: 600,
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "All products" } },
+      { type: "StaffNotesTableSection", settings: { title: "Good to know", backgroundColor: "#ffffff" } },
+      { type: "NewsletterSection", settings: { title: "Stay in the loop", description: "New arrivals and restocks, once in a while." } },
+    ],
+  },
+  {
+    id: "press-mosaic",
+    name: "Mosaic",
+    description: "Playful homepage: a cover carousel, a cobalt marquee strip, the product mosaic, notes and newsletter.",
+    sections: [
+      { type: "ProductCoverCarouselSection", settings: { title: "{{shop.name}}", tagline: "Bright things, made with care." } },
+      { type: "MarqueeSection", settings: { text: "NEW IN  /  SMALL BATCHES  /  MADE BY HAND", separator: "✦", speed: 26, fontSize: 14, bold: true, fontWeight: 800, letterSpacing: 0.08, uppercase: true, background: "#2d4ef5", color: "#ffffff" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "The mosaic" } },
+      { type: "StaffNotesTableSection", settings: { title: "Why we love it", backgroundColor: "#ffffff" } },
+      { type: "NewsletterSection", settings: { title: "Get the colours first", description: "New drops and restocks, straight to your inbox." } },
+    ],
+  },
+  {
+    id: "press-arch",
+    name: "Arch",
+    description: "Calm homepage: a soft clay band, arch-topped products, a short note and newsletter.",
+    sections: [
+      { type: "HeroSection", settings: {
+        title: "Made slowly, by hand", subtitle: "Small batches and honest materials.",
+        ctaText: "See the collection", height: "medium", align: "center", bgColor: "#d9b99b", overlayOpacity: 0,
+        textTransform: "none", headingWeight: 500,
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "The collection" } },
+      { type: "StaffNotesTableSection", settings: { title: "From the workshop", backgroundColor: "#fbf6ee" } },
+      { type: "NewsletterSection", settings: { title: "Letters from the workshop", description: "New pieces and restocks, once in a while." } },
+    ],
+  },
+  {
     id: "press-punk",
     name: "Punk",
     description: "Book-cover carousel hero, scrolling marquee, releases grid, staff notes table and a featured release banner.",

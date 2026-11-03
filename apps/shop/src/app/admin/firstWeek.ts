@@ -23,6 +23,8 @@ export interface WelcomeDone {
   /** The theme applied (THEME_LIBRARY id). */
   theme: string;
   at: string;
+  /** The admin look chosen beside the shop theme (riso/adminLook.ts ids); absent on older records. */
+  adminLook?: string;
   /** True when the owner pressed Skip, which takes the first suggestion. */
   skipped?: boolean;
 }

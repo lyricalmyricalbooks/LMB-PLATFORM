@@ -30,7 +30,7 @@ function themeRules(): { selector: string; tokens: Record<string, string> }[] {
 }
 
 /** The tokens an admin page sees under one look and appearance, applying the rules the way the cascade does. */
-function resolved(look: "riso" | "paper", appearance: "day" | "night"): Record<string, string> {
+function resolved(look: "riso" | "paper" | "ledger" | "pop", appearance: "day" | "night"): Record<string, string> {
   const rules = themeRules();
   const pick = (selector: string) => {
     const rule = rules.find((r) => r.selector === selector);
@@ -38,16 +38,17 @@ function resolved(look: "riso" | "paper", appearance: "day" | "night"): Record<s
     return rule!.tokens;
   };
   const night = appearance === "night";
-  const paper = look === "paper";
+  const other = look !== "riso";
+  const at = `:root[data-admin-look="${look}"]`;
   return {
     ...pick(".rp, .admin-reso"),
     ...pick(".rp:not(.studio-editor)"),
     ...(night ? pick('.rp[data-rp-appearance="dark"], .admin-reso[data-admin-theme="dark"]') : {}),
     ...(night ? pick('.rp:not(.studio-editor)[data-rp-appearance="dark"]') : {}),
-    ...(paper && !night ? pick(':root[data-admin-look="paper"] .rp:not([data-rp-appearance="dark"]), :root[data-admin-look="paper"] .admin-reso:not([data-admin-theme="dark"])') : {}),
-    ...(paper && !night ? pick(':root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"])') : {}),
-    ...(paper && night ? pick(':root[data-admin-look="paper"] .rp[data-rp-appearance="dark"], :root[data-admin-look="paper"] .admin-reso[data-admin-theme="dark"]') : {}),
-    ...(paper && night ? pick(':root[data-admin-look="paper"] .rp:not(.studio-editor)[data-rp-appearance="dark"]') : {}),
+    ...(other && !night ? pick(`${at} .rp:not([data-rp-appearance="dark"]), ${at} .admin-reso:not([data-admin-theme="dark"])`) : {}),
+    ...(other && !night ? pick(`${at} .rp:not(.studio-editor):not([data-rp-appearance="dark"])`) : {}),
+    ...(other && night ? pick(`${at} .rp[data-rp-appearance="dark"], ${at} .admin-reso[data-admin-theme="dark"]`) : {}),
+    ...(other && night ? pick(`${at} .rp:not(.studio-editor)[data-rp-appearance="dark"]`) : {}),
   };
 }
 
@@ -84,11 +85,24 @@ describe("admin themes (plan 1.26)", () => {
     expect(found).toEqual([]);
   });
 
-  it("offers Riso Press and Paper", () => {
-    expect(ADMIN_LOOKS.map((l) => l.id)).toEqual(["riso", "paper"]);
+  it("offers four looks", () => {
+    expect(ADMIN_LOOKS.map((l) => l.id)).toEqual(["riso", "paper", "ledger", "pop"]);
   });
 
-  describe.each(["riso", "paper"] as const)("%s", (look) => {
+  it("makes the looks differ in more than colour: the rail, the face and the corners", () => {
+    const day = (look: "riso" | "paper" | "ledger" | "pop") => resolved(look, "day");
+    const rails = new Set(["riso", "paper", "ledger", "pop"].map((l) => day(l as any)["--rp-rail"]));
+    expect(rails.size).toBe(4);
+    const css = readFileSync(join(__dirname, "riso.css"), "utf8");
+    for (const look of ["paper", "ledger", "pop"]) {
+      expect(css).toContain(`--rp-font-display`);
+      expect(css).toContain(`:root[data-admin-look="${look}"] .rp {`);
+    }
+    const radius = new Set(["riso", "paper", "ledger", "pop"].map((l) => day(l as any)["--rp-radius"] ?? "0"));
+    expect(radius.size).toBeGreaterThanOrEqual(3);
+  });
+
+  describe.each(["riso", "paper", "ledger", "pop"] as const)("%s", (look) => {
     it.each(["day", "night"] as const)("keeps words readable by %s", (appearance) => {
       const t = resolved(look, appearance);
       const problems: string[] = [];
