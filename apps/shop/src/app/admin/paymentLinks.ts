@@ -205,7 +205,7 @@ export function paymentLinkMailto(order: any, url: string, shopName = ""): strin
  */
 export function addItemsProblem(order: any): string {
   if (!order || order.isTest) return "Test orders can't take more items.";
-  if (order.paymentStatus !== "paid" || ["cancelled", "refunded"].includes(order.status)) return "Only an active paid order can take more items.";
+  if (!["paid", "partially_refunded"].includes(order.paymentStatus) || ["cancelled", "refunded"].includes(order.status)) return "Only an active paid order can take more items.";
   const q = queueOf(order);
   if (q === "In transit" || q === "Completed") return "This order has already left. Make a new order to pay instead.";
   return "";

@@ -605,6 +605,17 @@ test('payment links: items added to a paid order ship with it, and only an activ
   }
   // A link without shipsWith is unchanged.
   expect((await makeLink(app)).order.shipsWith).toBeUndefined();
+  // Once the first order is cancelled or refunded, the added items' link takes no payment; until then it does.
+  const id = order.orderId;
+  await expect(app.priceOrder(order, { orderId: id })).resolves.toBeTruthy();
+  app.docs.orders.paid.paymentStatus = 'partially_refunded';
+  await expect(app.priceOrder(order, { orderId: id })).resolves.toBeTruthy();
+  app.docs.orders.paid.status = 'cancelled';
+  await expect(app.priceOrder(order, { orderId: id })).rejects.toThrow(/was cancelled/);
+  app.docs.orders.paid = { ...docs.orders.paid, paymentStatus: 'refunded' };
+  await expect(app.priceOrder(order, { orderId: id })).rejects.toThrow(/was cancelled/);
+  delete app.docs.orders.paid;
+  await expect(app.priceOrder(order, { orderId: id })).rejects.toThrow(/was cancelled/);
 });
 
 test('payment links: an ordinary order is priced exactly as before', async () => {

@@ -50,7 +50,7 @@ const { taxPartsByKind } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
-const { paymentLinkFor, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES, reminderDue, sendLinkReminders } = require("./paymentLinks");
+const { paymentLinkFor, addOnParentClosed, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES, reminderDue, sendLinkReminders } = require("./paymentLinks");
 const { expandDiscountCategories } = require("./shared/discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./shared/discountMath");
 const { taxLinesFor } = require("./shared/taxBooks");
@@ -1099,6 +1099,11 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
   const items = [];
   const link = draftLink || await paymentLinkFor(db, orderId, order);
   if (link && linkProblem(link)) throw new PricingError(LINK_MESSAGES[linkProblem(link)], "payment_link_closed");
+  // Items added to a paid order (plan 24.6) can't be paid for once that order is cancelled or refunded.
+  if (link && !draftLink && order.shipsWith) {
+    const parent = typeof order.shipsWith === "string" && order.shipsWith && !order.shipsWith.includes("/") ? await db.collection("orders").doc(order.shipsWith).get() : null;
+    if (addOnParentClosed(parent?.exists ? parent.data() : null)) throw new PricingError(LINK_MESSAGES.parentClosed, "payment_link_closed");
+  }
   // An order claimed by an approved stockist (stockists.js) pays the wholesale price where a product has one. The registry
   // is read again on every pricing, so a stockist who is paused after claiming pays the shop's price.
   const stockist = link ? null : await loadStockist(db, order.stockistId);

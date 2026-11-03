@@ -38,7 +38,7 @@ const SENT = ["shipped", "out_for_delivery", "delivered", "collected"];
 function addOnParentProblem(order) {
   if (!order) return "The order these items are added to can't be found.";
   if (order.isTest) return "Test orders can't take more items.";
-  if (order.paymentStatus !== "paid" || ["cancelled", "refunded", "completed"].includes(order.status)) return "Only an active paid order can take more items.";
+  if (!["paid", "partially_refunded"].includes(order.paymentStatus) || ["cancelled", "refunded", "completed"].includes(order.status)) return "Only an active paid order can take more items.";
   if (SENT.includes(order.fulfillmentStatus)) return "This order has already left. Make a new order to pay instead.";
   return null;
 }
@@ -133,11 +133,21 @@ function applyLinkPrices(items, link) {
   return true;
 }
 
+/**
+ * True when the order that added items ship with is gone: deleted, cancelled or fully refunded. Its added items' link
+ * then takes no payment (priceOrder), so a customer can't pay for extras to an order the shop has cancelled.
+ */
+function addOnParentClosed(order) {
+  return !order || order.status === "cancelled" || ["refunded", "refund_pending"].includes(order.paymentStatus)
+    || ["cancelled", "refunded"].includes(order.fulfillmentStatus);
+}
+
 /** Plain words for the customer when a link can't be paid. */
 const LINK_MESSAGES = {
   expired: "This payment link has expired. Please ask the shop for a new one.",
   closed: "This payment link is no longer open. Please ask the shop for a new one.",
   changed: "This order was changed after its payment link was made. Please ask the shop for a new link.",
+  parentClosed: "The order these items were added to was cancelled, so this link no longer takes payment. Please contact the shop.",
 };
 
 /**
@@ -279,4 +289,4 @@ async function sendLinkReminders({ db, orders, settings, compileEmailTemplate, o
   return { sent };
 }
 
-module.exports = { addOnParentProblem, reminderDue, sendLinkReminders, closingDay, REMIND_BEFORE_MS, cleanLinkInput, linkProblem, paymentLinkFor, applyLinkPrices, paymentLinkActions, keyHash, LinkInputError, LINK_MESSAGES, DEFAULT_DAYS, MAX_DAYS };
+module.exports = { addOnParentProblem, addOnParentClosed, reminderDue, sendLinkReminders, closingDay, REMIND_BEFORE_MS, cleanLinkInput, linkProblem, paymentLinkFor, applyLinkPrices, paymentLinkActions, keyHash, LinkInputError, LINK_MESSAGES, DEFAULT_DAYS, MAX_DAYS };

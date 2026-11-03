@@ -1074,8 +1074,10 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
   active, not left; the admin's `addItemsProblem` matches it) and stamps `shipsWith` on the new order only, so the
   first order's triggers never fire. Payment, tax and stock run through the normal payment-link path. `AddedItemsCard`
   lists the added orders on the first one (`getOrdersShippingWith`) and points the added order back to it.
-- Not handled yet: a refund's restock default doesn't know a part already left; cancelling the first order doesn't
-  close an added order's link (the owner cancels it from its own page).
+- **Guards (3 November 2026):** `priceOrder` refuses to price an added order whose first order is gone, cancelled or
+  fully refunded (`addOnParentClosed`, message `LINK_MESSAGES.parentClosed`), so its link takes no payment. A partially
+  refunded first order (items taken off) can still take more. Before the rest is dispatched, a refund's restock skips
+  copies sent ahead in a part (`returns.unsentItems`, used by `returnRestockItems`), so they never go back on the shelf.
 - **One line everywhere (plan 24.9):** Overview › Running low (`OverviewStock` `lowLine`), the Books list badges
   (`catalogList.stockInfo(book, getBook, line)`) and the book editor read the same `lowStockThreshold(settings)`. Before
   this they used a fixed 5.
