@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { adminApi } from "../api";
 import { friendlyError } from "../studio/friendlyError";
 import { LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField } from "../riso/components";
@@ -11,8 +11,9 @@ import {
 
 const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
 
-// The starters this step offers, in the order Settings shows them. "copy" needs another profile, so it isn't here.
-const CHOICES = PROFILE_STARTERS.filter(s => s.id !== "copy") as { id: ShippingStarter; label: string; desc: string }[];
+// The starters this step offers, in the order Settings shows them. "copy" needs another profile, so it isn't here, and
+// "blank" isn't either: picking it hid this list, with no way back short of reloading.
+const CHOICES = PROFILE_STARTERS.filter(s => s.id !== "copy" && s.id !== "blank") as { id: ShippingStarter; label: string; desc: string }[];
 
 /**
  * Get started, step 6 (plan 17.11): the ship-from address from step 1, the shipping starter for the press's country to
@@ -33,6 +34,9 @@ export function ShippingStage({ settings, onDone, onOpen }: {
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // The profile made on an earlier press of the button whose step marker then failed to save: a retry only saves the
+  // marker, so a flaky connection can't make a second "Standard shipping".
+  const made = useRef(false);
 
   const load = () => {
     setLoadError(false);
@@ -75,8 +79,11 @@ export function ShippingStage({ settings, onDone, onOpen }: {
     if (hasProfiles || choice === "blank") return finish({ skipped: true });
     setBusy(true); setError("");
     try {
-      const profile = starterProfile(choice, newId, sells);
-      if (profile) await adminApi.createShippingProfile(profile);
+      if (!made.current) {
+        const profile = starterProfile(choice, newId, sells);
+        if (profile) await adminApi.createShippingProfile(profile);
+        made.current = true;
+      }
       // A shop that sells something other than books also starts with box sizes for its parcels, only when it has none.
       const boxes = kindStarterParcels(sells);
       if (boxes.length && !((await adminApi.getParcelPresets()) || []).length) await adminApi.saveParcelPresets(boxes);

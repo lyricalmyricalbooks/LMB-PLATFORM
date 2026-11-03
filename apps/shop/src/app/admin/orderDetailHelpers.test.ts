@@ -47,6 +47,12 @@ describe("money", () => {
     expect(parseMoneyToMinor("12.4")).toBe(1240);
     expect(parseMoneyToMinor("1.234")).toBeNull();
     expect(parseMoneyToMinor("")).toBeNull();
+    // A decimal comma is a decimal, not thousands: "12,40" is $12.40, never $1,240.
+    expect(parseMoneyToMinor("12,40")).toBe(1240);
+    expect(parseMoneyToMinor("1,5")).toBe(150);
+    expect(parseMoneyToMinor("1,234.50")).toBe(123450);
+    expect(parseMoneyToMinor("$1,234")).toBe(123400);
+    expect(parseMoneyToMinor("12,4,0")).toBeNull();
   });
   test("returned value scales to the payment currency and is capped", () => {
     expect(returnedValueMinor(paid, { 0: 1 })).toBe(2000);
