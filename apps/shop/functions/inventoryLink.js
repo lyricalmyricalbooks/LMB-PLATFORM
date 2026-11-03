@@ -271,6 +271,8 @@ function websiteOrder(order, { orderId, links, frozen, partPrice, partDigital, t
     books,
     firstBook,
     unlinked: fp.unlinked,
+    // A trade account's order placed on invoice terms (stockists.js): the app offers to prepare the invoice from it.
+    ...(order.invoice && Number(order.invoice.days) > 0 ? { invoice: { days: Math.min(365, Math.floor(Number(order.invoice.days))), dueAt: text(order.invoice.dueAt, 40) || null, paidAt: text(order.invoice.paidAt, 40) || null } } : {}),
   };
   const hash = sha256(stable(body));
   return {

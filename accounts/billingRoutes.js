@@ -6,7 +6,8 @@
 //   POST /api/billing/status       { shopId } -> { billing }: the plan, price, trial or next payment, card, closing apps
 //   POST /api/billing/card         { shopId } -> { url }: Stripe's page to add or change the card; it comes back only
 //                                  to this shop's Plan & billing page (/account/billing?shop=<id>)
-//   POST /api/billing/cancel       { shopId } -> { cancelAtPeriodEnd }: cancel at the end of the paid month (or trial)
+//   POST /api/billing/cancel       { shopId, reason?, words? } -> { cancelAtPeriodEnd }: cancel at the end of the paid
+//                                  month (or trial), with the optional answer to "why are you leaving?" (19.8)
 //   POST /api/billing/keep         { shopId } -> { cancelAtPeriodEnd }: undo a cancel that hasn't happened yet
 //   POST /api/billing/change-plan  { shopId, plan, preview? } -> { preview } or { plan, changed }: what changes and the
 //                                  prorated amount (preview: true, nothing changes), or the change itself
@@ -72,8 +73,8 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
   return {
     "POST /api/billing/status": ownerCall("status", async (shopId) => ({ billing: await billing.status(shopId) })),
     "POST /api/billing/card": ownerCall("card", async (shopId) => billing.cardLink({ shopId, returnUrl: billingPage(settings, shopId) }), { secondStep: true }),
-    "POST /api/billing/cancel": ownerCall("cancel", async (shopId) => {
-      const row = await billing.cancel({ shopId });
+    "POST /api/billing/cancel": ownerCall("cancel", async (shopId, { reason, words }) => {
+      const row = await billing.cancel({ shopId, reason, words });
       return { cancelAtPeriodEnd: Boolean(row.cancelAtPeriodEnd) };
     }, { secondStep: true }),
     "POST /api/billing/keep": ownerCall("keep", async (shopId) => {

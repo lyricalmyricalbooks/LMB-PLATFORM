@@ -398,7 +398,7 @@ function renderInvoices() {
 // ── invoice editor state ────────────────────────────────────────────────
 let invoiceCtx = null; // { editingId, items: [{description,qty,unitPrice}] }
 
-function openCreateInvoice(storeId, editingId, { copyFrom = null } = {}) {
+function openCreateInvoice(storeId, editingId, { copyFrom = null, draft = null } = {}) {
   // Edit the invoice where it lives. Opening a shared invoice from a title that
   // doesn't own it must still edit the one stored copy — including its store
   // list and currency, which belong to the owning book, not the one on screen.
@@ -407,7 +407,7 @@ function openCreateInvoice(storeId, editingId, { copyFrom = null } = {}) {
   // A copy is written into the same book as its original, so the store it
   // bills is on that book's store list and the copy files beside it.
   const source = !editingId && copyFrom ? locateInvoice(copyFrom) : null;
-  const ownerBookId = hit ? hit.ownerBookId : (source ? source.ownerBookId : activeBook);
+  const ownerBookId = hit ? hit.ownerBookId : (source ? source.ownerBookId : (draft && draft.ownerBookId && BOOKS[draft.ownerBookId] ? draft.ownerBookId : activeBook));
   const s = states[ownerBookId] || getState(), book = BOOKS[ownerBookId] || getBook();
   // Populate store dropdown
   const sel = $('inv-store');
@@ -481,6 +481,7 @@ function openCreateInvoice(storeId, editingId, { copyFrom = null } = {}) {
     $('inv-delete-btn').style.display = 'none';
     $('inv-save-draft-btn').style.display = '';
     if (source) fillInvoiceEditorFromCopy(source.inv, sel);
+    else if (draft) fillInvoiceEditorFromTrade(draft);
     else if (storeId) prefillFromPendingSales(storeId);
     else addInvoiceItem();
   }
@@ -523,6 +524,26 @@ function fillInvoiceEditorFromCopy(srcInv, sel) {
   if (copy.linkedSalesDropped) {
     showToast(`Copied ${copy.items.length} line${copy.items.length === 1 ? '' : 's'} — they are no longer tied to the consignment sales on ${srcInv.num || 'the original'}`, 'ok', 4500);
   }
+}
+
+// A trade account's website order (lib/trade-invoice.js): billed to the person who ordered, at the prices they were
+// charged, on the terms they chose. The invoice remembers the order so it drops off the "to send" list.
+function fillInvoiceEditorFromTrade(draft) {
+  invoiceCtx.webOrderId = draft.webOrderId || '';
+  invoiceCtx.items = draft.items.map(it => ({ description: it.description, qty: it.qty, unitPrice: it.unitPrice, bookId: it.bookId || null, _ledgerId: null }));
+  $('inv-edit-title').textContent = 'New invoice (trade order)';
+  fillInvoicePersonForm(draft.person);
+  setInvoiceBillToMode(BILL_TO_PERSON, { silent: true });
+  setInvoiceDiscountUI('flat', draft.discount || 0);
+  $('inv-tax').value = draft.taxRate ? String(draft.taxRate) : '';
+  $('inv-notes').value = draft.notes || '';
+  $('inv-terms').value = draft.terms || $('inv-terms').value;
+  if ($('inv-currency')) {
+    setSelectCurrency($('inv-currency'), draft.currencyCode || 'CAD');
+    $('inv-discount-sym').textContent = getSym(getInvoiceCurrency());
+  }
+  if (draft.dueDate) $('inv-due').value = draft.dueDate;
+  refreshAutoInvoiceNumber();
 }
 
 function duplicateInvoiceFromView() {
@@ -1137,6 +1158,7 @@ function saveInvoice(status) {
     paymentLink: $('inv-paylink').value.trim() || '',
     notes: $('inv-notes').value.trim(),
     terms: $('inv-terms').value.trim(),
+    ...(invoiceCtx.webOrderId ? { webOrderId: invoiceCtx.webOrderId } : {}),
     status,
     createdAt: invoiceCtx.editingId ? ((s.invoices || []).find(i => i.id === invoiceCtx.editingId)?.createdAt || Date.now()) : Date.now(),
     updatedAt: Date.now(),
@@ -1160,6 +1182,7 @@ function saveInvoice(status) {
       // Fixing a typo on a paid (or cancelled) invoice must not reopen it as
       // money owed — that would put it back on the chase list.
       if (old.status === 'paid' || old.status === 'cancelled') payload.status = old.status;
+      if (old.webOrderId) payload.webOrderId = old.webOrderId;
       payload.paidAt = old.paidAt || null;
       payload.paidMethod = old.paidMethod || null;
       if (old.payment) payload.payment = old.payment;

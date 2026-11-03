@@ -8,6 +8,7 @@
 // class names the website admin's React pieces use (apps/shop/src/app/admin/riso/components.tsx).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
+import { shopMatches } from "./shopSearch.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const {
@@ -167,6 +168,12 @@ async function load() {
     await loadGoogleReady();
     await loadSettings();
     await loadActivity();
+    await loadBusiness();
+
+    await loadTags();
+    await loadJobs();
+    await loadMessages();
+    await loadCosts();
   } catch (failure) {
     status.textContent = failure.message;
     // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
@@ -176,12 +183,14 @@ async function load() {
 
 // ── Shops: search and filters (plan 9.3), over the list already loaded. ──
 let allShops = [];
+// Every shop's tags (19.13), for the list's pills and search.
+let shopTags = {};
 const BILLING_TONE = { trialing: "info", active: "success", past_due: "danger", paused: "warning", unpaid: "warning", incomplete: "warning", canceled: "neutral", incomplete_expired: "neutral" };
 const PLAN_WORDS = { shop: "Shop", stockroom: "Stockroom", both: "Shop and stockroom" };
 function showShops() {
   const form = $("#shop-filters");
   const words = form.q.value.trim().toLowerCase();
-  const shown = allShops.filter((shop) => (!words || [shop.pressName, shop.shopId, shop.ownerEmail].some((v) => String(v ?? "").toLowerCase().includes(words)))
+  const shown = allShops.filter((shop) => shopMatches(shop, words, shopTags[shop.shopId])
     && (!form.health.value || shop.health.level === form.health.value)
     && (!form.plan.value || shop.plan === form.plan.value)
     && (!form.billing.value || shop.billingStatus === form.billing.value));
@@ -196,7 +205,7 @@ function showShops() {
     rows: shown,
     open: (shop) => openShop(shop),
     columns: [
-      { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null)) },
+      { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null), tagPills(shopTags[shop.shopId])) },
       { header: "Plan", render: (shop) => PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" },
       { header: "Billing", render: (shop) => (shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : el("span", { className: "rp-hint", textContent: shop.access ?? "none" })) },
       { header: "Cost this month", render: (shop) => costCell(shop.costThisMonth) },
@@ -299,6 +308,7 @@ function recordView(record) {
   ].filter(([, value]) => value);
   return el("div", { className: "record" },
     el("dl", { className: "cr-facts" }, ...facts.flatMap(([label, value]) => [el("dt", { textContent: label }), el("dd", { textContent: value })])),
+    ...deliveryView(record.delivery),
     el("h3", { className: "cr-section", textContent: "Setup" }),
     record.setup.length ? el("ol", { className: "cr-steps" }, ...record.setup.map((step) => el("li", {}, `${step.name ?? `Step ${step.step}`} `, step.ok ? pill("success", "done") : pill("danger", `stopped: ${step.error}`)))) : el("p", { className: "rp-hint", textContent: "No setup steps yet." }),
     ...closingView(record.closing),
@@ -501,7 +511,7 @@ function card(shop) {
       shop.closed ? pill("danger", `closed by ${shop.closed.by}`) : null),
     meta(`status: ${shop.status ?? "?"}`, shop.access ? `billing: ${shop.access}` : null, shop.paymentsMoved ? `cards: ${PAYMENT_WORDS[shop.paymentsMoved.to]}` : null),
     shop.health.reasons.length ? el("ul", { className: "cr-steps", style: "margin-top: 12px" }, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
-    el("div", { className: "cr-actions" }, act, change, check, closing),
+    el("div", { className: "cr-actions" }, act, change, check, closing, exportButton(shop)),
     accessSlot,
     switches ? el("h3", { className: "cr-section", textContent: "Switches for this shop" }) : null,
     switches,
@@ -509,6 +519,7 @@ function card(shop) {
     shop.status === "live" ? paymentsMenu(shop.paymentsMoved?.to ?? "platform", { shopId: shop.shopId }, shop.pressName) : null,
     el("h3", { className: "cr-section", textContent: "The record" }),
     recordSlot,
+    ...privateSections(shop),
   ].filter(Boolean);
 }
 
@@ -958,6 +969,8 @@ const ACTIVITY_WORDS = {
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again",
   "access-asked": "asked the press for a yes to make changes",
+
+  "note-added": "added a private note", "note-deleted": "deleted a private note", "tags-set": "changed the shop's tags", "job-run": "ran a job by hand",
 };
 
 async function loadActivity() {
@@ -1272,4 +1285,506 @@ async function askThePress(shop, clicked, slot) {
   }
   clicked.disabled = false;
   await showAccess(shop, slot);
+}
+
+// ── The business side of Today (plan 19.7-19.9): income over time, failed plan payments, why presses leave. Each part
+// shows its own trouble in its own place, so one that can't load never hides the others. ──
+async function loadBusiness() {
+  await Promise.all([loadIncome(), loadPaymentTrouble(), loadLeaving()]);
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+function svg(tag, attrs = {}, ...children) {
+  const node = document.createElementNS(SVG, tag);
+  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, String(value));
+  node.append(...children.filter(Boolean));
+  return node;
+}
+const monthWords = (month, style = "short") => new Date(`${month}-15T12:00:00Z`).toLocaleDateString(undefined, { month: style, ...(style === "long" ? { year: "numeric" } : {}), timeZone: "UTC" });
+const wholeMoney = (cents, currency) => new Intl.NumberFormat(undefined, { style: "currency", currency, currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 }).format(cents / 100);
+
+/** A tidy top for the income axis: 1, 2 or 5 times a power of ten, in whole currency units. */
+function axisTop(cents) {
+  const units = Math.max(1, cents / 100);
+  const power = 10 ** Math.floor(Math.log10(units));
+  const step = [1, 2, 5, 10].find((m) => m * power >= units);
+  return step * power * 100;
+}
+
+/** The 12-month line as inline SVG: months along the bottom, income on the left, the last point marked and labelled. */
+function incomeChart(months, currency, wide = 720) {
+  // Drawn at the width it is shown, so its words keep their size on a phone; a narrow chart names every third month.
+  const width = Math.max(300, Math.round(wide)), height = 260, left = 64, right = 24, top = 28, bottom = 32;
+  const every = width < 560 ? 3 : 1;
+  const points = months.map((m, i) => ({ ...m, i })).filter((m) => m.incomeCents !== null);
+  const topCents = axisTop(Math.max(...points.map((p) => p.incomeCents), 0));
+  const x = (i) => left + (i * (width - left - right)) / Math.max(1, months.length - 1);
+  const y = (cents) => top + (height - top - bottom) * (1 - cents / topCents);
+  const ticks = [0, topCents / 2, topCents];
+  const last = points.at(-1);
+  const titleId = "income-chart-title";
+  const descId = "income-chart-desc";
+  const chart = svg("svg", { class: "cr-chart", viewBox: `0 0 ${width} ${height}`, role: "img", "aria-labelledby": `${titleId} ${descId}` },
+    svg("title", { id: titleId }, "Monthly income, last 12 months"),
+    svg("desc", { id: descId }, last ? `Now ${wholeMoney(last.incomeCents, currency)} a month, from ${last.paying} paying shop${last.paying === 1 ? "" : "s"}.` : "No income recorded yet."),
+    ...ticks.map((cents) => svg("line", { class: "cr-chart-grid", x1: left, x2: width - right, y1: y(cents), y2: y(cents) })),
+    ...ticks.map((cents) => {
+      const label = svg("text", { class: "cr-chart-axis", x: left - 8, y: y(cents) + 4, "text-anchor": "end" });
+      label.textContent = wholeMoney(cents, currency);
+      return label;
+    }),
+    ...months.map((m, i) => {
+      if ((months.length - 1 - i) % every) return null;
+      const label = svg("text", { class: "cr-chart-axis", x: x(i), y: height - 8, "text-anchor": i === 0 ? "start" : i === months.length - 1 ? "end" : "middle" });
+      // January carries its year, so the line says where one year ends and the next begins.
+      label.textContent = every === 1 && m.month.endsWith("-01") ? `${monthWords(m.month)} ${m.month.slice(0, 4)}` : monthWords(m.month);
+      return label;
+    }),
+    points.length > 1 ? svg("polyline", { class: "cr-chart-line", points: points.map((p) => `${x(p.i)},${y(p.incomeCents)}`).join(" ") }) : null,
+    ...points.map((p) => {
+      const isLast = p === last;
+      const hover = svg("title");
+      hover.textContent = `${monthWords(p.month, "long")}${p === last && p.i === months.length - 1 ? " so far" : ""}: ${wholeMoney(p.incomeCents, currency)} a month, ${p.paying} paying`;
+      return svg("g", {},
+        svg("circle", { class: "cr-chart-hit", cx: x(p.i), cy: y(p.incomeCents), r: 14 }),
+        svg("circle", { class: isLast ? "cr-chart-last" : "cr-chart-dot", cx: x(p.i), cy: y(p.incomeCents), r: isLast ? 6 : 4 }),
+        hover);
+    }),
+    last ? (() => {
+      const label = svg("text", { class: "cr-chart-label", x: x(last.i), y: y(last.incomeCents) - 14, "text-anchor": last.i === months.length - 1 ? "end" : "middle" });
+      label.textContent = wholeMoney(last.incomeCents, currency);
+      return label;
+    })() : null);
+  // The same numbers as a table, for screen readers.
+  const rows = points.map((p) => el("tr", {}, el("th", { scope: "row", textContent: monthWords(p.month, "long") }), el("td", { textContent: wholeMoney(p.incomeCents, currency) }), el("td", { textContent: String(p.paying) })));
+  const tableView = el("table", { className: "rp-sr-only" }, el("caption", { textContent: "Monthly income by month" }),
+    el("thead", {}, el("tr", {}, el("th", { scope: "col", textContent: "Month" }), el("th", { scope: "col", textContent: "Income a month" }), el("th", { scope: "col", textContent: "Paying shops" }))),
+    el("tbody", {}, ...rows));
+  return [chart, tableView];
+}
+
+let lastIncome = null;
+const chartWidth = () => ($("#income-chart").clientWidth || 768) - 48;
+let resizing = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizing);
+  resizing = setTimeout(() => {
+    const body = $("#income-chart .rp-card-body");
+    if (lastIncome?.started && body) body.replaceChildren(...incomeChart(lastIncome.months, lastIncome.currency ?? "CAD", chartWidth()));
+  }, 150);
+});
+
+async function loadIncome() {
+  const figures = $("#income-figures");
+  const box = $("#income-chart");
+  try {
+    const income = await api("GET", "/control/income");
+    const currency = income.currency ?? "CAD";
+    const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric" },
+      el("div", { className: "rp-metric-label", textContent: label }),
+      el("div", { className: "rp-metric-value", textContent: value, dataset: tone ? { tone } : {} }),
+      foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
+    const rate = income.trials.rate === null ? "None yet" : `${Math.round(income.trials.rate * 100)}%`;
+    figures.replaceChildren(
+      figure("Kept this month", wholeMoney(income.kept.cents, currency), `${income.kept.newPaying} new paying, ${income.kept.upgrades} bigger plan${income.kept.upgrades === 1 ? "" : "s"}`),
+      figure("Lost this month", wholeMoney(income.lost.cents, currency), `${income.lost.lost} stopped paying, ${income.lost.downgrades} smaller plan${income.lost.downgrades === 1 ? "" : "s"}`, income.lost.cents ? "danger" : null),
+      figure("Trials that became paying", rate, income.trials.ended ? `${income.trials.converted} of ${income.trials.ended} trials, last ${income.trials.days} days` : `No trials ended in the last ${income.trials.days} days`),
+    );
+    lastIncome = income;
+    box.replaceChildren(income.started
+      ? el("div", { className: "rp-card-body", style: "padding-top: 16px" }, ...incomeChart(income.months, currency, chartWidth()))
+      : emptyState("The line starts the first night the platform runs.", "Each night the platform writes down its monthly income; the line grows from there."));
+  } catch (failure) {
+    figures.replaceChildren();
+    box.replaceChildren(emptyState(failure.message));
+  }
+}
+
+async function loadPaymentTrouble() {
+  const target = $("#payment-trouble");
+  try {
+    const { shops } = await api("GET", "/control/payment-trouble");
+    if (!shops.length) {
+      target.replaceChildren(emptyState("No failed plan payments.", "Every paying shop's card is going through."));
+      return;
+    }
+    const days = (n) => `${n} day${n === 1 ? "" : "s"}`;
+    target.replaceChildren(table({
+      caption: "Failed plan payments, most urgent first",
+      columns: [
+        { header: "Shop", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.shopId, s.ownerEmail)) },
+        { header: "What's wrong", render: (s) => pill(s.open ? "danger" : "warning", s.state) },
+        { header: "Since", render: (s) => (s.daysSince === null ? "Not known" : `${days(s.daysSince)} (${dateOnly(s.since)})`) },
+        { header: "Time left", render: (s) => (s.daysLeft === null ? "Open while the card is tried again" : `${days(s.daysLeft)}: closes ${dateOnly(s.closesAt)}`) },
+      ],
+      rows: shops,
+      open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
+    }));
+  } catch (failure) {
+    target.replaceChildren(emptyState(failure.message));
+  }
+}
+
+async function loadLeaving() {
+  const target = $("#leaving");
+  const saves = $("#save-list");
+  try {
+    const answer = await api("GET", "/control/leaving");
+    const countList = (counts) => el("dl", { className: "cr-facts" }, ...answer.reasons.flatMap((r) => [el("dt", { textContent: r.label }), el("dd", { textContent: String(counts[r.id] ?? 0) })]));
+    const total = (counts) => Object.values(counts).reduce((sum, n) => sum + n, 0);
+    target.replaceChildren(
+      sheet({ title: "This month", tone: "neutral", pillWords: `${total(answer.thisMonth)} answer${total(answer.thisMonth) === 1 ? "" : "s"}`, body: [countList(answer.thisMonth), answer.stayedThisMonth ? el("p", { className: "rp-hint", textContent: `${answer.stayedThisMonth} answered, then kept their plan.` }) : null] }),
+      sheet({ title: "The last 6 months", tone: "neutral", pillWords: `${total(answer.lastSixMonths)} answer${total(answer.lastSixMonths) === 1 ? "" : "s"}`, body: [countList(answer.lastSixMonths), answer.stayedLastSixMonths ? el("p", { className: "rp-hint", textContent: `${answer.stayedLastSixMonths} answered, then kept their plan.` }) : null] }),
+      sheet({ title: "In their words", tone: "neutral", body: answer.latest.length
+        ? answer.latest.map((a) => el("blockquote", { className: "cr-quote" }, meta(a.pressName, a.label, dateOnly(a.at), a.stayed ? "kept their plan" : null), a.words))
+        : [el("p", { className: "rp-hint", textContent: "Nobody has left a few words yet." })] }),
+    );
+    saves.replaceChildren(answer.saveList.length
+      ? table({
+        caption: "Shops whose plan is set to end, soonest first",
+        columns: [
+          { header: "Shop", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.shopId, s.ownerEmail)) },
+          { header: "Why it ends", render: (s) => pill(s.why === "cancelled" ? "warning" : "danger", s.why === "cancelled" ? "Cancelled" : "No card") },
+          { header: "Ends", render: (s) => (s.endsAt ? `${dateOnly(s.endsAt)} (${s.daysLeft} day${s.daysLeft === 1 ? "" : "s"})` : "Not known") },
+          { header: "What they said", render: (s) => (s.label ? `${s.label}${s.words ? `: ${s.words}` : ""}` : "Nothing") },
+        ],
+        rows: answer.saveList,
+        open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
+      })
+      : emptyState("No plan is set to end.", "Nobody has cancelled, and no shop is waiting for a card."));
+  } catch (failure) {
+    target.replaceChildren(emptyState(failure.message));
+    saves.replaceChildren();
+  }
+}
+
+// ── Payments and email delivery (plan 19.12): the last 7 days, on the shop's record. ──
+function deliveryView(delivery) {
+  if (!delivery) return [];
+  const { payments, email } = delivery;
+  return [
+    el("h3", { className: "cr-section", textContent: "Payments and email, last 7 days" }),
+    el("dl", { className: "cr-facts" },
+      el("dt", { textContent: "Payments" }), el("dd", { textContent: `${payments.received} message${payments.received === 1 ? "" : "s"} from Stripe, ${payments.failed} not passed on` }),
+      el("dt", { textContent: "Email" }), el("dd", { textContent: `${email.sent} sent, ${email.bounced} bounced, ${email.complained} marked as spam` })),
+  ];
+}
+
+// ── Notes and tags (plan 19.13): private to the platform, never in the shop's own log. ──
+function tagPills(tags) {
+  return tags?.length ? el("div", { className: "cr-tags" }, ...tags.map((tag) => pill("neutral", tag))) : null;
+}
+
+async function loadTags() {
+  try {
+    shopTags = (await api("POST", "/control/notes", {})).tagsByShop ?? {};
+    showShops();
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+}
+
+function notesSection(shop) {
+  const slot = el("div", { className: "cr-list" }, el("p", { className: "rp-hint", textContent: "Opening the notes…" }));
+  const draw = async () => {
+    let found;
+    try {
+      found = await api("POST", "/control/notes", { shopId: shop.shopId });
+    } catch (failure) {
+      slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message }));
+      return;
+    }
+    const list = found.notes.length
+      ? el("ul", { className: "cr-steps" }, ...found.notes.map((note) => {
+        const remove = button("Delete", "ghost");
+        remove.addEventListener("click", async () => {
+          const reason = askWhy(`Delete this note on ${shop.pressName}.`);
+          if (!reason) return;
+          remove.disabled = true;
+          try {
+            await api("POST", "/control/notes/delete", { shopId: shop.shopId, id: note.id, reason });
+            status.textContent = "Note deleted. It's in the activity log.";
+            await draw();
+          } catch (failure) {
+            status.textContent = failure.message;
+            remove.disabled = false;
+          }
+        });
+        return el("li", {}, el("p", { className: "cr-body", style: "margin: 0", textContent: note.words }), meta(when(note.at), note.by), remove);
+      }))
+      : el("p", { className: "rp-hint", textContent: "No notes yet." });
+    const words = el("textarea", { className: "rp-textarea", maxLength: 1000, rows: 3, ariaLabel: `New note on ${shop.pressName}` });
+    const add = button("Add note", "secondary");
+    add.addEventListener("click", async () => {
+      if (!words.value.trim()) { status.textContent = "Write the note first."; return; }
+      add.disabled = true;
+      try {
+        await api("POST", "/control/notes/add", { shopId: shop.shopId, words: words.value });
+        status.textContent = "Note added.";
+        await draw();
+      } catch (failure) {
+        status.textContent = failure.message;
+        add.disabled = false;
+      }
+    });
+    const tagsField = el("input", { className: "rp-input", value: found.tags.join(", "), autocomplete: "off", ariaLabel: `Tags for ${shop.pressName}` });
+    const saveTags = button("Save tags", "secondary");
+    saveTags.addEventListener("click", async () => {
+      const tags = tagsField.value.split(",").map((t) => t.trim()).filter(Boolean);
+      const reason = askWhy(`Set ${shop.pressName}'s tags to: ${tags.join(", ") || "none"}.`);
+      if (!reason) return;
+      saveTags.disabled = true;
+      try {
+        const done = await api("POST", "/control/tags", { shopId: shop.shopId, tags, reason });
+        shopTags[shop.shopId] = done.tags;
+        showShops();
+        status.textContent = done.changed ? "Tags saved." : "Those are already the tags.";
+        await draw();
+      } catch (failure) {
+        status.textContent = failure.message;
+        saveTags.disabled = false;
+      }
+    });
+    slot.replaceChildren(
+      el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: "Tags (separated by commas, up to 10)" }), tagsField),
+      el("div", { className: "cr-actions", style: "margin-top: 0" }, saveTags),
+      list,
+      el("div", { className: "cr-actions" }, words, add));
+  };
+  draw();
+  return slot;
+}
+
+// ── One timeline per shop (plan 19.10): everything recorded about it, newest first, by kind, with Show older. ──
+const TIMELINE_WORDS = { billing: "Billing", release: "Releases", health: "Health", support: "Support", switch: "Switches", visit: "Visits", email: "Email", other: "Other" };
+function timelineSection(shop) {
+  let kind = null;
+  let next = null;
+  const list = el("ul", { className: "cr-history" });
+  const more = button("Show older", "secondary", { hidden: true, className: "rp-btn rp-btn-secondary rp-btn-sm cr-timeline-more" });
+  const chips = el("div", { className: "rp-tabs cr-toolbar", role: "group", ariaLabel: "Which kind of entries" },
+    ...[["", "All"], ...Object.entries(TIMELINE_WORDS)].map(([value, words]) => el("button", { type: "button", className: "rp-tab", textContent: words, dataset: { kind: value } })));
+  const page = async (fresh) => {
+    if (fresh) { next = null; list.replaceChildren(el("li", { textContent: "Loading…" })); }
+    try {
+      const found = await api("POST", "/control/timeline", { shopId: shop.shopId, ...(kind ? { kinds: [kind] } : {}), ...(next ? { before: next } : {}) });
+      const lines = found.entries.map((e) => el("li", { textContent: `${when(e.at)} · ${TIMELINE_WORDS[e.kind] ?? e.kind} · ${e.words}${e.by ? ` · ${e.by}` : ""}` }));
+      if (fresh) list.replaceChildren(...(lines.length ? lines : [el("li", { textContent: "Nothing recorded yet." })]));
+      else list.append(...lines);
+      next = found.next;
+      more.hidden = !next;
+    } catch (failure) {
+      list.replaceChildren(el("li", { textContent: failure.message }));
+      more.hidden = true;
+    }
+  };
+  for (const chip of chips.querySelectorAll("button")) {
+    const pressed = chip.dataset.kind === "";
+    chip.setAttribute("aria-pressed", String(pressed));
+    chip.setAttribute("aria-selected", String(pressed));
+    chip.addEventListener("click", () => {
+      for (const other of chips.querySelectorAll("button")) {
+        other.setAttribute("aria-pressed", String(other === chip));
+        other.setAttribute("aria-selected", String(other === chip));
+      }
+      kind = chip.dataset.kind || null;
+      page(true);
+    });
+  }
+  more.addEventListener("click", async () => {
+    more.disabled = true;
+    await page(false);
+    more.disabled = false;
+  });
+  page(true);
+  return el("div", {}, chips, list, more);
+}
+
+/** The drawer's private sections: notes and tags, then the timeline. */
+function privateSections(shop) {
+  return [
+    el("h3", { className: "cr-section", textContent: "Notes (only the platform sees these)" }),
+    notesSection(shop),
+    el("h3", { className: "cr-section", textContent: "Timeline" }),
+    timelineSection(shop),
+  ];
+}
+
+// ── Jobs (plan 19.11): every scheduled job, its last run, and Run now. ──
+const everyWords = (minutes) => (minutes < 60 ? `${minutes} min` : minutes < 1440 ? `${minutes / 60} h` : minutes % 1440 === 0 && minutes > 1440 ? `${minutes / 1440} days` : "day");
+const tookWords = (ms) => (ms == null ? "" : ms < 1000 ? `${ms} ms` : ms < 60_000 ? `${Math.round(ms / 100) / 10} s` : `${Math.round(ms / 6000) / 10} min`);
+
+async function loadJobs() {
+  try {
+    const { jobs } = await api("GET", "/control/jobs");
+    setBadge("jobs", jobs.filter((j) => j.late).length);
+    $("#jobs").replaceChildren(jobs.length ? table({
+      caption: "Jobs",
+      rows: jobs,
+      columns: [
+        { header: "Job", lead: true, render: (job) => el("div", {}, el("p", { className: "cr-title", textContent: job.words }), meta(job.name)) },
+        { header: "Every", render: (job) => everyWords(job.every) },
+        { header: "Last run", render: (job) => (job.lastRun ? el("span", { className: "rp-mono", textContent: when(job.lastRun.startedAt) }) : el("span", { className: "rp-hint", textContent: "never" })) },
+        { header: "Took", render: (job) => tookWords(job.lastRun?.ms) },
+        { header: "Result", render: (job) => el("div", {},
+          job.late ? pill("danger", "late") : job.never ? pill("neutral", "not run yet") : job.lastRun.ok ? pill("success", "worked") : pill("danger", "failed"),
+          meta(job.lastRun?.error ?? job.lastRun?.summary ?? null, job.lastSuccessAt && !job.lastRun?.ok ? `last worked ${when(job.lastSuccessAt)}` : null)) },
+        { header: "", end: true, render: (job) => {
+          const run = button("Run now", "secondary", { disabled: !job.canRun, title: job.canRun ? "" : "This job can only run on the server." });
+          run.addEventListener("click", async () => {
+            const reason = askWhy(`Run "${job.words}" now.`);
+            if (!reason) return;
+            run.disabled = true;
+            try {
+              const done = await api("POST", "/control/jobs/run", { name: job.name, reason });
+              status.textContent = done.run.ok ? `${job.words}: done${done.run.summary ? ` (${done.run.summary})` : ""}.` : `${job.words} failed: ${done.run.error}`;
+              await loadJobs();
+            } catch (failure) {
+              status.textContent = failure.message;
+              run.disabled = false;
+            }
+          });
+          return run;
+        } },
+      ],
+    }) : emptyState("No jobs yet."));
+  } catch (failure) {
+    $("#jobs").replaceChildren(emptyState(failure.message));
+  }
+}
+$("#jobs-refresh").addEventListener("click", loadJobs);
+
+// ── Messages to presses (plan 19.14): a note at the top of shop admins, until its end date. ──
+Object.assign(ACTIVITY_WORDS, {
+  "press-message-added": "sent a message to presses", "press-message-ended": "ended a message to presses", "data-export": "made a copy of the press's data",
+});
+const MESSAGE_STATE = { showing: ["success", "Showing"], upcoming: ["info", "Starts later"], ended: ["neutral", "Ended"] };
+const audienceWords = (audience) => (audience.all ? "every shop" : audience.plan ? `the ${PLAN_WORDS[audience.plan] ?? audience.plan} plan` : `only ${audience.shopId}`);
+
+async function loadMessages() {
+  try {
+    const { messages } = await api("GET", "/control/messages");
+    $("#messages").replaceChildren(messages.length ? table({
+      caption: "Messages to presses",
+      rows: messages,
+      columns: [
+        { header: "Message", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), meta(`by ${m.by}`, `why: ${m.reason}`, m.endedAt ? `ended by ${m.endedBy}: ${m.endReason}` : null)) },
+        { header: "Who", render: (m) => el("span", { textContent: `${audienceWords(m.audience)} (${m.reaches} shop${m.reaches === 1 ? "" : "s"})` }) },
+        { header: "When", render: (m) => el("span", { className: "rp-mono", textContent: `${when(m.startsAt)} to ${when(m.endedAt ?? m.endsAt)}` }) },
+        { header: "State", render: (m) => el("div", { className: "cr-row" }, m.level === "important" ? pill("warning", "Important") : null, pill(...MESSAGE_STATE[m.state])) },
+        { header: "", end: true, render: (m) => {
+          if (m.state === "ended") return el("span");
+          const end = button("End now", "ghost");
+          end.addEventListener("click", async () => {
+            const reason = askWhy("End this message now. It leaves every shop's admin.");
+            if (!reason) return;
+            end.disabled = true;
+            try {
+              await api("POST", "/control/messages/end", { id: m.id, reason });
+              status.textContent = "The message has ended.";
+              await loadMessages();
+            } catch (failure) {
+              status.textContent = failure.message;
+              end.disabled = false;
+            }
+          });
+          return end;
+        } },
+      ],
+    }) : emptyState("No messages yet.", "A message you send shows at the top of the shop admins it reaches."));
+  } catch (failure) {
+    $("#messages").replaceChildren(emptyState("Couldn't load the messages.", failure.message));
+  }
+}
+
+$("#message-words").addEventListener("input", (event) => {
+  const left = 400 - event.target.value.length;
+  $("#message-count").textContent = `${left} character${left === 1 ? "" : "s"} left.`;
+});
+$("#message-audience").addEventListener("change", (event) => {
+  $("#message-shop-field").hidden = event.target.value !== "shop";
+  $("#message-shop").required = event.target.value === "shop";
+});
+$("#message-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const pick = form.audience.value;
+  const audience = pick === "all" ? { all: true } : pick === "shop" ? { shopId: form.shopId.value.trim() } : { plan: pick.slice(5) };
+  const important = form.level.value === "important";
+  if (important && !window.confirm(`Also email this once to the owner of each shop on ${audienceWords(audience)}?`)) return;
+  const submit = form.querySelector("button[type=submit]");
+  submit.disabled = true;
+  try {
+    const { shops, emailed, failed = [] } = await api("POST", "/control/messages/add", {
+      words: form.words.value, level: form.level.value, audience, reason: form.reason.value,
+      startsAt: form.startsAt.value ? new Date(form.startsAt.value).toISOString() : undefined,
+      endsAt: form.endsAt.value ? new Date(form.endsAt.value).toISOString() : undefined,
+    });
+    status.textContent = `Sent to ${shops} shop admin${shops === 1 ? "" : "s"}${important ? `, and emailed to ${emailed} owner${emailed === 1 ? "" : "s"}` : ""}.`
+      + (failed.length ? ` ${failed.length} shop${failed.length === 1 ? "" : "s"} didn't take it yet (${failed.join(", ")}); they're tried again within the hour.` : "");
+    form.reset();
+    $("#message-shop-field").hidden = true;
+    $("#message-count").textContent = "400 characters left.";
+    await loadMessages();
+  } catch (failure) {
+    status.textContent = failure.message;
+  }
+  submit.disabled = false;
+});
+
+// ── Costs (plan 19.15): this month's Google bill per shop against what it pays, most losing first. ──
+async function loadCosts() {
+  const target = $("#costs");
+  try {
+    const report = await api("GET", "/control/costs");
+    if (report.empty) {
+      target.replaceChildren(emptyState(report.empty, "Switching it on is a step in services/costs/README.md."));
+      return;
+    }
+    const inPlans = (cents) => money(cents, report.currency);
+    const shops = report.shops.length ? table({
+      caption: `Costs per shop, ${report.month}`,
+      rows: report.shops,
+      open: (row) => { const shop = allShops.find((s) => s.shopId === row.shopId); if (shop) openShop(shop); },
+      columns: [
+        { header: "Shop", lead: true, render: (row) => el("div", {}, el("p", { className: "cr-title", textContent: row.pressName }), meta(row.shopId, row.testShop ? "test shop" : null, row.otherCurrencies ? `also ${Object.entries(row.otherCurrencies).map(([c, n]) => money(n, c)).join(", ")}` : null)) },
+        { header: "Google this month", end: true, render: (row) => el("span", { className: "rp-mono", textContent: inPlans(row.googleCents) }) },
+        { header: "Pays this month", end: true, render: (row) => el("span", { className: "rp-mono", textContent: `${inPlans(row.paidCents)}${row.feeCents ? ` (${inPlans(row.feeCents)} in sales fees)` : ""}` }) },
+        { header: "Margin", end: true, render: (row) => el("span", { className: "rp-mono", textContent: row.marginCents === null ? "another currency" : inPlans(row.marginCents) }) },
+        { header: "State", render: (row) => (row.losing ? pill("danger", "Losing") : row.losing === false ? pill("success", "Covered") : pill("neutral", "Can't compare")) },
+      ],
+    }) : emptyState("No shops yet.");
+    const others = report.notShops.length ? table({
+      caption: "Not a shop",
+      rows: report.notShops,
+      columns: [
+        { header: "Project", lead: true, render: (row) => el("span", { className: "rp-mono", textContent: row.projectId ?? "no project (account charges)" }) },
+        { header: "Google this month", end: true, render: (row) => el("span", { className: "rp-mono", textContent: money(row.googleCents, row.currency) }) },
+      ],
+    }) : null;
+    target.replaceChildren(
+      el("p", { className: "rp-hint", textContent: `${report.month}: ${report.losing} shop${report.losing === 1 ? "" : "s"} costing more than ${report.losing === 1 ? "it pays" : "they pay"}. Google's whole bill: ${Object.entries(report.totals).map(([c, n]) => money(n, c)).join(", ") || "nothing yet"}.` }),
+      shops,
+      ...(others ? [el("div", { className: "cr-head" }, el("h2", { textContent: "Not a shop" })), others] : []));
+  } catch (failure) {
+    target.replaceChildren(emptyState("Couldn't load the costs.", failure.message));
+  }
+}
+
+// ── A press's data, on request (plan 19.16): every file of the shop and stockroom, a link emailed to the owner. ──
+function exportButton(shop) {
+  const b = button("Email the press its data", "secondary");
+  b.addEventListener("click", async () => {
+    const reason = askWhy(`Make a copy of everything in ${shop.pressName}'s shop and stockroom, and email the owner a link that works 7 days.`);
+    if (!reason) return;
+    b.disabled = true;
+    try {
+      const { emailedTo } = await api("POST", "/control/export", { shopId: shop.shopId, reason });
+      status.textContent = `Logged. The link to ${shop.pressName}'s data is emailed to ${emailedTo}.`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    b.disabled = false;
+  });
+  return b;
 }

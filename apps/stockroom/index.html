@@ -970,6 +970,9 @@
   <!-- Set up your stockroom (plan 6.9): a stockroom-only plan's five steps, rendered by renderSetupGuide (main.js). -->
   <div id="stockroom-setup-guide" hidden></div>
 
+  <!-- Your stockroom is ready (plan 17.12): a press with both apps sees this one-screen check, rendered by renderSetupGuide (main.js). -->
+  <div id="stockroom-ready-check" hidden></div>
+
   <div class="overview-section">
     <div class="sec-head">
       <div class="sec-head-titles">
@@ -4617,6 +4620,7 @@
             </div>
             <div id="fk-summary" class="fk-summary" aria-live="polite"></div>
             <button type="button" class="btn gold fk-print-btn" id="fk-print-btn" onclick="printFairKit()"><span class="lead-emoji" aria-hidden="true">🖨 </span>Print both sheets</button>
+            <button type="button" class="btn ghost fk-print-btn" id="fk-tags-btn" data-action="fairkit.hangTags"><span class="lead-emoji" aria-hidden="true">🏷 </span>Print hang tags for the ticked books</button>
           </div>
 
           <details class="fk-acc" id="fk-opts-tracker">

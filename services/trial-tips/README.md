@@ -27,14 +27,23 @@ Each tip is recorded in the sweep's store, as a registry event and in the shop's
 guide step; a test fails when the shop's guide gains a step without one); the email is the `trial-tip` template in
 `services/email/templates.js`, sent from the platform's own address.
 
+## Get started nudges (plan 17.14)
+
+On days 2 and 4, a press whose Get started run isn't finished can get a nudge to its next stage (`startNudges.js`,
+`START_NUDGE_WORDS`). The platform setting `START_NUDGES` decides whether they go out: `hold` (the default: none sent),
+`beside` (sent with that day's setup tip) or `instead` (sent in place of that day's setup tip, which then goes out on the
+next tip day). Each stage is nudged once, recorded in the store as `startNudges`, and a tips-off link stops them too.
+A press with no owner email or no shop admin is skipped with its reason. Julian has not chosen a mode yet, so nothing is sent.
+
 ## Turning tips off
 
 Every tip ends with a link, `<PLATFORM_URL>/tips/off?shop=<id>&sig=<signature>`, signed with `TRIAL_TIPS_SECRET`
 (`offToken`). `handleOff(url)` answers that page: a right signature turns the shop's tips off for good (logged), a wrong
 one changes nothing. Billing emails never pass through this module, so they keep coming.
 
-## Not yet
+## Hosting
 
-- Hosting: the daily run and the `/tips/off` page become one scheduled function and one route in the platform project.
-- The real stores: `trialTips/<shop id>` in the platform project for the sweep's record, and the shop's
-  `firstWeek/start` read with the platform's token (`clients/shop.js` `shopDataClient`).
+The platform's server program runs it (`server/`): the `trial-tips` job every day at 09:00 Toronto time, and the
+`/tips/off` page on the web door. The sweep's record is `trialTips/<shop id>` in the platform project
+(`clients/platformStores.js`), and each shop's `firstWeek/start` is read with the platform's token (`clients/shop.js`).
+Without `TRIAL_TIPS_SECRET` the job and the page answer "not connected yet".

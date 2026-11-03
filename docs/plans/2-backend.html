@@ -1,5 +1,3 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Platform backend plan</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -101,7 +99,6 @@ tr:last-child td { border-bottom: 0; }
   .found > div { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
-</head><body>
 
 <main>
   <header style="display:grid;gap:12px">
@@ -148,54 +145,54 @@ tr:last-child td { border-bottom: 0; }
     <p>I looked at what Shopify's partner tools, Stripe Billing and subscription-metrics tools give the people who run a platform, and checked each one against our code.</p>
     <div class="found">
       <div><span class="what">One list of every shop, with search and filters</span><span class="pill have">we have it</span><span class="ours">Our shop list has health, plan, billing state and search.</span></div>
-      <div><span class="what">Logs of messages and errors per shop, for fixing problems</span><span class="pill part">partly</span><span class="ours">We have the activity log and health checks. We don't count failed payment messages or bounced emails per shop. Errors now have a code (fixed today).</span></div>
-      <div><span class="what">The owner asks before entering a shop to make changes</span><span class="pill part">partly</span><span class="ours">Shopify's helpers send a request the store owner approves. Our "Make changes" is logged and limited to 30 minutes, but the press isn't asked first.</span></div>
-      <div><span class="what">Income over time, new, lost and upgraded customers</span><span class="pill miss">missing</span><span class="ours">Today shows this month's income only. There is no history, so you can't see if things are growing.</span></div>
-      <div><span class="what">Automatic recovery of failed card payments</span><span class="pill part">partly</span><span class="ours">We email the press when a payment fails. Stripe's smart retries and card updater aren't switched on, and nothing warns about a card before it expires.</span></div>
-      <div><span class="what">Why customers leave</span><span class="pill miss">missing</span><span class="ours">Closing a shop doesn't ask why.</span></div>
+      <div><span class="what">Logs of messages and errors per shop, for fixing problems</span><span class="pill have">built now</span><span class="ours">Each shop now counts payment messages received and failed, and emails sent and bounced, over the last week (19.12). Errors have a code.</span></div>
+      <div><span class="what">The owner asks before entering a shop to make changes</span><span class="pill have">built now</span><span class="ours">"Make changes" now sends the press a request they approve or refuse, and it ends on its own (19.6). Looking around and closing a shop for abuse work as before.</span></div>
+      <div><span class="what">Income over time, new, lost and upgraded customers</span><span class="pill have">built now</span><span class="ours">A record each night, and a 12-month line on Today with presses gained and lost and trials that turned paying (19.7).</span></div>
+      <div><span class="what">Automatic recovery of failed card payments</span><span class="pill have">built now</span><span class="ours">An email before a card expires, a one-click card page, and a list of shops paused for payment with days left (19.9). Stripe's retries and card updater are your switch.</span></div>
+      <div><span class="what">Why customers leave</span><span class="pill have">built now</span><span class="ours">Closing a plan asks one optional question, and the answers are grouped by month (19.8).</span></div>
       <div><span class="what">Alerts, most serious first</span><span class="pill have">we have it</span><span class="ours">Health alerts by email and the Needs you list on Today.</span></div>
-      <div><span class="what">Each message handled once, in order</span><span class="pill part">partly</span><span class="ours">Duplicates are caught. Order is fixed today. Two copies arriving at the same instant can still both run.</span></div>
+      <div><span class="what">Each message handled once, in order</span><span class="pill have">built now</span><span class="ours">Duplicates are caught, old messages are skipped, and two copies arriving at once can no longer both run (19.4).</span></div>
     </div>
   </section>
 
   <section>
     <h2>The new plan: Phase 19</h2>
-    <p>Rows 19.4 to 19.16 in the code plan, in the order I'd build them. None of it needs your accounts except where it says so. None of it touches your own shop or stockroom.</p>
+    <p>Rows 19.4 to 19.16 in the code plan. <strong>All of it is built and tested (2 November)</strong>, with pretend accounts standing in for the real ones. It goes live with the platform's server program (15.6). None of it touches your own shop or stockroom.</p>
 
     <div class="group">
       <h3>Safe and sturdy first</h3>
       <div class="rows">
-        <div class="row"><div class="top"><span class="title">Each payment message handled exactly once</span><span class="meta"><span class="num">19.4</span><span class="pill plan">quick</span></span></div><p class="why">If Stripe sends the same message twice at the same moment, both copies can run today. This makes the first one claim it, so a press is never emailed or charged twice.</p></div>
-        <div class="row"><div class="top"><span class="title">Fair-use limits on every page call</span><span class="meta"><span class="num">19.5</span><span class="pill plan">medium</span></span></div><p class="why">Only the sign-in link has a limit now. Without limits, one broken script or one bad actor can run up the platform's bill or slow it for every press.</p></div>
-        <div class="row"><div class="top"><span class="title">The press says yes before "Make changes"</span><span class="meta"><span class="num">19.6</span><span class="pill plan">medium</span></span></div><p class="why">Like Shopify's collaborator requests: looking stays as it is, but changing their shop sends the owner a request to approve. It builds trust, and protects you if a press later says "someone changed my shop". Closing a shop for abuse still works without it.</p></div>
+        <div class="row"><div class="top"><span class="title">Each payment message handled exactly once</span><span class="meta"><span class="num">19.4</span><span class="pill done">built</span></span></div><p class="why">If Stripe sends the same message twice at the same moment, both copies can run today. This makes the first one claim it, so a press is never emailed or charged twice.</p></div>
+        <div class="row"><div class="top"><span class="title">Fair-use limits on every page call</span><span class="meta"><span class="num">19.5</span><span class="pill done">built</span></span></div><p class="why">Only the sign-in link has a limit now. Without limits, one broken script or one bad actor can run up the platform's bill or slow it for every press.</p></div>
+        <div class="row"><div class="top"><span class="title">The press says yes before "Make changes"</span><span class="meta"><span class="num">19.6</span><span class="pill done">built</span></span></div><p class="why">Like Shopify's collaborator requests: looking stays as it is, but changing their shop sends the owner a request to approve. It builds trust, and protects you if a press later says "someone changed my shop". Closing a shop for abuse still works without it.</p></div>
       </div>
     </div>
 
     <div class="group">
       <h3>Know how the business is doing</h3>
       <div class="rows">
-        <div class="row"><div class="top"><span class="title">Income over time</span><span class="meta"><span class="num">19.7</span><span class="pill plan">medium</span></span></div><p class="why">A snapshot each night, and a 12-month line on Today: money coming in, presses gained and lost, and how many trials turn into paying presses. Without it you can't tell if a month was good.</p></div>
-        <div class="row"><div class="top"><span class="title">Why presses leave</span><span class="meta"><span class="num">19.8</span><span class="pill plan">quick</span></span></div><p class="why">One optional question when a press closes: price, a missing feature, the press closed, or something else. Answers grouped by month tell you what to build next.</p></div>
-        <div class="row"><div class="top"><span class="title">Win back failed payments</span><span class="meta"><span class="num">19.9</span><span class="pill plan">medium</span></span></div><p class="why">Stripe's smart retries and card updater (your switch), an email 30 days before a card expires, a one-click card page, and a list of shops paused for payment with days left. Failed cards are the most common reason a paying press quietly drops away.</p></div>
+        <div class="row"><div class="top"><span class="title">Income over time</span><span class="meta"><span class="num">19.7</span><span class="pill done">built</span></span></div><p class="why">A snapshot each night, and a 12-month line on Today: money coming in, presses gained and lost, and how many trials turn into paying presses. Without it you can't tell if a month was good.</p></div>
+        <div class="row"><div class="top"><span class="title">Why presses leave</span><span class="meta"><span class="num">19.8</span><span class="pill done">built</span></span></div><p class="why">One optional question when a press closes: price, a missing feature, the press closed, or something else. Answers grouped by month tell you what to build next.</p></div>
+        <div class="row"><div class="top"><span class="title">Win back failed payments</span><span class="meta"><span class="num">19.9</span><span class="pill done">built</span></span></div><p class="why">Stripe's smart retries and card updater (your switch), an email 30 days before a card expires, a one-click card page, and a list of shops paused for payment with days left. Failed cards are the most common reason a paying press quietly drops away.</p></div>
       </div>
     </div>
 
     <div class="group">
       <h3>See every shop clearly</h3>
       <div class="rows">
-        <div class="row"><div class="top"><span class="title">One timeline per shop</span><span class="meta"><span class="num">19.10</span><span class="pill plan">medium</span></span></div><p class="why">Billing, releases, health, support, switches, visits and emails in one list, newest first. When a press writes in, you see their whole story on one screen.</p></div>
-        <div class="row"><div class="top"><span class="title">The jobs page</span><span class="meta"><span class="num">19.11</span><span class="pill plan">medium</span></span></div><p class="why">Every job that runs by itself (health checks, backups, trial emails, tax watch) with when it last ran and a Run now button. A job that silently stops is the hardest problem to notice; this alerts you.</p></div>
-        <div class="row"><div class="top"><span class="title">Payments and email delivery per shop</span><span class="meta"><span class="num">19.12</span><span class="pill plan">medium</span></span></div><p class="why">Payment messages received and failed, emails sent and bounced, over the last week. A shop whose order emails bounce loses customers without knowing.</p></div>
-        <div class="row"><div class="top"><span class="title">Notes and tags on a shop</span><span class="meta"><span class="num">19.13</span><span class="pill plan">quick</span></span></div><p class="why">"Founding press", "needs a call", a short note. So you and your backup person remember the context.</p></div>
+        <div class="row"><div class="top"><span class="title">One timeline per shop</span><span class="meta"><span class="num">19.10</span><span class="pill done">built</span></span></div><p class="why">Billing, releases, health, support, switches, visits and emails in one list, newest first. When a press writes in, you see their whole story on one screen.</p></div>
+        <div class="row"><div class="top"><span class="title">The jobs page</span><span class="meta"><span class="num">19.11</span><span class="pill done">built</span></span></div><p class="why">Every job that runs by itself (health checks, backups, trial emails, tax watch) with when it last ran and a Run now button. A job that silently stops is the hardest problem to notice; this alerts you.</p></div>
+        <div class="row"><div class="top"><span class="title">Payments and email delivery per shop</span><span class="meta"><span class="num">19.12</span><span class="pill done">built</span></span></div><p class="why">Payment messages received and failed, emails sent and bounced, over the last week. A shop whose order emails bounce loses customers without knowing.</p></div>
+        <div class="row"><div class="top"><span class="title">Notes and tags on a shop</span><span class="meta"><span class="num">19.13</span><span class="pill done">built</span></span></div><p class="why">"Founding press", "needs a call", a short note. So you and your backup person remember the context.</p></div>
       </div>
     </div>
 
     <div class="group">
       <h3>Look after presses at scale</h3>
       <div class="rows">
-        <div class="row"><div class="top"><span class="title">Messages to presses</span><span class="meta"><span class="num">19.14</span><span class="pill plan">medium</span></span></div><p class="why">A banner in every shop admin (or one plan, or one shop) with an end date, plus an email for important ones. For new features, price notices and planned maintenance.</p></div>
-        <div class="row"><div class="top"><span class="title">What each shop costs us</span><span class="meta"><span class="num">19.15</span><span class="pill plan">medium</span></span></div><p class="why">Google's bill for each shop next to what that shop pays. A shop that costs more than it pays shows up before it hurts.</p></div>
-        <div class="row"><div class="top"><span class="title">A press's data, on request</span><span class="meta"><span class="num">19.16</span><span class="pill plan">larger</span></span></div><p class="why">One button builds a press's whole export (books, orders, customers, stockroom, settings) and emails a link for 7 days. Needed for leaving, for privacy requests, and for the 90 days a closed press has to download.</p></div>
+        <div class="row"><div class="top"><span class="title">Messages to presses</span><span class="meta"><span class="num">19.14</span><span class="pill done">built</span></span></div><p class="why">A banner in every shop admin (or one plan, or one shop) with an end date, plus an email for important ones. For new features, price notices and planned maintenance.</p></div>
+        <div class="row"><div class="top"><span class="title">What each shop costs us</span><span class="meta"><span class="num">19.15</span><span class="pill done">built</span></span></div><p class="why">Google's bill for each shop next to what that shop pays. A shop that costs more than it pays shows up before it hurts.</p></div>
+        <div class="row"><div class="top"><span class="title">A press's data, on request</span><span class="meta"><span class="num">19.16</span><span class="pill done">built</span></span></div><p class="why">One button builds a press's whole export (books, orders, customers, stockroom, settings) and emails a link for 7 days. Needed for leaving, for privacy requests, and for the 90 days a closed press has to download.</p></div>
       </div>
     </div>
   </section>
@@ -208,10 +205,12 @@ tr:last-child td { border-bottom: 0; }
         <tbody>
           <tr><td>5 Nov</td><td>Buy the domain</td><td>The Google organization</td></tr>
           <tr><td>7 Nov</td><td>Google organization, "shops" folder, billing account, ask Google for 50 projects</td><td>The real shop maker and the real test shop</td></tr>
-          <tr><td>13 Nov</td><td>Stripe platform profile. While there, switch on Smart Retries and the card account updater (new)</td><td>Billing for real, and failed-payment recovery (19.9)</td></tr>
+          <tr><td>13 Nov</td><td>Stripe platform profile. While there: switch on Smart Retries (set "if all retries fail" to mark the plan unpaid, not cancel it), switch on the card account updater, and add the "card automatically updated" message to the platform's webhook</td><td>Billing for real, and failed-payment recovery (19.9)</td></tr>
           <tr><td>20 Nov</td><td>Lawyer's written answer on handling press payments</td><td>Taking a per-order fee</td></tr>
           <tr><td>27 Nov</td><td>Company and business bank account</td><td>Stripe and Google bill the business</td></tr>
           <tr><td>1 Dec</td><td>Submit Google's sign-in review</td><td>The one-sign-in Google connection</td></tr>
+          <tr><td>When the server program goes live (15.6)</td><td>Nothing to do yourself: I schedule the nightly income record, the jobs and the messages to presses, and set where health alerts go</td><td>Income over time, the jobs page, messages to presses</td></tr>
+          <tr><td>After the Google organization</td><td>Turn on Google's billing export to BigQuery (one switch in Google Cloud billing; I'll send the click path)</td><td>What each shop costs us (19.15)</td></tr>
           <tr><td>Before the first paying press</td><td>Make the platform code private</td><td>Safety of the platform code</td></tr>
         </tbody>
       </table>
@@ -255,4 +254,3 @@ tr:last-child td { border-bottom: 0; }
     </ul>
   </section>
 </main>
-</body></html>

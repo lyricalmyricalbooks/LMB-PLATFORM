@@ -35,7 +35,7 @@ import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { subscribePreview } from "./features/site/previewTab";
 import { dutiesNote } from "./features/site/importDuties";
-import { claimTradePricing } from "./lib/tradePricing";
+import { claimTradePricing, tradeInvoiceTerms, tradeAuthHeader, INVOICE_METHOD_ID } from "./lib/tradePricing";
 import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "./lib/orderAccessClient";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
@@ -192,6 +192,9 @@ export function Checkout() {
   useEffect(() => { if (settings?.design?.checkoutSummaryOpenOnPhones) setSummaryOpen(true); }, [settings?.design?.checkoutSummaryOpenOnPhones]);
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
+  // A trade account with invoice terms may order now and pay later (plan 12.10); the server checks it again on placing.
+  const [invoiceTerms, setInvoiceTerms] = useState<{ days: number; name: string } | null>(null);
+  useEffect(() => { let live = true; void tradeInvoiceTerms().then(t => { if (live) setInvoiceTerms(t); }); return () => { live = false; }; }, []);
   const [successOrder, setSuccessOrder] = useState<any>(null);
   // Stripe card form shown on this page; a failed attempt keeps its order +
   // PaymentIntent so retrying with the same bag doesn't create another order.
@@ -325,9 +328,10 @@ export function Checkout() {
       ...(payments.stripe?.connected || platformTakesCards() ? ["stripe"] : []),
       ...(payments.paypal?.connected ? ["paypal"] : []),
       ...(Array.isArray(payments.manualMethods) ? payments.manualMethods : []).filter((m: any) => m?.enabled).map((m: any) => `manual_${m.id}`),
+      ...(invoiceTerms ? [`manual_${INVOICE_METHOD_ID}`] : []),
     ];
     if (offered.length && !offered.includes(selectedPaymentMethod)) setSelectedPaymentMethod(offered[0]);
-  }, [settings?.payments, selectedPaymentMethod]);
+  }, [settings?.payments, selectedPaymentMethod, invoiceTerms]);
 
   // Preview only replaces appearance; fulfillment and payment settings stay server-sourced.
   useEffect(() => {
@@ -1252,7 +1256,7 @@ export function Checkout() {
       let manualMethod = null;
       if (isManual) {
         const manualId = selectedPaymentMethod.replace("manual_", "");
-        manualMethod = (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
+        manualMethod = manualId === INVOICE_METHOD_ID && invoiceTerms ? { id: INVOICE_METHOD_ID } : (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
       }
 
       const referralSource = typeof window !== "undefined" ? window.sessionStorage.getItem("referral_source") : null;
@@ -1343,10 +1347,11 @@ export function Checkout() {
       if (isManual) {
         const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(manualMethod?.id === INVOICE_METHOD_ID ? await tradeAuthHeader() : {}) },
           body: JSON.stringify({
             action: "createManualLocalOrder",
             manualMethodId: manualMethod?.id,
+            ...(manualMethod?.id === INVOICE_METHOD_ID ? { tradeInvoice: true } : {}),
             previousOrderId: previousAttempt(),
             currency: currency.toLowerCase(),
             orderDraft: {
@@ -1850,7 +1855,10 @@ export function Checkout() {
   const hasStripe = Boolean(settings?.payments?.stripe?.connected) || platformTakesCards();
   const hasPaypal = Boolean(settings?.payments?.paypal?.connected);
   const configuredManualMethods = settings?.payments?.manualMethods;
-  const enabledManualMethods = (Array.isArray(configuredManualMethods) ? configuredManualMethods : []).filter((method: any) => method.enabled);
+  const enabledManualMethods = [
+    ...(Array.isArray(configuredManualMethods) ? configuredManualMethods : []).filter((method: any) => method.enabled),
+    ...(invoiceTerms ? [{ id: INVOICE_METHOD_ID, enabled: true, name: c("coPayInvoice", { days: String(invoiceTerms.days) }) }] : []),
+  ];
   // Physical books with no delivery option chosen yet: the total isn't final, so don't present one.
   const needsDeliveryChoice = physicalItems.length > 0 && !(fulfillmentSelection.method === "shipping" ? selectedShippingQuote : selectedLocalQuote);
   const showTotalOnPay = !checkoutDesign.hidePayButtonTotal && cart.length > 0 && !needsDeliveryChoice;

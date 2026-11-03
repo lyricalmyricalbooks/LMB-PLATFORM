@@ -1698,6 +1698,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <SelectField label="Shipping profile" name="shippingProfileId" value={formData.shippingProfileId} onChange={handleChange}>
                     {shippingProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </SelectField>
+                  <TextField label="Made to order: ships in" name="madeToOrderTime" value={formData.madeToOrderTime || ""} onChange={handleChange} placeholder="2 to 3 weeks" maxLength={40} hint="Leave empty if you ship it from stock. Shoppers see “Made to order · ships in …” on the product page." />
                 </div>
               </SectionCard>}
               {isDigital && !giftCard && (

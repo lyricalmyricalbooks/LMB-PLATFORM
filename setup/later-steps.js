@@ -1,5 +1,5 @@
 // Steps 7–16 of the shop maker (docs/shop-setup.md): rules, server code, pages, backup, private storage check, starter
-// content, payments, the owner's email, the shop check and (test shop only) the stockroom link. As in steps.js, `check` only looks and `act` only changes;
+// content, payments, the owner's email, the shop check and the stockroom link (plan 17.12: every shop with both apps). As in steps.js, `check` only looks and `act` only changes;
 // runner.js runs them. Each step stops for a person when what it finds is neither "done" nor "not started".
 //
 // Everything is reached through clients passed in. There is no real client in this folder yet, so nothing here can
@@ -119,8 +119,14 @@ export function torontoDay(date) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 
-/** Only the platform's test shop with both apps turns its stockroom link on during setup (docs/test-shop.md check 4). */
-export const needsStockroomLink = (shop) => shop.testShop === true && appsOf(shop).includes("shop") && appsOf(shop).includes("stockroom");
+/**
+ * Every shop with both apps turns its stockroom link on during setup (plan 17.12): the press's sales go to its stockroom
+ * from today, and an order whose book isn't linked yet is counted as unlinked on the shop's side, never dropped.
+ */
+export const needsStockroomLink = (shop) => appsOf(shop).includes("shop") && appsOf(shop).includes("stockroom");
+
+/** Only the platform's test shop gets the starter catalogue and its linked stockroom books (docs/test-shop.md check 4). */
+export const needsTestCatalogue = (shop) => shop.testShop === true && needsStockroomLink(shop);
 
 /** Steps 7–16. */
 export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, stockroom, registry, profileFiles, config, now = () => new Date() }) {
@@ -155,7 +161,7 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
       ? [{ path: "firstWeek/start", data: { sellingToday: sellingToday(shop), publishes: publishes(shop), country: countryOf(shop), plan: shop.plan } }]
       : []),
     ...privateStart(shop, release.starterContent(shop)),
-    ...(needsStockroomLink(shop) ? testCatalogue(shop).shopDocs : []),
+    ...(needsTestCatalogue(shop) ? testCatalogue(shop).shopDocs : []),
   ];
   const pageUrls = async (shop) => {
     const urls = {};
@@ -237,7 +243,7 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
       async check({ shop }) {
         // A document that is there counts, whatever it holds now: the press may already have changed it.
         for (const { path } of starterDocs(shop)) if (!(await shopData.get(shop.shopId, path))) return false;
-        if (!needsStockroomLink(shop)) return true;
+        if (!needsTestCatalogue(shop)) return true;
         // The test shop's catalogue: its stockroom books are there and each printed book is linked to one.
         const { stockroomBooks, links } = testCatalogue(shop);
         const have = (await stockroom.books(shop.shopId)) ?? {};
@@ -253,7 +259,7 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
             created.push(path);
           }
         }
-        if (!needsStockroomLink(shop)) return { detail: { created } };
+        if (!needsTestCatalogue(shop)) return { detail: { created } };
 
         const { stockroomBooks, links } = testCatalogue(shop);
         const have = (await stockroom.books(shop.shopId)) ?? {};
@@ -320,8 +326,8 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     },
     {
       number: 16,
-      name: "Turn on the test shop's stockroom link",
-      // Every other shop: nothing to do (the owner turns the link on in the admin when they want it).
+      name: "Turn on the stockroom link",
+      // A shop without both apps (for example, the stockroom alone): nothing to do.
       async check({ shop }) {
         if (!needsStockroomLink(shop)) return true;
         const startDay = (await inventoryLink.state(shop.shopId))?.startDay;

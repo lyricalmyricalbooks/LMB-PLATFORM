@@ -2,14 +2,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ARTICLES, CHECKLIST_ANSWERS, TOPICS, articlesFor, searchArticles } from "./articles.js";
+import { ARTICLES, CHECKLIST_ANSWERS, RUN_ANSWERS, TOPICS, articlesFor, searchArticles } from "./articles.js";
 import { SUPPORT, renderSupport } from "./support.js";
 import { renderHelp } from "./page.js";
 
 const words = (a) => [a.question, ...a.answer, ...(a.where || [])].join(" ");
 
 test("each article has its own id, a topic, a question and an answer", () => {
-  assert.equal(ARTICLES.length, 31);
+  assert.equal(ARTICLES.length, 33);
   assert.equal(new Set(ARTICLES.map((a) => a.id)).size, ARTICLES.length);
   for (const a of ARTICLES) {
     assert.match(a.id, /^[a-z][a-z-]+$/, a.id);
@@ -90,6 +90,19 @@ test("every step of the shop's setup guide has an answer", () => {
     assert.ok(ids.has(CHECKLIST_ANSWERS[step]), `${step}: no article "${CHECKLIST_ANSWERS[step]}"`);
   }
   assert.deepEqual(Object.keys(CHECKLIST_ANSWERS).sort(), [...steps].sort(), "no answer for a step that no longer exists");
+});
+
+test("every stage of the Get started run has an answer (plan 17.15)", () => {
+  const source = readFileSync(new URL("../apps/shop/src/app/admin/startRun.ts", import.meta.url), "utf8");
+  const union = source.match(/export type RunStep = ([^;]+);/)[1];
+  const stages = [...union.matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
+  assert.ok(stages.length >= 7 && stages.includes("google") && stages.includes("final"), `read ${stages.length} stages`);
+  const ids = new Set(ARTICLES.map((a) => a.id));
+  for (const stage of stages) {
+    assert.ok(RUN_ANSWERS[stage], `the "${stage}" stage has no answer in RUN_ANSWERS`);
+    assert.ok(ids.has(RUN_ANSWERS[stage]), `${stage}: no article "${RUN_ANSWERS[stage]}"`);
+  }
+  assert.deepEqual(Object.keys(RUN_ANSWERS).sort(), [...stages].sort(), "no answer for a stage that no longer exists");
 });
 
 test("what support includes and doesn't, on the help page and next to the plans on sign-up", () => {

@@ -8,7 +8,7 @@ import { readServiceConfig } from "./config.js";
 import { createPaymentService } from "./service.js";
 import { createStripeApi } from "./stripeApi.js";
 import { handlePayments } from "./http.js";
-import { refundedFee, squareFee, squareKey, SQUARE_SCOPES } from "./square.js";
+import { paymentShape, refundedFee, squareFee, squareKey, SQUARE_SCOPES } from "./square.js";
 import { fakeAccounts, fakeDeliver, fakeStripeFetch } from "./fakes.js";
 import { fakeSquareFetch, fakeSquareStates, fakeSquareTokens } from "./squareFakes.js";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
@@ -512,4 +512,10 @@ test("the web doors: Square's sign-in answer is a GET, its events a POST per env
   assert.equal(event.status, 200);
   assert.equal((await handlePayments({ method: "POST", path: "/square/events/elsewhere", rawBody: body }, { service: w.service })).status, 404);
   assert.equal((await handlePayments({ method: "POST", path: "/square/events/test", headers: {} }, { service: w.service })).status, 400);
+});
+
+test("a payment's shape carries what Square said about the card, for the shop's order review", () => {
+  const shaped = paymentShape({ id: "P1", status: "COMPLETED", amount_money: { amount: 4000, currency: "CAD" }, risk_evaluation: { risk_level: "MODERATE" }, card_details: { cvv_status: "CVV_REJECTED", avs_status: "AVS_ACCEPTED", card: { billing_address: { country: "GB" } } } }, "o1");
+  assert.deepEqual(shaped.risk, { level: "MODERATE", cvvStatus: "CVV_REJECTED", avsStatus: "AVS_ACCEPTED", cardCountry: "GB" });
+  assert.deepEqual(paymentShape({ id: "P2", status: "COMPLETED" }).risk, { level: null, cvvStatus: null, avsStatus: null, cardCountry: null });
 });

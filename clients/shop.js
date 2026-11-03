@@ -10,6 +10,7 @@
 //   <functions>/createStripeCheckoutSession { action: "inventoryLink", op, … } with an admin's sign-in
 //   (apps/shop/functions/checkoutAdmin.js handleInventoryLinkAdmin). Only the test shop uses it, signed in as the test
 //   owner (clients/identity.js).
+import { missingDatabase } from "./firestore.js";
 
 /**
  * The stockroom's own named database in each shop's project (plan 1.20). Its name is set in one place: setup step 5
@@ -131,5 +132,27 @@ export function registryFiles(registryFirestore, name) {
   return {
     read: async (shopId) => (await registryFirestore.get(path(shopId)))?.text ?? null,
     write: (shopId, text) => registryFirestore.set(path(shopId), { text }),
+  };
+}
+
+/**
+ * The stockroom's own named database in each shop's project, read and written by the platform (the shop's plan copy,
+ * services/billing/shopPlan.js; a press's data export, services/export): the same calls as
+ * services/billing/closingFakes.js fakeStockroomData. `firestoreFor(projectId)` gives the stockroom database.
+ * `ready(shopId)` is false until setup step 5 has made that database (or the project), like the audit log's.
+ */
+export function stockroomDataClient(firestoreFor) {
+  return {
+    async ready(shopId) {
+      try {
+        await firestoreFor(shopId).get("settings/catalog");
+        return true;
+      } catch (error) {
+        if (missingDatabase(error) || error?.status === 404 || error?.status === 403) return false;
+        throw error;
+      }
+    },
+    get: (shopId, path) => firestoreFor(shopId).get(path),
+    set: (shopId, path, data) => firestoreFor(shopId).set(path, data),
   };
 }

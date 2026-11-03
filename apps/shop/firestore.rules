@@ -54,8 +54,10 @@ service cloud.firestore {
     // the server (functions/shopSettings.js planPaused, in priceOrder, which every checkout and order path goes
     // through). The guest order rule below doesn't read the status too: it sits at the rules engine's limit of 1000
     // expressions (a free order already reaches it), and an unpaid order record can't be paid without that server.
+    // platform/messages (code plan 19.14): the control room's notes to the press, admin-only like the plan; the admin
+    // shows them as a banner, the storefront never reads them.
     match /platform/{docId} {
-      allow read: if docId == 'status' || (docId == 'plan' && isAdmin());
+      allow read: if docId == 'status' || ((docId == 'plan' || docId == 'messages') && isAdmin());
       allow write: if false;
     }
 
@@ -322,7 +324,7 @@ service cloud.firestore {
       // (Settings › General › What you sell), which reads before `publishes`.
       allow read: if isAdminReader();
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "createdAt", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
         && (resource == null || (request.resource.data.get("sellingToday", null) == resource.data.get("sellingToday", null)
           && request.resource.data.get("publishes", null) == resource.data.get("publishes", null)
           && request.resource.data.get("country", null) == resource.data.get("country", null)
@@ -336,6 +338,22 @@ service cloud.firestore {
           && request.resource.data.bring.keys().hasOnly(["at", "from", "skipped"]) && request.resource.data.bring.at is string
           && (!("from" in request.resource.data.bring) || request.resource.data.bring.from is string)
           && (!("skipped" in request.resource.data.bring) || request.resource.data.bring.skipped is bool)))
+        && (!("shipping" in request.resource.data) || (request.resource.data.shipping is map
+          && request.resource.data.shipping.keys().hasOnly(["at", "starter", "skipped"]) && request.resource.data.shipping.at is string
+          && (!("starter" in request.resource.data.shipping) || request.resource.data.shipping.starter is string)
+          && (!("skipped" in request.resource.data.shipping) || request.resource.data.shipping.skipped is bool)))
+        && (!("finalCheck" in request.resource.data) || (request.resource.data.finalCheck is map
+          && request.resource.data.finalCheck.keys().hasOnly(["at", "opened"]) && request.resource.data.finalCheck.at is string
+          && request.resource.data.finalCheck.opened is bool))
+        && (!("google" in request.resource.data) || (request.resource.data.google is map
+          && request.resource.data.google.keys().hasOnly(["at", "connected", "coming", "skipped"]) && request.resource.data.google.at is string
+          && (!("connected" in request.resource.data.google) || request.resource.data.google.connected is bool)
+          && (!("coming" in request.resource.data.google) || request.resource.data.google.coming is bool)
+          && (!("skipped" in request.resource.data.google) || request.resource.data.google.skipped is bool)))
+        && (!("payments" in request.resource.data) || (request.resource.data.payments is map
+          && request.resource.data.payments.keys().hasOnly(["at", "ready", "skipped"]) && request.resource.data.payments.at is string
+          && (!("ready" in request.resource.data.payments) || request.resource.data.payments.ready is bool)
+          && (!("skipped" in request.resource.data.payments) || request.resource.data.payments.skipped is bool)))
         && (!("welcome" in request.resource.data) || (request.resource.data.welcome is map
           && request.resource.data.welcome.keys().hasOnly(["theme", "at", "skipped"])
           && request.resource.data.welcome.theme is string && request.resource.data.welcome.theme.size() <= 80))

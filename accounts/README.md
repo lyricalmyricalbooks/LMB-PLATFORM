@@ -29,7 +29,10 @@ owners.
 - The card on file (brand, last four, expiry) with **Add a card** / **Change card** (Stripe's own page).
 - **Change plan**: **See what changes** first (apps opening and closing, when, the prorated amount), then **Change my
   plan**.
-- Invoices with their PDFs; **Cancel plan** / **Keep my plan**.
+- Invoices with their PDFs; **Cancel plan** / **Keep my plan**. **Cancel plan** opens a confirmation on the page (what
+  happens, then **Cancel my plan** or **Go back**) with one optional question (row 19.8): why they're leaving, as radio
+  buttons (`billingWords.js` `LEAVING_CHOICES`, the same ids as `services/billing/leaving.js`) and a box for a few words
+  (500 characters at most). Leaving it blank cancels the same way.
 - **How you pay** (row 6.19): monthly, or a share of website sales never more than the plan's price, with **Switch to
   pay as you sell** / **Switch to monthly**. Shown when the door is given `paymentWay` (`createPaymentWay` from
   `services/billing`, sharing the payment service's fee ledger); hidden otherwise.
@@ -42,13 +45,20 @@ once and logged (done, refused or failed) in the registry and the shop's audit l
 | --- | --- | --- |
 | `POST /api/billing/status` | `{ shopId }` | `{ billing }` (null: no plan yet) |
 | `POST /api/billing/card` | `{ shopId }` | `{ url }`: Stripe's card page, coming back only to this shop's Plan & billing page |
-| `POST /api/billing/cancel` | `{ shopId }` | `{ cancelAtPeriodEnd }` |
+| `POST /api/billing/cancel` | `{ shopId, reason?, words? }` | `{ cancelAtPeriodEnd }`; a reason off the list is refused (400) |
 | `POST /api/billing/keep` | `{ shopId }` | `{ cancelAtPeriodEnd }` |
 | `POST /api/billing/change-plan` | `{ shopId, plan, preview? }` | `{ preview }`, or `{ plan, changed }` |
 | `POST /api/billing/invoices` | `{ shopId }` | `{ invoices }` |
 
 The web door adds them with `routes: { ...accountRoutes(accounts), ...billingRoutes({ billing, accounts, registry,
 auditLog, settings }) }`.
+
+## Check my shop (`checkMyShop.js`, plan 14.3)
+
+An owner's **Check my shop** button (`POST /api/accounts/check`) runs six checks on their own shop and answers in plain
+words: web address, payments, emails, shop and stockroom joined, saved copies, plan and card. Each is good, needs the
+owner (with a button to connect payments, update the card or ask for help) or can't be told yet. It only looks. Saved
+copies read `shopBackup(shopId)` when the door is given one; until then they say so.
 
 ## Two-step sign-in for owners (`twoStep.js`, plan 14.1)
 
@@ -193,3 +203,11 @@ admin once, for 30 minutes.
   Firebase account lookup (`findAccount`) into the hosted web door.
 - Hosting the team door and running `syncAll` on a schedule (each night, to catch a missed notice), then writing
   `PLATFORM_ACCOUNTS_URL` into the shops' settings (setup step 8 does it once `config.platformAccountsUrl` is set).
+
+## All your data (plan 19.16)
+
+**Download all your data** on an owner's shop card: everything in the shop and its stockroom as spreadsheet files,
+emailed to the owner as a link that works 7 days. Owners only (`accounts.roleIn`), at most once a day per shop (the
+second ask says when the next one can be made, and that the first link still works). `POST /api/account/export
+{ shopId }` -> `{ emailedTo, expiresAt }`; logged in the registry and the shop's audit log. The export itself is
+`services/export/README.md`.

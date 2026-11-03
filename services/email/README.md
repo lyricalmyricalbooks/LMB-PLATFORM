@@ -98,3 +98,13 @@ puts Colophon's name, that address and the support contact at the foot of every 
 kind (`COMMERCIAL_KINDS`): `sendPlatform` refuses it until the address is set. The invite says "Reply STOP and we'll
 take you off the list at once"; a person who replies STOP is removed from the waitlist by hand from the support inbox
 within 10 business days (a clickable link waits on the platform being able to remove a waitlist entry).
+
+## The control room's view (plan 19.10-19.12)
+
+- `sendPlatform` marks its sent-log entries `platform: true`, and the sent log has `listForShop(shopId, { limit })`:
+  the platform's own emails about one shop, newest first, for the shop's timeline. A shop's emails to its shoppers are
+  never listed. Entries sent before the mark existed don't show.
+- The control room counts each shop's emails sent over 7 days (`countSince`) and its bounces and spam reports from the
+  reputation guard's own events, never counting them twice (`control-room/delivery.js`).
+- `job-late` (`templates.js`) goes only to the platform's alert address when a scheduled job stops running on time
+  (`services/jobs`).

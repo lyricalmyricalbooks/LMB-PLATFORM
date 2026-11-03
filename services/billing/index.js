@@ -31,3 +31,6 @@ export function createBillingFromEnv({ env = process.env, fetch = globalThis.fet
   const { mode, webhookSecrets, tax } = readBillingConfig(env);
   return createBilling({ stripe: platformBillingStripe({ env, fetch }), mode, settings: platformSettings(env), customers, subscriptions, events, registry, auditLog, email, webhookSecrets, tax, closeApp, shopPlan, now });
 }
+
+/** Billing's events secret as the hosted server gets it (server/deploy.js), from Secret Manager. Only the web door takes events. */
+export const BILLING_SECRETS = Object.freeze([Object.freeze({ env: "STRIPE_BILLING_WEBHOOK_SECRET", secret: "stripe-billing-webhook-secret", api: true, jobs: false })]);

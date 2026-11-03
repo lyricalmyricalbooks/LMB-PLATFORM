@@ -52,6 +52,22 @@ import { fakeThrottle } from "../signup/fakes.js";
 import { createAccessRequests } from "../control-room/accessRequests.js";
 import { fakeAccessRequestStore } from "../control-room/fakes.js";
 import { accessRequestRoutes } from "../accounts/accessRequestRoutes.js";
+import { businessRoutes, createBusinessRoom } from "../control-room/business.js";
+import { fakeIncomeHistory } from "../control-room/fakes.js";
+import { runBusinessNightly } from "../control-room/nightly.js";
+import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
+import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
+import { createShopNotes, notesRoutes } from "../control-room/notes.js";
+import { deliveryReader } from "../control-room/delivery.js";
+import { fakeDeliveryStats, fakeShopNotes } from "../control-room/visibilityFakes.js";
+import { createJobs } from "../services/jobs/index.js";
+import { fakeJobRuns } from "../services/jobs/fakes.js";
+import { createPressMessages, messageRoutes } from "../control-room/messages.js";
+import { fakePressMessages } from "../control-room/messagesFakes.js";
+import { costRoutes, createCostsDesk } from "../control-room/costs.js";
+import { createCostReader } from "../services/costs/costs.js";
+import { createDataExports, exportRoutes } from "../services/export/export.js";
+import { fakeExportStorage, fakeExportStore } from "../services/export/fakes.js";
 
 export const DAY = 86_400_000;
 const generousLimits = () => Object.fromEntries(Object.entries(DEFAULT_LIMITS).map(([kind, limit]) => [kind, { ...limit, max: limit.max * 100 }]));
@@ -138,6 +154,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const waitlist = fakeWaitlist(waitlisted);
   // "Make changes" asks the press first (19.6): the requests, answered on the account page.
   const accessRequests = createAccessRequests({ store: fakeAccessRequestStore(), email, settings, now: clock.date });
+  // Payments and email delivery per shop (19.12): nothing counts payment events in the practice world yet.
+  const deliveryStats = fakeDeliveryStats();
   const room = createControlRoom({
     registry, auditLog, profileFiles, shopAccess: fakeShopAccess(), repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: fakeBreachStore(), registry, auditLog, now: clock.date }), people,
@@ -145,6 +163,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     // Nothing of Google is set up in the practice world, so the control room shows every item still to do.
     googleReady: (at) => googleReadiness(readGoogleConfig({}), at),
     taxWatch: async () => watchTaxLines({ invoices: [], now: clock.date().getTime() }),
+    delivery: deliveryReader({ deliveryStats, now: clock.date }),
   });
   const controls = createPlatformControls({
     admins, settingsStore: platformState, env: settingsEnv, activity, waitlist, signups: stores.signups, now: clock.date,
@@ -164,20 +183,54 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     applyRecovery: async (move) => recoveryByHand(move),
   });
 
-  // The platform's one web door: sign-up, the shop maker's Try again, accounts, billing and the control room.
+  // The business side of Today (19.7-19.9): income records written by the nightly run, read with the registry.
+  const incomeHistory = fakeIncomeHistory();
+  const business = createBusinessRoom({ registry, incomeHistory, admins, now: clock.date });
+  // One timeline per shop, the jobs page and the private notes (19.10, 19.11, 19.13). The jobs this world can run by
+  // hand are the ones with nothing outside it; the rest answer "only on the server".
+  const timeline = createTimeline({ admins, registry, activity, supportStore, now: clock.date });
+  const jobRuns = fakeJobRuns();
+  const jobs = createJobs({ store: jobRuns, email, alertTo: ADMIN_EMAIL, now: clock.date });
+  const jobsPage = createJobsPage({
+    admins, runner: jobs, activity, now: clock.date,
+    jobs: { "shop-maker": () => shopMaker.sweep(), "dropped-apps": () => billing.closeDroppedApps(), "income-record": () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }), "press-messages": () => pressMessages.sweep() },
+  });
+  const notes = createShopNotes({ admins, store: fakeShopNotes(), registry, activity, now: clock.date });
+  // Messages to presses (19.14), what each shop costs (19.15; no billing export in the practice world, so the empty
+  // state) and a press's data on request (19.16).
+  const pressMessages = createPressMessages({ store: fakePressMessages(), registry, auditLog, shopData, email, activity, admins, now: clock.date });
+  const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now: clock.date });
+  const exportStorage = fakeExportStorage();
+  const listDocs = async (projectId, collection) => [...services.world.docs.entries()]
+    .filter(([k]) => k.startsWith(`${projectId} ${collection}/`) && !k.slice(`${projectId} ${collection}/`.length).includes("/"))
+    .map(([k, data]) => ({ id: k.slice(`${projectId} ${collection}/`.length), data: structuredClone(data) }));
+  const dataExports = createDataExports({
+    shopData: { ...shopData, list: listDocs }, stockroomData, storage: exportStorage, store: fakeExportStore(), registry, auditLog, activity, email,
+    roleIn: (who, shopId) => accounts.roleIn(who, shopId), admins, now: clock.date,
+  });
+
+  // The platform's one web door: sign-up, the shop maker's Try again, accounts, billing and the control room. The hosted
+  // door (server/world.js) has the same routes; server/world.test.js checks none is missing there.
+  const routes = {
+    "POST /api/signup/retry": (claims, request) => shopMaker.retry(claims, request.body?.shopId),
+    ...accountRoutes(accounts),
+    ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now: clock.date }),
+    ...controlRoutes(room),
+    ...platformRoutes(controls),
+    ...emergencyRoutes(backup),
+    ...supportRoutes(support),
+    ...recoveryRoutes(recovery),
+    ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now: clock.date }),
+    ...businessRoutes(business),
+    ...timelineRoutes(timeline),
+    ...jobsRoutes(jobsPage),
+    ...notesRoutes(notes),
+    ...messageRoutes(pressMessages),
+    ...costRoutes(costsDesk),
+    ...exportRoutes(dataExports),
+  };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live,
-    routes: {
-      "POST /api/signup/retry": (claims, request) => shopMaker.retry(claims, request.body?.shopId),
-      ...accountRoutes(accounts),
-      ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now: clock.date }),
-      ...controlRoutes(room),
-      ...platformRoutes(controls),
-      ...emergencyRoutes(backup),
-      ...supportRoutes(support),
-      ...recoveryRoutes(recovery),
-      ...accessRequestRoutes({ requests: accessRequests, accounts, activity, registry, auditLog, now: clock.date }),
-    },
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes,
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},
@@ -186,8 +239,13 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, ask, invites, accessRequests,
+    stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
+    deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
+    pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */
     doc: (shopId, path) => services.world.docs.get(`${shopId} ${path}`) ?? null,
+    // Income over time, why presses leave and failed plan payments (19.7-19.9), and their nightly run.
+    business, incomeHistory,
+    nightly: () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }),
   };
 }

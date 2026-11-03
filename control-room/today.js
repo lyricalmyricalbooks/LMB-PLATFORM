@@ -8,8 +8,8 @@
 import { shopHealth } from "./controlRoom.js";
 
 const DAY = 86_400_000;
-const PAYING = new Set(["active", "past_due"]);
-const PAYMENT_PROBLEM = new Set(["past_due", "unpaid", "incomplete"]);
+export const PAYING = new Set(["active", "past_due"]);
+export const PAYMENT_PROBLEM = new Set(["past_due", "unpaid", "incomplete"]);
 
 /** One shop's monthly charge in cents, or 0 when it isn't paying. */
 export function monthlyCents(row, settings) {
@@ -27,14 +27,10 @@ export function monthlyCents(row, settings) {
  */
 export function todaySummary({ rows, settings, profiles = {}, checks = {}, open = {}, support = [], recoveries = [], making = [], now = new Date() }) {
   const shops = rows.filter((row) => row.testShop !== true);
-  const access = (row) => (row.closure ? "closed-by-platform" : row.billing?.access ?? null);
   const counts = {
     shops: shops.length,
     live: shops.filter((r) => r.status === "live" && !r.closure).length,
-    trial: shops.filter((r) => r.billing?.status === "trialing").length,
-    paying: shops.filter((r) => PAYING.has(r.billing?.status)).length,
-    paused: shops.filter((r) => access(r) === "paused" || access(r) === "closed-by-platform").length,
-    closed: shops.filter((r) => access(r) === "closed").length,
+    ...planCounts(shops),
     signupsThisWeek: shops.filter((r) => r.createdAt && now.getTime() - Date.parse(r.createdAt) <= 7 * DAY).length,
     failedPayments: shops.filter((r) => PAYMENT_PROBLEM.has(r.billing?.status)).length,
   };
@@ -56,4 +52,19 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
   if (stuck.length) needs.push({ kind: "signup", count: stuck.length, words: `${stuck.length} new shop${stuck.length === 1 ? "" : "s"} stuck while being made`, go: "#making" });
 
   return { counts, monthlyIncome, currency: settings.currency, needs };
+}
+
+/**
+ * Shops by where their plan stands, as Today counts them: on a free trial, paying (a card being retried still counts),
+ * paused (no card, or closed by the platform) and closed. Pass rows without the test shop. Also used by the nightly
+ * income record (incomeHistory.js, plan 19.7), so both count the same way.
+ */
+export function planCounts(shops) {
+  const access = (row) => (row.closure ? "closed-by-platform" : row.billing?.access ?? null);
+  return {
+    trial: shops.filter((r) => r.billing?.status === "trialing").length,
+    paying: shops.filter((r) => PAYING.has(r.billing?.status)).length,
+    paused: shops.filter((r) => access(r) === "paused" || access(r) === "closed-by-platform").length,
+    closed: shops.filter((r) => access(r) === "closed").length,
+  };
 }

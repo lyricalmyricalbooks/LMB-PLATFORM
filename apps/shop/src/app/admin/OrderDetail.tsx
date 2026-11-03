@@ -22,9 +22,10 @@ import {
   reviewOpen,
   terminal,
 } from "./fulfillment";
+import { invoiceLine, invoiceOpen } from "./invoices";
 import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
-import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, telHref } from "./orderLines";
+import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, customerTrackUrl, telHref } from "./orderLines";
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
@@ -173,7 +174,7 @@ export function OrderDetail({
   const [refundAmount, setRefundAmount] = useState("");
   const [refundOther, setRefundOther] = useState("");
   const [refundRestockLines, setRefundRestockLines] = useState<Record<number, number>>({});
-  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "giftConflict" | "requestHandled" | "resendConfirmation" | "resetDownloads" | "restockRefunded">(null);
+  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "giftConflict" | "requestHandled" | "resendConfirmation" | "resetDownloads" | "restockRefunded" | "invoicePaid">(null);
   const [confirmReleasePreorder, setConfirmReleasePreorder] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState<
     "all" | "event" | "note"
@@ -563,6 +564,9 @@ export function OrderDetail({
       } else if (action === "restockRefunded") {
         const result = await adminApi.restockRefundedOrder(orderId);
         toast.success(`${result?.restocked || "The"} book${result?.restocked === 1 ? " is" : "s are"} back in stock`);
+      } else if (action === "invoicePaid") {
+        await adminApi.updateOrder(orderId, { invoice: { ...order.invoice, paidAt: new Date().toISOString() } });
+        toast.success("Invoice marked paid.");
       } else if (action === "resetDownloads") {
         await adminApi.updateOrder(orderId, { downloadCounts: {} });
         toast.success("Download limits reset: the buyer can download each digital book again");
@@ -945,6 +949,12 @@ export function OrderDetail({
               <SecondaryButton disabled={working} onClick={() => setConfirmAction("restockRefunded")}>{w("Put the books back in stock")}</SecondaryButton>
             </SectionCard>
           )}
+          {order.invoice && (
+            <SectionCard title="Invoice">
+              <p className="fw-summary">{invoiceLine(order)} {money(order.total)} on net {order.invoice.days} terms{order.invoice.paidAt ? "" : "; the books are already counted as sold."}</p>
+              {invoiceOpen(order) && <SecondaryButton disabled={working} onClick={() => setConfirmAction("invoicePaid")}>Record payment received</SecondaryButton>}
+            </SectionCard>
+          )}
           {reviewOpen(order) && (
             <SectionCard title="Check this payment">
               <p className="fw-summary">This payment looks risky, so the order waits for you. Packing, labels and dispatch are blocked until you decide.</p>
@@ -1087,6 +1097,24 @@ export function OrderDetail({
               >
                 Copy address
               </SecondaryButton>
+              {customerTrackUrl(order, window.location.origin, import.meta.env.BASE_URL || "/") && (
+                <SecondaryButton
+                  size="sm"
+                  icon={<Copy size={14} aria-hidden />}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        customerTrackUrl(order, window.location.origin, import.meta.env.BASE_URL || "/"),
+                      );
+                      toast.success("Tracking link copied");
+                    } catch {
+                      toast.error("Could not copy the link");
+                    }
+                  }}
+                >
+                  Copy tracking link
+                </SecondaryButton>
+              )}
             </div>
             {order.ipCountryMatchesShipping === false && (
               <p className="fw-problems">
@@ -1663,6 +1691,14 @@ export function OrderDetail({
         title="Payment received?"
         confirmLabel="Mark paid"
         message={`Only continue once ${money(order.total)} has arrived by ${order.paymentMethod || "the manual method"}. The order becomes paid, its books come off stock and the customer gets their order confirmation email.`}
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        open={confirmAction === "invoicePaid"}
+        title="Invoice paid?"
+        confirmLabel="Mark paid"
+        message={`Only continue once ${money(order.total)} has arrived from ${order.customer?.name || "the trade account"}. This clears the overdue reminder. The order itself was already counted as a sale.`}
         onConfirm={runConfirmed}
         onCancel={() => setConfirmAction(null)}
       />

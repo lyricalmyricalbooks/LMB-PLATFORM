@@ -66,6 +66,13 @@ export function firestoreRegistry(firestore, { now = () => new Date() } = {}) {
       const rows = await firestore.query(`shops/${shopId}/releaseChecks`, { orderBy: [["recordedAt", "asc"]] });
       return rows.map(({ data: { recordedAt: _, ...entry } }) => entry);
     },
+    // One shop's timeline (control-room/timeline.js, plan 19.10): its events, newest first, and the latest release runs.
+    async readEvents(shopId, { limit = 1000 } = {}) {
+      return (await firestore.query(`shops/${shopId}/events`, { orderBy: [["at", "desc"]], limit })).map((row) => row.data);
+    },
+    async listReleases({ limit = 200 } = {}) {
+      return (await firestore.query("releases", { orderBy: [["startedAt", "desc"]], limit })).map((row) => row.data);
+    },
   };
 }
 

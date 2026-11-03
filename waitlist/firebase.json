@@ -5,6 +5,11 @@
   "hosting": {
     "public": ".",
     "ignore": ["firebase.json", "firestore.rules", "README.md", "*.test.js", "*.test.mjs", "firestore-emulator.mjs", "*.log", "**/.[!w]*", "**/node_modules/**"],
+    "rewrites": [
+      { "source": "/api/**", "run": { "serviceId": "platform-api", "region": "northamerica-northeast1" } },
+      { "source": "/tips/off", "run": { "serviceId": "platform-api", "region": "northamerica-northeast1" } },
+      { "source": "/checkup/off", "run": { "serviceId": "platform-api", "region": "northamerica-northeast1" } }
+    ],
     "headers": [
       {
         "source": "**",

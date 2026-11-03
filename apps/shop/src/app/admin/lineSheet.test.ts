@@ -22,6 +22,22 @@ describe("line sheet", () => {
     expect(html).toContain("Net 30.");
     expect(html).not.toContain("<b>Tee</b>");
   });
+  it("is built on the shared document kit: press block, title, details, table and print rules", () => {
+    const html = lineSheetHtml(lineSheetRows([tee]).rows, { name: "Moth Press", location: { street: "1 Main", city: "Toronto", state: "ON", country: "Canada" }, terms: "Net 30." }, "CAD", "Nov 2, 2026");
+    expect(html).toContain('class="doc"');
+    expect(html).toContain("<strong>Moth Press</strong>1 Main<br>Toronto, ON<br>Canada");
+    expect(html).toContain('<h1 class="doc-title">Line sheet</h1>');
+    expect(html).toContain("<dt>Date</dt><dd>Nov 2, 2026</dd>");
+    expect(html).toContain('class="doc-table"');
+    expect(html).toContain("doc-foot");
+  });
+  it("prints the same prices as before the kit", () => {
+    const html = lineSheetHtml(lineSheetRows([tee]).rows, {}, "CAD");
+    expect(html).toContain("$40.00");
+    expect(html).toContain("<strong>$20.00</strong>");
+    expect(html).toContain("S: retail $40.00, wholesale $20.00");
+    expect(html).toContain("XL: retail $44.00, wholesale $22.00");
+  });
   it("keeps the wholesale price off the public product record", () => {
     expect(PRIVATE_BOOK_KEYS).toContain("wholesalePrice");
     const { pub, priv } = splitBookPrivate(tee);

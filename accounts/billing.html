@@ -108,6 +108,20 @@
             <button type="button" class="danger" id="cancel-button">Cancel plan</button>
             <button type="button" class="primary" id="keep-button" hidden>Keep my plan</button>
           </div>
+          <!-- The cancel confirmation (19.8): what happens, then one optional question; cancelling works without an answer. -->
+          <form id="cancel-form" class="stack" hidden novalidate>
+            <p id="cancel-ask"></p>
+            <fieldset id="leaving-choices">
+              <legend>May we ask why you're leaving? <span class="hint">(optional)</span></legend>
+            </fieldset>
+            <label for="leaving-words">Anything you'd like to tell us <span class="hint">(optional)</span></label>
+            <textarea id="leaving-words" name="words" rows="3" maxlength="500"></textarea>
+            <p class="error" id="cancel-error" role="alert" hidden></p>
+            <div class="cp-actions cp-start">
+              <button type="submit" class="danger" id="cancel-confirm">Cancel my plan</button>
+              <button type="button" id="cancel-back">Go back</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@
 // › Action table): index.js passes in its own db, payments module (functions/payments), pricing and stock helpers, so
 // the vm-based handler tests' fakes still apply.
 const { openedPage } = require("./paymentPages");
+const { idOf, loadStockist, invoiceRecord } = require("./stockists");
 
 function checkoutPaymentActions({
   ALLOWED_ORIGINS, canViewOrder, checkoutCurrencyOf, checkoutRefusal, clientIpOf, completeOrderWithoutCard,
@@ -40,10 +41,19 @@ function checkoutPaymentActions({
       if (selection && (!['pickup', 'local_delivery', 'shipping'].includes(selection.method) || typeof selection.optionId !== 'string')) throw new Error('Choose a delivery option.');
       const settingsDoc = await db.collection('settings').doc('website').get();
       const settings = settingsDoc.data() || {};
-      const manual = (settings.payments?.manualMethods || []).find(method => method.id === req.body.manualMethodId && method.enabled === true);
+      // A trade account with invoice terms (code plan 12.10) orders without paying now: the order is a recorded sale at
+      // wholesale prices and the money is owed within the terms. Identity, approval and terms are all read here.
+      let stockist = null;
+      if (req.body.tradeInvoice === true) {
+        const identity = await orderRequestIdentity(req);
+        stockist = identity && identity.email_verified === true ? await loadStockist(db, idOf(identity.email)) : null;
+        if (!stockist || !(stockist.terms > 0)) throw new Error('Paying by invoice is not available for this account.');
+      }
+      const manual = stockist ? { name: `Invoice (net ${stockist.terms})`, instructions: '' } : (settings.payments?.manualMethods || []).find(method => method.id === req.body.manualMethodId && method.enabled === true);
       if (!manual) throw new Error('That payment method is no longer available.');
       const now = new Date().toISOString();
       const order = {
+        ...(stockist ? { stockistId: stockist.id } : {}),
         customer: { name: contact.name.trim().slice(0, 200), email: contact.email.trim().toLowerCase().slice(0, 320), phone: typeof contact.phone === 'string' ? contact.phone.trim().slice(0, 80) : '', address: cleanAddress(contact.address), billingAddress: cleanAddress(contact.billingAddress) },
         items,
         ...(selection ? { fulfillmentSelection: { method: selection.method, optionId: selection.optionId.slice(0, 200) } } : {}),
@@ -71,12 +81,16 @@ function checkoutPaymentActions({
       const heldItems = Array.isArray(trusted.items) && trusted.items.length ? trusted.items : items;
       await reserveStock(db, orderId, heldItems, Date.now(), holdOwner(order), { limits: true, ip: clientIpOf(req), holdLimits: await loadHoldLimits() });
       try {
-        await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
+        await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', ...(stockist ? { invoice: invoiceRecord(stockist.terms) } : {}), createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
       } catch (createErr) {
         await releaseStock(db, orderId, heldItems);
         throw createErr;
       }
-      return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
+      // An invoiced order is a sale now (stock out, revenue, confirmation email); only the money is still to come.
+      if (stockist && !(await completeOrderWithoutCard(orderId, `Invoiced to ${stockist.name || stockist.id} on net ${stockist.terms} terms.`, { reserve: false }))) {
+        throw new Error('We could not place this invoice order. Please try again.');
+      }
+      return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment, ...(stockist ? { invoice: true } : {}) });
     } catch (err) {
       return res.status(400).json({ error: publicErrorMessage(err, "We could not place this order. Please check your details and try again."), ...(["hold_limit", "store_closed", "shop_paused", "shipping_rates_changed"].includes(err.code) ? { code: err.code } : {}) });
     }

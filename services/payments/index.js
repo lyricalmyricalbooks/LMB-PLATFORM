@@ -1,5 +1,5 @@
 // The payment service, put together from its environment (config.js) and the clients it is handed. The function that
-// hosts it (platform project, not built yet) calls this once and routes requests to `handlePayments` (http.js).
+// hosts it (server/world.js, under /api/payments) calls this once and routes requests to `handlePayments` (http.js).
 import { readServiceConfig } from "./config.js";
 import { createStripeApi } from "./stripeApi.js";
 import { createPaymentService, httpDeliver } from "./service.js";
@@ -51,3 +51,20 @@ export const setupClient = (service) => ({
   findAccount: (shopId) => service.findAccount(shopId),
   createAccount: (shopId, details) => service.createAccount(shopId, details),
 });
+
+/**
+ * The payment service's keys as the hosted server gets them (server/deploy.js): each environment name the service
+ * reads and the Secret Manager secret Cloud Run fills it from. Only the test ones: the hosted server bills in test mode
+ * until Julian's go (code plan 15.6). The names stay in this folder; nothing outside it names the platform key.
+ */
+export const PAYMENTS_SECRETS = Object.freeze([
+  Object.freeze({ env: "STRIPE_PLATFORM_TEST_KEY", secret: "stripe-platform-test-key", api: true, jobs: true }),
+  Object.freeze({ env: "STRIPE_CONNECT_WEBHOOK_SECRET_TEST", secret: "stripe-connect-webhook-secret-test", api: true, jobs: false }),
+]);
+
+/** Refuses live Stripe settings in this environment: the hosted server runs in test mode only for now (15.6). */
+export function refuseLiveKeys(env = {}) {
+  if (String(env.STRIPE_PLATFORM_LIVE_KEY ?? "").trim() || String(env.STRIPE_CONNECT_WEBHOOK_SECRET_LIVE ?? "").trim()) {
+    throw new Error("The hosted server must not hold live Stripe settings yet (code plan 15.6): remove the live key and the live events secret.");
+  }
+}

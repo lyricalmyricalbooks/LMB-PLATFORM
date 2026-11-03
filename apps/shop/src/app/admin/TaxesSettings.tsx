@@ -4,7 +4,7 @@ import { COUNTRIES } from "../features/site/shippingZones";
 import { regionsFor } from "../features/site/postalRegion";
 import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
 import {
-  DataTable, DestructiveButton, EmptyState, PrimaryButton, SaveBar, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField, Toggle, useConfirm, type Column,
+  DataTable, DestructiveButton, EmptyState, PrimaryButton, SaveBar, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField, Toggle, useConfirm, type Column,
 } from "./riso/components";
 import { cleanBookName, cleanTaxRate, taxRateProblem, type TaxRate } from "./taxRatesEdit";
 import { TAX_BOOK_NAMES, TAX_BOOK_NAME_MAX, suggestedTaxBookName } from "../../shared/taxBooks";
@@ -117,6 +117,9 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
               <TextField label="Your country" value={settings.taxes?.duties?.home ?? "Canada"} onChange={(e) => setDuties({ home: e.target.value })} hint="Parcels staying here show no note." />
               <TextField label="Estimate to show (percent, optional)" inputMode="decimal" value={String(settings.taxes?.duties?.estimateRate ?? "")} onChange={(e) => setDuties({ estimateRate: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) })} hint="Leave empty to show the note without a number." />
             </div>
+          )}
+          {settings.taxes?.duties?.on === true && (
+            <TextArea label="Estimates for particular countries (optional)" rows={3} value={settings.taxes?.duties?.countryRates ?? ""} onChange={(e) => setDuties({ countryRates: e.target.value.slice(0, 1000) })} placeholder={"Germany 19\nUnited States 10"} hint="One country per line with a percent. Other countries use the estimate above." />
           )}
         </div>
       </SectionCard>

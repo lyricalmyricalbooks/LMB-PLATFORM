@@ -414,6 +414,14 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner can't reopen a closed shop", assertFails(setDoc(doc(owner, "platform/status"), { access: "open" }, { merge: true })));
   await setStatus("open");
   await check("owner reads an open plan", assertSucceeds(getDoc(doc(owner, "platform/plan"))));
+  // The control room's messages (code plan 19.14): the admins' to read, like the plan; nobody else reads or writes them.
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "platform/messages"), { messages: [{ id: "m1", words: "Hello", level: "info", startsAt: "2026-11-01T00:00:00.000Z", endsAt: "2026-11-09T00:00:00.000Z" }] }));
+  await check("owner reads the platform's messages", assertSucceeds(getDoc(doc(owner, "platform/messages"))));
+  await check("staff reads the platform's messages", assertSucceeds(getDoc(doc(staff, "platform/messages"))));
+  await check("a shopper can't read the platform's messages", assertFails(getDoc(doc(reader, "platform/messages"))));
+  await check("anon can't read the platform's messages", assertFails(getDoc(doc(anon, "platform/messages"))));
+  await check("owner can't write the platform's messages", assertFails(setDoc(doc(owner, "platform/messages"), { messages: [] })));
+  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), "platform/messages")));
   await env.withSecurityRulesDisabled((ctx) => Promise.all([deleteDoc(doc(ctx.firestore(), "platform/status")), deleteDoc(doc(ctx.firestore(), "platform/plan"))]));
 }
 

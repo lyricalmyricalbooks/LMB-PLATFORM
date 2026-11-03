@@ -24,6 +24,7 @@ import { LIVE_DEFAULTS, liveSettings } from "./live.js";
 import { randomBytes } from "node:crypto";
 
 /** The plans that have a website, so can be paid for as a share of its sales. */
+import { errorHelp } from "../help/errorHelp.js";
 export const PAY_AS_YOU_SELL_PLANS = Object.freeze(["shop", "both"]);
 
 /** 200 basis points -> "2%", 250 -> "2.5%". */
@@ -103,14 +104,14 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, onSign
 
   return async function handle(request) {
     const route = table[routeOf(request)];
-    if (!route) return { status: 404, body: { ok: false, message: "There's nothing here." } };
+    if (!route) return { status: 404, body: { ok: false, message: "There's nothing here.", ...errorHelp(404) } };
     try {
       if (queryOf(request) && !request.query) request = { ...request, query: Object.fromEntries(new URLSearchParams(queryOf(request))) };
       if (limits) await limits.beforeCall(routeOf(request), request);
       return { status: 200, body: { ok: true, ...(await route(request)) } };
     } catch (error) {
       if (isOurError(error) && error.status < 500) {
-        return { status: error.status, body: { ok: false, message: error.message, ...(error.problems ? { problems: error.problems } : {}), ...(Number.isInteger(error.retryAfter) ? { retryAfter: error.retryAfter } : {}) } };
+        return { status: error.status, body: { ok: false, message: error.message, ...errorHelp(error.status, request?.path), ...(error.problems ? { problems: error.problems } : {}), ...(Number.isInteger(error.retryAfter) ? { retryAfter: error.retryAfter } : {}) } };
       }
       // Anything else is ours to look into: it goes in the log with a code, and the press sees the same code.
       const ref = errorRef();
@@ -119,10 +120,10 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, onSign
       } catch {
         // A broken log never turns a plain answer into a crash.
       }
-      if (isOurError(error)) return { status: error.status, body: { ok: false, message: error.message, ref } };
+      if (isOurError(error)) return { status: error.status, body: { ok: false, message: error.message, ref, ...errorHelp(error.status, request?.path) } };
       return {
         status: error?.fromProvider ? 502 : 500,
-        body: { ok: false, ref, message: `Something went wrong on our side. Try again in a minute. If it keeps happening, tell us this code: ${ref}.` },
+        body: { ok: false, ref, ...errorHelp(error?.fromProvider ? 502 : 500, request?.path), message: `Something went wrong on our side. Try again in a minute. If it keeps happening, tell us this code: ${ref}.` },
       };
     }
   };

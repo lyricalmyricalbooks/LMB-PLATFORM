@@ -1744,6 +1744,14 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
             )}
           </SectionCard>
         </SettingsAnchor>
+        <SettingsAnchor id="pay-review">
+          <SectionCard title="Check big orders" description="Hold large card orders until you look at them.">
+            <TextField label="Hold card orders of at least (optional)" inputMode="decimal" placeholder="500"
+              value={settings.payments?.reviewAbove ? String(settings.payments.reviewAbove) : ""}
+              onChange={(e) => setSettings({ ...settings, payments: { ...settings.payments, reviewAbove: Math.min(1000000, Number(e.target.value.replace(/[^0-9.]/g, "")) || 0) } })}
+              hint="An order this size or larger waits in Needs attention until you press It looks fine. Leave empty to turn it off." />
+          </SectionCard>
+        </SettingsAnchor>
       </SettingsGroup>
 
       <SettingsGroup id="pay-more" active={view === "pay-more"}>

@@ -75,6 +75,15 @@
   .cr-status { position: fixed; left: 50%; bottom: 24px; z-index: 500; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); }
   .cr-status:empty { display: none; }
   .cr-status { padding: 12px 16px; background: var(--rp-inverse); color: var(--rp-on-inverse); font-size: 14px; font-weight: 600; box-shadow: var(--rp-shadow-float); }
+  /* Income over time (plan 19.7): one line, drawn in the theme's own colours. */
+  .cr-chart { display: block; width: 100%; height: auto; overflow: visible; }
+  .cr-chart .cr-chart-grid { stroke: var(--rp-border); stroke-width: 1; }
+  .cr-chart .cr-chart-axis { fill: var(--rp-text-subtle); font: 400 11px var(--rp-font-mono); }
+  .cr-chart .cr-chart-line { fill: none; stroke: var(--rp-primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .cr-chart .cr-chart-dot { fill: var(--rp-surface); stroke: var(--rp-primary); stroke-width: 2; }
+  .cr-chart .cr-chart-last { fill: var(--rp-primary); stroke: var(--rp-surface); stroke-width: 2; }
+  .cr-chart .cr-chart-label { fill: var(--rp-text); font: 600 12px var(--rp-font-body); }
+  .cr-chart .cr-chart-hit { fill: transparent; }
   @media (max-width: 767px) {
     .cr-facts { grid-template-columns: 1fr; gap: 2px; }
     .cr-facts dd { margin-bottom: 8px; }
@@ -84,6 +93,9 @@
     .rp .rp-table .cr-actions { flex-wrap: wrap; justify-content: flex-start; }
     .rp .rp-table td.cr-end { text-align: left; }
   }
+  /* Tags on a shop (19.13) and the timeline's filters (19.10). */
+  .cr-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .cr-timeline-more { margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -156,9 +168,13 @@
           <li data-admin><a class="rp-nav-item" href="#settings" data-nav="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Prices and sign-up</a></li>
           <li data-admin><a class="rp-nav-item" href="#payments" data-nav="payments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14"/><path d="M2 10h20M6 15h4"/></svg>Emergency payments</a></li>
           <li><a class="rp-nav-item" href="#runbook" data-nav="runbook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/></svg>Run book</a></li>
+          <li data-admin><a class="rp-nav-item" href="#jobs" data-nav="jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Jobs<span class="rp-nav-badge" data-badge="jobs" hidden></span></a></li>
           <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Records</div></li>
           <li data-admin><a class="rp-nav-item" href="#breaches" data-nav="breaches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M12 9v4M12 16h0"/></svg>Breach register</a></li>
           <li data-admin><a class="rp-nav-item" href="#activity" data-nav="activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Activity log</a></li>
+          <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Presses and costs</div></li>
+          <li data-admin><a class="rp-nav-item" href="#messages" data-nav="messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v3l12 5V6L3 11z"/><path d="M15 9h2a3 3 0 0 1 0 6h-2"/><path d="M7 15v4h3"/></svg>Messages to presses</a></li>
+          <li data-admin><a class="rp-nav-item" href="#costs" data-nav="costs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Costs</a></li>
         </ul>
       </nav>
       <div class="rp-sidebar-foot">
@@ -198,6 +214,18 @@
               <div id="tax-watch" class="cr-grid"></div>
               <div class="cr-head"><h2>Your test shop</h2></div>
               <div id="test-shop" class="rp-card"></div>
+              <!-- The business side (plan 19.7-19.9): income over 12 months, failed plan payments, why presses leave. -->
+              <div class="cr-head"><h2 id="h-income">Income over time</h2></div>
+              <div id="income-figures" class="rp-kpi-grid" aria-label="Money kept and lost this month"></div>
+              <div id="income-chart" class="rp-card"></div>
+              <div class="cr-head"><h2>Failed plan payments</h2></div>
+              <p class="rp-hint">Shops whose plan payment is failing or paused for a card. A paused shop closes 60 days after the pause began; the press can then download everything for 90 days.</p>
+              <div id="payment-trouble"></div>
+              <div class="cr-head"><h2>Why presses leave</h2></div>
+              <div id="leaving" class="cr-grid"></div>
+              <div class="cr-head"><h2>Still time to talk</h2></div>
+              <p class="rp-hint">Shops whose plan is set to end, or paused for a missing card, soonest first. A word from you may keep them.</p>
+              <div id="save-list"></div>
             </section>
 
             <section data-page="shops" aria-labelledby="h-shops" hidden>
@@ -205,7 +233,7 @@
                 <div><h1 class="rp-page-title" id="h-shops">Shops</h1><p class="rp-page-desc">Every press's shop with its plan, billing and health. Open one for its record and everything you can do for it.</p></div>
               </div>
               <form id="shop-filters" class="cr-toolbar" role="search">
-                <div class="rp-field cr-grow"><label class="rp-label" for="shop-q">Search</label><input id="shop-q" class="rp-input" type="search" name="q" autocomplete="off" placeholder="Press, shop id or owner email"></div>
+                <div class="rp-field cr-grow"><label class="rp-label" for="shop-q">Search</label><input id="shop-q" class="rp-input" type="search" name="q" autocomplete="off" placeholder="Press, shop id, owner email or tag"></div>
                 <div class="rp-field"><label class="rp-label" for="shop-health">Health</label><select id="shop-health" class="rp-select" name="health"><option value="">All</option><option value="problem">Problem</option><option value="watch">Look</option><option value="ok">OK</option></select></div>
                 <div class="rp-field"><label class="rp-label" for="shop-plan">Plan</label><select id="shop-plan" class="rp-select" name="plan"><option value="">All</option><option value="shop">Shop</option><option value="stockroom">Stockroom</option><option value="both">Both</option></select></div>
                 <div class="rp-field"><label class="rp-label" for="shop-billing">Billing</label><select id="shop-billing" class="rp-select" name="billing"><option value="">All</option><option value="trialing">Free trial</option><option value="active">Paying</option><option value="past_due">Payment failing</option><option value="paused">Paused</option><option value="canceled">Ended</option></select></div>
@@ -327,6 +355,43 @@
                 <button type="submit" class="rp-btn rp-btn-secondary">Show</button>
               </form>
               <div id="activity"></div>
+            </section>
+
+            <section data-page="jobs" aria-labelledby="h-jobs" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-jobs">Jobs</h1><p class="rp-page-desc">Everything the platform does on a schedule: how often, when it last ran, how long it took and how it went. A job that stops running on time is emailed to the alert address once.</p></div>
+                <div class="rp-page-actions"><button type="button" id="jobs-refresh" class="rp-btn rp-btn-secondary">Refresh</button></div>
+              </div>
+              <div id="jobs"></div>
+            </section>
+
+            <section data-page="messages" aria-labelledby="h-messages" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-messages">Messages to presses</h1><p class="rp-page-desc">A note at the top of every shop admin it reaches, until its end date. Shoppers never see it. An important one is also emailed once to each press's owner. For outages, use the status page note in the run book.</p></div>
+              </div>
+              <form id="message-form" class="rp-card">
+                <div class="rp-card-body cr-form" style="padding-top: 20px">
+                  <div class="rp-field"><label class="rp-label" for="message-words">The message (plain words)</label><textarea id="message-words" class="rp-textarea" name="words" required maxlength="400"></textarea><span class="rp-hint" id="message-count">400 characters left.</span></div>
+                  <div class="cr-form-grid">
+                    <div class="rp-field"><label class="rp-label" for="message-level">How important</label><select id="message-level" class="rp-select" name="level"><option value="info">Info: a note in the admin</option><option value="important">Important: also emailed to each owner</option></select></div>
+                    <div class="rp-field"><label class="rp-label" for="message-audience">Who sees it</label><select id="message-audience" class="rp-select" name="audience"><option value="all">Every shop</option><option value="plan:shop">Shops on the Shop plan</option><option value="plan:stockroom">Shops on the Stockroom plan</option><option value="plan:both">Shops on Shop and stockroom</option><option value="shop">One shop</option></select></div>
+                    <div class="rp-field" id="message-shop-field" hidden><label class="rp-label" for="message-shop">Shop id</label><input id="message-shop" class="rp-input" name="shopId" autocomplete="off"></div>
+                    <div class="rp-field"><label class="rp-label" for="message-start">Starts (empty: now)</label><input id="message-start" class="rp-input" type="datetime-local" name="startsAt"></div>
+                    <div class="rp-field"><label class="rp-label" for="message-end">Ends (at most 60 days away)</label><input id="message-end" class="rp-input" type="datetime-local" name="endsAt" required></div>
+                  </div>
+                  <div class="rp-field"><label class="rp-label" for="message-reason">Why are you sending this? (goes in the activity log)</label><input id="message-reason" class="rp-input" name="reason" required minlength="10" maxlength="500"></div>
+                  <div><button type="submit" class="rp-btn rp-btn-primary">Send the message</button></div>
+                </div>
+              </form>
+              <div class="cr-head"><h2>Sent</h2></div>
+              <div id="messages"></div>
+            </section>
+
+            <section data-page="costs" aria-labelledby="h-costs" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-costs">Costs</h1><p class="rp-page-desc">This month's Google bill for each shop next to what the shop pays, the shops costing more than they bring in first. Credits are taken off.</p></div>
+              </div>
+              <div id="costs"></div>
             </section>
           </div>
 

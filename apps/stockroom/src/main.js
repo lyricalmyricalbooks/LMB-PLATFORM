@@ -855,6 +855,7 @@ import {
   printSalesTracker,
   printPaymentQRCodes,
   printFairKit,
+  printHangTags,
 } from './features/fair-kit.js';
 import {
   setInventoryAdjustmentMode,
@@ -1141,6 +1142,7 @@ import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
 import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, shopProfile, switchOn } from './lib/shop-profile.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
+import { readReady, readyApplies, readyHtml, readyLines, showReady, writeReady } from './lib/stockroom-ready.js';
 import { catalogGroups, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
 import { applyPageWords, sellsBooks, words } from './lib/shop-words.js';
 // The page's own words follow what the shop sells (plan 10.23): "product" and "maker" for a shop that doesn't sell books.
@@ -6414,8 +6416,26 @@ function renderSetupGuide(allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b)
   const on = !isAuthor() && guideApplies(readShopProfile(), DEFAULT_SHOP_PROFILE) && showGuide(steps, saved);
   el.hidden = !on;
   el.innerHTML = on ? guideHtml(steps) : '';
+  renderReadyCheck(allBooksVisible);
+}
+
+// Your stockroom is ready (plan 17.12, lib/stockroom-ready.js): the one-screen check for a press with both apps, the
+// first time its stockroom opens. Hidden for the author view, for a stockroom-only press (its guide shows instead) and
+// once the press has said "Got it" in this browser.
+function renderReadyCheck(allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b))) {
+  const el = $('stockroom-ready-check');
+  if (!el) return;
+  const saved = readReady();
+  const on = !isAuthor() && readyApplies(readShopProfile(), DEFAULT_SHOP_PROFILE) && showReady(saved);
+  el.hidden = !on;
+  el.innerHTML = on ? readyHtml(readyLines(allBooksVisible)) : '';
 }
 registerActions({
+  'ready.open': el => switchTab(el.dataset.tab),
+  'ready.hide': () => {
+    writeReady({ ...readReady(), hiddenAt: new Date().toISOString() });
+    renderSetupGuide();
+  },
   'guide.open': el => switchTab(el.dataset.tab),
   'guide.tick': el => {
     const saved = readGuide();
@@ -7524,6 +7544,7 @@ export function refreshAttentionSurfaces() {
   renderOverviewRail();
 }
 // The website link's waiting orders and storage check feed the To-do list.
+if (typeof window !== 'undefined') window.addEventListener('trade-invoice-open', (e) => { try { openCreateInvoice(null, null, { draft: e.detail && e.detail.draft }); } catch (_) { /* the editor stays closed */ } });
 if (typeof window !== 'undefined') window.addEventListener('website-link-todo', () => { try { refreshAttentionSurfaces(); } catch (_) { /* next render picks it up */ } });
 
 /** Tick one order off as sent, from the to-do list or the landing page. */
@@ -19296,6 +19317,7 @@ Object.assign(window, {
   printPaymentQRCodes,
   printFairKit,
 });
+registerActions({ 'fairkit.hangTags': () => printHangTags() });
 // Declared in features/pos-books.js, likewise free of import-time side
 // effects, so the register-only book dialog's handlers are registered here.
 Object.assign(window, {
