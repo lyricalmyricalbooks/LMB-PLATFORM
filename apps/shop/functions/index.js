@@ -43,6 +43,7 @@ const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./live
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./shared/addressRules");
 const { pressName } = require("./shared/shopIdentity");
+const { sellerSection } = require("./sellerDetails");
 const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { taxPartsByKind } = require("./shared/taxByKind");
@@ -3191,7 +3192,10 @@ async function handleOrderUpdated(event) {
             <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">Pre-order</h3>
             ${preorderLines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}
           </div>` : "";
-      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection].filter(Boolean).join("\n");
+      // Who sold it and the policies, always at the foot (sellerDetails.js: provincial and EU/UK consumer rules).
+      const sellerWebsite = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
+      const sellerBlock = sellerSection(sellerWebsite, siteLink, shopConfig.senderName);
+      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection, sellerBlock].filter(Boolean).join("\n");
 
       const confirmationSettings = digitalOnlyOrder ? { ...notificationSettings, order_confirmation: { ...notificationSettings.order_confirmation,
         body: forDigitalOnlyOrder(notificationSettings.order_confirmation?.body || DEFAULT_NOTIFICATIONS.order_confirmation.body, { hasDownloads: digitalItems.length > 0 }) } } : notificationSettings;

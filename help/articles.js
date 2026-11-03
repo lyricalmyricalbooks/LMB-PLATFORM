@@ -17,6 +17,24 @@ export const TOPICS = Object.freeze(["Getting started", "Moving your shop", "Sel
 /** @type {readonly Article[]} */
 export const ARTICLES = Object.freeze([
   {
+    id: "selling-legally",
+    topic: "Selling",
+    question: "What do I need to sell within the law?",
+    answer: [
+      "Your press is the seller, so the shopping, privacy and tax rules of the places you sell to apply to you. This is a short list of what most presses need, not legal advice.",
+      "Fill in your own name, address and email under Settings › General. Every order email and shipping label shows them, and the law asks for them.",
+      "Write your shipping, returns, privacy and terms pages. Each has a Start from our wording button, and your shop won't open until all four have words.",
+      "Your returns page can say no to change-of-mind returns, but shoppers always keep their rights for faulty items. Shoppers in Europe and the United Kingdom can cancel within 14 days of delivery.",
+      "In Canada, register for GST/HST once your sales pass $30,000 over four quarters. Quebec and British Columbia have their own sales tax lines. Ask an accountant which apply to you.",
+      "Selling to the United States, Europe, the United Kingdom or Australia can bring its own sales tax or VAT once your sales there pass a line. Ask an accountant before you sell a lot there.",
+      "Selling to shoppers in Quebec means your shop's pages, checkout and policies must also be in French. Your shop can translate its pages for you; check the wording before you rely on it.",
+      "Send newsletters only to people who asked for them. Your sign-up form already asks them to confirm by email, and every newsletter has a way to stop.",
+      "Your shop asks shoppers before it counts their visits. Leave the cookie banner on if you sell to Europe, the United Kingdom or Quebec.",
+      "When a shopper asks for a copy of their details or to be deleted, answer within 30 days under Settings › General › Privacy requests.",
+    ],
+    where: ["Settings › General"],
+  },
+  {
     id: "add-a-book",
     topic: "Getting started",
     question: "How do I add my first book?",

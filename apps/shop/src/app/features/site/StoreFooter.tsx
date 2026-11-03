@@ -168,7 +168,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
         <p className="text-[9px] tracking-widest text-white/55 uppercase">
           <span data-studio-copy="footerCopyright">{getCopy(settings?.design, "footerCopyright")}</span>
           {/* Shoppers can always change their cookie answer (EU/UK and Quebec rules); words in Text & labels › Footer. */}
-          {d.showCookieBanner !== false && <>{" · "}<button type="button" onClick={openCookieSettings} className="uppercase tracking-widest underline-offset-2 hover:text-white hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]">
+          {d.showCookieBanner !== false && <>{" · "}<button type="button" onClick={openCookieSettings} className="fm-footer-text text-white/80 uppercase tracking-widest underline-offset-2 hover:text-white hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]">
             <span data-studio-copy="footerCookieSettings">{getCopy(d, "footerCookieSettings")}</span>
           </button></>}
         </p>

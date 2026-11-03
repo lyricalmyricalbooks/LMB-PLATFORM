@@ -25,7 +25,7 @@ describe("launchReadiness", () => {
     expect(status(items, "books")).toBe("block");
     expect(status(items, "email")).toBe("block");
     expect(status(items, "shipping")).toBe("block");
-    expect(status(items, "policies")).toBe("warn");
+    expect(status(items, "policies")).toBe("block"); // the four policy pages are required to open (legal review, 3 Nov 2026)
     expect(status(items, "first-sale")).toBe("warn");
     expect(status(items, "tax")).toBe("warn");
     expect(readinessSummary(items)).toBe("block");

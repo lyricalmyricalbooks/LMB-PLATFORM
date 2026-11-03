@@ -8,7 +8,7 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-03-draft";
+export const TERMS_VERSION = "2026-11-03-draft.2";
 
 /** True until a lawyer has read the words. The page shows the draft notice while it is. */
 export const DRAFT = true;
@@ -26,12 +26,11 @@ export const PRIVACY_CONTACT = "privacy@platform.example";
 export const REPORT_CONTACT = "reports@platform.example";
 
 /**
- * The company that runs Colophon and its mailing address. Placeholders until Julian's company is registered; a test
- * refuses a final (non-draft) version while either is still a placeholder. The law where the company is registered is
- * the lawyer's call (Julian's billing runs on Toronto time, so Ontario is the working guess).
+ * The company that runs Colophon, its mailing address and the law that governs the terms (Julian, 3 November 2026).
+ * The name is the one place outside shops/ that may name it (apps-isolation.test.js allows exactly this line).
  */
-export const OPERATOR_NAME = "the company that runs Colophon";
-export const OPERATOR_ADDRESS = "the mailing address at the foot of our emails";
+export const OPERATOR_NAME = "Lyricalmyrical Books";
+export const OPERATOR_ADDRESS = "456 Montrose Avenue, Toronto, Ontario M6G 3H1, Canada";
 export const GOVERNING_LAW = "the province of Ontario and the laws of Canada that apply there";
 
 /** How long each backup of a shop is kept, in days (the shop's nightly backup removes older ones). */
@@ -74,7 +73,7 @@ export const SECTIONS = Object.freeze([
     id: "terms",
     title: "Terms of service",
     paragraphs: [
-      `These terms are between your press and ${OPERATOR_NAME}, reachable at ${OPERATOR_ADDRESS}. The person who ticks the box at sign-up agrees for the press, and confirms they may.`,
+      `These terms are between your press and ${OPERATOR_NAME}, the company that runs Colophon, at ${OPERATOR_ADDRESS}. The person who ticks the box at sign-up agrees for the press, and confirms they may.`,
       "Colophon gives your press a shop, a stockroom, or both. It is made for businesses, not for people buying for themselves.",
       "Your shop is your own business. Your press is the seller to your shoppers, sets its own prices and policies, and follows the shopping, privacy and tax laws of the places it sells to.",
       "You are responsible for what you sell and for the words and pictures you put in your shop. Don't use Colophon to sell anything that is against the law where you or your buyers are.",
@@ -109,7 +108,7 @@ export const SECTIONS = Object.freeze([
     title: "Privacy policy",
     paragraphs: [
       "This part is about you, the person who runs a press on Colophon. Your shoppers are covered by your own shop's privacy policy.",
-      `${OPERATOR_NAME.replace(/^t/, "T")} is responsible for what we keep about you. Our privacy officer answers for it, at ${PRIVACY_CONTACT}.`,
+      `${OPERATOR_NAME} is responsible for what we keep about you. Our privacy officer answers for it, at ${PRIVACY_CONTACT}.`,
       "We keep your name, your email address, your press's name, the plan you chose, and your answers when you signed up. We use them to run your shop, bill your plan and write to you about your account.",
       "Card numbers are held by our payment company. We see only the card's brand, its last four numbers and when it runs out.",
       "We also keep a record of sign-ins, new devices and what our team does in your shop, to keep accounts safe.",
