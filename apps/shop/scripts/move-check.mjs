@@ -99,16 +99,20 @@ try {
   await page.waitForTimeout(800);
   check(await rate.inputValue() === "1.3712", "US-dollar rate suggested", await rate.inputValue());
   check(/Bank of Canada average/.test(await page.locator("body").innerText()), "the suggestion says where it came from");
-  check(/pending/.test(await page.locator('[role="dialog"]').textContent()), "the pending order is listed as left out");
+  const shown = await page.locator('[role="dialog"]').textContent();
+  check(/pending/.test(shown) && /#1007: it was cancelled/.test(shown), "the pending and cancelled orders are listed as left out");
   await shot("4-orders-preview");
-  await page.getByRole("button", { name: /^Bring 3 past orders over$/ }).click();
+  await page.getByRole("button", { name: /^Bring 5 past orders over$/ }).click();
   await page.getByRole("button", { name: "Wrong file? Take this import back" }).waitFor({ timeout: 10000 });
-  check(server_.imported.length === 3, "3 past orders reached the server", `${server_.imported.length}`);
+  check(server_.imported.length === 5, "5 past orders reached the server", `${server_.imported.length}`);
   check(server_.imported.find((o) => o.number === "#1003")?.paidIn?.rate === 1.3712, "#1003 sent with its US-dollar rate");
+  // Refunds come over as what was paid back (plan 23.31): the server marks a whole refund as refunded.
+  check(server_.imported.find((o) => o.number === "#1005")?.refunded === 42 && server_.imported.find((o) => o.number === "#1006")?.refunded === 10,
+    "the refund and the part refund are sent with what was paid back");
   await page.getByRole("button", { name: "Wrong file? Take this import back" }).click();
   await page.getByRole("button", { name: "Yes, remove them" }).click();
-  await page.getByText(/3 past orders removed/).waitFor({ timeout: 10000 });
-  check(server_.imported.length === 0 && server_.removed === 3, "taking it back removed all 3");
+  await page.getByText(/5 past orders removed/).waitFor({ timeout: 10000 });
+  check(server_.imported.length === 0 && server_.removed === 5, "taking it back removed all 5");
   await shot("5-orders-taken-back");
   await page.keyboard.press("Escape");
 
