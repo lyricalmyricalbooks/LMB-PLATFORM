@@ -54,7 +54,7 @@ import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
 import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
 import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
-import { CARD_WARNING_DAYS, cardEnds, cardWarningDue } from "./cardExpiry.js";
+import { CARD_WARNING_DAYS, cardEnds, cardRunningOut, cardWarningDue } from "./cardExpiry.js";
 import { leavingAnswer } from "./leaving.js";
 import { cardWords } from "./cards.js";
 import { withRetries } from "./stripeRetry.js";
@@ -334,6 +334,18 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     if (!row || row.founding === true) return row;
     const percentOff = await takeFoundingPlace(shopId);
     return percentOff === null ? row : save(shopId, { founding: true, foundingPercentOff: percentOff, foundingAt: at() }, "founding-place-given");
+  }
+
+  /**
+   * A press that held a founding place and left before paying anything gives it back, so it can go to a paying press
+   * (on by default; the control room's "give a place back" setting turns it off, and then a place once given stays).
+   */
+  async function giveBackFounding(shopId) {
+    if (!live || !foundingSeats?.release) return null;
+    if ((await live())?.foundingOffer?.giveBackUnpaid === false) return null;
+    await foundingSeats.release(shopId, { at: at() });
+    if (await registry.getShop(shopId)) await registry.updateShop(shopId, { founding: false });
+    return save(shopId, { founding: false, foundingPercentOff: null, foundingOn: null, foundingAt: null }, "founding-place-given-back");
   }
 
   /** One of the founding places, if the offer is on and any are left: its percent off, or null. */
@@ -631,6 +643,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         // Only while something is owed: a problem left over from a bill voided or settled some other way doesn't linger.
         paymentProblem: OWING.has(row.status) && row.paymentProblem ? { kind: row.paymentProblem.kind, at: row.paymentProblem.at, amount: row.paymentProblem.amount ?? "", nextTry: row.paymentProblem.nextTry ?? null, pageUrl: httpsOrNull(row.paymentProblem.pageUrl) } : null,
         canPayNow: OWING.has(row.status) && Boolean(row.hasCard),
+        // The paying card runs out within a month (or has): the Billing page asks for a new one until it's saved.
+        cardRunsOut: cardRunningOut(row, now()),
       };
     },
 
@@ -762,6 +776,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           await notify(shopId, "card-needed", {}, event.id);
         } else if (event.type === "customer.subscription.deleted") {
           await notify(shopId, "subscription-ended", {}, event.id);
+          if (saved.founding === true && !saved.paidOnce) await giveBackFounding(shopId);
         }
         return saved.status;
       }
@@ -794,7 +809,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         if (!row) return "not ours";
         const problem = row.paymentProblem;
         const settles = problem && (!problem.invoiceId || problem.invoiceId === object.id);
-        await save(row.shopId, { lastPaidAt: at(), lastPaidInvoiceId: object.id ?? null, ...(settles ? { paymentProblem: null } : {}) }, null);
+        await save(row.shopId, { lastPaidAt: at(), lastPaidInvoiceId: object.id ?? null, ...((object.amount_paid ?? 0) > 0 ? { paidOnce: true } : {}), ...(settles ? { paymentProblem: null } : {}) }, null);
         if (!settles) return "paid";
         await logChange(row.shopId, "payment-recovered", {});
         await notify(row.shopId, "payment-received", { price: moneyText(object.amount_paid ?? object.total ?? 0, object.currency ?? settings.currency) }, event.id);

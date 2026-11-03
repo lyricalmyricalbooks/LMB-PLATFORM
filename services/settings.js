@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   startNudges: "hold",
   signupDailyCap: 10,
   openCountries: Object.freeze(["CA"]),
-  foundingOffer: Object.freeze({ percentOff: 25, presses: 25 }),
+  foundingOffer: Object.freeze({ percentOff: 25, presses: 25, giveBackUnpaid: true }),
   payAsYouSell: Object.freeze({ basisPoints: 200 }),
 });
 
@@ -143,6 +143,7 @@ export function platformSettings(env = process.env) {
     foundingOffer: {
       percentOff: whole("FOUNDING_PERCENT_OFF", DEFAULT_SETTINGS.foundingOffer.percentOff, LIMITS["foundingOffer.percentOff"]),
       presses: whole("FOUNDING_PRESSES", DEFAULT_SETTINGS.foundingOffer.presses, LIMITS["foundingOffer.presses"]),
+      giveBackUnpaid: yesNo("FOUNDING_GIVE_BACK_UNPAID", DEFAULT_SETTINGS.foundingOffer.giveBackUnpaid),
     },
     payAsYouSell: { basisPoints: whole("PAY_AS_YOU_SELL_BASIS_POINTS", DEFAULT_SETTINGS.payAsYouSell.basisPoints, LIMITS["payAsYouSell.basisPoints"]) },
   };
@@ -168,6 +169,8 @@ export const EDITABLE = Object.freeze({
   trialDays: { kind: "whole", ...LIMITS.trialDays, label: "Free trial days" },
   "foundingOffer.percentOff": { kind: "whole", ...LIMITS["foundingOffer.percentOff"], label: "Founding offer: percent off, for as long as they stay" },
   "foundingOffer.presses": { kind: "whole", ...LIMITS["foundingOffer.presses"], label: "Founding offer: how many paying presses get it" },
+  // On by default (3 November 2026): a place taken by a press that left before paying anything goes back to the offer.
+  "foundingOffer.giveBackUnpaid": { kind: "yesNo", label: "Founding offer: give a place back when a press leaves before paying anything" },
   "payAsYouSell.basisPoints": { kind: "basisPoints", ...LIMITS["payAsYouSell.basisPoints"], label: "Pay as you sell: share of each website sale (0 turns it off)" },
 });
 

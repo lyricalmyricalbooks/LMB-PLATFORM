@@ -40,10 +40,12 @@ so a stage that is added to the build also needs a line here.
   still to do.
 - **Plan and billing in the admin** (plan 22.1-22.5): in Stripe's test mode on the platform account, Julian adds the
   events `invoice.paid` and `invoice.payment_action_required` to the billing events address, and turns on Stripe's
-  emailed receipts if he wants one per payment. Then, in the test shop's Settings › Billing, he adds Stripe's test card,
+  emailed receipts (Stripe's settings, Customer emails, "Successful payments" and "Finalized invoices"), so every press
+  gets its bill by email for its bookkeeper. Do this test payment before the first real press pays. Then, in the test shop's Settings › Billing, he adds Stripe's test card,
   adds a second, makes it primary, removes the first, saves a GST/HST number, and checks the bill shows it and the
-  founding 25% off. Stripe's "3D Secure required" test card checks the "Confirm the payment" step. Status: built on
-  pretend Stripe; nothing real is connected.
+  founding 25% off. Stripe's "3D Secure required" test card checks the "Confirm the payment" step, and a test card that
+  runs out next month shows the "card runs out" warning on Settings › Billing. Status: built on pretend Stripe; nothing
+  real is connected.
 - **Shipping and your address** (plan 17.11): Julian confirms the shipping starter for Canada with his own prices and
   checks the web address shown on the shop. Nothing needs a carrier account for the starter. Status: built.
 - **Your stockroom** (plan 17.12, setup step 16): the full test shop run (plan 15.7) turns the stockroom link on, and

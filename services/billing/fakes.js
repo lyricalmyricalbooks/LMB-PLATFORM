@@ -62,6 +62,9 @@ export function fakeFoundingSeats() {
       rows.set(shopId, { shopId, at, percentOff });
       return true;
     },
+    async release(shopId) {
+      return rows.delete(shopId);
+    },
     count: async () => rows.size,
   };
 }

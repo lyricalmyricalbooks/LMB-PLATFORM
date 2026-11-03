@@ -755,6 +755,8 @@ billing details, the next bill, Pay now and the bank's "confirm this payment" we
 | 22.4 | platform | **Stripe calls tried again.** `stripeRetry.js`: a read or delete after a dropped connection, 429, 409 or 5xx; a keyed POST after a dropped connection, 429 or 409 only (Stripe keeps a 500 against its key) | `hub.test.js` | quick | built |
 | 22.5 | platform | **More Stripe messages.** `invoice.payment_action_required` (the bank wants the press to confirm: the hub links to Stripe's page, email `payment-needs-confirming`), `invoice.paid` (a payment problem cleared, email `payment-received` after a problem only) | `hub.test.js` | quick | built |
 | 22.6 | shop | **Two-step sign-in in the shop admin.** Authenticator codes on the admin's own sign-in, so a paid plan's changes finish in the admin instead of on the account page (Julian chose this, 3 November 2026) | | larger | next |
+| 22.7 | platform + shop | **The card running out, on Settings › Billing.** `cardRunningOut` (`cardExpiry.js`): the status says when the paying card runs out within a month or has, and the Billing page asks for a new card until one is saved (the email alone was easy to miss) | `hub.test.js`, `BillingHub.test.tsx` | quick | built |
+| 22.8 | platform | **A founding place given back.** A press that held a founding place and whose plan ended before it paid anything (`paidOnce`, set by a paid bill over $0) gives the place back (`foundingSeats.release`). On by default; the control room's "give a place back" setting (`foundingOffer.giveBackUnpaid`) turns it off, so Julian can reverse it | `hub.test.js` | quick | built |
 
 ## Rules for every pull request
 
