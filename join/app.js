@@ -179,6 +179,7 @@ function done() {
   $("#done-press").textContent = press.pressName || "Not named yet";
   $("#done-sells").textContent = sells || "Not said yet";
   $("#done-country").textContent = COUNTRIES[press.country]?.name || "Not said yet";
+  $("#done-change").hidden = press.status !== "setup";
   if (SETUP_ADMIN_URL) {
     const go = $("#done-go");
     go.href = `${SETUP_ADMIN_URL}?press=${encodeURIComponent(press.pressId)}`;
@@ -207,6 +208,7 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
   fillAnswers();
-  if (press.pressName) done();
+  // A press already named, or already opening, shows where it stands; the questions are only for a new one.
+  if (press.pressName || press.status !== "setup") done();
   else show("name");
 });

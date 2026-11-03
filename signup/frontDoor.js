@@ -12,7 +12,8 @@
 // Nothing here starts a trial, takes a card or makes a shop: those wait for Open my shop (18.8).
 //
 // Clients passed in:
-//   presses   get(pressId); set(pressId, record); create(pressId, record) -> bool; listByOwner(ownerUid)
+//   presses   get(pressId); create(pressId, record) -> bool; listByOwner(ownerUid);
+//             update(pressId, change) -> change's result, read and written in one transaction
 //   codes     the sign-in code store (signInCode.js): get(key); set(key, row)
 //   email     sendPlatform({ kind, to, data, idempotencyKey })
 //   auth      signInLink(email, { url }) -> link (clients/signInLinks.js in the platform project)
@@ -99,11 +100,16 @@ export function createFrontDoor({ presses, codes, email, auth, settings, now = (
       if (typeof change.country === "string" && change.country && !(change.country in COUNTRIES)) {
         throw new SignupError(400, "Pick your country from the list.", { country: "Pick your country from the list." });
       }
-      const checked = setupChange(record, change);
-      if (!checked.ok) throw new SignupError(409, checked.message);
-      const updated = { ...record, ...checked.fields, lastSeenAt: now().toISOString() };
-      await presses.set(record.pressId, updated);
-      return { press: shown(updated) };
+      // Read and written in one step, so a save can never put back a status the platform has just moved on.
+      const saved = await presses.update(record.pressId, (current) => {
+        if (!current || current.ownerUid !== claims.uid) return { row: null, result: { ok: false, status: 404, message: "We couldn't find that press." } };
+        const checked = setupChange(current, change);
+        if (!checked.ok) return { row: null, result: { ...checked, status: 409 } };
+        const updated = { ...current, ...checked.fields, lastSeenAt: now().toISOString() };
+        return { row: updated, result: { ok: true, press: shown(updated) } };
+      });
+      if (!saved.ok) throw new SignupError(saved.status, saved.message);
+      return { press: saved.press };
     },
   };
 }

@@ -97,3 +97,21 @@ test("starting with no name again gives back the press still in setup, not a sec
   assert.equal(presses.rows.size, 1);
   assert.match(first.pressId, /^[a-z0-9-]{8,40}$/);
 });
+
+test("two sign-ins at the same moment (two open tabs) end with one press", async () => {
+  const presses = fakePresses();
+  const start = createAccountStart({ presses, now: () => NOW });
+  const [a, b] = await Promise.all([start.start(ADA, {}), start.start(ADA, {})]);
+  assert.equal(a.pressId, b.pressId);
+  assert.equal(presses.rows.size, 1);
+});
+
+test("a person whose press has moved past setup gets it back, not a new empty one", async () => {
+  const presses = fakePresses();
+  const start = createAccountStart({ presses, now: () => NOW });
+  const { pressId } = await start.start(ADA, {});
+  presses.rows.get(pressId).status = "open";
+  const again = await start.start(ADA, {});
+  assert.deepEqual(again, { pressId, status: "open" });
+  assert.equal(presses.rows.size, 1);
+});

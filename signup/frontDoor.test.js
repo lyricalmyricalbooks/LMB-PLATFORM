@@ -150,3 +150,15 @@ test("the code email shows the code, says how long it works, and refuses anythin
   assert.match(parts.text, /10 minutes/);
   assert.throws(() => TEMPLATES["sign-in-code"]({ code: "<b>1</b>" }, { settings: SETTINGS }), /six numbers/);
 });
+
+test("two tabs signing in at once share one press, and a save never puts back an older status", async () => {
+  const w = world();
+  const [a, b] = await Promise.all([w.ask("POST", "/api/press", {}, ADA), w.ask("POST", "/api/press", {}, ADA)]);
+  assert.equal(a.body.press.pressId, b.body.press.pressId);
+  assert.equal(w.stores.presses.rows.size, 1);
+  const { pressId } = a.body.press;
+  // The platform moves the press on while a save is on its way: the save is refused, the status stays.
+  w.stores.presses.rows.get(pressId).status = "opening";
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, pressName: "Late" }, ADA)).status, 409);
+  assert.equal(w.stores.presses.rows.get(pressId).status, "opening");
+});

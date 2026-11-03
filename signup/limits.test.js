@@ -136,3 +136,10 @@ test("the front door's code: 20 sends and 60 checks an hour per network, even wi
   clock += 61 * 60_000;
   assert.equal((await ask("/api/code/check")).status, 200, "an hour later it opens");
 });
+
+test("calls sent all at once are still held to the limit", async () => {
+  const limiter = createLimits({ throttle: fakeThrottle(), now: () => new Date(START), log: () => {} });
+  const request = { headers: { "X-Forwarded-For": "203.0.113.5" } };
+  const answers = await Promise.allSettled(Array.from({ length: 100 }, () => limiter.beforeCall("POST /api/code/check", request)));
+  assert.equal(answers.filter((a) => a.status === "fulfilled").length, DEFAULT_LIMITS.codeCheck.max);
+});

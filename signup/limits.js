@@ -96,9 +96,14 @@ export function createLimits({ throttle, admins = [], limits = DEFAULT_LIMITS, c
     const { max, windowMs } = limits[kind] ?? DEFAULT_LIMITS[kind];
     const key = `limit/${kind}/${hashed(who)}`;
     const nowMs = now().getTime();
+    const since = new Date(nowMs - windowMs).toISOString();
+    const at = new Date(nowMs).toISOString();
     try {
-      if ((await throttle.count(key, new Date(nowMs - windowMs).toISOString())) >= max) throw new LimitError(Math.ceil(windowMs / 1000));
-      await throttle.add(key, new Date(nowMs).toISOString());
+      // Count and add in one step where the store can, so calls sent at the same moment can't all pass the count.
+      const added = throttle.addIfUnder
+        ? await throttle.addIfUnder(key, since, at, max)
+        : (await throttle.count(key, since)) < max && (await throttle.add(key, at), true);
+      if (!added) throw new LimitError(Math.ceil(windowMs / 1000));
     } catch (error) {
       if (error instanceof LimitError) throw error;
       log(`The fair-use counter couldn't be read or written (${error?.message ?? error}); the call went through.`);

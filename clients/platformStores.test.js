@@ -274,8 +274,20 @@ test("the front door's presses and sign-in codes answer like the fakes, and crea
     await presses.set("press-abcde", { ...ada, pressName: "Moth Press" }),
     (await presses.listByOwner("uid-ada")).map((p) => p.pressName),
     await presses.listByOwner("uid-nobody"),
+    await presses.update("press-abcde", (row) => ({ row: { ...row, sells: "zines" }, result: row.pressName })),
+    (await presses.get("press-abcde")).sells,
     await codes.get("k1"),
-    await codes.set("k1", { hash: "ab", salt: "cd", tries: 0, sentAt: [1, 2] }),
+    await codes.update("k1", (row) => ({ row: { codes: [], sentAt: [1, 2], wrongAt: [] }, result: row })),
+    await codes.update("k1", (row) => ({ row: null, result: row.sentAt })),
     await codes.get("k1"),
+  ]);
+});
+
+test("the throttle's addIfUnder counts and adds like the fake, and refuses at the cap", async () => {
+  await sameAnswers(fakeThrottle, (db) => firestoreThrottle(db), async (throttle) => [
+    await throttle.addIfUnder("k", "2026-11-03T08:00:00.000Z", "2026-11-03T09:00:00.000Z", 2),
+    await throttle.addIfUnder("k", "2026-11-03T08:00:00.000Z", "2026-11-03T09:00:01.000Z", 2),
+    await throttle.addIfUnder("k", "2026-11-03T08:00:00.000Z", "2026-11-03T09:00:02.000Z", 2),
+    await throttle.count("k", "2026-11-03T08:00:00.000Z"),
   ]);
 });
