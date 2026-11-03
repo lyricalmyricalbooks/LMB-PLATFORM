@@ -44,6 +44,7 @@ export const PUBLISHES = Object.freeze({
     Object.freeze({ id: "comics", label: "Comics" }),
     Object.freeze({ id: "prints", label: "Art and prints" }),
     Object.freeze({ id: "mix", label: "A mix" }),
+    Object.freeze({ id: "mixed", label: "Books and other things" }),
     Object.freeze({ id: "clothing", label: "Clothing" }),
     Object.freeze({ id: "shoes", label: "Shoes" }),
     Object.freeze({ id: "jewelry", label: "Jewelry" }),

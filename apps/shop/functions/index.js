@@ -2730,7 +2730,9 @@ const DEFAULT_NOTIFICATIONS = {
 /** Sign-up's "What do you sell?" answer (`firstWeek/start` › `publishes`), or "" when there is none or it can't be read. */
 async function shopSellsAnswer() {
   try {
-    const answer = (await db.collection("firstWeek").doc("start").get()).data()?.publishes;
+    // What the owner chose in Settings (`sells`) reads before the sign-up answer (`publishes`).
+    const data = (await db.collection("firstWeek").doc("start").get()).data();
+    const answer = data?.sells || data?.publishes;
     return typeof answer === "string" ? answer : "";
   } catch (err) {
     console.warn("Failed to read what the shop sells, using the books words:", err);

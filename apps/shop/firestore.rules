@@ -320,14 +320,16 @@ service cloud.firestore {
       // Overview › Set up your shop (plan 6.9, was Your first week 3.3): the sign-up answers, written once by the
       // platform's setup (Admin SDK), and the steps the owner ticked, hiding the guide, Choose your look being done
       // (`welcome`, plan 6.3) and the guide's progress the platform's trial emails read (`progress`, plan 6.10).
-      // Admin only. The sign-up answers themselves never change from the admin.
+      // Admin only. The sign-up answers themselves never change from the admin; what the shop sells now is `sells`
+      // (Settings › General › What you sell), which reads before `publishes`.
       allow read: if isAdminReader();
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
         && (resource == null || (request.resource.data.get("sellingToday", null) == resource.data.get("sellingToday", null)
           && request.resource.data.get("publishes", null) == resource.data.get("publishes", null)
           && request.resource.data.get("country", null) == resource.data.get("country", null)
           && request.resource.data.get("plan", null) == resource.data.get("plan", null)))
+        && (!("sells" in request.resource.data) || request.resource.data.sells in ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"])
         && (!("done" in request.resource.data) || request.resource.data.done is map && request.resource.data.done.size() <= 20)
         && (!("hiddenAt" in request.resource.data) || request.resource.data.hiddenAt is string)
         && (!("details" in request.resource.data) || (request.resource.data.details is map
