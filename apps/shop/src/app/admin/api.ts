@@ -1900,6 +1900,20 @@ export const adminApi = {
     return result as { ok?: boolean; id?: string; code?: string; last4?: string; balanceMinor?: number; emailError?: string; appliedMinor?: number; clamped?: boolean };
   },
 
+  // Orders › New order to pay (plan 21.2): the server makes the order and keeps its agreed prices (functions/paymentLinks.js).
+  makePaymentLink: async (link: Record<string, unknown>): Promise<{ orderId: string; trackingKey: string; total: number; expiresAt: string }> => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "paymentLink", op: "create", link }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "We couldn't make this payment link. Please try again.");
+    return result;
+  },
+
   validateDiscount: async (code: string) => {
     // The discounts collection is admin-only in Firestore rules, so the
     // public checkout validates codes through a Cloud Function. The server
@@ -1988,7 +2002,7 @@ export const adminApi = {
    * Ticks a step by hand (`done.<id>`), hides the guide (`hiddenAt`), records Choose your look (`welcome`, plan 6.3) or
    * the guide's progress for the trial emails (`progress`, plan 6.10). Merges, so nothing else changes.
    */
-  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string; details?: { at: string }; bring?: import("./bringShop").BringMarker; shipping?: import("./shippingStage").ShippingMarker; finalCheck?: import("./finalCheckStage").FinalCheckMarker; google?: import("./googleStage").GoogleMarker; payments?: import("./paymentsStage").PaymentsMarker; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
+  updateFirstWeek: async (change: { sells?: string; done?: Record<string, string>; hiddenAt?: string; details?: { at: string }; bring?: import("./bringShop").BringMarker; shipping?: import("./shippingStage").ShippingMarker; finalCheck?: import("./finalCheckStage").FinalCheckMarker; google?: import("./googleStage").GoogleMarker; payments?: import("./paymentsStage").PaymentsMarker; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
     await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
   },
 

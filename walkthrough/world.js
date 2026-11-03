@@ -30,7 +30,8 @@ import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { fakeRecoveryStore } from "../accounts/fakes.js";
 import { createRepairQueue } from "../control-room/repairs.js";
 import { createApi } from "../signup/api.js";
-import { fakeAuth, fakeInvites, fakeSignupStores, fakeVerifyIdToken } from "../signup/fakes.js";
+import { fakeAuth, fakeFrontDoorStores, fakeInvites, fakeSignupStores, fakeVerifyIdToken } from "../signup/fakes.js";
+import { createFrontDoor, frontDoorPublicRoutes, frontDoorRoutes } from "../signup/frontDoor.js";
 import { createShopMaker } from "../signup/shopMaker.js";
 import { createSignup } from "../signup/signup.js";
 import { runSteps } from "../setup/runner.js";
@@ -134,6 +135,9 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const signup = createSignup({
     ...stores, registry, billing, email, auth: fakeAuth(), settings, invites, live, now: clock.date, ...(suffix ? { suffix } : {}),
   });
+  // The front door (18.4): the six-digit code and each press's setup record, before any shop exists.
+  const frontDoorStores = fakeFrontDoorStores();
+  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, now: clock.date, ...(suffix ? { suffix } : {}) });
   const repairStore = fakeRepairStore();
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now: clock.date });
   const steps = () => shopSteps({ ...services, google, registry, profileFiles, config: TEST_CONFIG });
@@ -213,6 +217,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   // door (server/world.js) has the same routes; server/world.test.js checks none is missing there.
   const routes = {
     "POST /api/signup/retry": (claims, request) => shopMaker.retry(claims, request.body?.shopId),
+    ...frontDoorRoutes(frontDoor),
     ...accountRoutes(accounts),
     ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now: clock.date }),
     ...controlRoutes(room),
@@ -230,7 +235,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes,
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: frontDoorPublicRoutes(frontDoor),
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},
@@ -239,7 +244,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
+    stores, frontDoor, frontDoorStores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
     deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
     pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */

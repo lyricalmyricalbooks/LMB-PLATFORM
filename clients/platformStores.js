@@ -15,6 +15,8 @@
 //   firestorePressMessages      pressMessages/<id>                       control-room/messagesFakes.js
 //   firestoreDataExports        dataExports/<id>                         services/export/fakes.js fakeExportStore
 //   firestoreShopRecords        trialTips/<shopId>, checkups/<shopId>    services/trial-tips/fakes.js fakeTipStore
+//   firestoreFrontDoorStores    presses/<pressId>,                       signup/fakes.js fakeFrontDoorStores
+//                               signInCodes/<hash of the address>
 //
 // Team invites are `teamInvites`, not `invites`: `invites` already holds the waitlist's invites (stores.js
 // firestoreInvites), whose rows carry a `shopId` once used, so a shared collection would list them as a shop's team.
@@ -50,13 +52,43 @@ export function firestoreSignupStores(firestore) {
   };
 }
 
+/** Reads one document, lets `change(row | null)` decide { row, result }, and writes `row` (unless null) in one step. */
+const inTransaction = (firestore, path, change) => firestore.transaction(async (tx) => {
+  const { row, result } = change(await tx.get(path));
+  if (row) tx.set(path, row);
+  return result;
+});
+
+/**
+ * The front door's records (signup/frontDoor.js): each press's setup record (signup/pressRecord.js; the presses rules in
+ * waitlist/firestore.rules let its owner read it) and the sign-in codes, which no page can read (only a hash of a code
+ * is kept, signup/signInCode.js). `create` never overwrites: of two presses taking one id, one gets false. `update`
+ * reads and writes in one transaction, so two requests at the same moment can't both act on the same old row.
+ */
+export function firestoreFrontDoorStores(firestore) {
+  return {
+    presses: {
+      get: (id) => firestore.get(`presses/${safe(id)}`),
+      set: (id, row) => firestore.set(`presses/${safe(id)}`, row),
+      create: (id, row) => firestore.create(`presses/${safe(id)}`, row),
+      listByOwner: async (ownerUid) => rowsOf(await firestore.query("presses", { where: [["ownerUid", "==", ownerUid]], limit: 50 })),
+      update: (id, change) => inTransaction(firestore, `presses/${safe(id)}`, change),
+    },
+    codes: {
+      get: (key) => firestore.get(`signInCodes/${safe(key)}`),
+      update: (key, change) => inTransaction(firestore, `signInCodes/${safe(key)}`, change),
+    },
+  };
+}
+
 /** How long a hit is kept, and at most how many per key: longer and more than any limit counts (signup/limits.js). */
 export const THROTTLE_KEEP_MS = 24 * 3600_000;
 export const THROTTLE_CAP = 1000;
 
 /**
  * The fair-use and sign-in-link counter: one document per key (its id a hash, so no address or id is kept in the clear)
- * holding the times of its recent hits. `add` is a transaction that also drops hits older than a day.
+ * holding the times of its recent hits. `add` is a transaction that also drops hits older than a day; `addIfUnder`
+ * counts and adds in the same transaction, so a burst of calls can't all pass the count.
  */
 export function firestoreThrottle(firestore, { keepMs = THROTTLE_KEEP_MS, cap = THROTTLE_CAP } = {}) {
   const path = (key) => `throttle/${createHash("sha256").update(String(key)).digest("hex").slice(0, 40)}`;
@@ -70,6 +102,15 @@ export function firestoreThrottle(firestore, { keepMs = THROTTLE_KEEP_MS, cap = 
       const cutoff = new Date(Date.parse(at) - keepMs).toISOString();
       const hits = [...(row?.hits ?? []).filter((hit) => hit >= cutoff), at].sort().slice(-cap);
       tx.set(path(key), { hits, updatedAt: at });
+    }),
+    /** Counts the hits since `since` and adds one only when fewer than `max`, in one transaction. True when added. */
+    addIfUnder: (key, since, at, max) => firestore.transaction(async (tx) => {
+      const row = await tx.get(path(key));
+      const kept = row?.hits ?? [];
+      if (kept.filter((hit) => hit >= since).length >= max) return false;
+      const cutoff = new Date(Date.parse(at) - keepMs).toISOString();
+      tx.set(path(key), { hits: [...kept.filter((hit) => hit >= cutoff), at].sort().slice(-cap), updatedAt: at });
+      return true;
     }),
   };
 }

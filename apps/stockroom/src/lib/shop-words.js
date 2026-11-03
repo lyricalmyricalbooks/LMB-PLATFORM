@@ -11,7 +11,7 @@
 import { shopProfile } from './shop-profile.js';
 
 /** The sign-up answers (signup/form.js PUBLISHES), in the form's order. */
-export const SELLS = Object.freeze(['books', 'zines', 'comics', 'prints', 'mix', 'clothing', 'shoes', 'jewelry', 'music', 'other']);
+export const SELLS = Object.freeze(['books', 'zines', 'comics', 'prints', 'mix', 'mixed', 'clothing', 'shoes', 'jewelry', 'music', 'other']);
 const BOOK_ANSWERS = new Set(['books', 'zines', 'comics', 'mix']);
 
 /** True for a shop that sells books: a book answer, no answer, or one this version doesn't know. */

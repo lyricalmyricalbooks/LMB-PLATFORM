@@ -23,6 +23,7 @@ const SUGGESTED: Record<Publishes | "general", string[]> = {
   comics: ["press-mosaic", "press-riso-noir", "press-zine"],
   prints: ["press-index", "press-atlas", "press-archive"],
   mix: ["press-atlas", "press-riso", "press-mosaic"],
+  mixed: ["press-atlas", "press-shelf", "press-riso"],
   clothing: ["press-atlas", "press-marquee", "press-mosaic"],
   shoes: ["press-atlas", "urban-streetwear", "press-marquee"],
   jewelry: ["press-arch", "press-shelf", "golden-noir"],

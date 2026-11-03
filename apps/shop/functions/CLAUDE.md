@@ -981,3 +981,14 @@ with the claim `support: { by, reason, until }` (`until` in seconds, at most an 
   deletion request is recorded in `privacyRequests` with `verified: true, source: "account", uid`. Nothing is erased until the owner presses
   *Approve and delete their data* in Settings › General › Privacy requests (`handlePrivacyAdmin`, unchanged). A second request while one is open adds nothing.
 - Storefront: `features/site/YourDataCard.tsx` on the account page (region `accountYourData`, words `yourData*` in Text & labels › Customer account › Your data).
+
+## Payment links: orders the owner makes (3 November 2026, platform plan 21.1-21.3)
+- Orders › **New order to pay** (`admin/PaymentLinkDialog.tsx`) calls `paymentLink` / `op: "create"` on `createStripeCheckoutSession`
+  (`paymentLinks.js`, admin only). It makes an ordinary unpaid order (`source: "payment_link"`, `paymentLink: { expiresAt, note }`, which
+  `publicOrderView` shows) and `paymentLinks/{orderId}` (admin-read, Functions-write rules): the frozen line prices (blank = the shop's price
+  that day), the shipping amount or `null` for nothing to ship, the expiry and `keyHash` (sha256 of the order's `trackingKey`).
+- **Every payment path prices through `priceOrder`, which reads that record** (`paymentLinkFor`) and, when present: refuses an expired or closed
+  link and changed lines (`payment_link_closed`), uses the agreed prices, no discount or stockist pricing, the agreed shipping, tax as usual.
+  A record whose `keyHash` doesn't match the order's key is ignored (an order made later at a deleted order's id is priced normally). There is
+  no new payment code: the link is the order page (`/track?orderId&key`), whose **Pay now** (`features/site/PaymentLinkPay.tsx`) opens the
+  normal hosted card page; the order's own Cancel closes the link. Tests: `r2Payments.test.js` › payment links.
