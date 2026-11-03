@@ -500,6 +500,12 @@ test("one shop's record: owner, billing, setup, fee and its history, admins only
   assert.deepEqual([record.fee.basisPoints, record.fee.next], [0, null]);
   assert.deepEqual(record.history.map((e) => e.what), ["act-as"]);
   assert.equal((await w.ask(PRESS, "POST", "/api/control/shop", { shopId: ID })).status, 403);
+  assert.equal(record.emailLanguage, "en", "no choice and no Quebec address: English");
+  await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", province: "QC", language: null } });
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.emailLanguage, "fr+en", "the same rule the emails use");
+  // French picked at sign-up, then automatic on the Plan page outside Quebec: billing's choice wins, so English.
+  await w.registry.updateShop(ID, { language: "fr", billing: { plan: "both", status: "trialing", province: "ON", language: null } });
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.emailLanguage, "en", "the Plan page's later choice wins");
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: "nope" })).status, 404);
   const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
   assert.deepEqual([listed.ownerEmail, listed.billingStatus], ["owner@example.com", "trialing"]);

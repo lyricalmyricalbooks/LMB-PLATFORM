@@ -44,6 +44,7 @@ import { activityEntry } from "./activity.js";
 import { todaySummary } from "./today.js";
 import { MAX_BASIS_POINTS, NO_FEE, feeForShop } from "../services/payments/fees.js";
 import { dateText } from "../services/billing/billing.js";
+import { shopMailLanguage } from "../services/email/templatesFr.js";
 import { platformSettings } from "../services/settings.js";
 import { editVisit } from "./accessRequests.js";
 import { deliveryReasons } from "./delivery.js";
@@ -371,6 +372,8 @@ export function createControlRoom({
         siteUrl: profile?.siteUrl ?? null,
         version: row.release?.version ?? null,
         billing: row.billing ?? null,
+        // The language of the platform's emails to this press (services/email/templatesFr.js): "fr", "fr+en" or "en".
+        emailLanguage: shopMailLanguage(row),
         setup: [...lastByStep.values()].map(({ step, name, ok, error, at, finishedAt }) => ({ step, name: name ?? null, ok: ok !== false && !error, at: finishedAt ?? at ?? null, error: error ?? null })),
         connections: {
           payments: row.payments ? { provider: row.payments.provider ?? null, connected: Boolean(row.payments.accountId) } : null,

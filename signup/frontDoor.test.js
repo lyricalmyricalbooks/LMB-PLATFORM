@@ -418,6 +418,33 @@ test("a plan chosen on the Open my shop page is the one started", async () => {
   assert.equal(w.trials[0].plan, "shop");
 });
 
+test("the email language chosen in setup is the one the plan starts with; none chosen means automatic", async () => {
+  const w = world();
+  const pressId = await readyPress(w);
+  const saved = await w.ask("POST", "/api/press/setup", { pressId, language: "fr" }, ADA);
+  assert.equal(saved.body.press.language, "fr");
+  const bad = await w.ask("POST", "/api/press/setup", { pressId, language: "de" }, ADA);
+  assert.match(bad.body.message, /automatic, French or English/);
+  await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(w.trials[0].language, "fr");
+  const other = world();
+  await other.ask("POST", "/api/press/open", { pressId: await readyPress(other), ...OPEN }, ADA);
+  assert.equal(other.trials[0].language, undefined);
+});
+
+test("a language changed after Open my shop was refused is the one the plan starts with; automatic clears it", async () => {
+  let fail = true;
+  const trials = [];
+  const w = world({ billing: { startTrial: async (args) => { if (fail) throw new Error("The payment service is busy."); trials.push(args); return { status: "trialing" }; } } });
+  const pressId = await readyPress(w);
+  await w.ask("POST", "/api/press/setup", { pressId, language: "fr" }, ADA);
+  assert.equal((await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA)).status, 500);
+  await w.ask("POST", "/api/press/setup", { pressId, language: "" }, ADA);
+  fail = false;
+  assert.equal((await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA)).status, 200);
+  assert.equal(trials.at(-1).language, undefined, "automatic, not the French chosen before the refusal");
+});
+
 test("missing details, unticked terms or a plan that won't start leave the press in setup with everything kept", async () => {
   let fail = true;
   const w = world({ billing: { startTrial: async () => { if (fail) throw new Error("The payment service is busy."); return { status: "trialing" }; } } });

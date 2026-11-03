@@ -14,6 +14,8 @@ export interface SetupPress {
   adminLook: string;
   /** Home's "Selling somewhere already?" card (23.0): bringing a shop over, starting fresh, or not answered (""; older records). */
   moving?: "" | "yes" | "fresh";
+  /** The language of the platform's emails: "" automatic (French then English for a Quebec billing address), or a choice. */
+  language?: "" | "fr" | "en";
   /** The shop's id once Open my shop has started it (18.8), else "". */
   shopId?: string;
   /** How the shop is starting once opening: "queued", or "in-line" with `shopMessage` saying why it waits. */
@@ -29,7 +31,7 @@ export interface OldShopRead { host: string; csv: string; products: number; note
 /** A kept product file as its owner sees it: never where it is kept. */
 export interface StagedImport { name: string; size: number; rows: number; at: string }
 
-export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "moving">>;
+export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "moving" | "language">>;
 
 /** A plan as GET /api/plans lists it. */
 export interface PlanOffer { plan: "shop" | "stockroom" | "both"; name: string; priceText: string; foundingPriceText?: string }

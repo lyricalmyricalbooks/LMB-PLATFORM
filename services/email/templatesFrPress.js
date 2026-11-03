@@ -1,12 +1,28 @@
 // French twins of the platform's other press-facing emails (everything a press or its people receive, apart from the
 // closing emails in templatesFr.js), for presses in Quebec. Same kinds, same `data`, same links and the same errors on
 // bad data as TEMPLATES (templates.js). Words a press, a person or another part of the platform wrote in English (a
-// support answer, a setup tip, a check-up line, a press message, a plan name, a reason) come through as they were; the
-// fixed English phrases the platform itself builds (card words, role words, newsletter problems, who stopped a request)
-// are turned French here, and anything unknown is kept rather than lost.
+// support answer, a setup tip, a check-up line, a press message, a reason) come through as they were; the fixed
+// English phrases the platform itself builds (card words, role words, newsletter problems, who stopped a request, plan
+// names, prices) are turned French here, and anything unknown is kept rather than lost.
 //
 // No import from templatesFr.js: that file imports this one, so the small day helper is copied here.
 import { layout, safeLink } from "./templates.js";
+
+/** The plans' names in French (services/settings.js PLAN_NAMES); a name not known comes through as it was. */
+const PLAN_NAMES_FR = Object.freeze({ Shop: "Boutique", Stockroom: "Réserve", "Shop and stockroom": "Boutique et réserve" });
+export const planNameFr = (name) => PLAN_NAMES_FR[String(name ?? "").trim()] ?? name;
+
+/**
+ * A price as billing writes it in English ("$29.00", "US$1,234.50", "-$5.00") the French way ("29,00 $",
+ * "1 234,50 US$", "-5,00 $"): comma for decimals, a thin no-break space between thousands, the sign after. Anything
+ * else comes through as it was.
+ */
+export function frenchMoney(text) {
+  const m = String(text ?? "").trim().match(/^(-?)([^\d\s,.-]*)(-?)(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d+))?$/);
+  if (!m || !m[2]) return text;
+  const whole = m[4].replace(/,/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+  return `${m[1] || m[3]}${whole}${m[5] ? `,${m[5]}` : ""}\u00a0${m[2]}`;
+}
 
 const signOff = (settings) => `Envoyé par ${settings.platformName}. Répondez à ce courriel si vous avez besoin d'un coup de main.`;
 
@@ -220,12 +236,12 @@ export const PRESS_TEMPLATES_FR = {
       greeting: "Bonjour,",
       paragraphs: hasCard
         ? [
-          `Votre essai gratuit pour ${pressName} se termine le ${day}. Ensuite, votre carte sera débitée de ${price} par mois pour le forfait ${planName}.`,
+          `Votre essai gratuit pour ${pressName} se termine le ${day}. Ensuite, votre carte sera débitée de ${frenchMoney(price)} par mois pour le forfait ${planNameFr(planName)}.`,
           "Vous pouvez changer de forfait ou annuler en tout temps d'ici là.",
         ]
         : [
           `Votre essai gratuit pour ${pressName} se termine le ${day}.`,
-          `Pour la garder ouverte, ajoutez une carte. Le forfait ${planName} coûte ${price} par mois, et vous pouvez annuler en tout temps.`,
+          `Pour la garder ouverte, ajoutez une carte. Le forfait ${planNameFr(planName)} coûte ${frenchMoney(price)} par mois, et vous pouvez annuler en tout temps.`,
           "Sans carte d'ici là, votre boutique sera mise en pause. Tout est conservé pendant 60 jours, et l'ajout d'une carte la rouvre.",
         ],
       buttons: [[hasCard ? "Gérer votre forfait" : "Ajouter une carte", safeLink(link)]],
@@ -286,7 +302,7 @@ export const PRESS_TEMPLATES_FR = {
     subject: `Nous n'avons pas pu prélever le paiement de ce mois-ci pour ${pressName}`,
     greeting: "Bonjour,",
     paragraphs: [
-      `Votre carte a été refusée pour le paiement de ${price} de ce mois-ci pour ${pressName}. Votre boutique reste ouverte pendant que nous réglons la situation.`,
+      `Votre carte a été refusée pour le paiement de ${frenchMoney(price)} de ce mois-ci pour ${pressName}. Votre boutique reste ouverte pendant que nous réglons la situation.`,
       nextTry
         ? `Nous essaierons de nouveau la carte le ${frenchDay(nextTry)}. Pour éviter un autre refus, mettez votre carte à jour dès maintenant.`
         : "Veuillez mettre votre carte à jour pour que votre boutique reste ouverte.",
@@ -300,7 +316,7 @@ export const PRESS_TEMPLATES_FR = {
     subject: `Votre banque vous demande de confirmer le paiement de ${pressName}`,
     greeting: "Bonjour,",
     paragraphs: [
-      `Votre banque vous demande de confirmer le paiement de ${price} de ce mois-ci pour ${pressName} avant qu'il soit fait. C'est une étape de sécurité normale chez certaines banques.`,
+      `Votre banque vous demande de confirmer le paiement de ${frenchMoney(price)} de ce mois-ci pour ${pressName} avant qu'il soit fait. C'est une étape de sécurité normale chez certaines banques.`,
       "Utilisez le bouton ci-dessous pour le confirmer auprès de votre banque. Votre boutique reste ouverte en attendant.",
     ],
     buttons: [["Confirmer le paiement", safeLink(link)]],
@@ -311,7 +327,7 @@ export const PRESS_TEMPLATES_FR = {
   "payment-received": ({ price, link }, { settings, pressName }) => layout({
     subject: `Merci, le paiement de ${pressName} est passé`,
     greeting: "Bonjour,",
-    paragraphs: [`Votre paiement de ${price} pour ${pressName} est passé : tout est revenu à la normale. Vos factures sont sur votre page de facturation quand vous en avez besoin.`],
+    paragraphs: [`Votre paiement de ${frenchMoney(price)} pour ${pressName} est passé : tout est revenu à la normale. Vos factures sont sur votre page de facturation quand vous en avez besoin.`],
     buttons: [["Voir vos factures", safeLink(link)]],
     footer: signOff(settings),
   }),
@@ -365,10 +381,10 @@ export const PRESS_TEMPLATES_FR = {
     const many = known.length > 1 || / et | and /.test(what ?? "");
     const day = frenchDay(date);
     return layout({
-      subject: `${pressName} est maintenant au forfait ${planName}`,
+      subject: `${pressName} est maintenant au forfait ${planNameFr(planName)}`,
       greeting: "Bonjour,",
       paragraphs: [
-        `${pressName} est maintenant au forfait ${planName}, à ${price} par mois.${prorated ? " Votre prochaine facture est ajustée selon la partie du mois passée sur chaque forfait." : ""}`,
+        `${pressName} est maintenant au forfait ${planNameFr(planName)}, à ${frenchMoney(price)} par mois.${prorated ? " Votre prochaine facture est ajustée selon la partie du mois passée sur chaque forfait." : ""}`,
         closing
           ? (now
             ? `Votre forfait ne comprend plus ${what} : ${many ? "elles sont donc fermées" : "elle est donc fermée"} dès maintenant.`

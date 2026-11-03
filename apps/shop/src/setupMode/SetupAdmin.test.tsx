@@ -80,6 +80,20 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(d.saved).toEqual([{ country: "CA" }]);
   });
 
+  it("keeps the language chosen for the platform's emails, for when the shop opens", async () => {
+    const d = door();
+    const el = await mount(d, "#settings/general");
+    const select = [...el.querySelectorAll("form select")].find((s) => [...(s as HTMLSelectElement).options].some((o) => o.value === "fr")) as HTMLSelectElement;
+    expect(select.value).toBe("");
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(select, "fr");
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => { el.querySelector("form")!.requestSubmit(); });
+    await flush();
+    expect(d.saved).toEqual([{ language: "fr" }]);
+  });
+
   it("changes the plan from Settings › Plan, with each plan's price", async () => {
     const d = door();
     const el = await mount(d, "#settings/plan");

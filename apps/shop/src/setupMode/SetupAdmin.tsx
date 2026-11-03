@@ -246,9 +246,10 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
   const [name, setName] = useState(press.pressName);
   const [sells, setSells] = useState(press.sells);
   const [country, setCountry] = useState(press.country);
+  const [language, setLanguage] = useState(press.language ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const dirty = name.trim() !== press.pressName || sells !== press.sells || country !== press.country;
+  const dirty = name.trim() !== press.pressName || sells !== press.sells || country !== press.country || language !== (press.language ?? "");
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -259,6 +260,7 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
       if (name.trim() !== press.pressName) change.pressName = name.trim();
       if (sells !== press.sells) change.sells = sells;
       if (country !== press.country) change.country = country;
+      if (language !== (press.language ?? "")) change.language = language;
       await save(change);
       toast("Saved", { tone: "ok" });
     } catch (err) {
@@ -280,6 +282,12 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
           <SelectField label="Country" hint="It sets your shop's money and taxes." value={country} onChange={(e) => setCountry(e.target.value)}>
             <option value="">Choose your country</option>
             {Object.entries(lists.countries).map(([code, c]) => <option key={code} value={code}>{c.name}</option>)}
+          </SelectField>
+          <SelectField label="Language of our emails" hint="Automatic writes in French with the English below when your billing address is in Quebec, and in English otherwise. You can change it later in Settings › Plan."
+            value={language} onChange={(e) => setLanguage(e.target.value as "" | "fr" | "en")}>
+            <option value="">Automatic</option>
+            <option value="fr" lang="fr">Français</option>
+            <option value="en">English</option>
           </SelectField>
           {error && <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>{error}</p>}
           <div><PrimaryButton type="submit" busy={busy} disabled={!dirty}>Save</PrimaryButton></div>
