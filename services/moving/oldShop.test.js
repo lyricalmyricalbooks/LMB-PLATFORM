@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NOT_AN_ADDRESS, NOTHING_FOUND, UNREACHABLE, readOldShop, shopOrigin } from "./oldShop.js";
+import { NOT_AN_ADDRESS, NOTHING_FOUND, UNREACHABLE, readOldShop, shopOrigin, shopPath } from "./oldShop.js";
 import { getPublicJson, privateAddress, publicHttps } from "./safeFetch.js";
 
 /** A pretend web: answers by exact address; anything else is "no JSON here". */
@@ -97,4 +97,55 @@ test("the careful fetch: public https names only, private answers refused, redir
   assert.deepEqual(hops, ["https://old.example/products.json"]);
   assert.deepEqual(await getPublicJson("https://fine.example/p.json", { lookup, get }), { ok: 1 });
   assert.equal(await getPublicJson("https://fine.example/p", { lookup, get: async () => ({ status: 200, location: "", type: "text/html", body: Buffer.from("<html>") }) }), null);
+});
+
+// The shape a store page answers with ?format=json (trimmed from a real demo store, 3 November 2026; plan 23.10).
+const storeItem = (n, variants, extra = {}) => ({
+  id: `i${n}`, title: `Moth ${n}`, urlId: `moth-${n}`, fullUrl: `/shop/p/moth-${n}`, excerpt: "<p>Poems.</p>", body: "", tags: ["poetry"],
+  assetUrl: "https://cdn.example/a.jpg", items: [{ assetUrl: "https://cdn.example/m1.jpg" }, { assetUrl: "https://cdn.example/m2.jpg" }],
+  structuredContent: { variantOptionOrdering: variants.length > 1 ? ["Edition"] : [], variants }, ...extra,
+});
+const storeVariant = (edition, price, extra = {}) => ({
+  attributes: edition ? { Edition: edition } : {}, sku: `S-${edition || "one"}`, price: price * 100, priceMoney: { currency: "CAD", value: price.toFixed(2) },
+  salePrice: 0, salePriceMoney: { currency: "CAD", value: "0.00" }, onSale: false, unlimited: false, qtyInStock: 4, ...extra,
+});
+
+test("the page the press typed after the address is kept, when it is a plain page", () => {
+  assert.equal(shopPath("mothpress.example/books/"), "/books");
+  assert.equal(shopPath("mothpress.example"), "");
+  assert.equal(shopPath("mothpress.example/a/b/c/d"), "");
+});
+
+test("a store page read with its own format: stock counts, sale prices, choices, photos, next pages and old addresses", async () => {
+  const first = {
+    collection: { typeName: "products", fullUrl: "/books" },
+    items: [storeItem(1, [storeVariant("Paperback", 20), storeVariant("Signed", 40, { onSale: true, salePriceMoney: { value: "35.00" }, qtyInStock: 0 })])],
+    pagination: { nextPage: true, nextPageOffset: 1, nextPageUrl: "/books?offset=1" },
+  };
+  const second = { collection: { typeName: "products" }, items: [storeItem(2, [storeVariant("", 8, { unlimited: true, qtyInStock: 0 })])], pagination: {} };
+  web.asked.length = 0;
+  const getJson = web({
+    "https://mothpress.example/books?format=json": first,
+    "https://mothpress.example/books?offset=1&format=json": second,
+    "https://mothpress.example/shop?format=json": { collection: { typeName: "page" }, items: [] },
+  });
+  const read = await readOldShop("mothpress.example/books", { getJson });
+  assert.equal(read.ok, true, read.message);
+  assert.equal(read.products, 2);
+  const lines = read.csv.trim().split("\n");
+  assert.equal(lines[0].split(",").at(-1), "Old page address");
+  assert.equal(lines[1], "moth-1,Moth 1,<p>Poems.</p>,,poetry,Edition,Paperback,,,,,S-Paperback,,4,20,,https://cdn.example/m1.jpg,1,/shop/p/moth-1");
+  assert.equal(lines[2], "moth-1,,,,,,Signed,,,,,S-Signed,,0,35,40,https://cdn.example/m2.jpg,2,");
+  assert.equal(lines[3], "moth-2,Moth 2,<p>Poems.</p>,,poetry,,,,,,,S-one,,,8,,https://cdn.example/m1.jpg,1,/shop/p/moth-2");
+  assert.match(read.notes.at(-1), /came from your old shop's pages/);
+  // The press's own page is tried before the usual store page names.
+  assert.ok(web.asked.indexOf("https://mothpress.example/books?format=json") < web.asked.indexOf("https://mothpress.example/shop?format=json") || !web.asked.includes("https://mothpress.example/shop?format=json"));
+});
+
+test("a store page whose next page points at another site stops there", async () => {
+  const getJson = web({
+    "https://mothpress.example/shop?format=json": { collection: { typeName: "products" }, items: [storeItem(1, [storeVariant("", 8)])], pagination: { nextPage: true, nextPageUrl: "https://elsewhere.example/shop?offset=1" } },
+  });
+  const read = await readOldShop("mothpress.example", { getJson });
+  assert.equal(read.products, 1);
 });
