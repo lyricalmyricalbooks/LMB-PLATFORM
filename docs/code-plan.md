@@ -806,6 +806,7 @@ preview first; nothing is published, charged or emailed by moving in. Words neve
 | 23.27 | platform | **Several order files in one go.** Bring past orders over takes several files at once, or Add another file before bringing them over: one run, each order once (the first file's copy), and what was left out names its file | pastOrders.test.ts; PastOrdersDialog.test.tsx | quick | built (3 November 2026) |
 | 23.28 | platform | **What came over, on screen.** "You're all moved in" says how many customers, gift cards and past orders came over (`adminApi.movedCounts`, the same counts as the email) | MoveProgressCard.test.tsx; move-check | quick | built (3 November 2026) |
 | 23.29 | platform | **The move check on every change.** CI's `shop-admin-phone` job also runs `pnpm run test:move` (scripts/move-check.mjs) | CI | quick | built (3 November 2026) |
+| 23.30 | platform | **Discount codes.** Discounts › Bring codes over reads the old shop's discount code file (`discountMove.ts`, loose column names) and saves each simple code (percentage, amount off, free shipping on the whole order) with its uses left, minimum and dates through `adminApi.saveDiscount`. Codes for some items only, buy-some-get-some, used up, ended, turned off, or already here are listed as left out. Moving checklist help gains the step | discountMove.test.ts; DiscountMoveDialog.test.tsx | quick | built (3 November 2026) |
 
 ## Phase 24: gaps from the Shopify review (planned 3 November 2026)
 
