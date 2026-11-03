@@ -16,8 +16,13 @@ const HELP_PAGE = "/help/";
 const load = (path: string) => import(/* @vite-ignore */ new URL(path, location.origin).href);
 
 function say(words: string) {
+  // In its own announced line, so the admin rendered later into #root is never inside a live region.
   const root = document.getElementById("root");
-  if (root) root.textContent = words;
+  if (!root) return;
+  const line = document.createElement("p");
+  line.setAttribute("role", "status");
+  line.textContent = words;
+  root.replaceChildren(line);
 }
 
 async function start() {

@@ -70,7 +70,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     const form = el.querySelector("form")!;
     await act(async () => { form.requestSubmit(); });
     await flush();
-    expect(d.saved).toEqual([{ pressName: "Moth Press", sells: "books", country: "CA" }]);
+    expect(d.saved).toEqual([{ country: "CA" }]);
   });
 
   it("changes the plan from Plan and billing, with each plan's price", async () => {
@@ -81,5 +81,49 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     await act(async () => { shop.click(); });
     await flush();
     expect(d.saved).toEqual([{ plan: "shop" }]);
+  });
+
+  it("keeps the page when the address names no page, as the skip link's #rp-main does", async () => {
+    const el = await mount(door(), "#settings/general");
+    expect(el.querySelector("h1")?.textContent).toBe("General");
+    await act(async () => { location.hash = "rp-main"; window.dispatchEvent(new HashChangeEvent("hashchange")); });
+    await flush();
+    expect(el.querySelector("h1")?.textContent).toBe("General");
+  });
+
+  it("says when the prices didn't load, promises no free days, and tries again", async () => {
+    const d = door();
+    const good = d.plans as any;
+    const first = good.getMockImplementation();
+    good.mockImplementationOnce(async () => { throw new Error("offline"); });
+    const el = await mount(d, "#settings/plan");
+    expect(el.textContent).toContain("Prices couldn't load");
+    expect(el.textContent).not.toMatch(/\d+ days/);
+    expect(el.textContent).toContain("Shop and stockroom");
+    good.mockImplementation(first);
+    const retry = [...el.querySelectorAll("button")].find((b) => b.textContent === "Try again") as HTMLButtonElement;
+    await act(async () => { retry.click(); });
+    await flush();
+    expect(el.textContent).toContain("$29.00");
+    expect(el.textContent).toContain("Your first shop is free for 14 days");
+  });
+
+  it("a press browsing other looks can keep its own without saving", async () => {
+    const d = door();
+    const el = document.createElement("div");
+    document.body.append(el);
+    location.hash = "#settings/designer";
+    root = createRoot(el);
+    act(() => root!.render(h(SetupAdmin, { press: { ...PRESS, look: "press-riso" }, door: d, lists, email: "owner@example.com", helpUrl: "/help/", onSignOut: () => {} })));
+    await flush();
+    const change = [...el.querySelectorAll("button")].find((b) => b.textContent === "Choose another look") as HTMLButtonElement;
+    act(() => change.click());
+    await flush();
+    expect(el.textContent).not.toContain("Skip for now");
+    const keep = [...el.querySelectorAll("button")].find((b) => b.textContent?.startsWith("Keep ")) as HTMLButtonElement;
+    act(() => keep.click());
+    await flush();
+    expect(el.textContent).toContain("Choose another look");
+    expect(d.save).not.toHaveBeenCalled();
   });
 });

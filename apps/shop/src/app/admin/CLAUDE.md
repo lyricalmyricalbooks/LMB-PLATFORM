@@ -654,7 +654,12 @@ built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; 
   `POST /api/press/setup`); the shop maker (18.9) carries it into the new shop.
 - **Same shell and menu** (`pages.ts` `setupMenu`): the admin's five items plus Plan and billing and Help. Home is the
   setup guide; Design (the Choose your look gallery), Settings › General, Plan and billing and Help work; every other
-  page is `OpensWithShop` and writes nothing.
+  page is `OpensWithShop` and writes nothing. Pages live in the address (`#settings/general`); an address that names no
+  page (the skip link's `#rp-main`) leaves the page alone, so nothing typed is lost. General saves only the fields that
+  changed, so an answer saved meanwhile at the front door isn't written over.
 - **Look gallery without the database:** `lookGallery.ts` holds the pure gallery parts; `ChooseLookWelcome` takes
   `apply` (setup mode passes one that does nothing) and loads `chooseLook.applyChosenLook` only when it isn't given.
-- **Not yet:** Open my shop (18.8) is shown disabled; the import preview (18.7) is locked.
+- **Not yet:** Open my shop (18.8) is shown disabled; the import preview (18.7) is locked; an open shop's real admin
+  doesn't have the Plan and billing / Help / Setup guide items yet (rest of 18.6).
+- **Plan and billing words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
+  (billing gives one trial per account). Prices that fail to load say so with Try again.

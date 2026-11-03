@@ -58,7 +58,7 @@ export function guideSteps(press: SetupPress): GuideStep[] {
     { id: "details", title: "Tell us about your press", done: !!(press.pressName && press.sells && press.country), page: GENERAL_PAGE, action: "Add details" },
     ...(website ? [{ id: "look", title: "Choose your website's look", done: !!press.look, page: DESIGN_PAGE, action: "Choose a look" }] : []),
     { id: "products", title: "Add your first products", done: false, page: "catalog", action: "Opens with your shop", locked: true },
-    { id: "open", title: "Open your shop", done: press.status !== "setup", page: PLAN_PAGE, action: "See how" },
+    { id: "open", title: "Open your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "See how" },
   ];
 }
 
@@ -68,10 +68,14 @@ export function guideProgress(steps: GuideStep[]): { done: number; total: number
   return { done: counted.filter((s) => s.done).length, total: counted.length };
 }
 
-/** The page in the address (`#settings/general`), or Home. */
-export function pageFromHash(hash: string, menu: NavEntry[] = setupMenu()): string {
-  const page = decodeURIComponent(hash.replace(/^#/, "").split("?")[0]);
+/**
+ * The page in the address (`#settings/general`): Home for an empty address, and null for an address that names no
+ * page (the skip link's `#rp-main`, say), so the page on screen stays put.
+ */
+export function pageFromHash(hash: string, menu: NavEntry[] = setupMenu()): string | null {
+  let page: string;
+  try { page = decodeURIComponent(hash.replace(/^#/, "").split("?")[0]); } catch { return null; }
   if (!page) return HOME_PAGE;
   const known = menu.some((item) => item.id === page || item.children?.some((c) => c.id === page));
-  return known ? page : HOME_PAGE;
+  return known ? page : null;
 }

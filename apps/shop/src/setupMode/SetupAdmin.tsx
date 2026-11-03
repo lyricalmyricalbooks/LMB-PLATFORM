@@ -31,6 +31,8 @@ const PLAN_LINES: Record<string, string> = {
   stockroom: "Track stock, sales and payouts from fairs and stores",
 };
 const PLAN_ORDER = ["both", "shop", "stockroom"] as const;
+/** The plans' names while the platform's prices load (or if they can't). */
+const PLAN_NAMES: Record<string, string> = { both: "Shop and stockroom", shop: "Shop", stockroom: "Stockroom" };
 
 const isAdminLook = (value: string): value is AdminLookId => ADMIN_LOOKS.some((l) => l.id === value);
 const themeName = (id: string) => (THEME_LIBRARY as Array<{ id: string; name: string }>).find((t) => t.id === id)?.name ?? "";
@@ -51,16 +53,19 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl 
   const [press, setPress] = useState(first);
   const [plans, setPlans] = useState<PlanList | null>(null);
   const menu = useMemo(() => setupMenu(), []);
-  const [page, setPage] = useState(() => pageFromHash(typeof location === "undefined" ? "" : location.hash, menu));
+  const [page, setPage] = useState(() => pageFromHash(typeof location === "undefined" ? "" : location.hash, menu) ?? HOME_PAGE);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const appearance = useMemo(readAppearance, []);
   const w = useMemo(() => adminWordsFor(press.sells || null), [press.sells]);
 
-  useEffect(() => { door.plans().then(setPlans, () => setPlans(null)); }, [door]);
+  const [plansFailed, setPlansFailed] = useState(false);
+  const loadPlans = () => { setPlansFailed(false); door.plans().then(setPlans, () => setPlansFailed(true)); };
+  useEffect(loadPlans, [door]);
   // The admin look chosen in the welcome applies here at once, as it will in the shop's own admin.
   useEffect(() => { if (isAdminLook(press.adminLook)) applyAdminLook(press.adminLook); }, [press.adminLook]);
   useEffect(() => {
-    const onHash = () => setPage(pageFromHash(location.hash, menu));
+    // An address that names no page (the skip link's #rp-main) leaves the page as it is, so nothing typed is lost.
+    const onHash = () => { const next = pageFromHash(location.hash, menu); if (next) setPage(next); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, [menu]);
@@ -83,7 +88,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl 
   else if (page === HOME_PAGE) content = <SetupGuide press={press} onOpen={open} />;
   else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
-  else if (page === PLAN_PAGE) content = <PlanPage press={press} plans={plans} save={save} />;
+  else if (page === PLAN_PAGE) content = <PlanPage press={press} plans={plans} failed={plansFailed} onRetry={loadPlans} save={save} />;
   else content = <HelpPage helpUrl={helpUrl} />;
 
   return (
@@ -197,7 +202,12 @@ function PressDetails({ press, lists, save }: { press: SetupPress; lists: SetupL
     event.preventDefault();
     setBusy(true); setError("");
     try {
-      await save({ pressName: name.trim(), sells, country });
+      // Only what changed, so an answer saved meanwhile in another tab (the front door's Change answers) isn't written over.
+      const change: SetupChange = {};
+      if (name.trim() !== press.pressName) change.pressName = name.trim();
+      if (sells !== press.sells) change.sells = sells;
+      if (country !== press.country) change.country = country;
+      await save(change);
       toast("Saved", { tone: "ok" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "That didn't save. Try again.");
@@ -256,6 +266,7 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
         settings={{ info: { name: press.pressName } }}
         apply={async () => {}}
         intro="Pick a look for your website. It's kept with your setup and put in place when your shop opens."
+        keep={press.look ? { label: `Keep ${themeName(press.look) || "my look"}`, onKeep: () => setChoosing(false) } : undefined}
         onDone={async (welcome) => {
           await save({ look: welcome.theme, ...(welcome.adminLook ? { adminLook: welcome.adminLook } : {}) });
           setChoosing(false);
@@ -265,7 +276,9 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
   );
 }
 
-function PlanPage({ press, plans, save }: { press: SetupPress; plans: PlanList | null; save: (c: SetupChange) => Promise<SetupPress> }) {
+function PlanPage({ press, plans, failed, onRetry, save }: {
+  press: SetupPress; plans: PlanList | null; failed: boolean; onRetry: () => void; save: (c: SetupChange) => Promise<SetupPress>;
+}) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const byId = Object.fromEntries((plans?.plans ?? []).map((p) => [p.plan, p]));
@@ -274,7 +287,10 @@ function PlanPage({ press, plans, save }: { press: SetupPress; plans: PlanList |
     setBusy(plan); setError("");
     try { await save({ plan }); } catch (err) { setError(err instanceof Error ? err.message : "That didn't save. Try again."); } finally { setBusy(""); }
   };
-  const trial = plans?.trialDays ?? 14;
+  // The trial's length comes only from the platform; with none (prices didn't load, or no trial) no days are promised.
+  // "Your first shop": billing gives one trial per account, so a second press gets none.
+  const trial = plans?.trialDays ?? 0;
+  const trialWords = trial > 0 ? `Your first shop is free for ${trial} days once it opens, then monthly` : "Monthly once your shop opens";
   return (
     <>
       <PageHeader title="Plan and billing" description="What you're setting up, and opening your shop." />
@@ -289,7 +305,7 @@ function PlanPage({ press, plans, save }: { press: SetupPress; plans: PlanList |
                   background: on ? "var(--rp-primary-tint)" : "var(--rp-surface)", color: "var(--rp-text)", cursor: "pointer",
                   border: on ? "2px solid var(--rp-text)" : "1px solid var(--rp-border)" }}>
                 <span style={{ display: "grid", gap: 2 }}>
-                  <strong>{offer?.name ?? id}</strong>
+                  <strong>{offer?.name ?? PLAN_NAMES[id]}</strong>
                   <span className="rp-hint">{PLAN_LINES[id]}</span>
                 </span>
                 {offer && (
@@ -304,14 +320,20 @@ function PlanPage({ press, plans, save }: { press: SetupPress; plans: PlanList |
           })}
         </div>
         {error && <p role="alert" className="rp-hint" style={{ color: "var(--rp-danger)" }}>{error}</p>}
-        <p className="rp-hint" style={{ marginBottom: 0 }}>
-          {`Free for ${trial} days once your shop opens, then monthly${plans?.plusTax ? ", plus tax" : ""}.`}
-          {plans?.foundingOffer ? ` The first ${plans.foundingOffer.presses} presses to pay keep ${plans.foundingOffer.percentOff}% off for as long as they stay.` : ""}
-        </p>
+        {failed ? (
+          <p role="alert" className="rp-hint" style={{ marginBottom: 0 }}>
+            Prices couldn't load. <button type="button" className="rp-link" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textDecoration: "underline", color: "inherit", font: "inherit" }} onClick={onRetry}>Try again</button>
+          </p>
+        ) : plans && (
+          <p className="rp-hint" style={{ marginBottom: 0 }}>
+            {`${trialWords}${plans.plusTax ? ", plus tax" : ""}.`}
+            {plans.foundingOffer ? ` The first ${plans.foundingOffer.presses} presses to pay keep ${plans.foundingOffer.percentOff}% off for as long as they stay.` : ""}
+          </p>
+        )}
       </SectionCard>
       <SectionCard title="Open my shop" collapsible={false}
         description="Opening makes your website and stockroom, with everything you set up here.">
-        <p style={{ marginTop: 0 }}>Opening your shop is the next step we're adding. Everything you set up here is kept, and your {trial} free days start only when your shop opens.</p>
+        <p style={{ marginTop: 0 }}>Opening your shop is the next step we're adding. Everything you set up here is kept{trial > 0 ? ", and your free days start only when your shop opens" : ""}.</p>
         <PrimaryButton disabled aria-describedby="open-soon">Open my shop</PrimaryButton>
         <p id="open-soon" className="rp-hint" style={{ marginBottom: 0 }}>Coming soon.</p>
       </SectionCard>

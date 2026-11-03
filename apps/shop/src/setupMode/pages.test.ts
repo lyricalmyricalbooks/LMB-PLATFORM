@@ -39,7 +39,9 @@ describe("setup mode's menu (code plan 18.6)", () => {
     expect(pageFromHash("#settings/general", menu)).toBe(GENERAL_PAGE);
     expect(pageFromHash("#help", menu)).toBe(HELP_PAGE);
     expect(pageFromHash("", menu)).toBe(HOME_PAGE);
-    expect(pageFromHash("#nowhere", menu)).toBe(HOME_PAGE);
+    expect(pageFromHash("#nowhere", menu)).toBeNull();
+    expect(pageFromHash("#rp-main", menu)).toBeNull();
+    expect(pageFromHash("#%E0%A4%A", menu)).toBeNull();
   });
 });
 

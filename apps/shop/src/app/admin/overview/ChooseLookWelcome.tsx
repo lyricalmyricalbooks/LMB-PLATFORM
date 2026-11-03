@@ -12,7 +12,7 @@ import { useShopWords } from "../shopWords";
  * Overview read it: undefined while it loads, null when it couldn't be read. `onDone` gets what to record once the
  * look is in the draft; the parent saves it (and puts the welcome away).
  */
-export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onRetrySettings, apply, intro: introWords }: {
+export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onRetrySettings, apply, intro: introWords, keep }: {
   publishes?: string | null;
   /** The press's first book photo (firstBookPhoto), shown in each look's preview (plan 17.8). */
   photo?: string;
@@ -24,6 +24,8 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
   apply?: (theme: LibraryTheme, settings: any, publishes?: string | null) => Promise<void>;
   /** The line under the title; the setup guide's step words by default. */
   intro?: string;
+  /** When a look is already chosen: the way back that keeps it (in place of Skip, which would replace it). */
+  keep?: { label: string; onKeep: () => void };
 }) {
   const w = useShopWords();
   const { suggested, others } = galleryThemes(publishes);
@@ -84,9 +86,11 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
 
   return (
     <SectionCard title={`Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
-      actions={first && <GhostButton size="sm" disabled={!!busy} onClick={() => void choose(first, true)}>Skip for now</GhostButton>}>
+      actions={keep
+        ? <GhostButton size="sm" disabled={!!busy} onClick={keep.onKeep}>{keep.label}</GhostButton>
+        : first && <GhostButton size="sm" disabled={!!busy} onClick={() => void choose(first, true)}>Skip for now</GhostButton>}>
       {error && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>{error}</p>}
-      {first && <p className="rp-hint" style={{ marginTop: 0 }}>Skip uses “{first.name}”, our suggestion for you. Every look keeps your words, products and pages.</p>}
+      {first && !keep && <p className="rp-hint" style={{ marginTop: 0 }}>Skip uses “{first.name}”, our suggestion for you. Every look keeps your words, products and pages.</p>}
       <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "8px 0 4px" }}>Your admin</h3>
       <p className="rp-hint" style={{ marginTop: 0 }}>How this admin looks to you, not to your customers. It changes right now, and you can change it any time from the top bar.</p>
       <div role="radiogroup" aria-label="Admin look" style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 160px), 1fr))", marginBottom: 24 }}>
