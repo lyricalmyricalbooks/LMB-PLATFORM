@@ -141,3 +141,41 @@ test("a shop paying as it sells is open and active, with no trial, nothing due a
   // A switch that starts later still shows monthly until then.
   assert.equal(planDocument({ ...row, status: "active", paymentWayFrom: "2027-03-01T00:00:00.000Z" }, { link: LINK, at }).paymentWay, "monthly");
 });
+
+// Adding or dropping an app (code plan 6.11): the registry's plan says what is open; a closed app's copy says closed.
+test("dropping the website in the trial closes the website's copies at once; the stockroom carries on", async () => {
+  const t = make();
+  await t.registry.createShop("moth-press", { shopId: "moth-press", pressName: "Moth Press", plan: "both", status: "live" });
+  await t.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  await t.billing.changePlan({ shopId: "moth-press", plan: "stockroom" });
+  assert.equal((await t.registry.getShop("moth-press")).plan, "stockroom");
+  assert.equal(t.status().access, "closed", "the website refuses new orders");
+  assert.equal(t.plan().closing.stage, "closed");
+  assert.ok(t.plan().closing.downloadUntil, "with its download date");
+  const stockroom = await t.stockroomData.get("moth-press", PLAN_DOC);
+  assert.equal(stockroom.access, "open");
+  assert.equal(stockroom.plan, "stockroom");
+});
+
+test("dropping the stockroom in the trial opens it read-only; the website carries on", async () => {
+  const t = make();
+  await t.registry.createShop("moth-press", { shopId: "moth-press", pressName: "Moth Press", plan: "both", status: "live" });
+  await t.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  await t.billing.changePlan({ shopId: "moth-press", plan: "shop" });
+  assert.equal(t.status().access, "open");
+  assert.equal(t.plan().closing, null);
+  const stockroom = await t.stockroomData.get("moth-press", PLAN_DOC);
+  assert.equal(stockroom.access, "closed");
+  assert.equal(stockroom.closing.stage, "closed");
+});
+
+test("an app a plan dropped keeps getting the plan until the month already paid for ends", async () => {
+  const shopData = fakeShopData();
+  const stockroomData = fakeStockroomData();
+  const registry = fakeRegistry();
+  await registry.createShop("moth-press", { shopId: "moth-press", plan: "both", closedApps: {} });
+  const copies = shopPlanCopies({ shopData, stockroomData, registry });
+  // Billing's row already says "shop" (the new price next month); the registry keeps both open until then.
+  await copies.write("moth-press", { plan: "shop", status: "past_due", access: "open" }, { link: LINK, at: new Date(NOW).toISOString() });
+  assert.equal((await stockroomData.get("moth-press", PLAN_DOC)).state, "payment-problem", "the stockroom still hears about a payment problem");
+});

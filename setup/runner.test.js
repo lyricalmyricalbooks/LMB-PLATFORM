@@ -279,3 +279,22 @@ test("a dry run takes no lock, and says when a real run would be turned away", a
   assert.match(lines[0], /Another run is working on lmb-test-shop until 2999-01-01T00:00:00.000Z; a real run would be turned away/);
   assert.equal((await registry.readLock(shop.shopId)).runId, "busy");
 });
+
+test("`again` looks at steps done in an earlier run anew, from the first of them, checking before acting", async () => {
+  const world = newWorld();
+  const registry = fakeRegistry();
+  const auditLog = fakeAuditLog();
+  await runSteps({ shop, steps: fakeSteps(world), registry, auditLog, now: clock });
+  // The plan changed: step 4's work is no longer there (a new app needs it), step 3's still is.
+  delete world.done.services;
+  const again = newWorld(world.done);
+  const result = await runSteps({ shop, steps: fakeSteps(again), registry, auditLog, now: clock, again: [3, 4] });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.ran.map((r) => r.status), ["done-before", "done-before", "already-done", "done", "already-done"]);
+  assert.deepEqual(again.acts, ["services"], "only the step whose work was missing acted");
+  // Without `again`, a finished shop is left alone.
+  const plain = newWorld(again.done);
+  const rerun = await runSteps({ shop, steps: fakeSteps(plain), registry, auditLog, now: clock });
+  assert.deepEqual(plain.checks, []);
+  assert.ok(rerun.ran.every((r) => r.status === "done-before"));
+});

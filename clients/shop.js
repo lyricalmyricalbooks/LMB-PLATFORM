@@ -23,7 +23,8 @@ export const STOCKROOM_DATABASE = "stockroom";
 export function shopDataClient(firestoreFor) {
   return {
     get: (projectId, path) => firestoreFor(projectId).get(path),
-    set: (projectId, path, data) => firestoreFor(projectId).set(path, data),
+    // `{ fields }` writes only those fields and leaves the rest of the document as it is.
+    set: (projectId, path, data, options) => firestoreFor(projectId).set(path, data, options),
     remove: (projectId, path) => firestoreFor(projectId).remove(path),
     /**
      * The documents directly in one collection, as [{ id, data }] (the accounts team sync reads `members`, whose ids are

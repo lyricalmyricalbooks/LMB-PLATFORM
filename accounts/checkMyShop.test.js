@@ -44,8 +44,12 @@ test("a backup that can't be read says so rather than passing, and a trial witho
 });
 
 test("a stockroom-only shop isn't asked about payments, and the words are plain", () => {
-  const answer = checkMyShop({ row, profile: { ...profile, apps: { shop: false, stockroom: true }, payments: undefined }, now: NOW, shopBackupAt: hoursAgo(1) });
+  const answer = checkMyShop({ row, profile: { ...profile, apps: { shop: false, stockroom: true }, firebase: { projectId: "moth-press" }, payments: undefined }, now: NOW, shopBackupAt: hoursAgo(1) });
   assert.equal(byId(answer, "payments"), undefined);
+  // Its address is the stockroom's, not a website it doesn't have.
+  assert.equal(byId(answer, "address").title, "Your stockroom's web address");
+  assert.match(byId(answer, "address").words, /-stockroom\.web\.app/);
+  assert.doesNotMatch(byId(answer, "address").words, /People can find your shop/);
   const all = [{ row: { emailSender: { state: "broken" }, billing: { access: "paused" } }, profile: { ...profile, payments: undefined, stockroom: undefined, siteUrl: undefined } }]
     .flatMap((input) => checkMyShop({ ...input, now: NOW, shopBackupAt: null }).results)
     .map((r) => `${r.title}. ${r.words}`).join(" ");
