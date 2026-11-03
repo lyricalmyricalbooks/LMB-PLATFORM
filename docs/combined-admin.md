@@ -86,6 +86,9 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 - A page that asks before the admin listens for "open the frame" (a child page's first effect) is remembered and the
   frame opens as soon as the admin listens (`stockroomBridge.ts`).
 
+- With no connection, the admin's "You're offline" card stays off stockroom pages (`onStockroomPage` in
+  Dashboard.tsx): the stockroom says it in its own words and the card would cover the Fair till's buttons on a phone.
+
 ## First-time tour
 
 - `CombinedTour.tsx`: six short steps (what one admin means, Home, All sales, a book's Stock and sales, the Fair till,
