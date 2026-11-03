@@ -132,6 +132,8 @@ try {
   await go("overview");
   const movedIn = page.locator("section", { has: page.getByRole("heading", { name: "You're all moved in" }) });
   check(await card.count() === 0 && await movedIn.count() > 0, "Overview: You're all moved in, in place of the list");
+  await movedIn.getByText(/came over/).waitFor({ timeout: 5000 });
+  check(/4 customers and 2 gift cards came over/.test(await movedIn.innerText()), "it says what came over", await movedIn.innerText());
   if (shots) await movedIn.screenshot({ path: join(shots, "7-overview-moved-in.png") });
   await movedIn.getByRole("button", { name: "Close" }).click();
   await page.waitForTimeout(500);

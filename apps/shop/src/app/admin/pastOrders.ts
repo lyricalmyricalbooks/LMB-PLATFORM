@@ -138,6 +138,28 @@ export function readPastOrders(text: string, now = new Date()): PastOrderFile {
 
 const cents = (n: number) => Math.round(n * 100) / 100;
 /** A usable rate: how many Canadian dollars one unit of the other currency was worth. */
+/**
+ * Several order files read as one (plan 23.27): old shops that export a year at a time give a press one file per year.
+ * An order in two files comes over once (the first file's copy). With more than one file, what was left out and any
+ * problem name its file. Pure.
+ */
+export function mergePastOrderFiles(files: { name: string; file: PastOrderFile }[]): PastOrderFile {
+  if (files.length === 1) return files[0].file;
+  const out: PastOrderFile = { orders: [], skipped: [], problems: [], foreign: {} };
+  const seen = new Set<string>();
+  for (const { name, file } of files) {
+    for (const p of file.problems) out.problems.push(`${name}: ${p}`);
+    for (const s of file.skipped) out.skipped.push({ line: s.line, reason: `${name}, line ${s.line}: ${s.reason}` });
+    for (const o of file.orders) {
+      if (seen.has(o.oldRef)) continue;
+      seen.add(o.oldRef);
+      out.orders.push(o);
+      if (o.currency && o.currency !== "CAD") out.foreign[o.currency] = (out.foreign[o.currency] || 0) + 1;
+    }
+  }
+  return out;
+}
+
 export const goodRate = (r: unknown): r is number => typeof r === "number" && Number.isFinite(r) && r > 0 && r <= 10000;
 
 /**

@@ -2,13 +2,14 @@ import { recordMoveStep } from "./moveProgress";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { importPastOrders, removePastOrders, suggestedRates } from "./oldShopApi";
-import { goodRate, readPastOrders, readyToSend, type PastOrder, type PastOrderFile } from "./pastOrders";
+import { goodRate, mergePastOrderFiles, readPastOrders, readyToSend, type PastOrder, type PastOrderFile } from "./pastOrders";
 import { Dialog, GhostButton, PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
 
 /**
  * Orders › Bring past orders over (plan 23.7): the old shop's order file → a preview → the server saves each order as
  * history only (functions/orderImport.js): counted in sales reports and each customer's history, with no stock change,
- * no email and no payment. Bringing the same file again adds nothing.
+ * no email and no payment. Bringing the same file again adds nothing. Several files (one per year, say) come over as
+ * one run (plan 23.27): chosen together, or added before bringing them over.
  */
 const BATCH = 500;
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
@@ -19,8 +20,9 @@ const dayWords = (d: string) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateStri
 
 export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState("");
-  const [file, setFile] = useState<PastOrderFile | null>(null);
+  const [chosen, setChosen] = useState<{ name: string; file: PastOrderFile }[]>([]);
+  const file = useMemo(() => (chosen.length ? mergePastOrderFiles(chosen) : null), [chosen]);
+  const adding = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<null | { added: number; skipped: string[] }>(null);
@@ -53,12 +55,20 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
     return () => { alive = false; };
   }, [file]);
 
-  const choose = async (picked: File | undefined) => {
-    if (!picked) return;
-    setError(""); setResult(null); setEarlier([]); setRerate(""); setName(picked.name); setRateText({}); setSuggested(null); setUndo(""); batch.current = newBatch();
-    if (picked.size > 20 * 1024 * 1024) { setFile(null); setError("That file is larger than 20 MB. Export a shorter date range and bring the parts one at a time."); return; }
-    try { setFile(readPastOrders(await picked.text())); }
-    catch { setFile(null); setError("This file couldn't be read. Save it as CSV (comma separated) and try again."); }
+  /** Reads the chosen files; `add` keeps the ones already chosen (Add another file). */
+  const choose = async (list: File[], add: boolean) => {
+    if (!list.length) return;
+    setError(""); setResult(null); setEarlier([]); setRerate(""); setUndo("");
+    if (!add) { setChosen([]); setRateText({}); setSuggested(null); batch.current = newBatch(); }
+    const big = list.find((f) => f.size > 20 * 1024 * 1024);
+    if (big) { setError(`${big.name} is larger than 20 MB. Export a shorter date range and bring the parts one at a time.`); return; }
+    const read: { name: string; file: PastOrderFile }[] = [];
+    for (const f of list) {
+      try { read.push({ name: f.name, file: readPastOrders(await f.text()) }); }
+      catch { setError(`${f.name} couldn't be read. Save it as CSV (comma separated) and try again.`); return; }
+    }
+    // A file chosen twice counts once.
+    setChosen((was) => [...(add ? was : []), ...read].filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i));
   };
 
   const bring = async () => {
@@ -128,10 +138,10 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
             </div>
           ))}
           {result.added > 0 && batch.current && (
-            undo === "done" ? <p className="rp-hint" style={{ margin: 0 }}>{plural(removed, "past order")} removed. Bring the file again whenever you like.</p>
+            undo === "done" ? <p className="rp-hint" style={{ margin: 0 }}>{plural(removed, "past order")} removed. Bring {chosen.length > 1 ? "the files" : "the file"} again whenever you like.</p>
             : undo === "confirm" || undo === "busy" ? (
               <div className="rp-stack" style={{ gap: 8 }}>
-                <p style={{ margin: 0 }}>Remove the past orders this file brought over? Orders already here before, and new sales, are never touched.</p>
+                <p style={{ margin: 0 }}>Remove the past orders {chosen.length > 1 ? "these files" : "this file"} brought over? Orders already here before, and new sales, are never touched.</p>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <SecondaryButton disabled={undo === "busy"} onClick={() => setUndo("")}>Keep them</SecondaryButton>
                   <PrimaryButton disabled={undo === "busy"} onClick={() => {
@@ -162,13 +172,14 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
         </PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 12 }}>
-        <input ref={fileRef} type="file" accept=".csv,text/csv" hidden aria-label="Order file"
-          onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
+        <input ref={fileRef} type="file" accept=".csv,text/csv" multiple hidden aria-label="Order file"
+          onChange={(e) => { void choose([...(e.target.files || [])], adding.current); e.target.value = ""; }} />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>{name ? "Choose another file" : "Choose the file"}</SecondaryButton>
-          {name && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{name}</span>}
+          <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => { adding.current = false; fileRef.current?.click(); }}>{chosen.length ? "Choose other files" : "Choose the file"}</SecondaryButton>
+          {chosen.length > 0 && <GhostButton disabled={busy} onClick={() => { adding.current = true; fileRef.current?.click(); }}>Add another file</GhostButton>}
+          {chosen.length > 0 && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{chosen.map((c) => c.name).join(", ")}</span>}
         </div>
-        {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its orders page and export them as a CSV file.</p>}
+        {!file && <p className="rp-hint" style={{ margin: 0 }}>In your old shop, open its orders page and export them as a CSV file. If it gives you one file per year or per month, choose them all: they come over together.</p>}
         {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
         {file && ready && (file.problems.length ? (
           <div role="alert" className="rp-error-text">{file.problems.map((p) => <p key={p} style={{ margin: 0 }}>{p}</p>)}</div>

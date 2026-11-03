@@ -70,6 +70,12 @@ if (new URLSearchParams(location.search).get("move")) {
   api.addImportedSubscriber = record("addImportedSubscriber", () => true);
   api.giftCardAdmin = record("giftCardAdmin", (_op: string, body: any) => ({ added: body?.cards?.length || 0, emailed: 0, emailFailed: 0, skipped: [] }));
   api.getPages = async () => [];
+  // What came over, counted from the calls above (past orders live on the check's pretend server, so none here).
+  api.movedCounts = async () => ({
+    customers: new Set(calls.filter((c) => c[0] === "saveCustomerNote").map((c) => c[1])).size,
+    giftCards: calls.filter((c) => c[0] === "giftCardAdmin").reduce((n, c) => n + (c[2]?.cards?.length || 0), 0),
+    orders: null,
+  });
   // oldShopApi asks the server with the signed-in person's token; the fixture's pretend owner has one (development only).
   (globalThis as any).__fixtureIdToken = "fixture-token";
 }

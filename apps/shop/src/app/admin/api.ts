@@ -2058,6 +2058,21 @@ export const adminApi = {
     await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
   },
 
+  /**
+   * How much came over from the old shop (plan 23.28), for the Overview's "You're all moved in": customers on file, and
+   * gift cards and past orders the shop's server brought over. Mirrors `moveCounts` in functions/moveDone.js; null
+   * where a count can't be read.
+   */
+  movedCounts: async () => {
+    const count = (q: any) => getCountFromServer(q).then((s: any) => s.data().count as number).catch(() => null);
+    const [customers, giftCards, orders] = await Promise.all([
+      count(collection(db, "customerNotes")),
+      count(query(collection(db, "giftCards"), where("source", "==", "import"))),
+      count(query(collection(db, "orders"), where("source", "==", "import"))),
+    ]);
+    return { customers, giftCards, orders };
+  },
+
   /** Takes one hand tick back (`done.<id>`), e.g. shows Your move so far again once it was hidden (plan 23.19). */
   untickFirstWeek: async (id: string) => {
     await setDoc(doc(db, "firstWeek", "start"), { done: { [id]: deleteField() }, updatedAt: new Date().toISOString() }, { merge: true });
