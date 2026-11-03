@@ -50,6 +50,8 @@ export type ReturnProblem = "returns_off" | "closed" | "not_paid" | "not_shipped
 /** Why this order can't ask for a return now, or null when it can. */
 export function returnRequestProblem(order: any, settings: ReturnSettings, now: number = Date.now()): ReturnProblem | null {
   if (!settings.enabled) return "returns_off";
+  // A past order brought over from the old shop (plan 23.7) is history only: the old shop's terms covered it.
+  if (order?.source === "import") return "closed";
   const status = String(order?.status || "").toLowerCase();
   const payment = String(order?.paymentStatus || "").toLowerCase();
   if (status === "cancelled" || status === "refunded" || payment.startsWith("refund")) return "closed";

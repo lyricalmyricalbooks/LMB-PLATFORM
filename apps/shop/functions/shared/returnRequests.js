@@ -51,6 +51,9 @@ function returnDeadline(order, settings) {
 function returnRequestProblem(order, settings, now = Date.now()) {
     if (!settings.enabled)
         return "returns_off";
+    // A past order brought over from the old shop (plan 23.7) is history only: the old shop's terms covered it.
+    if (order?.source === "import")
+        return "closed";
     const status = String(order?.status || "").toLowerCase();
     const payment = String(order?.paymentStatus || "").toLowerCase();
     if (status === "cancelled" || status === "refunded" || payment.startsWith("refund"))

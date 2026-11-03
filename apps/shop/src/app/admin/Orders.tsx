@@ -2,7 +2,8 @@ import { plainError } from "./plainError";
 import "./fulfillment.css";
 import { exportOrdersCsv } from "./orderCsv";
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Download, Link2, Trash2 } from "lucide-react";
+import { Download, Link2, Trash2, Upload } from "lucide-react";
+import { PastOrdersDialog } from "./PastOrdersDialog";
 import { PaymentLinkDialog } from "./PaymentLinkDialog";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
@@ -148,6 +149,7 @@ export function Orders({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   const [makingLink, setMakingLink] = useState(false);
+  const [bringingPast, setBringingPast] = useState(false);
   const [confirmBatch, setConfirmBatch] = useState<false | BatchKind>(false);
   const [busy, setBusy] = useState(false);
   const [batchResults, setBatchResults] = useState<string[]>([]);
@@ -568,10 +570,14 @@ export function Orders({
         >
           Export CSV
         </SecondaryButton>
+        <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setBringingPast(true)}>
+          Bring past orders over
+        </SecondaryButton>
         <PrimaryButton icon={<Link2 size={16} aria-hidden />} onClick={() => setMakingLink(true)}>
           New order to pay
         </PrimaryButton>
       </FilterBar>
+      {bringingPast && <PastOrdersDialog onClose={() => setBringingPast(false)} onDone={() => void loadOrders()} />}
       <PaymentLinkDialog
         open={makingLink}
         onClose={() => setMakingLink(false)}

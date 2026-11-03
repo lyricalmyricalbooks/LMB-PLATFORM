@@ -848,6 +848,9 @@ export function OrderDetail({
             {order.isTest && (
               <StatusBadge tone="danger">Test order</StatusBadge>
             )}
+            {order.source === "import" && (
+              <StatusBadge tone="neutral">Brought over from your old shop{order.oldOrderNumber ? ` (${order.oldOrderNumber})` : ""}</StatusBadge>
+            )}
           </>
         }
       />

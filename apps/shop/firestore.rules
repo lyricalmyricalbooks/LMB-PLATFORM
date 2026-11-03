@@ -268,8 +268,9 @@ service cloud.firestore {
       allow update: if isAdmin();
       // Paid, refunded or shipped orders (or ones with money waiting on them) are kept
       // for the shop's records; only unpaid/cancelled/test orders may be deleted
-      // (mirrors deleteRefusal in src/app/admin/orderListHelpers.ts).
-      allow delete: if isAdmin() && (resource.data.get('isTest', false) == true || (
+      // (mirrors deleteRefusal in src/app/admin/orderListHelpers.ts). A past order brought over from the old shop
+      // (functions/orderImport.js, history only) may be deleted, so a wrong import can be undone.
+      allow delete: if isAdmin() && (resource.data.get('isTest', false) == true || resource.data.get('source', '') == 'import' || (
         !(resource.data.get('paymentStatus', '') in ['paid', 'refunded', 'refund_pending', 'partially_refunded'])
         && resource.data.get('paidAt', null) == null
         && resource.data.get('partiallyRefunded', false) != true
