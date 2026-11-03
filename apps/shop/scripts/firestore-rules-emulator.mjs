@@ -344,6 +344,14 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("unverified bookkeeper reads no order", assertFails(getDoc(doc(unverifiedBookkeeper, "orders/BK-1"))));
   await check("bookkeeper can't change an order", assertFails(setDoc(doc(bookkeeper, "orders/BK-1"), { paymentStatus: "refunded" }, { merge: true })));
   await check("bookkeeper can't delete an order", assertFails(deleteDoc(doc(bookkeeper, "orders/BK-1"))));
+  // Past orders brought over from the old shop (plan 23.7) are history only: the owner may delete one to undo an import.
+  await env.withSecurityRulesDisabled((ctx) => Promise.all([
+    setDoc(doc(ctx.firestore(), "orders/PAST-1"), { orderId: "PAST-1", source: "import", paymentStatus: "paid", paidAt: "2025-06-01T00:00:00Z", fulfillmentStatus: "delivered", total: 20 }),
+    setDoc(doc(ctx.firestore(), "orders/PAID-1"), { orderId: "PAID-1", paymentStatus: "paid", paidAt: "2025-06-01T00:00:00Z", total: 20 }),
+  ]));
+  await check("bookkeeper can't delete a brought-over order", assertFails(deleteDoc(doc(bookkeeper, "orders/PAST-1"))));
+  await check("owner deletes a brought-over past order", assertSucceeds(deleteDoc(doc(owner, "orders/PAST-1"))));
+  await check("owner still can't delete a paid order", assertFails(deleteDoc(doc(owner, "orders/PAID-1"))));
   await check("bookkeeper can't create an order as admin", assertFails(setDoc(doc(bookkeeper, "orders/BK-2"), { orderId: "BK-2", paymentStatus: "paid", total: 1 })));
   await check("bookkeeper reads no draft book", assertFails(getDoc(doc(bookkeeper, "books/draft"))));
   await check("bookkeeper writes no book", assertFails(setDoc(doc(bookkeeper, "books/pub"), { status: "published", title: "Changed" })));

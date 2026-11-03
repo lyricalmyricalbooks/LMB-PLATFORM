@@ -3119,6 +3119,9 @@ async function handleOrderUpdated(event) {
     // Test orders send nothing — except sandbox payments, whose emails are part of
     // the checkout rehearsal (they still never buy labels or touch stock).
     if (after.isTest === true && after.sandboxPayment !== true) return;
+    // A past order brought over from the old shop is history only (functions/orderImport.js): an admin edit to it
+    // never sends an email, issues a gift card, takes stock or buys a label.
+    if (after.source === "import" || before.source === "import") return;
     // A refund the bank rejected put this order back to paid: tell the shop, because the customer
     // was told they were refunded (Orders › Needs attention also lists it).
     if (after.refundFailedAt && before.refundFailedAt !== after.refundFailedAt && after.paymentStatus === "paid") {
@@ -3810,6 +3813,8 @@ exports.onOrderCreated = onDocumentCreated(
     const orderId = event.params.orderId;
 
     if (order.isTest === true) return;
+    // A past order brought over from the old shop is history only (functions/orderImport.js): no email.
+    if (order.source === "import") return;
     if (!order.customer?.email) return;
 
     const notificationSettings = await loadNotificationSettings();

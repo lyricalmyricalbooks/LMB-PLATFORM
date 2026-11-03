@@ -46,6 +46,8 @@ const LEFT_THE_SHOP = ["shipped", "out_for_delivery", "delivered", "collected"];
 export function deleteRefusal(o: any): string {
   if (!o) return "";
   if (o.isTest === true) return "";
+  // A past order brought over from the old shop is history only: deleting it undoes a wrong import.
+  if (o.source === "import") return "";
   if (KEPT_PAYMENTS.includes(o.paymentStatus) || o.paidAt) return "it was paid — refund or cancel it instead";
   if (o.partiallyRefunded || Number(o.refundedAmountMinor) > 0) return "it has a refund recorded";
   if (LEFT_THE_SHOP.includes(o.fulfillmentStatus) || o.shippedAt) return "it was shipped or handed over";

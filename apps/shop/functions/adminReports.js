@@ -7,6 +7,7 @@ const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
 const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
 const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
 const { handleTrafficReset } = require("./trafficReset");
+const { handlePastOrdersImport } = require("./orderImport");
 const { handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop } = require("./oldShopRead");
 
 function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit, LIMITS }) {
@@ -169,7 +170,21 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     }
   }
 
+  // Orders › Bring past orders over (plan 23.7): past orders as history only (functions/orderImport.js).
+  async function handlePastOrdersRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handlePastOrdersImport(req.body || {}, { db, actor: adminUser.email || "admin", now: new Date() });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("importPastOrders failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't bring those orders over just now. Bring the same file again: orders already here are skipped." });
+    }
+  }
+
   return {
+    importPastOrders: handlePastOrdersRequest,
     readOldShop: handleOldShopRequest,
     readOldLinks: handleOldLinksRequest,
     readOldPages: handleOldPagesRequest,

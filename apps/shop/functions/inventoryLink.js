@@ -57,6 +57,8 @@ function countsForInventory(order, startDay) {
  */
 function pushKind(order, { startDay = "", rehearsal = false, record = null, testShop = false } = {}) {
   if (!order) return null;
+  // A past order brought over from the old shop (functions/orderImport.js) was counted there: the stockroom never sees it.
+  if (order.source === "import") return null;
   if (order.isTest === true) {
     if (record && record.test === true) return "test";
     if (testShop === true && order.sandboxPayment === true) {

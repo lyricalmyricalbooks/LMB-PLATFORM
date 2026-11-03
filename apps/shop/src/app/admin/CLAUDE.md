@@ -478,6 +478,14 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). Imported customers appear in the
   list once they order (the list is built from orders).
 - **Photos** stay on the old shop's addresses until plan 3.1b copies them into the shop's own storage.
+- **Past orders (plan 23.7, 3 November 2026):** Orders › **Bring past orders over** (`PastOrdersDialog.tsx`) reads the
+  order file in the browser (`pastOrders.ts`, headings matched loosely, rows grouped by order number; cancelled, unpaid
+  and non-CAD orders left out with a reason) and sends batches of 500 to the `importPastOrders` admin action
+  (`functions/orderImport.js`). Only the server writes them: id `PAST-` + a hash of the old reference (`tx.create`, so a
+  re-run adds none), `source: "import"`, paid (or refunded) and delivered, `reviewRequestedAt` set, no `shippedAt`,
+  `stripePaymentIntentId` or `cartId`. **History only:** `onOrderCreated`, `handleOrderUpdated`, the stockroom link's
+  `pushKind` and return requests all skip `source: "import"`, so a past order moves no stock and sends no email. The
+  owner (not the bookkeeper) may delete one (`firestore.rules`, `deleteRefusal`). A new order hook must skip it too.
 
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 
