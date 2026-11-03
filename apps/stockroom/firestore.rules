@@ -135,7 +135,7 @@ service cloud.firestore {
     // database.rules.json (tests/security-rules.test.js checks the two agree).
     function isAuthorReadableSetting(name) {
       return name in ['modeFlags', 'notifyEndpoint', 'analyticsConfig', 'catalog',
-                      'paymentLinks', 'productionCosts', 'websitePaymentMethods'];
+                      'paymentLinks', 'productionCosts', 'websitePaymentMethods', 'sells'];
     }
 
     // The bookkeeper (plan 7.17): the "bookkeeper" role the shop's server copies

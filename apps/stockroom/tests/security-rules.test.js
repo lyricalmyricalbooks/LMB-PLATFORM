@@ -30,7 +30,7 @@ const PUBLISHER = '__SHOP_OWNER_EMAIL__';
 // Loaded by an author session to render its own book (see firestore.rules).
 const AUTHOR_READS = [
   'modeFlags', 'notifyEndpoint', 'analyticsConfig', 'catalog',
-  'paymentLinks', 'productionCosts', 'websitePaymentMethods',
+  'paymentLinks', 'productionCosts', 'websitePaymentMethods', 'sells',
 ];
 // Read by the bookkeeper's screen (plan 7.17): which database, and the Tax Centre's key-free copy.
 const BOOKKEEPER_READS = ['modeFlags', 'taxCentreForBookkeeper'];

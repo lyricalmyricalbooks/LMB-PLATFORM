@@ -254,8 +254,8 @@ export const adminApi = {
   },
 
   /** Adds the three example products (only into an empty catalog; the caller checks). */
-  addExampleProducts: async () => {
-    for (const product of exampleProducts()) await adminApi.createBook(product);
+  addExampleProducts: async (sells?: string | null) => {
+    for (const product of exampleProducts(sells)) await adminApi.createBook(product);
     await adminApi.recordAuditLog("catalog", "Added example products");
   },
 

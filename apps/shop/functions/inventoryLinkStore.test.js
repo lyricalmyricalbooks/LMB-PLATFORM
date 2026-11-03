@@ -60,3 +60,12 @@ describe("why the stockroom can't be reached, in the panel's words", () => {
     expect(store.connectionProblem({ code: 14, message: "unavailable" })).toBe("unreachable");
   });
 });
+
+describe("what the shop sells, copied for the stockroom's words", () => {
+  test("is written to the stockroom's settings in the settings format, only in its own database", async () => {
+    const written = [];
+    const db = { collection: (c) => ({ doc: (d) => ({ set: async (v) => written.push([c, d, v]) }) }) };
+    await store.writeSellsWords("clothing", { now: 5, db });
+    expect(written).toEqual([["settings", "sells", { data: "\"clothing\"", ts: 5 }]]);
+  });
+});
