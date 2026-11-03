@@ -57,6 +57,16 @@ export const ARTICLES = Object.freeze([
     where: ["Settings › General"],
   },
   {
+    id: "stock-places",
+    topic: "Your stockroom",
+    question: "Some of my copies are at a market stall. Can the stockroom track that?",
+    answer: [
+      "Yes. Open a product in the stockroom and choose the Move between places button on its dashboard. Pick where the copies are now, where they are going and how many. Type a new place name the first time, such as Studio or Market stall.",
+      "Everything you have not put in a place is called Main. The total on hand never changes when you move copies, and your sales and taxes are not affected. When something sells, Main goes down first. Close a place any time and its copies go back to Main.",
+    ],
+    plans: ["stockroom"],
+  },
+  {
     id: "size-guide",
     topic: "Getting started",
     question: "How do I add a size guide?",
