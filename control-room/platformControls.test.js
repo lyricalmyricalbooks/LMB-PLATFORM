@@ -37,7 +37,7 @@ function world() {
   });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: platformRoutes(controls) });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
-  return { controls, settingsStore, activity, email, inviteStore, ask };
+  return { controls, settingsStore, activity, email, inviteStore, ask, signups: stores.signups };
 }
 
 test("only platform admins see or change the platform's settings, waitlist and activity", async () => {
@@ -142,4 +142,18 @@ test("an admin can try making a stopped shop again; a shop on its way is left al
   await assert.rejects(w.controls.retry(ADMIN, { shopId: "nope", reason: "fixed the billing account" }), { status: 404 });
   await assert.rejects(w.controls.retry(STRANGER, { shopId: "moth-press-a1b2c", reason: "fixed the billing account" }), { status: 403 });
   assert.equal((await w.activity.list()).filter((e) => e.what === "signup-retry").length, 1);
+});
+
+test("a ready shop whose plan change stopped is listed with the reason, and Try again clears it for the next sweep", async () => {
+  const w = world();
+  const stopped = { plan: "both", tries: 1, failedStep: 5, error: "the database is marked for deletion", nextTryAt: null, needsHelp: true };
+  await w.signups.set("moth-press-a1b2c", { ...(await w.signups.get("moth-press-a1b2c")), status: "ready", planSync: stopped });
+  const listed = (await w.controls.waitlist(ADMIN)).inTheMaking.find((s) => s.shopId === "moth-press-a1b2c");
+  assert.equal(listed.status, "plan-change-stopped");
+  assert.equal(listed.canRetry, true);
+  assert.match(listed.message, /Moving to the both plan stopped at step 5 and needs you: the database is marked for deletion/);
+  assert.deepEqual(await w.controls.retry(ADMIN, { shopId: "moth-press-a1b2c", reason: "restored the database" }), { shopId: "moth-press-a1b2c", status: "ready", changed: true });
+  assert.equal((await w.signups.get("moth-press-a1b2c")).planSync, null);
+  assert.equal((await w.activity.list()).filter((e) => e.what === "plan-change-retry").length, 1);
+  assert.equal((await w.controls.retry(ADMIN, { shopId: "moth-press-a1b2c", reason: "restored the database" })).changed, false);
 });

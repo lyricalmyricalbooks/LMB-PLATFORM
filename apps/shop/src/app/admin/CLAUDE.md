@@ -643,3 +643,11 @@ startsAt, endsAt }] }`, rules: admins read, no browser writes). `PlatformMessage
 (important ones in the warning tone), at most three, with Close kept in `localStorage` (`platformMessages.ts`
 `pickPlatformMessages`, tested in `platformMessages.test.ts`, which also checks nothing outside `app/admin` reads it). The
 storefront never imports it. Admin-only words, Studio-free.
+
+## One admin for shop + stockroom (3 November 2026)
+
+A shop whose profile has both apps gets the combined admin: `combined.ts` (`combinedAdmin`, `STOCKROOM_PAGES`),
+`riso/nav.ts` `COMBINED_MENU`, `StockroomFrame.tsx` (the stockroom's pages, framed from `/stockroom/app` on the shop's
+own address, kept open once opened), route `#stockroom/<page>`, and no Website · Inventory switcher. Shop-only shops keep
+`MENU`. Full notes and the next steps: LMB-PLATFORM `docs/combined-admin.md`. A new stockroom page in the menu goes in
+`STOCKROOM_PAGES` and `COMBINED_MENU` (combined.test.ts checks every page is listed once and exists in the stockroom).

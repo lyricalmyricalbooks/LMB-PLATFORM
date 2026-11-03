@@ -1084,6 +1084,8 @@ import {
 } from './features/website-link.js';
 import { STRIPE_CHARGE_PI_KEY, isWebsiteFulfilled, promisedPreorders, rememberChargeIntents } from './lib/website-link.js';
 import { startAppSearch } from './features/app-search.js';
+import './styles/inside-admin.css';
+import { STOCKROOM_PAGE_EVENT, startInsideAdmin } from './lib/inside-admin.js';
 import { appSwitchBooksReady, openWebsiteDetailDiffs, openWebsiteShopBooks, refreshAppSwitch, startAppSwitch } from './features/app-switch.js';
 import { WEBSITE_TAB_NAME, openOnWebsiteHtml, websiteOrderUrl } from './lib/app-switch.js';
 import { reviewTaskStillOpen } from './lib/review-queue.js';
@@ -6027,6 +6029,8 @@ export function switchTab(name) {
   if (isAuthor() && PUBLISHER_ONLY_TABS.has(name)) name = 'dashboard';
   // publisher redirected away from author-only myqr tab
   if (!isAuthor() && AUTHOR_ONLY_TABS.has(name)) name = 'dashboard';
+  // Inside the combined admin, the admin's menu and address follow the page shown here (lib/inside-admin.js).
+  try { window.dispatchEvent(new CustomEvent(STOCKROOM_PAGE_EVENT, { detail: name })); } catch (_) { /* no window */ }
 
   const phoneScope = `${isAuthor() ? 'author' : 'publisher'}:${activeBook}:`;
   const previousPanel = document.querySelector('.tab-panel.active');
@@ -11162,6 +11166,8 @@ consumeTransferPaidReturn();
 // orders (#website-order=<id>). It drops a leftover ?mode=admin (nothing reads
 // it) and leaves every other part of the address as it is.
 startAppSwitch();
+// Inside the combined admin (shop + stockroom plan): its menu replaces this app's own, and it opens pages here.
+startInsideAdmin({ switchTab, setAdminLook, setThemePreference });
 // One search box (top-bar 🔍, Ctrl/⌘ K, "/"): this app's books and the website's.
 startAppSearch();
 startStockPlaces();

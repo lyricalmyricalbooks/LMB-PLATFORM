@@ -8,7 +8,7 @@ import { SetupGuideCard } from "./SetupGuideCard";
 import { PressDetailsStage } from "./PressDetailsStage";
 import { BringShopStage } from "./BringShopStage";
 import type { BringMarker } from "../bringShop";
-import { firstBookPhoto } from "../chooseLook";
+import { ownBooks } from "../chooseLook";
 import { ShippingStage } from "./ShippingStage";
 import type { ShippingMarker } from "../shippingStage";
 import type { FinalCheckMarker } from "../finalCheckStage";
@@ -95,7 +95,7 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
     };
     return (
       <Suspense fallback={<SectionCard title="Choose your look"><LoadingState label="Opening the looks…" /></SectionCard>}>
-        <ChooseLookWelcome publishes={doc.publishes} photo={firstBookPhoto(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} />
+        <ChooseLookWelcome publishes={doc.publishes} books={ownBooks(books)} settings={settings} onDone={done} onRetrySettings={onRetrySettings} />
       </Suspense>
     );
   }

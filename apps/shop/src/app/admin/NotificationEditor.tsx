@@ -64,7 +64,7 @@ type NotificationSettings = {
   brand: {
     logoUrl: string;
     brandColor: string;
-    emailTheme?: "light" | "dark";
+    emailTheme?: "light" | "dark" | "market" | "index";
     resendApiKey?: string;
     resendApiKeyStored?: boolean;
   };
@@ -700,10 +700,12 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             </div>
             {badColor && <p className="rp-error-text" role="alert" style={{ margin: "6px 0 0" }}>Use a colour code like #e8402a. Until then emails use flare red.</p>}
           </div>
-          <SelectField label="Email theme" value={data.brand?.emailTheme === "dark" ? "dark" : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
-            hint="Light = cream paper. Dark = black paper.">
+          <SelectField label="Email theme" value={["dark", "market", "index"].includes(String(data.brand?.emailTheme)) ? String(data.brand?.emailTheme) : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
+            hint="Light = cream paper. Dark = black paper. Market stall and Index match those shop designs.">
             <option value="light">Light (newsprint)</option>
             <option value="dark">Dark (Riso Noir)</option>
+            <option value="market">Market stall (yellow)</option>
+            <option value="index">Index rows (grey and black)</option>
           </SelectField>
         </div>
         {!sharedBackup && <details style={{ marginTop: 16 }}>
