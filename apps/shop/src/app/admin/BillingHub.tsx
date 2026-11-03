@@ -6,7 +6,7 @@ import {
 } from "./riso/components";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
-  BillingCallError, LEAVING_CHOICES, PROVINCES, appsInWords, billState, billingCall, previewWords, statusBadge,
+  BillingCallError, DROP_CHOICES, LEAVING_CHOICES, PROVINCES, appsInWords, billState, billingCall, previewWords, statusBadge,
   type Bill, type BillingDetails, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
 } from "./platformBilling";
 
@@ -103,6 +103,7 @@ export function PlanPage({ plan }: Hub) {
   const [preview, setPreview] = useState<PlanPreview | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [dropReason, setDropReason] = useState("");
   const [words, setWords] = useState("");
   const [way, setWay] = useState<PaymentWayView | null>(null);
 
@@ -133,11 +134,12 @@ export function PlanPage({ plan }: Hub) {
   facts.push(["Card", billing.card?.words ?? (billing.paymentWay === "payAsYouSell" ? "Not needed while you pay as you sell" : "No card yet")]);
 
   const askPreview = (to: PlanId) => change.run("preview", async () => {
+    setDropReason("");
     setPreview((await billingCall<{ preview: PlanPreview }>(plan, "change-plan", { plan: to, preview: true })).preview);
   });
   const confirmPlan = async () => {
     if (!preview) return;
-    const done = await change.run("change", () => billingCall(plan, "change-plan", { plan: preview.plan }));
+    const done = await change.run("change", () => billingCall(plan, "change-plan", { plan: preview.plan, reason: (preview.closes.length && dropReason) || undefined }));
     if (done !== undefined) setPreview(null);
   };
   const cancel = async () => {
@@ -204,6 +206,11 @@ export function PlanPage({ plan }: Hub) {
         </>}>
         <div className="rp-stack" style={{ gap: 10 }}>
           {preview && previewWords(preview, planDate).map((line) => <p key={line} style={{ margin: 0 }}>{line}</p>)}
+          {preview && preview.closes.length > 0 && (
+            <SelectField label={`Why are you dropping ${appsInWords(preview.closes)}? (optional)`} value={dropReason} onChange={(e) => setDropReason(e.target.value)}>
+              {DROP_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </SelectField>
+          )}
           <Problem error={change.error} />
         </div>
       </Dialog>

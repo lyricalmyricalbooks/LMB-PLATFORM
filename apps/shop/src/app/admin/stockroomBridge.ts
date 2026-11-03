@@ -14,14 +14,28 @@ export interface StockroomBook {
 /** The stockroom book that looks like a website book (`findBook`). */
 export interface StockroomMatch { id: string; title: string; by: "isbn" | "title" }
 
-type Ask = { what: "book"; book: string } | { what: "find"; isbn?: string; title?: string };
+/** One item of the stockroom's to-do list (`todoItems`). */
+export interface StockroomTodo { id: string; group: string; status: string; label: string; detail: string }
+/** One sale the stockroom recorded (`salesRows`): fairs, stockists, invoices, by hand; never a website order. */
+export interface StockroomSale {
+  key: string; bookId: string; title: string; date: string; chan: string; qty: number; amount: number; cur: string;
+  stockist: string; invoice: string;
+}
+
+type Ask = { what: "book"; book: string } | { what: "find"; isbn?: string; title?: string } | { what: "todo" } | { what: "sales"; since?: string };
 
 let frame: Window | null = null;
 let seq = 0;
 const readyWaiters = new Set<() => void>();
 const needListeners = new Set<() => void>();
+// A page asked before Dashboard listened (a child's effect runs before its parent's): the next listener hears it.
+let neededEarly = false;
+const need = () => {
+  if (!needListeners.size) neededEarly = true;
+  for (const listener of needListeners) listener();
+};
 const openListeners = new Set<(page: string) => void>();
-let pendingOpen: { tab: string; book: string } | null = null;
+let pendingOpen: { tab: string; book?: string; todo?: string } | null = null;
 
 const post = (message: object) => {
   try { frame?.postMessage(message, window.location.origin); } catch { /* frame gone */ }
@@ -44,22 +58,38 @@ export const stockroomBridge = {
     if (pendingOpen) { post({ source: FROM_ADMIN, type: "open", ...pendingOpen }); pendingOpen = null; }
   },
   /** Dashboard: open the frame when a page needs it. */
-  onNeed(listener: () => void) { needListeners.add(listener); return () => { needListeners.delete(listener); }; },
+  onNeed(listener: () => void) {
+    needListeners.add(listener);
+    if (neededEarly) { neededEarly = false; listener(); }
+    return () => { needListeners.delete(listener); };
+  },
   /** Dashboard: show a stockroom page (the book page's "Open in the stockroom"). */
   onOpen(listener: (page: string) => void) { openListeners.add(listener); return () => { openListeners.delete(listener); }; },
 
-  /** Show stockroom page `tab` with `book` picked, in the admin. */
-  openBook(tab: string, book: string) {
-    if (frame) post({ source: FROM_ADMIN, type: "open", tab, book });
-    else { pendingOpen = { tab, book }; for (const need of needListeners) need(); }
+  /** Show stockroom page `tab` in the admin, with `book` picked or on to-do item `todo`. */
+  openPage(tab: string, extra: { book?: string; todo?: string } = {}) {
+    if (frame) post({ source: FROM_ADMIN, type: "open", tab, ...extra });
+    else { pendingOpen = { tab, ...extra }; need(); }
     for (const open of openListeners) open(tab);
+  },
+  /** Show stockroom page `tab` with `book` picked, in the admin. */
+  openBook(tab: string, book: string) { stockroomBridge.openPage(tab, { book }); },
+
+  /** Ask until the stockroom has an answer: it says nothing (null) while its catalog or records are still loading. */
+  async askUntil<T>(question: Ask, { tries = 5, againMs = 1_500 } = {}): Promise<T | null> {
+    for (let i = 0; i < tries; i += 1) {
+      const answer = await stockroomBridge.ask<T>(question);
+      if (answer) return answer;
+      if (i < tries - 1) await new Promise((r) => setTimeout(r, againMs));
+    }
+    return null;
   },
 
   /** Ask the stockroom; null when it has no answer (yet), can't be reached in `timeoutMs`, or failed. */
   async ask<T>(question: Ask, { timeoutMs = 15_000 } = {}): Promise<T | null> {
     const started = Date.now();
     if (!frame) {
-      for (const need of needListeners) need();
+      need();
       const got = await new Promise<boolean>((resolve) => {
         const done = () => { readyWaiters.delete(done); window.clearTimeout(timer); resolve(true); };
         const timer = window.setTimeout(() => { readyWaiters.delete(done); resolve(false); }, timeoutMs);

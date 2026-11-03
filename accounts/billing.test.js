@@ -218,6 +218,7 @@ test("the account page's shop card says when an app is being set up or closing",
   assert.deepEqual(changingLines({ adding: ["stockroom"], closing: null }), ["Your stockroom is being set up. We'll email you a link when it's ready."]);
   assert.deepEqual(changingLines({ adding: [], closing: { apps: ["shop"], at: "2026-11-30T15:00:00Z" } }), ["Your website closes on 30 November 2026. Changed your mind? Keep it under Plan & billing."]);
   assert.deepEqual(changingLines({ closed: [{ app: "stockroom", downloadUntil: "2027-02-28T15:00:00Z" }] }), ["Your stockroom is closed. You can download everything that was in it until 28 February 2027, with Download all your data."]);
+  assert.deepEqual(changingLines({ closed: [{ app: "stockroom", downloadUntil: "2027-02-28T15:00:00Z", holds: "a spreadsheet each of expenses" }] }), ["Your stockroom is closed. You can download everything that was in it until 28 February 2027, with Download all your data (a spreadsheet each of expenses)."]);
   assert.deepEqual(changingLines({}), []);
 });
 
@@ -255,4 +256,8 @@ test("changing plan passes the optional answer to why an app is dropped; the pag
   const { DROP_REASONS } = await import("../services/billing/closedApps.js");
   assert.deepEqual(DROP_CHOICES.map(([id]) => id), Object.keys(DROP_REASONS));
   assert.match(readFileSync(new URL("./billing.html", import.meta.url), "utf8"), /id="drop-choices" hidden/);
+  // The shop admin's Plan page (apps/shop, Settings › Plan) offers the same answers, after a "Rather not say".
+  const shopWords = readFileSync(new URL("../apps/shop/src/app/admin/platformBilling.ts", import.meta.url), "utf8");
+  const shopChoices = shopWords.slice(shopWords.indexOf("export const DROP_CHOICES"), shopWords.indexOf("];", shopWords.indexOf("export const DROP_CHOICES")));
+  assert.deepEqual([...shopChoices.matchAll(/value: "([^"]*)"/g)].map((m) => m[1]), ["", ...Object.keys(DROP_REASONS)]);
 });

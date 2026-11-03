@@ -3,7 +3,7 @@ import {
   SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck,
 } from "lucide-react";
 import type { NavEntry } from "./components";
-import { STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
+import { COMBINED_PAGES, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
 
 export const NAV: NavEntry[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -63,7 +63,7 @@ const S = (id: string) => STOCKROOM_ITEM_PREFIX + id;
  */
 export const COMBINED_MENU: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview", S("todo")] },
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", S("history"), S("manual"), S("shipping"), "customers", S("customers"), "messages"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, S("history"), S("manual"), S("shipping"), "customers", S("customers"), "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", S("dashboard"), "reviews"] },
   { label: "Sell in person", icon: Store, pages: [S("pos"), S("consignment"), S("qrcodes")] },
   { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", S("opencall")] },
@@ -81,7 +81,7 @@ export function navPages(nav: NavEntry[]): { id: string; label: string }[] {
 
 /** The menu items. An item's id is its first page; an item with more than one page lists them as children. */
 export function sidebarItems(nav: NavEntry[], menu: Menu = MENU): NavEntry[] {
-  const labels = new Map([...navPages(nav).map((p) => [p.id, p.label] as const), ...STOCKROOM_PAGES.map((p) => [S(p.id), p.label] as const)]);
+  const labels = new Map([...navPages(nav).map((p) => [p.id, p.label] as const), ...STOCKROOM_PAGES.map((p) => [S(p.id), p.label] as const), ...COMBINED_PAGES.map((p) => [p.id, p.label] as const)]);
   return menu.map((group) => ({
     id: group.pages[0], label: group.label, icon: group.icon,
     ...(group.pages.length > 1 ? { children: group.pages.map((id) => ({ id, label: labels.get(id) || id })) } : {}),

@@ -38,7 +38,8 @@ export function appsClosing(rows, now = new Date()) {
       });
     }
     // Closed apps still holding records: in their 90 days to download, or past them and waiting to be deleted.
-    for (const [app, entry] of Object.entries(row.closedApps ?? {})) {
+    // A shop deleted whole took its closed apps with it (billing afterClosing skips it too): nothing left to list.
+    for (const [app, entry] of Object.entries(row.closing?.stage === "deleted" ? {} : row.closedApps ?? {})) {
       if (!entry?.downloadUntil || entry.deletedAt || PLAN_APPS[row.plan]?.[app]) continue;
       const left = Math.ceil((Date.parse(entry.downloadUntil) - nowMs) / DAY);
       closed.push({ ...who, app: APP_WORDS[app] ?? app, downloadUntil: entry.downloadUntil, daysLeft: Math.max(0, left), overdue: left <= 0, warnedAt: entry.warnedAt ?? null, problem: entry.problem ?? null });

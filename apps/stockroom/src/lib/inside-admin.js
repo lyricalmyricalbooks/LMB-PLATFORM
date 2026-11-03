@@ -21,7 +21,7 @@ const PAGE = /^[a-z][a-z-]{1,29}$/;
 const LOOK = /^[a-z][a-z-]{1,19}$/;
 const ASK_ID = /^[a-z0-9-]{1,40}$/;
 /** What the admin may ask for: one book's figures, or the stockroom book that matches a website book. */
-export const ASKS = ['book', 'find'];
+export const ASKS = ['book', 'find', 'todo', 'sales'];
 const text = (v, max) => (typeof v === 'string' && v.length <= max ? v : '');
 
 /** Both apps on: the only plan with the combined admin. */
@@ -60,11 +60,14 @@ export function adminMessage(event, win) {
   if (!data || typeof data !== 'object' || data.source !== FROM_ADMIN) return null;
   if (data.type === 'open' && PAGE.test(data.tab || '')) {
     const book = text(data.book, 120);
-    return book ? { type: 'open', tab: data.tab, book } : { type: 'open', tab: data.tab };
+    const todo = data.tab === 'todo' ? text(data.todo, 200) : '';
+    return { type: 'open', tab: data.tab, ...(book ? { book } : {}), ...(todo ? { todo } : {}) };
   }
   if (data.type === 'ask' && ASK_ID.test(data.id || '') && ASKS.includes(data.what)) {
     if (data.what === 'book') return text(data.book, 120) ? { type: 'ask', id: data.id, what: 'book', book: data.book } : null;
-    return { type: 'ask', id: data.id, what: 'find', isbn: text(data.isbn, 40), title: text(data.title, 300) };
+    if (data.what === 'find') return { type: 'ask', id: data.id, what: 'find', isbn: text(data.isbn, 40), title: text(data.title, 300) };
+    if (data.what === 'sales') return { type: 'ask', id: data.id, what: 'sales', since: /^\d{4}-\d{2}-\d{2}$/.test(data.since || '') ? data.since : '' };
+    return { type: 'ask', id: data.id, what: data.what };
   }
   if (data.type === 'look') {
     const look = LOOK.test(data.look || '') ? data.look : null;
@@ -83,11 +86,12 @@ let _started = false;
 
 /**
  * Start once, when this page is framed by the combined admin. `switchTab`, `setAdminLook` and `setThemePreference`
- * come from main.js; `selectBook(id)` makes a book the one its pages show, and `answer(what, args)` gives the figures
- * the admin asks for (`book`: lib/book-summary.js `bookSummary`, or null while it isn't loaded; `find`: `findBook`).
+ * come from main.js; `selectBook(id)` makes a book the one its pages show, `openTodo(id)` opens the To-do page on one
+ * item, and `answer(what, args)` gives what the admin asks for (lib/book-summary.js: `book` → `bookSummary`, `find`
+ * → `findBook`, `todo` → `todoItems`, `sales` → `salesRows`; null while the stockroom is still loading).
  * Returns whether it started.
  */
-export function startInsideAdmin({ switchTab, setAdminLook, setThemePreference, selectBook = () => {}, answer = async () => null }, { win = window, profile = shopProfile } = {}) {
+export function startInsideAdmin({ switchTab, setAdminLook, setThemePreference, selectBook = () => {}, openTodo = null, answer = async () => null }, { win = window, profile = shopProfile } = {}) {
   if (_started || !isInsideAdmin(win, profile)) return false;
   _started = true;
   const doc = win.document;
@@ -117,7 +121,8 @@ export function startInsideAdmin({ switchTab, setAdminLook, setThemePreference, 
     if (!msg) return;
     if (msg.type === 'open') {
       if (msg.book) { try { selectBook(msg.book); } catch (_) { /* unknown book: the page shows its own */ } }
-      open(msg.tab);
+      // One to-do item from the admin's Home: the To-do page, on that item.
+      if (msg.todo && openTodo) { try { openTodo(msg.todo); } catch (_) { open(msg.tab); } } else open(msg.tab);
     } else if (msg.type === 'ask') {
       const { id, what, ...args } = msg;
       delete args.type;

@@ -104,6 +104,6 @@ export function changingLines(shop) {
   if (shop?.adding?.length) lines.push(`Your ${adminApps(shop.adding)} ${shop.adding.length > 1 ? "are" : "is"} being set up. We'll email you a link when it's ready.`);
   if (shop?.closing?.apps?.length && shop.closing.at) lines.push(`Your ${adminApps(shop.closing.apps)} ${shop.closing.apps.length > 1 ? "close" : "closes"} on ${day(shop.closing.at)}. Changed your mind? Keep it under Plan & billing.`);
   // A dropped app that has closed: its 90 days to download, with the button right under this card.
-  for (const { app, downloadUntil } of shop?.closed ?? []) lines.push(`Your ${adminApps([app])} is closed. You can download everything that was in it until ${day(downloadUntil)}, with Download all your data.`);
+  for (const { app, downloadUntil, holds } of shop?.closed ?? []) lines.push(`Your ${adminApps([app])} is closed. You can download everything that was in it until ${day(downloadUntil)}, with Download all your data${holds ? ` (${holds})` : ""}.`);
   return lines;
 }

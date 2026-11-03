@@ -373,7 +373,7 @@ export const TEMPLATES = {
   }),
 
   /** A dropped app closed today (billing closeDroppedApps). `data`: { closing, date (the last day to download), link }. */
-  "app-closed": ({ closing, date, link }, { settings, pressName }) => {
+  "app-closed": ({ closing, holds, date, link }, { settings, pressName }) => {
     const many = / and /.test(closing ?? "");
     const [it, them] = many ? ["they", "them"] : ["it", "it"];
     return layout({
@@ -381,7 +381,7 @@ export const TEMPLATES = {
       greeting: "Hello,",
       paragraphs: [
         `Your plan no longer has ${closing || "this app"}, so ${it} closed today, at the end of the month you paid for.`,
-        `Everything that was in ${them} is kept until ${date}. To save a copy, open your account and choose Download all your data: we'll email you a link to every file.`,
+        `Everything that was in ${them} is kept until ${date}. To save a copy, open your account and choose Download all your data: we'll email you a link to every file${holds ? `, with ${holds}` : ""}.`,
         `Changed your mind? Add ${them} back to your plan before ${date} and ${many ? "they open" : "it opens"} again with everything in ${them}.`,
       ],
       buttons: [["Download your data", safeLink(link)]],
@@ -389,13 +389,13 @@ export const TEMPLATES = {
     });
   },
 
-  /** Three days before a closed app's download ends (billing closedApps.js). `data`: { closing, date (the last day), link }. */
-  "app-download-ending": ({ closing, date, link }, { settings, pressName }) => layout({
+  /** Three days before a closed app's download ends (billing closedApps.js). `data`: { closing, holds? (what the download holds), date (the last day), link }. */
+  "app-download-ending": ({ closing, holds, date, link }, { settings, pressName }) => layout({
     subject: `Last days to download ${closing || "your closed app"} for ${pressName}`,
     greeting: "Hello,",
     paragraphs: [
       `${String(closing || "The app").replace(/^t/, "T")} you dropped from your plan closed a while ago. Everything that was in it is kept until ${date}, then deleted for good.`,
-      "To save a copy, open your account and choose Download all your data: we'll email you a link to every file. To keep using it instead, add it back to your plan before then.",
+      `To save a copy, open your account and choose Download all your data: we'll email you a link to every file${holds ? `, with ${holds}` : ""}. To keep using it instead, add it back to your plan before then.`,
     ],
     buttons: [["Download your data", safeLink(link)]],
     footer: signOff(settings),
@@ -605,6 +605,30 @@ export const TEMPLATES = {
     buttons: [["Approve or decline", safeLink(link)]],
     footer: signOff(settings),
   }),
+
+  /**
+   * The weekly deletion note to the platform owner (control-room/deletionNote.js). `data.apps`: [{ shopId, pressName,
+   * ownerEmail, app, date (download ends), overdue, warned (date of the last email, or null), problem, bounced }].
+   */
+  "apps-deleting-soon": ({ apps }, { settings }) => {
+    if (!Array.isArray(apps) || !apps.length) throw new Error("the deletion note lists no apps");
+    const line = (a) => [
+      `${a.pressName} (${a.shopId}${a.ownerEmail ? `, ${a.ownerEmail}` : ""}): ${a.app}.`,
+      a.overdue ? `Its download ended ${a.date} and it is still waiting to be deleted${a.problem ? `: ${a.problem}` : ""}.` : `Its download ends ${a.date}; its records are deleted after that.`,
+      a.warned ? `The last-days email went out ${a.warned}${a.bounced ? ", but a closing email bounced" : ""}.` : `The last-days email hasn't gone out yet${a.bounced ? ", and a closing email bounced" : ""}.`,
+    ].join(" ");
+    const stuck = apps.filter((a) => a.overdue).length;
+    return layout({
+      subject: `${apps.length} closed app${apps.length === 1 ? "" : "s"} to be deleted this week${stuck ? ` (${stuck} overdue)` : ""}`,
+      greeting: "",
+      paragraphs: [
+        "These closed apps' records are deleted within the next week. A press that asks in time can still add the app back to its plan, or download everything first.",
+        ...apps.map(line),
+        "Open Apps closing in the control room for the whole list. You get this note once a week, and only when something is due.",
+      ],
+      footer: `${settings.platformName} control room`,
+    });
+  },
 
   /**
    * A scheduled job stopped running on time (services/jobs, plan 19.11), to the platform's alert address only.

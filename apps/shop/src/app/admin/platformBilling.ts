@@ -114,6 +114,16 @@ export const LEAVING_CHOICES: Array<{ value: string; label: string }> = [
   { value: "other", label: "Something else" },
 ];
 
+/** The reasons offered when a plan change drops an app (the platform's DROP_REASONS, services/billing/closedApps.js). */
+export const DROP_CHOICES: Array<{ value: string; label: string }> = [
+  { value: "", label: "Rather not say" },
+  { value: "not-using", label: "We weren't using it" },
+  { value: "price", label: "To pay less" },
+  { value: "other-tool", label: "We use something else for it" },
+  { value: "too-hard", label: "It was hard to use" },
+  { value: "other", label: "Something else" },
+];
+
 /** Canada's provinces and territories, for the billing address. */
 export const PROVINCES: Array<[string, string]> = [
   ["AB", "Alberta"], ["BC", "British Columbia"], ["MB", "Manitoba"], ["NB", "New Brunswick"], ["NL", "Newfoundland and Labrador"], ["NS", "Nova Scotia"],
