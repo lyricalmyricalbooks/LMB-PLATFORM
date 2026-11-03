@@ -182,10 +182,36 @@ describe("launchReadiness on a shop whose cards go through Colophon (plan 2.10)"
     expect(done.detail).toBe("Payouts go to your own Stripe account.");
   });
 
+  it("can turn fully green: sent emails and a practice order count, so the press isn't left with a check it can never pass", () => {
+    const ready = { ...base, platformCards: "stripe" as const, platformAccount: { provider: "stripe" as const, detailsSubmitted: true, chargesEnabled: true, payoutsEnabled: true } };
+    const before = launchReadiness({ ...ready, emailLog: [] });
+    expect(before.find(i => i.id === "email")).toMatchObject({ status: "warn", label: "No emails sent yet", tab: "payments" });
+    expect(before.find(i => i.id === "first-sale")).toMatchObject({ status: "warn", label: "Try a practice order", tab: "payments" });
+    const practised = launchReadiness({ ...ready, orders: [{ isTest: true, paymentStatus: "refunded" }] });
+    expect(practised.find(i => i.id === "email")).toMatchObject({ status: "ok", label: "Emails are going out" });
+    expect(practised.find(i => i.id === "first-sale")).toMatchObject({ status: "ok", label: "Checkout works" });
+    expect(practised.find(i => i.id === "first-sale")!.detail).toMatch(/practice order/);
+    // A failed email still blocks, as on any shop.
+    expect(status(launchReadiness({ ...ready, emailLog: [{ status: "failed", error: "Refused" }] }), "email")).toBe("block");
+  });
+
   it("a shop on its own keys is unchanged", () => {
     const own = launchReadiness({ ...base, settings: goodSettings, platformCards: null });
     expect(status(own, "card-account")).toBeUndefined();
     expect(status(own, "deployment")).toBe("warn");
+  });
+});
+
+describe("launchReadiness sign-in (two-step and backup codes)", () => {
+  const base = { settings: {}, books: [], shippingProfiles: [], emailLog: [], orders: [] };
+  it("recommends two-step, then backup codes, and never blocks opening", () => {
+    const row = (signIn: any) => launchReadiness({ ...base, signIn }).find(i => i.id === "sign-in");
+    expect(row(undefined)).toBeUndefined();
+    expect(row(null)).toBeUndefined();
+    expect(row({ twoStep: false, codesLeft: null })).toMatchObject({ status: "warn", label: "Two-step sign-in is off", tab: "security" });
+    expect(row({ twoStep: true, codesLeft: 0 })).toMatchObject({ status: "warn", label: "No backup codes saved" });
+    expect(row({ twoStep: true, codesLeft: 10 })).toMatchObject({ status: "ok", detail: "Two-step sign-in is on, with 10 backup codes left." });
+    expect(row({ twoStep: true, codesLeft: null })!.status).toBe("ok");
   });
 });
 

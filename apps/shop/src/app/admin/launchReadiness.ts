@@ -1,6 +1,7 @@
 import { summarizeShipping } from "./shippingHealth";
 import { paymentHealth } from "./paymentHealth";
 import { isRealPaidOrder } from "./overview/overviewInsights";
+import { practiced } from "./firstWeek";
 import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
 import { platformCardsProvider } from "../../lib/shopProfile";
 import { accountConnected, CONTINUE_WITH_STRIPE, needsLine, paymentsReady, providerName, type PlatformPaymentsAnswer } from "./platformPayments";
@@ -21,6 +22,11 @@ export type ReadinessInput = {
    */
   platformCards?: "stripe" | "square" | null;
   platformAccount?: PlatformPaymentsAnswer | null;
+  /**
+   * The signed-in person's own sign-in (Settings › Security): two-step on, and how many backup codes are left (null when
+   * they couldn't be counted). Left out, or null, when it couldn't be read: no row then.
+   */
+  signIn?: { twoStep: boolean; codesLeft: number | null } | null;
 };
 
 const REQUIRED_POLICIES: Array<[string, string]> = [["shipping", "Shipping"], ["returns", "Returns"], ["privacy", "Privacy"], ["terms", "Terms"]];
@@ -28,7 +34,7 @@ const REQUIRED_POLICIES: Array<[string, string]> = [["shipping", "Shipping"], ["
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const hasText = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
-export function launchReadiness({ settings, books, shippingProfiles, emailLog, orders, platformCards = platformCardsProvider(), platformAccount }: ReadinessInput): ReadinessItem[] {
+export function launchReadiness({ settings, books, shippingProfiles, emailLog, orders, platformCards = platformCardsProvider(), platformAccount, signIn }: ReadinessInput): ReadinessItem[] {
   const items: ReadinessItem[] = [];
   const payments = settings?.payments || {};
   // The shop's own Stripe keys count only when the platform doesn't take its cards (a Square shop never reads them).
@@ -134,7 +140,12 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   // A "fallback" row only says Gmail missed and the backup sender was tried; the outcome is its own row.
   // "cancelled" = the owner stopped a queued email: it says nothing about the sending setup.
   const lastEmail = (emailLog || []).find(e => e?.status !== "fallback" && e?.status !== "cancelled");
-  items.push(!lastEmail
+  const emailWorks = lastEmail && lastEmail.status !== "failed" && lastEmail.status !== "queued" && String(lastEmail.from || "").toLowerCase() !== "onboarding@resend.dev";
+  // A shop run by Colophon sends through the platform from day one: nothing for the press to set up or verify, so the
+  // check turns green once an email has gone out, and a practice order is how the first one goes.
+  if (platformCards && !lastEmail) items.push({ id: "email", label: "No emails sent yet", detail: "Your practice order sends you a receipt, so you see exactly what your customers will get.", status: "warn", tab: "payments", action: "Open Payments" });
+  else if (platformCards && emailWorks) items.push({ id: "email", label: "Emails are going out", detail: "Receipts and order emails are sent from your shop. Check one arrived to see how it looks.", status: "ok", tab: "notifications", action: "Open Email sender" });
+  else items.push(!lastEmail
     ? { id: "email", label: "No emails sent yet", detail: "Send a test from Settings › Email sender, then verify receipt in the destination inbox.", status: "warn", tab: "notifications", action: "Open Email sender" }
     : lastEmail.status === "failed" || lastEmail.status === "queued"
       ? { id: "email", label: lastEmail.status === "queued" ? "The last email could not be sent and is waiting to retry" : "The last email failed to send", detail: String(lastEmail.error || "See Recent deliveries for the reason."), status: "block", tab: "notifications", action: "Open Email sender" }
@@ -143,10 +154,24 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
         ? { id: "email", label: "Emails only reach you, not customers", detail: "The last email went out from a test address, which only delivers to your own inbox. Finish setting up your email sender (Settings › Email sender) so customers receive your emails.", status: "block", tab: "notifications", action: "Open Email sender" }
       : { id: "email", label: "Email accepted; inbox delivery unverified", detail: "The provider accepted the latest message. Check the destination inbox and provider delivery events; acceptance does not prove delivery.", status: "warn", tab: "notifications", action: "Open Email sender" });
 
-  // End-to-end proof
-  items.push((orders || []).some(isRealPaidOrder)
+  // End-to-end proof. On a Colophon shop a practice order (plan 7.6) proves checkout without moving money, so it counts.
+  const realSale = (orders || []).some(isRealPaidOrder);
+  if (platformCards) items.push(realSale || (orders || []).some(practiced)
+    ? { id: "first-sale", label: "Checkout works", detail: realSale ? "A real order has gone through, from the bag to the receipt." : "A practice order went through, from the bag to the receipt. No money moved.", status: "ok", tab: "orders", action: "Open Orders" }
+    : { id: "first-sale", label: "Try a practice order", detail: "While your shop is private, press Try a practice order in Payments and buy one item with the practice card. No money moves.", status: "warn", tab: "payments", action: "Open Payments" });
+  else items.push(realSale
     ? { id: "first-sale", label: "A real paid order is recorded", detail: "The order is marked paid. Check the payment, the receipt, any refund and the packing separately to confirm the full flow.", status: "warn", tab: "orders", action: "Open Orders" }
     : { id: "first-sale", label: "No real paid order yet", detail: "Place one small live order (then refund it) to prove checkout end to end.", status: "warn", tab: "orders", action: "Open Orders" });
+
+  // Sign-in (code plan 22.6, 22.9): recommended before going live, never required. Without backup codes an owner who
+  // loses their phone can only get back in by asking for help.
+  if (signIn) {
+    items.push(!signIn.twoStep
+      ? { id: "sign-in", label: "Two-step sign-in is off", detail: "Turn it on in Settings › Security and save your backup codes, so nobody else can get into your shop, and you can still get in if you lose your phone.", status: "warn", tab: "security", action: "Open Security" }
+      : signIn.codesLeft === 0
+        ? { id: "sign-in", label: "No backup codes saved", detail: "If you lose your phone, backup codes are how you get back in. Make them in Settings › Security and keep them somewhere safe.", status: "warn", tab: "security", action: "Open Security" }
+        : { id: "sign-in", label: "Your sign-in is protected", detail: signIn.codesLeft === null ? "Two-step sign-in is on." : `Two-step sign-in is on, with ${plural(signIn.codesLeft, "backup code")} left.`, status: "ok", tab: "security", action: "Open Security" });
+  }
 
   // Colophon deploys and checks every platform shop's releases; the press has nothing to verify there.
   if (platformCards) return items;

@@ -110,9 +110,9 @@ async function checkFrontDoor(browser, walk, log) {
       const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       if (!(await page.locator(".rp-page-title").textContent())?.includes("Front Door Press")) throw new Error("the setup guide doesn't greet the press by name");
       if (!(await fits())) throw new Error("the setup guide scrolls sideways on a phone");
-      // A page that needs the shop is locked and offers Open my shop.
+      // A page that needs the shop is locked and offers Create my shop.
       await page.evaluate(() => { location.hash = "orders"; });
-      await page.locator("text=Opens with your shop").first().waitFor({ state: "visible", timeout: 10_000 });
+      await page.locator("text=Comes with your shop").first().waitFor({ state: "visible", timeout: 10_000 });
       // Settings › General saves to the setup record.
       await page.evaluate(() => { location.hash = "settings/general"; });
       await page.locator("form select").nth(1).selectOption("CA");
@@ -163,15 +163,15 @@ async function checkFrontDoor(browser, walk, log) {
       await page.locator("#pick-list button", { hasText: "Front Door Press" }).click();
       await page.waitForURL(/\/account\/$/, { timeout: 10_000 });
     });
-    await step("Open my shop starts the plan and queues the shop (code plan 18.8)", async () => {
+    await step("Create my shop starts the plan and queues the shop (code plan 18.8)", async () => {
       if (!existsSync(join(ROOT, SETUP_ADMIN_FOLDER, "setup.html"))) return;
       const presses = walk.world.frontDoorStores.presses;
       const [first] = await presses.listByOwner(`uid-${address}`);
       await presses.create("press-opens-now", { ...first, pressId: "press-opens-now", status: "setup", pressName: "Opening Press", plan: "shop", country: "CA", stagedImport: null, stagedImportPath: "" });
       await page.goto(`${walk.url}/app/?press=press-opens-now#settings/plan`);
-      const open = page.locator("main button", { hasText: /^Open my shop$/ });
+      const open = page.locator("main button", { hasText: /^Create my shop$/ });
       await open.waitFor({ state: "visible", timeout: 10_000 });
-      if (!(await open.isDisabled())) throw new Error("Open my shop works before the terms are ticked");
+      if (!(await open.isDisabled())) throw new Error("Create my shop works before the terms are ticked");
       await page.locator("main input[type=checkbox]").check();
       await open.click();
       await page.locator("text=Your shop is being made").waitFor({ state: "visible", timeout: 10_000 });

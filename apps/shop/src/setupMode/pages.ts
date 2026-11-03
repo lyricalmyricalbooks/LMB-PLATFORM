@@ -66,7 +66,8 @@ export function guideSteps(press: SetupPress): GuideStep[] {
     { id: "plan", title: "Pick what you want to set up", done: !!press.plan, page: PLAN_PAGE, action: "Choose" },
     { id: "details", title: "Tell us about your press", done: !!(press.pressName && press.sells && press.country), page: GENERAL_PAGE, action: "Add details" },
     ...(fresh ? [...look, books] : [books, ...look]),
-    { id: "open", title: "Open your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Open my shop" },
+    // "Create", not "open": the shop is made private, and the press opens it to shoppers from its own admin later.
+    { id: "open", title: "Create your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Create my shop" },
   ];
 }
 
@@ -75,6 +76,20 @@ export function guideSteps(press: SetupPress): GuideStep[] {
  * product file and hasn't said it is starting fresh.
  */
 export const showMoveIn = (press: SetupPress): boolean => press.status === "setup" && !press.stagedImport && press.moving !== "fresh";
+
+/**
+ * The step to do next: the first one not done that isn't optional, else the first one not done at all. A press bringing
+ * its shop over (`moving: "yes"`, 23.0) is pointed at its books too, since they come before the look for it.
+ */
+export function nextGuideStep(steps: GuideStep[], press?: Pick<SetupPress, "moving">): GuideStep | null {
+  const open = steps.filter((s) => !s.done && !s.locked);
+  if (press?.moving === "yes") return open[0] ?? null;
+  return open.find((s) => !s.optional) ?? open[0] ?? null;
+}
+
+/** Everything the shop needs is in place: only Create your shop (and any optional step) is left. */
+export const readyToCreate = (steps: GuideStep[]): boolean =>
+  steps.every((s) => s.done || s.optional || s.id === "open") && !steps.find((s) => s.id === "open")?.done;
 
 /** "2 of 5 done", counting only the steps that can be done in setup. */
 export function guideProgress(steps: GuideStep[]): { done: number; total: number } {

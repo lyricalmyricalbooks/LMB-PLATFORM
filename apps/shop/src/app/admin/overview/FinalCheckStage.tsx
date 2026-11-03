@@ -9,6 +9,9 @@ import type { FinalCheckMarker } from "../finalCheckStage";
  * then Open my shop. `onOpenShop` takes the shop out of its private mode and resolves true when it has. "Finish later"
  * goes to the setup guide without recording anything, so the step comes back next time.
  */
+/** Checks the final check suggests doing first, though they never stop the shop opening. */
+const RECOMMENDED_FIRST = new Set(["sign-in"]);
+
 export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinishLater }: {
   readiness: ReadinessItem[] | null;
   onOpen?: (tab: string) => void;
@@ -22,6 +25,8 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
   if (readiness === null) return <SectionCard title={title} collapsible={false}><LoadingState label="Checking your shop…" /></SectionCard>;
 
   const blockers = openBlockers(readiness);
+  // Not required to open, but worth doing first: today, protecting the owner's own sign-in.
+  const recommended = readiness.filter(item => RECOMMENDED_FIRST.has(item.id) && item.status === "warn");
 
   const open = async () => {
     if (busy) return;
@@ -51,7 +56,21 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
           </ul>
         </section>
       ) : (
-        <StatusBadge tone="success">Everything the check needs is in place</StatusBadge>
+        <StatusBadge tone="success">Everything you need to start selling is in place</StatusBadge>
+      )}
+
+      {recommended.length > 0 && (
+        <section aria-label="Recommended before you open" style={{ marginTop: 18 }}>
+          <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "0 0 8px" }}>Recommended before you open</h3>
+          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 10 }}>
+            {recommended.map(item => (
+              <li key={item.id} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+                <span><strong>{item.label}</strong>{item.detail && <span className="rp-hint"> · {item.detail}</span>}</span>
+                <SecondaryButton size="sm" onClick={() => onOpen?.(item.tab)}>{item.action}</SecondaryButton>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <section aria-label="Practice order" style={{ marginTop: 18 }}>
@@ -69,6 +88,11 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
           : <PrimaryButton disabled>Open my shop</PrimaryButton>}
         <SecondaryButton disabled={busy} onClick={onFinishLater}>Finish later</SecondaryButton>
       </div>
+      <p className="rp-hint" style={{ margin: "8px 0 0" }}>
+        {blockers.length > 0
+          ? `${blockers.length === 1 ? "Fix the one thing above" : `Fix the ${blockers.length} things above`}, then open your shop. Everything else can wait.`
+          : "Shoppers can buy as soon as you press it. You can close the shop again any time."}
+      </p>
     </SectionCard>
   );
 }

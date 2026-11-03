@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
-import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, showMoveIn, pageFromHash, setupLocked, setupMenu, setupMenuItemFor, setupPageLabel } from "./pages";
+import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, nextGuideStep, pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel } from "./pages";
 
 const press = (over: Partial<SetupPress> = {}): SetupPress => ({
   pressId: "press-moth", status: "setup", plan: "", pressName: "", sells: "", country: "", look: "", adminLook: "", stagedImport: null, ...over,
@@ -69,6 +69,20 @@ describe("the setup guide", () => {
 
   it("has no website look to pick for a stockroom on its own", () => {
     expect(guideSteps(press({ plan: "stockroom" })).map((s) => s.id)).not.toContain("look");
+  });
+
+  it("points at the next step that isn't optional, and is ready to create once only that is left", () => {
+    expect(nextGuideStep(guideSteps(press({ plan: "both" })))!.id).toBe("details");
+    const set = guideSteps(press({ plan: "both", pressName: "Moth Press", sells: "books", country: "CA", look: "press-riso" }));
+    expect(nextGuideStep(set)!.id).toBe("open");
+    expect(readyToCreate(set)).toBe(true);
+    expect(readyToCreate(guideSteps(press({ plan: "both" })))).toBe(false);
+    expect(readyToCreate(guideSteps(press({ plan: "both", pressName: "M", sells: "books", country: "CA", look: "x", status: "opening" })))).toBe(false);
+    expect(guideSteps(press()).find((s) => s.id === "open")).toMatchObject({ title: "Create your shop", action: "Create my shop" });
+    // A press bringing its shop over is pointed at its books first (23.0), though they stay optional.
+    const mover = press({ plan: "both", pressName: "M", sells: "books", country: "CA", moving: "yes" });
+    expect(nextGuideStep(guideSteps(mover), mover)!.id).toBe("books");
+    expect(nextGuideStep(guideSteps({ ...mover, moving: "" }), { moving: "" })!.id).toBe("look");
   });
 });
 
