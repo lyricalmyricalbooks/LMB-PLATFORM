@@ -1,4 +1,5 @@
 import { sizeGuideStarter } from "./sizeGuideStarters";
+import { kindHint } from "./kindFieldHints";
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { useState, useEffect, useRef } from "react";
 import { 
@@ -1398,8 +1399,19 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <TextField label="Page count" type="number" min={0} name="pageCount" value={formData.pageCount ?? 0} onChange={handleChange} />
                   <TextField label="Language" name="language" value={formData.language || ""} onChange={handleChange} placeholder="English" />
                   </> : <>
-                  <TextField label="Material" name="material" value={formData.material || ""} onChange={handleChange} placeholder="e.g. 100% organic cotton" />
-                  <TextField label="Care" name="care" value={formData.care || ""} onChange={handleChange} placeholder="e.g. Machine wash cold" />
+                  <TextField label={kindHint(productKind(formData)).materialLabel} name="material" value={formData.material || ""} onChange={handleChange} placeholder={kindHint(productKind(formData)).materialExample} />
+                  <div>
+                    <TextField label="Care" name="care" value={formData.care || ""} onChange={handleChange} placeholder={kindHint(productKind(formData)).careExample} />
+                    {!String(formData.care || "").trim() && kindHint(productKind(formData)).careStarters.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 10px" }}>
+                        {kindHint(productKind(formData)).careStarters.map((s, i) => (
+                          <SecondaryButton key={i} size="sm" onClick={() => setFormData((prev: any) => ({ ...prev, care: s }))}>
+                            Use: {s.length > 34 ? s.slice(0, 33).trimEnd() + "…" : s}
+                          </SecondaryButton>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   {["clothing", "shoes"].includes(productKind(formData)) && <>
                     <SelectField label="Google Shopping: for" name="googleGender" value={formData.googleGender || ""} onChange={handleChange} hint="Google asks clothing and shoes who they are for. Blank = unisex.">
                       <option value="">Unisex (default)</option>

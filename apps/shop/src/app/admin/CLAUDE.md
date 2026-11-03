@@ -663,3 +663,11 @@ built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; 
   doesn't have the Plan and billing / Help / Setup guide items yet (rest of 18.6).
 - **Plan and billing words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
   (billing gives one trial per account). Prices that fail to load say so with Try again.
+
+## One admin for shop + stockroom (3 November 2026)
+
+A shop whose profile has both apps gets the combined admin: `combined.ts` (`combinedAdmin`, `STOCKROOM_PAGES`),
+`riso/nav.ts` `COMBINED_MENU`, `StockroomFrame.tsx` (the stockroom's pages, framed from `/stockroom/app` on the shop's
+own address, kept open once opened), route `#stockroom/<page>`, and no Website · Inventory switcher. Shop-only shops keep
+`MENU`. Full notes and the next steps: LMB-PLATFORM `docs/combined-admin.md`. A new stockroom page in the menu goes in
+`STOCKROOM_PAGES` and `COMBINED_MENU` (combined.test.ts checks every page is listed once and exists in the stockroom).

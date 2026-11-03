@@ -9,6 +9,8 @@
 import { applyLook } from "./studio/themeSwitch";
 import { openWorkspace, saveDraft, ThemeConflictError } from "./themeStore";
 import { withStarterWords } from "./sells";
+import { adminApi } from "./api";
+import { emailThemeFor } from "./lookGallery";
 import type { LibraryTheme } from "./lookGallery";
 
 // The gallery itself (suggestions, previews) lives in lookGallery.ts; it is re-exported here for the shop's own admin.
@@ -29,4 +31,16 @@ export async function applyChosenLook(theme: LibraryTheme, settings: any, publis
       if (!(error instanceof ThemeConflictError) || attempt >= 1) throw error;
     }
   }
+}
+
+/**
+ * Customer emails follow Market stall and Index rows (emailThemeFor). Best effort: the look is already saved, so a
+ * failure here changes nothing else, and the email colours can still be set in Settings.
+ */
+export async function followEmailTheme(themeId: string): Promise<void> {
+  try {
+    const current = String((await adminApi.getNotificationSettings())?.brand?.emailTheme || "");
+    const emailTheme = emailThemeFor(themeId, current);
+    if (emailTheme && emailTheme !== current) await adminApi.setEmailTheme(emailTheme);
+  } catch { /* the email colours can still be set in Settings */ }
 }

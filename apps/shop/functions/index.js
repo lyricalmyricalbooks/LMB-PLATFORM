@@ -3510,7 +3510,8 @@ async function sendWeeklySummary(nowMs = Date.now()) {
   try {
     // Headed with the press's own name (Text & labels › Site name, plan 5.8).
     const website = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
-    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles, words }), { shopName: pressName(website, shopConfig.senderName), words });
+    const emailTheme = (await db.collection("settings").doc("notifications").get().catch(() => null))?.data?.()?.brand?.emailTheme;
+    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles, words }), { shopName: pressName(website, shopConfig.senderName), words, theme: emailTheme });
     attachments = [{ filename: weeklyPdfName(week), content: pdf, contentType: "application/pdf" }];
   } catch (err) {
     console.error("Weekly summary PDF failed; sending the email without it:", err);

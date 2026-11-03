@@ -4,6 +4,8 @@
 // A page split into sub tabs adds a readable slug for the open one (`#settings/general/visitors`, `#inventory/link`);
 // the first (default) sub tab has none, so the older addresses stay as they were.
 
+import { DEFAULT_STOCKROOM_PAGE, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+
 export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string; subTab?: string; bookId?: string };
 
 export const ADMIN_TABS = ["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "settings"] as const;
@@ -50,13 +52,15 @@ const TABS = new Set<string>(ADMIN_TABS);
 const SETTINGS = new Set<string>(SETTINGS_TABS);
 const decode = (v: string) => { try { return decodeURIComponent(v); } catch { return v; } };
 
-/** Read an admin hash. Studio (`#designer…`) and unknown hashes return null. */
-export function routeFromHash(hash: string): AdminRoute | null {
+/** Read an admin hash. Studio (`#designer…`) and unknown hashes return null, as does `#stockroom/…` without both apps. */
+export function routeFromHash(hash: string, combined: boolean = combinedAdmin()): AdminRoute | null {
   const h = hash.replace(/^#/, "").split("?")[0];
   if (!h) return null;
   const [head, rest] = [h.split("/")[0], h.split("/").slice(1).join("/")];
   if (head === "gift-cards") return { tab: "giftCards", ...(rest ? { giftCardId: decode(rest) } : {}) };
   if (head === "orders") return { tab: "orders", ...(rest ? { orderId: decode(rest) } : {}) };
+  // A stockroom page in the combined admin (combined.ts): `#stockroom/<page>`; an unknown page opens the first.
+  if (head === STOCKROOM_TAB) return !combined ? null : { tab: STOCKROOM_TAB, subTab: stockroomPage(rest.split("/")[0])?.id ?? DEFAULT_STOCKROOM_PAGE };
   // A book opened from the inventory app's search: Books with that book in the editor.
   if (head === "catalog" && rest.startsWith("book/")) {
     const bookId = decode(rest.slice(5)).trim();
@@ -97,6 +101,7 @@ export function hashForRoute(r: AdminRoute): string {
   if (r.tab === "settings") return r.settingsTab === "designer" ? "#designer" : `#settings/${page}${sub}`;
   if (r.tab === "orders") return r.orderId ? `#orders/${encodeURIComponent(r.orderId)}` : "#orders";
   if (r.tab === "giftCards") return "#gift-cards";
+  if (r.tab === STOCKROOM_TAB) return `#${STOCKROOM_TAB}/${stockroomPage(r.subTab)?.id ?? DEFAULT_STOCKROOM_PAGE}`;
   return TABS.has(r.tab) ? `#${r.tab}${sub}` : "#overview";
 }
 
@@ -105,7 +110,9 @@ export function sameSection(a: string, b: string): boolean {
   const orders = (h: string) => /^#?orders(\/|$)/.test(h);
   if (orders(a) && orders(b)) return true;
   const [ra, rb] = [routeFromHash(a), routeFromHash(b)];
-  return !!(ra && rb && ra.tab !== "orders" && ra.tab === rb.tab && ra.settingsTab === rb.settingsTab);
+  // Each stockroom page is a page of its own (a Back step), though they share one route tab.
+  return !!(ra && rb && ra.tab !== "orders" && ra.tab === rb.tab && ra.settingsTab === rb.settingsTab
+    && (ra.tab !== STOCKROOM_TAB || ra.subTab === rb.subTab));
 }
 
 /** The address already shows this page with a sub tab of its own (`#overview/visitors/move` for `#overview`): keep it. */

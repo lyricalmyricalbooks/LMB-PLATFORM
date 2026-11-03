@@ -172,6 +172,7 @@ const BILLING = { planName: "Shop and stockroom", price: "$39.00", date: "14 Nov
 // One sample for each kind of platform email a press can receive; each may be rendered several ways.
 const PRESS_EMAILS = {
   "owner-welcome": [{ links: SHOP_LINKS }, { links: { shopAdmin: SHOP_LINKS.shopAdmin } }],
+  "app-added": [{ links: { stockroom: SHOP_LINKS.stockroom } }, { links: { shopAdmin: SHOP_LINKS.shopAdmin } }, { links: SHOP_LINKS }],
   "sign-in-link": [{ link: LINK }],
   "sign-in-code": [{ code: "042917" }],
   "shop-starting": [{ pressName: "Moth Press", link: LINK }],

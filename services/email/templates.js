@@ -69,6 +69,26 @@ export const TEMPLATES = {
     });
   },
 
+  /** Setup step 14 again, after a plan change adds an app: the link to the app that is new. */
+  "app-added": ({ links = {} }, { settings, pressName }) => {
+    const buttons = [];
+    if (links.shopAdmin) buttons.push(["Open your shop's admin", links.shopAdmin]);
+    if (links.stockroom) buttons.push(["Open your stockroom", links.stockroom]);
+    if (!buttons.length) throw new Error("the new-app email has no links");
+    const name = links.shopAdmin && links.stockroom ? "website and stockroom" : links.stockroom ? "stockroom" : "website";
+    const ready = `Your ${name} ${links.shopAdmin && links.stockroom ? "are" : "is"} ready`;
+    return layout({
+      subject: `${ready} on ${settings.platformName}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `${ready} for ${pressName}. Sign in with this email address, as usual.`,
+        "Your setup checklist shows what is left to do.",
+      ],
+      buttons,
+      footer: signOff(settings),
+    });
+  },
+
   /** Sign-up and sign-in (signup/signup.js): a one-time link instead of a password. */
   "sign-in-link": ({ link }, { settings }) => layout({
     subject: `Your link to sign in to ${settings.platformName}`,

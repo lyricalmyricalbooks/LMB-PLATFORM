@@ -12,15 +12,16 @@ import { useShopWords } from "../shopWords";
  * Overview read it: undefined while it loads, null when it couldn't be read. `onDone` gets what to record once the
  * look is in the draft; the parent saves it (and puts the welcome away).
  */
-export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onRetrySettings, apply, intro: introWords, keep }: {
+export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep }: {
   publishes?: string | null;
-  /** The press's first book photo (firstBookPhoto), shown in each look's preview (plan 17.8). */
-  photo?: string;
+  /** The press's own books (ownBooks), shown with their covers and titles in each look's preview (plan 17.8). */
+  books?: { title: string; photo: string }[];
   settings: any;
   onDone: (welcome: WelcomeDone) => Promise<void>;
   onRetrySettings?: () => void;
-  /** How the chosen look is put in place. The shop's admin puts it in Studio's draft (the default); setup mode, with no
-   * shop yet, passes one that does nothing and keeps the choice on the press's setup record through `onDone`. */
+  /** How the chosen look is put in place. The shop's admin puts it in Studio's draft and lets customer emails follow it
+   * (the default); setup mode, with no shop yet, passes one that does nothing and keeps the choice on the press's setup
+   * record through `onDone`. */
   apply?: (theme: LibraryTheme, settings: any, publishes?: string | null) => Promise<void>;
   /** The line under the title; the setup guide's step words by default. */
   intro?: string;
@@ -40,9 +41,13 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
     if (busy) return;
     setBusy(theme.id); setError("");
     try {
-      // Loaded only when used, so setup mode never loads the shop's database code.
-      const put = apply ?? (await import("../chooseLook")).applyChosenLook;
-      await put(theme, settings, publishes);
+      if (apply) await apply(theme, settings, publishes);
+      else {
+        // Loaded only when used, so setup mode never loads the shop's database code.
+        const shop = await import("../chooseLook");
+        await shop.applyChosenLook(theme, settings, publishes);
+        await shop.followEmailTheme(theme.id);
+      }
       await onDone({ theme: theme.id, at: new Date().toISOString(), adminLook, ...(skipped ? { skipped: true } : {}) });
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
@@ -65,7 +70,7 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
     const look = lookPreview(theme);
     return (
       <li key={theme.id} style={{ display: "grid", gap: 10, alignContent: "start", border: "1px solid var(--rp-border)", padding: 12, minWidth: 0 }}>
-        <LookPicture look={look} press={press} width="phone" compact photo={photo} />
+        <LookPicture look={look} press={press} width="phone" compact books={books} />
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
           <strong>{theme.name}</strong>
           {suggestion && <StatusBadge tone="info" glyph={false}>Suggested</StatusBadge>}
@@ -119,8 +124,8 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
             <SecondaryButton size="sm" aria-pressed={width === "phone"} icon={<Smartphone size={14} aria-hidden />} onClick={() => setWidth("phone")}>Phone</SecondaryButton>
             <SecondaryButton size="sm" aria-pressed={width === "desktop"} icon={<Monitor size={14} aria-hidden />} onClick={() => setWidth("desktop")}>Desktop</SecondaryButton>
           </div>
-          <div style={{ overflowX: "auto" }}><LookPicture look={lookPreview(preview)} press={press} width={width} photo={photo} /></div>
-          <p className="rp-hint">{w("Sample books. Your own books, words and logo take their places.")}</p>
+          <div style={{ overflowX: "auto" }}><LookPicture look={lookPreview(preview)} press={press} width={width} books={books} /></div>
+          <p className="rp-hint">{books.length ? w("Your own books, shown in this look. Your words and logo take their places too.") : w("Sample books. Your own books, words and logo take their places.")}</p>
         </>}
       </Dialog>
     </SectionCard>
@@ -131,10 +136,13 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
  * A small picture of the shop in a look: the header with the press's name, a heading, a row of sample books and a
  * button, in the look's own colours and type. Drawn from the theme itself, so every theme has one.
  */
-export function LookPicture({ look, press, width, compact, photo }: { look: ReturnType<typeof lookPreview>; press: string; width: "phone" | "desktop"; compact?: boolean; photo?: string }) {
+export function LookPicture({ look, press, width, compact, books: own = [] }: { look: ReturnType<typeof lookPreview>; press: string; width: "phone" | "desktop"; compact?: boolean; books?: { title: string; photo: string }[] }) {
   const w = useShopWords();
-  const cols = width === "phone" ? look.columns.phone + (compact ? 1 : 0) : look.columns.desktop;
-  const books = Array.from({ length: width === "phone" ? 2 * cols : cols }, (_, i) => i);
+  const rows = look.style === "index";
+  const cols = rows ? 1 : width === "phone" ? look.columns.phone + (compact ? 1 : 0) : look.columns.desktop;
+  const count = rows ? (compact ? 3 : 4) : width === "phone" ? 2 * cols : cols;
+  const books = Array.from({ length: count }, (_, i) => own[i] || null);
+  const market = look.style === "market";
   const scale = compact ? 0.8 : 1;
   return (
     <div role="img" aria-label={`${press} in this look, ${width === "phone" ? "phone" : "desktop"} width`}
@@ -147,15 +155,26 @@ export function LookPicture({ look, press, width, compact, photo }: { look: Retu
       <div style={{ padding: 12 * scale }}>
         <div style={{ fontFamily: look.headingFont, fontSize: (width === "phone" ? 18 : 24) * scale, lineHeight: 1.1, marginBottom: 10 * scale }}>{w("New books")}</div>
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8 * scale }}>
-          {books.map(i => (
-            <div key={i}>
-              {i === 0 && photo
-                ? <img src={photo} alt="" loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "3 / 4", objectFit: "cover", border: `1px solid ${look.border}`, borderRadius: look.radius }} />
-                : <div style={{ aspectRatio: "3 / 4", background: i % 2 ? look.accent : look.surface, border: `1px solid ${look.border}`, borderRadius: look.radius }} />}
-              <div style={{ height: 6 * scale, width: "80%", background: look.text, opacity: 0.7, marginTop: 6 * scale }} />
-              <div style={{ height: 6 * scale, width: "40%", background: look.text, opacity: 0.4, marginTop: 4 * scale }} />
-            </div>
-          ))}
+          {books.map((book, i) => {
+            const cover = book?.photo
+              ? <img src={book.photo} alt="" loading="lazy" style={{ display: "block", width: rows ? 34 * scale : "100%", flex: rows ? "none" : undefined, aspectRatio: "3 / 4", objectFit: "cover", border: `1px solid ${look.border}`, borderRadius: look.radius }} />
+              : <div style={{ width: rows ? 34 * scale : undefined, flex: rows ? "none" : undefined, aspectRatio: "3 / 4", background: i % 2 ? look.accent : look.surface, border: `1px solid ${look.border}`, borderRadius: look.radius }} />;
+            const title = book?.title
+              ? <div style={{ fontSize: 11 * scale, fontWeight: 700, marginTop: rows ? 0 : 6 * scale, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{book.title}</div>
+              : <div style={{ height: 6 * scale, width: "80%", background: look.text, opacity: 0.7, marginTop: rows ? 0 : 6 * scale }} />;
+            if (rows) return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 * scale, borderTop: `1px solid ${look.border}`, paddingTop: 6 * scale }}>
+                {cover}<div style={{ flex: 1, minWidth: 0 }}>{title}</div>
+                <div aria-hidden style={{ height: 6 * scale, width: 28 * scale, background: look.text, opacity: 0.5 }} />
+              </div>
+            );
+            return (
+              <div key={i} style={market ? { transform: `rotate(${i % 2 ? 1.5 : -1.5}deg)`, background: look.surface, border: `2px solid ${look.border}`, boxShadow: `${3 * scale}px ${3 * scale}px 0 ${look.border}`, padding: 4 * scale } : undefined}>
+                {cover}{title}
+                <div style={{ height: 6 * scale, width: "40%", background: look.text, opacity: 0.4, marginTop: 4 * scale }} />
+              </div>
+            );
+          })}
         </div>
         <div style={{ marginTop: 12 * scale, display: "inline-block", background: look.button, color: look.buttonText, borderRadius: look.buttonRadius,
           padding: `${6 * scale}px ${12 * scale}px`, fontSize: 12 * scale, fontWeight: 700, textTransform: look.uppercase ? "uppercase" : "none" }}>Add to bag</div>

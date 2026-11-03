@@ -59,6 +59,8 @@ export interface LookPreview {
   columns: { desktop: number; phone: number };
   /** Page, words and accent: the three swatches on the card. */
   swatches: [string, string, string];
+  /** The template's own drawing style (themeStyle), so Market stall tilts its cards and Index rows draws rows. */
+  style: string;
 }
 
 const colour = (v: unknown, fallback: string) => (typeof v === "string" && v.trim() ? v : fallback);
@@ -81,6 +83,7 @@ export function lookPreview(theme: LibraryTheme): LookPreview {
     uppercase: k.buttonUppercase === true,
     columns: { desktop: Math.max(2, Math.min(num(k.productColumnsDesktop, 3), 4)), phone: Math.max(1, Math.min(num(k.productColumnsMobile, 1), 2)) },
     swatches: [bg, text, accent],
+    style: typeof k.themeStyle === "string" ? k.themeStyle : String((theme as any).global?.themeStyle || ""),
   };
 }
 
@@ -94,6 +97,33 @@ export function firstBookPhoto(books: any[] | null | undefined): string {
     if (url.startsWith("https://")) return url;
   }
   return "";
+}
+
+/**
+ * The email theme (emailTheme.ts) that goes with a shop look: Market stall and Index rows have their own email colours.
+ * Any other look returns null, which leaves a plain "light"/"dark" choice alone but turns a leftover Market stall or
+ * Index rows email theme back to "light", so a press that changes its mind is not left with the old colours.
+ */
+export function emailThemeFor(themeId: string, current?: string | null): "market" | "index" | "light" | null {
+  if (themeId === "press-market") return "market";
+  if (themeId === "press-rows") return "index";
+  return current === "market" || current === "index" ? "light" : null;
+}
+
+/**
+ * The press's own books for the look previews: up to `limit` of them, each with its title and its first secure photo, so
+ * every look shows the press's real covers and names. A book with neither a title nor a photo is skipped.
+ */
+export function ownBooks(books: any[] | null | undefined, limit = 8): { title: string; photo: string }[] {
+  const out: { title: string; photo: string }[] = [];
+  for (const book of books || []) {
+    if (out.length >= limit) break;
+    const title = String(book?.title || "").trim().slice(0, 60);
+    const url = String(book?.photos?.[0]?.url || book?.photoUrl || "");
+    const photo = url.startsWith("https://") ? url : "";
+    if (title || photo) out.push({ title, photo });
+  }
+  return out;
 }
 
 /** The press's name for the preview header. */
