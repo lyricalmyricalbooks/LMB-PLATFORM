@@ -52,6 +52,7 @@
 //
 // Every Stripe call that can safely be sent twice (a read, a delete, or a POST with an idempotency key) is tried again
 // after a short wait when Stripe can't be reached, is busy (429) or fails on its side (5xx): stripeRetry.js (22.4).
+import { createHash } from "node:crypto";
 import { verifySignature } from "../payments/stripeSignature.js";
 import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
 import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
@@ -60,6 +61,7 @@ import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
 import { CARD_WARNING_DAYS, cardEnds, cardRunningOut, cardWarningDue } from "./cardExpiry.js";
 import { leavingAnswer } from "./leaving.js";
 import { mailLanguage } from "../email/templatesFr.js";
+import { planNameFr } from "../email/templatesFrPress.js";
 import { DOWNLOAD_ENDING_DAYS, closedAppSteps, downloadHolds, dropReason, keepLinkProblem, newKeepLink } from "./closedApps.js";
 import { cardWords } from "./cards.js";
 import { withRetries } from "./stripeRetry.js";
@@ -221,6 +223,21 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   }
 
   /** The Stripe price for a plan, made (with its product) the first time it is needed. */
+  /**
+   * The plan's name as Stripe prints it on every invoice line and receipt: English and French together, one name for
+   * every press ("Colophon Shop and stockroom / Colophon Boutique et réserve"), so a Quebec press's French invoice
+   * names its plan in French too.
+   */
+  const productName = (price) => `${settings.platformName} ${price.name} / ${settings.platformName} ${planNameFr(price.name)}`;
+
+  /** A product made before the name was in both languages gets it once (checked once per plan while running). */
+  async function nameProduct(price) {
+    const product = await call("GET", `/v1/products/${price.productId}`).catch(() => null);
+    if (product && product.name !== productName(price)) {
+      await call("POST", `/v1/products/${price.productId}`, { params: { name: productName(price) }, idempotencyKey: `product-name-${price.productId}-${createHash("sha256").update(productName(price)).digest("hex").slice(0, 16)}` });
+    }
+  }
+
   async function ensurePrice(plan) {
     const price = planPrice(plan, settings);
     if (priceIds.has(price.lookupKey)) return priceIds.get(price.lookupKey);
@@ -236,7 +253,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       } catch (error) {
         if (error.statusCode !== 404) throw error;
         await call("POST", "/v1/products", {
-          params: { id: price.productId, name: `${settings.platformName} ${price.name}`, metadata: { lmb_plan: plan } },
+          params: { id: price.productId, name: productName(price), metadata: { lmb_plan: plan } },
           idempotencyKey: `product-${price.productId}`,
         });
       }
@@ -245,6 +262,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         idempotencyKey: `price-${price.lookupKey}`,
       });
       id = made.id;
+    } else {
+      await nameProduct(price);
     }
     priceIds.set(price.lookupKey, id);
     return id;

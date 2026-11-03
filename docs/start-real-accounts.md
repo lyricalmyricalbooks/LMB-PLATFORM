@@ -96,7 +96,11 @@ side is built; these steps need Julian, a lawyer or an accountant.
   translator check.
 - **The lawyer's other answers:** payments role (already plan 15.22); whether abandoned-bag reminder emails need the
   shopper's consent first (Canada's anti-spam law); a written privacy impact assessment for the US helper companies
-  (Quebec's Law 25); a trademark search for "Colophon".
+  (Quebec's Law 25); a trademark search for "Colophon"; whether Colophon's own invoices to Quebec presses are French
+  enough (Stripe writes them in French for those presses, and the plan's name is printed in both languages,
+  "Shop and stockroom / Boutique et réserve").
+- **French invoice in Stripe's test mode (Julian):** set a test press's email language to French on its Plan page,
+  then open its invoice from Settings › Plan and check it reads in French.
 - **Data agreements with the helpers (Julian, in each console):** accept Google Cloud's, Stripe's and Resend's
   standard data processing terms, and confirm Shippo's.
 - **The accountant:** when Colophon registers for GST/HST, QST and BC PST (plan 15.9), and which US states tax a

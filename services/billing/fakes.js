@@ -144,6 +144,11 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       return ok({ object: "list", data: [...world.prices.values()].filter((price) => keys.includes(price.lookup_key) && price.active) });
     }
     if ((m = path.match(/^\/v1\/products\/([\w-]+)$/)) && method === "GET") return world.products.has(m[1]) ? ok(world.products.get(m[1])) : missing("product");
+    if ((m = path.match(/^\/v1\/products\/([\w-]+)$/)) && method === "POST") {
+      if (!world.products.has(m[1])) return missing("product");
+      if (p.name) world.products.get(m[1]).name = p.name;
+      return ok(world.products.get(m[1]));
+    }
     if (method === "POST" && path === "/v1/products") {
       if (world.products.has(p.id)) return { status: 400, body: { error: { type: "invalid_request_error", code: "resource_already_exists", message: "exists" } } };
       world.products.set(p.id, { id: p.id, name: p.name });

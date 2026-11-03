@@ -645,3 +645,14 @@ test("one account's shops share one invoice language: no back and forth between 
   assert.equal(posts(), before, "the next day sends nothing");
   assert.deepEqual(w.stripe.world.customers.get(row.customerId).preferred_locales, ["fr-CA", "en"]);
 });
+
+test("the plan's name on Stripe's invoices is in English and French, and an older English-only name is put right once", async () => {
+  const w = make();
+  await w.start();
+  assert.equal(w.stripe.world.products.get("colophon_both").name, "Colophon Shop and stockroom / Colophon Boutique et réserve");
+  // A product named before this change, met by a fresh start of the service (no prices remembered yet).
+  w.stripe.world.products.get("colophon_both").name = "Colophon Shop and stockroom";
+  const again = createBilling({ stripe: createStripeApi({ fetch: w.stripe.fetch, keys: { test: "sk_test_fake", live: null } }), mode: "test", settings: platformSettings({}), ...w.stores, registry: w.registry, auditLog: fakeAuditLog(), email: fakePlatformEmail(), webhookSecrets: [SECRET], closeApp: async () => {} });
+  await again.ensurePrice("both");
+  assert.equal(w.stripe.world.products.get("colophon_both").name, "Colophon Shop and stockroom / Colophon Boutique et réserve");
+});
