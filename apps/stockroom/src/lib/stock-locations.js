@@ -17,6 +17,7 @@
 // so the press may need to match those few by hand.
 import { csvRow } from './csv.js';
 import { deriveStockBreakdown } from './inventory.js';
+import { derivePlaces } from './stock-places.js';
 
 export const STOCK_LOCATION_HEADINGS = ['Handle', 'Title', 'Option1 Name', 'Option1 Value', 'SKU', 'Location', 'On hand (new)'];
 
@@ -50,7 +51,10 @@ export function stockLocationsCsv(entries, { location = 'Main location' } = {}) 
     used.add(handle);
     const { publisherOnHand, authorHeld } = deriveStockBreakdown(state || {}, book);
     const row = (place, count) => csvRow([handle, book.title || '', 'Title', 'Default Title', skuOf(book), place, Math.max(0, Math.floor(count) || 0)]);
-    lines.push(row(location, publisherOnHand));
+    // Copies in named places (plan 12.16) get a line each; Main keeps the rest. A book with no places is unchanged.
+    const split = derivePlaces(state || {}, book);
+    lines.push(row(location, split.places.length ? split.main : publisherOnHand));
+    for (const p of split.places) lines.push(row(p.name, p.qty));
     if (authorHeld > 0) lines.push(row(AUTHOR_LOCATION, authorHeld));
   }
   return lines.join('\n') + '\n';

@@ -380,6 +380,7 @@ const FIELD_LABELS = {
   sale: "Store's own price", method: 'Method', total: 'Total', edited: 'Edited', editedAt: 'Last edited',
   sourceNum: 'From order', rateCad: 'Exchange rate', fxRate: 'Exchange rate',
   artistPaymentLink: 'Artist payment link', authorStock: 'Copies the author holds',
+  places: 'Where your copies are', placeMoves: 'Moves between places',
 };
 
 // Top-level amounts recorded in the record's own currency (`cur`/`currency`,
@@ -504,6 +505,8 @@ export function describeRecord(entry) {
       const amt = money(row.amount);
       return `Artist payout request${on(row.date || row.createdAt)}${amt ? ` — ${amt}` : ''}`;
     }
+    case 'placeMoves':
+      return `Copies moved between places${on(row.date)} — ${plural(num(row.qty) || 0, 'copy', 'copies')}`;
     case 'stockTransfers':
       return `Stock handed over${on(row.date)} — ${plural(num(row.qty) || 0, 'copy', 'copies')}`;
     default:

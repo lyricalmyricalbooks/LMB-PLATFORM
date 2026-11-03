@@ -179,6 +179,8 @@ const MAIN_IMPORT_BUDGET = {
   // states, isTestBook, activeBook) and opens them (showHistoryOrder, or
   // switchBook + switchTab for the Website orders card).
   'app-switch.js': 7,
+  // Stock in more than one place: the shared $, the role check, the save, the toast, today's date and the overview repaint.
+  'stock-places.js': 6,
 };
 
 const featureFiles = fs.existsSync(featureDir)
@@ -345,6 +347,8 @@ const MIN_EXPORTS = {
   'bookkeeper-view.js': 2,
   // The read-only lock: the call that locks the stockroom and shows the banner.
   'plan-pause.js': 1,
+  // The places pop-up: open, preview, step, submit and close a place.
+  'stock-places.js': 6,
 };
 
 describe('feature modules are the only home of what they own', () => {
