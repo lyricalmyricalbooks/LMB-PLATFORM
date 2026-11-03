@@ -1788,3 +1788,77 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-app-deeplink:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 @media (pointer: coarse) { .rp-app-deeplink { min-height: var(--rp-touch); } }
 @media print { .rp-app-switch, .rp-app-pill, .rp-app-deeplink { display: none !important; } }
+
+/* ══ Looks: type, shape and chrome (plan 11.x, Julian 3 Nov: the looks must not look alike) ══════════════════════════
+   Riso Press is everything above. Paper, Ledger and Pop each change more than colour: the display and body faces, the
+   case of titles and buttons, the corners, the rail (light, forest green, violet), how the open menu item is drawn and
+   how cards are edged. Colours stay in adminThemes.css; here only var(--rp-…) is read. The faces load on demand
+   (look-fonts in platform-look.js, src/lib/admin-look.js, adminLook.ts), so Riso Press never downloads them. */
+:root[data-admin-look="paper"] .rp {
+  --rp-font-display: "Inter", system-ui, sans-serif; --rp-font-body: "Inter", system-ui, sans-serif;
+  --rp-masthead: 40px; --rp-title-case: none; --rp-title-weight: 650; --rp-title-weight-sm: 600; --rp-title-tracking: -0.02em;
+  --rp-btn-case: none; --rp-btn-tracking: 0; --rp-btn-weight: 600; --rp-btn-radius: var(--rp-radius);
+  --rp-label-case: none; --rp-label-tracking: 0;
+}
+:root[data-admin-look="ledger"] .rp {
+  --rp-font-display: "Source Serif 4", Georgia, serif; --rp-font-body: "Source Serif 4", Georgia, serif;
+  --rp-masthead: 46px; --rp-title-case: none; --rp-title-weight: 600; --rp-title-weight-sm: 600; --rp-title-tracking: -0.01em;
+  --rp-btn-case: uppercase; --rp-btn-tracking: 0.08em; --rp-btn-weight: 600; --rp-btn-radius: var(--rp-radius);
+  --rp-label-case: uppercase; --rp-label-tracking: 0.12em;
+}
+:root[data-admin-look="pop"] .rp {
+  --rp-font-display: "Syne", "Inter", system-ui, sans-serif; --rp-font-body: "Inter", system-ui, sans-serif;
+  --rp-masthead: 52px; --rp-title-case: none; --rp-title-weight: 800; --rp-title-weight-sm: 800; --rp-title-tracking: -0.025em;
+  --rp-btn-case: none; --rp-btn-tracking: 0; --rp-btn-weight: 700; --rp-btn-radius: 999px;
+  --rp-label-case: none; --rp-label-tracking: 0.02em;
+}
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) { font-size: 15px; }
+
+:root[data-admin-look] .rp:not(.studio-editor) :is(.rp-page-title, .rp-wb-h1) {
+  font-family: var(--rp-font-display); font-size: var(--rp-masthead); line-height: 1.05; font-style: normal;
+  text-transform: var(--rp-title-case); font-weight: var(--rp-title-weight); letter-spacing: var(--rp-title-tracking);
+}
+:root[data-admin-look] .rp:not(.studio-editor) :is(.rp-card-title, .rp-sec-title, .rp-wb-band-title, .rp-wb-full-title, .rp-ov-headline, .rp-ov-run-title, .rp-dialog-title, .rp-state-title, .rp-wordmark) {
+  font-family: var(--rp-font-display); font-style: normal; text-transform: var(--rp-title-case);
+  font-weight: var(--rp-title-weight-sm); letter-spacing: var(--rp-title-tracking);
+}
+:root[data-admin-look] .rp:not(.studio-editor) .rp-btn {
+  text-transform: var(--rp-btn-case); letter-spacing: var(--rp-btn-tracking); font-weight: var(--rp-btn-weight); border-radius: var(--rp-btn-radius);
+}
+:root[data-admin-look] .rp:not(.studio-editor) :is(.rp-label, .rp-metric-label) {
+  text-transform: var(--rp-label-case); letter-spacing: var(--rp-label-tracking);
+}
+@media (max-width: 767px) { :root[data-admin-look] .rp:not(.studio-editor) :is(.rp-page-title, .rp-wb-h1) { font-size: calc(var(--rp-masthead) * 0.72); } }
+
+/* Paper: a light rail by day, the open item a soft blue pill, cards lifted with a faint shadow */
+:root[data-admin-look="paper"] .rp:not(.studio-editor) { --rp-shadow: 0 1px 2px var(--rp-shadow-ink-faint); --rp-shadow-sm: 0 1px 2px var(--rp-shadow-ink-faint); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-sidebar { border-right: 1px solid var(--rp-divider); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) :is(.rp-brand-link, .rp-brand-link .rp-wordmark, .rp-whats-new) { color: var(--rp-text); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) :is(.rp-nav-item, .rp-nav-subitem):hover { color: var(--rp-text); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-nav-item[aria-current="page"] { background: var(--rp-primary-tint); color: var(--rp-primary-text); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-nav-subitem[aria-current="page"] { color: var(--rp-primary-text); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor) .rp-nav-item { border-radius: var(--rp-radius); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor) .rp-card { border-radius: var(--rp-radius-lg); }
+
+/* Ledger: forest rail, the open item marked by a rule on its left edge, cards topped with a double rule */
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] {
+  background: var(--rp-rail-hover-strong); color: var(--rp-on-inverse); box-shadow: inset 3px 0 0 var(--rp-primary-hover);
+}
+:root[data-admin-look="ledger"] .rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-nav-item[aria-current="page"] { color: var(--rp-on-inverse); }
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) .rp-nav-section { font-family: var(--rp-font-display); font-style: italic; letter-spacing: 0.02em; font-size: 13px; }
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) .rp-card { border-top: 4px double var(--rp-border-strong); box-shadow: none; }
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) .rp-card .rp-card { border-top: var(--rp-hair) solid var(--rp-border); }
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) :is(.rp-metric-value, .rp-ov-run-total) { font-family: var(--rp-font-mono); font-weight: 500; letter-spacing: -0.02em; }
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) .rp-tabs[data-variant="page"] { border-bottom: 2px solid var(--rp-border-strong); }
+
+/* Pop: violet rail, pill menu items, thick outlines and hard offset shadows on cards and buttons */
+:root[data-admin-look="pop"] .rp:not(.studio-editor) {
+  --rp-stroke: 2px; --rp-shadow: 4px 4px 0 var(--rp-border-strong); --rp-shadow-sm: 2px 2px 0 var(--rp-border-strong);
+  --rp-shadow-hover: 5px 5px 0 var(--rp-border-strong);
+}
+:root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-card { border-radius: var(--rp-radius-lg); }
+:root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-nav-item { border-radius: 999px; }
+:root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] { background: var(--rp-on-inverse); color: var(--rp-inverse); box-shadow: 3px 3px 0 var(--rp-primary); }
+:root[data-admin-look="pop"] .rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-nav-item[aria-current="page"] { color: var(--rp-inverse); }
+:root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-btn { border: 2px solid var(--rp-border-strong); }
+:root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-tabs[data-variant="page"] { border-bottom: 3px solid var(--rp-border-strong); }

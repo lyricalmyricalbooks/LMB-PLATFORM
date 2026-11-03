@@ -2,9 +2,11 @@
 /*
  * Admin themes — every colour the admin uses, in one file (plan 1.26).
  * ---------------------------------------------------------------------
- * Two admin looks, each with a day and a night appearance:
+ * Four admin looks, each with a day and a night appearance:
  *   - Riso Press (the default): uncoated cream paper, ink outlines, flare-red primary, hard offset shadows.
- *   - Paper: plain white paper, graphite ink, a calm blue primary, soft shadows and slightly rounded corners.
+ *   - Paper: plain white paper, a light rail, graphite ink, a calm blue primary, soft corners, sentence-case titles.
+ *   - Ledger: pale sage paper, a forest-green rail, serif type, thin rules and square corners (the bookkeeper's look).
+ *   - Pop: lilac paper, a violet rail, big rounded corners, hard violet shadows and a loud display face.
  * The look is chosen in the account menu (Dashboard › "Paper look" / "Riso Press look") and set on the page as
  * `<html data-admin-look="paper">`; the appearance stays on each `.rp` root (`data-rp-appearance`) and the legacy
  * `.admin-reso` wrapper (`data-admin-theme`).
@@ -313,4 +315,234 @@
 :root[data-admin-look="paper"] .rp:not(.studio-editor)[data-rp-appearance="dark"] {
   --rp-rule: #6b6f76;
   --rp-rail: #141518;
+}
+
+/* ── Ledger · day — pale sage paper, forest green, thin rules ─── */
+:root[data-admin-look="ledger"] .rp:not([data-rp-appearance="dark"]),
+:root[data-admin-look="ledger"] .admin-reso:not([data-admin-theme="dark"]) {
+  --rp-canvas: #eef0e6;
+  --rp-surface: #fbfcf6;
+  --rp-surface-2: #e4e8d8;
+  --rp-surface-sunken: #e4e8d8;
+  --rp-surface-inset: #d6dcc4;
+  --rp-inverse: #1d3a2c;
+  --rp-inverse-2: #254838;
+  --rp-on-inverse: #eef0e6;
+  --rp-on-inverse-2: rgba(238, 240, 230, 0.74);
+  --rp-overlay: rgba(20, 36, 28, 0.36);
+  --rp-input-bg: #fbfcf6;
+  --rp-paper-dot: rgba(0, 0, 0, 0);
+  --rp-border: rgba(29, 58, 44, 0.3);
+  --rp-border-strong: #1d3a2c;
+  --rp-divider: rgba(29, 58, 44, 0.15);
+  --rp-scrollbar: #c2cab0;
+  --rp-text: #1b2a22;
+  --rp-text-muted: #3a4b41;
+  --rp-text-subtle: #53655b;
+  --rp-text-faint: #8a988e;
+  --rp-primary: #1f6b47;
+  --rp-primary-hover: #2a8a5c;
+  --rp-primary-tint: rgba(31, 107, 71, 0.11);
+  --rp-primary-glow: rgba(31, 107, 71, 0.22);
+  --rp-primary-ring: rgba(31, 107, 71, 0.45);
+  --rp-primary-text: #1a5c3c;
+  --rp-on-primary: #ffffff;
+  --rp-info: #1f5f7a;
+  --rp-info-tint: #dcebf1;
+  --rp-info-ring: rgba(31, 95, 122, 0.45);
+  --rp-on-info: #ffffff;
+  --rp-success: #2d6a1f;
+  --rp-success-tint: rgba(45, 106, 31, 0.1);
+  --rp-warning: #76560a;
+  --rp-warning-tint: rgba(214, 170, 60, 0.24);
+  --rp-danger: #a32a1f;
+  --rp-danger-hover: #82201a;
+  --rp-danger-tint: rgba(163, 42, 31, 0.08);
+  --rp-on-danger: #ffffff;
+  --rp-focus: #1f6b47;
+  --rp-shadow-ink-faint: rgba(29, 58, 44, 0.12);
+  --rp-shadow-ink-soft: rgba(29, 58, 44, 0.18);
+  --rp-shadow-lg: 0 8px 24px rgba(29, 58, 44, 0.16);
+  --rp-tab-active-text: #c4e6d2;
+  --rp-radius-sm: 1px;
+  --rp-radius: 2px;
+  --rp-radius-lg: 3px;
+}
+:root[data-admin-look="ledger"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) {
+  --rp-rule: #9eac98;
+  --rp-rail: #1d3a2c;
+  --rp-rail-text: rgba(238, 240, 230, 0.8);
+  --rp-rail-faint: rgba(238, 240, 230, 0.56);
+  --rp-rail-line: rgba(238, 240, 230, 0.15);
+  --rp-rail-hover: rgba(238, 240, 230, 0.08);
+  --rp-rail-hover-strong: rgba(238, 240, 230, 0.15);
+  --rp-shadow-float: 0 10px 28px rgba(29, 58, 44, 0.2);
+}
+/* Ledger · night */
+:root[data-admin-look="ledger"] .rp[data-rp-appearance="dark"],
+:root[data-admin-look="ledger"] .admin-reso[data-admin-theme="dark"] {
+  --rp-canvas: #131a16;
+  --rp-surface: #1a231e;
+  --rp-surface-2: #171f1b;
+  --rp-surface-sunken: #171f1b;
+  --rp-surface-inset: #232e28;
+  --rp-inverse: #0e1411;
+  --rp-inverse-2: #131b17;
+  --rp-on-inverse: #e8ede4;
+  --rp-input-bg: #101713;
+  --rp-border: rgba(232, 237, 228, 0.15);
+  --rp-border-strong: #4a5a50;
+  --rp-divider: rgba(232, 237, 228, 0.08);
+  --rp-text: #e8ede4;
+  --rp-text-muted: #c3cdc1;
+  --rp-text-subtle: #9fab9f;
+  --rp-text-faint: #7c887e;
+  --rp-primary: #6fcf9a;
+  --rp-primary-hover: #8adfb0;
+  --rp-primary-tint: rgba(111, 207, 154, 0.15);
+  --rp-primary-text: #86dcad;
+  --rp-on-primary: #0c1a12;
+  --rp-on-info: #0c1a12;
+  --rp-info: #7ec3de;
+  --rp-info-tint: rgba(126, 195, 222, 0.15);
+  --rp-success: #8bd67a;
+  --rp-success-tint: rgba(139, 214, 122, 0.15);
+  --rp-warning: #e6c466;
+  --rp-warning-tint: rgba(230, 196, 102, 0.15);
+  --rp-danger: #f19a8f;
+  --rp-danger-hover: #f4afa6;
+  --rp-danger-tint: rgba(241, 154, 143, 0.15);
+  --rp-on-danger: #10100f;
+  --rp-focus: #6fcf9a;
+  --rp-radius-sm: 1px;
+  --rp-radius: 2px;
+  --rp-radius-lg: 3px;
+}
+:root[data-admin-look="ledger"] .rp:not(.studio-editor)[data-rp-appearance="dark"] {
+  --rp-rule: #6b7b70;
+  --rp-rail: #0e1411;
+}
+:root[data-admin-look="ledger"] {
+  --rp-page-light: #eef0e6;
+  --rp-page-dark: #131a16;
+}
+
+/* ── Pop · day — lilac paper, violet, rounded and loud ─── */
+:root[data-admin-look="pop"] .rp:not([data-rp-appearance="dark"]),
+:root[data-admin-look="pop"] .admin-reso:not([data-admin-theme="dark"]) {
+  --rp-canvas: #f3edff;
+  --rp-surface: #ffffff;
+  --rp-surface-2: #e9defc;
+  --rp-surface-sunken: #e9defc;
+  --rp-surface-inset: #dccdf8;
+  --rp-inverse: #2a1457;
+  --rp-inverse-2: #351b6b;
+  --rp-on-inverse: #f3edff;
+  --rp-on-inverse-2: rgba(243, 237, 255, 0.76);
+  --rp-overlay: rgba(30, 16, 56, 0.4);
+  --rp-input-bg: #ffffff;
+  --rp-paper-dot: rgba(42, 20, 87, 0.08);
+  --rp-border: rgba(42, 20, 87, 0.32);
+  --rp-border-strong: #2a1457;
+  --rp-divider: rgba(42, 20, 87, 0.14);
+  --rp-scrollbar: #cbbcf0;
+  --rp-text: #1e1038;
+  --rp-text-muted: #42336a;
+  --rp-text-subtle: #5a4a84;
+  --rp-text-faint: #9486b8;
+  --rp-primary: #7c3aed;
+  --rp-primary-hover: #6d28d9;
+  --rp-primary-tint: rgba(124, 58, 237, 0.12);
+  --rp-primary-glow: rgba(124, 58, 237, 0.24);
+  --rp-primary-ring: rgba(124, 58, 237, 0.5);
+  --rp-primary-text: #6025c0;
+  --rp-on-primary: #ffffff;
+  --rp-info: #0e7490;
+  --rp-info-tint: #d8f0f6;
+  --rp-info-ring: rgba(14, 116, 144, 0.45);
+  --rp-on-info: #ffffff;
+  --rp-success: #116b34;
+  --rp-success-tint: rgba(21, 128, 61, 0.11);
+  --rp-warning: #85530a;
+  --rp-warning-tint: rgba(255, 183, 3, 0.26);
+  --rp-danger: #c2255c;
+  --rp-danger-hover: #9f1d4a;
+  --rp-danger-tint: rgba(194, 37, 92, 0.09);
+  --rp-on-danger: #ffffff;
+  --rp-focus: #7c3aed;
+  --rp-shadow-ink-faint: rgba(42, 20, 87, 0.16);
+  --rp-shadow-ink-soft: rgba(42, 20, 87, 0.24);
+  --rp-shadow-lg: 6px 6px 0 #2a1457;
+  --rp-tab-active-text: #d9c8ff;
+  --rp-radius-sm: 8px;
+  --rp-radius: 12px;
+  --rp-radius-lg: 18px;
+}
+:root[data-admin-look="pop"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) {
+  --rp-rule: #b9a6e6;
+  --rp-rail: #2a1457;
+  --rp-rail-text: rgba(243, 237, 255, 0.84);
+  --rp-rail-faint: rgba(243, 237, 255, 0.58);
+  --rp-rail-line: rgba(243, 237, 255, 0.16);
+  --rp-rail-hover: rgba(243, 237, 255, 0.09);
+  --rp-rail-hover-strong: rgba(243, 237, 255, 0.16);
+  --rp-shadow-float: 6px 6px 0 #2a1457;
+}
+/* Pop · night */
+:root[data-admin-look="pop"] .rp[data-rp-appearance="dark"],
+:root[data-admin-look="pop"] .admin-reso[data-admin-theme="dark"] {
+  --rp-canvas: #17102b;
+  --rp-surface: #20173b;
+  --rp-surface-2: #1c1433;
+  --rp-surface-sunken: #1c1433;
+  --rp-surface-inset: #2b2050;
+  --rp-inverse: #100a20;
+  --rp-inverse-2: #150e2a;
+  --rp-on-inverse: #f0eaff;
+  --rp-input-bg: #130c25;
+  --rp-border: rgba(240, 234, 255, 0.18);
+  --rp-border-strong: #5a4a8c;
+  --rp-divider: rgba(240, 234, 255, 0.09);
+  --rp-text: #f0eaff;
+  --rp-text-muted: #cbbfec;
+  --rp-text-subtle: #a99ecb;
+  --rp-text-faint: #8478aa;
+  --rp-primary: #b794ff;
+  --rp-primary-hover: #c9adff;
+  --rp-primary-tint: rgba(183, 148, 255, 0.17);
+  --rp-primary-text: #cdb4ff;
+  --rp-on-primary: #170d2e;
+  --rp-on-info: #0c1a22;
+  --rp-info: #6fd0e6;
+  --rp-info-tint: rgba(111, 208, 230, 0.15);
+  --rp-success: #6fdc9a;
+  --rp-success-tint: rgba(111, 220, 154, 0.15);
+  --rp-warning: #f0c35a;
+  --rp-warning-tint: rgba(240, 195, 90, 0.15);
+  --rp-danger: #ff8fb3;
+  --rp-danger-hover: #ffa6c3;
+  --rp-danger-tint: rgba(255, 143, 179, 0.15);
+  --rp-on-danger: #1a0b14;
+  --rp-focus: #b794ff;
+  --rp-radius-sm: 8px;
+  --rp-radius: 12px;
+  --rp-radius-lg: 18px;
+}
+:root[data-admin-look="pop"] .rp:not(.studio-editor)[data-rp-appearance="dark"] {
+  --rp-rule: #7a6aa8;
+  --rp-rail: #100a20;
+}
+:root[data-admin-look="pop"] {
+  --rp-page-light: #f3edff;
+  --rp-page-dark: #17102b;
+}
+
+/* Paper keeps a light rail by day (the other looks have ink or colour rails). */
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) {
+  --rp-rail: #ffffff;
+  --rp-rail-text: #3f444b;
+  --rp-rail-faint: #6b7078;
+  --rp-rail-line: rgba(29, 31, 35, 0.1);
+  --rp-rail-hover: rgba(29, 31, 35, 0.05);
+  --rp-rail-hover-strong: rgba(29, 31, 35, 0.09);
 }
