@@ -65,9 +65,11 @@ import {
   signOut, 
   onAuthStateChanged,
   GoogleAuthProvider,
+  signInWithCredential,
+  type OAuthCredential,
 } from "firebase/auth";
 import { db, auth, googleProvider } from "../../lib/firebase";
-import { finishTwoStep, firebaseTwoStep, twoStepNeeded, type TwoStepNeeded } from "./adminTwoStep";
+import { BackupCodeError, backupCall, cleanBackupCode, finishTwoStep, firebaseTwoStep, twoStepNeeded, type TwoStepNeeded } from "./adminTwoStep";
 import { functionFetch } from "../lib/functionsBase";
 import { currentAdminRole, ensureShopOwnerKnown, isBookkeeperPass, refreshAdminRole } from "./adminAccess";
 import { startSupportVisit, supportOf } from "./supportSession";
@@ -157,6 +159,16 @@ export const adminApi = {
   finishTwoStepLogin: async (pending: TwoStepNeeded, code: string) => {
     const result = await finishTwoStep(firebaseTwoStep(auth), pending, code);
     return afterAdminSignIn(result.user, pending.googleCredential);
+  },
+
+  /** A backup code in place of the app's code (plan 22.9): the server takes the authenticator app off this sign-in
+   *  after checking Google's own token, then the same Google sign-in finishes without a code. */
+  signInWithBackupCode: async (pending: TwoStepNeeded, code: string) => {
+    const google = pending.googleCredential as OAuthCredential | null;
+    if (!google?.idToken && !google?.accessToken) throw new BackupCodeError("Sign in with Google again, then type your backup code.", 401);
+    const { left } = await backupCall<{ left: number }>({ action: "use", code: cleanBackupCode(code), idToken: google.idToken ?? "", accessToken: google.accessToken ?? "" });
+    const result = await signInWithCredential(auth, google);
+    return { ...(await afterAdminSignIn(result.user, google)), left };
   },
 
   logout: () => signOut(auth),

@@ -9,6 +9,7 @@ import {
   getMultiFactorResolver, GoogleAuthProvider, multiFactor, TotpMultiFactorGenerator,
   type Auth, type AuthCredential, type MultiFactorError, type MultiFactorResolver, type TotpSecret, type User, type UserCredential,
 } from "firebase/auth";
+import { functionFetch } from "../lib/functionsBase";
 
 /** Firebase's id for an authenticator-app second step (TotpMultiFactorGenerator.FACTOR_ID), read on load by nothing else. */
 const TOTP = "totp";
@@ -101,3 +102,66 @@ export function twoStepWords(error: unknown): string {
   if (code === "auth/network-request-failed") return "Couldn't reach Google. Check your internet connection, then try again.";
   return "Something went wrong. Try again in a moment.";
 }
+
+// Backup codes (code plan 22.9, functions/twoStepBackup.js): ten one-time codes for someone who loses their phone.
+// The server keeps only their hashes; the person sees them once, when they are made.
+
+export type BackupStatus = { left: number; madeAt: string | null };
+export type BackupCodes = { codes: string[]; madeAt: string };
+/** The server calls for backup codes; passed in so the screens are tested without a server. */
+export type BackupApi = {
+  status(): Promise<BackupStatus>;
+  make(): Promise<BackupCodes>;
+};
+
+/** The words a refused backup-code call came back with. */
+export class BackupCodeError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "BackupCodeError";
+    this.status = status;
+  }
+}
+
+/** One call to the shop's twoStepBackup function: its answer, or a BackupCodeError in plain words. */
+export async function backupCall<T>(body: Record<string, unknown>, token?: string): Promise<T> {
+  let res: Response;
+  try {
+    res = await functionFetch("twoStepBackup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new BackupCodeError("Couldn't reach the shop. Check your internet connection, then try again.", 0);
+  }
+  const answer = await res.json().catch(() => ({}));
+  if (!res.ok) throw new BackupCodeError(typeof answer?.error === "string" ? answer.error : "Something went wrong. Try again in a moment.", res.status);
+  return answer as T;
+}
+
+export function backupApiFor(user: User): BackupApi {
+  return {
+    status: async () => backupCall<BackupStatus>({ action: "status" }, await user.getIdToken()),
+    make: async () => backupCall<BackupCodes>({ action: "make" }, await user.getIdToken(true)),
+  };
+}
+
+/** A backup code as the person types it: letters and digits only, in capitals ("abcde fghjk" → "ABCDEFGHJK"). */
+export const cleanBackupCode = (text: string) => String(text).toUpperCase().replace(/[^0-9A-Z]/g, "");
+export const backupCodeLooksRight = (text: string) => cleanBackupCode(text).length === 10;
+
+/** The codes as a plain text file to keep. */
+export function backupCodesText(codes: string[], shopName: string, madeAt: string): string {
+  return [
+    `Backup codes for ${shopName || "your shop admin"}`,
+    `Made ${madeAt.slice(0, 10)}. Each code works once. Making new codes stops these from working.`,
+    "",
+    ...codes,
+    "",
+  ].join("\n");
+}
+
+/** Set on this browser after a backup code was used, so Settings › Security can say what happened. */
+export const BACKUP_USED_KEY = "lmb.twoStepBackupUsed";

@@ -9,8 +9,11 @@ export const PRESS_STATUSES = Object.freeze(["setup", "opening", "open", "expire
 // `plan` is what the press wants to set up (shop, stockroom or both; billing's plan ids), asked first at the front door
 // and picked again at Open my shop (18.8). `look` is the website's theme and `adminLook` the admin's look, both chosen
 // in the welcome inside setup mode (18.6).
-export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook"]);
-const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40 });
+// `moving` is the press's answer to Home's "Selling somewhere already?" card (code plan 23.0): "yes" (bringing a shop
+// over), "fresh" (starting fresh, which puts the card away) or "" (not answered yet).
+export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving"]);
+const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40, moving: 5 });
+export const MOVING_CHOICES = Object.freeze(["", "yes", "fresh"]);
 // A look is stored by its id. The platform checks only the shape, not a list: the shop and the stockroom own their lists
 // and grow them, and the shop maker (18.9) applies a look the new shop knows and falls back to the default otherwise.
 const LOOK_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -32,7 +35,7 @@ export function newPressRecord({ pressId, ownerUid, email, now }) {
   if (!ownerUid || !email) throw new Error("A press needs an owner.");
   const at = now.toISOString();
   return { pressId, ownerUid, ownerEmail: email.toLowerCase(), status: "setup", plan: "", pressName: "", sells: "", country: "",
-    look: "", adminLook: "", stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
+    look: "", adminLook: "", moving: "", stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
 }
 
 // Checks a change a press makes through the platform's door. Returns the fields to write, or a plain-words refusal.
@@ -51,6 +54,7 @@ export function setupChange(current, change) {
       return { ok: false, message: "Pick a look from the choices." };
     }
     if (key === "plan" && text !== "" && !PLAN_CHOICES.includes(text)) return { ok: false, message: "Pick the shop, the stockroom or both." };
+    if (key === "moving" && !MOVING_CHOICES.includes(text)) return { ok: false, message: "Pick one of the choices." };
     fields[key] = text;
   }
   return { ok: true, fields };

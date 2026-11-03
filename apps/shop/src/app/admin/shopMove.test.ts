@@ -395,3 +395,127 @@ describe("more export layouts (plan 23.1)", () => {
     }
   });
 });
+
+describe("the other big shop builders' files (plan 23.10)", () => {
+  // An Item column: a Product line, then its Variant and Image lines.
+  const ITEM_ROWS = csv([
+    ["Item", "ID", "Name", "Type", "SKU", "Options", "Inventory Tracking", "Current Stock", "Price", "Retail Price", "Sale Price", "Categories", "Description", "Page Title", "Product URL", "Meta Description", "Global Trade Number", "Is Visible", "Variant Image URL", "Internal Image URL (Export)", "Image is Thumbnail"],
+    ["Product", "111", "Moth Tee", "physical", "TEE", "", "variant", "", "30.00", "", "", "18;24", "<p>Soft <b>cotton</b>.</p>", "Moth Tee | Press", "/moth-tee/", "A soft tee.", "", "TRUE", "", "", ""],
+    ["Variant", "", "", "", "TEE-S", "Type=Rectangle|Name=Size|Value=S", "", "4", "", "", "", "", "", "", "", "", "", "", "https://img.example/tee-s.jpg", "", ""],
+    ["Variant", "", "", "", "TEE-M", "Type=Rectangle|Name=Size|Value=M", "", "0", "32.00", "", "28.00", "", "", "", "", "", "", "", "", "", ""],
+    ["Image", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "https://img.example/back.jpg", "FALSE"],
+    ["Image", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "https://img.example/front.jpg", "TRUE"],
+    ["Product", "112", "Salt Zine", "physical", "SALT", "", "product", "7", "8.00", "10.00", "", "", "Plain.", "", "/salt-zine/", "", "9780306406157", "FALSE", "", "", ""],
+  ]);
+
+  // An Item Type column: a Product line, then its SKU lines (choices in the name) and Rule lines (price changes).
+  const SKU_ROWS = csv([
+    ["Item Type", "Product ID", "Product Name", "Product Type", "Product Code/SKU", "Product Description", "Price", "Sale Price", "Retail Price", "Current Stock Level", "Category", "Product URL", "Product Visible", "Track Inventory", "Product Image URL - 1", "Product Image URL - 2"],
+    ["Product", "1", "Moth Songs", "P", "MS", "<p>Poems.</p>", "20.00", "", "", "0", "Shop All/Poetry;Shop All/New", "/moth-songs/", "Y", "by option", "https://img.example/ms.jpg", "https://img.example/ms2.jpg"],
+    ["  SKU", "", "[RB]Format=Paperback", "", "MS-PB", "", "", "", "", "10", "", "", "", "", "", ""],
+    ["  SKU", "", "[RB]Format=Signed", "", "MS-SG", "", "", "", "", "3", "", "", "", "", "", ""],
+    ["  Rule", "", "[RB]Format=Signed", "", "", "", "[ADD]15", "", "", "", "", "", "", "", "", ""],
+    ["Product", "2", "River Zine", "P", "RZ", "", "8.00", "6.00", "", "40", "Zines", "/river-zine/", "N", "by product", "", ""],
+  ]);
+
+  // A type column: product lines and product_variation lines that point at their product by id.
+  const TYPED_ROWS = csv([
+    ["type", "product_internal_id", "product_sku", "product_name", "product_price", "product_compare_to_price", "product_is_inventory_tracked", "product_quantity", "product_description", "product_media_main_image_url", "product_media_gallery_image_url_1", "product_is_available", "product_category_1", "url", "product_variation_option_Size", "product_variation_sku"],
+    ["product", "501", "BAG", "Tote Bag", "15", "18", "true", "", "<p>Canvas.</p>", "https://img.example/bag.jpg", "https://img.example/bag2.jpg", "true", "Merch", "https://oldshop.example/Tote-Bag-p501", "", ""],
+    ["product_option", "501", "BAG", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["product_variation", "501", "BAG", "", "", "", "", "5", "", "", "", "", "", "", "Small", "BAG-S"],
+    ["product_variation", "501", "BAG", "", "17", "", "", "2", "", "", "", "", "", "", "Large", "BAG-L"],
+    ["product", "502", "PIN", "Moth Pin", "4", "", "false", "", "", "", "", "false", "", "", "", ""],
+    ["product_variation", "999", "NOPE", "", "", "", "", "1", "", "", "", "", "", "", "Small", "X"],
+  ]);
+
+  it("tells the three layouts apart by their headings, without taking anyone else's", () => {
+    const head = (text: string) => text.split("\n")[0].split(",");
+    expect(recognizeExport(head(ITEM_ROWS))).toBe("item-rows");
+    expect(recognizeExport(head(SKU_ROWS))).toBe("sku-rows");
+    expect(recognizeExport(head(TYPED_ROWS))).toBe("typed-rows");
+    expect(recognizeExport(["Title", "Price", "Stock", "Type"])).toBeNull();
+  });
+
+  it("Product, Variant and Image lines: choices, sale and was prices, stock, photos thumbnail first, the old address", () => {
+    const moved = readProductExport(ITEM_ROWS)!;
+    const [tee, salt] = moved.books;
+    expect(tee.editions.map(e => [e.name, e.price, e.salePrice, e.stock, e.sku, e.photoUrl])).toEqual([
+      ["S", 30, 0, 4, "TEE-S", "https://img.example/tee-s.jpg"], ["M", 32, 28, 0, "TEE-M", ""],
+    ]);
+    expect(tee.options).toEqual([{ name: "Size", values: ["S", "M"] }]);
+    expect(tee.cells).toMatchObject({ Title: "Moth Tee", Description: "Soft **cotton**.", "SEO title": "Moth Tee | Press", "SEO description": "A soft tee.", "Image URL": "https://img.example/front.jpg", "Extra image URLs": "https://img.example/back.jpg" });
+    expect(tee.cells.Categories).toBeUndefined();
+    expect(tee.oldPaths).toEqual(["/moth-tee/"]);
+    expect(salt.cells).toMatchObject({ Price: "10", "Sale price": "8", Stock: "7", SKU: "SALT", ISBN: "9780306406157" });
+    expect(salt.notes).toEqual(["This product was hidden in your old shop."]);
+  });
+
+  it("Product, SKU and Rule lines: choices from the name, a price rule, stock per version, category names", () => {
+    const moved = readProductExport(SKU_ROWS)!;
+    const [songs, river] = moved.books;
+    expect(songs.editions.map(e => [e.name, e.price, e.stock, e.sku])).toEqual([["Paperback", 20, 10, "MS-PB"], ["Signed", 35, 3, "MS-SG"]]);
+    expect(songs.options).toEqual([{ name: "Format", values: ["Paperback", "Signed"] }]);
+    expect(songs.cells).toMatchObject({ Description: "Poems.", Categories: "Poetry;New", "Image URL": "https://img.example/ms.jpg", "Extra image URLs": "https://img.example/ms2.jpg" });
+    expect(songs.oldPaths).toEqual(["/moth-songs/"]);
+    expect(river.cells).toMatchObject({ Price: "8", "Sale price": "6", Stock: "40", Categories: "Zines" });
+    expect(river.notes).toEqual(["This product was hidden in your old shop."]);
+  });
+
+  it("product and product_variation lines: versions found by id, compare-to as the was price, untracked stock left blank", () => {
+    const moved = readProductExport(TYPED_ROWS)!;
+    const [bag, pin] = moved.books;
+    expect(moved.books).toHaveLength(2);
+    expect(bag.editions.map(e => [e.name, e.price, e.salePrice, e.stock, e.sku])).toEqual([["Small", 18, 15, 5, "BAG-S"], ["Large", 18, 17, 2, "BAG-L"]]);
+    expect(bag.options).toEqual([{ name: "Size", values: ["Small", "Large"] }]);
+    expect(bag.cells).toMatchObject({ Description: "Canvas.", Categories: "Merch", "Image URL": "https://img.example/bag.jpg", "Extra image URLs": "https://img.example/bag2.jpg" });
+    expect(bag.oldPaths).toEqual(["/Tote-Bag-p501"]);
+    expect(pin.cells).toMatchObject({ Title: "Moth Pin", Price: "4", SKU: "PIN" });
+    expect(pin.cells.Stock).toBeUndefined();
+    expect(pin.notes).toEqual(["This product was hidden in your old shop."]);
+    expect(moved.notices.join(" ")).toContain("1 version line belonged to no product");
+  });
+
+  it("each layout goes through to a preview of new drafts with redirects", () => {
+    for (const file of [ITEM_ROWS, SKU_ROWS, TYPED_ROWS]) {
+      const { plan, oldPaths } = planShopMove(file, [], [], {}, { keepOptions: true });
+      expect(plan.problems).toEqual([]);
+      expect(plan.rows.every(r => r.action === "create")).toBe(true);
+      expect(oldPaths.size).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("a file made from an old shop's address (plan 23.2)", () => {
+  it("reads through the same preview, with versions and each product's own old page address", async () => {
+    // @ts-expect-error plain ES module from the platform, no types
+    const { productsCsv, fromPermalinkList } = await import("../../../../../services/moving/oldShop.js");
+    const csvText = productsCsv(fromPermalinkList([
+      { name: "Tide Tables", permalink: "tide-tables", url: "/product/tide-tables", price: 15, images: [{ url: "https://img.example/t.jpg" }],
+        options: [{ name: "Small", price: 15, sold_out: false }, { name: "Large", price: 25, sold_out: true }] },
+    ], "https://zines.example"));
+    const { plan, moved, oldPaths } = planShopMove(csvText, []);
+    expect(moved?.shape).toBe("handle-rows");
+    expect(plan.rows[0].action).toBe("create");
+    expect((plan.rows[0].patch as any).variants.map((v: any) => [v.name, v.price, v.stock])).toEqual([["Small", 15, 0], ["Large", 25, 0]]);
+    expect([...oldPaths.values()]).toEqual([["/product/tide-tables"]]);
+  });
+});
+
+describe("a mailing list on its own (plan 23.4)", () => {
+  it("a Status column says who is still subscribed", () => {
+    const list = csv([["Email Address", "First Name", "Status"], ["ada@example.com", "Ada", "subscribed"], ["ben@example.com", "Ben", "unsubscribed"], ["cy@example.com", "Cy", "cleaned"]]);
+    expect(readCustomerExport(list).customers.map(c => [c.email, c.acceptsEmail])).toEqual([["ada@example.com", true], ["ben@example.com", false], ["cy@example.com", false]]);
+  });
+
+  it("a list of sign-ups: being on it is the agreement, unless the line was unsubscribed or cleaned off", () => {
+    const list = csv([["Email Address", "First Name", "OPTIN_TIME", "UNSUB_TIME"], ["ada@example.com", "Ada", "2025-01-02", ""], ["ben@example.com", "Ben", "2025-01-02", "2025-06-01"]]);
+    const customers = readCustomerExport(list).customers;
+    expect(customers.map(c => [c.email, c.acceptsEmail])).toEqual([["ada@example.com", true], ["ben@example.com", false]]);
+    expect(newsletterJoiners(customers, new Set(), () => false).map(c => c.email)).toEqual(["ada@example.com"]);
+  });
+
+  it("a plain list of addresses still says nothing about agreement", () => {
+    expect(readCustomerExport(csv([["Email"], ["ada@example.com"]])).customers[0].acceptsEmail).toBeNull();
+  });
+});

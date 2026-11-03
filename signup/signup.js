@@ -8,7 +8,7 @@
 //   accounts   get(accountId) -> { accountId, email, name, createdAt, shops: { [shopId]: role } } | null; set(accountId, row)
 //   signups    get(shopId) -> row | null; set(shopId, row); listByAccount(accountId) -> rows
 //   registry   getShop(shopId) -> row | null (a shop id the registry has is taken)
-//   billing    startTrial({ account, shopId, pressName, plan }) (services/billing)
+//   billing    startTrial({ account, shopId, pressName, plan, language }) (services/billing)
 //   email      sendPlatform({ kind, to, data, idempotencyKey }) (services/email)
 //   auth       signInLink(email, { url }) -> link (Firebase Admin's generateSignInWithEmailLink, in the platform project)
 //   throttle   count(key, sinceIso) -> number; add(key, atIso)
@@ -101,7 +101,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
   /** Starts the trial (once) and makes the person the shop's owner on their account (once). */
   async function begin(row, person) {
     if (!row.trialStartedAt) {
-      const plan = await billing.startTrial({ account: person, shopId: row.shopId, pressName: row.pressName, plan: row.plan });
+      const plan = await billing.startTrial({ account: person, shopId: row.shopId, pressName: row.pressName, plan: row.plan, ...(row.language ? { language: row.language } : {}) });
       row = { ...row, trialStartedAt: at(), billingStatus: plan.status, trialEnd: plan.trialEnd ?? null };
       await signups.set(row.shopId, row);
     }
@@ -176,6 +176,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
           currency: details.currency,
           answer: details.answer,
           publishes: details.publishes,
+          ...(details.language ? { language: details.language } : {}),
           ...agreement,
           paymentProvider: "stripe",
           // Opened from the front door's setup (18.8): the shop maker reads the look and the kept file there (18.9).

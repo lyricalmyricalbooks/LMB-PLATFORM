@@ -201,6 +201,8 @@ $("#details-form").addEventListener("submit", async (event) => {
     pressName: form.get("pressName"), plan: form.get("plan"), country: form.get("country"),
     [QUESTION.id]: form.get(QUESTION.id), [PUBLISHES.id]: form.get(PUBLISHES.id),
     address: addressInput.value, termsAccepted: event.target.termsAccepted.checked, termsVersion,
+    // A browser set to French: the platform's emails to this press go in French (only French is sent; form.js).
+    ...(/^fr\b/i.test(navigator.languages?.[0] ?? navigator.language ?? "") ? { language: "fr" } : {}),
   };
   const { ok, problems } = checkSignup(input);
   showProblems(problems);

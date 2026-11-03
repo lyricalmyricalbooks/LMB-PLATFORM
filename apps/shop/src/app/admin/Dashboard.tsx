@@ -34,6 +34,7 @@ import { WhatsNew } from "./WhatsNew";
 import { applyAdminLook, nextAdminLook, readAdminLook, type AdminLookId } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
 import { PlanBannerBar, PlanDesk } from "./PlanParts";
+import { TwoStepReminder } from "./TwoStepReminder";
 import { planLocked } from "./platformPlan";
 import { usePlatformPlan } from "./platformPlanApi";
 import { PlatformMessagesBar } from "./PlatformMessagesBar";
@@ -48,6 +49,7 @@ import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_ITEM_PREFI
 import { AllSales } from "./AllSales";
 import { keepAdminOffline } from "./adminOffline";
 import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
+import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
 import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
@@ -339,7 +341,14 @@ export function Dashboard() {
   // The combined admin's first-time tour: invited once on Home, and from the account menu any time (CombinedTour.tsx).
   const [tourOpen, setTourOpen] = useState(false);
   const [tourInvite, setTourInvite] = useState(() => COMBINED && !tourSeen());
-  const dismissTour = () => { markTourSeen(); setTourInvite(false); };
+  const dismissTour = () => { markTourSeen(); void markTourSeenOnAccount(); setTourInvite(false); };
+  // Seen on another device of this shop: no invitation here either (combinedTourStore.ts).
+  useEffect(() => {
+    if (!user || !tourInvite) return;
+    let alive = true;
+    void tourSeenOnAccount().then((seen) => { if (alive && seen) { markTourSeen(); setTourInvite(false); } });
+    return () => { alive = false; };
+  }, [user]);
 
   const [adminTheme, setAdminTheme] = useState(() => {
     // Reso is the admin's primary design, not an optional storefront skin.
@@ -855,6 +864,8 @@ export function Dashboard() {
         <PlanBannerBar plan={platformPlan} />
         {/* The control room's messages to the press (platform/messages, code plan 19.14): admin only, never the storefront. */}
         <PlatformMessagesBar enabled={!!user} />
+        {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}
+        {activeTab === "overview" && !supportVisit && <TwoStepReminder plan={platformPlan} />}
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
         {!ownMasthead && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}

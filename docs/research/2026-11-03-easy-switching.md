@@ -39,6 +39,27 @@ This is an internal note, so it names other shop systems. Press-facing words nev
    page redirects (23.6), past orders (23.7, decision 4), switch day and an old-link check (23.8), stock as opening
    counts in the stockroom (23.9).
 
+## Which shop builders work, and how (23.10, 3 November 2026)
+
+Julian asked that bringing a shop over work with the major platforms. Every row below has a test; the address rows
+were also read live from public demo stores. Press-facing words never name these builders.
+
+| Old shop | From its address | From its product file |
+| --- | --- | --- |
+| Shopify | yes: /products.json (sold out only, no counts) | yes: handle-rows (both heading sets) |
+| WooCommerce | yes: store list (choices without public prices come as one price) | yes: parent-rows |
+| Big Cartel | yes: /products.json permalink list (sold out only) | no product file exists; the address is the way |
+| Squarespace | yes: store page ?format=json, with stock counts | yes: product-id-rows |
+| Wix | no public list | yes: field-type-rows |
+| Square (and Square Online) | no public list | yes: variation-name-rows |
+| Etsy | no public list | yes: listing-rows |
+| BigCommerce | no public list | yes: item-rows (Bulk Edit layout) and sku-rows (older layout with SKU and Rule lines) |
+| Ecwid / Lightspeed E-Series | needs the shop's key; not used | yes: typed-rows (catalog export; support.ecwid.com "List of supported CSV columns") |
+| A spreadsheet | n/a | yes: the plain import, any column order |
+
+Weights in the BigCommerce and Ecwid files are left out because the file doesn't say pounds or kilograms. Category
+cells that are only numbers (ids) are left out. Ecwid's older export leaves variations out (its own help says so).
+
 ## The best spot for the step (Julian's second message)
 
 Today the step is the fourth of five lines in setup mode's guide, marked optional, with a small button. A mover can

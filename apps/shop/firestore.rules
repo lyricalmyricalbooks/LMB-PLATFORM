@@ -185,7 +185,7 @@ service cloud.firestore {
     // (admin/overview/overviewNotesStore.ts). Admin-only, one JSON string each.
     match /adminPrefs/{docId} {
       allow read: if isAdminReader();
-      allow write: if isAdmin() && (docId == "overviewBoard" || docId == "overviewNotes")
+      allow write: if isAdmin() && (docId == "overviewBoard" || docId == "overviewNotes" || docId == "combinedTour")
         && request.resource.data.keys().hasOnly(["data", "updatedAt"])
         && request.resource.data.data is string && request.resource.data.data.size() <= 200000
         && request.resource.data.updatedAt is number;
@@ -287,6 +287,11 @@ service cloud.firestore {
     }
     // Server-only counters for the public-endpoint rate limits (functions/rateLimit.js).
     match /rate-limits/{id} {
+      allow read, write: if false;
+    }
+    // Server-only two-step backup code hashes (functions/twoStepBackup.js): the admin reads its count through the
+    // twoStepBackup endpoint only.
+    match /twoStepBackup/{uid} {
       allow read, write: if false;
     }
     // Server-only checkout stock holds (functions/stockHolds.js).

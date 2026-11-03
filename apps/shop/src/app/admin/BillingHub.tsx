@@ -6,7 +6,7 @@ import {
 } from "./riso/components";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
-  BillingCallError, DROP_CHOICES, LEAVING_CHOICES, downloadableClosedApps, PROVINCES, appsInWords, billState, billingCall, previewWords, statusBadge,
+  BillingCallError, DROP_CHOICES, LEAVING_CHOICES, downloadableClosedApps, planAddingBack, PROVINCES, appsInWords, billState, billingCall, previewWords, statusBadge,
   type Bill, type BillingDetails, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
 } from "./platformBilling";
 
@@ -138,10 +138,16 @@ export function PlanPage({ plan }: Hub) {
     {closedNow.map(({ app, downloadUntil }) => (
       <span key={app} style={{ display: "block" }}>{`${appsInWords([app]).replace(/^./, (c) => c.toUpperCase())} is closed. You can download everything in it until ${planDate(downloadUntil)}; after that it's deleted.`}</span>
     ))}
-    <span style={{ display: "block", marginTop: 6 }}>
+    <span className="flex flex-wrap gap-2 items-center" style={{ marginTop: 6 }}>
       {emailedTo
         ? <span className="rp-hint" role="status">{`We're making your copy and will email the link to ${emailedTo} in a few minutes.`}</span>
         : <SecondaryButton size="sm" busy={change.busy === "download"} onClick={() => void change.run("download", async () => { setEmailedTo((await billingCall<{ emailedTo: string }>(plan, "download")).emailedTo); })}>Download all your data</SecondaryButton>}
+      {/* Changed your mind after it closed: the usual plan-change preview, with the price, for the plan that adds it
+          back. Its records are still there until the download ends, so it opens as it was. */}
+      {!ended && closedNow.map(({ app }) => {
+        const to = planAddingBack(billing, app);
+        return to && <SecondaryButton key={app} size="sm" busy={change.busy === "preview"} onClick={() => void askPreview(to)}>{`Add ${appsInWords([app])} back`}</SecondaryButton>;
+      })}
     </span>
   </>]);
   facts.push(["Card", billing.card?.words ?? (billing.paymentWay === "payAsYouSell" ? "Not needed while you pay as you sell" : "No card yet")]);

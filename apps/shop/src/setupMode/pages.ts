@@ -56,20 +56,34 @@ export interface GuideStep {
 /** The setup guide's steps from the press's record, in order. A stockroom-only press has no website look to pick. */
 export function guideSteps(press: SetupPress): GuideStep[] {
   const website = press.plan !== "stockroom";
+  // Written in book words; the guide shows them in the shop's own (sells.ts).
+  const books: GuideStep = { id: "books", title: "Bring your books over from your old shop", done: !!press.stagedImport, page: IMPORT_PAGE, action: "Bring a file", optional: true };
+  const look: GuideStep[] = website ? [{ id: "look", title: "Choose your website's look", done: !!press.look, page: DESIGN_PAGE, action: "Choose a look" }] : [];
+  // A press that may be moving brings its books before picking a look, so the look previews can show them (23.0);
+  // one starting fresh has it last, as an optional step.
+  const fresh = press.moving === "fresh";
   return [
     { id: "plan", title: "Pick what you want to set up", done: !!press.plan, page: PLAN_PAGE, action: "Choose" },
     { id: "details", title: "Tell us about your press", done: !!(press.pressName && press.sells && press.country), page: GENERAL_PAGE, action: "Add details" },
-    ...(website ? [{ id: "look", title: "Choose your website's look", done: !!press.look, page: DESIGN_PAGE, action: "Choose a look" }] : []),
-    // Written in book words; the guide shows them in the shop's own (sells.ts).
-    { id: "books", title: "Bring your books over from your old shop", done: !!press.stagedImport, page: IMPORT_PAGE, action: "Bring a file", optional: true },
+    ...(fresh ? [...look, books] : [books, ...look]),
     // "Create", not "open": the shop is made private, and the press opens it to shoppers from its own admin later.
     { id: "open", title: "Create your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Create my shop" },
   ];
 }
 
-/** The step to do next: the first one not done that isn't optional, else the first one not done at all. */
-export function nextGuideStep(steps: GuideStep[]): GuideStep | null {
+/**
+ * Home's "Selling somewhere already?" card (23.0): shown above the setup guide while the press is in setup, has kept no
+ * product file and hasn't said it is starting fresh.
+ */
+export const showMoveIn = (press: SetupPress): boolean => press.status === "setup" && !press.stagedImport && press.moving !== "fresh";
+
+/**
+ * The step to do next: the first one not done that isn't optional, else the first one not done at all. A press bringing
+ * its shop over (`moving: "yes"`, 23.0) is pointed at its books too, since they come before the look for it.
+ */
+export function nextGuideStep(steps: GuideStep[], press?: Pick<SetupPress, "moving">): GuideStep | null {
   const open = steps.filter((s) => !s.done && !s.locked);
+  if (press?.moving === "yes") return open[0] ?? null;
   return open.find((s) => !s.optional) ?? open[0] ?? null;
 }
 

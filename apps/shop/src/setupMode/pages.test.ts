@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
-import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, nextGuideStep, pageFromHash, readyToCreate, setupLocked, setupMenu, setupMenuItemFor, setupPageLabel } from "./pages";
+import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, nextGuideStep, pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel } from "./pages";
 
 const press = (over: Partial<SetupPress> = {}): SetupPress => ({
   pressId: "press-moth", status: "setup", plan: "", pressName: "", sells: "", country: "", look: "", adminLook: "", stagedImport: null, ...over,
@@ -49,7 +49,8 @@ describe("setup mode's menu (code plan 18.6)", () => {
 describe("the setup guide", () => {
   it("starts with nothing done and counts only what can be done before opening", () => {
     const steps = guideSteps(press());
-    expect(steps.map((s) => s.id)).toEqual(["plan", "details", "look", "books", "open"]);
+    // Not yet said whether it is moving: bringing books over comes before the look (23.0).
+    expect(steps.map((s) => s.id)).toEqual(["plan", "details", "books", "look", "open"]);
     expect(guideProgress(steps)).toEqual({ done: 0, total: 4 });
   });
 
@@ -78,5 +79,31 @@ describe("the setup guide", () => {
     expect(readyToCreate(guideSteps(press({ plan: "both" })))).toBe(false);
     expect(readyToCreate(guideSteps(press({ plan: "both", pressName: "M", sells: "books", country: "CA", look: "x", status: "opening" })))).toBe(false);
     expect(guideSteps(press()).find((s) => s.id === "open")).toMatchObject({ title: "Create your shop", action: "Create my shop" });
+    // A press bringing its shop over is pointed at its books first (23.0), though they stay optional.
+    const mover = press({ plan: "both", pressName: "M", sells: "books", country: "CA", moving: "yes" });
+    expect(nextGuideStep(guideSteps(mover), mover)!.id).toBe("books");
+    expect(nextGuideStep(guideSteps({ ...mover, moving: "" }), { moving: "" })!.id).toBe("look");
+  });
+});
+
+describe("bringing a shop over is easy to find (23.0)", () => {
+  const order = (over: Partial<SetupPress>) => guideSteps(press(over)).map((s) => s.id);
+
+  it("a press moving over brings its books right after its details, before the look", () => {
+    expect(order({ moving: "yes" })).toEqual(["plan", "details", "books", "look", "open"]);
+    expect(order({ moving: "" })).toEqual(["plan", "details", "books", "look", "open"]);
+  });
+
+  it("a press starting fresh has it last, still optional", () => {
+    expect(order({ moving: "fresh" })).toEqual(["plan", "details", "look", "books", "open"]);
+    expect(guideProgress(guideSteps(press({ moving: "fresh" })))).toEqual({ done: 0, total: 4 });
+  });
+
+  it("Home's card shows until a file is kept or the press starts fresh, and only in setup", () => {
+    expect(showMoveIn(press())).toBe(true);
+    expect(showMoveIn(press({ moving: "yes" }))).toBe(true);
+    expect(showMoveIn(press({ moving: "fresh" }))).toBe(false);
+    expect(showMoveIn(press({ stagedImport: { name: "a.csv", size: 9, rows: 3, at: "2026-11-03T09:00:00Z" } }))).toBe(false);
+    expect(showMoveIn(press({ status: "opening" }))).toBe(false);
   });
 });

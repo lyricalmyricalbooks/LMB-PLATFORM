@@ -301,7 +301,6 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "alertSaveError", label: "Back-in-stock: couldn't save message", default: "Sorry, we couldn't save your request. Please try again." },
       { key: "onlyLeft", label: "Low-stock badge", default: "Only {count} left", hint: "Use {count} for the number left." },
       { key: "saveAmount", label: "Sale savings badge", default: "Save {amount}", hint: "Use {amount} for the saving." },
-      { key: "pdpLowestBeforeSale", label: "Lowest price before the sale (shown only when the regular price was lower in the 30 days before it)", default: "Lowest price in the 30 days before this sale: {price}" },
       { key: "tabDescription", label: "Tab & accordion: Description", default: "Description" },
       { key: "tabDetails", label: "Tab: Details (tabs layout)", default: "Details" },
       { key: "tabSpecs", label: "Accordion: Specifications (accordions layout)", default: "Specifications" },

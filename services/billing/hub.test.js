@@ -469,3 +469,14 @@ test("with 'give a place back' turned off in the control room, a place once give
   await billing.handleEvent({ headers: { "Stripe-Signature": signatureHeader(SECRET, rawBody, NOW / 1000) }, rawBody });
   assert.equal(t.seats.rows.size, 1);
 });
+
+test("a Quebec billing address sets the province on every shop the account pays for, and on its next new shop", async () => {
+  const { billing, stores, start } = make();
+  await start();
+  await start("second-shop");
+  await billing.saveBillingDetails({ shopId: "moth-press", name: "", email: "books@moth.example", address: { line1: "1 rue Saint-Denis", city: "Montréal", state: "qc", postalCode: "h2x 1k1", country: "CA" }, taxNumber: "" });
+  assert.equal(stores.subscriptions.rows.get("moth-press").province, "QC");
+  assert.equal(stores.subscriptions.rows.get("second-shop").province, "QC", "same account, same address");
+  await start("third-shop");
+  assert.equal(stores.subscriptions.rows.get("third-shop").province, "QC", "a later shop of the account starts with it");
+});

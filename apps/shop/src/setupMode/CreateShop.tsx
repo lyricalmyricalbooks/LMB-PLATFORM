@@ -93,7 +93,7 @@ function ReviewRow({ row, w, onOpen }: { row: CreateRow; w: (words: string) => s
         <span className={row.state === "done" ? undefined : "rp-hint"} style={{ overflowWrap: "anywhere" }}>{w(row.value)}</span>
       </span>
       {/* The plan is picked on this same page: its button only scrolls up to the choice. */}
-      <GhostButton size="sm" onClick={() => row.id === "plan" ? document.getElementById("plan-choice")?.scrollIntoView({ behavior: "smooth", block: "start" }) : onOpen(row.page)}>
+      <GhostButton size="sm" onClick={() => row.id === "plan" ? document.getElementById("plan-choice")?.scrollIntoView?.({ behavior: "smooth", block: "start" }) : onOpen(row.page)}>
         {row.change}
       </GhostButton>
     </li>
