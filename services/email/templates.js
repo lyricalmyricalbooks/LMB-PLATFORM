@@ -269,6 +269,31 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The press's web address is paid up only until `date` (services/domains checkAll, from the public registry). 30 and 7 days before. */
+  "domain-expiring": ({ domain, daysLeft, date, seller, own }, { settings }) => layout({
+    subject: `${domain} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your web address ${domain} is paid up until ${date}. If it isn't renewed by then, your shop stops opening at ${domain}, and anything else that uses it stops too.`,
+      `To keep it, renew it where you bought it${seller ? ` (${seller})` : ""}. Most sellers can renew it for you every year: look for "auto-renew" in your account there.`,
+      `If you already renewed it, there's nothing to do. Your shop also keeps working at ${own}.`,
+    ],
+    footer: signOff(settings),
+  }),
+
+  /** The press's web address stopped opening their shop (services/domains checkAll): sent once per break, after an hour. */
+  "domain-not-pointing": ({ domain, own, link }, { settings }) => layout({
+    subject: `${domain} isn't opening your shop`,
+    greeting: "Hello,",
+    paragraphs: [
+      `${domain} no longer leads to your shop. This usually means the settings changed where you bought ${domain}, or the address wasn't renewed.`,
+      `Your shop still works at ${own}, and your orders are safe.`,
+      `Your web address settings show the lines to put back where you bought ${domain}. Once they are back, your shop opens at ${domain} again by itself.`,
+    ],
+    buttons: [["Open your web address settings", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The press's own domain stopped passing the sending check (ownDomain.js, plan 6.18): Colophon's sender meanwhile. */
   "own-email-paused": ({ domain }, { settings, pressName }) => layout({
     subject: `${pressName}'s emails are coming from ${settings.platformName} for now`,

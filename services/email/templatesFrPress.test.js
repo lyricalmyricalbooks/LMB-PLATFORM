@@ -41,6 +41,8 @@ const SAMPLES = {
   "newsletter-paused": [{ problems: ["3 people marked it as spam (1.5%)", "12 addresses bounced (6%)"], days: 7 }],
   "own-email-paused": [{ domain: "yourpress.example" }],
   "domain-live": [{ domain: "yourpress.example", link: SHOP_LINKS.shopAdmin }],
+  "domain-expiring": [{ domain: "yourpress.example", daysLeft: 30, date: "December 3, 2026", seller: "Example Names", own: "lmb-test-shop.web.app" }, { domain: "yourpress.example", daysLeft: 1, date: "December 3, 2026", seller: null, own: "lmb-test-shop.web.app" }],
+  "domain-not-pointing": [{ domain: "yourpress.example", own: "lmb-test-shop.web.app", link: SHOP_LINKS.shopAdmin }],
   "payment-failed": [{ ...BILLING }, { ...BILLING, nextTry: null }],
   "subscription-cancelled": [{ ...BILLING }],
   "subscription-ended": [{ ...BILLING }],

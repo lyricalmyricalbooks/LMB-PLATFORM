@@ -28,7 +28,22 @@ const answer = (status, json) => ({ ok: status >= 200 && status < 300, status, t
 const failure = (status, code, message) => answer(status, { error: { code: status, status: code, message } });
 
 /** The plain value at a dotted field path ("payments.provider"), or undefined. */
-const fieldOf = (data, path) => path.split(".").reduce((value, key) => (value && typeof value === "object" ? value[key] : undefined), data);
+export const fieldOf = (data, path) => path.split(".").reduce((value, key) => (value && typeof value === "object" ? value[key] : undefined), data);
+
+const SYMBOLS = { "==": "EQUAL", "!=": "NOT_EQUAL", "<": "LESS_THAN", "<=": "LESS_THAN_OR_EQUAL", ">": "GREATER_THAN", ">=": "GREATER_THAN_OR_EQUAL", "array-contains": "ARRAY_CONTAINS", in: "IN" };
+
+/**
+ * For the in-memory shop data fakes' `find`: whether plain `data` passes every `[field, op, value]` of a
+ * clients/firestore.js query, with the same operators. A field that isn't there never matches, as in Firestore.
+ */
+export function matchesWhere(data, where = []) {
+  return where.every(([field, op, value]) => {
+    const test = OPS[SYMBOLS[op]];
+    if (!test) throw new Error(`unknown query operator ${op}`);
+    const actual = fieldOf(data, field);
+    return actual !== undefined && test(actual, value);
+  });
+}
 
 export function fakeFirestore({ token = "test-token" } = {}) {
   // "project db path" -> { fields, version }

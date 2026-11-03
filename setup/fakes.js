@@ -13,6 +13,7 @@
 // and writes `recordRelease(entry)`. Audit log: `ready(shopId)` says
 // whether the shop's database exists yet; `write(shopId, id, entry)` stores the entry under `id`, replacing any entry
 // with that id.
+import { childrenOf } from "../accounts/fakes.js";
 
 export function fakeRegistry(seed = {}) {
   const steps = new Map(Object.entries(seed).map(([shopId, list]) => [shopId, [...list]]));
@@ -384,6 +385,7 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
     },
     shopData: {
       get: async (projectId, path) => structuredClone(world.docs.get(key(projectId, path)) ?? null),
+      find: async (projectId, collection, { where = [], limit } = {}) => childrenOf(world.docs, projectId, collection, where).slice(0, limit ?? Infinity),
       async set(projectId, path, data, { fields } = {}) {
         change("shopData.set", projectId, path);
         // `fields`: only those fields change, as Firestore's update mask does (clients/firestore.js set).

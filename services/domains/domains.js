@@ -32,7 +32,11 @@
 //                                same rules as domains.remove apply, so the main address is refused
 //   allowed({ shop, domain, state, error })              the seller's window sent the press back (`GET /allowed`)
 //   checkAll()                                           the sweep every few minutes: every address not live yet (and
-//                                any lines still waiting) is checked, and the owner gets one email when it goes live
+//                                any lines still waiting) is checked, and the owner gets one email when it goes live.
+//                                Once a day each live address is watched too (plan 24.4): a check, so one that stops
+//                                opening the shop is noticed (the owner is emailed once it has lasted an hour), and
+//                                when it is paid up until, read from the public registry: the owner is emailed 30 and
+//                                7 days before (a renewal moves the date, and the warnings start over)
 //
 // The order matters: the address may call the server code before Hosting serves the shop there, so shoppers never
 // meet a shop whose checkout is refused. Every step is safe to repeat; each change is logged in the registry and the
@@ -50,7 +54,8 @@
 //   deploy     deployed(shopId, "functions" | "pages:shop") -> { version, region? } | null;
 //              functions(shopId, { version, region, envFile }); pages(shopId, { version, app })
 //   payments   registerPaymentDomain(shopId, domain) (services/payments/service.js); optional
-//   sellers    lookup(domain) -> { zone, registrar: { name } | null, domainConnect } (sellers.js); optional
+//   sellers    lookup(domain) -> { zone, registrar: { name } | null, domainConnect } (sellers.js); optional;
+//              expiry(domain) -> ISO date | null, when the domain is paid up until (the daily watch)
 //   publicLines has(record) -> boolean: the line shows from outside (sellers.js); optional
 //   domainConnect  readDomainConnectConfig(env) (config.js), or null: every press gets the guide
 //   email      sendPlatform({ kind, to, data, idempotencyKey, shopId }) (services/email); optional
@@ -91,6 +96,27 @@ export function domainState(found) {
 }
 
 export const DOMAIN_LIVE_EMAIL = "domain-live";
+export const DOMAIN_EXPIRING_EMAIL = "domain-expiring";
+export const DOMAIN_NOT_POINTING_EMAIL = "domain-not-pointing";
+const DAY = 86_400_000;
+/** How often a live address is watched. */
+export const WATCH_EVERY_MS = DAY;
+/** How long an address must stay off before the owner is emailed, so a passing blip never sends one. */
+export const NOT_POINTING_GRACE_MS = 3_600_000;
+/** Days before a domain runs out that the owner is emailed, earliest first. */
+export const EXPIRY_WARNINGS = Object.freeze([30, 7]);
+
+/**
+ * The expiry warning due now for a live address, or null: the nearest warning reached, unless it went for this
+ * expiry date already (an earlier one missed by the sweep is never sent late; a renewal is a new date).
+ */
+export function expiryDue(entry, nowMs) {
+  const at = Date.parse(entry?.expiresAt ?? "");
+  if (!Number.isFinite(at) || at <= nowMs) return null;
+  const sent = entry.expiryWarned?.for === entry.expiresAt ? entry.expiryWarned.sent ?? {} : {};
+  const due = EXPIRY_WARNINGS.filter((days) => at - nowMs <= days * DAY).at(-1);
+  return due && !sent[due] ? { before: due, daysLeft: Math.ceil((at - nowMs) / DAY), sent } : null;
+}
 const EXTRA_PURPOSES = PURPOSES.filter((p) => p !== "hosting");
 const sameLines = (a = [], b = []) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -174,7 +200,29 @@ export function createDomainService({
     const fields = {};
     if (state !== entry.state) {
       fields.state = state;
-      if (state === "live") await logChange(shopId, `domain-live-${name}`, { kind: "domains.live", domain: name });
+      if (state === "live") {
+        // The daily watch starts a day after the address goes live.
+        fields.watchedAt = iso();
+        await logChange(shopId, `domain-live-${name}`, { kind: "domains.live", domain: name });
+      }
+    }
+    // A live address that stops opening the shop (plan 24.4): noted at once, and the owner is emailed once it has
+    // lasted an hour, through the shop's own address (the one that still works). Live again clears it.
+    if (entry.state === "live" && state !== "live" && !entry.brokeAt) {
+      fields.brokeAt = iso();
+      await logChange(shopId, `domain-not-pointing-${name}-${iso()}`, { kind: "domains.not-pointing", domain: name, state });
+    } else if (state === "live" && entry.brokeAt) {
+      Object.assign(fields, { brokeAt: null, brokenEmailedAt: null });
+      await logChange(shopId, `domain-back-${name}-${iso()}`, { kind: "domains.back", domain: name });
+    }
+    const brokeAt = fields.brokeAt ?? (state !== "live" ? entry.brokeAt : null);
+    if (brokeAt && !entry.brokenEmailedAt && email && row.ownerEmail && now() - Date.parse(brokeAt) >= NOT_POINTING_GRACE_MS) {
+      const own = ownAddress(row);
+      await email.sendPlatform({
+        kind: DOMAIN_NOT_POINTING_EMAIL, to: row.ownerEmail, shopId, idempotencyKey: `${DOMAIN_NOT_POINTING_EMAIL}-${shopId}-${name}-${brokeAt}`,
+        data: { pressName: row.pressName || shopId, domain: name, own, link: `https://${own}/admin#settings/general` },
+      });
+      fields.brokenEmailedAt = iso();
     }
     let paymentDomain = entry.paymentDomainAt ? "registered" : "not_yet";
     if (state === "live" && !entry.paymentDomainAt && payments && row.payments?.provider === "stripe") {
@@ -421,16 +469,44 @@ export function createDomainService({
     return back;
   }
 
-  /** The sweep every few minutes: addresses not live yet, lines still waiting, and the one email once live. */
+  /**
+   * The daily watch on a live address: a check (which notices one that stopped opening the shop), then when it is paid
+   * up until, and the expiry email when one is due.
+   */
+  async function watch(shopId, name) {
+    const found = await check(shopId, name);
+    const row = await rowOf(shopId);
+    const entry = domainsOf(row).find((d) => d.name === name);
+    const fields = { watchedAt: iso() };
+    const expiresAt = sellers?.expiry ? await sellers.expiry(entry.connect?.zone ?? name) : null;
+    if (expiresAt) {
+      fields.expiresAt = expiresAt;
+      const due = expiryDue({ ...entry, expiresAt }, now());
+      if (due && email && row.ownerEmail) {
+        await email.sendPlatform({
+          kind: DOMAIN_EXPIRING_EMAIL, to: row.ownerEmail, shopId, idempotencyKey: `${DOMAIN_EXPIRING_EMAIL}-${shopId}-${name}-${expiresAt}-${due.before}`,
+          data: { pressName: row.pressName || shopId, domain: name, daysLeft: due.daysLeft, on: expiresAt, own: ownAddress(row), seller: entry.connect?.seller ?? null,
+            date: new Date(expiresAt).toLocaleDateString("en-CA", { dateStyle: "long", timeZone: "America/Toronto" }) },
+        });
+        fields.expiryWarned = { for: expiresAt, sent: { ...due.sent, [due.before]: iso() } };
+        await logChange(shopId, `domain-expiring-${name}-${expiresAt}-${due.before}`, { kind: "domains.expiring", domain: name, expiresAt, before: due.before });
+      }
+    }
+    await saveEntry(shopId, name, fields);
+    return { ...found, expiresAt: fields.expiresAt ?? entry.expiresAt ?? null };
+  }
+
+  /** The sweep every few minutes: addresses not live yet, lines still waiting, the one email once live, the daily watch. */
   async function checkAll() {
     const results = [];
     for (const row of await registry.listShops()) {
       if (!row?.shopId || row.status === "abandoned") continue;
       for (const d of domainsOf(row)) {
         const waiting = d.state !== "live" || (email && d.connect && !d.liveEmailedAt) || EXTRA_PURPOSES.some((p) => d.extraRecords?.[p] && !d.extraRecords[p].appliedAt);
-        if (!waiting) continue;
+        const watchDue = !waiting && !(now() - Date.parse(d.watchedAt ?? "") < WATCH_EVERY_MS);
+        if (!waiting && !watchDue) continue;
         try {
-          const found = await check(row.shopId, d.name);
+          const found = watchDue ? await watch(row.shopId, d.name) : await check(row.shopId, d.name);
           results.push({ shopId: row.shopId, domain: d.name, state: found.state });
         } catch (err) {
           results.push({ shopId: row.shopId, domain: d.name, state: "failed", detail: err?.message || String(err) });

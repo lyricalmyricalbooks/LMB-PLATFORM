@@ -54,3 +54,16 @@ test("needs you: broken shops, failed payments, the queues and stuck sign-ups, e
   assert.equal(needs.find((n) => n.kind === "support").count, 2);
   assert.deepEqual(todaySummary({ rows: [], settings, now: NOW }).needs, []);
 });
+
+test("needs you: a web address that stopped opening its shop, or runs out within two weeks", () => {
+  const soon = new Date(NOW.getTime() + 5 * 86_400_000).toISOString();
+  const later = new Date(NOW.getTime() + 60 * 86_400_000).toISOString();
+  const { needs } = todaySummary({ rows: [
+    shop("moth", { status: "active" }, { domains: [{ name: "mothpress.example", state: "waiting_dns", brokeAt: NOW.toISOString(), brokenEmailedAt: NOW.toISOString() }] }),
+    shop("wasp", { status: "active" }, { domains: [{ name: "wasp.example", state: "live", expiresAt: soon }, { name: "fine.example", state: "live", expiresAt: later }] }),
+  ], settings, now: NOW });
+  assert.deepEqual(needs.filter((n) => n.kind === "domain").map((n) => n.words), [
+    "moth: mothpress.example stopped opening the shop (the press was emailed)",
+    "wasp: wasp.example runs out in 5 days unless renewed",
+  ]);
+});

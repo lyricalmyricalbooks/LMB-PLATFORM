@@ -81,6 +81,12 @@ export function fakeSellers(table = {}) {
       if (!zone) return { zone: domain.split(".").slice(-2).join("."), registrar: null, domainConnect: null };
       return { zone, registrar: table[zone].registrar ?? null, domainConnect: table[zone].domainConnect ?? null };
     },
+    /** `table[zone].expiresAt`, which a test moves (a renewal), or null. */
+    async expiry(domain) {
+      calls.push(`expiry ${domain}`);
+      const zone = Object.keys(table).find((z) => domain === z || domain.endsWith(`.${z}`));
+      return zone ? table[zone].expiresAt ?? null : null;
+    },
   };
 }
 

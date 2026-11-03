@@ -31,6 +31,9 @@ export function shopDataClient(firestoreFor) {
      * email addresses: the id is taken from the decoded path, so an `@` sent back as `%40` reads as `@`).
      */
     list: async (projectId, collection) => (await firestoreFor(projectId).query(collection)).map(({ path, data }) => ({ id: path.split("/").at(-1), data })),
+    /** Only the documents in one collection that pass `where` ([field, op, value], clients/firestore.js query), as [{ id, data }]. */
+    find: async (projectId, collection, { where = [], limit } = {}) => (await firestoreFor(projectId).query(collection, { where, limit }))
+      .map(({ path, data }) => ({ id: path.split("/").at(-1), data })),
     async create(projectId, path, data) {
       if (!(await firestoreFor(projectId).create(path, data))) throw new Error(`${path} already exists`);
     },
