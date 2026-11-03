@@ -5,7 +5,7 @@
 // or `instead` (sent in place of that day's setup tip). The default, `hold`, sends none, until Julian chooses.
 //
 // A nudge is sent at most once per stage (`record.startNudges[stage]`), so a press that finishes a stage is never nudged
-// about it again, and a press that is stuck on one stage hears about it twice at most. A missed run may send the day after.
+// about it again, and a press that is stuck on one stage hears about it twice at most. A missed run may send the day after, and a nudge day sends one nudge at most.
 
 export const START_NUDGE_DAYS = Object.freeze([2, 4]);
 
@@ -64,5 +64,7 @@ export function startNudgeDue({ day, doc, platformCards = false, open = false, r
   const stage = nextStartStage(doc, { platformCards, open });
   if (!stage) return { nudge: null, why: "nothing-to-nudge" };
   if (record?.startNudges?.[stage]) return { nudge: null, why: "already-sent" };
+  // One nudge per nudge day: the day after is only for a run that missed the day itself, never a second nudge.
+  if (Object.values(record?.startNudges ?? {}).some((sent) => sent?.day === nudgeDay)) return { nudge: null, why: "already-sent" };
   return { nudge: { day: nudgeDay, stage }, why: "due" };
 }
