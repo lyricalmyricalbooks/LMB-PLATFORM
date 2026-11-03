@@ -18,7 +18,7 @@ const DAY = 86400_000;
 const ACCOUNT = { accountId: "acct-owner-1", email: "owner@example.com", name: "Ada" };
 const SHOP = "moth-press";
 
-function make({ tax = false, plan = "both" } = {}) {
+function make({ tax = false, plan = "both", deleteApp = null } = {}) {
   let clock = START;
   const stripe = fakeBillingStripe({ clock: () => Math.floor(clock / 1000) });
   const stores = fakeBillingStores();
@@ -29,7 +29,7 @@ function make({ tax = false, plan = "both" } = {}) {
   const billing = createBilling({
     stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
     mode: "test", settings: platformSettings({}), ...stores, registry, auditLog, email, webhookSecrets: [SECRET], tax,
-    closeApp: async (entry) => void closed.push(entry), now: () => clock,
+    closeApp: async (entry) => void closed.push(entry), deleteApp, now: () => clock,
   });
   const event = (type, object, id = `evt_${Math.random().toString(36).slice(2)}`) => {
     const rawBody = JSON.stringify({ id, type, livemode: false, data: { object } });
@@ -45,7 +45,7 @@ function make({ tax = false, plan = "both" } = {}) {
     await event("checkout.session.completed", stripe.completeSetup(url.split("/").pop()));
     await event("customer.subscription.updated", stripe.payMonth(row.subscriptionId));
   };
-  return { stripe, stores, registry, auditLog, email, billing, event, start, payMonth, closed, tick: (days) => { clock += days * DAY; } };
+  return { stripe, stores, registry, auditLog, email, billing, event, start, payMonth, closed, now: () => clock, tick: (days) => { clock += days * DAY; } };
 }
 
 const lastPlanRequest = (stripe) => stripe.requests.filter((r) => r.method === "POST" && /^\/v1\/subscriptions\/sub_\w+$/.test(r.path) && r.params["items[0][price]"]).at(-1);
@@ -256,8 +256,12 @@ test("a week before a dropped app closes, the press gets one reminder with the w
   assert.equal(sent.length, 1, "once");
   assert.equal(sent[0].data.closing, "the stockroom");
   assert.match(TEMPLATES["app-closing-soon"](sent[0].data, { settings: platformSettings({}), pressName: "Moth Press" }).subject, /^The stockroom for Moth Press closes on /);
-  // The button lands on the plan page with Keep it ready.
-  assert.match(sent[0].data.link, /\/account\/billing\?shop=moth-press&keep=closing$/);
+  // The button keeps it with no sign-in: a one-time link; only its hash is stored.
+  assert.match(sent[0].data.link, /\/account\/keep\.html\?shop=moth-press&t=[A-Za-z0-9_-]{32}$/);
+  const stored = (await w.stores.subscriptions.get(SHOP)).keepLink;
+  assert.equal(stored.for, at);
+  assert.ok(!JSON.stringify(stored).includes(sent[0].data.link.split("t=")[1]), "the link itself is never stored");
+  assert.equal((await w.registry.getShop(SHOP)).keepLink, undefined, "not on the registry");
 });
 
 test("the day a dropped app closes, the press is emailed where to download it and until when", async () => {
@@ -301,4 +305,204 @@ test("noteDrops: an app waiting to close isn't dropped twice; a plan change back
   assert.deepEqual(drops, [{ app: "stockroom", at: "t1", keptAt: "t3", closedAt: null }], "nothing left waiting to close");
   for (let i = 0; i < 25; i += 1) drops = noteDrops(drops, { dropped: ["shop"], closed: ["shop"] }, `x${i}`);
   assert.equal(drops.length, 20);
+});
+
+// ── After closing (closedApps.js): the keep link, why it was dropped, the last email, and deletion. ──
+
+/** A press that dropped the stockroom on a paid month, a week before it closes, with the reminder sent. */
+async function reminded({ deleteApp } = {}) {
+  const w = make({ deleteApp });
+  const row = await w.start();
+  await w.payMonth(row);
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  const at = (await w.stores.subscriptions.get(SHOP)).appsClosing.at;
+  w.tick((Date.parse(at) - START) / DAY - 6);
+  await w.billing.closeDroppedApps();
+  const token = w.email.list().find((m) => m.kind === "app-closing-soon").data.link.split("t=")[1];
+  return { ...w, token, at };
+}
+
+test("the keep link keeps the closing app with no sign-in, once, and only that", async () => {
+  const w = await reminded();
+  await assert.rejects(w.billing.keepClosingAppsByLink({ shopId: SHOP, token: "made-up" }), (e) => e.status === 404);
+  await assert.rejects(w.billing.keepClosingAppsByLink({ shopId: "other-press", token: w.token }), (e) => e.status === 404, "another shop's link does nothing");
+  const kept = await w.billing.keepClosingAppsByLink({ shopId: SHOP, token: w.token });
+  assert.equal(kept.plan, "both");
+  assert.equal((await w.stores.subscriptions.get(SHOP)).appsClosing, null);
+  await assert.rejects(w.billing.keepClosingAppsByLink({ shopId: SHOP, token: w.token }), (e) => e.status === 410, "once");
+});
+
+test("the keep link runs out when the app closes, and a new drop needs a new link", async () => {
+  const w = await reminded();
+  w.tick(7);
+  await assert.rejects(w.billing.keepClosingAppsByLink({ shopId: SHOP, token: w.token }), (e) => e.status === 410);
+  const late = await reminded();
+  await late.billing.changePlan({ shopId: SHOP, plan: "both" });
+  await late.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  await assert.rejects(late.billing.keepClosingAppsByLink({ shopId: SHOP, token: late.token }), (e) => e.status === 404, "the link was for the earlier choice");
+});
+
+test("a press can say why they dropped an app; an answer off the list changes nothing", async () => {
+  const w = make();
+  const row = await w.start();
+  await w.payMonth(row);
+  await assert.rejects(w.billing.changePlan({ shopId: SHOP, plan: "shop", reason: "made-up" }), (e) => e.status === 400);
+  assert.equal((await w.stores.subscriptions.get(SHOP)).plan, "both", "nothing changed");
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop", reason: "not-using" });
+  assert.equal((await w.registry.getShop(SHOP)).billing.appDrops.at(-1).reason, "not-using");
+});
+
+test("three days before a closed app's download ends, one last email; then its records are deleted, never sooner", async () => {
+  const deleted = [];
+  const w = await reminded({ deleteApp: async (entry) => void deleted.push(entry) });
+  w.tick(7);
+  await w.billing.closeDroppedApps();
+  const { downloadUntil } = (await w.stores.subscriptions.get(SHOP)).closedApps.stockroom;
+  const daysToEnd = () => (Date.parse(downloadUntil) - w.now()) / DAY;
+  w.tick(daysToEnd() - 4);
+  await w.billing.closeDroppedApps();
+  assert.equal(w.email.list().filter((m) => m.kind === "app-download-ending").length, 0, "not yet");
+  w.tick(1.5);
+  await w.billing.closeDroppedApps();
+  await w.billing.closeDroppedApps();
+  const ending = w.email.list().filter((m) => m.kind === "app-download-ending");
+  assert.equal(ending.length, 1, "once");
+  assert.equal(ending[0].data.closing, "the stockroom");
+  assert.deepEqual(deleted, [], "not before the 90 days are over");
+  w.tick(daysToEnd() + 0.1);
+  await w.billing.closeDroppedApps();
+  assert.deepEqual(deleted, [], "the email went 2.5 days before the end, so the press still gets 3 full days");
+  w.tick(0.5);
+  await w.billing.closeDroppedApps();
+  assert.deepEqual(deleted, [{ shopId: SHOP, app: "stockroom" }]);
+  assert.ok((await w.registry.getShop(SHOP)).closedApps.stockroom.deletedAt);
+  await w.billing.closeDroppedApps();
+  assert.equal(deleted.length, 1, "deleted once");
+});
+
+test("an email sent late pushes the deletion back; a failed deletion is kept and tried again", async () => {
+  let fail = "Deleting a closed app's records isn't switched on yet.";
+  const deleted = [];
+  const w = await reminded({ deleteApp: async (entry) => { if (fail) throw new Error(fail); deleted.push(entry); } });
+  w.tick(7);
+  await w.billing.closeDroppedApps();
+  const { downloadUntil } = (await w.stores.subscriptions.get(SHOP)).closedApps.stockroom;
+  // The sweep didn't run in the last days: the email goes out after the 90 days, and deletion waits three more days.
+  w.tick((Date.parse(downloadUntil) - w.now()) / DAY + 1);
+  await w.billing.closeDroppedApps();
+  assert.equal(w.email.list().filter((m) => m.kind === "app-download-ending").length, 1);
+  w.tick(2);
+  await w.billing.closeDroppedApps();
+  assert.equal((await w.registry.getShop(SHOP)).closedApps.stockroom.problem, undefined, "not tried yet");
+  w.tick(1.1);
+  await w.billing.closeDroppedApps();
+  assert.equal((await w.registry.getShop(SHOP)).closedApps.stockroom.problem, fail);
+  fail = null;
+  w.tick(1);
+  await w.billing.closeDroppedApps();
+  assert.equal(deleted.length, 1);
+  assert.equal((await w.registry.getShop(SHOP)).closedApps.stockroom.problem, null);
+});
+
+test("an app added back is never deleted", async () => {
+  const deleted = [];
+  const w = await reminded({ deleteApp: async (entry) => void deleted.push(entry) });
+  w.tick(7);
+  await w.billing.closeDroppedApps();
+  await w.billing.changePlan({ shopId: SHOP, plan: "both" });
+  w.tick(100);
+  await w.billing.closeDroppedApps();
+  assert.deepEqual(deleted, []);
+  assert.equal(w.email.list().filter((m) => m.kind === "app-download-ending").length, 0);
+});
+
+test("a late last email moves the download's end too, so the date it gives is ahead and the export still holds the app", async () => {
+  const { exportApps } = await import("../export/export.js");
+  const w = await reminded({ deleteApp: async () => {} });
+  w.tick(7);
+  await w.billing.closeDroppedApps();
+  const first = (await w.stores.subscriptions.get(SHOP)).closedApps.stockroom.downloadUntil;
+  w.tick((Date.parse(first) - w.now()) / DAY + 1);
+  await w.billing.closeDroppedApps();
+  const moved = (await w.registry.getShop(SHOP)).closedApps.stockroom.downloadUntil;
+  assert.equal(Date.parse(moved), w.now() + 3 * DAY);
+  const sent = w.email.list().find((m) => m.kind === "app-download-ending");
+  assert.ok(Date.parse(`${sent.data.date} 23:59 UTC`) > w.now(), "the date in the email hasn't passed");
+  assert.equal(exportApps(await w.registry.getShop(SHOP), new Date(w.now() + 2 * DAY)).stockroom, true);
+});
+
+test("an app added back while its records are being deleted is left alone, and a later drop closes it again", async () => {
+  let w;
+  const deleted = [];
+  w = await reminded({
+    deleteApp: async (entry) => {
+      await w.billing.changePlan({ shopId: SHOP, plan: "both" });
+      deleted.push(entry);
+    },
+  });
+  w.tick(7);
+  await w.billing.closeDroppedApps();
+  w.tick(100);
+  await w.billing.closeDroppedApps();
+  w.tick(3.1);
+  await w.billing.closeDroppedApps();
+  assert.equal(deleted.length, 1, "the deletion ran while the app was added back");
+  assert.equal((await w.stores.subscriptions.get(SHOP)).closedApps.stockroom, undefined, "no entry brought back");
+  const closedBefore = w.closed.length;
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  w.tick(31);
+  await w.billing.closeDroppedApps();
+  assert.equal(w.closed.length, closedBefore + 1, "the second drop closes it");
+});
+
+test("a shop deleted as a whole gets no more emails or deletions for its closed apps", async () => {
+  const deleted = [];
+  const w = await reminded({ deleteApp: async (entry) => void deleted.push(entry) });
+  w.tick(7);
+  await w.billing.closeDroppedApps();
+  await w.registry.updateShop(SHOP, { closing: { stage: "deleted" } });
+  w.tick(100);
+  await w.billing.closeDroppedApps();
+  assert.deepEqual(deleted, [], "a shop deleted as a whole is left alone");
+  assert.equal(w.email.list().filter((m) => m.kind === "app-download-ending").length, 0);
+});
+
+test("one shop's trouble doesn't stop the sweep for the others, and the run still says so", async () => {
+  const w = await reminded();
+  await w.stores.subscriptions.set("broken-press", { shopId: "broken-press", plan: "shop", status: "active", billingEmail: "owner@example.com", appsClosing: { apps: ["stockroom"], at: new Date(w.now() + DAY).toISOString() } });
+  const send = w.email.sendPlatform;
+  w.email.sendPlatform = async (message) => { if (message.shopId === "broken-press") throw new Error("Resend is down"); return send(message); };
+  // List the broken shop first.
+  const list = w.stores.subscriptions.list;
+  w.stores.subscriptions.list = async () => [...(await list())].sort((a) => (a.shopId === "broken-press" ? -1 : 1));
+  w.tick(7);
+  await assert.rejects(w.billing.closeDroppedApps(), /1 shop had trouble: broken-press: Resend is down/);
+  assert.ok((await w.stores.subscriptions.get(SHOP)).closedApps?.stockroom, "the other shop's app still closed");
+});
+
+test("dropping an app during the trial is recorded with its answer, and marked closed", async () => {
+  const w = make();
+  await w.start();
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop", reason: "price" });
+  const [drop] = (await w.registry.getShop(SHOP)).billing.appDrops;
+  assert.equal(drop.app, "stockroom");
+  assert.equal(drop.reason, "price");
+  assert.ok(drop.closedAt);
+});
+
+test("when the one-time link can't be shown again, the reminder sends the plan page and says to sign in", async () => {
+  const w = make();
+  const row = await w.start();
+  await w.payMonth(row);
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  const at = (await w.stores.subscriptions.get(SHOP)).appsClosing.at;
+  // A link was made on an earlier run whose email may have gone, then that run stopped.
+  await w.stores.subscriptions.set(SHOP, { ...(await w.stores.subscriptions.get(SHOP)), keepLink: { hash: "x", for: at, expiresAt: at } });
+  w.tick((Date.parse(at) - START) / DAY - 6);
+  await w.billing.closeDroppedApps();
+  const sent = w.email.list().find((m) => m.kind === "app-closing-soon");
+  assert.match(sent.data.link, /&keep=closing$/);
+  assert.equal(sent.data.signIn, true);
+  const mail = TEMPLATES["app-closing-soon"](sent.data, { settings: platformSettings({}), pressName: "Moth Press" });
+  assert.doesNotMatch(mail.text, /no need to sign in/);
 });

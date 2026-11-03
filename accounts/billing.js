@@ -5,7 +5,7 @@
 // shop's owner in.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
-import { LEAVING_CHOICES, billingWords, day, planChangeWords } from "./billingWords.js";
+import { DROP_CHOICES, LEAVING_CHOICES, billingWords, day, planChangeWords } from "./billingWords.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
@@ -171,6 +171,7 @@ function resetPreview() {
   $("#change-preview").replaceChildren();
   $("#change-confirm").hidden = true;
   $("#change-error").hidden = true;
+  $("#drop-choices").hidden = true;
 }
 $("#plan-choices").addEventListener("change", resetPreview);
 
@@ -323,13 +324,17 @@ $("#change-form").addEventListener("submit", (event) => {
     const { preview } = await api("/billing/change-plan", { plan, preview: true });
     $("#change-preview").replaceChildren(...planChangeWords(preview, current).map((line) => el("p", { textContent: line })));
     $("#change-preview").hidden = false;
+    $("#drop-choices").replaceChildren($("#drop-choices legend"), ...DROP_CHOICES.map(([value, words]) =>
+      el("label", { className: "choice" }, el("input", { type: "radio", name: "drop-reason", value }), el("span", { textContent: words }))));
+    $("#drop-choices").hidden = !preview.closes?.length;
     $("#change-confirm").hidden = false;
   });
 });
 
 $("#change-confirm").addEventListener("click", (event) => act(event.currentTarget, async () => {
   const plan = chosen();
-  await api("/billing/change-plan", { plan });
+  const reason = $("#drop-choices").hidden ? null : $("#change-form").querySelector("input[name=drop-reason]:checked")?.value ?? null;
+  await api("/billing/change-plan", { plan, ...(reason ? { reason } : {}) });
   status.textContent = "Your plan is changed. We've emailed you the details.";
   await load();
 }));

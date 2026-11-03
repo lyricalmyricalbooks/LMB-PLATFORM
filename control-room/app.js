@@ -1428,25 +1428,44 @@ async function loadPaymentTrouble() {
 async function loadAppsClosing() {
   const target = $("#apps-closing");
   try {
-    const { shops, drops } = await api("GET", "/control/apps-closing");
+    const { shops, closed, drops, reasonWords } = await api("GET", "/control/apps-closing");
     const days = (n) => `${n} day${n === 1 ? "" : "s"}`;
-    // How often a press dropped an app and then kept it: many keeps would mean the plan page's drop confuses people.
+    const shopCell = (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.shopId, s.ownerEmail));
+    const bounced = (s) => (s.bounced ? pill("danger", "Email bounced") : null);
+    const openRow = (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); };
+    // How often a press dropped an app and then kept it, and why they dropped it: many keeps would mean the plan page's
+    // drop confuses people.
+    const why = Object.entries(drops.reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([id, n]) => `${reasonWords?.[id] ?? id} (${n})`).join(", ");
     const kept = drops.dropped
-      ? el("p", { className: "rp-hint", textContent: `Last 6 months: ${drops.dropped} app${drops.dropped === 1 ? "" : "s"} dropped, ${drops.kept} kept after all, ${drops.closed} closed, ${drops.waiting} still to close.` })
+      ? el("p", { className: "rp-hint", textContent: `Last 6 months: ${drops.dropped} app${drops.dropped === 1 ? "" : "s"} dropped, ${drops.kept} kept after all, ${drops.closed} closed, ${drops.waiting} still to close.${why ? ` Why: ${why}.` : ""}` })
       : null;
-    target.replaceChildren(shops.length
+    const closing = shops.length
       ? table({
         caption: "Apps closing, soonest first",
         columns: [
-          { header: "Shop", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.shopId, s.ownerEmail)) },
-          { header: "Closing", render: (s) => pill("warning", s.apps) },
+          { header: "Shop", lead: true, render: shopCell },
+          { header: "Closing", render: (s) => el("div", { className: "cr-tags" }, pill("warning", s.apps), bounced(s)) },
           { header: "Closes", render: (s) => `${dateOnly(s.closesAt)} (${days(s.daysLeft)})` },
           { header: "Reminder", render: (s) => (s.reminded ? `Emailed ${dateOnly(s.reminded)}` : "Goes out a week before") },
         ],
         rows: shops,
-        open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
+        open: openRow,
       })
-      : emptyState("No app is closing.", "Nobody has dropped the website or the stockroom from their plan."), ...(kept ? [kept] : []));
+      : emptyState("No app is closing.", "Nobody has dropped the website or the stockroom from their plan.");
+    const records = closed.length
+      ? table({
+        caption: "Closed apps still holding records, stuck ones first",
+        columns: [
+          { header: "Shop", lead: true, render: shopCell },
+          { header: "App", render: (s) => el("div", { className: "cr-tags" }, pill(s.overdue ? "danger" : "neutral", s.app), bounced(s)) },
+          { header: "Download until", render: (s) => (s.overdue ? `${dateOnly(s.downloadUntil)} (over)` : `${dateOnly(s.downloadUntil)} (${days(s.daysLeft)})`) },
+          { header: "What's next", render: (s) => (s.overdue ? `Waiting to be deleted${s.problem ? `: ${s.problem}` : ""}` : s.warnedAt ? `Last email sent ${dateOnly(s.warnedAt)}` : "Last email 3 days before") },
+        ],
+        rows: closed,
+        open: openRow,
+      })
+      : null;
+    target.replaceChildren(closing, ...(kept ? [kept] : []), ...(records ? [records] : []));
   } catch (failure) {
     target.replaceChildren(emptyState(failure.message));
   }

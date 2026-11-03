@@ -32,7 +32,7 @@
 //
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
 import { accountRoutes } from "../accounts/routes.js";
-import { billingRoutes } from "../accounts/billingRoutes.js";
+import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js";
 import { createAccounts } from "../accounts/accounts.js";
 import { controlRoutes } from "../control-room/routes.js";
 import { controlRoomAdmins, createControlRoom, profilePublisher } from "../control-room/controlRoom.js";
@@ -142,6 +142,9 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     env, fetch, ...billingStores, registry, auditLog, email, now: nowMs,
     shopPlan: shopPlanCopies({ shopData, stockroomData, registry }),
     // Taking a dropped app's pages down needs the deploy tool; the registry's `closedApps` is written either way.
+    // Deleting a closed app's records once its 90 days are over needs server access to the shop's project: until then
+    // each try is kept on the app's entry (the control room's Apps closing list shows it) and nothing is deleted.
+    deleteApp: notConnectedFn(NOT_CONNECTED.appDeletion),
   });
   const feeLedger = firestoreFeeLedger(platform);
   const paymentWay = createPaymentWay({
@@ -256,7 +259,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: frontDoorPublicRoutes(frontDoor),
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,

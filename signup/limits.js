@@ -10,6 +10,7 @@
 //   POST /api/code/send       the same, for the front door's six-digit code (frontDoor.js)
 //   POST /api/code/check      60 an hour per network, on top of 5 tries per code: guessing codes across many
 //                             addresses from one network stops here
+//   POST /api/billing/keep-by-link  60 an hour per network, like a code check (the reminder email's one-time link)
 //
 // The network is read from the right of `x-forwarded-for`: each proxy adds the address it was called from at the end,
 // and anything to the left can be written by the caller, so the left-most entry is never trusted. `proxyHops` is how
@@ -49,6 +50,9 @@ export const NETWORK_ROUTES = Object.freeze({
   "POST /api/signin-link": "signinLink",
   "POST /api/code/send": "signinLink",
   "POST /api/code/check": "codeCheck",
+  // The emailed one-time keep link (accounts/billingRoutes.js billingPublicRoutes): a token can't be guessed, but each
+  // try costs a read, so it is held like a sign-in code check.
+  "POST /api/billing/keep-by-link": "codeCheck",
 });
 
 export class LimitError extends Error {

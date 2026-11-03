@@ -76,6 +76,10 @@
           <p class="hint">A bigger plan starts now. A smaller one starts at your next bill.</p>
           <fieldset id="plan-choices"><legend class="rp-sr-only">Choose a plan</legend></fieldset>
           <div id="change-preview" class="stack" hidden aria-live="polite"></div>
+          <!-- Only when the change closes an app: one optional question, like cancelling's; the change works without it. -->
+          <fieldset id="drop-choices" hidden>
+            <legend>May we ask why you're dropping it? <span class="hint">(optional)</span></legend>
+          </fieldset>
           <p class="error" id="change-error" role="alert" hidden></p>
           <div class="cp-actions cp-start">
             <button type="submit" id="change-look">See what changes</button>

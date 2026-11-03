@@ -67,6 +67,18 @@ export const LEAVING_CHOICES = Object.freeze([
   ["other", "Something else"],
 ]);
 
+/**
+ * The optional "why are you dropping it?" choices when a plan change closes an app, in the press's own words. The ids
+ * are services/billing/closedApps.js DROP_REASONS (a test keeps the two lists the same).
+ */
+export const DROP_CHOICES = Object.freeze([
+  ["not-using", "We weren't using it"],
+  ["price", "To pay less"],
+  ["other-tool", "We use something else for it"],
+  ["too-hard", "It was hard to use"],
+  ["other", "Something else"],
+]);
+
 /** What a plan change does, in a few lines, before the press confirms it. */
 export function planChangeWords(preview, billing) {
   const tax = billing?.plusTax ? ", plus tax" : "";

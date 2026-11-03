@@ -40,6 +40,9 @@
 //   email           sendPlatform({ kind, to, data, idempotencyKey, shopId }) (services/email)
 //   closeApp        optional: closeApp({ shopId, app, closedAt, downloadUntil }), takes a dropped app's pages down. The
 //                   registry row's `closedApps` is written either way and is what the shop maker reads.
+//   deleteApp       optional: deleteApp({ shopId, app }), deletes a closed app's records once its 90 days to download
+//                   are over (closedApps.js says when). Without it nothing is deleted; a failure is kept on the
+//                   app's `closedApps` entry as `problem` and tried again the next day.
 //   shopPlan        optional: write(shopId, row, { link, at }) (shopPlan.js shopPlanCopies): the shop's own copy of
 //                   its plan (code plan 6.6), written on every change once the shop's database exists
 import { verifySignature } from "../payments/stripeSignature.js";
@@ -49,6 +52,7 @@ import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
 import { CARD_WARNING_DAYS, cardEnds, cardWarningDue } from "./cardExpiry.js";
 import { leavingAnswer } from "./leaving.js";
+import { DOWNLOAD_ENDING_DAYS, closedAppSteps, dropReason, keepLinkProblem, newKeepLink } from "./closedApps.js";
 import { PAY_AS_YOU_SELL_PLANS } from "../payments/payAsYouSell.js";
 
 export { CARD_WARNING_DAYS, cardEnds };
@@ -109,12 +113,12 @@ export function fromSubscription(sub) {
  * each `{ app, at, keptAt, closedAt }`, oldest first, the last 20 kept. The control room counts how many were kept
  * (control-room/appsClosing.js). An app already waiting to close isn't dropped twice.
  */
-export function noteDrops(drops, { dropped = [], kept = [], closed = [] }, when) {
+export function noteDrops(drops, { dropped = [], kept = [], closed = [], reason = null }, when) {
   const list = (drops ?? []).map((drop) => ({ ...drop }));
   const waiting = (app) => list.findLast((drop) => drop.app === app && !drop.keptAt && !drop.closedAt);
   for (const app of kept) { const drop = waiting(app); if (drop) drop.keptAt = when; }
   for (const app of closed) { const drop = waiting(app); if (drop) drop.closedAt = when; }
-  for (const app of dropped) if (!waiting(app)) list.push({ app, at: when, keptAt: null, closedAt: null });
+  for (const app of dropped) if (!waiting(app)) list.push({ app, at: when, keptAt: null, closedAt: null, ...(reason ? { reason } : {}) });
   return list.slice(-20);
 }
 
@@ -133,7 +137,7 @@ export class BillingError extends Error {
   }
 }
 
-export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, shopPlan = null, now = () => Date.now() }) {
+export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, deleteApp = null, shopPlan = null, now = () => Date.now() }) {
   if (mode !== "test" && mode !== "live") throw new Error('billing mode must be "test" or "live"');
   const at = () => new Date(now()).toISOString();
   const call = (method, path, options) => stripe.call(mode, method, path, options);
@@ -296,6 +300,78 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     return saved;
   }
 
+  /** A closed app's entry changed: on the registry (the shop maker and the control room read it) and the billing row. */
+  async function saveClosedApp(shopId, app, fields) {
+    const row = await subscriptions.get(shopId);
+    // Gone (the app was added back meanwhile): nothing to mark, and no entry brought back to stop a later close.
+    if (!row?.closedApps?.[app]) return row;
+    const closedApps = { ...(row?.closedApps ?? {}), [app]: { ...(row?.closedApps?.[app] ?? {}), ...fields } };
+    if (await registry.getShop(shopId)) await registry.updateShop(shopId, { closedApps });
+    return save(shopId, { closedApps }, null);
+  }
+
+  /** The last email before a closed app's download ends, and its deletion once that time is over (closedApps.js). */
+  async function afterClosing(shopId) {
+    // A shop deleted as a whole (closing.js) has nothing left to delete or email about.
+    if ((await registry.getShop(shopId))?.closing?.stage === "deleted") return;
+    const row = await subscriptions.get(shopId);
+    for (const { app, step } of closedAppSteps(row, now())) {
+      const closed = row.closedApps[app];
+      if (step === "warn") {
+        // The press always gets the full notice: an email sent late moves the download's end (and so the deletion)
+        // back, and the export and the account page follow the same date.
+        const downloadUntil = new Date(Math.max(Date.parse(closed.downloadUntil), now() + DOWNLOAD_ENDING_DAYS * DAY)).toISOString();
+        await saveClosedApp(shopId, app, { downloadUntil });
+        await notify(shopId, "app-download-ending", { closing: APP_NAMES[app], date: dateText(downloadUntil), link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-download-ending/${app}/${closed.closedAt}`);
+        await saveClosedApp(shopId, app, { warnedAt: at() });
+        continue;
+      }
+      if (!deleteApp) continue;
+      // Read again just before: an app added back meanwhile (changePlan removes its entry) is never deleted.
+      const fresh = await subscriptions.get(shopId);
+      if (!fresh?.closedApps?.[app] || PLAN_APPS[fresh.plan]?.[app]) continue;
+      try {
+        await deleteApp({ shopId, app });
+      } catch (failure) {
+        // Kept for the control room and tried again tomorrow; one shop's trouble never stops the sweep.
+        if (closed.problem !== failure.message) await saveClosedApp(shopId, app, { problem: failure.message });
+        continue;
+      }
+      await saveClosedApp(shopId, app, { deletedAt: at(), problem: null });
+      await logChange(shopId, "app-deleted", { app });
+    }
+  }
+
+  /** One shop in the daily dropped-apps sweep: its closed apps, then a reminder or the close of a dropped one. */
+  async function sweepOne(row, closed) {
+    if (Object.keys(row.closedApps ?? {}).length) await afterClosing(row.shopId);
+    if (!row.appsClosing?.apps?.length) return;
+    // A week before: one reminder, with the way to keep it (keepClosingApps), for a press who never opens the admin.
+    if (Date.parse(row.appsClosing.at) > now()) {
+      if (!row.appsClosing.reminded && Date.parse(row.appsClosing.at) - now() <= CLOSING_REMINDER_DAYS * DAY) {
+        // The button keeps it with no sign-in: a one-time link (closedApps.js), saved before the email goes. A link
+        // made on an earlier run whose email may have gone can't be shown again (only its hash is kept), so then
+        // the button opens the plan page with "Keep it" ready instead (accounts/billing.js reads `keep=closing`).
+        let link = `${accountLink(row.shopId)}&keep=closing`;
+        let signIn = true;
+        if (row.keepLink?.for !== row.appsClosing.at) {
+          signIn = false;
+          const made = newKeepLink({ closesAt: row.appsClosing.at, now: now() });
+          await save(row.shopId, { keepLink: made.stored }, null);
+          link = `${settings.platformUrl}/account/keep.html?shop=${encodeURIComponent(row.shopId)}&t=${made.token}`;
+        }
+        await notify(row.shopId, "app-closing-soon", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(row.appsClosing.at), link, signIn }, `${row.shopId}/app-closing-soon/${row.appsClosing.at}`);
+        await save(row.shopId, { appsClosing: { ...row.appsClosing, reminded: at() } }, null);
+      }
+      return;
+    }
+    const saved = await closeApps(row.shopId, row.appsClosing.apps);
+    // The day it closes: where the press downloads what was in it, and until when.
+    const downloadUntil = row.appsClosing.apps.map((app) => saved.closedApps?.[app]?.downloadUntil).find(Boolean);
+    await notify(row.shopId, "app-closed", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(downloadUntil), link: `${settings.platformUrl}/accounts/` }, `${row.shopId}/app-closed/${row.appsClosing.at}`);
+    closed.push({ shopId: row.shopId, apps: row.appsClosing.apps });
+  }
+
   // Named, so a call can use another (keepClosingApps goes through changePlan).
   const api = {
     ensurePrice,
@@ -418,8 +494,10 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * `preview: true` changes nothing and answers what would change: the apps added and closed, when, and the
      * prorated amount Stripe would charge now.
      */
-    async changePlan({ shopId, plan, preview = false }) {
+    async changePlan({ shopId, plan, preview = false, reason = null }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
+      // The optional answer to "why are you dropping it?", checked before anything changes.
+      const why = dropReason(reason, (message) => new BillingError(400, message));
       const row = await rowFor(shopId);
       // Paying as they sell (6.19): the subscription has ended on purpose, and the fees need the website.
       const asItSells = row.paymentWay === "payAsYouSell";
@@ -456,8 +534,10 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       // added app from it (signup/shopMaker.js syncPlan).
       if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan: move.openPlan, closedApps, ...(terms ? { payAsYouSell: terms } : {}) });
       // Which apps the press dropped with time to change their mind, and which closing ones they kept after all.
-      const appDrops = noteDrops(row.appDrops, { dropped: appsClosing?.apps ?? [], kept: (row.appsClosing?.apps ?? []).filter((app) => PLAN_APPS[plan][app]) }, at());
-      let saved = await save(shopId, { ...(sub ? fromSubscription(sub) : {}), plan, planChanges: changes, appsClosing, closedApps, appDrops, ...(terms ? { payAsYouSell: terms } : {}) }, "plan-changed");
+      // An immediate close (a trial) is recorded too, with its answer, and marked closed by closeApps just after.
+      const appDrops = noteDrops(row.appDrops, { dropped: move.immediate ? move.closes : appsClosing?.apps ?? [], kept: (row.appsClosing?.apps ?? []).filter((app) => PLAN_APPS[plan][app]), reason: why }, at());
+      // Any plan change ends an emailed keep link: it was for the press's earlier choice (closedApps.js).
+      let saved = await save(shopId, { ...(sub ? fromSubscription(sub) : {}), plan, planChanges: changes, appsClosing, closedApps, appDrops, keepLink: null, ...(terms ? { payAsYouSell: terms } : {}) }, "plan-changed");
       if (move.immediate && move.closes.length) saved = await closeApps(shopId, move.closes);
       const closing = move.closes.length ? { closing: move.closes.map((app) => APP_NAMES[app]).join(" and "), date: dateText(move.closesAt), now: move.immediate } : {};
       await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing }, `${shopId}/plan/${changes}`);
@@ -534,30 +614,38 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     },
 
     /**
+     * "Keep it" from the reminder email's one-time link, with no sign-in (closedApps.js keepLinkProblem): only for the
+     * closing it was made for, only once, only until the app closes, and it can do nothing but keep the closing app.
+     */
+    async keepClosingAppsByLink({ shopId, token }) {
+      const row = await subscriptions.get(shopId);
+      const problem = keepLinkProblem(row, token, now());
+      if (problem) throw new BillingError(problem.status, problem.message);
+      const kept = await api.keepClosingApps({ shopId });
+      await save(shopId, { keepLink: { ...row.keepLink, usedAt: at() } }, null);
+      await logChange(shopId, "apps-kept-by-email", { apps: row.appsClosing.apps });
+      return kept;
+    },
+
+    /**
      * The daily sweep for 6.11: an app a plan dropped closes once the month already paid for ends. Safe to repeat: a
      * closed app is not closed again.
      */
     async closeDroppedApps() {
       const closed = [];
+      const failed = [];
       for (const row of await subscriptions.list()) {
-        if (!row.appsClosing?.apps?.length) continue;
-        // A week before: one reminder, with the way to keep it (keepClosingApps), for a press who never opens the admin.
-        if (Date.parse(row.appsClosing.at) > now()) {
-          if (!row.appsClosing.reminded && Date.parse(row.appsClosing.at) - now() <= CLOSING_REMINDER_DAYS * DAY) {
-            // The button lands on the plan page with "Keep it" ready (accounts/billing.js reads `keep=closing`).
-            await notify(row.shopId, "app-closing-soon", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(row.appsClosing.at), link: `${accountLink(row.shopId)}&keep=closing` }, `${row.shopId}/app-closing-soon/${row.appsClosing.at}`);
-            await save(row.shopId, { appsClosing: { ...row.appsClosing, reminded: at() } }, null);
-          }
-          continue;
+        try {
+          await sweepOne(row, closed);
+        } catch (failure) {
+          // One shop's trouble (an email that won't go, say) never stops the others; the run still reports it.
+          failed.push(`${row.shopId}: ${failure.message}`);
         }
-        const saved = await closeApps(row.shopId, row.appsClosing.apps);
-        // The day it closes: where the press downloads what was in it, and until when.
-        const downloadUntil = row.appsClosing.apps.map((app) => saved.closedApps?.[app]?.downloadUntil).find(Boolean);
-        await notify(row.shopId, "app-closed", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(downloadUntil), link: `${settings.platformUrl}/accounts/` }, `${row.shopId}/app-closed/${row.appsClosing.at}`);
-        closed.push({ shopId: row.shopId, apps: row.appsClosing.apps });
       }
+      if (failed.length) throw new Error(`The dropped-apps sweep finished, but ${failed.length} shop${failed.length > 1 ? "s" : ""} had trouble: ${failed.join("; ")}`);
       return closed;
     },
+
 
     /**
      * The daily sweep for 6.12 (cardExpiry.js, run nightly since 19.9): a month before the card on file runs out, the

@@ -7,7 +7,7 @@
 // shop maker hands the new shop its plan (`billing.publishPlan`, plan 6.14), and one web door carries the sign-up,
 // account, billing and control-room routes.
 import { accountRoutes } from "../accounts/routes.js";
-import { billingRoutes } from "../accounts/billingRoutes.js";
+import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js";
 import { createAccounts } from "../accounts/accounts.js";
 import { fakeAccountStores } from "../accounts/fakes.js";
 import { controlRoutes } from "../control-room/routes.js";
@@ -121,6 +121,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const billing = createBilling({
     ...billingDeps, webhookSecrets: [WEBHOOK_SECRET], shopPlan: shopPlanCopies({ shopData, stockroomData, registry }),
     closeApp: async (entry) => void closed.push(entry),
+    // Pretend: a closed app's records "deleted" once its 90 days are over (nothing real to delete here).
+    deleteApp: async (entry) => void closed.push({ ...entry, deleted: true }),
   });
   const paymentWay = createPaymentWay({ ...billingDeps, billing, feeLedger: fakeFeeLedgerStore(), live });
   /** A signed event from Stripe, handled by billing; returns the door's answer. */
@@ -235,7 +237,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: frontDoorPublicRoutes(frontDoor),
+    signup, verifyIdToken: fakeVerifyIdToken, settings, live, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }) },
     // Fair-use limits (19.5) on an in-memory counter, a hundred times the real ones so a person clicking never meets them.
     limits: createLimits({ throttle: fakeThrottle(), admins, limits: generousLimits(), now: clock.date, log: () => {} }),
     log: () => {},
