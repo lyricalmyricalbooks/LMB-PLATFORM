@@ -120,7 +120,8 @@ lost. So the stockroom stays the only writer, and the native till asks it.
   `fairForAdmin` (`lib/fair-mode.js`) from the till's own end-of-day summary and upload pill: the fair's name, sales,
   books, takings per currency, by book (best ten) and by way of paying. `FairToday.tsx` shows it on Home on a day with
   a sale or a fair named, with "Open the Fair till". Not above the till itself: there, Fair mode already shows the same
-  line and pill, and on a phone the strip pushed the till down. Nothing is written.
+  line and pill, and on a phone the strip pushed the till down. Nothing is written. It also names "Running low": every
+  book sold today with three or fewer left (the till's own `POS_LOW_STOCK_AT`), fewest first, even outside the best ten.
 - [ ] **4b. A native till that sells through the stockroom.** The admin draws the till (search, cart, quantity,
   price change, currency, payment method, charge). Charging sends `{ what: "sell", saleId, lines, method, currency,
   fair }`; the stockroom records it through its own `posPreparePendingSale` / `posConfirmSale` path, so the queue,

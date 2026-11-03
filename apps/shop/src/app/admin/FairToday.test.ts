@@ -1,7 +1,7 @@
 // Today at the fair above the till (FairToday.tsx): the one line, per currency, in the shop's words; quiet on a day
 // with nothing to show.
 import { describe, expect, it } from "vitest";
-import { fairLine, fairWorthShowing, totalsText } from "./FairToday";
+import { fairLine, fairWorthShowing, lowText, totalsText } from "./FairToday";
 import { goodsWords } from "./sells";
 import type { StockroomFair } from "./stockroomBridge";
 
@@ -25,5 +25,11 @@ describe("today at the fair", () => {
     expect(fairWorthShowing(fair({ sales: 0, fair: null }))).toBe(false);
     expect(fairWorthShowing(fair({ sales: 0 }))).toBe(true);
     expect(totalsText([])).toMatch(/0/);
+  });
+  it("names the books running low, and nothing from an older stockroom", () => {
+    expect(lowText([{ bookId: "a", title: "Harbour Lights", left: 0 }, { bookId: "b", title: "Tide Tables", left: 2 }]))
+      .toBe("Harbour Lights (none left) · Tide Tables (2 left)");
+    expect(lowText([])).toBe("");
+    expect(lowText(undefined)).toBe("");
   });
 });

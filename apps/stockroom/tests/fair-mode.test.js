@@ -188,10 +188,26 @@ describe('today at the fair, for the combined admin', () => {
     expect(out.titles).toEqual([{ bookId: 'b1', title: 'Harbour Lights', units: 3, left: 7, totals: [{ cur: 'CAD', amount: 48 }, { cur: 'USD', amount: 20 }] }]);
     expect(out.methods.map((m) => m.sales)).toEqual([1, 1]);
     expect(out.upload.tone).toBe('offline');
+    expect(out.low).toEqual([]);
     expect(JSON.parse(JSON.stringify(out))).toEqual(out);
+  });
+  test('names every book sold today that is running low, fewest first, past the best ten', async () => {
+    const { fairForAdmin } = await import('../src/lib/fair-mode.js');
+    const titles = Array.from({ length: 12 }, (_, i) => ({ bookId: `b${i}`, title: `Book ${i}`, units: 12 - i, totals: { CAD: 10 }, left: 20 }));
+    titles[11].left = 2; // 12th best seller: not in the top ten, still flagged
+    titles[3].left = 0;
+    titles[4].left = 3;
+    titles[5].left = null; // not stock-counted: never flagged
+    const out = fairForAdmin({ sales: 1, units: 1, totals: { CAD: 10 }, methods: [], titles }, null, undefined, '2026-11-03');
+    expect(out.titles).toHaveLength(10);
+    expect(out.low).toEqual([
+      { bookId: 'b3', title: 'Book 3', left: 0 },
+      { bookId: 'b11', title: 'Book 11', left: 2 },
+      { bookId: 'b4', title: 'Book 4', left: 3 },
+    ]);
   });
   test('is empty, not broken, on a day with no sales', async () => {
     const { fairForAdmin } = await import('../src/lib/fair-mode.js');
-    expect(fairForAdmin(undefined, null, undefined)).toMatchObject({ fair: null, sales: 0, units: 0, totals: [], titles: [], upload: { tone: 'ok' } });
+    expect(fairForAdmin(undefined, null, undefined)).toMatchObject({ fair: null, sales: 0, units: 0, totals: [], titles: [], low: [], upload: { tone: 'ok' } });
   });
 });

@@ -18,6 +18,10 @@ export function fairLine(fair: StockroomFair, words: (text: string) => string): 
   return [fair.fair, `${fair.sales} ${fair.sales === 1 ? "sale" : "sales"}`, `${fair.units} ${things}`, totalsText(fair.totals)].filter(Boolean).join(" · ");
 }
 
+/** "Harbour Lights (none left) · Tide Tables (2 left)", or "" when nothing is running low. */
+export const lowText = (low: StockroomFair["low"]) =>
+  (low || []).map((b) => `${b.title} (${b.left === 0 ? "none left" : `${b.left} left`})`).join(" · ");
+
 /** Whether there's anything to show: a sale today, or a fair named on the till. */
 export const fairWorthShowing = (fair: StockroomFair | null): fair is StockroomFair => !!fair && (fair.sales > 0 || !!fair.fair);
 
@@ -47,6 +51,9 @@ export function FairToday({ active, onOpen }: { active: boolean; onOpen: () => v
         <StatusBadge glyph={false} tone={UPLOAD_TONE[fair.upload.tone as keyof typeof UPLOAD_TONE] || "neutral"}>{fair.upload.text}</StatusBadge>
         <GhostButton onClick={onOpen}>Open the Fair till</GhostButton>
       </div>
+      {lowText(fair.low) && (
+        <p className="rp-fair-today-low"><strong>Running low:</strong> {lowText(fair.low)}</p>
+      )}
       {fair.sales > 0 && (
         <details className="rp-fair-today-more">
           <summary>{w("By book and by way of paying")}</summary>
