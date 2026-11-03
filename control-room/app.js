@@ -1544,7 +1544,12 @@ async function loadAtRisk() {
   const target = $("#at-risk");
   if (!target) return;
   try {
-    const { presses, drifting, watch, currency } = await api("GET", "/control/at-risk");
+    const [{ presses, drifting, watch, currency }, income] = await Promise.all([api("GET", "/control/at-risk"), api("GET", "/control/income").catch(() => null)]);
+    // The nightly income record keeps the money at risk too: each month's last night, oldest first.
+    const past = (income?.months ?? []).filter((m) => m.atRisk);
+    const trend = past.length > 1
+      ? el("p", { className: "rp-hint", textContent: `Money at risk at each month's end: ${past.map((m) => `${m.month} ${money(m.atRisk.cents, currency)} (${plural(m.atRisk.count, "press", "presses")})`).join(" · ")}.` })
+      : null;
     const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric" },
       el("div", { className: "rp-metric-label", textContent: label }),
       el("div", { className: "rp-metric-value", textContent: String(value), dataset: tone ? { tone } : {} }),
@@ -1552,7 +1557,7 @@ async function loadAtRisk() {
     const numbers = el("div", { className: "rp-kpi-grid", ariaLabel: "Presses at risk in numbers" },
       figure("Drifting away", drifting.count, `${money(drifting.monthlyCents, currency)} a month`, drifting.count ? "danger" : null),
       figure("To watch", watch.count, `${money(watch.monthlyCents, currency)} a month`, watch.count ? "warn" : null));
-    target.replaceChildren(numbers, presses.length ? table({
+    fill(target, numbers, trend, presses.length ? table({
       caption: "Presses at risk, most at risk first",
       columns: [
         { header: "Press", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName }), meta(p.shopId, p.ownerEmail)) },
@@ -2162,7 +2167,7 @@ function salesChannelsSection(shop) {
     ].filter(Boolean);
     const unpaid = links?.unpaid;
     fill(slot,
-      unpaid ? el("p", { className: "rp-hint", textContent: `${plural(unpaid.count, "payment link")} (${cad(unpaid.amount)}) still unpaid ${unpaid.count === 1 ? `${unpaid.oldestDays} days after it was made` : `after 3 days or more, the oldest ${unpaid.oldestDays} days`}. The press may think the customer paid.` }) : null,
+      unpaid ? el("p", { className: "rp-hint", textContent: `${plural(unpaid.count, "payment link")} (${cad(unpaid.amount)}) still unpaid ${unpaid.count === 1 ? `${unpaid.oldestDays} days after it was made` : `after 3 days or more, the oldest ${unpaid.oldestDays} days`}${unpaid.expired ? `, ${unpaid.expired} already closed` : ""}. ${unpaid.reminded ? `The shop has reminded the customer about ${unpaid.reminded}.` : "No reminder has gone to the customer yet (the shop sends one two days before a link closes)."} The press may think the customer paid.` }) : null,
       rows.length ? table({
       caption: "Payment links and fair till",
       rows,

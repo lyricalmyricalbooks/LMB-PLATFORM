@@ -24,6 +24,8 @@
 // Clients passed in:
 //   registry     listShops(), updateShop(shopId, fields), getProfile(shopId)
 //   shopData     find(shopId, "orders", { where, limit })
+//   stockroomData optional: ready, get (the stockroom's own database). Fair till checkouts count as orders, so a press
+//                that sells mostly at fairs isn't read as drifting.
 //   shopAccess   signInSafety(shopId, emails) -> [{ email, found, lastSignInAt }] (optional; a failure means "not known")
 //   memberships  listByShop(shopId) -> [{ email }] (optional)
 //   email        sendPlatform({ kind, to, data, idempotencyKey, shopId })
@@ -31,6 +33,8 @@ import { PAYING, monthlyCents } from "./today.js";
 import { ControlError, MIN_REASON, adminOf } from "./controlRoom.js";
 import { activityEntry } from "./activity.js";
 import { moveOf } from "./broughtOver.js";
+import { histOf } from "./salesChannels.js";
+import { PLANS } from "../setup/steps.js";
 
 const DAY = 86_400_000;
 const WEEKS = 4;
@@ -94,19 +98,40 @@ export function driftOf({ recent, before, lastSignInAt, sellingWeeks }, nowMs) {
 /** A shop the watch looks at: paying, live, not closed, not the test shop. */
 export const watched = (row) => row?.testShop !== true && row?.status === "live" && !row.closure && PAYING.has(row.billing?.status);
 
-export function createDriftWatch({ registry, shopData, shopAccess = null, memberships = null, email, settings = {}, now = () => new Date() }) {
-  async function ordersOf(shopId, nowMs) {
+export function createDriftWatch({ registry, shopData, stockroomData = null, shopAccess = null, memberships = null, email, settings = {}, now = () => new Date() }) {
+  async function ordersOf(row, nowMs) {
+    const shopId = row.shopId;
     const since = new Date(nowMs - WEEKS * 2 * 7 * DAY).toISOString();
     const split = nowMs - WEEKS * 7 * DAY;
-    const docs = await shopData.find(shopId, "orders", { where: [["createdAt", ">=", since]], limit: MAX_ORDERS });
+    const apps = PLANS[row.plan] ?? { shop: true, stockroom: true };
     let recent = 0;
     let before = 0;
-    for (const { data } of docs) {
-      if (data?.paymentStatus !== "paid" || data.isTest || data.sandboxPayment || data.source === "import") continue;
-      if (Date.parse(data.createdAt) >= split) recent += 1;
-      else before += 1;
+    if (apps.shop) {
+      const docs = await shopData.find(shopId, "orders", { where: [["createdAt", ">=", since]], limit: MAX_ORDERS });
+      for (const { data } of docs) {
+        if (data?.paymentStatus !== "paid" || data.isTest || data.sandboxPayment || data.source === "import") continue;
+        if (Date.parse(data.createdAt) >= split) recent += 1;
+        else before += 1;
+      }
     }
-    return { recent, before };
+    // Fair till checkouts (one per sale number, a voided row left out), by the till's own day.
+    const fair = { recent: 0, before: 0 };
+    if (apps.stockroom && stockroomData && (await stockroomData.ready(shopId))) {
+      const sinceDay = since.slice(0, 10);
+      const splitDay = new Date(split).toISOString().slice(0, 10);
+      const seen = new Set();
+      for (const [bookId, rows] of Object.entries(await histOf(stockroomData, shopId))) {
+        for (const [i, h] of rows.entries()) {
+          if (!h || h.chan !== "Book Fair" || h.voided || typeof h.date !== "string" || h.date < sinceDay) continue;
+          const key = h.num ? `${h.date} ${h.num}` : `${bookId} ${i}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          if (h.date >= splitDay) fair.recent += 1;
+          else fair.before += 1;
+        }
+      }
+    }
+    return { recent: recent + fair.recent, before: before + fair.before, fair };
   }
 
   async function lastSignInOf(row) {
@@ -143,6 +168,11 @@ export function createDriftWatch({ registry, shopData, shopAccess = null, member
   async function checkMove(row, nowMs) {
     if (row.testShop === true || row.status !== "live" || row.closure || !shopData.get) return false;
     const stuck = moveStuck(await shopData.get(row.shopId, "firstWeek/start"), nowMs);
+    // The shop's own stalled-move email (apps/shop moveReminder, once per stall): when it went, if it was for this stall.
+    if (stuck) {
+      const mark = await shopData.get(row.shopId, "systemStatus/moveReminder");
+      if (mark?.sentAt && String(mark.forLastMoved ?? "").slice(0, 10) >= stuck.lastDay) stuck.remindedAt = mark.sentAt;
+    }
     if (JSON.stringify(stuck) !== JSON.stringify(row.moveStuck ?? null)) await registry.updateShop(row.shopId, { moveStuck: stuck });
     return Boolean(stuck);
   }
@@ -159,7 +189,7 @@ export function createDriftWatch({ registry, shopData, shopAccess = null, member
         }
         if (!watched(row)) continue;
         try {
-          const { recent, before } = await ordersOf(row.shopId, nowMs);
+          const { recent, before, fair } = await ordersOf(row, nowMs);
           const lastSignInAt = await lastSignInOf(row);
           const sellingWeeks = Math.floor((nowMs - Date.parse(row.liveAt ?? row.createdAt ?? "")) / (7 * DAY)) || 0;
           const drift = driftOf({ recent, before, lastSignInAt, sellingWeeks }, nowMs);
@@ -168,7 +198,7 @@ export function createDriftWatch({ registry, shopData, shopAccess = null, member
           if (checkedInAt) tally.emailed += 1;
           await registry.updateShop(row.shopId, {
             drift: {
-              ...drift, orders: { recent, before }, lastSignInAt: lastSignInAt ?? null, at: new Date(nowMs).toISOString(), checkedInAt: checkedInAt ?? row.drift?.checkedInAt ?? null,
+              ...drift, orders: { recent, before, ...(fair.recent || fair.before ? { fair } : {}) }, lastSignInAt: lastSignInAt ?? null, at: new Date(nowMs).toISOString(), checkedInAt: checkedInAt ?? row.drift?.checkedInAt ?? null,
               // The owner's snooze is kept until it ends.
               ...(snoozed(row, nowMs) ? { snoozedUntil: row.drift.snoozedUntil, snoozedBy: row.drift.snoozedBy ?? null } : {}),
             },
