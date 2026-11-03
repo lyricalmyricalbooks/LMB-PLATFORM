@@ -61,7 +61,7 @@ test("only platform admins see a shop's payment links and fair till", async () =
 
 test("payment links: paid ones with their total, the one waiting, practice and website orders left out", async () => {
   const { channels } = await (await world()).desk.forShop(ADMIN, { shopId: SHOP });
-  assert.deepEqual(channels.links, { made: 3, paid: 2, amount: 65.5, waiting: 1, recent: 1, lastPaidAt: ago(9), lastMadeAt: ago(1) });
+  assert.deepEqual(channels.links, { made: 3, paid: 2, amount: 65.5, waiting: 1, recent: 1, lastPaidAt: ago(9), lastMadeAt: ago(1), unpaid: null });
 });
 
 test("fair till: one sale per checkout, voided rows and website rows left out, helpers counted by person", async () => {
@@ -87,4 +87,41 @@ test("the shop drawer shows the section, and both web doors serve the route", ()
   assert.match(app, /"\/control\/sales-channels"/);
   assert.match(app, /"Payment links and fair till"/);
   for (const door of ["../server/world.js", "../walkthrough/world.js"]) assert.match(readFileSync(new URL(door, import.meta.url), "utf8"), /salesChannelsRoutes\(salesChannels\)/, door);
+});
+
+test("a payment link still unpaid after three days is flagged in the record", async () => {
+  assert.equal(paymentLinksSummary([{ status: "pending_payment", paymentStatus: "unpaid", total: 30, createdAt: ago(1) }], NOW).unpaid, null, "a day old: still fine");
+  assert.deepEqual(paymentLinksSummary([
+    { status: "pending_payment", paymentStatus: "unpaid", total: 30, createdAt: ago(4) },
+    { status: "pending_payment", paymentStatus: "unpaid", total: 12.5, createdAt: ago(9) },
+    { status: "pending_payment", paymentStatus: "unpaid", total: 99, createdAt: ago(1) },
+  ], NOW).unpaid, { count: 2, amount: 42.5, oldestDays: 9 });
+});
+
+test("fair till by month across presses: only live stockroom presses, month by month, presses counted once", async () => {
+  const { fairTillMonths } = await import("./salesChannels.js");
+  const w = await world();
+  await w.stockroomData.set("shop-only", "settings/catalog", { data: JSON.stringify({ x: {} }), ts: 1 });
+  await w.stockroomData.set("shop-only", "books/x/data/hist", { data: JSON.stringify([{ num: "P", chan: "Book Fair", qty: 9, price: 9, date: dayAgo(1) }]), ts: 1 });
+  const { months, presses, unread } = await w.desk.fairMonths(ADMIN);
+  assert.equal(months.length, 12);
+  assert.equal(months.at(-1).month, "2026-11");
+  assert.equal(presses, 1, "the shop-only plan has no stockroom to read");
+  assert.deepEqual(unread, []);
+  const total = months.reduce((n, m) => ({ sales: n.sales + m.sales, copies: n.copies + m.copies, amount: n.amount + m.amount }), { sales: 0, copies: 0, amount: 0 });
+  assert.deepEqual(total, { sales: 2, copies: 4, amount: 75 });
+  assert.deepEqual(months.find((m) => m.month === dayAgo(40).slice(0, 7)), { month: dayAgo(40).slice(0, 7), sales: 1, copies: 2, amount: 40, presses: 1 });
+  const two = fairTillMonths([{ shopId: "a", hist: { b: [{ num: "1", chan: "Book Fair", qty: 1, price: 5, date: "2026-11-01" }] } }, { shopId: "b", hist: { b: [{ num: "1", chan: "Book Fair", qty: 1, price: 5, date: "2026-11-02" }] } }], NOW);
+  assert.deepEqual(two.at(-1), { month: "2026-11", sales: 2, copies: 2, amount: 10, presses: 2 }, "the same sale number at two presses is two sales");
+  assert.equal((await w.ask(PRESS, {})).status, 403);
+});
+
+test("the business side shows fair till by month, and the Shops list filters by risk", () => {
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.match(app, /"\/control\/fair-months"/);
+  assert.match(app, /function riskMatches/);
+  assert.match(app, /"Drift watch"/);
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  assert.match(html, /id="fair-months"/);
+  assert.match(html, /id="shop-risk"/);
 });

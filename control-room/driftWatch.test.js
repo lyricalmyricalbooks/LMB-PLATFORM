@@ -173,3 +173,18 @@ test("a move left part-way for a week shows on Today, and clears when it's finis
   assert.deepEqual(await words(), []);
   assert.equal((await w.registry.getShop("trial")).moveStuck, null);
 });
+
+test("the Shops list carries each press's drift and snooze, for the Risk filter and the record", async () => {
+  const { createControlRoom, controlRoomAdmins } = await import("./controlRoom.js");
+  const w = await world();
+  await w.watch.sweep();
+  await w.registry.updateShop("wasp", { drift: { level: "watch", score: 1, reasons: ["r"], snoozedUntil: ago(-5), snoozedBy: "admin@example.com" } });
+  await w.registry.updateShop("trial", { drift: { level: "drifting", score: 3, reasons: ["r"], snoozedUntil: ago(1) } });
+  const room = createControlRoom({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry: w.registry, now: () => new Date(NOW) });
+  const admin = { uid: "a", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(NOW / 1000) };
+  const { shops } = await room.shops(admin);
+  const by = Object.fromEntries(shops.map((s) => [s.shopId, s.drift]));
+  assert.equal(by.moth.level, "drifting");
+  assert.equal(by.wasp.snoozedUntil, ago(-5));
+  assert.equal(by.trial.snoozedUntil, null, "a snooze that has ended isn't shown");
+});

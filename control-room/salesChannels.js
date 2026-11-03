@@ -18,6 +18,10 @@ const MAX_BOOKS = 500;
 const DAY = 86_400_000;
 /** "Lately" in the record: the last 30 days. */
 export const RECENT_DAYS = 30;
+/** A payment link still unpaid this many days after it was made gets a warning in the record. */
+export const UNPAID_DAYS = 3;
+/** Fair till by month across every press: this many months, this one included. */
+export const FAIR_MONTHS = 12;
 
 const later = (a, b) => (!a ? b : !b ? a : a > b ? a : b);
 const cents = (n) => Math.round(n * 100) / 100;
@@ -32,7 +36,8 @@ const parse = (text) => {
 /** Payment-link orders: paid ones (not practice), the ones still waiting to be paid, and when the last was paid. */
 export function paymentLinksSummary(orders, nowMs) {
   const since = nowMs - RECENT_DAYS * DAY;
-  const out = { made: 0, paid: 0, amount: 0, waiting: 0, recent: 0, lastPaidAt: null, lastMadeAt: null };
+  const out = { made: 0, paid: 0, amount: 0, waiting: 0, recent: 0, lastPaidAt: null, lastMadeAt: null, unpaid: null };
+  const unpaid = [];
   for (const order of orders) {
     if (!order || order.isTest || order.sandboxPayment) continue;
     out.made += 1;
@@ -43,8 +48,14 @@ export function paymentLinksSummary(orders, nowMs) {
       out.amount = cents(out.amount + (Number(order.total) || 0));
       out.lastPaidAt = later(out.lastPaidAt, paidAt);
       if (Date.parse(paidAt ?? "") >= since) out.recent += 1;
-    } else if (order.status === "pending_payment") out.waiting += 1;
+    } else if (order.status === "pending_payment") {
+      out.waiting += 1;
+      const age = Math.floor((nowMs - Date.parse(order.createdAt ?? "")) / DAY);
+      if (age >= UNPAID_DAYS) unpaid.push({ age, amount: Number(order.total) || 0 });
+    }
   }
+  // Links a customer hasn't paid after a few days: the press may think they're paid, or the link may be stuck.
+  if (unpaid.length) out.unpaid = { count: unpaid.length, amount: cents(unpaid.reduce((n, u) => n + u.amount, 0)), oldestDays: Math.max(...unpaid.map((u) => u.age)) };
   return out.made ? out : null;
 }
 
@@ -85,20 +96,49 @@ export function fairTillSummary(histByBook, helperSales, nowMs) {
   return out.sales || out.helpers ? out : null;
 }
 
-export function createSalesChannels({ admins, registry, shopData, stockroomData = null, now = () => new Date() }) {
-  async function histOf(shopId) {
-    const catalogDoc = await stockroomData.get(shopId, "settings/catalog");
-    const catalog = (catalogDoc && parse(catalogDoc.data)) || {};
-    const ids = Object.keys(catalog).filter((id) => !id.startsWith("_") && catalog[id] && typeof catalog[id] === "object").slice(0, MAX_BOOKS);
-    const hist = {};
-    // Eight books at a time, like the data export.
-    await eachInTurn(ids, 8, async (bookId) => {
-      const doc = await stockroomData.get(shopId, `books/${bookId}/data/hist`);
-      const rows = doc ? parse(doc.data) : null;
-      hist[bookId] = Array.isArray(rows) ? rows : [];
-    });
-    return hist;
+/** Every book's history rows in one stockroom, by book id (eight books at a time, like the data export). */
+export async function histOf(stockroomData, shopId) {
+  const catalogDoc = await stockroomData.get(shopId, "settings/catalog");
+  const catalog = (catalogDoc && parse(catalogDoc.data)) || {};
+  const ids = Object.keys(catalog).filter((id) => !id.startsWith("_") && catalog[id] && typeof catalog[id] === "object").slice(0, MAX_BOOKS);
+  const hist = {};
+  await eachInTurn(ids, 8, async (bookId) => {
+    const doc = await stockroomData.get(shopId, `books/${bookId}/data/hist`);
+    const rows = doc ? parse(doc.data) : null;
+    hist[bookId] = Array.isArray(rows) ? rows : [];
+  });
+  return hist;
+}
+
+/**
+ * Fair till sales by month, from many presses' history rows: for each of the last `months` months (oldest first), the
+ * checkouts, copies, money and how many presses sold at a fair. `perShop` is [{ shopId, hist }].
+ */
+export function fairTillMonths(perShop, nowMs, months = FAIR_MONTHS) {
+  const end = new Date(nowMs);
+  const keys = Array.from({ length: months }, (_, i) => new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - (months - 1 - i), 1)).toISOString().slice(0, 7));
+  const byMonth = new Map(keys.map((k) => [k, { month: k, sales: new Set(), copies: 0, amount: 0, presses: new Set() }]));
+  for (const { shopId, hist } of perShop) {
+    for (const [bookId, rows] of Object.entries(hist)) {
+      for (const [i, row] of rows.entries()) {
+        if (!row || row.chan !== FAIR_CHANNEL || row.voided || typeof row.date !== "string") continue;
+        const month = byMonth.get(row.date.slice(0, 7));
+        if (!month) continue;
+        const qty = Number(row.qty) || 0;
+        month.sales.add(`${shopId} ${row.num ? `${row.date} ${row.num}` : `${bookId} ${i}`}`);
+        month.copies += qty;
+        month.amount = cents(month.amount + qty * (Number(row.price) || 0));
+        month.presses.add(shopId);
+      }
+    }
   }
+  return [...byMonth.values()].map((m) => ({ month: m.month, sales: m.sales.size, copies: m.copies, amount: m.amount, presses: m.presses.size }));
+}
+
+/** The live shops whose plan has the stockroom (not the test shop, not closed). */
+const fairShops = (rows) => rows.filter((row) => row.status === "live" && !row.closure && row.testShop !== true && (PLANS[row.plan] ?? { stockroom: true }).stockroom);
+
+export function createSalesChannels({ admins, registry, shopData, stockroomData = null, now = () => new Date() }) {
 
   return {
     async forShop(claims, { shopId } = {}) {
@@ -119,7 +159,7 @@ export function createSalesChannels({ admins, registry, shopData, stockroomData 
           stockroom = (await stockroomData.ready(shopId)) ? "read" : "not made yet";
           if (stockroom === "read") {
             const helpers = stockroomData.list ? (await stockroomData.list(shopId, "fairSales")).map((d) => d.data) : [];
-            fair = fairTillSummary(await histOf(shopId), helpers, nowMs);
+            fair = fairTillSummary(await histOf(stockroomData, shopId), helpers, nowMs);
           }
         }
         return { shopId, channels: { links, fair, hasShop: Boolean(apps.shop), hasStockroom: Boolean(apps.stockroom), stockroom } };
@@ -128,11 +168,32 @@ export function createSalesChannels({ admins, registry, shopData, stockroomData 
         throw new ControlError(502, `Couldn't read the shop's records: ${failure.message}`);
       }
     },
+
+    /** Fair till sales by month across every live press with the stockroom; a press that can't be read is named, not fatal. */
+    async fairMonths(claims) {
+      const nowMs = now().getTime();
+      adminOf(claims, admins, nowMs);
+      if (!stockroomData) throw new ControlError(503, "The control room can't read the stockrooms yet.");
+      const perShop = [];
+      const unread = [];
+      await eachInTurn(fairShops(await registry.listShops()), 4, async (row) => {
+        try {
+          if (await stockroomData.ready(row.shopId)) perShop.push({ shopId: row.shopId, hist: await histOf(stockroomData, row.shopId) });
+        } catch (failure) {
+          unread.push({ shopId: row.shopId, pressName: row.pressName ?? row.shopId, error: failure.message });
+        }
+      });
+      return { months: fairTillMonths(perShop, nowMs), presses: perShop.length, unread };
+    },
   };
 }
 
 //   POST /api/control/sales-channels  { shopId }: payment-link and fair-till sales, from the shop's own records (read only)
+//   GET  /api/control/fair-months      fair till sales by month across every press with the stockroom (read only)
 export function salesChannelsRoutes(desk) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
-  return { "POST /api/control/sales-channels": (claims, request) => desk.forShop(claims, body(request)) };
+  return {
+    "POST /api/control/sales-channels": (claims, request) => desk.forShop(claims, body(request)),
+    "GET /api/control/fair-months": (claims) => desk.fairMonths(claims),
+  };
 }

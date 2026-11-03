@@ -100,9 +100,9 @@ export async function seedRoom(world) {
   world.shopAccess.lastSignIn.set("kestrel kit@example.com", daysAgo(1));
   await world.driftWatch.sweep();
 
-  // Selling away from the website: Kestrel sent three payment links (two paid, one waiting) and rang up two checkouts on
+  // Selling away from the website: Kestrel sent three payment links (two paid, one still unpaid after five days) and rang up two checkouts on
   // the fair till, one by a fair helper.
-  for (const [i, [days, total, paid]] of [[20, 45, true], [6, 28.5, true], [1, 60, false]].entries()) {
+  for (const [i, [days, total, paid]] of [[20, 45, true], [6, 28.5, true], [5, 60, false]].entries()) {
     await world.shopData.set("kestrel", `orders/link-${i}`, { source: "payment_link", total, createdAt: daysAgo(days), ...(paid ? { status: "paid", paymentStatus: "paid", paidAt: daysAgo(days) } : { status: "pending_payment", paymentStatus: "unpaid" }) });
   }
   const fairDay = daysAgo(12).slice(0, 10);
