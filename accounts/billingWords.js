@@ -107,3 +107,16 @@ export function changingLines(shop) {
   for (const { app, downloadUntil, holds } of shop?.closed ?? []) lines.push(`Your ${adminApps([app])} is closed. You can download everything that was in it until ${day(downloadUntil)}, with Download all your data${holds ? ` (${holds})` : ""}.`);
   return lines;
 }
+
+/**
+ * What the email language choice means, in words (billing status `emailLanguage`: { choice, sends }). "auto" says what
+ * it comes to for this account: French then English for a Quebec billing address, otherwise English.
+ */
+export function emailLanguageWords(emailLanguage) {
+  const choice = emailLanguage?.choice ?? "auto";
+  if (choice === "fr") return "Our emails to you and your team come in French.";
+  if (choice === "en") return "Our emails to you and your team come in English.";
+  return emailLanguage?.sends === "fr+en"
+    ? "Automatic: your billing address is in Quebec, so our emails come in French with the English below."
+    : "Automatic: our emails come in English, or in French and English if your billing address is in Quebec.";
+}

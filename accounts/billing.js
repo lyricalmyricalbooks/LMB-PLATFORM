@@ -5,7 +5,7 @@
 // shop's owner in.
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
-import { DROP_CHOICES, LEAVING_CHOICES, billingWords, day, planChangeWords } from "./billingWords.js";
+import { DROP_CHOICES, LEAVING_CHOICES, billingWords, day, emailLanguageWords, planChangeWords } from "./billingWords.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
@@ -163,7 +163,14 @@ function render(billing) {
     const input = el("input", { type: "radio", name: "plan", value: plan.plan, checked: plan.plan === billing.plan });
     return el("label", { className: "choice" }, input, el("strong", { textContent: plan.name }), el("strong", { textContent: `${plan.price}${billing.plusTax ? " + tax" : ""}` }));
   }));
+  renderLanguage(billing.emailLanguage);
   resetPreview();
+}
+
+function renderLanguage(emailLanguage) {
+  const choice = emailLanguage?.choice ?? "auto";
+  for (const input of $("#language-form").querySelectorAll("input[name=language]")) input.checked = input.value === choice;
+  $("#language-words").textContent = emailLanguageWords(emailLanguage);
 }
 
 function resetPreview() {
@@ -294,6 +301,16 @@ $("#cancel-form").addEventListener("submit", (event) => {
       ? "Your plan is cancelled. Thank you for telling us why. Your shop stays open until the date below, and you can keep your plan until then."
       : "Your plan is cancelled. Your shop stays open until the date below, and you can keep your plan until then.";
     await load();
+  });
+});
+
+$("#language-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  act($("#language-save"), async () => {
+    const language = $("#language-form").querySelector("input[name=language]:checked")?.value ?? "auto";
+    const { emailLanguage } = await api("/billing/email-language", { language });
+    renderLanguage(emailLanguage);
+    status.textContent = "Saved. Our emails to you and your team, for every shop on your account, use this language.";
   });
 });
 

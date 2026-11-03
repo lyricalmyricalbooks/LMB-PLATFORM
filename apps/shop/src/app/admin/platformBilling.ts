@@ -23,6 +23,8 @@ export type BillingStatus = {
   canPayNow: boolean;
   /** The paying card runs out within a month, or already has (the platform's cardRunningOut). */
   cardRunsOut?: { ends: string; expired: boolean } | null;
+  /** The language of the platform's emails: the choice, and what "auto" comes to ("fr+en" for a Quebec address). */
+  emailLanguage?: { choice: "auto" | "fr" | "en"; sends: "fr" | "en" | "fr+en" };
 };
 export type StatusAnswer = { billing: BillingStatus | null; accountPage: string; changesNeedTwoStep: boolean };
 export type PlanPreview = { plan: PlanId; planName: string; price: string; from: PlanId | null; adds: string[]; closes: string[]; immediate: boolean; closesAt: string | null; downloadUntil: string | null; prorate: boolean; prorated: { amount: number; text: string } | null };
@@ -154,4 +156,21 @@ export function billState(status: string): { tone: "success" | "warning" | "neut
   if (status === "void") return { tone: "neutral", word: "Cancelled" };
   if (status === "uncollectible") return { tone: "danger", word: "Not paid" };
   return { tone: "neutral", word: status };
+}
+
+/** The email language choices (the platform's billing `setEmailLanguage`). */
+export const EMAIL_LANGUAGES: Array<{ value: "auto" | "fr" | "en"; label: string }> = [
+  { value: "auto", label: "Automatic" },
+  { value: "fr", label: "Français" },
+  { value: "en", label: "English" },
+];
+
+/** What the choice means, in words (the same as the account page's, accounts/billingWords.js emailLanguageWords). */
+export function emailLanguageWords(emailLanguage: BillingStatus["emailLanguage"]): string {
+  const choice = emailLanguage?.choice ?? "auto";
+  if (choice === "fr") return "Our emails to you and your team come in French.";
+  if (choice === "en") return "Our emails to you and your team come in English.";
+  return emailLanguage?.sends === "fr+en"
+    ? "Automatic: your billing address is in Quebec, so our emails come in French with the English below."
+    : "Automatic: our emails come in English, or in French and English if your billing address is in Quebec.";
 }

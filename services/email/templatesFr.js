@@ -8,8 +8,12 @@
 //   "fr"     the press chose French (sign-up in a French browser);
 //   "fr+en"  no choice stored, but the press's billing address is in Quebec: French first, the English below;
 //   "en"     everyone else.
-// Only kinds with a French twin change; every other email stays in English, so nothing breaks while the rest are written.
+// Every press-facing kind has a twin (the closing ones here, the rest in templatesFrPress.js); the platform's own alerts
+// to its staff stay in English.
 import { layout, safeLink } from "./templates.js";
+import { PRESS_TEMPLATES_FR, frenchDay } from "./templatesFrPress.js";
+
+export { frenchDay };
 
 const signOff = (settings) => `Envoyé par ${settings.platformName}. Répondez à ce courriel si vous avez besoin d'un coup de main.`;
 
@@ -40,10 +44,10 @@ export function downloadHoldsFr(apps) {
   return `une feuille de calcul pour chacun de ces éléments : ${listed(words)}${known.includes("shop") ? ", ainsi que les réglages de votre boutique" : ""}`;
 }
 
-/** A day in French ("3 novembre 2026"), from the ISO time; the English words when there is none. */
+/** A day in French ("3 novembre 2026"), from the ISO time; else the English words turned French (frenchDay). */
 export function dateFr(on, fallback = "") {
   const time = on ? Date.parse(on) : NaN;
-  if (!Number.isFinite(time)) return fallback;
+  if (!Number.isFinite(time)) return frenchDay(fallback);
   // The first of the month is "1er" in French ("le 1er mars").
   return new Intl.DateTimeFormat("fr-CA", { timeZone: "America/Toronto", day: "numeric", month: "long", year: "numeric" }).format(new Date(time)).replace(/^1 /, "1er ");
 }
@@ -67,6 +71,9 @@ export function bilingual(fr, en) {
 }
 
 export const TEMPLATES_FR = {
+  // Every other email to a press or its people (templatesFrPress.js); only the platform's own alerts stay English.
+  ...PRESS_TEMPLATES_FR,
+
   /** French twin of "shop-closed". */
   "shop-closed": ({ date, on, link }, { settings, pressName }) => {
     const day = dateFr(on, date);

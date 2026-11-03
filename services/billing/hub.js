@@ -67,7 +67,29 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
     return (await subscriptions.list()).some((other) => other.shopId !== row.shopId && other.customerId === row.customerId && other.card?.id === cardId && !ENDED.has(other.status));
   }
 
+  /**
+   * The province of the account's billing address (one Stripe customer), on every shop it pays for: it says which
+   * language the platform's emails go in when the press hasn't chosen one (Quebec: French first, templatesFr.js).
+   * Only a Canadian address has one that counts; null means "known, not in a province".
+   */
+  async function setProvince(row, address) {
+    const province = address?.country === "CA" ? address.state || null : null;
+    const shops = (await subscriptions.list()).filter((other) => other.customerId === row.customerId).map((other) => other.shopId);
+    for (const id of new Set([row.shopId, ...shops])) await save(id, { province }, null);
+  }
+
   return {
+    /**
+     * A shop billed before the province was kept (or whose address was typed on Stripe's own page): read it once from
+     * Stripe's customer. The daily dropped-apps sweep calls it before any closing email; once known it isn't read again.
+     */
+    async fillProvince(row) {
+      if (!row?.customerId || row.province !== undefined) return row?.province ?? null;
+      const customer = await call("GET", `/v1/customers/${row.customerId}`);
+      await setProvince(row, customer?.address ?? null);
+      return customer?.address?.country === "CA" ? customer.address.state || null : null;
+    },
+
     /** Saved cards, the primary one first: { cards: [{ id, words, brand, last4, expMonth, expYear, primary, expired }] }. */
     async paymentMethods(shopId) {
       const row = await rowFor(shopId);
@@ -156,12 +178,7 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
       // The province says which language the platform's emails go in when the press hasn't chosen one (Quebec: French
       // first, templatesFr.js mailLanguage). Only a Canadian address has one that counts.
       await save(shopId, { billingEmail: cleanEmail }, null);
-      if (cleanAddress) {
-        // The address is the account's (one Stripe customer), so every shop it pays for gets the same province.
-        const province = cleanAddress.country === "CA" ? cleanAddress.state ?? null : null;
-        const shops = (await subscriptions.list()).filter((other) => other.customerId === row.customerId).map((other) => other.shopId);
-        for (const id of new Set([shopId, ...shops])) await save(id, { province }, null);
-      }
+      if (cleanAddress) await setProvince(row, cleanAddress);
       await logChange(shopId, "billing-details-changed", { taxNumber: number ? number.type : null, address: Boolean(cleanAddress) });
       return { saved: true };
     },

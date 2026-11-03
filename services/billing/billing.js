@@ -380,6 +380,11 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
 
   /** One shop in the daily dropped-apps sweep: its closed apps, then a reminder or the close of a dropped one. */
   async function sweepOne(row, closed) {
+    // The language of this shop's emails, for one billed before the province was kept (hub.js fillProvince).
+    // A Stripe hiccup here never holds up the closing itself: the email goes in English and it's read again tomorrow.
+    if (row.province === undefined && row.customerId) {
+      await hub.fillProvince(row).catch((failure) => console.warn(`Reading the billing province for ${row.shopId} failed; tried again tomorrow:`, failure?.message || failure));
+    }
     if (Object.keys(row.closedApps ?? {}).length) await afterClosing(row.shopId);
     if (!row.appsClosing?.apps?.length) return;
     // A week before: one reminder, with the way to keep it (keepClosingApps), for a press who never opens the admin.
@@ -749,7 +754,23 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         canPayNow: OWING.has(row.status) && Boolean(row.hasCard),
         // The paying card runs out within a month (or has): the Billing page asks for a new one until it's saved.
         cardRunsOut: cardRunningOut(row, now()),
+        // The language of the platform's emails: the press's choice ("fr", "en" or "auto"), and what "auto" comes to.
+        emailLanguage: { choice: row.language ?? "auto", sends: mailLanguage(row) },
       };
+    },
+
+    /**
+     * The language of the platform's emails to this account ("fr", "en", or "auto": French then English for a Quebec
+     * billing address, else English). It's the person's, so every shop the account pays for (one Stripe customer) follows.
+     */
+    async setEmailLanguage({ shopId, language }) {
+      if (!["fr", "en", "auto"].includes(language)) throw new BillingError(400, "Choose French, English, or automatic.");
+      const row = await subscriptions.get(shopId);
+      if (!row) throw new BillingError(404, "This shop has no plan yet.");
+      const shops = row.customerId ? (await subscriptions.list()).filter((other) => other.customerId === row.customerId).map((other) => other.shopId) : [];
+      for (const id of new Set([shopId, ...shops])) await save(id, { language: language === "auto" ? null : language }, null);
+      await logChange(shopId, "email-language-changed", { language });
+      return { changed: true, emailLanguage: { choice: language, sends: mailLanguage({ ...row, language: language === "auto" ? null : language }) } };
     },
 
     /**
