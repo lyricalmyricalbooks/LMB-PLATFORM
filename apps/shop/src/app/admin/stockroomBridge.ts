@@ -28,6 +28,8 @@ export interface StockroomFair {
   totals: Array<{ cur: string; amount: number }>;
   methods: Array<{ label: string; sales: number; totals: Array<{ cur: string; amount: number }> }>;
   titles: Array<{ bookId: string; title: string; units: number; left: number | null; totals: Array<{ cur: string; amount: number }> }>;
+  /** Books sold today that are down to the till's "only a few left" count, fewest first. Absent from an older stockroom. */
+  low?: Array<{ bookId: string; title: string; left: number }>;
   upload: { tone: string; text: string };
 }
 

@@ -2,6 +2,7 @@
 // screen wake lock; the sale itself still goes through posConfirmSale().
 
 import { escapeHtml as esc } from './html.js';
+import { POS_LOW_STOCK_AT } from './pos-stock.js';
 
 /** Payment choices on the charge sheet, in thumb order. `value` is what the
  *  sale records, and must match the register's payment <select>. */
@@ -235,6 +236,8 @@ const totalsList = (totals) => Object.entries(totals || {}).sort(([a], [b]) => a
  * Today at the fair, for the combined admin (docs/combined-admin.md, step 4a): the end-of-day summary
  * (fairDaySummary), the fair's name and the upload state (fairSyncPill), as plain data. Read-only: the stockroom
  * stays the only place sales are recorded. Totals stay per currency; the best-selling ten books are listed.
+ * `low` names every book sold today that is down to the till's own "only a few left" count (POS_LOW_STOCK_AT),
+ * fewest first, so a book outside the best ten still shows before the next fair.
  */
 export function fairForAdmin(sum, fair, pill, day) {
   return {
@@ -245,6 +248,10 @@ export function fairForAdmin(sum, fair, pill, day) {
     totals: totalsList(sum?.totals),
     methods: (sum?.methods || []).map((m) => ({ label: m.label, sales: m.sales, totals: totalsList(m.totals) })),
     titles: (sum?.titles || []).slice(0, 10).map((t) => ({ bookId: t.bookId, title: t.title, units: t.units, left: t.left ?? null, totals: totalsList(t.totals) })),
+    low: (sum?.titles || [])
+      .filter((t) => Number.isFinite(t.left) && t.left <= POS_LOW_STOCK_AT)
+      .sort((a, b) => a.left - b.left || a.title.localeCompare(b.title))
+      .map((t) => ({ bookId: t.bookId, title: t.title, left: Math.max(0, t.left) })),
     upload: { tone: pill?.tone || 'ok', text: pill?.text || '' },
   };
 }
