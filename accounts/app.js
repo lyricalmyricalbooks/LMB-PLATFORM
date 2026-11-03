@@ -640,7 +640,9 @@ function dataButton(shop) {
   const data = el("button", { type: "button", className: "ghost", textContent: "Download all your data" });
   data.addEventListener("click", async () => {
     // What the copy holds follows the plan: a press with the stockroom alone has no website orders or customers.
-    const what = shop.plan === "stockroom" ? "books, stock, sales and settings" : shop.plan === "shop" ? "books, orders, customers and settings" : "books, orders, customers, stockroom and settings";
+    // An app the plan dropped stays in the copy while its 90 days to download last (shop.closed).
+    const has = (app) => shop.plan !== (app === "shop" ? "stockroom" : "shop") || (shop.closed ?? []).some((c) => c.app === app);
+    const what = !has("shop") ? "books, stock, sales and settings" : !has("stockroom") ? "books, orders, customers and settings" : "books, orders, customers, stockroom and settings";
     if (!window.confirm(`We'll gather everything in ${shop.pressName} (${what}) and email you a link that works for 7 days. Go ahead?`)) return;
     data.disabled = true;
     status.textContent = "Gathering your data…";

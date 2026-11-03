@@ -1290,7 +1290,7 @@ async function askThePress(shop, clicked, slot) {
 // ── The business side of Today (plan 19.7-19.9): income over time, failed plan payments, why presses leave. Each part
 // shows its own trouble in its own place, so one that can't load never hides the others. ──
 async function loadBusiness() {
-  await Promise.all([loadIncome(), loadPaymentTrouble(), loadLeaving()]);
+  await Promise.all([loadIncome(), loadPaymentTrouble(), loadLeaving(), loadAppsClosing()]);
 }
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -1420,6 +1420,33 @@ async function loadPaymentTrouble() {
       rows: shops,
       open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
     }));
+  } catch (failure) {
+    target.replaceChildren(emptyState(failure.message));
+  }
+}
+
+async function loadAppsClosing() {
+  const target = $("#apps-closing");
+  try {
+    const { shops, drops } = await api("GET", "/control/apps-closing");
+    const days = (n) => `${n} day${n === 1 ? "" : "s"}`;
+    // How often a press dropped an app and then kept it: many keeps would mean the plan page's drop confuses people.
+    const kept = drops.dropped
+      ? el("p", { className: "rp-hint", textContent: `Last 6 months: ${drops.dropped} app${drops.dropped === 1 ? "" : "s"} dropped, ${drops.kept} kept after all, ${drops.closed} closed, ${drops.waiting} still to close.` })
+      : null;
+    target.replaceChildren(shops.length
+      ? table({
+        caption: "Apps closing, soonest first",
+        columns: [
+          { header: "Shop", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.shopId, s.ownerEmail)) },
+          { header: "Closing", render: (s) => pill("warning", s.apps) },
+          { header: "Closes", render: (s) => `${dateOnly(s.closesAt)} (${days(s.daysLeft)})` },
+          { header: "Reminder", render: (s) => (s.reminded ? `Emailed ${dateOnly(s.reminded)}` : "Goes out a week before") },
+        ],
+        rows: shops,
+        open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
+      })
+      : emptyState("No app is closing.", "Nobody has dropped the website or the stockroom from their plan."), ...(kept ? [kept] : []));
   } catch (failure) {
     target.replaceChildren(emptyState(failure.message));
   }

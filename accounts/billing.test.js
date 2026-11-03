@@ -217,5 +217,6 @@ test("the account page's shop card says when an app is being set up or closing",
   const { changingLines } = await import("./billingWords.js");
   assert.deepEqual(changingLines({ adding: ["stockroom"], closing: null }), ["Your stockroom is being set up. We'll email you a link when it's ready."]);
   assert.deepEqual(changingLines({ adding: [], closing: { apps: ["shop"], at: "2026-11-30T15:00:00Z" } }), ["Your website closes on 30 November 2026. Changed your mind? Keep it under Plan & billing."]);
+  assert.deepEqual(changingLines({ closed: [{ app: "stockroom", downloadUntil: "2027-02-28T15:00:00Z" }] }), ["Your stockroom is closed. You can download everything that was in it until 28 February 2027, with Download all your data."]);
   assert.deepEqual(changingLines({}), []);
 });
