@@ -14,7 +14,8 @@
 //   says what would change and the prorated amount, changing nothing.
 // - invoices: the plan's invoices with Stripe's own PDF links (6.12).
 // - closeDroppedApps / cardExpiryReminders: daily sweeps. The first closes an app a plan dropped once its paid month
-//   ends; the second emails a month before the card on file runs out, once per card (6.12).
+//   ends (emailing a week before, with the way to keep it, and on the day, with where to download it); the second
+//   emails a month before the card on file runs out, once per card (6.12).
 // - tax: with `tax` on (BILLING_TAX, read in index.js), prices are "plus tax" and Stripe Tax adds the tax from the
 //   first charge after a card (and so an address) is on file (6.12). Off by default.
 // - handleEvent: Stripe's events for the platform account, checked by signature, each handled once. They keep the
@@ -117,6 +118,20 @@ export function fromSubscription(sub) {
   };
 }
 
+/**
+ * The record of apps a plan change dropped with the month's end still to come (so the press could change their mind):
+ * each `{ app, at, keptAt, closedAt }`, oldest first, the last 20 kept. The control room counts how many were kept
+ * (control-room/appsClosing.js). An app already waiting to close isn't dropped twice.
+ */
+export function noteDrops(drops, { dropped = [], kept = [], closed = [] }, when) {
+  const list = (drops ?? []).map((drop) => ({ ...drop }));
+  const waiting = (app) => list.findLast((drop) => drop.app === app && !drop.keptAt && !drop.closedAt);
+  for (const app of kept) { const drop = waiting(app); if (drop) drop.keptAt = when; }
+  for (const app of closed) { const drop = waiting(app); if (drop) drop.closedAt = when; }
+  for (const app of dropped) if (!waiting(app)) list.push({ app, at: when, keptAt: null, closedAt: null });
+  return list.slice(-20);
+}
+
 /** The plan that opens exactly these apps (the registry's `plan` says what is open). */
 export function planOpening(apps) {
   return PLAN_IDS.find((plan) => APPS.every((app) => PLAN_APPS[plan][app] === apps.includes(app))) ?? null;
@@ -166,7 +181,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   async function mirror(shopId, row) {
     if (!(await registry.getShop(shopId))) return;
     const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null } });
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
@@ -291,7 +306,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     }
     // The registry first: the shop's copies (save → shopPlan.js) and the shop maker read which apps are open from it.
     if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan: row.plan, closedApps });
-    const saved = await save(shopId, { appsClosing: null, closedApps }, null);
+    const saved = await save(shopId, { appsClosing: null, closedApps, appDrops: noteDrops(row.appDrops, { closed: apps }, closedAt) }, null);
     await logChange(shopId, "app-closed", { apps, downloadUntil });
     return saved;
   }
@@ -550,7 +565,9 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       // The registry first: the shop's copies read which apps are open from it, and the shop maker's sweep builds an
       // added app from it (signup/shopMaker.js syncPlan).
       if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan: move.openPlan, closedApps, ...(terms ? { payAsYouSell: terms } : {}) });
-      let saved = await save(shopId, { ...(sub ? fromSubscription(sub) : {}), plan, planChanges: changes, appsClosing, closedApps, ...(terms ? { payAsYouSell: terms } : {}) }, "plan-changed");
+      // Which apps the press dropped with time to change their mind, and which closing ones they kept after all.
+      const appDrops = noteDrops(row.appDrops, { dropped: appsClosing?.apps ?? [], kept: (row.appsClosing?.apps ?? []).filter((app) => PLAN_APPS[plan][app]) }, at());
+      let saved = await save(shopId, { ...(sub ? fromSubscription(sub) : {}), plan, planChanges: changes, appsClosing, closedApps, appDrops, ...(terms ? { payAsYouSell: terms } : {}) }, "plan-changed");
       if (move.immediate && move.closes.length) saved = await closeApps(shopId, move.closes);
       const closing = move.closes.length ? { closing: move.closes.map((app) => APP_NAMES[app]).join(" and "), date: dateText(move.closesAt), now: move.immediate } : {};
       await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing }, `${shopId}/plan/${changes}`);
@@ -641,12 +658,16 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         // A week before: one reminder, with the way to keep it (keepClosingApps), for a press who never opens the admin.
         if (Date.parse(row.appsClosing.at) > now()) {
           if (!row.appsClosing.reminded && Date.parse(row.appsClosing.at) - now() <= CLOSING_REMINDER_DAYS * DAY) {
-            await notify(row.shopId, "app-closing-soon", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(row.appsClosing.at) }, `${row.shopId}/app-closing-soon/${row.appsClosing.at}`);
+            // The button lands on the plan page with "Keep it" ready (accounts/billing.js reads `keep=closing`).
+            await notify(row.shopId, "app-closing-soon", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(row.appsClosing.at), link: `${accountLink(row.shopId)}&keep=closing` }, `${row.shopId}/app-closing-soon/${row.appsClosing.at}`);
             await save(row.shopId, { appsClosing: { ...row.appsClosing, reminded: at() } }, null);
           }
           continue;
         }
-        await closeApps(row.shopId, row.appsClosing.apps);
+        const saved = await closeApps(row.shopId, row.appsClosing.apps);
+        // The day it closes: where the press downloads what was in it, and until when.
+        const downloadUntil = row.appsClosing.apps.map((app) => saved.closedApps?.[app]?.downloadUntil).find(Boolean);
+        await notify(row.shopId, "app-closed", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(downloadUntil), link: `${settings.platformUrl}/accounts/` }, `${row.shopId}/app-closed/${row.appsClosing.at}`);
         closed.push({ shopId: row.shopId, apps: row.appsClosing.apps });
       }
       return closed;

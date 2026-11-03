@@ -3,7 +3,7 @@
 // Stripe's PDF links; the card-expiring email once per card; and BILLING_TAX turning Stripe Tax on (off by default).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cardEnds, createBilling, planOpening } from "./billing.js";
+import { cardEnds, createBilling, noteDrops, planOpening } from "./billing.js";
 import { readBillingConfig } from "./index.js";
 import { fakeBillingStores, fakeBillingStripe, fakePlatformEmail } from "./fakes.js";
 import { createStripeApi } from "../payments/stripeApi.js";
@@ -256,4 +256,49 @@ test("a week before a dropped app closes, the press gets one reminder with the w
   assert.equal(sent.length, 1, "once");
   assert.equal(sent[0].data.closing, "the stockroom");
   assert.match(TEMPLATES["app-closing-soon"](sent[0].data, { settings: platformSettings({}), pressName: "Moth Press" }).subject, /^The stockroom for Moth Press closes on /);
+  // The button lands on the plan page with Keep it ready.
+  assert.match(sent[0].data.link, /\/account\/billing\?shop=moth-press&keep=closing$/);
+});
+
+test("the day a dropped app closes, the press is emailed where to download it and until when", async () => {
+  const w = make();
+  const row = await w.start();
+  await w.payMonth(row);
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  w.tick(31);
+  await w.billing.closeDroppedApps();
+  await w.billing.closeDroppedApps();
+  const sent = w.email.list().filter((m) => m.kind === "app-closed");
+  assert.equal(sent.length, 1, "once");
+  const { downloadUntil } = (await w.stores.subscriptions.get(SHOP)).closedApps.stockroom;
+  assert.equal(sent[0].data.closing, "the stockroom");
+  assert.match(sent[0].data.link, /\/accounts\/$/);
+  const mail = TEMPLATES["app-closed"](sent[0].data, { settings: platformSettings({}), pressName: "Moth Press" });
+  assert.match(mail.subject, /^The stockroom for Moth Press is closed\. Download it by /);
+  assert.ok(mail.subject.endsWith(sent[0].data.date) && sent[0].data.date.length > 0, "the last day to download");
+  assert.equal(Date.parse(downloadUntil) - (START + 31 * DAY), 90 * DAY);
+});
+
+test("every app dropped with time to change their mind is recorded as kept or closed, for the control room", async () => {
+  const w = make();
+  const row = await w.start();
+  await w.payMonth(row);
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  await w.billing.keepClosingApps({ shopId: SHOP });
+  await w.billing.changePlan({ shopId: SHOP, plan: "stockroom" });
+  w.tick(31);
+  await w.billing.closeDroppedApps();
+  const drops = (await w.registry.getShop(SHOP)).billing.appDrops;
+  assert.deepEqual(drops.map((d) => [d.app, Boolean(d.keptAt), Boolean(d.closedAt)]), [["stockroom", true, false], ["shop", false, true]]);
+});
+
+test("noteDrops: an app waiting to close isn't dropped twice; a plan change back keeps it; the last 20 are kept", () => {
+  let drops = noteDrops([], { dropped: ["stockroom"] }, "t1");
+  drops = noteDrops(drops, { dropped: ["stockroom"] }, "t2");
+  assert.deepEqual(drops, [{ app: "stockroom", at: "t1", keptAt: null, closedAt: null }]);
+  drops = noteDrops(drops, { kept: ["stockroom"] }, "t3");
+  drops = noteDrops(drops, { closed: ["stockroom"] }, "t4");
+  assert.deepEqual(drops, [{ app: "stockroom", at: "t1", keptAt: "t3", closedAt: null }], "nothing left waiting to close");
+  for (let i = 0; i < 25; i += 1) drops = noteDrops(drops, { dropped: ["shop"], closed: ["shop"] }, `x${i}`);
+  assert.equal(drops.length, 20);
 });

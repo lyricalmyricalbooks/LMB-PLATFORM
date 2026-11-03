@@ -287,3 +287,15 @@ test("the shop card knows an app is being set up until the shop maker has built 
   assert.deepEqual(shop.adding, []);
   assert.deepEqual(shop.closing, { apps: ["stockroom"], at: "2026-11-30T15:00:00Z" });
 });
+
+test("the shop card lists a dropped app that has closed while its data can still be downloaded", async () => {
+  const w = world();
+  const later = "2099-01-01T00:00:00.000Z";
+  const gone = "2000-01-01T00:00:00.000Z";
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), plan: "shop", builtPlan: "shop", closedApps: { stockroom: { closedAt: gone, downloadUntil: later } } });
+  let [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.closed, [{ app: "stockroom", downloadUntil: later }]);
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), closedApps: { stockroom: { closedAt: gone, downloadUntil: gone } } });
+  [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.closed, [], "its 90 days are over");
+});

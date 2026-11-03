@@ -5,11 +5,13 @@
 //   GET /api/control/income           the 12-month line, money kept and lost this month, trials that became paying
 //   GET /api/control/leaving          answers by month and reason, counts, latest words, and the save list
 //   GET /api/control/payment-trouble  shops whose plan payment is failing or paused, most urgent first
+//   GET /api/control/apps-closing     shops with an app their plan dropped closing soon, and how many drops were kept
 //
 // Clients:
 //   registry       listShops()
 //   incomeHistory  optional: the nightly income records (incomeHistory.js); without it the line is empty
 //   admins         the platform admins (controlRoomAdmins)
+import { appsClosing } from "./appsClosing.js";
 import { adminOf } from "./controlRoom.js";
 import { history } from "./incomeHistory.js";
 import { leavingSummary, saveList } from "./leaving.js";
@@ -34,6 +36,11 @@ export function createBusinessRoom({ registry, incomeHistory = null, admins, now
       adminOf(claims, admins, now().getTime());
       return { shops: paymentTrouble(await registry.listShops(), now()) };
     },
+
+    async appsClosing(claims) {
+      adminOf(claims, admins, now().getTime());
+      return appsClosing(await registry.listShops(), now());
+    },
   };
 }
 
@@ -42,5 +49,6 @@ export function businessRoutes(room) {
     "GET /api/control/income": (claims) => room.income(claims),
     "GET /api/control/leaving": (claims) => room.leaving(claims),
     "GET /api/control/payment-trouble": (claims) => room.paymentTrouble(claims),
+    "GET /api/control/apps-closing": (claims) => room.appsClosing(claims),
   };
 }

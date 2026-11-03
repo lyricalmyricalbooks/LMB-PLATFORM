@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SETTINGS_ITEM_PREFIX } from "../app/admin/riso/nav";
+import { NAV, SETTINGS_ITEM_PREFIX, sidebarItems } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
 import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, pageFromHash, setupLocked, setupMenu, setupMenuItemFor, setupPageLabel } from "./pages";
 
@@ -10,17 +10,17 @@ const press = (over: Partial<SetupPress> = {}): SetupPress => ({
 describe("setup mode's menu (code plan 18.6)", () => {
   const menu = setupMenu();
 
-  it("is the admin's own five items, then Plan and billing and Help", () => {
-    expect(menu.map((i) => i.label)).toEqual(["Home", "Orders", "Books", "Design", "Settings", "Plan and billing", "Help"]);
+  it("is exactly the admin's own menu, with Plan under Settings", () => {
+    expect(menu).toEqual(sidebarItems(NAV));
+    expect(menu.map((i) => i.label)).toEqual(["Home", "Orders", "Books", "Design", "Settings"]);
   });
 
-  it("moves Plan out of Settings into its own item", () => {
+  it("keeps Plan under Settings, as the open shop's admin does", () => {
     const settings = menu.find((i) => i.label === "Settings")!;
-    expect(settings.children?.map((c) => c.id)).not.toContain(PLAN_PAGE);
-    expect(menu.find((i) => i.label === "Plan and billing")!.id).toBe(PLAN_PAGE);
+    expect(settings.children?.map((c) => c.id)).toContain(PLAN_PAGE);
   });
 
-  it("opens Home, Design, General, Plan and billing and Help, and locks every other page", () => {
+  it("opens Home, Design, General, Plan and Help, and locks every other page", () => {
     for (const page of [HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE]) expect(setupLocked(page)).toBe(false);
     const every = menu.flatMap((i) => (i.children ? i.children.map((c) => c.id) : [i.id]));
     const locked = every.filter(setupLocked);
@@ -30,9 +30,10 @@ describe("setup mode's menu (code plan 18.6)", () => {
 
   it("names each page and finds the item that holds it", () => {
     expect(setupPageLabel("customers", menu)).toBe("Customers");
-    expect(setupPageLabel(PLAN_PAGE, menu)).toBe("Plan and billing");
+    expect(setupPageLabel(PLAN_PAGE, menu)).toBe("Plan");
+    expect(setupPageLabel(HELP_PAGE, menu)).toBe("Help");
     expect(setupMenuItemFor(SETTINGS_ITEM_PREFIX + "shipping", menu)).toBe(GENERAL_PAGE);
-    expect(setupMenuItemFor(PLAN_PAGE, menu)).toBe(PLAN_PAGE);
+    expect(setupMenuItemFor(PLAN_PAGE, menu)).toBe(GENERAL_PAGE);
   });
 
   it("reads the page from the address, and anything unknown opens Home", () => {
