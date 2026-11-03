@@ -8,7 +8,9 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 - **When:** the shop profile has `apps.shop` and `apps.stockroom` both `true` (`combinedAdmin()` in
   `apps/shop/src/app/admin/combined.ts`; the stockroom's `combinedPlan()` in `apps/stockroom/src/lib/inside-admin.js`).
 - **One menu** (`COMBINED_MENU` in `apps/shop/src/app/admin/riso/nav.ts`), grouped by the job, as Shopify does:
-  Home · Orders · Books · Sell in person · Marketing · Money · Online store · Settings. It holds every page of the
+  Home · Orders · Books · Sell in person · Marketing · Money · Online store · Settings ("Products" for a shop that
+  doesn't sell books, through the same `adminWordsFor` as the rest of the admin). Settings reads NAV's Settings pages,
+  so a new one (Plan, Billing) appears in both menus. It holds every page of the
   website admin's own menu and the stockroom pages listed in `STOCKROOM_PAGES` (tests check both). The stockroom's
   Website orders, Web Analytics and Help are left out: the admin already has one of each. Its Shipping page stays
   as Orders › Parcels and labels (labels for parcels that aren't website orders).
@@ -17,6 +19,8 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
   removes it for every other shop, since the build is shared). `/stockroom/app` is rewritten to its `index.html`
   (`apps/shop/firebase.json`). Same address, same Firebase project and web key, so the admin's sign-in is the
   stockroom's too. The stockroom's own `<project>-stockroom` site still deploys, for authors and old links.
+  Every deploy into the shared build folder (rules, data changes, server code, pages) holds a lock file there
+  (`clients/build-lock.js`), so two shops' deploys take turns and never send one shop's files with another's.
 - **Stockroom pages inside the admin:** `StockroomFrame.tsx` opens one frame the first time a stockroom page is picked
   and keeps it (hidden on other pages), so the fair till and the offline copy survive moving around. Address:
   `#stockroom/<page>`, each page a Back step.

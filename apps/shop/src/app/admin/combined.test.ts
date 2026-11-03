@@ -8,6 +8,7 @@ import {
 import { COMBINED_MENU, MENU, NAV, menuItemFor, sidebarItems } from "./riso/nav";
 import { hashForRoute, routeFromHash, sameSection } from "./adminRoute";
 import { DEFAULT_SHOP_PROFILE } from "../../lib/shopProfile";
+import { adminWordsFor } from "./sells";
 
 const profile = (shop: boolean, stockroom: boolean) => ({ ...DEFAULT_SHOP_PROFILE, apps: { shop, stockroom } });
 const stockroomRoot = join(__dirname, "..", "..", "..", "..", "stockroom");
@@ -38,6 +39,20 @@ describe("the combined admin (shop + stockroom plan)", () => {
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "pos", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
     expect(menuItemFor(STOCKROOM_ITEM_PREFIX + "consignment", COMBINED_MENU)).toBe(STOCKROOM_ITEM_PREFIX + "pos");
     expect(menuItemFor("customers", COMBINED_MENU)).toBe("orders");
+  });
+
+  it("speaks the shop's words: Products for a shop that sells clothing, Books for a press", () => {
+    const labels = (answer: string) => sidebarItems(NAV, COMBINED_MENU).map((item) => adminWordsFor(answer)(item.label));
+    expect(labels("clothing")).toContain("Products");
+    expect(labels("clothing")).not.toContain("Books");
+    expect(labels("books")).toContain("Books");
+  });
+
+  it("keeps every Settings page in both menus, so a new one (billing) shows in the combined admin too", () => {
+    const settings = (menu: typeof MENU) => menu.find((g) => g.label === "Settings")?.pages;
+    expect(settings(COMBINED_MENU)).toEqual(expect.arrayContaining(settings(MENU) || []));
+    const navSettings = NAV.find((n) => n.id === "settings")?.children?.map((c) => "settings/" + c.id).filter((id) => id !== "settings/designer");
+    expect(settings(MENU)).toEqual(navSettings);
   });
 
   it("names only stockroom pages that exist, by the stockroom's own tab names", () => {
