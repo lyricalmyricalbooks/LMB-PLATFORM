@@ -73,9 +73,9 @@ function useChange(after: () => Promise<void> | void) {
 const Facts = ({ rows }: { rows: Array<[string, ReactNode]> }) => (
   <dl style={{ margin: 0, display: "grid", gap: 10 }}>
     {rows.map(([label, value]) => (
-      <div key={label} style={{ display: "grid", gridTemplateColumns: "minmax(110px, 35%) 1fr", gap: 12 }}>
+      <div key={label} style={{ display: "grid", gridTemplateColumns: "minmax(96px, 35%) minmax(0, 1fr)", gap: 12 }}>
         <dt className="rp-label">{label}</dt>
-        <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{value}</dd>
+        <dd style={{ margin: 0, minWidth: 0, overflowWrap: "anywhere" }}>{value}</dd>
       </div>
     ))}
   </dl>
@@ -113,7 +113,7 @@ export function PlanPage({ plan }: Hub) {
   const badge = statusBadge(billing);
   const ended = ["canceled", "incomplete_expired"].includes(billing.status);
   const price = billing.founding?.price
-    ? <><s className="rp-hint">{billing.price}</s> {billing.founding.price} a month{billing.plusTax ? " plus tax" : ""} <StatusBadge tone="success">Founding press: {billing.founding.percentOff}% off for good</StatusBadge></>
+    ? <><s className="rp-hint">{billing.price}</s> {billing.founding.price} a month{billing.plusTax ? " plus tax" : ""}<span style={{ display: "block", marginTop: 6 }}><StatusBadge tone="success">Founding: {billing.founding.percentOff}% off for good</StatusBadge></span></>
     : `${billing.price} a month${billing.plusTax ? " plus tax" : ""}`;
 
   const facts: Array<[string, ReactNode]> = [["Plan", billing.planName || "Not chosen yet"], ["Price", price]];

@@ -84,7 +84,7 @@ describe("Settings › Plan", () => {
     await mount(PlanPage);
     expect(text()).toContain("Shop and stockroom");
     expect(text()).toContain("$29.25 a month plus tax");
-    expect(text()).toContain("Founding press: 25% off for good");
+    expect(text()).toContain("Founding: 25% off for good");
     expect(text()).toContain("14 days left");
     expect(text()).toContain("Visa ending 4242");
     expect(text()).toContain("Switch to pay as you sell");
