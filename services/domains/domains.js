@@ -305,7 +305,9 @@ export function createDomainService({
     const domains = domainsOf(row);
     if (!domains.some((d) => d.name === name)) {
       if (domains.length >= MAX_DOMAINS) throw new DomainError(409, "too_many", `A shop can have ${MAX_DOMAINS} addresses of its own.`);
-      const holder = (await registry.listShops()).find((other) => other?.shopId !== shopId && domainsOf(other).some((d) => d.name === name));
+      // Held by another shop as an address, or still as the address its emails come from (services/email/ownDomain.js).
+      const holder = (await registry.listShops()).find((other) => other?.shopId !== shopId
+        && (domainsOf(other).some((d) => d.name === name) || other?.emailSender?.domain === name));
       if (holder) throw new DomainError(409, "in_use", "That address is already connected to another shop.");
       await registry.updateShop(shopId, { domains: [...domains, { name, state: "connecting", addedAt: iso() }] });
       await logChange(shopId, `domain-added-${name}`, { kind: "domains.added", domain: name });
@@ -356,8 +358,13 @@ export function createDomainService({
     }
     if (mainAddress(row) === name) throw new DomainError(409, "is_main", "This is your shop's main address. Make another address main first, then remove this one.");
     await hosting.removeDomain(projectOf(row), name);
-    await registry.updateShop(shopId, { domains: domainsOf(row).filter((d) => d.name !== name) });
+    // The shop's emails stop coming from orders@<this address> too (its email lines went with the entry), so the
+    // address is free for whoever owns it next. The Resend domain is reused if this shop or another connects it again.
+    const fields = { domains: domainsOf(row).filter((d) => d.name !== name) };
+    if (row.emailSender?.domain === name) fields.emailSender = null;
+    await registry.updateShop(shopId, fields);
     await logChange(shopId, `domain-removed-${name}-${iso()}`, { kind: "domains.removed", domain: name });
+    if (fields.emailSender === null) await logChange(shopId, `domain-email-sender-off-${name}-${iso()}`, { kind: "domains.email-sender-off", domain: name });
     await syncServer(await rowOf(shopId));
     return { removed: name, ...(await list(shopId)) };
   }

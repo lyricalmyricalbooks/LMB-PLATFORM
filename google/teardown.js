@@ -112,8 +112,23 @@ export function createGoogleTeardown({ google, tokens, shopFirebase, domainsCall
     },
 
     async giveBackAccess(ctx) {
-      await tokens.revoke(ctx.shopId);
-      return { state: "done", detail: "Colophon gave back its access to your Google account." };
+      // Google keeps one grant per account for Colophon, so while another open shop is connected with the same Google
+      // account, only this shop's tokens are forgotten: revoking the grant would cut that shop off too.
+      const account = (await tokens.get(ctx.shopId))?.accountEmail ?? ctx.google.accountEmail ?? null;
+      let shared = false;
+      if (account) {
+        for (const other of await registry.listShops()) {
+          if (!other?.shopId || other.shopId === ctx.shopId || other.google?.accountEmail !== account || other.google.closedAt || other.google.deletedAt) continue;
+          if (tokens.live(await tokens.get(other.shopId))) { shared = true; break; }
+        }
+      }
+      await tokens.revoke(ctx.shopId, { atGoogle: !shared });
+      return {
+        state: "done",
+        detail: shared
+          ? "This shop no longer uses your Google account. Your other shop connected with the same account keeps its access."
+          : "Colophon gave back its access to your Google account.",
+      };
     },
 
     async removeDomain(ctx) {

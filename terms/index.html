@@ -21,7 +21,7 @@
     <div class="mark">Colophon · terms &amp; privacy</div>
     <h1 class="cp-title">Our promises</h1>
     <p class="cp-lede">What we promise your press, what we do with your data, and what happens to your shop if Colophon ever closes. All on one page, in plain words.</p>
-    <div id="terms" style="margin-top:28px"></div>
+    <div id="terms-page" style="margin-top:28px"></div>
   </div>
 </main>
 <footer>
@@ -39,7 +39,7 @@
     document.querySelector(".cp-title").textContent = PAGE_FR.title;
     document.querySelector(".cp-lede").textContent = PAGE_FR.lede;
   }
-  document.getElementById("terms").innerHTML = renderTerms(lang);
+  document.getElementById("terms-page").innerHTML = renderTerms(lang);
 </script>
 </body>
 </html>

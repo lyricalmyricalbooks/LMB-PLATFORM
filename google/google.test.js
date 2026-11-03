@@ -406,6 +406,21 @@ async function connected(options) {
   return t;
 }
 
+test("closing one shop leaves Google's grant alone while another open shop uses the same Google account", async () => {
+  const t = await connected();
+  const account = (await t.shopRow()).google.accountEmail;
+  assert.ok(account);
+  await t.registry.createShop("press-two", { shopId: "press-two", projectId: "press-two", status: "live", google: { accountEmail: account, connectedAt: new Date(START).toISOString() } });
+  await t.connections.set("press-two", { shopId: "press-two", accountEmail: account, sealed: "sealed-elsewhere", revokedAt: null });
+  const result = await t.link.teardown.teardownOnClose(SHOP);
+  const step = result.steps.find((s) => s.step === "giveBackAccess");
+  assert.equal(step.state, "done");
+  assert.match(step.detail, /other shop .* keeps its access/);
+  assert.equal(t.google.world.revoked.size, 0, "the shared grant is not revoked");
+  assert.ok(t.connections.map.get(SHOP).revokedAt, "this shop's tokens are forgotten");
+  assert.equal(t.connections.map.get(SHOP).sealed, null);
+});
+
 test("a pause disconnects nothing", async () => {
   const t = await connected();
   const calls = t.google.calls.length;
@@ -556,6 +571,15 @@ test("a Gmail email keeps its headers on one line each", () => {
   const raw = Buffer.from(rawEmail({ from: '"Moth" <owner@example.com>', to: "a@example.com\r\nBcc: x@example.com", subject: "Hi", text: "Hello" }), "base64url").toString("utf8");
   assert.match(raw, /^To: a@example.com Bcc: x@example.com\r$/m);
   assert.ok(!/^Bcc:/m.test(raw));
+});
+
+test("a French press name in the From line is encoded like the subject, and a plain one stays as it is", () => {
+  const raw = (from) => Buffer.from(rawEmail({ from, to: "a@example.com", subject: "Commande", text: "Merci" }), "base64url").toString("utf8");
+  const accented = raw('"Éditions du Hérisson" <owner@example.com>');
+  const encoded = Buffer.from("Éditions du Hérisson", "utf8").toString("base64");
+  assert.match(accented, new RegExp(`^From: =\\?UTF-8\\?B\\?${encoded.replace(/[+/=]/g, "\\$&")}\\?= <owner@example\\.com>\\r$`, "m"));
+  assert.doesNotMatch(accented.split("\r\n\r\n")[0], /[^\x00-\x7e]/, "the headers are plain ASCII");
+  assert.match(raw('"Moth Press" <owner@example.com>'), /^From: "Moth Press" <owner@example\.com>\r$/m);
 });
 
 // ---- On the closing sweep's timeline (6.8 + 6.20) ----

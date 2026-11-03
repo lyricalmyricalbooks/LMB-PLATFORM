@@ -73,15 +73,21 @@ export function createTokens({ google, connections, config, now = () => Date.now
       return { token: renewed.accessToken, scopes: renewed.scopes?.length ? renewed.scopes : conn.scopes, accountEmail: conn.accountEmail, extras: conn.extras ?? [] };
     },
 
-    /** Gives Colophon's access back to the press's Google account and forgets the tokens. Safe to run twice. */
-    async revoke(shopId) {
+    /**
+     * Gives Colophon's access back to the press's Google account and forgets the tokens. Safe to run twice.
+     * `atGoogle: false` only forgets them: Google keeps one grant per account for Colophon (include_granted_scopes), so
+     * revoking it would also cut off another shop connected with the same account.
+     */
+    async revoke(shopId, { atGoogle = true } = {}) {
       const conn = await connections.get(shopId);
       if (!live(conn)) return { revoked: false };
-      const { refreshToken } = unseal(key(), bound(shopId), conn.sealed);
-      // Revoking the refresh token ends every access token made from it.
-      await google.revoke(refreshToken);
+      if (atGoogle) {
+        const { refreshToken } = unseal(key(), bound(shopId), conn.sealed);
+        // Revoking the refresh token ends every access token made from it.
+        await google.revoke(refreshToken);
+      }
       await connections.set(shopId, { ...conn, sealed: null, accessExpiresAt: null, revokedAt: new Date(now()).toISOString() });
-      return { revoked: true };
+      return { revoked: atGoogle, forgotten: true };
     },
   };
 }

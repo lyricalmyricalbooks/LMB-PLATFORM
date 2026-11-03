@@ -90,6 +90,11 @@ export function createReputationGuard({ store, sentLog, registry, email, repairs
       if (!kind || !shopId || tags.stream !== "newsletter") return { counted: false, paused: false };
       const id = String(eventId || event.data?.email_id || "").slice(0, 200);
       if (!id) return { counted: false, paused: false };
+      // A complaint can arrive days after the email went out. One about an email sent before a resume belongs to the
+      // problem that was already dealt with, so it doesn't count again (Resend's data.created_at is when it was sent).
+      const before = await store.getState(shopId);
+      const sentAt = Date.parse(event.data?.created_at ?? "");
+      if (!before?.paused && before?.resumedAt && sentAt < Date.parse(before.resumedAt)) return { counted: false, paused: false };
       if (!(await store.addEvent(shopId, { id: `${kind}/${id}`, kind, at: event.created_at || at() }))) return { counted: false, paused: false };
       const state = await store.getState(shopId);
       if (state?.paused) return { counted: true, paused: false };

@@ -68,6 +68,20 @@ export function createOwnDomainSender({ resendDomains, registry, auditLog, domai
     return { ...row, shopId };
   }
 
+  /** Another shop whose sender uses this domain (by name or Resend's id), or null. One Resend domain, one shop. */
+  async function otherHolder(shopId, { name = null, id = null }) {
+    return (await registry.listShops()).find((other) => other?.shopId !== shopId && other?.emailSender
+      && ((name && other.emailSender.domain === name) || (id && other.emailSender.resendDomainId === id))) ?? null;
+  }
+
+  /** Takes the shop's own-domain sender away: its records, then Resend's domain unless another shop sends from it. */
+  async function dropSender(shopId, row, sender) {
+    await domainsCall("removeRecords", row, { domain: sender.domain, purpose: "email" });
+    if (!(await otherHolder(shopId, { name: sender.domain, id: sender.resendDomainId }))) await resendDomains.remove(sender.resendDomainId);
+    await registry.updateShop(shopId, { emailSender: null });
+    await logChange(shopId, "email.own-domain-removed", { domain: sender.domain });
+  }
+
   /** Reads Resend's state and switches the sender on, or back to Colophon's when the records broke. */
   async function check(shopId) {
     const row = await rowOf(shopId);
@@ -105,7 +119,14 @@ export function createOwnDomainSender({ resendDomains, registry, auditLog, domai
       if (!DOMAIN.test(name)) throw new Error("That isn't a web address the shop can send from");
       const row = await rowOf(shopId);
       if (row.emailSender?.domain === name && row.emailSender.resendDomainId) return check(shopId);
-      const found = (await resendDomains.find(name)) ?? (await resendDomains.create(name));
+      // A Resend domain is reused only when no other shop sends from it, so one shop can't take over another's sender.
+      const taken = new Error("That address already sends another shop's emails");
+      if (await otherHolder(shopId, { name })) throw taken;
+      const existing = await resendDomains.find(name);
+      if (existing && (await otherHolder(shopId, { id: existing.id }))) throw taken;
+      // Switching address: the old one's records and Resend domain go first, so nothing is left sending from it.
+      if (row.emailSender?.resendDomainId) await dropSender(shopId, row, row.emailSender);
+      const found = existing ?? (await resendDomains.create(name));
       const added = await domainsCall("addRecords", row, { domain: name, records: found.records ?? [], purpose: "email" });
       const emailSender = {
         domain: name, address: `orders@${name}`, resendDomainId: found.id, state: "checking", since: iso(),
@@ -128,15 +149,15 @@ export function createOwnDomainSender({ resendDomains, registry, auditLog, domai
       return results;
     },
 
-    /** The shop is being deleted (google/teardown.js): the records and Resend's domain go; Colophon's sender stays. */
+    /**
+     * The shop is being deleted (google/teardown.js): the records and Resend's domain go, unless another shop now sends
+     * from that domain; Colophon's sender stays.
+     */
     async disconnect(shopId) {
       const row = await rowOf(shopId);
       const sender = row.emailSender;
       if (!sender?.resendDomainId) return { removed: false };
-      await domainsCall("removeRecords", row, { domain: sender.domain, purpose: "email" });
-      await resendDomains.remove(sender.resendDomainId);
-      await registry.updateShop(shopId, { emailSender: null });
-      await logChange(shopId, "email.own-domain-removed", { domain: sender.domain });
+      await dropSender(shopId, row, sender);
       return { removed: true };
     },
   };

@@ -238,6 +238,10 @@ test("the page: one sign-in, every shop, owners manage the team; built without m
   }
   assert.doesNotMatch(app, /innerHTML|insertAdjacentHTML|document\.write/, "names and emails are shown as text only");
   assert.doesNotMatch(app, /node:/, "the page loads nothing made for Node");
+  // The help, status and billing pages link to /account/#get-help: the page opens the help form for it after sign-in.
+  assert.match(app, /location\.hash !== "#get-help"/);
+  assert.match(app, /await openShops\(\);\s*openHelpFromLink\(\);/);
+  assert.match(app, /addEventListener\("hashchange", openHelpFromLink\)/);
   const words = (page + app).toLowerCase();
   for (const rival of ["big cartel", "bigcartel", "shopify", "squarespace", "etsy", "wix", "woocommerce"]) assert.ok(!words.includes(rival), rival);
 });
