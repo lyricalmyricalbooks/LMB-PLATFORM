@@ -49,7 +49,7 @@ test("every billing change writes the shop's plan document: trial, card, cancel,
   const row = await t.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "shop" });
   assert.deepEqual(t.plan(), {
     plan: "shop", state: "trial", access: "open", trialEnd: new Date(NOW + 14 * DAY).toISOString(), nextPaymentAt: null,
-    hasCard: false, cancelAtPeriodEnd: false, endsAt: null, paymentWay: "monthly", link: LINK, closing: null, changing: null,
+    hasCard: false, cancelAtPeriodEnd: false, endsAt: null, paymentWay: "monthly", link: LINK, hub: "https://platform.example/api/shop-billing/", shopId: "moth-press", founding: false, closing: null, changing: null,
     updatedAt: new Date(NOW).toISOString(),
   });
   assert.deepEqual(t.status(), { access: "open", updatedAt: new Date(NOW).toISOString() });
