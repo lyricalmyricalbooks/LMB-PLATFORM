@@ -84,7 +84,9 @@ export async function seedRoom(world) {
     { type: "catalog", message: "Old shop links: 48 now lead to the imported books" },
   ];
   for (const [i, line] of lines.entries()) await world.shopData.set("kestrel", `audit-log/brought-${i}`, { ...line, createdAt: at });
-  await world.shopData.set("kestrel", "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": at, "move-giftcards": at, "move-orders": at } });
+  // Its move stopped part-way ten days ago (pages and old links still to do), so Today flags it.
+  const tenDaysAgo = new Date(world.clock.ms() - 10 * 86_400_000).toISOString();
+  await world.shopData.set("kestrel", "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": tenDaysAgo, "move-giftcards": tenDaysAgo, "move-orders": tenDaysAgo } });
   await world.shopData.set("kestrel", "systemStatus/photoImport", { copiedTotal: 57, pending: 3, failed: {}, lastRunAt: at });
 
   // Drifting away: Lantern sold five zines five weeks ago and none since, and Lou last signed in 40 days ago; Kestrel
@@ -97,6 +99,19 @@ export async function seedRoom(world) {
   world.shopAccess.lastSignIn.set("lantern-zines lou@example.com", daysAgo(40));
   world.shopAccess.lastSignIn.set("kestrel kit@example.com", daysAgo(1));
   await world.driftWatch.sweep();
+
+  // Selling away from the website: Kestrel sent three payment links (two paid, one waiting) and rang up two checkouts on
+  // the fair till, one by a fair helper.
+  for (const [i, [days, total, paid]] of [[20, 45, true], [6, 28.5, true], [1, 60, false]].entries()) {
+    await world.shopData.set("kestrel", `orders/link-${i}`, { source: "payment_link", total, createdAt: daysAgo(days), ...(paid ? { status: "paid", paymentStatus: "paid", paidAt: daysAgo(days) } : { status: "pending_payment", paymentStatus: "unpaid" }) });
+  }
+  const fairDay = daysAgo(12).slice(0, 10);
+  await world.stockroomData.set("kestrel", "settings/catalog", { data: JSON.stringify({ birdsong: { title: "Birdsong" } }), ts: 1 });
+  await world.stockroomData.set("kestrel", "books/birdsong/data/hist", { data: JSON.stringify([
+    { num: "POS-101", chan: "Book Fair", qty: 2, price: 22, date: fairDay },
+    { num: "FH-7", chan: "Book Fair", qty: 1, price: 22, date: fairDay },
+  ]), ts: 1 });
+  await world.stockroomData.set("kestrel", "fairSales/FH-7", { by: "sam@example.com", at: daysAgo(12), lines: [{ bookId: "birdsong", qty: 1 }] });
 
   // Two presses still in setup mode, through the front door's own calls, for the Setting up page.
   for (const [owner, answers] of SETUP_PRESSES) {

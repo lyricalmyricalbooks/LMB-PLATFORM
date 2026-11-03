@@ -8,8 +8,18 @@
 // and when each person last signed in to its own sign-in. A sign-in the platform can't read yet (hosted, until each
 // shop's sign-in is reached) is left out, and the score uses the orders alone.
 //
+// The same daily sweep also looks at every live shop's "Your move so far" (Get started, plan 23.17): a press part-way
+// through bringing its old shop over, whose last part was ticked a week ago or more, gets `moveStuck` on its row, so
+// Today can say so before the old shop closes with things still on it.
+//
+// The owner can snooze a press (`drift.snoozedUntil`, 30 days by default, with a reason in the activity log): Today
+// leaves it out and no check-in email goes until the snooze ends. "Presses at risk" lists the paying presses drifting or
+// to watch, with the monthly income they bring in.
+//
 //   driftOf({ recent, before, lastSignInAt, sellingWeeks }, nowMs) -> { level, score, reasons }
+//   moveStuck(start, nowMs) -> { done, of, left, lastDay, days } | null
 //   createDriftWatch({ registry, shopData, shopAccess, memberships, email, settings, now }).sweep()
+//   createDriftDesk({ admins, registry, settings, activity, now }): atRisk(claims), snooze(claims, { shopId, days, reason })
 //
 // Clients passed in:
 //   registry     listShops(), updateShop(shopId, fields), getProfile(shopId)
@@ -17,7 +27,10 @@
 //   shopAccess   signInSafety(shopId, emails) -> [{ email, found, lastSignInAt }] (optional; a failure means "not known")
 //   memberships  listByShop(shopId) -> [{ email }] (optional)
 //   email        sendPlatform({ kind, to, data, idempotencyKey, shopId })
-import { PAYING } from "./today.js";
+import { PAYING, monthlyCents } from "./today.js";
+import { ControlError, MIN_REASON, adminOf } from "./controlRoom.js";
+import { activityEntry } from "./activity.js";
+import { moveOf } from "./broughtOver.js";
 
 const DAY = 86_400_000;
 const WEEKS = 4;
@@ -25,6 +38,30 @@ const WEEKS = 4;
 export const CHECK_IN_EVERY_DAYS = 60;
 export const DRIFT_LEVELS = Object.freeze({ fine: 0, watch: 1, drifting: 3 });
 const MAX_ORDERS = 2000;
+/** How long a snooze lasts unless the owner picks another length, and the longest one. */
+export const SNOOZE_DAYS = 30;
+export const MAX_SNOOZE_DAYS = 180;
+/** A move counts as stuck when nothing has been ticked for this many days. */
+export const MOVE_STUCK_DAYS = 7;
+
+/** Whether the owner snoozed this press and the snooze hasn't ended. */
+export const snoozed = (row, nowMs) => Date.parse(row?.drift?.snoozedUntil ?? "") > nowMs;
+
+/**
+ * A move left part-way: the press brought its shop over in Get started, some parts are ticked and some aren't, the list
+ * isn't put away, and the last tick is a week old or more. Null otherwise (and for a move with nothing ticked yet, which
+ * the trial tips already nudge).
+ */
+export function moveStuck(start, nowMs) {
+  const move = moveOf(start);
+  if (!move || move.putAway || move.done >= move.of) return null;
+  const ticks = move.steps.map((step) => start.done?.[step.id]).filter((d) => typeof d === "string" && d).sort();
+  if (!ticks.length) return null;
+  const lastDay = ticks.at(-1).slice(0, 10);
+  const days = Math.floor((nowMs - Date.parse(`${lastDay}T00:00:00Z`)) / DAY);
+  if (!(days >= MOVE_STUCK_DAYS)) return null;
+  return { done: move.done, of: move.of, left: move.steps.filter((s) => !s.done).map((s) => s.title), lastDay, days };
+}
 
 /** The score and its reasons, in plain words. `lastSignInAt` undefined = not known; null = known, nobody signed in. */
 export function driftOf({ recent, before, lastSignInAt, sellingWeeks }, nowMs) {
@@ -86,6 +123,7 @@ export function createDriftWatch({ registry, shopData, shopAccess = null, member
   }
 
   async function checkIn(row, nowMs) {
+    if (snoozed(row, nowMs)) return null;
     const last = Date.parse(row.drift?.checkedInAt ?? "");
     if (Number.isFinite(last) && nowMs - last < CHECK_IN_EVERY_DAYS * DAY) return null;
     if (!row.ownerEmail) return null;
@@ -101,11 +139,24 @@ export function createDriftWatch({ registry, shopData, shopAccess = null, member
     return at;
   }
 
+  // A live shop's move: written to the row only when it changed (a move that was never stuck writes nothing).
+  async function checkMove(row, nowMs) {
+    if (row.testShop === true || row.status !== "live" || row.closure || !shopData.get) return false;
+    const stuck = moveStuck(await shopData.get(row.shopId, "firstWeek/start"), nowMs);
+    if (JSON.stringify(stuck) !== JSON.stringify(row.moveStuck ?? null)) await registry.updateShop(row.shopId, { moveStuck: stuck });
+    return Boolean(stuck);
+  }
+
   return {
     async sweep() {
       const nowMs = now().getTime();
-      const tally = { fine: 0, watch: 0, drifting: 0, emailed: 0, failed: [] };
+      const tally = { fine: 0, watch: 0, drifting: 0, emailed: 0, movesStuck: 0, failed: [] };
       for (const row of await registry.listShops()) {
+        try {
+          if (await checkMove(row, nowMs)) tally.movesStuck += 1;
+        } catch (failure) {
+          tally.failed.push({ shopId: row.shopId, error: `move: ${failure.message}` });
+        }
         if (!watched(row)) continue;
         try {
           const { recent, before } = await ordersOf(row.shopId, nowMs);
@@ -116,15 +167,78 @@ export function createDriftWatch({ registry, shopData, shopAccess = null, member
           const checkedInAt = drift.level === "drifting" ? await checkIn(row, nowMs) : null;
           if (checkedInAt) tally.emailed += 1;
           await registry.updateShop(row.shopId, {
-            drift: { ...drift, orders: { recent, before }, lastSignInAt: lastSignInAt ?? null, at: new Date(nowMs).toISOString(), checkedInAt: checkedInAt ?? row.drift?.checkedInAt ?? null },
+            drift: {
+              ...drift, orders: { recent, before }, lastSignInAt: lastSignInAt ?? null, at: new Date(nowMs).toISOString(), checkedInAt: checkedInAt ?? row.drift?.checkedInAt ?? null,
+              // The owner's snooze is kept until it ends.
+              ...(snoozed(row, nowMs) ? { snoozedUntil: row.drift.snoozedUntil, snoozedBy: row.drift.snoozedBy ?? null } : {}),
+            },
           });
         } catch (failure) {
           tally.failed.push({ shopId: row.shopId, error: failure.message });
         }
       }
-      const summary = `${tally.drifting} drifting, ${tally.watch} to watch, ${tally.fine} fine, ${tally.emailed} emailed${tally.failed.length ? `, ${tally.failed.length} failed` : ""}`;
+      const summary = `${tally.drifting} drifting, ${tally.watch} to watch, ${tally.fine} fine, ${tally.emailed} emailed, ${tally.movesStuck} move${tally.movesStuck === 1 ? "" : "s"} stuck${tally.failed.length ? `, ${tally.failed.length} failed` : ""}`;
       if (tally.failed.length) throw new Error(`${summary}: ${tally.failed.map((f) => `${f.shopId} (${f.error})`).join("; ")}`);
       return { ...tally, summary };
     },
+  };
+}
+
+/** The paying presses drifting or to watch, most at risk first, with the monthly income they bring in. */
+export function atRiskSummary(rows, settings, nowMs) {
+  const presses = rows
+    .filter((row) => watched(row) && (row.drift?.level === "drifting" || row.drift?.level === "watch"))
+    .map((row) => ({
+      shopId: row.shopId, pressName: row.pressName ?? row.shopId, ownerEmail: row.ownerEmail ?? null,
+      level: row.drift.level, score: row.drift.score ?? 0, reasons: row.drift.reasons ?? [], checkedInAt: row.drift.checkedInAt ?? null,
+      monthlyCents: monthlyCents(row, settings), snoozedUntil: snoozed(row, nowMs) ? row.drift.snoozedUntil : null,
+    }))
+    .sort((a, b) => b.score - a.score || b.monthlyCents - a.monthlyCents);
+  const of = (level) => presses.filter((p) => p.level === level);
+  const sum = (list) => list.reduce((n, p) => n + p.monthlyCents, 0);
+  return {
+    presses,
+    drifting: { count: of("drifting").length, monthlyCents: sum(of("drifting")) },
+    watch: { count: of("watch").length, monthlyCents: sum(of("watch")) },
+    currency: settings.currency,
+  };
+}
+
+export function createDriftDesk({ admins, registry, settings = {}, activity = null, now = () => new Date() }) {
+  return {
+    async atRisk(claims) {
+      const nowMs = now().getTime();
+      adminOf(claims, admins, nowMs);
+      return atRiskSummary(await registry.listShops(), settings, nowMs);
+    },
+
+    /** Snooze a press for `days` (default 30), or wake it again with `days: 0`. The reason goes in the activity log. */
+    async snooze(claims, { shopId, days = SNOOZE_DAYS, reason } = {}) {
+      const nowMs = now().getTime();
+      const by = adminOf(claims, admins, nowMs);
+      const why = typeof reason === "string" ? reason.trim() : "";
+      if (why.length < MIN_REASON) throw new ControlError(400, `Say why, in at least ${MIN_REASON} characters. It goes in the activity log.`);
+      const length = Number(days);
+      if (!Number.isInteger(length) || length < 0 || length > MAX_SNOOZE_DAYS) throw new ControlError(400, `Snooze for 0 to ${MAX_SNOOZE_DAYS} whole days.`);
+      const row = typeof shopId === "string" && shopId ? await registry.getShop(shopId) : null;
+      if (!row) throw new ControlError(404, "There's no shop with that id.");
+      if (!row.drift) throw new ControlError(409, "The drift watch hasn't looked at this shop yet, so there's nothing to snooze.");
+      const at = new Date(nowMs).toISOString();
+      const snoozedUntil = length ? new Date(nowMs + length * DAY).toISOString() : null;
+      const { snoozedUntil: _until, snoozedBy: _by, ...rest } = row.drift;
+      await registry.updateShop(shopId, { drift: { ...rest, ...(snoozedUntil ? { snoozedUntil, snoozedBy: by } : {}) } });
+      if (activity) await activity.record(activityEntry({ at, by, what: length ? "drift-snoozed" : "drift-woken", shopId, detail: { days: length, until: snoozedUntil, reason: why.slice(0, 500) } }));
+      return { shopId, snoozedUntil };
+    },
+  };
+}
+
+//   GET  /api/control/at-risk      the paying presses drifting or to watch, with their monthly income
+//   POST /api/control/drift-snooze { shopId, days, reason }: leave a press off Today (and its check-in email) for a while
+export function driftRoutes(desk) {
+  const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
+  return {
+    "GET /api/control/at-risk": (claims) => desk.atRisk(claims),
+    "POST /api/control/drift-snooze": (claims, request) => desk.snooze(claims, body(request)),
   };
 }
