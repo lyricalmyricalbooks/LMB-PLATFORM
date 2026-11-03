@@ -10,7 +10,7 @@ const edge_1 = require("./edge");
 const text = (max) => (0, edge_1.optional)((0, edge_1.string)({ max }));
 /** A gift card's document id (its handler still checks the exact hash shape). */
 const id = (0, edge_1.string)({ min: 1, max: 100, label: "a gift card" });
-exports.giftCardOp = (0, edge_1.oneOf)(["issue", "setEnabled", "adjust", "setExpiry", "resend"]);
+exports.giftCardOp = (0, edge_1.oneOf)(["issue", "setEnabled", "adjust", "setExpiry", "resend", "import"]);
 exports.GIFT_CARD_BODIES = {
     issue: (0, edge_1.object)({
         amountMinor: (0, edge_1.number)(),
@@ -26,4 +26,16 @@ exports.GIFT_CARD_BODIES = {
     adjust: (0, edge_1.object)({ id, deltaMinor: (0, edge_1.number)(), reason: (0, edge_1.string)({ max: 300 }) }),
     setExpiry: (0, edge_1.object)({ id, expiresOn: (0, edge_1.string)({ max: 32 }), reason: text(300) }),
     resend: (0, edge_1.object)({ id, to: text(320) }),
+    /** Bring gift cards over from the old shop (plan 23.5): up to 500 per call, each keyed by `oldRef` so a re-run adds none. */
+    import: (0, edge_1.object)({
+        cards: (0, edge_1.array)((0, edge_1.object)({
+            oldRef: (0, edge_1.string)({ min: 1, max: 200 }),
+            code: text(40),
+            balanceMinor: (0, edge_1.number)(),
+            expiresOn: text(32),
+            recipientEmail: text(320),
+            recipientName: text(100),
+        }), { max: 500 }),
+        sendEmail: (0, edge_1.optional)((0, edge_1.boolean)()),
+    }),
 };

@@ -528,6 +528,10 @@ service cloud.firestore {
       allow read: if isAdminReader() || isBookkeeper();
       allow write: if false;
     }
+    // Which old shop's gift cards were already brought over (functions/giftCardImport.js, plan 23.5): Functions only.
+    match /giftCardImports/{markerId} {
+      allow read, write: if false;
+    }
     // Stockists (functions/stockists.js): the shops the owner approves to pay wholesale prices, one document per lower-case email.
     // Only the owner's team reads and writes them; checkout reads them on the server.
     match /stockists/{stockistId} {
