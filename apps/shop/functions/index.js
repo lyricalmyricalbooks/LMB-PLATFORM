@@ -49,7 +49,7 @@ const { taxPartsByKind } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
-const { paymentLinkFor, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES } = require("./paymentLinks");
+const { paymentLinkFor, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES, reminderDue, sendLinkReminders } = require("./paymentLinks");
 const { expandDiscountCategories } = require("./shared/discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./shared/discountMath");
 const { taxLinesFor } = require("./shared/taxBooks");
@@ -2732,6 +2732,14 @@ const DEFAULT_NOTIFICATIONS = {
     signoff: "Happy reading,\nThe {{shop_name}} team",
     enabled: true
   },
+  // Code plan 21.5: two days before an unpaid payment link closes (paymentLinks.js sendLinkReminders).
+  payment_link_reminder: {
+    subject: "Reminder: your order {{order_id}} is ready to pay",
+    body: "Hi {{customer_name}},\n\nJust a reminder that your order from {{shop_name}} is waiting for payment. The total is {{total_price}}, and the payment link stays open until {{expires_on}}.",
+    buttonText: "Pay now",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
@@ -4320,6 +4328,19 @@ exports.unpaidPaymentSweep = onSchedule(
         if (result.sent) console.log("unpaidPaymentSweep: review requests", result);
       }
     } catch (err) { console.error("unpaidPaymentSweep: review requests failed:", err.message); }
+
+    // Payment link reminders two days before a link closes (plan 21.5; own try/catch).
+    try {
+      // Never one to a customer whose payment this sweep just found in Stripe.
+      const due = [...unpaid.values()].filter(order => reminderDue(order) && !found.some(f => f.orderId === order.id));
+      if (due.length) {
+        const result = await sendLinkReminders({
+          db, orders: due, settings: await loadNotificationSettings(), compileEmailTemplate, orderTrackUrl, sendOrderEmailOnce,
+          formatTotal: chargedTotalFmt, secret: RESEND_API_KEY.value(),
+        });
+        if (result.sent) console.log("unpaidPaymentSweep: payment link reminders", result);
+      }
+    } catch (err) { console.error("unpaidPaymentSweep: payment link reminders failed:", err.message); }
   }
 );
 

@@ -8,7 +8,8 @@ import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 
 export type TemplateId =
   | "order_confirmation" | "order_pending_payment" | "shipping_confirmation" | "abandoned_cart" | "order_cancelled"
-  | "order_refunded" | "customer_welcome" | "delivery_update" | "contact_reply" | "gift_card" | "review_request";
+  | "order_refunded" | "customer_welcome" | "delivery_update" | "contact_reply" | "gift_card" | "review_request"
+  | "payment_link_reminder";
 
 export type TemplateFields = { subject: string; body: string; buttonText: string; signoff: string; enabled?: boolean };
 
@@ -18,6 +19,7 @@ export const PLACEHOLDERS: Record<TemplateId, string[]> = {
   shipping_confirmation: ["customer_name", "order_id", "tracking_carrier", "tracking_number", "tracking_url", "shop_name"],
   abandoned_cart: ["customer_name", "cart_url", "items_table", "shop_name"],
   order_cancelled: ["customer_name", "order_id", "shop_name"],
+  payment_link_reminder: ["customer_name", "order_id", "total_price", "expires_on", "shop_name"],
   order_refunded: ["customer_name", "order_id", "total_price", "shop_name"],
   customer_welcome: ["customer_name", "email", "shop_name"],
   delivery_update: ["customer_name", "order_id", "status", "tracking_carrier", "tracking_number", "tracking_url", "shop_name"],
@@ -36,7 +38,7 @@ const SAMPLE: Record<string, string> = {
   total_price: "CA$45.00", payment_method: "Interac e-Transfer", email: "julianne@reader.example", status: "out for delivery",
   tracking_url: "#", cart_url: "#", order_url: "#", shipping_method: "Canada Post Expedited Parcel",
   delivery_estimate: "2-4 business days after dispatch", recipient_name: "Sam", sender_name: "Julianne", amount: "CA$50.00",
-  code: "ABCD-EFGH-JKMN-PQRS", expires: "It never expires.", shop_url: "#", items_table: "", shop_name: DEFAULT_SHOP_NAME,
+  code: "ABCD-EFGH-JKMN-PQRS", expires: "It never expires.", expires_on: "November 5, 2026", shop_url: "#", items_table: "", shop_name: DEFAULT_SHOP_NAME,
 };
 
 const TOKEN = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;

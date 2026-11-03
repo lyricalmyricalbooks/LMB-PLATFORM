@@ -982,7 +982,7 @@ with the claim `support: { by, reason, until }` (`until` in seconds, at most an 
   *Approve and delete their data* in Settings › General › Privacy requests (`handlePrivacyAdmin`, unchanged). A second request while one is open adds nothing.
 - Storefront: `features/site/YourDataCard.tsx` on the account page (region `accountYourData`, words `yourData*` in Text & labels › Customer account › Your data).
 
-## Payment links: orders the owner makes (3 November 2026, platform plan 21.1-21.3)
+## Payment links: orders the owner makes (3 November 2026, platform plan 21.1-21.5)
 - Orders › **New order to pay** (`admin/PaymentLinkDialog.tsx`) calls `paymentLink` / `op: "create"` on `createStripeCheckoutSession`
   (`paymentLinks.js`, admin only). It makes an ordinary unpaid order (`source: "payment_link"`, `paymentLink: { expiresAt, note }`, which
   `publicOrderView` shows) and `paymentLinks/{orderId}` (admin-read, Functions-write rules): the frozen line prices (blank = the shop's price
@@ -995,3 +995,14 @@ with the claim `support: { by, reason, until }` (`until` in seconds, at most an 
 - Link orders carry `paymentMethod: "Stripe"` like every card order (refund wording, test-mode stock), skip the per-shopper hold caps (the
   owner set the quantity), must total at least $0.50, are swept for missed webhooks by `updatedAt` (`paymentSweep.js`), and an erase
   blanks their note. Tests: `r2Payments.test.js` › payment links.
+- **From a bulk-price request (21.4):** a Messages row the product page's bulk-quote form sent ("Quantity: N" / "Book: <title>" lines, sent
+  from `/books/<slug>`) shows **Make a payment link**; `quoteRequestOf` / `linkFormFromQuote` (`admin/paymentLinks.ts`) start the dialog with
+  the customer, that product (by slug, else exact title), its edition (subject brackets) and the copies, capped at 99 per line (the server's
+  line limit; stock holds clamp at 99 too). The test builds the request with the form's own `quoteMessage`, so changing the words breaks it.
+- **Reminder (21.5):** `unpaidPaymentSweep` passes its unpaid orders to `sendLinkReminders`: one `payment_link_reminder` email (Settings ›
+  Notifications, on by default, `enabled: false` stops it) when an open, unpaid, un-cancelled link has 48 hours or less left and is a day
+  old. It stamps `paymentLinks/{id}.reminderSentAt` (never the order, so order triggers stay quiet), skips orders the same sweep found paid in
+  Stripe, and `sendOrderEmailOnce` stops a second copy. Never when Stripe has a payment the shop hasn't recorded (`reconciliationPending`,
+  `paymentAlertSentAt`) or the card page was opened in the last hour (`updatedAt`); a queued copy is dropped by `staleOrderEmailReason`
+  once the order is paid, cancelled or its link closed. The total is `chargedTotalFmt`, and every place naming the closing day (history line,
+  the owner's email text, the reminder) uses `closingDay` (Toronto day; client copy parity-tested). Tests: `paymentLinkReminders.test.js`.
