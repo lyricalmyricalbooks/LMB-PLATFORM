@@ -1062,8 +1062,14 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
 - `onOrderUpdated` sends the editable `part_shipped` email once per new part (claim `shippedPart_<id>`, so the outbox
   drops it after a refund or cancel like `shipped`). It sits under its own switch in Notifications › Part Shipped, and
   `{{items_list}}` is one line per item.
-- Not handled yet: the label buyer still weighs the whole order for the rest's label, the packing checklist still lists
-  sent lines, and a refund's restock default doesn't know a part already left.
+- **Take items off before shipping (plan 24.6, part A):** Orders › order › ⋯ › **Take items off this order** opens the
+  refund dialog in a take-off mode: pick copies per line (at most `copiesToSend`), the amount fills from
+  `linePricing(item).unit` × copies (typing turns that off), restock is on, and the normal partial refund path saves
+  `partialRestockedItems`. `fulfillment.copiesToSend(o, index)` = ordered − sent in parts − taken off; `itemsToPack(o)`
+  drives the packing checklist, pick list, packing slip and suggested label weight, so the rest's label weighs only what
+  is left. `packingKey` adds the count only for a changed line, so orders packed before this keep their key.
+- Not handled yet: a refund's restock default doesn't know a part already left, and adding items to a paid order
+  (part B: a linked payment-link order) is still to build.
 - **One line everywhere (plan 24.9):** Overview › Running low (`OverviewStock` `lowLine`), the Books list badges
   (`catalogList.stockInfo(book, getBook, line)`) and the book editor read the same `lowStockThreshold(settings)`. Before
   this they used a fixed 5.

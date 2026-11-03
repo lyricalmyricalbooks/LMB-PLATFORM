@@ -19,6 +19,7 @@ import {
   lockedAddressFields,
   packingTicksKey,
   isDigitalItem,
+  copiesToSend,
   disputeOpen,
   reviewOpen,
   terminal,
@@ -29,7 +30,7 @@ import { PastImportUndo } from "./PastOrdersDialog";
 import { refreshOrdersCache } from "./Orders";
 import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
-import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, customerTrackUrl, telHref } from "./orderLines";
+import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, linePricing, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, customerTrackUrl, telHref } from "./orderLines";
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
@@ -178,6 +179,16 @@ export function OrderDetail({
   const [refundAmount, setRefundAmount] = useState("");
   const [refundOther, setRefundOther] = useState("");
   const [refundRestockLines, setRefundRestockLines] = useState<Record<number, number>>({});
+  // Take items off this order (code plan 24.6): the refund dialog lists the lines first and fills in their price.
+  const [takeOff, setTakeOff] = useState(false);
+  const takeOffAmount = useRef(true);
+  const pickTakeOff = (index: number, copies: number) => {
+    const next = { ...refundRestockLines, [index]: copies };
+    setRefundRestockLines(next);
+    if (!takeOffAmount.current) return;
+    const minor = Object.entries(next).reduce((sum, [i, q]) => sum + Math.round((linePricing(order?.items?.[Number(i)] || {}).unit || 0) * 100) * q, 0);
+    setRefundAmount(minor > 0 ? (minor / 100).toFixed(2) : "");
+  };
   const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "giftConflict" | "requestHandled" | "resendConfirmation" | "resetDownloads" | "restockRefunded" | "invoicePaid">(null);
   const [confirmReleasePreorder, setConfirmReleasePreorder] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState<
@@ -809,10 +820,26 @@ export function OrderDetail({
                     : []),
                   ...(paid
                     ? [
+                        ...(!["In transit", "Completed"].includes(queueOf(order)) && (order.items || []).some((item: any, index: number) => !isDigitalItem(item) && copiesToSend(order, index) > 0)
+                          ? [{
+                              label: "Take items off this order",
+                              onSelect: () => {
+                                setTakeOff(true);
+                                takeOffAmount.current = true;
+                                setRestockOnRefund(true);
+                                setRefundAmount("");
+                                setRefundOther("");
+                                setRefundReason("Customer request");
+                                setRefundRestockLines({});
+                                setShowRefund(true);
+                              },
+                            }]
+                          : []),
                         {
                           label: "Refund order",
                           tone: "danger" as const,
                           onSelect: () => {
+                            setTakeOff(false);
                             // Default for this order: shipped/delivered books aren't back on the shelf.
                             setRestockOnRefund(defaultRestockOnRefund(order));
                             setRefundAmount("");
@@ -1572,8 +1599,10 @@ export function OrderDetail({
       <Dialog
         open={showRefund}
         onClose={() => !isVoiding && setShowRefund(false)}
-        title="Refund order"
-        description={w("Choose the refund reason and whether books should return to stock. You will review the refund before it is submitted.")}
+        title={takeOff ? "Take items off this order" : "Refund order"}
+        description={takeOff
+          ? "Tick what the customer will no longer get. It goes back in stock, they're refunded what they paid for it (change the amount to add tax or shipping), and the rest of the order carries on as usual."
+          : w("Choose the refund reason and whether books should return to stock. You will review the refund before it is submitted.")}
         footer={
           <>
             <SecondaryButton onClick={() => setShowRefund(false)}>
@@ -1596,7 +1625,7 @@ export function OrderDetail({
             label={`Amount to refund (${chargedOf(order).currency})`}
             inputMode="decimal"
             value={refundAmount}
-            onChange={(e) => setRefundAmount(e.target.value)}
+            onChange={(e) => { takeOffAmount.current = false; setRefundAmount(e.target.value); }}
             placeholder={(refundableMinor(order) / 100).toFixed(2)}
             error={refundAmountPlan().error || undefined}
             hint={`Leave blank to refund everything left: ${formatMinor(refundableMinor(order), chargedOf(order).currency)}${refundedMinor(order) ? ` (${formatMinor(refundedMinor(order), chargedOf(order).currency)} already refunded)` : ""}. A smaller amount is a partial refund: the order stays paid.`}
@@ -1620,7 +1649,29 @@ export function OrderDetail({
               <option key={r}>{r}</option>
             ))}
           </SelectField>
-          {refundAmountPlan().partial ? (
+          {takeOff ? (
+            <fieldset style={{ margin: 0, padding: 0, border: 0 }} className="rp-stack">
+              <legend className="rp-label">Items to take off</legend>
+              {(order.items || []).map((item: any, index: number) => {
+                const max = isDigitalItem(item) ? 0 : copiesToSend(order, index);
+                if (!max) return null;
+                return (
+                  <div key={index} style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+                    <Checkbox
+                      label={`${item.title}${item.variantName ? ` · ${item.variantName}` : ""}`}
+                      checked={(refundRestockLines[index] || 0) > 0}
+                      onChange={(e) => pickTakeOff(index, e.target.checked ? max : 0)}
+                    />
+                    {(refundRestockLines[index] || 0) > 0 && max > 1 && (
+                      <TextField label="Copies" type="number" min={1} max={max} step={1} style={{ width: 90 }}
+                        value={refundRestockLines[index]}
+                        onChange={(e) => pickTakeOff(index, Math.max(0, Math.min(max, Math.floor(Number(e.target.value) || 0))))} />
+                    )}
+                  </div>
+                );
+              })}
+            </fieldset>
+          ) : refundAmountPlan().partial ? (
             <fieldset style={{ margin: 0, padding: 0, border: 0 }} className="rp-stack">
               <legend className="rp-label">Put copies back in stock (optional)</legend>
               <p className="rp-hint" style={{ margin: 0 }}>Nothing goes back to stock unless you tick it.</p>

@@ -13,7 +13,29 @@ export const addressKey = (o: any) => {
  const unit = String(address.unit || "").trim();
  return JSON.stringify(unit ? [...fields, unit] : fields);
 };
-export const packingKey = (o: any) => JSON.stringify((o.items || []).map((i: any) => [i.id || i.bookId || i.title, i.variantId || i.variant || "", i.quantity]));
+/**
+ * Copies of line `index` still to go in a parcel (code plan 24.5 / 24.6): the quantity ordered, less copies already
+ * sent ahead (`partShipments`) and copies taken off the order with a partial refund that put them back in stock
+ * (`partialRestockedItems`). Only meaningful before dispatch.
+ */
+export function copiesToSend(o: any, index: number): number {
+ const item = (o?.items || [])[index];
+ const ordered = Math.max(0, Math.floor(Number(item?.quantity) || 0));
+ let gone = 0;
+ for (const part of Array.isArray(o?.partShipments) ? o.partShipments : []) for (const l of part?.lines || []) if (Number(l?.line) === index) gone += Math.max(0, Math.floor(Number(l.quantity) || 0));
+ for (const r of Array.isArray(o?.partialRestockedItems) ? o.partialRestockedItems : []) if (Number(r?.index) === index) gone += Math.max(0, Math.floor(Number(r.quantity) || 0));
+ return Math.max(0, ordered - gone);
+}
+/** Copies taken off line `index` with a partial refund that restocked them. */
+export const copiesTakenOff = (o: any, index: number) => (Array.isArray(o?.partialRestockedItems) ? o.partialRestockedItems : [])
+ .filter((r: any) => Number(r?.index) === index).reduce((n: number, r: any) => n + Math.max(0, Math.floor(Number(r.quantity) || 0)), 0);
+// The packing checklist's key. A line whose copies to send differ from its quantity (some sent ahead or taken off) adds
+// that count, so the checklist asks again; unchanged orders keep their old key, so nothing packed is undone.
+export const packingKey = (o: any) => JSON.stringify((o.items || []).map((i: any, index: number) => {
+ const row = [i.id || i.bookId || i.title, i.variantId || i.variant || "", i.quantity];
+ const left = copiesToSend(o, index);
+ return left === Math.max(0, Math.floor(Number(i.quantity) || 0)) ? row : [...row, left];
+}));
 export function addressIssues(o: any): string[] {
  const a = o.customer?.address || {};
  const issues: string[] = [];
@@ -36,6 +58,9 @@ export function addressIssues(o: any): string[] {
 // Gift cards are emailed (never packed or shipped), like e-books.
 export const isDigitalItem = (i: any) => i?.digital === true || i?.isDigital === true || i?.giftCard === true || i?.productType === "giftCard" || /digital|e-book|ebook|epub|pdf|audiobook/.test(String(i?.format || "").toLowerCase());
 export const physicalItems = (o: any) => (o.items || []).filter((i: any) => !isDigitalItem(i));
+/** What goes in the parcel now: physical lines with their copies still to send, lines with none left dropped. */
+export const itemsToPack = (o: any) => (o.items || []).map((i: any, index: number) => (isDigitalItem(i) ? null : { ...i, quantity: copiesToSend(o, index) }))
+ .filter((i: any) => i && i.quantity > 0);
 export const fulfillmentMethod = (o: any) => ["pickup", "local_delivery"].includes(o.fulfillmentSelection?.method) ? o.fulfillmentSelection.method : "shipping";
 export function queueOf(o: any): string {
  // Money that arrived after the order was cancelled was not accepted: refund it.
@@ -167,7 +192,7 @@ export const isOverdueInTransit = (o: any, now?: number) => (daysInTransit(o, no
 // (grams per copy) plus packaging, in whole grams. Copies without a weight count as 680 g.
 export const PACKAGING_GRAMS = 150;
 export function suggestedParcelWeightGrams(o: any): string {
- const grams = physicalItems(o).reduce((sum: number, item: any) => {
+ const grams = itemsToPack(o).reduce((sum: number, item: any) => {
   const each = Number(item.weightGrams);
   return sum + (Number.isFinite(each) && each > 0 ? each : 680) * Math.max(1, Number(item.quantity || 1));
  }, 0);
@@ -186,7 +211,7 @@ export function buildPickList(orders: any[]) {
   for (const a of Array.isArray(line.addOns) ? line.addOns : []) if (a?.label) entry.addOnCounts[a.label] = (entry.addOnCounts[a.label] || 0) + quantity;
   items.set(key, entry);
  };
- for (const o of orders) for (const i of physicalItems(o)) {
+ for (const o of orders) for (const i of itemsToPack(o)) {
   const sets = Number(i.quantity || 0);
   if (Array.isArray(i.components) && i.components.length) {
    for (const part of i.components) {

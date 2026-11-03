@@ -3,7 +3,7 @@
 // part shipment is refused. A part shipment is recorded on the order as `partShipments` (public, so the customer's
 // tracking page lists each parcel) and never changes the order's status: the order is "shipped" only when the rest
 // goes with the normal dispatch.
-import { addressIssues, addressKey, disputeOpen, fulfillmentMethod, isDigitalItem, queueOf, refundFailed, reviewOpen, REVIEW_PROBLEM, terminal } from "./fulfillment";
+import { addressIssues, addressKey, copiesTakenOff, disputeOpen, fulfillmentMethod, isDigitalItem, queueOf, refundFailed, reviewOpen, REVIEW_PROBLEM, terminal } from "./fulfillment";
 
 export interface PartShipmentLine { line: number; title: string; quantity: number }
 export interface PartShipment {
@@ -29,7 +29,9 @@ export function shippableLines(o: any): ShippableLine[] {
     const ordered = Math.max(0, Math.floor(Number(item.quantity) || 0));
     if (!ordered) return;
     const already = Math.min(ordered, sent.get(line) || 0);
-    out.push({ line, title: lineTitle(item), ordered, sent: already, left: ordered - already });
+    // Copies taken off the order (partial refund that restocked them) are not sent either.
+    const takenOff = Math.min(ordered - already, copiesTakenOff(o, line));
+    out.push({ line, title: lineTitle(item), ordered, sent: already, left: ordered - already - takenOff });
   });
   return out;
 }
