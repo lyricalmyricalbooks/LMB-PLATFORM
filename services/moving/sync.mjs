@@ -1,4 +1,4 @@
-// Copies the old-shop reader (oldShop.js and the careful fetch it uses) into the shop's server, where an open shop's
+// Copies the old-shop reader (oldShop.js, the site-map reader oldLinks.js and the careful fetch they use) into the shop's server, where an open shop's
 // Books › Import reads an old shop's address too (plan 23.11), or checks the copies still match.
 //   node services/moving/sync.mjs          write the copies
 //   node services/moving/sync.mjs --check  fail if a copy differs (sync.test.js runs this)
@@ -13,11 +13,12 @@ const root = resolve(here, "../..");
 export const COPIES = [
   { from: "safeFetch.js", to: "apps/shop/functions/moving/safeFetch.mjs" },
   { from: "oldShop.js", to: "apps/shop/functions/moving/oldShop.mjs" },
+  { from: "oldLinks.js", to: "apps/shop/functions/moving/oldLinks.mjs" },
 ];
 
 export function expected(from) {
   const banner = `// GENERATED from services/moving/${from} by services/moving/sync.mjs. Edit the source, never this copy.\n`;
-  return banner + readFileSync(resolve(here, from), "utf8").replace(/from "\.\/safeFetch\.js"/g, 'from "./safeFetch.mjs"');
+  return banner + readFileSync(resolve(here, from), "utf8").replace(/from "\.\/(safeFetch|oldShop)\.js"/g, 'from "./$1.mjs"');
 }
 
 /** The copies that are missing or differ from their source. */

@@ -13,11 +13,19 @@ const doneOf = (facts: FirstWeekFacts, doc = {}) => Object.fromEntries(firstWeek
 describe("Set up your shop: eight steps, ordered by the sign-up answer (plan 6.9)", () => {
   it("every answer gets the same eight steps, with Open your shop last and the practice order just before it", () => {
     for (const answer of [...SELLING_TODAY, null]) {
-      const list = ids(answer);
+      // A press moving from another online shop has one more: the move itself, once its new shop is open (plan 23.8).
+      const list = answer === "online" ? ids(answer).slice(0, -1) : ids(answer);
       expect(list).toHaveLength(8);
       expect(list.slice(-2)).toEqual(["practice", "open"]);
       for (const step of ["logo", "look", "shipping", "payments", "address"]) expect(list).toContain(step);
     }
+  });
+  it("a press moving from another online shop ends with the move, ticked by hand (plan 23.8)", () => {
+    expect(ids("online").at(-1)).toBe("switch");
+    const step = firstWeekSteps({ sellingToday: "online" }, none).at(-1)!;
+    expect(step).toMatchObject({ id: "switch", kind: "manual", done: false, tab: "general", action: "Check your old links" });
+    expect(firstWeekSteps({ sellingToday: "online", done: { switch: "2026-11-03" } }, none).at(-1)!.done).toBe(true);
+    for (const answer of SELLING_TODAY.filter((a) => a !== "online")) expect(ids(answer)).not.toContain("switch");
   });
   it("the first-book step follows the answer: bring your shop, import the spreadsheet, or add a book", () => {
     expect(ids("online")[0]).toBe("bring-books");

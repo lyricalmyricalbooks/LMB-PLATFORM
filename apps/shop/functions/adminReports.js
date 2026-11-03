@@ -7,7 +7,7 @@ const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
 const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
 const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
 const { handleTrafficReset } = require("./trafficReset");
-const { handleOldShopRead, readOldShop } = require("./oldShopRead");
+const { handleOldLinksRead, handleOldShopRead, readOldLinks, readOldShop } = require("./oldShopRead");
 
 function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit, LIMITS }) {
   /** Settings › General › Backups & export › the daily list (op "list") and Download (op "download", body.day). */
@@ -143,8 +143,22 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     }
   }
 
+  // Settings › General › Check your old links (plan 23.8): the old shop's page addresses, from its site map.
+  async function handleOldLinksRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handleOldLinksRead(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), read: readOldLinks });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("readOldLinks failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't read your old shop's pages just now. Try again in a minute." });
+    }
+  }
+
   return {
     readOldShop: handleOldShopRequest,
+    readOldLinks: handleOldLinksRequest,
     backups: handleBackups,
     aiWrite: handleAiWriteRequest,
     ga4Report: handleGa4ReportRequest,

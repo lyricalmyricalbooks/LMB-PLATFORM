@@ -492,7 +492,10 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   refunded order, plan 7.6; done once the shop is open), Open your shop (no wall, no maintenance). Gmail is never a
   step. Three open steps show (`guideParts`), the rest under **Later**, done ones under **Done**. **Open your shop**
   runs `openBlockers` (Ready to sell's `block` rows) and, when none, Dashboard's `toggleUnderConstruction(false)`
-  (passed down as `onSetWall`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
+  (passed down as `onSetWall`). The `online` answer has a ninth step after it, **Move over from your old shop**
+  (`switch`, ticked by hand, plan 23.8), opening Settings › General where **Check your old links** sits under URL
+  redirects (`OldLinksCheck.tsx`, pure `oldLinks.ts`; the server's `readOldLinks` action reads the old shop's site map
+  with `functions/moving/oldLinks.mjs`, a generated copy of `services/moving/oldLinks.js`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
   for the platform's trial emails (plan 6.10, `services/trial-tips`).
 - `SELLING_TODAY` must list the sign-up form's answers and `StepId` must match `help/articles.js` `CHECKLIST_ANSWERS`
   (root tests check both). Firestore rule `firstWeek`: admin only, `hasOnly([... "publishes", "country", "welcome",

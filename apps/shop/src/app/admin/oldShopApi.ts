@@ -1,10 +1,11 @@
-// Books › Import › "From your old shop's address" (plan 23.11): asks the shop's own server (functions/oldShopRead.js)
-// to read the old shop's public product list. Admin only; nothing is saved until the preview's Import.
+// Asks the shop's own server (functions/oldShopRead.js) to read an old shop's public pages. Admin only; nothing is saved.
+//   Books › Import › "From your old shop's address" (plan 23.11): its product list, as a product file.
+//   Settings › General › URL redirects › Check your old links (plan 23.8): its page addresses, from its site map.
 import { auth } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import type { OldShopFile } from "./OldShopAddressForm";
 
-export async function readOldShopAddress(address: string): Promise<OldShopFile> {
+async function ask(action: string, address: string): Promise<any> {
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) throw new Error("Sign in again as the shop administrator.");
   let res: Response;
@@ -12,12 +13,28 @@ export async function readOldShopAddress(address: string): Promise<OldShopFile> 
     res = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify({ action: "readOldShop", address }),
+      body: JSON.stringify({ action, address }),
     });
   } catch {
     throw new Error("Couldn't reach the shop's server. Check your connection and try again.");
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || typeof data?.csv !== "string") throw new Error(data?.error || `The shop's server answered ${res.status}. Try again in a moment.`);
-  return { host: String(data.host || "old shop"), csv: data.csv, notes: Array.isArray(data.notes) ? data.notes.map(String) : [] };
+  if (!res.ok) throw new Error(data?.error || `The shop's server answered ${res.status}. Try again in a moment.`);
+  return data;
+}
+
+const notesOf = (data: any): string[] => (Array.isArray(data?.notes) ? data.notes.map(String) : []);
+
+export async function readOldShopAddress(address: string): Promise<OldShopFile> {
+  const data = await ask("readOldShop", address);
+  if (typeof data?.csv !== "string") throw new Error("The shop's server answered without a product list. Try again in a moment.");
+  return { host: String(data.host || "old shop"), csv: data.csv, notes: notesOf(data) };
+}
+
+export interface OldLinksAnswer { host: string; paths: string[]; notes: string[] }
+
+export async function readOldLinks(address: string): Promise<OldLinksAnswer> {
+  const data = await ask("readOldLinks", address);
+  if (!Array.isArray(data?.paths)) throw new Error("The shop's server answered without a list of pages. Try again in a moment.");
+  return { host: String(data.host || "old shop"), paths: data.paths.map(String), notes: notesOf(data) };
 }
