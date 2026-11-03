@@ -18,16 +18,16 @@ export type Publishes = Sells;
 
 /** Two or three themes to start from for each answer; no answer gets the general three. */
 const SUGGESTED: Record<Publishes | "general", string[]> = {
-  books: ["press-imprint", "press-letterpress", "press-chapbook"],
-  zines: ["press-zine", "press-riso", "press-punk"],
-  comics: ["press-poster", "press-riso-noir", "press-zine"],
-  prints: ["press-index", "press-poster", "press-archive"],
-  mix: ["press-riso", "press-broadsheet", "press-index"],
-  clothing: ["press-marquee", "urban-streetwear", "modern-atelier"],
-  shoes: ["urban-streetwear", "conversion-engine", "tech-minimal"],
-  jewelry: ["press-shelf", "golden-noir", "velvet-rose"],
+  books: ["press-imprint", "press-letterpress", "press-arch"],
+  zines: ["press-zine", "press-mosaic", "press-punk"],
+  comics: ["press-mosaic", "press-riso-noir", "press-zine"],
+  prints: ["press-index", "press-atlas", "press-archive"],
+  mix: ["press-atlas", "press-riso", "press-mosaic"],
+  clothing: ["press-atlas", "press-marquee", "press-mosaic"],
+  shoes: ["press-atlas", "urban-streetwear", "press-marquee"],
+  jewelry: ["press-arch", "press-shelf", "golden-noir"],
   music: ["night-neon", "press-poster", "press-punk"],
-  other: ["press-shelf", "artisan-market", "press-marquee"],
+  other: ["press-arch", "press-atlas", "press-shelf"],
   general: ["press-riso-noir", "press-riso", "press-imprint"],
 };
 
