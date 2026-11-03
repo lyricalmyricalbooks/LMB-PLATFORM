@@ -169,6 +169,18 @@ export const PRESS_TEMPLATES_FR = {
     footer: signOff(settings),
   }),
 
+  /** French twin of "setup-ending". */
+  "setup-ending": ({ pressName, daysLeft, date, link }, { settings }) => layout({
+    subject: `Votre configuration ${settings.platformName} est gardée jusqu'au ${frenchDay(date)}`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `Vous avez commencé à configurer ${pressName || "votre boutique"} sur ${settings.platformName}, mais nous ne vous avons pas vu depuis un moment. Nous gardons une configuration 60 jours après votre dernière visite : ce que vous avez fait est donc gardé encore ${daysLeft} jours, jusqu'au ${frenchDay(date)}.`,
+      "Connectez-vous d'ici là et tout sera comme vous l'avez laissé, et les 60 jours recommencent. Après cette date, nous effaçons vos réponses et le fichier de produits que vous avez ajouté. Vous pourrez toujours recommencer.",
+    ],
+    buttons: [["Continuer la configuration", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** French twin of "waitlist-invite" (a commercial message: it keeps the STOP line). */
   "waitlist-invite": ({ link }, { settings }) => layout({
     subject: `Vous pouvez maintenant créer votre boutique ${settings.platformName}`,

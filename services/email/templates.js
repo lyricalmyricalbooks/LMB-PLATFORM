@@ -121,6 +121,18 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** A press still in setup mode that hasn't been back (plan 18.11): 30 and 7 days before its setup is cleared. */
+  "setup-ending": ({ pressName, daysLeft, date, link }, { settings }) => layout({
+    subject: `Your ${settings.platformName} setup is kept until ${date}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `You started setting up ${pressName || "your shop"} on ${settings.platformName}, but haven't been back for a while. We keep a setup for 60 days after your last visit, so what you've done so far is kept for ${daysLeft} more days, until ${date}.`,
+      "Sign in any time before then and everything is where you left it, and the 60 days start again. After that date we clear your answers and any product file you added. You can always start again.",
+    ],
+    buttons: [["Carry on setting up", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The control room's waitlist invite (plan 9.5): the person may start their shop now, past the daily line. */
   "waitlist-invite": ({ link }, { settings }) => layout({
     subject: `Your ${settings.platformName} shop is ready to start`,

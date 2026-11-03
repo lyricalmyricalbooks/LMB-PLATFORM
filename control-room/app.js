@@ -1972,7 +1972,9 @@ async function loadSetup() {
           meta(p.import ? `product file: ${p.import.rows ?? "?"} rows` : null, LANGUAGE_CHOICE_WORDS[p.language] ?? null)) },
         { header: "Last visit", render: (p) => el("div", {}, el("span", { className: "rp-mono", textContent: p.idleDays == null ? "" : daysWords(p.idleDays) }), meta(p.createdAt ? `signed up ${dateOnly(p.createdAt)}` : null)) },
         { header: "Where", render: (p) => el("div", {}, setupStatusCell(p),
-          meta(p.stillToDo.length ? `still to add: ${p.stillToDo.join(", ")}` : null, p.shopId ? `shop ${p.shopId}` : null, p.shopMessage || null)) },
+          meta(p.stillToDo.length ? `still to add: ${p.stillToDo.join(", ")}` : null, p.shopId ? `shop ${p.shopId}` : null, p.shopMessage || null,
+            Object.keys(p.warned).length ? `emailed ${Object.keys(p.warned).sort((a, b) => b - a).map((d) => `${d} days`).join(" and ")} before removal` : null,
+            p.expiredAt ? `cleared ${dateOnly(p.expiredAt)}` : null)) },
       ],
     }) : emptyState("No presses setting up.", "A press shows here as soon as it signs up at the front door."));
     const lookSheet = (title, rows) => sheet({

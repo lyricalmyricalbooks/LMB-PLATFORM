@@ -53,6 +53,8 @@ function setupRefusal(current, claims) {
 // A press that pressed Open my shop holds the opening for this long, so a double click or a second tab waits for the
 // first instead of starting a second shop. After it, a call that died part way can be tried again.
 const OPENING_HOLD_MS = 2 * 60_000;
+// How often a visit to setup is written down (myPresses): enough for a 60-day clock, without a write on every load.
+const SEEN_EVERY_MS = 60 * 60_000;
 const OPENING_WORDS = "Your shop is already being opened. Give it a moment.";
 /** Is Open my shop running for this record right now? Its answers stay as they are until it finishes. */
 const holding = (record, at) => !!record?.openingSince && at - Date.parse(record.openingSince) < OPENING_HOLD_MS;
@@ -127,6 +129,12 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
     async myPresses(claims) {
       if (!claims?.uid) throw new SignupError(401, "Sign in first.");
       const mine = await presses.listByOwner(claims.uid);
+      // Opening setup counts as a visit (18.11): it restarts the 60 days, at most once an hour per press.
+      const at = now();
+      for (const record of mine.filter((r) => r.status === "setup" && at - Date.parse(r.lastSeenAt ?? "") >= SEEN_EVERY_MS)) {
+        await presses.update(record.pressId, (current) => (current?.status === "setup" && current.ownerUid === claims.uid
+          ? { row: { ...current, lastSeenAt: at.toISOString() }, result: null } : { row: null, result: null }));
+      }
       return { presses: mine.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)).map(shown) };
     },
 

@@ -70,6 +70,7 @@ import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
 import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
+import { createSetupClock } from "../signup/setupClock.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -167,10 +168,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...stores, registry, billing, email, auth: signInLinkMaker, settings, invites, live, now,
   });
   // The front door (18.4): the six-digit code and each press's setup record, before any shop exists.
-  const frontDoor = createFrontDoor({
-    ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup,
-    stagedFiles: notConnectedClient(NOT_CONNECTED.stagedImports, ["uploadUrl", "stat", "read", "remove"]),
-  });
+  const stagedFiles = notConnectedClient(NOT_CONNECTED.stagedImports, ["uploadUrl", "stat", "read", "remove"]);
+  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles });
+  // The clock for a press that hasn't opened (18.11): two warnings, then its setup is cleared.
+  const setupClock = createSetupClock({ presses: firestoreFrontDoorStores(platform).presses, stagedFiles, email, settings, now });
   const repairStore = firestoreRepairs(platform);
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now });
   const shopMaker = createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
@@ -242,6 +243,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "press-messages": () => pressMessages.sweep(),
+    "setup-clock": () => setupClock.sweep(),
     ...(trialTips ? { "trial-tips": () => trialTips.run() } : {}),
     ...(checkups ? { "shop-checkup": () => checkups.run() } : {}),
   };
@@ -310,7 +312,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
-    backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing,
+    backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock,
     routes, door, shopBilling, handle, parts,
   };
 }
