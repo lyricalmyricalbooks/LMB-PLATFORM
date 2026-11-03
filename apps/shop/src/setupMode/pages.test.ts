@@ -4,7 +4,7 @@ import type { SetupPress } from "./door";
 import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, pageFromHash, setupLocked, setupMenu, setupMenuItemFor, setupPageLabel } from "./pages";
 
 const press = (over: Partial<SetupPress> = {}): SetupPress => ({
-  pressId: "press-moth", status: "setup", plan: "", pressName: "", sells: "", country: "", look: "", adminLook: "", ...over,
+  pressId: "press-moth", status: "setup", plan: "", pressName: "", sells: "", country: "", look: "", adminLook: "", stagedImport: null, ...over,
 });
 
 describe("setup mode's menu (code plan 18.6)", () => {
@@ -21,10 +21,10 @@ describe("setup mode's menu (code plan 18.6)", () => {
   });
 
   it("opens Home, Design, General, Plan and Help, and locks every other page", () => {
-    for (const page of [HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE]) expect(setupLocked(page)).toBe(false);
+    for (const page of [HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE, "catalog"]) expect(setupLocked(page)).toBe(false);
     const every = menu.flatMap((i) => (i.children ? i.children.map((c) => c.id) : [i.id]));
     const locked = every.filter(setupLocked);
-    expect(locked).toEqual(expect.arrayContaining(["orders", "customers", "catalog", "inventory", SETTINGS_ITEM_PREFIX + "payments", SETTINGS_ITEM_PREFIX + "shipping"]));
+    expect(locked).toEqual(expect.arrayContaining(["orders", "customers", "inventory", SETTINGS_ITEM_PREFIX + "payments", SETTINGS_ITEM_PREFIX + "shipping"]));
     expect(locked).not.toContain(GENERAL_PAGE);
   });
 
@@ -49,9 +49,14 @@ describe("setup mode's menu (code plan 18.6)", () => {
 describe("the setup guide", () => {
   it("starts with nothing done and counts only what can be done before opening", () => {
     const steps = guideSteps(press());
-    expect(steps.map((s) => s.id)).toEqual(["plan", "details", "look", "products", "open"]);
+    expect(steps.map((s) => s.id)).toEqual(["plan", "details", "look", "books", "open"]);
     expect(guideProgress(steps)).toEqual({ done: 0, total: 4 });
-    expect(steps.find((s) => s.id === "products")!.locked).toBe(true);
+  });
+
+  it("counts bringing books over only once a file is kept: a press with nothing to bring still finishes", () => {
+    const kept = guideSteps(press({ stagedImport: { name: "a.csv", size: 9, rows: 3, at: "2026-11-03T09:00:00Z" } }));
+    expect(kept.find((s) => s.id === "books")!.done).toBe(true);
+    expect(guideProgress(kept)).toEqual({ done: 1, total: 5 });
   });
 
   it("ticks each step from the record; press details need all three answers", () => {

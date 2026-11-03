@@ -1,27 +1,19 @@
 import { useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
-import { importTemplateCsv, IMPORT_COLUMNS, type ImportPlan, type ImportRow } from "./catalogImport";
+import { importTemplateCsv, IMPORT_COLUMNS, type ImportPlan } from "./catalogImport";
+import { ImportPreviewRows, MAX_FILE_BYTES } from "./importPreview";
 import { importRedirects, oldLinksMessage, planShopMove, SHAPE_WORDS, type ProductMove } from "./shopMove";
 import { inventoryLinkApi } from "./inventoryLinkApi";
-import { Dialog, PrimaryButton, SecondaryButton, SelectField, StatusBadge, type BadgeTone } from "./riso/components";
+import { Dialog, PrimaryButton, SecondaryButton, SelectField, StatusBadge } from "./riso/components";
 import { normalizeCategories } from "../features/site/navItems";
 import { sellsBooks } from "./sells";
 import { useShopSells } from "./shopWords";
 import { useShopWords } from "./shopWords";
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
-const SHOWN_ROWS = 150;
 
 type Result = { line: number; title: string; ok: boolean; message?: string };
 type LinkResult = { added: number; skipped: number; full: number; failed: boolean };
-
-const ACTION: Record<ImportRow["action"], { tone: BadgeTone; text: string }> = {
-  create: { tone: "info", text: "New book (draft)" },
-  update: { tone: "primary", text: "Update" },
-  unchanged: { tone: "neutral", text: "No change" },
-  error: { tone: "danger", text: "Won't import" },
-};
 
 function download(name: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
@@ -124,7 +116,6 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
   }
 
   const failed = results?.filter(r => !r.ok) || [];
-  const shown = plan ? [...plan.rows].sort((a, b) => order(a) - order(b)).slice(0, SHOWN_ROWS) : [];
 
   const footer = results
     ? <PrimaryButton onClick={onClose}>Done</PrimaryButton>
@@ -185,27 +176,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
               {moved && oldPaths.size > 0 && <p className="rp-hint" style={{ margin: 0 }}>{w("Links to these books on your old shop will open them here once your address points at this shop. They are added to Settings › General › URL redirects.")}</p>}
               {moved && moved.notices.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{n}</p>)}
               {!moved && plan.ignoredColumns.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Ignored columns: {plan.ignoredColumns.join(", ")}.</p>}
-              <ol aria-label="Import preview" style={{ margin: 0, padding: 0, listStyle: "none", maxHeight: 380, overflow: "auto", borderTop: "1px solid var(--rp-border)" }}>
-                {shown.map(row => (
-                  <li key={row.line} style={{ padding: "10px 0", borderBottom: "1px solid var(--rp-border)" }}>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                      <span className="rp-mono rp-hint">Line {row.line}</span>
-                      <strong style={{ overflowWrap: "anywhere" }}>{row.title}</strong>
-                      <StatusBadge tone={ACTION[row.action].tone}>{ACTION[row.action].text}</StatusBadge>
-                    </div>
-                    {(row.errors.length > 0 || row.warnings.length > 0 || (row.action === "update" && row.changes.length > 0)) && (
-                      <ul className="rp-hint" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-                        {row.errors.map(e => <li key={e} style={{ color: "var(--rp-danger)" }}>{e}</li>)}
-                        {row.action === "update" && row.changes.map(c => (
-                          <li key={c.field}>{c.label}: <span style={{ textDecoration: "line-through" }}>{clip(c.from) || "blank"}</span> → <strong>{clip(c.to)}</strong></li>
-                        ))}
-                        {row.warnings.map(w => <li key={w}>{w}</li>)}
-                      </ul>
-                    )}
-                  </li>
-                ))}
-                {plan.rows.length > SHOWN_ROWS && <li className="rp-hint" style={{ padding: "10px 0" }}>…and {plan.rows.length - SHOWN_ROWS} more rows.</li>}
-              </ol>
+              <ImportPreviewRows plan={plan} />
             </div>)}
 
         {results && <div className="rp-stack" role="status">
@@ -224,6 +195,3 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
     </Dialog>
   );
 }
-
-const order = (row: ImportRow) => ({ error: 0, create: 1, update: 2, unchanged: 3 })[row.action];
-const clip = (value: string) => (value.length > 80 ? `${value.slice(0, 77)}…` : value);

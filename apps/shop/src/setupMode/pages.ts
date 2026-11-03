@@ -9,9 +9,11 @@ export const GENERAL_PAGE = SETTINGS_ITEM_PREFIX + "general";
 export const DESIGN_PAGE = SETTINGS_ITEM_PREFIX + "designer";
 export const HELP_PAGE = "help";
 export const HOME_PAGE = "overview";
+/** Books (the catalog): in setup, the place to bring a product file over and see what it holds (18.7). */
+export const IMPORT_PAGE = "catalog";
 
 /** The pages that work in setup mode. Everything else in the menu opens "Opens with your shop". */
-export const SETUP_PAGES: ReadonlySet<string> = new Set([HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE]);
+export const SETUP_PAGES: ReadonlySet<string> = new Set([HOME_PAGE, DESIGN_PAGE, GENERAL_PAGE, PLAN_PAGE, HELP_PAGE, IMPORT_PAGE]);
 
 export const setupLocked = (page: string): boolean => !SETUP_PAGES.has(page);
 
@@ -45,7 +47,11 @@ export function setupPageLabel(page: string, menu: NavEntry[] = setupMenu()): st
 }
 
 /** One step of the setup guide. */
-export interface GuideStep { id: string; title: string; done: boolean; page: string; action: string; locked?: boolean }
+export interface GuideStep {
+  id: string; title: string; done: boolean; page: string; action: string; locked?: boolean;
+  /** A step a press may leave undone (nothing to bring over): counted only once it is done. */
+  optional?: boolean;
+}
 
 /** The setup guide's steps from the press's record, in order. A stockroom-only press has no website look to pick. */
 export function guideSteps(press: SetupPress): GuideStep[] {
@@ -54,14 +60,15 @@ export function guideSteps(press: SetupPress): GuideStep[] {
     { id: "plan", title: "Pick what you want to set up", done: !!press.plan, page: PLAN_PAGE, action: "Choose" },
     { id: "details", title: "Tell us about your press", done: !!(press.pressName && press.sells && press.country), page: GENERAL_PAGE, action: "Add details" },
     ...(website ? [{ id: "look", title: "Choose your website's look", done: !!press.look, page: DESIGN_PAGE, action: "Choose a look" }] : []),
-    { id: "products", title: "Add your first products", done: false, page: "catalog", action: "Opens with your shop", locked: true },
+    // Written in book words; the guide shows them in the shop's own (sells.ts).
+    { id: "books", title: "Bring your books over from your old shop", done: !!press.stagedImport, page: IMPORT_PAGE, action: "Bring a file", optional: true },
     { id: "open", title: "Open your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "See how" },
   ];
 }
 
 /** "2 of 5 done", counting only the steps that can be done in setup. */
 export function guideProgress(steps: GuideStep[]): { done: number; total: number } {
-  const counted = steps.filter((s) => !s.locked);
+  const counted = steps.filter((s) => !s.locked && (!s.optional || s.done));
   return { done: counted.filter((s) => s.done).length, total: counted.length };
 }
 

@@ -45,6 +45,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | Putting a shop's pages live again, rolling back, self-checks | The release runner's hosted home (4.1) |
 | Opening a shop's admin from the control room | A support sign-in per shop, after 15.5 and 15.7 |
 | Downloading all of a shop's data | The export bucket and its download links (19.16) |
+| Keeping a press's product file until its shop opens | The platform's import bucket and its signed upload links (18.7): `stagedFiles` in `world.js` needs `uploadUrl`, `stat`, `read` and `remove` on a private bucket |
 | Deleting a closed shop's project | Your go, once the organization exists |
 | Web addresses for shops | The domain service's hosted home (2.9) |
 | QuickBooks | The platform's QuickBooks app keys (`docs/accounting.md`) |

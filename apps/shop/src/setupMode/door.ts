@@ -12,7 +12,12 @@ export interface SetupPress {
   country: string;
   look: string;
   adminLook: string;
+  /** The product file kept for the shop (18.7), or null. */
+  stagedImport: StagedImport | null;
 }
+
+/** A kept product file as its owner sees it: never where it is kept. */
+export interface StagedImport { name: string; size: number; rows: number; at: string }
 
 export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook">>;
 
@@ -27,6 +32,10 @@ export interface SetupDoor {
   save(pressId: string, change: SetupChange): Promise<SetupPress>;
   /** The plans and prices (public). */
   plans(): Promise<PlanList>;
+  /** Keeps a product file for the shop (it was previewed first): asks for an upload link, sends the file, then records it. */
+  keepImport(pressId: string, file: Blob, details: { name: string; rows: number }): Promise<SetupPress>;
+  /** Throws the kept file away. */
+  removeImport(pressId: string): Promise<SetupPress>;
 }
 
 const UNREACHABLE = "We couldn't reach Colophon. Check your connection and try again.";
@@ -51,6 +60,19 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
     presses: async () => (await call("GET", "/press")).presses as SetupPress[],
     save: async (pressId, change) => (await call("POST", "/press/setup", { pressId, ...change })).press as SetupPress,
     plans: async () => (await call("GET", "/plans", undefined, false)) as PlanList,
+    keepImport: async (pressId, file, { name, rows }) => {
+      const { upload } = await call("POST", "/press/import", { pressId, size: file.size });
+      let sent: Response;
+      try {
+        // Straight to the platform's storage: the link takes this one file, of this size, for a few minutes.
+        sent = await fetchImpl(upload.url, { method: upload.method || "PUT", headers: upload.headers || {}, body: file });
+      } catch {
+        throw new Error(UNREACHABLE);
+      }
+      if (!sent.ok) throw new Error("The file didn't finish sending. Try again.");
+      return (await call("POST", "/press/import/kept", { pressId, name, rows })).press as SetupPress;
+    },
+    removeImport: async (pressId) => (await call("POST", "/press/import/remove", { pressId })).press as SetupPress,
   };
 }
 

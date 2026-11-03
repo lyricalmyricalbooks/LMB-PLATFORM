@@ -30,7 +30,7 @@ import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { fakeRecoveryStore } from "../accounts/fakes.js";
 import { createRepairQueue } from "../control-room/repairs.js";
 import { createApi } from "../signup/api.js";
-import { fakeAuth, fakeFrontDoorStores, fakeInvites, fakeSignupStores, fakeVerifyIdToken } from "../signup/fakes.js";
+import { fakeAuth, fakeFrontDoorStores, fakeInvites, fakeSignupStores, fakeStagedFiles, fakeVerifyIdToken } from "../signup/fakes.js";
 import { createFrontDoor, frontDoorPublicRoutes, frontDoorRoutes } from "../signup/frontDoor.js";
 import { createShopMaker } from "../signup/shopMaker.js";
 import { createSignup } from "../signup/signup.js";
@@ -137,7 +137,9 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   });
   // The front door (18.4): the six-digit code and each press's setup record, before any shop exists.
   const frontDoorStores = fakeFrontDoorStores();
-  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, now: clock.date, ...(suffix ? { suffix } : {}) });
+  // Kept product files (18.7): the walkthrough's server takes the upload at /walkthrough/uploads/<token>.
+  const stagedFiles = fakeStagedFiles({ uploadBase: "/walkthrough/uploads", now: clock.date });
+  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, now: clock.date, ...(suffix ? { suffix } : {}) });
   const repairStore = fakeRepairStore();
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now: clock.date });
   const steps = () => shopSteps({ ...services, google, registry, profileFiles, config: TEST_CONFIG });
@@ -244,7 +246,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, frontDoor, frontDoorStores, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
+    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
     deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
     pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */

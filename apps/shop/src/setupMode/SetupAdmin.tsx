@@ -1,5 +1,6 @@
 // Setup mode (code plan 18.6): the real admin a press will keep, before its shop exists. The same Riso Press shell and
-// menu; Home is the setup guide, and Design, Settings › General, Settings › Plan and Help work. Every other page says
+// menu; Home is the setup guide, and Books (bring a product file over, 18.7), Design, Settings › General, Settings › Plan
+// and Help work. Every other page says
 // it opens with the shop. Everything saves to the press's setup record through the platform's door (door.ts); nothing
 // here reads or writes a shop database, because there is none until the press opens its shop.
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -11,11 +12,12 @@ import {
 import { ADMIN_LOOKS, applyAdminLook, type AdminLookId } from "../app/admin/riso/adminLook";
 import { ChooseLookWelcome } from "../app/admin/overview/ChooseLookWelcome";
 import { THEME_LIBRARY } from "../app/admin/studio/themeLibrary";
-import { ShopWordsContext } from "../app/admin/shopWords";
+import { ShopWordsContext, useShopWords } from "../app/admin/shopWords";
 import { adminWordsFor } from "../app/admin/sells";
+import { ImportPage } from "./ImportPage";
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, pageFromHash, setupLocked, setupMenu,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, guideProgress, guideSteps, pageFromHash, setupLocked, setupMenu,
   setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
@@ -87,6 +89,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl 
   if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} onOpenShop={() => open(PLAN_PAGE)} />;
   else if (page === HOME_PAGE) content = <SetupGuide press={press} onOpen={open} />;
   else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
+  else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
   else if (page === PLAN_PAGE) content = <PlanPage press={press} plans={plans} failed={plansFailed} onRetry={loadPlans} save={save} />;
   else content = <HelpPage helpUrl={helpUrl} />;
@@ -158,6 +161,7 @@ export function OpensWithShop({ page, onOpenShop }: { page: string; onOpenShop: 
 }
 
 function SetupGuide({ press, onOpen }: { press: SetupPress; onOpen: (page: string) => void }) {
+  const w = useShopWords();
   const steps = guideSteps(press);
   const { done, total } = guideProgress(steps);
   return (
@@ -176,7 +180,8 @@ function SetupGuide({ press, onOpen }: { press: SetupPress; onOpen: (page: strin
                 {step.done ? <Check size={20} /> : step.locked ? <Lock size={18} /> : <Circle size={18} />}
               </span>
               <span style={{ minWidth: 0 }}>
-                <strong style={{ color: step.done ? "var(--rp-text-muted)" : undefined }}>{step.title}</strong>
+                <strong style={{ color: step.done ? "var(--rp-text-muted)" : undefined }}>{w(step.title)}</strong>
+                {step.optional && !step.done && <span className="rp-hint"> · optional</span>}
                 <span className="rp-sr-only">{step.done ? " (done)" : step.locked ? " (opens with your shop)" : ""}</span>
               </span>
               {step.locked

@@ -23,7 +23,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { SignupError, randomSuffix } from "./signup.js";
 import { createSignInCode } from "./signInCode.js";
 import { createAccountStart } from "./accountStart.js";
-import { setupChange } from "./pressRecord.js";
+import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, setupChange, stagedImportPathFor } from "./pressRecord.js";
 import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
 
 /** The page the front door lives on, under the platform's address. */
@@ -33,9 +33,20 @@ export const START_PAGE = "join";
 const shown = (record) => ({
   pressId: record.pressId, status: record.status, plan: record.plan ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
   look: record.look ?? "", adminLook: record.adminLook ?? "",
+  // What the press sees of its kept file: never the path.
+  stagedImport: record.stagedImport ? { name: record.stagedImport.name, size: record.stagedImport.size, rows: record.stagedImport.rows, at: record.stagedImport.at } : null,
 });
 
-export function createFrontDoor({ presses, codes, email, auth, settings, now = () => new Date(), suffix = randomSuffix, random = null }) {
+const TOO_BIG = "That file is larger than 5 MB. Split it into smaller files: bring one now and the rest once your shop is open.";
+// Upload links last long enough for a slow connection, and no longer.
+const UPLOAD_MINUTES = 15;
+
+/**
+ * `stagedFiles` keeps each press's product file until its shop exists (18.7): uploadUrl(path, { contentType, size,
+ * expiresAt }) -> { url, method, headers }, a link that accepts exactly one upload of that size and nothing else;
+ * stat(path) -> { size } | null; remove(path), which is fine when nothing is there. The shop maker (18.9) reads it.
+ */
+export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, now = () => new Date(), suffix = randomSuffix, random = null }) {
   const signInCode = createSignInCode({
     store: codes,
     now,
@@ -113,6 +124,56 @@ export function createFrontDoor({ presses, codes, email, auth, settings, now = (
       if (!saved.ok) throw new SignupError(saved.status, saved.message);
       return { press: saved.press };
     },
+
+    // The product file (18.7). The browser reads and previews it first; these only keep it.
+    async startImport(claims, body = {}) {
+      const record = await ownPress(claims, body.pressId);
+      if (record.status !== "setup") throw new SignupError(409, "Your shop is already opening, so setup is locked.");
+      const size = Number(body.size);
+      if (!Number.isInteger(size) || size < 1) throw new SignupError(400, "Choose a file with your products in it.");
+      if (size > MAX_IMPORT_BYTES) throw new SignupError(400, TOO_BIG);
+      const expiresAt = new Date(now().getTime() + UPLOAD_MINUTES * 60_000);
+      const upload = await stagedFiles.uploadUrl(stagedImportPathFor(record.pressId), { contentType: "text/csv", size, expiresAt });
+      return { upload };
+    },
+
+    async keepImport(claims, body = {}) {
+      const record = await ownPress(claims, body.pressId);
+      const name = String(body.name ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 120) || "products.csv";
+      const rows = Number(body.rows);
+      if (!Number.isInteger(rows) || rows < 1 || rows > MAX_IMPORT_ROWS) {
+        throw new SignupError(400, `A file brings between 1 and ${MAX_IMPORT_ROWS.toLocaleString("en")} products.`);
+      }
+      const path = stagedImportPathFor(record.pressId);
+      const file = await stagedFiles.stat(path);
+      if (!file) throw new SignupError(409, "The file didn't finish sending. Try again.");
+      if (file.size > MAX_IMPORT_BYTES) {
+        await stagedFiles.remove(path);
+        throw new SignupError(400, TOO_BIG);
+      }
+      const at = now().toISOString();
+      const saved = await presses.update(record.pressId, (current) => {
+        if (!current || current.ownerUid !== claims.uid) return { row: null, result: { ok: false, status: 404, message: "We couldn't find that press." } };
+        if (current.status !== "setup") return { row: null, result: { ok: false, status: 409, message: "Your shop is already opening, so setup is locked." } };
+        const updated = { ...current, stagedImportPath: path, stagedImport: { name, size: file.size, rows, at }, lastSeenAt: at };
+        return { row: updated, result: { ok: true, press: shown(updated) } };
+      });
+      if (!saved.ok) throw new SignupError(saved.status, saved.message);
+      return { press: saved.press };
+    },
+
+    async removeImport(claims, body = {}) {
+      const record = await ownPress(claims, body.pressId);
+      if (record.status !== "setup") throw new SignupError(409, "Your shop is already opening, so setup is locked.");
+      await stagedFiles.remove(stagedImportPathFor(record.pressId));
+      const saved = await presses.update(record.pressId, (current) => {
+        if (!current || current.ownerUid !== claims.uid) return { row: null, result: { ok: false, status: 404, message: "We couldn't find that press." } };
+        const updated = { ...current, stagedImportPath: "", stagedImport: null, lastSeenAt: now().toISOString() };
+        return { row: updated, result: { ok: true, press: shown(updated) } };
+      });
+      if (!saved.ok) throw new SignupError(saved.status, saved.message);
+      return { press: saved.press };
+    },
   };
 }
 
@@ -127,4 +188,7 @@ export const frontDoorRoutes = (door) => ({
   "POST /api/press": (claims) => door.startPress(claims),
   "GET /api/press": (claims) => door.myPresses(claims),
   "POST /api/press/setup": (claims, request) => door.saveSetup(claims, request.body ?? {}),
+  "POST /api/press/import": (claims, request) => door.startImport(claims, request.body ?? {}),
+  "POST /api/press/import/kept": (claims, request) => door.keepImport(claims, request.body ?? {}),
+  "POST /api/press/import/remove": (claims, request) => door.removeImport(claims, request.body ?? {}),
 });
