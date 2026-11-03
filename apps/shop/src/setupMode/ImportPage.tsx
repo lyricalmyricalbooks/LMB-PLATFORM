@@ -98,7 +98,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
         <SectionCard title="Bring a file" collapsible={false}>
           <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
             <EmptyState icon={<FileUp size={28} aria-hidden />} title={w("Your books, in one file")}
-              description={w("In your old shop, export your products as a CSV file. Or save your spreadsheet of books as CSV. You'll see every book before anything is kept.")}
+              description={w("In your old shop, export your products as a CSV file. Or save your spreadsheet of books as CSV. You'll see your books before anything is kept.")}
               action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
                 <PrimaryButton icon={<FileUp size={16} aria-hidden />} disabled={!!busy} onClick={pick}>Choose a file</PrimaryButton>
                 {kept && <SecondaryButton disabled={!!busy} onClick={cancel}>Keep {kept.name}</SecondaryButton>}

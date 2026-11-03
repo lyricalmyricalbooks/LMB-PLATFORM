@@ -23,7 +23,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { SignupError, randomSuffix } from "./signup.js";
 import { createSignInCode } from "./signInCode.js";
 import { createAccountStart } from "./accountStart.js";
-import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, setupChange, stagedImportPathFor } from "./pressRecord.js";
+import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, importPathFor, setupChange } from "./pressRecord.js";
 import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
 
 /** The page the front door lives on, under the platform's address. */
@@ -36,6 +36,13 @@ const shown = (record) => ({
   // What the press sees of its kept file: never the path.
   stagedImport: record.stagedImport ? { name: record.stagedImport.name, size: record.stagedImport.size, rows: record.stagedImport.rows, at: record.stagedImport.at } : null,
 });
+
+/** Why a press's record can't change now (inside a store update): not the owner's, or no longer in setup. Null when it can. */
+function setupRefusal(current, claims) {
+  if (!current || current.ownerUid !== claims?.uid) return { ok: false, status: 404, message: "We couldn't find that press." };
+  if (current.status !== "setup") return { ok: false, status: 409, message: "Your shop is already opening, so setup is locked." };
+  return null;
+}
 
 const TOO_BIG = "That file is larger than 5 MB. Split it into smaller files: bring one now and the rest once your shop is open.";
 // Upload links last long enough for a slow connection, and no longer.
@@ -132,8 +139,18 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       const size = Number(body.size);
       if (!Number.isInteger(size) || size < 1) throw new SignupError(400, "Choose a file with your products in it.");
       if (size > MAX_IMPORT_BYTES) throw new SignupError(400, TOO_BIG);
+      // A path of its own for this upload, noted on the record as the one waiting to be kept.
+      const path = importPathFor(record.pressId, randomBytes(8).toString("hex"));
+      const noted = await presses.update(record.pressId, (current) => {
+        const refused = setupRefusal(current, claims);
+        if (refused) return { row: null, result: refused };
+        return { row: { ...current, pendingImportPath: path }, result: { ok: true, earlier: current.pendingImportPath || "" } };
+      });
+      if (!noted.ok) throw new SignupError(noted.status, noted.message);
+      // An earlier upload that was never kept is thrown away.
+      if (noted.earlier && noted.earlier !== record.stagedImportPath) await stagedFiles.remove(noted.earlier);
       const expiresAt = new Date(now().getTime() + UPLOAD_MINUTES * 60_000);
-      const upload = await stagedFiles.uploadUrl(stagedImportPathFor(record.pressId), { contentType: "text/csv", size, expiresAt });
+      const upload = await stagedFiles.uploadUrl(path, { contentType: "text/csv", size, expiresAt });
       return { upload };
     },
 
@@ -144,8 +161,8 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       if (!Number.isInteger(rows) || rows < 1 || rows > MAX_IMPORT_ROWS) {
         throw new SignupError(400, `A file brings between 1 and ${MAX_IMPORT_ROWS.toLocaleString("en")} products.`);
       }
-      const path = stagedImportPathFor(record.pressId);
-      const file = await stagedFiles.stat(path);
+      const path = record.pendingImportPath;
+      const file = path ? await stagedFiles.stat(path) : null;
       if (!file) throw new SignupError(409, "The file didn't finish sending. Try again.");
       if (file.size > MAX_IMPORT_BYTES) {
         await stagedFiles.remove(path);
@@ -153,25 +170,30 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       }
       const at = now().toISOString();
       const saved = await presses.update(record.pressId, (current) => {
-        if (!current || current.ownerUid !== claims.uid) return { row: null, result: { ok: false, status: 404, message: "We couldn't find that press." } };
-        if (current.status !== "setup") return { row: null, result: { ok: false, status: 409, message: "Your shop is already opening, so setup is locked." } };
-        const updated = { ...current, stagedImportPath: path, stagedImport: { name, size: file.size, rows, at }, lastSeenAt: at };
-        return { row: updated, result: { ok: true, press: shown(updated) } };
+        const refused = setupRefusal(current, claims);
+        if (refused) return { row: null, result: refused };
+        // Another upload started since this one: that one is the file waiting now, so this one isn't kept.
+        if (current.pendingImportPath !== path) return { row: null, result: { ok: false, status: 409, message: "Another file was chosen since. Choose the file again." } };
+        const updated = { ...current, stagedImportPath: path, pendingImportPath: "", stagedImport: { name, size: file.size, rows, at }, lastSeenAt: at };
+        return { row: updated, result: { ok: true, press: shown(updated), earlier: current.stagedImportPath || "" } };
       });
       if (!saved.ok) throw new SignupError(saved.status, saved.message);
+      // The file it replaces goes only once the new one is kept.
+      if (saved.earlier && saved.earlier !== path) await stagedFiles.remove(saved.earlier);
       return { press: saved.press };
     },
 
     async removeImport(claims, body = {}) {
       const record = await ownPress(claims, body.pressId);
-      if (record.status !== "setup") throw new SignupError(409, "Your shop is already opening, so setup is locked.");
-      await stagedFiles.remove(stagedImportPathFor(record.pressId));
+      // The record lets go first, then the files: at worst a file is left with nothing pointing at it.
       const saved = await presses.update(record.pressId, (current) => {
-        if (!current || current.ownerUid !== claims.uid) return { row: null, result: { ok: false, status: 404, message: "We couldn't find that press." } };
-        const updated = { ...current, stagedImportPath: "", stagedImport: null, lastSeenAt: now().toISOString() };
-        return { row: updated, result: { ok: true, press: shown(updated) } };
+        const refused = setupRefusal(current, claims);
+        if (refused) return { row: null, result: refused };
+        const updated = { ...current, stagedImportPath: "", pendingImportPath: "", stagedImport: null, lastSeenAt: now().toISOString() };
+        return { row: updated, result: { ok: true, press: shown(updated), paths: [current.stagedImportPath, current.pendingImportPath].filter(Boolean) } };
       });
       if (!saved.ok) throw new SignupError(saved.status, saved.message);
+      for (const path of saved.paths) await stagedFiles.remove(path);
       return { press: saved.press };
     },
   };

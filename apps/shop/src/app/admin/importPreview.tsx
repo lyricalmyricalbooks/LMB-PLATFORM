@@ -1,4 +1,4 @@
-// The rows of an import preview: every row of the file, problems first, with what will happen to it. Shared by Books ›
+// The rows of an import preview: the first 150 rows of the file, problems first, with what will happen to it. Shared by Books ›
 // Import (BookImportDialog) and setup mode's Books page (code plan 18.7), which previews a file before the shop exists.
 // No database here, so setup mode can show it.
 import type { ImportPlan, ImportRow } from "./catalogImport";

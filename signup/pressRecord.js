@@ -17,13 +17,14 @@ const LOOK_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 const NEXT_STATUS = Object.freeze({ setup: "opening", opening: "open", open: null, expired: null });
 
-// The press's product file, kept for its shop until the shop exists (code plan 18.7). One file per press, at a path only
-// the platform knows; the press's browser uploads it through a short-lived upload link and the platform never hands out
-// a link to read it. The limits match the shop's own importer (Books › Import: 5 MB, 2,000 rows), so a file kept here
+// The press's product file, kept for its shop until the shop exists (code plan 18.7). One kept file per press, at a path
+// only the platform knows; the press's browser uploads it through a short-lived upload link and the platform never hands
+// out a link to read it. Each upload gets a path of its own and becomes the kept file only when the press confirms it, so
+// a failed, doubled or late upload can never change the file the shop maker reads. The limits match the shop's own importer (Books › Import: 5 MB, 2,000 rows), so a file kept here
 // always imports once the shop opens.
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 export const MAX_IMPORT_ROWS = 2000;
-export const stagedImportPathFor = (pressId) => `press-imports/${pressId}/products.csv`;
+export const importPathFor = (pressId, nonce) => `press-imports/${pressId}/${nonce}.csv`;
 
 // Sign-up makes this one document and nothing else (18.3).
 export function newPressRecord({ pressId, ownerUid, email, now }) {
@@ -31,7 +32,7 @@ export function newPressRecord({ pressId, ownerUid, email, now }) {
   if (!ownerUid || !email) throw new Error("A press needs an owner.");
   const at = now.toISOString();
   return { pressId, ownerUid, ownerEmail: email.toLowerCase(), status: "setup", plan: "", pressName: "", sells: "", country: "",
-    look: "", adminLook: "", stagedImportPath: "", stagedImport: null, createdAt: at, lastSeenAt: at };
+    look: "", adminLook: "", stagedImportPath: "", stagedImport: null, pendingImportPath: "", createdAt: at, lastSeenAt: at };
 }
 
 // Checks a change a press makes through the platform's door. Returns the fields to write, or a plain-words refusal.
