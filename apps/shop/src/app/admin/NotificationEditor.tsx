@@ -18,6 +18,7 @@ import { emailFunction, lastGmailProblem } from "./notificationApi";
 import { plainError } from "./plainError";
 import { runsOnColophon } from "../../lib/shopProfile";
 import { useSubTab } from "./settingsLayout";
+import { combinedAdmin } from "./combined";
 import { useShopSells } from "./shopWords";
 import { emailDefaultsFor, sellsBooks, withShopEmailWords } from "../../shared/shopSells";
 import {
@@ -85,7 +86,7 @@ type NotificationSettings = {
   /** Older saved switch for the shop's new-order email; read only as shopAlerts.newOrder's fallback. */
   new_order_admin?: { enabled?: boolean };
   /** Emails to the shop itself; on unless switched off. */
-  shopAlerts: { newOrder: boolean; shipped: boolean; dailyOrderDigest?: boolean; weeklySummary?: boolean };
+  shopAlerts: { newOrder: boolean; shipped: boolean; dailyOrderDigest?: boolean; weeklySummary?: boolean; fairDaySummary?: boolean };
 };
 
 type TemplateKey = Exclude<keyof NotificationSettings, "brand" | "new_order_admin" | "shopAlerts">;
@@ -184,7 +185,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     enabled: false,
     delayDays: 14
   },
-  shopAlerts: { newOrder: true, shipped: true, dailyOrderDigest: true, weeklySummary: true }
+  shopAlerts: { newOrder: true, shipped: true, dailyOrderDigest: true, weeklySummary: true, fairDaySummary: true }
 };
 
 // Every customer email the editor shows. A template added to DEFAULT_SETTINGS appears
@@ -765,6 +766,14 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, weeklySummary: on } })} />
             <p className="rp-hint" style={{ margin: 0 }}>Sales, visits and best sellers vs last week.</p>
             <WeeklySummaryNow />
+            {combinedAdmin() && (
+              <>
+                <Toggle label="Fair day summary — the day's takings at the Fair till and what sold (evenings, 9pm)" checked={shopAlerts.fairDaySummary !== false}
+                  onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, fairDaySummary: on } })} />
+                <p className="rp-hint" style={{ margin: 0 }}>Only on a day the Fair till sold something.</p>
+                <FairDaySummaryNow />
+              </>
+            )}
           </div>
         </SectionCard>
       ) : (
@@ -935,6 +944,31 @@ function RowsOrCards<T>({ narrow, columns, rows, rowKey, caption, empty, rowStat
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Settings › Email sender › Shop alerts › Send me today's fair summary now (the evening email, on demand). */
+function FairDaySummaryNow() {
+  const [sending, setSending] = useState(false);
+  const send = async () => {
+    setSending(true);
+    try {
+      const answer = await emailFunction({ action: "fairDaySummaryNow" }) as { sent?: boolean; reason?: string } | undefined;
+      if (answer && answer.sent === false) {
+        toast(answer.reason === "no-stockroom" ? "The stockroom isn't set up in this shop yet, so there's nothing to send." : "The Fair till hasn't uploaded any sales today, so there's nothing to send yet.");
+      } else {
+        toast.success("Today's fair summary is on its way to owner@example.com");
+      }
+    } catch (err: any) {
+      toast.error(plainError(err, "The fair summary wasn't sent"));
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <div>
+      <SecondaryButton size="sm" onClick={send} disabled={sending}>{sending ? "Sending…" : "Send me today's fair summary now"}</SecondaryButton>
+    </div>
   );
 }
 

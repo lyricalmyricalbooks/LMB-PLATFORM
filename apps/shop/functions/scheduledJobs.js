@@ -10,7 +10,7 @@ function scheduledJobs({
   digestNeedsOperations, digestSince, escapeHtml, footerAddress, loadNotificationSettings,
   marketingUnsubscribeKey, moneyFmt, nextDailyCount, normMarketingEmail, optOutId, pruneOldCarts,
   reminderFirstName, runInBatches, sendEmail, sendRestockAlerts, sendWeeklySummary, siteLink,
-  stockOf, unsubscribeToken, weeklySummaryEnabled,
+  stockOf, unsubscribeToken, weeklySummaryEnabled, sendFairDaySummary, fairDayEmailEnabled,
 }) {
   // ──────────────────────────────────────────────────────────────
   // 7. Abandoned cart sweep: every hour, recover carts older than 1h
@@ -69,6 +69,21 @@ function scheduledJobs({
       const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
       if (!weeklySummaryEnabled(notificationDoc?.data?.() || {})) return;
       await sendWeeklySummary();
+    }
+  );
+
+  // The fair day email: on an evening after the Fair till sold something, the day's takings (functions/fairDayEmail.js).
+  // Silent on other days and in a shop without the stockroom.
+  const fairDaySummary = onSchedule(
+    { schedule: "every day 21:00", name: "fairDaySummary", timeZone: "America/Toronto", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
+    async () => {
+      const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
+      if (!fairDayEmailEnabled(notificationDoc?.data?.() || {})) return;
+      try {
+        await sendFairDaySummary();
+      } catch (err) {
+        console.error("Fair day email failed", err);
+      }
     }
   );
 
@@ -297,7 +312,7 @@ function scheduledJobs({
     },
   );
 
-  return { dailyOrderDigest, weeklySummary, abandonedCartSweep, storageImageSweep, backInStockSweep };
+  return { dailyOrderDigest, weeklySummary, fairDaySummary, abandonedCartSweep, storageImageSweep, backInStockSweep };
 }
 
 module.exports = { scheduledJobs };

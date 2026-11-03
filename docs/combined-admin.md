@@ -90,6 +90,9 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
   stockroom's `salesRows` gives each till row its checkout number and fair, read from the note the Fair till writes
   ("Cash · Harbour Fair", `fairNameOf`); the Who column names the fair. A sale from the desktop till's own checkout
   carries no fair, so it shows as "Not named".
+- **Fair day email:** at 9pm on a day the Fair till sold something, the shop gets the day's takings, ways of paying and
+  books (`functions/fairDayEmail.js`, read-only from the stockroom's uploaded records; switch and "send now" under
+  Settings › Email sender › Shop alerts, combined admin only). Notes in `apps/shop/src/app/admin/CLAUDE.md`.
 - A page that asks before the admin listens for "open the frame" (a child page's first effect) is remembered and the
   frame opens as soon as the admin listens (`stockroomBridge.ts`).
 

@@ -69,3 +69,42 @@ describe("what the shop sells, copied for the stockroom's words", () => {
     expect(written).toEqual([["settings", "sells", { data: "\"clothing\"", ts: 5 }]]);
   });
 });
+
+describe("the fair day email's read", () => {
+  // A stockroom of three books: one sold today, one last week, one never saved.
+  const fakeDb = (docs) => {
+    const reads = [];
+    const ref = (path) => ({ path, collection: (c) => ({ doc: (d) => ref(`${path}/${c}/${d}`) }) });
+    const db = {
+      collection: (c) => ({ doc: (d) => ({ ...ref(`${c}/${d}`), get: async () => ({ exists: !!docs[`${c}/${d}`], data: () => docs[`${c}/${d}`] }) }) }),
+      getAll: async (...args) => {
+        const opts = args.length && !args[args.length - 1].path ? args.pop() : {};
+        reads.push({ paths: args.map((r) => r.path), fieldMask: opts.fieldMask || null });
+        return args.map((r) => ({ exists: !!docs[r.path], get: (f) => docs[r.path]?.[f] }));
+      },
+    };
+    return { db, reads };
+  };
+  const catalog = { data: JSON.stringify({ a: { id: "a", title: "Harbour Lights", currency: "CA$" }, b: { id: "b", title: "Tide Tables" }, c: { id: "c", title: "Unsaved" } }) };
+
+  test("reads the records of only the books uploaded since then", async () => {
+    const hist = [{ chan: "Book Fair", date: "2026-11-03", num: "POS-1", qty: 1, price: 24 }];
+    const { db, reads } = fakeDb({
+      "settings/catalog": catalog,
+      "books/a/data/hist": { ts: 2_000, data: JSON.stringify(hist) },
+      "books/b/data/hist": { ts: 500, data: "[]" },
+    });
+    const books = await store.readBooksSoldSince(1_000, { db });
+    expect(books).toEqual([{ id: "a", title: "Harbour Lights", currency: "CA$", hist }]);
+    expect(reads[0].fieldMask).toEqual(["ts"]);
+    expect(reads[1]).toEqual({ paths: ["books/a/data/hist"], fieldMask: null });
+  });
+
+  test("a broken record reads as no sales, and a stockroom without books reads nothing", async () => {
+    const { db } = fakeDb({ "settings/catalog": catalog, "books/a/data/hist": { ts: 2_000, data: "{not json" } });
+    expect(await store.readBooksSoldSince(1_000, { db })).toEqual([{ id: "a", title: "Harbour Lights", currency: "CA$", hist: [] }]);
+    const empty = fakeDb({});
+    expect(await store.readBooksSoldSince(1_000, { db: empty.db })).toEqual([]);
+    expect(empty.reads).toEqual([]);
+  });
+});
