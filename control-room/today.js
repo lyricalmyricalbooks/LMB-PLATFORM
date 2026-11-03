@@ -46,6 +46,10 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
   for (const row of shops.filter((r) => PAYMENT_PROBLEM.has(r.billing?.status))) {
     needs.push({ kind: "payment", shopId: row.shopId, words: `${row.pressName ?? row.shopId}: their plan payment failed`, go: "#shops" });
   }
+  // Paying presses drifting away (driftWatch.js keeps `drift` on the row once a day).
+  for (const row of shops.filter((r) => r.drift?.level === "drifting" && PAYING.has(r.billing?.status))) {
+    needs.push({ kind: "drift", shopId: row.shopId, words: `${row.pressName ?? row.shopId} may be drifting away: ${row.drift.reasons.join("; ")}${row.drift.checkedInAt ? " (check-in email sent)" : ""}`, go: "#shops" });
+  }
   // Web addresses (services/domains, the daily watch): one that stopped opening its shop, or runs out within two weeks.
   for (const row of rows) {
     for (const d of Array.isArray(row.domains) ? row.domains : []) {

@@ -33,7 +33,7 @@ export function supportAccess({ identity, registry, serviceAccount, shopData = n
     /**
      * Each person's sign-in safety on the shop (read only): whether two-step is on, and how many backup codes are left
      * (the shop's server-only `twoStepBackup/<uid>`, which holds only hashes; only their count is read here).
-     * [{ email, found, twoStep, codesLeft, codesMadeAt }]
+     * [{ email, found, twoStep, codesLeft, codesMadeAt, lastSignInAt }]
      */
     async signInSafety(shopId, emails) {
       const profile = await registry.getProfile(shopId);
@@ -44,7 +44,7 @@ export function supportAccess({ identity, registry, serviceAccount, shopData = n
       for (const person of people) {
         const backup = person.uid && shopData ? await shopData.get(shopId, `twoStepBackup/${person.uid}`).catch(() => null) : null;
         out.push({ email: person.email, found: person.found, twoStep: person.steps > 0,
-          codesLeft: backup ? (Array.isArray(backup.hashes) ? backup.hashes.length : 0) : person.found && shopData ? 0 : null, codesMadeAt: backup?.madeAt ?? null });
+          codesLeft: backup ? (Array.isArray(backup.hashes) ? backup.hashes.length : 0) : person.found && shopData ? 0 : null, codesMadeAt: backup?.madeAt ?? null, lastSignInAt: person.lastSignInAt ?? null });
       }
       return out;
     },

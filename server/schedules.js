@@ -30,6 +30,7 @@ export const FIXED_TIMES = Object.freeze({
   "trial-tips": "0 9 * * *",
   "shop-checkup": "0 10 * * *",
   "setup-clock": "30 9 * * *",
+  "drift-watch": "45 9 * * *",
   // Monday mornings: the week's deletions, while there is still time to act on them.
   "deletion-note": "0 8 * * 1",
   // The first of each month, before anyone is up.

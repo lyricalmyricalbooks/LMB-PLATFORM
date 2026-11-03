@@ -82,3 +82,15 @@ test("two-step off for one person: every second step taken off; nothing sent whe
   assert.deepEqual(await identity.removeSecondSteps("lmb-test-shop", "staff@example.com"), { found: false, removed: 0 });
   fetch.done();
 });
+
+test("each person's second steps and last sign-in come from one lookup", async () => {
+  const fetch = scriptedFetch([
+    { method: "POST", url: "https://identitytoolkit.googleapis.com/v1/projects/lmb-test-shop/accounts:lookup", body: { email: ["owner@example.com", "new@example.com"] },
+      json: { users: [{ localId: "u1", email: "Owner@example.com", mfaInfo: [{ mfaEnrollmentId: "m1" }], lastLoginAt: "1793707200000" }] } },
+  ]);
+  assert.deepEqual(await identityClient({ fetch, token }).secondStepsOf("lmb-test-shop", ["owner@example.com", "new@example.com"]), [
+    { email: "owner@example.com", found: true, uid: "u1", steps: 1, lastSignInAt: new Date(1793707200000).toISOString() },
+    { email: "new@example.com", found: false, uid: null, steps: 0, lastSignInAt: null },
+  ]);
+  fetch.done();
+});

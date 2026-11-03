@@ -63,6 +63,7 @@ import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { createSignInSafety, signInSafetyRoutes } from "../control-room/signInSafety.js";
 import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOver.js";
+import { createDriftWatch } from "../control-room/driftWatch.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { fakeDeliveryStats, fakeShopNotes } from "../control-room/visibilityFakes.js";
 import { createJobs } from "../services/jobs/index.js";
@@ -208,9 +209,11 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const timeline = createTimeline({ admins, registry, activity, supportStore, now: clock.date });
   const jobRuns = fakeJobRuns();
   const jobs = createJobs({ store: jobRuns, email, alertTo: ADMIN_EMAIL, now: clock.date });
+  // Paying presses drifting away (24.4): the practice shops' own orders and sign-ins.
+  const driftWatch = createDriftWatch({ registry, shopData, shopAccess, memberships: accountStores.memberships, email, settings, now: clock.date });
   const jobsPage = createJobsPage({
     admins, runner: jobs, activity, now: clock.date,
-    jobs: { "shop-maker": () => shopMaker.sweep(), "dropped-apps": () => billing.closeDroppedApps(), "income-record": () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }), "press-messages": () => pressMessages.sweep() },
+    jobs: { "shop-maker": () => shopMaker.sweep(), "dropped-apps": () => billing.closeDroppedApps(), "income-record": () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }), "press-messages": () => pressMessages.sweep(), "drift-watch": () => driftWatch.sweep() },
   });
   const notes = createShopNotes({ admins, store: fakeShopNotes(), registry, activity, now: clock.date });
   // Presses still in setup mode or opening (the Setting up page): read only.
@@ -265,7 +268,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
+    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, driftWatch, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
     deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
     pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */

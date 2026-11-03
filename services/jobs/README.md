@@ -23,6 +23,7 @@ in Cloud Scheduler. A job whose parts aren't connected yet is made paused (`serv
 | `dropped-apps` | 1 day | `services/billing/billing.js` `closeDroppedApps()` |
 | `income-record` | 1 day | `control-room/nightly.js` `runBusinessNightly()`: the income record (19.7) and the card-expiry reminders (19.9) |
 | `press-messages` | 1 hour | `control-room/messages.js` `sweep()`: ended messages off shop admins, new shops reached (19.14) |
+| `drift-watch` | 1 day | `control-room/driftWatch.js` `sweep()`: each paying shop's orders (4 weeks against the 4 before) and sign-ins give a risk score kept on its row; Today lists the drifting ones, and each gets one gentle "quiet-shop" email at most every 60 days (24.4) |
 | `setup-clock` | 1 day | `signup/setupClock.js` `sweep()`: a press in setup is emailed 30 and 7 days before its setup is cleared, then cleared (18.11) |
 | `trial-tips` | 1 day | `services/trial-tips/index.js` `run()` |
 | `shop-checkup` | 1 day | `services/checkup/index.js` `run()`: the monthly check-up email, at most one per shop a month (14.9) |

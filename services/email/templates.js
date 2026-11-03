@@ -269,6 +269,19 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** A paying press whose shop has gone quiet (control-room/driftWatch.js): a gentle check-in, at most every 60 days. */
+  "quiet-shop": ({ pressName, link, helpLink }, { settings }) => layout({
+    subject: `How is ${pressName} getting on?`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Things have been quiet at ${pressName} lately, so we wanted to check in. Shops often slow down between seasons, and that's fine.`,
+      "A few things that tend to bring shoppers back: add a new title or a fresh photo, send your newsletter about it, or put a small discount code on your home page for a week.",
+      `If something in ${settings.platformName} is getting in your way, reply to this email and tell us what it is. The help pages are always there too: ${helpLink}`,
+    ],
+    buttons: [["Open your shop admin", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The press's web address is paid up only until `date` (services/domains checkAll, from the public registry). 30 and 7 days before. */
   "domain-expiring": ({ domain, daysLeft, date, seller, own }, { settings }) => layout({
     subject: `${domain} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
