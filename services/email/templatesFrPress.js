@@ -297,6 +297,19 @@ export const PRESS_TEMPLATES_FR = {
     footer: signOff(settings),
   }),
 
+  /** French twin of "quiet-shop". */
+  "quiet-shop": ({ pressName, link, helpLink }, { settings }) => layout({
+    subject: `Comment ça va pour ${pressName}?`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `C'est calme chez ${pressName} ces temps-ci, alors nous voulions prendre de vos nouvelles. Les boutiques ralentissent souvent entre deux saisons, et c'est normal.`,
+      "Quelques idées qui ramènent souvent les clients : ajoutez un nouveau titre ou une nouvelle photo, parlez-en dans votre infolettre, ou affichez un petit code de réduction sur votre page d'accueil pendant une semaine.",
+      `Si quelque chose dans ${settings.platformName} vous bloque, répondez à ce courriel pour nous dire quoi. Les pages d'aide sont toujours là aussi : ${helpLink}`,
+    ],
+    buttons: [["Ouvrir l'administration de votre boutique", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** French twin of "domain-expiring". */
   "domain-expiring": ({ domain, daysLeft, date, seller, own }, { settings }) => layout({
     subject: `${domain} expire dans ${daysLeft} jour${daysLeft === 1 ? "" : "s"}`,

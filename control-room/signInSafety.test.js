@@ -87,9 +87,9 @@ test("the real reading: one lookup on the shop's sign-in project, then only the 
   await shopData.set(SHOP, "twoStepBackup/u1", { hashes: ["a", "b", "c"], madeAt: "2026-11-01T00:00:00Z", email: "owner@example.com" });
   const access = supportAccess({ identity, registry, shopData });
   assert.deepEqual(await access.signInSafety(SHOP, ["owner@example.com", "sam@example.com", "x@example.com"]), [
-    { email: "owner@example.com", found: true, twoStep: true, codesLeft: 3, codesMadeAt: "2026-11-01T00:00:00Z" },
-    { email: "sam@example.com", found: true, twoStep: false, codesLeft: 0, codesMadeAt: null },
-    { email: "x@example.com", found: false, twoStep: false, codesLeft: null, codesMadeAt: null },
+    { email: "owner@example.com", found: true, twoStep: true, codesLeft: 3, codesMadeAt: "2026-11-01T00:00:00Z", lastSignInAt: null },
+    { email: "sam@example.com", found: true, twoStep: false, codesLeft: 0, codesMadeAt: null, lastSignInAt: null },
+    { email: "x@example.com", found: false, twoStep: false, codesLeft: null, codesMadeAt: null, lastSignInAt: null },
   ]);
   assert.deepEqual(asked, [["lmb-test-shop", ["owner@example.com", "sam@example.com", "x@example.com"]]]);
 });

@@ -83,7 +83,10 @@ export function identityClient({ fetch, token, now = () => new Date() }) {
     const { users = [] } = await call("POST", `${IDENTITY}/projects/${projectId}/accounts:lookup`, { body: { email: emails } });
     return emails.map((email) => {
       const found = users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
-      return found ? { email, found: true, uid: found.localId, steps: Array.isArray(found.mfaInfo) ? found.mfaInfo.length : 0 } : { email, found: false, uid: null, steps: 0 };
+      const last = Number(found?.lastLoginAt);
+      return found
+        ? { email, found: true, uid: found.localId, steps: Array.isArray(found.mfaInfo) ? found.mfaInfo.length : 0, lastSignInAt: Number.isFinite(last) && last > 0 ? new Date(last).toISOString() : null }
+        : { email, found: false, uid: null, steps: 0, lastSignInAt: null };
     });
   }
 

@@ -87,6 +87,17 @@ export async function seedRoom(world) {
   await world.shopData.set("kestrel", "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": at, "move-giftcards": at, "move-orders": at } });
   await world.shopData.set("kestrel", "systemStatus/photoImport", { copiedTotal: 57, pending: 3, failed: {}, lastRunAt: at });
 
+  // Drifting away: Lantern sold five zines five weeks ago and none since, and Lou last signed in 40 days ago; Kestrel
+  // sells every week and Kit signed in yesterday. The daily watch scores both from that and emails Lantern.
+  const daysAgo = (days) => new Date(world.clock.ms() - days * 86_400_000).toISOString();
+  await world.registry.updateShop("lantern-zines", { liveAt: daysAgo(120) });
+  await world.registry.updateShop("kestrel", { liveAt: daysAgo(120) });
+  for (const [i, days] of [33, 34, 35, 36, 37].entries()) await world.shopData.set("lantern-zines", `orders/seed-${i}`, { paymentStatus: "paid", createdAt: daysAgo(days), total: 12 });
+  for (const [i, days] of [2, 9, 16, 30, 40, 50].entries()) await world.shopData.set("kestrel", `orders/seed-${i}`, { paymentStatus: "paid", createdAt: daysAgo(days), total: 30 });
+  world.shopAccess.lastSignIn.set("lantern-zines lou@example.com", daysAgo(40));
+  world.shopAccess.lastSignIn.set("kestrel kit@example.com", daysAgo(1));
+  await world.driftWatch.sweep();
+
   // Two presses still in setup mode, through the front door's own calls, for the Setting up page.
   for (const [owner, answers] of SETUP_PRESSES) {
     const made = await world.ask(owner, "POST", "/api/press", {});
