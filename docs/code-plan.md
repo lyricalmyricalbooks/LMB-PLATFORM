@@ -804,7 +804,7 @@ The review compared Colophon with what Shopify gives a small shop, checked again
 |---|---|---|---|---|
 | 24.1 | shop | **Send newsletters.** Customers › Newsletter: write, test to yourself, send to confirmed, not-unsubscribed people; the sweep sends a page at a time under a lease, never twice, never through the press's Gmail, on the platform's newsletter stream; stop and resume | `functions/newsletterSend.test.js`, `newsletterIssues.test.ts` | open |
 | 24.2 | platform | **Delete my own account** from the account page: refused while the only owner of an open shop; needs a sign-in in the last 15 minutes and the address typed again; removes team places (platform and shop), the account, devices, never-made sign-ups and the sign-in; keeps invoices, support history and shop activity logs; goodbye email in English and French | `accounts/deleteAccount.test.js`, plain-words and French-twin tests | open |
-| 24.3 | stockroom | **Low-stock email** to the owner when an item reaches its reorder level, once per item until restocked | stockroom tests | |
+| 24.3 | shop | **Low-stock email.** The 8am email lists products (per edition) at or below Inventory's low-stock line, once per dip and again if sold out; marks cleared on restock; its own switch in Notifications › Shop alerts › Running low; sends even on a day with no orders to chase | `functions/lowStockAlert.test.js` (rules and the job with fakes) | open |
 | 24.4 | platform | Warn about paying presses drifting away, and web addresses about to expire (with the control-room thread) | control-room tests | |
 | 24.5 | shop | Ship part of an order now and the rest later | fulfilment tests | |
 | 24.6 | shop | Change an order after it is paid | order and payment tests | |

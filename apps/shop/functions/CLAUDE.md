@@ -1035,3 +1035,15 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
   Gmail (low daily cap, account risk); `kind` puts it on the platform's newsletter stream without `queue`, because the
   emailOutbox retrying it would double-send alongside the run's own retry. Owner words are escaped (text, not HTML);
   `{{shop_name}}` works; every email has the signed unsubscribe link.
+
+## Running low in the 8am email (3 November 2026)
+
+- The 8am `dailyOrderDigest` (`scheduledJobs.js`) also lists products, one row per edition, whose shelf count is at or
+  below Inventory's low-stock line (`settings/website.inventory.lowStockThreshold`, default 5), using
+  `functions/lowStockAlert.js`. It counts only what Inventory counts: `trackInventory` on, never drafts, archived,
+  digital editions (`isDigitalEdition`), box sets or gift cards. It is not a new schedule job (`tick.test.js` counts them).
+- **Once per dip:** marks in `systemStatus/lowStockAlerts.items` (`key → "low" | "out"`). A row is reported when it has no
+  mark or goes from low to out. Marks keep only today's low rows, so a restocked item loses its mark. Marks are saved
+  only after the email went out (or on a day with nothing to send), so a failed send retries tomorrow.
+- Its own switch: Notifications › Shop alerts › Running low (`shopAlerts.lowStock`, on unless off). It runs with the
+  orders switch off, and sends a `[STOCK] …` email on a day with no orders to chase.
