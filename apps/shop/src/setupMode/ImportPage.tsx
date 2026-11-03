@@ -2,12 +2,14 @@
 // previewed here in the browser with the shop's own importer (shopMove.ts `planShopMove`, with no books yet, so every
 // row is new), then kept on the platform for the shop maker (18.9) to bring in when the shop opens. Nothing is written
 // to a shop: there isn't one yet.
-import { useRef, useState, type FormEvent } from "react";
-import { FileUp, Globe, Trash2 } from "lucide-react";
-import { EmptyState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField } from "../app/admin/riso/components";
+import { useMemo, useRef, useState } from "react";
+import { FileUp, Trash2 } from "lucide-react";
+import { EmptyState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../app/admin/riso/components";
+import { OldShopAddressForm } from "../app/admin/OldShopAddressForm";
 import { BRING_ANSWERS, bringAnswerOf, bringHelp, type BringAnswer } from "../app/admin/bringShop";
 import { ImportPreviewRows, MAX_FILE_BYTES } from "../app/admin/importPreview";
 import { planShopMove, SHAPE_WORDS, type MovePlan } from "../app/admin/shopMove";
+import { fileWithoutPhotos, photoCheckLine, useBrokenPhotos, withoutBrokenPhotos } from "../app/admin/photoLinks";
 import { sellsBooks } from "../app/admin/sells";
 import { useShopWords } from "../app/admin/shopWords";
 import type { SetupDoor, SetupPress } from "./door";
@@ -30,14 +32,13 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
   const [busy, setBusy] = useState<"" | "keep" | "remove">("");
   const [error, setError] = useState("");
   const [from, setFrom] = useState<BringAnswer | "">("");
-  const [address, setAddress] = useState("");
-  const [reading, setReading] = useState(false);
-  const [addressError, setAddressError] = useState("");
   /** What reading the old shop's address had to say (stock counts aren't public, choices without prices). */
   const [readNotes, setReadNotes] = useState<string[]>([]);
 
   const kept = press.stagedImport;
-  const plan = preview?.plan;
+  // Plan 23.3: photos that can't be loaded from the old shop are left out of the preview and of the kept file.
+  const photoCheck = useBrokenPhotos(preview?.plan);
+  const plan = useMemo(() => (preview?.plan ? withoutBrokenPhotos(preview.plan, photoCheck.broken) : undefined), [preview, photoCheck.broken]);
   const ready = plan && !plan.problems.length ? plan.counts.create : 0;
 
   async function choose(next: File | undefined, notes: string[] = []) {
@@ -56,7 +57,8 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
     if (!file || !ready || busy) return;
     setBusy("keep"); setError("");
     try {
-      onSaved(await door.keepImport(press.pressId, file, { name: file.name, rows: ready }));
+      const kept = photoCheck.broken.size ? new File([fileWithoutPhotos(await file.text(), photoCheck.broken)], file.name, { type: file.type || "text/csv" }) : file;
+      onSaved(await door.keepImport(press.pressId, kept, { name: file.name, rows: ready }));
       setFile(null); setPreview(null); setReplacing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "That didn't save. Try again.");
@@ -74,22 +76,6 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
       setError(err instanceof Error ? err.message : "That didn't save. Try again.");
     } finally {
       setBusy("");
-    }
-  }
-
-  // Bring it over from the old shop's address (23.2): the platform reads the public product list and answers it as a
-  // product file, which is previewed and kept exactly like a chosen file.
-  async function readAddress(event: FormEvent) {
-    event.preventDefault();
-    if (reading || !address.trim()) return;
-    setReading(true); setAddressError("");
-    try {
-      const read = await door.readOldShop(press.pressId, address.trim());
-      await choose(new File([read.csv], `${read.host} products.csv`, { type: "text/csv" }), read.notes);
-    } catch (err) {
-      setAddressError(err instanceof Error ? err.message : "That didn't work. Try again.");
-    } finally {
-      setReading(false);
     }
   }
 
@@ -120,12 +106,8 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
       {(!kept || replacing || file) && !preview && (
         <div style={{ display: "grid", gap: 16 }}>
         <SectionCard title="From your old shop's address" collapsible={false}>
-          <form onSubmit={(e) => void readAddress(e)} style={{ display: "grid", gap: 12, maxWidth: 560 }}>
-            <TextField label="Your old shop's web address" placeholder="yourshop.com" inputMode="url" autoComplete="url" value={address}
-              hint={w("We read the books your old shop shows the public. You'll see them all before anything is kept.")}
-              error={addressError || undefined} onChange={(e) => setAddress(e.target.value)} />
-            <div><PrimaryButton type="submit" icon={<Globe size={16} aria-hidden />} busy={reading} disabled={reading || !!busy || !address.trim()}>{w("Bring my books over")}</PrimaryButton></div>
-          </form>
+          {/* Bring it over from the old shop's address (23.2): the platform answers a product file, previewed like a chosen one. */}
+          <OldShopAddressForm read={(address) => door.readOldShop(press.pressId, address)} onRead={choose} disabled={!!busy} />
         </SectionCard>
         <SectionCard title="Or bring a file" collapsible={false}>
           <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
@@ -166,6 +148,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
                   <StatusBadge tone="info">{w(`${plan.counts.create} ${plan.counts.create === 1 ? "book" : "books"} ready`)}</StatusBadge>
                   {plan.counts.error > 0 && <StatusBadge tone="danger">{plan.counts.error} with problems (left out)</StatusBadge>}
                 </div>
+                {photoCheckLine(photoCheck) && <p className="rp-hint" role="status" style={{ margin: 0 }}>{w(photoCheckLine(photoCheck))}</p>}
                 {[...readNotes, ...(preview?.moved?.notices ?? [])].map((n) => <p key={n} className="rp-hint" style={{ margin: 0 }}>{w(n)}</p>)}
                 {!preview?.moved && plan.ignoredColumns.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Columns left out: {plan.ignoredColumns.join(", ")}.</p>}
                 <ImportPreviewRows plan={plan} />

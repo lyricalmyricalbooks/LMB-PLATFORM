@@ -6,6 +6,8 @@ import type { SetupDoor, SetupPress } from "./door";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const { SetupAdmin } = await import("./SetupAdmin");
+const { setImageLoader } = await import("../app/admin/photoLinks");
+setImageLoader(async (url) => !url.includes("gone"));
 
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; location.hash = ""; });
@@ -152,6 +154,23 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect((d.keepImport as any).mock.calls[0][2]).toEqual({ name: "my-books.csv", rows: 2 });
     expect(el.textContent).toContain("Kept for your shop");
     expect(el.textContent).toContain("2 books, kept 3 November 2026");
+  });
+
+  it("Books keeps the file without photos that can't be loaded from the old shop (plan 23.3)", async () => {
+    const d = door();
+    const el = await mount(d, "#catalog");
+    const input = el.querySelector('input[type="file"]') as HTMLInputElement;
+    const csv = "Title,Price,Image URL\nMoths,12,https://img.example/gone.jpg\nNight Pages,15,https://img.example/fine.jpg\n";
+    Object.defineProperty(input, "files", { value: [new File([csv], "my-books.csv", { type: "text/csv" })], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    await flush();
+    expect(el.textContent).toContain("1 photo couldn't be loaded from the old shop");
+    const keep = [...el.querySelectorAll("button")].find((b) => b.textContent === "Keep 2 books for my shop") as HTMLButtonElement;
+    await act(async () => { keep.click(); });
+    await flush();
+    const sent = await ((d.keepImport as any).mock.calls[0][1] as Blob).text();
+    expect(sent).not.toContain("gone.jpg");
+    expect(sent).toContain("https://img.example/fine.jpg");
   });
 
   it("refuses a file over 5 MB in plain words, before reading or sending it", async () => {

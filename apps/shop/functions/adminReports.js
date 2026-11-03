@@ -1,4 +1,4 @@
-// Admin report actions of createStripeCheckoutSession: backups list, AI writing assistant, Google Analytics,
+// Admin report actions of createStripeCheckoutSession: backups list, reading an old shop's address, AI writing assistant, Google Analytics,
 // Search Console, BigQuery journeys and the traffic-count reset. Every one is admin-only and never touches orders,
 // payments or stock. index.js passes in its own db, admin SDK and guards, so the handler tests' fakes still apply.
 const { handleAiWrite } = require("./aiWriter");
@@ -7,6 +7,7 @@ const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
 const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
 const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
 const { handleTrafficReset } = require("./trafficReset");
+const { handleOldShopRead, readOldShop } = require("./oldShopRead");
 
 function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit, LIMITS }) {
   /** Settings › General › Backups & export › the daily list (op "list") and Download (op "download", body.day). */
@@ -129,7 +130,21 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     }
   }
 
+  // Books › Import › "From your old shop's address" (plan 23.11): reads the old shop's public product list.
+  async function handleOldShopRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handleOldShopRead(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), read: readOldShop });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("readOldShop failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't read that shop just now. Try again in a minute, or choose its product file." });
+    }
+  }
+
   return {
+    readOldShop: handleOldShopRequest,
     backups: handleBackups,
     aiWrite: handleAiWriteRequest,
     ga4Report: handleGa4ReportRequest,
