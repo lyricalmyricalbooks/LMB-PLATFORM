@@ -47,11 +47,22 @@ export const ARTICLES = Object.freeze([
     where: ["Books › a product › Editions"],
   },
   {
+    id: "what-you-sell",
+    topic: "Getting started",
+    question: "I sell something different now. Can I change what my shop sells?",
+    answer: [
+      "Yes. Open Settings › General and find What you sell. Choose books, zines, comics, art and prints, clothing, shoes, jewelry, music, something else, or Books and other things if you sell both.",
+      "The shop's pages and emails change their words at once. Your stockroom changes the next time you open it, and Settings tells you when it has. Products you already made stay as they are.",
+    ],
+    where: ["Settings › General"],
+  },
+  {
     id: "size-guide",
     topic: "Getting started",
     question: "How do I add a size guide?",
     answer: [
       "Open the product and look in its details for Size guide. Type the measurements in the box, or choose a picture of your size chart. Shoppers see it next to the sizes on the product's page.",
+      "For clothing and shoes, press Start from a typical size guide to fill the box with a common chart. Change the numbers to match how your own pieces fit.",
     ],
     where: ["Books › a product"],
   },

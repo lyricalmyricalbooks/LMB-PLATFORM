@@ -1144,7 +1144,7 @@ import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, shopProfile, switchOn 
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 import { readReady, readyApplies, readyHtml, readyLines, showReady, writeReady } from './lib/stockroom-ready.js';
 import { catalogGroups, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
-import { applyPageWords, noteSellsAnswer, sellsBooks, words } from './lib/shop-words.js';
+import { applyPageWords, noteSellsAnswer, sellsBooks, words, wordsReported, wordsToReport } from './lib/shop-words.js';
 // The page's own words follow what the shop sells (plan 10.23): "product" and "maker" for a shop that doesn't sell books.
 applyPageWords(document.body);
 
@@ -19573,6 +19573,8 @@ async function initStartup() {
         // even if the catalog isn't edited this session.
         if (typeof window._fbSaveBookOwners === 'function' && !window.PLAN_READ_ONLY) window._fbSaveBookOwners(ownersFromBooks());
         showApp('publisher', null);
+        // Once this page shows the owner's words, the shop is told, so Settings can say the stockroom has caught up.
+        try { const told = wordsToReport(); if (told && !window.PLAN_READ_ONLY && await window._fbNoteWords?.(told)) wordsReported(told); } catch (_) { /* told again next time */ }
         syncSheetsConnectionWithCloud();
         checkAppUpdate();
         dismissSplash();

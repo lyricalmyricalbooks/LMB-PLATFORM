@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { currentSells } from "./sells";
+import { inventoryLinkApi } from "./inventoryLinkApi";
 import { SELLS_CHANGED_EVENT } from "./shopWords";
 import { SectionCard, SelectField, PrimaryButton } from "./riso/components";
 
@@ -22,10 +23,20 @@ export const SELLS_CHOICES: { id: string; label: string }[] = [
   { id: "other", label: "Something else" },
 ];
 
+/** What Settings says about the stockroom's words: it is using the saved answer, or it will switch when next opened. */
+export function stockroomWordsNote(saved: string | null | undefined, heardFromStockroom: string | null | undefined, justSaved = false): string {
+  // Nothing to say for a shop whose answer was never changed here: the stockroom already has the sign-up words.
+  if (!saved || (!heardFromStockroom && !justSaved)) return "";
+  if (heardFromStockroom === saved) return "Your stockroom is using these words.";
+  return "Your stockroom switches to these words the next time you open it.";
+}
+
 export function WhatYouSellCard() {
   const [saved, setSaved] = useState<string | null | undefined>(undefined);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  const [heard, setHeard] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
     Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => {
@@ -37,6 +48,11 @@ export function WhatYouSellCard() {
     }).catch(() => { if (live) setSaved(null); });
     return () => { live = false; };
   }, []);
+  useEffect(() => {
+    let live = true;
+    Promise.resolve().then(() => inventoryLinkApi.state()).then((st) => { if (live) setHeard(typeof st?.app?.wordsSells === "string" ? st.app.wordsSells : null); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
   if (saved === undefined) return null;
   const changed = value !== (saved === "mix" ? "books" : saved || "books");
   const save = async () => {
@@ -44,6 +60,7 @@ export function WhatYouSellCard() {
     try {
       await adminApi.updateFirstWeek({ sells: value });
       setSaved(value);
+      setJustSaved(true);
       window.dispatchEvent(new CustomEvent(SELLS_CHANGED_EVENT, { detail: value }));
       toast.success("Saved. The admin now uses the words for what you sell.");
     } catch {
@@ -58,7 +75,7 @@ export function WhatYouSellCard() {
         </SelectField>
         <PrimaryButton onClick={save} busy={busy} disabled={!changed || busy}>Save</PrimaryButton>
       </div>
-      <p className="rp-hint" style={{ margin: "12px 0 0" }}>Your stockroom keeps its current words until we refresh it for you.</p>
+      <p className="rp-hint" role="status" style={{ margin: "12px 0 0" }}>{stockroomWordsNote(saved, heard, justSaved)}</p>
     </SectionCard>
   );
 }

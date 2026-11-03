@@ -494,6 +494,7 @@ async function runSweep(deps, opts = {}) {
       status.app = appDoc ? {
         lastImportAt: appDoc.lastImportAt || null, lastFeedAt: appDoc.lastFeedAt || null, importConsentAt: appDoc.importConsentAt || null,
         todo: cleanAppTodo(appDoc.todo),
+        wordsSells: typeof appDoc.wordsSells === "string" ? appDoc.wordsSells : null, wordsAt: appDoc.wordsAt || null,
       } : null;
     }
 
