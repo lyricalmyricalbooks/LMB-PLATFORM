@@ -7,7 +7,8 @@ const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
 const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
 const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
 const { handleTrafficReset } = require("./trafficReset");
-const { handlePastOrdersImport } = require("./orderImport");
+const { handlePastOrdersImport, handlePastOrdersRemove } = require("./orderImport");
+const { handleExchangeRates, getBankJson } = require("./pastOrderRates");
 const { handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop } = require("./oldShopRead");
 
 function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit, LIMITS }) {
@@ -183,7 +184,35 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     }
   }
 
+  // Orders › Bring past orders over (plan 23.14): the Bank of Canada's average rate for the file's dates, as a suggestion.
+  async function handleExchangeRatesRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handleExchangeRates(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop), getJson: getBankJson });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("exchangeRates failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't look the rates up just now. Type your own rate instead." });
+    }
+  }
+
+  // Orders › a brought-over order › Remove this import (plan 23.15): takes one run of Bring past orders over back.
+  async function handlePastOrdersRemoveRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handlePastOrdersRemove(req.body || {}, { db, actor: adminUser.email || "admin", now: new Date() });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("removePastOrders failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't remove those orders just now. Try again in a minute." });
+    }
+  }
+
   return {
+    exchangeRates: handleExchangeRatesRequest,
+    removePastOrders: handlePastOrdersRemoveRequest,
     importPastOrders: handlePastOrdersRequest,
     readOldShop: handleOldShopRequest,
     readOldLinks: handleOldLinksRequest,

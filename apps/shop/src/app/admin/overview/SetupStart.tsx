@@ -19,6 +19,7 @@ import { nextRunStep } from "../startRun";
 import { GoogleStage } from "./GoogleStage";
 import { FinalCheckStage } from "./FinalCheckStage";
 import { ShopOpenedCard, publicAddress } from "./ShopOpenedCard";
+import { MoveProgressCard } from "./MoveProgressCard";
 
 // The welcome pulls in Studio's theme library and switcher, so it loads only for a shop that will show it.
 const ChooseLookWelcome = lazy(() => import("./ChooseLookWelcome").then(m => ({ default: m.ChooseLookWelcome })));
@@ -152,6 +153,7 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
     <>
       {celebrate && <ShopOpenedCard address={publicAddress(settings)} onClose={() => setCelebrate(false)} />}
       <SetupGuideCard doc={doc} setDoc={setDoc} facts={facts} onOpen={onOpen} onSetWall={setWall} />
+      <MoveProgressCard doc={doc} setDoc={setDoc} onOpen={onOpen} />
     </>
   );
 }

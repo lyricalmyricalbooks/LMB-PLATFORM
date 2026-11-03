@@ -24,6 +24,8 @@ import {
 } from "./fulfillment";
 import { invoiceLine, invoiceOpen } from "./invoices";
 import { PaymentLinkCard } from "./PaymentLinkCard";
+import { PastImportUndo } from "./PastOrdersDialog";
+import { refreshOrdersCache } from "./Orders";
 import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
 import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, customerTrackUrl, telHref } from "./orderLines";
@@ -854,6 +856,12 @@ export function OrderDetail({
           </>
         }
       />
+      {order.source === "import" && typeof order.importBatch === "string" && (
+        <PastImportUndo batch={order.importBatch} onRemoved={(n) => {
+          toast.success(`${n} past order${n === 1 ? "" : "s"} removed`);
+          void refreshOrdersCache().catch(() => {}).finally(onClose);
+        }} />
+      )}
       {loadFailed && (
         <ErrorState
           description="The latest order could not be loaded. Retry before continuing."

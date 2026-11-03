@@ -1,3 +1,4 @@
+import { recordMoveStep } from "./moveProgress";
 import { useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { adminApi } from "./api";
@@ -68,6 +69,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
       setProgress(++done);
     }
     await adminApi.recordAuditLog("customers", `Brought ${saved} customer${saved === 1 ? "" : "s"} over from the old shop${joined ? `; ${joined} joined the newsletter` : ""}`).catch(() => {});
+    if (saved) void recordMoveStep("move-customers");
     setResult({ saved, failed, joined });
     setBusy(false);
     onDone();
