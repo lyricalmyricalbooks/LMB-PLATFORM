@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { adminApi } from "../api";
 import { inventoryApi } from "../inventoryApi";
 import { getOrdersCached, peekOrders } from "../ordersCache";
+import { readSignIn } from "../launchCheck";
 import { salesReportCsv } from "./salesReport";
 import { launchReadiness } from "../launchReadiness";
 import { platformCardsProvider } from "../../../lib/shopProfile";
@@ -121,7 +122,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
       adminApi.getRecentEmailLog(5),
       // A shop whose cards go through Colophon: is the press's card account connected? (plan 2.10; null if unknown)
       platformCardsProvider() ? adminApi.platformPayments("status").catch(() => null) : Promise.resolve(undefined),
-    ]).then(([settings, shippingProfiles, emailLog, platformAccount]) => setLaunch({ parts: { settings, shippingProfiles, emailLog, platformAccount }, error: false }))
+      // Two-step sign-in and backup codes, recommended before going live (never fails the other checks).
+      readSignIn(),
+    ]).then(([settings, shippingProfiles, emailLog, platformAccount, signIn]) => setLaunch({ parts: { settings, shippingProfiles, emailLog, platformAccount, signIn }, error: false }))
       .catch(() => setLaunch({ parts: null, error: true }));
     // The whole catalogue and every order, so 1-year and year-on-year figures are never cut off.
     getOrdersCached({ force: reloadKey > 0 }).then((o: any[]) => { seenShared.current = o; setAllOrders({ orders: o, error: false }); setLoadedAt(new Date()); })

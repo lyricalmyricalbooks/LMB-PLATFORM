@@ -202,6 +202,19 @@ describe("launchReadiness on a shop whose cards go through Colophon (plan 2.10)"
   });
 });
 
+describe("launchReadiness sign-in (two-step and backup codes)", () => {
+  const base = { settings: {}, books: [], shippingProfiles: [], emailLog: [], orders: [] };
+  it("recommends two-step, then backup codes, and never blocks opening", () => {
+    const row = (signIn: any) => launchReadiness({ ...base, signIn }).find(i => i.id === "sign-in");
+    expect(row(undefined)).toBeUndefined();
+    expect(row(null)).toBeUndefined();
+    expect(row({ twoStep: false, codesLeft: null })).toMatchObject({ status: "warn", label: "Two-step sign-in is off", tab: "security" });
+    expect(row({ twoStep: true, codesLeft: 0 })).toMatchObject({ status: "warn", label: "No backup codes saved" });
+    expect(row({ twoStep: true, codesLeft: 10 })).toMatchObject({ status: "ok", detail: "Two-step sign-in is on, with 10 backup codes left." });
+    expect(row({ twoStep: true, codesLeft: null })!.status).toBe("ok");
+  });
+});
+
 describe("launchReadiness postal address", () => {
   it("blocks while no postal address is saved, and passes once one is", () => {
     const base = { books: [], shippingProfiles: [], emailLog: [], orders: [] };

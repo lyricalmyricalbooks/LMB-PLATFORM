@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({ adminApi: {} }));
 vi.mock("./ordersCache", () => ({ getOrdersCached: vi.fn(async () => []) }));
-const { blockedMessage, blockersBeforeOpening, readLaunchReadiness } = await import("./launchCheck");
+vi.mock("../../lib/firebase", () => ({ auth: { currentUser: null } }));
+const { blockedMessage, blockersBeforeOpening, readLaunchReadiness, readSignIn } = await import("./launchCheck");
 
 const item = (id: string, status: "ok" | "warn" | "block", label = id) => ({ id, label, detail: "", status, tab: "general", action: "Open" });
 
@@ -26,8 +27,13 @@ describe("the last check wherever the shop is opened from", () => {
       getSettings: vi.fn(async () => ({})), getShippingProfiles: vi.fn(async () => []), getRecentEmailLog: vi.fn(async () => []),
       getAllBooks: vi.fn(async () => []), platformPayments: vi.fn(async () => null),
     };
-    const items = await readLaunchReadiness(api, async () => []);
+    const items = await readLaunchReadiness(api, async () => [], async () => ({ twoStep: false, codesLeft: null }));
     expect(api.getRecentEmailLog).toHaveBeenCalledWith(5);
     expect(items.find(i => i.id === "books")?.status).toBe("block");
+    expect(items.find(i => i.id === "sign-in")).toMatchObject({ status: "warn", label: "Two-step sign-in is off" });
+  });
+
+  it("has no sign-in to read when nobody is signed in", async () => {
+    expect(await readSignIn(null)).toBeNull();
   });
 });

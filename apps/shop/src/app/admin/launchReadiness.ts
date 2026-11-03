@@ -22,6 +22,11 @@ export type ReadinessInput = {
    */
   platformCards?: "stripe" | "square" | null;
   platformAccount?: PlatformPaymentsAnswer | null;
+  /**
+   * The signed-in person's own sign-in (Settings › Security): two-step on, and how many backup codes are left (null when
+   * they couldn't be counted). Left out, or null, when it couldn't be read: no row then.
+   */
+  signIn?: { twoStep: boolean; codesLeft: number | null } | null;
 };
 
 const REQUIRED_POLICIES: Array<[string, string]> = [["shipping", "Shipping"], ["returns", "Returns"], ["privacy", "Privacy"], ["terms", "Terms"]];
@@ -29,7 +34,7 @@ const REQUIRED_POLICIES: Array<[string, string]> = [["shipping", "Shipping"], ["
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const hasText = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
-export function launchReadiness({ settings, books, shippingProfiles, emailLog, orders, platformCards = platformCardsProvider(), platformAccount }: ReadinessInput): ReadinessItem[] {
+export function launchReadiness({ settings, books, shippingProfiles, emailLog, orders, platformCards = platformCardsProvider(), platformAccount, signIn }: ReadinessInput): ReadinessItem[] {
   const items: ReadinessItem[] = [];
   const payments = settings?.payments || {};
   // The shop's own Stripe keys count only when the platform doesn't take its cards (a Square shop never reads them).
@@ -157,6 +162,16 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   else items.push(realSale
     ? { id: "first-sale", label: "A real paid order is recorded", detail: "The order is marked paid. Check the payment, the receipt, any refund and the packing separately to confirm the full flow.", status: "warn", tab: "orders", action: "Open Orders" }
     : { id: "first-sale", label: "No real paid order yet", detail: "Place one small live order (then refund it) to prove checkout end to end.", status: "warn", tab: "orders", action: "Open Orders" });
+
+  // Sign-in (code plan 22.6, 22.9): recommended before going live, never required. Without backup codes an owner who
+  // loses their phone can only get back in by asking for help.
+  if (signIn) {
+    items.push(!signIn.twoStep
+      ? { id: "sign-in", label: "Two-step sign-in is off", detail: "Turn it on in Settings › Security and save your backup codes, so nobody else can get into your shop, and you can still get in if you lose your phone.", status: "warn", tab: "security", action: "Open Security" }
+      : signIn.codesLeft === 0
+        ? { id: "sign-in", label: "No backup codes saved", detail: "If you lose your phone, backup codes are how you get back in. Make them in Settings › Security and keep them somewhere safe.", status: "warn", tab: "security", action: "Open Security" }
+        : { id: "sign-in", label: "Your sign-in is protected", detail: signIn.codesLeft === null ? "Two-step sign-in is on." : `Two-step sign-in is on, with ${plural(signIn.codesLeft, "backup code")} left.`, status: "ok", tab: "security", action: "Open Security" });
+  }
 
   // Colophon deploys and checks every platform shop's releases; the press has nothing to verify there.
   if (platformCards) return items;
