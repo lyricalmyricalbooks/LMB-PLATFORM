@@ -19,6 +19,7 @@ export const NOT_CONNECTED = Object.freeze({
   deploys: { words: "Putting a shop's pages live again isn't switched on here yet.", waitsOn: "the release runner's hosted home: deploys need the Firebase command line and a release build (code plan 4.1)" },
   supportSignIn: { words: "Opening a shop's admin from the control room isn't switched on yet.", waitsOn: "a support sign-in for each shop, after the real shop maker (15.5) and test shop (15.7)" },
   twoStepReset: { words: "Turning off two-step sign-in from the control room isn't switched on yet. Nothing was changed.", waitsOn: "the platform's access to each shop's sign-in, after the real shop maker (15.5) and test shop (15.7)" },
+  signInSafety: { words: "Reading a shop's two-step sign-in and backup codes isn't switched on yet.", waitsOn: "the platform's access to each shop's sign-in, after the real shop maker (15.5) and test shop (15.7)" },
   stagedImports: { words: "Keeping your file until your shop opens isn't switched on yet. Your preview is fine: bring the file again once your shop is open.", waitsOn: "the platform's import bucket and its signed upload links (code plan 18.7)" },
   exportFiles: { words: "Downloading all of a shop's data isn't switched on yet. Write to us and we'll send it to you.", waitsOn: "the platform's export bucket and its signed download links (code plan 19.16)" },
   projectDeletion: { words: "Deleting a closed shop's project isn't switched on yet.", waitsOn: "Julian's go once the Google organization exists: deleting a project can't be undone" },

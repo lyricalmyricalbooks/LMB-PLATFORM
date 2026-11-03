@@ -563,6 +563,8 @@ function card(shop) {
     shop.status === "live" ? paymentsMenu(shop.paymentsMoved?.to ?? "platform", { shopId: shop.shopId }, shop.pressName) : null,
     el("h3", { className: "cr-section", textContent: "The record" }),
     recordSlot,
+    shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Sign-in safety" }) : null,
+    shop.status === "live" ? signInSafetySection(shop) : null,
     ...privateSections(shop),
   ].filter(Boolean);
 }
@@ -1988,3 +1990,30 @@ async function loadSetup() {
   }
 }
 $("#setup-refresh").addEventListener("click", loadSetup);
+
+// ── Sign-in safety (plan 22.6-22.11): who on the shop's team has two-step on, and their backup codes left. ──
+const SAFETY = {
+  safe: ["success", "Two-step on"], low: ["warning", "Few codes left"], "no-codes": ["warning", "No backup codes"],
+  off: ["danger", "Two-step off"], never: ["neutral", "Not signed in yet"],
+};
+const ROLE_WORDS_SHORT = { owner: "Owner", manager: "Manager", staff: "Staff" };
+
+function signInSafetySection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's sign-in…" }));
+  api("POST", "/control/sign-in-safety", { shopId: shop.shopId }).then(({ people, summary, words }) => {
+    if (!people.length) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words ?? "No one on the team yet." }));
+    slot.replaceChildren(
+      el("p", { className: "rp-hint", textContent: `${summary.withTwoStep} of ${summary.signedIn} signed-in people have two-step on.${summary.ownerOff ? " The owner doesn't: if their Google account is taken, so is the shop." : ""}${summary.lowOnCodes ? ` ${summary.lowOnCodes} running low on backup codes.` : ""}` }),
+      table({
+        caption: "Sign-in safety",
+        rows: people,
+        columns: [
+          { header: "Person", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.email }), meta(ROLE_WORDS_SHORT[p.role] ?? p.role)) },
+          { header: "Two-step", render: (p) => pill(...SAFETY[p.state]) },
+          { header: "Backup codes", render: (p) => (p.codesLeft == null ? el("span", { className: "rp-hint", textContent: "—" })
+            : el("div", {}, el("span", { className: "rp-mono", textContent: `${p.codesLeft} of 10 left` }), p.codesMadeAt ? meta(`made ${dateOnly(p.codesMadeAt)}`) : null)) },
+        ],
+      }));
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}

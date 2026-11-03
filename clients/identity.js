@@ -74,7 +74,20 @@ export function identityClient({ fetch, token, now = () => new Date() }) {
     return { found: true, removed };
   }
 
-  return { ensureUser, customToken, signIn, removeSecondSteps };
+  /**
+   * Who has a second step on the shop's project, for the control room's sign-in safety (read only):
+   * [{ email, found, uid, steps }] in the order asked. One lookup call for every address.
+   */
+  async function secondStepsOf(projectId, emails) {
+    if (!emails.length) return [];
+    const { users = [] } = await call("POST", `${IDENTITY}/projects/${projectId}/accounts:lookup`, { body: { email: emails } });
+    return emails.map((email) => {
+      const found = users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
+      return found ? { email, found: true, uid: found.localId, steps: Array.isArray(found.mfaInfo) ? found.mfaInfo.length : 0 } : { email, found: false, uid: null, steps: 0 };
+    });
+  }
+
+  return { ensureUser, customToken, signIn, removeSecondSteps, secondStepsOf };
 }
 
 /**

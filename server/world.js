@@ -71,6 +71,7 @@ import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { createSetupClock } from "../signup/setupClock.js";
+import { createSignInSafety, signInSafetyRoutes } from "../control-room/signInSafety.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -187,8 +188,11 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const waitlist = firestoreWaitlist(platform);
   const accessRequests = createAccessRequests({ store: firestoreAccessRequests(platform), email, settings, now });
   const deliveryStats = firestoreDeliveryStats(platform);
+  // The shop's own sign-in (support visits, two-step reset, sign-in safety) waits for the platform's access to it.
+  const shopAccess = { ...notConnectedClient(NOT_CONNECTED.supportSignIn, ["supportSignIn"]), ...notConnectedClient(NOT_CONNECTED.twoStepReset, ["removeTwoStep"]),
+    ...notConnectedClient(NOT_CONNECTED.signInSafety, ["signInSafety"]) };
   const room = createControlRoom({
-    registry, auditLog, profileFiles, shopAccess: { ...notConnectedClient(NOT_CONNECTED.supportSignIn, ["supportSignIn"]), ...notConnectedClient(NOT_CONNECTED.twoStepReset, ["removeTwoStep"]) }, repairs, signups: stores.signups, shopData,
+    registry, auditLog, profileFiles, shopAccess, repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now,
     googleReady: (at) => googleReadiness(readGoogleConfig(env), at),
@@ -220,6 +224,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const notes = createShopNotes({ admins, store: firestoreShopNotes(platform), registry, activity, now });
   // Presses still in setup mode or opening (the Setting up page): read only.
   const setupDesk = createSetupDesk({ admins, presses: firestoreFrontDoorStores(platform).presses, registry, now });
+  const signInSafety = createSignInSafety({ admins, registry, memberships: accountStores.memberships, shopAccess, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
   const dataExports = createDataExports({
@@ -266,6 +271,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...jobsRoutes(jobsPage),
     ...notesRoutes(notes),
     ...setupRoutes(setupDesk),
+    ...signInSafetyRoutes(signInSafety),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),

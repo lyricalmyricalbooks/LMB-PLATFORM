@@ -23,6 +23,16 @@ export function fakeShopAccess() {
       this.twoStep.set(key, 0);
       return { found: true, removed };
     },
+    // Backup codes left, by "shopId email"; a person is found when either map knows them.
+    codes: new Map(),
+    async signInSafety(shopId, emails) {
+      if (this.fail) throw new Error("the shop didn't answer (pretend error)");
+      return emails.map((email) => {
+        const key = `${shopId} ${email.toLowerCase()}`;
+        const found = this.twoStep.has(key) || this.codes.has(key);
+        return { email, found, twoStep: (this.twoStep.get(key) ?? 0) > 0, codesLeft: found ? this.codes.get(key) ?? 0 : null, codesMadeAt: null };
+      });
+    },
   };
 }
 
