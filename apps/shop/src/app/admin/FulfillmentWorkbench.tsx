@@ -1,5 +1,6 @@
 import React from "react";
 import { Check, MapPin, Package, Truck, ExternalLink } from "lucide-react";
+import { canShipPart, partShipmentsOf } from "./partShipments";
 import {
   addressIssues,
   addressKey,
@@ -41,6 +42,8 @@ type Props = {
   /** Ship station: the parcel, rates and Buy label, drawn inside step 3 instead of the Buy label button. */
   labelStep?: React.ReactNode;
   onDispatch: () => void;
+  /** Send part of the order now, the rest later (code plan 24.5). */
+  onShipPart?: () => void;
   onEditTracking?: () => void;
   onDeliveryStatus?: (status: "out_for_delivery" | "delivered") => void;
   onResendEmail?: () => void;
@@ -67,6 +70,7 @@ export function FulfillmentWorkbench({
   onPack,
   onLabel,
   onDispatch,
+  onShipPart,
   onEditTracking,
   onDeliveryStatus,
   onResendEmail,
@@ -463,6 +467,7 @@ export function FulfillmentWorkbench({
               </span>
             </div>
           </div>
+          <PartShipmentsSummary order={order} busy={busy} onShipPart={onShipPart} />
           {labelPending && active && !order.labelUrl ? (
             <>
               <p className="fw-problems" role="alert">
@@ -648,5 +653,34 @@ export function FulfillmentWorkbench({
         </div>
       )}
     </section>
+  );
+}
+
+/** Parcels already sent from this order (code plan 24.5), and the Send part now button while it can be used. */
+function PartShipmentsSummary({ order, busy, onShipPart }: { order: any; busy: boolean; onShipPart?: () => void }) {
+  const parts = partShipmentsOf(order);
+  const offer = !!onShipPart && canShipPart(order);
+  if (!parts.length && !offer) return null;
+  return (
+    <div className="rp-stack" style={{ gap: 8 }}>
+      {parts.length > 0 && (
+        <div className="fw-summary">
+          <strong>Sent so far</strong>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 18 }} aria-label="Parts already sent">
+            {parts.map((p) => (
+              <li key={p.id}>
+                {p.lines.map((l) => `${l.quantity} × ${l.title}`).join(", ")} · {p.trackingCarrier} · <span className="rp-mono">{p.trackingNumber}</span>
+                {p.shippedAt ? ` · ${new Date(p.shippedAt).toLocaleDateString()}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {offer && (
+        <div className="fw-actions">
+          <SecondaryButton size="sm" disabled={busy} onClick={onShipPart}>Send part now, the rest later</SecondaryButton>
+        </div>
+      )}
+    </div>
   );
 }

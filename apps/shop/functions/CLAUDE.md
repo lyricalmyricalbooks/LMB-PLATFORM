@@ -1047,3 +1047,20 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
   only after the email went out (or on a day with nothing to send), so a failed send retries tomorrow.
 - Its own switch: Notifications › Shop alerts › Running low (`shopAlerts.lowStock`, on unless off). It runs with the
   orders switch off, and sends a `[STOCK] …` email on a day with no orders to chase.
+
+## Ship part of an order now (3 November 2026, platform plan 24.5)
+
+- Orders › order › Shipping & dispatch › **Send part now, the rest later** (`admin/PartShipmentDialog.tsx`) calls
+  `fulfillmentAction("ship_part", { picks: { [itemIndex]: qty }, trackingCarrier, trackingNumber, trackingUrl })`. The rules
+  live in `admin/partShipments.ts` (`partShipmentProblem`). Like dispatch, it needs a paid, active, carrier-shipped order
+  with a reviewed address and no hold, dispute, open request or risky-payment check. Unlike dispatch, it is allowed
+  before packing and while a pre-order awaits release. It must leave something unsent: sending everything is dispatch.
+- It appends to the public `partShipments` (`{ id: "pN", lines: [{ line, title, quantity }], tracking…, shippedAt }`) and
+  never changes `fulfillmentStatus`/`status`. The order becomes shipped only through the normal dispatch of the rest.
+  `orderAccess.js` exposes `partShipments`, and the tracking page lists each parcel (region `trackingParts`, words
+  Text & labels › Order tracking `trackPartsTitle`/`trackPartsText`/`trackPartTrack`).
+- `onOrderUpdated` sends the editable `part_shipped` email once per new part (claim `shippedPart_<id>`, so the outbox
+  drops it after a refund or cancel like `shipped`). It sits under its own switch in Notifications › Part Shipped, and
+  `{{items_list}}` is one line per item.
+- Not handled yet: the label buyer still weighs the whole order for the rest's label, the packing checklist still lists
+  sent lines, and a refund's restock default doesn't know a part already left.

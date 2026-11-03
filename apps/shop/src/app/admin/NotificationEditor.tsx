@@ -72,6 +72,8 @@ type NotificationSettings = {
   order_confirmation: TemplateFields;
   order_pending_payment: TemplateFields;
   shipping_confirmation: TemplateFields;
+  /** Part of an order sent in its own parcel (code plan 24.5). */
+  part_shipped: TemplateFields;
   abandoned_cart: TemplateFields;
   order_cancelled: TemplateFields;
   order_refunded: TemplateFields;
@@ -116,6 +118,14 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     subject: "Your order is on the way!",
     body: "Hi {{customer_name}},\n\nGood news! Your order {{order_id}} has shipped with {{tracking_carrier}} and is on its way.\n\nTracking number: {{tracking_number}}\n\nUse the button below to follow your parcel on the carrier's website.",
     buttonText: "Track your shipment",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: true
+  },
+  // Mirrors functions/index.js DEFAULT_NOTIFICATIONS.part_shipped.
+  part_shipped: {
+    subject: "Part of your order {{order_id}} is on the way",
+    body: "Hi {{customer_name}},\n\nPart of your order {{order_id}} has shipped with {{tracking_carrier}}:\n\n{{items_list}}\n\nTracking number: {{tracking_number}}\n\nThe rest of your order will follow in another parcel, and we'll email you when it ships.",
+    buttonText: "Track this parcel",
     signoff: "Best,\nThe {{shop_name}} team",
     enabled: true
   },
@@ -194,6 +204,7 @@ const TAB_META: Record<string, { label: string; group: string }> = {
   order_confirmation: { label: "Order Paid", group: "orders" },
   order_pending_payment: { label: "Awaiting Payment", group: "orders" },
   shipping_confirmation: { label: "Order Shipped", group: "orders" },
+  part_shipped: { label: "Part Shipped", group: "orders" },
   delivery_update: { label: "Delivery", group: "orders" },
   order_cancelled: { label: "Order Cancelled", group: "orders" },
   order_refunded: { label: "Order Refunded", group: "orders" },

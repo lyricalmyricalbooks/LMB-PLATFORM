@@ -13,6 +13,7 @@ import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, reviewOpen, REVIEW_PROBLEM, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
+import { newPartShipment, partShipmentProblem, partShipmentsOf } from "./partShipments";
 import { deleteRefusal } from "./orderListHelpers";
 import { restampPreorderItems } from "../features/site/preorder";
 import { themeWrite } from "./themeWrite";
@@ -1107,7 +1108,7 @@ export const adminApi = {
     });
   },
 
-  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email" | "clear_app_label" | "clear_review", payload: any = {}) => {
+  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "ship_part" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email" | "clear_app_label" | "clear_review", payload: any = {}) => {
     await runTransaction(db, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
@@ -1149,6 +1150,15 @@ export const adminApi = {
         const tracking = trackingFields(payload);
         tx.update(ref, { status: "completed", fulfillmentStatus: "shipped", ...tracking, shippedAt: now, updatedAt: now });
         message = `Dispatched via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
+      } else if (action === "ship_part") {
+        // Part of the order goes now (code plan 24.5); the order stays open until the rest is dispatched.
+        const picks = payload.picks && typeof payload.picks === "object" ? payload.picks : {};
+        const problem = partShipmentProblem(o, picks); if (problem) throw new Error(problem);
+        const tracking = trackingFields(payload);
+        const part = newPartShipment(o, picks, tracking, now);
+        tx.update(ref, { partShipments: [...partShipmentsOf(o), part], updatedAt: now });
+        const copies = part.lines.reduce((n, l) => n + l.quantity, 0);
+        message = `Part shipped (${copies} item${copies === 1 ? "" : "s"}: ${part.lines.map((l) => `${l.quantity} × ${l.title}`).join(", ")}) via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
       } else if (action === "clear_app_label") {
         // A label bought in the inventory app (Inventory app link) that won't be used: take its tracking off
         // the order so the website can buy its own. Only before the parcel left.

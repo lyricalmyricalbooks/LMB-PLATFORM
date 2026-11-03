@@ -2841,6 +2841,14 @@ const DEFAULT_NOTIFICATIONS = {
     signoff: "Thanks,\nThe {{shop_name}} team",
     enabled: true
   },
+  // Code plan 24.5: part of the order went in its own parcel; the rest follows with the normal shipping email.
+  part_shipped: {
+    subject: "Part of your order {{order_id}} is on the way",
+    body: "Hi {{customer_name}},\n\nPart of your order {{order_id}} has shipped with {{tracking_carrier}}:\n\n{{items_list}}\n\nTracking number: {{tracking_number}}\n\nThe rest of your order will follow in another parcel, and we'll email you when it ships.",
+    buttonText: "Track this parcel",
+    signoff: "Best,\nThe {{shop_name}} team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
@@ -3428,6 +3436,32 @@ async function handleOrderUpdated(event) {
         });
       } catch (err) {
         console.error("Shipping admin notification email failed", err);
+      }
+    }
+
+    // 2a. Part of the order shipped (code plan 24.5): one email per new parcel, under the "Order shipped" switch's
+    // sibling Part shipped. Never for the rest: that is the normal shipping email above.
+    const partsBefore = new Set((Array.isArray(before.partShipments) ? before.partShipments : []).map(p => p?.id));
+    const newParts = (Array.isArray(after.partShipments) ? after.partShipments : []).filter(p => p?.id && !partsBefore.has(p.id));
+    if (newParts.length && !handedOverLocally && notificationSettings.part_shipped?.enabled !== false && after.customer?.email) {
+      for (const part of newParts) {
+        const partUrl = part.trackingNumber ? getTrackingUrl(part.trackingCarrier, part.trackingNumber, part.trackingUrl) : await trackUrl();
+        const compiled = compileEmailTemplate("part_shipped", notificationSettings, {
+          customer_name: after.customer?.name || "there",
+          order_id: after.orderId || orderId,
+          tracking_carrier: part.trackingCarrier || "carrier",
+          tracking_number: part.trackingNumber || "",
+          items_list: (part.lines || []).map(l => `${Number(l.quantity) || 0} × ${String(l.title || "Item")}`).join("\n"),
+          button_url: partUrl,
+          tracking_url: partUrl,
+        });
+        try {
+          await sendOrderEmailOnce(orderId, `shippedPart_${part.id}`, {
+            to: after.customer.email, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(),
+          });
+        } catch (err) {
+          console.error("Part shipped email failed", err);
+        }
       }
     }
 

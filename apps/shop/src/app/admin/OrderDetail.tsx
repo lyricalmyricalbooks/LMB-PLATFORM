@@ -5,6 +5,7 @@ import { DOWNLOAD_LIMIT } from "../features/site/digitalLine";
 import { FulfillmentWorkbench } from "./FulfillmentWorkbench";
 import { LabelBuyer, type Parcel, type ParcelPreset } from "./LabelBuyer";
 import { CARRIERS, cleanTrackingLink, getTrackingUrl } from "../lib/tracking";
+import { PartShipmentDialog } from "./PartShipmentDialog";
 import {
   addressKey,
   packingKey,
@@ -243,6 +244,7 @@ export function OrderDetail({
 
   // "dispatch" = first hand-off to the carrier; "edit" = correct tracking on a parcel already in transit.
   const [showShipForm, setShowShipForm] = useState<false | "dispatch" | "edit">(false);
+  const [shipPartOpen, setShipPartOpen] = useState(false);
   const [trackingCarrier, setTrackingCarrier] = useState("Canada Post");
   const [otherCarrier, setOtherCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -917,6 +919,7 @@ export function OrderDetail({
             setLabelReplaced(false);
             setShowShipForm("dispatch");
           }}
+          onShipPart={() => setShipPartOpen(true)}
           onEditTracking={() => {
             fillTracking(order);
             setLabelReplaced(false);
@@ -1336,6 +1339,9 @@ export function OrderDetail({
           <p className="rp-hint">No emails recorded for this order yet (emails sent before October 2026 aren't linked to orders).</p>
         )}
       </details>
+      <PartShipmentDialog open={shipPartOpen} order={order} onClose={() => setShipPartOpen(false)}
+        emailOn={emailSettingsFailed ? null : emailOn("shipping_confirmation")}
+        onDone={() => { setShipPartOpen(false); loadOrder(); }} />
       <Dialog
         open={!!showShipForm}
         onClose={() => !isShipping && setShowShipForm(false)}
