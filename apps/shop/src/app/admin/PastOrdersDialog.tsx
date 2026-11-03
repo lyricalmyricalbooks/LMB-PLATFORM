@@ -65,7 +65,11 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
     if (big) { setError(`${big.name} is larger than 20 MB. Export a shorter date range and bring the parts one at a time.`); return; }
     const read: { name: string; file: PastOrderFile }[] = [];
     for (const f of list) {
-      try { read.push({ name: f.name, file: readPastOrders(await f.text()) }); }
+      try {
+        const parsed = readPastOrders(await f.text());
+        // Each order remembers its file (plan 23.33), so its page can say where it came from.
+        read.push({ name: f.name, file: { ...parsed, orders: parsed.orders.map((o) => ({ ...o, file: f.name })) } });
+      }
       catch { setError(`${f.name} couldn't be read. Save it as CSV (comma separated) and try again.`); return; }
     }
     // A file chosen twice counts once.

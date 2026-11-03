@@ -113,6 +113,8 @@ describe("Bring past orders over", () => {
     // One run: one batch name for every order, so one take-back removes them all.
     expect(api.importPastOrders).toHaveBeenCalledTimes(1);
     expect(api.importPastOrders.mock.calls[0][0].map((o: any) => o.number)).toEqual(["#1", "#2", "#3"]);
+    // Each order says which file it came from (plan 23.33); #2 was in both, and counts from the first.
+    expect(api.importPastOrders.mock.calls[0][0].map((o: any) => o.file)).toEqual(["2024.csv", "2024.csv", "2025.csv"]);
     expect(document.body.textContent).toContain("Wrong file? Take this import back");
   });
 

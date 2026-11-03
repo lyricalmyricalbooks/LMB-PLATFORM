@@ -109,6 +109,7 @@ try {
   // Refunds come over as what was paid back (plan 23.31): the server marks a whole refund as refunded.
   check(server_.imported.find((o) => o.number === "#1005")?.refunded === 42 && server_.imported.find((o) => o.number === "#1006")?.refunded === 10,
     "the refund and the part refund are sent with what was paid back");
+  check(server_.imported.every((o) => o.file === "old-shop-orders.csv"), "each order says which file it came from");
   await page.getByRole("button", { name: "Wrong file? Take this import back" }).click();
   await page.getByRole("button", { name: "Yes, remove them" }).click();
   await page.getByText(/5 past orders removed/).waitFor({ timeout: 10000 });
@@ -123,6 +124,12 @@ try {
   check(server_.imported.length === 5 && server_.removed === firstRun && new Set(server_.imported.map((o) => o.batch)).size === 1,
     "Bring another file brought the next file over in the same window", `${server_.imported.length}`);
   await page.keyboard.press("Escape");
+
+  // A brought-over order's page says which file it came from (plan 23.33).
+  await go("orders/past-1004");
+  await page.getByText("Came from the file").waitFor({ timeout: 10000 });
+  check(/Came from the file old-shop-orders\.csv/.test(await page.locator("body").innerText()), "the order's page names its file");
+  await shot("5b-past-order");
 
   // Old links.
   // From the Overview's own button, which must land on the tab that holds the old-links check.
