@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
 import { STARTER_POLICY_NOTE, starterFacts, withStarter } from "./starterPolicies";
 import { useShopSells } from "./shopWords";
+import { AmountField } from "./AmountField";
 import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
@@ -1749,9 +1750,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
         <SettingsAnchor id="pay-review">
           <SectionCard title="Check big orders" description="Hold large card orders until you look at them.">
-            <TextField label="Hold card orders of at least (optional)" inputMode="decimal" placeholder="500"
-              value={settings.payments?.reviewAbove ? String(settings.payments.reviewAbove) : ""}
-              onChange={(e) => setSettings({ ...settings, payments: { ...settings.payments, reviewAbove: Math.min(1000000, Number(e.target.value.replace(/[^0-9.]/g, "")) || 0) } })}
+            <AmountField label="Hold card orders of at least (optional)" placeholder="500"
+              value={Number(settings.payments?.reviewAbove) || 0}
+              onValue={(reviewAbove) => setSettings({ ...settings, payments: { ...settings.payments, reviewAbove } })}
               hint="An order this size or larger waits in Needs attention until you press It looks fine. Leave empty to turn it off." />
           </SectionCard>
         </SettingsAnchor>

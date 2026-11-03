@@ -21,6 +21,7 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
   const title = "Get started · Step 8 of 8: final check and open";
   if (readiness === null) return <SectionCard title={title} collapsible={false}><LoadingState label="Checking your shop…" /></SectionCard>;
 
@@ -31,12 +32,21 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
   const open = async () => {
     if (busy) return;
     setBusy(true); setError("");
+    // Once the shop is open, a failed save of the step must not say it wasn't, and a retry only saves the step.
+    if (!isOpen) {
+      try {
+        if (!(await onOpenShop())) throw new Error("not opened");
+        setIsOpen(true);
+      } catch {
+        setError("Your shop couldn't be opened yet. Check the list above and try again.");
+        setBusy(false);
+        return;
+      }
+    }
     try {
-      const opened = await onOpenShop();
-      if (!opened) throw new Error("not opened");
       await onDone({ at: new Date().toISOString(), opened: true });
     } catch {
-      setError("Your shop couldn't be opened yet. Check the list above and try again.");
+      setError("Your shop is open, but this step couldn't be saved. Check your connection and press the button again.");
       setBusy(false);
     }
   };

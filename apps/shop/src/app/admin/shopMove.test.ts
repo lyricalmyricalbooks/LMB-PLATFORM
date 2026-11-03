@@ -524,3 +524,12 @@ describe("a mailing list on its own (plan 23.4)", () => {
     expect(readCustomerExport(csv([["Email"], ["ada@example.com"]])).customers[0].acceptsEmail).toBeNull();
   });
 });
+
+describe("opted-out check when the opt-out list couldn't be read", () => {
+  it("counts everyone as opted out, so no one who unsubscribed is added back", async () => {
+    const { optedOutBy, newsletterJoiners } = await import("./shopMove");
+    const people = [{ email: "a@example.com", acceptsEmail: true }, { email: "b@example.com", acceptsEmail: true }] as any;
+    expect(newsletterJoiners(people, new Set(), optedOutBy(null, e => e))).toEqual([]);
+    expect(newsletterJoiners(people, new Set(), optedOutBy(new Set(["a@example.com"]), e => e)).map((c: any) => c.email)).toEqual(["b@example.com"]);
+  });
+});

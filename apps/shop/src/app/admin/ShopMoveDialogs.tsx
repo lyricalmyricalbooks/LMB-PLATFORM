@@ -5,7 +5,7 @@ import { adminApi } from "./api";
 import { emailHash } from "./Customers";
 import { Checkbox, Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import {
-  IMPORTED_CONSENT_TEXT, newsletterJoiners, planCustomerNotes, readCustomerExport, type CustomerMove, type CustomerWrite,
+  IMPORTED_CONSENT_TEXT, newsletterJoiners, optedOutBy, planCustomerNotes, readCustomerExport, type CustomerMove, type CustomerWrite,
   type MovedCustomer,
 } from "./shopMove";
 
@@ -48,7 +48,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
       const byEmail = new Map(notes.map(n => [String(n.email || "").toLowerCase(), { note: n.note || "", tags: n.tags || [], name: n.name || "", place: n.place || "" }]));
       const ids = new Map(await Promise.all(move.customers.map(async c => [c.email, await emailHash(c.email)] as const)));
       const writes = planCustomerNotes(move.customers, byEmail, new Date().toISOString().slice(0, 10)).map(w => ({ ...w, id: ids.get(w.email)! }));
-      const joiners = newsletterJoiners(move.customers, consent.subscribed, email => !!consent.optedOutHashes?.has(ids.get(email)!));
+      const joiners = newsletterJoiners(move.customers, consent.subscribed, optedOutBy(consent.optedOutHashes, email => ids.get(email)));
       setReady({ move, writes, joiners });
     } catch {
       setReadError("This file couldn't be read. Save it as CSV (comma separated) and try again.");

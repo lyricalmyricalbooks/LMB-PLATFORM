@@ -55,6 +55,19 @@ describe("Get started, step 8: the final check and open (plan 17.13)", () => {
     expect(props.onDone).not.toHaveBeenCalled();
   });
 
+  it("if the shop opened but the step couldn't be saved, it says the shop is open and a retry doesn't open it again", async () => {
+    const onDone = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined);
+    const props = await mount({ readiness: [], onDone });
+    await act(async () => { button("Open my shop")!.click(); });
+    await flush();
+    expect(text()).toContain("Your shop is open");
+    expect(text()).not.toContain("couldn't be opened");
+    await act(async () => { button("Open my shop")!.click(); });
+    await flush();
+    expect(props.onOpenShop).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledTimes(2);
+  });
+
   it("finish later records nothing and hands back to the setup guide", async () => {
     const props = await mount({ readiness: [item({})] });
     await act(async () => { button("Finish later")!.click(); });

@@ -45,6 +45,23 @@ describe("Get started, step 6: shipping and your address (plan 17.11)", () => {
     expect(onDone).toHaveBeenCalledWith({ at: expect.any(String), starter: "world" });
   });
 
+  it("if the step can't be saved after the profile is made, a retry doesn't make a second profile", async () => {
+    const onDone = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined);
+    await mount({ location: complete }, onDone);
+    await act(async () => { button("Set up this shipping")!.click(); });
+    await flush();
+    await act(async () => { button("Set up this shipping")!.click(); });
+    await flush();
+    expect(api.createShippingProfile).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenLastCalledWith({ at: expect.any(String), starter: "world" });
+  });
+
+  it("the starting-shipping list never offers Start empty, which hid the list with no way back", async () => {
+    await mount({ location: complete });
+    const values = [...document.querySelectorAll("select option")].map(o => (o as HTMLOptionElement).value);
+    expect(values).not.toContain("blank");
+  });
+
   it("a shop that already has shipping makes nothing new, and the step is recorded as skipped", async () => {
     api.getShippingProfiles.mockResolvedValueOnce([{ id: "old", name: "Standard" }]);
     const onDone = await mount({ location: complete });

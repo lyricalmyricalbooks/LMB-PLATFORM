@@ -106,9 +106,14 @@ export function formatMinor(minor: number, currency = "CAD"): string {
   catch { return `${amount.toFixed(2)} ${code}`; }
 }
 
-/** "12.40" typed by the admin → 1240; anything else → null. */
+/**
+ * "12.40" typed by the admin → 1240; anything else → null. A comma is read as thousands only in
+ * "1,234.50"; "12,40" is a decimal comma (12.40), never 1240 dollars.
+ */
 export function parseMoneyToMinor(text: string): number | null {
-  const t = String(text ?? "").trim().replace(/[$,\s]/g, "");
+  let t = String(text ?? "").trim().replace(/[$\s]/g, "");
+  if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(t)) t = t.replace(/,/g, "");
+  else if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(",", ".");
   if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
   return Math.round(Number(t) * 100);
 }

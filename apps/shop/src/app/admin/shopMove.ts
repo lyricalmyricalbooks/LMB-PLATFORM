@@ -839,6 +839,14 @@ export function newsletterJoiners(customers: MovedCustomer[], subscribed: Set<st
   return customers.filter(cu => cu.acceptsEmail === true && !subscribed.has(cu.email) && !optedOut(cu.email));
 }
 
+/**
+ * "Has this person opted out of marketing?" from the opt-out list (sha256 ids). When the list couldn't be read
+ * (`null`), everyone counts as opted out, so a failed read can never add someone who unsubscribed.
+ */
+export function optedOutBy(hashes: Set<string> | null | undefined, hashOf: (email: string) => string | undefined): (email: string) => boolean {
+  return (email) => !hashes || hashes.has(hashOf(email) || "");
+}
+
 export const IMPORTED_CONSENT_TEXT = "Agreed to email marketing at the shop's previous store. The owner brought the address over and confirmed they have this permission.";
 
 export const SHAPE_WORDS: Record<ExportShape, string> = {
