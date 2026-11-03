@@ -1707,6 +1707,11 @@ export const adminApi = {
     return publicData;
   },
 
+  /** Sets only the email theme in settings/notifications (the rest of the document is left as it is). */
+  setEmailTheme: async (emailTheme: "light" | "market" | "index") => {
+    await setDoc(doc(db, "settings", "notifications"), { brand: { emailTheme } }, { merge: true });
+  },
+
   // Which customer emails are switched on (Settings › Notifications); used for dispatch previews.
   getNotificationSettings: async () => {
     const snap = await getDoc(doc(db, "settings", "notifications"));
