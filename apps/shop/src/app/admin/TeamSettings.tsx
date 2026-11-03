@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { DataTable, DestructiveButton, EmptyState, PrimaryButton, SectionCard, SelectField, StatusBadge, TextField, useConfirm, type Column } from "./riso/components";
+import { Checkbox, DataTable, DestructiveButton, EmptyState, PrimaryButton, SectionCard, SelectField, StatusBadge, TextField, useConfirm, type Column } from "./riso/components";
 import { shopOwnerEmail } from "../lib/ownerDevice";
 import { adminApi } from "./api";
 import { type AdminRole, type TeamRole } from "./adminAccess";
 import { hasStockroom } from "../../lib/shopProfile";
 import { STOCKROOM_FRAME_PATH, combinedAdmin } from "./combined";
-import { teamApi, teamEmail, teamMemberProblem, type TeamMember } from "./teamApi";
+import { endOfToday, teamApi, teamEmail, teamMemberProblem, type TeamMember } from "./teamApi";
 
 // Admin-only words (the Studio rule covers shopper-facing words).
 // A website-only press has no stockroom: its words leave it out, and the stockroom-only Author role isn't offered.
@@ -23,6 +23,14 @@ const ROLE_WORDS: Record<TeamRole, { label: string; detail: string; added: strin
   bookkeeper: { label: "Bookkeeper", detail: `Reads the orders, sales, tax collected, payouts and bookkeeping downloads${STOCKROOM ? ", and the stockroom's tax centre" : ""}. Can't change anything, and doesn't see books, settings, the customer list or the Team.`, added: "can read the shop's sales and tax" },
 };
 
+/** "Until tonight" or "Until Nov 5", for a helper added for a set time. */
+function untilWords(iso: string, now = new Date()): string {
+  const end = new Date(iso);
+  if (Number.isNaN(end.getTime())) return "";
+  if (end.toDateString() === now.toDateString()) return "Until tonight";
+  return `Until ${end.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+}
+
 const TEAM_ABOUT = STOCKROOM ? "People who can open this admin or the stockroom." : "People who can open this admin.";
 
 // Settings › Team. The owner adds people by their Google email; they sign in with that account.
@@ -35,6 +43,8 @@ export function TeamSettings() {
   const [role, setRole] = useState<TeamRole>("staff");
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState("");
+  // A friend minding the table for one fair: removed by itself tonight (functions/roles.js removeExpiredMembers).
+  const [todayOnly, setTodayOnly] = useState(true);
 
   const load = () => teamApi.list().then(setMembers, () => setLoadError("Couldn't load the Team. Check your connection, then open this page again."));
   useEffect(() => {
@@ -59,8 +69,9 @@ export function TeamSettings() {
     if (problem) return;
     setBusy("add");
     try {
-      await teamApi.save(email, role);
-      toast.success(`${teamEmail(email)} ${ROLE_WORDS[role].added} the next time they sign in.`);
+      const ends = role === "fairHelper" && todayOnly;
+      await teamApi.save(email, role, ends ? { until: endOfToday() } : {});
+      toast.success(`${teamEmail(email)} ${ROLE_WORDS[role].added} the next time they sign in${ends ? ", until tonight" : ""}.`);
       setEmail(""); setTried(false);
       await load();
     } catch {
@@ -86,7 +97,12 @@ export function TeamSettings() {
 
   const columns: Column<TeamMember>[] = [
     { key: "email", header: "Email", lead: true, render: m => m.email },
-    { key: "role", header: "Role", render: m => <StatusBadge tone={m.role === "owner" ? "info" : "neutral"} glyph={false}>{ROLE_WORDS[m.role].label}</StatusBadge> },
+    { key: "role", header: "Role", render: m => (
+      <span className="inline-flex flex-wrap items-center gap-2">
+        <StatusBadge tone={m.role === "owner" ? "info" : "neutral"} glyph={false}>{ROLE_WORDS[m.role].label}</StatusBadge>
+        {m.until && <span className="text-sm">{untilWords(m.until)}</span>}
+      </span>
+    ) },
     { key: "actions", header: "", render: m => m.email === shopOwnerEmail() ? null : (
       <DestructiveButton size="sm" disabled={!!busy} onClick={() => void remove(m)} aria-label={`Remove ${m.email}`}>{busy === m.email ? "Removing…" : "Remove"}</DestructiveButton>
     ) },
@@ -114,6 +130,11 @@ export function TeamSettings() {
             {FAIR_HELPERS && <option value="fairHelper">{ROLE_WORDS.fairHelper.label}</option>}
           </SelectField>
           <PrimaryButton type="submit" disabled={busy === "add"}>{busy === "add" ? "Adding…" : "Add to Team"}</PrimaryButton>
+          {role === "fairHelper" && (
+            <div className="sm:col-span-3">
+              <Checkbox label="Just for today: remove them automatically tonight" checked={todayOnly} onChange={e => setTodayOnly(e.target.checked)} />
+            </div>
+          )}
         </form>
       </SectionCard>
       {confirmNode}

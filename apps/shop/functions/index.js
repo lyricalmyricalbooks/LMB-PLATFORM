@@ -133,8 +133,9 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 // Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-const { adminRole, booksReader, supportOf, syncMemberRole } = require("./roles");
+const { adminRole, booksReader, removeExpiredMembers, supportOf, syncMemberRole } = require("./roles");
 const { becameFairHelper, fairHelperInviteEmail } = require("./teamInvite");
+const fairHelperPay = require("./fairHelperPay");
 const { shopConfig, functionLink } = require("./shopConfig");
 
 // Who may call the functions from a browser: local dev, this shop's Hosting address and its own domain (shopConfig.js).
@@ -483,6 +484,77 @@ async function sendEmail(message) {
   return mailer.send(message);
 }
 
+
+// A fair helper's card payment by QR (functions/fairHelperPay.js, docs/combined-admin.md › H5). "start" prices the
+// helper's sale from the Fair till's menu on the server and opens a half-hour card checkout on the shop's own payment
+// account; "status" says whether it's paid; "cancel" closes it. Only a fair helper (or the owner and staff) may call
+// it, only for their own payment, and only while the stockroom's plan is open. No shop order is made.
+exports.fairHelperPayment = onBrowserRequest({ secrets: withPlatformKey([STRIPE_SECRET_KEY]) }, async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+  const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+  let decoded = null;
+  try { decoded = match && await admin.auth().verifyIdToken(match[1]); } catch { decoded = null; }
+  const helper = decoded?.email_verified === true ? String(decoded.email || "").toLowerCase() : "";
+  if (!helper || (decoded.role !== "fairHelper" && !adminRole(decoded))) {
+    res.status(401).json({ error: "Sign in to the Fair till first." });
+    return;
+  }
+  if (!(await hitLimit(db, "fairHelperPay", req, LIMITS.fairHelperPay))) {
+    res.status(429).json({ error: "Too many tries in a row. Wait a few minutes, then try again." });
+    return;
+  }
+  if (payments.provider !== "stripe") {
+    res.status(409).json({ error: "Card payments by QR aren't available for this shop. Use the card reader or cash.", code: "not_available" });
+    return;
+  }
+  const action = String(req.body?.action || "");
+  try {
+    const mode = (await shopTestMode()) ? "test" : "live";
+    const { stripe, requestOptions } = await payments.clientForMode(mode);
+    if (action === "start") {
+      const till = await require("./inventoryLinkStore").readFairTill();
+      if (!till.open) {
+        res.status(409).json({ error: "The shop's plan is paused, so the till can't take payments.", code: "paused" });
+        return;
+      }
+      const saleId = String(req.body?.saleId || "");
+      const plan = fairHelperPay.fairPayPlan(till.menu, { saleId, lines: req.body?.lines });
+      if (plan.problem) {
+        res.status(400).json({ error: plan.problem, code: "bad_sale" });
+        return;
+      }
+      const params = fairHelperPay.fairCheckoutParams(plan, { saleId, helper, shopName: shopConfig.senderName, returnUrl: siteLink("/"), nowSeconds: Math.floor(Date.now() / 1000) });
+      // The same sale and amount always open the same checkout, so a resent tap never makes a second one.
+      const session = await stripe.checkout.sessions.create(params, { ...requestOptions, idempotencyKey: `fair-${saleId}-${plan.amountMinor}-${plan.currency}` });
+      res.json({ url: session.url, sessionId: session.id, amount: plan.amountMinor, currency: plan.currency, test: mode === "test" });
+      return;
+    }
+    const sessionId = String(req.body?.sessionId || "");
+    if (!/^cs_[A-Za-z0-9_]{8,200}$/.test(sessionId) || (action !== "status" && action !== "cancel")) {
+      res.status(400).json({ error: "Unknown request.", code: "bad_request" });
+      return;
+    }
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {}, requestOptions);
+    const state = fairHelperPay.fairPaymentState(session, helper);
+    if (!state) {
+      res.status(404).json({ error: "That payment isn't one of yours.", code: "not_found" });
+      return;
+    }
+    if (action === "cancel" && state.open && !state.paid) {
+      await stripe.checkout.sessions.expire(sessionId, {}, requestOptions).catch(() => {});
+      res.json({ paid: false, open: false });
+      return;
+    }
+    res.json(state);
+  } catch (err) {
+    console.error("fairHelperPayment failed:", err?.message || err);
+    res.status(502).json({ error: "The card payment couldn't be reached. Try again, or use the card reader or cash.", code: "unreachable" });
+  }
+});
 
 // Two-step backup codes (functions/twoStepBackup.js, plan 22.9). "status" and "make" are for the signed-in person
 // in Settings › Security; "use" comes from the sign-in page, before there is a sign-in, with Google's own token.
@@ -4352,6 +4424,12 @@ async function checkLabelRefunds(now = Date.now()) {
 
 // Square payment pages close when their stock hold ends; late refunds that failed are tried again (code plan 5.1,
 // paymentPages.js). Stripe's own Checkout Sessions expire by themselves, so a Stripe shop has nothing to do here.
+// Team entries added for one day only (a fair helper, roles.js removeExpiredMembers): removed once their time is up.
+exports.teamExpirySweep = onSchedule({ schedule: "every 30 minutes", name: "teamExpirySweep", timeoutSeconds: 120 }, async () => {
+  const removed = await removeExpiredMembers({ db });
+  if (removed) console.log(`teamExpirySweep: ${removed} Team entr${removed === 1 ? "y" : "ies"} removed.`);
+});
+
 exports.paymentPageSweep = onSchedule(
   { schedule: "every 5 minutes", name: "paymentPageSweep", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
   async () => {

@@ -21605,3 +21605,8 @@ a.notif-action:hover { text-decoration: underline; }
 .setup-guide-text p { margin: var(--space-1) 0 0; color: var(--text3); font-size: var(--text-xs); }
 .setup-guide-step.is-done strong { text-decoration: line-through; color: var(--text3); }
 .setup-guide-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* The book form's cover photo for the Fair till (features/book-cover.js). */
+.nb-cover-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+.nb-cover-row input[type="file"] { flex: 1 1 160px; min-width: 0; }
+.nb-cover-preview { width: 36px; height: 48px; object-fit: cover; border: var(--stroke) solid var(--rule-ink); box-shadow: var(--riso-off-sm); }

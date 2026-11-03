@@ -179,8 +179,11 @@ service cloud.firestore {
       allow create, update: if isOwner()
         && email == email.lower()
         && email != "__SHOP_OWNER_EMAIL__"
-        && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy"])
-        && request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper"];
+        && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy", "until"])
+        && request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper"]
+        // "For today only" (functions/roles.js removeExpiredMembers): a fair helper's entry may end at a set time.
+        && (!("until" in request.resource.data)
+            || (request.resource.data.until is timestamp && request.resource.data.role == "fairHelper"));
     }
     // The owner's admin screen layouts (Overview boards: admin/overview/overviewBoardStore.ts) and the Overview's sales notes
     // (admin/overview/overviewNotesStore.ts). Admin-only, one JSON string each.

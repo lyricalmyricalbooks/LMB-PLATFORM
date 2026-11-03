@@ -159,6 +159,9 @@ export function helperDay(mySales, day) {
   const sales = (mySales || []).filter((s) => s && s.day === day)
     .sort((a, b) => String(b.id).localeCompare(String(a.id)));
   const totals = {};
+  // The day's takings by way of paying ({ Cash: { CAD: 42 } }), for the helper's end-of-day count: the cash line is
+  // what they should hand the owner.
+  const byMethod = {};
   let units = 0;
   let waiting = 0;
   let kept = 0;
@@ -166,10 +169,15 @@ export function helperDay(mySales, day) {
     if (s.pending) waiting++;
     if (s.cancelled) continue;
     kept++;
+    const method = HELPER_METHODS.includes(s.method) ? s.method : 'Cash';
+    byMethod[method] ||= {};
     for (const l of s.lines || []) {
+      const cur = l.cur || 'CAD';
+      const amount = (Number(l.qty) || 0) * (Number(l.price) || 0);
       units += Number(l.qty) || 0;
-      totals[l.cur || 'CAD'] = cents((totals[l.cur || 'CAD'] || 0) + (Number(l.qty) || 0) * (Number(l.price) || 0));
+      totals[cur] = cents((totals[cur] || 0) + amount);
+      byMethod[method][cur] = cents((byMethod[method][cur] || 0) + amount);
     }
   }
-  return { sales, totals, units, waiting, kept };
+  return { sales, totals, byMethod, units, waiting, kept };
 }

@@ -6169,6 +6169,16 @@
         <div class="accent-name-caption" id="nb-accent-name" aria-live="polite">Press Red</div>
       </div>
       <div class="form-group">
+        <label for="nb-cover-file">Cover photo</label>
+        <div class="nb-cover-row">
+          <img id="nb-cover-preview" class="nb-cover-preview" alt="Cover" width="36" height="48" hidden>
+          <input id="nb-cover-file" type="file" accept="image/png,image/jpeg,image/webp" onchange="pickBookCover(event)">
+          <button type="button" class="btn sm" id="nb-cover-remove" onclick="removeBookCover()" hidden>Remove</button>
+        </div>
+        <input id="nb-cover" type="hidden" value="">
+        <span class="field-note">Shown beside the book on the Fair till for your helpers. A book on your website uses its website photo.</span>
+      </div>
+      <div class="form-group">
         <label for="nb-thresh">Low Stock Alert Threshold</label>
         <div style="display:flex;align-items:center;gap:6px;">
           <input id="nb-thresh" type="number" inputmode="numeric" value="10" min="0" style="font-family:var(--font-mono);">

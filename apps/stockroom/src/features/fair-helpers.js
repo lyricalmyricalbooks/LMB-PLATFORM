@@ -47,7 +47,8 @@ function currentMenu(books = BOOKS, bookStates = states) {
     price: b.listPrice,
     cur: getBookCurrencyCode(b),
     onHand: Number.isFinite(bookStates?.[b.id]?.stock) ? bookStates[b.id].stock : null,
-    cover: websiteCoverOf(b.id),
+    // The website's photo first; a book only in the stockroom uses the cover added in its book form.
+    cover: websiteCoverOf(b.id) || b.coverUrl || '',
     accent: b.accent,
   })));
 }

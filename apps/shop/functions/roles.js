@@ -16,6 +16,10 @@ const ROLES = ["owner", "staff", "author", "bookkeeper", "fairHelper"];
 const ADMIN_ROLES = ["owner", "staff"];
 
 const normEmail = v => String(v || "").trim().toLowerCase();
+// A fair helper added "for today only" carries `until` (a Firestore time): after it, the entry counts for nothing and
+// removeExpiredMembers deletes it, which signs them out.
+const untilMs = v => (v && typeof v.toMillis === "function" ? v.toMillis() : v instanceof Date ? v.getTime() : NaN);
+const expired = (data, nowMs = Date.now()) => Number.isFinite(untilMs(data?.until)) && untilMs(data.until) <= nowMs;
 const memberId = email => normEmail(email);
 const isRole = v => ROLES.includes(v);
 
@@ -74,7 +78,7 @@ async function syncMemberRole({ auth, db, email }) {
   }
   const snap = await db.collection("members").doc(id).get();
   const data = snap.exists ? snap.data() : null;
-  const role = !OWNER_EMAILS.includes(id) && isRole(data?.role) ? data.role : null;
+  const role = !OWNER_EMAILS.includes(id) && isRole(data?.role) && !expired(data) ? data.role : null;
   const claims = { ...(user.customClaims || {}) };
   const before = claims.role ?? null;
   if (before === role) return { status: "unchanged", role };
@@ -87,4 +91,19 @@ async function syncMemberRole({ auth, db, email }) {
   return { status: "updated", role };
 }
 
-module.exports = { OWNER_EMAILS, ROLES, ADMIN_ROLES, adminRole, booksReader, supportOf, memberId, memberProblem, syncMemberRole };
+/**
+ * Deletes the Team entries whose time is up (a fair helper added for one day). Each delete runs syncMemberRole's
+ * trigger, which takes the role off the pass and signs the person out. Returns how many were removed.
+ */
+async function removeExpiredMembers({ db, nowMs = Date.now() }) {
+  const snap = await db.collection("members").where("until", "<=", new Date(nowMs)).limit(200).get();
+  let removed = 0;
+  for (const doc of snap.docs) {
+    if (!expired(doc.data(), nowMs)) continue;
+    await doc.ref.delete();
+    removed++;
+  }
+  return removed;
+}
+
+module.exports = { removeExpiredMembers, OWNER_EMAILS, ROLES, ADMIN_ROLES, adminRole, booksReader, supportOf, memberId, memberProblem, syncMemberRole };

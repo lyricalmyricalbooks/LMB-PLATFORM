@@ -104,3 +104,24 @@
 .fh-sale.is-undone .fh-sale-what, .fh-sale.is-undone > strong { text-decoration: line-through; color: var(--content-muted); }
 .fh-day { margin: 0; font-weight: 700; }
 .fh-note { margin: 0; font-size: var(--text-sm); color: var(--content-secondary); }
+.fh-qr-code {
+  display: flex;
+  justify-content: center;
+  align-self: center;
+  padding: var(--space-3);
+  border: var(--stroke) solid var(--rule-ink);
+  background: #ffffff; /* the code needs a white quiet zone in night mode too */
+  box-shadow: var(--riso-off-sm);
+}
+.fh-qr-code img, .fh-qr-code canvas { display: block; max-width: 100%; height: auto; }
+.fh-qr-wait { margin: 0; font-weight: 700; color: var(--content-primary); }
+.fh-qr-problem { margin: 0; padding: var(--space-2) var(--space-3); border: var(--stroke) solid var(--rule-ink); background: var(--amber-bg); color: var(--content-primary); font-weight: 700; }
+
+/* End of day: what came in each way of paying, the cash line first. */
+.fh-count { border: var(--stroke) solid var(--rule-ink); background: var(--surface-card); padding: var(--space-2) var(--space-3); }
+.fh-count > summary { min-height: var(--target-min); display: flex; align-items: center; font-weight: 700; cursor: pointer; }
+.fh-count-list { list-style: none; margin: 0 0 var(--space-2); padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.fh-count-row { display: flex; justify-content: space-between; gap: var(--space-3); }
+.fh-count-row.is-cash { font-size: var(--text-md); padding-bottom: var(--space-1); border-bottom: var(--stroke-hair) solid var(--border-default); }
+/* The cart and today's sales: their parts spaced on the scale. */
+#fh-cart, #fh-today { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }

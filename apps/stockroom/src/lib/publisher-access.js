@@ -65,15 +65,32 @@ export async function isPublisherUser(user, { askRules = null, store = browserSt
 const ROLE_ASK_WAIT_MS = 5000;
 
 /**
- * The shop server's "what is my role" address, on the plan with both apps only (the shop's server keeps the Team and
- * puts each person's role on their sign-in pass). '' when there is no shop server to ask, or on the demo shop.
+ * The address of one of the shop server's functions, on the plan with both apps only (the shop app brings the server:
+ * the Team, payments). '' when there is no shop server to ask, or on the demo shop.
  */
-export function shopRoleUrl(profile, { emulators = false } = {}) {
+export function shopFunctionUrl(profile, name, { emulators = false } = {}) {
   if (emulators || profile?.apps?.shop !== true || profile?.apps?.stockroom !== true) return '';
   const project = profile?.firebase?.projectId;
   const region = profile?.functionsRegion;
-  if (!project || !region) return '';
-  return `https://${region}-${project}.cloudfunctions.net/refreshMyRole`;
+  if (!project || !region || !/^[A-Za-z]+$/.test(String(name || ''))) return '';
+  return `https://${region}-${project}.cloudfunctions.net/${name}`;
+}
+
+/** The shop server's "what is my role" address (it keeps the Team and puts each person's role on their pass). */
+export function shopRoleUrl(profile, options) {
+  return shopFunctionUrl(profile, 'refreshMyRole', options);
+}
+
+/**
+ * Calls a shop function as the signed-in person: their answer as JSON, or { error } with the server's sentence.
+ * Throws only when the server can't be reached (no signal), so the caller can say so.
+ */
+export async function callShopFunction(user, url, body, { fetchFn = globalThis.fetch } = {}) {
+  if (!url || !user || typeof user.getIdToken !== 'function') return { error: 'This needs the shop app.' };
+  const token = await user.getIdToken();
+  const res = await fetchFn(url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const answer = await res.json().catch(() => ({}));
+  return res.ok ? answer : { error: typeof answer?.error === 'string' ? answer.error : 'The shop couldn\'t do that just now.' };
 }
 
 /**

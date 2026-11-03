@@ -93,6 +93,9 @@ const LIMITS = {
   ga4: { max: 60, windowMs: 10 * 60 * 1000 },
   // Books › Import reading an old shop's address (functions/oldShopRead.js): each read can fetch up to 20 pages.
   oldShop: { max: 10, windowMs: 10 * 60 * 1000 },
+  // A fair helper's card payments by QR (functions/fairHelperPay.js): each sale makes one checkout and asks a few
+  // dozen times whether it's paid, so a busy afternoon fits easily.
+  fairHelperPay: { max: 400, windowMs: 10 * 60 * 1000 },
   // Two-step backup codes (functions/twoStepBackup.js): a few typing mistakes, never a guessing run.
   twoStepBackup: { max: 10, windowMs: 10 * 60 * 1000 },
 };

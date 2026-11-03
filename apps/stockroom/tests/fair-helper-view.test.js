@@ -2,7 +2,7 @@
 import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('../src/styles/fair-helper-view.css', () => ({}));
-const { booksHtml, cartHtml, syncHtml, todayHtml } = await import('../src/features/fair-helper-view.js');
+const { booksHtml, cartHtml, qrHtml, syncHtml, todayHtml } = await import('../src/features/fair-helper-view.js');
 const { helperCopiesLeft, helperDay } = await import('../src/lib/fair-helper.js');
 
 const menu = { books: [
@@ -75,5 +75,31 @@ describe("the helper's till", () => {
     expect(html).toContain('In the books');
     expect(syncHtml(day, false)).toContain('1 sale is waiting for signal (no connection)');
     expect(syncHtml(helperDay([], '2026-11-03'), true)).toContain('Every sale is uploaded');
+  });
+
+  test('the end-of-day count puts the cash to hand over first, and leaves undone sales out', () => {
+    const day = helperDay([...mine, { id: 'fs-3', day: '2026-11-03', method: 'Cash', cancelled: true, lines: [{ bookId: 'b1', title: 'H', qty: 5, price: 24, cur: 'CAD' }] }], '2026-11-03');
+    expect(day.byMethod).toEqual({ Cash: { CAD: 48 }, Card: { CAD: 24 } });
+    const html = todayHtml(day);
+    expect(html.indexOf('Cash to hand over')).toBeLessThan(html.indexOf('Card reader'));
+    expect(html).toContain('CAD 48.00');
+    expect(todayHtml(helperDay([], '2026-11-03'))).not.toContain('End of day');
+  });
+
+  test('QR / Stripe opens a card payment code on the plan with both apps, and only records otherwise', () => {
+    const cart = { b1: 1 };
+    expect(cartHtml(menu, cart, '', false, true)).toContain('data-action="helper.qr" data-method="Stripe QR"');
+    expect(cartHtml(menu, cart, '', false, false)).toContain('data-action="helper.charge" data-method="Stripe QR"');
+    expect(cartHtml(menu, cart, '', false, true)).toContain('data-action="helper.charge" data-method="Cash"');
+  });
+
+  test('the payment code panel says what to pay, waits, and explains a problem', () => {
+    const waiting = qrHtml({ status: 'waiting', url: 'https://pay.example/x', amount: 2400, currency: 'CAD' });
+    expect(waiting).toContain('CAD 24.00');
+    expect(waiting).toContain('id="fh-qr-code"');
+    expect(waiting).toContain('Waiting for the payment');
+    expect(qrHtml({ status: 'offline', amount: 2400, currency: 'CAD' })).toContain('No signal');
+    expect(qrHtml({ status: 'failed', message: 'A <b>book</b> moved' })).toContain('A &lt;b&gt;book&lt;/b&gt; moved');
+    expect(qrHtml({ status: 'starting' })).toContain('helper.qrCancel');
   });
 });

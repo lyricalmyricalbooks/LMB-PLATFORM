@@ -15,9 +15,10 @@ import './styles/phone.css';
 // The Riso phone redesign sits on top of the phone layer above.
 import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
-import { askShopForRole, isPublisherUser, readPassClaims, shopRoleUrl } from './lib/publisher-access.js';
+import { askShopForRole, callShopFunction, isPublisherUser, readPassClaims, shopFunctionUrl, shopRoleUrl } from './lib/publisher-access.js';
 import { isBookkeeperPass } from './lib/bookkeeper-copy.js';
 import { isFairHelperPass } from './lib/fair-helper.js';
+import { pickBookCover, removeBookCover, setBookCoverField } from './features/book-cover.js';
 import { planChangeNotice, planPageLink, planReadOnly } from './lib/plan-pause.js';
 import { foldFooterActions, initPhoneLayouts } from './lib/phone-layout.js';
 import { createPhonePageMemory, initPhoneWorkspace, observeSidebarBadges } from './lib/phone-workspace.js';
@@ -1727,6 +1728,7 @@ function resetBookForm() {
   if ($('nb-grid')) $('nb-grid').hidden = sellsBooks(shopProfile?.sells);
   $('nb-accent').value = '#E8402A';
   onCustomAccentInput('#E8402A');
+  setBookCoverField('');
   $('nb-pw').value = '';
   $('nb-prod').value = '0';
   if ($('nb-pub-grat')) $('nb-pub-grat').value = '0';
@@ -1806,6 +1808,7 @@ function openEditBookModal(id) {
   $('nb-thresh').value = book.threshold ?? 10;
   $('nb-accent').value = book.accent || '#E8402A';
   onCustomAccentInput(book.accent || '#E8402A');
+  setBookCoverField(book.coverUrl || '');
   $('nb-pw').value = book.authorEmail || '';
   $('nb-prod').value = book.productionCost ?? 0;
   if ($('nb-pub-grat')) $('nb-pub-grat').value = book.pubGratuity ?? 0;
@@ -2531,6 +2534,8 @@ async function saveBookFromModal() {
     stripeLink: $('nb-paylink').value.trim(),
     accent: $('nb-accent').value,
     accentBg: hexToRgba($('nb-accent').value, 0.1),
+    // The cover photo for the Fair till (features/book-cover.js); '' when none.
+    coverUrl: $('nb-cover') ? $('nb-cover').value : currentBook.coverUrl || '',
     urlParam: currentBook.urlParam || id,
     authorEmail: ($('nb-pw').value || '').toLowerCase().trim(),
     profitTiers: currentBook.profitTiers || [],
@@ -19577,9 +19582,12 @@ async function initStartup() {
         IS_AUTHOR_MODE = false;
         _appShellShown = true;
         const { showFairHelperView } = await import('./features/fair-helper-view.js');
+        const payUrl = shopFunctionUrl(shopProfile, 'fairHelperPayment', { emulators: import.meta.env?.VITE_FIREBASE_EMULATORS === 'true' });
         showFairHelperView({
           email: user.email, watchMenu: window._fbWatchFairMenu, watchMySales: window._fbWatchMyFairSales,
           addSale: window._fbAddFairSale, cancelSale: window._fbCancelFairSale, signOut: () => window._fbSignOut(),
+          // Card payments by QR come from the shop's server (functions/fairHelperPay.js), on the plan with both apps.
+          cardPay: payUrl ? (action, body) => callShopFunction(user, payUrl, { action, ...body }) : null,
         });
         dismissSplash();
         return;
@@ -20213,7 +20221,7 @@ function exposeLegacyInlineHandlers() {
     dismissDeductionGap, renderDeductionGaps, restoreDeductionGaps, snoozeDeductionGap,
     revealUpdatingScreen, hideUpdatePrompt, bindUpdatePromptInteractions, isTestBook, isTestBookId,
     ownersFromBooks, saveCatalogWithDeletions, loadCatalog, syncCatalog, switchBookModalTab,
-    stepBookModal, updateBookModalFinancials, onBookTitleInput, selectBookAccentPreset, onCustomAccentInput, applyBookParcelPreset,
+    stepBookModal, updateBookModalFinancials, onBookTitleInput, selectBookAccentPreset, onCustomAccentInput, applyBookParcelPreset, pickBookCover, removeBookCover,
     resetBookForm, openAddBookModal, openEditBookModal, closeAddBookModal, isValidPaymentLink,
     openProductionCostCalculator, closeProductionCostCalculator, renderProdCostCalcList, toggleProdCostCalcExpense, setProdCostCalcFilter, toggleAllFilteredProdCost, applyCalculatedProdCost,
     updateUnsavedIndicator, saveBookFromModal, renderCatalogList, deleteBook, openPaymentQRModal,

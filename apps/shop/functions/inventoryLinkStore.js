@@ -7,7 +7,7 @@
 // "the stockroom isn't set up in this shop".
 // The Admin SDK bypasses the stockroom's rules, so this file is the only code that may touch that database, and it
 // touches only the link's own documents (plus a read of the book list, reduced to safe fields by
-// projectInventoryCatalog, and, for the fair day email, a read of the sales records of books that changed today). The shop's own data stays in the (default) database; this file never opens it.
+// projectInventoryCatalog, and, for the fair day email, a read of the sales records of books that changed today, and, for a helper's card payment, a read of the Fair till's menu). The shop's own data stays in the (default) database; this file never opens it.
 const admin = require("./adminSdk")(require("firebase-admin"));
 const { getFirestore } = require("firebase-admin/firestore");
 const { projectInventoryCatalog } = require("./inventoryLink");
@@ -230,8 +230,19 @@ async function readBooksSoldSince(sinceMs, { db = inventoryDb() } = {}) {
   return out;
 }
 
+/**
+ * The Fair till's menu for helpers (fairTill/menu: each book's id, title, price, currency, copies) and whether the
+ * stockroom's plan is open (platform/plan, as its rules' planOpen()). Read-only; fairHelperPay.js prices from it.
+ */
+async function readFairTill({ db = inventoryDb() } = {}) {
+  const [menu, plan] = await db.getAll(db.collection("fairTill").doc("menu"), db.collection("platform").doc("plan"));
+  const access = plan.exists ? String(plan.get("access") ?? "open") : "open";
+  return { menu: menu.exists ? menu.data() : null, open: access === "open" };
+}
+
 module.exports = {
   readBooksSoldSince,
+  readFairTill,
   writeSellsWords,
   STOCKROOM_DATABASE, inventoryDb, serviceAccountEmail, connectionProblem, checkConnection, heartbeat, markPastOrders,
   writeWebsiteOrder, waitingShipments, replyShipment, readFeeds, readCatalog, pendingSummary, readAppHeartbeat,

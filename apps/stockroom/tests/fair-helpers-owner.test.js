@@ -6,6 +6,7 @@ const app = vi.hoisted(() => ({ BOOKS: {}, states: {}, written: [], handlers: {}
 
 vi.mock('../src/main.js', () => ({ renderHist: () => {}, refreshAttentionSurfaces: () => { app.refreshed++; } }));
 vi.mock('../src/features/dashboard.js', () => ({ updateDash: () => {} }));
+vi.mock('../src/features/website-link.js', () => ({ websiteCoverOf: (id) => (id === 'web' ? 'https://img.example/web.jpg' : '') }));
 vi.mock('../src/core/store.js', () => ({
   BOOKS: app.BOOKS,
   states: app.states,
@@ -99,6 +100,15 @@ describe("the helpers' price list", () => {
       { id: 'b1', title: 'Harbour Lights', price: 24, cur: 'CAD', onHand: 7 },
       { id: 'b2', title: 'Tide Tables', price: 18, cur: 'CAD', onHand: 0 },
     ]);
+  });
+
+  test('a cover comes from the website first, then from the book form', () => {
+    app.BOOKS.web = { id: 'web', title: 'Web Book', listPrice: 10, currency: 'CA$', coverUrl: 'https://img.example/own.jpg' };
+    app.BOOKS.own = { id: 'own', title: 'Own Book', listPrice: 10, currency: 'CA$', coverUrl: 'https://img.example/own.jpg' };
+    const byId = Object.fromEntries(currentMenu().books.map((b) => [b.id, b]));
+    expect(byId.web.cover).toBe('https://img.example/web.jpg');
+    expect(byId.own.cover).toBe('https://img.example/own.jpg');
+    expect(byId.b1).not.toHaveProperty('cover');
   });
 
   test('only the publisher, only on the plan with both apps', () => {
