@@ -269,7 +269,7 @@ function shopEmails({
           const brand = { ...notificationSettings.brand };
           if (typeof draftBrand.logoUrl === "string" && (draftBrand.logoUrl === "" || /^https:\/\/[^\s"'<>]{1,500}$/.test(draftBrand.logoUrl))) brand.logoUrl = draftBrand.logoUrl;
           if (typeof draftBrand.brandColor === "string" && /^#[0-9a-f]{3,8}$/i.test(draftBrand.brandColor)) brand.brandColor = draftBrand.brandColor;
-          if (draftBrand.emailTheme === "light" || draftBrand.emailTheme === "dark") brand.emailTheme = draftBrand.emailTheme;
+          if (["light", "dark", "market", "index"].includes(draftBrand.emailTheme)) brand.emailTheme = draftBrand.emailTheme;
           notificationSettings.brand = brand;
         }
 
