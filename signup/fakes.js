@@ -42,6 +42,7 @@ export function fakeFrontDoorStores() {
       set: async (id, row) => void presses.set(id, structuredClone(row)),
       create: async (id, row) => (presses.has(id) ? false : (presses.set(id, structuredClone(row)), true)),
       listByOwner: async (ownerUid) => [...presses.values()].filter((row) => row.ownerUid === ownerUid).map(copy),
+      list: async () => [...presses.values()].map(copy),
       update: async (id, change) => atOnce(presses, id, change),
     },
     codes: {

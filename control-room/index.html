@@ -165,6 +165,7 @@
           <li data-admin><a class="rp-nav-item" href="#today" data-nav="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Today</a></li>
           <li data-admin><a class="rp-nav-item" href="#shops" data-nav="shops"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9 5 4h14l2 5"/><path d="M4 9v11h16V9"/><path d="M3 9h18"/><path d="M9 20v-6h6v6"/></svg>Shops<span class="rp-nav-badge" data-badge="shops" hidden></span></a></li>
           <li data-admin><a class="rp-nav-item" href="#signups" data-nav="signups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M19 8v6M16 11h6"/></svg>Sign-ups<span class="rp-nav-badge" data-badge="signups" hidden></span></a></li>
+          <li data-admin><a class="rp-nav-item" href="#setting-up" data-nav="setting-up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="M6 20V10l6-5 6 5v10"/><path d="M10 20v-5h4v5"/></svg>Setting up<span class="rp-nav-badge" data-badge="setting-up" hidden></span></a></li>
           <li class="rp-nav-section-row" aria-hidden="true" data-admin><div class="rp-nav-section">Help presses</div></li>
           <li data-admin><a class="rp-nav-item" href="#support" data-nav="support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Support<span class="rp-nav-badge" data-badge="support" hidden></span></a></li>
           <li data-admin><a class="rp-nav-item" href="#repairs" data-nav="repairs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Repairs<span class="rp-nav-badge" data-badge="repairs" hidden></span></a></li>
@@ -264,6 +265,19 @@
                 <div class="rp-field cr-grow"><label class="rp-label" for="invite-email">Email address</label><input id="invite-email" class="rp-input" type="email" name="email" required autocomplete="off" placeholder="name@press.example"></div>
                 <button type="submit" class="rp-btn rp-btn-primary">Send invite</button>
               </form>
+            </section>
+
+            <section data-page="setting-up" aria-labelledby="h-setting-up" hidden>
+              <div class="rp-page-header">
+                <div><h1 class="rp-page-title" id="h-setting-up">Setting up</h1><p class="rp-page-desc">Presses that signed up and are getting their shop ready in setup mode, or have pressed Open my shop. Nothing here changes anything. A setup record not visited for 60 days is removed.</p></div>
+                <div class="rp-page-actions"><button type="button" id="setup-refresh" class="rp-btn rp-btn-secondary">Refresh</button></div>
+              </div>
+              <div id="setup-numbers" class="rp-kpi-grid" aria-label="Presses setting up in numbers"></div>
+              <div id="setup-needs"></div>
+              <div class="cr-head"><h2 id="h-setup-presses">Every press setting up</h2></div>
+              <div id="setup-presses"></div>
+              <div class="cr-head"><h2 id="h-setup-looks">Looks presses picked</h2></div>
+              <div id="setup-looks" class="cr-grid"></div>
             </section>
 
             <section data-page="support" aria-labelledby="h-support" hidden>

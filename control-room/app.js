@@ -174,6 +174,7 @@ async function load() {
     await loadJobs();
     await loadMessages();
     await loadCosts();
+    await loadSetup();
   } catch (failure) {
     status.textContent = failure.message;
     // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
@@ -1919,3 +1920,69 @@ function exportButton(shop) {
   });
   return b;
 }
+
+// ── Setting up (front door, plan 18.2-18.8): presses in setup mode or opening, before they are shops. Read only. ──
+const SETUP_STATUS = { setup: ["info", "In setup"], opening: ["warning", "Opening"], open: ["success", "Open"], expired: ["neutral", "Removed"] };
+const MOVING_WORDS = { yes: "bringing a shop over", fresh: "starting fresh" };
+const LANGUAGE_CHOICE_WORDS = { fr: "emails in French", en: "emails in English" };
+/** "riso-press" -> "Riso press"; "" -> "Not chosen yet". */
+const lookWords = (id) => (id ? id.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase()) : "Not chosen yet");
+const daysWords = (n) => (n === 0 ? "today" : n === 1 ? "yesterday" : `${n} days ago`);
+
+function setupStatusCell(press) {
+  const [tone, words] = SETUP_STATUS[press.status] ?? ["neutral", press.status];
+  const shown = press.shopStatus === "live" ? pill("success", "Shop live") : pill(tone, words);
+  const flag = press.flag === "stuck" ? pill("danger", "Stuck opening") : press.flag === "going-soon" ? pill("warning", `Removed ${dateOnly(press.removesOn)}`) : null;
+  return el("div", { className: "cr-row" }, shown, flag);
+}
+
+async function loadSetup() {
+  try {
+    const { counts, looks, presses } = await api("GET", "/control/presses");
+    setBadge("setting-up", counts.stuck);
+    const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric" },
+      el("div", { className: "rp-metric-label", textContent: label }),
+      el("div", { className: "rp-metric-value", textContent: String(value), dataset: tone ? { tone } : {} }),
+      foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
+    $("#setup-numbers").replaceChildren(
+      figure("In setup", counts.inSetup, `${counts.signedUpThisWeek} signed up this week`),
+      figure("Ready to open", counts.readyToOpen, "name and country filled in"),
+      figure("Opening", counts.opening, `${counts.opened} now live`, counts.stuck ? "danger" : null),
+      figure("Bringing a shop over", counts.bringingShopOver, `${counts.withProductFile} with a product file kept`),
+      figure("Removed soon", counts.goingSoon, "not visited in 45 days", counts.goingSoon ? "warn" : null),
+    );
+    const needs = [];
+    if (counts.stuck) needs.push(["danger", `${counts.stuck} press${counts.stuck === 1 ? "" : "es"} pressed Open my shop over a day ago and the shop isn't live. Check Sign-ups › Shops being made.`, "#making"]);
+    if (counts.goingSoon) needs.push(["warning", `${counts.goingSoon} press${counts.goingSoon === 1 ? " hasn't" : "es haven't"} been back to setup in 45 days; their setup is removed at 60.`, "#setup-presses"]);
+    $("#setup-needs").replaceChildren(needs.length ? el("div", { className: "rp-alerts" }, ...needs.map(([tone, words, go]) => el("a", { className: "rp-alert", href: go, dataset: { tone } },
+      el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: tone === "danger" ? "✕" : "!" }),
+      el("span", { className: "rp-alert-text" }, el("strong", { className: "rp-alert-title", textContent: words }))))) : el("span"));
+    $("#setup-presses").replaceChildren(presses.length ? table({
+      caption: "Every press setting up",
+      rows: presses,
+      open: (press) => {
+        const shop = press.shopId && allShops.find((s) => s.shopId === press.shopId);
+        if (shop) openShop(shop);
+      },
+      columns: [
+        { header: "Press", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName || "No name yet" }), meta(p.ownerEmail, p.sells ? `sells ${p.sells.toLowerCase()}` : null, p.country || null)) },
+        { header: "Plan", render: (p) => (p.plan ? PLAN_WORDS[p.plan] ?? p.plan : el("span", { className: "rp-hint", textContent: "not picked" })) },
+        { header: "Looks", render: (p) => el("div", {}, el("span", { textContent: `Website: ${lookWords(p.look)}` }), meta(`Admin: ${lookWords(p.adminLook)}`)) },
+        { header: "Moving in", render: (p) => el("div", {}, el("span", { textContent: MOVING_WORDS[p.moving] ?? "not answered" }),
+          meta(p.import ? `product file: ${p.import.rows ?? "?"} rows` : null, LANGUAGE_CHOICE_WORDS[p.language] ?? null)) },
+        { header: "Last visit", render: (p) => el("div", {}, el("span", { className: "rp-mono", textContent: p.idleDays == null ? "" : daysWords(p.idleDays) }), meta(p.createdAt ? `signed up ${dateOnly(p.createdAt)}` : null)) },
+        { header: "Where", render: (p) => el("div", {}, setupStatusCell(p),
+          meta(p.stillToDo.length ? `still to add: ${p.stillToDo.join(", ")}` : null, p.shopId ? `shop ${p.shopId}` : null, p.shopMessage || null)) },
+      ],
+    }) : emptyState("No presses setting up.", "A press shows here as soon as it signs up at the front door."));
+    const lookSheet = (title, rows) => sheet({
+      title,
+      metaParts: [`${rows.reduce((n, r) => n + r.count, 0)} presses`],
+      body: [rows.length ? el("ul", { className: "cr-history" }, ...rows.map((r) => el("li", { textContent: `${lookWords(r.id)}: ${r.count}` }))) : emptyState("None yet.")],
+    });
+    $("#setup-looks").replaceChildren(lookSheet("Website looks", looks.website), lookSheet("Admin looks", looks.admin));
+  } catch (failure) {
+    $("#setup-presses").replaceChildren(emptyState(failure.message));
+  }
+}
+$("#setup-refresh").addEventListener("click", loadSetup);

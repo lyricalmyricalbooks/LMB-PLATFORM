@@ -74,6 +74,8 @@ export function firestoreFrontDoorStores(firestore) {
       set: (id, row) => firestore.set(`presses/${safe(id)}`, row),
       create: (id, row) => firestore.create(`presses/${safe(id)}`, row),
       listByOwner: async (ownerUid) => rowsOf(await firestore.query("presses", { where: [["ownerUid", "==", ownerUid]], limit: 50 })),
+      /** Every setup record, for the control room's Setting up page (control-room/setupPresses.js). */
+      list: async () => rowsOf(await firestore.query("presses", { limit: 5000 })),
       update: (id, change) => inTransaction(firestore, `presses/${safe(id)}`, change),
     },
     codes: {
