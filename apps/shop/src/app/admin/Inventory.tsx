@@ -8,6 +8,7 @@ import { useSubTab } from "./settingsLayout";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { smallPhotoUrl } from "../features/site/photoSources";
+import { hasStockroom } from "../../lib/shopProfile";
 import {
   buildInventory, inventorySummary, inventoryToCsv, lowStockThreshold, parseCost, parseReceive, parseStock,
   waitingReaders, wakesRestockEmails, ADJUST_REASONS, STATUS_LABELS,
@@ -72,7 +73,10 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
     return () => mq?.removeEventListener?.("change", on);
   }, []);
   // Page sub tabs: the stock list, and the link to the inventory app.
-  const [view, setView] = useSubTab<"inv-stock" | "inv-link">("inv-stock", subTab, onSubTabChange);
+  const [chosenView, setView] = useSubTab<"inv-stock" | "inv-link">("inv-stock", subTab, onSubTabChange);
+  // A website-only press has no stockroom to link: stock is kept here, and the link tab isn't offered.
+  const stockroom = hasStockroom();
+  const view = stockroom ? chosenView : "inv-stock";
   const [q, setQ] = useState("");
   const [threshold, setThreshold] = useState(5);
   const [thresholdDraft, setThresholdDraft] = useState("5");
@@ -392,11 +396,11 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
           <SecondaryButton size="sm" onClick={load}>Retry</SecondaryButton>
         </div>
       )}
-      <Tabs variant="page" label="Inventory" value={view} onChange={setView} tabs={[
+      {stockroom && <Tabs variant="page" label="Inventory" value={view} onChange={setView} tabs={[
         { id: "inv-stock", label: "Stock" },
         { id: "inv-link", label: "Inventory app link" },
-      ]} />
-      <TabPanel tabId="inv-stock" active={view === "inv-stock"}>
+      ]} />}
+      <TabPanel tabId="inv-stock" active={view === "inv-stock"} alone={!stockroom}>
       <div className="rp-stack">
       <div className="rp-kpi-grid inv-figures">
         <MetricCard label="Units on hand" value={sum.units} footer="Counted print editions" />
@@ -449,14 +453,14 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
       </div>
       </div>
       </TabPanel>
-      <TabPanel tabId="inv-link" active={view === "inv-link"}>
+      {stockroom && <TabPanel tabId="inv-link" active={view === "inv-link"}>
         <div className="rp-stack">
           <InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={refreshBooks} onAddBook={onAddBook} />
         </div>
-      </TabPanel>
+      </TabPanel>}
 
       <Drawer open={!!historyFor} onClose={() => setHistoryFor(null)} title={historyFor ? `Stock history · ${historyFor.title}` : "Stock history"}
-        description="Every count change made on this page or by the inventory app link, newest first. Sales and refunds change stock automatically and are listed on their orders.">
+        description={`Every count change made on this page${stockroom ? " or by the inventory app link" : ""}, newest first. Sales and refunds change stock automatically and are listed on their orders.`}>
         {historyError ? <ErrorState description="History could not be loaded." onRetry={() => historyFor && openHistory(historyFor)} />
           : !history ? <LoadingState label="Loading history…" />
           : !history.length ? <EmptyState title="No changes recorded yet" description="Changes made from now on appear here." />

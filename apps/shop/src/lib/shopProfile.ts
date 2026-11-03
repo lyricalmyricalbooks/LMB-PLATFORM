@@ -149,6 +149,14 @@ export function readShopProfile(source: unknown = typeof window === "undefined" 
 
 export const shopProfile: ShopProfile = readShopProfile();
 
+/**
+ * The press's plan includes the stockroom (the profile's `apps`, rewritten when an app is added or dropped). A
+ * website-only press sees no switcher, link tab or stockroom words, and keeps its stock here in the admin.
+ */
+export function hasStockroom(profile: ShopProfile = shopProfile): boolean {
+  return profile.apps.stockroom === true;
+}
+
 /** Card payments run through the platform (plan 2.2): the checkout offers cards without the shop's own keys. */
 export function platformTakesCards(profile: ShopProfile = shopProfile): boolean {
   const payments = profile.payments;
