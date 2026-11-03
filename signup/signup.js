@@ -153,7 +153,9 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
       // A press back from a refusal (its plan didn't start) opens with the answers it gives now, not the earlier ones.
       if (row && pressId && !row.trialStartedAt) {
         const { pressName, plan, country, currency, answer, publishes } = details;
-        row = { ...row, pressName, plan, country, currency, answer, publishes };
+        // The email language too: a choice made now replaces the earlier one, and none (automatic) clears it.
+        const { language: _earlier, ...kept } = row;
+        row = { ...kept, pressName, plan, country, currency, answer, publishes, ...(details.language ? { language: details.language } : {}) };
         await signups.set(row.shopId, row);
       }
       if (!row) {

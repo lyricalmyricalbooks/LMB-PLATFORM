@@ -294,6 +294,9 @@ function googleView(record) {
     google.steps.length ? list : el("p", { className: "rp-hint", textContent: "No Google steps yet." }));
 }
 
+/** The language of the platform's emails to a press (the record's `emailLanguage`). */
+const EMAIL_LANGUAGE_WORDS = { fr: "in French", "fr+en": "in French, then English (billing address in Quebec)", en: "in English" };
+
 function recordView(record) {
   const billing = record.billing;
   const connections = record.connections;
@@ -302,6 +305,7 @@ function recordView(record) {
     ["Started", dateOnly(record.createdAt)],
     ["Address", record.siteUrl],
     ["Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan],
+    ["Emails", EMAIL_LANGUAGE_WORDS[record.emailLanguage] ?? ""],
     ["Payments", connections.payments ? `${connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"],
     ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map((d) => `${d.name} (${d.state})`).join(", ") : "the shop's own .web.app address"],
     ["Version", record.version ?? "none yet"],

@@ -144,9 +144,10 @@ export function checkSignup(input) {
   // The terms (terms/terms.js): the box must be ticked; the server checks the version is today's.
   if (input?.termsAccepted !== true) problems.terms = "Tick the box to agree to the terms.";
   const termsVersion = typeof input?.termsVersion === "string" ? input.termsVersion.slice(0, 60) : "";
-  // The language the platform writes to the press in (templatesFr.js): only French is kept, from a French browser, so a
-  // press that says nothing gets the Quebec rule (French first, then English) from its billing address instead.
-  const language = input?.language === "fr" ? "fr" : null;
+  // The language the platform writes to the press in (templatesFr.js): French or English when chosen (setup mode's
+  // General page, or French from a French browser on the old page). A press that says nothing gets the Quebec rule
+  // (French first, then English) from its billing address instead.
+  const language = ["fr", "en"].includes(input?.language) ? input.language : null;
   const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, ...(language ? { language } : {}) };
   return { ok: Object.keys(problems).length === 0, details, problems };
 }

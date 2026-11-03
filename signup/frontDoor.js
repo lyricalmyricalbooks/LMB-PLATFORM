@@ -38,7 +38,7 @@ const shown = (record) => ({
   pressId: record.pressId, status: record.status, plan: record.plan ?? "", shopId: record.shopId ?? "",
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
-  look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "",
+  look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "", language: record.language ?? "",
   // What the press sees of its kept file: never the path.
   stagedImport: record.stagedImport ? { name: record.stagedImport.name, size: record.stagedImport.size, rows: record.stagedImport.rows, at: record.stagedImport.at } : null,
 });
@@ -258,6 +258,8 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       try {
         started = await signup.start(claims, {
           pressName: record.pressName, plan, country: record.country, publishes: record.sells || null,
+          // The language chosen for the platform's emails, if any (pressRecord.js LANGUAGE_CHOICES).
+          ...(record.language ? { language: record.language } : {}),
           termsAccepted: body.termsAccepted === true, termsVersion: body.termsVersion,
         }, { pressId: record.pressId });
       } catch (error) {

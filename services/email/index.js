@@ -33,7 +33,7 @@
 import { platformSettings } from "../settings.js";
 import { resendClient } from "./resend.js";
 import { COMMERCIAL_KINDS, TEMPLATES, customProblems, withIdentity } from "./templates.js";
-import { TEMPLATES_FR, bilingual, mailLanguage } from "./templatesFr.js";
+import { TEMPLATES_FR, bilingual, shopMailLanguage } from "./templatesFr.js";
 import { shopSenderAddress, streamOf, streamSettings } from "./streams.js";
 import { NewsletterPausedError } from "./reputation.js";
 import { ownDomainSender } from "./ownDomain.js";
@@ -68,7 +68,7 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
    * The language of the platform's emails for a shop (templatesFr.js mailLanguage): its billing row's choice and
    * province (mirrored on the registry), else the language it signed up in. A registry that can't be read means English.
    */
-  const shopLanguage = (shop) => mailLanguage({ ...(shop?.billing ?? {}), language: shop?.billing?.language ?? shop?.language ?? null });
+  const shopLanguage = shopMailLanguage;
 
   /** A template's words in `language`: its French twin, French then English, or English. */
   const inLanguage = (kind, data, context, language) => {

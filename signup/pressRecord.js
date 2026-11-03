@@ -11,9 +11,12 @@ export const PRESS_STATUSES = Object.freeze(["setup", "opening", "open", "expire
 // in the welcome inside setup mode (18.6).
 // `moving` is the press's answer to Home's "Selling somewhere already?" card (code plan 23.0): "yes" (bringing a shop
 // over), "fresh" (starting fresh, which puts the card away) or "" (not answered yet).
-export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving"]);
-const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40, moving: 5 });
+export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving", "language"]);
+const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40, moving: 5, language: 2 });
 export const MOVING_CHOICES = Object.freeze(["", "yes", "fresh"]);
+// The language of the platform's emails (services/email/templatesFr.js): "" is automatic (French then English for a
+// Quebec billing address), "fr" or "en" a choice. It goes to the plan when the shop opens (frontDoor.js openShop).
+export const LANGUAGE_CHOICES = Object.freeze(["", "fr", "en"]);
 // A look is stored by its id. The platform checks only the shape, not a list: the shop and the stockroom own their lists
 // and grow them, and the shop maker (18.9) applies a look the new shop knows and falls back to the default otherwise.
 const LOOK_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -35,7 +38,7 @@ export function newPressRecord({ pressId, ownerUid, email, now }) {
   if (!ownerUid || !email) throw new Error("A press needs an owner.");
   const at = now.toISOString();
   return { pressId, ownerUid, ownerEmail: email.toLowerCase(), status: "setup", plan: "", pressName: "", sells: "", country: "",
-    look: "", adminLook: "", moving: "", stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
+    look: "", adminLook: "", moving: "", language: "", stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
 }
 
 // Checks a change a press makes through the platform's door. Returns the fields to write, or a plain-words refusal.
@@ -55,6 +58,7 @@ export function setupChange(current, change) {
     }
     if (key === "plan" && text !== "" && !PLAN_CHOICES.includes(text)) return { ok: false, message: "Pick the shop, the stockroom or both." };
     if (key === "moving" && !MOVING_CHOICES.includes(text)) return { ok: false, message: "Pick one of the choices." };
+    if (key === "language" && !LANGUAGE_CHOICES.includes(text)) return { ok: false, message: "Pick automatic, French or English." };
     fields[key] = text;
   }
   return { ok: true, fields };

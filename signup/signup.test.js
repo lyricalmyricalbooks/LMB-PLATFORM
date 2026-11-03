@@ -54,7 +54,8 @@ test("a press signing up from a French browser gets the platform's emails in Fre
   await ask("POST", "/api/signup", { ...details, language: "fr" }, ADA);
   assert.equal(stores.signups.rows.get("moth-press-aaaa0").language, "fr");
   assert.equal(trials[0].language, "fr", "kept on the plan, where the emails read it");
-  assert.equal(checkSignup({ ...details, language: "en" }).details.language, undefined, "only French is kept: Quebec's rule covers the rest");
+  assert.equal(checkSignup({ ...details, language: "en" }).details.language, "en", "a choice of English is kept too");
+  assert.equal(checkSignup(details).details.language, undefined, "nothing said: Quebec's rule decides");
   assert.equal(checkSignup({ ...details, language: "<b>" }).details.language, undefined);
 });
 

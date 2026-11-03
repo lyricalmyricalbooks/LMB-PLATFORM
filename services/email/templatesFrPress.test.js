@@ -5,7 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TEMPLATES } from "./templates.js";
-import { PRESS_TEMPLATES_FR } from "./templatesFrPress.js";
+import { PRESS_TEMPLATES_FR, frenchMoney, planNameFr } from "./templatesFrPress.js";
+import { PLAN_NAMES } from "../settings.js";
 import { platformSettings } from "../settings.js";
 import { TIPS } from "../trial-tips/index.js";
 import { START_NUDGE_WORDS } from "../trial-tips/startNudges.js";
@@ -156,4 +157,20 @@ test("a twin refuses the same bad data the English email refuses", () => {
     }
   }
   assert.ok(checked > 30, `only ${checked} bad cases`);
+});
+
+test("prices and plan names read the French way", () => {
+  assert.equal(frenchMoney("$29.00"), "29,00 $");
+  assert.equal(frenchMoney("US$1,234.50"), "1 234,50 US$");
+  assert.equal(frenchMoney("-$5.00"), "-5,00 $");
+  assert.equal(frenchMoney("$29"), "29 $");
+  assert.equal(frenchMoney("free"), "free", "anything else comes through");
+  assert.equal(frenchMoney(undefined), undefined);
+  for (const name of Object.values(PLAN_NAMES)) assert.notEqual(planNameFr(name), name, `${name} has a French name`);
+  assert.equal(planNameFr("Shop and stockroom"), "Boutique et réserve");
+  assert.equal(planNameFr("Custom"), "Custom");
+  const settings = platformSettings({});
+  const fr = PRESS_TEMPLATES_FR["trial-ending"]({ planName: "Shop", price: "$29.00", date: "November 17, 2026", link: "https://platform.example/a", hasCard: true }, { settings, pressName: "Moth Press" });
+  assert.match(fr.text, /29,00 \$ par mois pour le forfait Boutique/);
+  assert.doesNotMatch(fr.text, /\$29/);
 });

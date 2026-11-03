@@ -61,6 +61,13 @@ export function mailLanguage({ language, province } = {}) {
   return QUEBEC.has(String(province ?? "").trim().toUpperCase()) ? "fr+en" : "en";
 }
 
+/**
+ * A shop's email language from its registry row: once billing has mirrored the plan, its choice and province (so
+ * "automatic" chosen later on the Plan page wins over the language picked at sign-up); before that, the language it
+ * signed up in. Used by the email service and the control room, so both say what billing says.
+ */
+export const shopMailLanguage = (shop) => (shop?.billing ? mailLanguage(shop.billing) : mailLanguage({ language: shop?.language ?? null }));
+
 /** French first, then the English, in one email (subjects joined, each half marked with its language). */
 export function bilingual(fr, en) {
   return {
