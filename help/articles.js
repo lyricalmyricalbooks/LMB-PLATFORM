@@ -197,6 +197,7 @@ export const ARTICLES = Object.freeze([
       "Yes, for your books. When you bring books over from your old shop's export, each book's old address is saved as a redirect to the same book here.",
       "The redirects start working once your web address leads to this shop. Redirects you made yourself are never replaced. You can see or remove them in Settings › General › URL redirects.",
       "For your other pages, such as About or a collection, use Check your old links under URL redirects before you move your web address. It reads your old shop's list of pages, tries each one here and suggests a new home for any that would show page not found. Add them one by one or all at once.",
+      "Bring your own pages over brings pages such as About, FAQ or Contact here as drafts, with their words, headings, lists and links, and a redirect from each old address. Photos on those pages stay behind, so open Settings › Design, go to Pages, add them again, read each page through and publish it.",
     ],
     where: ["Settings › General"],
   },

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { handleOldLinksRead, handleOldShopRead, readOldLinks, readOldShop } = require("./oldShopRead.js");
+const { handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop } = require("./oldShopRead.js");
 
 describe("reading an old shop's address from Books › Import (plan 23.11)", () => {
   const read = async (address) => (address === "moth.example"
@@ -33,5 +33,15 @@ describe("reading an old shop's address from Books › Import (plan 23.11)", () 
     expect(await handleOldLinksRead({ address: "x.example" }, { allow: async () => true, read: links })).toEqual({ status: 400, body: { error: "No map." } });
     expect((await handleOldLinksRead({ address: "moth.example" }, { allow: async () => false, read: links })).status).toBe(429);
     expect(await readOldLinks("not an address")).toEqual({ ok: false, message: "Type your old shop's web address, like yourshop.com." });
+  });
+
+  it("bringing pages over sends the chosen addresses on, and checks them first (plan 23.6)", async () => {
+    const seen = [];
+    const pages = async (a, body) => { seen.push([a, body.paths]); return { ok: true, host: a, pages: [{ path: "/about", slug: "about", title: "About", body: "<p>Hi</p>", images: 0 }], skipped: [] }; };
+    expect(await handleOldPagesRead({ address: "moth.example", paths: ["/about"] }, { allow: async () => true, read: pages })).toEqual({ status: 200, body: { host: "moth.example", pages: [{ path: "/about", slug: "about", title: "About", body: "<p>Hi</p>", images: 0 }], skipped: [] } });
+    expect(seen).toEqual([["moth.example", ["/about"]]]);
+    for (const paths of [undefined, [], ["/a", 3], Array(51).fill("/a")]) expect((await handleOldPagesRead({ address: "moth.example", paths }, { allow: async () => true, read: pages })).status).toBe(400);
+    expect(seen).toHaveLength(1);
+    expect(await readOldPages("not an address", { paths: ["/about"] })).toEqual({ ok: false, message: "Type your old shop's web address, like yourshop.com." });
   });
 });

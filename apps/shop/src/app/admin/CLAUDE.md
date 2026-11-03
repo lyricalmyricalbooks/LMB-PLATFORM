@@ -502,7 +502,9 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   (passed down as `onSetWall`). The `online` answer has a ninth step after it, **Move over from your old shop**
   (`switch`, ticked by hand, plan 23.8), opening Settings › General where **Check your old links** sits under URL
   redirects (`OldLinksCheck.tsx`, pure `oldLinks.ts`; the server's `readOldLinks` action reads the old shop's site map
-  with `functions/moving/oldLinks.mjs`, a generated copy of `services/moving/oldLinks.js`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
+  with `functions/moving/oldLinks.mjs`, a generated copy of `services/moving/oldLinks.js`). Its **Bring your own pages
+  over** (plan 23.6) asks `readOldPages`, which rebuilds each old page with the allow-list in `services/moving/oldPages.js`
+  (copied as `functions/moving/oldPages.mjs`); `pagesToSave` makes the drafts and redirects and never reuses a page's address. The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
   for the platform's trial emails (plan 6.10, `services/trial-tips`).
 - `SELLING_TODAY` must list the sign-up form's answers and `StepId` must match `help/articles.js` `CHECKLIST_ANSWERS`
   (root tests check both). Firestore rule `firstWeek`: admin only, `hasOnly([... "publishes", "country", "welcome",

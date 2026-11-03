@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { adminApi } from "./api";
-import { readOldLinks } from "./oldShopApi";
-import { checkOldLinks, countLinks, type OldLink } from "./oldLinks";
+import { readOldLinks, readOldPages } from "./oldShopApi";
+import { checkOldLinks, countLinks, pagesToSave, type OldLink } from "./oldLinks";
 import { addToIndex, MAX_REDIRECTS, redirectIndex, redirectProblemIn, type Redirect } from "../features/site/redirects";
 import { DataTable, PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
 import { useShopWords } from "./shopWords";
@@ -24,6 +24,8 @@ export function OldLinksCheck({ redirects, busy, onAdd }: {
   const [address, setAddress] = useState("");
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
+  const [bringing, setBringing] = useState(false);
+  const [brought, setBrought] = useState<null | { added: number; photos: number; skipped: { path: string; reason: string }[] }>(null);
   const [result, setResult] = useState<null | { host: string; paths: string[]; notes: string[]; shop: Omit<Parameters<typeof checkOldLinks>[1], "redirects"> }>(null);
 
   // Worked out again from the live redirect list, so a redirect added here (or in the form above) moves its row at once.
@@ -34,7 +36,7 @@ export function OldLinksCheck({ redirects, busy, onAdd }: {
 
   const check = async () => {
     if (!address.trim() || checking) return;
-    setChecking(true); setError("");
+    setChecking(true); setError(""); setBrought(null);
     try {
       const [answer, books, pages, settings] = await Promise.all([
         readOldLinks(address.trim()), adminApi.getAllBooks({ includePrivate: false }), adminApi.getPages(), adminApi.getSettings(),
@@ -68,6 +70,31 @@ export function OldLinksCheck({ redirects, busy, onAdd }: {
   };
   const allAddable = addable(missing);
 
+  /**
+   * Bring pages over (plan 23.6): the server reads the old shop's own pages among the missing addresses and rebuilds
+   * each one safely; each becomes a draft page here, with a redirect from its old address.
+   */
+  const bringPages = async () => {
+    if (!result || bringing || !missing.length) return;
+    setBringing(true); setError(""); setBrought(null);
+    try {
+      const answer = await readOldPages(address.trim(), missing.slice(0, 50).map((l) => l.path));
+      const plan = pagesToSave(answer.pages, result.shop.pages);
+      const made: any[] = [];
+      for (const page of plan.create) made.push(await adminApi.createPage(page));
+      const madeSlugs = new Set(made.map((p) => p.slug));
+      const ready = plan.redirects.filter((r) => madeSlugs.has(r.to.replace(/^\/page\//, "")));
+      setResult({ ...result, shop: { ...result.shop, pages: [...result.shop.pages, ...made] } });
+      const room = addable(ready.map((r) => ({ path: r.from, state: "missing" as const, suggestion: { to: r.to, label: "" } })));
+      if (room.length) await onAdd(room, `${plural(made.length, "page")} brought over as drafts.`);
+      setBrought({ added: made.length, photos: plan.photos, skipped: [...answer.skipped, ...plan.skipped] });
+    } catch (err: any) {
+      setError(err?.message || "We couldn't bring your old pages over just now. Try again in a minute.");
+    } finally {
+      setBringing(false);
+    }
+  };
+
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div>
@@ -92,6 +119,23 @@ export function OldLinksCheck({ redirects, busy, onAdd }: {
             <StatusBadge tone={counts.missing ? "danger" : "success"}>{counts.missing ? `${counts.missing.toLocaleString("en")} would show page not found` : "None would show page not found"}</StatusBadge>
           </div>
           {result.notes.map((n) => <p key={n} className="rp-hint" style={{ margin: 0 }}>{n}</p>)}
+          {missing.length > 0 && (
+            <div style={{ display: "grid", gap: 6 }}>
+              <div><SecondaryButton disabled={busy || bringing} onClick={() => void bringPages()}>{bringing ? "Bringing your pages over…" : "Bring your own pages over"}</SecondaryButton></div>
+              <p className="rp-hint" style={{ margin: 0 }}>Pages such as About, FAQ or Contact come over as drafts with their words, headings, lists and links, each with a redirect from its old address. Read them through in Settings › Design › Pages before you publish.</p>
+            </div>
+          )}
+          {brought && (
+            <div role="status" style={{ display: "grid", gap: 6 }}>
+              <p className="rp-hint" style={{ margin: 0 }}>{brought.added ? `${plural(brought.added, "page")} brought over as drafts.` : "No pages were brought over."}{brought.photos ? ` Their ${plural(brought.photos, "photo")} stayed behind: add them again in Settings › Design › Pages.` : ""}</p>
+              {brought.skipped.length > 0 && (
+                <details>
+                  <summary className="rp-hint">{plural(brought.skipped.length, "page")} left out</summary>
+                  <ul className="rp-hint" style={{ margin: "6px 0 0", paddingLeft: 18 }}>{brought.skipped.map((s) => <li key={s.path}><code style={{ overflowWrap: "anywhere" }}>{s.path}</code> {s.reason}</li>)}</ul>
+                </details>
+              )}
+            </div>
+          )}
           {missing.length > 0 && (
             <>
               <DataTable<OldLink>

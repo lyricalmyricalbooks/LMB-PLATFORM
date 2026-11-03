@@ -44,3 +44,25 @@ describe("checking the old shop's links (plan 23.8)", () => {
     expect(checkOldLinks(["/books/gone"], shop)[0].state).toBe("missing");
   });
 });
+
+describe("bringing the old shop's own pages over (plan 23.6)", () => {
+  it("makes a draft page and a redirect for each, and never two pages at one address", async () => {
+    const { pagesToSave } = await import("./oldLinks");
+    const out = pagesToSave([
+      { path: "/pages/about-us", slug: "about-us", title: "About us", body: "<p>Hi</p>", images: 2 },
+      { path: "/faq", slug: "faq", title: "FAQ", body: "<p>Q</p>", images: 0 },
+      { path: "/policy-returns", slug: "policy-returns", title: "Returns", body: "<p>R</p>", images: 1 },
+      { path: "/pages/about", slug: "about", title: "About", body: "<p>Dup</p>", images: 0 },
+    ], [{ slug: "about", order: 3 }]);
+    expect(out.create).toEqual([
+      { title: "About us", slug: "about-us", body: "<p>Hi</p>", status: "draft", showInNav: false, order: 4 },
+      { title: "FAQ", slug: "faq", body: "<p>Q</p>", status: "draft", showInNav: false, order: 5 },
+      { title: "Returns", slug: "old-policy-returns", body: "<p>R</p>", status: "draft", showInNav: false, order: 6 },
+    ]);
+    expect(out.redirects).toEqual([
+      { from: "/pages/about-us", to: "/page/about-us" }, { from: "/faq", to: "/page/faq" }, { from: "/policy-returns", to: "/page/old-policy-returns" },
+    ]);
+    expect(out.skipped).toEqual([{ path: "/pages/about", reason: "is already here as /page/about" }]);
+    expect(out.photos).toBe(3);
+  });
+});
