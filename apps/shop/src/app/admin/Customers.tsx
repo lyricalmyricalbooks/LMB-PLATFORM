@@ -3,6 +3,7 @@ import { Download, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { StockistsCard } from "./StockistsCard";
+import { NewsletterCard } from "./NewsletterCard";
 import { copyText } from "./clipboard";
 import { getOrdersCached } from "./ordersCache";
 import { useShopWords } from "./shopWords";
@@ -266,6 +267,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
             notesState={notesState} onRetryNotes={loadNotes} savingNote={savingNote} onSaveNote={saveNote} knownTags={allTags} onOpenOrder={() => setOpen(null)} />
         </Dialog>
       )}
+      <NewsletterCard />
       <StockistsCard />
       {confirmNode}
     </div>

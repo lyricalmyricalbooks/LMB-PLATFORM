@@ -10,6 +10,8 @@
 //   POST /api/accounts/accept         { invite }: the secret from the emailed link
 //   POST /api/accounts/role           { shopId, email, role } (owners only)
 //   POST /api/accounts/remove         { shopId, email } (owners only)
+//   GET  /api/accounts/delete-check   what deleting my account would do, and which shops stop it (deletionRoutes)
+//   POST /api/accounts/delete-me      { confirmEmail }: deletes the signed-in person's account (deletionRoutes)
 
 export function accountRoutes(accounts) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
@@ -23,5 +25,14 @@ export function accountRoutes(accounts) {
     "POST /api/accounts/accept": (claims, request) => accounts.accept(claims, body(request).invite),
     "POST /api/accounts/role": (claims, request) => accounts.setRole(claims, body(request)),
     "POST /api/accounts/remove": (claims, request) => accounts.remove(claims, body(request)),
+  };
+}
+
+/** Delete my account (accounts/deleteAccount.js, plan 24.2). */
+export function deletionRoutes(deletion) {
+  const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
+  return {
+    "GET /api/accounts/delete-check": (claims) => deletion.preview(claims),
+    "POST /api/accounts/delete-me": (claims, request) => deletion.deleteMe(claims, { confirmEmail: body(request).confirmEmail }),
   };
 }

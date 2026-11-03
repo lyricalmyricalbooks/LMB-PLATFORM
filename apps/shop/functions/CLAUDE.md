@@ -1018,3 +1018,20 @@ the audit log. Rate-limited (`LIMITS.twoStepBackup`). The token's audience isn't
 never let `use` work on Google's token alone. Each use is emailed to the person and the owner (`backupUsedEmail`,
 queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function declares `RESEND_API_KEY`, so its
 `exports.` line sits after that secret is defined. Tests: `twoStepBackup.test.js`.
+
+## Newsletter sending (3 November 2026)
+
+- **Customers › Newsletter** (`admin/NewsletterCard.tsx`) writes a newsletter (subject, plain-text message, optional
+  button) and calls action `newsletterAdmin` (`functions/newsletterSend.js`): `audience` counts the list, `test` mails the
+  signed-in person only, `send` queues `newsletterIssues/{id}` (one active at a time; the browser never sends), `cancel` /
+  `resume`. `newsletterIssues` is admin-read, server-write only (`firestore.rules`).
+- **The sweep sends** (`runNewsletterIssues` in `unpaidPaymentSweep`): one issue under a 10-minute lease, pages of 100 by
+  document id from `cursor`, at most 250 per run. Recipients are `mayMail` rows not in `marketing-optout`. Each address is
+  claimed first (`newsletterIssues/{id}/sent/{optOutId}`, `create()`), so a rerun or an older cursor never mails twice.
+  A bad address keeps its claim (counted `failed`); any other failure frees the claim and stops the run (5 failed runs in a
+  row → `paused`, owner resumes); the platform's newsletter pause (`services/email/reputation.js`) → `paused` at once.
+  Cancelling during a run wins (the final write re-reads the status).
+- **Never through Gmail, never the outbox:** `sendEmail({ bulk: true, kind: "newsletter" })`. `bulk` skips the press's
+  Gmail (low daily cap, account risk); `kind` puts it on the platform's newsletter stream without `queue`, because the
+  emailOutbox retrying it would double-send alongside the run's own retry. Owner words are escaped (text, not HTML);
+  `{{shop_name}}` works; every email has the signed unsubscribe link.

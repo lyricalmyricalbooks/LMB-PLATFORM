@@ -580,6 +580,16 @@ service cloud.firestore {
       allow read: if isAdminReader();
       allow create, update, delete: if isAdmin();
     }
+    match /newsletterIssues/{issueId} {
+      // Customers › Newsletter: the newsletters sent and their progress. Written only by the server's
+      // newsletterAdmin action and the sweep that sends them (functions/newsletterSend.js), so a browser can't
+      // queue a send or change who it reached. `sent/{hash}` (who already got it) is server-only.
+      allow read: if isAdminReader();
+      allow write: if false;
+      match /sent/{hash} {
+        allow read, write: if false;
+      }
+    }
     match /inventoryLog/{entryId} {
       // Inventory › stock adjustment history: admin-only, append-only (written with the stock change).
       allow read: if isAdminReader();

@@ -31,7 +31,9 @@
 //   GET  /tips/off, /checkup/off the emails' "turn off" pages
 //
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
-import { accountRoutes } from "../accounts/routes.js";
+import { accountRoutes, deletionRoutes } from "../accounts/routes.js";
+import { createAccountDeletion } from "../accounts/deleteAccount.js";
+import { platformAuthUsers } from "../clients/identity.js";
 import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js";
 import { createShopBillingDoor, SHOP_BILLING_PREFIX } from "../accounts/shopBillingDoor.js";
 import { createAccounts } from "../accounts/accounts.js";
@@ -180,6 +182,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // Accounts, and the control room.
   const accountStores = firestoreAccountStores(platform);
   const accounts = createAccounts({ accounts: stores.accounts, ...accountStores, registry, shopData, auditLog, email, settings, now });
+  const deletion = createAccountDeletion({
+    accounts: stores.accounts, memberships: accountStores.memberships, registry, shopData, auditLog, signups: stores.signups,
+    devices: firestoreDevices(platform), authUsers: platformAuthUsers({ fetch, token, projectId }), email, now,
+  });
   const admins = controlRoomAdmins(env);
   const people = controlRoomPeople(env);
   const activity = firestoreActivity(platform);
@@ -259,6 +265,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     "POST /api/signup/retry": (claims, request) => shopMaker.retry(claims, request.body?.shopId),
     ...frontDoorRoutes(frontDoor),
     ...accountRoutes(accounts),
+    ...deletionRoutes(deletion),
     ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now }),
     ...controlRoutes(room),
     ...platformRoutes(controls),

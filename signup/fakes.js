@@ -6,11 +6,12 @@ export function fakeSignupStores() {
   const signups = new Map();
   const hits = new Map();
   return {
-    accounts: { rows: accounts, get: async (id) => (accounts.has(id) ? structuredClone(accounts.get(id)) : null), set: async (id, row) => void accounts.set(id, structuredClone(row)) },
+    accounts: { rows: accounts, get: async (id) => (accounts.has(id) ? structuredClone(accounts.get(id)) : null), set: async (id, row) => void accounts.set(id, structuredClone(row)), remove: async (id) => void accounts.delete(id) },
     signups: {
       rows: signups,
       get: async (id) => (signups.has(id) ? structuredClone(signups.get(id)) : null),
       set: async (id, row) => void signups.set(id, structuredClone(row)),
+      remove: async (id) => void signups.delete(id),
       listByAccount: async (accountId) => structuredClone([...signups.values()].filter((row) => row.accountId === accountId)),
       list: async () => structuredClone([...signups.values()]),
     },

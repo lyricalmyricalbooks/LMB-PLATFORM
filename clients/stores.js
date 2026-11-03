@@ -100,6 +100,7 @@ export function firestoreDevices(firestore) {
   return {
     get: (accountId) => firestore.get(`devices/${accountId}`),
     set: (accountId, row) => firestore.set(`devices/${accountId}`, row),
+    remove: async (accountId) => void (await firestore.remove(`devices/${accountId}`)),
   };
 }
 

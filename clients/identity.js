@@ -117,3 +117,23 @@ export async function testOwnerSession({ identity, shop, profile, serviceAccount
     },
   };
 }
+
+/**
+ * The platform's own sign-ins (Delete my account, accounts/deleteAccount.js). Identity Toolkit v1
+ * projects.accounts.delete: POST {IDENTITY}/projects/{project}/accounts:delete, body { localId }. A sign-in that is
+ * already gone counts as deleted, so a retry after a half-finished deletion succeeds.
+ */
+export function platformAuthUsers({ fetch, token, projectId }) {
+  const call = googleHttp({ fetch, token });
+  return {
+    async remove(uid) {
+      if (typeof uid !== "string" || !uid) throw new Error("Which sign-in?");
+      try {
+        await call("POST", `${IDENTITY}/projects/${projectId}/accounts:delete`, { body: { localId: uid } });
+      } catch (error) {
+        if (/USER_NOT_FOUND/.test(String(error?.message ?? ""))) return;
+        throw error;
+      }
+    },
+  };
+}

@@ -434,6 +434,19 @@ export const PRESS_TEMPLATES_FR = {
     footer: signOff(settings),
   }),
 
+  /** French twin of "account-deleted". */
+  "account-deleted": ({ shops = [] }, { settings }) => layout({
+    subject: `Votre compte ${settings.platformName} est supprimé`,
+    greeting: "Bonjour,",
+    paragraphs: [
+      `Votre compte ${settings.platformName} et votre connexion sont supprimés, comme vous l'avez demandé.`,
+      shops.length ? `Vous ne faites plus partie de l'équipe de ${shops.join(", ")}.` : "",
+      "Les factures et les dossiers de facturation sont gardés six ans, comme l'exige la loi fiscale, et vos anciens messages au soutien restent comme trace. Rien d'autre à votre sujet n'est gardé.",
+      "Si ce n'était pas vous, répondez à ce courriel tout de suite.",
+    ].filter(Boolean),
+    footer: signOff(settings),
+  }),
+
   /** French twin of "payments-moved". */
   "payments-moved": ({ to, ready }, { settings, pressName }) => {
     const words = {

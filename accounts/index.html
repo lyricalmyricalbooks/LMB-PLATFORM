@@ -73,7 +73,7 @@
     <div id="shops" class="cp-shops"></div>
     <div class="cp-grid2">
       <div class="card"><h3>Need a hand?</h3><p class="hint">Most questions have a written answer in the help centre. A person answers anything else, usually within a day.</p><div class="cp-actions cp-start"><button type="button" class="primary" id="open-help">Get help from Colophon</button><a class="button" href="../help/">Help centre</a></div></div>
-      <div class="card"><h3>Signed in as <span id="me"></span></h3><p class="hint">One sign-in for every shop you're on.</p><div class="cp-actions cp-start"><button type="button" id="sign-out">Sign out</button><button type="button" id="open-twostep">Set up two-step sign-in</button><button type="button" class="ghost" id="open-recovery">Lost access to the email your shops use?</button></div></div>
+      <div class="card"><h3>Signed in as <span id="me"></span></h3><p class="hint">One sign-in for every shop you're on.</p><div class="cp-actions cp-start"><button type="button" id="sign-out">Sign out</button><button type="button" id="open-twostep">Set up two-step sign-in</button><button type="button" class="ghost" id="open-recovery">Lost access to the email your shops use?</button><button type="button" class="ghost" id="open-delete">Delete my account</button></div></div>
     </div>
   </section>
 
@@ -91,6 +91,32 @@
     </form>
     <h3>Your requests</h3>
     <div id="recoveries" class="stack"></div>
+  </section>
+
+  <!-- Delete my account (accounts/deleteAccount.js, plan 24.2). -->
+  <section id="view-delete" class="stack" hidden aria-labelledby="delete-title">
+    <button type="button" class="ghost" id="delete-back">← All your shops</button>
+    <h2 id="delete-title" tabindex="-1" class="cp-view-title">Delete my account</h2>
+    <div id="delete-blockers" class="stack"></div>
+    <div class="card">
+      <h3>What happens</h3>
+      <ul id="delete-what">
+        <li>Your sign-in is deleted, and you can't sign in to Colophon with this address any more.</li>
+        <li id="delete-teams">You leave the team of every shop you're on.</li>
+        <li>Sign-ups for shops that were never made are deleted.</li>
+      </ul>
+      <h3>What we keep</h3>
+      <ul>
+        <li>Invoices and billing records, for six years, because tax law asks for it.</li>
+        <li>Your past support messages and account recovery requests, as a record of what was asked.</li>
+        <li>Each shop's activity history, which shows who changed what in that shop.</li>
+      </ul>
+    </div>
+    <form id="delete-form" class="card" novalidate>
+      <label>To confirm, type your email address: <strong id="delete-email"></strong><input name="confirmEmail" type="email" autocomplete="off" required></label>
+      <p class="hint">For your safety this works only within 15 minutes of signing in. If it says so, sign out, sign in again and come back.</p>
+      <button type="submit" class="danger" id="delete-submit">Delete my account for good</button>
+    </form>
   </section>
 
   <!-- Help: ask the platform team, and see the answers (services/support). -->
