@@ -68,5 +68,19 @@ export async function seedRoom(world) {
   await world.controls.invite(admin(), { email: "chapbooks@example.com" });
   await world.room.setNewShopSwitch(admin(), { name: "gmailReceiptFinder", on: true, reason: "New presses ask for it in their first week." });
   await world.room.setFee(admin(), { shopId: "lantern-zines", basisPoints: 50, refunded: true, reason: "Lantern Zines sells mostly at fairs; half a percent online." });
+
+  // Two presses still in setup mode, through the front door's own calls, for the Setting up page.
+  for (const [owner, answers] of SETUP_PRESSES) {
+    const made = await world.ask(owner, "POST", "/api/press", {});
+    if (made.status !== 200) throw new Error(`the walkthrough couldn't start a press in setup: ${made.body?.message}`);
+    const saved = await world.ask(owner, "POST", "/api/press/setup", { pressId: made.body.press.pressId, ...answers });
+    if (saved.status !== 200) throw new Error(`the walkthrough couldn't save a press's setup: ${saved.body?.message}`);
+  }
   return world;
 }
+
+/** Presses that signed up and are still getting ready (front door, plan 18.4-18.6). */
+export const SETUP_PRESSES = Object.freeze([
+  [person("uid-wren", "wren@example.com", "Wren Ash"), { pressName: "Wren & Ash", country: "CA", plan: "both", sells: "books", look: "market-stall", adminLook: "desk", moving: "yes" }],
+  [person("uid-ivy", "ivy@example.com", "Ivy Moss"), { plan: "shop", look: "index" }],
+]);

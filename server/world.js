@@ -69,6 +69,7 @@ import { businessRoutes, createBusinessRoom } from "../control-room/business.js"
 import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
 import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
+import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -216,6 +217,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const jobs = createJobs({ store: jobRuns, email, alertTo: String(env.HEALTH_ALERT_TO ?? "").trim() || null, now });
   const pressMessages = createPressMessages({ store: firestorePressMessages(platform), registry, auditLog, shopData, email, activity, admins, now });
   const notes = createShopNotes({ admins, store: firestoreShopNotes(platform), registry, activity, now });
+  // Presses still in setup mode or opening (the Setting up page): read only.
+  const setupDesk = createSetupDesk({ admins, presses: firestoreFrontDoorStores(platform).presses, registry, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
   const dataExports = createDataExports({
@@ -260,6 +263,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...timelineRoutes(timeline),
     ...jobsRoutes(jobsPage),
     ...notesRoutes(notes),
+    ...setupRoutes(setupDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),

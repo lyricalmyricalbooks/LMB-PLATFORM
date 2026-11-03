@@ -59,6 +59,7 @@ import { runBusinessNightly } from "../control-room/nightly.js";
 import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
 import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
+import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { fakeDeliveryStats, fakeShopNotes } from "../control-room/visibilityFakes.js";
 import { createJobs } from "../services/jobs/index.js";
@@ -204,6 +205,8 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     jobs: { "shop-maker": () => shopMaker.sweep(), "dropped-apps": () => billing.closeDroppedApps(), "income-record": () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }), "press-messages": () => pressMessages.sweep() },
   });
   const notes = createShopNotes({ admins, store: fakeShopNotes(), registry, activity, now: clock.date });
+  // Presses still in setup mode or opening (the Setting up page): read only.
+  const setupDesk = createSetupDesk({ admins, presses: frontDoorStores.presses, registry, now: clock.date });
   // Messages to presses (19.14), what each shop costs (19.15; no billing export in the practice world, so the empty
   // state) and a press's data on request (19.16).
   const pressMessages = createPressMessages({ store: fakePressMessages(), registry, auditLog, shopData, email, activity, admins, now: clock.date });
@@ -234,6 +237,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...timelineRoutes(timeline),
     ...jobsRoutes(jobsPage),
     ...notesRoutes(notes),
+    ...setupRoutes(setupDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),
