@@ -113,7 +113,7 @@ async function loadPressName() {
 function renderLedger(billing, words) {
   const tax = billing.plusTax ? " + tax" : "";
   const cells = [["Plan", billing.price, `${billing.planName}, monthly${tax}`]];
-  if (billing.access === "paused" || billing.access === "closed") cells.push(["Shop", words.state, billing.access === "paused" ? "nothing is deleted" : "your files are kept", "danger"]);
+  if (billing.access === "paused" || billing.access === "closed") cells.push(["Shop", words.state, billing.access === "paused" ? "kept for 60 days" : "90 days to download", "danger"]);
   else if (billing.status === "trialing") cells.push(["Free trial", `${billing.trialDaysLeft ?? 0} days`, `until ${day(billing.trialEnd)}`, "warning"]);
   else if (billing.cancelAtPeriodEnd) cells.push(["Open until", day(billing.currentPeriodEnd).replace(/ \d{4}$/, ""), "then the plan ends", "warning"]);
   else cells.push(["Status", words.state, billing.status === "past_due" ? "update your card" : "all paid up", billing.status === "past_due" ? "danger" : undefined]);

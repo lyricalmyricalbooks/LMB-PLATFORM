@@ -116,7 +116,10 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   // Policies
   const missing = REQUIRED_POLICIES.filter(([k]) => !hasText(settings?.policies?.[k])).map(([, label]) => label);
   items.push(missing.length
-    ? { id: "policies", label: `Missing store policies: ${missing.join(", ")}`, detail: "Card networks and shoppers expect shipping, returns, privacy and terms pages.", status: "warn", tab: "general", action: "Open General" }
+    // A block, not a warning (legal review, 3 November 2026): Ontario's and Quebec's consumer laws expect the seller's
+    // delivery, returns and privacy terms before an online sale, and card networks ask for them. Each policy has a
+    // "Start from our wording" button, so this takes a minute.
+    ? { id: "policies", label: `Missing store policies: ${missing.join(", ")}`, detail: "Shoppers must be able to read your shipping, returns, privacy and terms pages before they buy, and card networks ask for them too. Each one has a Start from our wording button to fill it in a minute.", status: "block", tab: "general", action: "Open General" }
     : { id: "policies", label: "Store policy content is present", detail: "Shipping, returns, privacy and terms contain text. Review their public pages for accuracy.", status: "ok", tab: "general", action: "Open General" });
 
   // Postal address: every email footer carries it (Settings › General › Location) and abandoned-cart

@@ -99,7 +99,7 @@ describe("arriving from the old GitHub Pages address", () => {
     localStorage.setItem(CONSENT_KEY, JSON.stringify({ analytics: false, marketing: false }));
     expect(takeMovedState(fakeWindow(`${site}/${fragment}`).win)?.from).toBeUndefined();
     expect(sessionStorage.getItem("referral_source")).toBeNull();
-    localStorage.removeItem(CONSENT_KEY);
+    localStorage.setItem(CONSENT_KEY, JSON.stringify({ necessary: true, analytics: true, marketing: true }));
     expect(takeMovedState(fakeWindow(`${site}/${fragment}`).win)?.from).toBe("instagram");
     expect(sessionStorage.getItem("referral_source")).toBe("instagram");
     sessionStorage.setItem("referral_source", "newsletter");

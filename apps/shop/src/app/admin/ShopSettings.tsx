@@ -261,7 +261,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           <SectionCard title="Location" description="Where parcels ship from.">
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
               <div style={{ gridColumn: "1 / -1" }}>
-                <TextField label="Street address" value={settings.location?.street || ""} placeholder="456 Montrose Avenue" onChange={(e) => set("location", { street: e.target.value })} />
+                <TextField label="Street address" value={settings.location?.street || ""} placeholder="123 Example Street" onChange={(e) => set("location", { street: e.target.value })} />
               </div>
               <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
               <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
