@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Dialog, IconButton, PrimaryButton, SecondaryButton, SelectField, TextArea, TextField } from "./riso/components";
-import { emptyLinkForm, LINK_DAYS, linkableBooks, linkFormProblems, linkRequest, linkSubtotal, newRow, shopPriceOf, type LinkForm, type LinkRow } from "./paymentLinks";
+import { emptyLinkForm, LINK_DAYS, linkableBooks, linkFormFromQuote, MAX_LINE_QUANTITY, type QuoteRequest, linkFormProblems, linkRequest, linkSubtotal, newRow, shopPriceOf, type LinkForm, type LinkRow } from "./paymentLinks";
 import { useShopWords } from "./shopWords";
 
 const grid = { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" } as const;
 const cad = (n: number) => `$${n.toFixed(2)}`;
 
-export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade }: {
+export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade, start = null }: {
   open: boolean;
   onClose: () => void;
   /** The catalog (public fields are enough). */
@@ -17,6 +17,8 @@ export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade }
   /** Sends the request; resolves with the new order's id or throws with the owner's words. */
   makeLink: (link: ReturnType<typeof linkRequest>) => Promise<{ orderId: string }>;
   onMade: (orderId: string) => void;
+  /** A bulk-price request from Messages (code plan 21.4): the form starts with its customer, product and copies. */
+  start?: QuoteRequest | null;
 }) {
   const w = useShopWords();
   const [books, setBooks] = useState<any[] | null>(null);
@@ -33,7 +35,13 @@ export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade }
     setFailure("");
     setFind("");
     let alive = true;
-    loadBooks().then(list => { if (alive) setBooks(linkableBooks(list || [])); }).catch(() => { if (alive) setBooks([]); });
+    setBooks(null);
+    loadBooks().then(list => {
+      if (!alive) return;
+      const usable = linkableBooks(list || []);
+      setBooks(usable);
+      if (start) setForm(linkFormFromQuote(start, usable));
+    }).catch(() => { if (alive) setBooks([]); });
     return () => { alive = false; };
   }, [open]);
 
@@ -75,6 +83,13 @@ export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade }
       }
     >
       <div className="rp-stack">
+        {start && books !== null && (
+          <p className="rp-hint" role="status">
+            {`From ${start.name || "a customer"}'s request for ${start.quantity} of “${start.title}”${start.edition ? ` (${start.edition})` : ""}. Set the price you're offering.`}
+            {!form.rows[0]?.bookId && w(" That product wasn't found, so choose it below.")}
+            {start.quantity > MAX_LINE_QUANTITY && ` One line holds up to ${MAX_LINE_QUANTITY} copies, so the quantity starts at ${MAX_LINE_QUANTITY}.`}
+          </p>
+        )}
         <div className="rp-sect">{w("Products")}</div>
         {books === null ? <p className="rp-hint">Loading the catalog…</p> : (
           <>

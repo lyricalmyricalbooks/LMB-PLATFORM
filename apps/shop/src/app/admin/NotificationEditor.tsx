@@ -76,6 +76,8 @@ type NotificationSettings = {
   order_refunded: TemplateFields;
   customer_welcome: TemplateFields;
   delivery_update: TemplateFields;
+  /** Two days before an unpaid payment link closes (code plan 21.5). */
+  payment_link_reminder: TemplateFields;
   contact_reply: TemplateFields;
   gift_card: TemplateFields;
   /** Off unless switched on (server checks enabled === true); sent delayDays after shipping. */
@@ -158,6 +160,14 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     signoff: "Happy reading,\nThe {{shop_name}} team",
     enabled: true
   },
+  // Mirrors functions/index.js DEFAULT_NOTIFICATIONS.payment_link_reminder.
+  payment_link_reminder: {
+    subject: "Reminder: your order {{order_id}} is ready to pay",
+    body: "Hi {{customer_name}},\n\nJust a reminder that your order from {{shop_name}} is waiting for payment. The total is {{total_price}}, and the payment link stays open until {{expires_on}}.",
+    buttonText: "Pay now",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
@@ -187,6 +197,7 @@ const TAB_META: Record<string, { label: string; group: string }> = {
   order_cancelled: { label: "Order Cancelled", group: "orders" },
   order_refunded: { label: "Order Refunded", group: "orders" },
   review_request: { label: "Review request", group: "orders" },
+  payment_link_reminder: { label: "Payment link reminder", group: "orders" },
   abandoned_cart: { label: "Abandoned Cart", group: "cart" },
   customer_welcome: { label: "Welcome", group: "account" },
   contact_reply: { label: "Message received", group: "contact" },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { emptyLinkForm, linkableBooks, linkFormProblems, linkRequest, linkState, linkSubtotal, newRow, paymentLinkMailto, shopPriceOf, type LinkForm } from "./paymentLinks";
+import { emptyLinkForm, linkableBooks, linkFormFromQuote, linkFormProblems, linkRequest, linkState, linkSubtotal, MAX_LINE_QUANTITY, newRow, paymentLinkMailto, quoteRequestOf, shopPriceOf, type LinkForm } from "./paymentLinks";
+import { quoteMessage, quoteSubject } from "../features/site/extras/pdp-bulk-quote/bulkQuote";
 
 const books = [
   { id: "tee", title: "Tee", retailPrice: 40, status: "published" },
@@ -81,5 +82,45 @@ describe("payment link on the order page", () => {
     expect(body).toContain("Ten tees.");
     expect(body).toContain("open until 2026-12-01");
     expect(paymentLinkMailto(order({ customer: { email: "bad address" } }), "https://x", "")).toBe("");
+  });
+});
+
+describe("payment link from a bulk-price request (plan 21.4)", () => {
+  // The exact words the product page's form sends (extras/pdp-bulk-quote), so a change there breaks this test.
+  const request = (patch: { quantity?: string; note?: string; edition?: string; page?: string } = {}) => ({
+    name: "Robin Reed", email: "robin@example.com",
+    subject: quoteSubject("Bulk quote: {title}", "Hoodie", patch.edition),
+    message: quoteMessage({ name: "Robin Reed", email: "robin@example.com", quantity: patch.quantity ?? "40", note: patch.note ?? "For our team." }, "Hoodie"),
+    page: patch.page ?? "/books/hoodie",
+  });
+  const shelf = [...books.map(b => ({ ...b, slug: b.id })), { id: "other", slug: "other", title: "Hoodie (old)" }];
+
+  it("reads the customer, copies, product page and edition from the request", () => {
+    expect(quoteRequestOf(request({ edition: "XL" }))).toEqual({
+      name: "Robin Reed", email: "robin@example.com", phone: "", quantity: 40, slug: "hoodie", title: "Hoodie", edition: "XL",
+    });
+  });
+
+  it("ignores ordinary messages", () => {
+    expect(quoteRequestOf({ name: "A", email: "a@example.com", message: "Do you ship to Spain?", page: "/contact" })).toBeNull();
+    expect(quoteRequestOf({ name: "A", email: "a@example.com", message: "Quantity: 0\nBook: Tee" })).toBeNull();
+  });
+
+  it("starts the form with the product, its edition and the copies asked for", () => {
+    const form = linkFormFromQuote(quoteRequestOf(request({ edition: "xl" }))!, shelf);
+    expect(form).toMatchObject({ name: "Robin Reed", email: "robin@example.com" });
+    expect(form.rows).toHaveLength(1);
+    expect(form.rows[0]).toMatchObject({ bookId: "hoodie", variantId: "xl", quantity: "40", price: "" });
+  });
+
+  it("finds the product by its exact title when the page address is missing, and caps a line at its limit", () => {
+    const form = linkFormFromQuote(quoteRequestOf(request({ page: "", quantity: "500" }))!, shelf);
+    expect(form.rows[0]).toMatchObject({ bookId: "hoodie", variantId: "", quantity: String(MAX_LINE_QUANTITY) });
+  });
+
+  it("leaves the line to choose when the product is gone, and never offers a gift card", () => {
+    expect(linkFormFromQuote(quoteRequestOf(request({ page: "/books/nope" }))!, shelf.filter(b => b.id !== "hoodie")).rows[0].bookId).toBe("");
+    const card = { ...request({ page: "/books/card" }), message: "Quantity: 3\nBook: Gift card" };
+    expect(linkFormFromQuote(quoteRequestOf(card)!, shelf).rows[0].bookId).toBe("");
   });
 });

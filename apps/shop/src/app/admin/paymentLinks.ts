@@ -107,6 +107,52 @@ export function linkSubtotal(form: LinkForm, books: any[]): number {
   return Math.round((sum + (shipping && shipping > 0 ? shipping : 0)) * 100) / 100;
 }
 
+/** Most copies one line of a link can hold (the server's limit, functions/paymentLinks.js). */
+export const MAX_LINE_QUANTITY = 99;
+
+/** A bulk-price request sent from a product page (extras/pdp-bulk-quote), read back from its Messages row. */
+export type QuoteRequest = { name: string; email: string; phone: string; quantity: number; slug: string; title: string; edition: string };
+
+/**
+ * The request in a Messages row, or null when the row isn't one. The form writes "Quantity: N" then "Book: <title>" as
+ * the message's first lines and sends it from the product's own page (/books/<slug>); the edition, when there is one, is
+ * in brackets at the end of the subject.
+ */
+export function quoteRequestOf(m: { name?: string; email?: string; phone?: string; subject?: string; message?: string; page?: string }): QuoteRequest | null {
+  const lines = String(m?.message || "").split("\n");
+  const qty = /^Quantity:\s*(\d{1,6})\s*$/.exec(lines[0] || "");
+  const title = /^Book:\s*(.+?)\s*$/.exec(lines[1] || "");
+  if (!qty || !title || !(Number(qty[1]) >= 1)) return null;
+  const slug = /\/books\/([^/?#]+)/.exec(String(m?.page || ""));
+  const edition = /\(([^()]+)\)\s*$/.exec(String(m?.subject || ""));
+  let decoded = "";
+  try { decoded = slug ? decodeURIComponent(slug[1]) : ""; } catch { decoded = slug ? slug[1] : ""; }
+  return {
+    name: String(m.name || "").trim(), email: String(m.email || "").trim(), phone: String(m.phone || "").trim(),
+    quantity: Number(qty[1]), slug: decoded, title: title[1], edition: edition ? edition[1].trim() : "",
+  };
+}
+
+/**
+ * A payment-link form started from a bulk-price request: the customer, and the product they asked about at the copies
+ * they asked for (up to a line's limit). The product is found by its page address, else by its exact title; the edition
+ * by its name. Nothing found leaves an empty line to choose.
+ */
+export function linkFormFromQuote(request: QuoteRequest, books: any[], country = "CA"): LinkForm {
+  const form = emptyLinkForm(country);
+  const list = linkableBooks(books);
+  const lower = (v: unknown) => String(v || "").trim().toLowerCase();
+  const book = (request.slug && list.find(b => b.slug === request.slug)) || list.find(b => lower(b.title) === lower(request.title));
+  const variants = Array.isArray(book?.variants) ? book.variants : [];
+  const variant = variants.find((v: any) => request.edition && lower(v.name) === lower(request.edition));
+  const quantity = Math.min(MAX_LINE_QUANTITY, Math.max(1, Math.floor(request.quantity) || 1));
+  return {
+    ...form,
+    name: request.name, email: request.email, phone: request.phone,
+    rows: [{ ...form.rows[0], bookId: book?.id || "", variantId: variant?.id || "", quantity: String(quantity) }],
+  };
+}
+
 export type LinkState = "open" | "expired" | "paid" | "cancelled";
 /** Where an order's payment link stands, or null for an order that wasn't made with one. */
 export function linkState(order: any, now = Date.now()): LinkState | null {

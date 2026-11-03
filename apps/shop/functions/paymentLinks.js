@@ -187,4 +187,63 @@ function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, public
   return { handlePaymentLink };
 }
 
-module.exports = { cleanLinkInput, linkProblem, paymentLinkFor, applyLinkPrices, paymentLinkActions, keyHash, LinkInputError, LINK_MESSAGES, DEFAULT_DAYS, MAX_DAYS };
+// A reminder (code plan 21.5): one email to the customer when an unpaid link has two days or less left, from the
+// 15-minute unpaidPaymentSweep. Settings › Notifications › Payment link reminder writes it and can switch it off. A link
+// made less than a day ago is never reminded, so a short link doesn't get a reminder straight after its own email.
+const REMIND_BEFORE_MS = 2 * 86400000;
+const REMIND_MIN_AGE_MS = 86400000;
+
+/** Is this order's link due its reminder? (Pure; the link record is checked again before sending.) */
+function reminderDue(order, now = Date.now()) {
+  if (!order || order.source !== "payment_link" || order.paymentStatus !== "unpaid" || order.status !== "pending_payment") return false;
+  if (!cleanEmail(order.customer?.email)) return false;
+  const left = Date.parse(order.paymentLink?.expiresAt || "") - now;
+  const age = now - Date.parse(order.createdAt || "");
+  return left > 0 && left <= REMIND_BEFORE_MS && age >= REMIND_MIN_AGE_MS;
+}
+
+const cleanEmail = value => {
+  const email = String(value || "").trim();
+  return /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]{2,}$/.test(email) ? email : "";
+};
+
+/** The day a link closes, as the customer reads it ("November 5, 2026"), in the shop's time zone. */
+const closingDay = iso => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "long", day: "numeric" }).format(new Date(iso));
+
+/**
+ * Sends the reminders due among `orders` (the sweep's unpaid payment-link orders). Each one is sent once: the link record
+ * is stamped `reminderSentAt` (never the order, so the order triggers don't wake), and sendOrderEmailOnce's claim stops a
+ * second copy if two sweeps overlap. Returns how many went.
+ */
+async function sendLinkReminders({ db, orders, settings, compileEmailTemplate, orderTrackUrl, sendOrderEmailOnce, moneyFmt, secret, now = Date.now() }) {
+  if (settings?.payment_link_reminder?.enabled === false) return { sent: 0 };
+  let sent = 0;
+  for (const order of orders || []) {
+    if (!reminderDue(order, now)) continue;
+    const orderId = order.id;
+    try {
+      const ref = db.collection("paymentLinks").doc(orderId);
+      const snap = await ref.get();
+      const link = snap.exists ? snap.data() : null;
+      // Only this order's own open link, and only once.
+      if (!link || link.keyHash !== keyHash(order.trackingKey) || linkProblem(link, now) || link.reminderSentAt) continue;
+      const compiled = compileEmailTemplate("payment_link_reminder", settings, {
+        customer_name: order.customer?.name || "there",
+        order_id: order.orderId || orderId,
+        total_price: moneyFmt(order.total),
+        expires_on: closingDay(link.expiresAt),
+        button_url: await orderTrackUrl(orderId, order),
+      });
+      await sendOrderEmailOnce(orderId, "payment_link_reminder", { to: cleanEmail(order.customer.email), subject: compiled.subject, html: compiled.html, secret });
+      await ref.set({ reminderSentAt: new Date(now).toISOString() }, { merge: true });
+      sent += 1;
+    } catch (err) {
+      // A queued email (every sender refused) is retried by the email queue; its claim stops a second copy.
+      if (err?.queued) await db.collection("paymentLinks").doc(orderId).set({ reminderSentAt: new Date(now).toISOString() }, { merge: true }).catch(() => {});
+      else console.warn(`Payment link reminder for ${orderId} failed:`, err.message);
+    }
+  }
+  return { sent };
+}
+
+module.exports = { reminderDue, sendLinkReminders, REMIND_BEFORE_MS, cleanLinkInput, linkProblem, paymentLinkFor, applyLinkPrices, paymentLinkActions, keyHash, LinkInputError, LINK_MESSAGES, DEFAULT_DAYS, MAX_DAYS };
