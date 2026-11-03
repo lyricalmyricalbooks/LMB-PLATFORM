@@ -752,7 +752,9 @@ export function Dashboard() {
       </Dialog>
       <AppShell
         appearance={appearance}
-        overlay={<SyncChip state={online ? null : "offline"} />}
+        // A stockroom page (the Fair till above all) says it's offline in its own words and keeps selling; the admin's
+        // card would cover the till's buttons on a phone and repeat it.
+        overlay={<SyncChip state={online || onStockroomPage ? null : "offline"} />}
         sidebar={
           <Sidebar
             open={sidebarOpen}
