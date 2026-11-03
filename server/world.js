@@ -85,8 +85,9 @@ import {
 } from "../clients/stores.js";
 import {
   firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
-  firestoreShopRecords, firestoreSignupStores, firestoreThrottle,
+  firestoreFrontDoorStores, firestoreShopRecords, firestoreSignupStores, firestoreThrottle,
 } from "../clients/platformStores.js";
+import { createFrontDoor, frontDoorPublicRoutes, frontDoorRoutes } from "../signup/frontDoor.js";
 import { signInLinks } from "../clients/signInLinks.js";
 import { createIdTokenVerifier } from "./verifyIdToken.js";
 import { NOT_CONNECTED, notConnectedClient, notConnectedFn, notConnectedPage } from "./notConnected.js";
@@ -154,9 +155,12 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const stores = firestoreSignupStores(platform);
   const inviteStore = firestoreInvites(platform);
   const invites = createInvites({ invites: inviteStore, email, settings, now });
+  const signInLinkMaker = signInLinks({ fetch, token, projectId });
   const signup = createSignup({
-    ...stores, registry, billing, email, auth: signInLinks({ fetch, token, projectId }), settings, invites, live, now,
+    ...stores, registry, billing, email, auth: signInLinkMaker, settings, invites, live, now,
   });
+  // The front door (18.4): the six-digit code and each press's setup record, before any shop exists.
+  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now });
   const repairStore = firestoreRepairs(platform);
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now });
   const shopMaker = createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
@@ -234,6 +238,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // The platform's one web door, with the same routes as the practice one (walkthrough/world.js).
   const routes = {
     "POST /api/signup/retry": (claims, request) => shopMaker.retry(claims, request.body?.shopId),
+    ...frontDoorRoutes(frontDoor),
     ...accountRoutes(accounts),
     ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now }),
     ...controlRoutes(room),
@@ -251,7 +256,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, routes,
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, routes, publicRoutes: frontDoorPublicRoutes(frontDoor),
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,
@@ -279,7 +284,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   }
 
   return {
-    projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, shopMaker, accounts, room, controls,
+    projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
     backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing,
     routes, door, handle, parts,
   };

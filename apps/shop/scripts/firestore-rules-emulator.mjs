@@ -252,7 +252,11 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   // Choose your look (plan 6.3) and the guide's progress for the trial emails (plan 6.10)
   await check("admin records Choose your look", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "press-zine", at: "now", skipped: false } }, { merge: true })));
   await check("admin saves the guide's progress", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { progress: { steps: ["logo", "look"], done: ["look"], at: "now" } }, { merge: true })));
+  await check("welcome records the admin look", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "press-zine", at: "now", adminLook: "paper" } }, { merge: true })));
+  await check("welcome with an unknown admin look refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "press-zine", at: "now", adminLook: "neon" } }, { merge: true })));
   await check("welcome with an extra key refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "x", at: "now", junk: 1 } }, { merge: true })));
+  await check("admin changes what the shop sells", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { sells: "mixed" }, { merge: true })));
+  await check("what the shop sells must be a known answer", assertFails(setDoc(doc(admin, "firstWeek/start"), { sells: "weapons" }, { merge: true })));
   await check("admin can't change the sign-up answer", assertFails(setDoc(doc(admin, "firstWeek/start"), { sellingToday: "fairs" }, { merge: true })));
   await check("admin can't change the plan", assertFails(setDoc(doc(admin, "firstWeek/start"), { plan: "both" }, { merge: true })));
 }

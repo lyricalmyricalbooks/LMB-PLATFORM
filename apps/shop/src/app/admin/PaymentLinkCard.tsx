@@ -1,0 +1,50 @@
+// Order page › Payment link (code plan 21.2): for an order made with Orders › New order to pay, where its link stands and
+// the two ways to send it. Cancelling the order (the order's own Cancel) closes the link.
+import { Copy, Mail } from "lucide-react";
+import toast from "react-hot-toast";
+import { getCopy } from "../features/site/storeCopy";
+import { adminApi } from "./api";
+import { linkState, paymentLinkMailto, paymentLinkUrl } from "./paymentLinks";
+import { SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
+
+const STATE_WORDS = {
+  open: { tone: "warning", text: "Waiting for payment" },
+  expired: { tone: "danger", text: "Expired" },
+  paid: { tone: "success", text: "Paid" },
+  cancelled: { tone: "neutral", text: "Closed" },
+} as const;
+
+export function PaymentLinkCard({ order }: { order: any }) {
+  const state = linkState(order);
+  if (!state) return null;
+  const url = paymentLinkUrl(order, window.location.origin, import.meta.env.BASE_URL || "/");
+  const until = new Date(order.paymentLink.expiresAt).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(url); toast.success("Payment link copied"); }
+    catch { toast.error("Could not copy the link"); }
+  };
+  const email = async () => {
+    let shopName = "";
+    try { shopName = getCopy(((await adminApi.getPublicSettings()) as any)?.design || {}, "siteName"); } catch { /* the email still works */ }
+    const mailto = paymentLinkMailto(order, url, shopName);
+    if (mailto) window.location.href = mailto;
+    else toast.error("This customer's email address can't be used. Copy the link instead.");
+  };
+  return (
+    <SectionCard title="Payment link" actions={<StatusBadge tone={STATE_WORDS[state].tone}>{STATE_WORDS[state].text}</StatusBadge>}>
+      <p className="fw-summary">
+        {state === "open" && `The customer pays from this link, by card, until ${until}. It opens their order with a Pay now button.`}
+        {state === "expired" && `This link closed on ${until} without a payment. Make a new order to pay if they still want it.`}
+        {state === "paid" && "The customer paid from their link. This is now an ordinary paid order."}
+        {state === "cancelled" && "This order was cancelled, so its link no longer takes payment."}
+      </p>
+      {order.paymentLink.note && <p className="rp-hint">{`Your note to them: ${order.paymentLink.note}`}</p>}
+      {state === "open" && url && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={copy}>Copy payment link</SecondaryButton>
+          <SecondaryButton size="sm" icon={<Mail size={14} aria-hidden />} onClick={email}>Email it to the customer</SecondaryButton>
+        </div>
+      )}
+    </SectionCard>
+  );
+}

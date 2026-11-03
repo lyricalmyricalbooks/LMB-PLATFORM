@@ -16,7 +16,7 @@ exports.goodsDownloadNote = goodsDownloadNote;
 exports.emailDefaultsFor = emailDefaultsFor;
 exports.withShopEmailWords = withShopEmailWords;
 /** The sign-up answers (signup/form.js PUBLISHES.options), in the form's order. */
-exports.SELLS = ["books", "zines", "comics", "prints", "mix", "clothing", "shoes", "jewelry", "music", "other"];
+exports.SELLS = ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"];
 /** The answers that keep a books shop exactly as it is. */
 const BOOK_ANSWERS = new Set(["books", "zines", "comics", "mix"]);
 /** True for a shop that sells books: a book answer, a skipped answer or one this version doesn't know. */

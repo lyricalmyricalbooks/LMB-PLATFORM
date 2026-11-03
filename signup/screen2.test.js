@@ -79,7 +79,7 @@ test("sign-up refuses an address that clashes or has bad characters, and keeps a
 
 test("What do you sell? is skippable, and the answer travels with the shop", async () => {
   const { ask, stores } = make();
-  assert.deepEqual(PUBLISHES.options.map((o) => o.id), ["books", "zines", "comics", "prints", "mix", "clothing", "shoes", "jewelry", "music", "other"]);
+  assert.deepEqual(PUBLISHES.options.map((o) => o.id), ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"]);
   assert.equal(PUBLISHES.label, "What do you sell?");
   await ask("POST", "/api/signup", { ...details, publishes: "zines" });
   const row = stores.signups.rows.get("moth-press-k3f9q");

@@ -49,6 +49,7 @@ const { taxPartsByKind } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
+const { paymentLinkFor, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES, reminderDue, sendLinkReminders } = require("./paymentLinks");
 const { expandDiscountCategories } = require("./shared/discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./shared/discountMath");
 const { taxLinesFor } = require("./shared/taxBooks");
@@ -1006,7 +1007,9 @@ function cachedAutomaticDiscounts(now = Date.now()) {
 // Nothing the browser sends decides a price: books, editions, add-ons, box-set parts, the
 // discount (a code, else the best automatic offer, including a free gift), shipping, tax and
 // gift-card amounts are all worked out here. Throws PricingError for a shopper-fixable problem.
-async function priceOrder(order, { orderId = "", settings: knownSettings = null } = {}) {
+// An order the owner made with a payment link (paymentLinks.js, plan 21.1) pays the agreed prices and shipping instead,
+// with no discount on top; `paymentLink` is the draft record while the link is being made.
+async function priceOrder(order, { orderId = "", settings: knownSettings = null, paymentLink: draftLink = null } = {}) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(order.customer?.email || "").trim())) {
     throw new PricingError("Check the email address: it doesn't look complete.");
   }
@@ -1020,9 +1023,11 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     return booksById[id];
   };
   const items = [];
+  const link = draftLink || await paymentLinkFor(db, orderId, order);
+  if (link && linkProblem(link)) throw new PricingError(LINK_MESSAGES[linkProblem(link)], "payment_link_closed");
   // An order claimed by an approved stockist (stockists.js) pays the wholesale price where a product has one. The registry
   // is read again on every pricing, so a stockist who is paused after claiming pays the shop's price.
-  const stockist = await loadStockist(db, order.stockistId);
+  const stockist = link ? null : await loadStockist(db, order.stockistId);
   const wholesaleCache = new Map();
   for (const requested of order.items || []) {
     // A free gift is never taken from the browser: it is re-added below when the order earns it.
@@ -1105,6 +1110,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     });
   }
   if (!items.length) throw new PricingError("Order has no items.");
+  if (link && (items.some(item => item.giftCard === true) || !applyLinkPrices(items, link))) throw new PricingError(LINK_MESSAGES.changed, "payment_link_closed");
 
   // The plan is paused or closed (plan 6.7): every checkout path is priced here, so this stops them all, practice
   // orders too (their settings don't carry the plan).
@@ -1148,7 +1154,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     if (!(offer.id in giftLines)) giftLines[offer.id] = await giftLineFor(offer);
     giftPrices[offer.id] = giftLines[offer.id] ? giftLines[offer.id].price : NaN;
   };
-  if (order.appliedDiscount?.code) {
+  if (link) {
+    // The agreed prices are the whole deal: no code or automatic offer on top.
+  } else if (order.appliedDiscount?.code) {
     // Same "Discount code error:" prefix on every path, so checkout can drop the code and explain.
     try {
       const verified = expandDiscountCategories(await fetchValidDiscount(order.appliedDiscount.code), settings.design?.categories);
@@ -1195,7 +1203,10 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   const discountedPhysical = discountedPhysicalSubtotal(taxable, discount, verifiedDiscount, booksById);
   let shipResult;
   try {
-    shipResult = await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical);
+    // A payment link ships for the amount the owner set, or nothing when there is nothing to ship.
+    shipResult = link
+      ? { cost: link.shipping != null && items.some(isPhysicalItem) ? Math.round(Number(link.shipping) * 100) / 100 : 0, method: link.shipping != null && items.some(isPhysicalItem) ? "Shipping" : null, fulfillment: null }
+      : await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical);
   } catch (err) {
     throw new PricingError(err.message, err.code === "shipping_rates_changed" ? err.code : undefined);
   }
@@ -1316,7 +1327,8 @@ async function loadHoldLimits() {
 }
 
 async function reserveCheckout(orderId, items, order, giftCardRedemptions, testMode, req = null) {
-  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: true, ip: req ? clientIpOf(req) : "", holdLimits: await loadHoldLimits() });
+  // A payment link's quantities were set by the owner (plan 21.1): the per-shopper hold caps don't apply to it.
+  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: order?.source !== "payment_link", ip: req ? clientIpOf(req) : "", holdLimits: await loadHoldLimits() });
   if (!(giftCardRedemptions || []).length) return;
   try {
     await reserveGiftCards(db, orderId, giftCardRedemptions, { testMode, owner: holdOwner(order) });
@@ -1611,6 +1623,7 @@ const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTr
 });
 
 const { handleStockistPricing, handleStockistStatus } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
+const { handlePaymentLink } = paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage });
 
 const { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin, handleMyData } = privacyActions({
   db, admin, ADMIN_TO, GIFT_CARD_PERSONAL, LIMITS, RESEND_API_KEY, claimEmailSendDetailed, confirmationEmail,
@@ -1645,6 +1658,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   orderRequest: handleOrderRequest,
   stockistPricing: handleStockistPricing,
   stockistStatus: handleStockistStatus,
+  paymentLink: handlePaymentLink,
   privacyRequest: handlePrivacyRequest,
   myDataExport: handleMyData,
   myDataErase: handleMyData,
@@ -2718,6 +2732,14 @@ const DEFAULT_NOTIFICATIONS = {
     signoff: "Happy reading,\nThe {{shop_name}} team",
     enabled: true
   },
+  // Code plan 21.5: two days before an unpaid payment link closes (paymentLinks.js sendLinkReminders).
+  payment_link_reminder: {
+    subject: "Reminder: your order {{order_id}} is ready to pay",
+    body: "Hi {{customer_name}},\n\nJust a reminder that your order from {{shop_name}} is waiting for payment. The total is {{total_price}}, and the payment link stays open until {{expires_on}}.",
+    buttonText: "Pay now",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
@@ -2730,13 +2752,28 @@ const DEFAULT_NOTIFICATIONS = {
 /** Sign-up's "What do you sell?" answer (`firstWeek/start` › `publishes`), or "" when there is none or it can't be read. */
 async function shopSellsAnswer() {
   try {
-    const answer = (await db.collection("firstWeek").doc("start").get()).data()?.publishes;
+    // What the owner chose in Settings (`sells`) reads before the sign-up answer (`publishes`).
+    const data = (await db.collection("firstWeek").doc("start").get()).data();
+    const answer = data?.sells || data?.publishes;
     return typeof answer === "string" ? answer : "";
   } catch (err) {
     console.warn("Failed to read what the shop sells, using the books words:", err);
     return "";
   }
 }
+
+/** When the owner changes what the shop sells, the stockroom's words follow (plan 12.14). A shop without a stockroom is fine. */
+exports.syncStockroomWords = onDocumentWritten("firstWeek/start", async event => {
+  const data = event.data?.after?.data?.();
+  const answer = data?.sells || data?.publishes;
+  if (typeof answer !== "string" || !answer) return;
+  if (answer === (event.data?.before?.data?.()?.sells || event.data?.before?.data?.()?.publishes)) return;
+  try {
+    await require("./inventoryLinkStore").writeSellsWords(answer);
+  } catch (err) {
+    console.warn("Couldn't copy what the shop sells to the stockroom:", err?.message || err);
+  }
+});
 
 async function loadNotificationSettings() {
   let dbSettings = {};
@@ -4181,7 +4218,11 @@ exports.unpaidPaymentSweep = onSchedule(
     const snap = await db.collection("orders").where("paymentStatus", "==", "unpaid").where("createdAt", ">=", since)
       .orderBy("createdAt", "desc").limit(300).get()
       .catch(err => { console.error("unpaidPaymentSweep: ordered query failed (deploy firestore:indexes), using unordered:", err.message); return db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get(); });
-    const candidates = suspectOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    // Payment links (plan 21.1) can be paid weeks after they were made, outside that window: read the open ones too.
+    const linkSnap = await db.collection("orders").where("source", "==", "payment_link").where("paymentStatus", "==", "unpaid").limit(200).get()
+      .catch(err => { console.error("unpaidPaymentSweep: payment link query failed:", err.message); return { docs: [] }; });
+    const unpaid = new Map([...snap.docs, ...linkSnap.docs].map((d) => [d.id, { id: d.id, ...d.data() }]));
+    const candidates = suspectOrders([...unpaid.values()]);
     const found = [];
     // The Stripe mode and keys are read once for the whole sweep (only when Stripe is asked at all).
     // A failed read falls back to the per-call reads every lookup used to do.
@@ -4287,6 +4328,19 @@ exports.unpaidPaymentSweep = onSchedule(
         if (result.sent) console.log("unpaidPaymentSweep: review requests", result);
       }
     } catch (err) { console.error("unpaidPaymentSweep: review requests failed:", err.message); }
+
+    // Payment link reminders two days before a link closes (plan 21.5; own try/catch).
+    try {
+      // Never one to a customer whose payment this sweep just found in Stripe.
+      const due = [...unpaid.values()].filter(order => reminderDue(order) && !found.some(f => f.orderId === order.id));
+      if (due.length) {
+        const result = await sendLinkReminders({
+          db, orders: due, settings: await loadNotificationSettings(), compileEmailTemplate, orderTrackUrl, sendOrderEmailOnce,
+          formatTotal: chargedTotalFmt, secret: RESEND_API_KEY.value(),
+        });
+        if (result.sent) console.log("unpaidPaymentSweep: payment link reminders", result);
+      }
+    } catch (err) { console.error("unpaidPaymentSweep: payment link reminders failed:", err.message); }
   }
 );
 

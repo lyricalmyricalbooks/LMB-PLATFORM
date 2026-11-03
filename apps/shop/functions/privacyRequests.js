@@ -231,7 +231,11 @@ function privacyActions({
       const redactedOrders = data.orders.filter(d => neverPaid(d.data()));
       const keptOrders = data.orders.filter(d => !neverPaid(d.data()));
       const redactedIds = new Set(redactedOrders.map(d => d.id));
-      for (const d of redactedOrders) ops.push(b => b.update(d.ref, redactedOrderFields(now)));
+      for (const d of redactedOrders) {
+        ops.push(b => b.update(d.ref, redactedOrderFields(now, d.data())));
+        // The payment link's own copy of that note (paymentLinks.js, plan 21.1).
+        if (d.data()?.paymentLink) ops.push(b => b.set(db.collection("paymentLinks").doc(d.id), { note: "" }, { merge: true }));
+      }
       for (const d of data.operations) {
         if (redactedIds.has(d.id)) ops.push(b => b.delete(d.ref));
         else ops.push(b => b.set(d.ref, redactedOperationsFields(d.data(), now), { merge: true }));

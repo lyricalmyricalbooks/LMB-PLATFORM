@@ -7,7 +7,7 @@
 // stays editable there.
 
 /** The sign-up answers (signup/form.js PUBLISHES.options), in the form's order. */
-export const SELLS = ["books", "zines", "comics", "prints", "mix", "clothing", "shoes", "jewelry", "music", "other"] as const;
+export const SELLS = ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"] as const;
 export type Sells = (typeof SELLS)[number];
 
 /** The answers that keep a books shop exactly as it is. */

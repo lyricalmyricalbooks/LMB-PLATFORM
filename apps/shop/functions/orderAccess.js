@@ -18,7 +18,7 @@ const PUBLIC_FIELDS = ["preorderReleasedAt", "orderId", "createdAt", "updatedAt"
   "paidAt", "shippedAt", "deliveredAt", "readyForPickupAt", "collectedAt", "readyForDeliveryAt", "outForDeliveryAt",
   "subtotal", "discount", "shipping", "tax", "total", "checkoutCurrency", "exchangeRate", "expectedAmountMinor", "expectedCurrency", "paymentMethod",
   "paymentInstructions", "shippingMethod", "shippingEstimate", "trackingNumber", "trackingCarrier", "trackingUrl",
-  "downloadToken", "fulfillment", "customerRequest", "giftCardAmount"];
+  "downloadToken", "fulfillment", "customerRequest", "giftCardAmount", "paymentLink"];
 const pick = (value, keys) => Object.fromEntries(keys.filter(k => value && Object.hasOwn(value, k)).map(k => [k, value[k]]));
 function publicOrderView(id, order) {
   const out = { id, ...pick(order, PUBLIC_FIELDS) };

@@ -1,92 +1,100 @@
-/* The stockroom's frame in the shared admin look (plan step 11.4): a light side rail 264px wide and a light top bar with a
-   2px ink line, the same as the website admin's `.rp-sidebar` / `.rp-topbar` in shared/admin-look/pressroom.css.
+/* The stockroom's frame in the shared admin look (plan step 11.4): the same rail and top bar as the website admin
+   (`.rp-sidebar` / `.rp-topbar` in shared/admin-look/pressroom.css): a 232px rail in the look's rail colour, nav items
+   with the look's open-item style, and a top bar that is the page colour with a hairline under it.
    Not a copy of the shared files: this one is the stockroom's and only restyles the shell it already has.
 
    Desktop only (861px and up) and screen only. The phone layout (phone.css, phone-riso.css) and printed pages keep
-   their own rules. The old rail was dark ink with white text, so the colours it used are set again here from the
-   shared tokens; the layout, the menu words and the buttons stay as they were. */
+   their own rules. The old rail was dark ink with white text, so its colours are set again here from the shared
+   tokens (--rp-rail*, written once per look in adminThemes.css); the layout and menu words stay as they were. */
 @media screen {
   /* The shape names the shared components use (pressroom.css, not loaded here), at the Riso Press values. Zero
      specificity, so Paper's rounder corners in adminThemes.css still win. */
   :where(body.rp) {
     --rp-radius-sm: 0; --rp-radius: 0; --rp-radius-lg: 4px; --rp-radius-pill: 999px;
-    --rp-stroke: 2px; --rp-hair: 1px; --rp-touch: 44px; --rp-sidebar-w: 264px;
+    --rp-stroke: 2px; --rp-hair: 1px; --rp-touch: 44px; --rp-sidebar-w: 232px;
     --rp-font-mono: "DM Mono", ui-monospace, monospace;
     --rp-text-sm: 12px; --rp-text-base: 13px;
     --rp-shadow-pop: none;
   }
 }
 
+@media screen {
+  /* The page behind the screens is the look's page colour, not the old cream. */
+  body.rp { background: var(--rp-canvas); }
+}
+
 @media screen and (min-width: 861px) {
   body.rp .pub-shell #pub-sidebar {
-    background: var(--rp-surface);
-    border-right: var(--rp-stroke) solid var(--rp-border-strong);
-    gap: 2px;
-    padding: 0 12px 14px;
-    scrollbar-color: var(--rp-border) transparent;
+    background: var(--rp-rail); border-right: 0; gap: 2px; padding: 24px 12px 14px;
+    scrollbar-color: var(--rp-rail-line) transparent;
   }
-  body.rp .pub-shell #pub-sidebar::-webkit-scrollbar-thumb { background: var(--rp-border); }
+  body.rp[data-rp-appearance="dark"] .pub-shell #pub-sidebar { border-right: 1px solid var(--rp-border); }
+  body.rp .pub-shell #pub-sidebar::-webkit-scrollbar-thumb { background: var(--rp-rail-line); }
 
-  /* Brand block: mark, name and the small word under it, with the shared hairline below. */
-  body.rp .pub-shell .pub-brand {
-    margin: 0 -12px 10px; padding: 20px 20px 18px;
-    border-bottom: var(--rp-hair) solid var(--rp-divider);
+  /* Brand: the press name over the small word under it, no box. */
+  body.rp .pub-shell .pub-brand { padding: 0 12px 24px; }
+  body.rp .pub-shell .pub-wordmark { color: var(--rp-on-inverse); font-family: var(--rp-font-display); font-size: 18px; line-height: 1.05; letter-spacing: .02em; text-transform: var(--rp-title-case, uppercase); font-weight: var(--rp-title-weight-sm, 400); }
+  body.rp .pub-shell .pub-tag { color: var(--rp-rail-faint); font-family: var(--rp-font-mono); font-size: 11px; letter-spacing: 0; text-transform: none; font-weight: 400; }
+
+  /* Group headings: mono, faint. */
+  body.rp .pub-shell .o3-grouplabel,
+  body.rp .pub-shell .o3-subgrouplabel {
+    padding: 24px 12px 8px; font-family: var(--rp-font-mono); font-size: 11px; font-weight: 400; letter-spacing: .08em; color: var(--rp-rail-faint);
   }
-  body.rp .pub-shell .pub-wordmark { color: var(--rp-text); font-size: 1.2rem; }
-  body.rp .pub-shell .pub-tag { color: var(--rp-text-subtle); letter-spacing: .14em; font-size: .6875rem; }
 
-  /* Group headings: the shared mono caps with a hairline above. */
-  body.rp .pub-shell .o3-grouplabel {
-    margin: 10px 0 4px; padding: 12px 12px 4px; border-top: var(--rp-hair) solid var(--rp-divider);
-    font-family: var(--rp-font-mono); font-size: 11px; letter-spacing: .12em; color: var(--rp-text-subtle);
-  }
-  body.rp .pub-shell .pub-nav > .o3-grouplabel:first-child { border-top: 0; margin-top: 0; }
-  body.rp .pub-shell .o3-subgrouplabel { color: var(--rp-text-subtle); }
-
-  /* Menu items: the shared item (44px touch height, square corners); the open one is the inked block with an offset shadow. */
+  /* Menu items: 36px, square, label in the rail's text colour; the open one is the look's open-item style. */
   body.rp .pub-shell .snav {
-    min-height: 40px; padding: 0 12px; gap: 12px;
-    border: var(--rp-stroke) solid transparent; border-radius: var(--rp-radius);
-    color: var(--rp-text-muted); font-weight: 500; font-size: var(--rp-text-base);
+    min-height: 36px; padding: 0 12px; gap: 12px; border: 0; border-radius: var(--rp-nav-radius, 0);
+    color: var(--rp-rail-text); font-family: var(--rp-font-body); font-weight: 400; font-size: 14px;
   }
-  body.rp .pub-shell .snav:hover { background: var(--rp-surface-2); color: var(--rp-text); }
-  body.rp .pub-shell .snav.active {
-    background: var(--rp-inverse); color: var(--rp-on-inverse); font-weight: 700;
-    border-color: var(--rp-inverse); box-shadow: 3px 3px 0 var(--rp-primary);
-  }
+  body.rp .pub-shell .snav:hover { background: var(--rp-rail-hover); color: var(--rp-on-inverse); }
+  body.rp .pub-shell .snav .snav-ic { color: var(--rp-rail-faint); }
+  body.rp .pub-shell .snav:hover .snav-ic,
+  body.rp .pub-shell .snav.active .snav-ic { color: currentColor; }
+  body.rp .pub-shell .snav.active { background: var(--rp-on-inverse); color: var(--rp-text); font-weight: 600; box-shadow: none; }
+  body.rp[data-rp-appearance="dark"] .pub-shell .snav.active { color: var(--rp-canvas); }
   body.rp .pub-shell .snav.active::before { display: none; }
-  body.rp .pub-shell .snav.active .snav-ic { color: var(--rp-on-inverse); }
 
-  /* Account card at the foot. */
-  body.rp .pub-shell .pub-side-foot { border-top: var(--rp-hair) solid var(--rp-divider); padding-top: 10px; }
+  /* Foot of the rail: account line and What's new, a hairline above. */
+  body.rp .pub-shell .pub-side-foot { border-top: 1px solid var(--rp-rail-line); padding-top: 10px; }
   body.rp .pub-shell .pub-side-trigger:hover,
-  body.rp .pub-shell .pub-side-foot.open .pub-side-trigger { background: var(--rp-surface-2); }
-  body.rp .pub-shell .pub-side-avatar {
-    background: var(--rp-primary); color: var(--rp-on-primary); border: var(--rp-stroke) solid var(--rp-border-strong);
-  }
-  body.rp .pub-shell .pub-side-who b { color: var(--rp-text); }
-  body.rp .pub-shell .pub-side-live { color: var(--rp-success); }
-  body.rp .pub-shell .pub-side-caret { color: var(--rp-text-subtle); }
+  body.rp .pub-shell .pub-side-foot.open .pub-side-trigger { background: var(--rp-rail-hover); }
+  body.rp .pub-shell .pub-side-avatar { background: var(--rp-on-inverse); color: var(--rp-text); border: 0; }
+  body.rp[data-rp-appearance="dark"] .pub-shell .pub-side-avatar { color: var(--rp-canvas); }
+  body.rp .pub-shell .pub-side-who b { color: var(--rp-on-inverse); }
+  body.rp .pub-shell .pub-side-live { color: var(--rp-rail-faint); }
+  body.rp .pub-shell .pub-side-caret { color: var(--rp-rail-faint); }
   body.rp .pub-shell .pub-side-menu {
     background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border-strong);
-    border-radius: var(--rp-radius); box-shadow: var(--rp-shadow-pop);
+    border-radius: var(--rp-radius); box-shadow: var(--rp-shadow-lg);
   }
   body.rp .pub-shell .pub-side-item { color: var(--rp-text); }
   body.rp .pub-shell .pub-side-item:hover { background: var(--rp-surface-2); }
   body.rp .pub-shell .pub-side-item.danger { color: var(--rp-danger); }
   body.rp .pub-shell .pub-side-msep { background: var(--rp-divider); }
 
-  /* Top bar: light, with the 2px ink line under it. The names the header's own parts use for "text on ink" are
-     pointed at ordinary text so every button, figure and menu in it follows. */
+  /* The look decides how the open item is drawn, as in the website admin (pressroom.css, "Looks"). */
+  :root[data-admin-look="paper"] body.rp:not([data-rp-appearance="dark"]) .pub-shell #pub-sidebar { border-right: 1px solid var(--rp-divider); }
+  :root[data-admin-look="paper"] body.rp:not([data-rp-appearance="dark"]) .pub-shell :is(.pub-wordmark, .pub-side-who b, .pub-side-updated) { color: var(--rp-text); }
+  :root[data-admin-look="paper"] body.rp:not([data-rp-appearance="dark"]) .pub-shell .snav:hover { color: var(--rp-text); }
+  :root[data-admin-look="paper"] body.rp:not([data-rp-appearance="dark"]) .pub-shell .snav.active { background: var(--rp-primary-tint); color: var(--rp-primary-text); }
+  :root[data-admin-look="paper"] body.rp { --rp-nav-radius: var(--rp-radius); }
+  :root[data-admin-look="ledger"] body.rp .pub-shell .snav.active,
+  :root[data-admin-look="ledger"] body.rp[data-rp-appearance="dark"] .pub-shell .snav.active { background: var(--rp-rail-hover-strong); color: var(--rp-on-inverse); box-shadow: inset 3px 0 0 var(--rp-primary-hover); }
+  :root[data-admin-look="pop"] body.rp { --rp-nav-radius: 999px; }
+  :root[data-admin-look="pop"] body.rp .pub-shell .snav.active,
+  :root[data-admin-look="pop"] body.rp[data-rp-appearance="dark"] .pub-shell .snav.active { background: var(--rp-on-inverse); color: var(--rp-inverse); box-shadow: 3px 3px 0 var(--rp-primary); }
+
+  /* Top bar: the page colour with a hairline under it, as the website admin's. */
   body.rp .pub-shell .app-header {
-    --ink: var(--rp-surface);
+    --ink: var(--rp-canvas);
     --on-inverse: var(--rp-text);
     --on-inverse-2: var(--rp-text-muted);
-    background: var(--rp-surface); color: var(--rp-text);
-    border-bottom: var(--rp-stroke) solid var(--rp-border-strong);
+    background: var(--rp-canvas); color: var(--rp-text);
+    border-bottom: 1px solid var(--rp-divider);
   }
   body.rp .pub-shell .app-header::before { display: none; }
-  body.rp .pub-shell #shell-page-title { color: var(--rp-text); }
+  body.rp .pub-shell #shell-page-title { color: var(--rp-text); font-family: var(--rp-font-display); }
 
   /* Top bar parts that had white-on-ink colours of their own. */
   body.rp .pub-shell .app-header {
@@ -111,19 +119,15 @@
   body.rp .pub-shell .app-header .status-pill { background: var(--rp-surface-2); border-color: var(--rp-border); color: var(--rp-text-muted); }
 
   /* "What's new" card at the foot of the rail. */
-  body.rp .pub-shell #pub-sidebar {
-    --on-inverse: var(--rp-text);
-    --on-inverse-3: var(--rp-text-subtle);
-  }
   body.rp .pub-shell .pub-side-updated {
-    background: var(--rp-surface-2); border: var(--rp-hair) solid var(--rp-border); border-radius: var(--rp-radius);
+    background: transparent; border: 0; border-top: 1px solid var(--rp-rail-line); border-radius: 0; color: var(--rp-on-inverse);
   }
-  body.rp .pub-shell .pub-side-updated:hover { background: var(--rp-surface-inset); border-color: var(--rp-border-strong); }
+  body.rp .pub-shell .pub-side-updated:hover { background: var(--rp-rail-hover); }
+  body.rp .pub-shell #pub-sidebar { --on-inverse: var(--rp-on-inverse); --on-inverse-3: var(--rp-rail-faint); }
 }
 
 /* Full-width rail only above the icon-rail breakpoint; between 861 and 1100px the old 64px icon rail stays. */
 @media screen and (min-width: 1101px) {
-  body.rp { --rp-rail-w: var(--rp-sidebar-w, 264px); }
-  body.rp .pub-shell #pub-sidebar { width: var(--rp-rail-w); }
-  body.rp .pub-shell { padding-left: var(--rp-rail-w); }
+  body.rp .pub-shell #pub-sidebar { width: var(--rp-sidebar-w); }
+  body.rp .pub-shell { padding-left: var(--rp-sidebar-w); }
 }

@@ -298,6 +298,8 @@ function shopEmails({
           amount: "CA$50.00",
           code: "ABCD-EFGH-JKMN-PQRS",
           expires: "",
+          // Payment link reminder (payment_link_reminder)
+          expires_on: "November 5, 2026",
           shop_url: siteLink("/"),
           items_table: `
             <div style="margin: 30px 0; border-top: 1px solid #eeeeee; padding-top: 20px;">

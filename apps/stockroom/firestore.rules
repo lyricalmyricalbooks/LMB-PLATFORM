@@ -135,7 +135,7 @@ service cloud.firestore {
     // database.rules.json (tests/security-rules.test.js checks the two agree).
     function isAuthorReadableSetting(name) {
       return name in ['modeFlags', 'notifyEndpoint', 'analyticsConfig', 'catalog',
-                      'paymentLinks', 'productionCosts', 'websitePaymentMethods'];
+                      'paymentLinks', 'productionCosts', 'websitePaymentMethods', 'sells'];
     }
 
     // The bookkeeper (plan 7.17): the "bookkeeper" role the shop's server copies
@@ -269,7 +269,7 @@ service cloud.firestore {
     match /websiteLink/{docId} {
       allow read: if isPublisher();
       allow create, update: if isPublisher() && planOpen() && docId == 'app'
-        && request.resource.data.keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks'])
+        && request.resource.data.keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks', 'wordsSells', 'wordsAt'])
         && appTodoOk(request.resource.data)
         && linkMapOk(request.resource.data, 'linkRequests')
         && linkMapOk(request.resource.data, 'dismissedShopBooks');

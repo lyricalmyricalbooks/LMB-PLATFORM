@@ -3,6 +3,8 @@ import { adminApi } from "../api";
 import { friendlyError } from "../studio/friendlyError";
 import { LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField } from "../riso/components";
 import { PROFILE_STARTERS } from "../shippingProfileStarters";
+import { useShopSells } from "../shopWords";
+import { kindStarterParcels } from "../kindShippingStarters";
 import {
   shipFromLine, shipFromProblems, shippingStarterFor, starterProfile, starterSummary, type ShippingMarker, type ShippingStarter,
 } from "../shippingStage";
@@ -22,6 +24,7 @@ export function ShippingStage({ settings, onDone, onOpen }: {
   onDone: (shipping: ShippingMarker) => Promise<void>;
   onOpen?: (tab: string) => void;
 }) {
+  const sells = useShopSells();
   const location = settings?.location || {};
   const country = String(location.country || "");
   const suggested = shippingStarterFor(country);
@@ -53,7 +56,7 @@ export function ShippingStage({ settings, onDone, onOpen }: {
   const problems = shipFromProblems(location);
   const line = shipFromLine(location);
   const hasProfiles = profiles.length > 0;
-  const summary = choice === "blank" ? [] : starterSummary(choice);
+  const summary = choice === "blank" ? [] : starterSummary(choice, sells);
 
   const finish = async (marker: Omit<ShippingMarker, "at">) => {
     if (busy) return;
@@ -72,8 +75,11 @@ export function ShippingStage({ settings, onDone, onOpen }: {
     if (hasProfiles || choice === "blank") return finish({ skipped: true });
     setBusy(true); setError("");
     try {
-      const profile = starterProfile(choice, newId);
+      const profile = starterProfile(choice, newId, sells);
       if (profile) await adminApi.createShippingProfile(profile);
+      // A shop that sells something other than books also starts with box sizes for its parcels, only when it has none.
+      const boxes = kindStarterParcels(sells);
+      if (boxes.length && !((await adminApi.getParcelPresets()) || []).length) await adminApi.saveParcelPresets(boxes);
     } catch (e) {
       setError(friendlyError(e, "your shipping"));
       setBusy(false);

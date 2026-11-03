@@ -348,6 +348,8 @@ html.cp-page { background: var(--rp-canvas); }
   .cp-links a, .cp-toc a, .cp-phone-nav a, .cp a.cp-kicker {
     display: inline-flex; align-items: center; min-height: 44px; padding-block: 0;
   }
+  /* The wordmark keeps its small line under it, not squeezed beside it. */
+  .cp-word { flex-direction: column; align-items: flex-start; justify-content: center; }
   .cp-mast nav a, .cp-footer a, .cp-links a { padding-inline: 8px; }
   .cp-chip { padding-inline: 12px; }
   .cp button { min-height: 44px; }

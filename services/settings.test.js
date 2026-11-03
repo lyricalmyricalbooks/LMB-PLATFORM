@@ -15,6 +15,7 @@ test("defaults: Colophon, $29 / $19 / $39 CAD a month, 14-day trial, notificatio
     trialDays: 14,
     platformUrl: "https://platform.example",
     signupOpen: false,
+    startNudges: "hold",
     signupDailyCap: 10,
     openCountries: ["CA"],
     foundingOffer: { percentOff: 25, presses: 25 },

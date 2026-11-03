@@ -122,3 +122,24 @@ test("a door without limits works as before, and a query on the path reaches the
   const plain = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: { "GET /api/x": async () => ({ x: 1 }) }, log: () => {} });
   assert.equal((await plain({ method: "GET", path: "/api/x", headers: { Authorization: `Bearer ${JSON.stringify(PRESS)}` } })).body.x, 1);
 });
+
+test("the front door's code: 20 sends and 60 checks an hour per network, even with older custom limits", async () => {
+  let clock = START;
+  const limiter = createLimits({ throttle: fakeThrottle(), limits: { person: DEFAULT_LIMITS.person }, now: () => new Date(clock), log: () => {} });
+  const publicRoutes = { "POST /api/code/send": async () => ({}), "POST /api/code/check": async () => ({}) };
+  const door = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), publicRoutes, limits: limiter, live: () => ({}), log: () => {} });
+  const ask = (path) => door({ method: "POST", path, body: {}, headers: { "X-Forwarded-For": "203.0.113.5" } });
+  assert.ok((await times(20, () => ask("/api/code/send"))).every((a) => a.status === 200));
+  assert.equal((await ask("/api/code/send")).status, 429);
+  assert.ok((await times(60, () => ask("/api/code/check"))).every((a) => a.status === 200));
+  assert.equal((await ask("/api/code/check")).status, 429);
+  clock += 61 * 60_000;
+  assert.equal((await ask("/api/code/check")).status, 200, "an hour later it opens");
+});
+
+test("calls sent all at once are still held to the limit", async () => {
+  const limiter = createLimits({ throttle: fakeThrottle(), now: () => new Date(START), log: () => {} });
+  const request = { headers: { "X-Forwarded-For": "203.0.113.5" } };
+  const answers = await Promise.allSettled(Array.from({ length: 100 }, () => limiter.beforeCall("POST /api/code/check", request)));
+  assert.equal(answers.filter((a) => a.status === "fulfilled").length, DEFAULT_LIMITS.codeCheck.max);
+});

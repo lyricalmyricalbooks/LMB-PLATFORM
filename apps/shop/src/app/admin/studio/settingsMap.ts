@@ -345,6 +345,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Delivery & pickup", match: /^track(Fulfillment|Pickup|LocalDelivery|Collected|ReadyFor|OutFor|Logistics|Carrier|Shipping|ShipTo|Expected)/ },
     { title: "Items & totals", match: /^(track(Items|TotalPayable|Digital|Download|AddOn|GiftCard|FreeGift|BoxSet)|qtyLine|summary)/ },
     { title: "Cancel, return & privacy requests", match: /^track(Req|Return|Privacy)/ },
+    { title: "Payment link (orders you make)", match: /^trackPay(Text|Until|Now|Opening|Expired|Error)$/ },
     { title: "Errors & email links", order: -1, match: /^track(Err|Error|Unsub)/ },
   ],
   "Customer account": [

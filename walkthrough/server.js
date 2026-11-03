@@ -36,6 +36,7 @@ const HERE = join(ROOT, "walkthrough");
 export const MOUNTS = Object.freeze({
   "/waitlist/": "waitlist",
   "/signup/": "signup",
+  "/join/": "join",
   "/account/": "accounts",
   "/accounts/": "accounts",
   "/help/": "help",

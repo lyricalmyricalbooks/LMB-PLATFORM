@@ -4,7 +4,7 @@ import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
 import { ArrowDown, ArrowUp, GripVertical, Plus, SlidersHorizontal, Upload, X } from "lucide-react";
 import "./books.css";
-import { useShopWords } from "./shopWords";
+import { useShopSells, useShopWords } from "./shopWords";
 import { EditionStockDialog } from "./EditionStockDialog";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { type InventoryLinks } from "./inventoryLink";
@@ -57,6 +57,7 @@ const STATUS_CHIPS = [...STATUS_FILTERS, "Pre-order", "Coming soon"] as const;
 export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps) {
   // Plan 10.23: "Products" for a shop that doesn't sell books (sells.ts).
   const w = useShopWords();
+  const sells = useShopSells();
   const [books, setBooks] = useState<any[]>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -491,7 +492,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
             <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import CSV</SecondaryButton>
             <SecondaryButton onClick={async () => {
-              try { await adminApi.addExampleProducts(); toast.success("Example products added. They disappear when you add your first real product."); setLoading(true); await loadBooks(); }
+              try { await adminApi.addExampleProducts(sells); toast.success("Example products added. They disappear when you add your first real product."); setLoading(true); await loadBooks(); }
               catch { toast.error("Couldn't add the examples. Try again."); }
             }}>Show example products</SecondaryButton>
           </div>} />

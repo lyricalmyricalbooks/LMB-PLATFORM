@@ -8,13 +8,16 @@
 //
 //   marquee: a loud ruled masthead, a bare cover wall, round stickers and hard offset shadows on buttons.
 //   shelf:   a colour-block hero, a white shelf of books that overlaps it, pill buttons and soft rounded covers.
+//   atlas:   a clean catalogue: hairline frames, small square tags, tabular prices and quiet square buttons.
+//   mosaic:  products on coloured tiles that cycle through the palette, chunky keycap buttons and heavy rules.
+//   arch:    arch-topped photos, centred serif titles, thin pill buttons and a footer that rises in an arch.
 //
 // Read the tokens from buildStorefrontTokenVars (--accent, --surface, --rp-outline …). A new knob is a new design key
 // with a Studio control, never a literal in here.
 // ─────────────────────────────────────────────────────────────────────────────
 import { RISO_STOREFRONT_CSS, risoGrainCss, type StorefrontTokenInput } from "./themeTokens";
 
-export const TEMPLATE_STYLE_IDS = ["marquee", "shelf"] as const;
+export const TEMPLATE_STYLE_IDS = ["marquee", "shelf", "atlas", "mosaic", "arch"] as const;
 export type TemplateStyleId = (typeof TEMPLATE_STYLE_IDS)[number];
 
 const S = "[data-fm-store]";
@@ -92,6 +95,99 @@ ${S} .fm-footer-brand span{font-family:var(--heading-font);font-weight:400;}
 ${S} .fm-footer-heading{font-weight:700;letter-spacing:.06em;}
 `;
 
+/**
+ * Atlas: a clean catalogue for shops with many different products. Hairline frames, small square tags, tabular
+ * prices and quiet square buttons; the page stays out of the way of the photos.
+ */
+export const ATLAS_CSS = `
+${S} h1,${S} h2,${S} h3{line-height:1.08;letter-spacing:-.01em;font-weight:var(--rp-heading-weight,600);}
+${S} header[data-section="navigation"] [class*="opacity-"],${S} a[class*="hover:!opacity-100"]{opacity:1 !important;}
+${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.82);}
+${S} header[data-section="navigation"]{background-color:var(--bg-color);border-bottom:1px solid rgba(var(--fg-rgb),.16);}
+${S} .fm-ref-catbar{text-transform:uppercase;letter-spacing:.1em;font-size:.72rem;font-weight:600;}
+${S} .fm-ref-catbar a[aria-current]{box-shadow:inset 0 -2px 0 var(--accent);padding-bottom:3px;}
+${S} .fm-card-price-old{opacity:.75 !important;}
+${S} .fm-card .fm-photo-frame{border:1px solid rgba(var(--fg-rgb),.16);border-radius:2px !important;background-color:var(--surface);box-shadow:none;transition:border-color .15s ease;}
+${S} .fm-card:hover .fm-photo-frame{border-color:var(--accent);}
+${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.5rem;left:.5rem;}
+${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:2px !important;border:0 !important;padding:.18rem .5rem;font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
+${S} .fm-card-title{font-size:.86rem;font-weight:600;line-height:1.25;letter-spacing:0;text-transform:none !important;}
+${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.82rem;font-variant-numeric:tabular-nums;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:1px solid transparent;border-radius:2px !important;text-transform:uppercase;letter-spacing:.08em;font-size:.78rem;font-weight:600;box-shadow:none;transition:background-color .15s ease,color .15s ease;}
+${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:2px !important;}
+${S} [class*="rounded-"]:not([class*="rounded-full"]):not([style*="border-radius"]){border-radius:2px !important;}
+${S} .glass-card{backdrop-filter:none;border:1px solid rgba(var(--fg-rgb),.16);border-radius:2px;background:var(--surface);}
+${S} [data-store-region="newsletterPanel"]{border-top:1px solid rgba(var(--fg-rgb),.16);}
+${S} footer[data-fm-footer]{border-top:1px solid rgba(var(--fg-rgb),.16);}
+${S} .fm-footer-brand span{font-weight:var(--rp-heading-weight,600);letter-spacing:-.01em;}
+${S} .fm-footer-heading{font-weight:600;letter-spacing:.12em;font-size:.72rem;}
+${S} .fm-announce{text-transform:uppercase;letter-spacing:.1em;}
+`;
+
+/**
+ * Mosaic: every product sits on a coloured tile, and the tiles cycle through the palette (accent, second accent,
+ * warning, favourite). Chunky keycap buttons, heavy rules, rounded but not soft.
+ */
+export const MOSAIC_CSS = `
+${S} h1,${S} h2,${S} h3{line-height:.98;letter-spacing:-.015em;font-weight:var(--rp-heading-weight,800);}
+${S} header[data-section="navigation"] [class*="opacity-"],${S} a[class*="hover:!opacity-100"]{opacity:1 !important;}
+${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.82);}
+${S} header[data-section="navigation"]{background-color:var(--bg-color);border-bottom:3px solid rgb(var(--fg-rgb));}
+${S} .fm-ref-catbar{font-weight:800;letter-spacing:.04em;}
+${S} .fm-ref-catbar a[aria-current]{box-shadow:inset 0 -4px 0 var(--accent);padding-bottom:3px;}
+${S} .fm-card{--tile:var(--accent);}
+${S} .fm-card:nth-child(4n+2){--tile:var(--accent-2);}
+${S} .fm-card:nth-child(4n+3){--tile:var(--warning);}
+${S} .fm-card:nth-child(4n+4){--tile:var(--favorite);}
+${S} .fm-card-price-old{opacity:.75 !important;}
+${S} .fm-card .fm-photo-frame{border:.7rem solid var(--tile);border-radius:14px !important;background-color:var(--tile);box-shadow:none;transition:rotate .2s ease,scale .2s ease;}
+${S} .fm-card:hover .fm-photo-frame{rotate:-1.2deg;scale:1.03;}
+${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.4rem;left:.4rem;}
+${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:999px !important;border:2px solid rgb(var(--fg-rgb)) !important;padding:.15rem .6rem;font-size:.62rem;font-weight:800;letter-spacing:.04em;}
+${S} .fm-card-title{font-family:var(--heading-font);font-size:1rem;font-weight:800;line-height:1.1;letter-spacing:-.005em;text-transform:none !important;}
+${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.85rem;font-weight:700;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:2px solid rgb(var(--fg-rgb));border-radius:12px !important;font-weight:800;letter-spacing:.02em;text-transform:none;box-shadow:0 4px 0 rgb(var(--fg-rgb));transition:translate .1s ease,box-shadow .1s ease;}
+${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:0 2px;box-shadow:0 2px 0 rgb(var(--fg-rgb));}
+${S} .custom-btn:active,${S} .store-btn-primary:active{translate:0 4px;box-shadow:0 0 0 rgb(var(--fg-rgb));}
+${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:10px !important;}
+${S} .glass-card{backdrop-filter:none;border:2px solid rgb(var(--fg-rgb));border-radius:16px;background:var(--surface);}
+${S} [data-store-region="newsletterPanel"]{border-top:3px solid rgb(var(--fg-rgb));}
+${S} footer[data-fm-footer]{border-top:3px solid rgb(var(--fg-rgb));}
+${S} .fm-footer-brand span{font-weight:var(--rp-heading-weight,800);letter-spacing:-.015em;}
+${S} .fm-footer-heading{font-weight:800;letter-spacing:.08em;}
+@media (prefers-reduced-motion:reduce){${S} .fm-card:hover .fm-photo-frame{rotate:0deg;scale:1;}}
+`;
+
+/**
+ * Arch: photos with an arched top, centred serif titles, thin pill buttons and a footer that rises in an arch.
+ * Calm and earthy; suits jewellery, ceramics and anything handmade.
+ */
+export const ARCH_CSS = `
+${S} h1,${S} h2,${S} h3{line-height:1.05;letter-spacing:0;font-weight:var(--rp-heading-weight,500);}
+${S} header[data-section="navigation"] [class*="opacity-"],${S} a[class*="hover:!opacity-100"]{opacity:1 !important;}
+${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.82);}
+${S} header[data-section="navigation"]{background-color:var(--bg-color);border-bottom:1px solid rgba(var(--fg-rgb),.2);}
+${S} a[aria-current]{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:6px;}
+${S} .fm-card-price-old{opacity:.75 !important;}
+${S} .fm-card .fm-photo-frame{border-radius:999px 999px 0 0 / 55% 55% 0 0 !important;box-shadow:none;transition:translate .25s ease;}
+${S} .fm-card:hover .fm-photo-frame{translate:0 -4px;}
+${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:auto;bottom:.6rem;left:50%;translate:-50% 0;}
+${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:999px !important;border:0 !important;padding:.2rem .8rem;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;}
+${S} .fm-card [data-studio-label="Card title & price"]{text-align:center;}
+${S} .fm-card-title{font-family:var(--heading-font);font-size:1.2rem;font-weight:500;line-height:1.1;letter-spacing:0;text-transform:none !important;}
+${S} .fm-card-price-tag{border:0 !important;padding:0 !important;font-size:.8rem;letter-spacing:.08em;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:1px solid transparent;border-radius:999px !important;text-transform:uppercase;letter-spacing:.14em;font-size:.74rem;font-weight:600;box-shadow:none;transition:translate .15s ease,background-color .15s ease;}
+${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:0 -2px;}
+${S} :is(button,a).rounded-full{border-radius:999px;}
+${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:999px !important;}
+${S} textarea{border-radius:20px !important;}
+${S} .glass-card{backdrop-filter:none;border:1px solid rgba(var(--fg-rgb),.2);border-radius:24px;background:var(--surface);}
+${S} [data-store-region="newsletterPanel"]{background-color:var(--surface);}
+${S} footer[data-fm-footer]{border-top:0;border-radius:56px 56px 0 0;}
+${S} .fm-footer-brand span{font-family:var(--heading-font);font-weight:500;}
+${S} .fm-footer-heading{font-weight:600;letter-spacing:.16em;font-size:.72rem;}
+`;
+
 /** Which template a design draws, or "" for any other look. */
 export function templateStyleId(design: StorefrontTokenInput | null | undefined): TemplateStyleId | "" {
   const s = design?.themeStyle;
@@ -105,5 +201,8 @@ export function themeStyleCss(design: StorefrontTokenInput | null | undefined): 
   const id = templateStyleId(d);
   if (id === "marquee") return TEMPLATE_BASE_CSS + MARQUEE_CSS;
   if (id === "shelf") return TEMPLATE_BASE_CSS + SHELF_CSS;
+  if (id === "atlas") return TEMPLATE_BASE_CSS + ATLAS_CSS;
+  if (id === "mosaic") return TEMPLATE_BASE_CSS + MOSAIC_CSS;
+  if (id === "arch") return TEMPLATE_BASE_CSS + ARCH_CSS;
   return "";
 }

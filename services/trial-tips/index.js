@@ -8,6 +8,9 @@
 // - nothing once every step is done, for a closed or abandoned shop, or for the test shop;
 // - tips can be turned off (the email's own link, `turnOff`); the billing emails can't, since services/billing sends
 //   them and never asks this module.
+// - Get started nudges (plan 17.14, startNudges.js) ride the same sweep on days 2 and 4, only when the setting START_NUDGES
+//   is `beside` (sent with the setup tip that day) or `instead` (sent in place of that day's tip). `hold`, the default,
+//   sends none, and then this sweep behaves exactly as before.
 //
 // Every tip is recorded in the sweep's own store (so a re-run sends nothing new), in the registry (an event) and in the
 // shop's audit log. Words are plain and name no rival; the email itself is the "trial-tip" template in services/email.
@@ -20,6 +23,7 @@
 //   store     get(shopId) -> { sent: { [day]: { step, at } }, lastAt, off } | null; set(shopId, row)
 //   settings  platformSettings(env) (services/settings.js): platformName, platformUrl, trialDays
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { START_NUDGE_WORDS, nudgeDayOf, startNudgeDue } from "./startNudges.js";
 
 export const TIP_DAYS = Object.freeze([2, 4, 7, 21, 60]);
 const DAY = 86_400_000;
@@ -98,6 +102,8 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
     /** One run over every shop. Returns what it sent and why it left each other shop alone. */
     async run() {
       const at = now();
+      // Get started nudges (plan 17.14): `hold` unless the platform setting names one of the two sending modes.
+      const mode = settings.startNudges === "beside" || settings.startNudges === "instead" ? settings.startNudges : "hold";
       const sent = [];
       const skipped = [];
       for (const row of await registry.listShops()) {
@@ -112,8 +118,41 @@ export function createTrialTips({ registry, auditLog, guide, email, store, setti
             skipped.push({ shopId, why: "paused" });
             continue;
           }
-          const mine = await store.get(shopId);
+          let mine = await store.get(shopId);
           const day = trialDay(trialStart(row, settings.trialDays), at);
+          // The Get started nudge due today, when the setting sends them (plan 17.14). Once per stage, and recorded like a tip.
+          if (mode !== "hold" && nudgeDayOf(day) !== null) {
+            const start = await guide.read(shopId);
+            const profile = await registry.getProfile(shopId);
+            const due = startNudgeDue({ day, doc: start, platformCards: profile?.payments?.mode === "platform", open: start?.finalCheck?.opened === true, record: mine });
+            if (due.nudge) {
+              if (!row.ownerEmail || !profile?.siteUrl || profile.apps?.shop === false) {
+                skipped.push({ shopId, why: "no-shop-admin", nudge: due.nudge.stage });
+              } else {
+                const { stage, day: nudgeDay } = due.nudge;
+                const words = START_NUDGE_WORDS[stage];
+                const sentAt = at.toISOString();
+                await email.sendPlatform({
+                  kind: "trial-tip",
+                  to: row.ownerEmail,
+                  shopId,
+                  // Once per stage: the same key for the same stage, so the email service never sends it twice either.
+                  idempotencyKey: `start-nudge-${shopId}-${stage}`,
+                  data: { pressName: row.pressName ?? shopId, ...words, link: `${profile.siteUrl}/admin#${words.hash}`, offLink: offLink(shopId) },
+                });
+                // `instead` takes the nudge's place in that day's tip slot, so no setup tip goes out that day.
+                mine = {
+                  ...(mine ?? {}),
+                  startNudges: { ...(mine?.startNudges ?? {}), [stage]: { day: nudgeDay, at: sentAt } },
+                  // A day that already has a setup tip keeps its record, so that tip is never sent again.
+                  ...(mode === "instead" ? { sent: { [nudgeDay]: { step: `start-nudge-${stage}`, at: sentAt }, ...(mine?.sent ?? {}) } } : {}),
+                };
+                await store.set(shopId, mine);
+                await record(shopId, { id: `start-nudge-${stage}`, kind: "start-nudge", day: nudgeDay, step: stage, at: sentAt });
+                sent.push({ shopId, kind: "start-nudge", day: nudgeDay, step: stage });
+              }
+            }
+          }
           // The guide is read only when a tip could be due, so a quiet day reads no shop's database.
           const early = dueTip({ day, progress: { steps: Object.keys(TIPS), done: [] }, record: mine, now: at });
           if (!early.tip) {

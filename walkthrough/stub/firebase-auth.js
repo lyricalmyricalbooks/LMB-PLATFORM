@@ -77,4 +77,10 @@ export const isSignInWithEmailLink = () => false;
 export const multiFactor = (user) => ({ enrolledFactors: PEOPLE[user?.email]?.twoStep ? [{ factorId: "totp", displayName: "Authenticator app" }] : [] });
 export const getMultiFactorResolver = () => { throw new Error("The walkthrough has no authenticator codes: the platform owner is signed in with two steps already."); };
 export const TotpMultiFactorGenerator = { FACTOR_ID: "totp" };
-export const signInWithEmailLink = async () => { throw new Error("The walkthrough has no email links; use Continue with Google."); };
+// The front door (join/) signs in with the link its code check gives back: here that signs in as the address at once.
+export const signInWithEmailLink = async (_auth, email, link) => {
+  if (!EMAIL.test(email ?? "") || !String(link ?? "").includes("oobCode=")) throw new Error("That sign-in link isn't one the walkthrough made.");
+  set(email.toLowerCase());
+  says();
+  return { user: auth.currentUser };
+};

@@ -40,8 +40,8 @@ import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
-import { adminWordsFor } from "./sells";
-import { ShopSellsContext, ShopWordsContext } from "./shopWords";
+import { adminWordsFor, currentSells } from "./sells";
+import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
@@ -216,8 +216,13 @@ export function Dashboard() {
   const [sellsAnswer, setSellsAnswer] = useState<string | null>(null);
   useEffect(() => {
     if (!user) return;
-    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => setSellsAnswer(doc?.publishes ?? null)).catch(() => {});
+    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => setSellsAnswer(currentSells(doc))).catch(() => {});
   }, [user]);
+  useEffect(() => {
+    const on = (e: Event) => setSellsAnswer(String((e as CustomEvent).detail || "") || null);
+    window.addEventListener(SELLS_CHANGED_EVENT, on);
+    return () => window.removeEventListener(SELLS_CHANGED_EVENT, on);
+  }, []);
   const w = adminWordsFor(sellsAnswer);
   const nav = useMemo(() => NAV.map((n) => ({ ...n, label: w(n.label) })), [w]);
   const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });

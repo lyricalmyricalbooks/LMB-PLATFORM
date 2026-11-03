@@ -52,8 +52,9 @@
       else root.setAttribute('data-theme', pref);
       root.classList.toggle('theme-dark', dark);
       root.classList.toggle('theme-light', !dark);
-      // The look (Riso Press or Paper, src/lib/admin-look.js) and the day/night mark <body> reads: the body script below.
-      if (localStorage.getItem('lm-admin-look') === 'paper') root.setAttribute('data-admin-look', 'paper');
+      // The look (Riso Press, Paper, Ledger or Pop, src/lib/admin-look.js) and the day/night mark <body> reads: the body script below.
+      var look = localStorage.getItem('lm-admin-look');
+      if (look === 'paper' || look === 'ledger' || look === 'pop') root.setAttribute('data-admin-look', look);
       root.setAttribute('data-boot-appearance', dark ? 'dark' : 'light');
       if (dark) {
         var meta = document.querySelector('meta[name="theme-color"]');

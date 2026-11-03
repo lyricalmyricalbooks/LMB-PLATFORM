@@ -30,7 +30,7 @@ const PUBLISHER = '__SHOP_OWNER_EMAIL__';
 // Loaded by an author session to render its own book (see firestore.rules).
 const AUTHOR_READS = [
   'modeFlags', 'notifyEndpoint', 'analyticsConfig', 'catalog',
-  'paymentLinks', 'productionCosts', 'websitePaymentMethods',
+  'paymentLinks', 'productionCosts', 'websitePaymentMethods', 'sells',
 ];
 // Read by the bookkeeper's screen (plan 7.17): which database, and the Tax Centre's key-free copy.
 const BOOKKEEPER_READS = ['modeFlags', 'taxCentreForBookkeeper'];
@@ -272,7 +272,7 @@ describe('website link rules', () => {
     const rules = block('websiteLink');
     expect(rules).toMatch(/allow read: if isPublisher\(\);/);
     expect(rules).toContain("isPublisher() && planOpen() && docId == 'app'");
-    expect(rules).toContain("keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks'])");
+    expect(rules).toContain("keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks', 'wordsSells', 'wordsAt'])");
     expect(rules).toContain('appTodoOk(request.resource.data)');
     expect(rules).toContain("linkMapOk(request.resource.data, 'linkRequests')");
     expect(rules).toContain("linkMapOk(request.resource.data, 'dismissedShopBooks')");

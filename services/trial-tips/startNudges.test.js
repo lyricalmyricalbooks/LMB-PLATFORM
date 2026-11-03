@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { START_NUDGE_DAYS, START_STAGES, nextStartStage, nudgeDayOf, startNudgeDue } from "./startNudges.js";
+import { START_NUDGE_DAYS, START_NUDGE_WORDS, START_STAGES, nextStartStage, nudgeDayOf, startNudgeDue } from "./startNudges.js";
 
 const step = (...ids) => ids.reduce((doc, id) => ({ ...doc, [id]: { at: "t" } }), { plan: "both" });
 const started = { details: { at: "t" } };
@@ -49,4 +49,18 @@ test("tips off, days between, and a finished run send nothing", () => {
   assert.equal(startNudgeDue({ day: 3, doc: started, record: { off: true } }).why, "tips-off");
   assert.equal(startNudgeDue({ day: 1, doc: started }).why, "not-a-nudge-day");
   assert.equal(startNudgeDue({ day: 2, doc: step("details", "bring", "welcome", "google", "shipping", "finalCheck") }).why, "nothing-to-nudge");
+});
+
+test("every stage of the run has its nudge in plain words, naming no rival or technical term", () => {
+  for (const { id } of START_STAGES) {
+    const words = START_NUDGE_WORDS[id];
+    assert.ok(words, `${id} has nudge words`);
+    assert.ok(words.subject && words.action && words.hash, `${id} has a subject, a button and a link target`);
+    assert.equal(words.paragraphs.length, 2, `${id} has two short paragraphs`);
+  }
+  assert.deepEqual(Object.keys(START_NUDGE_WORDS).sort(), START_STAGES.map((s) => s.id).sort());
+  const text = JSON.stringify(START_NUDGE_WORDS).toLowerCase();
+  for (const bad of ["shopify", "big cartel", "squarespace", "etsy", "wix", "woocommerce", "firebase", "api", "webhook", "dns", "deploy", "secret", "resend"]) {
+    assert.ok(!new RegExp(`\\b${bad}\\b`).test(text), bad);
+  }
 });
