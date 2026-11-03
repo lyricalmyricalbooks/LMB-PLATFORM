@@ -1930,7 +1930,7 @@ export const adminApi = {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "The gift card couldn't be updated.");
-    return result as { ok?: boolean; id?: string; code?: string; last4?: string; balanceMinor?: number; emailError?: string; appliedMinor?: number; clamped?: boolean };
+    return result as { ok?: boolean; id?: string; code?: string; last4?: string; balanceMinor?: number; emailError?: string; appliedMinor?: number; clamped?: boolean; added?: number; newCodes?: number; emailed?: number; emailFailed?: number; skipped?: { oldRef: string; reason: string }[] };
   },
 
   // Orders › New order to pay (plan 21.2): the server makes the order and keeps its agreed prices (functions/paymentLinks.js).

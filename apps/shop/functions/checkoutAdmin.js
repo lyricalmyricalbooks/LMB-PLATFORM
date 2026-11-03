@@ -123,6 +123,19 @@ function checkoutAdminActions({
         }
         return res.status(200).json({ id, code, last4: last4(code), ...(emailError ? { emailError } : {}) });
       }
+      if (body.op === "import") {
+        // Plan 23.5: the old shop's gift cards, keeping their balances (functions/giftCardImport.js).
+        const { importGiftCards } = require("./giftCardImport");
+        const { added, skipped } = await importGiftCards(db, body.cards, { actor, now: new Date(now), senderName: await pressNameNow() });
+        let emailed = 0, emailFailed = 0;
+        if (body.sendEmail === true) {
+          // Only a card with a new code needs telling: a kept code is the one its holder already has.
+          for (const a of added.filter((x) => !x.kept && x.recipientEmail)) {
+            try { await emailGiftCard(a.id, a.card); emailed++; } catch { emailFailed++; }
+          }
+        }
+        return res.status(200).json({ added: added.length, newCodes: added.filter((a) => !a.kept).length, emailed, emailFailed, skipped });
+      }
       const id = typeof body.id === "string" && /^[a-f0-9]{40}$/.test(body.id) ? body.id : "";
       if (!id) return res.status(400).json({ error: "Missing gift card." });
       const ref = db.collection("giftCards").doc(id);
