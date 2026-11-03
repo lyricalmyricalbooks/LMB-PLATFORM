@@ -250,3 +250,12 @@ test("an app a plan change closed stays in the export while its 90 days to downl
   assert.deepEqual(exportApps({ plan: "stockroom" }, now), { shop: false, stockroom: true });
   assert.deepEqual(exportApps({ plan: "both" }, now), { shop: true, stockroom: true });
 });
+
+test("the closing emails and the account page name every file the download holds, in the export's own order", async () => {
+  const { DOWNLOAD_HOLDS, downloadHolds } = await import("../billing/closedApps.js");
+  assert.deepEqual(DOWNLOAD_HOLDS.shop.map(([name]) => name), [...SHOP_COLLECTIONS.map((c) => c.name), SETTINGS.name]);
+  assert.deepEqual(DOWNLOAD_HOLDS.stockroom.map(([name]) => name), ["books", ...STOCKROOM_PARTS.map((p) => p.part)]);
+  assert.equal(downloadHolds([]), "");
+  assert.match(downloadHolds(["stockroom"]), /^a spreadsheet each of the books in your stockroom, the stock ledger, .* and what artists are owed$/);
+  assert.match(downloadHolds(["stockroom", "shop"]), /^a spreadsheet each of your books and products, .*your shop's settings, the books in your stockroom, /);
+});

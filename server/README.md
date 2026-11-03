@@ -73,6 +73,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | bookkeeping | 03:30 | paused |
 | trial-tips | 09:00 | on |
 | shop-checkup | 10:00 (each shop gets one a month) | on |
+| deletion-note | 08:00 on Mondays (only when a closed app's records go that week) | on |
 | restore-drill | 04:00 on the 1st of each month | on |
 
 A daily or monthly job is tried twice more if Google can't reach it; a frequent one just waits for its next turn. A late

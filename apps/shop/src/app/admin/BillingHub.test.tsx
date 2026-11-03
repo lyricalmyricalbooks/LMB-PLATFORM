@@ -97,8 +97,14 @@ describe("Settings › Plan", () => {
     await click(shop);
     expect(text()).toContain("Switch to Shop?");
     expect(text()).toContain("The stockroom closes now.");
+    expect(text()).toContain("Why are you dropping the stockroom? (optional)");
+    const why = document.querySelector(".rp-dialog select") as HTMLSelectElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(why, "not-using");
+      why.dispatchEvent(new Event("change", { bubbles: true }));
+    });
     await click(button("Switch plan"));
-    expect(world.calls.filter(([c]) => c === "change-plan").map(([, b]) => [b.plan, b.preview ?? false])).toEqual([["shop", true], ["shop", false]]);
+    expect(world.calls.filter(([c]) => c === "change-plan").map(([, b]) => [b.plan, b.preview ?? false, b.reason])).toEqual([["shop", true, undefined], ["shop", false, "not-using"]]);
     expect(text()).not.toContain("Switch to Shop?");
   });
 

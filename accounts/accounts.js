@@ -24,6 +24,7 @@ import { ROLES, ROLE_WORDS } from "./roles.js";
 import { ownerTwoStepProblem } from "./twoStep.js";
 import { checkMyShop } from "./checkMyShop.js";
 import { PLAN_APPS } from "../services/billing/plans.js";
+import { downloadHolds } from "../services/billing/closedApps.js";
 
 export { ROLES, ROLE_WORDS };
 export const INVITE_DAYS = 7;
@@ -87,7 +88,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       adding: row?.builtPlan && PLAN_APPS[row.plan] ? ["shop", "stockroom"].filter((app) => PLAN_APPS[row.plan][app] && !PLAN_APPS[row.builtPlan]?.[app]) : [],
       closing: row?.billing?.appsClosing?.apps?.length ? { apps: [...row.billing.appsClosing.apps], at: row.billing.appsClosing.at ?? null } : null,
       // A dropped app that has closed, while its data can still be downloaded (the export includes it till then).
-      closed: Object.entries(row?.closedApps ?? {}).filter(([app, c]) => !PLAN_APPS[row.plan]?.[app] && Date.parse(c?.downloadUntil) > now().getTime()).map(([app, c]) => ({ app, downloadUntil: c.downloadUntil })),
+      closed: Object.entries(row?.closedApps ?? {}).filter(([app, c]) => !PLAN_APPS[row.plan]?.[app] && Date.parse(c?.downloadUntil) > now().getTime()).map(([app, c]) => ({ app, downloadUntil: c.downloadUntil, holds: downloadHolds([app]) })),
     };
   }
 

@@ -59,7 +59,7 @@ import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
 import { CARD_WARNING_DAYS, cardEnds, cardWarningDue } from "./cardExpiry.js";
 import { leavingAnswer } from "./leaving.js";
-import { DOWNLOAD_ENDING_DAYS, closedAppSteps, dropReason, keepLinkProblem, newKeepLink } from "./closedApps.js";
+import { DOWNLOAD_ENDING_DAYS, closedAppSteps, downloadHolds, dropReason, keepLinkProblem, newKeepLink } from "./closedApps.js";
 import { cardWords } from "./cards.js";
 import { withRetries } from "./stripeRetry.js";
 import { ensureFoundingCoupon, foundingAmount, foundingOfferOf } from "./founding.js";
@@ -337,7 +337,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         // back, and the export and the account page follow the same date.
         const downloadUntil = new Date(Math.max(Date.parse(closed.downloadUntil), now() + DOWNLOAD_ENDING_DAYS * DAY)).toISOString();
         await saveClosedApp(shopId, app, { downloadUntil });
-        await notify(shopId, "app-download-ending", { closing: APP_NAMES[app], date: dateText(downloadUntil), link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-download-ending/${app}/${closed.closedAt}`);
+        await notify(shopId, "app-download-ending", { closing: APP_NAMES[app], holds: downloadHolds([app]), date: dateText(downloadUntil), link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-download-ending/${app}/${closed.closedAt}`);
         await saveClosedApp(shopId, app, { warnedAt: at() });
         continue;
       }
@@ -383,7 +383,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const saved = await closeApps(row.shopId, row.appsClosing.apps);
     // The day it closes: where the press downloads what was in it, and until when.
     const downloadUntil = row.appsClosing.apps.map((app) => saved.closedApps?.[app]?.downloadUntil).find(Boolean);
-    await notify(row.shopId, "app-closed", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(downloadUntil), link: `${settings.platformUrl}/accounts/` }, `${row.shopId}/app-closed/${row.appsClosing.at}`);
+    await notify(row.shopId, "app-closed", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), holds: downloadHolds(row.appsClosing.apps), date: dateText(downloadUntil), link: `${settings.platformUrl}/accounts/` }, `${row.shopId}/app-closed/${row.appsClosing.at}`);
     closed.push({ shopId: row.shopId, apps: row.appsClosing.apps });
   }
 
