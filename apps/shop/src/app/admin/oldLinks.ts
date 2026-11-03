@@ -89,3 +89,31 @@ export function countLinks(links: OldLink[]): Record<OldLinkState, number> {
   for (const l of links) n[l.state] += 1;
   return n;
 }
+
+/** One of the old shop's own pages as the server read it (functions/moving/oldPages.mjs): its body already rebuilt safely. */
+export interface OldPage { path: string; slug: string; title: string; body: string; images: number }
+
+/**
+ * Bring pages over (plan 23.6): the draft pages to create and the redirects from their old addresses. A page whose
+ * address word is already one of this shop's pages is left alone (so bringing the same pages twice adds nothing), and
+ * an address word the shop keeps for its policies gets "old-" in front.
+ */
+export function pagesToSave(pages: OldPage[], existing: { slug?: string; order?: number }[]) {
+  const taken = new Set(existing.map((p) => p.slug).filter(Boolean));
+  let order = Math.max(0, ...existing.map((p) => Number(p.order) || 0));
+  const create: { title: string; slug: string; body: string; status: "draft"; showInNav: false; order: number }[] = [];
+  const redirects: Redirect[] = [];
+  const skipped: { path: string; reason: string }[] = [];
+  let photos = 0;
+  for (const page of pages) {
+    const slug = /^policy-/.test(page.slug) ? `old-${page.slug}` : page.slug;
+    if (!slug) { skipped.push({ path: page.path, reason: "has no address we could use" }); continue; }
+    if (taken.has(slug)) { skipped.push({ path: page.path, reason: `is already here as /page/${slug}` }); continue; }
+    taken.add(slug);
+    order += 1;
+    create.push({ title: page.title.slice(0, 200) || slug, slug, body: page.body, status: "draft", showInNav: false, order });
+    if (normalizePath(page.path) !== `/page/${slug}`) redirects.push({ from: page.path, to: `/page/${slug}` });
+    photos += Number(page.images) || 0;
+  }
+  return { create, redirects, skipped, photos };
+}

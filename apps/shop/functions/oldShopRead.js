@@ -10,7 +10,7 @@ async function oneRead(body, { allow, read }, fields, fallback) {
   const address = typeof body?.address === "string" ? body.address.trim() : "";
   if (!address) return { status: 400, body: { error: "Type your old shop's web address, like yourshop.com." } };
   if (!(await allow())) return { status: 429, body: { error: "That's a lot of reads in a short time. Wait a few minutes and try again." } };
-  const answer = await read(address);
+  const answer = await read(address, body);
   if (!answer?.ok) return { status: 400, body: { error: answer?.message || fallback } };
   return { status: 200, body: Object.fromEntries(fields.map((f) => [f, answer[f]])) };
 }
@@ -24,8 +24,21 @@ const handleOldShopRead = (body, deps) => oneRead(body, deps, ["host", "csv", "p
  */
 const handleOldLinksRead = (body, deps) => oneRead(body, deps, ["host", "paths", "notes"], "We couldn't read your old shop's pages.");
 
+/**
+ * Settings › General › URL redirects › Bring pages over (plan 23.6): the old shop's own pages at `paths` (from the
+ * old-link check), each rebuilt with an allow-list (moving/oldPages.mjs, a copy of services/moving/oldPages.js) for the
+ * admin to save as drafts. Shares the old-shop rate limit.
+ */
+const handleOldPagesRead = (body, deps) => {
+  if (!Array.isArray(body?.paths) || !body.paths.length || body.paths.length > 50 || !body.paths.every((p) => typeof p === "string" && p.length <= 500)) {
+    return Promise.resolve({ status: 400, body: { error: "Choose which old pages to bring over." } });
+  }
+  return oneRead(body, deps, ["host", "pages", "skipped"], "We couldn't read your old shop's pages.");
+};
+
 /** The copied readers, loaded on first use (the server is CommonJS; the copies are ES modules). */
 const readOldShop = async (address) => (await import("./moving/oldShop.mjs")).readOldShop(address);
 const readOldLinks = async (address) => (await import("./moving/oldLinks.mjs")).readOldLinks(address);
+const readOldPages = async (address, body) => (await import("./moving/oldPages.mjs")).readOldPages(address, body?.paths);
 
-module.exports = { handleOldShopRead, handleOldLinksRead, readOldShop, readOldLinks };
+module.exports = { handleOldShopRead, handleOldLinksRead, handleOldPagesRead, readOldShop, readOldLinks, readOldPages };

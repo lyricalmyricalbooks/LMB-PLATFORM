@@ -130,3 +130,10 @@ export async function getPublicText(url, options = {}) {
   if (res.status < 200 || res.status >= 300 || !/xml|text\/plain/.test(res.type)) return null;
   return res.body.toString("utf8");
 }
+
+/** Reads a public web page at `url` as text (plan 23.6). Null when the site answers without a web page there. */
+export async function getPublicPage(url, options = {}) {
+  const res = await getPublic(url, { accept: "text/html", ...options });
+  if (res.status < 200 || res.status >= 300 || !/html/.test(res.type)) return null;
+  return res.body.toString("utf8");
+}

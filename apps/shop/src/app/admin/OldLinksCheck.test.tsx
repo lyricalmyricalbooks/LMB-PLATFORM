@@ -12,12 +12,19 @@ const api = vi.hoisted(() => {
     getAllBooks: vi.fn(async () => [{ id: "b1", title: "Moth Songs", slug: "moth-songs", status: "published" }, { id: "b2", title: "Salt Hours", status: "draft" }]),
     getPages: vi.fn(async () => [{ slug: "about", title: "About the press", status: "published" }]),
     getSettings: vi.fn(async () => ({ design: {} })),
+    createPage: vi.fn(async (page: any) => ({ id: `p-${page.slug}`, ...page })),
   };
 });
 vi.mock("./api", () => ({ adminApi: api }));
-const old = vi.hoisted(() => ({ readOldLinks: vi.fn(async (_a: string) => ({
-  host: "moth.example", notes: [], paths: ["/", "/products/moth-songs", "/products/salt-hours", "/pages/about-us", "/blog/news"],
-})) }));
+const old = vi.hoisted(() => ({
+  readOldLinks: vi.fn(async (_a: string) => ({
+    host: "moth.example", notes: [], paths: ["/", "/products/moth-songs", "/products/salt-hours", "/pages/about-us", "/blog/news"],
+  })),
+  readOldPages: vi.fn(async (_a: string, _paths: string[]) => ({
+    host: "moth.example", skipped: [{ path: "/pages/gone", reason: "couldn't be read" }],
+    pages: [{ path: "/pages/visit-us", slug: "visit-us", title: "Visit us", body: "<p>Come by.</p>", images: 2 }],
+  })),
+}));
 vi.mock("./oldShopApi", () => old);
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -72,5 +79,27 @@ describe("Check your old links", () => {
     await act(async () => { button(/Check old links/).click(); });
     await flush();
     expect([...document.querySelectorAll('[role="alert"]')].some((a) => /couldn't find a list/.test(a.textContent || ""))).toBe(true);
+  });
+
+  it("brings the old shop's own pages over as drafts, each with a redirect from its old address (plan 23.6)", async () => {
+    old.readOldLinks.mockResolvedValueOnce({ host: "moth.example", notes: [], paths: ["/pages/visit-us", "/pages/gone", "/old-news/x"] });
+    root = createRoot(document.body.appendChild(document.createElement("div")));
+    act(() => root!.render(h(RedirectsCard)));
+    await flush();
+    const address = [...document.querySelectorAll("input")].find((i) => i.placeholder === "yourshop.com") as HTMLInputElement;
+    act(() => type(address, "moth.example"));
+    await act(async () => { button(/Check old links/).click(); });
+    await flush();
+    await act(async () => { button(/Bring your own pages over/).click(); });
+    await flush();
+    expect(old.readOldPages).toHaveBeenCalledWith("moth.example", ["/pages/visit-us", "/pages/gone", "/old-news/x"]);
+    expect(api.createPage).toHaveBeenCalledWith({ title: "Visit us", slug: "visit-us", body: "<p>Come by.</p>", status: "draft", showInNav: false, order: 1 });
+    const saved = api.saveRedirects.mock.calls.at(-1)![0] as any[];
+    expect(saved).toContainEqual({ from: "/pages/visit-us", to: "/page/visit-us" });
+    const text = document.body.textContent || "";
+    expect(text).toContain("1 page brought over as drafts. Their 2 photos stayed behind");
+    expect(text).toContain("1 page left out");
+    // The brought-over page's old address now has its redirect, so only the others still need a home.
+    expect(text).toContain("2 would show page not found");
   });
 });
