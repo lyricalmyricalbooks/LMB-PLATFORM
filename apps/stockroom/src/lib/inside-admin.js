@@ -20,8 +20,8 @@ export const STOCKROOM_PAGE_EVENT = 'lm-stockroom-page';
 const PAGE = /^[a-z][a-z-]{1,29}$/;
 const LOOK = /^[a-z][a-z-]{1,19}$/;
 const ASK_ID = /^[a-z0-9-]{1,40}$/;
-/** What the admin may ask for: one book's figures, or the stockroom book that matches a website book. */
-export const ASKS = ['book', 'find', 'todo', 'sales'];
+/** What the admin may ask for: one book's figures, the matching book, the to-do list, sales, or today at the fair. */
+export const ASKS = ['book', 'find', 'todo', 'sales', 'fair'];
 const text = (v, max) => (typeof v === 'string' && v.length <= max ? v : '');
 
 /** Both apps on: the only plan with the combined admin. */

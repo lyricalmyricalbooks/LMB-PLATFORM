@@ -49,6 +49,7 @@ import { AllSales } from "./AllSales";
 import { keepAdminOffline } from "./adminOffline";
 import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
+import { FairToday } from "./FairToday";
 import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
@@ -731,6 +732,8 @@ export function Dashboard() {
     <>
     {/* The combined admin's one-time tour invitation, on Home only (CombinedTour.tsx). */}
     {COMBINED && ownMasthead && tourInvite && <CombinedTourInvite onStart={() => { setTourOpen(true); dismissTour(); }} onDismiss={dismissTour} />}
+    {/* A fair day: the till's takings and upload state on Home, read from the stockroom (FairToday.tsx). */}
+    {COMBINED && <FairToday active={activeTab === "overview" && !selectedOrder} onOpen={() => { void openStockroomPage("pos"); }} />}
     <AdminAlerts
       alerts={[...settingsAlerts(originalSettings), ...alerts]}
       onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}

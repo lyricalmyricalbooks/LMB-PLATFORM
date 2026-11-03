@@ -945,6 +945,7 @@ import {
   posConfirmSale,
   posPrintReceipt,
   posSyncPaymentSeg,
+  fairSummaryData,
 } from './features/pos.js';
 import {
   changeExpenseCategory,
@@ -1135,7 +1136,7 @@ import { downloadText, downloadCsv } from './lib/download.js';
 import { stockLocationsCsv } from './lib/stock-locations.js';
 import { OC_STAGES } from './lib/opencall.js';
 import { deriveOnHand, buildOrderTimeline, inventoryBreakdown, deduplicateDirectConsignmentSales, recalculateBookStatsFromHistory, orderStockPreview, orderStockPreviewCopy, deriveStockBreakdown, transferAuthorStock, isVoidStale } from './lib/inventory.js';
-import { fairSyncPill } from './lib/fair-mode.js';
+import { fairForAdmin, fairSyncPill, readCurrentFair } from './lib/fair-mode.js';
 import { histMirrorForLedger, reconcileConsignmentMirrors, syncHistMirrorFromLedger, ledgerSaleIndexForHistMirror, consignmentSyncPayload, collectUniqueConsignmentStores, consignmentLedgerTotals, storeBalanceSlug, storeBalanceComparison } from './lib/consignment.js';
 import { reminderSettings, reminderBlockReason, invoiceReminderState, dueForReminder, dueForReminderTomorrow, buildReminderEmail, canSendNow, daysLate, describeReminderSweep, describeReminderNotice, sampleReminderInvoice } from './lib/payment-reminders.js';
 import { LEDGER_TYPE_FILTERS, emptyLedgerFilter, ledgerFilterIsActive, ledgerStoreOptions, filterLedgerEntries, ledgerTypeCounts, describeLedgerFilter, ledgerTotalsScope } from './lib/consignment-ledger-filter.js';
@@ -11190,7 +11191,12 @@ startInsideAdmin({
     if (what === 'find') return { match: findBook(BOOKS, args) };
     // The to-do list and the sales judge every book's records: wait until all of them are in, as the stockroom's own
     // to-do page does, so Home never counts a half-loaded stockroom as "all clear".
-    if ((what === 'todo' || what === 'sales') && !_attentionReady) return null;
+    if ((what === 'todo' || what === 'sales' || what === 'fair') && !_attentionReady) return null;
+    // Today at the fair (the till's own end-of-day figures and upload state), read-only.
+    if (what === 'fair') {
+      const pill = fairSyncPill({ online: navigator.onLine !== false, pending: syncQueue.length, retrying: _syncRetrying, atRisk: _syncQueueHeldInMemory });
+      return fairForAdmin(fairSummaryData(), readCurrentFair(today()), pill, today());
+    }
     if (what === 'todo') return { items: todoItems(visibleAttentionResult()) };
     if (what === 'sales') return salesRows(BOOKS, states, { since: args.since });
     const book = BOOKS[args.book];

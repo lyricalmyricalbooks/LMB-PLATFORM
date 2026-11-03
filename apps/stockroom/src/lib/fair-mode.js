@@ -227,3 +227,24 @@ export function saveCurrentFair(name, dayStr, storage = globalThis.localStorage)
   } catch { /* private mode: the name just isn't remembered */ }
   return clean || null;
 }
+
+const cents = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const totalsList = (totals) => Object.entries(totals || {}).sort(([a], [b]) => a.localeCompare(b)).map(([cur, amount]) => ({ cur, amount: cents(amount) }));
+
+/**
+ * Today at the fair, for the combined admin (docs/combined-admin.md, step 4a): the end-of-day summary
+ * (fairDaySummary), the fair's name and the upload state (fairSyncPill), as plain data. Read-only: the stockroom
+ * stays the only place sales are recorded. Totals stay per currency; the best-selling ten books are listed.
+ */
+export function fairForAdmin(sum, fair, pill, day) {
+  return {
+    day: day || null,
+    fair: fair?.name || null,
+    sales: sum?.sales || 0,
+    units: sum?.units || 0,
+    totals: totalsList(sum?.totals),
+    methods: (sum?.methods || []).map((m) => ({ label: m.label, sales: m.sales, totals: totalsList(m.totals) })),
+    titles: (sum?.titles || []).slice(0, 10).map((t) => ({ bookId: t.bookId, title: t.title, units: t.units, left: t.left ?? null, totals: totalsList(t.totals) })),
+    upload: { tone: pill?.tone || 'ok', text: pill?.text || '' },
+  };
+}

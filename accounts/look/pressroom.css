@@ -1873,6 +1873,18 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 }
 .rp-stockroom-frame:not([data-ready]) { visibility: hidden; height: 0; min-height: 0; border: 0; }
 .rp-stockroom-offline { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+/* Today at the fair, above the till (FairToday.tsx). */
+.rp-fair-today { border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); padding: var(--rp-space-3) var(--rp-space-4); }
+.rp-fair-today-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2) var(--rp-space-3); }
+.rp-fair-today-kicker { font-size: var(--rp-text-xs); text-transform: uppercase; letter-spacing: .08em; color: var(--rp-text-muted); }
+.rp-fair-today-line { font-variant-numeric: tabular-nums; }
+.rp-fair-today-more { margin-top: var(--rp-space-2); }
+.rp-fair-today-more summary { cursor: pointer; font-size: var(--rp-text-sm); min-height: 32px; display: flex; align-items: center; }
+.rp-fair-today-cols { display: grid; gap: var(--rp-space-4); grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: var(--rp-space-2); }
+.rp-fair-today-cols ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--rp-space-2); }
+.rp-fair-today-cols li { display: flex; justify-content: space-between; gap: var(--rp-space-3); }
+.rp-fair-today-cols small { display: block; color: var(--rp-text-muted); font-size: var(--rp-text-xs); }
+.rp-fair-today-cols strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ── Desk and Bento: whole redesigns of the frame (Julian 3 Nov: "full on style overhauls") ──────────────────────────
    Paper, Ledger and Pop change the clothes; these two change how the admin is organised.
