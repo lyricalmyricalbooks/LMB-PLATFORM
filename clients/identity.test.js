@@ -67,3 +67,18 @@ test("a custom token can carry claims (a support visit) on the person's pass", a
   assert.equal(await identityClient({ fetch, token, now: () => NOW }).customToken(SA, "colophon-support", claims), "signed.jwt");
   fetch.done();
 });
+
+test("two-step off for one person: every second step taken off; nothing sent when there were none or no such person", async () => {
+  const lookup = (users) => ({ method: "POST", url: "https://identitytoolkit.googleapis.com/v1/projects/lmb-test-shop/accounts:lookup", body: { email: ["staff@example.com"] }, json: users ? { users } : {} });
+  const fetch = scriptedFetch([
+    lookup([{ localId: "u9", email: "Staff@example.com", mfaInfo: [{ mfaEnrollmentId: "m1" }, { mfaEnrollmentId: "m2" }] }]),
+    { method: "POST", url: "https://identitytoolkit.googleapis.com/v1/projects/lmb-test-shop/accounts:update", body: { localId: "u9", mfa: {} }, json: {} },
+    lookup([{ localId: "u9", email: "staff@example.com" }]),
+    lookup(null),
+  ]);
+  const identity = identityClient({ fetch, token, now: () => NOW });
+  assert.deepEqual(await identity.removeSecondSteps("lmb-test-shop", "staff@example.com"), { found: true, removed: 2 });
+  assert.deepEqual(await identity.removeSecondSteps("lmb-test-shop", "staff@example.com"), { found: true, removed: 0 });
+  assert.deepEqual(await identity.removeSecondSteps("lmb-test-shop", "staff@example.com"), { found: false, removed: 0 });
+  fetch.done();
+});

@@ -112,7 +112,7 @@ test("the shop maker's sweep lets the line in first, so a shop let in is made in
   await stores.signups.set("press-number-1-abcde", { ...stores.signups.rows.get("press-number-1-abcde"), status: "ready" });
   await signup.start(press(2), details(2));
   const made = [];
-  const maker = createShopMaker({ signups: stores.signups, registry: { getProfile: async () => null }, line: signup, run: async (shop) => (made.push(shop.shopId), { ok: true }) });
+  const maker = createShopMaker({ signups: stores.signups, registry: { getProfile: async () => null, updateShop: async () => {} }, line: signup, run: async (shop) => (made.push(shop.shopId), { ok: true }) });
   assert.deepEqual(await maker.sweep(), []);
   tick(24 * 60);
   assert.deepEqual(await maker.sweep(), [{ shopId: "press-number-2-abcde", status: "ready" }]);

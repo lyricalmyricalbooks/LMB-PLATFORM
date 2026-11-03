@@ -14,8 +14,9 @@ const jobName = (name) => `projects/${PROJECT}/locations/${REGION}/jobs/platform
 
 /** How many minutes apart a cron line's runs are, for the simple shapes we use. */
 function gapOf(cron) {
-  const [minute, hour, dom] = cron.split(" ");
+  const [minute, hour, dom, , dow] = cron.split(" ");
   if (dom !== "*") return 30 * DAY;
+  if (dow !== "*") return 7 * DAY;
   if (hour === "*") return minute === "*" ? 1 : minute.startsWith("*/") ? Number(minute.slice(2)) : 60;
   if (hour.startsWith("*/")) return Number(hour.slice(2)) * 60;
   return DAY;
@@ -24,7 +25,7 @@ function gapOf(cron) {
 test("every job has a schedule whose beat matches how often it is meant to run", () => {
   for (const job of JOBS) {
     const cron = cronFor(job);
-    assert.match(cron, /^(\*|\*\/\d+|\d+) (\*|\*\/\d+|\d+) (\*|\d+) \* \*$/, `${job.name}: ${cron}`);
+    assert.match(cron, /^(\*|\*\/\d+|\d+) (\*|\*\/\d+|\d+) (\*|\d+) \* (\*|[0-6])$/, `${job.name}: ${cron}`);
     assert.equal(gapOf(cron), job.every, `${job.name}: ${cron} is not every ${job.every} minutes`);
   }
   assert.equal(cronFor(JOBS.find((j) => j.name === "health-checks")), "*/5 * * * *");
@@ -40,7 +41,7 @@ test("the emails presses read go out in the morning, and the night jobs don't al
     const hour = Number(FIXED_TIMES[name].split(" ")[1]);
     assert.ok(hour >= 8 && hour <= 11, `${name} at ${hour}`);
   }
-  const night = Object.entries(FIXED_TIMES).filter(([name]) => !["trial-tips", "shop-checkup", "restore-drill"].includes(name)).map(([, cron]) => cron);
+  const night = Object.entries(FIXED_TIMES).filter(([name]) => !["trial-tips", "shop-checkup", "restore-drill", "deletion-note"].includes(name)).map(([, cron]) => cron);
   assert.equal(new Set(night).size, night.length);
   assert.throws(() => cronFor({ name: "new-daily", every: DAY }), /give it a time/);
   assert.throws(() => cronFor({ name: "odd", every: 7 }), /doesn't divide an hour/);

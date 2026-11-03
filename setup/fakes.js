@@ -142,6 +142,8 @@ export function fakeGoogle({ failOnce = [] } = {}) {
     unsignedReadStatus: 403,
     // Scheduled jobs by project (a set of job ids) and the projects whose build repository has the cleanup rule (plan 15.16).
     schedulerJobs: new Map(), buildCleanup: new Set(),
+    // Each project's sign-in settings (plan 22.6): { subtype, mfa }. A new Firebase project starts as plain Firebase Auth.
+    authConfigs: new Map(),
     // Budgets on the billing account (plan 15.17): { id, displayName, body }.
     budgets: [],
   };
@@ -291,6 +293,19 @@ export function fakeGoogle({ failOnce = [] } = {}) {
       },
       projectNumber: async (projectId) => number(projectId),
     },
+    authConfig: {
+      get: async (projectId) => structuredClone(world.authConfigs.get(projectId) ?? { subtype: "FIREBASE_AUTH" }),
+      async upgrade(projectId) {
+        change("authConfig.upgrade", projectId);
+        world.authConfigs.set(projectId, { ...(world.authConfigs.get(projectId) ?? {}), subtype: "IDENTITY_PLATFORM" });
+      },
+      async setMfa(projectId, mfa) {
+        change("authConfig.setMfa", projectId);
+        const config = world.authConfigs.get(projectId) ?? { subtype: "FIREBASE_AUTH" };
+        if (config.subtype !== "IDENTITY_PLATFORM") throw new Error(`a second step needs Identity Platform on ${projectId}`);
+        world.authConfigs.set(projectId, { ...config, mfa: structuredClone(mfa) });
+      },
+    },
     buildCleanup: {
       has: async (projectId) => (world.firebase.has(projectId) ? world.buildCleanup.has(projectId) : null),
       async set(projectId) {
@@ -369,9 +384,12 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
     },
     shopData: {
       get: async (projectId, path) => structuredClone(world.docs.get(key(projectId, path)) ?? null),
-      async set(projectId, path, data) {
+      async set(projectId, path, data, { fields } = {}) {
         change("shopData.set", projectId, path);
-        world.docs.set(key(projectId, path), structuredClone(data));
+        // `fields`: only those fields change, as Firestore's update mask does (clients/firestore.js set).
+        const kept = fields ? { ...(world.docs.get(key(projectId, path)) ?? {}) } : {};
+        if (fields) for (const field of fields) delete kept[field];
+        world.docs.set(key(projectId, path), structuredClone({ ...kept, ...(fields ? Object.fromEntries(fields.filter((f) => f in data).map((f) => [f, data[f]])) : data) }));
       },
       async create(projectId, path, data) {
         change("shopData.create", projectId, path);

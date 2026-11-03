@@ -4,12 +4,20 @@
 const zlib = require("zlib");
 const { DEFAULT_SHOP_NAME } = require("./shared/shopIdentity");
 
-// Riso Press colours (functions/emailTheme.js RISO light), as PDF 0–1 RGB.
+// Riso Press colours (functions/emailTheme.js RISO light), as PDF 0–1 RGB. A shop whose email theme is Market stall or
+// Index rows gets that design's colours instead (pdfColours); "dark" stays on paper white, since the PDF is meant to be printed.
 const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
-const C = {
-  paper: hex("#faf6ec"), card: hex("#ffffff"), ink: hex("#100f0d"), muted: hex("#5f5950"),
-  hair: hex("#d9d0bd"), accent: hex("#e8402a"), up: hex("#0a6b47"), down: hex("#b4271a"),
-};
+const { RISO_THEMES } = require("./emailTheme");
+function pdfColours(theme) {
+  const p = theme === "market" || theme === "index" ? RISO_THEMES[theme] : RISO_THEMES.light;
+  return {
+    paper: hex(p.paper), card: hex(p.card), ink: hex(p.text), muted: hex(p.subtle),
+    hair: hex(p.hair), accent: hex(theme === "market" || theme === "index" ? p.accentText : "#e8402a"),
+    up: hex(p.success), down: hex("#b4271a"),
+  };
+}
+// Set at the start of buildWeeklyPdf and put back at its end; the build is synchronous, so nothing else reads it meanwhile.
+let C = pdfColours("light");
 
 // Helvetica / Helvetica-Bold advance widths (1/1000 em) for ASCII 32–126; anything else counts as 556.
 const W_REG = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
@@ -319,9 +327,14 @@ function pageTwo(h) {
 
 /** The two-page highlights PDF for weeklyHighlights() output. */
 /** The PDF, headed with the press's own name (plan 5.8; pressName, else the placeholder for an unnamed shop). */
-function buildWeeklyPdf(highlights, { shopName = "", words = t => t } = {}) {
+function buildWeeklyPdf(highlights, { shopName = "", words = t => t, theme = "light" } = {}) {
   const h = { ...highlights, words, shopName: String(shopName || "").trim() || DEFAULT_SHOP_NAME };
-  return writePdf([pageOne(h), pageTwo(h)], { title: `Weekly highlights, week of ${dayWords(h.week.start)}`, producer: h.shopName });
+  C = pdfColours(theme);
+  try {
+    return writePdf([pageOne(h), pageTwo(h)], { title: `Weekly highlights, week of ${dayWords(h.week.start)}`, producer: h.shopName });
+  } finally {
+    C = pdfColours("light");
+  }
 }
 
 const weeklyPdfName = week => `press-weekly-highlights-${week.start}.pdf`;

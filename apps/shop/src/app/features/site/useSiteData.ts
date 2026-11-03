@@ -1,5 +1,6 @@
 import { useLocation } from "react-router";
-import { consentAllows, CONSENT_EVENT } from "../../lib/consent";
+import { consentAllows, CONSENT_EVENT, noteCookieBanner } from "../../lib/consent";
+import { noteShopLanguage } from "./shopLanguage";
 import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -148,6 +149,9 @@ export function useSiteData() {
           cachedAt: new Date().toISOString() 
         });
 
+        // Whether undecided shoppers may be counted depends on the cookie banner being on (lib/consent.ts).
+        noteCookieBanner((safeSettings as any)?.design);
+        noteShopLanguage((safeSettings as any)?.design);
         const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
         if (!isPreview && !sharing && consentAllows("analytics") && !sessionStorage.getItem(sessionKey)) {
           publicApi.recordVisit();

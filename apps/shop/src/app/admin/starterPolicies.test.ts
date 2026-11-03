@@ -20,12 +20,25 @@ describe("starter policy wording", () => {
     }
     expect(starterPolicy("returns", f)).toMatch(/within 14 days of delivery/);
     expect(starterPolicy("privacy", f)).toMatch(/12 Paper Lane/);
+    // The optional accessibility statement promises a target and a way to get help, never full conformance.
+    const a11y = starterPolicy("accessibility", f);
+    expect(a11y).toMatch(/WCAG\) 2\.1 at level AA/);
+    expect(a11y).toMatch(/write to us at hello@inkwell\.example/);
+    expect(a11y).not.toMatch(/fully (accessible|conform)/i);
+    expect(starterPolicy("accessibility", starterFacts({}))).toMatch(/^We want everyone/);
   });
 
   it("says no returns after shipping when the shop has no returns window, and copes with missing details", () => {
     const f = starterFacts({});
     expect(f).toEqual({ name: "", address: "", email: "", returnDays: 0 });
-    expect(starterPolicy("returns", f)).toMatch(/Once an order has shipped it can't be returned/);
+    expect(starterPolicy("returns", f)).toMatch(/We don't take change-of-mind returns once an order has shipped, except where the law/);
+    // Never a flat "no returns": the EU/UK 14-day right and local consumer law are kept (legal review, 3 November 2026).
+    for (const days of [0, 30]) {
+      const text = starterPolicy("returns", { ...f, returnDays: days });
+      expect(text).toMatch(/European Union or the United Kingdom, you can cancel within 14 days of delivery/);
+      expect(text).toMatch(/None of this limits the rights consumer law gives you/);
+      expect(text).not.toMatch(/non-refundable|can't be returned\./);
+    }
     for (const k of POLICY_KEYS) expect(starterPolicy(k, f), k).not.toMatch(/[{}[\]]|undefined|null|NaN|\(\)|, ,|\s\./);
     expect(starterFacts({ design: { copy: { seoReturnDays: "nonsense" } } }).returnDays).toBe(0);
   });

@@ -2,7 +2,7 @@
 // logged, only the owner can ask from the account page, and at most once a day.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EXPORT_DAYS, SETTINGS, SHOP_COLLECTIONS, STOCKROOM_PARTS, buildExport, closingExportHook, createDataExports, exportRoutes } from "./export.js";
+import { EXPORT_DAYS, SETTINGS, SHOP_COLLECTIONS, STOCKROOM_PARTS, buildExport, closingExportHook, createDataExports, exportApps, exportRoutes } from "./export.js";
 import { csvCell, flatten, readZip, toCsv, withoutPrivate } from "./files.js";
 import { fakeExportStorage, fakeExportStore, fakeShopData } from "./fakes.js";
 import { fakeStockroomData } from "../billing/closingFakes.js";
@@ -240,4 +240,24 @@ test("the refusal's date doesn't end in two dots", async () => {
   const again = await w.ask(OWNER, "/api/account/export", { shopId: "moth-press" });
   assert.equal(again.status, 429);
   assert.doesNotMatch(again.body.message, /\.\.$/);
+});
+
+test("an app a plan change closed stays in the export while its 90 days to download last", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const closedApps = { stockroom: { closedAt: "2026-10-01T00:00:00Z", downloadUntil: "2026-12-30T00:00:00Z" } };
+  assert.deepEqual(exportApps({ plan: "shop", closedApps }, now), { shop: true, stockroom: true });
+  assert.deepEqual(exportApps({ plan: "shop", closedApps: { stockroom: { downloadUntil: "2026-11-01T00:00:00Z" } } }, now), { shop: true, stockroom: false }, "not after the 90 days");
+  assert.deepEqual(exportApps({ plan: "stockroom" }, now), { shop: false, stockroom: true });
+  assert.deepEqual(exportApps({ plan: "both" }, now), { shop: true, stockroom: true });
+});
+
+test("the closing emails and the account page name every file the download holds, in the export's own order", async () => {
+  const { DOWNLOAD_HOLDS, downloadHolds } = await import("../billing/closedApps.js");
+  // Only the spreadsheets are called spreadsheets; the settings file (JSON) is named after them.
+  assert.deepEqual(DOWNLOAD_HOLDS.shop.map(([name]) => name), SHOP_COLLECTIONS.map((c) => c.name));
+  assert.ok(SHOP_COLLECTIONS.every((c) => c.file.endsWith(".csv")) && STOCKROOM_PARTS.every((p) => p.file.endsWith(".csv")) && SETTINGS.file.endsWith(".json"));
+  assert.deepEqual(DOWNLOAD_HOLDS.stockroom.map(([name]) => name), ["books", ...STOCKROOM_PARTS.map((p) => p.part)]);
+  assert.equal(downloadHolds([]), "");
+  assert.match(downloadHolds(["stockroom"]), /^a spreadsheet each of the books in your stockroom, the stock ledger, .* and what artists are owed$/);
+  assert.match(downloadHolds(["stockroom", "shop"]), /^a spreadsheet each of your books and products, .*shipping prices, the books in your stockroom, .* and what artists are owed, plus your shop's settings$/);
 });

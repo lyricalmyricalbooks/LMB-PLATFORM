@@ -1,7 +1,7 @@
 // The stockroom read-only while the shop's plan is paused or closed (the platform's plan 6.7; src/lib/plan-pause.js).
 // The checks that the rules and firebase.js agree with it are in security-rules.test.js.
 import { describe, it, expect } from 'vitest';
-import { planReadOnly, lockWrites, PlanPausedError, planPauseBannerHtml } from '../src/lib/plan-pause.js';
+import { planReadOnly, lockWrites, PlanPausedError, planPauseBannerHtml, planChangeNotice, planChangeBannerHtml, planPageLink } from '../src/lib/plan-pause.js';
 
 describe('planReadOnly', () => {
   it('is read-only for a paused or closed plan, or any access but "open"', () => {
@@ -65,5 +65,36 @@ describe('the read-only banner', () => {
   it('uses no technical words', () => {
     const html = planPauseBannerHtml({ access: 'paused', link: 'https://platform.example/b' }) + planPauseBannerHtml({ access: 'closed' });
     expect(html).not.toMatch(/firebase|firestore|database|api|key|webhook/i);
+  });
+});
+
+describe('a plan change in progress', () => {
+  const LINK = 'https://platform.example/account/billing?shop=moth-press';
+  it('says the website is being set up, with no lock', () => {
+    const plan = { access: 'open', link: LINK, changing: { adding: ['shop'], closing: null } };
+    expect(planChangeNotice(plan).title).toBe('Your website is being set up.');
+    expect(planReadOnly(plan)).toBe(false);
+    expect(planChangeBannerHtml(plan)).toContain(`href="${LINK}"`);
+  });
+  it('gives the day the stockroom closes', () => {
+    const plan = { access: 'open', changing: { adding: [], closing: { apps: ['stockroom'], at: '2026-11-30T15:00:00.000Z' } } };
+    expect(planChangeNotice(plan).title).toBe('Your stockroom closes on 30 November 2026.');
+    expect(planChangeBannerHtml(plan)).not.toContain('<a ');
+  });
+  it('says nothing when nothing is changing, for nonsense, or when the plan is read-only', () => {
+    expect(planChangeNotice({ access: 'open' })).toBeNull();
+    expect(planChangeNotice({ access: 'open', changing: { adding: ['<b>'], closing: { apps: [] } } })).toBeNull();
+    expect(planChangeNotice({ access: 'paused', changing: { adding: ['shop'] } })).toBeNull();
+    expect(planChangeBannerHtml(null)).toBe('');
+  });
+});
+
+describe('planPageLink', () => {
+  it('gives the Plan & billing page only for a plan with a safe https link', () => {
+    expect(planPageLink({ access: 'open', link: 'https://platform.example/account/billing?shop=moth' })).toBe('https://platform.example/account/billing?shop=moth');
+    expect(planPageLink(null)).toBe('');
+    expect(planPageLink({ access: 'open' })).toBe('');
+    expect(planPageLink({ link: 'javascript:alert(1)' })).toBe('');
+    expect(planPageLink({ link: 'http://platform.example/' })).toBe('');
   });
 });

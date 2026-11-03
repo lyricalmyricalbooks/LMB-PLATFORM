@@ -6,6 +6,7 @@ import type { DiscountRecord } from "../../shared/discountMath";
 import { discountRecord, discountUpdate } from "../../shared/discountRecord";
 import { check } from "../../shared/edge";
 import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
+import { hasStockroom } from "../../lib/shopProfile";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
 import { REDIRECTS_COLLECTION, REDIRECTS_DOC, redirectPageIds, redirectsToPages, type Redirect } from "../features/site/redirects";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
@@ -64,8 +65,11 @@ import {
   signOut, 
   onAuthStateChanged,
   GoogleAuthProvider,
+  signInWithCredential,
+  type OAuthCredential,
 } from "firebase/auth";
 import { db, auth, googleProvider } from "../../lib/firebase";
+import { BackupCodeError, backupCall, cleanBackupCode, finishTwoStep, firebaseTwoStep, twoStepNeeded, type TwoStepNeeded } from "./adminTwoStep";
 import { functionFetch } from "../lib/functionsBase";
 import { currentAdminRole, ensureShopOwnerKnown, isBookkeeperPass, refreshAdminRole } from "./adminAccess";
 import { startSupportVisit, supportOf } from "./supportSession";
@@ -110,6 +114,19 @@ function assertDiscountShape(result: { ok: true } | { ok: false; error: { path: 
 // for the owner and staff only (functions/index.js refreshMyRole).
 const refreshMyRole = (token: string) => functionFetch("refreshMyRole", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
 
+/** After a sign-in (with or without its code): only the owner and the Team list may open the admin. */
+async function afterAdminSignIn(user: import("firebase/auth").User, googleCredential: import("firebase/auth").AuthCredential | null) {
+  // Only the owner and the people on the owner's Team list (adminAccess.ts) may open the admin.
+  const role = await refreshAdminRole(user, refreshMyRole);
+  if (!role) {
+    await signOut(auth);
+    throw new Error("Unauthorized: this account is not on the shop's Team list");
+  }
+  // Only for a shop whose profile turns it on: also sign into a separate stockroom project (legacySignIn.ts).
+  await signIntoLegacyStockroom(googleCredential);
+  return { token: await user.getIdToken(), user };
+}
+
 export const adminApi = {
   /** The signed-in person's admin role; a restored session learns the owner's address first (one server call). */
   myRole: () => currentAdminRole(auth.currentUser, refreshMyRole),
@@ -124,26 +141,34 @@ export const adminApi = {
   learnShopOwner: () => ensureShopOwnerKnown(auth.currentUser, refreshMyRole),
 
   // Authentication
+  // Google first; a person who set up authenticator codes is then asked for one (TwoStepNeeded, finished by
+  // finishTwoStepLogin with the code; adminTwoStep.ts, plan 22.6).
   login: async () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      
-      // Only the owner and the people on the owner's Team list (adminAccess.ts) may open the admin.
-      const role = await refreshAdminRole(user, refreshMyRole);
-      if (!role) {
-        await signOut(auth);
-        throw new Error("Unauthorized: this account is not on the shop's Team list");
-      }
-
-      // Only for a shop whose profile turns it on: also sign into a separate stockroom project (legacySignIn.ts).
-      await signIntoLegacyStockroom(GoogleAuthProvider.credentialFromResult(result));
-
-      return { token: await user.getIdToken(), user };
+      return await afterAdminSignIn(result.user, GoogleAuthProvider.credentialFromResult(result));
     } catch (err: any) {
+      const pending = twoStepNeeded(firebaseTwoStep(auth), err);
+      if (pending) throw pending;
       console.error("Login Error:", err);
       throw err;
     }
+  },
+
+  /** The code from the authenticator app finishes a sign-in that asked for it. */
+  finishTwoStepLogin: async (pending: TwoStepNeeded, code: string) => {
+    const result = await finishTwoStep(firebaseTwoStep(auth), pending, code);
+    return afterAdminSignIn(result.user, pending.googleCredential);
+  },
+
+  /** A backup code in place of the app's code (plan 22.9): the server takes the authenticator app off this sign-in
+   *  after checking Google's own token, then the same Google sign-in finishes without a code. */
+  signInWithBackupCode: async (pending: TwoStepNeeded, code: string) => {
+    const google = pending.googleCredential as OAuthCredential | null;
+    if (!google?.idToken && !google?.accessToken) throw new BackupCodeError("Sign in with Google again, then type your backup code.", 401);
+    const { left } = await backupCall<{ left: number }>({ action: "use", code: cleanBackupCode(code), idToken: google.idToken ?? "", accessToken: google.accessToken ?? "" });
+    const result = await signInWithCredential(auth, google);
+    return { ...(await afterAdminSignIn(result.user, google)), left };
   },
 
   logout: () => signOut(auth),
@@ -254,8 +279,8 @@ export const adminApi = {
   },
 
   /** Adds the three example products (only into an empty catalog; the caller checks). */
-  addExampleProducts: async () => {
-    for (const product of exampleProducts()) await adminApi.createBook(product);
+  addExampleProducts: async (sells?: string | null) => {
+    for (const product of exampleProducts(sells)) await adminApi.createBook(product);
     await adminApi.recordAuditLog("catalog", "Added example products");
   },
 
@@ -306,7 +331,8 @@ export const adminApi = {
         const privSnap = await tx.get(privRef);
         // Matched to the inventory app (Inventory › Inventory app link): its stock is set from there.
         const linkSnap = await tx.get(doc(db, "systemStatus", "inventoryLink"));
-        const links = linkSnap.exists() ? (linkSnap.data() as any).links : null;
+        // A website-only press keeps all its stock here, whatever an old link left behind.
+        const links = hasStockroom() && linkSnap.exists() ? (linkSnap.data() as any).links : null;
         if (!snap.exists()) {
           tx.update(docRef, { ...dataToSave, updatedAt: new Date().toISOString() });
           return dataToSave;
@@ -1475,7 +1501,8 @@ export const adminApi = {
     return { id: snap.id, ...snap.data(), operations: operations.data() || {} };
   },
 
-  createOrder: async (order: any) => {
+  // `notes` are extra order-history lines written with the order (checkout's EU/UK download consent).
+  createOrder: async (order: any, notes: string[] = []) => {
     // Random typeable ID, e.g. FRQZ-047691-K2XP. The extra segment makes IDs
     // hard to enumerate since a known ID grants read access for tracking.
     const prefix = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -1496,7 +1523,8 @@ export const adminApi = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       activity: [
-        { type: "event", message: "Order created", createdAt: new Date().toISOString() }
+        { type: "event", message: "Order created", createdAt: new Date().toISOString() },
+        ...notes.slice(0, 2).map((message) => ({ type: "event", message, createdAt: new Date().toISOString() })),
       ]
     });
 
@@ -1705,6 +1733,11 @@ export const adminApi = {
     return publicData;
   },
 
+  /** Sets only the email theme in settings/notifications (the rest of the document is left as it is). */
+  setEmailTheme: async (emailTheme: "light" | "market" | "index") => {
+    await setDoc(doc(db, "settings", "notifications"), { brand: { emailTheme } }, { merge: true });
+  },
+
   // Which customer emails are switched on (Settings › Notifications); used for dispatch previews.
   getNotificationSettings: async () => {
     const snap = await getDoc(doc(db, "settings", "notifications"));
@@ -1897,7 +1930,21 @@ export const adminApi = {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "The gift card couldn't be updated.");
-    return result as { ok?: boolean; id?: string; code?: string; last4?: string; balanceMinor?: number; emailError?: string; appliedMinor?: number; clamped?: boolean };
+    return result as { ok?: boolean; id?: string; code?: string; last4?: string; balanceMinor?: number; emailError?: string; appliedMinor?: number; clamped?: boolean; added?: number; newCodes?: number; emailed?: number; emailFailed?: number; skipped?: { oldRef: string; reason: string }[] };
+  },
+
+  // Orders › New order to pay (plan 21.2): the server makes the order and keeps its agreed prices (functions/paymentLinks.js).
+  makePaymentLink: async (link: Record<string, unknown>): Promise<{ orderId: string; trackingKey: string; total: number; expiresAt: string }> => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "paymentLink", op: "create", link }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "We couldn't make this payment link. Please try again.");
+    return result;
   },
 
   validateDiscount: async (code: string) => {
@@ -2007,14 +2054,14 @@ export const adminApi = {
    * Ticks a step by hand (`done.<id>`), hides the guide (`hiddenAt`), records Choose your look (`welcome`, plan 6.3) or
    * the guide's progress for the trial emails (`progress`, plan 6.10). Merges, so nothing else changes.
    */
-  updateFirstWeek: async (change: { done?: Record<string, string>; hiddenAt?: string; details?: { at: string }; bring?: import("./bringShop").BringMarker; shipping?: import("./shippingStage").ShippingMarker; finalCheck?: import("./finalCheckStage").FinalCheckMarker; google?: import("./googleStage").GoogleMarker; payments?: import("./paymentsStage").PaymentsMarker; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
+  updateFirstWeek: async (change: { sells?: string; done?: Record<string, string>; hiddenAt?: string; details?: { at: string }; bring?: import("./bringShop").BringMarker; shipping?: import("./shippingStage").ShippingMarker; finalCheck?: import("./finalCheckStage").FinalCheckMarker; google?: import("./googleStage").GoogleMarker; payments?: import("./paymentsStage").PaymentsMarker; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
     await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
   },
 
   // Private per-customer notes and tags (admin-only `customerNotes/{sha256(lowercased email)}`).
   listCustomerNotes: async () => {
     const snap = await getDocs(query(collection(db, "customerNotes"), limit(10000)));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; email: string; note: string; tags: string[]; updatedAt: string }>;
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; email: string; note: string; tags: string[]; updatedAt: string; name?: string; place?: string }>;
   },
   // Trade accounts (plan 12.10): shops approved to pay wholesale prices (`stockists/{lower-case email}`, admin-only).
   listStockists: async () => {
@@ -2025,8 +2072,9 @@ export const adminApi = {
     await setDoc(doc(db, "stockists", id), { name: data.name, status: data.status, createdAt: data.createdAt || new Date().toISOString(), terms: Math.max(0, Math.min(365, Math.floor(Number(data.terms) || 0))) });
   },
   deleteStockist: async (id: string) => { await deleteDoc(doc(db, "stockists", id)); },
-  saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[] }) => {
-    await setDoc(doc(db, "customerNotes", id), { ...data, updatedAt: new Date().toISOString() });
+  // Merges, so saving a note keeps the name and place Bring customers over stored.
+  saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[]; name?: string; place?: string }) => {
+    await setDoc(doc(db, "customerNotes", id), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
   },
   /**
    * Customers › Bring customers over (plan 3.1): adds one address the owner confirmed agreed to marketing email at their

@@ -4,6 +4,7 @@ import { Checkbox, ErrorState, GhostButton, LoadingState, PrimaryButton, Seconda
 import { friendlyError } from "./settingsLayout";
 import { GOOGLE_PARTS, RECONNECT_WORDS, googleConnectApi, stepTone, stepWord, takeGoogleOutcome, useGoogleConnect, type GoogleExtra, type GoogleStatus, type ShoppingProblems, type StockSheet } from "./googleConnect";
 import { useShopWords } from "./shopWords";
+import { hasStockroom } from "../../lib/shopProfile";
 
 // Connect Google (plan 6.17): one sign-in links Analytics, search, Google Shopping and the shop's email. `variant`
 // "full" (Settings › General › Visitors & Google) shows every part and its state, the extras and Disconnect;
@@ -122,7 +123,8 @@ function GoogleDetails({ status }: { status: GoogleStatus }) {
         </ul>
       )}
       {status.connected && (status.steps ?? []).some((s) => s.step === "merchantCenter" && s.state === "done") && <ShoppingProblemsList />}
-      {status.connected && (status.extrasChosen ?? []).includes("drive") && <StockSheetRow />}
+      {/* The stock list is read from the stockroom, so a website-only press isn't offered it. */}
+      {status.connected && hasStockroom() && (status.extrasChosen ?? []).includes("drive") && <StockSheetRow />}
       {offered.length > 0 && (
         <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
           <legend style={{ fontWeight: 800, marginBottom: 6 }}>Extras <span className="rp-hint" style={{ fontWeight: 400 }}>· optional</span></legend>

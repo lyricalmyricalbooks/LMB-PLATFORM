@@ -6,6 +6,7 @@
 // the vm-based handler tests' fakes still apply.
 const { openedPage } = require("./paymentPages");
 const { idOf, loadStockist, invoiceRecord } = require("./stockists");
+const { DIGITAL_CONSENT_NOTE } = require("./sellerDetails");
 
 function checkoutPaymentActions({
   ALLOWED_ORIGINS, canViewOrder, checkoutCurrencyOf, checkoutRefusal, clientIpOf, completeOrderWithoutCard,
@@ -81,7 +82,9 @@ function checkoutPaymentActions({
       const heldItems = Array.isArray(trusted.items) && trusted.items.length ? trusted.items : items;
       await reserveStock(db, orderId, heldItems, Date.now(), holdOwner(order), { limits: true, ip: clientIpOf(req), holdLimits: await loadHoldLimits() });
       try {
-        await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', ...(stockist ? { invoice: invoiceRecord(stockist.terms) } : {}), createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
+        await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', ...(stockist ? { invoice: invoiceRecord(stockist.terms) } : {}), createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now },
+          // An EU/EEA/UK shopper's download consent (src/app/features/site/digitalConsent.ts), echoed in the confirmation.
+          ...(source.digitalConsent === true ? [{ type: 'event', message: DIGITAL_CONSENT_NOTE, createdAt: now }] : [])] });
       } catch (createErr) {
         await releaseStock(db, orderId, heldItems);
         throw createErr;

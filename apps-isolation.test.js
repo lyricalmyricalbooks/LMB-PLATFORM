@@ -96,6 +96,12 @@ const codeOf = (path, text) =>
   /\.md$/i.test(path) ? [...text.matchAll(/^```[^\n]*\n([\s\S]*?)^```/gm)].map((m) => m[1]).join("\n") : text;
 // This repository's own GitHub address: the organisation is still called lyricalmyricalbooks.
 const OWN_REPO = /lyricalmyricalbooks\/LMB-PLATFORM/gi;
+// The company that runs Colophon, named once in the terms (Julian, 3 November 2026): the legal seller of the plans
+// has to be named. Only this one line of terms/terms.js; nothing else may use the name.
+const OPERATOR_FILE = "terms/terms.js";
+// The company's name and its contact address (Julian, 3 November 2026: privacy and shop reports go to it).
+const OPERATOR_LINE = /export const OPERATOR_(NAME = "Lyricalmyrical Books"|EMAIL = "lyricalmyricalbooks@gmail\.com");/g;
+const withoutOperator = (path, text) => (path === OPERATOR_FILE ? text.replace(OPERATOR_LINE, "") : text);
 const LOCKFILES = /(^|\/)(pnpm-lock\.yaml|package-lock\.json)$/;
 // The checks themselves have to say the name to look for it (the live ids are still built from parts).
 const CHECKERS = new Set(["apps-isolation.test.js", "setup/steps.test.js"]);
@@ -116,7 +122,7 @@ test("no code outside apps/ and shops/ names Lyricalmyrical", () => {
   const hits = [];
   for (const [path, text] of TEXT) {
     if (path.startsWith("apps/") || CHECKERS.has(path)) continue; // apps/ is checked above, prose included
-    const match = codeOf(path, text).replace(OWN_REPO, "").match(/lyricalmyrical|lyrical-inventory/i);
+    const match = withoutOperator(path, codeOf(path, text)).replace(OWN_REPO, "").match(/lyricalmyrical|lyrical-inventory/i);
     if (match) hits.push(`${path}: ${match[0]}`);
   }
   assert.deepEqual(hits, []);
@@ -144,7 +150,7 @@ test("nothing outside shops/ names one press by its short name (plan 7.3)", () =
   const hits = [];
   for (const [path, text] of TEXT) {
     if (path === "apps/README.md" || CHECKERS.has(path) || LOCKFILES.test(path)) continue;
-    const hit = shortNameHit(path.startsWith("apps/") ? text : codeOf(path, text));
+    const hit = shortNameHit(path.startsWith("apps/") ? text : withoutOperator(path, codeOf(path, text)));
     if (hit) hits.push(`${path}: ${hit}`);
   }
   assert.deepEqual(hits, []);
@@ -210,7 +216,7 @@ test("every email address outside shops/ is a placeholder or a company's sender"
   const hits = new Set();
   for (const [path, text] of TEXT) {
     if (VENDORED.has(path) || LOCKFILES.test(path)) continue;
-    for (const [address] of text.matchAll(EMAIL)) if (!emailAllowed(address)) hits.add(`${path}: ${address}`);
+    for (const [address] of withoutOperator(path, text).matchAll(EMAIL)) if (!emailAllowed(address)) hits.add(`${path}: ${address}`);
   }
   assert.deepEqual([...hits], []);
 });

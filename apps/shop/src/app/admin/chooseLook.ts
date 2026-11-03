@@ -6,88 +6,15 @@
 // `firstWeek/start` so the welcome never shows again; Studio's theme switcher changes it later. Skip takes the first
 // suggestion. A shop with no `firstWeek/start` (made before this, or by hand) and a stockroom-only plan never see it.
 
-import type { FirstWeekDoc } from "./firstWeek";
-import { THEME_LIBRARY } from "./studio/themeLibrary";
-import { themeLookKeys } from "./studio/themeLook";
 import { applyLook } from "./studio/themeSwitch";
 import { openWorkspace, saveDraft, ThemeConflictError } from "./themeStore";
-import { withStarterWords, type Sells } from "./sells";
+import { withStarterWords } from "./sells";
+import { adminApi } from "./api";
+import { emailThemeFor } from "./lookGallery";
+import type { LibraryTheme } from "./lookGallery";
 
-/** The sign-up answers to "What do you sell?" (signup/form.js, plans 6.2 and 10.1; sells.ts SELLS). */
-export type Publishes = Sells;
-
-/** Two or three themes to start from for each answer; no answer gets the general three. */
-const SUGGESTED: Record<Publishes | "general", string[]> = {
-  books: ["press-imprint", "press-letterpress", "press-chapbook"],
-  zines: ["press-zine", "press-riso", "press-punk"],
-  comics: ["press-poster", "press-riso-noir", "press-zine"],
-  prints: ["press-index", "press-poster", "press-archive"],
-  mix: ["press-riso", "press-broadsheet", "press-index"],
-  clothing: ["press-marquee", "urban-streetwear", "modern-atelier"],
-  shoes: ["urban-streetwear", "conversion-engine", "tech-minimal"],
-  jewelry: ["press-shelf", "golden-noir", "velvet-rose"],
-  music: ["night-neon", "press-poster", "press-punk"],
-  other: ["press-shelf", "artisan-market", "press-marquee"],
-  general: ["press-riso-noir", "press-riso", "press-imprint"],
-};
-
-export type LibraryTheme = { id: string; name: string; mood: string } & Record<string, any>;
-
-const library = () => THEME_LIBRARY as unknown as LibraryTheme[];
-
-/** The suggested themes for a sign-up answer, as they are in the library (unknown ids are left out). */
-export function suggestedThemes(publishes?: string | null): LibraryTheme[] {
-  const ids = SUGGESTED[(publishes && publishes in SUGGESTED ? publishes : "general") as Publishes | "general"];
-  return ids.map(id => library().find(t => t.id === id)).filter((t): t is LibraryTheme => !!t);
-}
-
-/** Every theme, the suggested ones first. */
-export function galleryThemes(publishes?: string | null): { suggested: LibraryTheme[]; others: LibraryTheme[] } {
-  const suggested = suggestedThemes(publishes);
-  const picked = new Set(suggested.map(t => t.id));
-  return { suggested, others: library().filter(t => !picked.has(t.id)) };
-}
-
-/** The welcome shows once, for a shop whose setup wrote `firstWeek/start`, unless its plan has no shop. */
-export function welcomeShows(doc: FirstWeekDoc | null): boolean {
-  return !!doc && doc.plan !== "stockroom" && !doc.welcome;
-}
-
-/** What the small preview needs from a theme: its colours and type once applied, as the shop would show them. */
-export interface LookPreview {
-  bg: string; text: string; accent: string;
-  headerBg: string; headerText: string;
-  button: string; buttonText: string;
-  surface: string; border: string;
-  headingFont: string; bodyFont: string;
-  radius: number; buttonRadius: number; uppercase: boolean;
-  columns: { desktop: number; phone: number };
-  /** Page, words and accent: the three swatches on the card. */
-  swatches: [string, string, string];
-}
-
-const colour = (v: unknown, fallback: string) => (typeof v === "string" && v.trim() ? v : fallback);
-const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
-
-export function lookPreview(theme: LibraryTheme): LookPreview {
-  const k = themeLookKeys(theme, {});
-  const bg = colour(k.backgroundColor, "#ffffff");
-  const text = colour(k.textColor, "#111111");
-  const accent = colour(k.primaryColor, text);
-  const font = colour(k.bodyFont ?? theme.font, "inherit");
-  return {
-    bg, text, accent,
-    headerBg: colour(k.headerBg, bg), headerText: colour(k.headerColor, text),
-    button: colour(k.buttonColor, accent), buttonText: colour(k.buttonTextColor, bg),
-    surface: colour(k.surfaceColor, bg), border: colour(k.borderColor, text),
-    headingFont: colour(k.headingFont ?? theme.font, font), bodyFont: font,
-    radius: Math.min(num(k.cardRadius ?? theme.cardRadius, 0), 24),
-    buttonRadius: Math.min(num(k.buttonRadius, num(theme.cardRadius, 0)), 999),
-    uppercase: k.buttonUppercase === true,
-    columns: { desktop: Math.max(2, Math.min(num(k.productColumnsDesktop, 3), 4)), phone: Math.max(1, Math.min(num(k.productColumnsMobile, 1), 2)) },
-    swatches: [bg, text, accent],
-  };
-}
+// The gallery itself (suggestions, previews) lives in lookGallery.ts; it is re-exported here for the shop's own admin.
+export * from "./lookGallery";
 
 /**
  * Puts `theme` in Studio's draft the way Use this look does. If another tab saved the draft meanwhile, it reads the
@@ -107,16 +34,13 @@ export async function applyChosenLook(theme: LibraryTheme, settings: any, publis
 }
 
 /**
- * The first book's photo, for the look previews (plan 17.8), so a press sees its own cover in each look. Only a secure
- * web address is used; a book with no photo, or a broken one, is skipped.
+ * Customer emails follow Market stall and Index rows (emailThemeFor). Best effort: the look is already saved, so a
+ * failure here changes nothing else, and the email colours can still be set in Settings.
  */
-export function firstBookPhoto(books: any[] | null | undefined): string {
-  for (const book of books || []) {
-    const url = String(book?.photos?.[0]?.url || book?.photoUrl || "");
-    if (url.startsWith("https://")) return url;
-  }
-  return "";
+export async function followEmailTheme(themeId: string): Promise<void> {
+  try {
+    const current = String((await adminApi.getNotificationSettings())?.brand?.emailTheme || "");
+    const emailTheme = emailThemeFor(themeId, current);
+    if (emailTheme && emailTheme !== current) await adminApi.setEmailTheme(emailTheme);
+  } catch { /* the email colours can still be set in Settings */ }
 }
-
-/** The press's name for the preview header. */
-export const pressNameOf = (settings: any) => String(settings?.info?.name || settings?.shopName || "Your press").slice(0, 60);

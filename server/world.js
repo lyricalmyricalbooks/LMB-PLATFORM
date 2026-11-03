@@ -32,7 +32,8 @@
 //
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
 import { accountRoutes } from "../accounts/routes.js";
-import { billingRoutes } from "../accounts/billingRoutes.js";
+import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js";
+import { createShopBillingDoor, SHOP_BILLING_PREFIX } from "../accounts/shopBillingDoor.js";
 import { createAccounts } from "../accounts/accounts.js";
 import { controlRoutes } from "../control-room/routes.js";
 import { controlRoomAdmins, createControlRoom, profilePublisher } from "../control-room/controlRoom.js";
@@ -68,6 +69,8 @@ import { businessRoutes, createBusinessRoom } from "../control-room/business.js"
 import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
 import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
+import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
+import { createSetupClock } from "../signup/setupClock.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -84,9 +87,10 @@ import {
   firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
 } from "../clients/stores.js";
 import {
-  firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
-  firestoreShopRecords, firestoreSignupStores, firestoreThrottle,
+  firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreFoundingSeats, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
+  firestoreFrontDoorStores, firestoreShopRecords, firestoreSignupStores, firestoreThrottle,
 } from "../clients/platformStores.js";
+import { createFrontDoor, frontDoorPublicRoutes, frontDoorRoutes } from "../signup/frontDoor.js";
 import { signInLinks } from "../clients/signInLinks.js";
 import { createIdTokenVerifier } from "./verifyIdToken.js";
 import { NOT_CONNECTED, notConnectedClient, notConnectedFn, notConnectedPage } from "./notConnected.js";
@@ -140,7 +144,12 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const billing = createBillingFromEnv({
     env, fetch, ...billingStores, registry, auditLog, email, now: nowMs,
     shopPlan: shopPlanCopies({ shopData, stockroomData, registry }),
+    // The founding offer, given when a press first pays (founding.js, 22.1).
+    live, foundingSeats: firestoreFoundingSeats(platform),
     // Taking a dropped app's pages down needs the deploy tool; the registry's `closedApps` is written either way.
+    // Deleting a closed app's records once its 90 days are over needs server access to the shop's project: until then
+    // each try is kept on the app's entry (the control room's Apps closing list shows it) and nothing is deleted.
+    deleteApp: notConnectedFn(NOT_CONNECTED.appDeletion),
   });
   const feeLedger = firestoreFeeLedger(platform);
   const paymentWay = createPaymentWay({
@@ -154,9 +163,15 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const stores = firestoreSignupStores(platform);
   const inviteStore = firestoreInvites(platform);
   const invites = createInvites({ invites: inviteStore, email, settings, now });
+  const signInLinkMaker = signInLinks({ fetch, token, projectId });
   const signup = createSignup({
-    ...stores, registry, billing, email, auth: signInLinks({ fetch, token, projectId }), settings, invites, live, now,
+    ...stores, registry, billing, email, auth: signInLinkMaker, settings, invites, live, now,
   });
+  // The front door (18.4): the six-digit code and each press's setup record, before any shop exists.
+  const stagedFiles = notConnectedClient(NOT_CONNECTED.stagedImports, ["uploadUrl", "stat", "read", "remove"]);
+  const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles });
+  // The clock for a press that hasn't opened (18.11): two warnings, then its setup is cleared.
+  const setupClock = createSetupClock({ presses: firestoreFrontDoorStores(platform).presses, stagedFiles, email, settings, now });
   const repairStore = firestoreRepairs(platform);
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now });
   const shopMaker = createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
@@ -173,7 +188,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const accessRequests = createAccessRequests({ store: firestoreAccessRequests(platform), email, settings, now });
   const deliveryStats = firestoreDeliveryStats(platform);
   const room = createControlRoom({
-    registry, auditLog, profileFiles, shopAccess: notConnectedClient(NOT_CONNECTED.supportSignIn, ["supportSignIn"]), repairs, signups: stores.signups, shopData,
+    registry, auditLog, profileFiles, shopAccess: { ...notConnectedClient(NOT_CONNECTED.supportSignIn, ["supportSignIn"]), ...notConnectedClient(NOT_CONNECTED.twoStepReset, ["removeTwoStep"]) }, repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now,
     googleReady: (at) => googleReadiness(readGoogleConfig(env), at),
@@ -203,6 +218,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const jobs = createJobs({ store: jobRuns, email, alertTo: String(env.HEALTH_ALERT_TO ?? "").trim() || null, now });
   const pressMessages = createPressMessages({ store: firestorePressMessages(platform), registry, auditLog, shopData, email, activity, admins, now });
   const notes = createShopNotes({ admins, store: firestoreShopNotes(platform), registry, activity, now });
+  // Presses still in setup mode or opening (the Setting up page): read only.
+  const setupDesk = createSetupDesk({ admins, presses: firestoreFrontDoorStores(platform).presses, registry, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
   const dataExports = createDataExports({
@@ -226,6 +243,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "press-messages": () => pressMessages.sweep(),
+    "setup-clock": () => setupClock.sweep(),
     ...(trialTips ? { "trial-tips": () => trialTips.run() } : {}),
     ...(checkups ? { "shop-checkup": () => checkups.run() } : {}),
   };
@@ -234,6 +252,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // The platform's one web door, with the same routes as the practice one (walkthrough/world.js).
   const routes = {
     "POST /api/signup/retry": (claims, request) => shopMaker.retry(claims, request.body?.shopId),
+    ...frontDoorRoutes(frontDoor),
     ...accountRoutes(accounts),
     ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now }),
     ...controlRoutes(room),
@@ -246,15 +265,27 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...timelineRoutes(timeline),
     ...jobsRoutes(jobsPage),
     ...notesRoutes(notes),
+    ...setupRoutes(setupDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, routes,
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,
+  });
+
+  // The billing hub inside each shop's admin (22.3): signed in to the shop's own project, one sign-in check per project.
+  const shopVerifiers = new Map();
+  const shopBilling = createShopBillingDoor({
+    billing, paymentWay, exports: dataExports, accounts, registry, auditLog, settings, now, log,
+    limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
+    verifierFor: (shopProject) => {
+      if (!shopVerifiers.has(shopProject)) shopVerifiers.set(shopProject, createIdTokenVerifier({ projectId: shopProject, fetch, now: nowMs }));
+      return shopVerifiers.get(shopProject);
+    },
   });
 
   const offPage = (sender, piece, request) => {
@@ -269,6 +300,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
       if (request.method !== "POST") return { status: 405, body: { ok: false, message: "Send a POST." } };
       return billing.handleEvent({ headers: request.headers, rawBody: request.rawBody ?? "" });
     }
+    if (path.startsWith(SHOP_BILLING_PREFIX)) return shopBilling(request);
     if (path === "/api/payments" || path.startsWith("/api/payments/")) return handlePayments({ ...request, path: path.slice("/api/payments".length) || "/" }, { service: payments });
     if (path === "/api/email/shop") return handleShopEmail(request, { service: email, registry, sentLog });
     if (path === "/tips/off" || path === "/checkup/off") {
@@ -279,8 +311,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   }
 
   return {
-    projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, shopMaker, accounts, room, controls,
-    backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing,
-    routes, door, handle, parts,
+    projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
+    backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock,
+    routes, door, shopBilling, handle, parts,
   };
 }

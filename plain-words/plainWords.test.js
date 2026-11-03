@@ -17,6 +17,7 @@ import { renderHelp } from "../help/page.js";
 import { billingWords, planChangeWords } from "../accounts/billingWords.js";
 import { statusWords } from "../status/summary.js";
 import { TIPS } from "../services/trial-tips/index.js";
+import { START_NUDGE_WORDS } from "../services/trial-tips/startNudges.js";
 import { createShopMaker, STEP_WORDS } from "../signup/shopMaker.js";
 import { fakeSignupStores } from "../signup/fakes.js";
 import { fakeRegistry } from "../setup/fakes.js";
@@ -30,6 +31,10 @@ const ALLOWED = [
   // The name of the note inside a press's data download (services/export, 19.16): a file name every computer opens,
   // not the TXT record of web addresses.
   "README.txt",
+  // The terms' list of companies that help run Colophon (terms/terms.js HELPERS): privacy law asks for each one by its
+  // real name, so these are names of companies there, not technical words.
+  "Google Cloud: keeps each shop online",
+  "Resend: sends your shop's emails and ours",
 ];
 const isRouteLabel = (text) => /^(GET|POST|PUT|PATCH|DELETE) \//.test(text);
 
@@ -39,7 +44,7 @@ function problemsIn(label, text, allowed = ALLOWED) {
 
 // ── The pages, as a press reads them ───────────────────────────────────────────────────────────────────────────────
 
-const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
+const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "accounts/keep.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
 
 test("every page a press opens says nothing technical", () => {
   const found = PAGES.flatMap((page) => problemsIn(page, visibleText(read(page))));
@@ -171,8 +176,11 @@ const BILLING = { planName: "Shop and stockroom", price: "$39.00", date: "14 Nov
 // One sample for each kind of platform email a press can receive; each may be rendered several ways.
 const PRESS_EMAILS = {
   "owner-welcome": [{ links: SHOP_LINKS }, { links: { shopAdmin: SHOP_LINKS.shopAdmin } }],
+  "app-added": [{ links: { stockroom: SHOP_LINKS.stockroom } }, { links: { shopAdmin: SHOP_LINKS.shopAdmin } }, { links: SHOP_LINKS }],
   "sign-in-link": [{ link: LINK }],
+  "sign-in-code": [{ code: "042917" }],
   "shop-starting": [{ pressName: "Moth Press", link: LINK }],
+  "setup-ending": [{ pressName: "Moth Press", daysLeft: 30, date: "December 3, 2026", link: LINK }],
   "waitlist-invite": [{ link: LINK }],
   "platform-fee-changing": [{ fromPercent: 0, toPercent: 2, startsOn: "1 January 2027", refunded: true, link: LINK }, { fromPercent: 2, toPercent: 0, startsOn: "1 January 2027", refunded: false, link: LINK }],
   invite: [{ pressName: "Moth Press", invitedBy: "owner@example.com", roleWords: "a manager", link: LINK, days: 7 }],
@@ -188,6 +196,10 @@ const PRESS_EMAILS = {
   "subscription-ended": [{ ...BILLING }],
   "payments-past-due": [{ provider: "Stripe", needs: ["your bank details"], link: SHOP_LINKS.shopAdmin }, { provider: "Stripe", needs: ["your bank details", "your date of birth"], link: SHOP_LINKS.shopAdmin }],
   "plan-changed": [{ ...BILLING, prorated: true }, { ...BILLING, prorated: false, closing: "the stockroom", date: "1 December 2026", now: false }, { ...BILLING, closing: "the stockroom", now: true }],
+  "app-closing-soon": [{ closing: "the stockroom", date: "1 December 2026", link: LINK }, { closing: "the stockroom", date: "1 December 2026", link: LINK, signIn: true }, { closing: "the shop and the stockroom", date: "1 December 2026", link: LINK }],
+  "app-download-ending": [{ closing: "the stockroom", holds: "a spreadsheet each of the books in your stockroom and the stock ledger", date: "1 March 2027", link: LINK }],
+  "app-records-deleted": [{ closing: "the stockroom", link: LINK }],
+  "app-closed": [{ closing: "the stockroom", holds: "a spreadsheet each of the books in your stockroom and the stock ledger", date: "1 March 2027", link: LINK }, { closing: "the shop and the stockroom", date: "1 March 2027", link: LINK }],
   "card-expiring": [{ card: "Visa ending 4242", month: "November", link: LINK }, { card: "", date: "30 November 2026", link: LINK }],
   "new-device": [{ browser: "Chrome on Mac", at: "2026-11-01 12:00" }],
   "payments-moved": [{ to: "own", ready: true }, { to: "own", ready: false }, { to: "square", ready: true }, { to: "square", ready: false }, { to: "platform" }],
@@ -197,11 +209,13 @@ const PRESS_EMAILS = {
   "recovery-approved": [{ oldEmail: "old@example.com", newEmail: "new@example.com", holdUntil: "4 November 2026" }],
   "recovery-denied": [{ oldEmail: "old@example.com", reason: "We couldn't check who you are." }],
   "recovery-applied": [{ oldEmail: "old@example.com", newEmail: "new@example.com" }],
-  "trial-tip": Object.values(TIPS).map((tip) => ({ subject: tip.subject, paragraphs: tip.paragraphs, action: tip.action, link: LINK, offLink: LINK })),
+  "trial-tip": [...Object.values(TIPS), ...Object.values(START_NUDGE_WORDS)].map((tip) => ({ subject: tip.subject, paragraphs: tip.paragraphs, action: tip.action, link: LINK, offLink: LINK })),
   "shop-checkup": [
     { lines: [{ state: "ok", words: "Every link we tried on your shop works." }], offLink: LINK },
     { lines: [{ state: "fix", words: "3 items have no description. A few lines about each helps people choose, and helps your shop show up in searches.", fix: { label: "Write the descriptions", link: LINK } }, { state: "ok", words: "Your shop opens quickly on a phone." }], offLink: LINK },
   ],
+  "payment-needs-confirming": [{ price: "$29.25", link: LINK }],
+  "payment-received": [{ price: "$29.25", link: LINK }],
   "shop-closed": [{ date: "30 January 2027", link: LINK }],
   "shop-deletion-warning": [{ date: "30 January 2027", days: 30, link: LINK }, { date: "30 January 2027", days: 7, link: LINK }],
   "shop-deleted": [{}],
@@ -210,7 +224,7 @@ const PRESS_EMAILS = {
   "data-export-ready": [{ link: LINK, until: "9 November 2026", asked: "owner" }, { link: LINK, until: "9 November 2026", asked: "platform", reason: "your privacy request" }],
 };
 // Emails that go to Julian or to the support address, never to a press.
-const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late"];
+const PLATFORM_ONLY = ["health-alert", "backup-access-used", "recovery-new", "support-new", "job-late", "apps-deleting-soon"];
 
 test("every kind of email is either read here or goes only to the platform's own people", () => {
   const kinds = Object.keys(TEMPLATES).sort();

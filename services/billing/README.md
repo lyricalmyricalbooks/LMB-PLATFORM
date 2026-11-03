@@ -148,7 +148,8 @@ Cancelling sends `subscription-cancelled`; changing plan sends `plan-changed` (w
 page (`<PLATFORM_URL>/account/billing?shop=<id>`), never to a Stripe page, since those expire.
 
 Every change is kept in the billing store, copied to the shop's registry row (`billing: { plan, status, access, trialEnd,
-currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing, leaving, troubleSince }`) and logged in the registry and the shop's audit log.
+currentPeriodEnd, cancelAtPeriodEnd, hasCard, percentOff, appsClosing, appDrops, leaving, troubleSince, language, province }`;
+`language` and `province` choose the language of the closing emails, services/email/templatesFr.js) and logged in the registry and the shop's audit log.
 
 ### Each event exactly once (`eventClaims.js`, plan 19.4)
 
@@ -217,3 +218,18 @@ row and the registry's copy as `leaving: { reason, words, at }` and in the `canc
 - The scheduled function that runs `closeDroppedApps` and `cardExpiryReminders` daily, and a real `closeApp`.
 - The scheduled function that runs the closing sweep daily, the real `projects` client, and the shop maker calling
   `publishPlan` once a new shop's database exists.
+
+## The billing hub in the shop admin (22.1-22.5)
+
+- **Founding offer** (`founding.js`): the first `foundingOffer.presses` paying presses (first card saved, or pay as you
+  sell chosen) each take a place (`foundingSeats.claim`, one transaction) and get the coupon `colophon_founding_<percent>`
+  (duration forever) on their subscription. `status()` answers `founding: { percentOff, price }`.
+- **Hub calls** (`hub.js`, composed into `createBilling`): `paymentMethods`, `makePrimary`, `removeCard` (never the
+  card paying a running plan, here or on another shop of the account), `billingDetails`, `saveBillingDetails` (name,
+  email for bills, address, GST/HST `ca_gst_hst` or QST `ca_qst`), `upcomingBill`, `payNow`.
+- **Retries** (`stripeRetry.js`): see the file; a POST without an idempotency key is never sent twice.
+- **Events**: `invoice.payment_action_required` keeps `paymentProblem: { kind: "confirm", pageUrl }`; `invoice.payment_failed`
+  keeps `{ kind: "declined", amount, nextTry }`; `invoice.paid` clears the one it settles and emails `payment-received`.
+- **Doors**: `/api/billing/*` (platform account page) and `/api/shop-billing/*` (the shop admin, accounts/shopBillingDoor.js)
+  serve the same list, `billingCalls()` in accounts/billingRoutes.js. The card page may come back to the shop's own
+  `/admin` at its main address. The shop's `platform/plan` carries `hub`, `shopId` and `founding`.

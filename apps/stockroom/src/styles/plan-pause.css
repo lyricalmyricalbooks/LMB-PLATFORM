@@ -24,3 +24,6 @@
 }
 .plan-pause-text span { color: var(--text2); }
 .plan-pause-banner .btn { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* A plan change in progress: the same band, in the calm blue instead of amber, and it scrolls away with the page. */
+.plan-change-banner { position: static; background: var(--blue-bg); }

@@ -11,7 +11,7 @@ import type { ShippingMarker } from "./shippingStage";
 import type { FinalCheckMarker } from "./finalCheckStage";
 import type { GoogleMarker } from "./googleStage";
 import type { PaymentsMarker } from "./paymentsStage";
-import { firstProductWords } from "./sells";
+import { currentSells, firstProductWords } from "./sells";
 import { wordsFor } from "../../shared/shopSells";
 
 /** The sign-up answers (signup/form.js QUESTION.options). Anything else, or none, gets the general order. */
@@ -23,6 +23,8 @@ export interface WelcomeDone {
   /** The theme applied (THEME_LIBRARY id). */
   theme: string;
   at: string;
+  /** The admin look chosen beside the shop theme (riso/adminLook.ts ids); absent on older records. */
+  adminLook?: string;
   /** True when the owner pressed Skip, which takes the first suggestion. */
   skipped?: boolean;
 }
@@ -31,6 +33,8 @@ export interface FirstWeekDoc {
   sellingToday?: string | null;
   /** "What do you sell?" from sign-up (plans 6.2 and 10.1, sells.ts SELLS); null when skipped. */
   publishes?: string | null;
+  /** What the shop sells now, chosen in Settings; reads before `publishes` (sells.ts `currentSells`). */
+  sells?: string | null;
   /** The country the press signed up from (two letters), for the shipping starter. */
   country?: string | null;
   plan?: string;
@@ -66,7 +70,7 @@ export interface GuideProgress {
 
 export type StepId =
   | "logo" | "look" | "add-books" | "bring-books" | "import-spreadsheet" | "shipping" | "payments" | "address"
-  | "practice" | "open";
+  | "practice" | "open" | "switch";
 
 export interface FirstWeekStep {
   id: StepId;
@@ -93,6 +97,7 @@ const WORDS: Record<StepId, StepWords> = {
   address: { title: "Choose your web address", why: "Your shop already has a free address. Connect a name you own, or keep the free one and mark this done.", tab: "general", action: "Open General settings" },
   practice: { title: "Place a practice order", why: "While the shop is private, press Try a practice order in Payments and buy a book with the practice card. No money moves.", tab: "payments", action: "Open Payments" },
   open: { title: "Open your shop", why: "Your shop is private until you open it. We check it's ready to sell first, then shoppers can buy.", action: "Open your shop" },
+  switch: { title: "Move over from your old shop", why: "On the day you move: take your last orders in your old shop, check your old links in General settings so none show page not found, point your web address here, then tell your mailing list where to find you. Tick this once you've moved.", tab: "general", action: "Check your old links" },
 };
 
 /** The first-book step for each answer. */
@@ -100,18 +105,19 @@ const FIRST_BOOK: Record<SellingToday | "general", StepId> = {
   starting: "add-books", fairs: "add-books", online: "bring-books", shops: "add-books", spreadsheet: "import-spreadsheet", general: "add-books",
 };
 
-/** The steps for each answer, in order ("books" stands for that answer's first-book step). Open your shop is last. */
+/** The steps for each answer, in order ("books" stands for that answer's first-book step). Open your shop is last but for the move. */
 const ORDER: Record<SellingToday | "general", (StepId | "books")[]> = {
   starting: ["logo", "look", "books", "shipping", "payments", "address", "practice", "open"],
   fairs: ["books", "payments", "logo", "look", "shipping", "address", "practice", "open"],
-  online: ["books", "look", "logo", "payments", "shipping", "address", "practice", "open"],
+  // A press moving from another online shop finishes with the switch itself (plan 23.8), after its new shop is open.
+  online: ["books", "look", "logo", "payments", "shipping", "address", "practice", "open", "switch"],
   shops: ["books", "logo", "look", "shipping", "payments", "address", "practice", "open"],
   spreadsheet: ["books", "logo", "look", "shipping", "payments", "address", "practice", "open"],
   general: ["logo", "look", "books", "shipping", "payments", "address", "practice", "open"],
 };
 
 /** The address step can't always tell (the free address is a fine choice), so the owner can tick it too. */
-const MANUAL = new Set<StepId>(["address"]);
+const MANUAL = new Set<StepId>(["address", "switch"]);
 
 export interface FirstWeekFacts {
   books: any[] | null;
@@ -124,7 +130,7 @@ export interface FirstWeekFacts {
 }
 
 /** A practice order (plan 7.6) or, on a shop with its own keys, a test-mode order that went through. */
-const practiced = (o: any) => o?.isTest === true && ["paid", "refunded"].includes(o?.paymentStatus);
+export const practiced = (o: any): boolean => o?.isTest === true && ["paid", "refunded"].includes(o?.paymentStatus);
 
 /** The shop is open: no under-construction wall and checkout not paused (Settings › General › Store status). */
 export const shopIsOpen = (settings: any) =>
@@ -166,14 +172,14 @@ export function firstWeekSteps(doc: FirstWeekDoc, facts: FirstWeekFacts): FirstW
   return ORDER[answer].map(entry => {
     const id: StepId = entry === "books" ? FIRST_BOOK[answer] : entry;
     const words = { ...WORDS[id] };
-    if (id === "add-books") Object.assign(words, firstProductWords(doc.publishes));
+    if (id === "add-books") Object.assign(words, firstProductWords(currentSells(doc)));
     if (id === "shipping") words.why = `${words.why} ${shippingStarterWords(doc.country ?? facts.settings?.country)}`;
     if (id === "payments" && facts.platform === "square") words.why = "Connect your Square account, so card payments go straight to you. Square's own page asks for your details.";
     if (id === "look" && doc.welcome && !facts.settings?.design?.themeBase?.id) words.why = "Your look is saved as a draft. Open Design and press Publish so shoppers see it.";
     const auto = autoDone(id, facts);
     const ticked = !!doc.done?.[id];
     // A shop that doesn't sell books reads product and maker (plan 12.1); a books shop's words are untouched.
-    const w = wordsFor(doc.publishes);
+    const w = wordsFor(currentSells(doc));
     const { tab, action } = words;
     const title = w(words.title), why = w(words.why);
     const kind = MANUAL.has(id) || auto === null ? "manual" : "auto";
@@ -210,7 +216,7 @@ export function openBlockers(readiness: ReadinessItem[] | null): ReadinessItem[]
 
 /** The intro line, in the owner's words. */
 export function firstWeekIntro(doc: FirstWeekDoc): string {
-  return wordsFor(doc.publishes)(introFor(doc));
+  return wordsFor(currentSells(doc))(introFor(doc));
 }
 
 function introFor(doc: FirstWeekDoc): string {

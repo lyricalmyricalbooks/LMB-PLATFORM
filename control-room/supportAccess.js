@@ -21,5 +21,13 @@ export function supportAccess({ identity, registry, serviceAccount, now = () => 
       const token = await identity.customToken(serviceAccount, SUPPORT_UID, { support });
       return { url: `${profile.siteUrl}/admin/#support=${token}`, until };
     },
+
+    /** Two-step sign-in off for one person on the shop's own project (plan 22.11): { found, removed }. */
+    async removeTwoStep(shopId, email) {
+      const profile = await registry.getProfile(shopId);
+      const projectId = profile?.firebase?.projectId;
+      if (!projectId) throw new Error(`${shopId} has no sign-in project yet`);
+      return identity.removeSecondSteps(projectId, email);
+    },
   };
 }

@@ -38,6 +38,34 @@ so a stage that is added to the build also needs a line here.
   the test shop to Stripe's test mode and buys one practice book, with no money moving. The lawyer's written answer
   (plan 15.22) comes before any real card is taken. Status: built on pretend Stripe states; the real connection is
   still to do.
+- **Plan and billing in the admin** (plan 22.1-22.5): in Stripe's test mode on the platform account, Julian adds the
+  events `invoice.paid` and `invoice.payment_action_required` to the billing events address, and turns on Stripe's
+  emailed receipts (Stripe's settings, Customer emails, "Successful payments" and "Finalized invoices"), so every press
+  gets its bill by email for its bookkeeper. Do this test payment before the first real press pays. Then, in the test shop's Settings › Billing, he adds Stripe's test card,
+  adds a second, makes it primary, removes the first, saves a GST/HST number, and checks the bill shows it and the
+  founding 25% off. Stripe's "3D Secure required" test card checks the "Confirm the payment" step, and a test card that
+  runs out next month shows the "card runs out" warning on Settings › Billing. Status: built on pretend Stripe; nothing
+  real is connected.
+- **Two-step sign-in in the shop admin** (plans 22.6, 22.9, 22.10, setup step 19). About 15 minutes, with your phone
+  and an authenticator app (Google Authenticator, Microsoft Authenticator or 1Password). Use the test shop only, never a
+  paying press's shop. Status: built against pretend Google and Firebase; nothing real has run yet.
+  1. Run the test shop's setup steps again (the deploy tool's "run setup" for the test shop). Step 19 should say
+     "done". The first real run checks Google's answer to both of its calls. If it stops, send the message it shows.
+  2. Sign in to the test shop's admin with Google. Open Settings › Security and press **Set up two-step sign-in**.
+  3. Scan the picture with the authenticator app, type the 6-digit code it shows, and press **Turn on two-step
+     sign-in**. The page should then show ten backup codes. Press **Download codes** and keep the file.
+  4. Sign out, then sign in with Google again. The admin should ask for the code. Type a wrong one first (it should
+     say so in plain words), then the right one.
+  5. Sign out again. At the code step press **Lost your phone? Use a backup code** and type one code from the file.
+     You should land on Settings › Security with a note that the app was taken off. Set it up again (step 3).
+  6. Put the test shop on a paid test plan (Stripe's test mode), then change its plan in Settings › Plan. It should go
+     through without sending you to the account page. Before you turn two-step on for this step, the admin home should
+     show the "Turn on two-step sign-in" reminder.
+  7. Check the shop's history (Settings › audit log) shows the backup codes being made and the backup code being used.
+  8. After step 5, check your inbox: an email should say a backup code was used, with what to do if it wasn't you.
+  9. Once the control room reaches the test shop's sign-in (the same access the support sign-in needs), open the test
+     shop's drawer, press **Turn off two-step for someone**, type your address and how you checked it was you. Sign in
+     again: Google alone should let you in, and Settings › Security should show two-step as off.
 - **Shipping and your address** (plan 17.11): Julian confirms the shipping starter for Canada with his own prices and
   checks the web address shown on the shop. Nothing needs a carrier account for the starter. Status: built.
 - **Your stockroom** (plan 17.12, setup step 16): the full test shop run (plan 15.7) turns the stockroom link on, and
@@ -52,3 +80,30 @@ so a stage that is added to the build also needs a line here.
   the real order is still to do.
 - **The first-hour test** (plan 17.18, 3.6): five presses each spend an hour going through Get started. This needs the
   hosting (plan 15.6) and the real test shop (plan 15.7) first. Status: after Phase 15.
+
+## Legal (review of 3 November 2026)
+
+The review is in the project files, `research/2026-11-03-legal-readiness.md`. It is not legal advice. Status: the code
+side is built; these steps need Julian, a lawyer or an accountant.
+
+- **Contact address (done 3 November 2026):** Julian chose his shop's Gmail address (`OPERATOR_EMAIL` in
+  `terms/terms.js`) for privacy questions and reports about shops; the control room's privacy contact defaults to it.
+  It must stay an inbox someone reads.
+- **The lawyer reads the terms (Julian, before the first paid plan):** English and French, especially the liability
+  cap, "made for businesses", closing a shop, the 72-hour breach promise and Ontario as the governing law for Quebec
+  presses. Then `DRAFT = false` and a new `TERMS_VERSION`.
+- **French (done 3 November 2026):** Julian accepted the French terms and the shops' French words as they are; no
+  translator check.
+- **The lawyer's other answers:** payments role (already plan 15.22); whether abandoned-bag reminder emails need the
+  shopper's consent first (Canada's anti-spam law); a written privacy impact assessment for the US helper companies
+  (Quebec's Law 25); a trademark search for "Colophon"; whether Colophon's own invoices to Quebec presses are French
+  enough (Stripe writes them in French for those presses, and the plan's name is printed in both languages,
+  "Shop and stockroom / Boutique et réserve").
+- **French invoice in Stripe's test mode (Julian):** set a test press's email language to French on its Plan page,
+  then open its invoice from Settings › Plan and check it reads in French.
+- **Data agreements with the helpers (Julian, in each console):** accept Google Cloud's, Stripe's and Resend's
+  standard data processing terms, and confirm Shippo's.
+- **The accountant:** when Colophon registers for GST/HST, QST and BC PST (plan 15.9), and which US states tax a
+  software plan.
+- **Promised notices:** the terms promise 30 days' email notice before a price rise or a new helper company. The
+  control room's Messages to presses form has "Is this a notice the terms promise?": it emails every press and refuses a date less than 30 days away. Julian uses it before changing a price or adding a helper.

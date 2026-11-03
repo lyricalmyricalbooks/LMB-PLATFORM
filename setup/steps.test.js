@@ -251,7 +251,7 @@ test("shopProfile carries the press's name for the stockroom's file names (plan 
   assert.equal(shopProfile({ ...TEST_SHOP, pressName: "x".repeat(90) }, settings).name.length, 80);
 });
 
-test("the dry run for the test shop prints all eighteen steps and changes nothing", async () => {
+test("the dry run for the test shop prints all nineteen steps and changes nothing", async () => {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -259,9 +259,9 @@ test("the dry run for the test shop prints all eighteen steps and changes nothin
   const lines = [];
   const result = await dryRun({ google, services, registry, profileFiles, print: (line) => lines.push(line) });
   assert.equal(result.ok, true);
-  assert.equal(lines.length, 19);
+  assert.equal(lines.length, 20);
   assert.match(lines[0], /Dry run for lmb-test-shop/);
-  assert.deepEqual(result.ran.map((r) => r.status), Array(18).fill("would-run"));
+  assert.deepEqual(result.ran.map((r) => r.status), Array(19).fill("would-run"));
   assert.deepEqual(google.calls, []);
   assert.deepEqual(services.calls, []);
   assert.equal(registry.shops.size + registry.profiles.size + registry.locks.size + profileFiles.files.size, 0);

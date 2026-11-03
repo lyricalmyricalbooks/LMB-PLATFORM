@@ -1414,6 +1414,7 @@ function initPos() {
 }
 
 export {
+  fairSummaryData,
   posCart,
   posBooksMap,
   posResolveBook,

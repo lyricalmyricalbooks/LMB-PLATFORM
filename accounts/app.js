@@ -6,6 +6,7 @@ import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { isEmail } from "../signup/form.js";
 import { ROLES, ROLE_HINTS, ROLE_NAMES } from "./roles.js";
 import { deviceId } from "../signup/device.js";
+import { changingLines } from "./billingWords.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const {
@@ -186,7 +187,7 @@ let myShops = [];
 
 /** Where a shop stands, in a few words and a tone, for its card and the strip at the top. */
 function standing(shop) {
-  if (shop.access === "paused") return { badge: "Paused", tone: "danger", line: "Paused until a card is added. Shoppers see a \"back soon\" page; nothing is deleted." };
+  if (shop.access === "paused") return { badge: "Paused", tone: "danger", line: "Paused until a card is added. Shoppers see a \"back soon\" page; everything is kept for 60 days." };
   if (shop.access === "closed") return { badge: "Closed", tone: "neutral", line: "Closed." };
   if (shop.status !== "live") return { badge: "Being made", tone: "info", line: "Still being made. It's usually ready in a minute or two." };
   const plan = shop.billing;
@@ -264,7 +265,9 @@ function shopCard(shop) {
     actions.append(team, plan, checkShop, dataButton(shop));
   }
   const where = standing(shop);
-  const address = shop.siteUrl ? shop.siteUrl.replace(/^https?:\/\//, "") : "";
+  // The website's address, or the stockroom's for a press with the stockroom alone.
+  const place = shop.siteUrl ?? shop.stockroomUrl;
+  const address = place ? place.replace(/^https?:\/\//, "") : "";
   const meta = el("div", { className: "cp-meta" },
     address ? el("span", { textContent: address }) : null,
     shop.plan ? el("span", { textContent: `${PLAN_NAMES[shop.plan] ?? shop.plan} plan` }) : null);
@@ -284,6 +287,7 @@ function shopCard(shop) {
       el("h3", {}, shop.pressName, " ", badge, el("span", { className: "pill", textContent: ROLE_NAMES[shop.role] ?? shop.role })),
       meta,
       where.line ? el("p", { className: "hint", style: "margin-top:6px", textContent: where.line }) : null,
+      ...changingLines(shop).map((line) => el("p", { className: "hint", style: "margin-top:6px", textContent: line })),
       trial),
     actions);
 }
@@ -300,7 +304,9 @@ for (const link of document.querySelectorAll("[data-press]")) {
 
 // ── Check my shop (plan 14.3) ──
 $("#checkshop-back").addEventListener("click", () => show("shops"));
-const FIX_TO = (shop, to) => (to === "billing" ? `/account/billing?shop=${encodeURIComponent(shop.shopId)}` : to === "admin" ? `${shop.siteUrl ?? ""}/admin` : "../help/");
+// Help opens on the answers for this shop's plan (help/index.html reads ?plan=).
+const helpFor = (shop) => (["shop", "stockroom", "both"].includes(shop?.plan) ? `../help/?plan=${shop.plan}` : "../help/");
+const FIX_TO = (shop, to) => (to === "billing" ? `/account/billing?shop=${encodeURIComponent(shop.shopId)}` : to === "admin" ? `${shop.siteUrl ?? ""}/admin` : helpFor(shop));
 async function openCheck(shop) {
   status.textContent = "Checking your shop…";
   try {
@@ -633,7 +639,11 @@ function accessCard(shop, waiting, visits) {
 function dataButton(shop) {
   const data = el("button", { type: "button", className: "ghost", textContent: "Download all your data" });
   data.addEventListener("click", async () => {
-    if (!window.confirm(`We'll gather everything in ${shop.pressName} (books, orders, customers, stockroom and settings) and email you a link that works for 7 days. Go ahead?`)) return;
+    // What the copy holds follows the plan: a press with the stockroom alone has no website orders or customers.
+    // An app the plan dropped stays in the copy while its 90 days to download last (shop.closed).
+    const has = (app) => shop.plan !== (app === "shop" ? "stockroom" : "shop") || (shop.closed ?? []).some((c) => c.app === app);
+    const what = !has("shop") ? "books, stock, sales and settings" : !has("stockroom") ? "books, orders, customers and settings" : "books, orders, customers, stockroom and settings";
+    if (!window.confirm(`We'll gather everything in ${shop.pressName} (${what}) and email you a link that works for 7 days. Go ahead?`)) return;
     data.disabled = true;
     status.textContent = "Gathering your data…";
     try {

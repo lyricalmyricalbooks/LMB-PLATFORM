@@ -4,7 +4,7 @@ import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
 import { ArrowDown, ArrowUp, GripVertical, Plus, SlidersHorizontal, Upload, X } from "lucide-react";
 import "./books.css";
-import { useShopWords } from "./shopWords";
+import { useShopSells, useShopWords } from "./shopWords";
 import { EditionStockDialog } from "./EditionStockDialog";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { type InventoryLinks } from "./inventoryLink";
@@ -14,6 +14,7 @@ import { MerchantFeedDialog } from "./MerchantFeedDialog";
 import { GoogleIndexDialog } from "./GoogleIndexDialog";
 import { lineSheetRows, printLineSheet } from "./lineSheet";
 import { getCopy } from "../features/site/storeCopy";
+import { KIND_CHOICES, isProductKind, planKindChange } from "./bulkKind";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
@@ -37,7 +38,7 @@ interface BookCatalogProps {
 }
 
 type SortKey = "shop" | "newest" | "oldest" | "title" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc";
-type BulkOp = "category-add" | "category-remove" | "shipping" | "track-on" | "track-off" | "backorder-on" | "backorder-off" | "archive";
+type BulkOp = "category-add" | "category-remove" | "shipping" | "track-on" | "track-off" | "backorder-on" | "backorder-off" | "archive" | "kind";
 const PAGE_SIZE = 25;
 
 const slugOf = (b: any) => b.slug || (b.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -57,6 +58,7 @@ const STATUS_CHIPS = [...STATUS_FILTERS, "Pre-order", "Coming soon"] as const;
 export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps) {
   // Plan 10.23: "Products" for a shop that doesn't sell books (sells.ts).
   const w = useShopWords();
+  const sells = useShopSells();
   const [books, setBooks] = useState<any[]>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -262,6 +264,12 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         // One transaction over fresh records; only categories/genres change (studio/categoryManager).
         await adminApi.updateCategoryBooks(list.map(b => b.id), category, bulkOp === "category-add" ? "add" : "remove");
         await finish([], `${bulkOp === "category-add" ? "Added to" : "Removed from"} ${category.name}`, "");
+      } else if (bulkOp === "kind") {
+        if (!isProductKind(bulkTarget)) { toast.error("Choose what these are."); return; }
+        const plan = planKindChange(list, bulkTarget);
+        // The whole record goes back with removeMissing, so a book's dropped `kind` is deleted, as in the editor.
+        const bad = await eachBook(plan.changes.map(c => c.book), b => adminApi.updateBook(b.id, plan.changes.find(c => c.book === b)!.next, b, { removeMissing: true }));
+        await finish(bad, `Changed ${plan.changes.length - bad.length} to ${KIND_CHOICES.find(k => k.kind === bulkTarget)?.label.toLowerCase()}${plan.already ? `; ${plan.already} already were` : ""}`, "update");
       } else if (bulkOp === "shipping") {
         if (!bulkTarget) { toast.error("Choose a shipping profile."); return; }
         await adminApi.assignProductsToShippingProfile(bulkTarget, list.map(b => b.id));
@@ -491,7 +499,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
             <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import CSV</SecondaryButton>
             <SecondaryButton onClick={async () => {
-              try { await adminApi.addExampleProducts(); toast.success("Example products added. They disappear when you add your first real product."); setLoading(true); await loadBooks(); }
+              try { await adminApi.addExampleProducts(sells); toast.success("Example products added. They disappear when you add your first real product."); setLoading(true); await loadBooks(); }
               catch { toast.error("Couldn't add the examples. Try again."); }
             }}>Show example products</SecondaryButton>
           </div>} />
@@ -638,6 +646,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <option value="track-off">Track inventory: off</option>
             <option value="backorder-on">Allow backorders: on</option>
             <option value="backorder-off">Allow backorders: off</option>
+            <option value="kind">{w("Change what these are (book, clothing…)")}</option>
             <option value="archive">Archive (hide from the shop)</option>
           </SelectField>
           {(bulkOp === "category-add" || bulkOp === "category-remove") && (
@@ -646,6 +655,16 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
               {shopCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </SelectField>
           )}
+          {bulkOp === "kind" && (
+            <SelectField label="These are" value={bulkTarget} onChange={e => setBulkTarget(e.target.value)} hint="Changes how each product is described and which fields it shows. Prices, stock and photos are not touched.">
+              <option value="">Choose…</option>
+              {KIND_CHOICES.map(k => <option key={k.kind} value={k.kind}>{k.label}</option>)}
+            </SelectField>
+          )}
+          {bulkOp === "kind" && isProductKind(bulkTarget) && (() => {
+            const plan = planKindChange(selectedBooks, bulkTarget);
+            return <p className="rp-hint" role="status">{plan.changes.length === 0 ? "Nothing to change: all of these already are that." : `${plan.changes.length} will change${plan.already ? `; ${plan.already} already ${plan.already === 1 ? "is" : "are"} that and will be left alone` : ""}. Examples: ${plan.changes.slice(0, 3).map(c => `“${c.book.title || "Untitled"}”`).join(", ")}${plan.changes.length > 3 ? "…" : ""}.`}</p>;
+          })()}
           {bulkOp === "shipping" && (
             <SelectField label="Shipping profile" value={bulkTarget} onChange={e => setBulkTarget(e.target.value)}>
               <option value="">Choose…</option>

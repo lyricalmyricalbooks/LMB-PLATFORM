@@ -38,6 +38,50 @@ export const MAX_DAYS = 60;
 export const LEVELS = Object.freeze(["info", "important"]);
 export const AUDIENCE_PLANS = Object.freeze(["shop", "stockroom", "both"]);
 
+/**
+ * Notices the terms promise (terms/terms.js CHANGE_NOTICE_DAYS, legal review of 3 November 2026): a price rise, a new
+ * helper company or a change to the terms is told to presses by email at least this many days before it takes effect.
+ * A notice is an important message with a `notice: { kind, takesEffect }`; the control room refuses one that is late.
+ */
+export const NOTICE_DAYS = 30;
+export const NOTICE_KINDS = Object.freeze({ "price-rise": "a price rise", "new-helper": "a new helper company", "terms-change": "a change to the terms" });
+
+/**
+ * Whether presses were told in time about a change of this kind taking effect at `effectiveAt`: a notice of the kind
+ * that was emailed to at least one owner, taking effect no later than that, whose message started at least
+ * NOTICE_DAYS before it.
+ */
+export function noticeOnRecord(messages, kind, effectiveAt) {
+  const when = ms(effectiveAt);
+  return (messages ?? []).some((m) => m.notice?.kind === kind && Object.keys(m.emailed ?? {}).length > 0 && ms(m.notice.takesEffect) <= when
+    && ms(m.startsAt) <= ms(m.notice.takesEffect) - NOTICE_DAYS * DAY);
+}
+
+/**
+ * The proof that promised notices went out, newest first: what changed, when it was sent, when it takes effect, how
+ * many days' notice that gave and how many owners were emailed (each address and time stays on the message).
+ */
+export function noticesSent(messages) {
+  return (messages ?? []).filter((m) => m.notice)
+    .map((m) => ({
+      id: m.id, kind: m.notice.kind, words: m.words, sentAt: m.startsAt, takesEffect: m.notice.takesEffect,
+      daysNotice: Math.floor((ms(m.notice.takesEffect) - ms(m.startsAt)) / DAY),
+      emailed: Object.keys(m.emailed ?? {}).length, endedAt: m.endedAt ?? null,
+    }))
+    .sort((a, b) => String(b.sentAt).localeCompare(String(a.sentAt)));
+}
+
+function noticeOf(notice, takesEffect, startMs) {
+  if (notice === undefined || notice === null || notice === "") return null;
+  if (!Object.hasOwn(NOTICE_KINDS, notice)) throw new ControlError(400, "Choose what the notice is about: a price rise, a new helper company or a change to the terms.");
+  const effect = ms(takesEffect);
+  if (!Number.isFinite(effect)) throw new ControlError(400, "Give the day the change takes effect.");
+  if (effect < startMs + NOTICE_DAYS * DAY) {
+    throw new ControlError(400, `The terms promise presses ${NOTICE_DAYS} days' notice: ${NOTICE_KINDS[notice]} can take effect on ${dateText(new Date(startMs + NOTICE_DAYS * DAY).toISOString())} at the earliest.`);
+  }
+  return { kind: notice, takesEffect: new Date(effect).toISOString() };
+}
+
 const DAY = 86_400_000;
 const ms = (time) => (typeof time === "string" ? Date.parse(time) : NaN);
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -187,7 +231,7 @@ export function createPressMessages({ store, registry, auditLog, shopData, email
       adminOf(claims, admins, nowMs());
       const rows = (await registry.listShops()).filter(reachable);
       const messages = (await store.list()).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-      return { messages: messages.map((m) => ({ ...shown(m), reaches: rows.filter((row) => messageReaches(m, row)).length })), maxWords: MAX_WORDS, maxDays: MAX_DAYS };
+      return { messages: messages.map((m) => ({ ...shown(m), reaches: rows.filter((row) => messageReaches(m, row)).length })), notices: noticesSent(messages), maxWords: MAX_WORDS, maxDays: MAX_DAYS };
     },
 
     /**
@@ -195,23 +239,27 @@ export function createPressMessages({ store, registry, auditLog, shopData, email
      * and emailed once to each owner when important. Adding the same message again changes nothing and finishes any
      * delivery a first run didn't.
      */
-    async add(claims, { words, level = "info", audience, startsAt, endsAt, reason } = {}) {
+    async add(claims, { words, level = "info", audience, startsAt, endsAt, reason, notice, takesEffect } = {}) {
       const by = adminOf(claims, admins, nowMs());
-      const text = wordsOf(words);
-      if (!LEVELS.includes(level)) throw new ControlError(400, "Choose info or important.");
       const who = audienceOf(audience);
       const dates = datesOf({ startsAt, endsAt }, nowMs());
+      // A promised notice is always emailed, and says the day the change takes effect.
+      const promised = noticeOf(notice, takesEffect, ms(dates.startsAt));
+      if (promised) level = "important";
+      const plain = String(words ?? "").trim();
+      const text = wordsOf(promised && plain && !plain.includes(dateText(promised.takesEffect)) ? `${plain} This takes effect on ${dateText(promised.takesEffect)}.` : words);
+      if (!LEVELS.includes(level)) throw new ControlError(400, "Choose info or important.");
       const why = reasonOf(reason);
       if (who.shopId && !(await registry.getShop(who.shopId))) throw new ControlError(404, "There's no shop with that id.");
       if (level === "important" && !email) throw new ControlError(503, "The control room can't email presses here, so the important message wasn't added.");
       // With no start date given, "now" is left out of the id, so sending the same message again after a failure
       // finishes the first one instead of making a second message (and emailing presses twice).
       const startGiven = !(startsAt === undefined || startsAt === null || startsAt === "");
-      const id = `msg-${hash({ words: text, level, audience: who, startsAt: startGiven ? dates.startsAt : null, endsAt: dates.endsAt, by }).slice(0, 20)}`;
+      const id = `msg-${hash({ words: text, level, audience: who, startsAt: startGiven ? dates.startsAt : null, endsAt: dates.endsAt, by, ...(promised ? { notice: promised } : {}) }).slice(0, 20)}`;
       let message = await store.get(id);
       const added = !message;
       if (!message) {
-        message = { id, words: text, level, audience: who, ...dates, by, reason: why, createdAt: at(), endedAt: null, emailed: {} };
+        message = { id, words: text, level, audience: who, ...dates, by, reason: why, createdAt: at(), endedAt: null, emailed: {}, ...(promised ? { notice: promised } : {}) };
         // Logged before any shop sees it.
         await log("press-message-added", message, { by, reason: why, level, audience: who, endsAt: dates.endsAt });
         await store.set(id, message);

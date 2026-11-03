@@ -1,13 +1,15 @@
 import { LogOut } from "lucide-react";
 import { adminApi } from "./api";
 import { BackupsExportCard } from "./BackupsExportCard";
-import { planBanner, planFacts, type PlatformPlan } from "./platformPlan";
+import { bannerPage, hubReady, planBanner, planFacts, type PlatformPlan } from "./platformPlan";
+import { BillingPage, HubNotReady, PlanPage } from "./BillingHub";
 import { usePlatformPlan } from "./platformPlanApi";
 import { EmptyState, ErrorState, LoadingState, PageHeader, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 
-// The shop's plan in the admin (code plan 6.6, 6.7): the banner over every page, Settings › Plan, and the locked desk a
-// paused or closed plan opens on. Every button goes to the platform's Plan & billing page for this shop
-// (/account/billing?shop=<id>), whose address the plan document carries. Admin-only words.
+// The shop's plan in the admin (code plan 6.6, 6.7): the banner over every page, Settings › Plan, Settings › Billing and
+// the locked desk a paused or closed plan opens on. Since 22.3 the plan and the bills are managed right here
+// (BillingHub.tsx), the way Shopify keeps them in Settings › Plan and Settings › Billing; a plan document from before
+// that (no `hub`) still links to the platform's Plan & billing page. Admin-only words.
 
 const TONE_GLYPH = { info: "i", warning: "!", danger: "!" } as const;
 
@@ -29,7 +31,11 @@ export function PlanBannerBar({ plan, now }: { plan: PlatformPlan | null | undef
         <strong className="rp-alert-title">{banner.title}</strong>
         <span className="rp-alert-detail">{banner.detail}</span>
       </div>
-      <div className="rp-alert-actions"><BillingLink plan={plan} label={banner.action} primary /></div>
+      <div className="rp-alert-actions">
+        {hubReady(plan)
+          ? <a className="rp-btn rp-btn-primary rp-btn-sm" href={`#settings/${bannerPage(banner)}`} data-plan-link="">{banner.action}</a>
+          : <BillingLink plan={plan} label={banner.action} primary />}
+      </div>
     </div>
   );
 }
@@ -78,7 +84,22 @@ export function PlanSettings() {
       </SectionCard>
     );
   }
-  return <PlanCard plan={plan} />;
+  return hubReady(plan) ? <PlanPage plan={plan} /> : <PlanCard plan={plan} />;
+}
+
+/** Settings › Billing: the next bill, saved cards, billing details and past bills (BillingHub.tsx). */
+export function BillingSettings() {
+  const { plan, failed } = usePlatformPlan(true);
+  if (plan === undefined) return <LoadingState label="Reading your billing…" />;
+  if (!plan && failed) return <ErrorState title="Billing not loaded" description="Your billing couldn't be read just now. Check your connection, then open this page again." />;
+  if (!plan) {
+    return (
+      <SectionCard title="Billing">
+        <EmptyState inline title="No bills yet" description="Your bills and cards show here once your plan has started." />
+      </SectionCard>
+    );
+  }
+  return hubReady(plan) ? <BillingPage plan={plan} /> : <HubNotReady plan={plan} />;
 }
 
 /**
@@ -99,7 +120,7 @@ export function PlanDesk({ plan, email, appearance }: { plan: PlatformPlan; emai
         />
         <div className="rp-stack" style={{ gap: 16 }}>
           <PlanBannerBar plan={plan} />
-          <PlanCard plan={plan} />
+          {hubReady(plan) ? <><PlanPage plan={plan} /><BillingPage plan={plan} /></> : <PlanCard plan={plan} />}
           <BackupsExportCard />
           {email && <p className="rp-hint" style={{ margin: 0 }}>Signed in as {email}.</p>}
         </div>

@@ -33,6 +33,7 @@
 import { platformSettings } from "../settings.js";
 import { resendClient } from "./resend.js";
 import { COMMERCIAL_KINDS, TEMPLATES, customProblems, withIdentity } from "./templates.js";
+import { TEMPLATES_FR, bilingual, shopMailLanguage } from "./templatesFr.js";
 import { shopSenderAddress, streamOf, streamSettings } from "./streams.js";
 import { NewsletterPausedError } from "./reputation.js";
 import { ownDomainSender } from "./ownDomain.js";
@@ -55,6 +56,17 @@ const tag = (name, value) => ({ name, value: String(value).replace(/[^A-Za-z0-9_
  * The email service. `env` holds RESEND_API_KEY and the platform settings (services/settings.js); nothing is sent
  * without the key.
  */
+/**
+ * A platform template's words in `language` (templatesFr.js mailLanguage): its French twin, French then English, or
+ * English (a kind with no twin). What sendPlatform sends, and what the control room shows as a shop's sample email.
+ */
+export function platformWords(kind, data, context, language) {
+  const french = ["fr", "fr+en"].includes(language) ? TEMPLATES_FR[kind] : null;
+  const english = () => TEMPLATES[kind](data, context);
+  if (!french) return english();
+  return language === "fr" ? french(data, context) : bilingual(french(data, context), english());
+}
+
 export function createEmailService({ env = process.env, fetch = globalThis.fetch, registry, sentLog, reputation = null, gmailSend = null, now = () => new Date(), sleep } = {}) {
   if (!registry?.getShop) throw new Error("The email service needs the shop registry");
   if (!sentLog?.get || !sentLog?.put || !sentLog?.findSent) throw new Error("The email service needs its sent log");
@@ -63,10 +75,18 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
   let client;
   const resend = () => (client ??= resendClient({ apiKey: env.RESEND_API_KEY, fetch, ...(sleep ? { sleep } : {}) }));
 
-  const compose = (message, context) => {
+  /**
+   * The language of the platform's emails for a shop (templatesFr.js mailLanguage): its billing row's choice and
+   * province (mirrored on the registry), else the language it signed up in. A registry that can't be read means English.
+   */
+  const shopLanguage = shopMailLanguage;
+
+  const inLanguage = platformWords;
+
+  const compose = (message, context, language = "en") => {
     // A shop's own email (through the shop door) always carries its own words, even if its kind shares a template's name.
     const template = message.custom ? null : TEMPLATES[message.kind];
-    if (template) return template(message.data ?? message, context);
+    if (template) return inLanguage(message.kind, message.data ?? message, context, language);
     const problems = customProblems(message);
     if (problems.length) throw new Error(`The email can't be sent: ${problems.join("; ")}`);
     return { subject: message.subject.trim(), text: message.text, html: message.html };
@@ -118,7 +138,8 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
       if (stream === "newsletter" && reputation && (await reputation.isPaused(shopId))) throw new NewsletterPausedError(shopId);
       const replyTo = (shop.replyTo || shop.ownerEmail || "").trim().toLowerCase();
       if (!EMAIL.test(replyTo)) throw new Error(`${shopId} has no reply-to address in the registry`);
-      const parts = compose(message, { settings, pressName: cleanName(shop.pressName) || shopId });
+      // The platform's own words (the welcome email, say) in the shop's language; the shop's own words as written.
+      const parts = compose(message, { settings, pressName: cleanName(shop.pressName) || shopId }, shopLanguage(shop));
       if (gmailSend && shop.gmailSender?.on === true) {
         const done = await sentLog.get(message.idempotencyKey);
         if (done?.status === "sent") return { id: done.id, alreadySent: true };
@@ -138,14 +159,23 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
       });
     },
 
-    /** Sends one of the platform's own emails (billing, sign-up, invites), signed with the product's name. */
+    /**
+     * Sends one of the platform's own emails (billing, sign-up, invites), signed with the product's name. `language`
+     * (templatesFr.js mailLanguage): "fr" sends a kind's French twin, "fr+en" the French then the English; a kind
+     * with no French twin goes in English. With no `language`, a message for a shop takes the shop's own.
+     */
     async sendPlatform(message) {
       checkCommon(message);
       if (!TEMPLATES[message.kind]) throw new Error(`There is no platform email called ${message.kind}`);
       if (COMMERCIAL_KINDS.has(message.kind) && !settings.mailingAddress) {
         throw new Error(`PLATFORM_MAILING_ADDRESS is needed before ${settings.platformName} sends a ${message.kind} email: the law asks for a mailing address in commercial emails`);
       }
-      const parts = withIdentity(TEMPLATES[message.kind](message.data ?? {}, { settings, pressName: message.data?.pressName ?? "" }), settings);
+      const words = { settings, pressName: message.data?.pressName ?? "" };
+      // No language given: the shop's own (its billing row's language and province, mirrored on the registry).
+      let language = message.language;
+      if (language === undefined && message.shopId && TEMPLATES_FR[message.kind]) language = shopLanguage(await registry.getShop(message.shopId).catch(() => null));
+      const body = inLanguage(message.kind, message.data ?? {}, words, language);
+      const parts = withIdentity(body, settings);
       return deliver({
         shopId: message.shopId ?? null, kind: message.kind, to: message.to.trim(), idempotencyKey: message.idempotencyKey,
         from: fromLine(settings.platformName, settings.senderEmail), replyTo: settings.supportEmail, parts, platform: true,

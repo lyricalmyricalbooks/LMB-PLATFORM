@@ -55,13 +55,20 @@ test("a setup record unseen for 60 days is due for removal, a recent one is not"
 });
 
 // The rules file is checked by its text here; the Firestore emulator run (waitlist/firestore-emulator.mjs) is the full test.
-test("the setup record rules bind the owner's verified email, the press id and the locked fields", async () => {
+test("the setup record rules let only its verified owner read it, and no one write it from a page", async () => {
   const { readFile } = await import("node:fs/promises");
   const rules = await readFile(new URL("../waitlist/firestore.rules", import.meta.url), "utf8");
   const block = rules.slice(rules.indexOf("match /presses/{pressId}"), rules.indexOf("// status/publish.js"));
-  assert.match(block, /ownerEmail == request\.auth\.token\.email/);
-  assert.match(block, /pressId == pressId/);
   assert.match(block, /email_verified == true/);
-  assert.match(block, /stagedImportPath == resource\.data\.stagedImportPath/);
-  assert.match(block, /allow delete: if false/);
+  assert.match(block, /resource\.data\.ownerUid == request\.auth\.uid/);
+  assert.match(block, /allow create, update, delete: if false;/);
+  assert.equal((block.match(/allow /g) ?? []).length, 2, "a read rule and a no-writes rule, nothing else");
+});
+
+test("the moving answer (23.0): yes, fresh or not said; nothing else", () => {
+  assert.equal(record().moving, "");
+  assert.deepEqual(setupChange(record(), { moving: "fresh" }).fields, { moving: "fresh" });
+  assert.deepEqual(setupChange(record(), { moving: "" }).fields, { moving: "" });
+  assert.equal(setupChange(record(), { moving: "maybe" }).ok, false);
+  assert.equal(setupChange(record(), { moving: 3 }).ok, false);
 });

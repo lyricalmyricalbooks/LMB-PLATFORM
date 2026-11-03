@@ -227,6 +227,11 @@ await check("anon can't write the private document", assertFails(setDoc(doc(anon
   await check("other admin prefs docs stay closed", assertFails(setDoc(doc(admin, "adminPrefs/somethingElse"), { data: "[]", updatedAt: Date.now() })));
   await check("signed-in customer can't read the Overview notes", assertFails(getDoc(doc(user, "adminPrefs/overviewNotes"))));
   await check("anon can't write the Overview notes", assertFails(setDoc(doc(anon, "adminPrefs/overviewNotes"), { data: "[]", updatedAt: 1 })));
+  // The combined admin's tour, seen on any device (admin/combinedTourStore.ts): admin-only, same shape.
+  await check("admin marks the tour seen", assertSucceeds(setDoc(doc(admin, "adminPrefs/combinedTour"), { data: "done", updatedAt: Date.now() })));
+  await check("signed-in customer can't read the tour mark", assertFails(getDoc(doc(user, "adminPrefs/combinedTour"))));
+  await check("anon can't write the tour mark", assertFails(setDoc(doc(anon, "adminPrefs/combinedTour"), { data: "done", updatedAt: 1 })));
+  await check("other adminPrefs documents stay closed", assertFails(setDoc(doc(admin, "adminPrefs/somethingElse"), { data: "x", updatedAt: 1 })));
   const unverified = env.authenticatedContext("imposter", { email: "owner@example.com", email_verified: false }).firestore();
   await check("unverified admin email can't read the private document", assertFails(getDoc(doc(unverified, "books/pub/private/admin"))));
 }
@@ -242,6 +247,8 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
 {
   const admin = env.authenticatedContext("admin", { email: "owner@example.com", email_verified: true }).firestore();
   await check("admin writes a customer note", assertSucceeds(setDoc(doc(admin, "customerNotes/x"), { email: "a@b.co", note: "Likes poetry", tags: ["wholesale"], updatedAt: "now" })));
+  await check("admin keeps a brought-over customer's name and place", assertSucceeds(setDoc(doc(admin, "customerNotes/z"), { email: "b@b.co", note: "Brought over from your old shop", tags: [], name: "Ben", place: "Toronto, ON", updatedAt: "now" })));
+  await check("admin note name too long refused", assertFails(setDoc(doc(admin, "customerNotes/z2"), { email: "b@b.co", note: "", tags: [], name: "x".repeat(101), updatedAt: "now" })));
   await check("admin note extra key refused", assertFails(setDoc(doc(admin, "customerNotes/y"), { email: "a@b.co", note: "", tags: [], updatedAt: "now", junk: 1 })));
   await check("admin reads opt-outs", assertSucceeds(getDoc(doc(admin, "marketing-optout/x"))));
   await check("admin can't write opt-outs", assertFails(setDoc(doc(admin, "marketing-optout/x"), { at: "now" })));
@@ -252,7 +259,11 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   // Choose your look (plan 6.3) and the guide's progress for the trial emails (plan 6.10)
   await check("admin records Choose your look", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "press-zine", at: "now", skipped: false } }, { merge: true })));
   await check("admin saves the guide's progress", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { progress: { steps: ["logo", "look"], done: ["look"], at: "now" } }, { merge: true })));
+  await check("welcome records the admin look", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "press-zine", at: "now", adminLook: "paper" } }, { merge: true })));
+  await check("welcome with an unknown admin look refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "press-zine", at: "now", adminLook: "neon" } }, { merge: true })));
   await check("welcome with an extra key refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "x", at: "now", junk: 1 } }, { merge: true })));
+  await check("admin changes what the shop sells", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { sells: "mixed" }, { merge: true })));
+  await check("what the shop sells must be a known answer", assertFails(setDoc(doc(admin, "firstWeek/start"), { sells: "weapons" }, { merge: true })));
   await check("admin can't change the sign-up answer", assertFails(setDoc(doc(admin, "firstWeek/start"), { sellingToday: "fairs" }, { merge: true })));
   await check("admin can't change the plan", assertFails(setDoc(doc(admin, "firstWeek/start"), { plan: "both" }, { merge: true })));
 }
@@ -316,6 +327,15 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("author can't read the Team", assertFails(getDocs(collection(author, "members"))));
   await check("author can't promote themselves", assertFails(setDoc(doc(author, "members/ana@press.test"), { role: "owner" })));
   await check("author can't read webhook status", assertFails(getDoc(doc(author, "adminSecrets/stripeWebhookStatus"))));
+  // The fair helper role (docs/combined-admin.md › Fair helpers plan) is for the stockroom's Fair till: the owner can
+  // add one, and it opens nothing of the shop's.
+  const helper = env.authenticatedContext("h1", { email: "hal@press.test", email_verified: true, role: "fairHelper" }).firestore();
+  await check("owner adds a fair helper", assertSucceeds(setDoc(doc(owner, "members/hal@press.test"), { role: "fairHelper" })));
+  await check("fair helper reads no order", assertFails(getDoc(doc(helper, "orders/o1"))));
+  await check("fair helper reads no secret keys", assertFails(getDoc(doc(helper, "adminSecrets/stripe"))));
+  await check("fair helper reads no customer list", assertFails(getDocs(collection(helper, "customers"))));
+  await check("fair helper can't read the Team", assertFails(getDocs(collection(helper, "members"))));
+  await check("fair helper can't promote themselves", assertFails(setDoc(doc(helper, "members/hal@press.test"), { role: "staff" })));
   // The bookkeeper role (plan 7.17): reads orders, gift cards and the daily figures; never books, customers, settings,
   // keys or the Team, and never writes anything.
   await env.withSecurityRulesDisabled(async ctx => {
@@ -335,6 +355,14 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("unverified bookkeeper reads no order", assertFails(getDoc(doc(unverifiedBookkeeper, "orders/BK-1"))));
   await check("bookkeeper can't change an order", assertFails(setDoc(doc(bookkeeper, "orders/BK-1"), { paymentStatus: "refunded" }, { merge: true })));
   await check("bookkeeper can't delete an order", assertFails(deleteDoc(doc(bookkeeper, "orders/BK-1"))));
+  // Past orders brought over from the old shop (plan 23.7) are history only: the owner may delete one to undo an import.
+  await env.withSecurityRulesDisabled((ctx) => Promise.all([
+    setDoc(doc(ctx.firestore(), "orders/PAST-1"), { orderId: "PAST-1", source: "import", paymentStatus: "paid", paidAt: "2025-06-01T00:00:00Z", fulfillmentStatus: "delivered", total: 20 }),
+    setDoc(doc(ctx.firestore(), "orders/PAID-1"), { orderId: "PAID-1", paymentStatus: "paid", paidAt: "2025-06-01T00:00:00Z", total: 20 }),
+  ]));
+  await check("bookkeeper can't delete a brought-over order", assertFails(deleteDoc(doc(bookkeeper, "orders/PAST-1"))));
+  await check("owner deletes a brought-over past order", assertSucceeds(deleteDoc(doc(owner, "orders/PAST-1"))));
+  await check("owner still can't delete a paid order", assertFails(deleteDoc(doc(owner, "orders/PAID-1"))));
   await check("bookkeeper can't create an order as admin", assertFails(setDoc(doc(bookkeeper, "orders/BK-2"), { orderId: "BK-2", paymentStatus: "paid", total: 1 })));
   await check("bookkeeper reads no draft book", assertFails(getDoc(doc(bookkeeper, "books/draft"))));
   await check("bookkeeper writes no book", assertFails(setDoc(doc(bookkeeper, "books/pub"), { status: "published", title: "Changed" })));

@@ -22,6 +22,12 @@ another.
 - `resend.js`: the Resend client. One recipient per email, an `Idempotency-Key` on every call, retries only on network
   drops, 429 and 5xx (with the same key), never on 4xx.
 - `templates.js`: the words of each email kind, HTML-escaped, https links only.
+- `templatesFr.js` (closing emails) and `templatesFrPress.js` (every other email to a press or its people): French
+  twins of the templates. `sendPlatform({ language })` sends the twin for "fr" and French then English for "fr+en";
+  with no `language`, a message with a `shopId` takes the shop's own, and `send()` (the welcome email) does too:
+  `mailLanguage` reads the registry's billing mirror (the press's choice on the Plan page, else French then English for
+  a Quebec billing address) or the language it signed up in. Only the platform's own staff alerts have no twin.
+  Account-level emails sent without a shop (sign-in links and codes, new device, recovery, waitlist) stay English.
 - `http.js`: the shop door. `X-Shop-Id` plus `Authorization: Bearer <shop service key>`; the registry keeps only the
   key's SHA-256 (`serviceKeyHash`). At most 2,000 emails per shop a day. Setup step 8 gives each shop its key
   (`setup/serviceKey.js`: the Functions secret `PLATFORM_SERVICE_KEY` in the shop's project).

@@ -35,6 +35,8 @@ const NOT_STYLE_CONTROLS = new Set([
   "alternateTemplates",
   // Product page buy box order (Page layout › Buy box blocks).
   "productInfoBlocks",
+  // Shop language (Text & labels › Shop language: fills the French words into copy).
+  "language",
 ]);
 
 function publicSources(dir: string, out: string[] = []): string[] {

@@ -7,10 +7,12 @@
 // "bookkeeper" (plan 7.17) reads the money only: the admin's Bookkeeping page (orders, sales, tax collected and payout
 // status) and the stockroom's tax centre copy. The rules let it read and never write; on the server it passes only
 // requireBooksReader, never requireAdmin.
+// "fairHelper" rings up sales at the stockroom's Fair till and nothing else (docs/combined-admin.md › Fair helpers
+// plan): the stockroom's rules open only the till's menu and the helper's own sales. It never opens this admin.
 const { shopConfig } = require("./shopConfig");
 
 const OWNER_EMAILS = [shopConfig.ownerEmail];
-const ROLES = ["owner", "staff", "author", "bookkeeper"];
+const ROLES = ["owner", "staff", "author", "bookkeeper", "fairHelper"];
 const ADMIN_ROLES = ["owner", "staff"];
 
 const normEmail = v => String(v || "").trim().toLowerCase();

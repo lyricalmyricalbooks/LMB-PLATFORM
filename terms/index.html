@@ -29,8 +29,17 @@
     <div class="cp-links"><a href="../help/">Help</a><a href="../status/">Status</a></div></div>
 </footer>
 <script type="module">
-  import { renderTerms } from "./page.js";
-  document.getElementById("terms").innerHTML = renderTerms();
+  import { pageLanguage, renderTerms } from "./page.js";
+  import { PAGE_FR } from "./termsFr.js";
+  const lang = pageLanguage(location.search);
+  if (lang === "fr") {
+    // Quebec presses read the French version first (Charter of the French Language).
+    document.documentElement.lang = "fr";
+    document.title = "Conditions de Colophon";
+    document.querySelector(".cp-title").textContent = PAGE_FR.title;
+    document.querySelector(".cp-lede").textContent = PAGE_FR.lede;
+  }
+  document.getElementById("terms").innerHTML = renderTerms(lang);
 </script>
 </body>
 </html>

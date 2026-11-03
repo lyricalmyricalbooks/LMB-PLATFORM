@@ -23,6 +23,7 @@ import {
   terminal,
 } from "./fulfillment";
 import { invoiceLine, invoiceOpen } from "./invoices";
+import { PaymentLinkCard } from "./PaymentLinkCard";
 import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
 import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, customerTrackUrl, telHref } from "./orderLines";
@@ -847,6 +848,9 @@ export function OrderDetail({
             {order.isTest && (
               <StatusBadge tone="danger">Test order</StatusBadge>
             )}
+            {order.source === "import" && (
+              <StatusBadge tone="neutral">Brought over from your old shop{order.oldOrderNumber ? ` (${order.oldOrderNumber})` : ""}{order.paidIn?.currency ? ` · paid ${Number(order.paidIn.total).toFixed(2)} ${order.paidIn.currency}` : ""}</StatusBadge>
+            )}
           </>
         }
       />
@@ -949,6 +953,7 @@ export function OrderDetail({
               <SecondaryButton disabled={working} onClick={() => setConfirmAction("restockRefunded")}>{w("Put the books back in stock")}</SecondaryButton>
             </SectionCard>
           )}
+          <PaymentLinkCard order={order} />
           {order.invoice && (
             <SectionCard title="Invoice">
               <p className="fw-summary">{invoiceLine(order)} {money(order.total)} on net {order.invoice.days} terms{order.invoice.paidAt ? "" : "; the books are already counted as sold."}</p>

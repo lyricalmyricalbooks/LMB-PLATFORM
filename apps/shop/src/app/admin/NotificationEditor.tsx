@@ -18,6 +18,7 @@ import { emailFunction, lastGmailProblem } from "./notificationApi";
 import { plainError } from "./plainError";
 import { runsOnColophon } from "../../lib/shopProfile";
 import { useSubTab } from "./settingsLayout";
+import { combinedAdmin } from "./combined";
 import { useShopSells } from "./shopWords";
 import { emailDefaultsFor, sellsBooks, withShopEmailWords } from "../../shared/shopSells";
 import {
@@ -64,7 +65,7 @@ type NotificationSettings = {
   brand: {
     logoUrl: string;
     brandColor: string;
-    emailTheme?: "light" | "dark";
+    emailTheme?: "light" | "dark" | "market" | "index";
     resendApiKey?: string;
     resendApiKeyStored?: boolean;
   };
@@ -76,6 +77,8 @@ type NotificationSettings = {
   order_refunded: TemplateFields;
   customer_welcome: TemplateFields;
   delivery_update: TemplateFields;
+  /** Two days before an unpaid payment link closes (code plan 21.5). */
+  payment_link_reminder: TemplateFields;
   contact_reply: TemplateFields;
   gift_card: TemplateFields;
   /** Off unless switched on (server checks enabled === true); sent delayDays after shipping. */
@@ -83,7 +86,7 @@ type NotificationSettings = {
   /** Older saved switch for the shop's new-order email; read only as shopAlerts.newOrder's fallback. */
   new_order_admin?: { enabled?: boolean };
   /** Emails to the shop itself; on unless switched off. */
-  shopAlerts: { newOrder: boolean; shipped: boolean; dailyOrderDigest?: boolean; weeklySummary?: boolean };
+  shopAlerts: { newOrder: boolean; shipped: boolean; dailyOrderDigest?: boolean; weeklySummary?: boolean; fairDaySummary?: boolean };
 };
 
 type TemplateKey = Exclude<keyof NotificationSettings, "brand" | "new_order_admin" | "shopAlerts">;
@@ -158,6 +161,14 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     signoff: "Happy reading,\nThe {{shop_name}} team",
     enabled: true
   },
+  // Mirrors functions/index.js DEFAULT_NOTIFICATIONS.payment_link_reminder.
+  payment_link_reminder: {
+    subject: "Reminder: your order {{order_id}} is ready to pay",
+    body: "Hi {{customer_name}},\n\nJust a reminder that your order from {{shop_name}} is waiting for payment. The total is {{total_price}}, and the payment link stays open until {{expires_on}}.",
+    buttonText: "Pay now",
+    signoff: "Thanks,\nThe {{shop_name}} team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
@@ -174,7 +185,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     enabled: false,
     delayDays: 14
   },
-  shopAlerts: { newOrder: true, shipped: true, dailyOrderDigest: true, weeklySummary: true }
+  shopAlerts: { newOrder: true, shipped: true, dailyOrderDigest: true, weeklySummary: true, fairDaySummary: true }
 };
 
 // Every customer email the editor shows. A template added to DEFAULT_SETTINGS appears
@@ -187,6 +198,7 @@ const TAB_META: Record<string, { label: string; group: string }> = {
   order_cancelled: { label: "Order Cancelled", group: "orders" },
   order_refunded: { label: "Order Refunded", group: "orders" },
   review_request: { label: "Review request", group: "orders" },
+  payment_link_reminder: { label: "Payment link reminder", group: "orders" },
   abandoned_cart: { label: "Abandoned Cart", group: "cart" },
   customer_welcome: { label: "Welcome", group: "account" },
   contact_reply: { label: "Message received", group: "contact" },
@@ -689,10 +701,12 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             </div>
             {badColor && <p className="rp-error-text" role="alert" style={{ margin: "6px 0 0" }}>Use a colour code like #e8402a. Until then emails use flare red.</p>}
           </div>
-          <SelectField label="Email theme" value={data.brand?.emailTheme === "dark" ? "dark" : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
-            hint="Light = cream paper. Dark = black paper.">
+          <SelectField label="Email theme" value={["dark", "market", "index"].includes(String(data.brand?.emailTheme)) ? String(data.brand?.emailTheme) : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
+            hint="Light = cream paper. Dark = black paper. Market stall and Index match those shop designs.">
             <option value="light">Light (newsprint)</option>
             <option value="dark">Dark (Riso Noir)</option>
+            <option value="market">Market stall (yellow)</option>
+            <option value="index">Index rows (grey and black)</option>
           </SelectField>
         </div>
         {!sharedBackup && <details style={{ marginTop: 16 }}>
@@ -752,6 +766,14 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, weeklySummary: on } })} />
             <p className="rp-hint" style={{ margin: 0 }}>Sales, visits and best sellers vs last week.</p>
             <WeeklySummaryNow />
+            {combinedAdmin() && (
+              <>
+                <Toggle label="Fair day summary — the day's takings at the Fair till and what sold (evenings, 9pm)" checked={shopAlerts.fairDaySummary !== false}
+                  onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, fairDaySummary: on } })} />
+                <p className="rp-hint" style={{ margin: 0 }}>Only on a day the Fair till sold something.</p>
+                <FairDaySummaryNow />
+              </>
+            )}
           </div>
         </SectionCard>
       ) : (
@@ -922,6 +944,31 @@ function RowsOrCards<T>({ narrow, columns, rows, rowKey, caption, empty, rowStat
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Settings › Email sender › Shop alerts › Send me today's fair summary now (the evening email, on demand). */
+function FairDaySummaryNow() {
+  const [sending, setSending] = useState(false);
+  const send = async () => {
+    setSending(true);
+    try {
+      const answer = await emailFunction({ action: "fairDaySummaryNow" }) as { sent?: boolean; reason?: string } | undefined;
+      if (answer && answer.sent === false) {
+        toast(answer.reason === "no-stockroom" ? "The stockroom isn't set up in this shop yet, so there's nothing to send." : "The Fair till hasn't uploaded any sales today, so there's nothing to send yet.");
+      } else {
+        toast.success("Today's fair summary is on its way to owner@example.com");
+      }
+    } catch (err: any) {
+      toast.error(plainError(err, "The fair summary wasn't sent"));
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <div>
+      <SecondaryButton size="sm" onClick={send} disabled={sending}>{sending ? "Sending…" : "Send me today's fair summary now"}</SecondaryButton>
+    </div>
   );
 }
 

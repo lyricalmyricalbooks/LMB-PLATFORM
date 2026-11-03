@@ -1,6 +1,6 @@
 // Workbench › Setup (Studio 3.0 phase 1): a launch checklist read from the design and shop data Studio already has.
 // Pure: each item says whether it is done and where Studio should take the owner to do it ("Show me").
-import { POLICY_KEYS } from "../../features/site/policyPages";
+import { SALE_POLICY_KEYS } from "../../features/site/policyPages";
 
 export type SetupGo =
   | { kind: "target"; target: string }
@@ -35,7 +35,7 @@ export function setupChecklist(i: SetupInput): SetupItem[] {
   const defaults = i.defaults || {};
   const copy = d.copy || {};
   const homeSections = Array.isArray(d.heroPage?.sections) ? d.heroPage.sections.filter((s: any) => s && s.enabled !== false) : [];
-  const writtenPolicies = POLICY_KEYS.filter(k => filled(i.policies?.[k])).length;
+  const writtenPolicies = SALE_POLICY_KEYS.filter(k => filled(i.policies?.[k])).length;
   const changedColours = COLOR_KEYS.some(k => filled(d[k]) && d[k] !== defaults[k]) || (Array.isArray(d.colorSchemes) && d.colorSchemes.length > 0);
   const fontsChosen = (filled(d.headingFont) && d.headingFont !== defaults.headingFont) || (filled(d.bodyFont) && d.bodyFont !== defaults.bodyFont);
   const logoDone = filled(d.logoUrl) || filled(d.wordmarkPrimary);
@@ -54,8 +54,8 @@ export function setupChecklist(i: SetupInput): SetupItem[] {
       done: filled(copy.siteDefaultTitle) && filled(copy.siteDefaultDescription), go: { kind: "target", target: "copy:Site & sharing" } },
     { id: "home", title: "Build your Home page", detail: "At least two sections on Home (or turn Home off to open on the catalog).",
       done: d.showHero === false || homeSections.length >= 2, go: { kind: "tab", tab: "sections" } },
-    { id: "policies", title: "Write your shop policies", detail: `Shipping, returns, privacy and terms (${writtenPolicies} of ${POLICY_KEYS.length} written). Write them, or start from our wording, in Admin › Settings › General › Store policies.`,
-      done: writtenPolicies === POLICY_KEYS.length },
+    { id: "policies", title: "Write your shop policies", detail: `Shipping, returns, privacy and terms (${writtenPolicies} of ${SALE_POLICY_KEYS.length} written). Write them, or start from our wording, in Admin › Settings › General › Store policies.`,
+      done: writtenPolicies === SALE_POLICY_KEYS.length },
     { id: "phone", title: "Look at your shop on a phone", detail: "Most shoppers visit on a phone. Switch the preview to phone size.",
       done: Boolean(i.phoneChecked), go: { kind: "device", device: "mobile" } },
     { id: "health", title: "Run Studio Health with nothing to fix", detail: "Checks contrast, picture descriptions, links and tap targets: on the page in the preview, or every page at once with Check every page.",

@@ -67,7 +67,7 @@ describe("tracking after Connect Google", () => {
   let consent: string | null = null;
   beforeEach(() => {
     __resetGa4ForTests();
-    consent = null;
+    consent = JSON.stringify({ necessary: true, analytics: true, marketing: true }); // the shopper said yes (opt-in, lib/consent.ts)
     const appended: unknown[] = [];
     (globalThis as any).window = {
       location: { pathname: "/books/salt", href: "https://moth-press.web.app/books/salt" },

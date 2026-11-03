@@ -10,6 +10,7 @@
 //
 // The matching is pure and tested in src/lib/app-search.js. Nothing here runs
 // at import time (tests/features-boundary.test.js).
+import { hasWebsite } from '../lib/shop-profile.js';
 import '../styles/app-search.css';
 import { escapeHtml } from '../lib/html.js';
 import { openM, closeM } from '../lib/modal.js';
@@ -42,6 +43,7 @@ function results(text) {
     shopBooks: sources.shopBooks,
     orders: sources.orders,
     admin: websiteAdmin(),
+    website: hasWebsite(),
   });
 }
 

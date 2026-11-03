@@ -3,6 +3,7 @@
 // each screen's real empty and error states too. Nothing here reaches Firestore.
 import { adminApi } from "../app/admin/api";
 import { A11Y_BOOKS } from "../a11yFixture/books";
+import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
 
 const order = (n: number, status: string, name: string) => ({
   id: `o${n}`, orderId: `FIXTURE-${n}`, status, paymentStatus: "paid", createdAt: new Date(Date.now() - n * 3_600_000).toISOString(),
@@ -35,6 +36,14 @@ for (const key of Object.keys(adminApi as any)) {
   if (typeof original !== "function" || key === "onAuthStateChange") continue;
   (adminApi as any)[key] = known[key] || quiet(key);
 }
+// Matches with the stockroom (Inventory app link): none, unless a check sets `window.__fixtureLinks` before loading.
+const links = () => ((window as any).__fixtureLinks ||= {});
+inventoryLinkApi.links = async () => links();
+inventoryLinkApi.state = async () => ({ links: links() });
+inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) => {
+  links()[bookId] = { _: inventoryBookId };
+  return { links: links(), already: false };
+};
 (window as any).__adminFixture = { orders: ORDERS };
 
 const params = new URLSearchParams(location.search);

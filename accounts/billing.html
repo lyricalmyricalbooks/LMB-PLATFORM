@@ -67,6 +67,7 @@
           <p id="plan-name"></p>
           <p id="plan-when" class="hint"></p>
           <p class="hint" id="plan-closing" hidden></p>
+          <div class="cp-actions cp-start"><button type="button" id="keep-closing" hidden></button></div>
         </div>
 
         <!-- Change plan: what changes and the prorated amount first, then the change. -->
@@ -75,6 +76,10 @@
           <p class="hint">A bigger plan starts now. A smaller one starts at your next bill.</p>
           <fieldset id="plan-choices"><legend class="rp-sr-only">Choose a plan</legend></fieldset>
           <div id="change-preview" class="stack" hidden aria-live="polite"></div>
+          <!-- Only when the change closes an app: one optional question, like cancelling's; the change works without it. -->
+          <fieldset id="drop-choices" hidden>
+            <legend>May we ask why you're dropping it? <span class="hint">(optional)</span></legend>
+          </fieldset>
           <p class="error" id="change-error" role="alert" hidden></p>
           <div class="cp-actions cp-start">
             <button type="submit" id="change-look">See what changes</button>
@@ -98,6 +103,20 @@
           <p id="card-words"></p>
           <div class="cp-actions cp-start"><button type="button" class="primary" id="card-button">Add a card</button></div>
           <p class="note">Cards are kept by our payment company. We never see the number.</p>
+        </div>
+
+        <!-- The language of Colophon's emails to this account (services/email/templatesFr.js). -->
+        <div class="card" id="language-card">
+          <h3 id="language-title">Language of our emails</h3>
+          <form id="language-form" class="stack" novalidate>
+            <fieldset id="language-choices"><legend class="rp-sr-only">Language of our emails</legend>
+              <label class="choice"><input type="radio" name="language" value="auto"><span>Automatic</span></label>
+              <label class="choice" lang="fr"><input type="radio" name="language" value="fr"><span>Français</span></label>
+              <label class="choice"><input type="radio" name="language" value="en"><span>English</span></label>
+            </fieldset>
+            <p id="language-words" class="hint"></p>
+            <div class="cp-actions cp-start"><button type="submit" id="language-save">Save</button></div>
+          </form>
         </div>
 
         <!-- Cancel at the end of the paid month, or keep the plan while a cancel is waiting. -->

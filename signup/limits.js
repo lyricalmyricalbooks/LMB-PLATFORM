@@ -4,9 +4,14 @@
 //   every signed-in call      120 a minute per signed-in person (claims.uid); control-room admins (on the admin list,
 //                             signed in with two steps, controlRoom.js adminOf) are not held to it
 //   costly calls              10 per 10 minutes per person, admins included: Try again on the shop maker, the
-//                             control room's Check now and Google's run again, and a card page from Plan & billing
+//                             control room's Check now and Google's run again, a card page from Plan & billing, and
+//                             reading an old shop from its address
 //   GET /api/plans            300 a minute per network (cheap, but public)
 //   POST /api/signin-link     20 an hour per network, on top of the 5 an hour per address it already has
+//   POST /api/code/send       the same, for the front door's six-digit code (frontDoor.js)
+//   POST /api/code/check      60 an hour per network, on top of 5 tries per code: guessing codes across many
+//                             addresses from one network stops here
+//   POST /api/billing/keep-by-link  60 an hour per network, like a code check (the reminder email's one-time link)
 //
 // The network is read from the right of `x-forwarded-for`: each proxy adds the address it was called from at the end,
 // and anything to the left can be written by the caller, so the left-most entry is never trusted. `proxyHops` is how
@@ -29,6 +34,7 @@ export const DEFAULT_LIMITS = Object.freeze({
   costly: Object.freeze({ max: 10, windowMs: 10 * MINUTE }),
   plans: Object.freeze({ max: 300, windowMs: MINUTE }),
   signinLink: Object.freeze({ max: 20, windowMs: 60 * MINUTE }),
+  codeCheck: Object.freeze({ max: 60, windowMs: 60 * MINUTE }),
 });
 
 /** Calls that cost something real (a setup run, a round of checks, a card page): held to `costly` per person. */
@@ -37,10 +43,20 @@ export const COSTLY_ROUTES = Object.freeze([
   "POST /api/control/check",
   "POST /api/control/google-run-again",
   "POST /api/billing/card",
+  // Reads another site's product list page by page (code plan 23.2).
+  "POST /api/press/old-shop",
 ]);
 
 /** Public calls held to a per-network limit, by route. */
-export const NETWORK_ROUTES = Object.freeze({ "GET /api/plans": "plans", "POST /api/signin-link": "signinLink" });
+export const NETWORK_ROUTES = Object.freeze({
+  "GET /api/plans": "plans",
+  "POST /api/signin-link": "signinLink",
+  "POST /api/code/send": "signinLink",
+  "POST /api/code/check": "codeCheck",
+  // The emailed one-time keep link (accounts/billingRoutes.js billingPublicRoutes): a token can't be guessed, but each
+  // try costs a read, so it is held like a sign-in code check.
+  "POST /api/billing/keep-by-link": "codeCheck",
+});
 
 export class LimitError extends Error {
   constructor(retryAfter) {
@@ -84,12 +100,17 @@ export function createLimits({ throttle, admins = [], limits = DEFAULT_LIMITS, c
 
   // One limit: refuses when the window is full, else counts this call. A store that fails lets the call through.
   async function take(kind, who) {
-    const { max, windowMs } = limits[kind];
+    const { max, windowMs } = limits[kind] ?? DEFAULT_LIMITS[kind];
     const key = `limit/${kind}/${hashed(who)}`;
     const nowMs = now().getTime();
+    const since = new Date(nowMs - windowMs).toISOString();
+    const at = new Date(nowMs).toISOString();
     try {
-      if ((await throttle.count(key, new Date(nowMs - windowMs).toISOString())) >= max) throw new LimitError(Math.ceil(windowMs / 1000));
-      await throttle.add(key, new Date(nowMs).toISOString());
+      // Count and add in one step where the store can, so calls sent at the same moment can't all pass the count.
+      const added = throttle.addIfUnder
+        ? await throttle.addIfUnder(key, since, at, max)
+        : (await throttle.count(key, since)) < max && (await throttle.add(key, at), true);
+      if (!added) throw new LimitError(Math.ceil(windowMs / 1000));
     } catch (error) {
       if (error instanceof LimitError) throw error;
       log(`The fair-use counter couldn't be read or written (${error?.message ?? error}); the call went through.`);

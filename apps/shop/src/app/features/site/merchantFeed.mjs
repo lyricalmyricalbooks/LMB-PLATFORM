@@ -56,6 +56,21 @@ export function saleActive(book, now) {
   return !(DATE_ONLY.test(start) && start > today) && !(DATE_ONLY.test(end) && end < today);
 }
 
+/**
+ * The regular price a sale is shown against: the lowest of the 30 days before the sale (displayPrice.ts wasPrice; the
+ * two are kept equal by merchantFeed.test.ts). Google's listing must not show a bigger saving than the shop does.
+ */
+export function wasPrice(book, now = new Date()) {
+  const regular = Number(book?.retailPrice) || 0;
+  if (!Array.isArray(book?.priceHistory)) return regular;
+  const start = Date.parse(String(book?.saleStartsAt || '').slice(0, 10));
+  const saleStart = Number.isFinite(start) && start < now.getTime() ? start : now.getTime();
+  const earlier = book.priceHistory
+    .filter(entry => typeof entry?.price === 'number' && entry.price > 0 && Date.parse(entry.until) >= saleStart - 30 * 86400000)
+    .map(entry => entry.price);
+  return Math.min(regular, ...earlier);
+}
+
 /** functions/catalogPrice.js catalogUnitPrice: NaN = not for sale. */
 export function unitPrice(book, variant, now = new Date()) {
   if (variant) return variant.price === undefined || variant.price === null || variant.price === '' ? NaN : Number(variant.price);
@@ -231,6 +246,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
       const availability = pre !== null ? 'preorder'
         : stock > 0 ? (tracked && book.allowBackorder === true && !(Number(variant ? (variant.stock ?? variant.stockLevel) : book.stockLevel) > 0) ? 'backorder' : 'in_stock')
         : 'out_of_stock';
+      const was = variant ? price : wasPrice(book, now);
       const item = {
         ...common,
         id: variant ? `${book.id}_${variant.id}`.slice(0, 50) : String(book.id).slice(0, 50),
@@ -238,7 +254,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
         title: cut(name, 150),
         image,
         additionalImages: photos.filter(p => p !== image).slice(0, 10),
-        price: money(variant ? price : Number(book.retailPrice) > price ? Number(book.retailPrice) : price),
+        price: money(!variant && saleActive(book, now) && was > price ? was : price),
         salePrice: '',
         saleDates: '',
         availability,
@@ -247,7 +263,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
           : gtinOf(variant?.barcode) || gtinOf(variant?.isbn) || gtinOf(book.barcode) || gtinOf(book.isbn),
         ...(isBook(kind) ? {} : { ...variantAttributes(variant), ...(variantAttributes(variant).material ? {} : { material: cut(plain(book.material), 200) }), ...(kind === 'clothing' || kind === 'shoes' ? apparelAudience(book) : {}) }),
       };
-      if (!variant && saleActive(book, now) && Number(book.retailPrice) > price) {
+      if (!variant && saleActive(book, now) && was > price) {
         item.salePrice = money(price);
         const start = String(book.saleStartsAt || '').slice(0, 10);
         const end = String(book.saleEndsAt || '').slice(0, 10);

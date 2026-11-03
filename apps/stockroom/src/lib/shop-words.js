@@ -11,7 +11,7 @@
 import { shopProfile } from './shop-profile.js';
 
 /** The sign-up answers (signup/form.js PUBLISHES), in the form's order. */
-export const SELLS = Object.freeze(['books', 'zines', 'comics', 'prints', 'mix', 'clothing', 'shoes', 'jewelry', 'music', 'other']);
+export const SELLS = Object.freeze(['books', 'zines', 'comics', 'prints', 'mix', 'mixed', 'clothing', 'shoes', 'jewelry', 'music', 'other']);
 const BOOK_ANSWERS = new Set(['books', 'zines', 'comics', 'mix']);
 
 /** True for a shop that sells books: a book answer, no answer, or one this version doesn't know. */
@@ -40,8 +40,33 @@ export function wordsFor(answer) {
   return sellsBooks(answer) ? same : goodsWords;
 }
 
+// What the owner chose later in the shop's Settings › What you sell (plan 12.14). The shop's server copies it into the
+// stockroom's settings (`settings/sells`); this device keeps the last one it saw so the page starts in the right words.
+export const SELLS_KEY = 'lm-sells';
+function storedSells() {
+  try { return globalThis.localStorage?.getItem(SELLS_KEY) || null; } catch { return null; }
+}
+/** What this shop sells: the owner's later answer when this device has seen one, else the profile's. */
+export function currentAnswer(profile = shopProfile, stored = storedSells()) {
+  return (SELLS.includes(stored) ? stored : null) || profile?.sells;
+}
+
 /** This shop's words. */
-export const words = wordsFor(shopProfile?.sells);
+export const words = wordsFor(currentAnswer());
+
+/**
+ * Called once signed in with the owner's answer from the stockroom's settings. When it names different words than the page
+ * started with, the device keeps it and the caller reloads once, so the page starts in the new words from the top (the
+ * page's text is rewritten in place and can't be turned back). Returns true when a reload is needed.
+ */
+export function noteSellsAnswer(answer, profile = shopProfile) {
+  if (!SELLS.includes(answer)) return false;
+  const was = currentAnswer(profile);
+  if (answer === was) return false;
+  try { globalThis.localStorage?.setItem(SELLS_KEY, answer); } catch { return false; }
+  // Books answers share one set of words and the rest another, so only a move between the two needs a fresh start.
+  return wordsFor(answer) !== wordsFor(was);
+}
 
 // Words that name something real whatever the shop sells: a tax expense category.
 const KEEP = new Set(['Books, Research & Reference']);
@@ -75,4 +100,19 @@ export function applyPageWords(root, w = words) {
       }
     }
   }
+}
+
+export const ACK_KEY = 'lm-sells-ack';
+/**
+ * The words this page is showing, when the shop should be told (once per change): the owner's answer is on this device
+ * and the shop hasn't heard it from here yet. null when there is nothing to say.
+ */
+export function wordsToReport(profile = shopProfile) {
+  let stored = null; let acked = null;
+  try { stored = globalThis.localStorage?.getItem(SELLS_KEY); acked = globalThis.localStorage?.getItem(ACK_KEY); } catch { return null; }
+  if (!SELLS.includes(stored) || stored === acked) return null;
+  return currentAnswer(profile) === stored ? stored : null;
+}
+export function wordsReported(answer) {
+  try { globalThis.localStorage?.setItem(ACK_KEY, answer); } catch { /* the shop is told again next time */ }
 }

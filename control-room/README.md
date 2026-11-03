@@ -441,3 +441,23 @@ fees, admins })`, `costRoutes(desk)`); the sums and Julian's step to switch Goog
 spreadsheet files, emailed to the owner as a link that works 7 days. It asks why; logged in the registry, the shop's
 audit log and the activity log before anything is built. `POST /api/control/export { shopId, reason }`
 (`services/export/README.md`).
+
+## Setting up (`setupPresses.js`)
+
+Presses that signed up at the front door and are still in setup mode, or have pressed Open my shop (code plan 18.2 to
+18.8). Before this page a press was invisible until its shop was being made. Read only: it reads the setup records
+(`presses/<pressId>`, `firestoreFrontDoorStores(...).presses.list()`) and the registry, and shows what the press typed
+(name, what it sells, country, plan, website and admin looks, "Selling somewhere already?", email language, the kept
+product file's name and rows) with its dates. Never the owner's sign-in id or the kept file's path.
+
+- **Counts:** in setup (signed up this week), ready to open (name and country filled in), opening (now live), bringing a
+  shop over (with a product file kept), removed soon.
+- **Flags, first in the list:** *Stuck opening*, Open my shop pressed over `STUCK_OPENING_HOURS` (24) ago and the shop
+  isn't live (the side menu's badge counts these); *Removed <date>*, idle `GOING_SOON_DAYS` (45) of the 60 after which a
+  setup record is removed.
+- **Looks presses picked:** how many records chose each website look and each admin look.
+- A row whose shop exists opens that shop's record.
+
+| Route | What |
+| --- | --- |
+| `GET /api/control/presses` | `{ counts, looks: { website, admin }, presses }` (admins only; 503 without the store) |

@@ -14,7 +14,8 @@
 //   says what would change and the prorated amount, changing nothing.
 // - invoices: the plan's invoices with Stripe's own PDF links (6.12).
 // - closeDroppedApps / cardExpiryReminders: daily sweeps. The first closes an app a plan dropped once its paid month
-//   ends; the second emails a month before the card on file runs out, once per card (6.12).
+//   ends (emailing a week before, with the way to keep it, and on the day, with where to download it); the second
+//   emails a month before the card on file runs out, once per card (6.12).
 // - tax: with `tax` on (BILLING_TAX, read in index.js), prices are "plus tax" and Stripe Tax adds the tax from the
 //   first charge after a card (and so an address) is on file (6.12). Off by default.
 // - handleEvent: Stripe's events for the platform account, checked by signature, each handled once. They keep the
@@ -39,17 +40,37 @@
 //   email           sendPlatform({ kind, to, data, idempotencyKey, shopId }) (services/email)
 //   closeApp        optional: closeApp({ shopId, app, closedAt, downloadUntil }), takes a dropped app's pages down. The
 //                   registry row's `closedApps` is written either way and is what the shop maker reads.
+//   deleteApp       optional: deleteApp({ shopId, app }), deletes a closed app's records once its 90 days to download
+//                   are over (closedApps.js says when). Without it nothing is deleted; a failure is kept on the
+//                   app's `closedApps` entry as `problem` and tried again the next day.
 //   shopPlan        optional: write(shopId, row, { link, at }) (shopPlan.js shopPlanCopies): the shop's own copy of
 //                   its plan (code plan 6.6), written on every change once the shop's database exists
+//   live            optional: () -> live settings (services/settings.js liveSettings); the founding offer is read there
+//   foundingSeats   optional: claim(shopId, { limit, at, percentOff }) -> boolean (founding.js). Without it (or live),
+//                   no founding place is given
+//   sleep           optional: the wait between Stripe retries (stripeRetry.js), injected by tests
+//
+// Every Stripe call that can safely be sent twice (a read, a delete, or a POST with an idempotency key) is tried again
+// after a short wait when Stripe can't be reached, is busy (429) or fails on its side (5xx): stripeRetry.js (22.4).
+import { createHash } from "node:crypto";
 import { verifySignature } from "../payments/stripeSignature.js";
 import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
 import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
 import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
-import { CARD_WARNING_DAYS, cardEnds, cardWarningDue } from "./cardExpiry.js";
+import { CARD_WARNING_DAYS, cardEnds, cardRunningOut, cardWarningDue } from "./cardExpiry.js";
 import { leavingAnswer } from "./leaving.js";
+import { mailLanguage } from "../email/templatesFr.js";
+import { planNameFr } from "../email/templatesFrPress.js";
+import { DOWNLOAD_ENDING_DAYS, closedAppSteps, downloadHolds, dropReason, keepLinkProblem, newKeepLink } from "./closedApps.js";
+import { cardWords } from "./cards.js";
+import { withRetries } from "./stripeRetry.js";
+import { ensureFoundingCoupon, foundingAmount, foundingOfferOf } from "./founding.js";
+import { createBillingHub } from "./hub.js";
+import { siteUrlOf } from "../domains/names.js";
+import { PAY_AS_YOU_SELL_PLANS } from "../payments/payAsYouSell.js";
 
-export { CARD_WARNING_DAYS, cardEnds };
+export { CARD_WARNING_DAYS, cardEnds, cardWords };
 
 /** What each Stripe subscription status means for the shop: open, paused (a card fixes it) or closed. */
 export const ACCESS = Object.freeze({
@@ -65,11 +86,15 @@ export const ACCESS = Object.freeze({
 });
 
 const ENDED = new Set(["canceled", "incomplete_expired"]);
+/** Plan states with a bill waiting to be paid. */
+const OWING = new Set(["past_due", "unpaid", "incomplete"]);
 // Statuses with a month already paid for: a plan that drops an app keeps it open to the end of that month.
 const PAID = new Set(["active", "past_due"]);
 const DAY = 86400_000;
 /** How long the download of a closed app is kept (code plan 6.11, the same 90 days as a closed shop). */
 export const DOWNLOAD_DAYS = 90;
+/** How long before a dropped app closes its reminder email goes out. */
+export const CLOSING_REMINDER_DAYS = 7;
 /** The apps, in words, for the page and the emails. */
 export const APP_NAMES = Object.freeze({ shop: "the shop", stockroom: "the stockroom" });
 const APPS = Object.keys(APP_NAMES);
@@ -79,6 +104,25 @@ const iso = (seconds) => (Number.isFinite(seconds) && seconds > 0 ? new Date(sec
 export function dateText(isoTime) {
   if (!isoTime) return "";
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", day: "numeric", month: "long", year: "numeric" }).format(new Date(isoTime));
+}
+
+/**
+ * The languages Stripe writes this press's invoices, receipts and its own payment pages in (the customer's
+ * `preferred_locales`, first one it supports wins): French (Canada) when the emails go in French or, for a Quebec billing
+ * address, in French then English (Charter of the French language: the invoice itself must be in French); else English.
+ */
+export const invoiceLocales = (language) => (language === "en" ? ["en"] : ["fr-CA", "en"]);
+
+/** The email language already chosen for another shop of the same Stripe customer: { language } or nothing. */
+function languageOf(rows, customerId) {
+  const known = rows.find((r) => r.customerId === customerId && (r.language === "fr" || r.language === "en"));
+  return known ? { language: known.language } : {};
+}
+
+/** The province already saved for another shop of the same Stripe customer: { province } or nothing. */
+function provinceOf(rows, customerId) {
+  const known = rows.find((r) => r.customerId === customerId && r.province !== undefined);
+  return known ? { province: known.province } : {};
 }
 
 /** The parts of a Stripe subscription the platform keeps. */
@@ -100,6 +144,20 @@ export function fromSubscription(sub) {
   };
 }
 
+/**
+ * The record of apps a plan change dropped with the month's end still to come (so the press could change their mind):
+ * each `{ app, at, keptAt, closedAt }`, oldest first, the last 20 kept. The control room counts how many were kept
+ * (control-room/appsClosing.js). An app already waiting to close isn't dropped twice.
+ */
+export function noteDrops(drops, { dropped = [], kept = [], closed = [], reason = null }, when) {
+  const list = (drops ?? []).map((drop) => ({ ...drop }));
+  const waiting = (app) => list.findLast((drop) => drop.app === app && !drop.keptAt && !drop.closedAt);
+  for (const app of kept) { const drop = waiting(app); if (drop) drop.keptAt = when; }
+  for (const app of closed) { const drop = waiting(app); if (drop) drop.closedAt = when; }
+  for (const app of dropped) if (!waiting(app)) list.push({ app, at: when, keptAt: null, closedAt: null, ...(reason ? { reason } : {}) });
+  return list.slice(-20);
+}
+
 /** The plan that opens exactly these apps (the registry's `plan` says what is open). */
 export function planOpening(apps) {
   return PLAN_IDS.find((plan) => APPS.every((app) => PLAN_APPS[plan][app] === apps.includes(app))) ?? null;
@@ -115,10 +173,11 @@ export class BillingError extends Error {
   }
 }
 
-export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, shopPlan = null, now = () => Date.now() }) {
+export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, deleteApp = null, shopPlan = null, live = null, foundingSeats = null, sleep, now = () => Date.now() }) {
   if (mode !== "test" && mode !== "live") throw new Error('billing mode must be "test" or "live"');
   const at = () => new Date(now()).toISOString();
-  const call = (method, path, options) => stripe.call(mode, method, path, options);
+  const retrying = withRetries((...args) => stripe.call(...args), sleep ? { sleep } : {});
+  const call = (method, path, options) => retrying(mode, method, path, options);
   const priceIds = new Map();
 
   const accountLink = (shopId) => `${settings.platformUrl}/account/billing?shop=${encodeURIComponent(shopId)}`;
@@ -148,13 +207,13 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   async function mirror(shopId, row) {
     if (!(await registry.getShop(shopId))) return;
     const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing: row.appsClosing ?? null, updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null } });
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, language: row.language ?? null, province: row.province ?? null } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
   async function copyToShop(shopId, row) {
     if (!shopPlan || !(await auditLog.ready(shopId))) return null;
-    return shopPlan.write(shopId, row, { link: accountLink(shopId), at: at() });
+    return shopPlan.write(shopId, row, { link: accountLink(shopId), hub: `${settings.platformUrl}/api/shop-billing/`, at: at() });
   }
 
   async function rowFor(shopId) {
@@ -164,6 +223,21 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   }
 
   /** The Stripe price for a plan, made (with its product) the first time it is needed. */
+  /**
+   * The plan's name as Stripe prints it on every invoice line and receipt: English and French together, one name for
+   * every press ("Colophon Shop and stockroom / Colophon Boutique et réserve"), so a Quebec press's French invoice
+   * names its plan in French too.
+   */
+  const productName = (price) => `${settings.platformName} ${price.name} / ${settings.platformName} ${planNameFr(price.name)}`;
+
+  /** A product made before the name was in both languages gets it once (checked once per plan while running). */
+  async function nameProduct(price) {
+    const product = await call("GET", `/v1/products/${price.productId}`).catch(() => null);
+    if (product && product.name !== productName(price)) {
+      await call("POST", `/v1/products/${price.productId}`, { params: { name: productName(price) }, idempotencyKey: `product-name-${price.productId}-${createHash("sha256").update(productName(price)).digest("hex").slice(0, 16)}` });
+    }
+  }
+
   async function ensurePrice(plan) {
     const price = planPrice(plan, settings);
     if (priceIds.has(price.lookupKey)) return priceIds.get(price.lookupKey);
@@ -179,7 +253,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       } catch (error) {
         if (error.statusCode !== 404) throw error;
         await call("POST", "/v1/products", {
-          params: { id: price.productId, name: `${settings.platformName} ${price.name}`, metadata: { lmb_plan: plan } },
+          params: { id: price.productId, name: productName(price), metadata: { lmb_plan: plan } },
           idempotencyKey: `product-${price.productId}`,
         });
       }
@@ -188,6 +262,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         idempotencyKey: `price-${price.lookupKey}`,
       });
       id = made.id;
+    } else {
+      await nameProduct(price);
     }
     priceIds.set(price.lookupKey, id);
     return id;
@@ -214,6 +290,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       kind,
       to: row.billingEmail,
       shopId,
+      // French for a press that chose it, or French then English for one billed in Quebec (templatesFr.js).
+      language: mailLanguage(row),
       idempotencyKey: `billing/${key}`,
       data: { pressName: row.pressName || shopId, planName: price?.name ?? "", price: price?.priceText ?? "", link: accountLink(shopId), ...data },
     });
@@ -271,14 +349,229 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       closedApps[app] = { closedAt, downloadUntil };
       if (closeApp) await closeApp({ shopId, app, closedAt, downloadUntil });
     }
-    const saved = await save(shopId, { appsClosing: null, closedApps }, null);
+    // The registry first: the shop's copies (save → shopPlan.js) and the shop maker read which apps are open from it.
+    if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan: row.plan, closedApps });
+    const saved = await save(shopId, { appsClosing: null, closedApps, appDrops: noteDrops(row.appDrops, { closed: apps }, closedAt) }, null);
     await logChange(shopId, "app-closed", { apps, downloadUntil });
     return saved;
   }
 
-  return {
+  /** A closed app's entry changed: on the registry (the shop maker and the control room read it) and the billing row. */
+  async function saveClosedApp(shopId, app, fields) {
+    const row = await subscriptions.get(shopId);
+    // Gone (the app was added back meanwhile): nothing to mark, and no entry brought back to stop a later close.
+    if (!row?.closedApps?.[app]) return row;
+    const closedApps = { ...(row?.closedApps ?? {}), [app]: { ...(row?.closedApps?.[app] ?? {}), ...fields } };
+    if (await registry.getShop(shopId)) await registry.updateShop(shopId, { closedApps });
+    return save(shopId, { closedApps }, null);
+  }
+
+  /** The last email before a closed app's download ends, and its deletion once that time is over (closedApps.js). */
+  async function afterClosing(shopId) {
+    // A shop deleted as a whole (closing.js) has nothing left to delete or email about.
+    if ((await registry.getShop(shopId))?.closing?.stage === "deleted") return;
+    const row = await subscriptions.get(shopId);
+    for (const { app, step } of closedAppSteps(row, now())) {
+      const closed = row.closedApps[app];
+      if (step === "warn") {
+        // The press always gets the full notice: an email sent late moves the download's end (and so the deletion)
+        // back, and the export and the account page follow the same date.
+        const downloadUntil = new Date(Math.max(Date.parse(closed.downloadUntil), now() + DOWNLOAD_ENDING_DAYS * DAY)).toISOString();
+        await saveClosedApp(shopId, app, { downloadUntil });
+        await notify(shopId, "app-download-ending", { apps: [app], closing: APP_NAMES[app], holds: downloadHolds([app]), date: dateText(downloadUntil), on: downloadUntil, link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-download-ending/${app}/${closed.closedAt}`);
+        await saveClosedApp(shopId, app, { warnedAt: at() });
+        continue;
+      }
+      if (step === "tell") {
+        await notify(shopId, "app-records-deleted", { apps: [app], closing: APP_NAMES[app], link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-records-deleted/${app}/${closed.closedAt}`);
+        await saveClosedApp(shopId, app, { toldAt: at() });
+        continue;
+      }
+      if (!deleteApp) continue;
+      // Read again just before: an app added back meanwhile (changePlan removes its entry) is never deleted.
+      const fresh = await subscriptions.get(shopId);
+      if (!fresh?.closedApps?.[app] || PLAN_APPS[fresh.plan]?.[app]) continue;
+      try {
+        await deleteApp({ shopId, app });
+      } catch (failure) {
+        // Kept for the control room and tried again tomorrow; one shop's trouble never stops the sweep.
+        if (closed.problem !== failure.message) await saveClosedApp(shopId, app, { problem: failure.message });
+        continue;
+      }
+      await saveClosedApp(shopId, app, { deletedAt: at(), problem: null });
+      await logChange(shopId, "app-deleted", { app });
+      // The note that it's done: a failed email is tried again on the next sweeps (closedAppSteps "tell").
+      try {
+        await notify(shopId, "app-records-deleted", { apps: [app], closing: APP_NAMES[app], link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-records-deleted/${app}/${closed.closedAt}`);
+        await saveClosedApp(shopId, app, { toldAt: at() });
+      } catch {
+        // Left without toldAt: tomorrow's sweep sends it.
+      }
+    }
+  }
+
+  /**
+   * Stripe's invoices and receipts in the language of this account's emails (invoiceLocales). One Stripe customer pays
+   * for every shop of the account, so every one of its rows records what Stripe holds (`invoiceLocales`), and nothing is
+   * sent when Stripe already has it. Never throws: a Stripe hiccup leaves the old language until the daily sweep.
+   */
+  async function syncInvoiceLanguage(shopId) {
+    try {
+      const row = await subscriptions.get(shopId);
+      if (!row?.customerId) return;
+      // One customer, one invoice language: French when any of its shops' emails go in French (older rows may still
+      // disagree), so two shops can never pull Stripe back and forth.
+      const rows = (await subscriptions.list()).filter((other) => other.customerId === row.customerId);
+      const french = [row, ...rows].some((r) => invoiceLocales(mailLanguage(r))[0] !== "en");
+      const locales = invoiceLocales(french ? "fr" : "en").join(",");
+      if (row.invoiceLocales === locales) return;
+      // Counted before the call, like saveBillingDetails: a key Stripe already holds is never reused with other locales.
+      const changes = (row.localeChanges ?? 0) + 1;
+      await save(shopId, { localeChanges: changes }, null);
+      await call("POST", `/v1/customers/${row.customerId}`, { params: { preferred_locales: locales.split(",") }, idempotencyKey: `locales-${row.customerId}-${shopId}-${changes}` });
+      for (const id of new Set([shopId, ...rows.map((r) => r.shopId)])) await save(id, { invoiceLocales: locales }, null);
+    } catch (failure) {
+      console.warn(`Setting the invoice language for ${shopId} failed; tried again tomorrow:`, failure?.message || failure);
+    }
+  }
+
+  /** One shop in the daily dropped-apps sweep: its closed apps, then a reminder or the close of a dropped one. */
+  async function sweepOne(row, closed) {
+    // The language of this shop's emails, for one billed before the province was kept (hub.js fillProvince).
+    // A Stripe hiccup here never holds up the closing itself: the email goes in English and it's read again tomorrow.
+    if (row.province === undefined && row.customerId) {
+      await hub.fillProvince(row).catch((failure) => console.warn(`Reading the billing province for ${row.shopId} failed; tried again tomorrow:`, failure?.message || failure));
+    }
+    // Invoices in the same language (a shop billed before this was kept, or a change Stripe didn't take yesterday).
+    await syncInvoiceLanguage(row.shopId);
+    if (Object.keys(row.closedApps ?? {}).length) await afterClosing(row.shopId);
+    if (!row.appsClosing?.apps?.length) return;
+    // A week before: one reminder, with the way to keep it (keepClosingApps), for a press who never opens the admin.
+    if (Date.parse(row.appsClosing.at) > now()) {
+      if (!row.appsClosing.reminded && Date.parse(row.appsClosing.at) - now() <= CLOSING_REMINDER_DAYS * DAY) {
+        // The button keeps it with no sign-in: a one-time link (closedApps.js), saved before the email goes. A link
+        // made on an earlier run whose email may have gone can't be shown again (only its hash is kept), so then
+        // the button opens the plan page with "Keep it" ready instead (accounts/billing.js reads `keep=closing`).
+        let link = `${accountLink(row.shopId)}&keep=closing`;
+        let signIn = true;
+        if (row.keepLink?.for !== row.appsClosing.at) {
+          signIn = false;
+          const made = newKeepLink({ closesAt: row.appsClosing.at, now: now() });
+          await save(row.shopId, { keepLink: made.stored }, null);
+          link = `${settings.platformUrl}/account/keep.html?shop=${encodeURIComponent(row.shopId)}&t=${made.token}`;
+        }
+        await notify(row.shopId, "app-closing-soon", { apps: row.appsClosing.apps, closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(row.appsClosing.at), on: row.appsClosing.at, link, signIn }, `${row.shopId}/app-closing-soon/${row.appsClosing.at}`);
+        await save(row.shopId, { appsClosing: { ...row.appsClosing, reminded: at() } }, null);
+      }
+      return;
+    }
+    const saved = await closeApps(row.shopId, row.appsClosing.apps);
+    // The day it closes: where the press downloads what was in it, and until when.
+    const downloadUntil = row.appsClosing.apps.map((app) => saved.closedApps?.[app]?.downloadUntil).find(Boolean);
+    await notify(row.shopId, "app-closed", { apps: row.appsClosing.apps, closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), holds: downloadHolds(row.appsClosing.apps), date: dateText(downloadUntil), on: downloadUntil, link: `${settings.platformUrl}/accounts/` }, `${row.shopId}/app-closed/${row.appsClosing.at}`);
+    closed.push({ shopId: row.shopId, apps: row.appsClosing.apps });
+  }
+
+  /**
+   * Where Stripe's card page may send a press back to: the platform's own pages, or this shop's own admin (the billing
+   * hub, 22.3) at its main address. Nowhere else, so the page can never be used to send someone to a stranger's site.
+   */
+  async function comesBackHome(shopId, returnUrl) {
+    if (typeof returnUrl !== "string") return false;
+    if (returnUrl === settings.platformUrl || returnUrl.startsWith(`${settings.platformUrl}/`)) return true;
+    const shop = await registry.getShop(shopId);
+    if (!shop) return false;
+    let url;
+    try { url = new URL(returnUrl); } catch { return false; }
+    return url.origin === new URL(siteUrlOf(shop)).origin && (url.pathname === "/admin" || url.pathname.startsWith("/admin/")) && !url.username && !url.password;
+  }
+
+  /**
+   * Gives this shop a founding place if it hasn't one and places are left (founding.js): called when the press first
+   * pays (a card saved, or pay as you sell chosen). Answers the row, marked `founding: true` when it holds a place.
+   */
+  async function claimFounding(shopId) {
+    const row = await subscriptions.get(shopId);
+    if (!row || row.founding === true) return row;
+    const percentOff = await takeFoundingPlace(shopId);
+    return percentOff === null ? row : save(shopId, { founding: true, foundingPercentOff: percentOff, foundingAt: at() }, "founding-place-given");
+  }
+
+  /**
+   * A press that held a founding place and left before paying anything gives it back, so it can go to a paying press
+   * (on by default; the control room's "give a place back" setting turns it off, and then a place once given stays).
+   */
+  async function giveBackFounding(shopId) {
+    if (!live || !foundingSeats?.release) return null;
+    if ((await live())?.foundingOffer?.giveBackUnpaid === false) return null;
+    await foundingSeats.release(shopId, { at: at() });
+    if (await registry.getShop(shopId)) await registry.updateShop(shopId, { founding: false });
+    return save(shopId, { founding: false, foundingPercentOff: null, foundingOn: null, foundingAt: null }, "founding-place-given-back");
+  }
+
+  /** One of the founding places, if the offer is on and any are left: its percent off, or null. */
+  async function takeFoundingPlace(shopId) {
+    if (!live || !foundingSeats) return null;
+    const offer = foundingOfferOf(await live());
+    if (!offer) return null;
+    const got = await foundingSeats.claim(shopId, { limit: offer.presses, at: at(), percentOff: offer.percentOff });
+    if (!got) return null;
+    if (await registry.getShop(shopId)) await registry.updateShop(shopId, { founding: true });
+    return offer.percentOff;
+  }
+
+  /**
+   * A card now pays this shop's plan, from adding one (Stripe's card page) or making a saved one primary (22.3). One path,
+   * in an order that matters: the card goes on the customer and the plan, the press becomes a paying one (a founding place
+   * and its discount, 22.1) BEFORE a paused plan is reopened or a waiting first bill is paid, so that bill is already the
+   * founding price. Every Stripe call is keyed on `key`, so a retry of the same change repeats nothing.
+   */
+  async function cardNowPays(shopId, card, { key, what, customer = {}, subscription = {} }) {
+    const row = await subscriptions.get(shopId);
+    await call("POST", `/v1/customers/${row.customerId}`, { params: { invoice_settings: { default_payment_method: card.id }, ...customer }, idempotencyKey: `${key}-customer` });
+    let sub = null;
+    if (row.subscriptionId && !ENDED.has(row.status)) {
+      await claimFounding(shopId);
+      await applyFounding(shopId);
+      sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { default_payment_method: card.id, ...subscription }, idempotencyKey: `${key}-subscription` });
+      // A trial that ended without a card paused the plan: the card opens the shop again, billed from today.
+      if (sub.status === "paused") sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}/resume`, { params: { billing_cycle_anchor: "now" }, idempotencyKey: `${key}-resume` });
+      // A plan started again without a trial waits for its first payment: pay it with the new card.
+      const invoice = typeof sub.latest_invoice === "string" ? sub.latest_invoice : sub.latest_invoice?.id;
+      if (sub.status === "incomplete" && invoice) {
+        await call("POST", `/v1/invoices/${invoice}/pay`, { params: { payment_method: card.id }, idempotencyKey: `${key}-pay` });
+        sub = await call("GET", `/v1/subscriptions/${row.subscriptionId}`);
+      }
+    }
+    await save(shopId, { card, hasCard: true, cardChanges: (row.cardChanges ?? 0) + 1 }, null);
+    return sub ? sync(shopId, sub, what) : subscriptions.get(shopId);
+  }
+
+  /** Puts the founding coupon on the shop's running subscription, once per subscription. */
+  async function applyFounding(shopId) {
+    const row = await subscriptions.get(shopId);
+    if (row?.founding !== true || !row.subscriptionId || ENDED.has(row.status) || row.foundingOn === row.subscriptionId) return row;
+    const coupon = await ensureFoundingCoupon(call, row.foundingPercentOff ?? 25, settings.platformName);
+    await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { discounts: [{ coupon }] }, idempotencyKey: `founding-${row.subscriptionId}` });
+    return save(shopId, { foundingOn: row.subscriptionId }, "founding-discount-on");
+  }
+
+  const hub = createBillingHub({
+    call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money: moneyText, cardNowPays, syncInvoiceLanguage,
+    iso, nowIso: at,
+    refresh: async (shopId) => {
+      const row = await subscriptions.get(shopId);
+      return sync(shopId, await call("GET", `/v1/subscriptions/${row.subscriptionId}`), "stripe-refreshed");
+    },
+  });
+
+  // Named, so a call can use another (keepClosingApps goes through changePlan).
+  const api = {
     ensurePrice,
     ensureCustomer,
+    claimFounding,
+    applyFounding,
+    ...hub,
 
     /**
      * Writes the shop's copy of its plan again (the shop maker once the database exists; the closing sweep), and the
@@ -296,7 +589,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * ended (or for a second shop of an account that already had a trial) starts unpaid until a card is added.
      * Safe to repeat: a shop with a plan that hasn't ended gets that plan back.
      */
-    async startTrial({ account, shopId, pressName, plan }) {
+    async startTrial({ account, shopId, pressName, plan, language = null }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       if (!account?.accountId || !account?.email) throw new BillingError(400, "The account is missing.");
       const existing = await subscriptions.get(shopId);
@@ -307,6 +600,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const customer = await ensureCustomer(account);
       const trial = settings.trialDays > 0 && !customer.trialUsedAt;
       const starts = (existing?.starts ?? 0) + 1;
+      // With no trial the first bill is made with the plan, so a founding press's discount goes on it from the start:
+      // the place it already has, or (it pays today, so it is a paying press) one taken now (22.1).
+      let percentOff = existing?.founding === true ? existing.foundingPercentOff ?? 25 : null;
+      const newPlace = !trial && percentOff === null ? await takeFoundingPlace(shopId) : null;
+      if (newPlace !== null) percentOff = newPlace;
+      const discounts = !trial && percentOff !== null ? [{ coupon: await ensureFoundingCoupon(call, percentOff, settings.platformName) }] : null;
       const sub = await call("POST", "/v1/subscriptions", {
         params: {
           customer: customer.customerId,
@@ -316,19 +615,33 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           ...(trial
             ? { trial_period_days: settings.trialDays, trial_settings: { end_behavior: { missing_payment_method: "pause" } } }
             : { payment_behavior: "default_incomplete" }),
+          ...(discounts ? { discounts } : {}),
         },
         idempotencyKey: `subscription-${shopId}-${starts}`,
       });
       if (trial) await customers.set(account.accountId, { ...customer, trialUsedAt: at() });
-      return save(shopId, { ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0 }, trial ? "trial-started" : "plan-started");
+      const others = await subscriptions.list();
+      const chosen = language === "fr" || language === "en" ? language : null;
+      const saved = await save(shopId, {
+        ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0,
+        // The language is the person's, like setEmailLanguage: one chosen now is the account's; none keeps the account's.
+        ...(chosen ? { language: chosen } : languageOf(others, customer.customerId)),
+        // A second shop of an account billed in Quebec writes in French too (hub.js saveBillingDetails sets it per account).
+        ...(existing?.province === undefined ? provinceOf(others, customer.customerId) : {}),
+        ...(newPlace !== null ? { founding: true, foundingPercentOff: newPlace, foundingAt: at() } : {}),
+        ...(discounts ? { foundingOn: sub.id } : {}),
+      }, trial ? "trial-started" : "plan-started");
+      // Every shop the account pays for (one Stripe customer, one invoice language) follows a language chosen now.
+      if (chosen) for (const other of others.filter((r) => r.customerId === customer.customerId && r.shopId !== shopId && r.language !== chosen)) await save(other.shopId, { language: chosen }, null);
+      await syncInvoiceLanguage(shopId);
+      // A founding press starting again keeps its place: the new subscription gets the discount too.
+      return saved.founding === true ? applyFounding(shopId) : saved;
     },
 
-    /** A Stripe page to add or change the card. `returnUrl` must be one of the platform's own pages. */
+    /** A Stripe page to add or change the card. `returnUrl` must be one of the platform's pages or this shop's admin. */
     async cardLink({ shopId, returnUrl }) {
       const row = await rowFor(shopId);
-      if (typeof returnUrl !== "string" || !(returnUrl === settings.platformUrl || returnUrl.startsWith(`${settings.platformUrl}/`))) {
-        throw new BillingError(400, "The page to come back to must be on the platform.");
-      }
+      if (!(await comesBackHome(shopId, returnUrl))) throw new BillingError(400, "The page to come back to must be on the platform or in this shop's admin.");
       const back = new URL(returnUrl);
       back.searchParams.set("card", "added");
       const session = await call("POST", "/v1/checkout/sessions", {
@@ -391,20 +704,37 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * money, is prorated at once. A plan that drops an app keeps it open to the end of the month already paid for and
      * then closes it (closeDroppedApps), with its download kept 90 days; the new price starts with the next month.
      * During the trial, or while nothing is paid, the change takes effect at once. The registry row's `plan` says what
-     * is open, so the next run of the shop maker adds the app the new plan brings.
+     * is open: the shop maker's sweep then builds the app the new plan brings and rewrites the profile's `apps`
+     * (signup/shopMaker.js syncPlan), and does the same when a dropped app closes.
      *
      * `preview: true` changes nothing and answers what would change: the apps added and closed, when, and the
      * prorated amount Stripe would charge now.
      */
-    async changePlan({ shopId, plan, preview = false }) {
+    async changePlan({ shopId, plan, preview = false, reason = null }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
+      // The optional answer to "why are you dropping it?", checked before anything changes.
+      const why = dropReason(reason, (message) => new BillingError(400, message));
       const row = await rowFor(shopId);
-      if (ENDED.has(row.status)) throw new BillingError(409, "This plan has ended; start a new one instead.");
+      // Paying as they sell (6.19): the subscription has ended on purpose, and the fees need the website.
+      const asItSells = row.paymentWay === "payAsYouSell";
+      if (asItSells && !PAY_AS_YOU_SELL_PLANS.includes(plan)) {
+        throw new BillingError(409, "You pay as you sell, which needs the website. To keep only the stockroom, switch to paying monthly first, under How you pay.");
+      }
+      const subscriptionOn = !ENDED.has(row.status);
+      if (!subscriptionOn && !asItSells) throw new BillingError(409, "This plan has ended; start a new one instead.");
       const move = planMove(row, plan);
       if (preview) return { ...move, prorated: move.prorate ? await prorated(row, plan) : null };
       if (row.plan === plan) return { ...row, changed: false };
       const changes = (row.planChanges ?? 0) + 1;
-      const sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, {
+      // Paying as they sell: the monthly cap follows the plan's price (in the same proportion, so a founding press keeps
+      // its share off); the share of each sale stays as chosen.
+      // That holds while those terms still apply: paying as they sell, or the last month of it before monthly starts.
+      const termsApply = row.payAsYouSell && (asItSells || (row.payAsYouSell.until && now() < Date.parse(row.payAsYouSell.until)));
+      const terms = termsApply
+        ? { ...row.payAsYouSell, capMinor: Math.floor((row.payAsYouSell.capMinor * planPrice(plan, settings).amount) / planPrice(row.plan, settings).amount) }
+        : null;
+      // No subscription runs while a press pays as they sell, so there is nothing to change on Stripe.
+      const sub = !subscriptionOn ? null : await call("POST", `/v1/subscriptions/${row.subscriptionId}`, {
         params: {
           items: [{ id: row.itemId, price: await ensurePrice(plan) }],
           proration_behavior: move.prorate ? "create_prorations" : "none",
@@ -416,9 +746,15 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const closedApps = { ...(row.closedApps ?? {}) };
       for (const app of move.adds) delete closedApps[app];
       const appsClosing = move.closes.length && !move.immediate ? { apps: move.closes, at: move.closesAt, downloadUntil: move.downloadUntil } : null;
-      let saved = await save(shopId, { ...fromSubscription(sub), plan, planChanges: changes, appsClosing, closedApps }, "plan-changed");
+      // The registry first: the shop's copies read which apps are open from it, and the shop maker's sweep builds an
+      // added app from it (signup/shopMaker.js syncPlan).
+      if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan: move.openPlan, closedApps, ...(terms ? { payAsYouSell: terms } : {}) });
+      // Which apps the press dropped with time to change their mind, and which closing ones they kept after all.
+      // An immediate close (a trial) is recorded too, with its answer, and marked closed by closeApps just after.
+      const appDrops = noteDrops(row.appDrops, { dropped: move.immediate ? move.closes : appsClosing?.apps ?? [], kept: (row.appsClosing?.apps ?? []).filter((app) => PLAN_APPS[plan][app]), reason: why }, at());
+      // Any plan change ends an emailed keep link: it was for the press's earlier choice (closedApps.js).
+      let saved = await save(shopId, { ...(sub ? fromSubscription(sub) : {}), plan, planChanges: changes, appsClosing, closedApps, appDrops, keepLink: null, ...(terms ? { payAsYouSell: terms } : {}) }, "plan-changed");
       if (move.immediate && move.closes.length) saved = await closeApps(shopId, move.closes);
-      if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan: move.openPlan, closedApps: saved.closedApps ?? {} });
       const closing = move.closes.length ? { closing: move.closes.map((app) => APP_NAMES[app]).join(" and "), date: dateText(move.closesAt), now: move.immediate } : {};
       await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing }, `${shopId}/plan/${changes}`);
       return { ...saved, changed: true };
@@ -477,7 +813,57 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         appsClosing: row.appsClosing ?? null, closedApps: row.closedApps ?? {},
         plans: PLAN_IDS.map((id) => { const p = planPrice(id, settings); return { plan: id, name: p.name, price: p.priceText, apps: APPS.filter((app) => PLAN_APPS[id][app]) }; }),
         paymentWay: currentPaymentWay(row, now()),
+        founding: row.founding === true ? { percentOff: row.foundingPercentOff ?? null, price: price && row.foundingPercentOff ? moneyText(foundingAmount(price.amount, row.foundingPercentOff), price.currency) : "" } : null,
+        // Only while something is owed: a problem left over from a bill voided or settled some other way doesn't linger.
+        paymentProblem: OWING.has(row.status) && row.paymentProblem ? { kind: row.paymentProblem.kind, at: row.paymentProblem.at, amount: row.paymentProblem.amount ?? "", nextTry: row.paymentProblem.nextTry ?? null, pageUrl: httpsOrNull(row.paymentProblem.pageUrl) } : null,
+        canPayNow: OWING.has(row.status) && Boolean(row.hasCard),
+        // The paying card runs out within a month (or has): the Billing page asks for a new one until it's saved.
+        cardRunsOut: cardRunningOut(row, now()),
+        // The language of the platform's emails: the press's choice ("fr", "en" or "auto"), and what "auto" comes to.
+        emailLanguage: { choice: row.language ?? "auto", sends: mailLanguage(row) },
       };
+    },
+
+    /**
+     * The language of the platform's emails to this account ("fr", "en", or "auto": French then English for a Quebec
+     * billing address, else English). It's the person's, so every shop the account pays for (one Stripe customer) follows.
+     */
+    async setEmailLanguage({ shopId, language }) {
+      if (!["fr", "en", "auto"].includes(language)) throw new BillingError(400, "Choose French, English, or automatic.");
+      const row = await subscriptions.get(shopId);
+      if (!row) throw new BillingError(404, "This shop has no plan yet.");
+      const shops = row.customerId ? (await subscriptions.list()).filter((other) => other.customerId === row.customerId).map((other) => other.shopId) : [];
+      for (const id of new Set([shopId, ...shops])) await save(id, { language: language === "auto" ? null : language }, null);
+      await logChange(shopId, "email-language-changed", { language });
+      await syncInvoiceLanguage(shopId);
+      return { changed: true, emailLanguage: { choice: language, sends: mailLanguage({ ...row, language: language === "auto" ? null : language }) } };
+    },
+
+    /**
+     * "Keep it": the press changes their mind about an app their plan change will close at the end of the paid month.
+     * The plan goes back to one with every app open now (a plan change like any other, so Stripe, the registry and the
+     * shop's copies follow the one path). Nothing to keep answers 409.
+     */
+    async keepClosingApps({ shopId }) {
+      const row = await rowFor(shopId);
+      const closing = row.appsClosing?.apps ?? [];
+      if (!closing.length) throw new BillingError(409, "Nothing on your plan is closing, so there's nothing to keep.");
+      const plan = planOpening([...new Set([...APPS.filter((app) => PLAN_APPS[row.plan]?.[app]), ...closing])]);
+      return api.changePlan({ shopId, plan });
+    },
+
+    /**
+     * "Keep it" from the reminder email's one-time link, with no sign-in (closedApps.js keepLinkProblem): only for the
+     * closing it was made for, only once, only until the app closes, and it can do nothing but keep the closing app.
+     */
+    async keepClosingAppsByLink({ shopId, token }) {
+      const row = await subscriptions.get(shopId);
+      const problem = keepLinkProblem(row, token, now());
+      if (problem) throw new BillingError(problem.status, problem.message);
+      const kept = await api.keepClosingApps({ shopId });
+      await save(shopId, { keepLink: { ...row.keepLink, usedAt: at() } }, null);
+      await logChange(shopId, "apps-kept-by-email", { apps: row.appsClosing.apps });
+      return kept;
     },
 
     /**
@@ -486,14 +872,19 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      */
     async closeDroppedApps() {
       const closed = [];
+      const failed = [];
       for (const row of await subscriptions.list()) {
-        if (!row.appsClosing?.apps?.length || Date.parse(row.appsClosing.at) > now()) continue;
-        const saved = await closeApps(row.shopId, row.appsClosing.apps);
-        if (await registry.getShop(row.shopId)) await registry.updateShop(row.shopId, { plan: row.plan, closedApps: saved.closedApps });
-        closed.push({ shopId: row.shopId, apps: row.appsClosing.apps });
+        try {
+          await sweepOne(row, closed);
+        } catch (failure) {
+          // One shop's trouble (an email that won't go, say) never stops the others; the run still reports it.
+          failed.push(`${row.shopId}: ${failure.message}`);
+        }
       }
+      if (failed.length) throw new Error(`The dropped-apps sweep finished, but ${failed.length} shop${failed.length > 1 ? "s" : ""} had trouble: ${failed.join("; ")}`);
       return closed;
     },
+
 
     /**
      * The daily sweep for 6.12 (cardExpiry.js, run nightly since 19.9): a month before the card on file runs out, the
@@ -545,6 +936,14 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       }
     },
   };
+  return api;
+
+  /** The shop row an invoice belongs to, by its subscription (both Stripe shapes), or null. */
+  async function rowOfInvoice(invoice) {
+    const subscriptionId = invoice.subscription ?? invoice.parent?.subscription_details?.subscription;
+    if (!subscriptionId) return null;
+    return subscriptions.findBySubscriptionId(typeof subscriptionId === "string" ? subscriptionId : subscriptionId.id);
+  }
 
   /** One event. Returns what it did, for the events log. */
   async function handle(event) {
@@ -576,6 +975,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           await notify(shopId, "card-needed", {}, event.id);
         } else if (event.type === "customer.subscription.deleted") {
           await notify(shopId, "subscription-ended", {}, event.id);
+          if (saved.founding === true && !saved.paidOnce) await giveBackFounding(shopId);
         }
         return saved.status;
       }
@@ -583,10 +983,36 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const subscriptionId = object.subscription ?? object.parent?.subscription_details?.subscription;
         const row = subscriptionId ? await subscriptions.findBySubscriptionId(typeof subscriptionId === "string" ? subscriptionId : subscriptionId.id) : null;
         if (!row) return "not ours";
+        if (paidAlready(row, object)) return "already paid";
         const amount = new Intl.NumberFormat("en-CA", { style: "currency", currency: (object.currency ?? settings.currency).toUpperCase(), currencyDisplay: "narrowSymbol" }).format((object.amount_due ?? 0) / 100);
+        await save(row.shopId, { paymentProblem: { kind: "declined", at: at(), invoiceId: object.id ?? null, amount, nextTry: iso(object.next_payment_attempt), pageUrl: httpsOrNull(object.hosted_invoice_url) } }, null);
         await logChange(row.shopId, "payment-failed", { attempt: object.attempt_count ?? null });
         await notify(row.shopId, "payment-failed", { price: amount, nextTry: dateText(iso(object.next_payment_attempt)) }, event.id);
         return "payment failed";
+      }
+      case "invoice.payment_action_required": {
+        // The bank wants the press to confirm the payment (3D Secure): Stripe keeps the bill open meanwhile.
+        const row = await rowOfInvoice(object);
+        if (!row) return "not ours";
+        if (paidAlready(row, object)) return "already paid";
+        const amount = moneyText(object.amount_due ?? 0, object.currency ?? settings.currency);
+        await save(row.shopId, { paymentProblem: { kind: "confirm", at: at(), invoiceId: object.id ?? null, amount, nextTry: null, pageUrl: httpsOrNull(object.hosted_invoice_url) } }, null);
+        await logChange(row.shopId, "payment-needs-confirming", {});
+        // The button opens Stripe's page for this bill, where the bank's step happens; the account page if there's none.
+        await notify(row.shopId, "payment-needs-confirming", { price: amount, ...(httpsOrNull(object.hosted_invoice_url) ? { link: object.hosted_invoice_url } : {}) }, event.id);
+        return "payment needs confirming";
+      }
+      case "invoice.paid": {
+        // A bill paid: a payment problem it settles is cleared, and the press hears it went through.
+        const row = await rowOfInvoice(object);
+        if (!row) return "not ours";
+        const problem = row.paymentProblem;
+        const settles = problem && (!problem.invoiceId || problem.invoiceId === object.id);
+        await save(row.shopId, { lastPaidAt: at(), lastPaidInvoiceId: object.id ?? null, ...((object.amount_paid ?? 0) > 0 ? { paidOnce: true } : {}), ...(settles ? { paymentProblem: null } : {}) }, null);
+        if (!settles) return "paid";
+        await logChange(row.shopId, "payment-recovered", {});
+        await notify(row.shopId, "payment-received", { price: moneyText(object.amount_paid ?? object.total ?? 0, object.currency ?? settings.currency) }, event.id);
+        return "payment recovered";
       }
       case "checkout.session.completed": {
         if (object.mode !== "setup") return "not ours";
@@ -601,19 +1027,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const address = method?.billing_details?.address;
         // With tax on, the card's billing address is where Stripe Tax places the press, so it goes on the customer first.
         const located = tax && address?.country;
-        await call("POST", `/v1/customers/${row.customerId}`, { params: { invoice_settings: { default_payment_method: card }, ...(located ? { address: plainAddress(address) } : {}) } });
-        let sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { default_payment_method: card, ...(located ? { automatic_tax: { enabled: true } } : {}) } });
-        // A trial that ended without a card paused the plan: the card opens the shop again, billed from today.
-        if (sub.status === "paused") sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}/resume`, { params: { billing_cycle_anchor: "now" }, idempotencyKey: `resume-${event.id}` });
-        // A plan started again without a trial waits for its first payment: pay it with the new card.
-        const invoice = typeof sub.latest_invoice === "string" ? sub.latest_invoice : sub.latest_invoice?.id;
-        if (sub.status === "incomplete" && invoice) {
-          await call("POST", `/v1/invoices/${invoice}/pay`, { params: { payment_method: card }, idempotencyKey: `pay-${event.id}` });
-          sub = await call("GET", `/v1/subscriptions/${row.subscriptionId}`);
-        }
         const details = method?.card ?? {};
-        await save(shopId, { card: { id: card, brand: details.brand ?? "card", last4: details.last4 ?? "", expMonth: details.exp_month ?? null, expYear: details.exp_year ?? null } }, null);
-        await sync(shopId, sub, "card-added");
+        await cardNowPays(shopId, { id: card, brand: details.brand ?? "card", last4: details.last4 ?? "", expMonth: details.exp_month ?? null, expYear: details.exp_year ?? null }, {
+          key: `card-${event.id}`, what: "card-added",
+          customer: located ? { address: plainAddress(address) } : {},
+          subscription: located ? { automatic_tax: { enabled: true } } : {},
+        });
         return "card added";
       }
       case "payment_method.automatically_updated": {
@@ -638,17 +1057,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
 const TROUBLE = new Set(["past_due", "unpaid", "incomplete", "paused"]);
 const inTrouble = (row) => TROUBLE.has(row?.status) && row?.paymentWay !== "payAsYouSell";
 
+/** Stripe doesn't promise the order of events: a failure arriving after its bill was paid is old news. */
+const paidAlready = (row, invoice) => invoice?.status === "paid" || (Boolean(invoice?.id) && row.lastPaidInvoiceId === invoice.id);
+
 const httpsOrNull = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);
 
 /** The parts of a Stripe address the customer takes, without empty ones. */
 function plainAddress(address) {
   return Object.fromEntries(["line1", "line2", "city", "state", "postal_code", "country"].filter((part) => address[part]).map((part) => [part, address[part]]));
-}
-
-const BRANDS = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover", jcb: "JCB", diners: "Diners Club", unionpay: "UnionPay" };
-
-/** "Visa ending 4242", for the page and the emails. */
-export function cardWords(card) {
-  const brand = BRANDS[card?.brand] ?? "Card";
-  return card?.last4 ? `${brand} ending ${card.last4}` : brand;
 }

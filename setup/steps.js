@@ -68,6 +68,14 @@ export const SERVICES = [
 
 export const PLANS = { shop: { shop: true, stockroom: false }, stockroom: { shop: false, stockroom: true }, both: { shop: true, stockroom: true } };
 
+/**
+ * The setup steps whose work depends on the plan: 5 (the stockroom's database, bucket and Realtime Database), 6 (the
+ * profile's `apps` and stockroom block), 8 (the shop's server code), 9 (each app's pages), 13 (payments) and 16 (the
+ * link between the shop and the stockroom). When an app is added or dropped, the shop maker runs them again
+ * (signup/shopMaker.js syncPlan); the steps after the first of them check before they act, as on any resumed run.
+ */
+export const PLAN_STEPS = Object.freeze([5, 6, 8, 9, 13, 14, 16]);
+
 /** Problems with the sign-up details, in plain words. The shop id is also its Google Cloud project id. */
 export function shopProblems(shop) {
   const problems = [];
@@ -181,11 +189,12 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
         return true;
       },
       async act({ shop }) {
-        const { shopId, pressName, ownerEmail, plan, country, currency } = shop;
+        const { shopId, pressName, ownerEmail, plan, country, currency, language } = shop;
         // The test marks live in the registry, where only the platform can change them (docs/test-shop.md).
         await registry.createShop(shopId, {
           shopId, projectId: shopId, pressName, ownerEmail, plan, country, currency, region,
           testMode: shop.testMode === true, testShop: shop.testShop === true, status: "creating", createdAt: now().toISOString(),
+          ...(language === "fr" ? { language } : {}),
         });
       },
     },

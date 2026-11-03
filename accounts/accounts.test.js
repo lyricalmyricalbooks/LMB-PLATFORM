@@ -195,7 +195,7 @@ test("roles change and people leave, but a shop always keeps an owner", async ()
   assert.deepEqual((await w.accounts.myShops(OWNER)).shops, [], "the account's old list of shops gives no role");
   const logged = [...w.registry.events.get(SHOP).values()].map((e) => e.what);
   assert.deepEqual(logged.slice(-3), ["role-changed", "role-changed", "member-removed"]);
-  assert.deepEqual(ROLES, ["owner", "staff", "author", "bookkeeper"]);
+  assert.deepEqual(ROLES, ["owner", "staff", "author", "bookkeeper", "fairHelper"]);
 });
 
 test("the team list shows the shop's sign-up owner, members and open invites", async () => {
@@ -263,4 +263,40 @@ test("only the shop's owner can run Check my shop, and it only looks (plan 14.3)
   assert.equal(answer.body.results.find((r) => r.id === "backups").state, "unknown");
   assert.equal((await w.ask(CAL, "POST", "/api/accounts/check", { shopId: SHOP })).status, 403);
   assert.equal(JSON.stringify([...w.registry.shops.entries()]), before);
+});
+
+test("a stockroom-only shop shows the stockroom's address, never a website it doesn't have", async () => {
+  const w = world();
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), plan: "stockroom" });
+  w.registry.profiles.set(SHOP, { ...w.registry.profiles.get(SHOP), apps: { shop: false, stockroom: true } });
+  const [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.equal(shop.siteUrl, null);
+  assert.equal(shop.adminUrl, null);
+  assert.equal(shop.stockroomUrl, `https://${SHOP}-stockroom.web.app`);
+  assert.equal((await w.ask(OWNER, "POST", "/api/accounts/switch", { shopId: SHOP })).body.url, `https://${SHOP}-stockroom.web.app`);
+});
+
+test("the shop card knows an app is being set up until the shop maker has built it", async () => {
+  const w = world();
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), plan: "both", builtPlan: "stockroom", billing: { appsClosing: null } });
+  let [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.adding, ["shop"]);
+  assert.equal(shop.closing, null);
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), builtPlan: "both", billing: { appsClosing: { apps: ["stockroom"], at: "2026-11-30T15:00:00Z" } } });
+  [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.adding, []);
+  assert.deepEqual(shop.closing, { apps: ["stockroom"], at: "2026-11-30T15:00:00Z" });
+});
+
+test("the shop card lists a dropped app that has closed while its data can still be downloaded", async () => {
+  const w = world();
+  const later = "2099-01-01T00:00:00.000Z";
+  const gone = "2000-01-01T00:00:00.000Z";
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), plan: "shop", builtPlan: "shop", closedApps: { stockroom: { closedAt: gone, downloadUntil: later } } });
+  let [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.closed.map(({ app, downloadUntil }) => ({ app, downloadUntil })), [{ app: "stockroom", downloadUntil: later }]);
+  assert.match(shop.closed[0].holds, /^a spreadsheet each of the books in your stockroom, /);
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), closedApps: { stockroom: { closedAt: gone, downloadUntil: gone } } });
+  [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.closed, [], "its 90 days are over");
 });

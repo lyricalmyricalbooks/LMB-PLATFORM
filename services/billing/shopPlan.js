@@ -15,6 +15,8 @@
 // The closing sweep (closing.js) keeps its stage on the registry row (`closing`); a closed or deleted stage wins over
 // Stripe's status, so a shop the sweep closed stays closed even though Stripe still calls its plan "paused".
 import { PLAN_APPS } from "./plans.js";
+
+const APPS = ["shop", "stockroom"];
 import { currentPaymentWay } from "./paymentWayState.js";
 
 export const PLAN_DOC = "platform/plan";
@@ -44,8 +46,11 @@ export function nextPaymentAt(row, closing = null) {
   return row.currentPeriodEnd ?? null;
 }
 
-/** The admin-only document. `link` is the platform's Plan & billing page for this shop. */
-export function planDocument(row, { link, at, closing = null }) {
+/**
+ * The admin-only document. `link` is the platform's Plan & billing page for this shop; `hub` the address the admin's
+ * own billing pages call (accounts/shopBillingDoor.js, code plan 22.3), with the shop's id beside it.
+ */
+export function planDocument(row, { link, hub = null, at, closing = null, changing = null }) {
   const access = shopAccess(row, closing);
   // Paying as it sells (paymentWay.js, plan 6.19): open with no subscription, nothing to pay ahead and no trial.
   const paymentWay = currentPaymentWay(row, Date.parse(at));
@@ -62,10 +67,15 @@ export function planDocument(row, { link, at, closing = null }) {
     endsAt,
     paymentWay,
     link,
+    hub,
+    shopId: row.shopId ?? null,
+    founding: row.founding === true,
     // Only what the admin shows: when it closed, until when everything can be downloaded, and the day it is deleted.
     closing: closing && closing.stage !== "paused"
       ? { stage: closing.stage, closedAt: closing.closedAt ?? null, downloadUntil: closing.downloadUntil ?? null, deleteAfter: closing.deleteAfter ?? null }
       : null,
+    // An app being added (being built) or one a plan change will close, for the admins' notices.
+    changing: changing && (changing.adding.length || changing.closing) ? changing : null,
     updatedAt: at,
   };
 }
@@ -77,18 +87,39 @@ export const statusDocument = (plan) => ({ access: plan.access, updatedAt: plan.
  * Writes the shop's copies. Clients:
  *   shopData        set(shopId, path, data): the shop's default database (clients/shop.js shopDataClient)
  *   stockroomData   optional: set(shopId, path, data) and ready(shopId) -> whether the stockroom's database exists yet
- *   registry        getShop(shopId): for the closing stage and the plan's apps
+ *   registry        getShop(shopId): for the closing stage, the apps open now (`plan`) and the apps a plan change
+ *                   closed (`closedApps`)
  * The caller checks the shop's database exists first (billing.js uses the audit log's `ready`).
  */
 export function shopPlanCopies({ shopData, stockroomData = null, registry }) {
   return {
-    async write(shopId, row, { link, at }) {
+    async write(shopId, row, { link, hub = null, at }) {
       const shop = await registry.getShop(shopId);
-      const doc = planDocument(row, { link, at, closing: shop?.closing ?? null });
+      const closing = shop?.closing ?? null;
+      // The registry's plan says what is open: a dropped app stays open to the end of the month already paid for.
+      const open = PLAN_APPS[shop?.plan ?? row.plan] ?? {};
+      // An app is being added while it is open but the shop maker hasn't built it yet (`builtPlan`, signup/shopMaker.js);
+      // a dropped app closes at the end of the month already paid for (`appsClosing`, billing.js).
+      const built = PLAN_APPS[shop?.builtPlan] ?? null;
+      const changing = {
+        adding: built ? APPS.filter((app) => open[app] && !built[app]) : [],
+        closing: row.appsClosing?.apps?.length ? { apps: [...row.appsClosing.apps], at: row.appsClosing.at ?? null } : null,
+      };
+      // An app the plan dropped, once closed, gets closed copies: the website refuses new orders and its admin offers
+      // the downloads; the stockroom opens read-only. The other app carries on with the plan.
+      const copyFor = (app) => {
+        const closed = shop?.closedApps?.[app];
+        const appClosing = !open[app] && closed && closing?.stage !== "deleted"
+          ? { stage: "closed", closedAt: closed.closedAt ?? null, downloadUntil: closed.downloadUntil ?? null, deleteAfter: null }
+          : closing;
+        return planDocument(row, { link, hub, at, closing: appClosing, changing });
+      };
+      const doc = copyFor("shop");
       await shopData.set(shopId, PLAN_DOC, doc);
       await shopData.set(shopId, STATUS_DOC, statusDocument(doc));
-      const apps = PLAN_APPS[row.plan ?? shop?.plan];
-      if (stockroomData && apps?.stockroom && (await stockroomData.ready(shopId))) await stockroomData.set(shopId, PLAN_DOC, doc);
+      const stockroomDoc = copyFor("stockroom");
+      const stockroomKept = open.stockroom || shop?.closedApps?.stockroom;
+      if (stockroomData && stockroomKept && (await stockroomData.ready(shopId))) await stockroomData.set(shopId, PLAN_DOC, stockroomDoc);
       return doc;
     },
   };

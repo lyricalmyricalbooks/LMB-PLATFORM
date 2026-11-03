@@ -44,6 +44,7 @@ export const PUBLISHES = Object.freeze({
     Object.freeze({ id: "comics", label: "Comics" }),
     Object.freeze({ id: "prints", label: "Art and prints" }),
     Object.freeze({ id: "mix", label: "A mix" }),
+    Object.freeze({ id: "mixed", label: "Books and other things" }),
     Object.freeze({ id: "clothing", label: "Clothing" }),
     Object.freeze({ id: "shoes", label: "Shoes" }),
     Object.freeze({ id: "jewelry", label: "Jewelry" }),
@@ -77,6 +78,25 @@ export function checkAddress(value) {
   else if (!ADDRESS.test(address)) problem = "Use only letters, numbers and hyphens (-).";
   else if (NOT_IN_AN_ADDRESS.some((word) => address.includes(word)) || RESERVED.includes(address)) problem = "That address isn't available. Try another.";
   return { ok: !problem, address, problem };
+}
+
+// A best guess at the press's country from the time zone its computer's clock is set to (the front door starts the
+// country question on it). A time zone says where someone is far better than a browser language does: a Toronto
+// browser in "en-US" or "fr" is still in Canada. Returns "" when the zone isn't one of COUNTRIES' or isn't known.
+const ZONE_COUNTRY = [
+  [/^America\/(Toronto|Montreal|Nipigon|Thunder_Bay|Iqaluit|Pangnirtung|Rankin_Inlet|Resolute|Atikokan|Coral_Harbour|Winnipeg|Rainy_River|Regina|Swift_Current|Edmonton|Cambridge_Bay|Yellowknife|Inuvik|Creston|Dawson_Creek|Fort_Nelson|Whitehorse|Dawson|Vancouver|Halifax|Glace_Bay|Moncton|Goose_Bay|Blanc-Sablon|St_Johns)$|^Canada\//, "CA"],
+  [/^America\/(New_York|Detroit|Kentucky\/.+|Indiana\/.+|Indianapolis|Louisville|Chicago|Menominee|North_Dakota\/.+|Denver|Boise|Phoenix|Los_Angeles|Anchorage|Juneau|Sitka|Metlakatla|Yakutat|Nome|Adak)$|^Pacific\/Honolulu$|^US\//, "US"],
+  [/^Europe\/(London|Belfast)$|^GB$/, "GB"],
+  [/^Europe\/Dublin$|^Eire$/, "IE"],
+  [/^Europe\/Paris$/, "FR"],
+  [/^Europe\/(Berlin|Busingen)$/, "DE"],
+  [/^Europe\/Amsterdam$/, "NL"],
+  [/^Australia\//, "AU"],
+  [/^Pacific\/(Auckland|Chatham)$|^NZ(-CHAT)?$/, "NZ"],
+];
+export function countryFromTimeZone(zone) {
+  if (typeof zone !== "string") return "";
+  return ZONE_COUNTRY.find(([pattern]) => pattern.test(zone))?.[1] ?? "";
 }
 
 export const PLAN_CHOICES = Object.freeze(["both", "shop", "stockroom"]);
@@ -124,6 +144,10 @@ export function checkSignup(input) {
   // The terms (terms/terms.js): the box must be ticked; the server checks the version is today's.
   if (input?.termsAccepted !== true) problems.terms = "Tick the box to agree to the terms.";
   const termsVersion = typeof input?.termsVersion === "string" ? input.termsVersion.slice(0, 60) : "";
-  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion };
+  // The language the platform writes to the press in (templatesFr.js): French or English when chosen (setup mode's
+  // General page, or French from a French browser on the old page). A press that says nothing gets the Quebec rule
+  // (French first, then English) from its billing address instead.
+  const language = ["fr", "en"].includes(input?.language) ? input.language : null;
+  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, ...(language ? { language } : {}) };
   return { ok: Object.keys(problems).length === 0, details, problems };
 }

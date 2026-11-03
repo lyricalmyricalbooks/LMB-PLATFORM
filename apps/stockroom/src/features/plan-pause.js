@@ -2,7 +2,7 @@
 // main.js's boot reads the plan once the person is signed in and calls this when it isn't open: from then on every
 // write in firebase.js refuses at once and the banner stays across the top. Reopening the plan reloads nothing by
 // itself; the banner's button goes to the platform's Plan & billing page, and the next start opens normally.
-import { planPauseBannerHtml } from '../lib/plan-pause.js';
+import { planChangeBannerHtml, planPauseBannerHtml } from '../lib/plan-pause.js';
 import '../styles/plan-pause.css';
 
 /** Locks the stockroom for this session and shows the banner (once, however often it is called). */
@@ -18,4 +18,15 @@ function showPlanPause(plan) {
   el.innerHTML = planPauseBannerHtml(plan);
 }
 
-export { showPlanPause };
+/** A plan change in progress (an app being set up or closing): a quieter banner; nothing is locked. */
+function showPlanNotice(plan) {
+  const html = planChangeBannerHtml(plan);
+  if (!html || document.getElementById('plan-pause-banner')) return;
+  const el = document.createElement('div');
+  el.id = 'plan-change-banner';
+  el.innerHTML = html;
+  document.getElementById('plan-change-banner')?.remove();
+  document.body.prepend(el);
+}
+
+export { showPlanNotice, showPlanPause };

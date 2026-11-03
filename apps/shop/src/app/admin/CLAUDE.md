@@ -370,6 +370,13 @@ The private operations, label purchase safeguards, payment authority and server 
   It attaches a two-page PDF (`functions/weeklyPdf.js`, hand-written PDF with built-in Helvetica, no package) drawn from
   `weeklyHighlights` (same sales rules; `analytics` maps for sources/devices/bookViews/searches/funnel; unrecorded = empty, never 0).
   `sendEmail` takes `attachments` (Gmail and Resend; never queued). If the PDF fails the email goes without it.
+- **Fair day summary (combined admin, 3 November 2026):** `exports.fairDaySummary` (every day 21:00 Toronto, via the tick)
+  → `functions/fairDayEmail.js` (pure; same rules as the till's end of day, a test checks it against the stockroom's
+  `fair-mode.js`). It reads, read-only, the `hist` of books whose stockroom record was uploaded in the last 36 hours
+  (`inventoryLinkStore.readBooksSoldSince`: `ts` first, then only the changed books). It sends only when the till sold
+  something that day, once per day (`systemStatus/fairDayEmail.lastDay`); a shop without the stockroom sends nothing.
+  The switch is `shopAlerts.fairDaySummary` (missing = on), shown under Shop alerts in the combined admin only, with
+  **Send me today's fair summary now** (`sendTestEmail` `fairDaySummaryNow`, sends again).
 - Deploy Firestore rules + Functions with the frontend.
 
 ## Round-2 catalog and settings (10 October 2026)
@@ -468,16 +475,27 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `planCustomerNotes` (merges into `customerNotes`; `MOVED_MARK` makes a re-run unchanged; tags capped by `parseTags`)
   and `newsletterJoiners` (said yes in the file, not subscribed, not in `marketing-optout`). Joiners are written only
   after the owner ticks the permission box, through `adminApi.addImportedSubscriber` (transaction; never touches an
-  existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). Imported customers appear in the
-  list once they order (the list is built from orders).
+  existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). The note also keeps `name` and
+  `place` (plan 23.10), and `withMovedCustomers` lists a brought-over customer with no order here under **Not ordered
+  here yet** (segment `moved`, counted in no figure). `saveCustomerNote` merges so a note save keeps them.
 - **Photos** stay on the old shop's addresses until plan 3.1b copies them into the shop's own storage.
+- **Past orders (plan 23.7, 3 November 2026):** Orders › **Bring past orders over** (`PastOrdersDialog.tsx`) reads the
+  order file in the browser (`pastOrders.ts`, headings matched loosely, rows grouped by order number; cancelled, unpaid
+  and non-CAD orders left out with a reason) and sends batches of 500 to the `importPastOrders` admin action
+  (`functions/orderImport.js`). Only the server writes them: id `PAST-` + a hash of the old reference (`tx.create`, so a
+  re-run adds none), `source: "import"`, paid (or refunded) and delivered, `reviewRequestedAt` set, no `shippedAt`,
+  `stripePaymentIntentId` or `cartId`. **History only:** `onOrderCreated`, `handleOrderUpdated`, the stockroom link's
+  `pushKind` and return requests all skip `source: "import"`, so a past order moves no stock and sends no email. The
+  owner (not the bookkeeper) may delete one (`firestore.rules`, `deleteRefusal`). A new order hook must skip it too.
+  Other currencies (plan 23.11): `readyToSend` converts every amount at the owner's typed rate and keeps what the old
+  shop charged in `paidIn` (the server checks its shape); orders without a rate wait and count in no preview figure.
 
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 
 Both read the admin-only `firstWeek/start` (`adminApi.getFirstWeek`) that the platform's setup step 12 writes once
 (`sellingToday`, `publishes`, `country`, `plan`). No document, nothing shown: shops made before this, or by hand, never
 see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `AnalyticsDashboard`) picks which:
-- **Choose your look** (`overview/ChooseLookWelcome.tsx`, pure parts in `chooseLook.ts`, lazy-loaded): while
+- **Choose your look** (`overview/ChooseLookWelcome.tsx`, pure parts in `lookGallery.ts` (re-exported by `chooseLook.ts`, which also saves the look), lazy-loaded): while
   `welcome` is unset and the plan has a shop. A gallery of every `THEME_LIBRARY` theme (name, mood, three swatches,
   `LookPicture`: a small drawing in the theme's own colours and type with the press's name in the header; Preview opens
   it at phone or desktop width), two or three suggested per `publishes` (`SUGGESTED`). Use this look runs
@@ -492,7 +510,12 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   refunded order, plan 7.6; done once the shop is open), Open your shop (no wall, no maintenance). Gmail is never a
   step. Three open steps show (`guideParts`), the rest under **Later**, done ones under **Done**. **Open your shop**
   runs `openBlockers` (Ready to sell's `block` rows) and, when none, Dashboard's `toggleUnderConstruction(false)`
-  (passed down as `onSetWall`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
+  (passed down as `onSetWall`). The `online` answer has a ninth step after it, **Move over from your old shop**
+  (`switch`, ticked by hand, plan 23.8), opening Settings › General where **Check your old links** sits under URL
+  redirects (`OldLinksCheck.tsx`, pure `oldLinks.ts`; the server's `readOldLinks` action reads the old shop's site map
+  with `functions/moving/oldLinks.mjs`, a generated copy of `services/moving/oldLinks.js`). Its **Bring your own pages
+  over** (plan 23.6) asks `readOldPages`, which rebuilds each old page with the allow-list in `services/moving/oldPages.js`
+  (copied as `functions/moving/oldPages.mjs`); `pagesToSave` makes the drafts and redirects and never reuses a page's address. Pictures on public https addresses stay as `<img src alt>` and the hourly photo import copies them and rewrites `pages/*.body` (plan 23.13, `swapPagePictures`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
   for the platform's trial emails (plan 6.10, `services/trial-tips`).
 - `SELLING_TODAY` must list the sign-up form's answers and `StepId` must match `help/articles.js` `CHECKLIST_ANSWERS`
   (root tests check both). Firestore rule `firstWeek`: admin only, `hasOnly([... "publishes", "country", "welcome",
@@ -501,7 +524,7 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
 
 - **What you sell** (plan 10.1, `sells.ts`): sign-up's "What do you sell?" (`firstWeek/start` › `publishes`). Book
   answers (books, zines, comics, mix), a skipped or unknown one change nothing. Any other answer: Choose your look's
-  suggestions for it (`chooseLook.ts` SUGGESTED, keys in the form's order, checked by `setup/later-steps.test.js`),
+  suggestions for it (`lookGallery.ts` SUGGESTED, keys in the form's order, checked by `setup/later-steps.test.js`),
   starter Text & labels words put in the draft by `applyChosenLook` under the owner's own (`withStarterWords`), new
   products start as `startingKind` (BookEditor, also in `initialData` so it isn't an unsaved edit) and the guide's
   first-product step. A new shopper word with "book" in it needs a starter word in `sells.ts` (or `BOOK_ONLY_COPY`
@@ -528,7 +551,7 @@ order. Built so far:
 
 - **Step 3 of 8, Choose your look** (`overview/ChooseLookWelcome.tsx`, plan 17.8, built in plan 6.3): the suggested looks
   from the sign-up answer, every look, phone and desktop previews. Previews show the press's first book photo
-  (`firstBookPhoto` in `chooseLook.ts`, secure addresses only).
+  (`firstBookPhoto` in `lookGallery.ts`, secure addresses only).
 - **Step 5 of 8, get paid** (`overview/PaymentsStage.tsx`, pure logic in `paymentsStage.ts`, plan 17.10): only for a press
   whose cards go through the platform (Stripe or Square; `platformCardsProvider`). It reads the card status the Settings
   card reads (`platformPayments.ts`, plan 7.9): one **Continue with Stripe** (or **Connect Square**) sends the press to the
@@ -643,3 +666,41 @@ startsAt, endsAt }] }`, rules: admins read, no browser writes). `PlatformMessage
 (important ones in the warning tone), at most three, with Close kept in `localStorage` (`platformMessages.ts`
 `pickPlatformMessages`, tested in `platformMessages.test.ts`, which also checks nothing outside `app/admin` reads it). The
 storefront never imports it. Admin-only words, Studio-free.
+
+## Setup mode (code plan 18.6, 3 November 2026)
+
+The admin a press meets before its shop exists, served by the platform at `/app/` (`setup.html`, `src/setupMode/`,
+built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; the walkthrough serves it at `/app/`).
+- **No shop database.** `main.tsx` signs in with the platform's own account (it loads `/signup/config.js` and the
+  Firebase SDK the front door uses, so the front door's sign-in carries over) and never imports `../main`,
+  `lib/firebase` or `adminApi`. Every answer goes to the press's setup record through `door.ts` (`GET /api/press`,
+  `POST /api/press/setup`); the shop maker (18.9) carries it into the new shop.
+- **Same shell and menu** (`pages.ts` `setupMenu` is `sidebarItems(NAV)`, nothing added): Plan stays under Settings, as in
+  the open shop, and Help is a sidebar-footer button (`#help`). Home is the
+  setup guide; Design (the Choose your look gallery), Settings › General, Settings › Plan and Help work; every other
+  page is `OpensWithShop` and writes nothing. Pages live in the address (`#settings/general`); an address that names no
+  page (the skip link's `#rp-main`) leaves the page alone, so nothing typed is lost. General saves only the fields that
+  changed, so an answer saved meanwhile at the front door isn't written over.
+- **Look gallery without the database:** `lookGallery.ts` holds the pure gallery parts; `ChooseLookWelcome` takes
+  `apply` (setup mode passes one that does nothing) and loads `chooseLook.applyChosenLook` only when it isn't given.
+- **Open my shop (18.8):** Settings › Plan ends with `OpenShopCard`: a terms tick (version from `/api/plans`
+  `termsVersion`) and one button calling `door.openShop` (`POST /api/press/open`). The press then reads "Your shop is
+  being made" and the top-bar button goes away. A refusal shows in plain words and the press stays in setup.
+- **Books (18.7):** `setupMode/ImportPage.tsx` reads a product file in the browser (`planShopMove` with no books), shows
+  the first 150 rows, problems first, with `importPreview.tsx` `ImportPreviewRows` (also used by `BookImportDialog`), then
+  keeps it through `door.keepImport` (upload link from `POST /api/press/import`, a PUT straight to storage, then
+  `/import/kept`). Each upload has its own path (`pendingImportPath`) and becomes the kept file only on `/import/kept`. The guide's
+  Bring your books step is optional: counted only once a file is kept. The shop maker (18.9) brings it in.
+- **Plan words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
+  (billing gives one trial per account). Prices that fail to load say so with Try again.
+
+## One admin for shop + stockroom (3 November 2026)
+
+A shop whose profile has both apps gets the combined admin: `combined.ts` (`combinedAdmin`, `STOCKROOM_PAGES`),
+`riso/nav.ts` `COMBINED_MENU`, `StockroomFrame.tsx` (the stockroom's pages, framed from `/stockroom/app` on the shop's
+own address, kept open once opened), route `#stockroom/<page>`, and no Website · Inventory switcher. Shop-only shops keep
+`MENU`. Full notes and the next steps: LMB-PLATFORM `docs/combined-admin.md`. A new stockroom page in the menu goes in
+`STOCKROOM_PAGES` and `COMBINED_MENU` (combined.test.ts checks every page is listed once and exists in the stockroom).
+Other pages ask the stockroom through `stockroomBridge.ts` (`ask`, `openBook`; the frame opens hidden on first need):
+the book editor's **Stock and sales** tab (`StockroomBookPanel.tsx`, combined admin only) reads one book's figures from
+the stockroom's own `bookSummary`, never from a copy here, and matches an unmatched book with `linkNewBook`.

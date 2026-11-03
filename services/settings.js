@@ -16,6 +16,8 @@
 //   PLAN_PRICE_STOCKROOM       monthly price of the stockroom alone, in cents        default 1900 ($19)
 //   PLAN_PRICE_BOTH            monthly price of the shop and the stockroom, cents    default 3900 ($39)
 //   TRIAL_DAYS                 free days before the first charge (no card needed)    default 14
+//   START_NUDGES               Get started nudges on days 2 and 4 (plan 17.14): hold (none sent), beside (sent with the
+//                              setup tips) or instead (sent in place of that day's setup tip)   default hold
 //   PLATFORM_URL               the platform's own pages (sign-up, account)           default https://<domain>
 //   SIGNUP_OPEN                "true": anyone may sign up; otherwise waitlist invites only (6.1, 6.13)   default false
 //   SIGNUP_OPEN_COUNTRIES      countries whose presses may start a shop now, comma-separated codes   default CA (15.23: tax
@@ -40,9 +42,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
   trialDays: 14,
   platformUrl: "https://platform.example",
   signupOpen: false,
+  startNudges: "hold",
   signupDailyCap: 10,
   openCountries: Object.freeze(["CA"]),
-  foundingOffer: Object.freeze({ percentOff: 25, presses: 25 }),
+  foundingOffer: Object.freeze({ percentOff: 25, presses: 25, giveBackUnpaid: true }),
   payAsYouSell: Object.freeze({ basisPoints: 200 }),
 });
 
@@ -61,6 +64,9 @@ const LIMITS = Object.freeze({
 });
 
 const EMAIL = /^[^@\s<>"]+@[^@\s<>"]+\.[^@\s<>"]+$/;
+
+/** The Get started nudge modes (plan 17.14, START_NUDGES). Kept here, not imported, so this file stays free of the sweep. */
+export const START_NUDGE_MODES = Object.freeze(["hold", "beside", "instead"]);
 
 /**
  * The settings, from `env` (process.env by default). A value that is set but wrong throws, in plain words, so a typo in
@@ -82,6 +88,15 @@ export function platformSettings(env = process.env) {
       return fallback;
     }
     return Number(raw);
+  };
+  const choice = (name, fallback, options) => {
+    const raw = text(name, null);
+    if (raw === null) return fallback;
+    if (!options.includes(raw)) {
+      problems.push(`${name} must be one of ${options.join(", ")}`);
+      return fallback;
+    }
+    return raw;
   };
   const yesNo = (name, fallback) => {
     const raw = text(name, null);
@@ -122,11 +137,13 @@ export function platformSettings(env = process.env) {
     trialDays: whole("TRIAL_DAYS", DEFAULT_SETTINGS.trialDays, LIMITS.trialDays),
     platformUrl,
     signupOpen: yesNo("SIGNUP_OPEN", DEFAULT_SETTINGS.signupOpen),
+    startNudges: choice("START_NUDGES", DEFAULT_SETTINGS.startNudges, START_NUDGE_MODES),
     openCountries,
     signupDailyCap: whole("SIGNUP_DAILY_CAP", DEFAULT_SETTINGS.signupDailyCap, LIMITS.signupDailyCap),
     foundingOffer: {
       percentOff: whole("FOUNDING_PERCENT_OFF", DEFAULT_SETTINGS.foundingOffer.percentOff, LIMITS["foundingOffer.percentOff"]),
       presses: whole("FOUNDING_PRESSES", DEFAULT_SETTINGS.foundingOffer.presses, LIMITS["foundingOffer.presses"]),
+      giveBackUnpaid: yesNo("FOUNDING_GIVE_BACK_UNPAID", DEFAULT_SETTINGS.foundingOffer.giveBackUnpaid),
     },
     payAsYouSell: { basisPoints: whole("PAY_AS_YOU_SELL_BASIS_POINTS", DEFAULT_SETTINGS.payAsYouSell.basisPoints, LIMITS["payAsYouSell.basisPoints"]) },
   };
@@ -152,6 +169,8 @@ export const EDITABLE = Object.freeze({
   trialDays: { kind: "whole", ...LIMITS.trialDays, label: "Free trial days" },
   "foundingOffer.percentOff": { kind: "whole", ...LIMITS["foundingOffer.percentOff"], label: "Founding offer: percent off, for as long as they stay" },
   "foundingOffer.presses": { kind: "whole", ...LIMITS["foundingOffer.presses"], label: "Founding offer: how many paying presses get it" },
+  // On by default (3 November 2026): a place taken by a press that left before paying anything goes back to the offer.
+  "foundingOffer.giveBackUnpaid": { kind: "yesNo", label: "Founding offer: give a place back when a press leaves before paying anything" },
   "payAsYouSell.basisPoints": { kind: "basisPoints", ...LIMITS["payAsYouSell.basisPoints"], label: "Pay as you sell: share of each website sale (0 turns it off)" },
 });
 

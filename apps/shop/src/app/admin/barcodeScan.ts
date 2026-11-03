@@ -1,11 +1,12 @@
 // Scanning a barcode with the phone's or computer's camera (code plan 12.12). Uses the browser's own barcode reader
-// (BarcodeDetector), so there is nothing to install and no picture leaves the device. Browsers without it (most
-// desktop ones today) simply don't show the Scan button; typing the code works as before.
+// (BarcodeDetector) where there is one (Chrome on Android, Mac). Everywhere else (iPhone, iPad, Firefox, Windows) a copy
+// of the same reader (barcodeFallback.ts: the barcode-detector package, MIT) is loaded the first time someone opens Scan,
+// from the shop's own address, never from another company's server. No picture leaves the device either way.
 
 /** Codes worth reading on a book, a box or a label. */
 export const SCAN_FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"] as const;
 
-type DetectorLike = { detect(source: unknown): Promise<{ rawValue?: string }[]> };
+type DetectorLike = { detect(source: unknown): Promise<{ rawValue?: string; format?: string }[]> };
 type DetectorCtor = { new (options?: { formats?: string[] }): DetectorLike; getSupportedFormats?: () => Promise<string[]> };
 
 const detectorCtor = (): DetectorCtor | null => {
@@ -13,9 +14,9 @@ const detectorCtor = (): DetectorCtor | null => {
   return typeof w.BarcodeDetector === "function" ? w.BarcodeDetector : null;
 };
 
-/** True when this browser can read barcodes from the camera. */
+/** True when this device has a camera the page may ask for (the reader itself is always available, see loadReader). */
 export const scanSupported = (): boolean =>
-  !!detectorCtor() && typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+  typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 
 /**
  * The code as the shop stores it: an ISBN or EAN is digits only (a trailing X is kept for a ten-digit ISBN); a label's
@@ -29,19 +30,38 @@ export function cleanScan(raw: unknown, format = ""): string {
   return /^\d{8}$|^\d{12,13}$|^\d{9}[\dX]$/.test(digits) ? digits : "";
 }
 
-/** A reader for the formats above, or null when the browser has none. */
-export function makeReader(): { read(video: unknown): Promise<string> } | null {
-  const Ctor = detectorCtor();
-  if (!Ctor) return null;
-  const detector = new Ctor({ formats: [...SCAN_FORMATS] });
+export type Reader = { read(video: unknown): Promise<string> };
+
+/** Wraps any BarcodeDetector-shaped reader: the first readable code wins, cleaned by its own format. */
+export function readerFrom(detector: DetectorLike): Reader {
   return {
     async read(video) {
       const found = await detector.detect(video);
       for (const item of found) {
-        const code = cleanScan(item.rawValue);
+        const code = cleanScan(item.rawValue, item.format);
         if (code) return code;
       }
       return "";
     },
   };
+}
+
+/** The browser's own reader, or null when it has none or it reads none of our formats (Chrome on Windows says so). */
+export async function nativeReader(): Promise<Reader | null> {
+  const Ctor = detectorCtor();
+  if (!Ctor) return null;
+  try {
+    if (Ctor.getSupportedFormats) {
+      const formats = await Ctor.getSupportedFormats();
+      if (!SCAN_FORMATS.some((f) => formats.includes(f))) return null;
+    }
+    return readerFrom(new Ctor({ formats: [...SCAN_FORMATS] }));
+  } catch {
+    return null;
+  }
+}
+
+/** A reader for the formats above: the browser's own, else the bundled copy (loaded only now). */
+export async function loadReader(loadFallback: () => Promise<Reader> = async () => (await import("./barcodeFallback")).fallbackReader()): Promise<Reader> {
+  return (await nativeReader()) || loadFallback();
 }

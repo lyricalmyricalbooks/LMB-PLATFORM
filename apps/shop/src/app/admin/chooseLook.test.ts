@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstBookPhoto, galleryThemes, lookPreview, pressNameOf, suggestedThemes, welcomeShows } from "./chooseLook";
+import { firstBookPhoto, emailThemeFor, galleryThemes, ownBooks, lookPreview, pressNameOf, suggestedThemes, welcomeShows } from "./chooseLook";
 import { THEME_LIBRARY } from "./studio/themeLibrary";
 
 const HEX = /^#[0-9a-f]{3,8}$/i;
@@ -49,5 +49,31 @@ describe("the look previews show the first book's photo (plan 17.8)", () => {
     expect(firstBookPhoto([])).toBe("");
     expect(firstBookPhoto(null)).toBe("");
   });
+  it("shows the press's own books with their titles and secure covers, skipping empty ones", () => {
+    const list = ownBooks([
+      { title: "  Salt Hours ", photos: [{ url: "https://cdn.example/a.jpg" }] },
+      { title: "", photos: [] },
+      { title: "No Cover", photos: [{ url: "http://insecure.example/x.jpg" }] },
+      { photoUrl: "https://cdn.example/c.jpg" },
+    ], 3);
+    expect(list).toEqual([
+      { title: "Salt Hours", photo: "https://cdn.example/a.jpg" },
+      { title: "No Cover", photo: "" },
+      { title: "", photo: "https://cdn.example/c.jpg" },
+    ]);
+    expect(ownBooks(null)).toEqual([]);
+  });
+  it("tells the preview which template style to draw", () => {
+    const style = (id: string) => lookPreview((THEME_LIBRARY as any[]).find(t => t.id === id)).style;
+    expect(style("press-market")).toBe("market");
+    expect(style("press-rows")).toBe("index");
+  });
+  it("picks the email theme that goes with the look, and undoes a leftover one", () => {
+    expect(emailThemeFor("press-market")).toBe("market");
+    expect(emailThemeFor("press-rows", "dark")).toBe("index");
+    expect(emailThemeFor("press-zine", "market")).toBe("light");
+    expect(emailThemeFor("press-zine", "index")).toBe("light");
+    expect(emailThemeFor("press-zine", "dark")).toBeNull();
+    expect(emailThemeFor("press-zine")).toBeNull();
+  });
 });
-

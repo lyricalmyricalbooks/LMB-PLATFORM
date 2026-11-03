@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createAccounts } from "./accounts.js";
 import { billingRoutes } from "./billingRoutes.js";
-import { billingWords, planChangeWords } from "./billingWords.js";
+import { billingWords, emailLanguageWords, planChangeWords } from "./billingWords.js";
 import { fakeAccountStores, fakeShopData } from "./fakes.js";
 import { createApi } from "../signup/api.js";
 import { fakeSignupStores, fakeVerifyIdToken } from "../signup/fakes.js";
@@ -157,6 +157,8 @@ test("the page says where the plan stands in each state", () => {
   assert.match(cancelled.cancel, /Keep your plan any time before 11 November 2026/);
   assert.equal(billingWords({ ...base, status: "canceled", access: "closed" }).state, "Closed");
   assert.match(billingWords({ ...base, appsClosing: { apps: ["stockroom"], at: "2026-11-11T12:00:00Z" } }).closing, /doesn't have the stockroom\. It stays open until 11 November 2026.*90 days/);
+  assert.equal(billingWords({ ...base, appsClosing: { apps: ["stockroom"], at: "2026-11-11T12:00:00Z" } }).keepClosing, "Keep the stockroom");
+  assert.equal(billingWords(base).keepClosing, "");
 });
 
 test("the plan change says what changes and the prorated amount before anything happens", () => {
@@ -209,4 +211,61 @@ test("a paid plan's changes need the second step from the owner; looking, previe
   }
   assert.equal((await w.ask(TWO, "cancel")).status, 200);
   assert.ok(w.logged().some((e) => e.outcome === "refused: needs two-step sign-in"));
+});
+
+test("the account page's shop card says when an app is being set up or closing", async () => {
+  const { changingLines } = await import("./billingWords.js");
+  assert.deepEqual(changingLines({ adding: ["stockroom"], closing: null }), ["Your stockroom is being set up. We'll email you a link when it's ready."]);
+  assert.deepEqual(changingLines({ adding: [], closing: { apps: ["shop"], at: "2026-11-30T15:00:00Z" } }), ["Your website closes on 30 November 2026. Changed your mind? Keep it under Plan & billing."]);
+  assert.deepEqual(changingLines({ closed: [{ app: "stockroom", downloadUntil: "2027-02-28T15:00:00Z" }] }), ["Your stockroom is closed. You can download everything that was in it until 28 February 2027, with Download all your data."]);
+  assert.deepEqual(changingLines({ closed: [{ app: "stockroom", downloadUntil: "2027-02-28T15:00:00Z", holds: "a spreadsheet each of expenses" }] }), ["Your stockroom is closed. You can download everything that was in it until 28 February 2027, with Download all your data (a spreadsheet each of expenses)."]);
+  assert.deepEqual(changingLines({}), []);
+});
+
+test("the email's keep link is the one call with no sign-in: it reaches billing with the shop and link, and nothing else", async () => {
+  const seen = [];
+  const billing = { keepClosingAppsByLink: async (asked) => { seen.push(asked); return { plan: "both", changed: true }; } };
+  const { billingPublicRoutes } = await import("./billingRoutes.js");
+  const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), publicRoutes: billingPublicRoutes({ billing }) });
+  const call = (body) => api({ method: "POST", path: "/api/billing/keep-by-link", body, headers: {} });
+  assert.equal((await call({ shopId: SHOP })).status, 400);
+  assert.equal((await call({ token: "t" })).status, 400);
+  const answer = await call({ shopId: SHOP, token: "t", plan: "stockroom" });
+  assert.equal(answer.status, 200);
+  assert.deepEqual(answer.body, { ok: true, plan: "both", changed: true });
+  assert.deepEqual(seen, [{ shopId: SHOP, token: "t" }], "a plan in the body is ignored: the link can only keep");
+});
+
+test("the keep page acts only on a press, never on opening, and keeps the link out of the address bar", () => {
+  const page = readFileSync(new URL("./keep.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("./keep.js", import.meta.url), "utf8");
+  assert.match(page, /<meta name="referrer" content="no-referrer">/);
+  assert.match(page, /id="keep"/);
+  assert.match(script, /history\.replaceState/);
+  // The one call sits inside the button's click handler.
+  assert.ok(script.indexOf("keep-by-link") > script.indexOf('$("#keep").addEventListener("click"'));
+});
+
+test("changing plan passes the optional answer to why an app is dropped; the page's choices match the service's", async () => {
+  const w = await world();
+  const answer = await w.ask(OWNER, "change-plan", { plan: "shop", reason: "price" });
+  assert.equal(answer.status, 200);
+  assert.equal((await w.registry.getShop(SHOP)).billing.plan, "shop");
+  assert.equal((await w.ask(OWNER, "change-plan", { plan: "stockroom", reason: "made-up" })).status, 400);
+  const { DROP_CHOICES } = await import("./billingWords.js");
+  const { DROP_REASONS } = await import("../services/billing/closedApps.js");
+  assert.deepEqual(DROP_CHOICES.map(([id]) => id), Object.keys(DROP_REASONS));
+  assert.match(readFileSync(new URL("./billing.html", import.meta.url), "utf8"), /id="drop-choices" hidden/);
+  // The shop admin's Plan page (apps/shop, Settings › Plan) offers the same answers, after a "Rather not say".
+  const shopWords = readFileSync(new URL("../apps/shop/src/app/admin/platformBilling.ts", import.meta.url), "utf8");
+  const shopChoices = shopWords.slice(shopWords.indexOf("export const DROP_CHOICES"), shopWords.indexOf("];", shopWords.indexOf("export const DROP_CHOICES")));
+  assert.deepEqual([...shopChoices.matchAll(/value: "([^"]*)"/g)].map((m) => m[1]), ["", ...Object.keys(DROP_REASONS)]);
+});
+
+test("the email language choice in words, with what Automatic comes to", () => {
+  assert.match(emailLanguageWords({ choice: "fr", sends: "fr" }), /in French\.$/);
+  assert.match(emailLanguageWords({ choice: "en", sends: "en" }), /in English\.$/);
+  assert.match(emailLanguageWords({ choice: "auto", sends: "fr+en" }), /in Quebec, so our emails come in French with the English below/);
+  assert.match(emailLanguageWords({ choice: "auto", sends: "en" }), /^Automatic: our emails come in English/);
+  assert.match(emailLanguageWords(undefined), /^Automatic/);
 });

@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { adminApi } from "../api";
 import { inventoryApi } from "../inventoryApi";
 import { getOrdersCached, peekOrders } from "../ordersCache";
+import { readSignIn } from "../launchCheck";
 import { salesReportCsv } from "./salesReport";
 import { launchReadiness } from "../launchReadiness";
 import { platformCardsProvider } from "../../../lib/shopProfile";
@@ -48,6 +49,12 @@ import { OverviewNavigation, type NavigationWidget } from "./OverviewNavigation.
 import { OverviewVisitorEvents, type VisitorEventWidget } from "./OverviewVisitorEvents.tsx";
 import { OverviewJourneys, type JourneyWidget } from "./OverviewJourneys";
 import { OverviewClarity } from "./OverviewClarity";
+import { combinedAdmin } from "../combined";
+import { stockroomRunRows, useStockroomTodos } from "./StockroomTodos";
+import { useShopWords } from "../shopWords";
+
+/** A press with both apps: Home also lists the stockroom's to-dos. */
+const COMBINED = combinedAdmin();
 
 const PREFS_KEY = "lm:overview-view";
 type Prefs = { preset?: Preset; compare?: CompareMode; from?: string; to?: string };
@@ -82,6 +89,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
   const [ga, setGa] = useState<GaState>({ status: "loading" });
   const [lastReset, setLastReset] = useState<{ at: string; removedDays: number } | null>(null);
   const [firstTrafficDay, setFirstTrafficDay] = useState<string | null>(null);
+  const w = useShopWords();
+  const stockroomTodos = useStockroomTodos(COMBINED);
 
   const [tick, setTick] = useState(0);
   const range = useMemo(() => resolveRange(preset, { custom, compare: compareMode }), [preset, custom, compareMode, reloadKey, tick]);
@@ -113,7 +122,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
       adminApi.getRecentEmailLog(5),
       // A shop whose cards go through Colophon: is the press's card account connected? (plan 2.10; null if unknown)
       platformCardsProvider() ? adminApi.platformPayments("status").catch(() => null) : Promise.resolve(undefined),
-    ]).then(([settings, shippingProfiles, emailLog, platformAccount]) => setLaunch({ parts: { settings, shippingProfiles, emailLog, platformAccount }, error: false }))
+      // Two-step sign-in and backup codes, recommended before going live (never fails the other checks).
+      readSignIn(),
+    ]).then(([settings, shippingProfiles, emailLog, platformAccount, signIn]) => setLaunch({ parts: { settings, shippingProfiles, emailLog, platformAccount, signIn }, error: false }))
       .catch(() => setLaunch({ parts: null, error: true }));
     // The whole catalogue and every order, so 1-year and year-on-year figures are never cut off.
     getOrdersCached({ force: reloadKey > 0 }).then((o: any[]) => { seenShared.current = o; setAllOrders({ orders: o, error: false }); setLoadedAt(new Date()); })
@@ -295,6 +306,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
   const openTodos = insights && reviews && todos ? insights.fulfil.length + reviews.pending + insights.reprint.length + insights.shelf.soldOut
     + todos.requests.length + todos.giftCardsMissing.length + todos.awaitingRelease.length
     + (counts?.unreadMessages || 0) + (counts?.openPrivacyRequests || 0) : null;
+  const stockroomRun = COMBINED ? stockroomRunRows(stockroomTodos, w) : null;
+  // The stockroom answers a little later: its lines show "…" meanwhile, and the total grows when they arrive.
+  const allTodos = openTodos === null ? null : openTodos + (stockroomRun?.count || 0);
   const cartStep = funnel && funnel.add_to_cart > 0 ? (funnel.checkout_start / funnel.add_to_cart) * 100 : null;
   const profit = insights?.profit;
 
@@ -345,8 +359,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
   const runSheet = (
     <aside className="rp-ov-run" aria-label="Needs you">
       <div className="rp-ov-eyebrow">Live — not tied to the period</div>
-      <div className="rp-ov-run-total" aria-hidden="true">{openTodos === null ? "…" : openTodos}</div>
-      <p className="rp-ov-run-sub">{openTodos === null ? "Counting…" : openTodos === 0 ? "Nothing needs you right now." : `${openTodos} thing${openTodos === 1 ? "" : "s"} need${openTodos === 1 ? "s" : ""} you`}</p>
+      <div className="rp-ov-run-total" aria-hidden="true">{allTodos === null ? "…" : allTodos}</div>
+      <p className="rp-ov-run-sub">{allTodos === null ? "Counting…" : allTodos === 0 ? "Nothing needs you right now." : `${allTodos} thing${allTodos === 1 ? "" : "s"} need${allTodos === 1 ? "s" : ""} you`}</p>
       {gaReport && gaReport.activeNow !== null && (
         <p className="rp-ov-run-sub"><strong style={{ color: "var(--rp-primary-hover)" }}>{gaReport.activeNow}</strong> {gaReport.activeNow === 1 ? "person is" : "people are"} on the site now (Google Analytics)</p>
       )}
@@ -370,10 +384,11 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
           detail="From the contact form on your website" onOpen={() => setActiveTab?.("messages")} openLabel="Read messages" />
         <RunRow label="privacy requests" one="privacy request" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
           detail="Customers asked for a copy or deletion of their data" onOpen={() => setActiveTab?.("general")} openLabel="Open privacy requests" />
+        {stockroomRun?.rows}
       </RunList>
-      {(allOrders.error || audience.error || stock.error) && (
+      {(allOrders.error || audience.error || stock.error || stockroomTodos.failed) && (
         <p className="rp-ov-run-sub">
-          {[allOrders.error && "orders", audience.error && "reviews", stock.error && "books"].filter(Boolean).join(", ")} could not be loaded, so some counts are missing.
+          {[allOrders.error && "orders", audience.error && "reviews", stock.error && w("books"), stockroomTodos.failed && "the stockroom's to-dos"].filter(Boolean).join(", ")} could not be loaded, so some counts are missing.
         </p>
       )}
     </aside>

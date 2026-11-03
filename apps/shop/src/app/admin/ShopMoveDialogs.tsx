@@ -39,7 +39,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
     try {
       const [text, notes, consent] = await Promise.all([file.text(), adminApi.listCustomerNotes(), adminApi.getMarketingConsent()]);
       const move = readCustomerExport(text);
-      const byEmail = new Map(notes.map(n => [String(n.email || "").toLowerCase(), { note: n.note || "", tags: n.tags || [] }]));
+      const byEmail = new Map(notes.map(n => [String(n.email || "").toLowerCase(), { note: n.note || "", tags: n.tags || [], name: n.name || "", place: n.place || "" }]));
       const ids = new Map(await Promise.all(move.customers.map(async c => [c.email, await emailHash(c.email)] as const)));
       const writes = planCustomerNotes(move.customers, byEmail, new Date().toISOString().slice(0, 10)).map(w => ({ ...w, id: ids.get(w.email)! }));
       const joiners = newsletterJoiners(move.customers, consent.subscribed, email => !!consent.optedOutHashes?.has(ids.get(email)!));
@@ -58,7 +58,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
     const failed: string[] = [];
     let saved = 0, joined = 0, done = 0;
     for (const w of work) {
-      try { await adminApi.saveCustomerNote(w.id, { email: w.email, note: w.note, tags: w.tags }); saved++; }
+      try { await adminApi.saveCustomerNote(w.id, { email: w.email, note: w.note, tags: w.tags, ...(w.name ? { name: w.name } : {}), ...(w.place ? { place: w.place } : {}) }); saved++; }
       catch { failed.push(w.email); }
       setProgress(++done);
     }
@@ -85,13 +85,13 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
 
   return (
     <Dialog open size="lg" onClose={() => { if (!busy) onClose(); }} title="Bring customers over" footer={footer}
-      description="Bring your shop with you: choose the customer list your old shop exports. You'll see what comes over before anything is saved.">
+      description="Bring your shop with you: choose the customer list your old shop exports, or your mailing list. You'll see what comes over before anything is saved.">
       <div className="rp-stack">
         {!result && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             <li>Each customer gets a private note with their name, town and what they spent at your old shop, plus their tags. Notes you already wrote are kept.</li>
             <li>They show in the Customers list once they order here. Bringing the same file over again changes nothing.</li>
-            <li>Only customers your old shop says agreed to marketing email can join your newsletter, and only if you confirm below.</li>
+            <li>Only people your old shop or mailing list says agreed to marketing email can join your newsletter, and only if you confirm below. Anyone who unsubscribed stays off it.</li>
           </ul>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <input ref={fileRef} type="file" accept=".csv,text/csv" hidden aria-label="Customer list file"

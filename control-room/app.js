@@ -174,6 +174,7 @@ async function load() {
     await loadJobs();
     await loadMessages();
     await loadCosts();
+    await loadSetup();
   } catch (failure) {
     status.textContent = failure.message;
     // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
@@ -187,6 +188,14 @@ let allShops = [];
 let shopTags = {};
 const BILLING_TONE = { trialing: "info", active: "success", past_due: "danger", paused: "warning", unpaid: "warning", incomplete: "warning", canceled: "neutral", incomplete_expired: "neutral" };
 const PLAN_WORDS = { shop: "Shop", stockroom: "Stockroom", both: "Shop and stockroom" };
+/** " · emails: 2 in French, 1 French then English, 9 in English" over the presses (not the test shop), or "". */
+function languageCount(shops) {
+  const presses = shops.filter((shop) => !shop.testShop && shop.emailLanguage);
+  const count = (language) => presses.filter((shop) => shop.emailLanguage === language).length;
+  const parts = [[count("fr"), "in French"], [count("fr+en"), "French then English"], [count("en"), "in English"]].filter(([n]) => n);
+  return parts.length ? ` · emails: ${parts.map(([n, words]) => `${n} ${words}`).join(", ")}` : "";
+}
+
 function showShops() {
   const form = $("#shop-filters");
   const words = form.q.value.trim().toLowerCase();
@@ -195,7 +204,7 @@ function showShops() {
     && (!form.plan.value || shop.plan === form.plan.value)
     && (!form.billing.value || shop.billingStatus === form.billing.value));
   const problems = allShops.filter((s) => s.health.level === "problem").length;
-  $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
+  $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
   if (!shown.length) {
     $("#shops").replaceChildren(allShops.length ? emptyState("No shop matches.", "Clear the search or the filters to see every shop.") : emptyState("No shops yet.", "A press's shop shows here as soon as it is made."));
     return;
@@ -294,6 +303,19 @@ function googleView(record) {
     google.steps.length ? list : el("p", { className: "rp-hint", textContent: "No Google steps yet." }));
 }
 
+/** The language of the platform's emails to a press (the record's `emailLanguage`). */
+const EMAIL_LANGUAGE_WORDS = { fr: "in French", "fr+en": "in French, then English (billing address in Quebec)", en: "in English" };
+
+/** The press's sample email (the record's `emailSample`): the trial-ending email, as it would get it. Nothing is sent. */
+function emailSampleView(sample) {
+  if (!sample?.subject) return [];
+  return [el("details", { className: "cr-sample" },
+    el("summary", { textContent: `See a sample email, ${EMAIL_LANGUAGE_WORDS[sample.language] ?? "as this press gets it"}` }),
+    el("p", { className: "rp-hint", textContent: "The reminder a few days before the trial ends, with this press's plan, price and day. Nothing is sent." }),
+    el("p", {}, el("strong", { textContent: "Subject: " }), sample.subject),
+    el("pre", { style: "white-space: pre-wrap; font: inherit; margin: 0", textContent: sample.text }))];
+}
+
 function recordView(record) {
   const billing = record.billing;
   const connections = record.connections;
@@ -302,12 +324,14 @@ function recordView(record) {
     ["Started", dateOnly(record.createdAt)],
     ["Address", record.siteUrl],
     ["Plan", billing ? `${billing.plan ?? record.plan} · ${BILLING_WORDS[billing.status] ?? billing.status}${billing.trialEnd ? ` · trial ends ${dateOnly(billing.trialEnd)}` : ""}${billing.currentPeriodEnd ? ` · next payment ${dateOnly(billing.currentPeriodEnd)}` : ""} · ${billing.hasCard ? "card on file" : "no card yet"}${billing.cancelAtPeriodEnd ? " · cancelling" : ""}` : record.plan],
+    ["Emails", EMAIL_LANGUAGE_WORDS[record.emailLanguage] ?? ""],
     ["Payments", connections.payments ? `${connections.payments.provider ?? "?"}${connections.payments.connected ? ", connected" : ", not connected yet"}` : "not set up yet"],
     ["Web address", Array.isArray(connections.domains) && connections.domains.length ? connections.domains.map((d) => `${d.name} (${d.state})`).join(", ") : "the shop's own .web.app address"],
     ["Version", record.version ?? "none yet"],
   ].filter(([, value]) => value);
   return el("div", { className: "record" },
     el("dl", { className: "cr-facts" }, ...facts.flatMap(([label, value]) => [el("dt", { textContent: label }), el("dd", { textContent: value })])),
+    ...emailSampleView(record.emailSample),
     ...deliveryView(record.delivery),
     el("h3", { className: "cr-section", textContent: "Setup" }),
     record.setup.length ? el("ol", { className: "cr-steps" }, ...record.setup.map((step) => el("li", {}, `${step.name ?? `Step ${step.step}`} `, step.ok ? pill("success", "done") : pill("danger", `stopped: ${step.error}`)))) : el("p", { className: "rp-hint", textContent: "No setup steps yet." }),
@@ -460,6 +484,26 @@ function card(shop) {
     check.disabled = false;
   });
 
+  // Lost phone AND lost backup codes (plan 22.11): two-step sign-in off for one person, only once you've checked it's them.
+  const twoStep = button("Turn off two-step for someone", "secondary", { disabled: shop.status !== "live" });
+  twoStep.addEventListener("click", async () => {
+    const email = (window.prompt(`Turn off two-step sign-in for one person on ${shop.pressName}.\n\nThe email address they sign in with:`) ?? "").trim();
+    if (!email) return;
+    const reason = askWhy(`Turn off two-step sign-in for ${email}. Say how you checked it's really them (for example, a reply from the owner's email address on file).`);
+    if (!reason) return;
+    if (!window.confirm(`After this, Google alone lets ${email} into ${shop.pressName}'s admin until they set up two-step again. Go on?`)) return;
+    twoStep.disabled = true;
+    try {
+      const { removed } = await api("POST", "/control/two-step-reset", { shopId: shop.shopId, email, reason });
+      status.textContent = removed
+        ? `Two-step sign-in is off for ${email}. Ask them to set it up again under Settings, Security. It's in the shop's log.`
+        : `${email} didn't have two-step sign-in on, so nothing changed. It's in the shop's log.`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    twoStep.disabled = false;
+  });
+
   // Close for abuse (plan 8.4): checkout and pages close; the shop's pause page shows instead. Reversible.
   const closing = button(shop.closed ? "Open this shop again" : "Close this shop", shop.closed ? "secondary" : "danger");
   closing.addEventListener("click", async () => {
@@ -511,7 +555,7 @@ function card(shop) {
       shop.closed ? pill("danger", `closed by ${shop.closed.by}`) : null),
     meta(`status: ${shop.status ?? "?"}`, shop.access ? `billing: ${shop.access}` : null, shop.paymentsMoved ? `cards: ${PAYMENT_WORDS[shop.paymentsMoved.to]}` : null),
     shop.health.reasons.length ? el("ul", { className: "cr-steps", style: "margin-top: 12px" }, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
-    el("div", { className: "cr-actions" }, act, change, check, closing, exportButton(shop)),
+    el("div", { className: "cr-actions" }, act, change, check, twoStep, closing, exportButton(shop)),
     accessSlot,
     switches ? el("h3", { className: "cr-section", textContent: "Switches for this shop" }) : null,
     switches,
@@ -881,7 +925,7 @@ async function loadWaitlist() {
       return sheet({
         title: shop.pressName,
         tone: shop.canRetry ? "danger" : MAKING_TONE[shop.status] ?? "warning",
-        pillWords: shop.status,
+        pillWords: shop.status === "plan-change-stopped" ? "plan change stopped" : shop.status,
         metaParts: [shop.shopId, shop.ownerEmail, `started ${when(shop.createdAt)}`],
         body: shop.message ? [el("p", { className: "cr-body", textContent: shop.message })] : [],
         actions: el("div", { className: "cr-actions" }, retry.hidden ? null : retry),
@@ -965,9 +1009,9 @@ $("#settings-form").addEventListener("submit", async (event) => {
 // ── Activity log (plan 9.9): read only. ──
 const ACTIVITY_WORDS = {
   "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "switch-set": "set a switch",
-  "act-as": "opened the shop's admin as support", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
+  "act-as": "opened the shop's admin as support", "two-step-reset": "turned off two-step sign-in for someone", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
-  "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again",
+  "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again", "plan-change-retry": "tried the plan change again",
   "access-asked": "asked the press for a yes to make changes",
 
   "note-added": "added a private note", "note-deleted": "deleted a private note", "tags-set": "changed the shop's tags", "job-run": "ran a job by hand",
@@ -1290,7 +1334,7 @@ async function askThePress(shop, clicked, slot) {
 // ── The business side of Today (plan 19.7-19.9): income over time, failed plan payments, why presses leave. Each part
 // shows its own trouble in its own place, so one that can't load never hides the others. ──
 async function loadBusiness() {
-  await Promise.all([loadIncome(), loadPaymentTrouble(), loadLeaving()]);
+  await Promise.all([loadIncome(), loadPaymentTrouble(), loadLeaving(), loadAppsClosing()]);
 }
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -1420,6 +1464,74 @@ async function loadPaymentTrouble() {
       rows: shops,
       open: (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); },
     }));
+  } catch (failure) {
+    target.replaceChildren(emptyState(failure.message));
+  }
+}
+
+/**
+ * Why presses dropped an app over the last six months, as bars: every reason on the list (none given as well), the
+ * most given first. Nothing when nobody answered. Each line reads as its words and its number; the bar itself is hidden from screen readers.
+ */
+function dropReasonBars(drops, reasonWords = {}) {
+  const counts = drops?.reasons ?? {};
+  const answered = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  if (!answered) return null;
+  const rows = Object.entries(reasonWords).map(([id, label]) => [label, counts[id] ?? 0]);
+  const unanswered = Math.max(0, (drops.dropped ?? 0) - answered);
+  if (unanswered) rows.push(["Didn't say", unanswered]);
+  rows.sort((a, b) => b[1] - a[1]);
+  const most = Math.max(...rows.map(([, n]) => n));
+  return el("figure", { style: "margin: 16px 0 0" },
+    el("figcaption", { className: "cr-section", style: "margin: 0", textContent: "Why presses dropped an app, last 6 months" }),
+    el("ul", { className: "cr-bars", dataset: { dropReasons: "" } }, ...rows.map(([label, n]) => el("li", {},
+      el("span", { textContent: label }),
+      el("span", { className: "cr-bar-track", ariaHidden: "true" }, el("span", { className: "cr-bar", style: `width: ${(n / most) * 100}%`, dataset: n ? {} : { none: "" } })),
+      el("span", { className: "cr-bar-n", textContent: String(n) }),
+    ))));
+}
+
+async function loadAppsClosing() {
+  const target = $("#apps-closing");
+  try {
+    const { shops, closed, drops, reasonWords } = await api("GET", "/control/apps-closing");
+    const days = (n) => `${n} day${n === 1 ? "" : "s"}`;
+    const shopCell = (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.shopId, s.ownerEmail));
+    const bounced = (s) => (s.bounced ? pill("danger", "Email bounced") : null);
+    const openRow = (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); };
+    // How often a press dropped an app and then kept it, and why they dropped it: many keeps would mean the plan page's
+    // drop confuses people.
+    const kept = drops.dropped
+      ? el("p", { className: "rp-hint", textContent: `Last 6 months: ${drops.dropped} app${drops.dropped === 1 ? "" : "s"} dropped, ${drops.kept} kept after all, ${drops.closed} closed, ${drops.waiting} still to close.` })
+      : null;
+    const reasons = dropReasonBars(drops, reasonWords);
+    const closing = shops.length
+      ? table({
+        caption: "Apps closing, soonest first",
+        columns: [
+          { header: "Shop", lead: true, render: shopCell },
+          { header: "Closing", render: (s) => el("div", { className: "cr-tags" }, pill("warning", s.apps), bounced(s)) },
+          { header: "Closes", render: (s) => `${dateOnly(s.closesAt)} (${days(s.daysLeft)})` },
+          { header: "Reminder", render: (s) => (s.reminded ? `Emailed ${dateOnly(s.reminded)}` : "Goes out a week before") },
+        ],
+        rows: shops,
+        open: openRow,
+      })
+      : emptyState("No app is closing.", "Nobody has dropped the website or the stockroom from their plan.");
+    const records = closed.length
+      ? table({
+        caption: "Closed apps still holding records, stuck ones first",
+        columns: [
+          { header: "Shop", lead: true, render: shopCell },
+          { header: "App", render: (s) => el("div", { className: "cr-tags" }, pill(s.overdue ? "danger" : "neutral", s.app), bounced(s)) },
+          { header: "Download until", render: (s) => (s.overdue ? `${dateOnly(s.downloadUntil)} (over)` : `${dateOnly(s.downloadUntil)} (${days(s.daysLeft)})`) },
+          { header: "What's next", render: (s) => (s.overdue ? `Waiting to be deleted${s.problem ? `: ${s.problem}` : ""}` : s.warnedAt ? `Last email sent ${dateOnly(s.warnedAt)}` : "Last email 3 days before") },
+        ],
+        rows: closed,
+        open: openRow,
+      })
+      : null;
+    target.replaceChildren(closing, ...(kept ? [kept] : []), ...(reasons ? [reasons] : []), ...(records ? [records] : []));
   } catch (failure) {
     target.replaceChildren(emptyState(failure.message));
   }
@@ -1663,12 +1775,12 @@ const audienceWords = (audience) => (audience.all ? "every shop" : audience.plan
 
 async function loadMessages() {
   try {
-    const { messages } = await api("GET", "/control/messages");
+    const { messages, notices = [] } = await api("GET", "/control/messages");
     $("#messages").replaceChildren(messages.length ? table({
       caption: "Messages to presses",
       rows: messages,
       columns: [
-        { header: "Message", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), meta(`by ${m.by}`, `why: ${m.reason}`, m.endedAt ? `ended by ${m.endedBy}: ${m.endReason}` : null)) },
+        { header: "Message", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), meta(`by ${m.by}`, `why: ${m.reason}`, m.notice ? `promised notice: ${NOTICE_WORDS[m.notice.kind] ?? m.notice.kind}, takes effect ${when(m.notice.takesEffect)}` : null, m.endedAt ? `ended by ${m.endedBy}: ${m.endReason}` : null)) },
         { header: "Who", render: (m) => el("span", { textContent: `${audienceWords(m.audience)} (${m.reaches} shop${m.reaches === 1 ? "" : "s"})` }) },
         { header: "When", render: (m) => el("span", { className: "rp-mono", textContent: `${when(m.startsAt)} to ${when(m.endedAt ?? m.endsAt)}` }) },
         { header: "State", render: (m) => el("div", { className: "cr-row" }, m.level === "important" ? pill("warning", "Important") : null, pill(...MESSAGE_STATE[m.state])) },
@@ -1692,11 +1804,23 @@ async function loadMessages() {
         } },
       ],
     }) : emptyState("No messages yet.", "A message you send shows at the top of the shop admins it reaches."));
+    $("#notices").replaceChildren(notices.length ? table({
+      caption: "Promised notices sent",
+      rows: notices,
+      columns: [
+        { header: "Change", lead: true, render: (n) => el("div", {}, el("p", { className: "cr-title", textContent: NOTICE_WORDS[n.kind] ?? n.kind }), meta(n.words)) },
+        { header: "Sent", render: (n) => el("span", { className: "rp-mono", textContent: when(n.sentAt) }) },
+        { header: "Takes effect", render: (n) => el("span", { className: "rp-mono", textContent: when(n.takesEffect) }) },
+        { header: "Notice", render: (n) => el("span", { textContent: `${n.daysNotice} days` }) },
+        { header: "Owners emailed", end: true, render: (n) => el("span", { textContent: String(n.emailed) }) },
+      ],
+    }) : emptyState("No promised notices yet.", "Send one from the form above before a price rise, a new helper company or a change to the terms."));
   } catch (failure) {
     $("#messages").replaceChildren(emptyState("Couldn't load the messages.", failure.message));
   }
 }
 
+const NOTICE_WORDS = { "price-rise": "a price rise", "new-helper": "a new helper company", "terms-change": "a change to the terms" };
 $("#message-words").addEventListener("input", (event) => {
   const left = 400 - event.target.value.length;
   $("#message-count").textContent = `${left} character${left === 1 ? "" : "s"} left.`;
@@ -1705,12 +1829,18 @@ $("#message-audience").addEventListener("change", (event) => {
   $("#message-shop-field").hidden = event.target.value !== "shop";
   $("#message-shop").required = event.target.value === "shop";
 });
+$("#message-notice").addEventListener("change", (event) => {
+  const promised = event.target.value !== "";
+  $("#message-effect-field").hidden = !promised;
+  $("#message-effect").required = promised;
+  if (promised) $("#message-level").value = "important";
+});
 $("#message-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const pick = form.audience.value;
   const audience = pick === "all" ? { all: true } : pick === "shop" ? { shopId: form.shopId.value.trim() } : { plan: pick.slice(5) };
-  const important = form.level.value === "important";
+  const important = form.level.value === "important" || form.notice.value !== "";
   if (important && !window.confirm(`Also email this once to the owner of each shop on ${audienceWords(audience)}?`)) return;
   const submit = form.querySelector("button[type=submit]");
   submit.disabled = true;
@@ -1719,11 +1849,13 @@ $("#message-form").addEventListener("submit", async (event) => {
       words: form.words.value, level: form.level.value, audience, reason: form.reason.value,
       startsAt: form.startsAt.value ? new Date(form.startsAt.value).toISOString() : undefined,
       endsAt: form.endsAt.value ? new Date(form.endsAt.value).toISOString() : undefined,
+      ...(form.notice.value ? { notice: form.notice.value, takesEffect: new Date(`${form.takesEffect.value}T12:00:00`).toISOString() } : {}),
     });
     status.textContent = `Sent to ${shops} shop admin${shops === 1 ? "" : "s"}${important ? `, and emailed to ${emailed} owner${emailed === 1 ? "" : "s"}` : ""}.`
       + (failed.length ? ` ${failed.length} shop${failed.length === 1 ? "" : "s"} didn't take it yet (${failed.join(", ")}); they're tried again within the hour.` : "");
     form.reset();
     $("#message-shop-field").hidden = true;
+    $("#message-effect-field").hidden = true;
     $("#message-count").textContent = "400 characters left.";
     await loadMessages();
   } catch (failure) {
@@ -1788,3 +1920,71 @@ function exportButton(shop) {
   });
   return b;
 }
+
+// ── Setting up (front door, plan 18.2-18.8): presses in setup mode or opening, before they are shops. Read only. ──
+const SETUP_STATUS = { setup: ["info", "In setup"], opening: ["warning", "Opening"], open: ["success", "Open"], expired: ["neutral", "Removed"] };
+const MOVING_WORDS = { yes: "bringing a shop over", fresh: "starting fresh" };
+const LANGUAGE_CHOICE_WORDS = { fr: "emails in French", en: "emails in English" };
+/** "riso-press" -> "Riso press"; "" -> "Not chosen yet". */
+const lookWords = (id) => (id ? id.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase()) : "Not chosen yet");
+const daysWords = (n) => (n === 0 ? "today" : n === 1 ? "yesterday" : `${n} days ago`);
+
+function setupStatusCell(press) {
+  const [tone, words] = SETUP_STATUS[press.status] ?? ["neutral", press.status];
+  const shown = press.shopStatus === "live" ? pill("success", "Shop live") : pill(tone, words);
+  const flag = press.flag === "stuck" ? pill("danger", "Stuck opening") : press.flag === "going-soon" ? pill("warning", `Removed ${dateOnly(press.removesOn)}`) : null;
+  return el("div", { className: "cr-row" }, shown, flag);
+}
+
+async function loadSetup() {
+  try {
+    const { counts, looks, presses } = await api("GET", "/control/presses");
+    setBadge("setting-up", counts.stuck);
+    const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric" },
+      el("div", { className: "rp-metric-label", textContent: label }),
+      el("div", { className: "rp-metric-value", textContent: String(value), dataset: tone ? { tone } : {} }),
+      foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
+    $("#setup-numbers").replaceChildren(
+      figure("In setup", counts.inSetup, `${counts.signedUpThisWeek} signed up this week`),
+      figure("Ready to open", counts.readyToOpen, "name and country filled in"),
+      figure("Opening", counts.opening, `${counts.opened} now live`, counts.stuck ? "danger" : null),
+      figure("Bringing a shop over", counts.bringingShopOver, `${counts.withProductFile} with a product file kept`),
+      figure("Removed soon", counts.goingSoon, "not visited in 45 days", counts.goingSoon ? "warn" : null),
+    );
+    const needs = [];
+    if (counts.stuck) needs.push(["danger", `${counts.stuck} press${counts.stuck === 1 ? "" : "es"} pressed Open my shop over a day ago and the shop isn't live. Check Sign-ups › Shops being made.`, "#making"]);
+    if (counts.goingSoon) needs.push(["warning", `${counts.goingSoon} press${counts.goingSoon === 1 ? " hasn't" : "es haven't"} been back to setup in 45 days; their setup is removed at 60.`, "#setup-presses"]);
+    $("#setup-needs").replaceChildren(needs.length ? el("div", { className: "rp-alerts" }, ...needs.map(([tone, words, go]) => el("a", { className: "rp-alert", href: go, dataset: { tone } },
+      el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: tone === "danger" ? "✕" : "!" }),
+      el("span", { className: "rp-alert-text" }, el("strong", { className: "rp-alert-title", textContent: words }))))) : el("span"));
+    $("#setup-presses").replaceChildren(presses.length ? table({
+      caption: "Every press setting up",
+      rows: presses,
+      open: (press) => {
+        const shop = press.shopId && allShops.find((s) => s.shopId === press.shopId);
+        if (shop) openShop(shop);
+      },
+      columns: [
+        { header: "Press", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName || "No name yet" }), meta(p.ownerEmail, p.sells ? `sells ${p.sells.toLowerCase()}` : null, p.country || null)) },
+        { header: "Plan", render: (p) => (p.plan ? PLAN_WORDS[p.plan] ?? p.plan : el("span", { className: "rp-hint", textContent: "not picked" })) },
+        { header: "Looks", render: (p) => el("div", {}, el("span", { textContent: `Website: ${lookWords(p.look)}` }), meta(`Admin: ${lookWords(p.adminLook)}`)) },
+        { header: "Moving in", render: (p) => el("div", {}, el("span", { textContent: MOVING_WORDS[p.moving] ?? "not answered" }),
+          meta(p.import ? `product file: ${p.import.rows ?? "?"} rows` : null, LANGUAGE_CHOICE_WORDS[p.language] ?? null)) },
+        { header: "Last visit", render: (p) => el("div", {}, el("span", { className: "rp-mono", textContent: p.idleDays == null ? "" : daysWords(p.idleDays) }), meta(p.createdAt ? `signed up ${dateOnly(p.createdAt)}` : null)) },
+        { header: "Where", render: (p) => el("div", {}, setupStatusCell(p),
+          meta(p.stillToDo.length ? `still to add: ${p.stillToDo.join(", ")}` : null, p.shopId ? `shop ${p.shopId}` : null, p.shopMessage || null,
+            Object.keys(p.warned).length ? `emailed ${Object.keys(p.warned).sort((a, b) => b - a).map((d) => `${d} days`).join(" and ")} before removal` : null,
+            p.expiredAt ? `cleared ${dateOnly(p.expiredAt)}` : null)) },
+      ],
+    }) : emptyState("No presses setting up.", "A press shows here as soon as it signs up at the front door."));
+    const lookSheet = (title, rows) => sheet({
+      title,
+      metaParts: [`${rows.reduce((n, r) => n + r.count, 0)} presses`],
+      body: [rows.length ? el("ul", { className: "cr-history" }, ...rows.map((r) => el("li", { textContent: `${lookWords(r.id)}: ${r.count}` }))) : emptyState("None yet.")],
+    });
+    $("#setup-looks").replaceChildren(lookSheet("Website looks", looks.website), lookSheet("Admin looks", looks.admin));
+  } catch (failure) {
+    $("#setup-presses").replaceChildren(emptyState(failure.message));
+  }
+}
+$("#setup-refresh").addEventListener("click", loadSetup);

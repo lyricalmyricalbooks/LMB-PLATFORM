@@ -1787,3 +1787,197 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-app-deeplink:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 @media (pointer: coarse) { .rp-app-deeplink { min-height: var(--rp-touch); } }
 @media print { .rp-app-switch, .rp-app-pill, .rp-app-deeplink { display: none !important; } }
+
+/* ══ Looks: type, shape and chrome (plan 11.x, Julian 3 Nov: the looks must not look alike) ══════════════════════════
+   Riso Press is everything above. Paper, Ledger and Pop each change more than colour: the display and body faces, the
+   case of titles and buttons, the corners, the rail (light, forest green, violet), how the open menu item is drawn and
+   how cards are edged. Colours stay in adminThemes.css; here only var(--rp-…) is read. The faces load on demand
+   (look-fonts in platform-look.js, src/lib/admin-look.js, adminLook.ts), so Riso Press never downloads them. */
+:root[data-admin-look="paper"] .rp {
+  --rp-font-display: "Inter", system-ui, sans-serif; --rp-font-body: "Inter", system-ui, sans-serif;
+  --rp-masthead: 40px; --rp-title-case: none; --rp-title-weight: 650; --rp-title-weight-sm: 600; --rp-title-tracking: -0.02em;
+  --rp-btn-case: none; --rp-btn-tracking: 0; --rp-btn-weight: 600; --rp-btn-radius: var(--rp-radius);
+  --rp-label-case: none; --rp-label-tracking: 0;
+}
+:root[data-admin-look="ledger"] .rp {
+  --rp-font-display: "Source Serif 4", Georgia, serif; --rp-font-body: "Source Serif 4", Georgia, serif;
+  --rp-masthead: 46px; --rp-title-case: none; --rp-title-weight: 600; --rp-title-weight-sm: 600; --rp-title-tracking: -0.01em;
+  --rp-btn-case: uppercase; --rp-btn-tracking: 0.08em; --rp-btn-weight: 600; --rp-btn-radius: var(--rp-radius);
+  --rp-label-case: uppercase; --rp-label-tracking: 0.12em;
+}
+:root[data-admin-look="pop"] .rp {
+  --rp-font-display: "Syne", "Inter", system-ui, sans-serif; --rp-font-body: "Inter", system-ui, sans-serif;
+  --rp-masthead: 52px; --rp-title-case: none; --rp-title-weight: 800; --rp-title-weight-sm: 800; --rp-title-tracking: -0.025em;
+  --rp-btn-case: none; --rp-btn-tracking: 0; --rp-btn-weight: 700; --rp-btn-radius: 999px;
+  --rp-label-case: none; --rp-label-tracking: 0.02em;
+}
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) { font-size: 15px; }
+
+:root[data-admin-look] .rp:not(.studio-editor) :is(.rp-page-title, .rp-wb-h1) {
+  font-family: var(--rp-font-display); font-size: var(--rp-masthead); line-height: 1.05; font-style: normal;
+  text-transform: var(--rp-title-case); font-weight: var(--rp-title-weight); letter-spacing: var(--rp-title-tracking);
+}
+:root[data-admin-look] .rp:not(.studio-editor) :is(.rp-card-title, .rp-sec-title, .rp-wb-band-title, .rp-wb-full-title, .rp-ov-headline, .rp-ov-run-title, .rp-dialog-title, .rp-state-title, .rp-wordmark) {
+  font-family: var(--rp-font-display); font-style: normal; text-transform: var(--rp-title-case);
+  font-weight: var(--rp-title-weight-sm); letter-spacing: var(--rp-title-tracking);
+}
+:root[data-admin-look] .rp:not(.studio-editor) .rp-btn {
+  text-transform: var(--rp-btn-case); letter-spacing: var(--rp-btn-tracking); font-weight: var(--rp-btn-weight); border-radius: var(--rp-btn-radius);
+}
+:root[data-admin-look] .rp:not(.studio-editor) :is(.rp-label, .rp-metric-label) {
+  text-transform: var(--rp-label-case); letter-spacing: var(--rp-label-tracking);
+}
+@media (max-width: 767px) { :root[data-admin-look] .rp:not(.studio-editor) :is(.rp-page-title, .rp-wb-h1) { font-size: calc(var(--rp-masthead) * 0.72); } }
+
+/* Paper: a light rail by day, the open item a soft blue pill, cards lifted with a faint shadow */
+:root[data-admin-look="paper"] .rp:not(.studio-editor) { --rp-shadow: 0 1px 2px var(--rp-shadow-ink-faint); --rp-shadow-sm: 0 1px 2px var(--rp-shadow-ink-faint); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-sidebar { border-right: 1px solid var(--rp-divider); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) :is(.rp-brand-link, .rp-brand-link .rp-wordmark, .rp-whats-new) { color: var(--rp-text); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) :is(.rp-nav-item, .rp-nav-subitem):hover { color: var(--rp-text); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-nav-item[aria-current="page"] { background: var(--rp-primary-tint); color: var(--rp-primary-text); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-nav-subitem[aria-current="page"] { color: var(--rp-primary-text); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor) .rp-nav-item { border-radius: var(--rp-radius); }
+:root[data-admin-look="paper"] .rp:not(.studio-editor) .rp-card { border-radius: var(--rp-radius-lg); }
+
+/* Ledger: forest rail, the open item marked by a rule on its left edge, cards topped with a double rule */
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] {
+  background: var(--rp-rail-hover-strong); color: var(--rp-on-inverse); box-shadow: inset 3px 0 0 var(--rp-primary-hover);
+}
+:root[data-admin-look="ledger"] .rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-nav-item[aria-current="page"] { color: var(--rp-on-inverse); }
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) .rp-nav-section { font-family: var(--rp-font-display); font-style: italic; letter-spacing: 0.02em; font-size: 13px; }
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) .rp-card { border-top: 4px double var(--rp-border-strong); box-shadow: none; }
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) .rp-card .rp-card { border-top: var(--rp-hair) solid var(--rp-border); }
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) :is(.rp-metric-value, .rp-ov-run-total) { font-family: var(--rp-font-mono); font-weight: 500; letter-spacing: -0.02em; }
+:root[data-admin-look="ledger"] .rp:not(.studio-editor) .rp-tabs[data-variant="page"] { border-bottom: 2px solid var(--rp-border-strong); }
+
+/* Pop: violet rail, pill menu items, thick outlines and hard offset shadows on cards and buttons */
+:root[data-admin-look="pop"] .rp:not(.studio-editor) {
+  --rp-stroke: 2px; --rp-shadow: 4px 4px 0 var(--rp-border-strong); --rp-shadow-sm: 2px 2px 0 var(--rp-border-strong);
+  --rp-shadow-hover: 5px 5px 0 var(--rp-border-strong);
+}
+:root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-card { border-radius: var(--rp-radius-lg); }
+:root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-nav-item { border-radius: 999px; }
+:root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] { background: var(--rp-on-inverse); color: var(--rp-inverse); box-shadow: 3px 3px 0 var(--rp-primary); }
+:root[data-admin-look="pop"] .rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-nav-item[aria-current="page"] { color: var(--rp-inverse); }
+:root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-btn { border: 2px solid var(--rp-border-strong); }
+:root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-tabs[data-variant="page"] { border-bottom: 3px solid var(--rp-border-strong); }
+
+/* The combined admin's stockroom pages (StockroomFrame.tsx): the stockroom fills the content area under the page
+   header; it is hidden until it says it is ready, so its own menu never flashes before it hides it. */
+.rp-stockroom { display: grid; gap: var(--rp-space-4); }
+.rp-stockroom[hidden] { display: none; }
+.rp-stockroom-frame {
+  display: block; width: 100%; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-canvas);
+  height: calc(100dvh - 180px); min-height: 420px;
+}
+.rp-stockroom-frame:not([data-ready]) { visibility: hidden; height: 0; min-height: 0; border: 0; }
+.rp-stockroom-offline { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+/* Today at the fair, above the till (FairToday.tsx). */
+.rp-fair-today { border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); padding: var(--rp-space-3) var(--rp-space-4); }
+.rp-fair-today-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rp-space-2) var(--rp-space-3); }
+.rp-fair-today-kicker { font-size: var(--rp-text-xs); text-transform: uppercase; letter-spacing: .08em; color: var(--rp-text-muted); }
+.rp-fair-today-line { font-variant-numeric: tabular-nums; }
+.rp-fair-today-low { margin: var(--rp-space-2) 0 0; padding: var(--rp-space-1) var(--rp-space-2); border-left: var(--rp-stroke) solid var(--rp-warning); background: var(--rp-warning-tint); font-size: var(--rp-text-sm); }
+.rp-fair-today-more { margin-top: var(--rp-space-2); }
+.rp-fair-today-more summary { cursor: pointer; font-size: var(--rp-text-sm); min-height: 32px; display: flex; align-items: center; }
+.rp-fair-today-cols { display: grid; gap: var(--rp-space-4); grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: var(--rp-space-2); }
+.rp-fair-today-cols ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--rp-space-2); }
+.rp-fair-today-cols li { display: flex; justify-content: space-between; gap: var(--rp-space-3); }
+.rp-fair-today-cols small { display: block; color: var(--rp-text-muted); font-size: var(--rp-text-xs); }
+.rp-fair-today-cols strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ── Desk and Bento: whole redesigns of the frame (Julian 3 Nov: "full on style overhauls") ──────────────────────────
+   Paper, Ledger and Pop change the clothes; these two change how the admin is organised.
+   Desk: a 60px icon rail that opens over the page on hover or focus, dense 13px type, mono labels, flat bordered panels.
+   Bento: no side menu on a desktop. The menu is a floating dock at the bottom, and pages are boards of big rounded
+   tiles. Both keep the phone drawer from the shared shell (below 1024px nothing here changes the frame). */
+:root[data-admin-look="desk"] .rp {
+  --rp-font-display: "Manrope", system-ui, sans-serif; --rp-font-body: "Manrope", system-ui, sans-serif;
+  --rp-masthead: 32px; --rp-title-case: none; --rp-title-weight: 800; --rp-title-weight-sm: 700; --rp-title-tracking: -0.03em;
+  --rp-btn-case: none; --rp-btn-tracking: 0; --rp-btn-weight: 600; --rp-btn-radius: var(--rp-radius);
+  --rp-label-case: uppercase; --rp-label-tracking: 0.1em;
+}
+:root[data-admin-look="bento"] .rp {
+  --rp-font-display: "Bricolage Grotesque", "DM Sans", system-ui, sans-serif; --rp-font-body: "DM Sans", system-ui, sans-serif;
+  --rp-masthead: 46px; --rp-title-case: none; --rp-title-weight: 800; --rp-title-weight-sm: 800; --rp-title-tracking: -0.02em;
+  --rp-btn-case: none; --rp-btn-tracking: 0; --rp-btn-weight: 700; --rp-btn-radius: 999px;
+  --rp-label-case: none; --rp-label-tracking: 0;
+}
+:root[data-admin-look="desk"] .rp:not(.studio-editor) { font-size: 13px; --rp-stroke: 1px; --rp-shadow: none; --rp-shadow-sm: none; --rp-shadow-hover: none; --rp-shadow-kpi: none; }
+:root[data-admin-look="desk"] .rp:not(.studio-editor) :is(.rp-metric-value, .rp-ov-run-total, .rp-ov-figure-value) { font-family: var(--rp-font-mono); font-weight: 500; letter-spacing: -0.03em; }
+:root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-card { border: 1px solid var(--rp-border); border-radius: var(--rp-radius-lg); box-shadow: none; }
+:root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] { background: var(--rp-rail-hover-strong); color: var(--rp-on-inverse); box-shadow: inset 2px 0 0 var(--rp-primary-hover); }
+:root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-tabs[data-variant="page"] { border-bottom: 1px solid var(--rp-border); }
+:root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-topbar { border-bottom: 1px solid var(--rp-border); }
+:root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-topbar-search { max-width: 640px; }
+:root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-workspace { padding-top: 20px; }
+
+@media (min-width: 1024px) {
+  /* Desk: the rail is always 60px of flow space; it grows over the page while hovered or holding focus */
+  :root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-app { padding-left: 60px; }
+  :root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-sidebar {
+    position: absolute; inset: 0 auto 0 0; width: 60px; padding: 14px 8px; overflow: hidden; transition: width var(--rp-dur) var(--rp-ease);
+  }
+  :root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-sidebar:is(:hover, :focus-within) { width: 232px; padding: 14px 12px; box-shadow: var(--rp-shadow-float); overflow-y: auto; }
+  :root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-sidebar:not(:hover):not(:focus-within) :is(.rp-sidebar-brand, .rp-app-switch, .rp-sidebar-foot, .rp-nav-section-row, .rp-nav-sublist, .rp-nav-chevron) { display: none; }
+  :root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-sidebar:not(:hover):not(:focus-within) .rp-nav-item { justify-content: center; padding: 0; position: relative; }
+  :root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-sidebar:not(:hover):not(:focus-within) .rp-nav-label {
+    position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  :root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-sidebar:not(:hover):not(:focus-within) .rp-nav-badge {
+    position: absolute; top: 4px; right: 4px; min-width: 8px; width: 8px; height: 8px; padding: 0; font-size: 0; border: 0; border-radius: 50%;
+  }
+  :root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-app-pill { display: inline-flex; align-items: center; min-height: var(--rp-touch); padding: 0 4px; text-decoration: none; color: var(--rp-text); }
+  :root[data-admin-look="desk"] .rp:not(.studio-editor) .rp-app-pill-face { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border: 1px solid var(--rp-border-strong); border-radius: var(--rp-radius); font: 600 12px/1 var(--rp-font-body); white-space: nowrap; }
+
+  /* Bento: the menu is a dock; its sections open upward as a small tray */
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-workspace { padding-bottom: 130px; }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-sidebar {
+    position: fixed; inset: auto auto 18px 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); padding: 8px;
+    flex-direction: row; align-items: center; border: 0; border-radius: 999px; background: var(--rp-rail); box-shadow: var(--rp-shadow-float);
+  }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-sidebar :is(.rp-sidebar-brand, .rp-app-switch, .rp-sidebar-foot, .rp-nav-section-row, .rp-nav-chevron) { display: none; }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav { flex: none; overflow: visible; }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-list { display: flex; gap: 4px; }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-list > li { position: relative; }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-list > li + li { margin-top: 0; }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-item { width: auto; min-height: 44px; padding: 0 18px; border-radius: 999px; font-weight: 700; }
+  /* Eight menu items (the combined admin) do not fit in a narrow dock with their words: only the open page keeps its word. */
+  @media (max-width: 1279px) {
+    :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-item:not([aria-current="page"]) { padding: 0 14px; }
+    :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-item:not([aria-current="page"]) .rp-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] { background: var(--rp-tile-b); color: var(--rp-tile-ink); box-shadow: none; }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-item[aria-current="page"] > svg:first-child { color: var(--rp-tile-ink); }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-sublist {
+    position: absolute; bottom: calc(100% + 18px); left: 0; min-width: 210px; margin: 0; padding: 8px; border: 0; border-radius: 24px;
+    background: var(--rp-rail); box-shadow: var(--rp-shadow-float);
+  }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-subitem { min-height: 40px; border-radius: 999px; color: var(--rp-rail-text); padding: 0 14px; }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-subitem:hover { background: var(--rp-rail-hover); color: var(--rp-on-inverse); }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-nav-subitem[aria-current="page"] { background: var(--rp-tile-b); color: var(--rp-tile-ink); }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-topbar-wordmark { display: block; font: 800 20px/1 var(--rp-font-display); letter-spacing: -0.02em; color: var(--rp-text); text-decoration: none; }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-app-pill { display: inline-flex; align-items: center; min-height: var(--rp-touch); padding: 0 4px; text-decoration: none; color: var(--rp-text); }
+  :root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-app-pill-face { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 14px; border: 2px solid var(--rp-text); border-radius: 999px; font: 700 13px/1 var(--rp-font-body); white-space: nowrap; }
+}
+
+/* Bento: pages are boards of big rounded tiles; the four headline figures become coloured tiles */
+:root[data-admin-look="bento"] .rp:not(.studio-editor) { --rp-shadow: none; --rp-shadow-sm: none; --rp-shadow-hover: none; --rp-shadow-kpi: none; --rp-stroke: 0px; }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-card { border: 0; border-radius: var(--rp-radius-lg); padding: 6px; box-shadow: none; }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-card .rp-card { border-radius: var(--rp-radius); background: var(--rp-surface-2); }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-btn { border: 0; }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-tabs[data-variant="page"] { border-bottom: 0; gap: 6px; }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) .rp-topbar { border-bottom: 0; }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) :is(.rp-kpi-grid, .rp-ov-figures) { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; background: transparent; border: 0; }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) :is(.rp-kpi-grid > .rp-metric, .rp-ov-figure) {
+  min-height: 132px; padding: 18px 20px; border: 0; border-radius: var(--rp-radius-lg); background: var(--rp-surface); justify-content: space-between;
+  color: var(--rp-tile-ink);
+}
+:root[data-admin-look="bento"] .rp:not(.studio-editor) :is(.rp-kpi-grid > .rp-metric, .rp-ov-figure) :is(.rp-metric-label, .rp-ov-figure-label, .rp-ov-figure-foot, .rp-ov-figure-value, .rp-metric-value) { color: inherit; }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) :is(.rp-ov-figure-value, .rp-metric-value) { font-family: var(--rp-font-display); font-weight: 800; font-size: clamp(24px, calc(2.6vw + 6px), 38px); letter-spacing: -0.02em; }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) :is(.rp-kpi-grid > .rp-metric, .rp-ov-figure) .rp-badge { background: transparent; color: inherit; padding-left: 0; }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) :is(.rp-kpi-grid > .rp-metric:nth-child(4n+1), .rp-ov-figure:nth-child(4n+1)) { background: var(--rp-tile-a); color: var(--rp-tile-a-text); }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) :is(.rp-kpi-grid > .rp-metric:nth-child(4n+2), .rp-ov-figure:nth-child(4n+2)) { background: var(--rp-tile-b); }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) :is(.rp-kpi-grid > .rp-metric:nth-child(4n+3), .rp-ov-figure:nth-child(4n+3)) { background: var(--rp-tile-c); }
+:root[data-admin-look="bento"] .rp:not(.studio-editor) :is(.rp-kpi-grid > .rp-metric:nth-child(4n), .rp-ov-figure:nth-child(4n)) { background: var(--rp-tile-d); }
+@media (max-width: 767px) { :root[data-admin-look="desk"] .rp:not(.studio-editor) { font-size: 14px; } }

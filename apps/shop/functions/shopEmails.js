@@ -10,7 +10,7 @@ function shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
   loadNotificationSettings, logEmailAttempt, publicOutboxEntry, sendEmail, sendQueuedEmail,
-  sendWeeklySummary, siteLink,
+  sendWeeklySummary, sendFairDaySummary, siteLink,
 }) {
   // Studio › Style › Customer accounts. On unless the published design turns it off.
   async function customerAccountsEnabled() {
@@ -228,6 +228,22 @@ function shopEmails({
         return;
       }
 
+      // Settings › Email sender › Shop alerts › Send me today's fair summary now.
+      if (body.action === "fairDaySummaryNow") {
+        try {
+          const result = await sendFairDaySummary(Date.now(), { force: true });
+          if (!result.sent) {
+            res.status(200).json({ ok: true, sent: false, reason: result.reason });
+            return;
+          }
+          res.status(200).json({ ok: true, sent: true, subject: result.subject });
+        } catch (err) {
+          console.error("fairDaySummaryNow failed:", err);
+          res.status(500).json({ error: "The fair summary couldn't be sent just now. Check Recent deliveries below and try again in a minute." });
+        }
+        return;
+      }
+
       // Settings › Notifications › Gmail sending › Check connection: signs in to Gmail without
       // sending anything, so a revoked or mistyped app password shows up before an order does.
       if (body.action === "verifyGmail") {
@@ -269,7 +285,7 @@ function shopEmails({
           const brand = { ...notificationSettings.brand };
           if (typeof draftBrand.logoUrl === "string" && (draftBrand.logoUrl === "" || /^https:\/\/[^\s"'<>]{1,500}$/.test(draftBrand.logoUrl))) brand.logoUrl = draftBrand.logoUrl;
           if (typeof draftBrand.brandColor === "string" && /^#[0-9a-f]{3,8}$/i.test(draftBrand.brandColor)) brand.brandColor = draftBrand.brandColor;
-          if (draftBrand.emailTheme === "light" || draftBrand.emailTheme === "dark") brand.emailTheme = draftBrand.emailTheme;
+          if (["light", "dark", "market", "index"].includes(draftBrand.emailTheme)) brand.emailTheme = draftBrand.emailTheme;
           notificationSettings.brand = brand;
         }
 
@@ -298,6 +314,8 @@ function shopEmails({
           amount: "CA$50.00",
           code: "ABCD-EFGH-JKMN-PQRS",
           expires: "",
+          // Payment link reminder (payment_link_reminder)
+          expires_on: "November 5, 2026",
           shop_url: siteLink("/"),
           items_table: `
             <div style="margin: 30px 0; border-top: 1px solid #eeeeee; padding-top: 20px;">

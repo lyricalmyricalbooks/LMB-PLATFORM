@@ -17,7 +17,8 @@ import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
 import { isPublisherUser, readPassClaims } from './lib/publisher-access.js';
 import { isBookkeeperPass } from './lib/bookkeeper-copy.js';
-import { planReadOnly } from './lib/plan-pause.js';
+import { isFairHelperPass } from './lib/fair-helper.js';
+import { planChangeNotice, planPageLink, planReadOnly } from './lib/plan-pause.js';
 import { foldFooterActions, initPhoneLayouts } from './lib/phone-layout.js';
 import { createPhonePageMemory, initPhoneWorkspace, observeSidebarBadges } from './lib/phone-workspace.js';
 const phonePages = createPhonePageMemory(window);
@@ -945,6 +946,7 @@ import {
   posConfirmSale,
   posPrintReceipt,
   posSyncPaymentSeg,
+  fairSummaryData,
 } from './features/pos.js';
 import {
   changeExpenseCategory,
@@ -1059,6 +1061,7 @@ import {
   syncArtistSettlementSales,
   updateDash,
 } from './features/dashboard.js';
+import { startStockPlaces, openStockPlacesModal } from './features/stock-places.js';
 import {
   addSaleToState,
   recordOrder,
@@ -1083,6 +1086,10 @@ import {
 } from './features/website-link.js';
 import { STRIPE_CHARGE_PI_KEY, isWebsiteFulfilled, promisedPreorders, rememberChargeIntents } from './lib/website-link.js';
 import { startAppSearch } from './features/app-search.js';
+import { startFairHelpers } from './features/fair-helpers.js';
+import './styles/inside-admin.css';
+import { STOCKROOM_PAGE_EVENT, startInsideAdmin } from './lib/inside-admin.js';
+import { bookSummary, findBook, salesRows, todoItems } from './lib/book-summary.js';
 import { appSwitchBooksReady, openWebsiteDetailDiffs, openWebsiteShopBooks, refreshAppSwitch, startAppSwitch } from './features/app-switch.js';
 import { WEBSITE_TAB_NAME, openOnWebsiteHtml, websiteOrderUrl } from './lib/app-switch.js';
 import { reviewTaskStillOpen } from './lib/review-queue.js';
@@ -1131,7 +1138,7 @@ import { downloadText, downloadCsv } from './lib/download.js';
 import { stockLocationsCsv } from './lib/stock-locations.js';
 import { OC_STAGES } from './lib/opencall.js';
 import { deriveOnHand, buildOrderTimeline, inventoryBreakdown, deduplicateDirectConsignmentSales, recalculateBookStatsFromHistory, orderStockPreview, orderStockPreviewCopy, deriveStockBreakdown, transferAuthorStock, isVoidStale } from './lib/inventory.js';
-import { fairSyncPill } from './lib/fair-mode.js';
+import { fairForAdmin, fairSyncPill, readCurrentFair } from './lib/fair-mode.js';
 import { histMirrorForLedger, reconcileConsignmentMirrors, syncHistMirrorFromLedger, ledgerSaleIndexForHistMirror, consignmentSyncPayload, collectUniqueConsignmentStores, consignmentLedgerTotals, storeBalanceSlug, storeBalanceComparison } from './lib/consignment.js';
 import { reminderSettings, reminderBlockReason, invoiceReminderState, dueForReminder, dueForReminderTomorrow, buildReminderEmail, canSendNow, daysLate, describeReminderSweep, describeReminderNotice, sampleReminderInvoice } from './lib/payment-reminders.js';
 import { LEDGER_TYPE_FILTERS, emptyLedgerFilter, ledgerFilterIsActive, ledgerStoreOptions, filterLedgerEntries, ledgerTypeCounts, describeLedgerFilter, ledgerTotalsScope } from './lib/consignment-ledger-filter.js';
@@ -1140,13 +1147,16 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, shopProfile, switchOn } from './lib/shop-profile.js';
+import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, shopProfile, switchOn } from './lib/shop-profile.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 import { readReady, readyApplies, readyHtml, readyLines, showReady, writeReady } from './lib/stockroom-ready.js';
 import { catalogGroups, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
-import { applyPageWords, sellsBooks, words } from './lib/shop-words.js';
+import { applyPageWords, noteSellsAnswer, sellsBooks, words, wordsReported, wordsToReport } from './lib/shop-words.js';
+import { applyWebsiteParts } from './lib/website-parts.js';
 // The page's own words follow what the shop sells (plan 10.23): "product" and "maker" for a shop that doesn't sell books.
 applyPageWords(document.body);
+// A stockroom-only press: no website tabs, help or channel default (src/lib/website-parts.js).
+applyWebsiteParts(document);
 
 
 // Tells the boot watchdog in index.html that the bundle and every import it
@@ -1439,6 +1449,8 @@ function ownersFromBooks() {
 }
 
 let catalogLoadFailed = false;
+// The server's catalog has been read this visit (the combined admin's questions wait for it).
+let catalogReady = false;
 // Open until the server's catalogue is in (loadCatalog); see showStartupPreview.
 let _startupPreviewOpen = true;
 let _startupPreviewShown = false;
@@ -1479,6 +1491,7 @@ async function loadCatalog(early = null) {
   try {
     const stored = await (early || window._fbLoadCatalog()); // handles FS → RTDB fallback internally
     catalogLoadFailed = false;
+    catalogReady = true;
     // The server's catalog is in: the on-device preview (showStartupPreview)
     // must not paint over it from here on.
     _startupPreviewOpen = false;
@@ -4918,6 +4931,8 @@ async function loadAllBooks({ settingsLoaded } = {}) {
   startEmailInboxWatcher();
   // Orders from the shop's website, once every book is here to match them against.
   startWebsiteLink();
+  // Fair helpers' price list and sales (plan with both apps), once every book is here.
+  startFairHelpers();
   // A link from the website to one of its orders can open now.
   appSwitchBooksReady();
   setSyncState('ok', '<b>Firestore</b> · connected · live sync on');
@@ -6012,14 +6027,19 @@ function initPhoneFolds() {
 initPhoneFolds();
 
 
+const WEBSITE_TABS = new Set(['website', 'webanalytics']);
 export function switchTab(name) {
   // The old shop system's tab is behind the oldShopSync switch: off, a stale link, notification or To-do fix that
   // still points at it lands on Website orders instead (features/bigcartel.js).
   if (!applyOldShopSyncSwitch() && name === 'bigcartel') name = 'website';
+  // A stockroom-only press has no website: a stale link to its tabs lands on the Dashboard (lib/website-parts.js).
+  if (WEBSITE_TABS.has(name) && !hasWebsite()) name = 'dashboard';
   // publisher-only tabs redirect authors to dashboard
   if (isAuthor() && PUBLISHER_ONLY_TABS.has(name)) name = 'dashboard';
   // publisher redirected away from author-only myqr tab
   if (!isAuthor() && AUTHOR_ONLY_TABS.has(name)) name = 'dashboard';
+  // Inside the combined admin, the admin's menu and address follow the page shown here (lib/inside-admin.js).
+  try { window.dispatchEvent(new CustomEvent(STOCKROOM_PAGE_EVENT, { detail: name })); } catch (_) { /* no window */ }
 
   const phoneScope = `${isAuthor() ? 'author' : 'publisher'}:${activeBook}:`;
   const previousPanel = document.querySelector('.tab-panel.active');
@@ -6398,7 +6418,7 @@ function showCatalogueSkeleton() {
 }
 
 // ── ALL BOOKS OVERVIEW
-function updateAllOverview() {
+export function updateAllOverview() {
   const allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b));
   renderSetupGuide(allBooksVisible);
   renderAllBooksStrips(allBooksVisible);
@@ -11155,8 +11175,43 @@ consumeTransferPaidReturn();
 // orders (#website-order=<id>). It drops a leftover ?mode=admin (nothing reads
 // it) and leaves every other part of the address as it is.
 startAppSwitch();
+// Inside the combined admin (shop + stockroom plan): its menu replaces this app's own, and it opens pages here.
+// The combined admin's book page asks for one book's figures here, so the stockroom stays the master count. A book
+// still loading answers null; the admin asks again.
+startInsideAdmin({
+  switchTab, setAdminLook, setThemePreference,
+  selectBook: (id) => {
+    if (!BOOKS[id]) return;
+    // The "Author view" preview locks the picker to its book: back to the publisher's view, as its own button does.
+    if (AUTHOR_VIEW_BY_BOOK[activeBook] && activeBook !== id) toggleCurrentBookView();
+    switchBook(id);
+  },
+  openTodo: (id) => openTodoItem(id),
+  answer: (what, args) => {
+    // An author's own sign-in never answers; the publisher's "Author view" preview of one book still does.
+    if (IS_AUTHOR_MODE || String(sessionStorage.getItem('lm-unlocked') || '').startsWith('author:')) return { refused: true };
+    // Until the catalog is in, every book looks missing: answer nothing yet, and the admin asks again.
+    if (!catalogReady) return null;
+    if (what === 'find') return { match: findBook(BOOKS, args) };
+    // The to-do list and the sales judge every book's records: wait until all of them are in, as the stockroom's own
+    // to-do page does, so Home never counts a half-loaded stockroom as "all clear".
+    if ((what === 'todo' || what === 'sales' || what === 'fair') && !_attentionReady) return null;
+    // Today at the fair (the till's own end-of-day figures and upload state), read-only.
+    if (what === 'fair') {
+      const pill = fairSyncPill({ online: navigator.onLine !== false, pending: syncQueue.length, retrying: _syncRetrying, atRisk: _syncQueueHeldInMemory });
+      return fairForAdmin(fairSummaryData(), readCurrentFair(today()), pill, today());
+    }
+    if (what === 'todo') return { items: todoItems(visibleAttentionResult()) };
+    if (what === 'sales') return salesRows(BOOKS, states, { since: args.since });
+    const book = BOOKS[args.book];
+    if (!book) return { missing: true };
+    const s = states[args.book];
+    return s && !s._loadFailed ? bookSummary(args.book, s, book) : null;
+  },
+});
 // One search box (top-bar 🔍, Ctrl/⌘ K, "/"): this app's books and the website's.
 startAppSearch();
+startStockPlaces();
 // The return lands in the tab Stripe opened; refresh any other open tab too.
 window.addEventListener('storage', e => { if (e.key === PAID_TAP_KEY) { try { renderArtistTransfers(); } catch (_) { /* still loading */ } } });
 
@@ -19494,13 +19549,37 @@ async function initStartup() {
       // Firestore, once, ever), the early answers are dropped unread and read
       // again from the right store. The early reads write nothing; loadCatalog
       // still does any saving itself, after the flags are in.
+      // The owner may have changed what the shop sells since this page's words were chosen: start again in the new ones.
+      try {
+        const sells = await window._fbLoadSells?.();
+        if (noteSellsAnswer(sells) && !sessionStorage.getItem('lm-sells-reloaded')) {
+          sessionStorage.setItem('lm-sells-reloaded', '1');
+          location.reload();
+          return;
+        }
+      } catch (_) { /* the words stay as they are */ }
       const cachedGlobal = startupCachedGlobalMode();
       // On a device that has opened the app before: show the copy this device
       // already holds while the server is asked.
       const publisherAccount = await isPublisherUser(user, { askRules: window._fbAskRulesIfPublisher });
       // The shop Team's bookkeeper (plan 7.17) gets only the tax centre's expenses, read only
       // (features/bookkeeper-view.js); no book, catalogue or setting of the publisher's is loaded.
-      if (!publisherAccount && isBookkeeperPass(user, await readPassClaims(user))) {
+      const passClaims = publisherAccount ? null : await readPassClaims(user);
+      // A fair helper (docs/combined-admin.md › Fair helpers plan) gets only the Fair till: the owner's price list
+      // and their own sales (features/fair-helper-view.js); no book, catalogue or setting is loaded.
+      if (!publisherAccount && isFairHelperPass(user, passClaims)) {
+        window.IS_PUBLISHER = false;
+        IS_AUTHOR_MODE = false;
+        _appShellShown = true;
+        const { showFairHelperView } = await import('./features/fair-helper-view.js');
+        showFairHelperView({
+          email: user.email, watchMenu: window._fbWatchFairMenu, watchMySales: window._fbWatchMyFairSales,
+          addSale: window._fbAddFairSale, signOut: () => window._fbSignOut(),
+        });
+        dismissSplash();
+        return;
+      }
+      if (!publisherAccount && isBookkeeperPass(user, passClaims)) {
         window.IS_PUBLISHER = false;
         IS_AUTHOR_MODE = false;
         await window._fbLoadModeFlags();
@@ -19512,9 +19591,16 @@ async function initStartup() {
       }
       // A paused or closed plan opens the stockroom read-only (lib/plan-pause.js), before anything can be changed.
       const plan = typeof window._fbLoadPlan === 'function' ? await window._fbLoadPlan() : null;
+      // On a plan, Settings gets a way to the platform's Plan & billing page (bills, card, email language).
+      const planLink = planPageLink(plan);
+      const planButton = document.getElementById('plan-billing-link');
+      if (planButton && planLink) { planButton.href = planLink; planButton.hidden = false; }
       if (planReadOnly(plan)) {
         const { showPlanPause } = await import('./features/plan-pause.js');
         showPlanPause(plan);
+      } else if (planChangeNotice(plan)) {
+        // An app being added or closing (lib/plan-pause.js): a note only, nothing is locked.
+        import('./features/plan-pause.js').then(({ showPlanNotice }) => showPlanNotice(plan)).catch(() => {});
       }
       if (cachedGlobal === true) {
         showStartupPreview(user, publisherAccount)
@@ -19564,6 +19650,8 @@ async function initStartup() {
         // even if the catalog isn't edited this session.
         if (typeof window._fbSaveBookOwners === 'function' && !window.PLAN_READ_ONLY) window._fbSaveBookOwners(ownersFromBooks());
         showApp('publisher', null);
+        // Once this page shows the owner's words, the shop is told, so Settings can say the stockroom has caught up.
+        try { const told = wordsToReport(); if (told && !window.PLAN_READ_ONLY && await window._fbNoteWords?.(told)) wordsReported(told); } catch (_) { /* told again next time */ }
         syncSheetsConnectionWithCloud();
         checkAppUpdate();
         dismissSplash();
@@ -19704,6 +19792,7 @@ export const SIGN_IN_ENDED_MSG = 'Your sign-in has ended, so your stockroom is h
 // errMsg: a refusal, in red. note: a calm line (the sign-in ended).
 function setupGate(errMsg, note = null) {
   document.getElementById('bookkeeper-view')?.remove();
+  document.getElementById('fair-helper-view')?.remove();
   $('pw-gate').style.display = '';
   $('pw-app').style.display = 'none';
   document.querySelector('#gate-sub').textContent = 'inventory app';
@@ -20205,7 +20294,7 @@ function exposeLegacyInlineHandlers() {
     invoicePaperBodyWithQR, buildStandaloneInvoiceHTML, downloadInvoiceHTML, loadExternalScript,
     ensurePdfLibs, downloadInvoicePDF, findKeptAllPayout, convertKeptAllToReceived, openEditHist,
     openEditLedger, saveEntryEdit, syncLedgerVoid, reconcileConsignmentChannel, reconcileStores,
-    recomputeAfters, recalcOnHand, setStockTransferDirection, openStockTransferModal, stepStockTransfer, onStockTransferQtyChange, updateStockTransferPreview, submitStockTransfer, syncHistoryVoidDeletion, voidEntry, resetBookData,
+    recomputeAfters, recalcOnHand, setStockTransferDirection, openStockTransferModal, stepStockTransfer, onStockTransferQtyChange, updateStockTransferPreview, submitStockTransfer, openStockPlacesModal, syncHistoryVoidDeletion, voidEntry, resetBookData,
     parseAndValidateDate, restoreBookDataFromSheets, confirmRestoreBookDataFromSheets,
     _modalFieldSig, _prefersReducedMotion, openM, closeM, attemptCloseModal, fieldError,
     clearFieldError, clearFieldErrors, validateFields, withButtonLoading, addLog,

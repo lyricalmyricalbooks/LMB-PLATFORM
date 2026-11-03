@@ -17,6 +17,24 @@ export const TOPICS = Object.freeze(["Getting started", "Moving your shop", "Sel
 /** @type {readonly Article[]} */
 export const ARTICLES = Object.freeze([
   {
+    id: "selling-legally",
+    topic: "Selling",
+    question: "What do I need to sell within the law?",
+    answer: [
+      "Your press is the seller, so the shopping, privacy and tax rules of the places you sell to apply to you. This is a short list of what most presses need, not legal advice.",
+      "Fill in your own name, address and email under Settings › General. Every order email and shipping label shows them, and the law asks for them.",
+      "Write your shipping, returns, privacy and terms pages. Each has a Start from our wording button, and your shop won't open until all four have words.",
+      "Your returns page can say no to change-of-mind returns, but shoppers always keep their rights for faulty items. Shoppers in Europe and the United Kingdom can cancel within 14 days of delivery.",
+      "In Canada, register for GST/HST once your sales pass $30,000 over four quarters. Quebec and British Columbia have their own sales tax lines. Ask an accountant which apply to you.",
+      "Selling to the United States, Europe, the United Kingdom or Australia can bring its own sales tax or VAT once your sales there pass a line. Ask an accountant before you sell a lot there.",
+      "Selling to shoppers in Quebec means your shop's pages, checkout and policies must also be in French. Your shop can translate its pages for you; check the wording before you rely on it.",
+      "Send newsletters only to people who asked for them. Your sign-up form already asks them to confirm by email, and every newsletter has a way to stop.",
+      "Your shop asks shoppers before it counts their visits. Leave the cookie banner on if you sell to Europe, the United Kingdom or Quebec.",
+      "When a shopper asks for a copy of their details or to be deleted, answer within 30 days under Settings › General › Privacy requests.",
+    ],
+    where: ["Settings › General"],
+  },
+  {
     id: "add-a-book",
     topic: "Getting started",
     question: "How do I add my first book?",
@@ -47,11 +65,32 @@ export const ARTICLES = Object.freeze([
     where: ["Books › a product › Editions"],
   },
   {
+    id: "what-you-sell",
+    topic: "Getting started",
+    question: "I sell something different now. Can I change what my shop sells?",
+    answer: [
+      "Yes. Open Settings › General and find What you sell. Choose books, zines, comics, art and prints, clothing, shoes, jewelry, music, something else, or Books and other things if you sell both.",
+      "The shop's pages and emails change their words at once. Your stockroom changes the next time you open it, and Settings tells you when it has. Products you already made stay as they are.",
+    ],
+    where: ["Settings › General"],
+  },
+  {
+    id: "stock-places",
+    topic: "Your stockroom",
+    question: "Some of my copies are at a market stall. Can the stockroom track that?",
+    answer: [
+      "Yes. Open a product in the stockroom and choose the Move between places button on its dashboard. Pick where the copies are now, where they are going and how many. Type a new place name the first time, such as Studio or Market stall.",
+      "Everything you have not put in a place is called Main. The total on hand never changes when you move copies, and your sales and taxes are not affected. When something sells, Main goes down first. Close a place any time and its copies go back to Main.",
+    ],
+    plans: ["stockroom"],
+  },
+  {
     id: "size-guide",
     topic: "Getting started",
     question: "How do I add a size guide?",
     answer: [
       "Open the product and look in its details for Size guide. Type the measurements in the box, or choose a picture of your size chart. Shoppers see it next to the sizes on the product's page.",
+      "For clothing and shoes, press Start from a typical size guide to fill the box with a common chart. Change the numbers to match how your own pieces fit.",
     ],
     where: ["Books › a product"],
   },
@@ -146,7 +185,7 @@ export const ARTICLES = Object.freeze([
       "Export your customer list from your old shop. Here, open Customers and press Bring customers over.",
       "Each customer gets a private note with their name, town and what they spent at your old shop. Notes you already wrote are kept.",
       "Customers who agreed to your emails at your old shop can join your newsletter too. That only happens after you tick the box to say you have their permission.",
-      "Brought-over customers appear in your Customers list once they order here.",
+      "Brought-over customers appear in your Customers list straight away. Until they order here, they are under Not ordered here yet.",
     ],
     where: ["Customers › Bring customers over"],
   },
@@ -157,6 +196,41 @@ export const ARTICLES = Object.freeze([
     answer: [
       "Yes, for your books. When you bring books over from your old shop's export, each book's old address is saved as a redirect to the same book here.",
       "The redirects start working once your web address leads to this shop. Redirects you made yourself are never replaced. You can see or remove them in Settings › General › URL redirects.",
+      "For your other pages, such as About or a collection, use Check your old links under URL redirects before you move your web address. It reads your old shop's list of pages, tries each one here and suggests a new home for any that would show page not found. Add them one by one or all at once.",
+      "Bring your own pages over brings pages such as About, FAQ or Contact here as drafts, with their words, headings, lists and links, and a redirect from each old address. Photos on those pages stay behind, so open Settings › Design, go to Pages, add them again, read each page through and publish it.",
+    ],
+    where: ["Settings › General"],
+  },
+  {
+    id: "moving-checklist",
+    topic: "Moving your shop",
+    question: "What can I bring over from my old shop, and in what order?",
+    answer: [
+      "Everything below is optional, and each step is safe to repeat: bringing the same file twice adds nothing twice. Most old shops let you export each list as a CSV file from their settings or reports.",
+    ],
+    steps: [
+      "Books: open Books, press Import CSV and choose your old shop's product file. Old book addresses are sent on to the new pages.",
+      "Customers: open Customers and press Bring customers over.",
+      "Gift cards: open Gift cards and press Bring gift cards over, so balances still work.",
+      "Past orders: open Orders and press Bring past orders over. They count in your sales reports and each customer's history, and change no stock. Orders in another currency are converted at a rate you type.",
+      "Your own pages and old links: open Settings › General and use Check your old links under URL redirects, then Bring your own pages over for pages such as About or FAQ.",
+      "On the day you move, follow What do I do on the day I move from my old shop?",
+    ],
+    where: ["Books › Import CSV", "Customers › Bring customers over", "Gift cards › Bring gift cards over", "Orders › Bring past orders over", "Settings › General"],
+  },
+  {
+    id: "switch-day",
+    topic: "Moving your shop",
+    question: "What do I do on the day I move from my old shop?",
+    answer: [
+      "Move once your new shop is open and you have placed a practice order. Doing it in this order means shoppers are never left without a shop.",
+    ],
+    steps: [
+      "Take your last orders in your old shop, then close its checkout.",
+      "Open Settings › General and use Check your old links under URL redirects, so none of your old addresses show page not found.",
+      "Point your web address at this shop.",
+      "Tell your mailing list where to find you.",
+      "Tick Move over from your old shop in Set up your shop on the Overview.",
     ],
     where: ["Settings › General"],
   },
@@ -354,7 +428,7 @@ export const ARTICLES = Object.freeze([
     topic: "Your account",
     question: "What happens when my free trial ends?",
     answer: [
-      "If you have added a card, your plan simply carries on. If you haven't, your shop pauses. Nothing is deleted.",
+      "If you have added a card, your plan simply carries on. If you haven't, your shop pauses. Everything is kept for 60 days, and adding a card opens it again.",
       "Add a card at any time and your shop opens again, billed from that day. If you cancel, your plan runs to the end of the time already paid for, and you can change your mind until then.",
     ],
   },
@@ -375,6 +449,7 @@ export const CHECKLIST_ANSWERS = Object.freeze({
   address: "own-address",
   practice: "test-order",
   open: "open-shop",
+  switch: "switch-day",
 });
 
 /**

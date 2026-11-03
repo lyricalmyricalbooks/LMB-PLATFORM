@@ -62,4 +62,13 @@ describe("Get started, step 8: the final check and open (plan 17.13)", () => {
     expect(props.onFinishLater).toHaveBeenCalledTimes(1);
     expect(props.onDone).not.toHaveBeenCalled();
   });
+
+  it("recommends two-step sign-in and backup codes first, without stopping the shop opening", async () => {
+    const props = await mount({ readiness: [item({ id: "sign-in", label: "No backup codes saved", detail: "Make them in Settings › Security.", status: "warn", tab: "security", action: "Open Security" })], onOpen: vi.fn() });
+    expect(text()).toContain("Recommended before you open");
+    expect(text()).toContain("No backup codes saved");
+    expect(button("Open my shop")!.disabled).toBe(false);
+    act(() => button("Open Security")!.click());
+    expect(props.onOpen).toHaveBeenCalledWith("security");
+  });
 });

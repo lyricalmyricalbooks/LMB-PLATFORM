@@ -67,9 +67,21 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(draft.themeLibraryPreset).toBe("press-imprint");
     expect(draft.themeBase.id).toBe("press-imprint");
     expect(draft.copy).toEqual({ heroTitle: "Kept" });
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-imprint", at: expect.any(String) } });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-imprint", at: expect.any(String), adminLook: "riso" } });
     expect(text()).toContain("Set up your shop");
     expect(text()).not.toContain("Choose your look.");
+  });
+
+  it("picking an admin look applies it at once and records it with the welcome", async () => {
+    api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    await mount({});
+    const radios = [...document.querySelectorAll("[role=radiogroup][aria-label='Admin look'] [role=radio]")] as HTMLButtonElement[];
+    expect(radios.map(r => r.textContent)).toHaveLength(6);
+    await act(async () => { radios[1].click(); });
+    expect(document.documentElement.getAttribute("data-admin-look")).toBe("paper");
+    await act(async () => { button("Use this look")!.click(); });
+    await flush();
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: expect.objectContaining({ adminLook: "paper" }) });
   });
 
   it("Skip takes the first suggestion and says so", async () => {
@@ -77,7 +89,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     await mount({});
     await act(async () => { button("Skip for now")!.click(); });
     await flush();
-    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: { theme: "press-riso-noir", at: expect.any(String), skipped: true } });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: expect.objectContaining({ theme: "press-riso-noir", skipped: true }) });
   });
 
   it("a failed save keeps the welcome up with a plain message", async () => {
@@ -115,6 +127,11 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     await act(async () => { button("Open your shop")!.click(); });
     await flush();
     expect(onSetWall).toHaveBeenCalledWith(false);
+    // The moment it opens: one card says so, with the shop's address to visit and share.
+    expect(text()).toContain("Your shop is open");
+    expect(button("View your shop")).toBeDefined();
+    act(() => button("Done")!.click());
+    expect(text()).not.toContain("Your shop is open");
   });
 
   it("a read that fails offers Try again", async () => {

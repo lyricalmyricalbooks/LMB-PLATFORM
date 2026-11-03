@@ -39,3 +39,16 @@ export function cardWarningDue(row, nowMs) {
   const key = cardWarningKey(row.card);
   return row.cardWarned === key ? null : { ends, key };
 }
+
+/**
+ * For the billing hub (22.3): the paying card runs out within CARD_WARNING_DAYS, or already has, on a plan still
+ * running and not cancelled: { ends, expired } or null. Unlike `cardWarningDue` it doesn't care whether the email went,
+ * so the warning stays on the Billing page until a new card is saved.
+ */
+export function cardRunningOut(row, nowMs) {
+  if (!RUNNING.has(row?.status) || row.cancelAtPeriodEnd || !row.hasCard || !row.card?.id) return null;
+  const ends = cardEnds(row.card);
+  if (!ends) return null;
+  const left = Date.parse(ends) - nowMs;
+  return left > CARD_WARNING_DAYS * DAY ? null : { ends, expired: left < 0 };
+}

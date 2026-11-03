@@ -15,6 +15,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platformWorld } from "./world.js";
+import { MAX_IMPORT_BYTES } from "../signup/pressRecord.js";
 import { randomSuffix } from "../signup/signup.js";
 import { TERMS_VERSION } from "../terms/terms.js";
 import { TEST_SHOP } from "../setup/test-shop.js";
@@ -32,10 +33,14 @@ const PLATFORM_INBOX = {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const HERE = join(ROOT, "walkthrough");
 
+/** Where setup mode's build lands (apps/shop/vite.setup.config.ts). */
+export const SETUP_ADMIN_FOLDER = "apps/shop/dist-setup";
+
 /** The pages: where each is served and the folder its own files come from. */
 export const MOUNTS = Object.freeze({
   "/waitlist/": "waitlist",
   "/signup/": "signup",
+  "/join/": "join",
   "/account/": "accounts",
   "/accounts/": "accounts",
   "/help/": "help",
@@ -44,6 +49,8 @@ export const MOUNTS = Object.freeze({
   "/control/": "control-room",
   "/status/": "status",
   "/look/": "walkthrough/look",
+  // Setup mode (code plan 18.6): the shop's admin before the shop exists, built by `pnpm run build:setup` in apps/shop.
+  "/app/": SETUP_ADMIN_FOLDER,
 });
 
 /** The address of each page the walkthrough is for, with what to expect there. */
@@ -185,6 +192,8 @@ const readBody = (request) => new Promise((resolve, reject) => {
 
 /** The pages' own files, with the walkthrough's changes. Null when the file isn't one to serve. */
 async function fileFor(folder, name) {
+  // Setup mode is one page: every address under /app/ that isn't one of its files opens it.
+  if (folder === SETUP_ADMIN_FOLDER && !extname(name || "")) name = "setup.html";
   const wanted = normalize(name || "index.html");
   if (wanted.startsWith("..") || wanted.includes(`..${sep}`) || /\.test\.js$/.test(wanted) || !SERVED.test(wanted)) return null;
   const path = join(ROOT, folder, wanted);
@@ -200,7 +209,8 @@ async function fileFor(folder, name) {
       type: TYPES[".js"],
       body: text.toString("utf8")
         .replace(/export const PLATFORM_FIREBASE = Object\.freeze\(\{[\s\S]*?\}\);/, 'export const PLATFORM_FIREBASE = Object.freeze({ apiKey: "walkthrough", authDomain: "walkthrough.example", projectId: "demo-walkthrough" });')
-        .replace(/export const FIREBASE_SDK = ".*";/, 'export const FIREBASE_SDK = "/walkthrough/firebase";'),
+        .replace(/export const FIREBASE_SDK = ".*";/, 'export const FIREBASE_SDK = "/walkthrough/firebase";')
+        .replace(/export const SETUP_ADMIN_URL = ".*";/, 'export const SETUP_ADMIN_URL = "/app/";'),
     };
   }
   if (key === "waitlist/config.js") {
@@ -258,6 +268,19 @@ export async function startWalkthrough({ port = 0, host = "127.0.0.1", world = n
       return send(response, answer.status, answer.body);
     }
 
+    // The pretend upload link for a kept product file (18.7): the real one is a signed link to the platform's bucket.
+    if (pathname.startsWith("/walkthrough/uploads/") && request.method === "PUT") {
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of request) {
+        size += chunk.length;
+        if (size > MAX_IMPORT_BYTES) return send(response, 413, { ok: false });
+        chunks.push(chunk);
+      }
+      const put = await made.stagedFiles.put(pathname.slice("/walkthrough/uploads/".length), Buffer.concat(chunks));
+      return send(response, put.status, { ok: put.ok });
+    }
+
     if (pathname.startsWith("/walkthrough/firebase/")) {
       const file = await readFile(join(HERE, "stub", pathname.slice("/walkthrough/firebase/".length).replace(/[^\w.-]/g, "")), "utf8").catch(() => null);
       return file === null ? send(response, 404, "Not found\n", "text/plain") : send(response, 200, file, TYPES[".js"]);
@@ -300,6 +323,7 @@ export async function startWalkthrough({ port = 0, host = "127.0.0.1", world = n
       if (`${pathname}/` === mount) return send(response, 301, "", TYPES[".html"], { Location: mount });
       const file = await fileFor(MOUNTS[mount], pathname.slice(mount.length));
       if (file) return send(response, 200, file.body, file.type);
+      if (mount === "/app/") return send(response, 503, "Setup mode isn't built yet. Run: cd apps/shop && pnpm install && pnpm run build:setup\n", "text/plain; charset=utf-8");
     }
     return send(response, 404, "There's nothing here.\n", "text/plain; charset=utf-8");
   }

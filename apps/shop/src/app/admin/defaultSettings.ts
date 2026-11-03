@@ -21,7 +21,9 @@ export const defaultSettings = (): any => ({
     profileUrl: "https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=100&h=100&fit=crop", 
     faviconUrl: "https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?w=50&h=50&fit=crop" 
   },
-  location: { street: "456 Montrose Avenue", city: "Toronto", state: "Ontario", zip: "M6G3H1", country: "Canada" },
+  // Blank until the press enters its own: emails, labels and the legal pages must carry the seller's real address, and
+  // the launch checklist blocks until it is saved (launchReadiness.ts "mailing-address").
+  location: { street: "", city: "", state: "", zip: "", country: "" },
   localization: { timezone: "(GMT-05:00) Eastern Time (US & Canada)", currency: "Canadian Dollar (CAD $)" },
   aiShield: { blockTraining: false, blockShopping: false },
   policies: { shipping: "", returns: "", privacy: "", terms: "", legal: "" },

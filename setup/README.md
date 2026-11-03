@@ -115,6 +115,10 @@ when what it finds is neither done nor untouched:
 18. Spend guards (`spend.js`, plan 15.17): an alerts-only budget `shop:<id>` (notices go to the platform's Pub/Sub topic) and a Cloud Run
     functions spend cap `cap:<id>` on the billing account, both filtered to the shop's project, found by name so a re-run adds
     nothing. Does nothing until `config.spendGuards` is set.
+19. Authenticator codes on the shop admin's sign-in (`twoStep.js`, plan 22.6): upgrades the project's Firebase Auth to
+    Identity Platform (Identity Toolkit v2 `identityPlatform:initializeAuth`) and turns the TOTP second step on
+    (`projects.updateConfig`, updateMask `mfa`), keeping any other second step already set. An existing shop gets it the
+    next time its steps run.
 
 Dry run for the test shop: `node setup/dry-run.js` (pretend Google and services, changes nothing).
 

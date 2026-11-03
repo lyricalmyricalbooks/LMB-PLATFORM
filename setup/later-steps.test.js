@@ -29,10 +29,10 @@ function setup({ failOnce = [], googleFailOnce = [], shop = TEST_SHOP, config = 
 
 const called = (services, name) => services.calls.filter(([n]) => n === name);
 
-test("all eighteen steps are numbered and complete", () => {
+test("all nineteen steps are numbered and complete", () => {
   const { steps } = setup();
   assert.deepEqual(stepProblems(steps), []);
-  assert.equal(steps.length, 18);
+  assert.equal(steps.length, 19);
 });
 
 test("a full run makes the test shop live: rules, server code in Montréal, pages, backup, private files, starter content, Stripe, email", async () => {
@@ -45,7 +45,9 @@ test("a full run makes the test shop live: rules, server code in Montréal, page
   // The region is passed to the deploy explicitly, not left to the shop code's default.
   assert.deepEqual(called(services, "deploy.functions"), [["deploy.functions", ID, "0.0.0-test", "northamerica-northeast1"]]);
   assert.equal(world.envFiles.get(ID), envFileText(TEST_SHOP, TEST_CONFIG));
-  assert.deepEqual(called(services, "deploy.pages").map(([, , , app]) => app), ["shop", "stockroom"]);
+  // Step 9 deploys the pages; step 13 then adds the Stripe account to the profile, so step 15 deploys them again with it.
+  assert.deepEqual(called(services, "deploy.pages").map(([, , , app]) => app), ["shop", "stockroom", "shop", "stockroom"]);
+  assert.equal(new Set(Object.values((await registry.getShop(ID)).pagesProfile)).size, 1);
   assert.ok(google.world.backupPermission.has(ID));
   assert.equal(google.world.backups.get(ID).length, 1);
   assert.ok(google.world.testFiles.has(ID));
@@ -63,7 +65,7 @@ test("a full run makes the test shop live: rules, server code in Montréal, page
   assert.equal(welcome.idempotencyKey, `${ID}-${OWNER_WELCOME}`);
 
   assert.equal(row.status, "live");
-  assert.deepEqual([...auditLog.entries.get(ID).values()].map((e) => e.step).sort((a, b) => a - b), Array.from({ length: 18 }, (_, i) => i + 1));
+  assert.deepEqual([...auditLog.entries.get(ID).values()].map((e) => e.step).sort((a, b) => a - b), Array.from({ length: 19 }, (_, i) => i + 1));
   assert.equal(registry.locks.size, 0, "the lock is given back");
 });
 
@@ -74,7 +76,7 @@ test("running again changes nothing anywhere", async () => {
   const forgetful = { ...registry, readSteps: async () => [], recordStep: async () => {} };
   const second = await runSteps({ shop: TEST_SHOP, steps, registry: forgetful, auditLog });
   assert.equal(second.ok, true, second.error);
-  assert.deepEqual(second.ran.map((r) => r.status), Array(18).fill("already-done"));
+  assert.deepEqual(second.ran.map((r) => r.status), Array(19).fill("already-done"));
   assert.equal(changes(), before);
 });
 
@@ -253,7 +255,7 @@ test("a failed shop check leaves the shop not live, and the retry marks it live"
   broken = false;
   const second = await run();
   assert.equal(second.ok, true, second.error);
-  assert.deepEqual(second.ran.map((r) => r.status), [...Array(14).fill("done-before"), "done", "done", "done", "already-done"]);
+  assert.deepEqual(second.ran.map((r) => r.status), [...Array(14).fill("done-before"), "done", "done", "done", "already-done", "done"]);
   assert.equal((await registry.getShop(ID)).status, "live");
 });
 
@@ -426,12 +428,12 @@ test("a deploy that failed is retried at its step without redoing earlier work",
   assert.equal(google.calls.filter(([n]) => n === "projects.create").length, 1);
 });
 
-test("the dry run prints all eighteen steps and changes nothing", async () => {
+test("the dry run prints all nineteen steps and changes nothing", async () => {
   const { registry, run, changes } = setup();
   const lines = [];
   const result = await run({ dryRun: true, print: (line) => lines.push(line) });
   assert.equal(result.ok, true);
-  assert.equal(lines.length, 19);
+  assert.equal(lines.length, 20);
   assert.equal(lines[13], "13. Connect the press's payments: would run");
   assert.equal(changes(), 0);
   assert.equal(registry.shops.size + registry.locks.size, 0);
@@ -681,7 +683,7 @@ test("the shop's first-week list knows every sign-up answer", () => {
 });
 
 test("Choose your look suggests themes for every publishing answer", () => {
-  const source = readFileSync(new URL("../apps/shop/src/app/admin/chooseLook.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../apps/shop/src/app/admin/lookGallery.ts", import.meta.url), "utf8");
   const block = source.match(/const SUGGESTED[^{]*\{([\s\S]*?)\n\};/)[1];
   const keys = [...block.matchAll(/^\s+([a-z]+):/gm)].map((m) => m[1]).filter((k) => k !== "general");
   assert.deepEqual(keys, PUBLISHES.options.map((option) => option.id));

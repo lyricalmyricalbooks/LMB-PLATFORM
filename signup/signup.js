@@ -8,7 +8,7 @@
 //   accounts   get(accountId) -> { accountId, email, name, createdAt, shops: { [shopId]: role } } | null; set(accountId, row)
 //   signups    get(shopId) -> row | null; set(shopId, row); listByAccount(accountId) -> rows
 //   registry   getShop(shopId) -> row | null (a shop id the registry has is taken)
-//   billing    startTrial({ account, shopId, pressName, plan }) (services/billing)
+//   billing    startTrial({ account, shopId, pressName, plan, language }) (services/billing)
 //   email      sendPlatform({ kind, to, data, idempotencyKey }) (services/email)
 //   auth       signInLink(email, { url }) -> link (Firebase Admin's generateSignInWithEmailLink, in the platform project)
 //   throttle   count(key, sinceIso) -> number; add(key, atIso)
@@ -101,7 +101,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
   /** Starts the trial (once) and makes the person the shop's owner on their account (once). */
   async function begin(row, person) {
     if (!row.trialStartedAt) {
-      const plan = await billing.startTrial({ account: person, shopId: row.shopId, pressName: row.pressName, plan: row.plan });
+      const plan = await billing.startTrial({ account: person, shopId: row.shopId, pressName: row.pressName, plan: row.plan, ...(row.language ? { language: row.language } : {}) });
       row = { ...row, trialStartedAt: at(), billingStatus: plan.status, trialEnd: plan.trialEnd ?? null };
       await signups.set(row.shopId, row);
     }
@@ -134,7 +134,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
     },
 
     /** Starts the press's free trial and queues its shop. Returns { shopId, status, trialEnd }. */
-    async start(claims, input) {
+    async start(claims, input, { pressId = null } = {}) {
       const person = personOf(claims);
       const { ok, details, problems } = checkSignup(input);
       if (!ok) throw new SignupError(400, "Some details need another look.", problems);
@@ -148,7 +148,16 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
       const mine = await signups.listByAccount(person.accountId);
       // The same press signed up again (a double click, a lost answer): the same shop, carried on from where it stopped,
       // with the first agreement to the terms kept.
-      let row = mine.find((s) => s.pressName.toLowerCase() === details.pressName.toLowerCase());
+      // Opened from the front door (18.8): the press's own row, found by its press, never by a name another press shares.
+      let row = pressId ? mine.find((s) => s.pressId === pressId) : mine.find((s) => !s.pressId && s.pressName.toLowerCase() === details.pressName.toLowerCase());
+      // A press back from a refusal (its plan didn't start) opens with the answers it gives now, not the earlier ones.
+      if (row && pressId && !row.trialStartedAt) {
+        const { pressName, plan, country, currency, answer, publishes } = details;
+        // The email language too: a choice made now replaces the earlier one, and none (automatic) clears it.
+        const { language: _earlier, ...kept } = row;
+        row = { ...kept, pressName, plan, country, currency, answer, publishes, ...(details.language ? { language: details.language } : {}) };
+        await signups.set(row.shopId, row);
+      }
       if (!row) {
         if (mine.length >= MAX_SHOPS_PER_ACCOUNT) throw new SignupError(429, `One account can start up to ${MAX_SHOPS_PER_ACCOUNT} shops. Write to us if you need more.`);
         if (details.address && !(await isFree(details.address, person.accountId))) {
@@ -169,8 +178,11 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
           currency: details.currency,
           answer: details.answer,
           publishes: details.publishes,
+          ...(details.language ? { language: details.language } : {}),
           ...agreement,
           paymentProvider: "stripe",
+          // Opened from the front door's setup (18.8): the shop maker reads the look and the kept file there (18.9).
+          ...(pressId ? { pressId } : {}),
           invited: isInvited,
           status: held ? "later" : myTurn ? "queued" : "in-line",
           ...(held ? { message: LATER_WORDS } : myTurn ? { admittedAt: at() } : { linedUpAt: at(), message: IN_LINE_WORDS }),
@@ -248,7 +260,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         room -= 1;
         try {
           await email.sendPlatform({
-            kind: "shop-starting", to: row.ownerEmail, shopId: row.shopId,
+            kind: "shop-starting", to: row.ownerEmail, shopId: row.shopId, ...(row.language ? { language: row.language } : {}),
             data: { pressName: row.pressName, link: `${settings.platformUrl}/signup/` },
             idempotencyKey: `shop-starting/${row.shopId}`,
           });
@@ -266,7 +278,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
     async mine(claims) {
       const person = personOf(claims);
       const rows = await signups.listByAccount(person.accountId);
-      return rows.map(({ shopId, pressName, plan, status, trialEnd, message, canRetry, siteUrl }) => ({ shopId, pressName, plan, status, trialEnd, message: status === "in-line" ? IN_LINE_WORDS : status === "later" ? LATER_WORDS : message, canRetry, siteUrl }));
+      return rows.map(({ shopId, pressName, plan, status, trialEnd, message, canRetry, siteUrl, openUrl }) => ({ shopId, pressName, plan, status, trialEnd, message: status === "in-line" ? IN_LINE_WORDS : status === "later" ? LATER_WORDS : message, canRetry, siteUrl, openUrl: openUrl ?? (status !== "ready" ? null : plan === "stockroom" ? `https://${shopId}-stockroom.web.app` : siteUrl ? `${siteUrl}/admin` : null) }));
     },
   };
 }

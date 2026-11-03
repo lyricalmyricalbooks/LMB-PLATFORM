@@ -23,6 +23,8 @@ import { personOf, SignupError } from "../signup/signup.js";
 import { ROLES, ROLE_WORDS } from "./roles.js";
 import { ownerTwoStepProblem } from "./twoStep.js";
 import { checkMyShop } from "./checkMyShop.js";
+import { PLAN_APPS } from "../services/billing/plans.js";
+import { downloadHolds } from "../services/billing/closedApps.js";
 
 export { ROLES, ROLE_WORDS };
 export const INVITE_DAYS = 7;
@@ -77,10 +79,16 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       plan: row?.plan ?? null,
       status: row?.status ?? "creating",
       access: row?.billing?.access ?? null,
-      siteUrl: profile?.siteUrl ?? null,
+      // A stockroom-only press has no website, so no address is shown as if it were one.
+      siteUrl: profile?.apps?.shop === false ? null : profile?.siteUrl ?? null,
       adminUrl: profile?.siteUrl && profile.apps?.shop ? `${profile.siteUrl}/admin` : null,
       // The stockroom is its own Hosting site in the shop's project, `<project id>-stockroom` (docs/shop-setup.md).
       stockroomUrl: projectId && profile.apps?.stockroom ? `https://${projectId}-stockroom.web.app` : null,
+      // A plan change in progress: an app open on the plan but not built yet, and one that closes at the month's end.
+      adding: row?.builtPlan && PLAN_APPS[row.plan] ? ["shop", "stockroom"].filter((app) => PLAN_APPS[row.plan][app] && !PLAN_APPS[row.builtPlan]?.[app]) : [],
+      closing: row?.billing?.appsClosing?.apps?.length ? { apps: [...row.billing.appsClosing.apps], at: row.billing.appsClosing.at ?? null } : null,
+      // A dropped app that has closed, while its data can still be downloaded (the export includes it till then).
+      closed: Object.entries(row?.closedApps ?? {}).filter(([app, c]) => !PLAN_APPS[row.plan]?.[app] && Date.parse(c?.downloadUntil) > now().getTime()).map(([app, c]) => ({ app, downloadUntil: c.downloadUntil, holds: downloadHolds([app]) })),
     };
   }
 
@@ -140,7 +148,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       const person = await ownerOnly(claims, shopId, true);
       const to = normal(address);
       if (!EMAIL.test(to) || to.length > 254) throw new SignupError(400, "Enter the email address to invite.", { email: "Enter the email address to invite." });
-      if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff, author or bookkeeper.", { role: "Choose a role." });
+      if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff, author, bookkeeper or fair helper.", { role: "Choose a role." });
       const shopRow = await registry.getShop(shopId);
       // The shop's own owner address always counts as owner in the shop (apps/shop/functions/roles.js); it needs no invite.
       if (to === normal(shopRow?.ownerEmail)) throw new SignupError(409, "That's the shop's own owner address. It always has full access.");
@@ -201,7 +209,7 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
     async setRole(claims, { shopId, email: address, role }) {
       const person = await ownerOnly(claims, shopId, true);
       const who = normal(address);
-      if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff, author or bookkeeper.");
+      if (!ROLES.includes(role)) throw new SignupError(400, "Choose a role: owner, staff, author, bookkeeper or fair helper.");
       const member = await memberships.get(shopId, who);
       if (!member) throw new SignupError(404, "That person isn't on the team.");
       if (member.role === role) return { email: who, role, changed: false };

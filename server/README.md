@@ -45,7 +45,10 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | Putting a shop's pages live again, rolling back, self-checks | The release runner's hosted home (4.1) |
 | Opening a shop's admin from the control room | A support sign-in per shop, after 15.5 and 15.7 |
 | Downloading all of a shop's data | The export bucket and its download links (19.16) |
+| Keeping a press's product file until its shop opens | The platform's import bucket and its signed upload links (18.7): `stagedFiles` in `world.js` needs `uploadUrl`, `stat`, `read` and `remove` on a private bucket |
 | Deleting a closed shop's project | Your go, once the organization exists |
+| Deleting a closed app's records after its 90 days | Server access to each shop's project, after 15.5 (until then the Apps closing list shows each one waiting) |
+| Marking a closing email that bounced | Resend's delivery events reaching the platform (`services/email/webhook.js` with `onBounce`) |
 | Web addresses for shops | The domain service's hosted home (2.9) |
 | QuickBooks | The platform's QuickBooks app keys (`docs/accounting.md`) |
 | What each shop costs | Google's billing export to BigQuery (the Costs page shows its empty state) |
@@ -71,6 +74,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | bookkeeping | 03:30 | paused |
 | trial-tips | 09:00 | on |
 | shop-checkup | 10:00 (each shop gets one a month) | on |
+| deletion-note | 08:00 on Mondays (only when a closed app's records go that week) | on |
 | restore-drill | 04:00 on the 1st of each month | on |
 
 A daily or monthly job is tried twice more if Google can't reach it; a frequent one just waits for its next turn. A late

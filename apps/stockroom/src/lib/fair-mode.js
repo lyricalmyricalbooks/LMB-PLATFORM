@@ -2,6 +2,7 @@
 // screen wake lock; the sale itself still goes through posConfirmSale().
 
 import { escapeHtml as esc } from './html.js';
+import { POS_LOW_STOCK_AT } from './pos-stock.js';
 
 /** Payment choices on the charge sheet, in thumb order. `value` is what the
  *  sale records, and must match the register's payment <select>. */
@@ -160,6 +161,19 @@ export function registerSalesForDay(books, day) {
   return { sales, totals, units };
 }
 
+/**
+ * The fair a register row was sold at, from its note: the till writes "<way of paying> · <fair>" (fairCharge), then
+ * " · Price A→B" when the price was changed. "" when no fair was named.
+ */
+export function fairNameOf(notes) {
+  const text = String(notes || '');
+  const method = saleMethod(text);
+  // "Stripe QR (printed code, …)" keeps its bracket before the fair.
+  const rest = method === 'Other' ? '' : text.slice(method.length).replace(/^ \([^)]*\)/, '');
+  const m = /^ · (.+?)(?: · Price [^·]*→[^·]*)?$/.exec(rest);
+  return m && !/^Price [^·]*→/.test(m[1]) ? m[1].trim() : '';
+}
+
 /** Epoch ms from an `evt-<base36 time>-<random>` id; 0 when absent. */
 export function eventTime(id) {
   const m = /^evt-([0-9a-z]+)-/.exec(String(id || ''));
@@ -226,4 +240,31 @@ export function saveCurrentFair(name, dayStr, storage = globalThis.localStorage)
     else storage?.removeItem(FAIR_KEY);
   } catch { /* private mode: the name just isn't remembered */ }
   return clean || null;
+}
+
+const cents = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const totalsList = (totals) => Object.entries(totals || {}).sort(([a], [b]) => a.localeCompare(b)).map(([cur, amount]) => ({ cur, amount: cents(amount) }));
+
+/**
+ * Today at the fair, for the combined admin (docs/combined-admin.md, step 4a): the end-of-day summary
+ * (fairDaySummary), the fair's name and the upload state (fairSyncPill), as plain data. Read-only: the stockroom
+ * stays the only place sales are recorded. Totals stay per currency; the best-selling ten books are listed.
+ * `low` names every book sold today that is down to the till's own "only a few left" count (POS_LOW_STOCK_AT),
+ * fewest first, so a book outside the best ten still shows before the next fair.
+ */
+export function fairForAdmin(sum, fair, pill, day) {
+  return {
+    day: day || null,
+    fair: fair?.name || null,
+    sales: sum?.sales || 0,
+    units: sum?.units || 0,
+    totals: totalsList(sum?.totals),
+    methods: (sum?.methods || []).map((m) => ({ label: m.label, sales: m.sales, totals: totalsList(m.totals) })),
+    titles: (sum?.titles || []).slice(0, 10).map((t) => ({ bookId: t.bookId, title: t.title, units: t.units, left: t.left ?? null, totals: totalsList(t.totals) })),
+    low: (sum?.titles || [])
+      .filter((t) => Number.isFinite(t.left) && t.left <= POS_LOW_STOCK_AT)
+      .sort((a, b) => a.left - b.left || a.title.localeCompare(b.title))
+      .map((t) => ({ bookId: t.bookId, title: t.title, left: Math.max(0, t.left) })),
+    upload: { tone: pill?.tone || 'ok', text: pill?.text || '' },
+  };
 }

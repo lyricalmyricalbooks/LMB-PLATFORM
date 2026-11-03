@@ -1,3 +1,5 @@
+import { sizeGuideStarter } from "./sizeGuideStarters";
+import { kindHint } from "./kindFieldHints";
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { useState, useEffect, useRef } from "react";
 import { 
@@ -54,7 +56,10 @@ import { useCurrency } from "../CurrencyContext";
 import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
-import { ActionMenu, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
+import { ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
+import { combinedAdmin } from "./combined";
+import { StockroomBookPanel } from "./StockroomBookPanel";
+import { stockroomBridge } from "./stockroomBridge";
 import "./books.css";
 import { uploadBookPhoto } from "./bookPhotoUpload";
 import { BOOK_VIDEO_ACCEPT, MAX_BOOK_VIDEOS, MAX_BOOK_VIDEO_BYTES, formatMegabytes, isVideoFile, uploadBookVideo, videoProblem } from "./bookVideoUpload";
@@ -73,7 +78,7 @@ import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/si
 import { customsDefaultsFor, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
 import { ProductOptionsEditor } from "./ProductOptionsEditor";
-import { goodsWords, startingKind } from "./sells";
+import { currentSells, goodsWords, startingKind } from "./sells";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
@@ -88,7 +93,7 @@ import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardPr
 
 const MAX_BOOK_PHOTOS = 50;
 
-type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "addons" | "boxset" | "organize" | "more" | "seo";
+type BookTab = "details" | "media" | "pricing" | "inventory" | "stock" | "editions" | "addons" | "boxset" | "organize" | "more" | "seo";
 
 function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop, onDescribe, describing, aiLocked }: {
   photo: any; index: number; onRemove: (id: string) => void; onAlt: (id: string, alt: string) => void; onMakeCover: (id: string) => void;
@@ -151,6 +156,9 @@ const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] =
   { action: "quote", label: "Quote", Icon: Quote },
   { action: "divider", label: "Divider line", Icon: Minus },
 ];
+
+// The combined admin (shop + stockroom plan): the book page has a Stock and sales tab from the stockroom.
+const COMBINED_ADMIN = combinedAdmin();
 
 export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, onCreated }: BookEditorProps) {
   const { rates } = useCurrency();
@@ -377,7 +385,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       // (sells.ts). The starting kind isn't an edit, so it goes into both the form and what "unsaved" compares with.
       if (!(prefill as any)?.kind) {
         Promise.resolve().then(() => adminApi.getFirstWeek()).then(doc => {
-          const kind = startingKind(doc?.publishes);
+          const kind = startingKind(currentSells(doc));
           if (kind === "book") return;
           const start = (prev: any) => (prev && !prev.kind && !prev.id && !prev.productType ? { ...prev, kind, format: "" } : prev);
           setFormData(start);
@@ -570,6 +578,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [isDirty]);
+
+  // "Change stock in the stockroom": the stockroom's page for that book, inside the admin. Leaving drops unsaved edits.
+  const openInStockroom = async (stockroomBookId: string) => {
+    if (isDirty && !(await askConfirm({ title: "Leave without saving?", confirmLabel: w("Leave this book"),
+      message: w("Your changes to this book aren't saved yet. Save first to keep them.") }))) return;
+    stockroomBridge.openBook("dashboard", stockroomBookId);
+  };
 
   const handleClose = () => {
     if (isDirty) { setConfirmDiscard(true); return; }
@@ -1168,7 +1183,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     { label: "Search description", ok: !!formData.metaDescription, tab: "seo" as BookTab },
   ];
   const doneCount = checklist.filter((c) => c.ok).length;
-  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
+  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, stock: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
   checklist.filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
   const detailsIssues: Partial<Record<DetailsSubTab, number>> = {};
   checklist.forEach((c) => {
@@ -1183,6 +1198,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     { id: "media", label: "Images", count: (formData.photos || []).length },
     { id: "pricing", label: "Pricing", count: tabIssues.pricing || undefined },
     { id: "inventory", label: "Inventory & shipping" },
+    // The combined admin (shop + stockroom): the book's stock and sales on every channel, from the stockroom.
+    ...(COMBINED_ADMIN && book?.id && !giftCard && !boxSetOn ? [{ id: "stock" as BookTab, label: "Stock and sales" }] : []),
     { id: "editions", label: giftCard ? "Amounts" : "Editions", count: (formData.variants || []).length },
     // Add-ons and the box-set builder share one tab; gift cards have neither.
     ...(!giftCard ? [{ id: "boxset" as BookTab, label: "Add-ons & box set", count: (boxSetOn ? (formData.bundleItems || []).length : (formData.addOns || []).length) || undefined }] : []),
@@ -1397,8 +1414,19 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <TextField label="Page count" type="number" min={0} name="pageCount" value={formData.pageCount ?? 0} onChange={handleChange} />
                   <TextField label="Language" name="language" value={formData.language || ""} onChange={handleChange} placeholder="English" />
                   </> : <>
-                  <TextField label="Material" name="material" value={formData.material || ""} onChange={handleChange} placeholder="e.g. 100% organic cotton" />
-                  <TextField label="Care" name="care" value={formData.care || ""} onChange={handleChange} placeholder="e.g. Machine wash cold" />
+                  <TextField label={kindHint(productKind(formData)).materialLabel} name="material" value={formData.material || ""} onChange={handleChange} placeholder={kindHint(productKind(formData)).materialExample} />
+                  <div>
+                    <TextField label="Care" name="care" value={formData.care || ""} onChange={handleChange} placeholder={kindHint(productKind(formData)).careExample} />
+                    {!String(formData.care || "").trim() && kindHint(productKind(formData)).careStarters.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 10px" }}>
+                        {kindHint(productKind(formData)).careStarters.map((s, i) => (
+                          <SecondaryButton key={i} size="sm" onClick={() => setFormData((prev: any) => ({ ...prev, care: s }))}>
+                            Use: {s.length > 34 ? s.slice(0, 33).trimEnd() + "…" : s}
+                          </SecondaryButton>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   {["clothing", "shoes"].includes(productKind(formData)) && <>
                     <SelectField label="Google Shopping: for" name="googleGender" value={formData.googleGender || ""} onChange={handleChange} hint="Google asks clothing and shoes who they are for. Blank = unisex.">
                       <option value="">Unisex (default)</option>
@@ -1417,6 +1445,12 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     <TextArea label="Size guide" name="sizeChart" value={formData.sizeChart || ""} onChange={handleChange} rows={5}
                       placeholder={"e.g.\nS: chest 36 in, length 27 in\nM: chest 40 in, length 28 in"}
                       hint="Optional. Fill it in (or choose a picture below) and the product page gets a Size guide tab." />
+                    {!String(formData.sizeChart || "").trim() && sizeGuideStarter(productKind(formData)) && (
+                      <SecondaryButton size="sm" style={{ margin: "6px 0 10px" }}
+                        onClick={() => setFormData((prev: any) => ({ ...prev, sizeChart: sizeGuideStarter(productKind(prev)) }))}>
+                        Start from a typical size guide
+                      </SecondaryButton>
+                    )}
                     <SelectField label="Size guide picture" name="sizeChartPhoto" value={formData.sizeChartPhoto || ""} onChange={handleChange}>
                       <option value="">— None —</option>
                       {(formData.photos || []).map((p: any, idx: number) => isVideoItem(p) ? null : <option key={p.id || idx} value={p.url}>Image {idx + 1}{p.altText ? ` (${p.altText})` : ""}</option>)}
@@ -1617,6 +1651,11 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 )}
               </SectionCard>
             </>
+          )}
+
+          {shownTab === "stock" && book?.id && (
+            <StockroomBookPanel book={{ id: book.id, title: formData.title, isbn: formData.isbn, variants: formData.variants || [] }}
+              links={stockLinks} linksFailed={stockLinksFailed} onLinks={setStockLinks} words={w} onOpen={openInStockroom} />
           )}
 
           {shownTab === "inventory" && (

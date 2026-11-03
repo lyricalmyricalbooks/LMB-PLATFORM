@@ -13,6 +13,7 @@
 //   publish       (shopId) -> { apps }: puts the saved /shop-profile.js live (profilePublisher below)
 //   shopAccess    supportSignIn(shopId, { by, reason, minutes, mode }) -> { url }: a short sign-in to the shop's admin for
 //                 support (supportAccess.js; the shop copy shows a banner and treats it as staff until it ends).
+//                 removeTwoStep(shopId, email) -> { found, removed }: two-step sign-in off for one person (22.11)
 //   repairs       optional: the repair queue (repairs.js): open(shopId), list({ status }), markFixed(id, { by, note })
 //   selfCheck     optional: the self-checks (selfChecks.js): check(shopId, { why }), run after every change here
 //   shopData      optional: a shop's own database, get(shopId, path) / set(shopId, path, data) (clients/shop.js);
@@ -43,11 +44,34 @@ import { activityEntry } from "./activity.js";
 import { todaySummary } from "./today.js";
 import { MAX_BASIS_POINTS, NO_FEE, feeForShop } from "../services/payments/fees.js";
 import { dateText } from "../services/billing/billing.js";
+import { shopMailLanguage } from "../services/email/templatesFr.js";
+import { platformWords } from "../services/email/index.js";
+import { withIdentity } from "../services/email/templates.js";
+import { isPlan, planPrice } from "../services/billing/plans.js";
 import { platformSettings } from "../services/settings.js";
 import { editVisit } from "./accessRequests.js";
 import { deliveryReasons } from "./delivery.js";
 
 export const ACT_AS_MINUTES = 30;
+/**
+ * The email this press would get a few days before its trial ends, in the language its emails go in (shopMailLanguage),
+ * with its own plan, price and day: the control room's sample, so a question about wording is answered without waiting
+ * for a real one. Nothing is sent. { kind, language, subject, text }.
+ */
+export function emailSample(row, settings, today) {
+  const plan = isPlan(row.billing?.plan) ? row.billing.plan : "both";
+  const price = planPrice(plan, settings);
+  const language = shopMailLanguage(row);
+  const pressName = row.pressName || row.shopId;
+  const data = {
+    pressName, planName: price.name, price: price.priceText, hasCard: row.billing?.hasCard === true,
+    date: dateText(row.billing?.trialEnd ?? today.toISOString()),
+    link: `${settings.platformUrl}/account/billing?shop=${encodeURIComponent(row.shopId)}`,
+  };
+  const { subject, text } = withIdentity(platformWords("trial-ending", data, { settings, pressName }, language), settings);
+  return { kind: "trial-ending", language, subject, text };
+}
+
 /** A change to a press's per-order fee starts this many days after the press is emailed (Julian, 28 October 2026). */
 export const FEE_NOTICE_DAYS = 30;
 /** Where the switch defaults for new shops are kept (`platformState`), read by the shop maker's setup step 6. */
@@ -270,6 +294,8 @@ export function createControlRoom({
           siteUrl: profile?.siteUrl ?? null,
           ownerEmail: row.ownerEmail ?? null,
           billingStatus: row.billing?.status ?? null,
+          // For the list's count of presses by email language (when a full French admin is worth building).
+          emailLanguage: shopMailLanguage(row),
           createdAt: row.createdAt ?? null,
           closed: row.closure ? { by: row.closure.by, reason: row.closure.reason, at: row.closure.at } : null,
           costThisMonth: costOf(row.spending),
@@ -370,6 +396,9 @@ export function createControlRoom({
         siteUrl: profile?.siteUrl ?? null,
         version: row.release?.version ?? null,
         billing: row.billing ?? null,
+        // The language of the platform's emails to this press (services/email/templatesFr.js): "fr", "fr+en" or "en".
+        emailLanguage: shopMailLanguage(row),
+        emailSample: emailSample(row, settings ? await settings() : platformSettings({}), now()),
         setup: [...lastByStep.values()].map(({ step, name, ok, error, at, finishedAt }) => ({ step, name: name ?? null, ok: ok !== false && !error, at: finishedAt ?? at ?? null, error: error ?? null })),
         connections: {
           payments: row.payments ? { provider: row.payments.provider ?? null, connected: Boolean(row.payments.accountId) } : null,
@@ -553,6 +582,26 @@ export function createControlRoom({
      * "Close this shop" for abuse (plan 8.4): its checkout and pages close (closure.js), with a reason. Logged before
      * anything changes. Closing a closed shop changes nothing.
      */
+    /**
+     * Two-step sign-in off for one person on a shop (plan 22.11), for someone who lost both their phone and their backup
+     * codes. Only after the platform admin has checked it's really them: the reason says how, and it is logged in the
+     * registry and the shop's own audit log before anything changes. Google alone then lets them in, and their admin's
+     * Settings › Security asks them to set it up again.
+     */
+    async resetTwoStep(claims, { shopId, email, reason } = {}) {
+      const by = adminOf(claims, admins, now().getTime());
+      const why = reasonOf(reason);
+      const address = typeof email === "string" ? email.trim().toLowerCase() : "";
+      if (!/^[^\s@<>,]+@[^\s@<>,]+\.[^\s@<>,]+$/.test(address)) throw new ControlError(400, "Type the email address the person signs in with.");
+      const row = await shopOr404(shopId);
+      if (row.status !== "live") throw new ControlError(409, "That shop isn't live yet, so no one signs in to it.");
+      if (!shopAccess?.removeTwoStep) throw new ControlError(503, "The control room can't reach the shop's sign-in yet, so nothing was changed.");
+      await log(shopId, "two-step-reset", { by, reason: why, email: address });
+      const { found, removed } = await shopAccess.removeTwoStep(shopId, address);
+      if (!found) throw new ControlError(404, `No one signs in to ${row.pressName ?? shopId} as ${address}. Nothing was changed.`);
+      return { shopId, email: address, removed };
+    },
+
     async closeShop(claims, { shopId, reason } = {}) {
       const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);

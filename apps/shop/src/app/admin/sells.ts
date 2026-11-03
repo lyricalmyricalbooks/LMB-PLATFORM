@@ -17,11 +17,18 @@ import { sellsBooks, wordsFor, type Sells } from "../../shared/shopSells";
 export { SELLS, sellsBooks } from "../../shared/shopSells";
 export type { Sells } from "../../shared/shopSells";
 
+/** What the shop sells now: the owner's own choice in Settings (`sells`) first, else the sign-up answer (`publishes`). */
+export function currentSells(doc?: { sells?: string | null; publishes?: string | null } | null): string | null {
+  return doc?.sells || doc?.publishes || null;
+}
+
 /** The kind a new product starts as (the product editor's Product type). */
 export function startingKind(answer?: string | null): ProductKind {
   if (sellsBooks(answer)) return "book";
   if (answer === "prints") return "art";
-  return answer as Exclude<Sells, "books" | "zines" | "comics" | "mix" | "prints">;
+  // A shop of books and other things starts a new product as a book; the owner picks another kind per product.
+  if (answer === "mixed") return "book";
+  return answer as Exclude<Sells, "books" | "zines" | "comics" | "mix" | "mixed" | "prints">;
 }
 
 /** Text & labels keys that only show for books (book details, e-books, formats), so they keep their book words. */

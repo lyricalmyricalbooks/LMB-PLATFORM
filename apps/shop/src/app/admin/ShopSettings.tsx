@@ -38,8 +38,9 @@ import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
 /** Same cap as functions/liveRateExtra.js MAX_LIVE_RATE_EXTRA. */
 const MAX_LIVE_RATE_EXTRA = 50;
 import { TeamSettings } from "./TeamSettings";
+import { SecuritySettings } from "./SecuritySettings";
 import { BookkeepingSettings } from "./BookkeepingSettings";
-import { PlanSettings } from "./PlanParts";
+import { BillingSettings, PlanSettings } from "./PlanParts";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { ShopErrorsCard } from "./ShopErrorsCard";
@@ -49,6 +50,7 @@ import { testSaleSteps } from "./testSaleWalkthrough";
 import { practiceCheckout, type PracticeState } from "../lib/practiceCheckout";
 import { studioHash } from "../lib/studioLocation";
 import { useShopWords } from "./shopWords";
+import { WhatYouSellCard } from "./WhatYouSellCard";
 
 export function ShopSettings({ 
   activeTab, 
@@ -129,8 +131,10 @@ export function ShopSettings({
             onOpenShipping={() => { setActiveTab("shipping"); if (onSubTabChange) onSubTabChange("carrier", "shipping"); else setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "team" && <TeamSettings />}
+          {activeTab === "security" && <SecuritySettings />}
           {activeTab === "bookkeeping" && <BookkeepingSettings taxRates={settings.taxes?.rates || []} />}
           {activeTab === "plan" && <PlanSettings />}
+          {activeTab === "billing" && <BillingSettings />}
           {/* Communications was retired: its links open Notifications. */}
           {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} subTab={subTab} onSubTabChange={onSubTabChange} />}
         </m.div>
@@ -241,6 +245,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       </SettingsGroup>
 
       <SettingsGroup id="gs-details" active={view === "gs-details"}>
+        <WhatYouSellCard />
         <SettingsAnchor id="gs-identity">
           <SectionCard title="Store identity" description="Name, blurb, contact.">
             <div className="rp-stack" style={{ gap: 20 }}>
@@ -256,7 +261,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           <SectionCard title="Location" description="Where parcels ship from.">
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
               <div style={{ gridColumn: "1 / -1" }}>
-                <TextField label="Street address" value={settings.location?.street || ""} placeholder="456 Montrose Avenue" onChange={(e) => set("location", { street: e.target.value })} />
+                <TextField label="Street address" value={settings.location?.street || ""} placeholder="123 Example Street" onChange={(e) => set("location", { street: e.target.value })} />
               </div>
               <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
               <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
@@ -278,7 +283,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                 return (
                   <div key={k}>
                     <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
-                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : "Hidden until it has text."}
+                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : k === "accessibility" ? "Optional. Tells shoppers who use screen readers or keyboards what to expect, and how to ask for help. Hidden until it has text." : "Hidden until it has text."}
                       onChange={(e) => set("policies", { [k]: e.target.value })} />
                     {!text.trim() && (
                       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>

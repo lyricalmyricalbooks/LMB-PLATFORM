@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { ScanLine } from "lucide-react";
 import { Dialog } from "./riso/components";
-import { makeReader, scanSupported } from "./barcodeScan";
+import { loadReader, scanSupported, type Reader } from "./barcodeScan";
 
-/** A "Scan" button that fills a code field from the camera. Hidden where the browser can't read barcodes. */
+/** A "Scan" button that fills a code field from the camera. Hidden only where the device has no camera to ask for. */
 export function ScanBarcodeButton({ onCode, label = "Scan with the camera" }: { onCode: (code: string) => void; label?: string }) {
   const [open, setOpen] = useState(false);
   const [problem, setProblem] = useState("");
@@ -23,9 +23,16 @@ export function ScanBarcodeButton({ onCode, label = "Scan with the camera" }: { 
         if (!el) return;
         el.srcObject = stream;
         await el.play();
-        const reader = makeReader();
+        let reader: Reader;
+        try {
+          reader = await loadReader();
+        } catch {
+          if (!stopped) setProblem("The barcode reader didn't load. Check the connection and try again, or type the code instead.");
+          return;
+        }
+        if (stopped) return;
         const look = async () => {
-          if (stopped || !reader) return;
+          if (stopped) return;
           try {
             const code = await reader.read(el);
             if (code) { setOpen(false); onCode(code); return; }

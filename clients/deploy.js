@@ -17,8 +17,9 @@
 // needs every file hashed and uploaded; the command line does both the way the shop's own deploy workflow does. The
 // Hosting upload over REST (populateFiles, then the upload address) could not be confirmed from Google's docs from
 // here, so it is not hand-written. The command line signs in with the runner's application default credentials.
-import { readFile, writeFile } from "node:fs/promises";
+import { cp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { buildLock } from "./build-lock.js";
 import { googleHttp, isNotFound } from "./http.js";
 
 const RULES = "https://firebaserules.googleapis.com/v1";
@@ -40,6 +41,27 @@ export function stampedRules(text, stamp) {
 export const siteOf = (projectId, app) => (app === "shop" ? projectId : `${projectId}-${app}`);
 
 /**
+ * Whether a shop's /shop-profile.js has both apps on (the shop + stockroom plan). Those shops get the combined admin,
+ * which shows the stockroom from the shop's own address (apps/shop/src/app/admin/combined.ts), so their shop pages
+ * carry a copy of the stockroom's built pages under /stockroom/. Anything unreadable counts as no.
+ */
+export function bothAppsIn(script) {
+  const json = /window\.__SHOP_PROFILE__\s*=\s*([\s\S]*?);?\s*$/.exec(String(script ?? ""))?.[1];
+  try {
+    const apps = JSON.parse(json ?? "null")?.apps;
+    return apps?.shop === true && apps?.stockroom === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Replace `to` with a copy of the folder `from`. */
+async function copyFolder(from, to) {
+  await rm(to, { recursive: true, force: true });
+  await cp(from, to, { recursive: true });
+}
+
+/**
  * `deployClient({ fetch, token, run, buildDir, ownerEmailOf, profileScriptOf })`. `buildDir(version)` is the folder
  * the release was built in once (apps/shop and apps/stockroom inside it). The build is shared by every shop, so what
  * is one shop's own goes in just before that shop's deploy:
@@ -48,8 +70,11 @@ export const siteOf = (projectId, app) => (app === "shop" ? projectId : `${proje
  * - `profileScriptOf(projectId)`: the shop's /shop-profile.js (setup step 6), written into the stockroom's `public/`
  *   (its deployConfig reads the stockroom's database and bucket from it) and into each app's built pages.
  */
-export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profileScriptOf, writeText = writeFile, readText = (path) => readFile(path, "utf8") }) {
+export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profileScriptOf, writeText = writeFile, readText = (path) => readFile(path, "utf8"), copyDir = copyFolder, removeDir = (path) => rm(path, { recursive: true, force: true }), withBuildLock = buildLock() }) {
   const call = googleHttp({ fetch, token });
+  // Every deploy writes this shop's own files into the shared build first, so one shop at a time per build folder
+  // (clients/build-lock.js); the reads of what is live need no lock.
+  const locked = (version, work) => withBuildLock(buildDir(version), work);
   const profileFor = async (projectId) => {
     if (typeof profileScriptOf !== "function") throw new Error("the deploy client needs profileScriptOf for the shop's own profile");
     const script = await profileScriptOf(projectId);
@@ -112,7 +137,7 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profil
     return { version: RELEASE_MESSAGE.exec(latest.message ?? "")?.[1] ?? "unknown", url: `https://${site}.web.app` };
   }
 
-  return {
+  const client = {
     async deployed(projectId, part) {
       if (part === "rules") return deployedRules(projectId);
       if (part === "functions") return deployedFunctions(projectId);
@@ -148,9 +173,21 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profil
       if (live?.region !== region) throw new Error(`the server code went to ${live?.region ?? "nowhere"}, not ${region}; the shop copy must read SHOP_FUNCTIONS_REGION`);
     },
     // The shop's own /shop-profile.js is the one file that differs between shops' pages.
+    // A shop with both apps also serves the stockroom's pages at /stockroom/ (the combined admin frames them there, so
+    // one sign-in covers both). The build is shared by every shop, so the copy is put in or taken out for each one.
     async pages(projectId, { version, app }) {
       const site = siteOf(projectId, app);
-      await writeText(join(buildDir(version), "apps", app, "dist", "shop-profile.js"), await profileFor(projectId));
+      const profile = await profileFor(projectId);
+      await writeText(join(buildDir(version), "apps", app, "dist", "shop-profile.js"), profile);
+      if (app === "shop") {
+        const inside = join(buildDir(version), "apps", "shop", "dist", "stockroom");
+        if (bothAppsIn(profile)) {
+          await copyDir(join(buildDir(version), "apps", "stockroom", "dist"), inside);
+          await writeText(join(inside, "shop-profile.js"), profile);
+        } else {
+          await removeDir(inside);
+        }
+      }
       if (app !== "shop") {
         try {
           await call("GET", `${HOSTING}/projects/${projectId}/sites/${site}`);
@@ -163,4 +200,9 @@ export function deployClient({ fetch, token, run, buildDir, ownerEmailOf, profil
       return { url: `https://${site}.web.app` };
     },
   };
+  for (const name of ["rules", "migrate", "functions", "pages"]) {
+    const work = client[name];
+    client[name] = (projectId, options) => locked(options.version, () => work(projectId, options));
+  }
+  return client;
 }

@@ -69,6 +69,26 @@ export const TEMPLATES = {
     });
   },
 
+  /** Setup step 14 again, after a plan change adds an app: the link to the app that is new. */
+  "app-added": ({ links = {} }, { settings, pressName }) => {
+    const buttons = [];
+    if (links.shopAdmin) buttons.push(["Open your shop's admin", links.shopAdmin]);
+    if (links.stockroom) buttons.push(["Open your stockroom", links.stockroom]);
+    if (!buttons.length) throw new Error("the new-app email has no links");
+    const name = links.shopAdmin && links.stockroom ? "website and stockroom" : links.stockroom ? "stockroom" : "website";
+    const ready = `Your ${name} ${links.shopAdmin && links.stockroom ? "are" : "is"} ready`;
+    return layout({
+      subject: `${ready} on ${settings.platformName}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `${ready} for ${pressName}. Sign in with this email address, as usual.`,
+        "Your setup checklist shows what is left to do.",
+      ],
+      buttons,
+      footer: signOff(settings),
+    });
+  },
+
   /** Sign-up and sign-in (signup/signup.js): a one-time link instead of a password. */
   "sign-in-link": ({ link }, { settings }) => layout({
     subject: `Your link to sign in to ${settings.platformName}`,
@@ -77,6 +97,17 @@ export const TEMPLATES = {
     buttons: [["Sign in", safeLink(link)]],
     footer: signOff(settings),
   }),
+
+  /** The front door's sign-in (signup/frontDoor.js): a six-digit code to type in, for new and returning presses. */
+  "sign-in-code": ({ code }, { settings }) => {
+    if (!/^\d{6}$/.test(String(code ?? ""))) throw new Error("A sign-in code is six numbers");
+    return layout({
+      subject: `${code} is your ${settings.platformName} code`,
+      greeting: "Hello,",
+      paragraphs: [`Your code to sign in to ${settings.platformName} is ${code}. Type it on the page you came from. It works once, for 10 minutes.`, "If you didn't ask for it, you can ignore this email. Nobody can sign in without the code."],
+      footer: signOff(settings),
+    });
+  },
 
   /** Sign-up's daily cap (signup/signup.js admitFromLine, plan 6.13): the press waited in line and its shop is starting. */
   "shop-starting": ({ pressName, link }, { settings }) => layout({
@@ -87,6 +118,18 @@ export const TEMPLATES = {
       "It takes a few minutes. We'll email you the way in as soon as it's ready.",
     ],
     buttons: [["See how it's going", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A press still in setup mode that hasn't been back (plan 18.11): 30 and 7 days before its setup is cleared. */
+  "setup-ending": ({ pressName, daysLeft, date, link }, { settings }) => layout({
+    subject: `Your ${settings.platformName} setup is kept until ${date}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `You started setting up ${pressName || "your shop"} on ${settings.platformName}, but haven't been back for a while. We keep a setup for 60 days after your last visit, so what you've done so far is kept for ${daysLeft} more days, until ${date}.`,
+      "Sign in any time before then and everything is where you left it, and the 60 days start again. After that date we clear your answers and any product file you added. You can always start again.",
+    ],
+    buttons: [["Carry on setting up", safeLink(link)]],
     footer: signOff(settings),
   }),
 
@@ -188,7 +231,7 @@ export const TEMPLATES = {
     greeting: "Hello,",
     paragraphs: hasCard
       ? [`Your free trial for ${pressName} ends on ${date}. After that, your card is charged ${price} a month for the ${planName} plan.`, "You can change plan or cancel at any time before then."]
-      : [`Your free trial for ${pressName} ends on ${date}.`, `To keep it open, add a card. The ${planName} plan is ${price} a month, and you can cancel at any time.`, "If there is no card by then, your shop pauses. Nothing is deleted, and adding a card opens it again."],
+      : [`Your free trial for ${pressName} ends on ${date}.`, `To keep it open, add a card. The ${planName} plan is ${price} a month, and you can cancel at any time.`, "If there is no card by then, your shop pauses. Everything is kept for 60 days, and adding a card opens it again."],
     buttons: [[hasCard ? "Manage your plan" : "Add a card", safeLink(link)]],
     footer: signOff(settings),
   }),
@@ -197,7 +240,7 @@ export const TEMPLATES = {
   "card-needed": ({ link }, { settings, pressName }) => layout({
     subject: `${pressName} is paused until you add a card`,
     greeting: "Hello,",
-    paragraphs: [`Your free trial for ${pressName} has ended, so it is paused for now. Nothing is deleted.`, "Add a card and it opens again straight away."],
+    paragraphs: [`Your free trial for ${pressName} has ended, so it is paused for now. Everything is kept for 60 days.`, "Add a card and it opens again straight away."],
     buttons: [["Add a card", safeLink(link)]],
     footer: signOff(settings),
   }),
@@ -250,6 +293,27 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The bank wants the press to confirm this month's payment (Stripe keeps the bill open meanwhile, code plan 22.5). */
+  "payment-needs-confirming": ({ price, link }, { settings, pressName }) => layout({
+    subject: `Your bank wants you to confirm ${pressName}'s payment`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your bank asked you to confirm this month's ${price} payment for ${pressName} before it goes through. It's a normal safety step some banks take.`,
+      `Use the button below to confirm it with your bank. Your shop stays open meanwhile.`,
+    ],
+    buttons: [["Confirm the payment", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A payment that had failed went through after all (22.5). Only sent after a problem, never for an ordinary month. */
+  "payment-received": ({ price, link }, { settings, pressName }) => layout({
+    subject: `Thanks, ${pressName}'s payment went through`,
+    greeting: "Hello,",
+    paragraphs: [`Your ${price} payment for ${pressName} went through, so everything is back to normal. Your bills are on your billing page whenever you need them.`],
+    buttons: [["See your bills", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The press asked to cancel: the shop stays open until the end of the period already paid for. */
   "subscription-cancelled": ({ date, link }, { settings, pressName }) => layout({
     subject: `${pressName} will close on ${date}`,
@@ -263,7 +327,7 @@ export const TEMPLATES = {
   "subscription-ended": ({ link }, { settings, pressName }) => layout({
     subject: `${pressName} is closed`,
     greeting: "Hello,",
-    paragraphs: [`Your ${settings.platformName} plan for ${pressName} has ended, so the shop is closed. Your books, orders and settings are kept.`, "You can start a plan again at any time and pick up where you left off."],
+    paragraphs: [`Your ${settings.platformName} plan for ${pressName} has ended, so the shop is closed. You can download everything in it for 90 days; after that it is deleted, and we email you 30 and 7 days before.`, "You can start a plan again before then and pick up where you left off."],
     buttons: [["Start a plan again", safeLink(link)]],
     footer: signOff(settings),
   }),
@@ -302,6 +366,62 @@ export const TEMPLATES = {
       closing ? "You can download everything in it for 90 days after it closes. Change plan again before then to keep it." : "",
     ].filter(Boolean),
     buttons: [["See your plan", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /**
+   * A week before an app a plan change dropped closes (billing.js closeDroppedApps). `data`: { closing, date, link,
+   * signIn }: `signIn` when the link is the plan page (sign in, then one click) rather than the one-time keep link.
+   */
+  "app-closing-soon": ({ closing, date, link, signIn = false }, { settings, pressName }) => layout({
+    subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} ${/ and /.test(closing) ? "close" : "closes"} on ${date}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `When you changed your plan, you left out ${closing || "an app"}. It closes on ${date}, the end of the month you've paid for.`,
+      `${signIn ? "If you meant to keep it, one click on your plan page keeps it." : `If you meant to keep it, the button below keeps it, with no need to sign in. It works once, until ${date}.`} If not, there's nothing to do: you can download everything in it for 90 days after it closes.`,
+    ],
+    buttons: [[signIn ? "Keep it or see your plan" : "Keep it", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A dropped app closed today (billing closeDroppedApps). `data`: { closing, date (the last day to download), link }. */
+  "app-closed": ({ closing, holds, date, link }, { settings, pressName }) => {
+    const many = / and /.test(closing ?? "");
+    const [it, them] = many ? ["they", "them"] : ["it", "it"];
+    return layout({
+      subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} ${many ? "are" : "is"} closed. Download ${them} by ${date}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `Your plan no longer has ${closing || "this app"}, so ${it} closed today, at the end of the month you paid for.`,
+        `Everything that was in ${them} is kept until ${date}. To save a copy, open your account and choose Download all your data: we'll email you a link to every file${holds ? `, with ${holds}` : ""}.`,
+        `Changed your mind? Add ${them} back to your plan before ${date} and ${many ? "they open" : "it opens"} again with everything in ${them}.`,
+      ],
+      buttons: [["Download your data", safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
+
+  /** Three days before a closed app's download ends (billing closedApps.js). `data`: { closing, holds? (what the download holds), date (the last day), link }. */
+  "app-download-ending": ({ closing, holds, date, link }, { settings, pressName }) => layout({
+    subject: `Last days to download ${closing || "your closed app"} for ${pressName}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `${String(closing || "The app").replace(/^t/, "T")} you dropped from your plan closed a while ago. Everything that was in it is kept until ${date}, then deleted for good.`,
+      `To save a copy, open your account and choose Download all your data: we'll email you a link to every file${holds ? `, with ${holds}` : ""}. To keep using it instead, add it back to your plan before then.`,
+    ],
+    buttons: [["Download your data", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A closed app's records were deleted after its 90 days (billing closedApps.js). `data`: { closing, link }. */
+  "app-records-deleted": ({ closing, link }, { settings, pressName }) => layout({
+    subject: `Everything that was in ${closing || "your closed app"} for ${pressName} is now deleted`,
+    greeting: "Hello,",
+    paragraphs: [
+      `As we wrote before, the 90 days to download ${closing || "the app you dropped"} are over, so everything that was in it has now been deleted for good.`,
+      "Nothing else was deleted with it. If you want it again one day, you can add it back to your plan; it starts empty.",
+    ],
+    buttons: [["Open your account", safeLink(link)]],
     footer: signOff(settings),
   }),
 
@@ -509,6 +629,30 @@ export const TEMPLATES = {
     buttons: [["Approve or decline", safeLink(link)]],
     footer: signOff(settings),
   }),
+
+  /**
+   * The weekly deletion note to the platform owner (control-room/deletionNote.js). `data.apps`: [{ shopId, pressName,
+   * ownerEmail, app, date (download ends), overdue, warned (date of the last email, or null), problem, bounced }].
+   */
+  "apps-deleting-soon": ({ apps }, { settings }) => {
+    if (!Array.isArray(apps) || !apps.length) throw new Error("the deletion note lists no apps");
+    const line = (a) => [
+      `${a.pressName} (${a.shopId}${a.ownerEmail ? `, ${a.ownerEmail}` : ""}): ${a.app}.`,
+      a.overdue ? `Its download ended ${a.date} and it is still waiting to be deleted${a.problem ? `: ${a.problem}` : ""}.` : `Its download ends ${a.date}; its records are deleted after that.`,
+      a.warned ? `The last-days email went out ${a.warned}${a.bounced ? ", but a closing email bounced" : ""}.` : `The last-days email hasn't gone out yet${a.bounced ? ", and a closing email bounced" : ""}.`,
+    ].join(" ");
+    const stuck = apps.filter((a) => a.overdue).length;
+    return layout({
+      subject: `${apps.length} closed app${apps.length === 1 ? "" : "s"} to be deleted this week${stuck ? ` (${stuck} overdue)` : ""}`,
+      greeting: "",
+      paragraphs: [
+        "These closed apps' records are deleted within the next week. A press that asks in time can still add the app back to its plan, or download everything first.",
+        ...apps.map(line),
+        "Open Apps closing in the control room for the whole list. You get this note once a week, and only when something is due.",
+      ],
+      footer: `${settings.platformName} control room`,
+    });
+  },
 
   /**
    * A scheduled job stopped running on time (services/jobs, plan 19.11), to the platform's alert address only.
