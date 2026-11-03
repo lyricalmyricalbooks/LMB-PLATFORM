@@ -29,7 +29,7 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
   }
   // Store policies (Settings › General › Store policies) are public pages too; card networks and Google
   // must reach the refund and terms pages as real 200 documents.
-  for (const key of ['shipping', 'returns', 'privacy', 'terms']) {
+  for (const key of ['shipping', 'returns', 'privacy', 'terms', 'accessibility']) {
     const text = settings?.policies?.[key];
     if (typeof text === 'string' && text.trim()) urls.push({ loc: `${base}/page/policy-${key}` });
   }

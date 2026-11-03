@@ -1736,7 +1736,7 @@ async function loadMessages() {
       caption: "Messages to presses",
       rows: messages,
       columns: [
-        { header: "Message", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), meta(`by ${m.by}`, `why: ${m.reason}`, m.endedAt ? `ended by ${m.endedBy}: ${m.endReason}` : null)) },
+        { header: "Message", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), meta(`by ${m.by}`, `why: ${m.reason}`, m.notice ? `promised notice: ${NOTICE_WORDS[m.notice.kind] ?? m.notice.kind}, takes effect ${when(m.notice.takesEffect)}` : null, m.endedAt ? `ended by ${m.endedBy}: ${m.endReason}` : null)) },
         { header: "Who", render: (m) => el("span", { textContent: `${audienceWords(m.audience)} (${m.reaches} shop${m.reaches === 1 ? "" : "s"})` }) },
         { header: "When", render: (m) => el("span", { className: "rp-mono", textContent: `${when(m.startsAt)} to ${when(m.endedAt ?? m.endsAt)}` }) },
         { header: "State", render: (m) => el("div", { className: "cr-row" }, m.level === "important" ? pill("warning", "Important") : null, pill(...MESSAGE_STATE[m.state])) },
@@ -1765,6 +1765,7 @@ async function loadMessages() {
   }
 }
 
+const NOTICE_WORDS = { "price-rise": "a price rise", "new-helper": "a new helper company", "terms-change": "a change to the terms" };
 $("#message-words").addEventListener("input", (event) => {
   const left = 400 - event.target.value.length;
   $("#message-count").textContent = `${left} character${left === 1 ? "" : "s"} left.`;
@@ -1773,12 +1774,18 @@ $("#message-audience").addEventListener("change", (event) => {
   $("#message-shop-field").hidden = event.target.value !== "shop";
   $("#message-shop").required = event.target.value === "shop";
 });
+$("#message-notice").addEventListener("change", (event) => {
+  const promised = event.target.value !== "";
+  $("#message-effect-field").hidden = !promised;
+  $("#message-effect").required = promised;
+  if (promised) $("#message-level").value = "important";
+});
 $("#message-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const pick = form.audience.value;
   const audience = pick === "all" ? { all: true } : pick === "shop" ? { shopId: form.shopId.value.trim() } : { plan: pick.slice(5) };
-  const important = form.level.value === "important";
+  const important = form.level.value === "important" || form.notice.value !== "";
   if (important && !window.confirm(`Also email this once to the owner of each shop on ${audienceWords(audience)}?`)) return;
   const submit = form.querySelector("button[type=submit]");
   submit.disabled = true;
@@ -1787,11 +1794,13 @@ $("#message-form").addEventListener("submit", async (event) => {
       words: form.words.value, level: form.level.value, audience, reason: form.reason.value,
       startsAt: form.startsAt.value ? new Date(form.startsAt.value).toISOString() : undefined,
       endsAt: form.endsAt.value ? new Date(form.endsAt.value).toISOString() : undefined,
+      ...(form.notice.value ? { notice: form.notice.value, takesEffect: new Date(`${form.takesEffect.value}T12:00:00`).toISOString() } : {}),
     });
     status.textContent = `Sent to ${shops} shop admin${shops === 1 ? "" : "s"}${important ? `, and emailed to ${emailed} owner${emailed === 1 ? "" : "s"}` : ""}.`
       + (failed.length ? ` ${failed.length} shop${failed.length === 1 ? "" : "s"} didn't take it yet (${failed.join(", ")}); they're tried again within the hour.` : "");
     form.reset();
     $("#message-shop-field").hidden = true;
+    $("#message-effect-field").hidden = true;
     $("#message-count").textContent = "400 characters left.";
     await loadMessages();
   } catch (failure) {

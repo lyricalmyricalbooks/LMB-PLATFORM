@@ -1,12 +1,16 @@
 import { getCopy } from "./storeCopy";
 
 // Store policies (settings.policies) are plain text; they are served as public pages at /page/policy-<key>.
-export const POLICY_KEYS = ["shipping", "returns", "privacy", "terms"] as const;
+// The four a shop must write before it opens (launchReadiness, setupChecklist) and that checkout asks shoppers to accept;
+// the accessibility statement is optional and only ever a footer page.
+export const SALE_POLICY_KEYS = ["shipping", "returns", "privacy", "terms"] as const;
+export const POLICY_KEYS = [...SALE_POLICY_KEYS, "accessibility"] as const;
 export type PolicyKey = (typeof POLICY_KEYS)[number];
 
 // Shopper-facing titles are copy (Studio › Text & labels › Footer); the admin labels reuse the defaults.
 const POLICY_COPY_KEYS: Record<PolicyKey, string> = {
   shipping: "policyTitleShipping", returns: "policyTitleReturns", privacy: "policyTitlePrivacy", terms: "policyTitleTerms",
+  accessibility: "policyTitleAccessibility",
 };
 export const policyTitle = (design: any, key: PolicyKey) => getCopy(design, POLICY_COPY_KEYS[key]);
 export const POLICY_TITLES = Object.fromEntries(POLICY_KEYS.map((k) => [k, policyTitle(undefined, k)])) as Record<PolicyKey, string>;

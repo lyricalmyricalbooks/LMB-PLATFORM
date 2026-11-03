@@ -20,6 +20,12 @@ describe("starter policy wording", () => {
     }
     expect(starterPolicy("returns", f)).toMatch(/within 14 days of delivery/);
     expect(starterPolicy("privacy", f)).toMatch(/12 Paper Lane/);
+    // The optional accessibility statement promises a target and a way to get help, never full conformance.
+    const a11y = starterPolicy("accessibility", f);
+    expect(a11y).toMatch(/WCAG\) 2\.1 at level AA/);
+    expect(a11y).toMatch(/write to us at hello@inkwell\.example/);
+    expect(a11y).not.toMatch(/fully (accessible|conform)/i);
+    expect(starterPolicy("accessibility", starterFacts({}))).toMatch(/^We want everyone/);
   });
 
   it("says no returns after shipping when the shop has no returns window, and copes with missing details", () => {

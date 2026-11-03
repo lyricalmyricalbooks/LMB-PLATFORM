@@ -63,6 +63,7 @@ import SaleEndsLine from "./extras/pdp-sale-countdown/SaleEndsLine";
 import ReleaseCountdownText from "./extras/pdp-release-countdown/ReleaseCountdownText";
 import { pdpFreeShipping } from "./extras/pdp-free-shipping/pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
+import { lowestBeforeSale } from "./lowestPrice";
 import { policyHtml, policySlug, policyTitle } from "./policyPages";
 import { quickAddChoice } from "./buyable";
 import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS } from "./themeTokens";
@@ -670,6 +671,8 @@ export default function BookDetail() {
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   // Only while the sale is on (inside its optional start/end dates) — the price the server charges.
   const isOnSale      = selectedVariant ? false : (saleActive(book) && salePrice > 0);
+  // The struck-through price must not overstate the saving (lowestPrice.ts).
+  const lowestBefore  = isOnSale ? lowestBeforeSale(book) : null;
   const saleEnds      = isOnSale ? saleEndDate(book) : "";
   const isGiftCard    = isGiftCardProduct(book);
   const isBoxSet      = isBundle(book);
@@ -1053,6 +1056,11 @@ export default function BookDetail() {
                           >
                             {getCopy(settings?.design, "saveAmount", { amount: formatPrice(getBookPrice(book, true) - getBookPrice(book)) })}
                           </span>}
+                          {lowestBefore !== null && (
+                            <p className="fm-pdp-meta w-full" data-studio-target="copy:Product page" data-studio-label="Lowest price before the sale">
+                              {getCopy(settings?.design, "pdpLowestBeforeSale", { price: formatPrice(getBookPrice(book, true) * lowestBefore / Number((book as any).price)) })}
+                            </p>
+                          )}
                         </>
                       ) : (
                         <span className="fm-pdp-price" translate={retailPrice > 0 ? "no" : undefined}>

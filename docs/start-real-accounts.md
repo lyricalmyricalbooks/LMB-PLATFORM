@@ -65,3 +65,25 @@ so a stage that is added to the build also needs a line here.
   the real order is still to do.
 - **The first-hour test** (plan 17.18, 3.6): five presses each spend an hour going through Get started. This needs the
   hosting (plan 15.6) and the real test shop (plan 15.7) first. Status: after Phase 15.
+
+## Legal (review of 3 November 2026)
+
+The review is in the project files, `research/2026-11-03-legal-readiness.md`. It is not legal advice. Status: the code
+side is built; these steps need Julian, a lawyer, a translator or an accountant.
+
+- **Two real addresses (Julian):** a privacy address and an address for reports about shops. Until then the terms say
+  `privacy@platform.example` and `reports@platform.example` (`PRIVACY_CONTACT`, `REPORT_CONTACT` in `terms/terms.js`,
+  and the control room's privacy contact). They must be inboxes someone reads.
+- **The lawyer reads the terms (Julian, before the first paid plan):** English and French, especially the liability
+  cap, "made for businesses", closing a shop, the 72-hour breach promise and Ontario as the governing law for Quebec
+  presses. Then `DRAFT = false` and a new `TERMS_VERSION`.
+- **A certified translator checks the French terms** (`terms/termsFr.js`) before Quebec presses rely on them.
+- **The lawyer's other answers:** payments role (already plan 15.22); whether abandoned-bag reminder emails need the
+  shopper's consent first (Canada's anti-spam law); a written privacy impact assessment for the US helper companies
+  (Quebec's Law 25); a trademark search for "Colophon".
+- **Data agreements with the helpers (Julian, in each console):** accept Google Cloud's, Stripe's and Resend's
+  standard data processing terms, and confirm Shippo's.
+- **The accountant:** when Colophon registers for GST/HST, QST and BC PST (plan 15.9), and which US states tax a
+  software plan.
+- **Promised notices:** the terms promise 30 days' email notice before a price rise or a new helper company. The
+  control room's Messages to presses form has "Is this a notice the terms promise?": it emails every press and refuses a date less than 30 days away. Julian uses it before changing a price or adding a helper.

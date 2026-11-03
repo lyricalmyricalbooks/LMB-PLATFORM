@@ -226,3 +226,27 @@ test("the banner is the admin's only: the storefront never reads the messages do
   const api = readFileSync(new URL("../apps/shop/src/app/admin/platformMessagesApi.ts", import.meta.url), "utf8");
   assert.match(api, /doc\(db, "platform", "messages"\)/);
 });
+
+test("a promised notice (price rise, new helper, terms change) is emailed, names its day, and is refused when late", async () => {
+  const { NOTICE_DAYS, noticeOnRecord } = await import("./messages.js");
+  const w = await world();
+  const late = { ...base, words: "Our prices go up.", audience: { all: true }, notice: "price-rise", takesEffect: ends(NOTICE_DAYS - 1) };
+  await assert.rejects(w.messages.add(w.admin(), late), /30 days' notice/);
+  await assert.rejects(w.messages.add(w.admin(), { ...late, notice: "something-else" }), /Choose what the notice is about/);
+  assert.equal(w.store.rows.size, 0);
+  const { message, emailed } = await w.messages.add(w.admin(), { ...late, takesEffect: ends(NOTICE_DAYS + 1) });
+  assert.equal(message.level, "important", "a notice is always emailed");
+  assert.ok(emailed >= 1);
+  assert.deepEqual(message.notice, { kind: "price-rise", takesEffect: ends(NOTICE_DAYS + 1) });
+  assert.match(message.words, /^Our prices go up\. This takes effect on December 3, 2026\.$/);
+  const all = [...w.store.rows.values()];
+  assert.equal(noticeOnRecord(all, "price-rise", ends(NOTICE_DAYS + 1)), true);
+  assert.equal(noticeOnRecord(all, "price-rise", ends(NOTICE_DAYS)), false, "not for a change before the notice's day");
+  assert.equal(noticeOnRecord(all, "new-helper", ends(90)), false, "a price notice isn't a helper notice");
+});
+
+test("the notice days match what the terms promise", async () => {
+  const { NOTICE_DAYS } = await import("./messages.js");
+  const { CHANGE_NOTICE_DAYS } = await import("../terms/terms.js");
+  assert.equal(NOTICE_DAYS, CHANGE_NOTICE_DAYS);
+});

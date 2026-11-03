@@ -283,7 +283,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                 return (
                   <div key={k}>
                     <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
-                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : "Hidden until it has text."}
+                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : k === "accessibility" ? "Optional. Tells shoppers who use screen readers or keyboards what to expect, and how to ask for help. Hidden until it has text." : "Hidden until it has text."}
                       onChange={(e) => set("policies", { [k]: e.target.value })} />
                     {!text.trim() && (
                       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 8 }}>

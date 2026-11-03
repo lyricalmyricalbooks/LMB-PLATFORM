@@ -1489,7 +1489,8 @@ export const adminApi = {
     return { id: snap.id, ...snap.data(), operations: operations.data() || {} };
   },
 
-  createOrder: async (order: any) => {
+  // `notes` are extra order-history lines written with the order (checkout's EU/UK download consent).
+  createOrder: async (order: any, notes: string[] = []) => {
     // Random typeable ID, e.g. FRQZ-047691-K2XP. The extra segment makes IDs
     // hard to enumerate since a known ID grants read access for tracking.
     const prefix = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -1510,7 +1511,8 @@ export const adminApi = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       activity: [
-        { type: "event", message: "Order created", createdAt: new Date().toISOString() }
+        { type: "event", message: "Order created", createdAt: new Date().toISOString() },
+        ...notes.slice(0, 2).map((message) => ({ type: "event", message, createdAt: new Date().toISOString() })),
       ]
     });
 
