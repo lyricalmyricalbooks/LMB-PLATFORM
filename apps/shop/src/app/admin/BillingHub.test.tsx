@@ -41,6 +41,7 @@ function platform() {
         world.status = { ...world.status, plan: body.plan, planName: "Shop", price: "$29.00" };
         return send(200, { ok: true, plan: body.plan, changed: true });
       case "cancel": world.status = { ...world.status, cancelAtPeriodEnd: true }; return send(200, { ok: true, cancelAtPeriodEnd: true });
+      case "keep-closing-apps": world.status = { ...world.status, appsClosing: null }; return send(200, { ok: true, plan: "both", changed: true });
       case "keep": world.status = { ...world.status, cancelAtPeriodEnd: false }; return send(200, { ok: true, cancelAtPeriodEnd: false });
       case "payment-methods": return send(200, { ok: true, cards: world.cards });
       case "payment-methods/primary": world.cards = world.cards.map((c) => ({ ...c, primary: c.id === body.cardId })); return send(200, { ok: true, changed: true });
@@ -115,6 +116,15 @@ describe("Settings › Plan", () => {
     expect(text()).toContain("Keep my plan");
     await click(button("Keep my plan"));
     expect(world.calls.some(([c]) => c === "keep")).toBe(true);
+  });
+
+  it("an app that's closing can be kept with one click", async () => {
+    world.status = status({ appsClosing: { apps: ["stockroom"], at: "2026-11-30T12:00:00Z", downloadUntil: "2027-02-28T12:00:00Z" } });
+    await mount(PlanPage);
+    expect(text()).toContain("The stockroom on");
+    await click(button("Keep the stockroom"));
+    expect(world.calls.some(([c]) => c === "keep-closing-apps")).toBe(true);
+    expect(button("Keep the stockroom")).toBeUndefined();
   });
 
   it("a paid plan's change is sent to the account page to finish with two-step sign-in", async () => {

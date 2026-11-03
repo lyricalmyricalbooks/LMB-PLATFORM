@@ -85,6 +85,8 @@ const PAID = new Set(["active", "past_due"]);
 const DAY = 86400_000;
 /** How long the download of a closed app is kept (code plan 6.11, the same 90 days as a closed shop). */
 export const DOWNLOAD_DAYS = 90;
+/** How long before a dropped app closes its reminder email goes out. */
+export const CLOSING_REMINDER_DAYS = 7;
 /** The apps, in words, for the page and the emails. */
 export const APP_NAMES = Object.freeze({ shop: "the shop", stockroom: "the stockroom" });
 const APPS = Object.keys(APP_NAMES);
@@ -375,7 +377,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     },
   });
 
-  return {
+  // Named, so a call can use another (keepClosingApps goes through changePlan).
+  const api = {
     ensurePrice,
     ensureCustomer,
     claimFounding,
@@ -615,13 +618,34 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     },
 
     /**
+     * "Keep it": the press changes their mind about an app their plan change will close at the end of the paid month.
+     * The plan goes back to one with every app open now (a plan change like any other, so Stripe, the registry and the
+     * shop's copies follow the one path). Nothing to keep answers 409.
+     */
+    async keepClosingApps({ shopId }) {
+      const row = await rowFor(shopId);
+      const closing = row.appsClosing?.apps ?? [];
+      if (!closing.length) throw new BillingError(409, "Nothing on your plan is closing, so there's nothing to keep.");
+      const plan = planOpening([...new Set([...APPS.filter((app) => PLAN_APPS[row.plan]?.[app]), ...closing])]);
+      return api.changePlan({ shopId, plan });
+    },
+
+    /**
      * The daily sweep for 6.11: an app a plan dropped closes once the month already paid for ends. Safe to repeat: a
      * closed app is not closed again.
      */
     async closeDroppedApps() {
       const closed = [];
       for (const row of await subscriptions.list()) {
-        if (!row.appsClosing?.apps?.length || Date.parse(row.appsClosing.at) > now()) continue;
+        if (!row.appsClosing?.apps?.length) continue;
+        // A week before: one reminder, with the way to keep it (keepClosingApps), for a press who never opens the admin.
+        if (Date.parse(row.appsClosing.at) > now()) {
+          if (!row.appsClosing.reminded && Date.parse(row.appsClosing.at) - now() <= CLOSING_REMINDER_DAYS * DAY) {
+            await notify(row.shopId, "app-closing-soon", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(row.appsClosing.at) }, `${row.shopId}/app-closing-soon/${row.appsClosing.at}`);
+            await save(row.shopId, { appsClosing: { ...row.appsClosing, reminded: at() } }, null);
+          }
+          continue;
+        }
         await closeApps(row.shopId, row.appsClosing.apps);
         closed.push({ shopId: row.shopId, apps: row.appsClosing.apps });
       }
@@ -678,6 +702,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       }
     },
   };
+  return api;
 
   /** The shop row an invoice belongs to, by its subscription (both Stripe shapes), or null. */
   async function rowOfInvoice(invoice) {

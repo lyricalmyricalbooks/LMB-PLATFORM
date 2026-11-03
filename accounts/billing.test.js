@@ -157,6 +157,8 @@ test("the page says where the plan stands in each state", () => {
   assert.match(cancelled.cancel, /Keep your plan any time before 11 November 2026/);
   assert.equal(billingWords({ ...base, status: "canceled", access: "closed" }).state, "Closed");
   assert.match(billingWords({ ...base, appsClosing: { apps: ["stockroom"], at: "2026-11-11T12:00:00Z" } }).closing, /doesn't have the stockroom\. It stays open until 11 November 2026.*90 days/);
+  assert.equal(billingWords({ ...base, appsClosing: { apps: ["stockroom"], at: "2026-11-11T12:00:00Z" } }).keepClosing, "Keep the stockroom");
+  assert.equal(billingWords(base).keepClosing, "");
 });
 
 test("the plan change says what changes and the prorated amount before anything happens", () => {
@@ -209,4 +211,11 @@ test("a paid plan's changes need the second step from the owner; looking, previe
   }
   assert.equal((await w.ask(TWO, "cancel")).status, 200);
   assert.ok(w.logged().some((e) => e.outcome === "refused: needs two-step sign-in"));
+});
+
+test("the account page's shop card says when an app is being set up or closing", async () => {
+  const { changingLines } = await import("./billingWords.js");
+  assert.deepEqual(changingLines({ adding: ["stockroom"], closing: null }), ["Your stockroom is being set up. We'll email you a link when it's ready."]);
+  assert.deepEqual(changingLines({ adding: [], closing: { apps: ["shop"], at: "2026-11-30T15:00:00Z" } }), ["Your website closes on 30 November 2026. Changed your mind? Keep it under Plan & billing."]);
+  assert.deepEqual(changingLines({}), []);
 });

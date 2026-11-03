@@ -357,6 +357,18 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** A week before an app a plan change dropped closes (billing.js closeDroppedApps). `data`: { closing, date, link }. */
+  "app-closing-soon": ({ closing, date, link }, { settings, pressName }) => layout({
+    subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} closes on ${date}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `When you changed your plan, you left out ${closing || "an app"}. It closes on ${date}, the end of the month you've paid for.`,
+      "If you meant to keep it, one click on your plan page keeps it. If not, there's nothing to do: you can download everything in it for 90 days after it closes.",
+    ],
+    buttons: [["Keep it or see your plan", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The card on file runs out within a month (code plan 6.12). Sent once per card. `data`: { card, month, date, link }. */
   "card-expiring": ({ card, date, month, link }, { settings, pressName }) => layout({
     subject: `Your card for ${pressName} runs out soon`,

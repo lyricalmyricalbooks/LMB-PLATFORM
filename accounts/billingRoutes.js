@@ -9,6 +9,7 @@
 //   POST /api/billing/cancel       { shopId, reason?, words? } -> { cancelAtPeriodEnd }: cancel at the end of the paid
 //                                  month (or trial), with the optional answer to "why are you leaving?" (19.8)
 //   POST /api/billing/keep         { shopId } -> { cancelAtPeriodEnd }: undo a cancel that hasn't happened yet
+//   POST /api/billing/keep-closing-apps  { shopId } -> { plan, changed }: keep an app the last plan change is closing
 //   POST /api/billing/change-plan  { shopId, plan, preview? } -> { preview } or { plan, changed }: what changes and the
 //                                  prorated amount (preview: true, nothing changes), or the change itself
 //   POST /api/billing/invoices     { shopId } -> { invoices }: newest first, each with Stripe's PDF link
@@ -57,6 +58,11 @@ export function billingCalls({ billing, paymentWay = null, settings }) {
         return { plan: row.plan, changed: row.changed };
       },
       secondStep: (asked) => asked.preview !== true,
+    },
+    // Changed their mind about an app that's closing: the plan goes back to one with every app open now (#292).
+    "keep-closing-apps": {
+      run: async (shopId) => { const row = await billing.keepClosingApps({ shopId }); return { plan: row.plan, changed: row.changed }; },
+      secondStep: true,
     },
     invoices: { run: async (shopId) => ({ invoices: await billing.invoices(shopId) }) },
   };

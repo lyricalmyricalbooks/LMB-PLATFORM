@@ -120,7 +120,11 @@ export function PlanPage({ plan }: Hub) {
   if (billing.status === "trialing" && billing.trialEnd) facts.push(["Free trial ends", `${planDate(billing.trialEnd)}${billing.trialDaysLeft !== null ? ` (${billing.trialDaysLeft <= 1 ? "last day" : `${billing.trialDaysLeft} days left`})` : ""}`]);
   if (billing.nextPaymentAt) facts.push(["Next payment", planDate(billing.nextPaymentAt)]);
   if (billing.cancelAtPeriodEnd && !ended) facts.push(["Plan ends", planDate(billing.status === "trialing" ? billing.trialEnd : billing.currentPeriodEnd)]);
-  if (billing.appsClosing) facts.push(["Closing", `${appsInWords(billing.appsClosing.apps)} on ${planDate(billing.appsClosing.at)}`]);
+  // Changed your mind: one click takes the plan back to one with every app open now (keep-closing-apps).
+  if (billing.appsClosing) facts.push(["Closing", <>
+    <span style={{ display: "block" }}>{`${appsInWords(billing.appsClosing.apps).replace(/^./, (c) => c.toUpperCase())} on ${planDate(billing.appsClosing.at)}`}</span>
+    {!ended && <span style={{ display: "block", marginTop: 6 }}><SecondaryButton size="sm" busy={change.busy === "keep-closing"} onClick={() => void change.run("keep-closing", () => billingCall(plan, "keep-closing-apps"))}>{`Keep ${appsInWords(billing.appsClosing.apps)}`}</SecondaryButton></span>}
+  </>]);
   facts.push(["Card", billing.card?.words ?? (billing.paymentWay === "payAsYouSell" ? "Not needed while you pay as you sell" : "No card yet")]);
 
   const askPreview = (to: PlanId) => change.run("preview", async () => {

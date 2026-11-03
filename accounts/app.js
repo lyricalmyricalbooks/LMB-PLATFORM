@@ -6,6 +6,7 @@ import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { isEmail } from "../signup/form.js";
 import { ROLES, ROLE_HINTS, ROLE_NAMES } from "./roles.js";
 import { deviceId } from "../signup/device.js";
+import { changingLines } from "./billingWords.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const {
@@ -286,6 +287,7 @@ function shopCard(shop) {
       el("h3", {}, shop.pressName, " ", badge, el("span", { className: "pill", textContent: ROLE_NAMES[shop.role] ?? shop.role })),
       meta,
       where.line ? el("p", { className: "hint", style: "margin-top:6px", textContent: where.line }) : null,
+      ...changingLines(shop).map((line) => el("p", { className: "hint", style: "margin-top:6px", textContent: line })),
       trial),
     actions);
 }
