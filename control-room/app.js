@@ -600,6 +600,8 @@ function card(shop) {
     shop.status === "live" ? broughtOverSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Payment links and fair till" }) : null,
     shop.status === "live" ? salesChannelsSection(shop) : null,
+    shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Newsletters, morning emails and changed orders" }) : null,
+    shop.status === "live" ? shopFeaturesSection(shop) : null,
     ...privateSections(shop),
   ].filter(Boolean);
 }
@@ -2148,6 +2150,34 @@ function signInSafetySection(shop) {
 // ── What a press brought over from its old shop (control-room/broughtOver.js), in a live shop's record. ──
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const lastOn = (kind) => (kind.lastAt ? `last ${dateOnly(kind.lastAt)}` : null);
+
+// Newsletters the press sent, its morning emails (orders digest, running low) and orders shipped in parts or added to.
+const ISSUE_WORDS = { queued: "waiting to send", sending: "sending", sent: "sent", paused: "stopped part-way", cancelled: "cancelled", failed: "failed" };
+function shopFeaturesSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's records…" }));
+  api("POST", "/control/shop-features", { shopId: shop.shopId }).then(({ features, words }) => {
+    if (!features) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
+    const { newsletters: n, alerts: a, orders: o } = features;
+    fill(slot,
+      ...(n?.paused ?? []).map((p) => el("p", { className: "rp-hint", textContent: `Stopped part-way: "${p.subject}" after ${plural(p.sent, "person", "people")}. ${p.lastError ?? ""}` })),
+      el("p", { className: "rp-hint", textContent: n
+        ? `Newsletters: ${plural(n.sentIssues, "sent")} of ${n.issues}, reaching ${plural(n.people, "person", "people")} in all${n.lastSentAt ? `, the last on ${dateOnly(n.lastSentAt)}` : ""}.`
+        : "Newsletters: none written yet." }),
+      el("p", { className: "rp-hint", textContent: `Morning emails: orders needing them ${a.ordersDigest ? "on" : "off"}; running low ${a.lowStock ? "on" : "off"}${a.low || a.out ? ` (${a.low} running low, ${a.out} sold out right now)` : ""}.` }),
+      el("p", { className: "rp-hint", textContent: `Last 90 days: ${plural(o.partShipped, "order")} shipped in parts (${plural(o.parts, "parcel")}), ${plural(o.itemsAdded, "order")} of items added after payment (${o.paidAdded} paid).` }),
+      n?.latest.length ? table({
+        caption: "Latest newsletters",
+        rows: n.latest,
+        columns: [
+          { header: "Newsletter", lead: true, render: (i) => el("div", {}, el("p", { className: "cr-title", textContent: i.subject || "(no subject)" }), i.status === "paused" ? pill("warning", "needs a look") : null) },
+          { header: "Where it stands", render: (i) => ISSUE_WORDS[i.status] ?? i.status },
+          { header: "Sent to", render: (i) => el("span", { className: "rp-mono", textContent: String(i.sent) }) },
+          { header: "Details", render: (i) => meta(i.failed ? `${i.failed} couldn't be sent` : null, i.skipped ? `${i.skipped} skipped` : null, i.finishedAt ? `finished ${dateOnly(i.finishedAt)}` : i.createdAt ? `written ${dateOnly(i.createdAt)}` : null) },
+        ],
+      }) : null);
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
 
 // Payment links and the fair till (selling away from the website): how many sales each way, for how much, the last one.
 function salesChannelsSection(shop) {
