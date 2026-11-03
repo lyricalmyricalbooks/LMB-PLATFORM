@@ -167,7 +167,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   });
   // The front door (18.4): the six-digit code and each press's setup record, before any shop exists.
   const frontDoor = createFrontDoor({
-    ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now,
+    ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup,
     stagedFiles: notConnectedClient(NOT_CONNECTED.stagedImports, ["uploadUrl", "stat", "read", "remove"]),
   });
   const repairStore = firestoreRepairs(platform);

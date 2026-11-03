@@ -163,6 +163,22 @@ async function checkFrontDoor(browser, walk, log) {
       await page.locator("#pick-list button", { hasText: "Front Door Press" }).click();
       await page.waitForURL(/\/account\/$/, { timeout: 10_000 });
     });
+    await step("Open my shop starts the plan and queues the shop (code plan 18.8)", async () => {
+      if (!existsSync(join(ROOT, SETUP_ADMIN_FOLDER, "setup.html"))) return;
+      const presses = walk.world.frontDoorStores.presses;
+      const [first] = await presses.listByOwner(`uid-${address}`);
+      await presses.create("press-opens-now", { ...first, pressId: "press-opens-now", status: "setup", pressName: "Opening Press", plan: "shop", country: "CA", stagedImport: null, stagedImportPath: "" });
+      await page.goto(`${walk.url}/app/?press=press-opens-now#settings/plan`);
+      const open = page.locator("main button", { hasText: /^Open my shop$/ });
+      await open.waitFor({ state: "visible", timeout: 10_000 });
+      if (!(await open.isDisabled())) throw new Error("Open my shop works before the terms are ticked");
+      await page.locator("main input[type=checkbox]").check();
+      await open.click();
+      await page.locator("text=Your shop is being made").waitFor({ state: "visible", timeout: 10_000 });
+      const opened = await presses.get("press-opens-now");
+      const queued = opened?.shopId ? await walk.world.stores.signups.get(opened.shopId) : null;
+      if (opened?.status !== "opening" || queued?.pressId !== "press-opens-now") throw new Error(`the shop wasn't queued: ${JSON.stringify({ opened, queued })}`);
+    });
   } finally {
     await context.close();
   }

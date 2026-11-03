@@ -60,6 +60,15 @@ describe("keeping a product file (18.7)", () => {
 });
 
 describe("which press setup mode opens", () => {
+  it("Open my shop sends the plan and the terms the press agreed to, and answers with the record and the shop", async () => {
+    const fetchImpl = vi.fn((_url: string, _init: RequestInit) => answer(200, { press: { ...press("press-moth", "opening"), shopId: "moth-press" }, shop: { status: "queued", trialEnd: null } }));
+    const door = platformDoor("/api", async () => "t", fetchImpl as unknown as typeof fetch);
+    const opened = await door.openShop("press-moth", { plan: "shop", termsVersion: "v1" });
+    expect(fetchImpl.mock.calls[0][0]).toBe("/api/press/open");
+    expect(JSON.parse(String(fetchImpl.mock.calls[0][1].body))).toEqual({ pressId: "press-moth", plan: "shop", termsAccepted: true, termsVersion: "v1" });
+    expect([opened.press.status, opened.press.shopId, opened.shop?.status]).toEqual(["opening", "moth-press", "queued"]);
+  });
+
   it("opens the press in the address, else the only one still in setup", () => {
     const presses = [press("press-open-one", "open"), press("press-new-one", "setup")];
     expect(pressToOpen(presses, "press-open-one")?.pressId).toBe("press-open-one");

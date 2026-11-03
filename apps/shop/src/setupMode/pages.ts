@@ -62,7 +62,7 @@ export function guideSteps(press: SetupPress): GuideStep[] {
     ...(website ? [{ id: "look", title: "Choose your website's look", done: !!press.look, page: DESIGN_PAGE, action: "Choose a look" }] : []),
     // Written in book words; the guide shows them in the shop's own (sells.ts).
     { id: "books", title: "Bring your books over from your old shop", done: !!press.stagedImport, page: IMPORT_PAGE, action: "Bring a file", optional: true },
-    { id: "open", title: "Open your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "See how" },
+    { id: "open", title: "Open your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Open my shop" },
   ];
 }
 
