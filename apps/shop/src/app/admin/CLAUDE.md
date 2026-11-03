@@ -651,3 +651,6 @@ A shop whose profile has both apps gets the combined admin: `combined.ts` (`comb
 own address, kept open once opened), route `#stockroom/<page>`, and no Website · Inventory switcher. Shop-only shops keep
 `MENU`. Full notes and the next steps: LMB-PLATFORM `docs/combined-admin.md`. A new stockroom page in the menu goes in
 `STOCKROOM_PAGES` and `COMBINED_MENU` (combined.test.ts checks every page is listed once and exists in the stockroom).
+Other pages ask the stockroom through `stockroomBridge.ts` (`ask`, `openBook`; the frame opens hidden on first need):
+the book editor's **Stock and sales** tab (`StockroomBookPanel.tsx`, combined admin only) reads one book's figures from
+the stockroom's own `bookSummary`, never from a copy here, and matches an unmatched book with `linkNewBook`.

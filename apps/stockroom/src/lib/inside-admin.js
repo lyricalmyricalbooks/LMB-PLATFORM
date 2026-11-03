@@ -19,6 +19,10 @@ export const STOCKROOM_PAGE_EVENT = 'lm-stockroom-page';
 
 const PAGE = /^[a-z][a-z-]{1,29}$/;
 const LOOK = /^[a-z][a-z-]{1,19}$/;
+const ASK_ID = /^[a-z0-9-]{1,40}$/;
+/** What the admin may ask for: one book's figures, or the stockroom book that matches a website book. */
+export const ASKS = ['book', 'find'];
+const text = (v, max) => (typeof v === 'string' && v.length <= max ? v : '');
 
 /** Both apps on: the only plan with the combined admin. */
 export function combinedPlan(profile) {
@@ -54,7 +58,14 @@ export function adminMessage(event, win) {
   if (!event || !win || event.source !== win.parent || event.origin !== win.location.origin) return null;
   const data = event.data;
   if (!data || typeof data !== 'object' || data.source !== FROM_ADMIN) return null;
-  if (data.type === 'open' && PAGE.test(data.tab || '')) return { type: 'open', tab: data.tab };
+  if (data.type === 'open' && PAGE.test(data.tab || '')) {
+    const book = text(data.book, 120);
+    return book ? { type: 'open', tab: data.tab, book } : { type: 'open', tab: data.tab };
+  }
+  if (data.type === 'ask' && ASK_ID.test(data.id || '') && ASKS.includes(data.what)) {
+    if (data.what === 'book') return text(data.book, 120) ? { type: 'ask', id: data.id, what: 'book', book: data.book } : null;
+    return { type: 'ask', id: data.id, what: 'find', isbn: text(data.isbn, 40), title: text(data.title, 300) };
+  }
   if (data.type === 'look') {
     const look = LOOK.test(data.look || '') ? data.look : null;
     const appearance = data.appearance === 'dark' || data.appearance === 'light' ? data.appearance : null;
@@ -72,9 +83,11 @@ let _started = false;
 
 /**
  * Start once, when this page is framed by the combined admin. `switchTab`, `setAdminLook` and `setThemePreference`
- * come from main.js. Returns whether it started.
+ * come from main.js; `selectBook(id)` makes a book the one its pages show, and `answer(what, args)` gives the figures
+ * the admin asks for (`book`: lib/book-summary.js `bookSummary`, or null while it isn't loaded; `find`: `findBook`).
+ * Returns whether it started.
  */
-export function startInsideAdmin({ switchTab, setAdminLook, setThemePreference }, { win = window, profile = shopProfile } = {}) {
+export function startInsideAdmin({ switchTab, setAdminLook, setThemePreference, selectBook = () => {}, answer = async () => null }, { win = window, profile = shopProfile } = {}) {
   if (_started || !isInsideAdmin(win, profile)) return false;
   _started = true;
   const doc = win.document;
@@ -102,8 +115,17 @@ export function startInsideAdmin({ switchTab, setAdminLook, setThemePreference }
   win.addEventListener('message', (event) => {
     const msg = adminMessage(event, win);
     if (!msg) return;
-    if (msg.type === 'open') open(msg.tab);
-    else {
+    if (msg.type === 'open') {
+      if (msg.book) { try { selectBook(msg.book); } catch (_) { /* unknown book: the page shows its own */ } }
+      open(msg.tab);
+    } else if (msg.type === 'ask') {
+      const { id, what, ...args } = msg;
+      delete args.type;
+      Promise.resolve().then(() => answer(what, args)).then(
+        (result) => tell('answer', { id, result: result ?? null }),
+        () => tell('answer', { id, result: null, failed: true }),
+      );
+    } else {
       if (msg.look) setAdminLook(msg.look);
       if (msg.appearance) setThemePreference(msg.appearance, { announce: false });
     }

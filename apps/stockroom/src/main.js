@@ -1086,6 +1086,7 @@ import { STRIPE_CHARGE_PI_KEY, isWebsiteFulfilled, promisedPreorders, rememberCh
 import { startAppSearch } from './features/app-search.js';
 import './styles/inside-admin.css';
 import { STOCKROOM_PAGE_EVENT, startInsideAdmin } from './lib/inside-admin.js';
+import { bookSummary, findBook } from './lib/book-summary.js';
 import { appSwitchBooksReady, openWebsiteDetailDiffs, openWebsiteShopBooks, refreshAppSwitch, startAppSwitch } from './features/app-switch.js';
 import { WEBSITE_TAB_NAME, openOnWebsiteHtml, websiteOrderUrl } from './lib/app-switch.js';
 import { reviewTaskStillOpen } from './lib/review-queue.js';
@@ -1445,6 +1446,8 @@ function ownersFromBooks() {
 }
 
 let catalogLoadFailed = false;
+// The server's catalog has been read this visit (the combined admin's questions wait for it).
+let catalogReady = false;
 // Open until the server's catalogue is in (loadCatalog); see showStartupPreview.
 let _startupPreviewOpen = true;
 let _startupPreviewShown = false;
@@ -1485,6 +1488,7 @@ async function loadCatalog(early = null) {
   try {
     const stored = await (early || window._fbLoadCatalog()); // handles FS → RTDB fallback internally
     catalogLoadFailed = false;
+    catalogReady = true;
     // The server's catalog is in: the on-device preview (showStartupPreview)
     // must not paint over it from here on.
     _startupPreviewOpen = false;
@@ -11167,7 +11171,28 @@ consumeTransferPaidReturn();
 // it) and leaves every other part of the address as it is.
 startAppSwitch();
 // Inside the combined admin (shop + stockroom plan): its menu replaces this app's own, and it opens pages here.
-startInsideAdmin({ switchTab, setAdminLook, setThemePreference });
+// The combined admin's book page asks for one book's figures here, so the stockroom stays the master count. A book
+// still loading answers null; the admin asks again.
+startInsideAdmin({
+  switchTab, setAdminLook, setThemePreference,
+  selectBook: (id) => {
+    if (!BOOKS[id]) return;
+    // The "Author view" preview locks the picker to its book: back to the publisher's view, as its own button does.
+    if (AUTHOR_VIEW_BY_BOOK[activeBook] && activeBook !== id) toggleCurrentBookView();
+    switchBook(id);
+  },
+  answer: (what, args) => {
+    // An author's own sign-in never answers; the publisher's "Author view" preview of one book still does.
+    if (IS_AUTHOR_MODE || String(sessionStorage.getItem('lm-unlocked') || '').startsWith('author:')) return { refused: true };
+    // Until the catalog is in, every book looks missing: answer nothing yet, and the admin asks again.
+    if (!catalogReady) return null;
+    if (what === 'find') return { match: findBook(BOOKS, args) };
+    const book = BOOKS[args.book];
+    if (!book) return { missing: true };
+    const s = states[args.book];
+    return s && !s._loadFailed ? bookSummary(args.book, s, book) : null;
+  },
+});
 // One search box (top-bar 🔍, Ctrl/⌘ K, "/"): this app's books and the website's.
 startAppSearch();
 startStockPlaces();

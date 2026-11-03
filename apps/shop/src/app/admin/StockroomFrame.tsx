@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { EmptyState, PageSkeleton, SecondaryButton } from "./riso/components";
 import { INVENTORY_APP_URL } from "./appSwitch";
 import { STOCKROOM_FRAME_PATH, lookMessage, openMessage, stockroomFrameMessage } from "./combined";
+import { stockroomBridge } from "./stockroomBridge";
 
 // How long the stockroom may take to open before the admin says so (it keeps trying meanwhile).
 const SLOW_MS = 20_000;
@@ -40,12 +41,18 @@ export function StockroomFrame({ page, visible, look, appearance, onPage }: {
     const on = (event: MessageEvent) => {
       const msg = stockroomFrameMessage(event, frame.current?.contentWindow, window.location.origin);
       if (!msg) return;
-      if (msg.type === "ready") { shown.current = ""; setReady(true); setSlow(false); setStarts((n) => n + 1); return; }
+      if (msg.type === "ready") {
+        shown.current = "";
+        setReady(true); setSlow(false); setStarts((n) => n + 1);
+        // Other pages (the book page's Stock and sales) ask it questions too.
+        stockroomBridge.attach(frame.current?.contentWindow ?? null);
+        return;
+      }
       shown.current = msg.tab;
       onPageRef.current(msg.tab);
     };
     window.addEventListener("message", on);
-    return () => window.removeEventListener("message", on);
+    return () => { window.removeEventListener("message", on); stockroomBridge.attach(null); };
   }, []);
 
   useEffect(() => {
