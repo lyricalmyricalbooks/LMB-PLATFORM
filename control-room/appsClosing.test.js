@@ -46,6 +46,11 @@ test("GET /api/control/apps-closing is for platform admins only, and the page ha
   assert.deepEqual(answer.body.shops.map((s) => s.shopId), ["soon", "later"]);
   const page = await readFile(new URL("./index.html", import.meta.url), "utf8");
   assert.match(page, /id="apps-closing"/);
+  // Why presses dropped an app shows as bars (control-room/app.js dropReasonBars), with every reason the page knows.
+  assert.match(page, /\.cr-bars li \{/);
+  const app = await readFile(new URL("./app.js", import.meta.url), "utf8");
+  assert.match(app, /const reasons = dropReasonBars\(drops, reasonWords\);/);
+  assert.match(app, /"Didn't say"/);
 });
 
 test("closed apps still holding records, stuck deletions first; why presses dropped apps; a bounced closing email", () => {

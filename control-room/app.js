@@ -1425,6 +1425,28 @@ async function loadPaymentTrouble() {
   }
 }
 
+/**
+ * Why presses dropped an app over the last six months, as bars: every reason on the list (none given as well), the
+ * most given first. Nothing when nobody answered. Each line reads as its words and its number; the bar itself is hidden from screen readers.
+ */
+function dropReasonBars(drops, reasonWords = {}) {
+  const counts = drops?.reasons ?? {};
+  const answered = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  if (!answered) return null;
+  const rows = Object.entries(reasonWords).map(([id, label]) => [label, counts[id] ?? 0]);
+  const unanswered = Math.max(0, (drops.dropped ?? 0) - answered);
+  if (unanswered) rows.push(["Didn't say", unanswered]);
+  rows.sort((a, b) => b[1] - a[1]);
+  const most = Math.max(...rows.map(([, n]) => n));
+  return el("figure", { style: "margin: 16px 0 0" },
+    el("figcaption", { className: "cr-section", style: "margin: 0", textContent: "Why presses dropped an app, last 6 months" }),
+    el("ul", { className: "cr-bars", dataset: { dropReasons: "" } }, ...rows.map(([label, n]) => el("li", {},
+      el("span", { textContent: label }),
+      el("span", { className: "cr-bar-track", ariaHidden: "true" }, el("span", { className: "cr-bar", style: `width: ${(n / most) * 100}%`, dataset: n ? {} : { none: "" } })),
+      el("span", { className: "cr-bar-n", textContent: String(n) }),
+    ))));
+}
+
 async function loadAppsClosing() {
   const target = $("#apps-closing");
   try {
@@ -1435,10 +1457,10 @@ async function loadAppsClosing() {
     const openRow = (s) => { const shop = allShops.find((x) => x.shopId === s.shopId); if (shop) openShop(shop); };
     // How often a press dropped an app and then kept it, and why they dropped it: many keeps would mean the plan page's
     // drop confuses people.
-    const why = Object.entries(drops.reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([id, n]) => `${reasonWords?.[id] ?? id} (${n})`).join(", ");
     const kept = drops.dropped
-      ? el("p", { className: "rp-hint", textContent: `Last 6 months: ${drops.dropped} app${drops.dropped === 1 ? "" : "s"} dropped, ${drops.kept} kept after all, ${drops.closed} closed, ${drops.waiting} still to close.${why ? ` Why: ${why}.` : ""}` })
+      ? el("p", { className: "rp-hint", textContent: `Last 6 months: ${drops.dropped} app${drops.dropped === 1 ? "" : "s"} dropped, ${drops.kept} kept after all, ${drops.closed} closed, ${drops.waiting} still to close.` })
       : null;
+    const reasons = dropReasonBars(drops, reasonWords);
     const closing = shops.length
       ? table({
         caption: "Apps closing, soonest first",
@@ -1465,7 +1487,7 @@ async function loadAppsClosing() {
         open: openRow,
       })
       : null;
-    target.replaceChildren(closing, ...(kept ? [kept] : []), ...(records ? [records] : []));
+    target.replaceChildren(closing, ...(kept ? [kept] : []), ...(reasons ? [reasons] : []), ...(records ? [records] : []));
   } catch (failure) {
     target.replaceChildren(emptyState(failure.message));
   }

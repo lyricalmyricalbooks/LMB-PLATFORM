@@ -14,6 +14,8 @@ export type BillingStatus = {
   cancelAtPeriodEnd: boolean; hasCard: boolean;
   card: { brand: string; last4: string; expMonth: number | null; expYear: number | null; words: string } | null;
   appsClosing: { apps: string[]; at: string; downloadUntil: string } | null;
+  /** Apps a plan change closed: their records can be downloaded until `downloadUntil`, then they are deleted. */
+  closedApps?: Record<string, { closedAt?: string; downloadUntil?: string; deletedAt?: string }>;
   plans: Array<{ plan: PlanId; name: string; price: string; apps: string[] }>;
   paymentWay: "monthly" | "payAsYouSell";
   founding: { percentOff: number | null; price: string } | null;
@@ -113,6 +115,14 @@ export const LEAVING_CHOICES: Array<{ value: string; label: string }> = [
   { value: "moving", label: "I'm moving to another service" },
   { value: "other", label: "Something else" },
 ];
+
+/** Closed apps whose records can still be downloaded (not back on the plan, not deleted, before the last day). */
+export function downloadableClosedApps(billing: BillingStatus, now = Date.now()): Array<{ app: string; downloadUntil: string }> {
+  const open = billing.plans.find((p) => p.plan === billing.plan)?.apps ?? [];
+  return Object.entries(billing.closedApps ?? {})
+    .filter(([app, c]) => !open.includes(app) && !c?.deletedAt && Boolean(c?.downloadUntil) && Date.parse(c!.downloadUntil!) > now)
+    .map(([app, c]) => ({ app, downloadUntil: c!.downloadUntil! }));
+}
 
 /** The reasons offered when a plan change drops an app (the platform's DROP_REASONS, services/billing/closedApps.js). */
 export const DROP_CHOICES: Array<{ value: string; label: string }> = [

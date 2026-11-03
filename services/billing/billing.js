@@ -341,6 +341,11 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         await saveClosedApp(shopId, app, { warnedAt: at() });
         continue;
       }
+      if (step === "tell") {
+        await notify(shopId, "app-records-deleted", { closing: APP_NAMES[app], link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-records-deleted/${app}/${closed.closedAt}`);
+        await saveClosedApp(shopId, app, { toldAt: at() });
+        continue;
+      }
       if (!deleteApp) continue;
       // Read again just before: an app added back meanwhile (changePlan removes its entry) is never deleted.
       const fresh = await subscriptions.get(shopId);
@@ -354,6 +359,13 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       }
       await saveClosedApp(shopId, app, { deletedAt: at(), problem: null });
       await logChange(shopId, "app-deleted", { app });
+      // The note that it's done: a failed email is tried again on the next sweeps (closedAppSteps "tell").
+      try {
+        await notify(shopId, "app-records-deleted", { closing: APP_NAMES[app], link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-records-deleted/${app}/${closed.closedAt}`);
+        await saveClosedApp(shopId, app, { toldAt: at() });
+      } catch {
+        // Left without toldAt: tomorrow's sweep sends it.
+      }
     }
   }
 
