@@ -5,6 +5,7 @@ import { friendlyError } from "./settingsLayout";
 import { DataTable, ErrorState, PrimaryButton, SecondaryButton, SectionCard, TextArea, TextField, useConfirm } from "./riso/components";
 import { MAX_REDIRECTS, normalizePath, normalizeTarget, parseRedirectLines, redirectProblem, type Redirect } from "../features/site/redirects";
 import { useShopWords } from "./shopWords";
+import { OldLinksCheck } from "./OldLinksCheck";
 
 /**
  * Settings › General › URL redirects. Sends an old shop address to a new one after a book or page is renamed, so
@@ -97,6 +98,10 @@ export function RedirectsCard() {
               <div><SecondaryButton onClick={importBulk} disabled={busy || !bulk.trim()}>Add these redirects</SecondaryButton></div>
             </div>
           </details>
+
+          <div id="old-links" style={{ borderTop: "var(--rp-hair) solid var(--rp-border)", paddingTop: 16 }}>
+            <OldLinksCheck redirects={items} busy={busy} onAdd={(added, message) => persist([...items, ...added], message)} />
+          </div>
         </div>
       )}
     </SectionCard>

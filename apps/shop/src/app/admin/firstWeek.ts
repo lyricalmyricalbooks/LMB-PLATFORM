@@ -70,7 +70,7 @@ export interface GuideProgress {
 
 export type StepId =
   | "logo" | "look" | "add-books" | "bring-books" | "import-spreadsheet" | "shipping" | "payments" | "address"
-  | "practice" | "open";
+  | "practice" | "open" | "switch";
 
 export interface FirstWeekStep {
   id: StepId;
@@ -97,6 +97,7 @@ const WORDS: Record<StepId, StepWords> = {
   address: { title: "Choose your web address", why: "Your shop already has a free address. Connect a name you own, or keep the free one and mark this done.", tab: "general", action: "Open General settings" },
   practice: { title: "Place a practice order", why: "While the shop is private, press Try a practice order in Payments and buy a book with the practice card. No money moves.", tab: "payments", action: "Open Payments" },
   open: { title: "Open your shop", why: "Your shop is private until you open it. We check it's ready to sell first, then shoppers can buy.", action: "Open your shop" },
+  switch: { title: "Move over from your old shop", why: "On the day you move: take your last orders in your old shop, check your old links in General settings so none show page not found, point your web address here, then tell your mailing list where to find you. Tick this once you've moved.", tab: "general", action: "Check your old links" },
 };
 
 /** The first-book step for each answer. */
@@ -104,18 +105,19 @@ const FIRST_BOOK: Record<SellingToday | "general", StepId> = {
   starting: "add-books", fairs: "add-books", online: "bring-books", shops: "add-books", spreadsheet: "import-spreadsheet", general: "add-books",
 };
 
-/** The steps for each answer, in order ("books" stands for that answer's first-book step). Open your shop is last. */
+/** The steps for each answer, in order ("books" stands for that answer's first-book step). Open your shop is last but for the move. */
 const ORDER: Record<SellingToday | "general", (StepId | "books")[]> = {
   starting: ["logo", "look", "books", "shipping", "payments", "address", "practice", "open"],
   fairs: ["books", "payments", "logo", "look", "shipping", "address", "practice", "open"],
-  online: ["books", "look", "logo", "payments", "shipping", "address", "practice", "open"],
+  // A press moving from another online shop finishes with the switch itself (plan 23.8), after its new shop is open.
+  online: ["books", "look", "logo", "payments", "shipping", "address", "practice", "open", "switch"],
   shops: ["books", "logo", "look", "shipping", "payments", "address", "practice", "open"],
   spreadsheet: ["books", "logo", "look", "shipping", "payments", "address", "practice", "open"],
   general: ["logo", "look", "books", "shipping", "payments", "address", "practice", "open"],
 };
 
 /** The address step can't always tell (the free address is a fine choice), so the owner can tick it too. */
-const MANUAL = new Set<StepId>(["address"]);
+const MANUAL = new Set<StepId>(["address", "switch"]);
 
 export interface FirstWeekFacts {
   books: any[] | null;

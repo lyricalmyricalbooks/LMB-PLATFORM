@@ -50,7 +50,7 @@ async function checkAddress(url, lookup) {
 }
 
 /** One GET that connects only to the checked address. Answers { status, location, type, body (Buffer) }. */
-function pinnedGet(url, { address, signal, request = httpsRequest }) {
+function pinnedGet(url, { address, signal, accept = "application/json", request = httpsRequest }) {
   const u = new URL(url);
   const lookup = (_host, opts, cb) => {
     const done = typeof opts === "function" ? opts : cb;
@@ -60,7 +60,7 @@ function pinnedGet(url, { address, signal, request = httpsRequest }) {
   return new Promise((resolve, reject) => {
     const req = request({
       protocol: "https:", hostname: u.hostname, port: 443, path: `${u.pathname}${u.search}`, method: "GET",
-      servername: u.hostname, headers: { host: u.host, accept: "application/json", "user-agent": "Colophon shop mover" },
+      servername: u.hostname, headers: { host: u.host, accept, "user-agent": "Colophon shop mover" },
       lookup, agent: false, signal,
     }, async (res) => {
       const status = res.statusCode || 0;
@@ -87,24 +87,20 @@ function pinnedGet(url, { address, signal, request = httpsRequest }) {
 }
 
 /**
- * Reads public JSON at `url`. Null when the site answers without JSON there (missing page, a web page, refused); throws
- * only when the site can't be reached safely or in time. `get` and `lookup` are injectable for tests.
+ * One careful read of `url`: the final answer { status, type, body } after following up to three checked moves. Throws
+ * only when the site can't be reached safely or in time.
  */
-export async function getPublicJson(url, { get = pinnedGet, lookup = defaultLookup, timeoutMs = TIMEOUT_MS } = {}) {
+async function getPublic(url, { get = pinnedGet, lookup = defaultLookup, timeoutMs = TIMEOUT_MS, accept } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     let current = url;
     for (let hop = 0; ; hop += 1) {
       const address = await checkAddress(current, lookup);
-      const res = await get(current, { address, signal: controller.signal });
-      if ([301, 302, 303, 307, 308].includes(res.status)) {
-        if (!res.location || hop >= MAX_REDIRECTS) throw new Error("too many moves");
-        current = new URL(res.location, current).href;
-        continue;
-      }
-      if (res.status < 200 || res.status >= 300 || !/json/.test(res.type)) return null;
-      try { return JSON.parse(res.body.toString("utf8")); } catch { return null; }
+      const res = await get(current, { address, signal: controller.signal, ...(accept ? { accept } : {}) });
+      if (![301, 302, 303, 307, 308].includes(res.status)) return res;
+      if (!res.location || hop >= MAX_REDIRECTS) throw new Error("too many moves");
+      current = new URL(res.location, current).href;
     }
   } catch (err) {
     if (controller.signal.aborted) throw new Error("the old shop took too long to answer");
@@ -112,4 +108,24 @@ export async function getPublicJson(url, { get = pinnedGet, lookup = defaultLook
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Reads public JSON at `url`. Null when the site answers without JSON there (missing page, a web page, refused); throws
+ * only when the site can't be reached safely or in time. `get` and `lookup` are injectable for tests.
+ */
+export async function getPublicJson(url, options = {}) {
+  const res = await getPublic(url, options);
+  if (res.status < 200 || res.status >= 300 || !/json/.test(res.type)) return null;
+  try { return JSON.parse(res.body.toString("utf8")); } catch { return null; }
+}
+
+/**
+ * Reads a public site map or robots file at `url` as text (plan 23.8). Null when the site answers without XML or plain
+ * text there; throws like getPublicJson.
+ */
+export async function getPublicText(url, options = {}) {
+  const res = await getPublic(url, { accept: "application/xml, text/xml, text/plain;q=0.9", ...options });
+  if (res.status < 200 || res.status >= 300 || !/xml|text\/plain/.test(res.type)) return null;
+  return res.body.toString("utf8");
 }

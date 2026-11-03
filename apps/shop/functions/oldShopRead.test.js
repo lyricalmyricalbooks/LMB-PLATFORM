@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { handleOldShopRead, readOldShop } = require("./oldShopRead.js");
+const { handleOldLinksRead, handleOldShopRead, readOldLinks, readOldShop } = require("./oldShopRead.js");
 
 describe("reading an old shop's address from Books › Import (plan 23.11)", () => {
   const read = async (address) => (address === "moth.example"
@@ -25,5 +25,13 @@ describe("reading an old shop's address from Books › Import (plan 23.11)", () 
 
   it("loads the copied reader, which refuses an address that isn't one without going online", async () => {
     expect(await readOldShop("not an address")).toEqual({ ok: false, message: "Type your old shop's web address, like yourshop.com." });
+  });
+
+  it("the old-link check answers the old shop's page addresses, under the same limit (plan 23.8)", async () => {
+    const links = async (a) => (a === "moth.example" ? { ok: true, host: "moth.example", paths: ["/", "/pages/about"], notes: [] } : { ok: false, message: "No map." });
+    expect(await handleOldLinksRead({ address: "moth.example" }, { allow: async () => true, read: links })).toEqual({ status: 200, body: { host: "moth.example", paths: ["/", "/pages/about"], notes: [] } });
+    expect(await handleOldLinksRead({ address: "x.example" }, { allow: async () => true, read: links })).toEqual({ status: 400, body: { error: "No map." } });
+    expect((await handleOldLinksRead({ address: "moth.example" }, { allow: async () => false, read: links })).status).toBe(429);
+    expect(await readOldLinks("not an address")).toEqual({ ok: false, message: "Type your old shop's web address, like yourshop.com." });
   });
 });

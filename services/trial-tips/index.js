@@ -41,6 +41,7 @@ export const TIPS = Object.freeze({
   address: { subject: "Choose your web address", paragraphs: ["Your shop already has a free web address. If you own a name, you can connect it in Settings › General.", "Happy with the free one? Mark the step done in Set up your shop."], action: "Open General settings", hash: "settings/general" },
   practice: { subject: "Try a practice order", paragraphs: ["While your shop is private, press Try a practice order in Payments and buy a book with the practice card. No money moves.", "You see your order, the customer's email and a refund, just as a shopper's order will go."], action: "Open Payments", hash: "settings/payments" },
   open: { subject: "Your shop is ready to open", paragraphs: ["When you're ready, press Open your shop on the Overview. We check that everything needed to sell is in place first.", "You can close it again at any time from Settings › General › Store status."], action: "Open the Overview", hash: "overview" },
+  switch: { subject: "Moving over from your old shop", paragraphs: ["Before you point your web address here, open Settings › General and press Check your old links. Every page of your old shop is tried here, and any that would show page not found gets a new home in one click.", "Then take your last orders in your old shop, move your web address, and tell your mailing list where to find you."], action: "Check your old links", hash: "settings/general" },
 });
 
 /** The guide's general order (firstWeek.ts ORDER.general), for a shop whose admin hasn't saved its progress yet. */

@@ -196,6 +196,23 @@ export const ARTICLES = Object.freeze([
     answer: [
       "Yes, for your books. When you bring books over from your old shop's export, each book's old address is saved as a redirect to the same book here.",
       "The redirects start working once your web address leads to this shop. Redirects you made yourself are never replaced. You can see or remove them in Settings › General › URL redirects.",
+      "For your other pages, such as About or a collection, use Check your old links under URL redirects before you move your web address. It reads your old shop's list of pages, tries each one here and suggests a new home for any that would show page not found. Add them one by one or all at once.",
+    ],
+    where: ["Settings › General"],
+  },
+  {
+    id: "switch-day",
+    topic: "Moving your shop",
+    question: "What do I do on the day I move from my old shop?",
+    answer: [
+      "Move once your new shop is open and you have placed a practice order. Doing it in this order means shoppers are never left without a shop.",
+    ],
+    steps: [
+      "Take your last orders in your old shop, then close its checkout.",
+      "Open Settings › General and use Check your old links under URL redirects, so none of your old addresses show page not found.",
+      "Point your web address at this shop.",
+      "Tell your mailing list where to find you.",
+      "Tick Move over from your old shop in Set up your shop on the Overview.",
     ],
     where: ["Settings › General"],
   },
@@ -414,6 +431,7 @@ export const CHECKLIST_ANSWERS = Object.freeze({
   address: "own-address",
   practice: "test-order",
   open: "open-shop",
+  switch: "switch-day",
 });
 
 /**
