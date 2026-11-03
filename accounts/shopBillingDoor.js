@@ -11,9 +11,9 @@
 // person is the shop's owner exactly as on the platform (accounts.roleIn: the shop's team, or the registry's
 // ownerEmail), with a confirmed email.
 //
-// The same two-step rule (plan 14.1): on a paid plan, the changes need a pass with a second step. A shop's sign-in
-// doesn't offer one yet, so those changes answer 403 with `twoStep: true` and the account page's address, and the hub
-// sends the press there to finish (Julian's choice on the decision card, 3 November 2026, may change this).
+// The same two-step rule (plan 14.1): on a paid plan, the changes need a pass with a second step. Since 22.6 the shop's
+// own sign-in offers one (authenticator codes, set up under Settings › Security), so a refusal answers 403 with
+// `twoStep: true`, the hub sends the owner to Settings › Security, and the account page stays a second way.
 //
 // Calls from the browser carry the pass in the Authorization header, never a cookie, so any address may call (the
 // answer is worthless without a pass): the CORS answer is `*` with no credentials. Every call is logged like the
@@ -101,7 +101,7 @@ export function createShopBillingDoor({ billing, paymentWay = null, accounts, re
     const problem = needsSecondStep(entry, body) ? ownerTwoStepProblem(claims, row) : null;
     if (problem) {
       await record(shopId, call, email, "refused: needs two-step sign-in");
-      throw new DoorError(problem.status, "Your plan is paid, so this change needs your two-step sign-in. Finish it on your account page.", { twoStep: true, accountPage });
+      throw new DoorError(problem.status, "Your plan is paid, so this change needs two-step sign-in. Turn it on under Settings › Security, then sign in again with your code.", { twoStep: true, accountPage });
     }
     try {
       const answer = await entry.run(shopId, body, { returnUrl: hubPage(row) });

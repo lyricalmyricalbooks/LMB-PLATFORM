@@ -24,6 +24,8 @@
 //                         alerts-only budget (Pub/Sub topic) and its Cloud Run functions spend cap (plan 15.17).
 //   Artifact Registry v1  projects.locations.repositories.get/patch (updateMask cleanupPolicies,cleanupPolicyDryRun): the
 //                         functions' build repository `gcf-artifacts` keeps only a day of old images (plan 15.16).
+//   Identity Toolkit v2   projects.getConfig, projects.updateConfig (updateMask mfa), projects.identityPlatform.initializeAuth:
+//                         the shop's own sign-in allows authenticator codes (plan 22.6, setup/twoStep.js)
 //   Firebase Storage (the address the shop's pages read files through, where storage rules apply):
 //                         GET https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{name}?alt=media, with no sign-in.
 //                         Not in a discovery document; it is the address Firebase's web SDK reads files from.
@@ -46,6 +48,7 @@ const HOSTING = "https://firebasehosting.googleapis.com/v1beta1";
 const SCHEDULER = "https://cloudscheduler.googleapis.com/v1";
 const ARTIFACTS = "https://artifactregistry.googleapis.com/v1";
 const BUDGETS = "https://billingbudgets.googleapis.com/v1";
+const IDENTITY = "https://identitytoolkit.googleapis.com/v2";
 
 /** The repository 2nd-generation functions put their built images in, and the cleanup rule on it (plan 15.16). */
 export const BUILD_REPOSITORY = "gcf-artifacts";
@@ -375,6 +378,20 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
       async projectNumber(projectId) {
         return projectNumber(projectId);
       },
+    },
+    authConfig: {
+      /** The project's sign-in settings (projects.getConfig): `subtype` says whether it is Identity Platform yet. */
+      get: (projectId) => call("GET", `${IDENTITY}/projects/${projectId}/config`),
+      /** Firebase Auth to Identity Platform (projects.identityPlatform.initializeAuth). Already done answers fine. */
+      async upgrade(projectId) {
+        try {
+          await call("POST", `${IDENTITY}/projects/${projectId}/identityPlatform:initializeAuth`, { body: {} });
+        } catch (error) {
+          if (!isAlreadyExists(error)) throw error;
+        }
+      },
+      /** Replaces the second-step settings (projects.updateConfig, updateMask mfa). */
+      setMfa: (projectId, mfa) => call("PATCH", `${IDENTITY}/projects/${projectId}/config`, { query: { updateMask: "mfa" }, body: { mfa } }),
     },
     buildCleanup: {
       /** Is Colophon's cleanup rule on the functions' build repository? Null when the repository doesn't exist yet. */
