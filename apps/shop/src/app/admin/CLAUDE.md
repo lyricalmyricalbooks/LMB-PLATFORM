@@ -370,6 +370,13 @@ The private operations, label purchase safeguards, payment authority and server 
   It attaches a two-page PDF (`functions/weeklyPdf.js`, hand-written PDF with built-in Helvetica, no package) drawn from
   `weeklyHighlights` (same sales rules; `analytics` maps for sources/devices/bookViews/searches/funnel; unrecorded = empty, never 0).
   `sendEmail` takes `attachments` (Gmail and Resend; never queued). If the PDF fails the email goes without it.
+- **Fair day summary (combined admin, 3 November 2026):** `exports.fairDaySummary` (every day 21:00 Toronto, via the tick)
+  → `functions/fairDayEmail.js` (pure; same rules as the till's end of day, a test checks it against the stockroom's
+  `fair-mode.js`). It reads, read-only, the `hist` of books whose stockroom record was uploaded in the last 36 hours
+  (`inventoryLinkStore.readBooksSoldSince`: `ts` first, then only the changed books). It sends only when the till sold
+  something that day, once per day (`systemStatus/fairDayEmail.lastDay`); a shop without the stockroom sends nothing.
+  The switch is `shopAlerts.fairDaySummary` (missing = on), shown under Shop alerts in the combined admin only, with
+  **Send me today's fair summary now** (`sendTestEmail` `fairDaySummaryNow`, sends again).
 - Deploy Firestore rules + Functions with the frontend.
 
 ## Round-2 catalog and settings (10 October 2026)

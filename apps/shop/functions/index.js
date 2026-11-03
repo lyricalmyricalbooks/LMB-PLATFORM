@@ -3524,6 +3524,7 @@ async function handleOrderUpdated(event) {
 const { digestSince, digestNeedsOperations, DIGEST_ORDER_LIMIT } = require("./orderDigest");
 const { lastWeek, buildWeeklySummary, weeklyHighlights, weeklySummaryEnabled, firstOrders } = require("./weeklySummary");
 const { buildWeeklyPdf, weeklyPdfName } = require("./weeklyPdf");
+const { fairDaySummary, buildFairDayEmail, fairDayEmailEnabled, torontoDay: fairTorontoDay } = require("./fairDayEmail");
 const { pruneOldCarts } = require("./cartCleanup");
 
 // Back-in-stock emails are sent a few at a time inside a time budget. Alerts a run could not reach keep
@@ -3538,10 +3539,12 @@ const jobs = scheduledJobs({
   digestNeedsOperations, digestSince, escapeHtml, footerAddress, loadNotificationSettings,
   marketingUnsubscribeKey, moneyFmt, nextDailyCount, normMarketingEmail, optOutId, pruneOldCarts,
   reminderFirstName, runInBatches, sendEmail: lateSendEmail, sendRestockAlerts, sendWeeklySummary, siteLink,
-  stockOf, unsubscribeToken, weeklySummaryEnabled,
+  stockOf, unsubscribeToken, weeklySummaryEnabled, sendFairDaySummary, fairDayEmailEnabled,
 });
 
 exports.dailyOrderDigest = jobs.dailyOrderDigest;
+
+exports.fairDaySummary = jobs.fairDaySummary;
 
 exports.weeklySummary = jobs.weeklySummary;
 
@@ -3580,6 +3583,30 @@ async function sendWeeklySummary(nowMs = Date.now()) {
   }
   await sendEmail({ to: ADMIN_TO, subject, html: attachments.length ? html : html.replace(pdfLine, ""), secret: RESEND_API_KEY.value(), attachments });
   return { subject };
+}
+
+// The fair day email (functions/fairDayEmail.js): today's Fair till sales, from what the stockroom has uploaded. Sent once
+// a day at most (systemStatus/fairDayEmail), and only when the till sold something; `force` (Send me today's now) sends
+// again. Returns { sent, subject?, reason? }. A shop without the stockroom has nothing to send.
+async function sendFairDaySummary(nowMs = Date.now(), { force = false } = {}) {
+  const day = fairTorontoDay(nowMs);
+  const markRef = db.collection("systemStatus").doc("fairDayEmail");
+  if (!force && (await markRef.get().catch(() => null))?.data?.()?.lastDay === day) return { sent: false, reason: "already-sent" };
+  let books;
+  try {
+    // Uploads of the last 36 hours cover the whole Toronto day, whatever the time zone of the server.
+    books = await require("./inventoryLinkStore").readBooksSoldSince(nowMs - 36 * 60 * 60 * 1000);
+  } catch (err) {
+    const problem = require("./inventoryLinkStore").connectionProblem(err);
+    if (problem === "no-stockroom") return { sent: false, reason: "no-stockroom" };
+    throw err;
+  }
+  const words = wordsFor(await shopSellsAnswer());
+  const email = buildFairDayEmail(fairDaySummary(books, day), { link: siteLink, words });
+  if (!email) return { sent: false, reason: "no-sales" };
+  await sendEmail({ to: ADMIN_TO, subject: email.subject, html: email.html, secret: RESEND_API_KEY.value() });
+  await markRef.set({ lastDay: day, at: new Date(nowMs).toISOString() }, { merge: true });
+  return { sent: true, subject: email.subject };
 }
 
 // Secret for signing unsubscribe links, created once and kept server-only in adminSecrets.
@@ -3878,7 +3905,7 @@ const shopMail = shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
   loadNotificationSettings, logEmailAttempt, publicOutboxEntry, sendEmail: lateSendEmail, sendQueuedEmail,
-  sendWeeklySummary, siteLink,
+  sendWeeklySummary, sendFairDaySummary, siteLink,
 });
 
 exports.onContactMessage = shopMail.onContactMessage;

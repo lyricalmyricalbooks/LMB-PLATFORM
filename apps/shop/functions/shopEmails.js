@@ -10,7 +10,7 @@ function shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
   loadNotificationSettings, logEmailAttempt, publicOutboxEntry, sendEmail, sendQueuedEmail,
-  sendWeeklySummary, siteLink,
+  sendWeeklySummary, sendFairDaySummary, siteLink,
 }) {
   // Studio › Style › Customer accounts. On unless the published design turns it off.
   async function customerAccountsEnabled() {
@@ -224,6 +224,22 @@ function shopEmails({
         } catch (err) {
           console.error("weeklySummaryNow failed:", err);
           res.status(500).json({ error: "The summary couldn't be sent just now. Check Recent deliveries below and try again in a minute." });
+        }
+        return;
+      }
+
+      // Settings › Email sender › Shop alerts › Send me today's fair summary now.
+      if (body.action === "fairDaySummaryNow") {
+        try {
+          const result = await sendFairDaySummary(Date.now(), { force: true });
+          if (!result.sent) {
+            res.status(200).json({ ok: true, sent: false, reason: result.reason });
+            return;
+          }
+          res.status(200).json({ ok: true, sent: true, subject: result.subject });
+        } catch (err) {
+          console.error("fairDaySummaryNow failed:", err);
+          res.status(500).json({ error: "The fair summary couldn't be sent just now. Check Recent deliveries below and try again in a minute." });
         }
         return;
       }
