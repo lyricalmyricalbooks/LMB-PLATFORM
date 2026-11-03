@@ -46,6 +46,34 @@ inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) =
 };
 (window as any).__adminFixture = { orders: ORDERS };
 
+// ?move=1 (scripts/move-check.mjs): a press that brought its shop with it and finished Get started, so the Overview shows
+// Your move so far. Its firstWeek/start lives here in memory, with the calls each bring-over window makes recorded in
+// `window.__adminFixture.calls`; the shop's server (oldShopApi's actions) is answered by the check's own page.route.
+if (new URLSearchParams(location.search).get("move")) {
+  const at = "2026-11-01T10:00:00.000Z";
+  const week: any = { plan: "both", sellingToday: "online", publishes: "books", details: { at }, bring: { at, from: "online" },
+    welcome: { at, themeId: "riso" }, google: { at, skipped: true }, payments: { at, skipped: true }, shipping: { at, skipped: true }, finalCheck: { at } };
+  const calls: any[] = [];
+  (window as any).__adminFixture.calls = calls;
+  (window as any).__adminFixture.firstWeek = week;
+  const record = (name: string, answer: (...a: any[]) => any) => async (...a: any[]) => { calls.push([name, ...a]); return answer(...a); };
+  const api = adminApi as any;
+  api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
+  api.updateFirstWeek = record("updateFirstWeek", (change: any) => {
+    const { done, ...rest } = change;
+    Object.assign(week, rest);
+    if (done) week.done = { ...week.done, ...done };
+  });
+  api.untickFirstWeek = record("untickFirstWeek", (id: string) => { if (week.done) delete week.done[id]; });
+  api.saveCustomerNote = record("saveCustomerNote", () => undefined);
+  api.getMarketingConsent = async () => ({ subscribed: new Set<string>(), optedOutHashes: new Set<string>() });
+  api.addImportedSubscriber = record("addImportedSubscriber", () => true);
+  api.giftCardAdmin = record("giftCardAdmin", (_op: string, body: any) => ({ added: body?.cards?.length || 0, emailed: 0, emailFailed: 0, skipped: [] }));
+  api.getPages = async () => [];
+  // oldShopApi asks the server with the signed-in person's token; the fixture's pretend owner has one (development only).
+  (globalThis as any).__fixtureIdToken = "fixture-token";
+}
+
 const params = new URLSearchParams(location.search);
 const page = params.get("page") || "";
 history.replaceState(null, "", `/admin?debug=true${page ? `#${page}` : ""}`);

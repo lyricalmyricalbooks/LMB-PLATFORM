@@ -59,13 +59,13 @@ async function world({ shopAccess = fakeShopAccess() } = {}) {
   const sent = [];
   let at = NOW;
   const watch = createDriftWatch({ registry, shopData, shopAccess, email: { sendPlatform: async (m) => void sent.push(m) }, settings: { platformUrl: "https://platform.example" }, now: () => new Date(at) });
-  return { registry, watch, sent, at: (ms) => (at = ms) };
+  return { registry, shopData, watch, sent, at: (ms) => (at = ms) };
 }
 
 test("the sweep keeps each paying shop's score on its row and emails the drifting one once", async () => {
   const w = await world();
   const run = await w.watch.sweep();
-  assert.equal(run.summary, "1 drifting, 0 to watch, 1 fine, 1 emailed");
+  assert.equal(run.summary, "1 drifting, 0 to watch, 1 fine, 1 emailed, 0 moves stuck");
   const moth = (await w.registry.getShop("moth")).drift;
   assert.equal(moth.level, "drifting");
   assert.deepEqual(moth.orders, { recent: 0, before: 5 }, "practice, brought-over, unpaid and older orders don't count");
@@ -108,4 +108,68 @@ test("the check-in email exists in English and French", () => {
   const data = { pressName: "Moth Press", link: "https://moth.example/admin#overview", helpLink: "https://platform.example/help/" };
   assert.match(TEMPLATES["quiet-shop"](data, { settings }).subject, /How is Moth Press getting on/);
   assert.match(TEMPLATES_FR["quiet-shop"](data, { settings }).subject, /Comment ça va pour Moth Press/);
+});
+
+test("a snoozed press leaves Today and gets no check-in email until the snooze ends", async () => {
+  const { createDriftDesk } = await import("./driftWatch.js");
+  const { controlRoomAdmins } = await import("./controlRoom.js");
+  const w = await world();
+  const log = [];
+  const desk = createDriftDesk({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry: w.registry, settings, activity: { record: async (e) => void log.push(e) }, now: () => new Date(NOW) });
+  const admin = { uid: "a", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(NOW / 1000) };
+  await assert.rejects(desk.snooze(admin, { shopId: "moth", reason: "x" }), /at least 10/);
+  await assert.rejects(desk.snooze(admin, { shopId: "moth", reason: "spoke to Lou on the phone" }), /hasn't looked/);
+  await w.watch.sweep();
+  assert.equal(w.sent.length, 1);
+  // Snoozed before the next 60-day check-in would go.
+  const { snoozedUntil } = await desk.snooze(admin, { shopId: "moth", reason: "spoke to Lou on the phone" });
+  assert.equal(snoozedUntil, new Date(NOW + 30 * DAY).toISOString());
+  assert.deepEqual(log.map((e) => [e.what, e.shopId, e.detail.days]), [["drift-snoozed", "moth", 30]]);
+  const today = () => w.registry.listShops().then((rows) => todaySummary({ rows, settings, now: new Date(NOW) }).needs.filter((n) => n.kind === "drift"));
+  assert.deepEqual(await today(), []);
+  // The sweep keeps the snooze and sends nothing, even past the 60 days.
+  const row = await w.registry.getShop("moth");
+  await w.registry.updateShop("moth", { drift: { ...row.drift, checkedInAt: ago(CHECK_IN_EVERY_DAYS + 1) } });
+  await w.watch.sweep();
+  assert.equal((await w.registry.getShop("moth")).drift.snoozedUntil, snoozedUntil);
+  assert.equal(w.sent.length, 1);
+  // Woken again: back on Today.
+  await desk.snooze(admin, { shopId: "moth", days: 0, reason: "they went quiet again" });
+  assert.equal((await w.registry.getShop("moth")).drift.snoozedUntil, undefined);
+  assert.equal((await today()).length, 1);
+});
+
+test("presses at risk: drifting and to watch, with the monthly income they bring in", async () => {
+  const { atRiskSummary } = await import("./driftWatch.js");
+  const w = await world();
+  await w.watch.sweep();
+  await w.registry.updateShop("wasp", { drift: { level: "watch", score: 1, reasons: ["orders down from 8 to 3 over 4 weeks"] } });
+  const risk = atRiskSummary(await w.registry.listShops(), { ...settings, prices: { both: 3900 } }, NOW);
+  assert.deepEqual(risk.presses.map((p) => [p.shopId, p.level]), [["moth", "drifting"], ["wasp", "watch"]]);
+  assert.deepEqual([risk.drifting, risk.watch], [{ count: 1, monthlyCents: 0 }, { count: 1, monthlyCents: 0 }], "no plan on these rows: no price");
+  await w.registry.updateShop("moth", { plan: "both" });
+  assert.equal(atRiskSummary(await w.registry.listShops(), { ...settings, prices: { both: 3900 } }, NOW).drifting.monthlyCents, 3900);
+});
+
+test("a move left part-way for a week shows on Today, and clears when it's finished", async () => {
+  const { moveStuck } = await import("./driftWatch.js");
+  const start = (done, extra = {}) => ({ bring: { from: "online" }, done, ...extra });
+  const day = (days) => ago(days).slice(0, 10);
+  assert.equal(moveStuck(start({ "move-customers": day(3) }), NOW), null, "ticked three days ago: still going");
+  assert.equal(moveStuck(start({}), NOW), null, "nothing ticked yet");
+  assert.equal(moveStuck(start({ "move-customers": day(9), "move-list": day(8) }), NOW), null, "list put away");
+  assert.equal(moveStuck({ bring: { skipped: true }, done: { "move-customers": day(9) } }, NOW), null);
+  assert.deepEqual(moveStuck(start({ "move-customers": day(12), "move-orders": day(9) }), NOW), { done: 3, of: 5, left: ["Gift cards", "Pages and old links"], lastDay: day(9), days: 9 });
+
+  const w = await world();
+  const shopData = w.shopData;
+  await shopData.set("trial", "firstWeek/start", start({ "move-customers": day(12), "move-orders": day(9) }));
+  const run = await w.watch.sweep();
+  assert.match(run.summary, /1 move stuck/);
+  const words = () => w.registry.listShops().then((rows) => todaySummary({ rows, settings, now: new Date(NOW) }).needs.filter((n) => n.kind === "move").map((n) => n.words));
+  assert.deepEqual(await words(), ["Trial Press is part-way through moving from their old shop: 3 of 5 parts done, still to do gift cards, pages and old links (last part done 9 days ago)"]);
+  await shopData.set("trial", "firstWeek/start", start({ "move-customers": day(12), "move-orders": day(9), "move-giftcards": day(0), "move-links": day(0) }));
+  await w.watch.sweep();
+  assert.deepEqual(await words(), []);
+  assert.equal((await w.registry.getShop("trial")).moveStuck, null);
 });

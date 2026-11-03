@@ -51,6 +51,8 @@ function controlAction(what, d = {}) {
     case "note-added": return { kind: "other", words: "Added a private note" };
     case "note-deleted": return { kind: "other", words: `Deleted a private note${why(d.reason)}` };
     case "tags-set": return { kind: "other", words: `Set the tags to ${(d.tags ?? []).join(", ") || "none"}${why(d.reason)}` };
+    case "drift-snoozed": return { kind: "other", words: `Snoozed the drift warning for ${d.days ?? "?"} days${why(d.reason)}` };
+    case "drift-woken": return { kind: "other", words: `Ended the drift warning's snooze${why(d.reason)}` };
     case "job-run": return { kind: "other", words: `Ran the job "${d.job ?? "?"}" by hand${why(d.reason)}` };
     default: return { kind: "other", words: `${plain(what) || "Something was done"}${why(d.reason)}` };
   }

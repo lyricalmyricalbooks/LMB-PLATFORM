@@ -87,8 +87,17 @@ describe("Bring past orders over", () => {
     await act(async () => { button(/Bring 2 past orders over/).click(); });
     await flush();
     expect(api.importPastOrders.mock.calls[0][0][1]).toMatchObject({ currency: "CAD", total: 42, paidIn: { currency: "USD", total: 30, rate: 1.4 } });
-    // An order already here from an earlier run keeps that run's rate, and the window says how to change it (plan 23.18).
-    expect(document.body.textContent).toContain("1 order was already here from an earlier import, so it keeps the rate used then.");
+    // An order already here from an earlier run keeps that run's rate (plan 23.18), until one press gives it the new
+    // one (plan 23.23): only that order is sent again, asking for the new rate.
+    expect(document.body.textContent).toContain("1 order sold in another currency was already here from an earlier import, so it keeps the rate used then.");
+    expect(document.body.textContent).toContain("(USD at 1.4)");
+    api.importPastOrders.mockResolvedValueOnce({ added: 0, rerated: 1, skipped: [] } as any);
+    await act(async () => { button(/Use the new rate for that order/).click(); });
+    await flush();
+    const [sent, , options] = api.importPastOrders.mock.calls[1] as any[];
+    expect(sent.map((o: any) => o.number)).toEqual(["#2"]);
+    expect(options).toEqual({ rerate: true });
+    expect(document.body.textContent).toContain("1 order now uses the new rate.");
   });
 
   it("without a suggestion, an other-currency order waits for the owner's rate", async () => {

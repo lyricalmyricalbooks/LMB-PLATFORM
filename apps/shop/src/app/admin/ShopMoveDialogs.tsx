@@ -37,8 +37,13 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
     if (!file) return;
     setReadError(""); setReady(null); setResult(null); setPermission(false); setFileName(file.name);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and bring them over one at a time."); return; }
+    let text: string, notes: Awaited<ReturnType<typeof adminApi.listCustomerNotes>>, consent: Awaited<ReturnType<typeof adminApi.getMarketingConsent>>;
+    try { text = await file.text(); }
+    catch { setReadError("This file couldn't be read. Save it as CSV (comma separated) and try again."); return; }
+    // The shop's own lists, to merge with: a failure here is the connection, not the file.
+    try { [notes, consent] = await Promise.all([adminApi.listCustomerNotes(), adminApi.getMarketingConsent()]); }
+    catch { setReadError("Your customers couldn't be checked just now. Check your connection and try again."); return; }
     try {
-      const [text, notes, consent] = await Promise.all([file.text(), adminApi.listCustomerNotes(), adminApi.getMarketingConsent()]);
       const move = readCustomerExport(text);
       const byEmail = new Map(notes.map(n => [String(n.email || "").toLowerCase(), { note: n.note || "", tags: n.tags || [], name: n.name || "", place: n.place || "" }]));
       const ids = new Map(await Promise.all(move.customers.map(async c => [c.email, await emailHash(c.email)] as const)));
@@ -92,7 +97,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
         {!result && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             <li>Each customer gets a private note with their name, town and what they spent at your old shop, plus their tags. Notes you already wrote are kept.</li>
-            <li>They show in the Customers list once they order here. Bringing the same file over again changes nothing.</li>
+            <li>They show in Customers under Not ordered here yet until they order here. Bringing the same file over again changes nothing.</li>
             <li>Only people your old shop or mailing list says agreed to marketing email can join your newsletter, and only if you confirm below. Anyone who unsubscribed stays off it.</li>
           </ul>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>

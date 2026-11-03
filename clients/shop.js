@@ -158,5 +158,7 @@ export function stockroomDataClient(firestoreFor) {
     },
     get: (shopId, path) => firestoreFor(shopId).get(path),
     set: (shopId, path, data) => firestoreFor(shopId).set(path, data),
+    /** The documents directly in one collection, as [{ id, data }] (the control room reads the fair helpers' `fairSales`). */
+    list: async (shopId, collection) => (await firestoreFor(shopId).query(collection)).map(({ path, data }) => ({ id: path.split("/").at(-1), data })),
   };
 }

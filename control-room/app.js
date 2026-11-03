@@ -407,9 +407,14 @@ async function loadToday() {
   $("#needs").replaceChildren(needs.length
     ? el("div", { className: "rp-alerts" }, ...needs.map((need) => {
       const tone = need.kind === "shop" || need.kind === "payment" ? "danger" : "warning";
-      return el("a", { className: "rp-alert", href: need.go, dataset: { tone } },
-        el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: tone === "danger" ? "✕" : "!" }),
-        el("span", { className: "rp-alert-text" }, el("strong", { className: "rp-alert-title", textContent: need.words })),
+      const glyph = el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: tone === "danger" ? "✕" : "!" });
+      const text = el("span", { className: "rp-alert-text" }, el("strong", { className: "rp-alert-title", textContent: need.words }));
+      // A drifting press can be snoozed from here (a button can't sit inside the alert's link, so this one is a box).
+      if (need.kind === "drift") {
+        return el("div", { className: "rp-alert", dataset: { tone } }, glyph, text,
+          el("span", { className: "rp-alert-actions" }, el("a", { className: "rp-btn rp-btn-sm", href: need.go, textContent: "Open" }), snoozeButton(need.shopId, need.words.split(" may be")[0], 30)));
+      }
+      return el("a", { className: "rp-alert", href: need.go, dataset: { tone } }, glyph, text,
         el("span", { className: "rp-alert-actions" }, el("span", { className: "rp-btn rp-btn-sm", textContent: "Open" })));
     }))
     : emptyState("Nothing needs you right now.", "Shops, payments, repairs, support and sign-ups are all in order."));
@@ -567,6 +572,8 @@ function card(shop) {
     shop.status === "live" ? signInSafetySection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Brought over from the old shop" }) : null,
     shop.status === "live" ? broughtOverSection(shop) : null,
+    shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Payment links and fair till" }) : null,
+    shop.status === "live" ? salesChannelsSection(shop) : null,
     ...privateSections(shop),
   ].filter(Boolean);
 }
@@ -1019,6 +1026,7 @@ const ACTIVITY_WORDS = {
   "access-asked": "asked the press for a yes to make changes",
 
   "note-added": "added a private note", "note-deleted": "deleted a private note", "tags-set": "changed the shop's tags", "job-run": "ran a job by hand",
+  "drift-snoozed": "snoozed a drifting press", "drift-woken": "ended a drifting press's snooze",
 };
 
 async function loadActivity() {
@@ -1338,7 +1346,7 @@ async function askThePress(shop, clicked, slot) {
 // ── The business side of Today (plan 19.7-19.9): income over time, failed plan payments, why presses leave. Each part
 // shows its own trouble in its own place, so one that can't load never hides the others. ──
 async function loadBusiness() {
-  await Promise.all([loadIncome(), loadPaymentTrouble(), loadLeaving(), loadAppsClosing()]);
+  await Promise.all([loadIncome(), loadAtRisk(), loadPaymentTrouble(), loadLeaving(), loadAppsClosing()]);
 }
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -1445,6 +1453,53 @@ async function loadIncome() {
   } catch (failure) {
     figures.replaceChildren();
     box.replaceChildren(emptyState(failure.message));
+  }
+}
+
+// Drifting presses: snooze one for a while (it leaves Today and gets no check-in email), or end the snooze.
+function snoozeButton(shopId, name, days) {
+  const snooze = button(days ? `Snooze ${days} days` : "End snooze", "secondary");
+  snooze.addEventListener("click", async () => {
+    const reason = (window.prompt(`${days ? `Leave ${name} off Today for ${days} days (no check-in email either).` : `Put ${name} back on Today.`}\n\nWhy? This goes in the activity log (at least 10 characters).`) ?? "").trim();
+    if (!reason) return;
+    snooze.disabled = true;
+    try {
+      await api("POST", "/control/drift-snooze", { shopId, days, reason });
+      await Promise.all([loadToday(), loadAtRisk()]);
+    } catch (failure) {
+      snooze.disabled = false;
+      window.alert(failure.message);
+    }
+  });
+  return snooze;
+}
+
+// Presses at risk: the paying presses drifting or to watch, and the monthly income they bring in.
+async function loadAtRisk() {
+  const target = $("#at-risk");
+  if (!target) return;
+  try {
+    const { presses, drifting, watch, currency } = await api("GET", "/control/at-risk");
+    const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric" },
+      el("div", { className: "rp-metric-label", textContent: label }),
+      el("div", { className: "rp-metric-value", textContent: String(value), dataset: tone ? { tone } : {} }),
+      foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
+    const numbers = el("div", { className: "rp-kpi-grid", ariaLabel: "Presses at risk in numbers" },
+      figure("Drifting away", drifting.count, `${money(drifting.monthlyCents, currency)} a month`, drifting.count ? "danger" : null),
+      figure("To watch", watch.count, `${money(watch.monthlyCents, currency)} a month`, watch.count ? "warn" : null));
+    target.replaceChildren(numbers, presses.length ? table({
+      caption: "Presses at risk, most at risk first",
+      columns: [
+        { header: "Press", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName }), meta(p.shopId, p.ownerEmail)) },
+        { header: "Risk", render: (p) => el("div", {}, pill(p.level === "drifting" ? "danger" : "warning", p.level === "drifting" ? "drifting" : "to watch"), p.snoozedUntil ? meta(`snoozed until ${dateOnly(p.snoozedUntil)}`) : null) },
+        { header: "Why", render: (p) => meta(...p.reasons, p.checkedInAt ? `check-in email ${dateOnly(p.checkedInAt)}` : null) },
+        { header: "A month", render: (p) => el("span", { className: "rp-mono", textContent: money(p.monthlyCents, currency) }) },
+        { header: "", render: (p) => snoozeButton(p.shopId, p.pressName, p.snoozedUntil ? 0 : 30) },
+      ],
+      rows: presses,
+    }) : emptyState("No paying press is drifting.", "Every paying press is selling and signing in as usual."));
+  } catch (failure) {
+    target.replaceChildren(emptyState(failure.message));
   }
 }
 
@@ -2023,6 +2078,35 @@ function signInSafetySection(shop) {
 // ── What a press brought over from its old shop (control-room/broughtOver.js), in a live shop's record. ──
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const lastOn = (kind) => (kind.lastAt ? `last ${dateOnly(kind.lastAt)}` : null);
+
+// Payment links and the fair till (selling away from the website): how many sales each way, for how much, the last one.
+function salesChannelsSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's records…" }));
+  api("POST", "/control/sales-channels", { shopId: shop.shopId }).then(({ channels, words }) => {
+    if (!channels) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
+    const cad = (n) => money(Math.round(n * 100), "CAD");
+    const { links, fair } = channels;
+    const rows = [
+      channels.hasShop && (links
+        ? { what: "Payment links", amount: plural(links.paid, "paid sale"), more: [`${cad(links.amount)} paid`, `${links.recent} in the last 30 days`, links.waiting ? `${links.waiting} waiting to be paid` : null, links.lastPaidAt ? `last paid ${dateOnly(links.lastPaidAt)}` : `last made ${dateOnly(links.lastMadeAt)}`] }
+        : { what: "Payment links", amount: "none yet", more: ["no payment link made"] }),
+      channels.hasStockroom && (fair
+        ? { what: "Fair till", amount: plural(fair.sales, "sale"), more: [`${plural(fair.copies, "copy", "copies")}`, `${cad(fair.amount)}`, `${plural(fair.days, "selling day")}`, `${fair.recent} in the last 30 days`, fair.lastDay ? `last ${fair.lastDay}` : null] }
+        : { what: "Fair till", amount: channels.stockroom === "read" ? "none yet" : "—", more: [channels.stockroom === "read" ? "nothing rung up at a fair" : "the stockroom isn't made yet"] }),
+      fair?.helpers && { what: "Fair helpers", amount: plural(fair.helpers.sales, "sale"), more: [`rung up by ${plural(fair.helpers.people, "helper")}`, fair.helpers.lastAt ? `last ${dateOnly(fair.helpers.lastAt)}` : null] },
+    ].filter(Boolean);
+    slot.replaceChildren(rows.length ? table({
+      caption: "Payment links and fair till",
+      rows,
+      columns: [
+        { header: "Way", lead: true, render: (r) => el("p", { className: "cr-title", textContent: r.what }) },
+        { header: "How many", render: (r) => el("span", { className: "rp-mono", textContent: r.amount }) },
+        { header: "Details", render: (r) => meta(...r.more) },
+      ],
+    }) : el("p", { className: "rp-hint", textContent: "This plan has neither payment links nor a fair till." }));
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
 
 function broughtOverSection(shop) {
   const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's records…" }));
