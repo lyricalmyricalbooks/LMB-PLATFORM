@@ -61,7 +61,7 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 
 ## Step 3, built: one sales list and one Home
 
-- **Orders › All sales** (`#sales`, `AllSales.tsx`, pure rules in `allSales.ts`) lists paid website orders (refunds
+- **Orders › All sales** (`#sales`, `AllSales.tsx`, pure rules in `salesList.ts`) lists paid website orders (refunds
   marked, test orders and unpaid attempts left out) beside the stockroom's own sales, asked as `{ what: "sales", since }`
   (`salesRows` in the stockroom's `lib/book-summary.js`). The stockroom leaves out the rows the website link wrote or
   adopted (`webOrderId`), so no sale is counted twice; its other "Website" sales (payment links, older imported and

@@ -10,7 +10,7 @@ import { useShopWords } from "./shopWords";
 import {
   PERIODS, channelCounts, inChannel, mergeSales, saleTotals, sinceFor, stockroomSaleRows, websiteSaleRows,
   type PeriodId, type SaleRow,
-} from "./allSales";
+} from "./salesList";
 import { channelWords, money } from "./StockroomBookPanel";
 
 const PAGE_SIZE = 100;

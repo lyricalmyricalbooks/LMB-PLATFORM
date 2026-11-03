@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookTakings, channelCounts, inChannel, mergeSales, saleTotals, sinceFor, stockroomSaleRows, websiteSaleRows } from "./allSales";
+import { bookTakings, channelCounts, inChannel, mergeSales, saleTotals, sinceFor, stockroomSaleRows, websiteSaleRows } from "./salesList";
 import { routeFromHash, hashForRoute } from "./adminRoute";
 import { COMBINED_MENU, MENU, NAV, sidebarItems } from "./riso/nav";
 
