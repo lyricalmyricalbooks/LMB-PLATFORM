@@ -43,7 +43,8 @@ import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdenti
 import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
 import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
-import { DEFAULT_STOCKROOM_PAGE, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+import { AllSales } from "./AllSales";
 import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
@@ -83,7 +84,7 @@ function readBootRoute() {
   if (studio) return { tab: "settings", settingsTab: "designer", studio };
   const route = routeFromHash(hash);
   // `#stockroom/…` belongs to the combined admin only (shop + stockroom plan).
-  const usable = route && (route.tab !== STOCKROOM_TAB || COMBINED);
+  const usable = route && ((route.tab !== STOCKROOM_TAB && route.tab !== SALES_TAB) || COMBINED);
   return { ...(usable ? route : { tab: "overview" }), studio: null as StudioLocation | null };
 }
 
@@ -169,7 +170,7 @@ export function Dashboard() {
         return;
       }
       const route = routeFromHash(hash);
-      if (!route || (route.tab === STOCKROOM_TAB && !COMBINED)) return;
+      if (!route || ((route.tab === STOCKROOM_TAB || route.tab === SALES_TAB) && !COMBINED)) return;
       setShowEditor(false);
       setActiveTab(route.tab);
       if (route.settingsTab) setSettingsTab(route.settingsTab);
@@ -473,6 +474,7 @@ export function Dashboard() {
   const pageTitle = isSettingsPage
     ? NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === settingsChild)?.label || "Settings"
     : activeTab === STOCKROOM_TAB ? stockroomPage(subTab)?.label ?? "Stockroom"
+    : activeTab === SALES_TAB ? "All sales"
     : w((PAGE_COPY[activeTab] || PAGE_COPY.overview).title);
   useEffect(() => {
     const previous = document.title;
@@ -610,7 +612,8 @@ export function Dashboard() {
   };
 
   const stockroomCopy = onStockroomPage ? stockroomPage(stockroomPageId) : undefined;
-  const pageCopy = stockroomCopy ? { title: stockroomCopy.label, description: stockroomCopy.description } : PAGE_COPY[activeTab] || PAGE_COPY.overview;
+  const ownCopy = stockroomCopy || (COMBINED ? COMBINED_PAGES.find((p) => p.id === activeTab) : undefined);
+  const pageCopy = ownCopy ? { title: ownCopy.label, description: ownCopy.description } : PAGE_COPY[activeTab] || PAGE_COPY.overview;
   const copy = { ...pageCopy, title: w(pageCopy.title), description: w(pageCopy.description) };
   const childLabel = NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === navChild)?.label;
   const trail: Array<{ label: string; onClick?: () => void }> = [{ label: "Admin", onClick: () => goTo("overview") }];
@@ -648,6 +651,7 @@ export function Dashboard() {
 
   const destinations = [
     ...nav.filter((n) => !n.children).map((n) => ({ id: n.id, label: n.label, run: () => goTo(n.id) })),
+    ...(COMBINED ? COMBINED_PAGES.map((p) => ({ id: p.id, label: p.label, run: () => { void goTo(p.id); } })) : []),
     ...(COMBINED ? STOCKROOM_PAGES.map((p) => ({ id: `stockroom-${p.id}`, label: p.label, run: () => { void openStockroomPage(p.id); } })) : []),
     ...(NAV.find((n) => n.children)?.children || []).filter((c) => !hiddenPages.has(SETTINGS_ITEM_PREFIX + c.id)).map((c) => ({
       id: `settings-${c.id}`, label: `Settings · ${c.label}`,
@@ -656,7 +660,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing"));
+  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -671,6 +675,7 @@ export function Dashboard() {
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
       // The stockroom's pages show in StockroomFrame below, kept open between visits.
       case STOCKROOM_TAB: return null;
+      case SALES_TAB: return COMBINED ? <AllSales onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} /> : null;
       case "orders":
         // Inbox-style desk: list + the full order page (all Stripe sync/refund/label actions) side by side.
         return <OrdersDesk selectedId={selectedOrder?.id || null} onSelect={(id) => setSelectedOrder(id ? { id } : null)} />;
