@@ -62,9 +62,20 @@ export function guideSteps(press: SetupPress): GuideStep[] {
     ...(website ? [{ id: "look", title: "Choose your website's look", done: !!press.look, page: DESIGN_PAGE, action: "Choose a look" }] : []),
     // Written in book words; the guide shows them in the shop's own (sells.ts).
     { id: "books", title: "Bring your books over from your old shop", done: !!press.stagedImport, page: IMPORT_PAGE, action: "Bring a file", optional: true },
-    { id: "open", title: "Open your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Open my shop" },
+    // "Create", not "open": the shop is made private, and the press opens it to shoppers from its own admin later.
+    { id: "open", title: "Create your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Create my shop" },
   ];
 }
+
+/** The step to do next: the first one not done that isn't optional, else the first one not done at all. */
+export function nextGuideStep(steps: GuideStep[]): GuideStep | null {
+  const open = steps.filter((s) => !s.done && !s.locked);
+  return open.find((s) => !s.optional) ?? open[0] ?? null;
+}
+
+/** Everything the shop needs is in place: only Create your shop (and any optional step) is left. */
+export const readyToCreate = (steps: GuideStep[]): boolean =>
+  steps.every((s) => s.done || s.optional || s.id === "open") && !steps.find((s) => s.id === "open")?.done;
 
 /** "2 of 5 done", counting only the steps that can be done in setup. */
 export function guideProgress(steps: GuideStep[]): { done: number; total: number } {

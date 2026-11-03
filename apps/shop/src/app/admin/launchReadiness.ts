@@ -1,6 +1,7 @@
 import { summarizeShipping } from "./shippingHealth";
 import { paymentHealth } from "./paymentHealth";
 import { isRealPaidOrder } from "./overview/overviewInsights";
+import { practiced } from "./firstWeek";
 import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
 import { platformCardsProvider } from "../../lib/shopProfile";
 import { accountConnected, CONTINUE_WITH_STRIPE, needsLine, paymentsReady, providerName, type PlatformPaymentsAnswer } from "./platformPayments";
@@ -134,7 +135,12 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   // A "fallback" row only says Gmail missed and the backup sender was tried; the outcome is its own row.
   // "cancelled" = the owner stopped a queued email: it says nothing about the sending setup.
   const lastEmail = (emailLog || []).find(e => e?.status !== "fallback" && e?.status !== "cancelled");
-  items.push(!lastEmail
+  const emailWorks = lastEmail && lastEmail.status !== "failed" && lastEmail.status !== "queued" && String(lastEmail.from || "").toLowerCase() !== "onboarding@resend.dev";
+  // A shop run by Colophon sends through the platform from day one: nothing for the press to set up or verify, so the
+  // check turns green once an email has gone out, and a practice order is how the first one goes.
+  if (platformCards && !lastEmail) items.push({ id: "email", label: "No emails sent yet", detail: "Your practice order sends you a receipt, so you see exactly what your customers will get.", status: "warn", tab: "payments", action: "Open Payments" });
+  else if (platformCards && emailWorks) items.push({ id: "email", label: "Emails are going out", detail: "Receipts and order emails are sent from your shop. Check one arrived to see how it looks.", status: "ok", tab: "notifications", action: "Open Email sender" });
+  else items.push(!lastEmail
     ? { id: "email", label: "No emails sent yet", detail: "Send a test from Settings › Email sender, then verify receipt in the destination inbox.", status: "warn", tab: "notifications", action: "Open Email sender" }
     : lastEmail.status === "failed" || lastEmail.status === "queued"
       ? { id: "email", label: lastEmail.status === "queued" ? "The last email could not be sent and is waiting to retry" : "The last email failed to send", detail: String(lastEmail.error || "See Recent deliveries for the reason."), status: "block", tab: "notifications", action: "Open Email sender" }
@@ -143,8 +149,12 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
         ? { id: "email", label: "Emails only reach you, not customers", detail: "The last email went out from a test address, which only delivers to your own inbox. Finish setting up your email sender (Settings › Email sender) so customers receive your emails.", status: "block", tab: "notifications", action: "Open Email sender" }
       : { id: "email", label: "Email accepted; inbox delivery unverified", detail: "The provider accepted the latest message. Check the destination inbox and provider delivery events; acceptance does not prove delivery.", status: "warn", tab: "notifications", action: "Open Email sender" });
 
-  // End-to-end proof
-  items.push((orders || []).some(isRealPaidOrder)
+  // End-to-end proof. On a Colophon shop a practice order (plan 7.6) proves checkout without moving money, so it counts.
+  const realSale = (orders || []).some(isRealPaidOrder);
+  if (platformCards) items.push(realSale || (orders || []).some(practiced)
+    ? { id: "first-sale", label: "Checkout works", detail: realSale ? "A real order has gone through, from the bag to the receipt." : "A practice order went through, from the bag to the receipt. No money moved.", status: "ok", tab: "orders", action: "Open Orders" }
+    : { id: "first-sale", label: "Try a practice order", detail: "While your shop is private, press Try a practice order in Payments and buy one item with the practice card. No money moves.", status: "warn", tab: "payments", action: "Open Payments" });
+  else items.push(realSale
     ? { id: "first-sale", label: "A real paid order is recorded", detail: "The order is marked paid. Check the payment, the receipt, any refund and the packing separately to confirm the full flow.", status: "warn", tab: "orders", action: "Open Orders" }
     : { id: "first-sale", label: "No real paid order yet", detail: "Place one small live order (then refund it) to prove checkout end to end.", status: "warn", tab: "orders", action: "Open Orders" });
 

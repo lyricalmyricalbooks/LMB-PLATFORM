@@ -51,7 +51,7 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
           </ul>
         </section>
       ) : (
-        <StatusBadge tone="success">Everything the check needs is in place</StatusBadge>
+        <StatusBadge tone="success">Everything you need to start selling is in place</StatusBadge>
       )}
 
       <section aria-label="Practice order" style={{ marginTop: 18 }}>
@@ -69,6 +69,11 @@ export function FinalCheckStage({ readiness, onOpen, onOpenShop, onDone, onFinis
           : <PrimaryButton disabled>Open my shop</PrimaryButton>}
         <SecondaryButton disabled={busy} onClick={onFinishLater}>Finish later</SecondaryButton>
       </div>
+      <p className="rp-hint" style={{ margin: "8px 0 0" }}>
+        {blockers.length > 0
+          ? `${blockers.length === 1 ? "Fix the one thing above" : `Fix the ${blockers.length} things above`}, then open your shop. Everything else can wait.`
+          : "Shoppers can buy as soon as you press it. You can close the shop again any time."}
+      </p>
     </SectionCard>
   );
 }

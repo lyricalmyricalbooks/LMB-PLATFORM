@@ -49,12 +49,12 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(el.textContent).toContain("Bring your books over from your old shop · optional");
   });
 
-  it("a locked page says it opens with the shop, offers Open my shop, and writes nothing", async () => {
+  it("a locked page says it comes with the shop, offers Create my shop, and writes nothing", async () => {
     const d = door();
     const el = await mount(d, "#orders");
     expect(el.querySelector("h1")?.textContent).toBe("Orders");
-    expect(el.textContent).toContain("Opens with your shop");
-    const button = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Open my shop") as HTMLButtonElement;
+    expect(el.textContent).toContain("Comes with your shop");
+    const button = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Create my shop") as HTMLButtonElement;
     act(() => button.click());
     await flush();
     expect(el.querySelector("h1")?.textContent).toBe("Plan");
@@ -163,11 +163,11 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(d.keepImport).not.toHaveBeenCalled();
   });
 
-  describe("Open my shop (code plan 18.8)", () => {
-    const openButton = (el: HTMLElement) => [...el.querySelectorAll("main button")].find((b) => b.textContent === "Open my shop") as HTMLButtonElement;
+  describe("Create my shop (code plan 18.8)", () => {
+    const openButton = (el: HTMLElement) => [...el.querySelectorAll("main button")].find((b) => b.textContent === "Create my shop") as HTMLButtonElement;
     const terms = (el: HTMLElement) => el.querySelector("main input[type=checkbox]") as HTMLInputElement;
 
-    it("opens only once the terms are ticked, with the chosen plan and today's terms, then says the shop is being made", async () => {
+    it("creates only once the terms are ticked, with the chosen plan and today's terms, then shows the shop being made", async () => {
       const d = door();
       const el = await mount(d, "#settings/plan", { ...PRESS, country: "CA" });
       expect(openButton(el).disabled).toBe(true);
@@ -177,18 +177,22 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       await flush();
       expect(d.openShop).toHaveBeenCalledWith("press-moth", { plan: "both", termsVersion: "v1" });
       expect(el.textContent).toContain("Your shop is being made");
-      expect(el.textContent).toContain("your website and your stockroom");
+      expect(el.textContent).toContain("Making your website and your stockroom");
+      expect(el.textContent).toContain("To owner@example.com");
+      expect(el.textContent).toContain("Then open it to shoppers");
       expect(openButton(el)).toBeUndefined();
       // Nothing left to press in the top bar either.
-      expect([...el.querySelectorAll("header button")].some((b) => b.getAttribute("aria-label") === "Open my shop")).toBe(false);
+      expect([...el.querySelectorAll("header button")].some((b) => b.getAttribute("aria-label") === "Create my shop")).toBe(false);
     });
 
-    it("asks for the press's name and country first, and points at General", async () => {
+    it("marks the press's missing country as needed, and points at General", async () => {
       const el = await mount(door(), "#settings/plan");
       act(() => terms(el).click());
       expect(openButton(el).disabled).toBe(true);
-      expect(el.textContent).toContain("Add your press's name and country first.");
-      const go = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Go to General") as HTMLButtonElement;
+      expect(el.textContent).toContain("Your press · needed");
+      expect(el.textContent).toContain("Add your country.");
+      expect(el.textContent).toContain("Fill in what's marked above first.");
+      const go = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Add details") as HTMLButtonElement;
       act(() => go.click());
       await flush();
       expect(el.querySelector("h1")?.textContent).toBe("General");
@@ -230,6 +234,44 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       act(() => openButton(el).click());
       await flush();
       expect(el.textContent).toContain("You're next in line.");
+    });
+
+    it("shows what goes into the shop, the price and what happens next before anything is created", async () => {
+      const el = await mount(door(), "#settings/plan", { ...PRESS, country: "CA", look: "", stagedImport: { name: "old-shop.csv", size: 9, rows: 42, at: "2026-11-03T09:00:00Z" } });
+      const text = el.textContent!;
+      expect(text).toContain("Shop and stockroom · $39.00 a month");
+      expect(text).toContain("Moth Press · Books · Canada");
+      expect(text).toContain("Not chosen yet.");
+      expect(text).toContain("42 books from old-shop.csv");
+      expect(text).toContain("Nothing is charged today. Your first shop is free for 14 days, then $39.00 a month.");
+      expect(text).toContain("Your website starts private.");
+      expect(text).toContain("Tick the terms to create your shop.");
+    });
+
+    it("says when the free days end once the plan has started", async () => {
+      const d = door();
+      (d.openShop as any).mockResolvedValueOnce({ press: { ...PRESS, country: "CA", status: "opening" }, shop: { status: "queued", trialEnd: "2026-11-17T16:00:00Z" } });
+      const el = await mount(d, "#settings/plan", { ...PRESS, country: "CA" });
+      act(() => terms(el).click());
+      act(() => openButton(el).click());
+      await flush();
+      expect(el.textContent).toContain("It's free until 17 November.");
+    });
+  });
+
+  describe("the setup guide's next step", () => {
+    it("stands out with its reason and the page's main button", async () => {
+      const el = await mount(door(), "", { ...PRESS, plan: "both" });
+      const next = el.querySelector('li[aria-current="step"]')!;
+      expect(next.textContent).toContain("Tell us about your press");
+      expect(next.textContent).toContain("set your shop's words, money and taxes");
+      expect(next.querySelector(".rp-btn-primary")?.textContent).toBe("Add details");
+    });
+
+    it("says all is set once only creating the shop is left", async () => {
+      const el = await mount(door(), "", { ...PRESS, country: "CA", look: "press-riso" });
+      expect(el.textContent).toContain("All set. Create your shop when you're ready.");
+      expect(el.querySelector('li[aria-current="step"]')?.textContent).toContain("Create your shop");
     });
   });
 });

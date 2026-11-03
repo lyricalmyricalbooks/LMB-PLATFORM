@@ -1,7 +1,7 @@
 // Setup mode (code plan 18.6): the real admin a press will keep, before its shop exists. The same Riso Press shell and
-// menu; Home is the setup guide, and Books (bring a product file over, 18.7), Design, Settings › General, Settings › Plan (with Open my shop, 18.8)
+// menu; Home is the setup guide, and Books (bring a product file over, 18.7), Design, Settings › General, Settings › Plan (with Create my shop, 18.8)
 // and Help work. Every other page says
-// it opens with the shop. Everything saves to the press's setup record through the platform's door (door.ts); nothing
+// it comes with the shop. Everything saves to the press's setup record through the platform's door (door.ts); nothing
 // here reads or writes a shop database, because there is none until the press opens its shop.
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Check, Circle, HelpCircle, Lock, LogOut, Menu, Store } from "lucide-react";
@@ -15,9 +15,11 @@ import { THEME_LIBRARY } from "../app/admin/studio/themeLibrary";
 import { ShopWordsContext, useShopWords } from "../app/admin/shopWords";
 import { adminWordsFor } from "../app/admin/sells";
 import { ImportPage } from "./ImportPage";
-import type { OpenedShop, PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
+import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
+import { CreateShopCard, type CreateShop } from "./CreateShop";
+import type { CreateNames } from "./launchWords";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, guideProgress, guideSteps, pageFromHash, setupLocked, setupMenu,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, guideProgress, guideSteps, nextGuideStep, pageFromHash, readyToCreate, setupLocked, setupMenu,
   setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
@@ -78,6 +80,11 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
     setPage(next);
     document.getElementById("rp-main")?.focus();
   };
+  // Create my shop (top bar, locked pages, the guide's last step) lands on the review, not the top of Plan.
+  const openCreate = () => {
+    open(PLAN_PAGE);
+    requestAnimationFrame(() => document.getElementById("create-shop")?.scrollIntoView({ block: "start" }));
+  };
   const save = async (change: SetupChange) => {
     const saved = await door.save(press.pressId, change);
     setPress(saved);
@@ -86,14 +93,15 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
 
   const pressName = press.pressName || "Your press";
   let content;
-  if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} onOpenShop={() => open(PLAN_PAGE)} />;
-  else if (page === HOME_PAGE) content = <SetupGuide press={press} onOpen={open} />;
+  if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} onOpenShop={openCreate} />;
+  else if (page === HOME_PAGE) content = <SetupGuide press={press} onOpen={open} onCreate={openCreate} />;
   else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
   else if (page === PLAN_PAGE) content = (
     <PlanPage press={press} plans={plans} failed={plansFailed} onRetry={loadPlans} save={save} termsUrl={termsUrl}
-      openShop={(choice) => door.openShop(press.pressId, choice)} onOpened={setPress} onOpen={open} />
+      names={{ countries: lists.countries, sells: lists.sells, lookName: themeName(press.look) }} email={email}
+      createShop={(choice) => door.openShop(press.pressId, choice)} onCreated={setPress} onOpen={open} />
   );
   else content = <HelpPage helpUrl={helpUrl} />;
 
@@ -135,10 +143,10 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
             <a className="rp-topbar-wordmark" href={`#${HOME_PAGE}`} onClick={(e) => { e.preventDefault(); open(HOME_PAGE); }}>{pressName}</a>
             <div className="rp-topbar-actions">
               {/* On a phone the button keeps only its icon, as the admin's top-bar buttons do. Once the shop is
-                  opening there is nothing left to press. */}
+                  being made there is nothing left to press. */}
               {press.status === "setup" && (
-                <PrimaryButton size="sm" aria-label="Open my shop" icon={<Store size={16} aria-hidden />} onClick={() => open(PLAN_PAGE)}>
-                  <span className="rp-btn-label">Open my shop</span>
+                <PrimaryButton size="sm" aria-label="Create my shop" icon={<Store size={16} aria-hidden />} onClick={openCreate}>
+                  <span className="rp-btn-label">Create my shop</span>
                 </PrimaryButton>
               )}
             </div>
@@ -151,50 +159,75 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   );
 }
 
-/** A page that needs the shop: says so in plain words and points at Open my shop. Writes nothing. */
+/** A page that needs the shop: says so in plain words and points at Create my shop. Writes nothing. */
 export function OpensWithShop({ page, onOpenShop }: { page: string; onOpenShop: () => void }) {
   return (
     <>
       <PageHeader title={page} />
       <EmptyState
         icon={<Lock size={28} aria-hidden />}
-        title="Opens with your shop"
-        description={`${page} starts working the moment your shop opens. Finish setting up, then open your shop. Nothing is charged before then.`}
-        action={<PrimaryButton onClick={onOpenShop}>Open my shop</PrimaryButton>}
+        title="Comes with your shop"
+        description={`${page} starts working as soon as your shop is made. Finish setting up, then create your shop. Nothing is charged before then.`}
+        action={<PrimaryButton onClick={onOpenShop}>Create my shop</PrimaryButton>}
       />
     </>
   );
 }
 
-function SetupGuide({ press, onOpen }: { press: SetupPress; onOpen: (page: string) => void }) {
+/** Why each step matters, shown on the step to do next. Written in book words; the guide shows the shop's own. */
+const STEP_WHY: Record<string, string> = {
+  plan: "Your website, your stockroom or both. You can change it until your shop is made.",
+  details: "Your press's name, what you sell and your country set your shop's words, money and taxes.",
+  look: "Every look keeps your words and books, and you can change everything in Design later.",
+  books: "Bring your old shop's product file and your books come in as drafts for you to check.",
+  open: "Check what goes in, then we make your shop. It starts private, so only you can see it.",
+};
+
+function SetupGuide({ press, onOpen, onCreate }: { press: SetupPress; onOpen: (page: string) => void; onCreate: () => void }) {
   const w = useShopWords();
   const steps = guideSteps(press);
   const { done, total } = guideProgress(steps);
+  const next = nextGuideStep(steps);
+  const ready = readyToCreate(steps);
+  // The last step goes straight to the review on Plan; every other step opens its page.
+  const go = (step: { id: string; page: string }) => (step.id === "open" ? onCreate() : onOpen(step.page));
   return (
     <>
       <PageHeader title={press.pressName ? `Welcome, ${press.pressName}` : "Welcome"}
-        description="Set up your shop here. Nothing is charged, and your free days don't start, until you open it." />
-      <SectionCard title="Setup guide" description={`${done} of ${total} done`} collapsible={false}>
+        description="Set up your shop here. Nothing is charged, and your free days don't start, until you create it." />
+      <SectionCard title="Setup guide" description={ready ? "All set. Create your shop when you're ready." : `${done} of ${total} done`} collapsible={false}>
         <div role="progressbar" aria-label="Setup guide" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}
           style={{ height: 6, background: "var(--rp-divider)", marginBottom: 16 }}>
           <div style={{ width: `${(done / total) * 100}%`, height: "100%", background: "var(--rp-primary)" }} />
         </div>
         <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
-          {steps.map((step) => (
-            <li key={step.id} style={{ display: "grid", gridTemplateColumns: "20px minmax(0, 1fr) auto", alignItems: "center", gap: 12, padding: "12px 0", borderTop: "1px solid var(--rp-divider)" }}>
-              <span aria-hidden style={{ display: "inline-flex", color: step.done ? "var(--rp-success)" : "var(--rp-text-subtle)" }}>
-                {step.done ? <Check size={20} /> : step.locked ? <Lock size={18} /> : <Circle size={18} />}
-              </span>
-              <span style={{ minWidth: 0 }}>
-                <strong style={{ color: step.done ? "var(--rp-text-muted)" : undefined }}>{w(step.title)}</strong>
-                {step.optional && !step.done && <span className="rp-hint"> · optional</span>}
-                <span className="rp-sr-only">{step.done ? " (done)" : step.locked ? " (opens with your shop)" : ""}</span>
-              </span>
-              {step.locked
-                ? <span className="rp-hint" style={{ textAlign: "right", maxWidth: 120 }}>{step.action}</span>
-                : <GhostButton size="sm" onClick={() => onOpen(step.page)}>{step.done ? "Change" : step.action}</GhostButton>}
-            </li>
-          ))}
+          {steps.map((step) => {
+            // The next step stands out: a tinted row, a line on why it matters and the page's one main button.
+            const isNext = step.id === next?.id;
+            return (
+              <li key={step.id} aria-current={isNext ? "step" : undefined}
+                style={{ display: "grid", gridTemplateColumns: "20px minmax(0, 1fr) auto", alignItems: isNext ? "start" : "center", gap: 12, padding: isNext ? "14px 12px" : "12px 0",
+                  margin: isNext ? "0 -12px" : 0, borderTop: "1px solid var(--rp-divider)", background: isNext ? "var(--rp-primary-tint)" : undefined }}>
+                <span aria-hidden style={{ display: "inline-flex", color: step.done ? "var(--rp-success)" : isNext ? "var(--rp-text)" : "var(--rp-text-subtle)" }}>
+                  {step.done ? <Check size={20} /> : step.locked ? <Lock size={18} /> : <Circle size={18} />}
+                </span>
+                <span style={{ minWidth: 0, display: "grid", gap: 2 }}>
+                  <span>
+                    <strong style={{ color: step.done ? "var(--rp-text-muted)" : undefined }}>{w(step.title)}</strong>
+                    {step.optional && !step.done && <span className="rp-hint"> · optional</span>}
+                    <span className="rp-sr-only">{step.done ? " (done)" : step.locked ? " (comes with your shop)" : isNext ? " (next)" : ""}</span>
+                  </span>
+                  {isNext && STEP_WHY[step.id] && <span className="rp-hint">{w(STEP_WHY[step.id])}</span>}
+                  {/* Under its reason, so a phone keeps the words full width. */}
+                  {isNext && <span style={{ marginTop: 8 }}><PrimaryButton size="sm" onClick={() => go(step)}>{step.action}</PrimaryButton></span>}
+                </span>
+                {step.locked
+                  ? <span className="rp-hint" style={{ textAlign: "right", maxWidth: 120 }}>{step.action}</span>
+                  : isNext ? <span />
+                    : <GhostButton size="sm" onClick={() => go(step)}>{step.done ? "Change" : step.action}</GhostButton>}
+              </li>
+            );
+          })}
         </ol>
       </SectionCard>
     </>
@@ -288,14 +321,9 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
   );
 }
 
-type OpenShop = (choice: { plan: SetupPress["plan"]; termsVersion: string }) => Promise<OpenedShop>;
-
-/** What opening makes, for each plan. */
-const PLAN_MAKES: Record<string, string> = { both: "your website and your stockroom", shop: "your website", stockroom: "your stockroom" };
-
-function PlanPage({ press, plans, failed, onRetry, save, termsUrl, openShop, onOpened, onOpen }: {
+function PlanPage({ press, plans, failed, onRetry, save, termsUrl, names, email, createShop, onCreated, onOpen }: {
   press: SetupPress; plans: PlanList | null; failed: boolean; onRetry: () => void; save: (c: SetupChange) => Promise<SetupPress>;
-  termsUrl: string; openShop: OpenShop; onOpened: (press: SetupPress) => void; onOpen: (page: string) => void;
+  termsUrl: string; names: CreateNames; email: string; createShop: CreateShop; onCreated: (press: SetupPress) => void; onOpen: (page: string) => void;
 }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -309,12 +337,12 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, openShop, onO
   // The trial's length comes only from the platform; with none (prices didn't load, or no trial) no days are promised.
   // "Your first shop": billing gives one trial per account, so a second press gets none.
   const trial = plans?.trialDays ?? 0;
-  const trialWords = trial > 0 ? `Your first shop is free for ${trial} days once it opens, then monthly` : "Monthly once your shop opens";
+  const trialWords = trial > 0 ? `Your first shop is free for ${trial} days once it's made, then monthly` : "Monthly once your shop is made";
   return (
     <>
-      <PageHeader title="Plan" description="What you're setting up, and opening your shop." />
-      <SectionCard title="Your plan" description={inSetup ? "Change it any time before your shop opens." : "You can change it in Settings › Plan once your shop is ready."} collapsible={false}>
-        <div role="radiogroup" aria-label="Your plan" style={{ display: "grid", gap: 8 }}>
+      <PageHeader title="Plan" description="What you're setting up, and creating your shop." />
+      <SectionCard title="Your plan" description={inSetup ? "Change it any time before your shop is made." : "You can change it in Settings › Plan once your shop is ready."} collapsible={false}>
+        <div id="plan-choice" role="radiogroup" aria-label="Your plan" style={{ display: "grid", gap: 8 }}>
           {PLAN_ORDER.map((id) => {
             const offer = byId[id];
             const on = press.plan === id;
@@ -350,79 +378,15 @@ function PlanPage({ press, plans, failed, onRetry, save, termsUrl, openShop, onO
           </p>
         )}
       </SectionCard>
-      <OpenShopCard press={press} plans={plans} termsUrl={termsUrl} openShop={openShop} onOpened={onOpened} onOpen={onOpen} />
+      <CreateShopCard press={press} plans={plans} names={names} email={email} termsUrl={termsUrl} createShop={createShop} onCreated={onCreated} onOpen={onOpen} />
     </>
-  );
-}
-
-/**
- * Open my shop (18.8): one tick for the terms and one button. The platform starts the plan and queues the shop; a
- * refusal comes back in plain words and the press stays in setup with everything kept.
- */
-function OpenShopCard({ press, plans, termsUrl, openShop, onOpened, onOpen }: {
-  press: SetupPress; plans: PlanList | null; termsUrl: string; openShop: OpenShop;
-  onOpened: (press: SetupPress) => void; onOpen: (page: string) => void;
-}) {
-  const [agreed, setAgreed] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [waiting, setWaiting] = useState("");
-  const makes = PLAN_MAKES[press.plan] ?? "your shop";
-
-  if (press.status !== "setup") {
-    return (
-      <SectionCard title="Your shop is being made" collapsible={false}>
-        <div role="status" style={{ display: "grid", gap: 8 }}>
-          <p style={{ margin: 0 }}>{press.shopMessage || waiting || `We're making ${makes} now, with everything you set up here. We'll email you as soon as it's ready.`}</p>
-          <p className="rp-hint" style={{ margin: 0 }}>You can close this page. Nothing you set up is lost.</p>
-        </div>
-      </SectionCard>
-    );
-  }
-
-  const missing = !press.pressName || !press.country;
-  const ready = !!press.plan && !missing && agreed && !!plans?.termsVersion;
-  const go = async () => {
-    if (!ready || busy || !plans?.termsVersion) return;
-    setBusy(true); setError("");
-    try {
-      const opened = await openShop({ plan: press.plan, termsVersion: plans.termsVersion });
-      if (opened.shop?.message) setWaiting(opened.shop.message);
-      onOpened(opened.press);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Your shop didn't open. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <SectionCard title="Open my shop" collapsible={false} description={`We make ${makes} with everything you set up here. It takes a few minutes.`}>
-      <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
-        {missing && (
-          <p className="rp-hint" style={{ margin: 0 }}>
-            Add your press's name and country first.{" "}
-            <button type="button" className="rp-link" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textDecoration: "underline", color: "inherit", font: "inherit" }} onClick={() => onOpen(GENERAL_PAGE)}>Go to General</button>
-          </p>
-        )}
-        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", minHeight: 44, cursor: "pointer" }}>
-          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ width: 20, height: 20, marginTop: 2, flex: "none" }} />
-          <span>I agree to the <a href={termsUrl} target="_blank" rel="noreferrer">terms of service</a>.</span>
-        </label>
-        {error && <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>{error}</p>}
-        {/* Asked to wait (its country hasn't opened yet): still in setup, and it can press again later. */}
-        {waiting && <p role="status" style={{ margin: 0 }}>{waiting}</p>}
-        <div>
-          <PrimaryButton icon={<Store size={16} aria-hidden />} busy={busy} disabled={!ready || busy} onClick={() => void go()}>Open my shop</PrimaryButton>
-        </div>
-      </div>
-    </SectionCard>
   );
 }
 
 function HelpPage({ helpUrl }: { helpUrl: string }) {
   return (
     <>
-      <PageHeader title="Help" description="Answers about setting up and opening your shop." />
+      <PageHeader title="Help" description="Answers about setting up and creating your shop." />
       <SectionCard title="Help centre" collapsible={false}>
         <p style={{ marginTop: 0 }}>Plain answers on plans, payments, moving your books in, and your website.</p>
         <a className="rp-btn rp-btn-secondary" href={helpUrl}>Open the help centre</a>

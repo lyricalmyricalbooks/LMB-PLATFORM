@@ -417,7 +417,7 @@ export function Dashboard() {
   async function toggleUnderConstruction(on: boolean): Promise<boolean> {
     const ok = await confirm(on
       ? { title: "Close the shop for now?", message: "Shoppers will see the “under construction” wall instead of your books until you turn it off. You can keep working in the admin.", confirmLabel: "Show the wall" }
-      : { title: "Open the shop?", message: "The “under construction” wall comes down and shoppers can browse and buy again straight away.", confirmLabel: "Open the shop" });
+      : { title: "Open your shop to shoppers?", message: "The “under construction” page comes down, and anyone with your shop's address can browse and buy straight away. You can close it again any time in Settings › General › Store status.", confirmLabel: "Open my shop" });
     if (!ok) return false;
     setUcSaving(true);
     try {

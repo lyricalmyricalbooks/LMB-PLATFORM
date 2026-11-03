@@ -127,6 +127,11 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     await act(async () => { button("Open your shop")!.click(); });
     await flush();
     expect(onSetWall).toHaveBeenCalledWith(false);
+    // The moment it opens: one card says so, with the shop's address to visit and share.
+    expect(text()).toContain("Your shop is open");
+    expect(button("View your shop")).toBeDefined();
+    act(() => button("Done")!.click());
+    expect(text()).not.toContain("Your shop is open");
   });
 
   it("a read that fails offers Try again", async () => {

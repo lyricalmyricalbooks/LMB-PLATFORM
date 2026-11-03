@@ -182,6 +182,19 @@ describe("launchReadiness on a shop whose cards go through Colophon (plan 2.10)"
     expect(done.detail).toBe("Payouts go to your own Stripe account.");
   });
 
+  it("can turn fully green: sent emails and a practice order count, so the press isn't left with a check it can never pass", () => {
+    const ready = { ...base, platformCards: "stripe" as const, platformAccount: { provider: "stripe" as const, detailsSubmitted: true, chargesEnabled: true, payoutsEnabled: true } };
+    const before = launchReadiness({ ...ready, emailLog: [] });
+    expect(before.find(i => i.id === "email")).toMatchObject({ status: "warn", label: "No emails sent yet", tab: "payments" });
+    expect(before.find(i => i.id === "first-sale")).toMatchObject({ status: "warn", label: "Try a practice order", tab: "payments" });
+    const practised = launchReadiness({ ...ready, orders: [{ isTest: true, paymentStatus: "refunded" }] });
+    expect(practised.find(i => i.id === "email")).toMatchObject({ status: "ok", label: "Emails are going out" });
+    expect(practised.find(i => i.id === "first-sale")).toMatchObject({ status: "ok", label: "Checkout works" });
+    expect(practised.find(i => i.id === "first-sale")!.detail).toMatch(/practice order/);
+    // A failed email still blocks, as on any shop.
+    expect(status(launchReadiness({ ...ready, emailLog: [{ status: "failed", error: "Refused" }] }), "email")).toBe("block");
+  });
+
   it("a shop on its own keys is unchanged", () => {
     const own = launchReadiness({ ...base, settings: goodSettings, platformCards: null });
     expect(status(own, "card-account")).toBeUndefined();

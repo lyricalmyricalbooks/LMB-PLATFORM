@@ -128,7 +128,7 @@ export interface FirstWeekFacts {
 }
 
 /** A practice order (plan 7.6) or, on a shop with its own keys, a test-mode order that went through. */
-const practiced = (o: any) => o?.isTest === true && ["paid", "refunded"].includes(o?.paymentStatus);
+export const practiced = (o: any): boolean => o?.isTest === true && ["paid", "refunded"].includes(o?.paymentStatus);
 
 /** The shop is open: no under-construction wall and checkout not paused (Settings › General › Store status). */
 export const shopIsOpen = (settings: any) =>
