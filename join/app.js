@@ -1,4 +1,4 @@
-// The front door (code plan 18.4, docs/plans/1-front-door-v2.md "A simpler flow"): email, the six-digit code, three
+// The front door (code plan 18.4, the plan question added in 18.6, docs/plans/1-front-door-v2.md "A simpler flow"): email, the six-digit code, three
 // questions, then the admin. New and returning presses come in the same way. Plain browser JavaScript with no
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
@@ -11,8 +11,8 @@ const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signIn
 const auth = getAuth(initializeApp(PLATFORM_FIREBASE));
 const $ = (selector) => document.querySelector(selector);
 const status = $("#status");
-const QUESTIONS = ["name", "sells", "country"];
-const STEP_OF = { email: "email", code: "code", pick: "press", name: "press", sells: "press", country: "press", done: "press" };
+const QUESTIONS = ["plan", "name", "sells", "country"];
+const STEP_OF = { email: "email", code: "code", pick: "press", plan: "press", name: "press", sells: "press", country: "press", done: "press" };
 // A press whose shop is opening or open is run from its admin, reached from the account page.
 const ACCOUNT_PAGE = "../account/";
 const STATUS_WORDS = { setup: "Setting up", opening: "Opening", open: "Open", expired: "Setup ran out" };
@@ -158,11 +158,52 @@ function choice(name, value, title) {
   label.append(Object.assign(document.createElement("input"), { type: "radio", name, value }), Object.assign(document.createElement("strong"), { textContent: title }));
   return label;
 }
+// What each plan is, in a line. The names and prices come from the platform (GET /api/plans), so a price change there
+// shows here; until they load, or if they can't, the tiles show these names with no price.
+const PLAN_WORDS = {
+  shop: { name: "Shop", line: "Your website, to sell online" },
+  stockroom: { name: "Stockroom", line: "Track stock, sales and payouts from fairs and stores" },
+  both: { name: "Shop and stockroom", line: "Your website and your stock, kept in step", tag: "Recommended" },
+};
+const PLAN_ORDER = ["both", "shop", "stockroom"];
+let planNames = Object.fromEntries(PLAN_ORDER.map((id) => [id, PLAN_WORDS[id].name]));
+
+function planTiles(plans) {
+  const byId = Object.fromEntries((plans?.plans ?? []).map((p) => [p.plan, p]));
+  planNames = Object.fromEntries(PLAN_ORDER.map((id) => [id, byId[id]?.name || PLAN_WORDS[id].name]));
+  const checked = $("#plan-choices input:checked")?.value;
+  $("#plan-choices").replaceChildren(...PLAN_ORDER.map((id) => {
+    const label = choice("plan", id, planNames[id]);
+    label.append(Object.assign(document.createElement("span"), { textContent: PLAN_WORDS[id].line }));
+    if (PLAN_WORDS[id].tag) label.append(Object.assign(document.createElement("b"), { className: "fd-tag", textContent: PLAN_WORDS[id].tag }));
+    const plan = byId[id];
+    if (plan?.priceText) {
+      // With the founding offer, the usual price is shown struck through above the offer price.
+      const shown = Object.assign(document.createElement("span"), { className: "fd-price" });
+      if (plan.foundingPriceText) shown.append(Object.assign(document.createElement("s"), { textContent: plan.priceText }), plan.foundingPriceText);
+      else shown.append(plan.priceText);
+      shown.append(Object.assign(document.createElement("small"), { textContent: plan.foundingPriceText ? "a month, for life" : "a month" }));
+      label.append(shown);
+    }
+    return label;
+  }));
+  if (checked) $(`#plan-choices input[value="${checked}"]`).checked = true;
+  if (plans?.trialDays) {
+    const founding = plans.foundingOffer;
+    const offer = founding ? ` The first ${founding.presses} presses to pay keep ${founding.percentOff}% off for life.` : "";
+    $("#plan-terms").textContent = `Free for ${plans.trialDays} days once your shop opens, then monthly, plus tax. Nothing is charged before then.${offer}`;
+  }
+}
+planTiles(null);
+api("GET", "/plans").then(planTiles, () => {});
+
 $("#sells-choices").replaceChildren(...PUBLISHES.options.map((o) => choice("sells", o.id, o.label)));
 $("#country").replaceChildren(new Option("Choose your country", ""), ...Object.entries(COUNTRIES).map(([code, c]) => new Option(c.name, code)));
 
 function fillAnswers() {
-  const [nameForm, sellsForm, countryForm] = QUESTIONS.map((q) => $(`#view-${q} form`));
+  const [planForm, nameForm, sellsForm, countryForm] = QUESTIONS.map((q) => $(`#view-${q} form`));
+  // Nothing picked yet: start on both, the one most presses need.
+  for (const input of planForm.querySelectorAll("input[name=plan]")) input.checked = input.value === (press.plan || "both");
   nameForm.pressName.value = press.pressName ?? "";
   for (const input of sellsForm.querySelectorAll("input[name=sells]")) input.checked = input.value === press.sells;
   // Not answered yet: start from the country the browser says it is in, when it's one we serve.
@@ -179,7 +220,7 @@ function browserCountry() {
 
 const valueOf = (form) => {
   const key = form.dataset.question;
-  if (key === "sells") return form.querySelector("input[name=sells]:checked")?.value ?? "";
+  if (key === "sells" || key === "plan") return form.querySelector(`input[name=${key}]:checked`)?.value ?? "";
   return form.elements[key].value.trim();
 };
 
@@ -212,6 +253,7 @@ for (const back of document.querySelectorAll("[data-back]")) back.addEventListen
 function done({ focus = true } = {}) {
   const sells = PUBLISHES.options.find((o) => o.id === press.sells)?.label;
   $("#done-name").textContent = press.pressName || "your press";
+  $("#done-plan").textContent = planNames[press.plan] || "Not picked yet";
   $("#done-press").textContent = press.pressName || "Not named yet";
   $("#done-sells").textContent = sells || "Not said yet";
   $("#done-country").textContent = COUNTRIES[press.country]?.name || "Not said yet";
@@ -223,7 +265,7 @@ function done({ focus = true } = {}) {
   }
   show("done", { focus });
 }
-$("#done-change").addEventListener("click", () => { fillAnswers(); show("name"); });
+$("#done-change").addEventListener("click", () => { fillAnswers(); show("plan"); });
 $("#sign-out").addEventListener("click", async () => {
   await signOut(auth);
   press = null;
@@ -248,7 +290,7 @@ function carryOn(chosen) {
   fillAnswers();
   // A press already named, or whose setup ran out, shows where it stands; the questions are only for a new one.
   if (press.pressName || press.status !== "setup") done({ focus: signedInHere });
-  else show("name", { focus: signedInHere });
+  else show("plan", { focus: signedInHere });
 }
 
 function pick(presses) {

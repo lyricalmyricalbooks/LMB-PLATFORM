@@ -16,7 +16,7 @@ export const SIGNED_IN_VIEW = Object.freeze({
   "/account/": "#view-shops #shops > *",
   "/account/billing": "main",
   "/signup/": "#details-form",
-  "/join/": "#view-name",
+  "/join/": "#view-plan",
   "/waitlist/": "form",
   "/help/": "main",
   "/terms/": "main",
@@ -39,7 +39,7 @@ const viewFor = (path) => SIGNED_IN_VIEW[Object.keys(SIGNED_IN_VIEW).filter((key
 
 /**
  * The front door end to end (code plan 18.4), as a new person on a phone with nobody signed in: email, a wrong code
- * then the right one (read from the practice inbox), the three questions (one skipped), the saved summary, and the
+ * then the right one (read from the practice inbox), the four questions (one skipped), the saved summary, and the
  * same summary again after a reload. Returns the problems found.
  */
 async function checkFrontDoor(browser, walk, log) {
@@ -73,9 +73,15 @@ async function checkFrontDoor(browser, walk, log) {
       const code = walk.world.email.list().filter((m) => m.kind === "sign-in-code" && m.to === address).at(-1)?.data?.code;
       if (!code) throw new Error("no code email in the practice inbox");
       await page.fill("#code", code);
-      await visible("#view-name");
+      await visible("#view-plan");
     });
-    await step("the three questions", async () => {
+    await step("the four questions", async () => {
+      // Both is picked to start with, and each plan shows its price from the platform.
+      if (!(await page.locator("#plan-choices input[value=both]").isChecked())) throw new Error("both isn't picked to start with");
+      if ((await page.locator("#plan-choices .fd-price").count()) !== 3) throw new Error("the plans show no prices");
+      await page.click("#plan-choices label.choice:has(input[value=shop])");
+      await page.click("#view-plan button[type=submit]");
+      await visible("#view-name");
       await page.fill("#view-name input[name=pressName]", "Front Door Press");
       await page.click("#view-name button[type=submit]");
       await visible("#view-sells");
@@ -89,7 +95,7 @@ async function checkFrontDoor(browser, walk, log) {
       await page.reload();
       await visible("#view-done");
       const saved = (await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`))[0];
-      if (saved?.pressName !== "Front Door Press" || saved?.sells !== "zines" || saved?.country !== "") throw new Error(`saved ${JSON.stringify(saved)}`);
+      if (saved?.plan !== "shop" || saved?.pressName !== "Front Door Press" || saved?.sells !== "zines" || saved?.country !== "") throw new Error(`saved ${JSON.stringify(saved)}`);
     });
     await step("the picker for a second press, and an open shop going to the account page", async () => {
       const presses = walk.world.frontDoorStores.presses;
@@ -99,7 +105,7 @@ async function checkFrontDoor(browser, walk, log) {
       await visible("#view-pick");
       if ((await page.locator("#pick-list button").count()) !== 2) throw new Error("the picker doesn't show both presses");
       await page.locator("#pick-list button", { hasText: "Press not named yet" }).click();
-      await visible("#view-name");
+      await visible("#view-plan");
       await presses.update(first.pressId, (row) => ({ row: { ...row, status: "open" }, result: null }));
       await page.reload();
       await visible("#view-pick");

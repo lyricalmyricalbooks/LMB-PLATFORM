@@ -189,3 +189,16 @@ test("the welcome's two looks are saved and shown back; a badly formed look is r
   const row = w.stores.presses.rows.get(pressId);
   assert.deepEqual([row.look, row.adminLook], ["", "bento"]);
 });
+
+test("what the press wants to set up is saved as billing's plan id, and nothing else is taken", async () => {
+  const w = world();
+  const { pressId, plan } = (await w.ask("POST", "/api/press", {}, ADA)).body.press;
+  assert.equal(plan, "", "nothing is picked for the press");
+  for (const choice of ["shop", "stockroom", "both"]) {
+    assert.equal((await w.ask("POST", "/api/press/setup", { pressId, plan: choice }, ADA)).body.press.plan, choice);
+  }
+  for (const bad of ["gold", "Both", "apps", 3]) {
+    assert.equal((await w.ask("POST", "/api/press/setup", { pressId, plan: bad }, ADA)).status, 409, String(bad));
+  }
+  assert.equal(w.stores.presses.rows.get(pressId).plan, "both");
+});
