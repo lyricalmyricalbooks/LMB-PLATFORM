@@ -29,6 +29,7 @@ import {
   IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
+import { blockedMessage, blockersBeforeOpening } from "./launchCheck";
 import { WhatsNew } from "./WhatsNew";
 import { applyAdminLook, nextAdminLook, readAdminLook, type AdminLookId } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
@@ -414,7 +415,18 @@ export function Dashboard() {
   // Settings sections register their unsaved edits (settingsDirty.ts); the tab can't close on them silently.
   useBeforeUnloadWhenDirty();
   /** True when the owner confirmed and the change was saved; false when cancelled or the save failed. */
-  async function toggleUnderConstruction(on: boolean): Promise<boolean> {
+  async function toggleUnderConstruction(on: boolean, { checked = false }: { checked?: boolean } = {}): Promise<boolean> {
+    // Opening runs the same last check as the setup guide, unless the caller just ran it (the guide, the final check).
+    if (!on && !checked) {
+      setUcSaving(true);
+      const blockers = await blockersBeforeOpening();
+      setUcSaving(false);
+      if (blockers && blockers.length) {
+        const look = await confirm({ title: "Your shop isn't ready to sell yet", message: blockedMessage(blockers), confirmLabel: "Show me what's missing" });
+        if (look) void goTo("overview");
+        return false;
+      }
+    }
     const ok = await confirm(on
       ? { title: "Close the shop for now?", message: "Shoppers will see the “under construction” wall instead of your books until you turn it off. You can keep working in the admin.", confirmLabel: "Show the wall" }
       : { title: "Open your shop to shoppers?", message: "The “under construction” page comes down, and anyone with your shop's address can browse and buy straight away. You can close it again any time in Settings › General › Store status.", confirmLabel: "Open my shop" });
@@ -675,7 +687,7 @@ export function Dashboard() {
     switch (activeTab) {
       case "overview":
       case "analytics":
-        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} onSetWall={toggleUnderConstruction} />;
+        return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
       case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
