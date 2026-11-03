@@ -42,16 +42,18 @@ export const SETTINGS_ITEM_PREFIX = "settings/";
  * A page's id here is its module id, or `settings/<page>` for a Settings page.
  */
 export type Menu = { label: string; icon: NavEntry["icon"]; pages: string[] }[];
+// Every Settings page, in NAV's order. Both menus' Settings read it, so a page added to Settings (Billing, say) shows
+// in the combined admin too. Design has its own menu item ("Design", or "Online store" in the combined admin).
+const SETTINGS_PAGES = (NAV.find((n) => n.id === "settings")?.children || []).map((c) => SETTINGS_ITEM_PREFIX + c.id).filter((id) => id !== SETTINGS_ITEM_PREFIX + "designer");
 export const MENU: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
   { label: "Orders", icon: ShoppingCart, pages: ["orders", "customers", "discounts", "giftCards", "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews"] },
   { label: "Design", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
-  { label: "Settings", icon: Settings, pages: ["general", "shipping", "payments", "taxes", "notifications", "team", "bookkeeping", "plan", "billing"].map((id) => SETTINGS_ITEM_PREFIX + id) },
+  { label: "Settings", icon: Settings, pages: SETTINGS_PAGES },
 ];
 
 const S = (id: string) => STOCKROOM_ITEM_PREFIX + id;
-const SETTINGS_PAGES = ["general", "shipping", "payments", "taxes", "notifications", "team", "bookkeeping", "plan", "billing"].map((id) => SETTINGS_ITEM_PREFIX + id);
 
 /**
  * The combined admin's menu (shop + stockroom plan, admin/combined.ts; design in docs/combined-admin.md): the website's

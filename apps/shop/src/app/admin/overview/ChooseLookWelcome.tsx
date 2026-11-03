@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { ADMIN_LOOKS, applyAdminLook, readAdminLook, type AdminLookId } from "../riso/adminLook";
 import { Monitor, Smartphone } from "lucide-react";
-import { applyChosenLook, emailThemeFor, galleryThemes, lookPreview, pressNameOf, type LibraryTheme } from "../chooseLook";
-import { adminApi } from "../api";
+import { galleryThemes, lookPreview, pressNameOf, type LibraryTheme } from "../lookGallery";
 import type { WelcomeDone } from "../firstWeek";
 import { friendlyError } from "../studio/friendlyError";
 import { Dialog, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "../riso/components";
@@ -13,13 +12,21 @@ import { useShopWords } from "../shopWords";
  * Overview read it: undefined while it loads, null when it couldn't be read. `onDone` gets what to record once the
  * look is in the draft; the parent saves it (and puts the welcome away).
  */
-export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings }: {
+export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep }: {
   publishes?: string | null;
   /** The press's own books (ownBooks), shown with their covers and titles in each look's preview (plan 17.8). */
   books?: { title: string; photo: string }[];
   settings: any;
   onDone: (welcome: WelcomeDone) => Promise<void>;
   onRetrySettings?: () => void;
+  /** How the chosen look is put in place. The shop's admin puts it in Studio's draft and lets customer emails follow it
+   * (the default); setup mode, with no shop yet, passes one that does nothing and keeps the choice on the press's setup
+   * record through `onDone`. */
+  apply?: (theme: LibraryTheme, settings: any, publishes?: string | null) => Promise<void>;
+  /** The line under the title; the setup guide's step words by default. */
+  intro?: string;
+  /** When a look is already chosen: the way back that keeps it (in place of Skip, which would replace it). */
+  keep?: { label: string; onKeep: () => void };
 }) {
   const w = useShopWords();
   const { suggested, others } = galleryThemes(publishes);
@@ -34,13 +41,13 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     if (busy) return;
     setBusy(theme.id); setError("");
     try {
-      await applyChosenLook(theme, settings, publishes);
-      // Customer emails follow Market stall and Index rows. Best effort: the look is already saved, so a failure here changes nothing else.
-      try {
-        const current = String((await adminApi.getNotificationSettings())?.brand?.emailTheme || "");
-        const emailTheme = emailThemeFor(theme.id, current);
-        if (emailTheme && emailTheme !== current) await adminApi.setEmailTheme(emailTheme);
-      } catch { /* the email colours can still be set in Settings */ }
+      if (apply) await apply(theme, settings, publishes);
+      else {
+        // Loaded only when used, so setup mode never loads the shop's database code.
+        const shop = await import("../chooseLook");
+        await shop.applyChosenLook(theme, settings, publishes);
+        await shop.followEmailTheme(theme.id);
+      }
       await onDone({ theme: theme.id, at: new Date().toISOString(), adminLook, ...(skipped ? { skipped: true } : {}) });
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
@@ -48,7 +55,7 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     }
   };
 
-  const intro = "Step 3 of 8. Pick a look for your shop. It goes into your draft, and you can change it any time in Design.";
+  const intro = introWords ?? "Step 3 of 8. Pick a look for your shop. It goes into your draft, and you can change it any time in Design.";
   if (settings === undefined) return <SectionCard title="Choose your look" description={intro}><LoadingState label="Opening the looks…" /></SectionCard>;
   if (settings === null) {
     return (
@@ -84,9 +91,11 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
 
   return (
     <SectionCard title={`Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
-      actions={first && <GhostButton size="sm" disabled={!!busy} onClick={() => void choose(first, true)}>Skip for now</GhostButton>}>
+      actions={keep
+        ? <GhostButton size="sm" disabled={!!busy} onClick={keep.onKeep}>{keep.label}</GhostButton>
+        : first && <GhostButton size="sm" disabled={!!busy} onClick={() => void choose(first, true)}>Skip for now</GhostButton>}>
       {error && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>{error}</p>}
-      {first && <p className="rp-hint" style={{ marginTop: 0 }}>Skip uses “{first.name}”, our suggestion for you. Every look keeps your words, products and pages.</p>}
+      {first && !keep && <p className="rp-hint" style={{ marginTop: 0 }}>Skip uses “{first.name}”, our suggestion for you. Every look keeps your words, products and pages.</p>}
       <h3 className="rp-card-title" style={{ fontSize: "var(--rp-text-base)", margin: "8px 0 4px" }}>Your admin</h3>
       <p className="rp-hint" style={{ marginTop: 0 }}>How this admin looks to you, not to your customers. It changes right now, and you can change it any time from the top bar.</p>
       <div role="radiogroup" aria-label="Admin look" style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 160px), 1fr))", marginBottom: 24 }}>

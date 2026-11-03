@@ -17,7 +17,9 @@ function setup(script, { profile = "window.__SHOP_PROFILE__={}" } = {}) {
   const configs = [];
   const written = new Map();
   const folders = [];
+  const locks = [];
   const deploy = deployClient({
+    withBuildLock: async (dir, work) => { locks.push(dir); return work(); },
     fetch, token, buildDir: (version) => `/builds/${version}`,
     ownerEmailOf: async () => "owner@example.com",
     profileScriptOf: async () => profile,
@@ -27,7 +29,7 @@ function setup(script, { profile = "window.__SHOP_PROFILE__={}" } = {}) {
     writeText: async (path, text) => void written.set(path, text),
     readText: async (path) => written.get(path) ?? "// lmb-release: {\"version\":\"0.9.0\",\"apps\":[\"shop\"]}\nrules_version = '2';\n",
   });
-  return { fetch, deploy, runs, configs, written, folders };
+  return { fetch, deploy, runs, configs, written, folders, locks };
 }
 
 test("the live rules' release and apps are read from the stamp in the ruleset", async () => {
@@ -121,7 +123,7 @@ test("pages: the stockroom gets its own site once; the deploy is stamped with th
 
 test("a shop with no saved profile or owner is never deployed", async () => {
   const runs = [];
-  const base = { fetch: scriptedFetch([]), token, buildDir: () => "/b", run: async (c, a) => void runs.push(a), writeText: async () => {}, readText: async () => "" };
+  const base = { fetch: scriptedFetch([]), token, buildDir: () => "/b", run: async (c, a) => void runs.push(a), writeText: async () => {}, readText: async () => "", withBuildLock: async (_dir, work) => work() };
   await assert.rejects(deployClient({ ...base, ownerEmailOf: async () => "owner@example.com", profileScriptOf: async () => null }).pages(P, { version: "1", app: "shop" }), /no saved shop profile/);
   await assert.rejects(deployClient({ ...base, profileScriptOf: async () => "x" }).rules(P, { version: "1", apps: ["shop"] }), /needs ownerEmailOf/);
   assert.deepEqual(runs, []);
@@ -158,4 +160,15 @@ test("pages: the stockroom's own site is deployed as before, with no copy made",
   const { deploy, folders } = setup([{ method: "GET", url: `${S}/${P}-stockroom`, json: { name: "x" } }], { profile: both({ shop: true, stockroom: true }) });
   await deploy.pages(P, { version: "1.2.3", app: "stockroom" });
   assert.deepEqual(folders, []);
+});
+
+test("every deploy holds the release build folder, so two shops never mix their files in it; reading what is live does not", async () => {
+  const { deploy, locks, fetch } = setup([
+    { method: "GET", url: `https://firebasehosting.googleapis.com/v1beta1/sites/${P}/releases?pageSize=1`, json: {} },
+  ]);
+  await deploy.pages(P, { version: "1.2.3", app: "shop" });
+  await deploy.migrate(P, { version: "1.2.3" });
+  await deploy.deployed(P, "pages:shop");
+  assert.deepEqual(locks, ["/builds/1.2.3", "/builds/1.2.3"]);
+  fetch.done();
 });

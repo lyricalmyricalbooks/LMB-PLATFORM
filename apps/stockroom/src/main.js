@@ -17,7 +17,7 @@ import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
 import { isPublisherUser, readPassClaims } from './lib/publisher-access.js';
 import { isBookkeeperPass } from './lib/bookkeeper-copy.js';
-import { planReadOnly } from './lib/plan-pause.js';
+import { planChangeNotice, planReadOnly } from './lib/plan-pause.js';
 import { foldFooterActions, initPhoneLayouts } from './lib/phone-layout.js';
 import { createPhonePageMemory, initPhoneWorkspace, observeSidebarBadges } from './lib/phone-workspace.js';
 const phonePages = createPhonePageMemory(window);
@@ -19538,6 +19538,9 @@ async function initStartup() {
       if (planReadOnly(plan)) {
         const { showPlanPause } = await import('./features/plan-pause.js');
         showPlanPause(plan);
+      } else if (planChangeNotice(plan)) {
+        // An app being added or closing (lib/plan-pause.js): a note only, nothing is locked.
+        import('./features/plan-pause.js').then(({ showPlanNotice }) => showPlanNotice(plan)).catch(() => {});
       }
       if (cachedGlobal === true) {
         showStartupPreview(user, publisherAccount)

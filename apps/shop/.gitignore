@@ -15,3 +15,4 @@ studio-shots/
 # One shop's deploy files, written by scripts/deployConfig.mjs at deploy
 .deploy/
 firebase.deploy.json
+dist-setup/
