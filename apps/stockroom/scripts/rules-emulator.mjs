@@ -167,7 +167,6 @@ await env.withSecurityRulesDisabled(async ctx => {
 await check("reopened: owner changes a setting", assertSucceeds(setDoc(doc(owner.firestore(), "settings/catalog"), { data: "{}", ts: 10 })));
 await check("reopened: author changes own ledger", assertSucceeds(setDoc(doc(author.firestore(), "books/b1/data/ledger"), { rows: [10] })));
 
-await env.cleanup();
 // Fair helpers (docs/combined-admin.md › Fair helpers plan): the till's menu and their own sales, nothing else.
 const helper = shutOut["fair helper role"].firestore();
 const unverifiedHelper = env.authenticatedContext("u-helper-unv", { email: "helper@example.com", email_verified: false, role: "fairHelper" }).firestore();
@@ -196,7 +195,7 @@ await check("unverified helper adds no sale", assertFails(setDoc(doc(unverifiedH
 await check("unverified helper reads no menu", assertFails(getDoc(doc(unverifiedHelper, "fairTill/menu"))));
 await check("staff add no fair sale", assertFails(setDoc(doc(shutOut["staff role"].firestore(), "fairSales/sale-0000009"), sale({ by: "staff@example.com" }))));
 const publisher = people["owner address"].firestore();
-await check("publisher writes the till's menu", assertSucceeds(setDoc(doc(publisher, "fairTill/menu"), { books: [], at: "2026-11-03T11:00:00Z" })));
+await check("publisher writes the till's menu", assertSucceeds(setDoc(doc(publisher, "fairTill/menu"), { books: [{ id: "b1", title: "B1", price: 24, cur: "CAD", onHand: null }], at: "2026-11-03T11:00:00Z" })));
 await check("publisher's menu keeps its shape", assertFails(setDoc(doc(publisher, "fairTill/menu"), { books: [], at: "x", extra: 1 })));
 await check("publisher reads every helper's sales", assertSucceeds(getDocs(collection(publisher, "fairSales"))));
 await check("publisher marks a sale brought in", assertSucceeds(updateDoc(doc(publisher, "fairSales/sale-0000001"), { imported: { at: "2026-11-03T12:00:00Z" } })));
@@ -207,5 +206,6 @@ await env.withSecurityRulesDisabled(async ctx => { await setDoc(doc(ctx.firestor
 await check("a paused shop takes no helper sale", assertFails(setDoc(doc(helper, "fairSales/sale-0000010"), sale())));
 await env.withSecurityRulesDisabled(async ctx => { await deleteDoc(doc(ctx.firestore(), "platform/plan")); });
 
+await env.cleanup();
 console.log(failures ? `${failures} check(s) failed` : "all checks passed");
 process.exit(failures ? 1 : 0);
