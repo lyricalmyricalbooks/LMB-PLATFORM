@@ -172,14 +172,17 @@ async function storePageItems(origin, typedPath, getJson) {
   for (const path of [...new Set([typedPath, ...STORE_PAGES].filter(Boolean))]) {
     let page = await getJson(`${origin}${path}?format=json`);
     if (!isStorePage(page)) continue;
-    const items = [...page.items];
+    const items = [];
+    const seen = new Set();
+    // Each product once, by its address word: a next-page link that leads back to a page already read ends the list.
+    const add = (batch) => batch.filter((p) => { const key = text(p?.urlId).toLowerCase(); if (key && seen.has(key)) return false; seen.add(key); items.push(p); return true; }).length;
+    add(page.items);
     for (let n = 1; n < MAX_PAGES && items.length < MAX_PRODUCTS && page.pagination?.nextPage; n++) {
       const next = pathOf(page.pagination.nextPageUrl, origin) && new URL(text(page.pagination.nextPageUrl), origin);
       if (!next || next.origin !== origin) break;
       next.searchParams.set("format", "json");
       page = await getJson(next.href);
-      if (!isStorePage(page) || !page.items.length) break;
-      items.push(...page.items);
+      if (!isStorePage(page) || !page.items.length || !add(page.items)) break;
     }
     return items.slice(0, MAX_PRODUCTS);
   }
@@ -191,13 +194,19 @@ export function productsCsv(products) {
   return [HEADINGS.join(","), ...products.flatMap(rowsOf)].join("\n") + "\n";
 }
 
-async function pages(first, next, read) {
+/**
+ * Every item of a paged list, each once (by `keyOf`): a site that ignores the page number answers the same page again,
+ * so a page that brings nothing new ends the list rather than repeating every product up to the cap.
+ */
+async function pages(first, next, read, keyOf) {
   const items = [];
+  const seen = new Set();
   for (let page = 1; page <= MAX_PAGES; page++) {
     const batch = read(await (page === 1 ? first : next(page)));
     if (!batch) return page === 1 ? null : items;
-    items.push(...batch);
-    if (batch.length < PAGE_SIZE || items.length >= MAX_PRODUCTS) break;
+    const fresh = batch.filter((item) => { const key = text(keyOf(item)).toLowerCase(); if (key && seen.has(key)) return false; seen.add(key); return true; });
+    items.push(...fresh);
+    if (!fresh.length || batch.length < PAGE_SIZE || items.length >= MAX_PRODUCTS) break;
   }
   return items.slice(0, MAX_PRODUCTS);
 }
@@ -218,11 +227,11 @@ export async function readOldShop(input, { getJson = (url) => getPublicJson(url)
     const first = await getJson(listUrl(1));
     let products = null;
     if (Array.isArray(first?.products)) {
-      products = fromProductsList(await pages(first, (n) => getJson(listUrl(n)), (j) => (Array.isArray(j?.products) && j.products.length ? j.products : null)) ?? [], origin);
+      products = fromProductsList(await pages(first, (n) => getJson(listUrl(n)), (j) => (Array.isArray(j?.products) && j.products.length ? j.products : null), (p) => p?.handle) ?? [], origin);
     } else if (Array.isArray(first) && first.some((p) => p && "permalink" in p)) {
-      products = fromPermalinkList(await pages(first, (n) => getJson(listUrl(n)), (j) => (Array.isArray(j) && j.length ? j : null)) ?? [], origin);
+      products = fromPermalinkList(await pages(first, (n) => getJson(listUrl(n)), (j) => (Array.isArray(j) && j.length ? j : null), (p) => p?.permalink) ?? [], origin);
     } else {
-      const store = await pages(getJson(storeUrl(1)), (n) => getJson(storeUrl(n)), (j) => (Array.isArray(j) && j.length && j.some((p) => p && "slug" in p) ? j : null));
+      const store = await pages(getJson(storeUrl(1)), (n) => getJson(storeUrl(n)), (j) => (Array.isArray(j) && j.length && j.some((p) => p && "slug" in p) ? j : null), (p) => p?.slug);
       if (store) products = fromStoreList(store, origin, notes);
       else {
         const page = await storePageItems(origin, shopPath(input), getJson);
