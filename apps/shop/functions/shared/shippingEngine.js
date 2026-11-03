@@ -154,7 +154,11 @@ function quoteShipping(items, address, profiles, opts = {}) {
         });
         if (charges.some((c) => !c.rate))
             continue; // a group can't ship this way
-        const leaderIdx = charges.reduce((best, c, i) => (num(c.rate.base) > num(charges[best].rate.base) ? i : best), 0);
+        // The leader's base is charged once and its first item's extra is waived. Ties go to the bigger waiver, then the
+        // profile id, so the price never depends on the order things were added to the bag.
+        const waiver = (c) => ((c.rate.type || "flat") === "flat" ? num(c.rate.additional) : 0);
+        const leads = (a, b) => num(a.rate.base) - num(b.rate.base) || waiver(a) - waiver(b) || (String(a.g.profile?.id ?? "") < String(b.g.profile?.id ?? "") ? 1 : -1);
+        const leaderIdx = charges.reduce((best, c, i) => (leads(c, charges[best]) > 0 ? i : best), 0);
         let fixed = 0, variable = 0, handling = 0;
         const days = [];
         charges.forEach((c, i) => {
