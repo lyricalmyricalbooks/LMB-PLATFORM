@@ -64,6 +64,12 @@ export async function importPastOrders(orders: unknown[], batch?: string, { rera
   return { added: Number(data?.added) || 0, rerated: Number(data?.rerated) || 0, skipped: Array.isArray(data?.skipped) ? data.skipped : [] };
 }
 
+/** A new rate for one past order sold in another currency (plan 23.34). Answers its new Canadian-dollar total. */
+export async function ratePastOrder(orderId: string, rate: number): Promise<{ changed: boolean; total: number }> {
+  const data = await ask("ratePastOrder", { orderId, rate });
+  return { changed: data?.changed === true, total: Number(data?.total) || 0 };
+}
+
 /** Takes one run of Bring past orders over back (plan 23.15): asks until every order it added is gone. */
 export async function removePastOrders(batch: string): Promise<number> {
   let removed = 0;

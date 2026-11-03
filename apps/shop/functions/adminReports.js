@@ -7,7 +7,7 @@ const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
 const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
 const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
 const { handleTrafficReset } = require("./trafficReset");
-const { handlePastOrdersImport, handlePastOrdersRemove } = require("./orderImport");
+const { handlePastOrdersImport, handlePastOrdersRemove, handlePastOrderRate } = require("./orderImport");
 const { handleExchangeRates, getBankJson } = require("./pastOrderRates");
 const { handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop } = require("./oldShopRead");
 
@@ -210,8 +210,22 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     }
   }
 
+  // Orders › a brought-over order › Change the rate (plan 23.34): one order sold in another currency takes a new rate.
+  async function handlePastOrderRateRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handlePastOrderRate(req.body || {}, { db, actor: adminUser.email || "admin", now: new Date() });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("ratePastOrder failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't change the rate just now. Try again in a minute." });
+    }
+  }
+
   return {
     exchangeRates: handleExchangeRatesRequest,
+    ratePastOrder: handlePastOrderRateRequest,
     removePastOrders: handlePastOrdersRemoveRequest,
     importPastOrders: handlePastOrdersRequest,
     readOldShop: handleOldShopRequest,

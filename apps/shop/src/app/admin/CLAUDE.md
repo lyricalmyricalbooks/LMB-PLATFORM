@@ -512,6 +512,11 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
 - **Discount codes (23.30):** Discounts › Bring codes over (`DiscountMoveDialog.tsx`, reader `discountMove.ts`) saves
   each code through `adminApi.saveDiscount` (same shape check as the editor). Not one of Your move so far's five parts,
   so finished moves stay finished.
+- **Next file, file name, one order's rate (23.32-23.34):** the result screen's "Bring another file" resets to the
+  chooser (choosing starts a new batch). Each order carries `file`, kept as `importedFile` and shown on its page.
+  `ratePastOrder` (action in adminReports.js, `ratePastOrder` in orderImport.js) re-rates one `source: "import"` order
+  from `paidIn.total` (total exact, other CA$ fields scaled); `PastOrderRate` on OrderDetail calls it. In move mode the
+  admin fixture has one brought-over order, `past-1004`, and `getOrderById`.
 - **Whole move on screen (23.22, in CI since 23.29 as `pnpm run test:move` in the `shop-admin-phone` job):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
   `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
   Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run

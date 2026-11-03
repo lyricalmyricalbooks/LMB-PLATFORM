@@ -1,7 +1,7 @@
 import { recordMoveStep } from "./moveProgress";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Upload } from "lucide-react";
-import { importPastOrders, removePastOrders, suggestedRates } from "./oldShopApi";
+import { importPastOrders, ratePastOrder, removePastOrders, suggestedRates } from "./oldShopApi";
 import { goodRate, mergePastOrderFiles, readPastOrders, readyToSend, type PastOrder, type PastOrderFile } from "./pastOrders";
 import { Dialog, GhostButton, PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
 
@@ -251,6 +251,54 @@ export function PastImportUndo({ batch, onRemoved }: { batch: string; onRemoved:
     <div>
       <GhostButton onClick={() => setStep("confirm")}>Wrong file? Remove this import</GhostButton>
       {step === "failed" && <p role="alert" className="rp-error-text" style={{ margin: "6px 0 0" }}>They couldn't be removed just now. Try again in a minute.</p>}
+    </div>
+  );
+}
+
+/**
+ * On a brought-over order's page (plan 23.34): what it was sold for in the other currency, the rate it came over at,
+ * and a way to change that rate for this one order. Only its Canadian-dollar amounts change (functions/orderImport.js).
+ */
+export function PastOrderRate({ orderId, paidIn, total, onChanged }: {
+  orderId: string; paidIn: { currency: string; total: number; rate: number }; total: number; onChanged: () => void;
+}) {
+  const [typed, setTyped] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const rate = Number((typed ?? "").replace(",", "."));
+  const sold = `${Number(paidIn.total).toFixed(2)} ${paidIn.currency}`;
+  if (typed === null) {
+    return (
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+        <p className="rp-hint" style={{ margin: 0 }}>Sold for {sold}, brought over at 1 {paidIn.currency} = {paidIn.rate} Canadian dollars ({dollars(total)}).</p>
+        <GhostButton onClick={() => { setTyped(String(paidIn.rate)); setError(""); }}>Change the rate</GhostButton>
+      </div>
+    );
+  }
+  const save = async () => {
+    if (!goodRate(rate) || busy) return;
+    setBusy(true); setError("");
+    try {
+      await ratePastOrder(orderId, rate);
+      setTyped(null);
+      onChanged();
+    } catch (err: any) {
+      setError(err?.message || "The rate couldn't be changed just now. Try again in a minute.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rp-card rp-stack" style={{ padding: 16, gap: 8 }} role="group" aria-label="Change the rate">
+      <TextField label={`1 ${paidIn.currency} in Canadian dollars`} inputMode="decimal" value={typed} disabled={busy}
+        onChange={(e) => setTyped(e.target.value)}
+        hint={goodRate(rate) ? `This order becomes ${dollars(Math.round(paidIn.total * rate * 100) / 100)}. Only its Canadian-dollar amounts change.` : undefined}
+        error={typed.trim() && !goodRate(rate) ? "Type a number above 0, such as 1.37." : undefined} />
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <SecondaryButton disabled={busy} onClick={() => setTyped(null)}>Cancel</SecondaryButton>
+        <PrimaryButton disabled={busy || !goodRate(rate) || rate === paidIn.rate} onClick={() => void save()}>{busy ? "Saving…" : "Use this rate"}</PrimaryButton>
+      </div>
+      {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
     </div>
   );
 }
