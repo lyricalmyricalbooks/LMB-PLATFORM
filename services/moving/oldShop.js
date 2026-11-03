@@ -4,9 +4,10 @@
 // "handle-rows", the layout Backups & export also writes). The press's browser then previews that file exactly as if
 // it had been downloaded and dropped in, so the preview, the safety rules and the old-link redirects are the same.
 //
-// Three public lists are tried, in order, each page by page: a `products` list at /products.json, a list of products
-// with permalinks and options at the same address, and the store list under /wp-json/wc/store/v1/products. Stock
-// counts are never public, so only "sold out" comes across (as 0). Press-facing words never name another shop system.
+// Four public lists are tried, in order, each page by page: a `products` list at /products.json, a list of products
+// with permalinks and options at the same address, the store list under /wp-json/wc/store/v1/products, and a store
+// page read with ?format=json (the page the press typed, else /shop, /store, /products or /shop-1; plan 23.10). Only
+// that last one shows stock counts; the others only say "sold out" (0). Press-facing words never name another shop system.
 import { getPublicJson } from "./safeFetch.js";
 
 export const MAX_PRODUCTS = 2000;
@@ -25,6 +26,16 @@ export function shopOrigin(input) {
   try { u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`); } catch { return null; }
   if (!/^https?:$/.test(u.protocol) || u.username || u.password || !u.hostname.includes(".")) return null;
   return `https://${u.hostname.toLowerCase()}`;
+}
+
+/** The page the press typed after the address ("/shop" from "yourshop.com/shop/"), or "" for none. */
+export function shopPath(input) {
+  const typed = String(input ?? "").trim();
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`);
+    const path = u.pathname.replace(/\/+$/, "");
+    return /^(\/[A-Za-z0-9._~-]+){1,3}$/.test(path) ? path : "";
+  } catch { return ""; }
 }
 
 const HEADINGS = ["Handle", "Title", "Body (HTML)", "Type", "Tags", "Option1 Name", "Option1 Value", "Option2 Name", "Option2 Value",
@@ -124,6 +135,56 @@ export function fromStoreList(items, origin, notes) {
   return products;
 }
 
+/**
+ * Products from a store page's items (plan 23.10): each with structuredContent.variants (attributes by option name,
+ * priceMoney, salePriceMoney when onSale, qtyInStock unless unlimited), photos in items[].assetUrl, fullUrl.
+ */
+export function fromStorePage(items, origin) {
+  return items.filter((p) => p && text(p.urlId) && text(p.title)).map((p) => {
+    const variants = Array.isArray(p.structuredContent?.variants) ? p.structuredContent.variants : Array.isArray(p.variants) ? p.variants : [];
+    const ordering = Array.isArray(p.structuredContent?.variantOptionOrdering) ? p.structuredContent.variantOptionOrdering : p.variantOptionOrdering;
+    const options = (Array.isArray(ordering) && ordering.length ? ordering : Object.keys(variants[0]?.attributes ?? {})).map(text).filter(Boolean);
+    const amount = (m, cents) => (text(m?.value) ? money(m.value) : Number.isFinite(Number(cents)) ? money(Number(cents) / 100) : "");
+    const versions = variants.map((v) => {
+      const regular = amount(v?.priceMoney, v?.price), sale = v?.onSale ? amount(v?.salePriceMoney, v?.salePrice) : "";
+      const onSale = Number(sale) > 0 && Number(sale) < Number(regular);
+      const qty = Number(v?.qtyInStock);
+      return {
+        picks: options.map((n) => text(v?.attributes?.[n])).filter(Boolean), sku: text(v?.sku), grams: "",
+        stock: v?.unlimited ? "" : Number.isInteger(qty) && qty >= 0 ? String(qty) : "", price: onSale ? sale : regular, was: onSale ? regular : "",
+      };
+    });
+    const photos = (Array.isArray(p.items) ? p.items : []).map((i) => https(i?.assetUrl, origin)).filter(Boolean);
+    return {
+      handle: text(p.urlId).toLowerCase(), title: text(p.title), html: text(p.body) || text(p.excerpt), type: (Array.isArray(p.categories) ? p.categories.map(text).filter(Boolean) : [])[0] || "",
+      tags: Array.isArray(p.tags) ? p.tags.map(text).filter(Boolean) : [], options: versions.some((v) => v.picks.length) ? options : [],
+      versions, photos: photos.length ? photos : [https(p.assetUrl, origin)].filter(Boolean), oldPath: pathOf(p.fullUrl, origin),
+    };
+  });
+}
+
+const STORE_PAGES = ["/shop", "/store", "/products", "/shop-1"];
+const isStorePage = (j) => j?.collection?.typeName === "products" && Array.isArray(j?.items);
+
+/** A store page's items, following its next-page links on the same site. Null when no page is a store page. */
+async function storePageItems(origin, typedPath, getJson) {
+  for (const path of [...new Set([typedPath, ...STORE_PAGES].filter(Boolean))]) {
+    let page = await getJson(`${origin}${path}?format=json`);
+    if (!isStorePage(page)) continue;
+    const items = [...page.items];
+    for (let n = 1; n < MAX_PAGES && items.length < MAX_PRODUCTS && page.pagination?.nextPage; n++) {
+      const next = pathOf(page.pagination.nextPageUrl, origin) && new URL(text(page.pagination.nextPageUrl), origin);
+      if (!next || next.origin !== origin) break;
+      next.searchParams.set("format", "json");
+      page = await getJson(next.href);
+      if (!isStorePage(page) || !page.items.length) break;
+      items.push(...page.items);
+    }
+    return items.slice(0, MAX_PRODUCTS);
+  }
+  return null;
+}
+
 /** The products as a product file in the one-line-per-edition layout. */
 export function productsCsv(products) {
   return [HEADINGS.join(","), ...products.flatMap(rowsOf)].join("\n") + "\n";
@@ -149,6 +210,7 @@ export async function readOldShop(input, { getJson = (url) => getPublicJson(url)
   if (!origin) return { ok: false, message: NOT_AN_ADDRESS };
   const host = new URL(origin).hostname;
   const notes = [];
+  let stockShown = false;
   const listUrl = (page) => `${origin}/products.json?limit=${PAGE_SIZE}&page=${page}`;
   const storeUrl = (page) => `${origin}/wp-json/wc/store/v1/products?per_page=${PAGE_SIZE}&page=${page}`;
   try {
@@ -161,9 +223,13 @@ export async function readOldShop(input, { getJson = (url) => getPublicJson(url)
     } else {
       const store = await pages(getJson(storeUrl(1)), (n) => getJson(storeUrl(n)), (j) => (Array.isArray(j) && j.length && j.some((p) => p && "slug" in p) ? j : null));
       if (store) products = fromStoreList(store, origin, notes);
+      else {
+        const page = await storePageItems(origin, shopPath(input), getJson);
+        if (page) { products = fromStorePage(page, origin); stockShown = true; }
+      }
     }
     if (!products?.length) return { ok: false, message: NOTHING_FOUND };
-    notes.push("Stock counts aren't shown publicly, so check how many you have of each before you open.");
+    notes.push(stockShown ? "Stock counts came from your old shop's pages. Check them before you open." : "Stock counts aren't shown publicly, so check how many you have of each before you open.");
     return { ok: true, host, csv: productsCsv(products), products: products.length, notes };
   } catch {
     return { ok: false, message: UNREACHABLE };
