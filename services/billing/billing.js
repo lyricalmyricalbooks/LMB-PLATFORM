@@ -41,6 +41,13 @@
 //                   registry row's `closedApps` is written either way and is what the shop maker reads.
 //   shopPlan        optional: write(shopId, row, { link, at }) (shopPlan.js shopPlanCopies): the shop's own copy of
 //                   its plan (code plan 6.6), written on every change once the shop's database exists
+//   live            optional: () -> live settings (services/settings.js liveSettings); the founding offer is read there
+//   foundingSeats   optional: claim(shopId, { limit, at, percentOff }) -> boolean (founding.js). Without it (or live),
+//                   no founding place is given
+//   sleep           optional: the wait between Stripe retries (stripeRetry.js), injected by tests
+//
+// Every Stripe call that can safely be sent twice (a read, a delete, or a POST with an idempotency key) is tried again
+// after a short wait when Stripe can't be reached, is busy (429) or fails on its side (5xx): stripeRetry.js (22.4).
 import { verifySignature } from "../payments/stripeSignature.js";
 import { isPlan, planPrice, PLAN_APPS, PLAN_IDS } from "./plans.js";
 import { taxWatch as watchTaxLines, WATCH_WINDOW_DAYS } from "./taxWatch.js";
@@ -48,9 +55,14 @@ import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
 import { CARD_WARNING_DAYS, cardEnds, cardWarningDue } from "./cardExpiry.js";
 import { leavingAnswer } from "./leaving.js";
+import { cardWords } from "./cards.js";
+import { withRetries } from "./stripeRetry.js";
+import { ensureFoundingCoupon, foundingAmount, foundingOfferOf } from "./founding.js";
+import { createBillingHub } from "./hub.js";
+import { siteUrlOf } from "../domains/names.js";
 import { PAY_AS_YOU_SELL_PLANS } from "../payments/payAsYouSell.js";
 
-export { CARD_WARNING_DAYS, cardEnds };
+export { CARD_WARNING_DAYS, cardEnds, cardWords };
 
 /** What each Stripe subscription status means for the shop: open, paused (a card fixes it) or closed. */
 export const ACCESS = Object.freeze({
@@ -116,10 +128,11 @@ export class BillingError extends Error {
   }
 }
 
-export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, shopPlan = null, now = () => Date.now() }) {
+export function createBilling({ stripe, mode = "test", settings, customers, subscriptions, events, registry, auditLog, email, webhookSecrets = [], tax = false, closeApp, shopPlan = null, live = null, foundingSeats = null, sleep, now = () => Date.now() }) {
   if (mode !== "test" && mode !== "live") throw new Error('billing mode must be "test" or "live"');
   const at = () => new Date(now()).toISOString();
-  const call = (method, path, options) => stripe.call(mode, method, path, options);
+  const retrying = withRetries((...args) => stripe.call(...args), sleep ? { sleep } : {});
+  const call = (method, path, options) => retrying(mode, method, path, options);
   const priceIds = new Map();
 
   const accountLink = (shopId) => `${settings.platformUrl}/account/billing?shop=${encodeURIComponent(shopId)}`;
@@ -155,7 +168,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
   async function copyToShop(shopId, row) {
     if (!shopPlan || !(await auditLog.ready(shopId))) return null;
-    return shopPlan.write(shopId, row, { link: accountLink(shopId), at: at() });
+    return shopPlan.write(shopId, row, { link: accountLink(shopId), hub: `${settings.platformUrl}/api/shop-billing/`, at: at() });
   }
 
   async function rowFor(shopId) {
@@ -279,9 +292,60 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     return saved;
   }
 
+  /**
+   * Where Stripe's card page may send a press back to: the platform's own pages, or this shop's own admin (the billing
+   * hub, 22.3) at its main address. Nowhere else, so the page can never be used to send someone to a stranger's site.
+   */
+  async function comesBackHome(shopId, returnUrl) {
+    if (typeof returnUrl !== "string") return false;
+    if (returnUrl === settings.platformUrl || returnUrl.startsWith(`${settings.platformUrl}/`)) return true;
+    const shop = await registry.getShop(shopId);
+    if (!shop) return false;
+    let url;
+    try { url = new URL(returnUrl); } catch { return false; }
+    return url.origin === new URL(siteUrlOf(shop)).origin && (url.pathname === "/admin" || url.pathname.startsWith("/admin/")) && !url.username && !url.password;
+  }
+
+  /**
+   * Gives this shop a founding place if it hasn't one and places are left (founding.js): called when the press first
+   * pays (a card saved, or pay as you sell chosen). Answers the row, marked `founding: true` when it holds a place.
+   */
+  async function claimFounding(shopId) {
+    const row = await subscriptions.get(shopId);
+    if (!row || row.founding === true) return row;
+    if (!live || !foundingSeats) return row;
+    const offer = foundingOfferOf(await live());
+    if (!offer) return row;
+    const got = await foundingSeats.claim(shopId, { limit: offer.presses, at: at(), percentOff: offer.percentOff });
+    if (!got) return row;
+    if (await registry.getShop(shopId)) await registry.updateShop(shopId, { founding: true });
+    return save(shopId, { founding: true, foundingPercentOff: offer.percentOff, foundingAt: at() }, "founding-place-given");
+  }
+
+  /** Puts the founding coupon on the shop's running subscription, once per subscription. */
+  async function applyFounding(shopId) {
+    const row = await subscriptions.get(shopId);
+    if (row?.founding !== true || !row.subscriptionId || ENDED.has(row.status) || row.foundingOn === row.subscriptionId) return row;
+    const coupon = await ensureFoundingCoupon(call, row.foundingPercentOff ?? 25, settings.platformName);
+    await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { discounts: [{ coupon }] }, idempotencyKey: `founding-${row.subscriptionId}` });
+    return save(shopId, { foundingOn: row.subscriptionId }, "founding-discount-on");
+  }
+
+  const hub = createBillingHub({
+    call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money: moneyText,
+    iso, nowIso: at,
+    refresh: async (shopId) => {
+      const row = await subscriptions.get(shopId);
+      return sync(shopId, await call("GET", `/v1/subscriptions/${row.subscriptionId}`), "stripe-refreshed");
+    },
+  });
+
   return {
     ensurePrice,
     ensureCustomer,
+    claimFounding,
+    applyFounding,
+    ...hub,
 
     /**
      * Writes the shop's copy of its plan again (the shop maker once the database exists; the closing sweep), and the
@@ -323,15 +387,15 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         idempotencyKey: `subscription-${shopId}-${starts}`,
       });
       if (trial) await customers.set(account.accountId, { ...customer, trialUsedAt: at() });
-      return save(shopId, { ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0 }, trial ? "trial-started" : "plan-started");
+      const saved = await save(shopId, { ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0 }, trial ? "trial-started" : "plan-started");
+      // A founding press starting again keeps its place: the new subscription gets the discount too.
+      return saved.founding === true ? applyFounding(shopId) : saved;
     },
 
-    /** A Stripe page to add or change the card. `returnUrl` must be one of the platform's own pages. */
+    /** A Stripe page to add or change the card. `returnUrl` must be one of the platform's pages or this shop's admin. */
     async cardLink({ shopId, returnUrl }) {
       const row = await rowFor(shopId);
-      if (typeof returnUrl !== "string" || !(returnUrl === settings.platformUrl || returnUrl.startsWith(`${settings.platformUrl}/`))) {
-        throw new BillingError(400, "The page to come back to must be on the platform.");
-      }
+      if (!(await comesBackHome(shopId, returnUrl))) throw new BillingError(400, "The page to come back to must be on the platform or in this shop's admin.");
       const back = new URL(returnUrl);
       back.searchParams.set("card", "added");
       const session = await call("POST", "/v1/checkout/sessions", {
@@ -497,6 +561,9 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         appsClosing: row.appsClosing ?? null, closedApps: row.closedApps ?? {},
         plans: PLAN_IDS.map((id) => { const p = planPrice(id, settings); return { plan: id, name: p.name, price: p.priceText, apps: APPS.filter((app) => PLAN_APPS[id][app]) }; }),
         paymentWay: currentPaymentWay(row, now()),
+        founding: row.founding === true ? { percentOff: row.foundingPercentOff ?? null, price: price && row.foundingPercentOff ? moneyText(foundingAmount(price.amount, row.foundingPercentOff), price.currency) : "" } : null,
+        paymentProblem: !ended && row.paymentProblem ? { kind: row.paymentProblem.kind, at: row.paymentProblem.at, amount: row.paymentProblem.amount ?? "", nextTry: row.paymentProblem.nextTry ?? null, pageUrl: httpsOrNull(row.paymentProblem.pageUrl) } : null,
+        canPayNow: ["past_due", "unpaid", "incomplete"].includes(row.status) && Boolean(row.hasCard),
       };
     },
 
@@ -565,6 +632,13 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     },
   };
 
+  /** The shop row an invoice belongs to, by its subscription (both Stripe shapes), or null. */
+  async function rowOfInvoice(invoice) {
+    const subscriptionId = invoice.subscription ?? invoice.parent?.subscription_details?.subscription;
+    if (!subscriptionId) return null;
+    return subscriptions.findBySubscriptionId(typeof subscriptionId === "string" ? subscriptionId : subscriptionId.id);
+  }
+
   /** One event. Returns what it did, for the events log. */
   async function handle(event) {
     const object = event.data?.object ?? {};
@@ -603,9 +677,32 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const row = subscriptionId ? await subscriptions.findBySubscriptionId(typeof subscriptionId === "string" ? subscriptionId : subscriptionId.id) : null;
         if (!row) return "not ours";
         const amount = new Intl.NumberFormat("en-CA", { style: "currency", currency: (object.currency ?? settings.currency).toUpperCase(), currencyDisplay: "narrowSymbol" }).format((object.amount_due ?? 0) / 100);
+        await save(row.shopId, { paymentProblem: { kind: "declined", at: at(), invoiceId: object.id ?? null, amount, nextTry: iso(object.next_payment_attempt), pageUrl: httpsOrNull(object.hosted_invoice_url) } }, null);
         await logChange(row.shopId, "payment-failed", { attempt: object.attempt_count ?? null });
         await notify(row.shopId, "payment-failed", { price: amount, nextTry: dateText(iso(object.next_payment_attempt)) }, event.id);
         return "payment failed";
+      }
+      case "invoice.payment_action_required": {
+        // The bank wants the press to confirm the payment (3D Secure): Stripe keeps the bill open meanwhile.
+        const row = await rowOfInvoice(object);
+        if (!row) return "not ours";
+        const amount = moneyText(object.amount_due ?? 0, object.currency ?? settings.currency);
+        await save(row.shopId, { paymentProblem: { kind: "confirm", at: at(), invoiceId: object.id ?? null, amount, nextTry: null, pageUrl: httpsOrNull(object.hosted_invoice_url) } }, null);
+        await logChange(row.shopId, "payment-needs-confirming", {});
+        await notify(row.shopId, "payment-needs-confirming", { price: amount }, event.id);
+        return "payment needs confirming";
+      }
+      case "invoice.paid": {
+        // A bill paid: a payment problem it settles is cleared, and the press hears it went through.
+        const row = await rowOfInvoice(object);
+        if (!row) return "not ours";
+        const problem = row.paymentProblem;
+        const settles = problem && (!problem.invoiceId || problem.invoiceId === object.id);
+        await save(row.shopId, { lastPaidAt: at(), ...(settles ? { paymentProblem: null } : {}) }, null);
+        if (!settles) return "paid";
+        await logChange(row.shopId, "payment-recovered", {});
+        await notify(row.shopId, "payment-received", { price: moneyText(object.amount_paid ?? object.total ?? 0, object.currency ?? settings.currency) }, event.id);
+        return "payment recovered";
       }
       case "checkout.session.completed": {
         if (object.mode !== "setup") return "not ours";
@@ -631,8 +728,11 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           sub = await call("GET", `/v1/subscriptions/${row.subscriptionId}`);
         }
         const details = method?.card ?? {};
-        await save(shopId, { card: { id: card, brand: details.brand ?? "card", last4: details.last4 ?? "", expMonth: details.exp_month ?? null, expYear: details.exp_year ?? null } }, null);
+        await save(shopId, { card: { id: card, brand: details.brand ?? "card", last4: details.last4 ?? "", expMonth: details.exp_month ?? null, expYear: details.exp_year ?? null }, cardChanges: (row.cardChanges ?? 0) + 1 }, null);
         await sync(shopId, sub, "card-added");
+        // The first card makes the press a paying one: a founding place, if any are left, and its discount (22.1).
+        await claimFounding(shopId);
+        await applyFounding(shopId);
         return "card added";
       }
       case "payment_method.automatically_updated": {
@@ -662,12 +762,4 @@ const httpsOrNull = (url) => (typeof url === "string" && url.startsWith("https:/
 /** The parts of a Stripe address the customer takes, without empty ones. */
 function plainAddress(address) {
   return Object.fromEntries(["line1", "line2", "city", "state", "postal_code", "country"].filter((part) => address[part]).map((part) => [part, address[part]]));
-}
-
-const BRANDS = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover", jcb: "JCB", diners: "Diners Club", unionpay: "UnionPay" };
-
-/** "Visa ending 4242", for the page and the emails. */
-export function cardWords(card) {
-  const brand = BRANDS[card?.brand] ?? "Card";
-  return card?.last4 ? `${brand} ending ${card.last4}` : brand;
 }

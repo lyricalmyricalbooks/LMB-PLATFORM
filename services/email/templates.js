@@ -261,6 +261,27 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The bank wants the press to confirm this month's payment (Stripe keeps the bill open meanwhile, code plan 22.5). */
+  "payment-needs-confirming": ({ price, link }, { settings, pressName }) => layout({
+    subject: `Your bank wants you to confirm ${pressName}'s payment`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your bank asked you to confirm this month's ${price} payment for ${pressName} before it goes through. It's a normal safety step some banks take.`,
+      `Open your billing page and choose "Confirm the payment". Your shop stays open meanwhile.`,
+    ],
+    buttons: [["Confirm the payment", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
+  /** A payment that had failed went through after all (22.5). Only sent after a problem, never for an ordinary month. */
+  "payment-received": ({ price, link }, { settings, pressName }) => layout({
+    subject: `Thanks, ${pressName}'s payment went through`,
+    greeting: "Hello,",
+    paragraphs: [`Your ${price} payment for ${pressName} went through, so everything is back to normal. Your bills are on your billing page whenever you need them.`],
+    buttons: [["See your bills", safeLink(link)]],
+    footer: signOff(settings),
+  }),
+
   /** The press asked to cancel: the shop stays open until the end of the period already paid for. */
   "subscription-cancelled": ({ date, link }, { settings, pressName }) => layout({
     subject: `${pressName} will close on ${date}`,

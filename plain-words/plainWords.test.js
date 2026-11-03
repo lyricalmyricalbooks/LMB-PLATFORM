@@ -204,6 +204,8 @@ const PRESS_EMAILS = {
     { lines: [{ state: "ok", words: "Every link we tried on your shop works." }], offLink: LINK },
     { lines: [{ state: "fix", words: "3 items have no description. A few lines about each helps people choose, and helps your shop show up in searches.", fix: { label: "Write the descriptions", link: LINK } }, { state: "ok", words: "Your shop opens quickly on a phone." }], offLink: LINK },
   ],
+  "payment-needs-confirming": [{ price: "$29.25", link: LINK }],
+  "payment-received": [{ price: "$29.25", link: LINK }],
   "shop-closed": [{ date: "30 January 2027", link: LINK }],
   "shop-deletion-warning": [{ date: "30 January 2027", days: 30, link: LINK }, { date: "30 January 2027", days: 7, link: LINK }],
   "shop-deleted": [{}],

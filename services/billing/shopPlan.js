@@ -44,8 +44,11 @@ export function nextPaymentAt(row, closing = null) {
   return row.currentPeriodEnd ?? null;
 }
 
-/** The admin-only document. `link` is the platform's Plan & billing page for this shop. */
-export function planDocument(row, { link, at, closing = null }) {
+/**
+ * The admin-only document. `link` is the platform's Plan & billing page for this shop; `hub` the address the admin's
+ * own billing pages call (accounts/shopBillingDoor.js, code plan 22.3), with the shop's id beside it.
+ */
+export function planDocument(row, { link, hub = null, at, closing = null }) {
   const access = shopAccess(row, closing);
   // Paying as it sells (paymentWay.js, plan 6.19): open with no subscription, nothing to pay ahead and no trial.
   const paymentWay = currentPaymentWay(row, Date.parse(at));
@@ -62,6 +65,9 @@ export function planDocument(row, { link, at, closing = null }) {
     endsAt,
     paymentWay,
     link,
+    hub,
+    shopId: row.shopId ?? null,
+    founding: row.founding === true,
     // Only what the admin shows: when it closed, until when everything can be downloaded, and the day it is deleted.
     closing: closing && closing.stage !== "paused"
       ? { stage: closing.stage, closedAt: closing.closedAt ?? null, downloadUntil: closing.downloadUntil ?? null, deleteAfter: closing.deleteAfter ?? null }
@@ -83,7 +89,7 @@ export const statusDocument = (plan) => ({ access: plan.access, updatedAt: plan.
  */
 export function shopPlanCopies({ shopData, stockroomData = null, registry }) {
   return {
-    async write(shopId, row, { link, at }) {
+    async write(shopId, row, { link, hub = null, at }) {
       const shop = await registry.getShop(shopId);
       const closing = shop?.closing ?? null;
       // The registry's plan says what is open: a dropped app stays open to the end of the month already paid for.
@@ -95,7 +101,7 @@ export function shopPlanCopies({ shopData, stockroomData = null, registry }) {
         const appClosing = !open[app] && closed && closing?.stage !== "deleted"
           ? { stage: "closed", closedAt: closed.closedAt ?? null, downloadUntil: closed.downloadUntil ?? null, deleteAfter: null }
           : closing;
-        return planDocument(row, { link, at, closing: appClosing });
+        return planDocument(row, { link, hub, at, closing: appClosing });
       };
       const doc = copyFor("shop");
       await shopData.set(shopId, PLAN_DOC, doc);

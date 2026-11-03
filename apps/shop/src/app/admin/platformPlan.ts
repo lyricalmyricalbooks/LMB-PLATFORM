@@ -22,6 +22,10 @@ export type PlatformPlan = {
   endsAt: string | null;
   paymentWay: "monthly" | "payAsYouSell";
   link: string | null;
+  /** Where the admin's own Plan and Billing pages call the platform (code plan 22.3), and this shop's id there. */
+  hub: string | null;
+  shopId: string | null;
+  founding: boolean;
   closing: { stage: string; closedAt: string | null; downloadUntil: string | null; deleteAfter: string | null } | null;
 };
 
@@ -52,9 +56,18 @@ export function parsePlatformPlan(raw: any): PlatformPlan | null {
     endsAt: time(raw.endsAt),
     paymentWay: raw.paymentWay === "payAsYouSell" ? "payAsYouSell" : "monthly",
     link: httpsLink(raw.link),
+    hub: httpsLink(raw.hub),
+    shopId: typeof raw.shopId === "string" && /^[a-z0-9][a-z0-9-]{0,62}$/.test(raw.shopId) ? raw.shopId : null,
+    founding: raw.founding === true,
     closing,
   };
 }
+
+/** Can the admin's own Plan and Billing pages reach the platform? Older plan documents have no hub yet. */
+export const hubReady = (plan: PlatformPlan | null): plan is PlatformPlan & { hub: string; shopId: string } => !!plan?.hub && !!plan.shopId;
+
+/** Which of the admin's pages a banner's button opens: the card and payment ones Billing, the rest Plan. */
+export const bannerPage = (banner: PlanBanner): "billing" | "plan" => (/card/i.test(banner.action) ? "billing" : "plan");
 
 /** A paused or closed plan: the admin opens on Plan & billing only. */
 export const planLocked = (plan: PlatformPlan | null): boolean => !!plan && plan.access !== "open";
