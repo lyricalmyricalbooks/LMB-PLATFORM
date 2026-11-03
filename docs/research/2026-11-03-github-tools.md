@@ -2,10 +2,10 @@
 
 3 November 2026 · for Julian
 
-**Short answer:** I searched GitHub for open-source tools that came out or matured since the 27 October scan. Four were
+**Short answer:** I searched GitHub for open-source tools that came out or matured since the 27 October scan. Three were
 worth building straight away, and they are in one pull request: random-cart checks on discount money, a security check
-on the platform's automatic checks, a check on every new package (security and licence), and a one-week wait before
-package updates. Nine more are ranked below with what each would take. Every tool listed is free, open source and was
+on the platform's automatic checks, and a one-week wait before package updates. A fourth (a check on every new package)
+needs a GitHub setting turned on first, so it waits. Nine more are ranked below with what each would take. Every tool listed is free, open source and was
 updated in the last few weeks unless noted.
 
 How I checked: each tool's GitHub page for its licence, its star count (a rough sign of how many people rely on it) and
@@ -36,24 +36,26 @@ Licence MIT (safe) · 5.2k stars · changed today · [dubzzz/fast-check](https:/
 over: a pull request title run as a command, a sign-in token left on disk, a third-party add-on that can change without
 notice.
 
-**What I added:** it now runs on every pull request. I also fixed what it would have found: every check now has
-read-only access to the code, no check leaves its sign-in token on disk, and the one outside add-on (pnpm's installer)
-is now locked to an exact version.
+**What I added:** it now runs on every pull request. I also fixed what it found: every check now has read-only access
+to the code, no check leaves its sign-in token on disk, and every add-on the checks use is locked to an exact version,
+so nobody can swap in a changed copy.
 
 **Why it matters:** the platform will soon create and deploy real shops from these files. A hijacked check file is
 one of the easiest ways into a software company today.
 
 Licence MIT (safe) · 6.9k stars · changed today · [zizmorcore/zizmor](https://github.com/zizmorcore/zizmor)
 
-### 3. A check on every new package: known security holes and licence (GitHub dependency review)
+### 3. Waiting on a GitHub setting: a check on every new package (GitHub dependency review)
 **What it is:** GitHub's own check. When a pull request adds or upgrades a package, it fails if that version has a
 known serious security hole, or if its licence would force us to publish the platform's code (GPL or AGPL).
 
 **Why it matters:** the weekly update requests (already set up) only fix old problems. This stops new ones coming in,
 and it checks licences, which nothing did before.
 
-**Catch:** it is free only while the platform repository is public. When you make it private (before presses pay),
-switch this job to Google's OSV-Scanner (Apache-2.0, 11.4k stars, changed today). I left a note in the file.
+**Status:** not switched on. Its first run said the repository's "Dependency graph" setting is off (GitHub ›
+LMB-PLATFORM › Settings › Advanced Security › Dependency graph › Enable). Once that's on, the job is a few lines to add
+back. It is free only while the repository is public; for a private repository, Google's OSV-Scanner (Apache-2.0, 11.4k
+stars, changed today) does the same job.
 
 Licence MIT (safe) · [actions/dependency-review-action](https://github.com/actions/dependency-review-action)
 
