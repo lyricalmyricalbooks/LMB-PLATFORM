@@ -14,6 +14,7 @@ const ROLE_WORDS: Record<TeamRole, { label: string; detail: string; added: strin
   staff: { label: "Staff", detail: "Can do everything in the admin except change the Team or the payment and email connections.", added: "can open the admin" },
   owner: { label: "Owner", detail: STOCKROOM ? "Everything, including the Team, the payment and email connections, and the stockroom." : "Everything, including the Team and the payment and email connections.", added: "can open the admin" },
   author: { label: "Author", detail: "Can't open this admin. In the stockroom, they see and update only the books that name them as the author.", added: "can open their books in the stockroom" },
+  fairHelper: { label: "Fair helper", detail: "Can't open this admin. In the stockroom, they get only the Fair till: they ring up sales and see their own, and never see your money, settings, customers or other pages. Their sales join your records the next time your stockroom is open.", added: "can use the Fair till" },
   bookkeeper: { label: "Bookkeeper", detail: `Reads the orders, sales, tax collected, payouts and bookkeeping downloads${STOCKROOM ? ", and the stockroom's tax centre" : ""}. Can't change anything, and doesn't see books, settings, the customer list or the Team.`, added: "can read the shop's sales and tax" },
 };
 
@@ -64,7 +65,9 @@ export function TeamSettings() {
   const remove = async (member: TeamMember) => {
     const message = member.role === "author"
       ? `${member.email} will be signed out. A book that still names them as its author stays open to them in the stockroom until you change that book's author.`
-      : `${member.email} will be signed out of the admin and can't open it again until you add them back.`;
+      : member.role === "fairHelper"
+        ? `${member.email} will be signed out of the Fair till and can't open it again until you add them back. Sales they already sent stay in your records.`
+        : `${member.email} will be signed out of the admin and can't open it again until you add them back.`;
     if (!await ask({ title: "Remove from the Team?", message, confirmLabel: "Remove" })) return;
     setBusy(member.email);
     try {

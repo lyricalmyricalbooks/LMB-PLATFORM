@@ -148,3 +148,35 @@ lost. So the stockroom stays the only writer, and the native till asks it.
 Checks for each: stockroom tests for the new asks (a repeated `saleId` records once; an author is refused; an
 offline sale is queued), shop tests for the till's arithmetic, and a browser run with the real stockroom on a phone
 with the connection cut (sell, undo, reconnect, the sale appears once in All sales).
+
+### Fair helpers plan (3 November 2026)
+
+A friend minding the table today needs the owner's whole account. A **Fair helper** is a Team role that can ring up
+sales at the Fair till and nothing else: no money, settings, customers, costs or other pages. The stockroom stays the
+only writer of a book's records, the same way the website's orders reach it (an inbox the owner's stockroom brings in).
+
+- [x] **H1. The role and the inbox (rules first), built.** Settings › Team offers the role only once H3 is built, so
+  nobody is given a role that can't do anything yet. The pure rules are in `apps/stockroom/src/lib/fair-helper.js`.
+  - Shop: `roles.js` gains `fairHelper`, which never opens the admin (`adminRole` stays owner/staff). Settings › Team
+    will offer it as "Fair helper".
+  - Stockroom rules:
+    - `fairTill/menu` is the books a helper may sell (id, title, price, currency, copies on hand). The owner writes it,
+      with its shape checked, and a helper reads it. Nothing else of the stockroom is readable by a helper. In
+      particular a helper never sees `settings/catalog`, which holds author emails and costs.
+    - `fairSales/{saleId}` is the inbox. A helper may only create a sale under their own address: lines within limits,
+      a known way of paying, a fair name, a time. They may read back their own sales, and never change or delete one.
+    - The owner may only mark a sale brought in.
+  - Emulator rules checks cover each allow and each refusal.
+- [ ] **H2. The owner's side.**
+  - The stockroom writes `fairTill/menu` after every save that changes a price or a count.
+  - It brings in the helpers' sales: one `hist` row per line, channel Book Fair, note "<way of paying> · <fair> ·
+    by <helper>", and event id `fair-<saleId>-<n>`, so bringing a sale in twice adds nothing. Then it marks the sale
+    brought in.
+  - The sales show at once on Home's fair line, in All sales and in the fair email.
+- [ ] **H3. The helper's till.**
+  - A helper signs in at the stockroom's address and gets only Fair mode, drawn from `fairTill/menu`: search, cart,
+    way of paying, fair name and "today's sales by me".
+  - Offline sales wait on the phone (the Firestore queue) and upload when the signal comes back.
+  - The copies a helper sees are the menu's count less their own sales not yet brought in.
+- Not planned: a helper writing a book's records directly. Rules can't check a single row inside those records, so
+  that would mean trusting the helper with every book's money.

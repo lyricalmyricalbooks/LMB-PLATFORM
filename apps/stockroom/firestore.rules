@@ -162,6 +162,49 @@ service cloud.firestore {
       allow write: if isPublisher() && planOpen();
     }
 
+    // Fair helpers (docs/combined-admin.md › Fair helpers plan): the "fairHelper" role the shop's server copies onto
+    // the sign-in pass from the owner's Team list, with a verified email. A helper rings up sales at the Fair till and
+    // nothing else: they read the till's menu (fairTill/menu: each book's id, title, price, currency and copies on
+    // hand, written by the publisher's device; never settings/catalog, which holds author emails and costs), and add
+    // sales to an inbox (fairSales) that the publisher's stockroom brings into the books' records. A helper never
+    // reads or writes a book, a setting or another helper's sales. Rules can't check each line of a sale, so the
+    // stockroom checks the lines when it brings a sale in (src/lib/fair-helper.js) and these rules bound the rest.
+    function isFairHelper() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email != null
+        && request.auth.token.get('role', '') == 'fairHelper';
+    }
+    match /fairTill/{docId} {
+      allow get: if docId == 'menu' && (isPublisher() || isFairHelper());
+      allow list: if false;
+      allow create, update: if isPublisher() && planOpen() && docId == 'menu'
+        && request.resource.data.keys().hasOnly(['books', 'at'])
+        && request.resource.data.books is list && request.resource.data.books.size() <= 1000
+        && request.resource.data.at is string;
+      allow delete: if isPublisher() && planOpen() && docId == 'menu';
+    }
+    match /fairSales/{saleId} {
+      // One sale, under the helper's own address, stamped by the server's clock. A second write to the same id is
+      // an update, which a helper can't make, so a resent sale is never counted twice or changed.
+      allow create: if isFairHelper() && planOpen()
+        && saleId.matches('^[A-Za-z0-9_-]{8,64}$')
+        && request.resource.data.keys().hasOnly(['by', 'at', 'day', 'fair', 'method', 'lines'])
+        && request.resource.data.by == request.auth.token.email.lower()
+        && request.resource.data.at == request.time
+        && request.resource.data.day is string && request.resource.data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.fair is string && request.resource.data.fair.size() <= 80
+        && request.resource.data.method in ['Card', 'Stripe QR', 'Bank Transfer', 'Cash', 'Comp/Gift']
+        && request.resource.data.lines is list
+        && request.resource.data.lines.size() >= 1 && request.resource.data.lines.size() <= 50;
+      allow read: if isPublisher()
+        || (isFairHelper() && resource.data.by == request.auth.token.email.lower());
+      // The publisher's stockroom marks a sale brought in, and changes nothing else.
+      allow update: if isPublisher() && planOpen()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imported']);
+      allow delete: if false;
+    }
+
     // "Am I the publisher?" (src/lib/publisher-access.js askRules): the sign-in screen reads this one document,
     // which never exists, straight from the server. The read is allowed exactly when isPublisher() is true, so the
     // screen can never disagree with these rules. That is how the owner of a shop without the shop app (no shop

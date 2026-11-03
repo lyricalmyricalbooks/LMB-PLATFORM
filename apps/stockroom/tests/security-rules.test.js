@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PLAN_WRITE_FUNCTIONS } from '../src/lib/plan-pause.js';
+import { HELPER_METHODS, MAX_FAIR_NAME, MAX_MENU_BOOKS, MAX_SALE_LINES } from '../src/lib/fair-helper.js';
 
 // The rules files can't be executed here (that needs the Firebase emulators),
 // so this pins down the decisions they encode: which settings documents a
@@ -363,5 +364,24 @@ describe('the app and the rules agree', () => {
       .filter(l => /allow [a-z, ]*(write|create|update|delete)[a-z, ]*:/.test(l) && !/if false/.test(l));
     const unguarded = writeLines.filter(l => !l.includes('planOpen()'));
     expect(unguarded).toEqual([]);
+  });
+});
+
+describe('fair helpers (docs/combined-admin.md › Fair helpers plan)', () => {
+  it('hold the same limits as src/lib/fair-helper.js', () => {
+    const methods = /request\.resource\.data\.method in \[([^\]]+)\]/.exec(firestoreRules)[1].split(',').map((s) => s.trim().replace(/'/g, ''));
+    expect(methods).toEqual([...HELPER_METHODS]);
+    expect(firestoreRules).toContain(`request.resource.data.lines.size() <= ${MAX_SALE_LINES}`);
+    expect(firestoreRules).toContain(`request.resource.data.fair.size() <= ${MAX_FAIR_NAME}`);
+    expect(firestoreRules).toContain(`request.resource.data.books.size() <= ${MAX_MENU_BOOKS}`);
+    expect(firestoreRules).toContain("saleId.matches('^[A-Za-z0-9_-]{8,64}$')");
+  });
+  it('never let a helper near a book or a setting', () => {
+    const helperLines = firestoreRules.split('\n').filter((l) => l.includes('isFairHelper()') && !l.includes('function isFairHelper'));
+    expect(helperLines.length).toBeGreaterThan(0);
+    const books = firestoreRules.slice(firestoreRules.indexOf('match /books/{bookId}'), firestoreRules.indexOf('match /submissions/'));
+    const settings = firestoreRules.slice(firestoreRules.indexOf('match /settings/{document}'), firestoreRules.indexOf('// Fair helpers (docs/combined-admin.md'));
+    expect(books).not.toMatch(/isFairHelper/);
+    expect(settings).not.toMatch(/isFairHelper/);
   });
 });
