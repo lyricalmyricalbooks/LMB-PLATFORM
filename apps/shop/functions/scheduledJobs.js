@@ -4,6 +4,7 @@
 // helpers, so the vm-based handler tests' fakes still apply, and keeps each `exports.<name> =` line.
 
 const { withPlatformKey } = require("./platformKey");
+const { lowStockLine, lowStockRows, newlyLow, lowStockLabel, lowStockEmailEnabled } = require("./lowStockAlert");
 function scheduledJobs({
   onSchedule, admin, db, crypto, ADMIN_TO, RESEND_API_KEY, DIGEST_ORDER_LIMIT, RESTOCK_BUDGET_MS, TRANSIT_DAYS,
   buildOrderDigest, catalogUnitPrice, claimEmailSend, compileEmailTemplate, dailyDigestEnabled,
@@ -21,40 +22,70 @@ function scheduledJobs({
   const dailyOrderDigest = onSchedule(
     { schedule: "every day 08:00", name: "dailyOrderDigest", timeZone: "America/Toronto", secrets: withPlatformKey([RESEND_API_KEY]) },
     async () => {
-      // Settings › Notifications › Shop alerts › Daily "orders needing you" email.
+      // Settings › Notifications › Shop alerts › Daily "orders needing you" email, and Running low (plan 24.3).
       const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
-      if (!dailyDigestEnabled(notificationDoc?.data?.() || {})) return;
-      // Bounded: paid orders of the last DIGEST_WINDOW_DAYS (newest first, at most DIGEST_ORDER_LIMIT), and the private
-      // record only for orders that are still open, so reads no longer grow with every order the shop has ever taken.
-      const paidSnap = await db.collection("orders").where("paymentStatus", "==", "paid")
-        .where("createdAt", ">=", digestSince()).orderBy("createdAt", "desc").limit(DIGEST_ORDER_LIMIT).get();
-      const orders = paidSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const ops = new Map();
-      const openIds = orders.filter(digestNeedsOperations).map(o => o.id);
-      for (let i = 0; i < openIds.length; i += 300) {
-        const refs = openIds.slice(i, i + 300).map(id => db.collection("order-operations").doc(id));
-        for (const snap of await db.getAll(...refs)) if (snap.exists) ops.set(snap.id, snap.data());
+      const notificationSettings = notificationDoc?.data?.() || {};
+      const ordersOn = dailyDigestEnabled(notificationSettings);
+      const lowOn = lowStockEmailEnabled(notificationSettings);
+      if (!ordersOn && !lowOn) return;
+      let digest = { total: 0, unshipped: [], stuck: [], labelChecks: [] };
+      if (ordersOn) {
+        // Bounded: paid orders of the last DIGEST_WINDOW_DAYS (newest first, at most DIGEST_ORDER_LIMIT), and the private
+        // record only for orders that are still open, so reads no longer grow with every order the shop has ever taken.
+        const paidSnap = await db.collection("orders").where("paymentStatus", "==", "paid")
+          .where("createdAt", ">=", digestSince()).orderBy("createdAt", "desc").limit(DIGEST_ORDER_LIMIT).get();
+        const orders = paidSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const ops = new Map();
+        const openIds = orders.filter(digestNeedsOperations).map(o => o.id);
+        for (let i = 0; i < openIds.length; i += 300) {
+          const refs = openIds.slice(i, i + 300).map(id => db.collection("order-operations").doc(id));
+          for (const snap of await db.getAll(...refs)) if (snap.exists) ops.set(snap.id, snap.data());
+        }
+        digest = buildOrderDigest(orders, ops);
       }
-      const digest = buildOrderDigest(orders, ops);
-      if (!digest.total) return;
+      // Running low: each product (or edition) once when it reaches the low-stock line, again if it sells out.
+      let low = { fresh: [], marks: null };
+      const lowRef = db.collection("systemStatus").doc("lowStockAlerts");
+      if (lowOn) {
+        try {
+          const [booksSnap, websiteSnap, marksSnap] = await Promise.all([
+            db.collection("books").get(), db.collection("settings").doc("website").get(), lowRef.get(),
+          ]);
+          const books = booksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const rows = lowStockRows(books, lowStockLine(websiteSnap.exists ? websiteSnap.data() : {}));
+          low = newlyLow(rows, marksSnap.exists ? marksSnap.data()?.items || {} : {});
+        } catch (err) {
+          console.error("Running-low check failed", err);
+        }
+      }
+      if (!digest.total && !low.fresh.length) {
+        // Nothing to send, but a restocked item still loses its mark so its next dip is reported.
+        if (low.marks) await lowRef.set({ items: low.marks, updatedAt: admin.firestore.FieldValue.serverTimestamp() }).catch(() => {});
+        return;
+      }
       const link = id => siteLink(`/admin#orders/${encodeURIComponent(id)}`);
       const rows = (items, describe) => items.map(item => `<li style="margin:6px 0;"><a href="${link(item.id)}">${escapeHtml(item.label)}</a> — ${escapeHtml(describe(item))}</li>`).join("");
       const section = (title, items, describe) => items.length ? `<h3 style="margin:24px 0 8px;">${title} (${items.length})</h3><ul style="padding-left:18px;">${rows(items, describe)}</ul>` : "";
+      const lowItems = low.fresh.map(row => { const { name, detail } = lowStockLabel(row); return `<li style="margin:6px 0;">${escapeHtml(name)} — ${escapeHtml(detail)}</li>`; }).join("");
+      const lowSection = low.fresh.length
+        ? `<h3 style="margin:24px 0 8px;">Running low (${low.fresh.length})</h3><ul style="padding-left:18px;">${lowItems}</ul><p><a href="${siteLink("/admin#inventory")}">Open Inventory &rarr;</a></p>`
+        : "";
       const html = `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-          <h2 style="margin-top:0;">Orders needing you today</h2>
+          <h2 style="margin-top:0;">${digest.total ? "Orders needing you today" : "Running low today"}</h2>
           ${section("Paid, not shipped yet", digest.unshipped, o => `${o.days} days since payment${o.customer ? ` · ${o.customer}` : ""}`)}
           ${section(`In transit ${TRANSIT_DAYS}+ days`, digest.stuck, o => `${o.days} days · ${[o.carrier, o.tracking].filter(Boolean).join(" ")} — check tracking or open a claim`)}
           ${section("Label purchase to check in Shippo", digest.labelChecks, () => "a label purchase didn't finish; check Shippo before buying again")}
-          <p style="margin-top:24px;"><a href="${siteLink("/admin#orders")}">Open Orders &rarr;</a></p>
+          ${digest.total ? `<p style="margin-top:24px;"><a href="${siteLink("/admin#orders")}">Open Orders &rarr;</a></p>` : ""}
+          ${lowSection}
         </div>`;
+      const subject = digest.total
+        ? `[TO DO] ${digest.total} order${digest.total === 1 ? "" : "s"} need attention${low.fresh.length ? ` · ${low.fresh.length} running low` : ""}`
+        : `[STOCK] ${low.fresh.length} item${low.fresh.length === 1 ? "" : "s"} running low`;
       try {
-        await sendEmail({
-          to: ADMIN_TO,
-          subject: `[TO DO] ${digest.total} order${digest.total === 1 ? "" : "s"} need attention`,
-          html,
-          secret: RESEND_API_KEY.value(),
-        });
+        await sendEmail({ to: ADMIN_TO, subject, html, secret: RESEND_API_KEY.value() });
+        // Marks are saved only once the email went out, so a failed send reports the same items tomorrow.
+        if (low.marks) await lowRef.set({ items: low.marks, updatedAt: admin.firestore.FieldValue.serverTimestamp() }).catch(() => {});
       } catch (err) {
         console.error("Daily order digest failed", err);
       }
