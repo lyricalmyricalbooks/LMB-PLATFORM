@@ -1064,3 +1064,6 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
   `{{items_list}}` is one line per item.
 - Not handled yet: the label buyer still weighs the whole order for the rest's label, the packing checklist still lists
   sent lines, and a refund's restock default doesn't know a part already left.
+- **One line everywhere (plan 24.9):** Overview › Running low (`OverviewStock` `lowLine`), the Books list badges
+  (`catalogList.stockInfo(book, getBook, line)`) and the book editor read the same `lowStockThreshold(settings)`. Before
+  this they used a fixed 5.

@@ -19,7 +19,7 @@ import { KIND_CHOICES, isProductKind, planKindChange } from "./bulkKind";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
-import { liveStockOf } from "./inventoryInsights";
+import { liveStockOf, lowStockThreshold } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, Pagination,
@@ -29,7 +29,7 @@ import { preorderActive, releaseDateOf } from "../features/site/preorder";
 import { normalizeCategories } from "../features/site/navItems";
 import { runsOnColophon } from "../../lib/shopProfile";
 import {
-  STATUS_FILTERS, STOCK_FILTERS, bookAuthor, bookReferences, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, stockInfo,
+  LOW_STOCK, STATUS_FILTERS, STOCK_FILTERS, bookAuthor, bookReferences, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, stockInfo,
 } from "./catalogList";
 
 interface BookCatalogProps {
@@ -120,7 +120,10 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   }
 
   const byId = useMemo(() => new Map(books.map(b => [b.id, b])), [books]);
-  const stockOf = useMemo(() => { const cache = new Map<any, ReturnType<typeof stockInfo>>(); return (b: any) => { let s = cache.get(b); if (!s) { s = stockInfo(b, id => byId.get(id)); cache.set(b, s); } return s; }; }, [byId]);
+  // Inventory's low-stock line, so "Low" here matches Inventory, Overview and the 8am email.
+  const [lowLine, setLowLine] = useState(LOW_STOCK);
+  useEffect(() => { adminApi.getPublicSettings().then((s: any) => setLowLine(lowStockThreshold(s))).catch(() => {}); }, []);
+  const stockOf = useMemo(() => { const cache = new Map<any, ReturnType<typeof stockInfo>>(); return (b: any) => { let s = cache.get(b); if (!s) { s = stockInfo(b, id => byId.get(id), lowLine); cache.set(b, s); } return s; }; }, [byId, lowLine]);
 
   const categories = useMemo(() => {
     const cats = new Set<string>();

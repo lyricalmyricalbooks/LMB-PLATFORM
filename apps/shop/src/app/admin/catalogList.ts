@@ -65,24 +65,25 @@ export interface StockInfo {
 // Same field order as the server (functions/inventory.js): an edition's stockLevel, else stock.
 const variantStock = (v: any) => Math.max(0, Number(v?.stockLevel ?? v?.stock) || 0);
 
-export function stockInfo(book: any, getBook: (id: string) => any = () => undefined): StockInfo {
+/** `line` is the shop's low-stock line (inventoryInsights lowStockThreshold), so every screen calls the same count "low". */
+export function stockInfo(book: any, getBook: (id: string) => any = () => undefined, line = LOW_STOCK): StockInfo {
   if (isGiftCardProduct(book)) return { kind: "giftcard", count: Infinity, tone: "neutral", text: "Gift card · no stock", sortValue: Infinity };
   if (isBundle(book)) {
     const sets = bundleAvailable(book, getBook);
     if (sets === Infinity) return { kind: "untracked", count: Infinity, tone: "neutral", text: "Box set · not tracked", sortValue: Infinity };
-    return level(sets, " set", true);
+    return level(sets, " set", true, line);
   }
   if (!book?.trackInventory) return { kind: "untracked", count: Infinity, tone: "neutral", text: "Not tracked", sortValue: Infinity };
   const variants = Array.isArray(book.variants) ? book.variants : [];
   const count = variants.length ? variants.reduce((sum: number, v: any) => sum + variantStock(v), 0) : Math.max(0, Number(book.stockLevel) || 0);
   if (book.allowBackorder) return { kind: "backorder", count, tone: "info", text: `Backorder · ${count} on hand`, sortValue: Infinity };
-  return level(count, variants.length ? " (all editions)" : "", false);
+  return level(count, variants.length ? " (all editions)" : "", false, line);
 }
 
-function level(n: number, suffix: string, sets: boolean): StockInfo {
+function level(n: number, suffix: string, sets: boolean, line: number): StockInfo {
   const what = sets ? ` set${n === 1 ? "" : "s"}` : "";
   if (n <= 0) return { kind: "soldout", count: 0, tone: "danger", text: "Sold out", sortValue: 0 };
-  if (n <= LOW_STOCK) return { kind: "low", count: n, tone: "warning", text: `${n}${what} left${suffix}`, sortValue: n };
+  if (n <= line) return { kind: "low", count: n, tone: "warning", text: `${n}${what} left${suffix}`, sortValue: n };
   return { kind: "instock", count: n, tone: "success", text: `${n}${what} in stock${suffix}`, sortValue: n };
 }
 

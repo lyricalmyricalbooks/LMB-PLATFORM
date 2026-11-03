@@ -814,6 +814,7 @@ The review compared Colophon with what Shopify gives a small shop, checked again
 | 24.6 | shop | Change an order after it is paid | order and payment tests | |
 | 24.7 | shop | **Instagram, Facebook and Pinterest.** The site build writes `social-product-feed.csv` from the Google feed's items (Meta and Pinterest column names and availability words); Books › More catalog actions › Instagram, Facebook and Pinterest shows the address and one-time steps, on every shop | `socialFeed.test.ts`, `hostingConfig.test.ts` | open |
 | 24.8 | platform | Press-to-press referral and partner codes | billing tests | |
+| 24.9 | shop | **One low-stock line everywhere** (next moves, 3 November 2026). Overview › Running low, the Books list badges and the book editor use Inventory's low-stock line, like the 8am email (they used a fixed 5) | `catalogList.test.ts` | open |
 
 ## Rules for every pull request
 

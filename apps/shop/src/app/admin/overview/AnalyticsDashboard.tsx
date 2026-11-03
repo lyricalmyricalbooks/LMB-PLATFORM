@@ -1,4 +1,5 @@
 import { openFirstActionQueue, openOrdersQueue } from "../Orders";
+import { lowStockThreshold } from "../inventoryInsights";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { adminApi } from "../api";
 import { inventoryApi } from "../inventoryApi";
@@ -508,7 +509,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook, onSetWall }: { se
       return stock.error ? <ErrorState title="Stock unavailable" description="Books could not be loaded." onRetry={refresh} />
         : !insights ? (allOrders.error ? <ErrorState title="Stock insights unavailable" description="Orders could not be loaded, so sales pace can't be calculated." onRetry={refresh} /> : <LoadingState label="Calculating…" />)
         : <OverviewStock key={reloadKey} only={w.type === "stockKpis" ? "kpis" : w.type} books={books} paid={periods?.paid} shelf={insights.shelf} reprint={insights.reprint} dormant={insights.dormant} setActiveTab={setActiveTab}
-            dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} />;
+            lowLine={lowStockThreshold(launch.parts?.settings)} dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} />;
     }
     return null;
   };

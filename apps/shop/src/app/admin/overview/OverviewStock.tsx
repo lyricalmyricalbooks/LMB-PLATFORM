@@ -17,12 +17,14 @@ import { useShopWords } from "../shopWords";
 export const LOW_STOCK = 5;
 
 /** Overview › Dig deeper › Stock: what to reprint, what is gathering dust, what is running low, who is waiting. */
-export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, dailyCurrent = [], dailyAll = [], only, paid, leadDays: leadProp }: {
+export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, dailyCurrent = [], dailyAll = [], only, paid, leadDays: leadProp, lowLine = LOW_STOCK }: {
   books: Book[];
   /** Real paid orders: with them, Running low shows days until sold out at the last 30 days' pace. */
   paid?: Order[];
   /** A reprint's usual wait in days, marked on the days-left bars (default: the one typed in Sold-out countdown, else 35). */
   leadDays?: number;
+  /** The shop's low-stock line (Inventory › Low-stock at or below); 5 when unknown. */
+  lowLine?: number;
   /** Show just one panel (an Overview board widget): kpis, reprint, wanted, backInStock, slow or low. */
   only?: string;
   /** The period's daily traffic docs (views of books that couldn't be bought, wishlist saves). */
@@ -53,9 +55,9 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
 
   const lowStock = useMemo(
     // Tracked print books/editions only (stockRules): never digital, untracked, gift cards, box sets or archived.
-    () => trackedStockRows(books).filter(r => r.stock <= LOW_STOCK)
+    () => trackedStockRows(books).filter(r => r.stock <= lowLine)
       .sort((a, b) => a.stock - b.stock).slice(0, 6),
-    [books],
+    [books, lowLine],
   );
   const bookById = useMemo(() => new Map(books.map(b => [b.id, b])), [books]);
   const demand = useMemo(() => (alerts.rows ? stockDemand(alerts.rows, books) : null), [alerts.rows, books]);
@@ -150,7 +152,7 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
           )}
         </SectionCard>}
 
-        {show("low") && <SectionCard flush title="Running low" description={`${LOW_STOCK} copies or fewer left`}
+        {show("low") && <SectionCard flush title="Running low" description={w(`${lowLine} ${lowLine === 1 ? "copy" : "copies"} or fewer left (your low-stock line)`)}
           actions={head(act("Manage books", "catalog"))}>
           {lowStock.length === 0 ? <EmptyState icon="✓" title="Stock looks healthy" description="No published titles are at or below the low-stock threshold." /> : (
             paid ? (
