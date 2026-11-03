@@ -60,7 +60,7 @@ so a stage that is added to the build also needs a line here.
      You should land on Settings › Security with a note that the app was taken off. Set it up again (step 3).
   6. Put the test shop on a paid test plan (Stripe's test mode), then change its plan in Settings › Plan. It should go
      through without sending you to the account page. Before you turn two-step on for this step, the admin home should
-     show the "Protect your shop with two-step sign-in" reminder.
+     show the "Turn on two-step sign-in" reminder.
   7. Check the shop's history (Settings › audit log) shows the backup codes being made and the backup code being used.
 - **Shipping and your address** (plan 17.11): Julian confirms the shipping starter for Canada with his own prices and
   checks the web address shown on the shop. Nothing needs a carrier account for the starter. Status: built.

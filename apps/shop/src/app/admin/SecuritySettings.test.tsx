@@ -154,7 +154,7 @@ describe("Settings › Security", () => {
     await mount(pretend());
     expect(document.querySelector("[data-backup-used]")).not.toBeNull();
     expect(text()).toContain("You signed in with a backup code.");
-    expect(text()).toContain("You have 7 backup codes left.");
+    expect(text()).toContain("Set up your new phone below. 7 backup codes left.");
     expect(sessionStorage.getItem("lmb.twoStepBackupUsed")).toBeNull();
   });
 });

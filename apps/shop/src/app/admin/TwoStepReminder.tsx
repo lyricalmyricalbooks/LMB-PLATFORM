@@ -45,8 +45,8 @@ export function TwoStepReminder({ plan, two = firebaseTwoStep(auth), user = auth
     <div role="status" className="rp-alert" data-tone="info" data-two-step-reminder="">
       <span className="rp-alert-glyph" aria-hidden="true"><ShieldCheck size={16} /></span>
       <div className="rp-alert-text">
-        <strong className="rp-alert-title">Protect your shop with two-step sign-in.</strong>
-        <span className="rp-alert-detail">Your plan is paid, so changes to your plan, cards and billing details need a code from an authenticator app. Setting it up takes two minutes.</span>
+        <strong className="rp-alert-title">Turn on two-step sign-in.</strong>
+        <span className="rp-alert-detail">Billing changes need it. Two minutes.</span>
       </div>
       <div className="rp-alert-actions">
         <PrimaryButton size="sm" onClick={() => { window.location.hash = "#settings/security"; }}>Set it up</PrimaryButton>

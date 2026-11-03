@@ -37,7 +37,7 @@ describe("two-step reminder on the admin home", () => {
   it("asks a paid plan's owner without two-step, with a link to Security", async () => {
     await mount({});
     expect(shown()).toBe(true);
-    expect(document.body.textContent).toContain("Protect your shop with two-step sign-in.");
+    expect(document.body.textContent).toContain("Turn on two-step sign-in.");
     const setUp = [...document.querySelectorAll("button")].find((b) => b.textContent === "Set it up")!;
     await act(async () => { setUp.click(); });
     expect(window.location.hash).toBe("#settings/security");

@@ -829,10 +829,10 @@ export function Dashboard() {
       >
         <SupportBanner visit={supportVisit} onSignOut={() => { void adminApi.logout(); }} />
         <PlanBannerBar plan={platformPlan} />
-        {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}
-        {activeTab === "overview" && !supportVisit && <TwoStepReminder plan={platformPlan} />}
         {/* The control room's messages to the press (platform/messages, code plan 19.14): admin only, never the storefront. */}
         <PlatformMessagesBar enabled={!!user} />
+        {/* The admin home asks a paid plan's owner to turn on two-step sign-in (TwoStepReminder.tsx, plan 22.10). */}
+        {activeTab === "overview" && !supportVisit && <TwoStepReminder plan={platformPlan} />}
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
         {!ownMasthead && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}

@@ -174,7 +174,7 @@ export function SecuritySettings({ two = firebaseTwoStep(auth), user = auth.curr
               <span className="rp-alert-glyph" aria-hidden="true">!</span>
               <div className="rp-alert-text">
                 <strong className="rp-alert-title">You signed in with a backup code.</strong>
-                <span className="rp-alert-detail">Your authenticator app was taken off your sign-in, so Google alone lets you in for now. Set up two-step sign-in again on your new phone. {backupUsed === 1 ? "You have 1 backup code left." : `You have ${backupUsed} backup codes left.`}</span>
+                <span className="rp-alert-detail">Set up your new phone below. {backupUsed === 1 ? "1 backup code left." : `${backupUsed} backup codes left.`}</span>
               </div>
             </div>
           )}

@@ -1006,3 +1006,13 @@ with the claim `support: { by, reason, until }` (`until` in seconds, at most an 
   `paymentAlertSentAt`) or the card page was opened in the last hour (`updatedAt`); a queued copy is dropped by `staleOrderEmailReason`
   once the order is paid, cancelled or its link closed. The total is `chargedTotalFmt`, and every place naming the closing day (history line,
   the owner's email text, the reminder) uses `closingDay` (Toronto day; client copy parity-tested). Tests: `paymentLinkReminders.test.js`.
+
+## Two-step backup codes (3 November 2026, platform plan 22.9)
+
+`twoStepBackup` (`twoStepBackup.js`): `status` / `make` for a signed-in admin, `use` from the sign-in page before there
+is a sign-in. Only SHA-256 hashes are kept, in server-only `twoStepBackup/{uid}` (rules deny the browser). `make` needs a
+sign-in finished with the app's code (`firebase.sign_in_second_factor`) or a setup and sign-in both under 15 minutes old.
+`use` needs Google's own token (checked by Google's tokeninfo: verified address, Google issuer) for the same address as
+the Firebase user, spends the code in a transaction, then removes only the TOTP factor (phone factors stay) and writes
+the audit log. Rate-limited (`LIMITS.twoStepBackup`). The token's audience isn't checked, so the code is still needed:
+never let `use` work on Google's token alone. Tests: `twoStepBackup.test.js`.
