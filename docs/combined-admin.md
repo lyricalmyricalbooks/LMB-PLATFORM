@@ -155,10 +155,9 @@ A friend minding the table today needs the owner's whole account. A **Fair helpe
 sales at the Fair till and nothing else: no money, settings, customers, costs or other pages. The stockroom stays the
 only writer of a book's records, the same way the website's orders reach it (an inbox the owner's stockroom brings in).
 
-- [x] **H1. The role and the inbox (rules first), built.** Settings › Team offers the role only once H3 is built, so
-  nobody is given a role that can't do anything yet. The pure rules are in `apps/stockroom/src/lib/fair-helper.js`.
+- [x] **H1. The role and the inbox (rules first), built.** The pure rules are in `apps/stockroom/src/lib/fair-helper.js`.
   - Shop: `roles.js` gains `fairHelper`, which never opens the admin (`adminRole` stays owner/staff). Settings › Team
-    will offer it as "Fair helper".
+    offers it as "Fair helper" (H3).
   - Stockroom rules:
     - `fairTill/menu` is the books a helper may sell (id, title, price, currency, copies on hand). The owner writes it,
       with its shape checked, and a helper reads it. Nothing else of the stockroom is readable by a helper. In
@@ -167,16 +166,29 @@ only writer of a book's records, the same way the website's orders reach it (an 
       a known way of paying, a fair name, a time. They may read back their own sales, and never change or delete one.
     - The owner may only mark a sale brought in.
   - Emulator rules checks cover each allow and each refusal.
-- [ ] **H2. The owner's side.**
-  - The stockroom writes `fairTill/menu` after every save that changes a price or a count.
-  - It brings in the helpers' sales: one `hist` row per line, channel Book Fair, note "<way of paying> · <fair> ·
-    by <helper>", and event id `fair-<saleId>-<n>`, so bringing a sale in twice adds nothing. Then it marks the sale
-    brought in.
-  - The sales show at once on Home's fair line, in All sales and in the fair email.
-- [ ] **H3. The helper's till.**
-  - A helper signs in at the stockroom's address and gets only Fair mode, drawn from `fairTill/menu`: search, cart,
-    way of paying, fair name and "today's sales by me".
-  - Offline sales wait on the phone (the Firestore queue) and upload when the signal comes back.
-  - The copies a helper sees are the menu's count less their own sales not yet brought in.
+- [x] **H2. The owner's side.** Built (`apps/stockroom/src/features/fair-helpers.js`, started by main.js once
+  every book has loaded; publisher only, plan with both apps only).
+  - The stockroom writes `fairTill/menu` from its own records (list price, the book's currency, copies on hand) a few
+    seconds after any book changes, and only when the menu differs from the last one it wrote.
+  - It watches the last fortnight of `fairSales`. For each sale not yet marked, it checks the lines
+    (`helperImportPlan`: every book known, whole quantities, one price per book; a sale with a problem is left
+    alone), claims the sale on the server in a transaction that sets `imported` (so two of the owner's devices
+    never both bring it in), then writes one record per book through the ledger's own `writeOrderToLedger`:
+    channel Book Fair, number = the sale's id, date = the sale's day, note "<way of paying> (rung up by <helper>) ·
+    <fair>". A book that already holds a record with that number is skipped.
+  - So the sales show on Home's fair line, in All sales, in fair days side by side and in the fair email, with the
+    fair name read the usual way.
+- [x] **H3. The helper's till.** Built (`apps/stockroom/src/features/fair-helper-view.js`, styles in
+  `src/styles/fair-helper-view.css`).
+  - A helper signs in at the shop's `/stockroom/app` (Settings › Team shows that address with the role, offered on
+    the plan with both apps only). main.js sends a `fairHelper` pass to this screen before any book, catalogue or
+    setting loads, the way the bookkeeper's pass goes to its own screen.
+  - The screen: today's fair name (kept on the phone for the day), search, the menu's books with price and copies
+    left, a cart, the five ways of paying (one tap records the sale), and "Your sales today" with each sale's state
+    (waiting for signal, uploaded, in the books).
+  - A sale is `helperSaleDoc` (prices from the menu, never typed) written with the server's time and not awaited:
+    offline it waits in Firestore's queue on the phone, and the screen says how many are waiting.
+  - Copies left are the menu's count less the helper's own sales not yet brought in (`helperCopiesLeft`).
+  - A helper can't void a sale; the screen says to ask the owner, who voids it in History like any till sale.
 - Not planned: a helper writing a book's records directly. Rules can't check a single row inside those records, so
   that would mean trusting the helper with every book's money.

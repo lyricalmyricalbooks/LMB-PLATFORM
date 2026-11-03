@@ -89,3 +89,73 @@ export function checkedHelperLines(sale, knownBookIds) {
   }
   return { lines, problem: '' };
 }
+
+/**
+ * The note on each record a helper's sale becomes: the way of paying first, then who rang it up in brackets, then
+ * the fair, like a sale rung up on the owner's own till ("Cash (rung up by sam@example.com) · Riverside Fair"). The
+ * till's summaries read the way of paying and the fair from it (fair-mode.js saleMethod / fairNameOf).
+ */
+export function helperSaleNotes(sale) {
+  const method = HELPER_METHODS.includes(sale?.method) ? sale.method : 'Cash';
+  const by = text(sale?.by, 120);
+  const fair = text(sale?.fair, MAX_FAIR_NAME);
+  return `${method}${by ? ` (rung up by ${by})` : ''}${fair ? ` · ${fair}` : ''}`;
+}
+
+/**
+ * What bringing one helper sale into the books does: { rows, problem }. Each row is { bookId, qty, price, notes,
+ * date, num } for the ledger's one sale-writing path, all sharing the sale's id as their number, so a checkout's
+ * books group together like one till sale. `alreadyIn(bookId, num)` says whether a book already holds a record from
+ * this sale (another device brought it in): those books are left out, so bringing a sale in twice never counts it
+ * twice. `problem` is "" or one of checkedHelperLines' problems; with a problem nothing is brought in.
+ */
+export function helperImportPlan(sale, knownBookIds, alreadyIn = () => false) {
+  const num = String(sale?.id || '');
+  if (!SALE_ID.test(num)) return { rows: [], problem: 'bad-sale' };
+  const { lines, problem } = checkedHelperLines(sale, knownBookIds);
+  if (problem) return { rows: [], problem };
+  const date = DAY.test(String(sale?.day || '')) ? sale.day : '';
+  const notes = helperSaleNotes(sale);
+  // Two lines for one book (rung up twice in one checkout) become one record of both.
+  const byBook = new Map();
+  for (const l of lines) {
+    const row = byBook.get(l.bookId);
+    if (row && row.price === l.price) row.qty += l.qty;
+    else if (!row) byBook.set(l.bookId, { bookId: l.bookId, qty: l.qty, price: l.price, notes, date, num });
+    else return { rows: [], problem: 'bad-price' };
+  }
+  return { rows: [...byBook.values()].filter((r) => !alreadyIn(r.bookId, num)), problem: '' };
+}
+
+/**
+ * Copies a helper's till shows for each book: the menu's count less what this helper has sold that the owner's
+ * stockroom hasn't brought in yet (once it has, the menu's count already says so). null for a book that isn't
+ * counted. `mySales` are this helper's inbox documents.
+ */
+export function helperCopiesLeft(menu, mySales) {
+  const waiting = new Map();
+  for (const sale of mySales || []) {
+    if (!sale || sale.imported) continue;
+    for (const l of sale.lines || []) waiting.set(l.bookId, (waiting.get(l.bookId) || 0) + (Number(l.qty) || 0));
+  }
+  const out = {};
+  for (const b of menu?.books || []) out[b.id] = b.onHand == null ? null : Math.max(0, b.onHand - (waiting.get(b.id) || 0));
+  return out;
+}
+
+/** This helper's sales on one day, newest first, with the day's totals by currency and how many still wait to upload. */
+export function helperDay(mySales, day) {
+  const sales = (mySales || []).filter((s) => s && s.day === day)
+    .sort((a, b) => String(b.id).localeCompare(String(a.id)));
+  const totals = {};
+  let units = 0;
+  let waiting = 0;
+  for (const s of sales) {
+    if (s.pending) waiting++;
+    for (const l of s.lines || []) {
+      units += Number(l.qty) || 0;
+      totals[l.cur || 'CAD'] = cents((totals[l.cur || 'CAD'] || 0) + (Number(l.qty) || 0) * (Number(l.price) || 0));
+    }
+  }
+  return { sales, totals, units, waiting };
+}

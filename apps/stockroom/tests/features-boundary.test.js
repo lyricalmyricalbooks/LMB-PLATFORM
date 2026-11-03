@@ -78,6 +78,8 @@ const MAIN_IMPORT_BUDGET = {
   'receipt-finder.js': 0,
   // The bookkeeper's read-only screen (plan 7.17) needs nothing from main.js.
   'bookkeeper-view.js': 0,
+  // The fair helper's till needs nothing from main.js either.
+  'fair-helper-view.js': 0,
   // The read-only lock while the shop's plan is paused (platform plan 6.7) needs nothing from main.js.
   'plan-pause.js': 0,
   // The review inbox is a window over receipts.js and shipping.js, which hold its
@@ -181,6 +183,8 @@ const MAIN_IMPORT_BUDGET = {
   'app-switch.js': 7,
   // Stock in more than one place: the shared $, the role check, the save, the toast, today's date and the overview repaint.
   'stock-places.js': 6,
+  // Written as a feature module from the start: the History repaint after it brings a helper's sale in.
+  'fair-helpers.js': 1,
 };
 
 const featureFiles = fs.existsSync(featureDir)
@@ -343,8 +347,12 @@ const MIN_EXPORTS = {
   // Written as a feature module from the start: start it (button, shortcuts)
   // and open it (from a #search= link or the book deep link's fallback).
   'app-search.js': 2,
+  // Written as a feature module from the start: start it, bring helpers' sales in, and build their price list.
+  'fair-helpers.js': 3,
   // The bookkeeper's read-only screen: its markup and the call that shows it.
   'bookkeeper-view.js': 2,
+  // Show the helper's till, and its four parts' markup for the tests.
+  'fair-helper-view.js': 5,
   // The read-only lock: the call that locks the stockroom and shows the banner.
   'plan-pause.js': 1,
   // The places pop-up: open, preview, step, submit and close a place.
