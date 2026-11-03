@@ -33,6 +33,7 @@
 // What can't be real yet answers plainly that it isn't switched on (server/notConnected.js; listed in README.md).
 import { accountRoutes } from "../accounts/routes.js";
 import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js";
+import { createShopBillingDoor, SHOP_BILLING_PREFIX } from "../accounts/shopBillingDoor.js";
 import { createAccounts } from "../accounts/accounts.js";
 import { controlRoutes } from "../control-room/routes.js";
 import { controlRoomAdmins, createControlRoom, profilePublisher } from "../control-room/controlRoom.js";
@@ -84,7 +85,7 @@ import {
   firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
 } from "../clients/stores.js";
 import {
-  firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
+  firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreFoundingSeats, firestoreDataExports, firestoreFeeLedger, firestorePressMessages,
   firestoreFrontDoorStores, firestoreShopRecords, firestoreSignupStores, firestoreThrottle,
 } from "../clients/platformStores.js";
 import { createFrontDoor, frontDoorPublicRoutes, frontDoorRoutes } from "../signup/frontDoor.js";
@@ -141,6 +142,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const billing = createBillingFromEnv({
     env, fetch, ...billingStores, registry, auditLog, email, now: nowMs,
     shopPlan: shopPlanCopies({ shopData, stockroomData, registry }),
+    // The founding offer, given when a press first pays (founding.js, 22.1).
+    live, foundingSeats: firestoreFoundingSeats(platform),
     // Taking a dropped app's pages down needs the deploy tool; the registry's `closedApps` is written either way.
     // Deleting a closed app's records once its 90 days are over needs server access to the shop's project: until then
     // each try is kept on the app's entry (the control room's Apps closing list shows it) and nothing is deleted.
@@ -265,6 +268,17 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     log,
   });
 
+  // The billing hub inside each shop's admin (22.3): signed in to the shop's own project, one sign-in check per project.
+  const shopVerifiers = new Map();
+  const shopBilling = createShopBillingDoor({
+    billing, paymentWay, accounts, registry, auditLog, settings, now, log,
+    limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
+    verifierFor: (shopProject) => {
+      if (!shopVerifiers.has(shopProject)) shopVerifiers.set(shopProject, createIdTokenVerifier({ projectId: shopProject, fetch, now: nowMs }));
+      return shopVerifiers.get(shopProject);
+    },
+  });
+
   const offPage = (sender, piece, request) => {
     const query = new URLSearchParams(request.query ?? {}).toString();
     return sender ? sender.handleOff(`${request.path}${query ? `?${query}` : ""}`) : notConnectedPage(piece, settings.platformName);
@@ -277,6 +291,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
       if (request.method !== "POST") return { status: 405, body: { ok: false, message: "Send a POST." } };
       return billing.handleEvent({ headers: request.headers, rawBody: request.rawBody ?? "" });
     }
+    if (path.startsWith(SHOP_BILLING_PREFIX)) return shopBilling(request);
     if (path === "/api/payments" || path.startsWith("/api/payments/")) return handlePayments({ ...request, path: path.slice("/api/payments".length) || "/" }, { service: payments });
     if (path === "/api/email/shop") return handleShopEmail(request, { service: email, registry, sentLog });
     if (path === "/tips/off" || path === "/checkup/off") {
@@ -289,6 +304,6 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
     backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing,
-    routes, door, handle, parts,
+    routes, door, shopBilling, handle, parts,
   };
 }

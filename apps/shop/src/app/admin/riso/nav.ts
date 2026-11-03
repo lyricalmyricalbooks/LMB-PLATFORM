@@ -1,6 +1,6 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
-  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, Store, Megaphone, PiggyBank,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -26,8 +26,10 @@ export const NAV: NavEntry[] = [
     { id: "team", label: "Team", icon: UserPlus },
     // The QuickBooks link (plan 7.16); hidden unless the platform's bookkeeping link is on (`withoutPages`).
     { id: "bookkeeping", label: "Bookkeeping", icon: Calculator },
-    // The shop's plan on the platform (plan 6.6): what it is, trial days left, next payment; changes on Plan & billing.
+    // The shop's plan on the platform (plan 6.6), managed here since 22.3: compare and change plans, how you pay, cancel.
     { id: "plan", label: "Plan", icon: Wallet },
+    // Bills, saved cards, billing details and paying a declined bill (22.3), where Shopify keeps them.
+    { id: "billing", label: "Billing", icon: FileText },
   ] },
 ];
 

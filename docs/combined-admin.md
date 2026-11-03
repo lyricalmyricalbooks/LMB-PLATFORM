@@ -39,10 +39,28 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 - The Hosting `Permissions-Policy` now allows the camera on the shop's own pages (`camera=(self)`), as the stockroom's
   site already did, for barcode scanning in the admin and the fair till.
 
+## Step 2, built: each book on one page
+
+- The book editor has a **Stock and sales** tab on the combined admin only (`StockroomBookPanel.tsx`): on hand (with
+  you, with the author), at stockists, sold on every channel with takings, where the copies are (your places, the
+  author, each stockist) and the last sale.
+- **The stockroom stays the master count.** The admin asks the stockroom frame (`stockroomBridge.ts`), which answers
+  from its own records with `bookSummary` (`apps/stockroom/src/lib/book-summary.js`), so nothing is counted twice and
+  the figures work from the stockroom's offline copy. The frame opens hidden when a book page first needs it. Messages:
+  admin → stockroom `{ type: "ask", id, what: "book", book }` / `{ what: "find", isbn, title }` and
+  `{ type: "open", tab, book }`; stockroom → admin `{ type: "answer", id, result }`. The result is null until the
+  stockroom's catalog and that book have loaded (the admin asks again up to five times), `{ missing: true }` for a book
+  no longer there, `{ match }` for a find, and `{ refused: true }` when an author is signed in to the stockroom.
+- Takings follow the stockroom's own totals: a sale paid straight to the artist counts once the transfer comes in.
+- A book with editions is matched edition by edition on Inventory › Inventory app link (the tab says so).
+- **Matching:** the existing Inventory app link matches (`systemStatus/inventoryLink.links`). An unmatched book shows
+  the stockroom's guess (one book with the same ISBN, else exactly the same title) and **Match them**, which uses the
+  link's own `linkNewBook` with all its checks. Nothing is matched without that click.
+- **Change stock in the stockroom** opens the stockroom's dashboard for that book inside the admin (asking first when
+  the book has unsaved changes).
+
 ## Next steps (planned)
 
-2. **One book record:** the book editor gets Stock, Sales and "Where it sells" panels reading and writing the stockroom's
-   count (the stockroom stays the master count); books are matched automatically, so the link page goes for these presses.
 3. **One orders list and one Home:** fair, stockist, invoice and hand-entered sales join website orders in one list with a
    filter per channel; the two to-do lists become one "Needs you now".
 4. **Native pages:** rebuild the stockroom pages inside the admin one by one (Fair till, Stockists, Expenses first),

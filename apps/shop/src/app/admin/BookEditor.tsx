@@ -57,6 +57,9 @@ import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
 import { ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
+import { combinedAdmin } from "./combined";
+import { StockroomBookPanel } from "./StockroomBookPanel";
+import { stockroomBridge } from "./stockroomBridge";
 import "./books.css";
 import { uploadBookPhoto } from "./bookPhotoUpload";
 import { BOOK_VIDEO_ACCEPT, MAX_BOOK_VIDEOS, MAX_BOOK_VIDEO_BYTES, formatMegabytes, isVideoFile, uploadBookVideo, videoProblem } from "./bookVideoUpload";
@@ -90,7 +93,7 @@ import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardPr
 
 const MAX_BOOK_PHOTOS = 50;
 
-type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "addons" | "boxset" | "organize" | "more" | "seo";
+type BookTab = "details" | "media" | "pricing" | "inventory" | "stock" | "editions" | "addons" | "boxset" | "organize" | "more" | "seo";
 
 function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop, onDescribe, describing, aiLocked }: {
   photo: any; index: number; onRemove: (id: string) => void; onAlt: (id: string, alt: string) => void; onMakeCover: (id: string) => void;
@@ -153,6 +156,9 @@ const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] =
   { action: "quote", label: "Quote", Icon: Quote },
   { action: "divider", label: "Divider line", Icon: Minus },
 ];
+
+// The combined admin (shop + stockroom plan): the book page has a Stock and sales tab from the stockroom.
+const COMBINED_ADMIN = combinedAdmin();
 
 export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, onCreated }: BookEditorProps) {
   const { rates } = useCurrency();
@@ -572,6 +578,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [isDirty]);
+
+  // "Change stock in the stockroom": the stockroom's page for that book, inside the admin. Leaving drops unsaved edits.
+  const openInStockroom = async (stockroomBookId: string) => {
+    if (isDirty && !(await askConfirm({ title: "Leave without saving?", confirmLabel: w("Leave this book"),
+      message: w("Your changes to this book aren't saved yet. Save first to keep them.") }))) return;
+    stockroomBridge.openBook("dashboard", stockroomBookId);
+  };
 
   const handleClose = () => {
     if (isDirty) { setConfirmDiscard(true); return; }
@@ -1170,7 +1183,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     { label: "Search description", ok: !!formData.metaDescription, tab: "seo" as BookTab },
   ];
   const doneCount = checklist.filter((c) => c.ok).length;
-  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
+  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, stock: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
   checklist.filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
   const detailsIssues: Partial<Record<DetailsSubTab, number>> = {};
   checklist.forEach((c) => {
@@ -1185,6 +1198,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     { id: "media", label: "Images", count: (formData.photos || []).length },
     { id: "pricing", label: "Pricing", count: tabIssues.pricing || undefined },
     { id: "inventory", label: "Inventory & shipping" },
+    // The combined admin (shop + stockroom): the book's stock and sales on every channel, from the stockroom.
+    ...(COMBINED_ADMIN && book?.id && !giftCard && !boxSetOn ? [{ id: "stock" as BookTab, label: "Stock and sales" }] : []),
     { id: "editions", label: giftCard ? "Amounts" : "Editions", count: (formData.variants || []).length },
     // Add-ons and the box-set builder share one tab; gift cards have neither.
     ...(!giftCard ? [{ id: "boxset" as BookTab, label: "Add-ons & box set", count: (boxSetOn ? (formData.bundleItems || []).length : (formData.addOns || []).length) || undefined }] : []),
@@ -1636,6 +1651,11 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 )}
               </SectionCard>
             </>
+          )}
+
+          {shownTab === "stock" && book?.id && (
+            <StockroomBookPanel book={{ id: book.id, title: formData.title, isbn: formData.isbn, variants: formData.variants || [] }}
+              links={stockLinks} linksFailed={stockLinksFailed} onLinks={setStockLinks} words={w} onOpen={openInStockroom} />
           )}
 
           {shownTab === "inventory" && (
