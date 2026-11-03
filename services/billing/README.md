@@ -148,7 +148,8 @@ Cancelling sends `subscription-cancelled`; changing plan sends `plan-changed` (w
 page (`<PLATFORM_URL>/account/billing?shop=<id>`), never to a Stripe page, since those expire.
 
 Every change is kept in the billing store, copied to the shop's registry row (`billing: { plan, status, access, trialEnd,
-currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing, leaving, troubleSince }`) and logged in the registry and the shop's audit log.
+currentPeriodEnd, cancelAtPeriodEnd, hasCard, percentOff, appsClosing, appDrops, leaving, troubleSince, language, province }`;
+`language` and `province` choose the language of the closing emails, services/email/templatesFr.js) and logged in the registry and the shop's audit log.
 
 ### Each event exactly once (`eventClaims.js`, plan 19.4)
 
