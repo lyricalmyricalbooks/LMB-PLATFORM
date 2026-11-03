@@ -131,6 +131,8 @@ function render(billing) {
   $("#plan-when").textContent = words.when;
   $("#plan-closing").textContent = words.closing;
   $("#plan-closing").hidden = !words.closing;
+  $("#keep-closing").textContent = words.keepClosing;
+  $("#keep-closing").hidden = !words.keepClosing;
   $("#plan-card").classList.toggle("warning", billing.access !== "open");
   $("#card-words").textContent = words.card;
   $("#card-button").textContent = billing.hasCard ? "Change card" : "Add a card";
@@ -281,6 +283,12 @@ $("#cancel-form").addEventListener("submit", (event) => {
 $("#keep-button").addEventListener("click", (event) => act(event.currentTarget, async () => {
   await api("/billing/keep");
   status.textContent = "Your plan carries on as before.";
+  await load();
+}));
+
+$("#keep-closing").addEventListener("click", (event) => act(event.currentTarget, async () => {
+  await api("/billing/keep-closing-apps");
+  status.textContent = "Kept. Nothing closes, and your plan is back to what it was.";
   await load();
 }));
 

@@ -23,6 +23,7 @@ import { personOf, SignupError } from "../signup/signup.js";
 import { ROLES, ROLE_WORDS } from "./roles.js";
 import { ownerTwoStepProblem } from "./twoStep.js";
 import { checkMyShop } from "./checkMyShop.js";
+import { PLAN_APPS } from "../services/billing/plans.js";
 
 export { ROLES, ROLE_WORDS };
 export const INVITE_DAYS = 7;
@@ -82,6 +83,9 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       adminUrl: profile?.siteUrl && profile.apps?.shop ? `${profile.siteUrl}/admin` : null,
       // The stockroom is its own Hosting site in the shop's project, `<project id>-stockroom` (docs/shop-setup.md).
       stockroomUrl: projectId && profile.apps?.stockroom ? `https://${projectId}-stockroom.web.app` : null,
+      // A plan change in progress: an app open on the plan but not built yet, and one that closes at the month's end.
+      adding: row?.builtPlan && PLAN_APPS[row.plan] ? ["shop", "stockroom"].filter((app) => PLAN_APPS[row.plan][app] && !PLAN_APPS[row.builtPlan]?.[app]) : [],
+      closing: row?.billing?.appsClosing?.apps?.length ? { apps: [...row.billing.appsClosing.apps], at: row.billing.appsClosing.at ?? null } : null,
     };
   }
 

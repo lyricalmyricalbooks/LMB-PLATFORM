@@ -224,3 +224,36 @@ test("the plan that opens exactly some apps", () => {
   assert.equal(planOpening(["stockroom"]), "stockroom");
   assert.equal(planOpening([]), null);
 });
+
+test("Keep it: an app the plan change would close stays, the price goes back, and nothing closes at the month's end", async () => {
+  const w = make();
+  const row = await w.start();
+  await w.payMonth(row);
+  await assert.rejects(w.billing.keepClosingApps({ shopId: SHOP }), (error) => error.status === 409);
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  const kept = await w.billing.keepClosingApps({ shopId: SHOP });
+  assert.equal(kept.plan, "both");
+  assert.equal((await w.stores.subscriptions.get(SHOP)).appsClosing, null);
+  assert.equal((await w.registry.getShop(SHOP)).plan, "both");
+  const bothPrice = [...w.stripe.world.prices.values()].find((p) => p.lookup_key === "colophon_both_cad_3900_monthly");
+  assert.equal(lastPlanRequest(w.stripe).params["items[0][price]"], bothPrice.id);
+  w.tick(31);
+  assert.deepEqual(await w.billing.closeDroppedApps(), [], "nothing closes");
+});
+
+test("a week before a dropped app closes, the press gets one reminder with the way to keep it", async () => {
+  const w = make();
+  const row = await w.start();
+  await w.payMonth(row);
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  const at = (await w.stores.subscriptions.get(SHOP)).appsClosing.at;
+  await w.billing.closeDroppedApps();
+  assert.equal(w.email.list().filter((m) => m.kind === "app-closing-soon").length, 0, "not yet");
+  w.tick((Date.parse(at) - START) / DAY - 6);
+  await w.billing.closeDroppedApps();
+  await w.billing.closeDroppedApps();
+  const sent = w.email.list().filter((m) => m.kind === "app-closing-soon");
+  assert.equal(sent.length, 1, "once");
+  assert.equal(sent[0].data.closing, "the stockroom");
+  assert.match(TEMPLATES["app-closing-soon"](sent[0].data, { settings: platformSettings({}), pressName: "Moth Press" }).subject, /^The stockroom for Moth Press closes on /);
+});

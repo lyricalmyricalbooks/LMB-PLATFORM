@@ -50,7 +50,9 @@ export function billingWords(billing, now = new Date()) {
     ? `Changed your mind? Keep your plan any time before ${day(until)}.`
     : billing.access === "closed" ? "" : `Your shop stays open until ${day(until)}, and you won't be charged again. You can keep your plan until then.`;
   const cancelAsk = `Cancel your plan? Your shop stays open until ${day(until)}, then closes. Nothing is deleted.`;
-  return { state, when, closing, card, cancel, cancelAsk };
+  // "Keep it": the one-click way back for an app the plan change will close (billing.keepClosingApps).
+  const keepClosing = closing ? `Keep ${appList(billing.appsClosing.apps)}` : "";
+  return { state, when, closing, keepClosing, card, cancel, cancelAsk };
 }
 
 /**
@@ -78,5 +80,16 @@ export function planChangeWords(preview, billing) {
   if (preview.immediate) lines.push(billing?.status === "trialing" ? "You're in your free trial, so this happens now and costs nothing today." : "This happens now.");
   else if (preview.prorated) lines.push(`For the rest of this month you pay ${preview.prorated.text}${tax}, added to your next bill.`);
   else lines.push("Your new price starts with your next payment.");
+  return lines;
+}
+
+const ADMIN_APP_WORDS = { shop: "website", stockroom: "stockroom" };
+const adminApps = (apps) => apps.map((app) => ADMIN_APP_WORDS[app] ?? app).join(" and ");
+
+/** The account page's shop card: a plan change in progress, a line each (an app being set up; one closing). */
+export function changingLines(shop) {
+  const lines = [];
+  if (shop?.adding?.length) lines.push(`Your ${adminApps(shop.adding)} ${shop.adding.length > 1 ? "are" : "is"} being set up. We'll email you a link when it's ready.`);
+  if (shop?.closing?.apps?.length && shop.closing.at) lines.push(`Your ${adminApps(shop.closing.apps)} ${shop.closing.apps.length > 1 ? "close" : "closes"} on ${day(shop.closing.at)}. Changed your mind? Keep it under Plan & billing.`);
   return lines;
 }
