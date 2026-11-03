@@ -84,6 +84,7 @@ export async function seedRoom(world) {
     { type: "catalog", message: "Old shop links: 48 now lead to the imported books" },
   ];
   for (const [i, line] of lines.entries()) await world.shopData.set("kestrel", `audit-log/brought-${i}`, { ...line, createdAt: at });
+  await world.shopData.set("kestrel", "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": at, "move-giftcards": at, "move-orders": at } });
   await world.shopData.set("kestrel", "systemStatus/photoImport", { copiedTotal: 57, pending: 3, failed: {}, lastRunAt: at });
 
   // Two presses still in setup mode, through the front door's own calls, for the Setting up page.

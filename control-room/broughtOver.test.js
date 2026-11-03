@@ -28,7 +28,10 @@ const LINES = [
   { type: "giftCards", message: "Brought 3 gift cards over from the old shop (CA$75.00 in balances)", cards: 3, balanceMinor: 7500, createdAt: "2026-11-01T11:00:00Z" },
   { type: "customers", message: "Brought 120 customers over from the old shop; 80 joined the newsletter", createdAt: "2026-11-01T12:00:00Z" },
   { type: "catalog", message: "Old shop links: 15 now lead to the imported books", createdAt: "2026-11-01T13:00:00Z" },
+  { type: "orders", message: "Removed 2 past orders brought over from the old shop", orders: 2, createdAt: "2026-11-02T11:00:00Z" },
+  { type: "orders", message: "Brought 2 past orders over from the old shop (CA$20.00 in sales, history only)", orders: 2, createdAt: "2026-11-02T12:00:00Z" },
   { type: "orders", message: "Refunded order #12", createdAt: "2026-11-02T09:00:00Z" },
+  { type: "catalog", message: "Removed book: Moths", createdAt: "2026-11-02T09:40:00Z" },
   { type: "catalog", message: "Created book: Moths", createdAt: "2026-11-02T09:30:00Z" },
 ];
 const PHOTOS = { copiedTotal: 30, pending: 4, failed: { "https://old.example/a.jpg": { at: "2026-11-02T00:00:00Z" } }, lastRunAt: "2026-11-03T11:00:00Z" };
@@ -41,6 +44,7 @@ async function world() {
   const shopData = fakeShopData();
   for (const [i, line] of LINES.entries()) await shopData.set(SHOP, `audit-log/l${i}`, line);
   await shopData.set(SHOP, "systemStatus/photoImport", PHOTOS);
+  await shopData.set(SHOP, "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": "2026-11-01", "move-orders": "2026-11-01", logo: "2026-11-01" } });
   const desk = createBroughtOver({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry, shopData, now: () => new Date(NOW) });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: broughtOverRoutes(desk), log: () => {} });
   const ask = (claims, body) => api({ method: "POST", path: "/api/control/brought-over", body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
@@ -57,7 +61,9 @@ test("only platform admins see what a shop brought over", async () => {
 test("each kind added up across runs, with its latest date; other lines are left out", async () => {
   const { brought, nothing } = await (await world()).desk.forShop(ADMIN, { shopId: SHOP });
   assert.equal(nothing, false);
-  assert.deepEqual(brought.orders, { count: 42, amount: 1254.5, runs: 2, lastAt: "2026-11-02T10:00:00Z" });
+  assert.deepEqual(brought.orders, { count: 42, amount: 1274.5, runs: 3, removed: 2, lastAt: "2026-11-02T12:00:00Z" }, "a batch taken out again is counted off");
+  assert.deepEqual(brought.move.steps.map((s) => [s.id, s.done]), [["move-books", true], ["move-customers", true], ["move-giftcards", false], ["move-orders", true], ["move-links", false]]);
+  assert.deepEqual([brought.move.done, brought.move.of, brought.move.putAway], [3, 5, false]);
   assert.deepEqual(brought.giftCards, { count: 3, amount: 75, runs: 1, lastAt: "2026-11-01T11:00:00Z" });
   assert.deepEqual(brought.customers, { count: 120, amount: 0, newsletter: 80, runs: 1, lastAt: "2026-11-01T12:00:00Z" });
   assert.equal(brought.links.count, 15);
@@ -71,6 +77,8 @@ test("a shop with nothing brought over, and one not live yet", async () => {
   assert.equal((await w.desk.forShop(ADMIN, { shopId: "new-press" })).brought, null);
   assert.equal(runOf({ type: "orders", message: "Brought it up with the press" }).count, 0, "a line without a number counts nothing");
   assert.equal(broughtOverSummary([], { copiedTotal: 0, pending: 0, failed: {} }).photos, null);
+  assert.equal(broughtOverSummary([], null, { bring: { skipped: true } }).move, null, "a press that started fresh has no move list");
+  assert.equal(broughtOverSummary([], null, { bring: { from: "fairs" } }).move, null);
 });
 
 test("the real reading asks the shop's database only for the import lines", async () => {
@@ -78,7 +86,7 @@ test("the real reading asks the shop's database only for the import lines", asyn
   const shopData = shopDataClient((projectId) => firestoreClient({ fetch: fs.fetch, token, projectId }));
   for (const [i, line] of LINES.entries()) await shopData.set("lmb-test-shop", `audit-log/l${i}`, line);
   const brought = (await shopData.find("lmb-test-shop", "audit-log", { where: [["message", ">=", "Brought "], ["message", "<", "Brought!"]] })).map((d) => d.data.message);
-  assert.equal(brought.length, 4);
+  assert.equal(brought.length, 5);
   assert.ok(brought.every((m) => m.startsWith("Brought ")));
 });
 
