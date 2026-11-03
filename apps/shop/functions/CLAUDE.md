@@ -1002,4 +1002,7 @@ with the claim `support: { by, reason, until }` (`until` in seconds, at most an 
 - **Reminder (21.5):** `unpaidPaymentSweep` passes its unpaid orders to `sendLinkReminders`: one `payment_link_reminder` email (Settings ›
   Notifications, on by default, `enabled: false` stops it) when an open, unpaid, un-cancelled link has 48 hours or less left and is a day
   old. It stamps `paymentLinks/{id}.reminderSentAt` (never the order, so order triggers stay quiet), skips orders the same sweep found paid in
-  Stripe, and `sendOrderEmailOnce` stops a second copy. Tests: `paymentLinkReminders.test.js`.
+  Stripe, and `sendOrderEmailOnce` stops a second copy. Never when Stripe has a payment the shop hasn't recorded (`reconciliationPending`,
+  `paymentAlertSentAt`) or the card page was opened in the last hour (`updatedAt`); a queued copy is dropped by `staleOrderEmailReason`
+  once the order is paid, cancelled or its link closed. The total is `chargedTotalFmt`, and every place naming the closing day (history line,
+  the owner's email text, the reminder) uses `closingDay` (Toronto day; client copy parity-tested). Tests: `paymentLinkReminders.test.js`.

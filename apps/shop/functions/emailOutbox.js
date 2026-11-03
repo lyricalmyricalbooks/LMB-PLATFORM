@@ -80,11 +80,18 @@ function publicOutboxEntry(id, entry = {}) {
 // or "" when it should still go. `order` is the current order (null = deleted).
 function staleOrderEmailReason(kind, order) {
   const k = String(kind || "");
-  const isOrderKind = /^(orderConfirmed|shopNewOrder|orderPendingPayment|shopPendingOrder|shipped|shopShipped|delivery|local_)/.test(k);
+  const isOrderKind = /^(orderConfirmed|shopNewOrder|orderPendingPayment|shopPendingOrder|payment_link_reminder|shipped|shopShipped|delivery|local_)/.test(k);
   if (!isOrderKind) return "";
   if (!order) return "the order no longer exists";
   const refunded = ["refunded", "refund_pending"].includes(order.paymentStatus);
   const cancelled = order.status === "cancelled";
+  // "Ready to pay" (plan 21.5) is wrong once the order is paid (or Stripe has the payment), cancelled, or its link closed.
+  if (/^payment_link_reminder/.test(k)) {
+    if (order.paymentStatus === "paid" || refunded || order.reconciliationPending || order.paymentAlertSentAt) return "the order has been paid since";
+    if (cancelled) return "the order was cancelled since";
+    if (!(Date.parse(order.paymentLink?.expiresAt || "") > Date.now())) return "the payment link has closed";
+    return "";
+  }
   if (/^(orderPendingPayment|shopPendingOrder)/.test(k)) {
     if (order.paymentStatus === "paid" || refunded) return "the order has been paid since";
     if (cancelled) return "the order was cancelled since";

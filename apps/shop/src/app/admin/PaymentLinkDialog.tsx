@@ -27,6 +27,7 @@ export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade, 
   const [shown, setShown] = useState(false);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState("");
+  const [catalogFailed, setCatalogFailed] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -36,12 +37,18 @@ export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade, 
     setFind("");
     let alive = true;
     setBooks(null);
-    loadBooks().then(list => {
+    setCatalogFailed(false);
+    loadBooks().then(list => list, () => null).then(list => {
       if (!alive) return;
+      setCatalogFailed(list === null);
       const usable = linkableBooks(list || []);
       setBooks(usable);
-      if (start) setForm(linkFormFromQuote(start, usable));
-    }).catch(() => { if (alive) setBooks([]); });
+      // The customer fields work while the catalog loads: keep anything typed there.
+      if (start && list !== null) {
+        const started = linkFormFromQuote(start, usable);
+        setForm(f => ({ ...f, name: f.name || started.name, email: f.email || started.email, phone: f.phone || started.phone, rows: started.rows }));
+      }
+    });
     return () => { alive = false; };
   }, [open]);
 
@@ -78,12 +85,13 @@ export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade, 
       footer={
         <>
           <SecondaryButton onClick={onClose} disabled={saving}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={submit} disabled={saving || books === null}>{saving ? "Making the link…" : "Make the payment link"}</PrimaryButton>
+          <PrimaryButton onClick={submit} disabled={saving || books === null || catalogFailed}>{saving ? "Making the link…" : "Make the payment link"}</PrimaryButton>
         </>
       }
     >
       <div className="rp-stack">
-        {start && books !== null && (
+        {catalogFailed && <p role="alert" className="rp-error-text">{w("The catalog didn't load. Close this and try again.")}</p>}
+        {start && books !== null && !catalogFailed && (
           <p className="rp-hint" role="status">
             {`From ${start.name || "a customer"}'s request for ${start.quantity} of “${start.title}”${start.edition ? ` (${start.edition})` : ""}. Set the price you're offering.`}
             {!form.rows[0]?.bookId && w(" That product wasn't found, so choose it below.")}

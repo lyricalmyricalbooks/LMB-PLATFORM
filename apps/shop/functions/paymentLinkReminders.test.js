@@ -34,7 +34,7 @@ async function run(orders, links, patch = {}) {
   const sent = [];
   const compiled = [];
   const result = await sendLinkReminders({
-    db, orders, now: NOW, settings: { payment_link_reminder: { enabled: true } }, moneyFmt: n => `$${n.toFixed(2)}`, secret: "s",
+    db, orders, now: NOW, settings: { payment_link_reminder: { enabled: true } }, formatTotal: o => `CA$${o.total.toFixed(2)}`, secret: "s",
     compileEmailTemplate: (id, _settings, vars) => { compiled.push({ id, vars }); return { subject: `Pay ${vars.order_id}`, html: "<p>x</p>" }; },
     orderTrackUrl: async id => `https://shop.example/track?orderId=${id}&key=k`,
     sendOrderEmailOnce: async (id, kind, message) => { sent.push({ id, kind, ...message }); },
@@ -55,13 +55,20 @@ describe("payment link reminders", () => {
     expect(reminderDue(order({ customer: { name: "R", email: "a@b.com, c@d.com" } }), NOW)).toBe(false);
   });
 
+  it("never reminds someone who has paid but isn't recorded yet, or is on the card page right now", () => {
+    expect(reminderDue(order({ reconciliationPending: { sessionId: "cs_1" } }), NOW)).toBe(false);
+    expect(reminderDue(order({ paymentAlertSentAt: iso(NOW - DAY) }), NOW)).toBe(false);
+    expect(reminderDue(order({ updatedAt: iso(NOW - 10 * 60000) }), NOW)).toBe(false);
+    expect(reminderDue(order({ updatedAt: iso(NOW - 2 * 3600000) }), NOW)).toBe(true);
+  });
+
   // Closes at midnight UTC on the 12th, which is the evening of the 11th in Toronto.
   it("sends one email with the total, closing day and pay link, and stamps the link record", async () => {
     const o = order();
     const { result, sent, compiled, db } = await run([o], { A1: linkFor(o) });
     expect(result.sent).toBe(1);
     expect(sent).toEqual([expect.objectContaining({ id: "A1", kind: "payment_link_reminder", to: "robin@example.com", subject: "Pay A1" })]);
-    expect(compiled[0]).toMatchObject({ id: "payment_link_reminder", vars: { customer_name: "Robin", total_price: "$112.50", expires_on: "November 11, 2026" } });
+    expect(compiled[0]).toMatchObject({ id: "payment_link_reminder", vars: { customer_name: "Robin", total_price: "CA$112.50", expires_on: "November 11, 2026" } });
     expect(compiled[0].vars.button_url).toMatch(/^https:\/\/shop\.example\/track\?orderId=A1/);
     expect(db.writes).toEqual([expect.objectContaining({ name: "paymentLinks", id: "A1", data: { reminderSentAt: iso(NOW) } })]);
   });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { emptyLinkForm, linkableBooks, linkFormFromQuote, linkFormProblems, linkRequest, linkState, linkSubtotal, MAX_LINE_QUANTITY, newRow, paymentLinkMailto, quoteRequestOf, shopPriceOf, type LinkForm } from "./paymentLinks";
+import { closingDay, emptyLinkForm, linkableBooks, linkFormFromQuote, linkFormProblems, linkRequest, linkState, linkSubtotal, MAX_LINE_QUANTITY, newRow, paymentLinkMailto, quoteRequestOf, shopPriceOf, type LinkForm } from "./paymentLinks";
 import { quoteMessage, quoteSubject } from "../features/site/extras/pdp-bulk-quote/bulkQuote";
+import { createRequire } from "module";
+
+const serverLinks = createRequire(import.meta.url)("../../../functions/paymentLinks.js");
 
 const books = [
   { id: "tee", title: "Tee", retailPrice: 40, status: "published" },
@@ -80,8 +83,17 @@ describe("payment link on the order page", () => {
     expect(body).toContain("Hi Robin,");
     expect(body).toContain("https://shop.example/track?orderId=AB12&key=k");
     expect(body).toContain("Ten tees.");
-    expect(body).toContain("open until 2026-12-01");
+    // Midnight UTC on 1 December is the evening of 30 November in the shop's time zone.
+    expect(body).toContain("open until November 30, 2026.");
     expect(paymentLinkMailto(order({ customer: { email: "bad address" } }), "https://x", "")).toBe("");
+  });
+});
+
+describe("the day a link closes", () => {
+  it("is the same day in the owner's email text and the server's history line and reminder", () => {
+    for (const iso of ["2026-12-02T01:00:00.000Z", "2026-12-01T00:00:00.000Z", "2026-07-15T12:00:00.000Z"]) expect(closingDay(iso)).toBe(serverLinks.closingDay(iso));
+    expect(closingDay("2026-12-02T01:00:00.000Z")).toBe("December 1, 2026");
+    expect(closingDay("not a date")).toBe("");
   });
 });
 

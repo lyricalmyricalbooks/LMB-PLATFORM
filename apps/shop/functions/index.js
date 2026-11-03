@@ -4323,7 +4323,7 @@ exports.unpaidPaymentSweep = onSchedule(
       if (due.length) {
         const result = await sendLinkReminders({
           db, orders: due, settings: await loadNotificationSettings(), compileEmailTemplate, orderTrackUrl, sendOrderEmailOnce,
-          moneyFmt, secret: RESEND_API_KEY.value(),
+          formatTotal: chargedTotalFmt, secret: RESEND_API_KEY.value(),
         });
         if (result.sent) console.log("unpaidPaymentSweep: payment link reminders", result);
       }

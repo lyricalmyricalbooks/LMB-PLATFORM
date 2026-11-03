@@ -31,6 +31,12 @@ const validId = id => typeof id === "string" && !!id && id.length <= 160 && !id.
 class LinkInputError extends Error {}
 
 /**
+ * The day a link closes, as the customer reads it ("November 5, 2026"), in the shop's time zone. Every place that names
+ * the day (the order's history, the owner's email text in admin/paymentLinks.ts, the reminder) uses this same day.
+ */
+const closingDay = iso => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "long", day: "numeric" }).format(new Date(iso));
+
+/**
  * Checks what the admin sent and returns the cleaned link: { customer, lines, shipping, note, days }. Throws
  * LinkInputError with a plain sentence for the owner. Prices are optional per line (blank = the shop's price today).
  */
@@ -176,7 +182,7 @@ function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, public
         paymentLink: { expiresAt, ...(input.note ? { note: input.note } : {}) },
         referralSource: "payment_link",
         createdAt, updatedAt: createdAt,
-        activity: [{ type: "event", message: `Payment link made by ${actor}, open until ${expiresAt.slice(0, 10)}.`, createdAt }],
+        activity: [{ type: "event", message: `Payment link made by ${actor}, open until ${closingDay(expiresAt)}.`, createdAt }],
       });
       return res.status(200).json({ orderId, trackingKey, total: priced.total, expiresAt });
     } catch (err) {
@@ -192,11 +198,16 @@ function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, public
 // made less than a day ago is never reminded, so a short link doesn't get a reminder straight after its own email.
 const REMIND_BEFORE_MS = 2 * 86400000;
 const REMIND_MIN_AGE_MS = 86400000;
+// A card page opened in the last hour may be being paid right now.
+const REMIND_QUIET_MS = 60 * 60 * 1000;
 
 /** Is this order's link due its reminder? (Pure; the link record is checked again before sending.) */
 function reminderDue(order, now = Date.now()) {
   if (!order || order.source !== "payment_link" || order.paymentStatus !== "unpaid" || order.status !== "pending_payment") return false;
   if (!cleanEmail(order.customer?.email)) return false;
+  // A payment Stripe has but the shop hasn't recorded yet (the sweep flagged it, the owner was alerted) is paid.
+  if (order.reconciliationPending || order.paymentAlertSentAt) return false;
+  if (now - Date.parse(order.updatedAt || "") < REMIND_QUIET_MS) return false;
   const left = Date.parse(order.paymentLink?.expiresAt || "") - now;
   const age = now - Date.parse(order.createdAt || "");
   return left > 0 && left <= REMIND_BEFORE_MS && age >= REMIND_MIN_AGE_MS;
@@ -207,15 +218,12 @@ const cleanEmail = value => {
   return /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]{2,}$/.test(email) ? email : "";
 };
 
-/** The day a link closes, as the customer reads it ("November 5, 2026"), in the shop's time zone. */
-const closingDay = iso => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "long", day: "numeric" }).format(new Date(iso));
-
 /**
  * Sends the reminders due among `orders` (the sweep's unpaid payment-link orders). Each one is sent once: the link record
  * is stamped `reminderSentAt` (never the order, so the order triggers don't wake), and sendOrderEmailOnce's claim stops a
  * second copy if two sweeps overlap. Returns how many went.
  */
-async function sendLinkReminders({ db, orders, settings, compileEmailTemplate, orderTrackUrl, sendOrderEmailOnce, moneyFmt, secret, now = Date.now() }) {
+async function sendLinkReminders({ db, orders, settings, compileEmailTemplate, orderTrackUrl, sendOrderEmailOnce, formatTotal, secret, now = Date.now() }) {
   if (settings?.payment_link_reminder?.enabled === false) return { sent: 0 };
   let sent = 0;
   for (const order of orders || []) {
@@ -230,7 +238,8 @@ async function sendLinkReminders({ db, orders, settings, compileEmailTemplate, o
       const compiled = compileEmailTemplate("payment_link_reminder", settings, {
         customer_name: order.customer?.name || "there",
         order_id: order.orderId || orderId,
-        total_price: moneyFmt(order.total),
+        // What the customer is charged, in the currency of their card page (as every order email shows it).
+        total_price: formatTotal(order),
         expires_on: closingDay(link.expiresAt),
         button_url: await orderTrackUrl(orderId, order),
       });
@@ -246,4 +255,4 @@ async function sendLinkReminders({ db, orders, settings, compileEmailTemplate, o
   return { sent };
 }
 
-module.exports = { reminderDue, sendLinkReminders, REMIND_BEFORE_MS, cleanLinkInput, linkProblem, paymentLinkFor, applyLinkPrices, paymentLinkActions, keyHash, LinkInputError, LINK_MESSAGES, DEFAULT_DAYS, MAX_DAYS };
+module.exports = { reminderDue, sendLinkReminders, closingDay, REMIND_BEFORE_MS, cleanLinkInput, linkProblem, paymentLinkFor, applyLinkPrices, paymentLinkActions, keyHash, LinkInputError, LINK_MESSAGES, DEFAULT_DAYS, MAX_DAYS };

@@ -333,6 +333,14 @@ describe("review fixes", () => {
     expect(outbox.staleOrderEmailReason("orderConfirmed", { paymentStatus: "refunded" })).toMatch(/refunded/);
     expect(outbox.staleOrderEmailReason("shippedResend_x", { paymentStatus: "paid", status: "cancelled" })).toMatch(/cancelled/);
     expect(outbox.staleOrderEmailReason("orderPendingPayment", { paymentStatus: "paid" })).toMatch(/paid/);
+    // Payment link reminder (plan 21.5): stale once paid (or Stripe has it), cancelled, or the link has closed.
+    const open = { paymentStatus: "unpaid", status: "pending_payment", paymentLink: { expiresAt: new Date(Date.now() + 86400000).toISOString() } };
+    expect(outbox.staleOrderEmailReason("payment_link_reminder", open)).toBe("");
+    expect(outbox.staleOrderEmailReason("payment_link_reminder", { ...open, paymentStatus: "paid" })).toMatch(/paid/);
+    expect(outbox.staleOrderEmailReason("payment_link_reminder", { ...open, reconciliationPending: { at: "x" } })).toMatch(/paid/);
+    expect(outbox.staleOrderEmailReason("payment_link_reminder", { ...open, status: "cancelled" })).toMatch(/cancelled/);
+    expect(outbox.staleOrderEmailReason("payment_link_reminder", { ...open, paymentLink: { expiresAt: "2026-01-01T00:00:00.000Z" } })).toMatch(/closed/);
+    expect(outbox.staleOrderEmailReason("payment_link_reminder", null)).toMatch(/no longer exists/);
     expect(outbox.staleOrderEmailReason("orderConfirmed", null)).toMatch(/no longer exists/);
     expect(outbox.staleOrderEmailReason("orderConfirmed", { paymentStatus: "paid" })).toBe("");
     expect(outbox.staleOrderEmailReason("welcome", null)).toBe("");
