@@ -10,10 +10,10 @@
 //   shopAccess   signInSafety(shopId, emails) -> [{ email, found, twoStep, codesLeft, codesMadeAt }]
 //                (supportAccess.js, through the shop's own sign-in project and database)
 import { ControlError, adminOf } from "./controlRoom.js";
+import { ROLES, ROLE_NAMES } from "../accounts/roles.js";
 
 /** At or below this many codes left, a person is shown as running low. */
 export const LOW_CODES = 2;
-const ROLE_ORDER = { owner: 0, manager: 1, staff: 2 };
 
 /** One person's state: "safe", "low" (two-step on, few codes), "no-codes", "off" (no two-step) or "never" (not signed in yet). */
 export function safetyOf(person) {
@@ -47,8 +47,13 @@ export function createSignInSafety({ admins, registry, memberships, shopAccess, 
         if (failure.status === 503) throw new ControlError(503, failure.message);
         throw new ControlError(502, `Couldn't read the shop's sign-in: ${failure.message}`);
       }
-      const people = found.map((person) => ({ ...person, role: team.get(person.email.toLowerCase()) ?? "staff", state: safetyOf(person) }))
-        .sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) || a.email.localeCompare(b.email));
+      const rank = (role) => (ROLES.includes(role) ? ROLES.indexOf(role) : ROLES.length);
+      const people = found.map((person) => {
+        const role = team.get(person.email.toLowerCase()) ?? "staff";
+        return { ...person, role, roleName: ROLE_NAMES[role] ?? role, state: safetyOf(person) };
+      }).sort((a, b) => rank(a.role) - rank(b.role) || a.email.localeCompare(b.email));
+      // The team by role, in the roles' own order (fair helpers included), for the drawer's one line.
+      const roles = ROLES.map((role) => ({ role, name: ROLE_NAMES[role], count: people.filter((p) => p.role === role).length })).filter((r) => r.count);
       const signedIn = people.filter((p) => p.found);
       return {
         shopId,
@@ -58,6 +63,7 @@ export function createSignInSafety({ admins, registry, memberships, shopAccess, 
           signedIn: signedIn.length,
           ownerOff: people.some((p) => p.role === "owner" && p.state === "off"),
           lowOnCodes: people.filter((p) => p.state === "low" || p.state === "no-codes").length,
+          roles,
         },
       };
     },

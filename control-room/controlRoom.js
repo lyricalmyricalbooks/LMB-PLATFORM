@@ -33,6 +33,7 @@
 //                 changes" asks the press first and opens only on their yes; without it, "Make changes" is refused
 //   delivery      optional: (shopId) -> the last 7 days' payment events and emails (delivery.js deliveryReader, plan
 //                 19.12), shown on the shop's record and in its health
+import { setupSummary } from "./setupPresses.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
@@ -195,7 +196,7 @@ export async function eachInTurn(items, limit, work) {
 }
 
 export function createControlRoom({
-  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery,
+  registry, auditLog, profileFiles, publish, shopAccess, repairs, selfCheck, shopData, envFiles, deploy, build, email, squareAccount, breaches, people = {}, newsletters, activity, settings, supportStore, recoveryStore, signups, platformState, googleSteps, googleReady, taxWatch, feeDefaults = NO_FEE, accessRequests, admins, now = () => new Date(), delivery, presses = null,
 }) {
   const at = () => now().toISOString();
 
@@ -550,6 +551,8 @@ export function createControlRoom({
         support: supportStore ? await supportStore.list({ status: "open", limit: 200 }) : [],
         recoveries: recoveryStore ? await recoveryStore.list({ status: "waiting" }) : [],
         making: signups ? (await signups.list()).filter((s) => s.status !== "ready") : [],
+        // Presses that pressed Open my shop over a day ago with no live shop yet (setupPresses.js "stuck").
+        opening: presses?.list ? setupSummary({ records: await presses.list(), rows, now: now().getTime() }).presses.filter((p) => p.flag === "stuck") : [],
       });
     },
 

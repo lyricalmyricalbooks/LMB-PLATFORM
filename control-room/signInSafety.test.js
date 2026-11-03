@@ -27,7 +27,8 @@ async function world({ shopAccess = fakeShopAccess() } = {}) {
   const { memberships } = fakeAccountStores();
   await memberships.set(SHOP, "owner@example.com", { shopId: SHOP, email: "owner@example.com", role: "owner" });
   await memberships.set(SHOP, "sam@example.com", { shopId: SHOP, email: "sam@example.com", role: "staff" });
-  await memberships.set(SHOP, "ava@example.com", { shopId: SHOP, email: "ava@example.com", role: "manager" });
+  await memberships.set(SHOP, "ava@example.com", { shopId: SHOP, email: "ava@example.com", role: "bookkeeper" });
+  await memberships.set(SHOP, "fay@example.com", { shopId: SHOP, email: "fay@example.com", role: "fairHelper" });
   await memberships.set(SHOP, "new@example.com", { shopId: SHOP, email: "new@example.com", role: "staff" });
   shopAccess.twoStep?.set(`${SHOP} owner@example.com`, 1);
   shopAccess.codes?.set(`${SHOP} owner@example.com`, 8);
@@ -49,13 +50,15 @@ test("only platform admins see a shop's sign-in safety", async () => {
 
 test("each person once, the owner first, with two-step and codes left", async () => {
   const { people, summary } = await (await world()).safety.forShop(ADMIN, { shopId: SHOP });
-  assert.deepEqual(people.map((p) => [p.email, p.role, p.state, p.codesLeft]), [
-    ["owner@example.com", "owner", "safe", 8],
-    ["ava@example.com", "manager", "low", LOW_CODES],
-    ["new@example.com", "staff", "never", null],
-    ["sam@example.com", "staff", "off", 0],
+  assert.deepEqual(people.map((p) => [p.email, p.roleName, p.state, p.codesLeft]), [
+    ["owner@example.com", "Owner", "safe", 8],
+    ["new@example.com", "Staff", "never", null],
+    ["sam@example.com", "Staff", "off", 0],
+    ["ava@example.com", "Bookkeeper", "low", LOW_CODES],
+    ["fay@example.com", "Fair helper", "never", null],
   ]);
-  assert.deepEqual(summary, { withTwoStep: 2, signedIn: 3, ownerOff: false, lowOnCodes: 1 });
+  assert.deepEqual(summary, { withTwoStep: 2, signedIn: 3, ownerOff: false, lowOnCodes: 1,
+    roles: [{ role: "owner", name: "Owner", count: 1 }, { role: "staff", name: "Staff", count: 2 }, { role: "bookkeeper", name: "Bookkeeper", count: 1 }, { role: "fairHelper", name: "Fair helper", count: 1 }] });
 });
 
 test("the states: never signed in, off, no codes, low, safe", () => {

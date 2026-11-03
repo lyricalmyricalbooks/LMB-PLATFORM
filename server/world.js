@@ -202,7 +202,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const room = createControlRoom({
     registry, auditLog, profileFiles, shopAccess, repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
-    activity, supportStore, recoveryStore, platformState, accessRequests, admins, now,
+    activity, supportStore, recoveryStore, platformState, accessRequests, admins, now, presses: firestoreFrontDoorStores(platform).presses,
     googleReady: (at) => googleReadiness(readGoogleConfig(env), at),
     taxWatch: () => billing.taxWatch(),
     delivery: deliveryReader({ deliveryStats, now }),
