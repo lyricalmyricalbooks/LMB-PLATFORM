@@ -91,6 +91,8 @@ const LIMITS = {
   clientError: { max: 20, windowMs: 10 * 60 * 1000 },
   // Admin Overview reads of Google Analytics (each is 3 Data API calls; GA4 allows thousands a day).
   ga4: { max: 60, windowMs: 10 * 60 * 1000 },
+  // Two-step backup codes (functions/twoStepBackup.js): a few typing mistakes, never a guessing run.
+  twoStepBackup: { max: 10, windowMs: 10 * 60 * 1000 },
 };
 
 module.exports = { clientIpOf, ipKey, serverGeoCountry, nextWindow, hitLimit, LIMITS };

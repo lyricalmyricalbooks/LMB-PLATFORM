@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { BookOpen, KeyRound, LogIn } from "lucide-react";
 import { adminApi } from "./api";
 import { PrimaryButton, SecondaryButton, TextField } from "./riso/components";
-import { TwoStepNeeded, codeLooksRight, twoStepWords } from "./adminTwoStep";
+import { BACKUP_USED_KEY, BackupCodeError, TwoStepNeeded, backupCodeLooksRight, codeLooksRight, twoStepWords } from "./adminTwoStep";
 import { loginErrorMessage } from "./loginError";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { useShopWords } from "./shopWords";
@@ -25,6 +25,8 @@ export function Login({ onLogin }: LoginProps) {
   // Google said yes and this person uses authenticator codes: the code step (plan 22.6).
   const [pending, setPending] = useState<TwoStepNeeded | null>(null);
   const [code, setCode] = useState("");
+  // Lost phone: a backup code instead of the app's code (plan 22.9).
+  const [backup, setBackup] = useState(false);
   // The shop's own name (plan 1.16), read from the public settings; nothing is shown until it arrives.
   const [name, setName] = useState("");
   useEffect(() => {
@@ -41,7 +43,7 @@ export function Login({ onLogin }: LoginProps) {
       const { token } = await adminApi.login();
       onLogin(token);
     } catch (err: unknown) {
-      if (err instanceof TwoStepNeeded) { setPending(err); setCode(""); return; }
+      if (err instanceof TwoStepNeeded) { setPending(err); setCode(""); setBackup(false); return; }
       setError(loginErrorMessage(err));
     } finally {
       setLoading(false);
@@ -65,6 +67,31 @@ export function Login({ onLogin }: LoginProps) {
     }
   };
 
+  const handleBackup = async () => {
+    if (!pending) return;
+    if (!backupCodeLooksRight(code)) { setError("Type one of your backup codes: 10 letters and numbers, like ABCDE-FGHJK."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const { token, left } = await adminApi.signInWithBackupCode(pending, code);
+      // Settings › Security says what happened and asks them to set up their app again.
+      try { sessionStorage.setItem(BACKUP_USED_KEY, String(left)); } catch { /* the page still works without the note */ }
+      window.location.hash = "#settings/security";
+      onLogin(token);
+    } catch (err: unknown) {
+      if (err instanceof BackupCodeError) {
+        setError(err.message);
+        if (err.status === 401) setPending(null);
+      } else {
+        setError(/^Unauthorized/i.test(String((err as Error)?.message)) ? loginErrorMessage(err) : twoStepWords(err));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const switchToBackup = (on: boolean) => { setBackup(on); setCode(""); setError(""); };
+
   return (
     <div className="rp">
       <main className="rp-login">
@@ -75,15 +102,25 @@ export function Login({ onLogin }: LoginProps) {
             <p className="rp-wordmark-sub">Publishing House · Admin</p>
           </div>
           <p className="rp-card-desc rp-login-lede">
-            {pending ? "One more step: the code from your authenticator app." : w("Sign in with the shop's Google account to manage books, orders and settings.")}
+            {pending && backup ? "Lost your phone? A backup code lets you in. You'll set up your app again straight after." : pending ? "One more step: the code from your authenticator app." : w("Sign in with the shop's Google account to manage books, orders and settings.")}
           </p>
-          {pending ? (
+          {pending && backup ? (
+            <form className="rp-stack" style={{ gap: 12 }} data-two-step-backup onSubmit={(e) => { e.preventDefault(); void handleBackup(); }}>
+              <TextField label="Backup code" hint="One of the codes you saved when you set up two-step sign-in. Each works once." autoComplete="off"
+                autoCapitalize="characters" spellCheck={false} autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
+              <PrimaryButton type="submit" size="lg" icon={<KeyRound size={16} aria-hidden />} disabled={loading} aria-busy={loading || undefined} style={{ width: "100%" }}>
+                {loading ? "Checking…" : "Sign in with backup code"}
+              </PrimaryButton>
+              <SecondaryButton type="button" onClick={() => switchToBackup(false)}>Use the code from my app instead</SecondaryButton>
+            </form>
+          ) : pending ? (
             <form className="rp-stack" style={{ gap: 12 }} data-two-step-code onSubmit={(e) => { e.preventDefault(); void handleCode(); }}>
               <TextField label="Code from your authenticator app" hint="Open the app on your phone and type the 6 digits it shows for this shop." inputMode="numeric"
                 autoComplete="one-time-code" autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
               <PrimaryButton type="submit" size="lg" icon={<KeyRound size={16} aria-hidden />} disabled={loading} aria-busy={loading || undefined} style={{ width: "100%" }}>
                 {loading ? "Checking…" : "Sign in"}
               </PrimaryButton>
+              <SecondaryButton type="button" onClick={() => switchToBackup(true)}>Lost your phone? Use a backup code</SecondaryButton>
               <SecondaryButton type="button" onClick={() => { setPending(null); setError(""); }}>Use another Google account</SecondaryButton>
             </form>
           ) : (

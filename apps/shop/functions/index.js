@@ -89,6 +89,7 @@ const { isPaymentId, isCheckoutId } = require("./payments/ids");
 const { createEmail } = require("./email");
 const { createPlatformSender } = require("./email/platformSender");
 const { tellPlatformTeamChanged } = require("./teamNotice");
+const twoStepBackup = require("./twoStepBackup");
 const { shippoEndpoints } = require("./shippoEndpoints");
 const { scheduledJobs } = require("./scheduledJobs");
 const { shopEmails } = require("./shopEmails");
@@ -226,6 +227,57 @@ exports.syncMemberRole = onDocumentWritten("members/{email}", async event => {
   if (shopConfig.platformAccountsUrl) {
     const notice = await tellPlatformTeamChanged({ url: shopConfig.platformAccountsUrl, shopId: shopConfig.project, serviceKey: platformServiceKey });
     if (!notice.ok) console.warn("The platform wasn't told about the Team change:", notice.reason);
+  }
+});
+
+// Two-step backup codes (functions/twoStepBackup.js, plan 22.9). "status" and "make" are for the signed-in person
+// in Settings › Security; "use" comes from the sign-in page, before there is a sign-in, with Google's own token.
+exports.twoStepBackup = onBrowserRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+  if (!(await hitLimit(db, "twoStepBackup", req, LIMITS.twoStepBackup))) {
+    res.status(429).json({ error: "Too many tries in a row. Wait a few minutes, then try again." });
+    return;
+  }
+  const action = String(req.body?.action || "");
+  const nowIso = new Date().toISOString();
+  try {
+    if (action === "use") {
+      const google = { idToken: typeof req.body?.idToken === "string" ? req.body.idToken : "", accessToken: typeof req.body?.accessToken === "string" ? req.body.accessToken : "" };
+      res.json(await twoStepBackup.spendBackup({ db, auth: admin.auth(), google, code: String(req.body?.code || ""), nowIso }));
+      return;
+    }
+    const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+    let decoded = null;
+    try { decoded = match && await admin.auth().verifyIdToken(match[1]); } catch { decoded = null; }
+    if (!decoded || !adminRole(decoded)) {
+      res.status(401).json({ error: "Sign in first." });
+      return;
+    }
+    if (action === "status") {
+      res.json(await twoStepBackup.backupStatus(db, decoded.uid));
+      return;
+    }
+    if (action === "make") {
+      const problem = twoStepBackup.makeProblem(decoded, await admin.auth().getUser(decoded.uid), Date.now());
+      if (problem) {
+        res.status(403).json({ error: problem });
+        return;
+      }
+      res.json(await twoStepBackup.makeBackup({ db, uid: decoded.uid, email: decoded.email, nowIso }));
+      return;
+    }
+    res.status(400).json({ error: "Unknown action." });
+  } catch (err) {
+    if (err instanceof twoStepBackup.BackupRefused) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    console.error("twoStepBackup failed:", err);
+    res.status(500).json({ error: "Something went wrong. Try again in a moment." });
   }
 });
 
