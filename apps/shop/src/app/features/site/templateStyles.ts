@@ -17,7 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { RISO_STOREFRONT_CSS, risoGrainCss, type StorefrontTokenInput } from "./themeTokens";
 
-export const TEMPLATE_STYLE_IDS = ["marquee", "shelf", "atlas", "mosaic", "arch"] as const;
+export const TEMPLATE_STYLE_IDS = ["marquee", "shelf", "atlas", "mosaic", "arch", "market", "index"] as const;
 export type TemplateStyleId = (typeof TEMPLATE_STYLE_IDS)[number];
 
 const S = "[data-fm-store]";
@@ -188,6 +188,74 @@ ${S} .fm-footer-brand span{font-family:var(--heading-font);font-weight:500;}
 ${S} .fm-footer-heading{font-weight:600;letter-spacing:.16em;font-size:.72rem;}
 `;
 
+/**
+ * Market stall: a hand-made fair table. Cards are white stickers with a thick outline and a hard shadow, tilted a
+ * little each way; prices are black tags; buttons are chunky and press down. Loud, friendly, for zines, comics and merch.
+ */
+export const MARKET_CSS = `
+${S} h1,${S} h2,${S} h3{text-transform:uppercase;line-height:.92;letter-spacing:-.015em;font-weight:var(--rp-heading-weight,400);}
+${S} header[data-section="navigation"] [class*="opacity-"],${S} a[class*="hover:!opacity-100"]{opacity:1 !important;}
+${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.86);}
+${S} header[data-section="navigation"]{background-color:var(--bg-color);border-bottom:4px solid rgb(var(--fg-rgb));}
+${S} .fm-ref-catbar{text-transform:uppercase;letter-spacing:.04em;font-weight:800;}
+${S} .fm-ref-catbar a[aria-current]{background:rgb(var(--fg-rgb));color:var(--bg-color);padding:.1rem .6rem;}
+${S} .fm-card{background:var(--surface);border:3px solid rgb(var(--fg-rgb));border-radius:10px;box-shadow:6px 6px 0 rgb(var(--fg-rgb));padding:.6rem;rotate:-1.2deg;transition:rotate .15s ease,translate .15s ease,box-shadow .15s ease;}
+${S} .fm-card:nth-child(even){rotate:1deg;}
+${S} .fm-card:nth-child(3n){rotate:-.4deg;}
+${S} .fm-card:hover{rotate:0deg;translate:-2px -3px;box-shadow:9px 9px 0 rgb(var(--fg-rgb));}
+${S} .fm-card .fm-photo-frame{border:3px solid rgb(var(--fg-rgb));border-radius:6px !important;box-shadow:none;margin-bottom:.6rem;}
+${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3{top:.5rem;left:.5rem;}
+${S} .fm-card .fm-photo-frame > div.absolute.top-3.left-3 > span{border-radius:999px !important;border:2px solid rgb(var(--fg-rgb)) !important;padding:.15rem .6rem;font-size:.62rem;font-weight:800;letter-spacing:.04em;transform:rotate(-4deg);}
+${S} .fm-card-title{font-family:var(--heading-font);font-size:1rem;font-weight:400;line-height:1;letter-spacing:-.005em;text-transform:uppercase !important;}
+${S} .fm-card-price{background:rgb(var(--fg-rgb));color:var(--bg-color);padding:.12rem .5rem;font-size:.8rem;font-weight:700;border:0 !important;}
+${S} .fm-card-price-old{opacity:.75 !important;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:3px solid rgb(var(--fg-rgb));border-radius:10px !important;text-transform:uppercase;font-weight:800;letter-spacing:.04em;box-shadow:4px 4px 0 rgb(var(--fg-rgb));transition:translate .1s ease,box-shadow .1s ease;}
+${S} .custom-btn:hover,${S} .store-btn-primary:hover{translate:2px 2px;box-shadow:2px 2px 0 rgb(var(--fg-rgb));}
+${S} .custom-btn:active,${S} .store-btn-primary:active{translate:4px 4px;box-shadow:0 0 0 rgb(var(--fg-rgb));}
+${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:8px !important;border-width:2px;}
+${S} .glass-card{backdrop-filter:none;border:3px solid rgb(var(--fg-rgb));border-radius:12px;background:var(--surface);box-shadow:5px 5px 0 rgb(var(--fg-rgb));}
+${S} [data-store-region="newsletterPanel"]{border-top:4px solid rgb(var(--fg-rgb));}
+${S} footer[data-fm-footer]{border-top:4px solid rgb(var(--fg-rgb));}
+${S} .fm-footer-brand span{text-transform:uppercase;font-weight:var(--rp-heading-weight,400);}
+${S} .fm-footer-heading{font-weight:800;letter-spacing:.1em;}
+${S} .fm-announce{text-transform:uppercase;letter-spacing:.06em;}
+@media (prefers-reduced-motion:reduce){${S} .fm-card,${S} .fm-card:hover{rotate:0deg;translate:0 0;}}
+`;
+
+/**
+ * Index: the catalogue as a table. In the shop's product list every product is one ruled row: a small cover, a bold
+ * title, the price at the right edge. Quiet hairlines, square corners, black and white with one highlight colour.
+ * Only the main product list becomes rows; the home page's own sections keep their grids.
+ */
+export const INDEX_CSS = `
+${S} h1,${S} h2,${S} h3{line-height:1;letter-spacing:-.02em;font-weight:var(--rp-heading-weight,700);}
+${S} header[data-section="navigation"] [class*="opacity-"],${S} a[class*="hover:!opacity-100"]{opacity:1 !important;}
+${S} [data-store-region^="catalog"] :is(button,select),${S} button[data-store-region^="catalog"],${S} select[data-store-region^="catalog"]{color:rgba(var(--fg-rgb),.86);}
+${S} header[data-section="navigation"]{background-color:var(--bg-color);border-bottom:2px solid rgb(var(--fg-rgb));}
+${S} .fm-ref-catbar{text-transform:uppercase;letter-spacing:.08em;font-size:.74rem;font-weight:600;}
+${S} .fm-ref-catbar a[aria-current]{background:rgb(var(--fg-rgb));color:var(--bg-color);padding:.1rem .5rem;}
+${S} [data-studio-label="Product grid"]{display:block !important;border-top:2px solid rgb(var(--fg-rgb));}
+${S} [data-studio-label="Product grid"] > .fm-card{display:block;border:0;border-bottom:1px solid rgb(var(--fg-rgb));padding:.7rem .25rem;background:transparent;transition:background-color .12s ease;}
+${S} [data-studio-label="Product grid"] > .fm-card:hover{background:var(--accent-2);}
+${S} [data-studio-label="Product grid"] > .fm-card > a{display:grid;grid-template-columns:3.4rem minmax(0,1fr);gap:1rem;align-items:center;}
+${S} [data-studio-label="Product grid"] > .fm-card .fm-photo-frame{width:3.4rem;margin:0 !important;border:1px solid rgb(var(--fg-rgb));border-radius:0 !important;box-shadow:none;}
+${S} [data-studio-label="Product grid"] > .fm-card .fm-photo-frame > div.absolute{display:none;}
+${S} [data-studio-label="Product grid"] > .fm-card [data-studio-label="Card title & price"]{border-top:0 !important;padding:0;}
+${S} [data-studio-label="Product grid"] > .fm-card .fm-card-meta{align-items:center;}
+${S} .fm-card-title{font-size:1.15rem !important;font-weight:700;line-height:1.1;letter-spacing:-.01em;text-transform:none !important;}
+${S} .fm-card-price{font-variant-numeric:tabular-nums;font-size:.95rem !important;font-weight:600;border:0 !important;padding:0 !important;}
+${S} .fm-card-price-old{opacity:.75 !important;}
+${S} [data-studio-label="Product grid"] > .fm-card :is(.fm-card-creator,.fm-card-formats,.fm-card-rating){font-size:.72rem;}
+${S} .custom-btn,${S} .store-btn-primary,${S} button.custom-btn{border:2px solid rgb(var(--fg-rgb));border-radius:0 !important;text-transform:uppercase;letter-spacing:.08em;font-size:.74rem;font-weight:700;box-shadow:none;transition:background-color .12s ease,color .12s ease;}
+${S} input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),${S} select,${S} textarea{border-radius:0 !important;border-width:1px;}
+${S} [class*="rounded-"]:not([class*="rounded-full"]):not([style*="border-radius"]){border-radius:0 !important;}
+${S} .glass-card{backdrop-filter:none;border:1px solid rgb(var(--fg-rgb));border-radius:0;background:var(--surface);}
+${S} [data-store-region="newsletterPanel"]{border-top:2px solid rgb(var(--fg-rgb));}
+${S} footer[data-fm-footer]{border-top:2px solid rgb(var(--fg-rgb));}
+${S} .fm-footer-heading{font-weight:700;letter-spacing:.1em;font-size:.72rem;}
+${S} .fm-announce{text-transform:uppercase;letter-spacing:.08em;}
+`;
+
 /** Which template a design draws, or "" for any other look. */
 export function templateStyleId(design: StorefrontTokenInput | null | undefined): TemplateStyleId | "" {
   const s = design?.themeStyle;
@@ -204,5 +272,7 @@ export function themeStyleCss(design: StorefrontTokenInput | null | undefined): 
   if (id === "atlas") return TEMPLATE_BASE_CSS + ATLAS_CSS;
   if (id === "mosaic") return TEMPLATE_BASE_CSS + MOSAIC_CSS;
   if (id === "arch") return TEMPLATE_BASE_CSS + ARCH_CSS;
+  if (id === "market") return TEMPLATE_BASE_CSS + MARKET_CSS;
+  if (id === "index") return TEMPLATE_BASE_CSS + INDEX_CSS;
   return "";
 }

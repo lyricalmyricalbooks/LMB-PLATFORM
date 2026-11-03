@@ -356,7 +356,7 @@ service cloud.firestore {
           && (!("skipped" in request.resource.data.payments) || request.resource.data.payments.skipped is bool)))
         && (!("welcome" in request.resource.data) || (request.resource.data.welcome is map
           && request.resource.data.welcome.keys().hasOnly(["theme", "at", "skipped", "adminLook"])
-          && (!("adminLook" in request.resource.data.welcome) || (request.resource.data.welcome.adminLook is string && request.resource.data.welcome.adminLook in ["riso", "paper", "ledger", "pop"]))
+          && (!("adminLook" in request.resource.data.welcome) || (request.resource.data.welcome.adminLook is string && request.resource.data.welcome.adminLook in ["riso", "paper", "ledger", "pop", "desk", "bento"]))
           && request.resource.data.welcome.theme is string && request.resource.data.welcome.theme.size() <= 80))
         && (!("progress" in request.resource.data) || (request.resource.data.progress is map
           && request.resource.data.progress.keys().hasOnly(["steps", "done", "at"])
