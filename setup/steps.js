@@ -56,6 +56,8 @@ export const SERVICES = [
   "cloudscheduler.googleapis.com",
   "secretmanager.googleapis.com",
   "firebaseappcheck.googleapis.com",
+  // The platform reads each shop's monthly bot check count from here (plan 15.18).
+  "monitoring.googleapis.com",
   "iam.googleapis.com",
   "run.googleapis.com",
   "pubsub.googleapis.com",
