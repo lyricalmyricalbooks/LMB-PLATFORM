@@ -18,8 +18,10 @@ export function checkMyShop({ row, profile, now = new Date(), shopBackupAt }) {
   const apps = profile?.apps ?? {};
   const results = [];
 
-  // Address
-  results.push(profile?.siteUrl
+  // Address: the website's, or the stockroom's for a press with the stockroom alone.
+  const stockroomOnly = apps.shop === false && apps.stockroom === true && profile?.firebase?.projectId;
+  if (stockroomOnly) results.push(result("address", "ok", "Your stockroom's web address", `You open your stockroom at ${profile.firebase.projectId}-stockroom.web.app.`));
+  else results.push(profile?.siteUrl
     ? result("address", "ok", "Your shop's web address", `People can find your shop at ${profile.siteUrl.replace(/^https?:\/\//, "")}.`)
     : result("address", "fix", "Your shop's web address", "Your shop doesn't have a web address yet. A person at Colophon needs to finish setting it up.", { label: "Ask for help", to: "help" }));
 

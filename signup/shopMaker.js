@@ -14,8 +14,17 @@
 //
 // Clients passed in:
 //   signups    get / set / list (signup/fakes.js)
-//   run        (shop) -> runSteps result: { ok, ran, failedStep?, error?, locked? } (setup/runner.js with shopSteps)
-//   registry   getProfile(shopId) -> profile | null (for the shop's address once it's ready)
+//   run        (shop, { again }?) -> runSteps result: { ok, ran, failedStep?, error?, locked? } (setup/runner.js with
+//              shopSteps; `again` re-runs the plan's steps after an app is added or dropped)
+//   registry   getProfile(shopId) -> profile | null (for the shop's address once it's ready); getShop(shopId) -> row
+//              | null, whose `plan` billing keeps to the apps that are open (services/billing changePlan)
+//
+// Adding or dropping an app later (code plan 6.11): billing writes the registry row's `plan` (an added app at once, a
+// dropped one when the month already paid for ends). `sweep` then finds each ready shop whose plan differs from the
+// one its steps last ran with (`builtPlan` on the sign-up row) and runs the plan's steps again (setup/steps.js
+// PLAN_STEPS): the added app's database, pages and link are made, and the profile's `apps` is rewritten, which is what
+// both apps, the account page, the tips and the check-up read. A failure goes to the repair queue and is tried again
+// after 15, 60 and then 240 minutes; the press's shop keeps working on its old plan meanwhile.
 //   repairs    optional: report({ shopId, check, problem, detail }); passed(shopId, check) (control-room/repairs.js)
 //   selfCheck  optional: check(shopId, { why }) (control-room/selfChecks.js): run once the shop is ready
 //   line       optional: the sign-up (signup.js), whose admitFromLine() lets presses over the daily cap in first
@@ -23,6 +32,7 @@
 //              written there (the trial banner) and onto the registry row (the control room); the trial itself began
 //              at sign-up, before either place existed (plan 6.14)
 import { SignupError, personOf } from "./signup.js";
+import { PLANS, PLAN_STEPS } from "../setup/steps.js";
 
 export const AUTO_TRIES = 3;
 export const BACKOFF_MINUTES = Object.freeze([1, 5, 15]);
@@ -72,20 +82,39 @@ export function shopFromSignup(row, { testMode }) {
   };
 }
 
+/**
+ * Where the press opens their shop from the sign-up page: the website's admin, or the stockroom for a press with the
+ * stockroom alone (its own Hosting site, `<project id>-stockroom`, docs/shop-setup.md).
+ */
+export function openUrlOf(profile, shopId) {
+  if (profile?.apps?.shop === false) return `https://${profile?.firebase?.projectId ?? shopId}-stockroom.web.app`;
+  return `${profile?.siteUrl ?? `https://${shopId}.web.app`}/admin`;
+}
+
+/** How long a plan change waits before trying again after a failure: 15 minutes, then an hour, then four. */
+export const PLAN_SYNC_BACKOFF_MINUTES = Object.freeze([15, 60, 240]);
+
 export function createShopMaker({ signups, run, registry, repairs = null, selfCheck = null, line = null, billing = null, testMode = true, now = () => new Date() }) {
   const at = () => now().toISOString();
   const later = (minutes) => new Date(now().getTime() + minutes * 60_000).toISOString();
 
+  /** The plan the shop's apps follow: the registry's (billing keeps it current) once the shop has one, else sign-up's. */
+  async function planFor(row) {
+    const plan = (await registry.getShop?.(row.shopId))?.plan;
+    return plan in PLANS ? plan : row.plan;
+  }
+
   async function make(shopId) {
     let row = await signups.get(shopId);
     if (!row || row.status === "ready" || row.status === "needs-help") return row;
+    const plan = await planFor(row);
     const attempts = (row.attempts ?? 0) + 1;
     row = { ...row, status: "making", attempts, lastTryAt: at(), message: null, canRetry: false, nextTryAt: null };
     await signups.set(shopId, row);
 
     let result;
     try {
-      result = await run(shopFromSignup(row, { testMode }));
+      result = await run(shopFromSignup({ ...row, plan }, { testMode }));
     } catch (error) {
       // The steps couldn't even start (a bug or a missing setting): a person looks, and the press can still retry.
       result = { ok: false, error: error?.message ?? String(error) };
@@ -93,7 +122,7 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
 
     if (result.ok) {
       const profile = await registry.getProfile(shopId);
-      row = { ...row, status: "ready", readyAt: at(), siteUrl: profile?.siteUrl ?? `https://${shopId}.web.app`, failedStep: null, error: null };
+      row = { ...row, status: "ready", readyAt: at(), siteUrl: profile?.siteUrl ?? `https://${shopId}.web.app`, openUrl: openUrlOf(profile, shopId), builtPlan: plan, failedStep: null, error: null };
       // Earlier trouble is over; then the self-checks look at the new shop (2.11). Their problems go to the repair
       // queue, never to the press's page, so they can't hold the press up.
       if (repairs?.passed) await repairs.passed(shopId, "shop-maker");
@@ -135,8 +164,53 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     return row;
   }
 
+  /**
+   * Brings a ready shop's apps in line with its plan after an app was added or dropped. Returns null when there is
+   * nothing to do (not ready, already in line, or waiting before another try), else what happened.
+   */
+  async function syncPlan(shopId) {
+    let row = await signups.get(shopId);
+    if (!row || row.status !== "ready") return null;
+    const plan = await planFor(row);
+    const built = row.builtPlan ?? row.plan;
+    if (!(plan in PLANS) || plan === built) return null;
+    if (row.planSync?.nextTryAt && row.planSync.nextTryAt > at()) return null;
+    // Stopped until a person clears planSync, or a shop that is closed or gone: nothing to build.
+    if (row.planSync?.plan === plan && row.planSync.needsHelp) return null;
+    const shopRow = await registry.getShop?.(shopId);
+    if (shopRow?.status === "abandoned" || ["closed", "deleted"].includes(shopRow?.closing?.stage)) return null;
+    const tries = (row.planSync?.plan === plan ? row.planSync.tries ?? 0 : 0) + 1;
+    let result;
+    try {
+      result = await run(shopFromSignup({ ...row, plan }, { testMode }), { again: [...PLAN_STEPS] });
+    } catch (error) {
+      result = { ok: false, error: error?.message ?? String(error) };
+    }
+    row = await signups.get(shopId) ?? row;
+    if (result.ok) {
+      await signups.set(shopId, { ...row, builtPlan: plan, openUrl: openUrlOf(await registry.getProfile(shopId), shopId), planSyncedAt: at(), planSync: null });
+      if (repairs?.passed) await repairs.passed(shopId, "plan-change");
+      // The shop and, now, its stockroom (or only what is left) know the plan.
+      if (billing?.publishPlan) {
+        try { await billing.publishPlan(shopId); } catch (error) {
+          if (repairs) await repairs.report({ shopId, check: "shop-plan", problem: "the shop could not be given its plan", detail: error?.message ?? String(error) });
+        }
+      }
+      return { shopId, plan, from: built, status: "done" };
+    }
+    // Another run holds the shop: look again on the next sweep, without counting a try.
+    if (result.locked) return { shopId, plan, from: built, status: "waiting" };
+    // An error only a person can settle is not tried again on its own (as with making a shop): reported once.
+    const needsHelp = !retryable(result.error);
+    const minutes = PLAN_SYNC_BACKOFF_MINUTES[Math.min(tries - 1, PLAN_SYNC_BACKOFF_MINUTES.length - 1)];
+    await signups.set(shopId, { ...row, planSync: { plan, tries, failedStep: result.failedStep ?? null, error: result.error ?? null, nextTryAt: needsHelp ? null : later(minutes), needsHelp } });
+    if (repairs) await repairs.report({ shopId, check: "plan-change", problem: `the move from ${built} to ${plan} stopped at step ${result.failedStep ?? "?"}${needsHelp ? "; a person decides" : ""}`, detail: result.error });
+    return { shopId, plan, from: built, status: needsHelp ? "needs-help" : "failed" };
+  }
+
   return {
     make,
+    syncPlan,
 
     /** Runs every queued shop and every shop due its automatic try. Returns what it did, per shop. */
     async sweep() {
@@ -147,6 +221,11 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
       for (const row of due) {
         const after = await make(row.shopId);
         done.push({ shopId: row.shopId, status: after?.status });
+      }
+      // Ready shops whose plan changed since their steps last ran (an app added or dropped).
+      for (const row of (await signups.list()).filter((r) => r.status === "ready")) {
+        const synced = await syncPlan(row.shopId);
+        if (synced) done.push({ shopId: row.shopId, status: `plan-${synced.status}`, plan: synced.plan });
       }
       return done;
     },

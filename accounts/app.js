@@ -264,7 +264,9 @@ function shopCard(shop) {
     actions.append(team, plan, checkShop, dataButton(shop));
   }
   const where = standing(shop);
-  const address = shop.siteUrl ? shop.siteUrl.replace(/^https?:\/\//, "") : "";
+  // The website's address, or the stockroom's for a press with the stockroom alone.
+  const place = shop.siteUrl ?? shop.stockroomUrl;
+  const address = place ? place.replace(/^https?:\/\//, "") : "";
   const meta = el("div", { className: "cp-meta" },
     address ? el("span", { textContent: address }) : null,
     shop.plan ? el("span", { textContent: `${PLAN_NAMES[shop.plan] ?? shop.plan} plan` }) : null);
@@ -300,7 +302,9 @@ for (const link of document.querySelectorAll("[data-press]")) {
 
 // ── Check my shop (plan 14.3) ──
 $("#checkshop-back").addEventListener("click", () => show("shops"));
-const FIX_TO = (shop, to) => (to === "billing" ? `/account/billing?shop=${encodeURIComponent(shop.shopId)}` : to === "admin" ? `${shop.siteUrl ?? ""}/admin` : "../help/");
+// Help opens on the answers for this shop's plan (help/index.html reads ?plan=).
+const helpFor = (shop) => (["shop", "stockroom", "both"].includes(shop?.plan) ? `../help/?plan=${shop.plan}` : "../help/");
+const FIX_TO = (shop, to) => (to === "billing" ? `/account/billing?shop=${encodeURIComponent(shop.shopId)}` : to === "admin" ? `${shop.siteUrl ?? ""}/admin` : helpFor(shop));
 async function openCheck(shop) {
   status.textContent = "Checking your shop…";
   try {
@@ -633,7 +637,9 @@ function accessCard(shop, waiting, visits) {
 function dataButton(shop) {
   const data = el("button", { type: "button", className: "ghost", textContent: "Download all your data" });
   data.addEventListener("click", async () => {
-    if (!window.confirm(`We'll gather everything in ${shop.pressName} (books, orders, customers, stockroom and settings) and email you a link that works for 7 days. Go ahead?`)) return;
+    // What the copy holds follows the plan: a press with the stockroom alone has no website orders or customers.
+    const what = shop.plan === "stockroom" ? "books, stock, sales and settings" : shop.plan === "shop" ? "books, orders, customers and settings" : "books, orders, customers, stockroom and settings";
+    if (!window.confirm(`We'll gather everything in ${shop.pressName} (${what}) and email you a link that works for 7 days. Go ahead?`)) return;
     data.disabled = true;
     status.textContent = "Gathering your data…";
     try {

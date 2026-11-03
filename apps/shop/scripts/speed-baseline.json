@@ -183,6 +183,14 @@
     "nodes": 273,
     "images": 0
   },
+  "press-market book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-market home": {
+    "nodes": 284,
+    "images": 0
+  },
   "press-marquee book": {
     "nodes": 263,
     "images": 0
@@ -229,6 +237,14 @@
   },
   "press-riso-noir home": {
     "nodes": 213,
+    "images": 0
+  },
+  "press-rows book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-rows home": {
+    "nodes": 281,
     "images": 0
   },
   "press-shelf book": {

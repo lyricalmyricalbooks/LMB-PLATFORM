@@ -77,18 +77,32 @@ export const statusDocument = (plan) => ({ access: plan.access, updatedAt: plan.
  * Writes the shop's copies. Clients:
  *   shopData        set(shopId, path, data): the shop's default database (clients/shop.js shopDataClient)
  *   stockroomData   optional: set(shopId, path, data) and ready(shopId) -> whether the stockroom's database exists yet
- *   registry        getShop(shopId): for the closing stage and the plan's apps
+ *   registry        getShop(shopId): for the closing stage, the apps open now (`plan`) and the apps a plan change
+ *                   closed (`closedApps`)
  * The caller checks the shop's database exists first (billing.js uses the audit log's `ready`).
  */
 export function shopPlanCopies({ shopData, stockroomData = null, registry }) {
   return {
     async write(shopId, row, { link, at }) {
       const shop = await registry.getShop(shopId);
-      const doc = planDocument(row, { link, at, closing: shop?.closing ?? null });
+      const closing = shop?.closing ?? null;
+      // The registry's plan says what is open: a dropped app stays open to the end of the month already paid for.
+      const open = PLAN_APPS[shop?.plan ?? row.plan] ?? {};
+      // An app the plan dropped, once closed, gets closed copies: the website refuses new orders and its admin offers
+      // the downloads; the stockroom opens read-only. The other app carries on with the plan.
+      const copyFor = (app) => {
+        const closed = shop?.closedApps?.[app];
+        const appClosing = !open[app] && closed && closing?.stage !== "deleted"
+          ? { stage: "closed", closedAt: closed.closedAt ?? null, downloadUntil: closed.downloadUntil ?? null, deleteAfter: null }
+          : closing;
+        return planDocument(row, { link, at, closing: appClosing });
+      };
+      const doc = copyFor("shop");
       await shopData.set(shopId, PLAN_DOC, doc);
       await shopData.set(shopId, STATUS_DOC, statusDocument(doc));
-      const apps = PLAN_APPS[row.plan ?? shop?.plan];
-      if (stockroomData && apps?.stockroom && (await stockroomData.ready(shopId))) await stockroomData.set(shopId, PLAN_DOC, doc);
+      const stockroomDoc = copyFor("stockroom");
+      const stockroomKept = open.stockroom || shop?.closedApps?.stockroom;
+      if (stockroomData && stockroomKept && (await stockroomData.ready(shopId))) await stockroomData.set(shopId, PLAN_DOC, stockroomDoc);
       return doc;
     },
   };

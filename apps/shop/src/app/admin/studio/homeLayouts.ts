@@ -91,6 +91,32 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "press-market",
+    name: "Market stall",
+    description: "Loud homepage: a cover carousel, a scrolling banner, fresh stickers-and-zines grid, notes and newsletter.",
+    sections: [
+      { type: "HeroSection", settings: {
+        title: "Fresh off the table", subtitle: "Zines, comics and small-batch things, made by hand.",
+        ctaText: "Shop the drop", height: "medium", align: "left", bgColor: "#ff7ab0", overlayOpacity: 0,
+        textTransform: "uppercase", headingWeight: 400,
+      } },
+      { type: "MarqueeSection", settings: { text: "FREE STICKER WITH EVERY ORDER  /  NEW DROPS WEEKLY  /  MADE BY HAND", separator: "★", speed: 24, fontSize: 14, bold: true, fontWeight: 800, letterSpacing: 0.06, uppercase: true, background: "#16130c", color: "#ffe14d" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Fresh off the table" } },
+      { type: "StaffNotesTableSection", settings: { title: "Why we love it", backgroundColor: "#ffffff" } },
+      { type: "NewsletterSection", settings: { title: "Get the drops first", description: "New zines, restocks and fair dates, straight to your inbox." } },
+    ],
+  },
+  {
+    id: "press-rows",
+    name: "Index",
+    description: "Catalogue homepage: a plain heading, the full product list as ruled rows, short notes and a newsletter.",
+    sections: [
+      { type: "ProductShowcaseGridSection", settings: { title: "Catalogue" } },
+      { type: "StaffNotesTableSection", settings: { title: "Notes", backgroundColor: "#ffffff" } },
+      { type: "NewsletterSection", settings: { title: "Catalogue updates", description: "New titles and restocks, by email." } },
+    ],
+  },
+  {
     id: "press-arch",
     name: "Arch",
     description: "Calm homepage: a soft clay band, arch-topped products, a short note and newsletter.",

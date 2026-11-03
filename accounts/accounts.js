@@ -77,7 +77,8 @@ export function createAccounts({ accounts, memberships, invites, registry, shopD
       plan: row?.plan ?? null,
       status: row?.status ?? "creating",
       access: row?.billing?.access ?? null,
-      siteUrl: profile?.siteUrl ?? null,
+      // A stockroom-only press has no website, so no address is shown as if it were one.
+      siteUrl: profile?.apps?.shop === false ? null : profile?.siteUrl ?? null,
       adminUrl: profile?.siteUrl && profile.apps?.shop ? `${profile.siteUrl}/admin` : null,
       // The stockroom is its own Hosting site in the shop's project, `<project id>-stockroom` (docs/shop-setup.md).
       stockroomUrl: projectId && profile.apps?.stockroom ? `https://${projectId}-stockroom.web.app` : null,

@@ -1059,6 +1059,7 @@ import {
   syncArtistSettlementSales,
   updateDash,
 } from './features/dashboard.js';
+import { startStockPlaces, openStockPlacesModal } from './features/stock-places.js';
 import {
   addSaleToState,
   recordOrder,
@@ -6408,7 +6409,7 @@ function showCatalogueSkeleton() {
 }
 
 // ── ALL BOOKS OVERVIEW
-function updateAllOverview() {
+export function updateAllOverview() {
   const allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b));
   renderSetupGuide(allBooksVisible);
   renderAllBooksStrips(allBooksVisible);
@@ -11169,6 +11170,7 @@ startAppSwitch();
 startInsideAdmin({ switchTab, setAdminLook, setThemePreference });
 // One search box (top-bar 🔍, Ctrl/⌘ K, "/"): this app's books and the website's.
 startAppSearch();
+startStockPlaces();
 // The return lands in the tab Stripe opened; refresh any other open tab too.
 window.addEventListener('storage', e => { if (e.key === PAID_TAP_KEY) { try { renderArtistTransfers(); } catch (_) { /* still loading */ } } });
 
@@ -20228,7 +20230,7 @@ function exposeLegacyInlineHandlers() {
     invoicePaperBodyWithQR, buildStandaloneInvoiceHTML, downloadInvoiceHTML, loadExternalScript,
     ensurePdfLibs, downloadInvoicePDF, findKeptAllPayout, convertKeptAllToReceived, openEditHist,
     openEditLedger, saveEntryEdit, syncLedgerVoid, reconcileConsignmentChannel, reconcileStores,
-    recomputeAfters, recalcOnHand, setStockTransferDirection, openStockTransferModal, stepStockTransfer, onStockTransferQtyChange, updateStockTransferPreview, submitStockTransfer, syncHistoryVoidDeletion, voidEntry, resetBookData,
+    recomputeAfters, recalcOnHand, setStockTransferDirection, openStockTransferModal, stepStockTransfer, onStockTransferQtyChange, updateStockTransferPreview, submitStockTransfer, openStockPlacesModal, syncHistoryVoidDeletion, voidEntry, resetBookData,
     parseAndValidateDate, restoreBookDataFromSheets, confirmRestoreBookDataFromSheets,
     _modalFieldSig, _prefersReducedMotion, openM, closeM, attemptCloseModal, fieldError,
     clearFieldError, clearFieldErrors, validateFields, withButtonLoading, addLog,

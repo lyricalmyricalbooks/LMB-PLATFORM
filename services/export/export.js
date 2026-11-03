@@ -148,6 +148,16 @@ export async function buildExport({ shopId, pressName = shopId, apps = { shop: t
   return { shopId, stamp, folder, zip: `${folder}/${zipName}`, link, madeAt, expiresAt, files: files.map(({ file, rows }) => ({ file, rows })) };
 }
 
+/**
+ * The apps whose data an export holds: the ones the plan has open, and one a plan change closed while its 90 days to
+ * download last (services/billing closeApps writes `closedApps` on the registry row).
+ */
+export function exportApps(row, now = new Date()) {
+  const open = PLANS[row?.plan] ?? { shop: true, stockroom: true };
+  const kept = (app) => Boolean(row?.closedApps?.[app]?.downloadUntil) && Date.parse(row.closedApps[app].downloadUntil) > now.getTime();
+  return { shop: open.shop || kept("shop"), stockroom: open.stockroom || kept("stockroom") };
+}
+
 export function createDataExports({ shopData, stockroomData, storage, store, registry, auditLog, activity, email, roleIn, admins, now = () => new Date() }) {
   async function log(shopId, what, detail, { toActivity = false } = {}) {
     const stamp = now().toISOString();
@@ -169,7 +179,7 @@ export function createDataExports({ shopData, stockroomData, storage, store, reg
     await store.set(id, { ...base, status: "making" });
     let built;
     try {
-      built = await buildExport({ shopId: row.shopId, pressName: row.pressName ?? row.shopId, apps: PLANS[row.plan] ?? { shop: true, stockroom: true }, shopData, stockroomData, storage, now: started });
+      built = await buildExport({ shopId: row.shopId, pressName: row.pressName ?? row.shopId, apps: exportApps(row, started), shopData, stockroomData, storage, now: started });
     } catch (failure) {
       await store.set(id, { ...base, status: "failed", problem: failure.message });
       throw new ControlError(502, "The copy of the shop's data couldn't be made just now. Nothing was sent; try again in a few minutes.");

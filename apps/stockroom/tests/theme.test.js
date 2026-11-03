@@ -641,6 +641,10 @@ describe('the look choice', () => {
     expect(normalizeAdminLook('anything')).toBe('riso');
     expect(readAdminLook(store())).toBe('riso');
   });
+  it('accepts Desk and Bento', () => {
+    expect(normalizeAdminLook('desk')).toBe('desk');
+    expect(normalizeAdminLook('bento')).toBe('bento');
+  });
   it('is remembered', () => {
     const s = store();
     writeAdminLook('paper', s);
