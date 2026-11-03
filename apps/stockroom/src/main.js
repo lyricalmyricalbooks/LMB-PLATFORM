@@ -17,7 +17,7 @@ import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
 import { isPublisherUser, readPassClaims } from './lib/publisher-access.js';
 import { isBookkeeperPass } from './lib/bookkeeper-copy.js';
-import { planChangeNotice, planReadOnly } from './lib/plan-pause.js';
+import { planChangeNotice, planPageLink, planReadOnly } from './lib/plan-pause.js';
 import { foldFooterActions, initPhoneLayouts } from './lib/phone-layout.js';
 import { createPhonePageMemory, initPhoneWorkspace, observeSidebarBadges } from './lib/phone-workspace.js';
 const phonePages = createPhonePageMemory(window);
@@ -19572,6 +19572,10 @@ async function initStartup() {
       }
       // A paused or closed plan opens the stockroom read-only (lib/plan-pause.js), before anything can be changed.
       const plan = typeof window._fbLoadPlan === 'function' ? await window._fbLoadPlan() : null;
+      // On a plan, Settings gets a way to the platform's Plan & billing page (bills, card, email language).
+      const planLink = planPageLink(plan);
+      const planButton = document.getElementById('plan-billing-link');
+      if (planButton && planLink) { planButton.href = planLink; planButton.hidden = false; }
       if (planReadOnly(plan)) {
         const { showPlanPause } = await import('./features/plan-pause.js');
         showPlanPause(plan);

@@ -104,6 +104,19 @@ export function dateText(isoTime) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", day: "numeric", month: "long", year: "numeric" }).format(new Date(isoTime));
 }
 
+/**
+ * The languages Stripe writes this press's invoices, receipts and its own payment pages in (the customer's
+ * `preferred_locales`, first one it supports wins): French (Canada) when the emails go in French or, for a Quebec billing
+ * address, in French then English (Charter of the French language: the invoice itself must be in French); else English.
+ */
+export const invoiceLocales = (language) => (language === "en" ? ["en"] : ["fr-CA", "en"]);
+
+/** The email language already chosen for another shop of the same Stripe customer: { language } or nothing. */
+function languageOf(rows, customerId) {
+  const known = rows.find((r) => r.customerId === customerId && (r.language === "fr" || r.language === "en"));
+  return known ? { language: known.language } : {};
+}
+
 /** The province already saved for another shop of the same Stripe customer: { province } or nothing. */
 function provinceOf(rows, customerId) {
   const known = rows.find((r) => r.customerId === customerId && r.province !== undefined);
@@ -378,6 +391,31 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     }
   }
 
+  /**
+   * Stripe's invoices and receipts in the language of this account's emails (invoiceLocales). One Stripe customer pays
+   * for every shop of the account, so every one of its rows records what Stripe holds (`invoiceLocales`), and nothing is
+   * sent when Stripe already has it. Never throws: a Stripe hiccup leaves the old language until the daily sweep.
+   */
+  async function syncInvoiceLanguage(shopId) {
+    try {
+      const row = await subscriptions.get(shopId);
+      if (!row?.customerId) return;
+      // One customer, one invoice language: French when any of its shops' emails go in French (older rows may still
+      // disagree), so two shops can never pull Stripe back and forth.
+      const rows = (await subscriptions.list()).filter((other) => other.customerId === row.customerId);
+      const french = [row, ...rows].some((r) => invoiceLocales(mailLanguage(r))[0] !== "en");
+      const locales = invoiceLocales(french ? "fr" : "en").join(",");
+      if (row.invoiceLocales === locales) return;
+      // Counted before the call, like saveBillingDetails: a key Stripe already holds is never reused with other locales.
+      const changes = (row.localeChanges ?? 0) + 1;
+      await save(shopId, { localeChanges: changes }, null);
+      await call("POST", `/v1/customers/${row.customerId}`, { params: { preferred_locales: locales.split(",") }, idempotencyKey: `locales-${row.customerId}-${shopId}-${changes}` });
+      for (const id of new Set([shopId, ...rows.map((r) => r.shopId)])) await save(id, { invoiceLocales: locales }, null);
+    } catch (failure) {
+      console.warn(`Setting the invoice language for ${shopId} failed; tried again tomorrow:`, failure?.message || failure);
+    }
+  }
+
   /** One shop in the daily dropped-apps sweep: its closed apps, then a reminder or the close of a dropped one. */
   async function sweepOne(row, closed) {
     // The language of this shop's emails, for one billed before the province was kept (hub.js fillProvince).
@@ -385,6 +423,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     if (row.province === undefined && row.customerId) {
       await hub.fillProvince(row).catch((failure) => console.warn(`Reading the billing province for ${row.shopId} failed; tried again tomorrow:`, failure?.message || failure));
     }
+    // Invoices in the same language (a shop billed before this was kept, or a change Stripe didn't take yesterday).
+    await syncInvoiceLanguage(row.shopId);
     if (Object.keys(row.closedApps ?? {}).length) await afterClosing(row.shopId);
     if (!row.appsClosing?.apps?.length) return;
     // A week before: one reminder, with the way to keep it (keepClosingApps), for a press who never opens the admin.
@@ -498,7 +538,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   }
 
   const hub = createBillingHub({
-    call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money: moneyText, cardNowPays,
+    call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money: moneyText, cardNowPays, syncInvoiceLanguage,
     iso, nowIso: at,
     refresh: async (shopId) => {
       const row = await subscriptions.get(shopId);
@@ -561,14 +601,20 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         idempotencyKey: `subscription-${shopId}-${starts}`,
       });
       if (trial) await customers.set(account.accountId, { ...customer, trialUsedAt: at() });
+      const others = await subscriptions.list();
+      const chosen = language === "fr" || language === "en" ? language : null;
       const saved = await save(shopId, {
         ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0,
-        ...(language === "fr" || language === "en" ? { language } : {}),
+        // The language is the person's, like setEmailLanguage: one chosen now is the account's; none keeps the account's.
+        ...(chosen ? { language: chosen } : languageOf(others, customer.customerId)),
         // A second shop of an account billed in Quebec writes in French too (hub.js saveBillingDetails sets it per account).
-        ...(existing?.province === undefined ? provinceOf(await subscriptions.list(), customer.customerId) : {}),
+        ...(existing?.province === undefined ? provinceOf(others, customer.customerId) : {}),
         ...(newPlace !== null ? { founding: true, foundingPercentOff: newPlace, foundingAt: at() } : {}),
         ...(discounts ? { foundingOn: sub.id } : {}),
       }, trial ? "trial-started" : "plan-started");
+      // Every shop the account pays for (one Stripe customer, one invoice language) follows a language chosen now.
+      if (chosen) for (const other of others.filter((r) => r.customerId === customer.customerId && r.shopId !== shopId && r.language !== chosen)) await save(other.shopId, { language: chosen }, null);
+      await syncInvoiceLanguage(shopId);
       // A founding press starting again keeps its place: the new subscription gets the discount too.
       return saved.founding === true ? applyFounding(shopId) : saved;
     },
@@ -770,6 +816,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const shops = row.customerId ? (await subscriptions.list()).filter((other) => other.customerId === row.customerId).map((other) => other.shopId) : [];
       for (const id of new Set([shopId, ...shops])) await save(id, { language: language === "auto" ? null : language }, null);
       await logChange(shopId, "email-language-changed", { language });
+      await syncInvoiceLanguage(shopId);
       return { changed: true, emailLanguage: { choice: language, sends: mailLanguage({ ...row, language: language === "auto" ? null : language }) } };
     },
 

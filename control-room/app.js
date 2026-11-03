@@ -187,6 +187,14 @@ let allShops = [];
 let shopTags = {};
 const BILLING_TONE = { trialing: "info", active: "success", past_due: "danger", paused: "warning", unpaid: "warning", incomplete: "warning", canceled: "neutral", incomplete_expired: "neutral" };
 const PLAN_WORDS = { shop: "Shop", stockroom: "Stockroom", both: "Shop and stockroom" };
+/** " · emails: 2 in French, 1 French then English, 9 in English" over the presses (not the test shop), or "". */
+function languageCount(shops) {
+  const presses = shops.filter((shop) => !shop.testShop && shop.emailLanguage);
+  const count = (language) => presses.filter((shop) => shop.emailLanguage === language).length;
+  const parts = [[count("fr"), "in French"], [count("fr+en"), "French then English"], [count("en"), "in English"]].filter(([n]) => n);
+  return parts.length ? ` · emails: ${parts.map(([n, words]) => `${n} ${words}`).join(", ")}` : "";
+}
+
 function showShops() {
   const form = $("#shop-filters");
   const words = form.q.value.trim().toLowerCase();
@@ -195,7 +203,7 @@ function showShops() {
     && (!form.plan.value || shop.plan === form.plan.value)
     && (!form.billing.value || shop.billingStatus === form.billing.value));
   const problems = allShops.filter((s) => s.health.level === "problem").length;
-  $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
+  $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
   if (!shown.length) {
     $("#shops").replaceChildren(allShops.length ? emptyState("No shop matches.", "Clear the search or the filters to see every shop.") : emptyState("No shops yet.", "A press's shop shows here as soon as it is made."));
     return;
@@ -297,6 +305,16 @@ function googleView(record) {
 /** The language of the platform's emails to a press (the record's `emailLanguage`). */
 const EMAIL_LANGUAGE_WORDS = { fr: "in French", "fr+en": "in French, then English (billing address in Quebec)", en: "in English" };
 
+/** The press's sample email (the record's `emailSample`): the trial-ending email, as it would get it. Nothing is sent. */
+function emailSampleView(sample) {
+  if (!sample?.subject) return [];
+  return [el("details", { className: "cr-sample" },
+    el("summary", { textContent: `See a sample email, ${EMAIL_LANGUAGE_WORDS[sample.language] ?? "as this press gets it"}` }),
+    el("p", { className: "rp-hint", textContent: "The reminder a few days before the trial ends, with this press's plan, price and day. Nothing is sent." }),
+    el("p", {}, el("strong", { textContent: "Subject: " }), sample.subject),
+    el("pre", { style: "white-space: pre-wrap; font: inherit; margin: 0", textContent: sample.text }))];
+}
+
 function recordView(record) {
   const billing = record.billing;
   const connections = record.connections;
@@ -312,6 +330,7 @@ function recordView(record) {
   ].filter(([, value]) => value);
   return el("div", { className: "record" },
     el("dl", { className: "cr-facts" }, ...facts.flatMap(([label, value]) => [el("dt", { textContent: label }), el("dd", { textContent: value })])),
+    ...emailSampleView(record.emailSample),
     ...deliveryView(record.delivery),
     el("h3", { className: "cr-section", textContent: "Setup" }),
     record.setup.length ? el("ol", { className: "cr-steps" }, ...record.setup.map((step) => el("li", {}, `${step.name ?? `Step ${step.step}`} `, step.ok ? pill("success", "done") : pill("danger", `stopped: ${step.error}`)))) : el("p", { className: "rp-hint", textContent: "No setup steps yet." }),

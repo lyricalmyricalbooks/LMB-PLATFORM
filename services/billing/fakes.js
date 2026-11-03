@@ -178,6 +178,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
       if (p["address[country]"]) customer.address = { line1: p["address[line1]"] ?? null, line2: p["address[line2]"] ?? null, city: p["address[city]"] ?? null, state: p["address[state]"] ?? null, country: p["address[country]"], postal_code: p["address[postal_code]"] ?? null };
       if ("email" in p) customer.email = p.email;
       if ("name" in p) customer.name = p.name || null;
+      if (p["preferred_locales[]"]) customer.preferred_locales = p["preferred_locales[]"];
       return ok(customer);
     }
     if (method === "POST" && path === "/v1/subscriptions") {

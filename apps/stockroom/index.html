@@ -4849,7 +4849,11 @@
 <div class="tab-panel" id="tab-sheets" style="display:none;">
   <div class="row-between">
     <div class="section-hed">Settings</div>
-    <span class="sheets-badge off" id="sheets-badge2">Not connected</span>
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <!-- Shown only on a Colophon plan (main.js, lib/plan-pause.js planPageLink): bills, card, email language. -->
+      <a class="btn sm" id="plan-billing-link" hidden>Plan &amp; billing</a>
+      <span class="sheets-badge off" id="sheets-badge2">Not connected</span>
+    </div>
   </div>
 
   <!-- Settings Page Sub-navigation -->

@@ -51,7 +51,7 @@ export function addressOf(raw, BillingError) {
 
 const https = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);
 
-export function createBillingHub({ call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money, iso, nowIso, refresh, cardNowPays }) {
+export function createBillingHub({ call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money, iso, nowIso, refresh, cardNowPays, syncInvoiceLanguage = async () => {} }) {
   const cardOf = (method) => ({
     id: method.id, brand: method.card?.brand ?? "card", last4: method.card?.last4 ?? "", expMonth: method.card?.exp_month ?? null, expYear: method.card?.exp_year ?? null,
   });
@@ -76,6 +76,8 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
     const province = address?.country === "CA" ? address.state || null : null;
     const shops = (await subscriptions.list()).filter((other) => other.customerId === row.customerId).map((other) => other.shopId);
     for (const id of new Set([row.shopId, ...shops])) await save(id, { province }, null);
+    // A Quebec address with no language chosen: invoices go in French too (billing.js invoiceLocales).
+    await syncInvoiceLanguage(row.shopId);
   }
 
   return {

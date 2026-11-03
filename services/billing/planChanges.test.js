@@ -600,3 +600,48 @@ test("the press chooses the language of the platform's emails for every shop on 
   assert.equal((await w.stores.subscriptions.get(SHOP)).language, null);
   await assert.rejects(w.billing.setEmailLanguage({ shopId: SHOP, language: "de" }), /French, English, or automatic/);
 });
+
+test("invoices and receipts follow the email language: French for a French choice or a Quebec address, else English", async () => {
+  const w = make();
+  const row = await w.start();
+  const locales = () => w.stripe.world.customers.get(row.customerId).preferred_locales;
+  assert.deepEqual(locales(), ["en"], "set when the plan starts");
+  await w.billing.setEmailLanguage({ shopId: SHOP, language: "fr" });
+  assert.deepEqual(locales(), ["fr-CA", "en"]);
+  await w.billing.setEmailLanguage({ shopId: SHOP, language: "auto" });
+  assert.deepEqual(locales(), ["en"]);
+  await w.billing.saveBillingDetails({ shopId: SHOP, name: "", email: "books@moth.example", address: { line1: "1 rue Saint-Denis", city: "Montréal", state: "QC", postalCode: "H2X 1K1", country: "CA" }, taxNumber: "" });
+  assert.deepEqual(locales(), ["fr-CA", "en"], "a Quebec address with no choice: the invoice in French");
+  await w.billing.setEmailLanguage({ shopId: SHOP, language: "en" });
+  assert.deepEqual(locales(), ["en"], "a choice of English wins, even in Quebec");
+  // Stripe turns the change away: the choice is still saved, and the daily sweep puts it on Stripe.
+  w.stripe.world.down = 1;
+  w.stripe.world.downStatus = 400;
+  await w.billing.setEmailLanguage({ shopId: SHOP, language: "fr" });
+  assert.equal((await w.stores.subscriptions.get(SHOP)).language, "fr");
+  assert.deepEqual(locales(), ["en"]);
+  w.stripe.world.downStatus = undefined;
+  await w.billing.closeDroppedApps();
+  assert.deepEqual(locales(), ["fr-CA", "en"], "caught up by the sweep");
+  const posts = () => w.stripe.requests.filter((r) => r.method === "POST" && r.path === `/v1/customers/${row.customerId}`).length;
+  const before = posts();
+  await w.billing.closeDroppedApps();
+  assert.equal(posts(), before, "nothing sent when Stripe already has it");
+});
+
+test("one account's shops share one invoice language: no back and forth between them", async () => {
+  const w = make();
+  const row = await w.start();
+  await w.registry.createShop("second-shop", { shopId: "second-shop", pressName: "Owl Press", plan: "shop", status: "live" });
+  await w.billing.startTrial({ account: ACCOUNT, shopId: "second-shop", pressName: "Owl Press", plan: "shop", language: "fr" });
+  assert.equal((await w.stores.subscriptions.get(SHOP)).language, "fr", "a language chosen at sign-up is the account's");
+  assert.deepEqual(w.stripe.world.customers.get(row.customerId).preferred_locales, ["fr-CA", "en"]);
+  // Rows from before this change that still disagree settle on French, once.
+  await w.stores.subscriptions.set(SHOP, { ...(await w.stores.subscriptions.get(SHOP)), language: "en" });
+  const posts = () => w.stripe.requests.filter((r) => r.method === "POST" && r.path === `/v1/customers/${row.customerId}`).length;
+  await w.billing.closeDroppedApps();
+  const before = posts();
+  await w.billing.closeDroppedApps();
+  assert.equal(posts(), before, "the next day sends nothing");
+  assert.deepEqual(w.stripe.world.customers.get(row.customerId).preferred_locales, ["fr-CA", "en"]);
+});

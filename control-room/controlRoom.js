@@ -45,11 +45,33 @@ import { todaySummary } from "./today.js";
 import { MAX_BASIS_POINTS, NO_FEE, feeForShop } from "../services/payments/fees.js";
 import { dateText } from "../services/billing/billing.js";
 import { shopMailLanguage } from "../services/email/templatesFr.js";
+import { platformWords } from "../services/email/index.js";
+import { withIdentity } from "../services/email/templates.js";
+import { isPlan, planPrice } from "../services/billing/plans.js";
 import { platformSettings } from "../services/settings.js";
 import { editVisit } from "./accessRequests.js";
 import { deliveryReasons } from "./delivery.js";
 
 export const ACT_AS_MINUTES = 30;
+/**
+ * The email this press would get a few days before its trial ends, in the language its emails go in (shopMailLanguage),
+ * with its own plan, price and day: the control room's sample, so a question about wording is answered without waiting
+ * for a real one. Nothing is sent. { kind, language, subject, text }.
+ */
+export function emailSample(row, settings, today) {
+  const plan = isPlan(row.billing?.plan) ? row.billing.plan : "both";
+  const price = planPrice(plan, settings);
+  const language = shopMailLanguage(row);
+  const pressName = row.pressName || row.shopId;
+  const data = {
+    pressName, planName: price.name, price: price.priceText, hasCard: row.billing?.hasCard === true,
+    date: dateText(row.billing?.trialEnd ?? today.toISOString()),
+    link: `${settings.platformUrl}/account/billing?shop=${encodeURIComponent(row.shopId)}`,
+  };
+  const { subject, text } = withIdentity(platformWords("trial-ending", data, { settings, pressName }, language), settings);
+  return { kind: "trial-ending", language, subject, text };
+}
+
 /** A change to a press's per-order fee starts this many days after the press is emailed (Julian, 28 October 2026). */
 export const FEE_NOTICE_DAYS = 30;
 /** Where the switch defaults for new shops are kept (`platformState`), read by the shop maker's setup step 6. */
@@ -272,6 +294,8 @@ export function createControlRoom({
           siteUrl: profile?.siteUrl ?? null,
           ownerEmail: row.ownerEmail ?? null,
           billingStatus: row.billing?.status ?? null,
+          // For the list's count of presses by email language (when a full French admin is worth building).
+          emailLanguage: shopMailLanguage(row),
           createdAt: row.createdAt ?? null,
           closed: row.closure ? { by: row.closure.by, reason: row.closure.reason, at: row.closure.at } : null,
           costThisMonth: costOf(row.spending),
@@ -374,6 +398,7 @@ export function createControlRoom({
         billing: row.billing ?? null,
         // The language of the platform's emails to this press (services/email/templatesFr.js): "fr", "fr+en" or "en".
         emailLanguage: shopMailLanguage(row),
+        emailSample: emailSample(row, settings ? await settings() : platformSettings({}), now()),
         setup: [...lastByStep.values()].map(({ step, name, ok, error, at, finishedAt }) => ({ step, name: name ?? null, ok: ok !== false && !error, at: finishedAt ?? at ?? null, error: error ?? null })),
         connections: {
           payments: row.payments ? { provider: row.payments.provider ?? null, connected: Boolean(row.payments.accountId) } : null,

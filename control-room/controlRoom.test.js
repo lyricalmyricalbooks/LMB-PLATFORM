@@ -501,14 +501,24 @@ test("one shop's record: owner, billing, setup, fee and its history, admins only
   assert.deepEqual(record.history.map((e) => e.what), ["act-as"]);
   assert.equal((await w.ask(PRESS, "POST", "/api/control/shop", { shopId: ID })).status, 403);
   assert.equal(record.emailLanguage, "en", "no choice and no Quebec address: English");
-  await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", province: "QC", language: null } });
-  assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.emailLanguage, "fr+en", "the same rule the emails use");
+  assert.equal(record.emailSample.language, "en");
+  assert.match(record.emailSample.text, /^Hello,/);
+  await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", province: "QC", language: null, hasCard: true } });
+  const quebec = (await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body;
+  assert.equal(quebec.emailLanguage, "fr+en", "the same rule the emails use");
+  assert.match(quebec.emailSample.text, /^Bonjour,.*----- English -----.*Hello,/s, "French first, then the English");
+  assert.match(quebec.emailSample.text, /39,00\u00a0\$/, "the price the French way");
+  assert.match(quebec.emailSample.text, /Boutique et réserve/, "the plan's French name");
+  assert.match(quebec.emailSample.subject, /^Votre essai .* \/ Your .* trial/);
+  await w.registry.updateShop(ID, { billing: { plan: "both", status: "trialing", province: "QC", language: null, hasCard: false } });
+  assert.match((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.emailSample.subject, /^Ajoutez une carte .* \/ Add a card/, "no card yet: the add-a-card version, as the press gets it");
   // French picked at sign-up, then automatic on the Plan page outside Quebec: billing's choice wins, so English.
   await w.registry.updateShop(ID, { language: "fr", billing: { plan: "both", status: "trialing", province: "ON", language: null } });
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: ID })).body.emailLanguage, "en", "the Plan page's later choice wins");
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/shop", { shopId: "nope" })).status, 404);
   const listed = (await w.ask(ADMIN, "GET", "/api/control/shops")).body.shops.find((s) => s.shopId === ID);
   assert.deepEqual([listed.ownerEmail, listed.billingStatus], ["owner@example.com", "trialing"]);
+  assert.equal(listed.emailLanguage, "en", "the list carries each press's email language too");
 });
 
 test("the per-order fee: the press is emailed and the change starts 30 days later; same again changes nothing; today's fee cancels it (plan 9.6)", async () => {
