@@ -1,19 +1,25 @@
 # Weekly update requests for every folder that has packages (plan 13.1), plus the actions the checks use.
 # security/dependabot.test.js fails when a folder with a package.json is missing here.
+# A new release waits a week before it is offered (cooldown): most poisoned package releases are caught and pulled within days.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
   - package-ecosystem: npm
     directory: /apps/shop
     schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
   - package-ecosystem: npm
     directory: /apps/shop/functions
     schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
   - package-ecosystem: npm
     directory: /apps/stockroom
     schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    cooldown: { default-days: 7 }

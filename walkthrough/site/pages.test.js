@@ -7,7 +7,7 @@ const workflow = readFileSync(new URL("../../.github/workflows/walkthrough-site.
 
 test("the site workflow publishes only the folder build.js wrote", () => {
   assert.match(workflow, /node walkthrough\/site\/build\.js site/);
-  assert.match(workflow, /upload-pages-artifact@v3\s+with:\s+path: site/);
+  assert.match(workflow, /upload-pages-artifact@[0-9a-f]{40} # v3[.\d]*\s+with:\s+path: site/);
 });
 
 test("the site workflow uses no secrets and deploys only off pull requests", () => {

@@ -432,7 +432,11 @@ export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix 
  * The content of one sub tab, labelled by its `Tabs` button (`tabId` = that tab's id). Hidden tabs stay mounted, so
  * edits typed on one sub tab survive switching to another.
  */
-export function TabPanel({ tabId, active, children }: { tabId: string; active: boolean; children: ReactNode }) {
+export function TabPanel({ tabId, active, children, alone = false }: {
+  tabId: string; active: boolean; children: ReactNode;
+  /** The page shows this panel without its tabs (only one applies), so it isn't announced as a tab's panel. */ alone?: boolean;
+}) {
+  if (alone) return <div id={`rp-panel-${tabId}`} hidden={!active}>{children}</div>;
   return <div role="tabpanel" id={`rp-panel-${tabId}`} aria-labelledby={`rp-tab-${tabId}`} hidden={!active}>{children}</div>;
 }
 
