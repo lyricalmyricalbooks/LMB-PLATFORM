@@ -24,6 +24,27 @@ export function fakeSignupStores() {
 /** Firebase Admin's sign-in link maker, pretend. */
 export const fakeAuth = () => ({ signInLink: async (email, { url }) => `${url}&oobCode=fake-${encodeURIComponent(email)}` });
 
+/** Pretend front door records (signup/frontDoor.js), the shape of clients/platformStores.js firestoreFrontDoorStores. */
+export function fakeFrontDoorStores() {
+  const presses = new Map();
+  const codes = new Map();
+  const copy = (row) => (row ? structuredClone(row) : null);
+  return {
+    presses: {
+      rows: presses,
+      get: async (id) => copy(presses.get(id)),
+      set: async (id, row) => void presses.set(id, structuredClone(row)),
+      create: async (id, row) => (presses.has(id) ? false : (presses.set(id, structuredClone(row)), true)),
+      listByOwner: async (ownerUid) => [...presses.values()].filter((row) => row.ownerUid === ownerUid).map(copy),
+    },
+    codes: {
+      rows: codes,
+      get: async (key) => copy(codes.get(key)),
+      set: async (key, row) => void codes.set(key, structuredClone(row)),
+    },
+  };
+}
+
 /** A pretend token check: the token is the JSON of the claims. */
 export const fakeVerifyIdToken = async (token) => JSON.parse(token);
 

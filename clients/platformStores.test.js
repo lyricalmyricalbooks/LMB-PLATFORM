@@ -7,11 +7,11 @@ import { fakeFirestore } from "./fake-firestore.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 import {
   firestoreAccessRequests, firestoreAccountStores, firestoreBillingStores, firestoreDataExports, firestoreEventClaims, firestoreFeeLedger,
-  firestorePressMessages, firestoreShopRecords, firestoreSignupStores, firestoreThrottle,
+  firestoreFrontDoorStores, firestorePressMessages, firestoreShopRecords, firestoreSignupStores, firestoreThrottle,
 } from "./platformStores.js";
 import { signInLinks } from "./signInLinks.js";
 import { stockroomDataClient } from "./shop.js";
-import { fakeSignupStores, fakeThrottle } from "../signup/fakes.js";
+import { fakeFrontDoorStores, fakeSignupStores, fakeThrottle } from "../signup/fakes.js";
 import { fakeBillingStores } from "../services/billing/fakes.js";
 import { fakeFeeLedgerStore } from "../services/payments/feeLedgerFakes.js";
 import { fakeAccountStores } from "../accounts/fakes.js";
@@ -262,4 +262,20 @@ test("a sign-in link comes from Google's Identity Toolkit and is handed back, no
   const empty = signInLinks({ fetch: scriptedFetch([{ method: "POST", url: `https://identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts:sendOobCode`, json: {} }]), token, projectId: PROJECT });
   await assert.rejects(empty.signInLink("owner@example.com", { url: "https://platform.example/signup/" }), /didn't give back/);
   assert.throws(() => signInLinks({ fetch, token, projectId: "" }), /project id/);
+});
+
+test("the front door's presses and sign-in codes answer like the fakes, and create never overwrites", async () => {
+  const ada = { pressId: "press-abcde", ownerUid: "uid-ada", ownerEmail: "owner@example.com", status: "setup", pressName: "", createdAt: "2026-11-03T09:00:00.000Z" };
+  await sameAnswers(fakeFrontDoorStores, (db) => firestoreFrontDoorStores(db), async ({ presses, codes }) => [
+    await presses.get("press-abcde"),
+    await presses.create("press-abcde", ada),
+    await presses.create("press-abcde", { ...ada, ownerUid: "uid-someone-else" }),
+    (await presses.get("press-abcde")).ownerUid,
+    await presses.set("press-abcde", { ...ada, pressName: "Moth Press" }),
+    (await presses.listByOwner("uid-ada")).map((p) => p.pressName),
+    await presses.listByOwner("uid-nobody"),
+    await codes.get("k1"),
+    await codes.set("k1", { hash: "ab", salt: "cd", tries: 0, sentAt: [1, 2] }),
+    await codes.get("k1"),
+  ]);
 });

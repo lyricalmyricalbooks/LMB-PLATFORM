@@ -23,8 +23,12 @@ export function createAccountStart({ presses, now = () => new Date(), suffix = r
       }
       const pressName = String(input.pressName ?? "").trim().slice(0, 120);
       const mine = await presses.listByOwner(claims.uid);
-      // The same press started again (a double click, a lost answer): the same record comes back.
-      const again = mine.find((p) => pressName && p.pressName.toLowerCase() === pressName.toLowerCase());
+      // The same press started again (a double click, a lost answer): the same record comes back. With no name (the
+      // front door makes the record as soon as the code is checked, before the name is asked), any press of theirs
+      // still in setup comes back, so signing in again never makes a second empty press.
+      const again = pressName
+        ? mine.find((p) => p.pressName.toLowerCase() === pressName.toLowerCase())
+        : mine.find((p) => p.status === "setup");
       if (again) return { pressId: again.pressId, status: again.status };
       if (mine.length >= MAX_SETUP_PRESSES) {
         throw new SignupError(429, `One account can set up up to ${MAX_SETUP_PRESSES} presses. Write to us if you need more.`);

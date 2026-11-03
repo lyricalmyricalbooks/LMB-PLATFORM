@@ -78,6 +78,17 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** The front door's sign-in (signup/frontDoor.js): a six-digit code to type in, for new and returning presses. */
+  "sign-in-code": ({ code }, { settings }) => {
+    if (!/^\d{6}$/.test(String(code ?? ""))) throw new Error("A sign-in code is six numbers");
+    return layout({
+      subject: `${code} is your ${settings.platformName} code`,
+      greeting: "Hello,",
+      paragraphs: [`Your code to sign in to ${settings.platformName} is ${code}. Type it on the page you came from. It works once, for 10 minutes.`, "If you didn't ask for it, you can ignore this email. Nobody can sign in without the code."],
+      footer: signOff(settings),
+    });
+  },
+
   /** Sign-up's daily cap (signup/signup.js admitFromLine, plan 6.13): the press waited in line and its shop is starting. */
   "shop-starting": ({ pressName, link }, { settings }) => layout({
     subject: `Your shop is starting on ${settings.platformName}`,

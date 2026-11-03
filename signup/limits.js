@@ -7,6 +7,9 @@
 //                             control room's Check now and Google's run again, and a card page from Plan & billing
 //   GET /api/plans            300 a minute per network (cheap, but public)
 //   POST /api/signin-link     20 an hour per network, on top of the 5 an hour per address it already has
+//   POST /api/code/send       the same, for the front door's six-digit code (frontDoor.js)
+//   POST /api/code/check      60 an hour per network, on top of 5 tries per code: guessing codes across many
+//                             addresses from one network stops here
 //
 // The network is read from the right of `x-forwarded-for`: each proxy adds the address it was called from at the end,
 // and anything to the left can be written by the caller, so the left-most entry is never trusted. `proxyHops` is how
@@ -29,6 +32,7 @@ export const DEFAULT_LIMITS = Object.freeze({
   costly: Object.freeze({ max: 10, windowMs: 10 * MINUTE }),
   plans: Object.freeze({ max: 300, windowMs: MINUTE }),
   signinLink: Object.freeze({ max: 20, windowMs: 60 * MINUTE }),
+  codeCheck: Object.freeze({ max: 60, windowMs: 60 * MINUTE }),
 });
 
 /** Calls that cost something real (a setup run, a round of checks, a card page): held to `costly` per person. */
@@ -40,7 +44,12 @@ export const COSTLY_ROUTES = Object.freeze([
 ]);
 
 /** Public calls held to a per-network limit, by route. */
-export const NETWORK_ROUTES = Object.freeze({ "GET /api/plans": "plans", "POST /api/signin-link": "signinLink" });
+export const NETWORK_ROUTES = Object.freeze({
+  "GET /api/plans": "plans",
+  "POST /api/signin-link": "signinLink",
+  "POST /api/code/send": "signinLink",
+  "POST /api/code/check": "codeCheck",
+});
 
 export class LimitError extends Error {
   constructor(retryAfter) {
@@ -84,7 +93,7 @@ export function createLimits({ throttle, admins = [], limits = DEFAULT_LIMITS, c
 
   // One limit: refuses when the window is full, else counts this call. A store that fails lets the call through.
   async function take(kind, who) {
-    const { max, windowMs } = limits[kind];
+    const { max, windowMs } = limits[kind] ?? DEFAULT_LIMITS[kind];
     const key = `limit/${kind}/${hashed(who)}`;
     const nowMs = now().getTime();
     try {

@@ -87,3 +87,13 @@ test("when an id is taken between the check and the save, the other press's reco
   assert.equal(result.pressId, "moth-press-x7k2");
   assert.equal(presses.rows.get("moth-press").ownerUid, "someone-else");
 });
+
+test("starting with no name again gives back the press still in setup, not a second empty one", async () => {
+  const presses = fakePresses();
+  const start = createAccountStart({ presses, now: () => NOW, suffix: () => "x7k2" });
+  const first = await start.start(ADA, {});
+  const second = await start.start(ADA, {});
+  assert.equal(second.pressId, first.pressId);
+  assert.equal(presses.rows.size, 1);
+  assert.match(first.pressId, /^[a-z0-9-]{8,40}$/);
+});

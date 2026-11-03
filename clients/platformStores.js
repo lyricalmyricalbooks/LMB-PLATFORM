@@ -15,6 +15,8 @@
 //   firestorePressMessages      pressMessages/<id>                       control-room/messagesFakes.js
 //   firestoreDataExports        dataExports/<id>                         services/export/fakes.js fakeExportStore
 //   firestoreShopRecords        trialTips/<shopId>, checkups/<shopId>    services/trial-tips/fakes.js fakeTipStore
+//   firestoreFrontDoorStores    presses/<pressId>,                       signup/fakes.js fakeFrontDoorStores
+//                               signInCodes/<hash of the address>
 //
 // Team invites are `teamInvites`, not `invites`: `invites` already holds the waitlist's invites (stores.js
 // firestoreInvites), whose rows carry a `shopId` once used, so a shared collection would list them as a shop's team.
@@ -47,6 +49,26 @@ export function firestoreSignupStores(firestore) {
       list: async () => rowsOf(await firestore.query("signups", { limit: 5000 })),
     },
     throttle: firestoreThrottle(firestore),
+  };
+}
+
+/**
+ * The front door's records (signup/frontDoor.js): each press's setup record (signup/pressRecord.js; the presses rules in
+ * waitlist/firestore.rules let its owner read it) and the sign-in codes, which no page can read (only a hash of a code
+ * is kept, signup/signInCode.js). `create` never overwrites: of two presses taking one id, one gets false.
+ */
+export function firestoreFrontDoorStores(firestore) {
+  return {
+    presses: {
+      get: (id) => firestore.get(`presses/${safe(id)}`),
+      set: (id, row) => firestore.set(`presses/${safe(id)}`, row),
+      create: (id, row) => firestore.create(`presses/${safe(id)}`, row),
+      listByOwner: async (ownerUid) => rowsOf(await firestore.query("presses", { where: [["ownerUid", "==", ownerUid]], limit: 50 })),
+    },
+    codes: {
+      get: (key) => firestore.get(`signInCodes/${safe(key)}`),
+      set: (key, row) => firestore.set(`signInCodes/${safe(key)}`, row),
+    },
   };
 }
 
