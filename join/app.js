@@ -238,7 +238,7 @@ for (const form of document.querySelectorAll("form[data-question]")) {
     });
   });
   // Skipping keeps whatever was saved before and moves on.
-  form.querySelector("[data-skip]").addEventListener("click", () => next(form));
+  form.querySelector("[data-skip]")?.addEventListener("click", () => next(form));
 }
 for (const back of document.querySelectorAll("[data-back]")) back.addEventListener("click", () => show(back.dataset.back));
 
