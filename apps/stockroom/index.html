@@ -1286,6 +1286,7 @@
       <div class="stock-alert ok" id="d-alert">Loading…</div>
       <div class="stock-actions" id="d-recalc-onhand-wrap">
         <button type="button" class="btn sm ink" id="d-transfer-stock-btn" onclick="openStockTransferModal()" title="Transfer stock between publisher and author" style="display:none;">⇄ Transfer stock</button>
+        <button type="button" class="btn sm" id="d-places-stock-btn" data-action="places.open" title="Move copies between your own places, like a studio and a market stall" style="display:none;">📍 Move between places</button>
         <div style="margin-left:auto;">
           <button type="button" class="btn sm" onclick="recalcOnHand()" title="Rebuild on-hand from your sales and consignment records — fixes drift after a missed deduction or offline merge">↻ Recalculate on-hand</button>
         </div>
@@ -7008,6 +7009,51 @@
     <div class="modal-footer" role="dialog" aria-modal="true">
       <button type="button" class="btn" onclick="attemptCloseModal('stock-transfer')">Cancel</button>
       <button type="button" class="btn gold" id="st-submit-btn" onclick="submitStockTransfer()">Confirm Transfer</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="m-stock-places" style="display:none;z-index:1200;">
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:480px;">
+    <div class="modal-title">
+      <div class="modal-title-left">
+        <span class="modal-title-badge" aria-hidden="true">📍</span>
+        <span id="sp-modal-title">Move between places</span>
+      </div>
+      <button type="button" class="btn tx modal-close-btn" data-action="places.close" aria-label="Close dialog" title="Close (Esc)">✕</button>
+    </div>
+    <p class="lead-note" style="margin-bottom:14px;">Keep track of where your own copies are, like a studio and a market stall. The total on hand, your sales and your taxes do not change.</p>
+    <ul id="sp-places" class="sp-places" style="list-style:none;padding:0;margin:0 0 12px;"></ul>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label for="sp-from">Move from</label>
+      <select id="sp-from" data-on-change="places.preview"></select>
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label for="sp-to">Move to</label>
+      <select id="sp-to" data-on-change="places.preview"></select>
+    </div>
+    <div class="form-group" id="sp-new-wrap" style="margin-bottom:12px;display:none;">
+      <label for="sp-new">Name of the new place</label>
+      <input type="text" id="sp-new" placeholder="e.g. Market stall" maxlength="40" data-on-input="places.preview">
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label for="sp-qty">Copies <span id="sp-qty-limit-label" class="muted-note" style="font-size:var(--text-xs);color:var(--content-muted);"></span></label>
+      <div class="st-stepper-row">
+        <button type="button" class="btn sm st-stepper-btn" data-action="places.step" data-delta="-1">−1</button>
+        <input type="number" id="sp-qty" class="st-qty-input tnum" min="1" step="1" inputmode="numeric" value="1" data-on-input="places.preview">
+        <button type="button" class="btn sm st-stepper-btn" data-action="places.step" data-delta="1">+1</button>
+        <button type="button" class="btn sm st-stepper-btn" data-action="places.step" data-delta="5">+5</button>
+        <button type="button" class="btn sm st-stepper-btn" data-action="places.step" data-delta="10">+10</button>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px;">
+      <label for="sp-note">Note <span class="muted-note" style="font-weight:400;font-size:var(--text-2xs);color:var(--content-muted);">(optional)</span></label>
+      <input type="text" id="sp-note" placeholder="e.g. Saturday market">
+    </div>
+    <div id="sp-preview" class="st-preview-box"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn" data-action="places.close">Cancel</button>
+      <button type="button" class="btn gold" id="sp-submit-btn" data-action="places.submit">Move copies</button>
     </div>
   </div>
 </div>
