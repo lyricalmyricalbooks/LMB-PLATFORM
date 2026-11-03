@@ -104,6 +104,7 @@ test("an owner who never opened the admin gets the general order; a stockroom-on
     ["no-guide", { guideDoc: null }],
     ["not-a-trial-shop", { row: { testShop: true } }],
     ["not-a-trial-shop", { row: { status: "closed" } }],
+    ["not-a-trial-shop", { row: { closure: { by: "admin@example.com", reason: "abuse", at: "2026-11-01T00:00:00Z" } } }],
     ["paused", { row: { billing: { status: "paused", access: "paused" } } }],
   ]) {
     const w = world(opts);

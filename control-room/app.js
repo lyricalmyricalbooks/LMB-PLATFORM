@@ -283,7 +283,7 @@ function feeForm(record) {
 }
 
 // Closing a shop (6.8): where it is, and the dates the press was told.
-const CLOSING_WORDS = { paused: "paused", closed: "closed, download open", deleted: "deleted" };
+const CLOSING_WORDS = { paused: "paused", closed: "closed, download open", deleted: "deleted", reopening: "opening again" };
 function closingView(closing) {
   if (!closing) return [];
   const dates = [

@@ -138,3 +138,24 @@ test("making a shop answers plainly that it isn't switched on yet, and the press
   assert.match(row.error ?? "", /isn't switched on yet/);
   assert.deepEqual(outside.other, []);
 });
+
+test("a shop's Stripe events and sent emails reach its control-room record (the delivery counts, plan 19.12)", async () => {
+  const secret = "whsec_test_connect_pretend";
+  const { world } = build({ ...TEST_ENV, STRIPE_CONNECT_WEBHOOK_SECRET_TEST: secret });
+  await world.registry.createShop("moth-press", { shopId: "moth-press", pressName: "Moth Press", status: "live", plan: "shop", payments: { provider: "stripe", accountId: "acct_moth", mode: "test" } });
+  await world.platform.set("emailSent/k1", { shopId: "moth-press", kind: "receipt", status: "sent", at: new Date().toISOString() });
+  const raw = JSON.stringify({ id: "evt_1", livemode: false, account: "acct_moth", type: "checkout.session.completed", data: { object: {} } });
+  const { error, warn } = console;
+  console.error = () => {};
+  console.warn = () => {};
+  try {
+    await world.payments.stripeEvent({ "stripe-signature": signatureHeader(secret, raw, Math.floor(Date.now() / 1000)) }, raw);
+    await new Promise((resolve) => setTimeout(resolve, 20)); // the count is kept beside the forward, not before it
+  } finally {
+    Object.assign(console, { error, warn });
+  }
+  const admin = { uid: "uid-admin", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(Date.now() / 1000) };
+  const record = await world.room.shop(admin, { shopId: "moth-press" });
+  assert.equal(record.delivery.payments.received, 1);
+  assert.equal(record.delivery.email.sent, 1);
+});

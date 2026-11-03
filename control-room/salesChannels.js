@@ -122,8 +122,9 @@ export async function histOf(stockroomData, shopId) {
  * checkouts, copies, money and how many presses sold at a fair. `perShop` is [{ shopId, hist }].
  */
 export function fairTillMonths(perShop, nowMs, months = FAIR_MONTHS) {
-  const end = new Date(nowMs);
-  const keys = Array.from({ length: months }, (_, i) => new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - (months - 1 - i), 1)).toISOString().slice(0, 7));
+  // This month is Toronto's, like the till's own days: on the last evening of a month UTC is already in the next one.
+  const [year, month] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit" }).format(nowMs).split("-").map(Number);
+  const keys = Array.from({ length: months }, (_, i) => new Date(Date.UTC(year, month - 1 - (months - 1 - i), 1)).toISOString().slice(0, 7));
   const byMonth = new Map(keys.map((k) => [k, { month: k, sales: new Set(), copies: 0, amount: 0, presses: new Set() }]));
   for (const { shopId, hist } of perShop) {
     for (const [bookId, rows] of Object.entries(hist)) {

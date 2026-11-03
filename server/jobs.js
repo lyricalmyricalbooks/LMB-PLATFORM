@@ -19,9 +19,11 @@ import { createOwnDomainSender, resendDomainsFromEnv } from "../services/email/o
 import { NOT_CONNECTED, NotConnected, notConnectedFn } from "./notConnected.js";
 
 const quiet = () => {};
+// The server's own platform project (PLATFORM_PROJECT), never the default one baked into the command-line runs.
+const health = (parts, job) => realHealth({ job, env: parts.env, fetch: parts.fetch, token: parts.token, projectId: parts.projectId, print: quiet });
 
 export const RUNNERS = Object.freeze({
-  "health-checks": ({ parts }) => () => realHealth({ job: "checks", env: parts.env, fetch: parts.fetch, token: parts.token, print: quiet }),
+  "health-checks": ({ parts }) => () => health(parts, "checks"),
   "shop-maker": () => notConnectedFn(NOT_CONNECTED.shopMaking),
   "web-addresses": () => notConnectedFn(NOT_CONNECTED.domains),
   "own-email-addresses": ({ parts }) => () => createOwnDomainSender({
@@ -29,8 +31,8 @@ export const RUNNERS = Object.freeze({
     // Only a shop that started its own address has anything to check, and starting one needs the domain service.
     domainsCall: notConnectedFn(NOT_CONNECTED.domains), email: parts.email, now: () => parts.now().getTime(),
   }).checkAll(),
-  "nightly-backups": ({ parts }) => () => realHealth({ job: "nightly", env: parts.env, fetch: parts.fetch, token: parts.token, print: quiet }),
-  "keep-times": ({ parts }) => () => realRetention({ fetch: parts.fetch, token: parts.token, print: quiet }),
+  "nightly-backups": ({ parts }) => () => health(parts, "nightly"),
+  "keep-times": ({ parts }) => () => realRetention({ fetch: parts.fetch, token: parts.token, projectId: parts.projectId, print: quiet }),
   "self-checks": () => notConnectedFn(NOT_CONNECTED.selfChecks),
   closing: ({ closing }) => () => closing.sweep(),
   "dropped-apps": ({ billing }) => () => billing.closeDroppedApps(),
@@ -42,7 +44,7 @@ export const RUNNERS = Object.freeze({
   "setup-clock": ({ setupClock }) => () => setupClock.sweep(),
   "drift-watch": ({ driftWatch }) => () => driftWatch.sweep(),
   "deletion-note": ({ parts }) => () => weeklyDeletionNote({ registry: parts.registry, email: parts.email, to: controlRoomPeople(parts.env).adminEmail ?? (String(parts.env.HEALTH_ALERT_TO ?? "").trim() || null), now: parts.now }),
-  "restore-drill": ({ parts }) => () => realHealth({ job: "drill", env: parts.env, fetch: parts.fetch, token: parts.token, print: quiet }),
+  "restore-drill": ({ parts }) => () => health(parts, "drill"),
 });
 
 /**

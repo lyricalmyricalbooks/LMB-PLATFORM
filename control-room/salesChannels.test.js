@@ -116,6 +116,15 @@ test("fair till by month across presses: only live stockroom presses, month by m
   assert.equal((await w.ask(PRESS, {})).status, 403);
 });
 
+test("fair till by month ends on Toronto's month: the last evening of October is still October", async () => {
+  const { fairTillMonths } = await import("./salesChannels.js");
+  const halloween = Date.parse("2026-11-01T01:00:00Z"); // 31 October, 21:00 in Toronto
+  const months = fairTillMonths([{ shopId: "a", hist: { b: [{ num: "1", chan: "Book Fair", qty: 1, price: 5, date: "2026-10-31" }, { num: "2", chan: "Book Fair", qty: 1, price: 5, date: "2025-11-15" }] } }], halloween);
+  assert.equal(months.at(-1).month, "2026-10");
+  assert.equal(months[0].month, "2025-11", "twelve months, this one included");
+  assert.equal(months.reduce((n, m) => n + m.sales, 0), 2);
+});
+
 test("the business side shows fair till by month, and the Shops list filters by risk", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   assert.match(app, /"\/control\/fair-months"/);

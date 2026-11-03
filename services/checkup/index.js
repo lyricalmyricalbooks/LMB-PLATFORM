@@ -70,7 +70,8 @@ export function createCheckups({ registry, auditLog, email, store, inspect, sett
       for (const row of await registry.listShops()) {
         const shopId = row.shopId;
         try {
-          if (row.testShop === true || ["closed", "abandoned"].includes(row.status) || ["closed", "paused"].includes(row.billing?.access)) { skipped.push({ shopId, why: "not-live" }); continue; }
+          // Not a shop still being made (setup/steps.js "creating"), nor one the platform closed (controlRoom.js `closure`).
+          if (row.testShop === true || ["creating", "closed", "abandoned"].includes(row.status) || row.closure || ["closed", "paused"].includes(row.billing?.access)) { skipped.push({ shopId, why: "not-live" }); continue; }
           if (!row.ownerEmail) { skipped.push({ shopId, why: "no-owner" }); continue; }
           const created = Date.parse(row.createdAt ?? "");
           if (Number.isFinite(created) && at - created < MIN_AGE_DAYS * DAY) { skipped.push({ shopId, why: "too-new" }); continue; }

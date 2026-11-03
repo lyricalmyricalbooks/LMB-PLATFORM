@@ -71,7 +71,7 @@ export function planDocument(row, { link, hub = null, at, closing = null, changi
     shopId: row.shopId ?? null,
     founding: row.founding === true,
     // Only what the admin shows: when it closed, until when everything can be downloaded, and the day it is deleted.
-    closing: closing && closing.stage !== "paused"
+    closing: closing && (closing.stage === "closed" || closing.stage === "deleted")
       ? { stage: closing.stage, closedAt: closing.closedAt ?? null, downloadUntil: closing.downloadUntil ?? null, deleteAfter: closing.deleteAfter ?? null }
       : null,
     // An app being added (being built) or one a plan change will close, for the admins' notices.

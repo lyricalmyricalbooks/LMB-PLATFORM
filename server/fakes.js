@@ -8,7 +8,8 @@ import { SECURETOKEN_KEYS } from "./verifyIdToken.js";
 import { pretendEmailEnv } from "../services/email/fakes.js";
 import { pretendPaymentsEnv } from "../services/payments/fakes.js";
 
-export const TEST_PROJECT = "lmb-platform-prod";
+// Not the real platform project, so a test sees any call that goes to the default project instead of the server's own.
+export const TEST_PROJECT = "demo-lmb-platform";
 
 export function fakeOutside({ projectId = TEST_PROJECT, nowMs = () => Date.now() } = {}) {
   const firestore = fakeFirestore();

@@ -141,7 +141,9 @@ export async function shopTimeline({ shopId, registry, auditLog, activity, suppo
     const { kind, words } = controlAction(a.what, a.detail ?? {});
     lines.push({ at: a.at, kind, words: cut(words), ...(a.by ? { by: a.by } : {}), key: `activity:${a.id}` });
   }
-  for (const e of registry.readEvents ? await registry.readEvents(shopId) : []) {
+  // The registry reads its newest events only: from `before` back, so an older page isn't cut off by the newest ones.
+  const eventsBefore = before ? before.split("|")[0] : null;
+  for (const e of registry.readEvents ? await registry.readEvents(shopId, { before: eventsBefore }) : []) {
     if (e.source === "control-room" && seen.has(`${e.at} ${e.what}`)) continue;
     const line = eventLine(e);
     if (line) lines.push(line);

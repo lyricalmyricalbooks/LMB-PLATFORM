@@ -70,7 +70,17 @@ test("a restore that fails is a failed drill, and a scratch copy that stays is r
   assert.match((await stuck.run()).detail, /drill-2026-11-03 was not removed: busy/);
 });
 
-test("it runs once a month: not again within 28 days, then the shop drilled longest ago goes next", async () => {
+test("it runs once a calendar month in Toronto, even when the month is shorter than the gap (February)", async () => {
+  const w = await setup();
+  const at = (iso) => ({ now: () => new Date(iso) });
+  assert.equal((await w.run(at("2027-02-01T09:00:05Z"))).ran, true);
+  // 1 March, 04:00 Toronto, a few seconds earlier in the run than February's: 28 days less 4 seconds later.
+  assert.equal((await w.run(at("2027-03-01T09:00:01Z"))).ran, true, "March isn't skipped");
+  // Toronto's month, not UTC's: 31 March at 22:00 in Toronto is already April in UTC.
+  assert.equal((await w.run(at("2027-04-01T02:00:00Z"))).ran, false);
+});
+
+test("it runs once a month: not again the same month, then the shop drilled longest ago goes next", async () => {
   const w = await setup();
   assert.equal((await w.run()).shopId, "press-a");
   assert.deepEqual(await w.run(), { ran: false, reason: "the last drill was less than a month ago" });
