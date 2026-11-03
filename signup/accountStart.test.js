@@ -14,6 +14,7 @@ function fakePresses() {
     rows,
     get: async (id) => rows.get(id) ?? null,
     set: async (id, row) => rows.set(id, row),
+    create: async (id, row) => (rows.has(id) ? false : (rows.set(id, row), true)),
     listByOwner: async (uid) => [...rows.values()].filter((r) => r.ownerUid === uid),
   };
 }
@@ -63,4 +64,26 @@ test("one account can hold up to five presses in setup", async () => {
   const start = createAccountStart({ presses, now: () => NOW });
   for (let i = 0; i < MAX_SETUP_PRESSES; i += 1) await start.start(ADA, { pressName: `Press ${i} Books` });
   await assert.rejects(start.start(ADA, { pressName: "One Too Many" }), (error) => error.status === 429);
+});
+
+test("a short press name still gets a valid id", async () => {
+  const presses = fakePresses();
+  const start = createAccountStart({ presses, now: () => NOW, suffix: () => "x7k2" });
+  const result = await start.start(ADA, { pressName: "Ink" });
+  assert.equal(result.pressId, "ink-x7k2");
+  assert.equal(presses.rows.get("ink-x7k2").pressName, "Ink");
+});
+
+test("when an id is taken between the check and the save, the other press's record is never overwritten", async () => {
+  const presses = fakePresses();
+  const others = [];
+  // Another press takes each id first, as if it started at the same moment.
+  presses.create = async (id, row) => {
+    if (!presses.rows.has(id) && others.length < 1) { presses.rows.set(id, { pressId: id, ownerUid: "someone-else" }); others.push(id); }
+    return presses.rows.has(id) ? false : (presses.rows.set(id, row), true);
+  };
+  const start = createAccountStart({ presses, now: () => NOW, suffix: () => "x7k2" });
+  const result = await start.start(ADA, { pressName: "Moth Press" });
+  assert.equal(result.pressId, "moth-press-x7k2");
+  assert.equal(presses.rows.get("moth-press").ownerUid, "someone-else");
 });

@@ -63,3 +63,26 @@ test("an unknown address gets the same plain refusal, not a hint", async () => {
   assert.equal(result.ok, false);
   assert.match(result.message, /didn't match/);
 });
+
+test("spending codes (locking, running out, using) never resets the hourly limit", async () => {
+  const h = harness();
+  for (let i = 0; i < CODES_PER_HOUR; i += 1) {
+    await h.service.send("owner@example.com");
+    // Lock each code with wrong tries; a locked code used to clear the send count.
+    for (let t = 0; t <= CODE_TRIES; t += 1) await h.service.check("owner@example.com", "000001");
+  }
+  assert.equal((await h.service.send("owner@example.com")).ok, false, "a sixth code in the hour is still refused");
+  assert.equal(h.sent.length, CODES_PER_HOUR);
+});
+
+test("without a test random source, codes are six digits from the crypto source", async () => {
+  const rows = new Map();
+  const sent = [];
+  const service = createSignInCode({
+    store: { get: async (k) => rows.get(k) ?? null, set: async (k, v) => rows.set(k, v) },
+    sendEmail: async (m) => { sent.push(m); },
+  });
+  await service.send("owner@example.com");
+  assert.match(sent[0].code, /^\d{6}$/);
+  assert.equal((await service.check("owner@example.com", sent[0].code)).ok, true);
+});
