@@ -118,7 +118,8 @@ export function PlanPage({ plan }: Hub) {
   const billing = answer.billing;
   if (!billing) return <SectionCard title="Your plan"><EmptyState inline title="No plan yet" description="Your plan shows here once it has started." /></SectionCard>;
   const badge = statusBadge(billing);
-  const ended = ["canceled", "incomplete_expired"].includes(billing.status);
+  // Closed, not just "Stripe's plan ended": a press paying as they sell has no plan running and is open.
+  const ended = billing.access === "closed";
   const price = billing.founding?.price
     ? <><s className="rp-hint">{billing.price}</s> {billing.founding.price} a month{billing.plusTax ? " plus tax" : ""}<span style={{ display: "block", marginTop: 6 }}><StatusBadge tone="success">Founding: {billing.founding.percentOff}% off for good</StatusBadge></span></>
     : `${billing.price} a month${billing.plusTax ? " plus tax" : ""}`;
@@ -126,7 +127,7 @@ export function PlanPage({ plan }: Hub) {
   const facts: Array<[string, ReactNode]> = [["Plan", billing.planName || "Not chosen yet"], ["Price", price]];
   if (billing.status === "trialing" && billing.trialEnd) facts.push(["Free trial ends", `${planDate(billing.trialEnd)}${billing.trialDaysLeft !== null ? ` (${billing.trialDaysLeft <= 1 ? "last day" : `${billing.trialDaysLeft} days left`})` : ""}`]);
   if (billing.nextPaymentAt) facts.push(["Next payment", planDate(billing.nextPaymentAt)]);
-  if (billing.cancelAtPeriodEnd && !ended) facts.push(["Plan ends", planDate(billing.status === "trialing" ? billing.trialEnd : billing.currentPeriodEnd)]);
+  if (billing.cancelAtPeriodEnd && !ended) facts.push(["Plan ends", planDate(billing.cancelEndsAt ?? (billing.status === "trialing" ? billing.trialEnd : billing.currentPeriodEnd))]);
   // Changed your mind: one click takes the plan back to one with every app open now (keep-closing-apps).
   if (billing.appsClosing) facts.push(["Closing", <>
     <span style={{ display: "block" }}>{`${appsInWords(billing.appsClosing.apps).replace(/^./, (c) => c.toUpperCase())} on ${planDate(billing.appsClosing.at)}`}</span>

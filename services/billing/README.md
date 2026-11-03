@@ -42,7 +42,8 @@ makes a new Stripe price; presses on the old one stay there until moved on purpo
   expiry (see "Failed plan payments, recovered" below).
 - **Tax** (6.12): `BILLING_TAX=on` turns on Stripe Tax. Prices are made "plus tax" (`tax_behavior: exclusive`; an older
   price is marked once), and the subscription gets `automatic_tax` once a card is added, from the card's billing
-  address copied onto the customer (the trial needs no card, so it needs no address). Off by default: nothing about
+  address copied onto the customer (the trial needs no card, so it needs no address). A plan change asks for tax only
+  when the customer has an address (a card added while tax was off has none, and Stripe would refuse the change). Off by default: nothing about
   tax is sent to Stripe. The Plan & billing page says "plus tax" while it is on.
 
 What each Stripe status means for the shop (`ACCESS`): trialing, active and past_due (Stripe retrying a declined
@@ -66,6 +67,17 @@ The billing record keeps `paymentWay`, `paymentWayFrom` and the terms; the regis
 capMinor, currency, from, until }` (what services/payments reads), fixed when the press chooses. A shop that pays as it
 sells stays open with no subscription (`paymentWayState.js`, used by `save()`), and its subscription ending sends no
 ending, trial or card email. `status()` adds `paymentWay` (the way in force now).
+
+Stripe's cancel of a pay-as-you-sell press's subscription is the switch, not the press leaving: `status()`, the
+registry's `billing` copy and the shop's own copy say "cancelled" only from the press's own cancel (`planEnding`), and
+`keep()` refuses (409) rather than undo Stripe's cancel, which would bill monthly on top of the fees. **Cancelling while
+paying as they sell** sets `payAsYouSell.until` to the end of the current billing month (or the day fees start, if they
+haven't), on the billing record and the registry; the shop stays open until then and `keep()` takes the date away. The
+daily `closeDroppedApps` sweep then closes the shop (`access: "closed"`), and the closing sweep (closing.js) takes over.
+`status().cancelEndsAt` is the day a cancel (asked for, or asked for now) closes the shop.
+
+The card and billing details are on the paying account's Stripe customer, shared by every shop it pays for, so only that
+account's holder may change them (`paidBy`, checked by both billing doors); a co-owner is refused.
 
 Settings: `liveSettings().payAsYouSell.basisPoints` (200 = 2%; 0 closes the option to new choices) and the founding
 offer (`foundingOffer.percentOff`, 25), which takes its share off both the percentage and the cap for a founding press

@@ -140,6 +140,10 @@ test("a shop paying as it sells is open and active, with no trial, nothing due a
   assert.equal(doc.endsAt, null);
   // A switch that starts later still shows monthly until then.
   assert.equal(planDocument({ ...row, status: "active", paymentWayFrom: "2027-03-01T00:00:00.000Z" }, { link: LINK, at }).paymentWay, "monthly");
+  // Stripe's cancel is the switch; the press's own cancel ends the terms, and that is what the admin shows.
+  assert.equal(doc.cancelAtPeriodEnd, false);
+  const leaving = planDocument({ ...row, payAsYouSell: { from: "2027-01-10T00:00:00.000Z", until: "2027-02-10T00:00:00.000Z" } }, { link: LINK, at });
+  assert.deepEqual([leaving.cancelAtPeriodEnd, leaving.endsAt, leaving.access], [true, "2027-02-10T00:00:00.000Z", "open"]);
 });
 
 // Adding or dropping an app (code plan 6.11): the registry's plan says what is open; a closed app's copy says closed.

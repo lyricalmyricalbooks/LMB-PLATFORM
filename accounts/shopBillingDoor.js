@@ -105,7 +105,8 @@ export function createShopBillingDoor({ billing, paymentWay = null, exports = nu
       throw new DoorError(problem.status, "Your plan is paid, so this change needs two-step sign-in. Turn it on under Settings › Security, then sign in again with your code.", { twoStep: true, accountPage });
     }
     try {
-      const answer = await entry.run(shopId, body, { returnUrl: hubPage(row), claims });
+      // The shop's own sign-in names the person by email only: its user ids are the shop project's, not the platform's.
+      const answer = await entry.run(shopId, body, { returnUrl: hubPage(row), claims, payer: { email } });
       await record(shopId, call, email, "done");
       // The status says up front which changes will need the account page, so the hub can say so on the button.
       if (call === "status") return { ...answer, accountPage, changesNeedTwoStep: Boolean(ownerTwoStepProblem(claims, row)) };

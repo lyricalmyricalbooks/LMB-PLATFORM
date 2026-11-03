@@ -283,7 +283,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
         return ok({
           object: "invoice", currency: price.currency, period_end: sub.periodEnd, next_payment_attempt: sub.periodEnd,
           lines: { data: [{ description: "1 × Colophon Shop and stockroom (at $39.00 / month)", amount: price.unit_amount }] },
-          subtotal: price.unit_amount, total_discount_amounts: off ? [{ amount: off }] : [], tax: taxed, total: price.unit_amount - off + taxed,
+          subtotal: price.unit_amount, total_discount_amounts: off ? [{ amount: off }] : [], total_taxes: taxed ? [{ amount: taxed, taxability_reason: "standard_rated", tax_behavior: "exclusive" }] : [], total: price.unit_amount - off + taxed,
         });
       }
       const from = world.prices.get(sub.price);
@@ -357,7 +357,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
   const addInvoice = (subscriptionId, fields = {}) => {
     const id = `in_${next++}`;
     const invoice = {
-      id, object: "invoice", subscription: subscriptionId, number: `COL-${String(next).padStart(4, "0")}`, status: "paid", currency: "cad", total: 3900, tax: 0, created: clock(),
+      id, object: "invoice", subscription: subscriptionId, number: `COL-${String(next).padStart(4, "0")}`, status: "paid", currency: "cad", total: 3900, total_taxes: [], created: clock(),
       invoice_pdf: `https://pay.stripe.example/invoice/${id}/pdf`, hosted_invoice_url: `https://invoice.stripe.example/${id}`, ...fields,
     };
     world.invoices.set(id, invoice);

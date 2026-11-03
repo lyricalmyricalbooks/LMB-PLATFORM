@@ -161,9 +161,16 @@ describe("Settings › Plan", () => {
     expect(text()).toContain("Our emails to you and your team come in French.");
   });
 
+  it("paying as you sell, with Stripe's plan ended on purpose: the shop is open and can be cancelled, with no Keep my plan", async () => {
+    world.status = status({ plan: "shop", status: "canceled", access: "open", paymentWay: "payAsYouSell", cancelAtPeriodEnd: false, cancelEndsAt: "2026-12-11T12:00:00Z" });
+    await mount(PlanPage);
+    expect(button("Cancel plan")).toBeDefined();
+    expect(button("Keep my plan")).toBeUndefined();
+  });
+
   it("no Add back once the plan has ended", async () => {
     const later = new Date(Date.now() + 30 * 86_400_000).toISOString();
-    world.status = status({ plan: "shop", status: "canceled", closedApps: { stockroom: { closedAt: "2026-10-01T12:00:00Z", downloadUntil: later } } });
+    world.status = status({ plan: "shop", status: "canceled", access: "closed", closedApps: { stockroom: { closedAt: "2026-10-01T12:00:00Z", downloadUntil: later } } });
     await mount(PlanPage);
     expect(button("Download all your data")).toBeDefined();
     expect(button("Add the stockroom back")).toBeUndefined();

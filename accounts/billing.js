@@ -115,7 +115,7 @@ function renderLedger(billing, words) {
   const cells = [["Plan", billing.price, `${billing.planName}, monthly${tax}`]];
   if (billing.access === "paused" || billing.access === "closed") cells.push(["Shop", words.state, billing.access === "paused" ? "kept for 60 days" : "90 days to download", "danger"]);
   else if (billing.status === "trialing") cells.push(["Free trial", `${billing.trialDaysLeft ?? 0} days`, `until ${day(billing.trialEnd)}`, "warning"]);
-  else if (billing.cancelAtPeriodEnd) cells.push(["Open until", day(billing.currentPeriodEnd).replace(/ \d{4}$/, ""), "then the plan ends", "warning"]);
+  else if (billing.cancelAtPeriodEnd) cells.push(["Open until", day(billing.cancelEndsAt ?? billing.currentPeriodEnd).replace(/ \d{4}$/, ""), "then the plan ends", "warning"]);
   else cells.push(["Status", words.state, billing.status === "past_due" ? "update your card" : "all paid up", billing.status === "past_due" ? "danger" : undefined]);
   cells.push(billing.nextPaymentAt ? ["Next bill", day(billing.nextPaymentAt).replace(/ \d{4}$/, ""), `${billing.price}${tax}`] : ["Next bill", "None", billing.hasCard ? "nothing due" : "until a card is added"]);
   cells.push(billing.card ? ["Card", `•••• ${billing.card.last4}`, `runs out ${String(billing.card.expMonth).padStart(2, "0")}/${billing.card.expYear}`] : billing.hasCard ? ["Card", "On file", ""] : ["Card", "None", billing.status === "trialing" ? `needed before ${day(billing.trialEnd).replace(/ \d{4}$/, "")}` : "add one to keep the shop open", billing.status === "trialing" ? undefined : "danger"]);

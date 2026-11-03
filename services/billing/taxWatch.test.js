@@ -55,7 +55,7 @@ test("billing reads Stripe's paid invoices a page at a time, tax left out, provi
     stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
     mode: "test", settings: platformSettings({}), ...fakeBillingStores(), registry: fakeRegistry(), auditLog: fakeAuditLog(), email: fakePlatformEmail(), webhookSecrets: [], now: () => NOW,
   });
-  const add = (id, daysAgo, total, tax, state, status = "paid") => stripe.world.invoices.set(id, { id, status, created: at(daysAgo), total, tax, currency: "cad", customer_address: { state } });
+  const add = (id, daysAgo, total, tax, state, status = "paid") => stripe.world.invoices.set(id, { id, status, created: at(daysAgo), total, total_taxes: [{ amount: tax }], currency: "cad", customer_address: { state } });
   // 230 paid invoices of $29 + 13% HST in Ontario (more than two pages), one unpaid, one too old, one in Quebec.
   for (let n = 0; n < 230; n += 1) add(`in_on${n}`, 1 + (n % 300), 3277, 377, "ON");
   add("in_open", 2, 3277, 377, "ON", "open");

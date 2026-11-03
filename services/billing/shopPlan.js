@@ -17,7 +17,7 @@
 import { PLAN_APPS } from "./plans.js";
 
 const APPS = ["shop", "stockroom"];
-import { currentPaymentWay } from "./paymentWayState.js";
+import { currentPaymentWay, planEnding } from "./paymentWayState.js";
 
 export const PLAN_DOC = "platform/plan";
 export const STATUS_DOC = "platform/status";
@@ -55,7 +55,10 @@ export function planDocument(row, { link, hub = null, at, closing = null, changi
   // Paying as it sells (paymentWay.js, plan 6.19): open with no subscription, nothing to pay ahead and no trial.
   const paymentWay = currentPaymentWay(row, Date.parse(at));
   const asItSells = paymentWay === "payAsYouSell" && access === "open";
-  const endsAt = !asItSells && row.cancelAtPeriodEnd && !ENDED.has(row.status) ? (row.status === "trialing" ? row.trialEnd : row.currentPeriodEnd) ?? null : null;
+  // Cancelled by the press: Stripe's cancel of a pay-as-you-sell plan is the switch, not the press leaving.
+  const ending = planEnding(row);
+  const cancelling = row.paymentWay === "payAsYouSell" ? ending.cancelling : !asItSells && ending.cancelling;
+  const endsAt = cancelling ? ending.endsAt : null;
   return {
     plan: row.plan ?? null,
     state: asItSells ? "active" : shopState(row, closing),
@@ -63,7 +66,7 @@ export function planDocument(row, { link, hub = null, at, closing = null, changi
     trialEnd: !asItSells && row.status === "trialing" ? row.trialEnd ?? null : null,
     nextPaymentAt: asItSells ? null : nextPaymentAt(row, closing),
     hasCard: Boolean(row.hasCard),
-    cancelAtPeriodEnd: !asItSells && Boolean(row.cancelAtPeriodEnd),
+    cancelAtPeriodEnd: cancelling,
     endsAt,
     paymentWay,
     link,
