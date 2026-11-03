@@ -48,6 +48,7 @@ import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
 import { CARD_WARNING_DAYS, cardEnds, cardWarningDue } from "./cardExpiry.js";
 import { leavingAnswer } from "./leaving.js";
+import { PAY_AS_YOU_SELL_PLANS } from "../payments/payAsYouSell.js";
 
 export { CARD_WARNING_DAYS, cardEnds };
 
@@ -271,6 +272,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       closedApps[app] = { closedAt, downloadUntil };
       if (closeApp) await closeApp({ shopId, app, closedAt, downloadUntil });
     }
+    // The registry first: the shop's copies (save → shopPlan.js) and the shop maker read which apps are open from it.
+    if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan: row.plan, closedApps });
     const saved = await save(shopId, { appsClosing: null, closedApps }, null);
     await logChange(shopId, "app-closed", { apps, downloadUntil });
     return saved;
@@ -391,7 +394,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * money, is prorated at once. A plan that drops an app keeps it open to the end of the month already paid for and
      * then closes it (closeDroppedApps), with its download kept 90 days; the new price starts with the next month.
      * During the trial, or while nothing is paid, the change takes effect at once. The registry row's `plan` says what
-     * is open, so the next run of the shop maker adds the app the new plan brings.
+     * is open: the shop maker's sweep then builds the app the new plan brings and rewrites the profile's `apps`
+     * (signup/shopMaker.js syncPlan), and does the same when a dropped app closes.
      *
      * `preview: true` changes nothing and answers what would change: the apps added and closed, when, and the
      * prorated amount Stripe would charge now.
@@ -399,12 +403,26 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     async changePlan({ shopId, plan, preview = false }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       const row = await rowFor(shopId);
-      if (ENDED.has(row.status)) throw new BillingError(409, "This plan has ended; start a new one instead.");
+      // Paying as they sell (6.19): the subscription has ended on purpose, and the fees need the website.
+      const asItSells = row.paymentWay === "payAsYouSell";
+      if (asItSells && !PAY_AS_YOU_SELL_PLANS.includes(plan)) {
+        throw new BillingError(409, "You pay as you sell, which needs the website. To keep only the stockroom, switch to paying monthly first, under How you pay.");
+      }
+      const subscriptionOn = !ENDED.has(row.status);
+      if (!subscriptionOn && !asItSells) throw new BillingError(409, "This plan has ended; start a new one instead.");
       const move = planMove(row, plan);
       if (preview) return { ...move, prorated: move.prorate ? await prorated(row, plan) : null };
       if (row.plan === plan) return { ...row, changed: false };
       const changes = (row.planChanges ?? 0) + 1;
-      const sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, {
+      // Paying as they sell: the monthly cap follows the plan's price (in the same proportion, so a founding press keeps
+      // its share off); the share of each sale stays as chosen.
+      // That holds while those terms still apply: paying as they sell, or the last month of it before monthly starts.
+      const termsApply = row.payAsYouSell && (asItSells || (row.payAsYouSell.until && now() < Date.parse(row.payAsYouSell.until)));
+      const terms = termsApply
+        ? { ...row.payAsYouSell, capMinor: Math.floor((row.payAsYouSell.capMinor * planPrice(plan, settings).amount) / planPrice(row.plan, settings).amount) }
+        : null;
+      // No subscription runs while a press pays as they sell, so there is nothing to change on Stripe.
+      const sub = !subscriptionOn ? null : await call("POST", `/v1/subscriptions/${row.subscriptionId}`, {
         params: {
           items: [{ id: row.itemId, price: await ensurePrice(plan) }],
           proration_behavior: move.prorate ? "create_prorations" : "none",
@@ -416,9 +434,11 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const closedApps = { ...(row.closedApps ?? {}) };
       for (const app of move.adds) delete closedApps[app];
       const appsClosing = move.closes.length && !move.immediate ? { apps: move.closes, at: move.closesAt, downloadUntil: move.downloadUntil } : null;
-      let saved = await save(shopId, { ...fromSubscription(sub), plan, planChanges: changes, appsClosing, closedApps }, "plan-changed");
+      // The registry first: the shop's copies read which apps are open from it, and the shop maker's sweep builds an
+      // added app from it (signup/shopMaker.js syncPlan).
+      if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan: move.openPlan, closedApps, ...(terms ? { payAsYouSell: terms } : {}) });
+      let saved = await save(shopId, { ...(sub ? fromSubscription(sub) : {}), plan, planChanges: changes, appsClosing, closedApps, ...(terms ? { payAsYouSell: terms } : {}) }, "plan-changed");
       if (move.immediate && move.closes.length) saved = await closeApps(shopId, move.closes);
-      if (await registry.getShop(shopId)) await registry.updateShop(shopId, { plan: move.openPlan, closedApps: saved.closedApps ?? {} });
       const closing = move.closes.length ? { closing: move.closes.map((app) => APP_NAMES[app]).join(" and "), date: dateText(move.closesAt), now: move.immediate } : {};
       await notify(shopId, "plan-changed", { prorated: move.prorate, ...closing }, `${shopId}/plan/${changes}`);
       return { ...saved, changed: true };
@@ -488,8 +508,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const closed = [];
       for (const row of await subscriptions.list()) {
         if (!row.appsClosing?.apps?.length || Date.parse(row.appsClosing.at) > now()) continue;
-        const saved = await closeApps(row.shopId, row.appsClosing.apps);
-        if (await registry.getShop(row.shopId)) await registry.updateShop(row.shopId, { plan: row.plan, closedApps: saved.closedApps });
+        await closeApps(row.shopId, row.appsClosing.apps);
         closed.push({ shopId: row.shopId, apps: row.appsClosing.apps });
       }
       return closed;

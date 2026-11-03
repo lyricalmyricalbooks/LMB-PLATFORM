@@ -13,12 +13,12 @@ export type Publishes = Sells;
 /** Two or three themes to start from for each answer; no answer gets the general three. */
 const SUGGESTED: Record<Publishes | "general", string[]> = {
   books: ["press-imprint", "press-letterpress", "press-arch"],
-  zines: ["press-zine", "press-mosaic", "press-punk"],
-  comics: ["press-mosaic", "press-riso-noir", "press-zine"],
-  prints: ["press-index", "press-atlas", "press-archive"],
-  mix: ["press-atlas", "press-riso", "press-mosaic"],
-  mixed: ["press-atlas", "press-shelf", "press-riso"],
-  clothing: ["press-atlas", "press-marquee", "press-mosaic"],
+  zines: ["press-zine", "press-market", "press-punk"],
+  comics: ["press-market", "press-mosaic", "press-riso-noir"],
+  prints: ["press-index", "press-atlas", "press-market"],
+  mix: ["press-rows", "press-atlas", "press-market"],
+  mixed: ["press-rows", "press-atlas", "press-shelf"],
+  clothing: ["press-market", "press-atlas", "press-marquee"],
   shoes: ["press-atlas", "urban-streetwear", "press-marquee"],
   jewelry: ["press-arch", "press-shelf", "golden-noir"],
   music: ["night-neon", "press-poster", "press-punk"],

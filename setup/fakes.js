@@ -369,9 +369,12 @@ export function fakeServices({ failOnce = [], pageStatus = () => 200 } = {}) {
     },
     shopData: {
       get: async (projectId, path) => structuredClone(world.docs.get(key(projectId, path)) ?? null),
-      async set(projectId, path, data) {
+      async set(projectId, path, data, { fields } = {}) {
         change("shopData.set", projectId, path);
-        world.docs.set(key(projectId, path), structuredClone(data));
+        // `fields`: only those fields change, as Firestore's update mask does (clients/firestore.js set).
+        const kept = fields ? { ...(world.docs.get(key(projectId, path)) ?? {}) } : {};
+        if (fields) for (const field of fields) delete kept[field];
+        world.docs.set(key(projectId, path), structuredClone({ ...kept, ...(fields ? Object.fromEntries(fields.filter((f) => f in data).map((f) => [f, data[f]])) : data) }));
       },
       async create(projectId, path, data) {
         change("shopData.create", projectId, path);

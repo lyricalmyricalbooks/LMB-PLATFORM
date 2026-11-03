@@ -41,10 +41,11 @@ export function stepProblems(steps) {
  * - `already-done`: its check passed before it acted, so it did nothing.
  * - `done-before`: the registry records it as done in an earlier run, so it was not run again.
  * - `failed`: its check, its act, or the check after acting failed. The run stops here.
+ * `again` lists step numbers to look at anew even when an earlier run did them: the run resumes at the first of them.
  * Dry runs use `would-run` instead of acting and write nothing. `locked: true` means another run held the shop, so this
  * one stopped without acting or recording anything.
  */
-export async function runSteps({ shop, steps, registry, auditLog, dryRun = false, print = () => {}, now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES }) {
+export async function runSteps({ shop, steps, registry, auditLog, dryRun = false, print = () => {}, now = () => new Date(), runId = randomUUID(), lockMinutes = LOCK_MINUTES, again = [] }) {
   const problems = stepProblems(steps);
   if (problems.length) throw new Error(`The setup steps have problems: ${problems.join("; ")}`);
   if (!shop?.shopId) throw new Error("The shop has no shopId");
@@ -54,7 +55,7 @@ export async function runSteps({ shop, steps, registry, auditLog, dryRun = false
   if (dryRun) {
     const held = await registry.readLock(shopId);
     if (held && held.expiresAt > now().toISOString()) print(`Another run is working on ${shopId} until ${held.expiresAt}; a real run would be turned away.`);
-    return runLocked({ shop, steps, registry, auditLog, dryRun, print, now, renew: async () => true });
+    return runLocked({ shop, steps, registry, auditLog, dryRun, print, now, again, renew: async () => true });
   }
   const lock = await registry.takeLock(shopId, lockFor());
   if (!lock.taken) {
@@ -63,18 +64,20 @@ export async function runSteps({ shop, steps, registry, auditLog, dryRun = false
     return { ok: false, ran: [], locked: true, error };
   }
   try {
-    return await runLocked({ shop, steps, registry, auditLog, dryRun, print, now, renew: async () => (await registry.takeLock(shopId, lockFor())).taken });
+    return await runLocked({ shop, steps, registry, auditLog, dryRun, print, now, again, renew: async () => (await registry.takeLock(shopId, lockFor())).taken });
   } finally {
     await registry.releaseLock(shopId, runId);
   }
 }
 
-async function runLocked({ shop, steps, registry, auditLog, dryRun, print, now, renew }) {
+async function runLocked({ shop, steps, registry, auditLog, dryRun, print, now, renew, again = [] }) {
   const { shopId } = shop;
 
   const history = [...((await registry.readSteps(shopId)) ?? [])];
   const before = latestByStep(history);
-  const resumeAt = steps.find((step) => before[step.number]?.status !== "done")?.number;
+  // `again`: steps done in an earlier run that this run looks at anew (the plan changed, setup/steps.js PLAN_STEPS).
+  // The run resumes at the first of them, and every step from there checks before it acts, as after any failure.
+  const resumeAt = steps.find((step) => before[step.number]?.status !== "done" || again.includes(step.number))?.number;
   const ran = [];
   const ctx = { shop, dryRun, print };
 

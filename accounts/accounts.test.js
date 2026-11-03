@@ -264,3 +264,14 @@ test("only the shop's owner can run Check my shop, and it only looks (plan 14.3)
   assert.equal((await w.ask(CAL, "POST", "/api/accounts/check", { shopId: SHOP })).status, 403);
   assert.equal(JSON.stringify([...w.registry.shops.entries()]), before);
 });
+
+test("a stockroom-only shop shows the stockroom's address, never a website it doesn't have", async () => {
+  const w = world();
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), plan: "stockroom" });
+  w.registry.profiles.set(SHOP, { ...w.registry.profiles.get(SHOP), apps: { shop: false, stockroom: true } });
+  const [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.equal(shop.siteUrl, null);
+  assert.equal(shop.adminUrl, null);
+  assert.equal(shop.stockroomUrl, `https://${SHOP}-stockroom.web.app`);
+  assert.equal((await w.ask(OWNER, "POST", "/api/accounts/switch", { shopId: SHOP })).body.url, `https://${SHOP}-stockroom.web.app`);
+});

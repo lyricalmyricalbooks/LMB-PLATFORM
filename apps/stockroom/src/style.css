@@ -780,7 +780,7 @@ tr.hist-row:hover {
 }
 .look-seg::before{display:none;}
 /* Four looks do not fit in one row of the account menu: two by two, the chosen one outlined. */
-.theme-seg.look-seg,.pub-shell .theme-seg.look-seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.theme-seg.look-seg,.pub-shell .theme-seg.look-seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;}
 .look-seg .theme-seg-opt[aria-checked="true"]{box-shadow:inset 0 0 0 2px var(--gold);background:var(--gold-bg);}
 .theme-seg-opt{
   appearance:none;border:none;background:transparent;cursor:pointer;

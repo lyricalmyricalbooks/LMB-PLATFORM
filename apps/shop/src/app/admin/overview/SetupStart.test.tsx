@@ -76,7 +76,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, google: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     const radios = [...document.querySelectorAll("[role=radiogroup][aria-label='Admin look'] [role=radio]")] as HTMLButtonElement[];
-    expect(radios.map(r => r.textContent)).toHaveLength(4);
+    expect(radios.map(r => r.textContent)).toHaveLength(6);
     await act(async () => { radios[1].click(); });
     expect(document.documentElement.getAttribute("data-admin-look")).toBe("paper");
     await act(async () => { button("Use this look")!.click(); });
