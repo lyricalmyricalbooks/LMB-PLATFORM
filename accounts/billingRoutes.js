@@ -13,6 +13,8 @@
 //   POST /api/billing/change-plan  { shopId, plan, preview?, reason? } -> { preview } or { plan, changed }: what changes
 //                                  and the prorated amount (preview: true, nothing changes), or the change itself, with
 //                                  the optional answer to "why are you dropping it?" (closedApps.js DROP_REASONS)
+//   POST /api/billing/email-language  { shopId, language: "fr" | "en" | "auto" } -> { changed, emailLanguage }: the
+//                                  language of the platform's emails, for every shop the account pays for
 //   POST /api/billing/invoices     { shopId } -> { invoices }: newest first, each with Stripe's PDF link
 //   POST /api/billing/payment-way  { shopId } -> { view, status }: how the shop pays (monthly or pay as you sell, 6.19)
 //   POST /api/billing/payment-way/switch  { shopId, to } -> { view, status, changed }: switch from the next month (at
@@ -49,6 +51,7 @@ export const billingPage = (settings, shopId) => `${settings.platformUrl}/accoun
 export function billingCalls({ billing, paymentWay = null, settings, exports = null }) {
   const calls = {
     status: { run: async (shopId) => ({ billing: await billing.status(shopId) }) },
+    "email-language": { run: async (shopId, { language }) => billing.setEmailLanguage({ shopId, language }) },
     card: { run: async (shopId, _body, { returnUrl }) => billing.cardLink({ shopId, returnUrl }), secondStep: true },
     cancel: {
       run: async (shopId, { reason, words }) => ({ cancelAtPeriodEnd: Boolean((await billing.cancel({ shopId, reason, words })).cancelAtPeriodEnd) }),

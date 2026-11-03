@@ -6,7 +6,7 @@ import {
 } from "./riso/components";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
-  BillingCallError, DROP_CHOICES, LEAVING_CHOICES, downloadableClosedApps, planAddingBack, PROVINCES, appsInWords, billState, billingCall, previewWords, statusBadge,
+  BillingCallError, DROP_CHOICES, EMAIL_LANGUAGES, LEAVING_CHOICES, downloadableClosedApps, emailLanguageWords, planAddingBack, PROVINCES, appsInWords, billState, billingCall, previewWords, statusBadge,
   type Bill, type BillingDetails, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
 } from "./platformBilling";
 
@@ -149,6 +149,13 @@ export function PlanPage({ plan }: Hub) {
         return to && <SecondaryButton key={app} size="sm" busy={change.busy === "preview"} onClick={() => void askPreview(to)}>{`Add ${appsInWords([app])} back`}</SecondaryButton>;
       })}
     </span>
+  </>]);
+  // The language of the platform's emails to this account, for every shop it pays for.
+  if (billing.emailLanguage) facts.push(["Emails", <>
+    <SelectField label="Language of our emails" hint={emailLanguageWords(billing.emailLanguage)} value={billing.emailLanguage.choice} disabled={change.busy === "language"}
+      onChange={(e) => void change.run("language", () => billingCall(plan, "email-language", { language: e.target.value }))}>
+      {EMAIL_LANGUAGES.map((c) => <option key={c.value} value={c.value} lang={c.value === "fr" ? "fr" : undefined}>{c.label}</option>)}
+    </SelectField>
   </>]);
   facts.push(["Card", billing.card?.words ?? (billing.paymentWay === "payAsYouSell" ? "Not needed while you pay as you sell" : "No card yet")]);
 

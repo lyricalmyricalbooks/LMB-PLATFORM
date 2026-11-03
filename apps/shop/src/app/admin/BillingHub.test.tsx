@@ -49,6 +49,7 @@ function platform() {
       case "invoices": return send(200, { ok: true, invoices: [{ id: "in_1", number: "COL-0001", date: "2026-10-17T12:00:00Z", amount: "$33.05", tax: "$3.80", status: "paid", pdfUrl: "https://pay.stripe.example/in_1.pdf", pageUrl: null }] });
       case "details": return send(200, { ok: true, details: { name: "Moth Press", email: "owner@example.com", address: null, taxNumber: "", taxLabel: "", plusTax: true } });
       case "details/save": return send(200, { ok: true, saved: true });
+      case "email-language": world.status = { ...world.status, emailLanguage: { choice: body.language, sends: body.language === "auto" ? "en" : body.language } }; return send(200, { ok: true, changed: true });
       case "download": return send(200, { ok: true, emailedTo: "owner@example.com", expiresAt: "2026-11-10T12:00:00Z" });
       case "pay-now": world.status = { ...world.status, status: "active", paymentProblem: null, canPayNow: false }; return send(200, { ok: true, paid: true });
       default: return send(404, { ok: false, message: "There's nothing here." });
@@ -144,6 +145,20 @@ describe("Settings › Plan", () => {
     await click(button("Add the stockroom back"));
     expect(world.calls.find(([c]) => c === "change-plan")![1]).toMatchObject({ plan: "both", preview: true });
     expect(document.querySelector(".rp-dialog")).not.toBeNull();
+  });
+
+  it("the language of the platform's emails can be chosen, and says what Automatic comes to", async () => {
+    world.status = status({ emailLanguage: { choice: "auto", sends: "fr+en" } });
+    await mount(PlanPage);
+    expect(text()).toContain("your billing address is in Quebec, so our emails come in French with the English below");
+    const select = [...document.querySelectorAll("select")].find((s) => [...s.options].some((o) => o.value === "fr")) as HTMLSelectElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(select, "fr");
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await flush();
+    expect(world.calls.find(([c]) => c === "email-language")![1]).toMatchObject({ language: "fr" });
+    expect(text()).toContain("Our emails to you and your team come in French.");
   });
 
   it("no Add back once the plan has ended", async () => {

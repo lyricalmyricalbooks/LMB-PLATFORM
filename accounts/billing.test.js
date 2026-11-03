@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createAccounts } from "./accounts.js";
 import { billingRoutes } from "./billingRoutes.js";
-import { billingWords, planChangeWords } from "./billingWords.js";
+import { billingWords, emailLanguageWords, planChangeWords } from "./billingWords.js";
 import { fakeAccountStores, fakeShopData } from "./fakes.js";
 import { createApi } from "../signup/api.js";
 import { fakeSignupStores, fakeVerifyIdToken } from "../signup/fakes.js";
@@ -260,4 +260,12 @@ test("changing plan passes the optional answer to why an app is dropped; the pag
   const shopWords = readFileSync(new URL("../apps/shop/src/app/admin/platformBilling.ts", import.meta.url), "utf8");
   const shopChoices = shopWords.slice(shopWords.indexOf("export const DROP_CHOICES"), shopWords.indexOf("];", shopWords.indexOf("export const DROP_CHOICES")));
   assert.deepEqual([...shopChoices.matchAll(/value: "([^"]*)"/g)].map((m) => m[1]), ["", ...Object.keys(DROP_REASONS)]);
+});
+
+test("the email language choice in words, with what Automatic comes to", () => {
+  assert.match(emailLanguageWords({ choice: "fr", sends: "fr" }), /in French\.$/);
+  assert.match(emailLanguageWords({ choice: "en", sends: "en" }), /in English\.$/);
+  assert.match(emailLanguageWords({ choice: "auto", sends: "fr+en" }), /in Quebec, so our emails come in French with the English below/);
+  assert.match(emailLanguageWords({ choice: "auto", sends: "en" }), /^Automatic: our emails come in English/);
+  assert.match(emailLanguageWords(undefined), /^Automatic/);
 });

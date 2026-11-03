@@ -189,11 +189,12 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
         return true;
       },
       async act({ shop }) {
-        const { shopId, pressName, ownerEmail, plan, country, currency } = shop;
+        const { shopId, pressName, ownerEmail, plan, country, currency, language } = shop;
         // The test marks live in the registry, where only the platform can change them (docs/test-shop.md).
         await registry.createShop(shopId, {
           shopId, projectId: shopId, pressName, ownerEmail, plan, country, currency, region,
           testMode: shop.testMode === true, testShop: shop.testShop === true, status: "creating", createdAt: now().toISOString(),
+          ...(language === "fr" ? { language } : {}),
         });
       },
     },

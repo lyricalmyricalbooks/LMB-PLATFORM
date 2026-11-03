@@ -570,3 +570,33 @@ test("the closing emails go in French for a press that chose it, and in French t
   await q.billing.saveBillingDetails({ shopId: SHOP, name: "", email: "books@moth.example", address: null, taxNumber: "" });
   assert.equal((await q.stores.subscriptions.get(SHOP)).province, "ON", "saving without an address keeps the one on file");
 });
+
+test("a shop billed in Quebec before the province was kept gets French first from the next daily sweep", async () => {
+  const w = make();
+  const row = await w.start();
+  // The address was saved on Stripe's own page (or before this change): nothing on the row yet.
+  w.stripe.world.customers.get(row.customerId).address = { line1: "1 rue Saint-Denis", city: "Montréal", state: "QC", postal_code: "H2X 1K1", country: "CA" };
+  assert.equal((await w.stores.subscriptions.get(SHOP)).province, undefined);
+  await w.payMonth(row);
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  w.tick(31);
+  await w.billing.closeDroppedApps();
+  assert.equal((await w.stores.subscriptions.get(SHOP)).province, "QC", "read once from Stripe");
+  assert.equal(w.email.list().find((m) => m.kind === "app-closed").language, "fr+en");
+  const reads = () => w.stripe.requests.filter((r) => r.method === "GET" && r.path === `/v1/customers/${row.customerId}`).length;
+  const before = reads();
+  await w.billing.closeDroppedApps();
+  assert.equal(reads(), before, "never read again once known");
+});
+
+test("the press chooses the language of the platform's emails for every shop on the account", async () => {
+  const w = make();
+  await w.start();
+  assert.deepEqual((await w.billing.status(SHOP)).emailLanguage, { choice: "auto", sends: "en" });
+  const answer = await w.billing.setEmailLanguage({ shopId: SHOP, language: "fr" });
+  assert.deepEqual(answer.emailLanguage, { choice: "fr", sends: "fr" });
+  assert.equal((await w.registry.getShop(SHOP)).billing.language, "fr");
+  await w.billing.setEmailLanguage({ shopId: SHOP, language: "auto" });
+  assert.equal((await w.stores.subscriptions.get(SHOP)).language, null);
+  await assert.rejects(w.billing.setEmailLanguage({ shopId: SHOP, language: "de" }), /French, English, or automatic/);
+});

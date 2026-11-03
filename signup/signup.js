@@ -258,7 +258,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         room -= 1;
         try {
           await email.sendPlatform({
-            kind: "shop-starting", to: row.ownerEmail, shopId: row.shopId,
+            kind: "shop-starting", to: row.ownerEmail, shopId: row.shopId, ...(row.language ? { language: row.language } : {}),
             data: { pressName: row.pressName, link: `${settings.platformUrl}/signup/` },
             idempotencyKey: `shop-starting/${row.shopId}`,
           });
