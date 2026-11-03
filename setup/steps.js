@@ -74,7 +74,7 @@ export const PLANS = { shop: { shop: true, stockroom: false }, stockroom: { shop
  * link between the shop and the stockroom). When an app is added or dropped, the shop maker runs them again
  * (signup/shopMaker.js syncPlan); the steps after the first of them check before they act, as on any resumed run.
  */
-export const PLAN_STEPS = Object.freeze([5, 6, 8, 9, 13, 16]);
+export const PLAN_STEPS = Object.freeze([5, 6, 8, 9, 13, 14, 16]);
 
 /** Problems with the sign-up details, in plain words. The shop id is also its Google Cloud project id. */
 export function shopProblems(shop) {

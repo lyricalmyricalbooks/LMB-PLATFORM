@@ -881,7 +881,7 @@ async function loadWaitlist() {
       return sheet({
         title: shop.pressName,
         tone: shop.canRetry ? "danger" : MAKING_TONE[shop.status] ?? "warning",
-        pillWords: shop.status,
+        pillWords: shop.status === "plan-change-stopped" ? "plan change stopped" : shop.status,
         metaParts: [shop.shopId, shop.ownerEmail, `started ${when(shop.createdAt)}`],
         body: shop.message ? [el("p", { className: "cr-body", textContent: shop.message })] : [],
         actions: el("div", { className: "cr-actions" }, retry.hidden ? null : retry),
@@ -967,7 +967,7 @@ const ACTIVITY_WORDS = {
   "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "switch-set": "set a switch",
   "act-as": "opened the shop's admin as support", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
-  "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again",
+  "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again", "plan-change-retry": "tried the plan change again",
   "access-asked": "asked the press for a yes to make changes",
 
   "note-added": "added a private note", "note-deleted": "deleted a private note", "tags-set": "changed the shop's tags", "job-run": "ran a job by hand",
