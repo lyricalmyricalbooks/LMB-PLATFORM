@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createFrontDoor, frontDoorPublicRoutes, frontDoorRoutes } from "./frontDoor.js";
 import { createApi } from "./api.js";
-import { fakeAuth, fakeFrontDoorStores, fakeVerifyIdToken } from "./fakes.js";
+import { fakeAuth, fakeFrontDoorStores, fakeStagedFiles, fakeVerifyIdToken } from "./fakes.js";
 import { TEMPLATES } from "../services/email/templates.js";
 
 const ADA = { uid: "uid-ada", email: "owner@example.com", email_verified: true };
@@ -16,8 +16,10 @@ function world() {
   const sent = [];
   let clock = new Date("2026-11-03T09:00:00Z").getTime();
   let n = 0;
+  const files = fakeStagedFiles({ now: () => new Date(clock) });
   const door = createFrontDoor({
     ...stores,
+    stagedFiles: files,
     email: { sendPlatform: async (message) => { sent.push(message); } },
     auth: fakeAuth(),
     settings: SETTINGS,
@@ -30,7 +32,7 @@ function world() {
     routes: frontDoorRoutes(door), publicRoutes: frontDoorPublicRoutes(door), live: () => ({}), log: () => {},
   });
   const ask = (method, path, body, claims) => api({ method, path, body, headers: claims ? { authorization: `Bearer ${JSON.stringify(claims)}` } : {} });
-  return { stores, sent, door, ask, tick: (ms) => { clock += ms; } };
+  return { stores, sent, door, ask, files, tick: (ms) => { clock += ms; } };
 }
 
 test("a code is emailed, and the right code answers with a sign-in link for that address, once", async () => {
@@ -138,9 +140,9 @@ test("once a press is opening, its setup answers are locked", async () => {
 test("only the setup fields can be written: the owner, status and import file can't be set from the page", async () => {
   const w = world();
   const { pressId } = (await w.ask("POST", "/api/press", {}, ADA)).body.press;
-  await w.ask("POST", "/api/press/setup", { pressId, status: "open", ownerUid: "uid-ben", stagedImportPath: "x", pressName: "Moth" }, ADA);
+  await w.ask("POST", "/api/press/setup", { pressId, status: "open", ownerUid: "uid-ben", stagedImportPath: "x", pendingImportPath: "y", pressName: "Moth" }, ADA);
   const row = w.stores.presses.rows.get(pressId);
-  assert.deepEqual([row.status, row.ownerUid, row.stagedImportPath, row.pressName], ["setup", "uid-ada", "", "Moth"]);
+  assert.deepEqual([row.status, row.ownerUid, row.stagedImportPath, row.pendingImportPath, row.pressName], ["setup", "uid-ada", "", "", "Moth"]);
 });
 
 test("the code email shows the code, says how long it works, and refuses anything but six numbers", () => {
@@ -207,4 +209,140 @@ test("the plan list says whether prices are plus tax, so the front door only say
   const plans = (plusTax) => createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: { ...SETTINGS, prices: { shop: 2900, stockroom: 1900, both: 3900 } }, live: () => ({}), plusTax, log: () => {} })({ method: "GET", path: "/api/plans", headers: {} });
   assert.equal((await plans(undefined)).body.plusTax, false);
   assert.equal((await plans(true)).body.plusTax, true);
+});
+
+// ── The kept product file (code plan 18.7) ──
+
+async function pressFor(w, who = ADA) {
+  const made = await w.ask("POST", "/api/press", {}, who);
+  return made.body.press.pressId;
+}
+const tokenOf = (upload) => upload.url.split("/").pop();
+
+test("a product file is kept through a one-time upload link, and the press sees its name and count, never its path", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  const csv = Buffer.from("Title,Price\nMoths,12\n");
+  const started = await w.ask("POST", "/api/press/import", { pressId, size: csv.length }, ADA);
+  assert.equal(started.status, 200);
+  assert.equal(started.body.upload.method, "PUT");
+  // Not kept until the file has arrived.
+  const early = await w.ask("POST", "/api/press/import/kept", { pressId, name: "products.csv", rows: 1 }, ADA);
+  assert.equal(early.status, 409);
+  assert.equal((await w.files.put(tokenOf(started.body.upload), csv)).ok, true);
+  // The link works once.
+  assert.equal((await w.files.put(tokenOf(started.body.upload), csv)).ok, false);
+  const kept = await w.ask("POST", "/api/press/import/kept", { pressId, name: " my\u0007 products.csv ", rows: 1 }, ADA);
+  assert.equal(kept.status, 200);
+  assert.deepEqual(kept.body.press.stagedImport, { name: "my products.csv", size: csv.length, rows: 1, at: "2026-11-03T09:00:00.000Z" });
+  assert.equal(JSON.stringify(kept.body).includes("press-imports/"), false);
+  const row = await w.stores.presses.get(pressId);
+  assert.match(row.stagedImportPath, new RegExp(`^press-imports/${pressId}/[0-9a-f]{16}\\.csv$`));
+  assert.equal(row.pendingImportPath, "");
+  assert.deepEqual([...w.files.files.keys()], [row.stagedImportPath]);
+  const listed = await w.ask("GET", "/api/press", undefined, ADA);
+  assert.equal(listed.body.presses[0].stagedImport.rows, 1);
+});
+
+test("a file over 5 MB is refused in plain words before any upload, and a big upload is thrown away", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  const big = await w.ask("POST", "/api/press/import", { pressId, size: 26 * 1024 * 1024 }, ADA);
+  assert.equal(big.status, 400);
+  assert.match(big.body.message, /larger than 5 MB/);
+  assert.equal(w.files.links.size, 0);
+  // A file that somehow arrives bigger than the limit is removed, not kept.
+  await w.ask("POST", "/api/press/import", { pressId, size: 9 }, ADA);
+  w.files.files.set((await w.stores.presses.get(pressId)).pendingImportPath, Buffer.alloc(5 * 1024 * 1024 + 1));
+  const kept = await w.ask("POST", "/api/press/import/kept", { pressId, name: "big.csv", rows: 3 }, ADA);
+  assert.equal(kept.status, 400);
+  assert.equal(w.files.files.size, 0);
+  for (const rows of [0, 2001, 1.5, "x"]) {
+    assert.equal((await w.ask("POST", "/api/press/import/kept", { pressId, name: "a.csv", rows }, ADA)).status, 400);
+  }
+});
+
+test("a stranger can't start, keep or remove another press's file, and the reply doesn't say the press exists", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  w.files.files.set(`press-imports/${pressId}/kept.csv`, Buffer.from("Title\nA\n"));
+  for (const path of ["/api/press/import", "/api/press/import/kept", "/api/press/import/remove"]) {
+    const answer = await w.ask("POST", path, { pressId, size: 9, name: "a.csv", rows: 1 }, BEN);
+    assert.equal(answer.status, 404, path);
+  }
+  assert.equal(w.files.links.size, 0);
+  assert.equal(w.files.files.size, 1);
+  assert.equal((await w.ask("POST", "/api/press/import", { pressId, size: 9 })).status, 401);
+});
+
+test("an upload link expires, the file can be removed, and nothing changes once the shop is opening", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  const csv = Buffer.from("Title\nA\n");
+  const late = await w.ask("POST", "/api/press/import", { pressId, size: csv.length }, ADA);
+  w.tick(16 * 60_000);
+  assert.equal((await w.files.put(tokenOf(late.body.upload), csv)).ok, false);
+  const fresh = await w.ask("POST", "/api/press/import", { pressId, size: csv.length }, ADA);
+  await w.files.put(tokenOf(fresh.body.upload), csv);
+  await w.ask("POST", "/api/press/import/kept", { pressId, name: "a.csv", rows: 1 }, ADA);
+  const removed = await w.ask("POST", "/api/press/import/remove", { pressId }, ADA);
+  assert.equal(removed.status, 200);
+  assert.equal(removed.body.press.stagedImport, null);
+  assert.equal(w.files.files.size, 0);
+  await w.stores.presses.set(pressId, { ...(await w.stores.presses.get(pressId)), status: "opening" });
+  for (const path of ["/api/press/import", "/api/press/import/remove"]) {
+    assert.equal((await w.ask("POST", path, { pressId, size: 9 }, ADA)).status, 409, path);
+  }
+  assert.equal((await w.ask("POST", "/api/press/import/kept", { pressId, name: "a.csv", rows: 1 }, ADA)).status, 409);
+});
+
+/** Starts an upload, sends the bytes and (unless told not to) keeps it. */
+async function bring(w, pressId, text, { keep = true } = {}) {
+  const csv = Buffer.from(text);
+  const started = await w.ask("POST", "/api/press/import", { pressId, size: csv.length }, ADA);
+  assert.equal((await w.files.put(tokenOf(started.body.upload), csv)).ok, true);
+  if (keep) assert.equal((await w.ask("POST", "/api/press/import/kept", { pressId, name: "a.csv", rows: 1 }, ADA)).status, 200);
+  return started.body.upload;
+}
+const keptBytes = async (w, pressId) => {
+  const row = await w.stores.presses.get(pressId);
+  return w.files.files.get(row.stagedImportPath)?.toString();
+};
+
+test("choosing another file and not keeping it leaves the kept file exactly as it was", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  await bring(w, pressId, "Title\nFirst\n");
+  await bring(w, pressId, "Title\nSecond\n", { keep: false });
+  assert.equal(await keptBytes(w, pressId), "Title\nFirst\n");
+  assert.equal((await w.stores.presses.get(pressId)).stagedImport.rows, 1);
+  // Keeping the new one replaces the old file, and the old one is thrown away.
+  assert.equal((await w.ask("POST", "/api/press/import/kept", { pressId, name: "b.csv", rows: 1 }, ADA)).status, 200);
+  assert.equal(await keptBytes(w, pressId), "Title\nSecond\n");
+  assert.equal(w.files.files.size, 1);
+});
+
+test("an older upload can't be kept once a newer one has started, and an unkept upload is thrown away", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  await bring(w, pressId, "Title\nOld\n", { keep: false });
+  const olderPath = (await w.stores.presses.get(pressId)).pendingImportPath;
+  const second = await w.ask("POST", "/api/press/import", { pressId, size: 9 }, ADA);
+  assert.equal(second.status, 200);
+  assert.equal(w.files.files.has(olderPath), false);
+  // The newer upload hasn't arrived, so nothing is kept.
+  assert.equal((await w.ask("POST", "/api/press/import/kept", { pressId, name: "a.csv", rows: 1 }, ADA)).status, 409);
+  assert.equal((await w.stores.presses.get(pressId)).stagedImport, null);
+});
+
+test("a late upload after the shop starts opening never changes the kept file, and remove is refused", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  await bring(w, pressId, "Title\nKept\n");
+  const late = await w.ask("POST", "/api/press/import", { pressId, size: 12 }, ADA);
+  await w.stores.presses.set(pressId, { ...(await w.stores.presses.get(pressId)), status: "opening" });
+  await w.files.put(tokenOf(late.body.upload), Buffer.from("Title\nLate\n"));
+  assert.equal((await w.ask("POST", "/api/press/import/kept", { pressId, name: "a.csv", rows: 1 }, ADA)).status, 409);
+  assert.equal((await w.ask("POST", "/api/press/import/remove", { pressId }, ADA)).status, 409);
+  assert.equal(await keptBytes(w, pressId), "Title\nKept\n");
 });

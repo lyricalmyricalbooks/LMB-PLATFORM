@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { platformDoor, pressToOpen, type SetupPress } from "./door";
 
-const press = (pressId: string, status: SetupPress["status"]): SetupPress => ({ pressId, status, plan: "", pressName: "", sells: "", country: "", look: "", adminLook: "" });
+const press = (pressId: string, status: SetupPress["status"]): SetupPress => ({ pressId, status, plan: "", pressName: "", sells: "", country: "", look: "", adminLook: "", stagedImport: null });
 const answer = (status: number, body: unknown) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
 
 describe("setup mode's door to the platform", () => {
@@ -27,6 +27,35 @@ describe("setup mode's door to the platform", () => {
     await expect(refused.save("press-moth", { pressName: "Late" })).rejects.toThrow(/setup is locked/);
     const offline = platformDoor("/api", async () => "t", (() => Promise.reject(new TypeError("Failed to fetch"))) as unknown as typeof fetch);
     await expect(offline.presses()).rejects.toThrow(/couldn't reach Colophon/);
+  });
+});
+
+describe("keeping a product file (18.7)", () => {
+  it("asks for an upload link, sends the file straight to it without the person's token, then records it", async () => {
+    const calls: Array<[string, RequestInit]> = [];
+    const fetchImpl = vi.fn((url: string, init: RequestInit) => {
+      calls.push([url, init]);
+      if (url.endsWith("/press/import")) return answer(200, { upload: { url: "https://uploads.example/up1", method: "PUT", headers: { "Content-Type": "text/csv" } } });
+      if (url === "https://uploads.example/up1") return Promise.resolve(new Response(null, { status: 200 }));
+      return answer(200, { press: { ...press("press-moth", "setup"), stagedImport: { name: "a.csv", size: 9, rows: 1, at: "2026-11-03T09:00:00Z" } } });
+    });
+    const door = platformDoor("/api", async () => "token-1", fetchImpl as unknown as typeof fetch);
+    const file = new Blob(["Title\nA\n"], { type: "text/csv" });
+    const saved = await door.keepImport("press-moth", file, { name: "a.csv", rows: 1 });
+    expect(saved.stagedImport?.rows).toBe(1);
+    expect(calls.map(([url]) => url)).toEqual(["/api/press/import", "https://uploads.example/up1", "/api/press/import/kept"]);
+    expect(JSON.parse(String(calls[0][1].body))).toEqual({ pressId: "press-moth", size: file.size });
+    expect((calls[1][1].headers as Record<string, string>).Authorization).toBeUndefined();
+    expect(JSON.parse(String(calls[2][1].body))).toEqual({ pressId: "press-moth", name: "a.csv", rows: 1 });
+  });
+
+  it("says so when the file doesn't arrive, and records nothing", async () => {
+    const fetchImpl = vi.fn((url: string) => (url.endsWith("/press/import")
+      ? answer(200, { upload: { url: "https://uploads.example/up1", method: "PUT", headers: {} } })
+      : Promise.resolve(new Response(null, { status: 403 }))));
+    const door = platformDoor("/api", async () => "t", fetchImpl as unknown as typeof fetch);
+    await expect(door.keepImport("press-moth", new Blob(["x"]), { name: "a.csv", rows: 1 })).rejects.toThrow(/didn't finish sending/);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });
 

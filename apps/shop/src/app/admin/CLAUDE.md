@@ -660,7 +660,12 @@ built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; 
   changed, so an answer saved meanwhile at the front door isn't written over.
 - **Look gallery without the database:** `lookGallery.ts` holds the pure gallery parts; `ChooseLookWelcome` takes
   `apply` (setup mode passes one that does nothing) and loads `chooseLook.applyChosenLook` only when it isn't given.
-- **Not yet:** Open my shop (18.8) is shown disabled; the import preview (18.7) is locked.
+- **Not yet:** Open my shop (18.8) is shown disabled.
+- **Books (18.7):** `setupMode/ImportPage.tsx` reads a product file in the browser (`planShopMove` with no books), shows
+  the first 150 rows, problems first, with `importPreview.tsx` `ImportPreviewRows` (also used by `BookImportDialog`), then
+  keeps it through `door.keepImport` (upload link from `POST /api/press/import`, a PUT straight to storage, then
+  `/import/kept`). Each upload has its own path (`pendingImportPath`) and becomes the kept file only on `/import/kept`. The guide's
+  Bring your books step is optional: counted only once a file is kept. The shop maker (18.9) brings it in.
 - **Plan words:** free days are promised only when `/api/plans` gives a trial, and as "your first shop"
   (billing gives one trial per account). Prices that fail to load say so with Try again.
 

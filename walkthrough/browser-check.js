@@ -130,6 +130,15 @@ async function checkFrontDoor(browser, walk, log) {
       const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
       if (!saved?.look) throw new Error("the chosen look wasn't saved");
       if (!(await fits())) throw new Error("Design scrolls sideways on a phone");
+      // Books previews a product file and keeps it for the shop, sent through the upload link (18.7).
+      await page.evaluate(() => { location.hash = "catalog"; });
+      await page.locator("input[type=file]").setInputFiles({ name: "my-zines.csv", mimeType: "text/csv", buffer: Buffer.from("Title,Price,Stock\nMoth Zine,8,20\nNight Zine,6,12\n") });
+      await page.locator("ol[aria-label='Import preview'] li").nth(1).waitFor({ state: "visible", timeout: 10_000 });
+      if (!(await fits())) throw new Error("the Books preview scrolls sideways on a phone");
+      await page.locator("button", { hasText: /^Keep 2 .* for my shop$/ }).click();
+      await page.locator("text=Kept for your shop").waitFor({ state: "visible", timeout: 10_000 });
+      const [withFile] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
+      if (withFile?.stagedImport?.rows !== 2 || !walk.world.stagedFiles.files.has(withFile.stagedImportPath)) throw new Error("the product file wasn't kept");
       await page.goto(`${walk.url}/join/`);
       await visible("#view-done");
     });

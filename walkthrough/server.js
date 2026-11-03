@@ -15,6 +15,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platformWorld } from "./world.js";
+import { MAX_IMPORT_BYTES } from "../signup/pressRecord.js";
 import { randomSuffix } from "../signup/signup.js";
 import { TERMS_VERSION } from "../terms/terms.js";
 import { TEST_SHOP } from "../setup/test-shop.js";
@@ -265,6 +266,19 @@ export async function startWalkthrough({ port = 0, host = "127.0.0.1", world = n
         answer.body.url = `/walkthrough/card?session=${encodeURIComponent(session)}&shop=${encodeURIComponent(body?.shopId ?? "")}`;
       }
       return send(response, answer.status, answer.body);
+    }
+
+    // The pretend upload link for a kept product file (18.7): the real one is a signed link to the platform's bucket.
+    if (pathname.startsWith("/walkthrough/uploads/") && request.method === "PUT") {
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of request) {
+        size += chunk.length;
+        if (size > MAX_IMPORT_BYTES) return send(response, 413, { ok: false });
+        chunks.push(chunk);
+      }
+      const put = await made.stagedFiles.put(pathname.slice("/walkthrough/uploads/".length), Buffer.concat(chunks));
+      return send(response, put.status, { ok: put.ok });
     }
 
     if (pathname.startsWith("/walkthrough/firebase/")) {

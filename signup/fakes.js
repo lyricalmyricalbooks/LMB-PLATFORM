@@ -52,6 +52,37 @@ export function fakeFrontDoorStores() {
   };
 }
 
+/**
+ * A pretend store for kept product files (signup/frontDoor.js `stagedFiles`). An upload link is `${uploadBase}/<token>`
+ * and works once, for its own path and size, until it expires; `put(token, bytes)` is what the upload does (the
+ * walkthrough's server calls it for a PUT to that link). `files` holds what was kept, by path.
+ */
+export function fakeStagedFiles({ uploadBase = "https://uploads.example", now = () => new Date() } = {}) {
+  const files = new Map();
+  const links = new Map();
+  let n = 0;
+  return {
+    files,
+    links,
+    uploadUrl: async (path, { contentType, size, expiresAt }) => {
+      const token = `up${(n += 1)}`;
+      links.set(token, { path, size, contentType, expiresAt: expiresAt.getTime() });
+      return { url: `${uploadBase}/${token}`, method: "PUT", headers: { "Content-Type": contentType } };
+    },
+    put: async (token, bytes) => {
+      const link = links.get(token);
+      if (!link || link.expiresAt < now().getTime()) return { ok: false, status: 403 };
+      if (bytes.length !== link.size) return { ok: false, status: 400 };
+      links.delete(token);
+      files.set(link.path, Buffer.from(bytes));
+      return { ok: true, status: 200 };
+    },
+    stat: async (path) => (files.has(path) ? { size: files.get(path).length } : null),
+    read: async (path) => files.get(path) ?? null,
+    remove: async (path) => void files.delete(path),
+  };
+}
+
 /** A pretend token check: the token is the JSON of the claims. */
 export const fakeVerifyIdToken = async (token) => JSON.parse(token);
 

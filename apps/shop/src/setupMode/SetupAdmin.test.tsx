@@ -11,7 +11,7 @@ let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; location.hash = ""; });
 const flush = async () => { for (let i = 0; i < 8; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); }); };
 
-const PRESS: SetupPress = { pressId: "press-moth", status: "setup", plan: "both", pressName: "Moth Press", sells: "books", country: "", look: "", adminLook: "" };
+const PRESS: SetupPress = { pressId: "press-moth", status: "setup", plan: "both", pressName: "Moth Press", sells: "books", country: "", look: "", adminLook: "", stagedImport: null };
 const lists = { countries: { CA: { name: "Canada" }, US: { name: "United States" } }, sells: [{ id: "books", label: "Books" }, { id: "zines", label: "Zines" }] };
 
 function door(): SetupDoor & { saved: any[] } {
@@ -20,6 +20,8 @@ function door(): SetupDoor & { saved: any[] } {
     saved,
     presses: vi.fn(async () => [PRESS]),
     save: vi.fn(async (_id: string, change: any) => { saved.push(change); return { ...PRESS, ...change }; }),
+    keepImport: vi.fn(async (_id: string, _file: Blob, details: { name: string; rows: number }) => ({ ...PRESS, stagedImport: { ...details, size: 9, at: "2026-11-03T09:00:00Z" } })),
+    removeImport: vi.fn(async () => ({ ...PRESS, stagedImport: null })),
     plans: vi.fn(async () => ({ trialDays: 14, plans: [
       { plan: "both" as const, name: "Shop and stockroom", priceText: "$39.00" },
       { plan: "shop" as const, name: "Shop", priceText: "$29.00" },
@@ -43,7 +45,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     const el = await mount(door());
     expect(el.querySelector("h1")?.textContent).toBe("Welcome, Moth Press");
     expect(el.textContent).toContain("1 of 4 done");
-    expect(el.textContent).toContain("Opens with your shop");
+    expect(el.textContent).toContain("Bring your books over from your old shop · optional");
   });
 
   it("a locked page says it opens with the shop, offers Open my shop, and writes nothing", async () => {
@@ -125,5 +127,38 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     await flush();
     expect(el.textContent).toContain("Choose another look");
     expect(d.save).not.toHaveBeenCalled();
+  });
+
+  it("Books previews a product file and keeps it for the shop; nothing is kept until the press says so", async () => {
+    const d = door();
+    const el = await mount(d, "#catalog");
+    expect(el.querySelector("h1")?.textContent).toBe("Books");
+    const input = el.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(["Title,Price,Stock\nMoths,12,3\nNight Pages,15,1\n"], "my-books.csv", { type: "text/csv" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    await flush();
+    expect(el.textContent).toContain("2 books ready");
+    expect(el.querySelectorAll('[aria-label="Import preview"] li')).toHaveLength(2);
+    expect(d.keepImport).not.toHaveBeenCalled();
+    const keep = [...el.querySelectorAll("button")].find((b) => b.textContent === "Keep 2 books for my shop") as HTMLButtonElement;
+    await act(async () => { keep.click(); });
+    await flush();
+    expect((d.keepImport as any).mock.calls[0][2]).toEqual({ name: "my-books.csv", rows: 2 });
+    expect(el.textContent).toContain("Kept for your shop");
+    expect(el.textContent).toContain("2 books, kept 3 November 2026");
+  });
+
+  it("refuses a file over 5 MB in plain words, before reading or sending it", async () => {
+    const d = door();
+    const el = await mount(d, "#catalog");
+    const input = el.querySelector('input[type="file"]') as HTMLInputElement;
+    const big = new File(["x"], "huge.csv", { type: "text/csv" });
+    Object.defineProperty(big, "size", { value: 26 * 1024 * 1024 });
+    Object.defineProperty(input, "files", { value: [big], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    await flush();
+    expect(el.querySelector('[role="alert"]')?.textContent).toMatch(/larger than 5 MB/);
+    expect(d.keepImport).not.toHaveBeenCalled();
   });
 });
