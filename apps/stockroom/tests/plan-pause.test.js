@@ -1,7 +1,7 @@
 // The stockroom read-only while the shop's plan is paused or closed (the platform's plan 6.7; src/lib/plan-pause.js).
 // The checks that the rules and firebase.js agree with it are in security-rules.test.js.
 import { describe, it, expect } from 'vitest';
-import { planReadOnly, lockWrites, PlanPausedError, planPauseBannerHtml, planChangeNotice, planChangeBannerHtml } from '../src/lib/plan-pause.js';
+import { planReadOnly, lockWrites, PlanPausedError, planPauseBannerHtml, planChangeNotice, planChangeBannerHtml, planPageLink } from '../src/lib/plan-pause.js';
 
 describe('planReadOnly', () => {
   it('is read-only for a paused or closed plan, or any access but "open"', () => {
@@ -86,5 +86,15 @@ describe('a plan change in progress', () => {
     expect(planChangeNotice({ access: 'open', changing: { adding: ['<b>'], closing: { apps: [] } } })).toBeNull();
     expect(planChangeNotice({ access: 'paused', changing: { adding: ['shop'] } })).toBeNull();
     expect(planChangeBannerHtml(null)).toBe('');
+  });
+});
+
+describe('planPageLink', () => {
+  it('gives the Plan & billing page only for a plan with a safe https link', () => {
+    expect(planPageLink({ access: 'open', link: 'https://platform.example/account/billing?shop=moth' })).toBe('https://platform.example/account/billing?shop=moth');
+    expect(planPageLink(null)).toBe('');
+    expect(planPageLink({ access: 'open' })).toBe('');
+    expect(planPageLink({ link: 'javascript:alert(1)' })).toBe('');
+    expect(planPageLink({ link: 'http://platform.example/' })).toBe('');
   });
 });

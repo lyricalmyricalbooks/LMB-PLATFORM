@@ -56,6 +56,17 @@ const tag = (name, value) => ({ name, value: String(value).replace(/[^A-Za-z0-9_
  * The email service. `env` holds RESEND_API_KEY and the platform settings (services/settings.js); nothing is sent
  * without the key.
  */
+/**
+ * A platform template's words in `language` (templatesFr.js mailLanguage): its French twin, French then English, or
+ * English (a kind with no twin). What sendPlatform sends, and what the control room shows as a shop's sample email.
+ */
+export function platformWords(kind, data, context, language) {
+  const french = ["fr", "fr+en"].includes(language) ? TEMPLATES_FR[kind] : null;
+  const english = () => TEMPLATES[kind](data, context);
+  if (!french) return english();
+  return language === "fr" ? french(data, context) : bilingual(french(data, context), english());
+}
+
 export function createEmailService({ env = process.env, fetch = globalThis.fetch, registry, sentLog, reputation = null, gmailSend = null, now = () => new Date(), sleep } = {}) {
   if (!registry?.getShop) throw new Error("The email service needs the shop registry");
   if (!sentLog?.get || !sentLog?.put || !sentLog?.findSent) throw new Error("The email service needs its sent log");
@@ -70,13 +81,7 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
    */
   const shopLanguage = shopMailLanguage;
 
-  /** A template's words in `language`: its French twin, French then English, or English. */
-  const inLanguage = (kind, data, context, language) => {
-    const french = ["fr", "fr+en"].includes(language) ? TEMPLATES_FR[kind] : null;
-    const english = () => TEMPLATES[kind](data, context);
-    if (!french) return english();
-    return language === "fr" ? french(data, context) : bilingual(french(data, context), english());
-  };
+  const inLanguage = platformWords;
 
   const compose = (message, context, language = "en") => {
     // A shop's own email (through the shop door) always carries its own words, even if its kind shares a template's name.

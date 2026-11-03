@@ -51,6 +51,12 @@ export function lockWrites(target, isLocked, names = PLAN_WRITE_FUNCTIONS) {
 // Only an https address is used as a link, whatever the document holds.
 const httpsLink = (v) => (typeof v === 'string' && /^https:\/\/[^\s<>"']+$/.test(v) ? v : '');
 
+/**
+ * The platform's Plan & billing page for Settings' "Plan & billing" button, or '' (not on a plan, or no safe link).
+ * A stockroom-only press reaches its bills, card and the language of the platform's emails from there.
+ */
+export const planPageLink = (plan) => httpsLink(plan?.link);
+
 /** The banner across the top of the stockroom while it is read-only. Plain words: no technical terms. */
 export function planPauseBannerHtml(plan) {
   const closed = plan?.access === 'closed';
