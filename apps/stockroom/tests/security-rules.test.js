@@ -121,9 +121,13 @@ describe('bookkeeper settings reads (plan 7.17)', () => {
   });
   it('starts before any publisher data loads, and the Tax Centre save keeps the copy up to date', () => {
     const main = read('src/main.js');
-    const bookkeeper = main.indexOf('isBookkeeperPass(user, await readPassClaims(user))');
-    expect(bookkeeper).toBeGreaterThan(-1);
-    expect(bookkeeper).toBeLessThan(main.indexOf('const flagsLoaded = window._fbLoadModeFlags();'));
+    const flags = main.indexOf('const flagsLoaded = window._fbLoadModeFlags();');
+    // The fair helper's till (Fair helpers plan) branches off the same way, just before.
+    for (const pass of ['isBookkeeperPass(user, passClaims)', 'isFairHelperPass(user, passClaims)']) {
+      const at = main.indexOf(pass);
+      expect(at).toBeGreaterThan(-1);
+      expect(at).toBeLessThan(flags);
+    }
     const firebase = read('src/firebase.js');
     expect(firebase.match(/if \(key === 'taxCenter'\) void saveBookkeeperCopy\(/g)).toHaveLength(2);
   });

@@ -17,6 +17,7 @@ import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
 import { isPublisherUser, readPassClaims } from './lib/publisher-access.js';
 import { isBookkeeperPass } from './lib/bookkeeper-copy.js';
+import { isFairHelperPass } from './lib/fair-helper.js';
 import { planChangeNotice, planPageLink, planReadOnly } from './lib/plan-pause.js';
 import { foldFooterActions, initPhoneLayouts } from './lib/phone-layout.js';
 import { createPhonePageMemory, initPhoneWorkspace, observeSidebarBadges } from './lib/phone-workspace.js';
@@ -1085,6 +1086,7 @@ import {
 } from './features/website-link.js';
 import { STRIPE_CHARGE_PI_KEY, isWebsiteFulfilled, promisedPreorders, rememberChargeIntents } from './lib/website-link.js';
 import { startAppSearch } from './features/app-search.js';
+import { startFairHelpers } from './features/fair-helpers.js';
 import './styles/inside-admin.css';
 import { STOCKROOM_PAGE_EVENT, startInsideAdmin } from './lib/inside-admin.js';
 import { bookSummary, findBook, salesRows, todoItems } from './lib/book-summary.js';
@@ -4929,6 +4931,8 @@ async function loadAllBooks({ settingsLoaded } = {}) {
   startEmailInboxWatcher();
   // Orders from the shop's website, once every book is here to match them against.
   startWebsiteLink();
+  // Fair helpers' price list and sales (plan with both apps), once every book is here.
+  startFairHelpers();
   // A link from the website to one of its orders can open now.
   appSwitchBooksReady();
   setSyncState('ok', '<b>Firestore</b> · connected · live sync on');
@@ -19560,7 +19564,22 @@ async function initStartup() {
       const publisherAccount = await isPublisherUser(user, { askRules: window._fbAskRulesIfPublisher });
       // The shop Team's bookkeeper (plan 7.17) gets only the tax centre's expenses, read only
       // (features/bookkeeper-view.js); no book, catalogue or setting of the publisher's is loaded.
-      if (!publisherAccount && isBookkeeperPass(user, await readPassClaims(user))) {
+      const passClaims = publisherAccount ? null : await readPassClaims(user);
+      // A fair helper (docs/combined-admin.md › Fair helpers plan) gets only the Fair till: the owner's price list
+      // and their own sales (features/fair-helper-view.js); no book, catalogue or setting is loaded.
+      if (!publisherAccount && isFairHelperPass(user, passClaims)) {
+        window.IS_PUBLISHER = false;
+        IS_AUTHOR_MODE = false;
+        _appShellShown = true;
+        const { showFairHelperView } = await import('./features/fair-helper-view.js');
+        showFairHelperView({
+          email: user.email, watchMenu: window._fbWatchFairMenu, watchMySales: window._fbWatchMyFairSales,
+          addSale: window._fbAddFairSale, signOut: () => window._fbSignOut(),
+        });
+        dismissSplash();
+        return;
+      }
+      if (!publisherAccount && isBookkeeperPass(user, passClaims)) {
         window.IS_PUBLISHER = false;
         IS_AUTHOR_MODE = false;
         await window._fbLoadModeFlags();
@@ -19773,6 +19792,7 @@ export const SIGN_IN_ENDED_MSG = 'Your sign-in has ended, so your stockroom is h
 // errMsg: a refusal, in red. note: a calm line (the sign-in ended).
 function setupGate(errMsg, note = null) {
   document.getElementById('bookkeeper-view')?.remove();
+  document.getElementById('fair-helper-view')?.remove();
   $('pw-gate').style.display = '';
   $('pw-app').style.display = 'none';
   document.querySelector('#gate-sub').textContent = 'inventory app';

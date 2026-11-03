@@ -3,8 +3,9 @@
 import { describe, expect, test } from 'vitest';
 import {
   MAX_MENU_BOOKS, checkedHelperLines, fairMenu, helperSaleDoc,
-  isFairHelperPass, newSaleId,
+  helperImportPlan, helperSaleNotes, isFairHelperPass, newSaleId,
 } from '../src/lib/fair-helper.js';
+import { fairNameOf, saleMethod } from '../src/lib/fair-mode.js';
 
 const menu = fairMenu([
   { id: 'b1', title: 'Harbour Lights', price: 24, cur: 'cad', onHand: 7, author: 'a@example.com', cost: 3 },
@@ -57,4 +58,30 @@ describe('fair helpers', () => {
     expect(a).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
   });
 
+  test("a helper's sale reads like the owner's own till sale", () => {
+    const notes = helperSaleNotes({ method: 'Card', by: 'sam@example.com', fair: 'Harbour Fair' });
+    expect(notes).toBe('Card (rung up by sam@example.com) · Harbour Fair');
+    expect(saleMethod(notes)).toBe('Card');
+    expect(fairNameOf(notes)).toBe('Harbour Fair');
+    expect(fairNameOf(helperSaleNotes({ method: 'Cash', by: 'sam@example.com', fair: '' }))).toBe('');
+  });
+
+  test('bringing a sale in makes one record per book, never twice', () => {
+    const sale = { id: 'fs-abc-12345678', by: 'sam@example.com', day: '2026-11-03', fair: 'Harbour Fair', method: 'Cash',
+      lines: [{ bookId: 'b1', qty: 1, price: 24 }, { bookId: 'b2', qty: 2, price: 18 }, { bookId: 'b1', qty: 1, price: 24 }] };
+    const plan = helperImportPlan(sale, ['b1', 'b2']);
+    expect(plan.problem).toBe('');
+    expect(plan.rows).toEqual([
+      { bookId: 'b1', qty: 2, price: 24, notes: 'Cash (rung up by sam@example.com) · Harbour Fair', date: '2026-11-03', num: 'fs-abc-12345678' },
+      { bookId: 'b2', qty: 2, price: 18, notes: 'Cash (rung up by sam@example.com) · Harbour Fair', date: '2026-11-03', num: 'fs-abc-12345678' },
+    ]);
+    // Another device already brought b1 in: only b2 is left.
+    expect(helperImportPlan(sale, ['b1', 'b2'], (id) => id === 'b1').rows.map((r) => r.bookId)).toEqual(['b2']);
+    // A book the stockroom doesn't have: nothing at all.
+    expect(helperImportPlan(sale, ['b1'])).toEqual({ rows: [], problem: 'unknown-book' });
+    // One book at two prices in one sale is not a sale the till makes.
+    const twoPrices = { ...sale, lines: [{ bookId: 'b1', qty: 1, price: 24 }, { bookId: 'b1', qty: 1, price: 1 }] };
+    expect(helperImportPlan(twoPrices, ['b1']).problem).toBe('bad-price');
+    expect(helperImportPlan({ ...sale, id: 'x' }, ['b1', 'b2']).problem).toBe('bad-sale');
+  });
 });
