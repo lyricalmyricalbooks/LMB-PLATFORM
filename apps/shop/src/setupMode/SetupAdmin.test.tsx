@@ -162,3 +162,43 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(d.keepImport).not.toHaveBeenCalled();
   });
 });
+
+describe("bringing a shop over, at the top of Home (code plan 23.0)", () => {
+  const button = (el: HTMLElement, text: string) => [...el.querySelectorAll("main button")].find((b) => b.textContent === text) as HTMLButtonElement;
+
+  it("is the first card on Home, above the setup guide", async () => {
+    const el = await mount(door());
+    const cards = [...el.querySelectorAll("main section")];
+    expect(cards[0].textContent).toContain("Selling somewhere already?");
+    expect(cards[1].textContent).toContain("Setup guide");
+  });
+
+  it("Bring my shop over opens Books and records the answer", async () => {
+    const d = door();
+    const el = await mount(d);
+    act(() => button(el, "Bring my shop over").click());
+    await flush();
+    expect(el.querySelector("h1")?.textContent).toBe("Books");
+    expect(d.saved).toEqual([{ moving: "yes" }]);
+    expect(el.textContent).toContain("Where do you sell now?");
+  });
+
+  it("I'm starting fresh puts the card away and moves the step last", async () => {
+    const d = door();
+    const el = await mount(d);
+    await act(async () => { button(el, "I'm starting fresh").click(); });
+    await flush();
+    expect(d.saved).toEqual([{ moving: "fresh" }]);
+    expect(el.textContent).not.toContain("Selling somewhere already?");
+    const steps = [...el.querySelectorAll("main ol li")].map((li) => li.textContent ?? "");
+    expect(steps[steps.length - 2]).toContain("Bring your books over");
+  });
+
+  it("the Books page shows the plain steps for where the press sells now", async () => {
+    const el = await mount(door(), "#catalog");
+    const select = [...el.querySelectorAll("select")].find((s) => s.closest("label, div")?.textContent?.includes("Where do you sell now?")) as HTMLSelectElement;
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(select, "online");
+    act(() => { select.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(el.querySelector('ol[aria-label="How to get your product file"]')?.textContent).toContain("Export or Download");
+  });
+});

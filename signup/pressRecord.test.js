@@ -64,3 +64,11 @@ test("the setup record rules let only its verified owner read it, and no one wri
   assert.match(block, /allow create, update, delete: if false;/);
   assert.equal((block.match(/allow /g) ?? []).length, 2, "a read rule and a no-writes rule, nothing else");
 });
+
+test("the moving answer (23.0): yes, fresh or not said; nothing else", () => {
+  assert.equal(record().moving, "");
+  assert.deepEqual(setupChange(record(), { moving: "fresh" }).fields, { moving: "fresh" });
+  assert.deepEqual(setupChange(record(), { moving: "" }).fields, { moving: "" });
+  assert.equal(setupChange(record(), { moving: "maybe" }).ok, false);
+  assert.equal(setupChange(record(), { moving: 3 }).ok, false);
+});

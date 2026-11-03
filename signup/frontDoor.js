@@ -23,7 +23,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { SignupError, randomSuffix } from "./signup.js";
 import { createSignInCode } from "./signInCode.js";
 import { createAccountStart } from "./accountStart.js";
-import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, importPathFor, setupChange } from "./pressRecord.js";
+import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, SETUP_FIELDS, importPathFor, setupChange } from "./pressRecord.js";
 import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
 
 /** The page the front door lives on, under the platform's address. */
@@ -32,7 +32,7 @@ export const START_PAGE = "join";
 /** What a press sees of its own record: never the owner's uid or the platform's own fields. */
 const shown = (record) => ({
   pressId: record.pressId, status: record.status, plan: record.plan ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
-  look: record.look ?? "", adminLook: record.adminLook ?? "",
+  look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "",
   // What the press sees of its kept file: never the path.
   stagedImport: record.stagedImport ? { name: record.stagedImport.name, size: record.stagedImport.size, rows: record.stagedImport.rows, at: record.stagedImport.at } : null,
 });
@@ -112,7 +112,7 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
     async saveSetup(claims, body = {}) {
       const record = await ownPress(claims, body.pressId);
       const change = {};
-      for (const key of ["plan", "pressName", "sells", "country", "look", "adminLook"]) if (key in body) change[key] = body[key];
+      for (const key of SETUP_FIELDS) if (key in body) change[key] = body[key];
       // The choices on the page are the only answers taken; an empty answer is a skipped question.
       if (typeof change.sells === "string" && change.sells && !PUBLISHES.options.some((o) => o.id === change.sells)) {
         throw new SignupError(400, "Pick one of the choices.", { sells: "Pick one of the choices." });

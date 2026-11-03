@@ -12,6 +12,8 @@ export interface SetupPress {
   country: string;
   look: string;
   adminLook: string;
+  /** Home's "Selling somewhere already?" card (23.0): bringing a shop over, starting fresh, or not answered (""; older records). */
+  moving?: "" | "yes" | "fresh";
   /** The product file kept for the shop (18.7), or null. */
   stagedImport: StagedImport | null;
 }
@@ -19,7 +21,7 @@ export interface SetupPress {
 /** A kept product file as its owner sees it: never where it is kept. */
 export interface StagedImport { name: string; size: number; rows: number; at: string }
 
-export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook">>;
+export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "moving">>;
 
 /** A plan as GET /api/plans lists it. */
 export interface PlanOffer { plan: "shop" | "stockroom" | "both"; name: string; priceText: string; foundingPriceText?: string }

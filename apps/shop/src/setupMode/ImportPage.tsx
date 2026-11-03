@@ -4,7 +4,8 @@
 // to a shop: there isn't one yet.
 import { useRef, useState } from "react";
 import { FileUp, Trash2 } from "lucide-react";
-import { EmptyState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "../app/admin/riso/components";
+import { EmptyState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../app/admin/riso/components";
+import { BRING_ANSWERS, bringAnswerOf, bringHelp, type BringAnswer } from "../app/admin/bringShop";
 import { ImportPreviewRows, MAX_FILE_BYTES } from "../app/admin/importPreview";
 import { planShopMove, SHAPE_WORDS, type MovePlan } from "../app/admin/shopMove";
 import { sellsBooks } from "../app/admin/sells";
@@ -28,6 +29,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
   const [replacing, setReplacing] = useState(false);
   const [busy, setBusy] = useState<"" | "keep" | "remove">("");
   const [error, setError] = useState("");
+  const [from, setFrom] = useState<BringAnswer | "">("");
 
   const kept = press.stagedImport;
   const plan = preview?.plan;
@@ -104,6 +106,17 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
                 {kept && <SecondaryButton disabled={!!busy} onClick={cancel}>Keep {kept.name}</SecondaryButton>}
               </div>} />
             {errorLine}
+            {/* How to get the file out of the old shop (17.4's plain steps), right where the file is chosen (23.0). */}
+            <SelectField label="Not sure how to get the file? Where do you sell now?" value={from} onChange={(e) => setFrom(bringAnswerOf(e.target.value) ?? "")}>
+              <option value="">Choose one</option>
+              {BRING_ANSWERS.filter((a) => a.id !== "nowhere").map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+            </SelectField>
+            {from && (
+              <ol className="rp-hint" aria-label="How to get your product file" style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>
+                {/* The last step names Books › Import's button; here the file is kept with "Keep … for my shop" instead. */}
+                {bringHelp(from).slice(0, -1).map((step) => <li key={step}>{w(step)}</li>)}
+              </ol>
+            )}
           </div>
         </SectionCard>
       )}
