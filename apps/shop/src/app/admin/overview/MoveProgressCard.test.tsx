@@ -27,6 +27,10 @@ describe("Your move so far", () => {
     expect(host.textContent).toContain("2 of 5 done");
     act(() => button(host, "Bring past orders over")[0].click());
     expect(onOpen).toHaveBeenCalledWith("orders");
+    // The old-links check sits on Settings › General › Visitors & Google, which the page switch alone can't open.
+    act(() => button(host, "Check your old links")[0].click());
+    expect(window.location.hash).toBe("#settings/general/visitors");
+    expect(onOpen).toHaveBeenCalledTimes(1);
     await act(async () => { button(host, "We had none")[0].click(); });
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ done: { "move-customers": expect.any(String) } });
     expect(setDoc).toHaveBeenCalledWith(expect.objectContaining({ done: expect.objectContaining({ "move-customers": expect.any(String) }) }));
@@ -47,7 +51,19 @@ describe("Your move so far, put away", () => {
     expect(setDoc.mock.calls[0][0].done).toEqual({ "move-giftcards": "2026-11-02" });
   });
 
-  it("says nothing once every part is done", () => {
+  it("says you're all moved in once every part is done, until closed (plan 23.25)", async () => {
+    const all = { "move-customers": "a", "move-giftcards": "a", "move-orders": "a", "move-links": "a" };
+    const { host, setDoc } = mount({ ...moving, done: all });
+    expect(host.textContent).toContain("You're all moved in");
+    expect(host.textContent).toContain("5 of 5 done");
+    act(() => button(host, "Check your old links")[0].click());
+    expect(window.location.hash).toBe("#settings/general/visitors");
+    await act(async () => { button(host, "Close")[0].click(); });
+    expect(api.updateFirstWeek).toHaveBeenCalledWith({ done: { "move-list": expect.any(String) } });
+    expect(setDoc.mock.calls[0][0].done).toMatchObject({ ...all, "move-list": expect.any(String) });
+  });
+
+  it("says nothing once every part is done and it was closed", () => {
     const all = { "move-customers": "a", "move-giftcards": "a", "move-orders": "a", "move-links": "a", "move-list": "a" };
     const { host } = mount({ ...moving, done: all });
     expect(host.textContent).toBe("");

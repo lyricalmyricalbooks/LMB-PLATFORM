@@ -499,7 +499,17 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   11 guide steps + 6 here). `recordMoveStep` never creates the doc, so a shop without one never shows the guide.
   Hidden with parts left, the card leaves a "Show it again" line (`adminApi.untickFirstWeek`, 23.19). The server's
   `onMoveFinished` (`functions/moveDone.js`, 23.20) emails the owner once on the change to all done; its rules mirror
-  `moveProgress.ts` and `moveDone.test.js` checks the two agree.
+  `moveProgress.ts` and `moveDone.test.js` checks the two agree. The email's counts (`moveCounts`, 23.24) are read only
+  for that one change. With every part done the card says "You're all moved in" until Closed (ticks `move-list`, 23.25).
+  `moveReminder` (daily 10:00 Toronto, 23.26) sends one email per stall of 7+ days, within 60 days of Get started,
+  marked in `systemStatus/moveReminder` before sending. The links step opens `#settings/general/visitors` and scrolls
+  to `gs-redirects`: the Overview's page switch can't reach a Settings sub tab.
+- **A new rate for orders already here (23.23):** `importPastOrders(…, { rerate: true })` re-rates only orders the server
+  made (`source: "import"`) with the same `paidIn` currency and amount; only the CA$ fields and `paidIn` change.
+- **Whole move on screen (23.22):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
+  `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
+  Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run
+  without Firebase sign-in.
 
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 

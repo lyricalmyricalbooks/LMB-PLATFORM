@@ -9,14 +9,18 @@ export type MoveStepId = "move-books" | "move-customers" | "move-giftcards" | "m
 /** Set when the press puts the list away. */
 export const MOVE_HIDDEN = "move-list";
 
-export interface MoveStep { id: MoveStepId; title: string; why: string; tab: string; action: string; done: boolean }
+/**
+ * `hash` opens a sub tab the Overview's page switch can't reach (Settings › General › Visitors & Google), and `anchor`
+ * is the card on it to scroll to.
+ */
+export interface MoveStep { id: MoveStepId; title: string; why: string; tab: string; hash?: string; anchor?: string; action: string; done: boolean }
 
 const STEPS: Omit<MoveStep, "done">[] = [
   { id: "move-books", title: "Books", why: "Your product file from the old shop, in Books › Import CSV. Old book addresses are sent on to the new pages.", tab: "catalog", action: "Open Books" },
   { id: "move-customers", title: "Customers", why: "Your customer file, so you know who bought from you before. Nobody is emailed.", tab: "customers", action: "Bring customers over" },
   { id: "move-giftcards", title: "Gift cards", why: "Your gift card file, so cards people already hold still work here.", tab: "giftCards", action: "Bring gift cards over" },
   { id: "move-orders", title: "Past orders", why: "Your order file, kept as history: it counts in your reports and each customer's history, and changes no stock.", tab: "orders", action: "Bring past orders over" },
-  { id: "move-links", title: "Pages and old links", why: "Check your old shop's links and bring your own pages over, so nothing old lands on page not found.", tab: "general", action: "Check your old links" },
+  { id: "move-links", title: "Pages and old links", why: "Check your old shop's links and bring your own pages over, so nothing old lands on page not found.", tab: "general", hash: "#settings/general/visitors", anchor: "gs-redirects", action: "Check your old links" },
 ];
 
 /** Only for a press that brought its shop with it in Get started (not one that started fresh or sold elsewhere). */
@@ -31,13 +35,13 @@ export function moveSteps(doc: FirstWeekDoc): MoveStep[] {
 }
 
 /** Something is left to bring over (whether or not the list is showing). */
-export function moveUnfinished(doc: FirstWeekDoc | null): doc is FirstWeekDoc {
+export function moveUnfinished(doc: FirstWeekDoc | null): boolean {
   return movingShop(doc) && moveSteps(doc!).some((s) => !s.done);
 }
 
 /** Shown on the Overview while something is left and the press hasn't put it away. */
 export function showMoveProgress(doc: FirstWeekDoc | null): boolean {
-  return moveUnfinished(doc) && !doc.done?.[MOVE_HIDDEN];
+  return moveUnfinished(doc) && !doc?.done?.[MOVE_HIDDEN];
 }
 
 /**

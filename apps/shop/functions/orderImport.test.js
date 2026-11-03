@@ -25,8 +25,15 @@ function fakeDb() {
     batch: () => { const gone = []; return { delete: (r) => gone.push(r.path), commit: async () => gone.forEach((p) => docs.delete(p)) }; },
     async runTransaction(fn) {
       const writes = [];
-      const out = await fn({ get: async (r) => ({ exists: docs.has(r.path) }), create: (r, d) => writes.push([r.path, d]) });
-      for (const [path, d] of writes) { if (docs.has(path)) throw new Error("ALREADY_EXISTS"); docs.set(path, d); }
+      const out = await fn({
+        get: async (r) => ({ exists: docs.has(r.path), data: () => docs.get(r.path) }),
+        create: (r, d) => writes.push([r.path, d, "create"]), update: (r, d) => writes.push([r.path, d, "update"]),
+      });
+      for (const [path, d, how] of writes) {
+        if (how === "create" && docs.has(path)) throw new Error("ALREADY_EXISTS");
+        if (how === "update" && !docs.has(path)) throw new Error("NOT_FOUND");
+        docs.set(path, how === "update" ? { ...docs.get(path), ...d } : d);
+      }
       return out;
     },
   };
@@ -75,6 +82,37 @@ describe("bringing past orders over (plan 23.7)", () => {
     expect(db.docs.size).toBe(before);
   });
 
+  it("a new rate changes only the money of foreign-currency orders it brought over, in one step (plan 23.23)", async () => {
+    const db = fakeDb();
+    const usd = (rate) => ({ oldRef: "#2001", orderedAt: "2025-07-02", currency: "CAD", items: [{ title: "Hoodie", quantity: 1, price: 30 * rate }],
+      subtotal: 30 * rate, total: 30 * rate, refunded: 10 * rate, paidIn: { currency: "USD", total: 30, rate } });
+    const cad = ORDERS[0];
+    await importPastOrders(db, [usd(1.37), cad], { now: NOW, batch: "run-first-one" });
+    const id = `orders/${pastOrderId("#2001")}`;
+    // Without asking, a re-run still changes nothing.
+    expect((await importPastOrders(db, [usd(1.4)], { now: NOW })).skipped).toEqual([{ oldRef: "#2001", reason: "already brought over" }]);
+    expect(db.docs.get(id).total).toBe(41.1);
+    const later = new Date("2026-11-04T12:00:00Z");
+    const again = await importPastOrders(db, [usd(1.4), cad], { now: later, actor: "owner@example.com", rerate: true, batch: "run-second-one" });
+    expect(again.added).toEqual([]);
+    expect(again.rerated).toEqual([pastOrderId("#2001")]);
+    // A Canadian-dollar order has no rate to change.
+    expect(again.skipped).toEqual([{ oldRef: "#1001", reason: "already brought over" }]);
+    const order = db.docs.get(id);
+    expect(order).toMatchObject({ total: 42, subtotal: 42, refundedAmountMinor: 1400, paidIn: { currency: "USD", total: 30, rate: 1.4 }, items: [{ price: 42 }],
+      importBatch: "run-first-one", createdAt: "2025-07-02T12:00:00.000Z", updatedAt: later.toISOString(), source: "import" });
+    expect(order.activity.map((a) => a.type)).toEqual(["imported", "rerated"]);
+    expect([...db.docs.values()].some((d) => /Changed the rate on 1 past order/.test(d.message || ""))).toBe(true);
+    // The same rate again, a different amount, or an order this server didn't bring over: left alone.
+    expect((await importPastOrders(db, [usd(1.4)], { now: NOW, rerate: true })).rerated).toEqual([]);
+    expect((await importPastOrders(db, [{ ...usd(1.5), paidIn: { currency: "USD", total: 31, rate: 1.5 } }], { now: NOW, rerate: true })).rerated).toEqual([]);
+    db.docs.set(id, { ...db.docs.get(id), source: "web" });
+    expect((await importPastOrders(db, [usd(1.5)], { now: NOW, rerate: true })).rerated).toEqual([]);
+    expect(db.docs.get(id).total).toBe(42);
+    const answer = await handlePastOrdersImport({ orders: [usd(1.5)], rerate: "yes" }, { db, actor: "a", now: NOW });
+    expect(answer.body).toMatchObject({ added: 0, rerated: 0 });
+  });
+
   it("history only: the stockroom never counts it, returns are closed and the packing digest leaves it out", async () => {
     const db = fakeDb();
     await importPastOrders(db, ORDERS.slice(0, 1), { now: NOW });
@@ -91,7 +129,7 @@ describe("bringing past orders over (plan 23.7)", () => {
     expect((await handlePastOrdersImport({}, { db, actor: "a", now: NOW })).status).toBe(400);
     expect((await handlePastOrdersImport({ orders: Array(501).fill(ORDERS[0]) }, { db, actor: "a", now: NOW })).status).toBe(400);
     expect(db.docs.size).toBe(0);
-    expect(await handlePastOrdersImport({ orders: ORDERS.slice(0, 1), batch: "run-cccc3333" }, { db, actor: "a", now: NOW })).toEqual({ status: 200, body: { added: 1, skipped: [] } });
+    expect(await handlePastOrdersImport({ orders: ORDERS.slice(0, 1), batch: "run-cccc3333" }, { db, actor: "a", now: NOW })).toEqual({ status: 200, body: { added: 1, rerated: 0, skipped: [] } });
     expect(db.docs.get(`orders/${pastOrderId("#1001")}`).importBatch).toBe("run-cccc3333");
   });
 });

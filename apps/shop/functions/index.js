@@ -2878,8 +2878,13 @@ exports.syncStockroomWords = onDocumentWritten("firstWeek/start", async event =>
 
 /** Your move so far (plan 23.20): the owner gets one email when the last part of the move from the old shop is ticked. */
 exports.onMoveFinished = onDocumentUpdated("firstWeek/start", async event => {
-  const message = require("./moveDone").moveDoneEmail({
-    before: event.data?.before?.data?.(), after: event.data?.after?.data?.(),
+  const { justFinished, moveCounts, moveDoneEmail } = require("./moveDone");
+  const before = event.data?.before?.data?.();
+  const after = event.data?.after?.data?.();
+  // Counted only for the one change that finishes the move (plan 23.24); every other edit of the doc stops here.
+  if (!justFinished(before, after)) return;
+  const message = moveDoneEmail({
+    before, after, counts: await moveCounts(db),
     ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin"),
   });
   if (!message) return;
@@ -2889,6 +2894,28 @@ exports.onMoveFinished = onDocumentUpdated("firstWeek/start", async event => {
     console.warn("Couldn't send the move-finished email:", err?.message || err);
   }
 });
+
+// Your move so far (plan 23.26): one reminder when a move from the old shop has seen nothing new for a week. The mark
+// is written before sending, so a failed send is never repeated daily.
+exports.moveReminder = onSchedule(
+  { schedule: "every day 10:00", name: "moveReminder", timeZone: "America/Toronto", timeoutSeconds: 60, secrets: withPlatformKey([RESEND_API_KEY]) },
+  async () => {
+    const markRef = db.collection("systemStatus").doc("moveReminder");
+    const [week, mark] = await Promise.all([db.collection("firstWeek").doc("start").get(), markRef.get()]);
+    if (!week.exists) return;
+    const stall = require("./moveDone").moveStallEmail({
+      doc: week.data(), mark: mark.exists ? mark.data() : null, now: new Date(),
+      ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin#overview"),
+    });
+    if (!stall) return;
+    await markRef.set(stall.mark);
+    try {
+      await sendEmail({ queue: "moveReminder", ...stall.message, secret: resendSecretValue() });
+    } catch (err) {
+      console.warn("Couldn't send the move reminder:", err?.message || err);
+    }
+  }
+);
 
 async function loadNotificationSettings() {
   let dbSettings = {};
