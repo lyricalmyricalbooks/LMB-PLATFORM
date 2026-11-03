@@ -47,6 +47,19 @@ export function frenchDay(text) {
   return text;
 }
 
+/**
+ * A moment the platform passes as an ISO time ("2026-11-05T12:00:00.000Z": new-device, recovery-approved), in UTC the
+ * French way: "5 novembre 2026 à 12 h 00". Anything else goes through frenchDay.
+ */
+export function frenchMoment(text) {
+  const words = String(text ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(words) || !Number.isFinite(Date.parse(words))) return frenchDay(text);
+  const t = new Date(words);
+  const pad = (n) => String(n).padStart(2, "0");
+  const day = t.getUTCDate() === 1 ? "1er" : String(t.getUTCDate());
+  return `${day} ${MOIS[t.getUTCMonth()]} ${t.getUTCFullYear()} à ${t.getUTCHours()} h ${pad(t.getUTCMinutes())}`;
+}
+
 const listed = (words) => (words.length > 1 ? `${words.slice(0, -1).join(", ")} et ${words.at(-1)}` : words.join(""));
 
 /** "1.5%" becomes "1,5 %". */
@@ -85,8 +98,33 @@ function newsletterProblemFr(words) {
 /** billing/cards.js card words ("Visa ending 4242"), in French. */
 const cardFr = (card) => String(card ?? "").replace(/^(.+) ending (\d{4})$/, "$1 se terminant par $2");
 
-/** new-device's browser words ("Chrome on Mac"), in French. */
-const browserFr = (browser) => String(browser ?? "").replace(/ on /, " sur ");
+/** new-device's browser words (accounts/devices.js browserWords: "Chrome on Mac", "A browser"), in French. */
+const browserFr = (browser) => String(browser ?? "").replace(/^A browser$/, "un navigateur").replace(/ on /, " sur ").replace(/iPhone or iPad$/, "iPhone ou iPad");
+
+/** What Stripe still needs (services/payments/requirements.js WORDS), in French; an unknown one comes through. */
+const NEEDS_FR = Object.freeze({
+  "your bank details": "vos coordonnées bancaires",
+  "your agreement to Stripe's terms": "votre acceptation des conditions de Stripe",
+  "a document showing your business is registered": "un document qui montre que votre entreprise est enregistrée",
+  "a photo of your ID": "une photo de votre pièce d'identité",
+  "your date of birth": "votre date de naissance",
+  "your ID number": "votre numéro d'identité",
+  "your business number": "votre numéro d'entreprise",
+  "your business details": "les renseignements sur votre entreprise",
+  "your shop's web address": "l'adresse Web de votre boutique",
+  "what you sell": "ce que vous vendez",
+  "how shoppers can reach you": "comment les clients peuvent vous joindre",
+  "what kind of business you are": "le type de votre entreprise",
+  "the name on shoppers' card statements": "le nom inscrit sur les relevés de carte des clients",
+  "details about the press's owners": "des renseignements sur les propriétaires de la maison d'édition",
+  "your home address": "votre adresse personnelle",
+  "your name": "votre nom",
+  "your email address": "votre adresse courriel",
+  "your phone number": "votre numéro de téléphone",
+  "your role at the press": "votre rôle dans la maison d'édition",
+  "a few more details": "quelques renseignements de plus",
+});
+const needFr = (words) => NEEDS_FR[words] ?? words;
 
 /** Where the press finds payments in its shop's admin (the admin's own labels, with the French beside them). */
 const PAYMENTS_PLACE = "Ouvrez l'administration de votre boutique, puis Réglages (Settings) et Paiements (Payments)";
@@ -409,14 +447,14 @@ export const PRESS_TEMPLATES_FR = {
     footer: signOff(settings),
   }),
 
-  /** French twin of "payments-past-due". `needs` are the payments service's words and come through as they are. */
+  /** French twin of "payments-past-due". `needs` are the payments service's words (requirements.js), turned French. */
   "payments-past-due": ({ provider = "Stripe", needs = [], link }, { settings, pressName }) => {
     if (!Array.isArray(needs) || !needs.length) throw new Error("the past-due email names nothing that is needed");
     return layout({
       subject: `${provider} a mis en pause les paiements de ${pressName}`,
       greeting: "Bonjour,",
       paragraphs: [
-        `${provider} a encore besoin de ces renseignements pour ${pressName} : ${listed(needs)}. La date limite est passée, alors les paiements par carte ou les versements sont en pause jusqu'à ce qu'il les reçoive.`,
+        `${provider} a encore besoin de ces renseignements pour ${pressName} : ${listed(needs.map(needFr))}. La date limite est passée, alors les paiements par carte ou les versements sont en pause jusqu'à ce qu'il les reçoive.`,
         `Ouvrez l'administration de votre boutique et, sous Paiements (Payments), appuyez sur Continuer avec ${provider} (Continue with ${provider}). Cela prend quelques minutes.`,
       ],
       buttons: [["Ouvrir les paiements", safeLink(link)]],
@@ -464,7 +502,7 @@ export const PRESS_TEMPLATES_FR = {
     subject: `Nouvelle connexion à votre compte ${settings.platformName}`,
     greeting: "Bonjour,",
     paragraphs: [
-      `Votre compte ${settings.platformName} vient d'être utilisé sur un appareil où il ne l'avait jamais été : ${browserFr(browser)}, le ${at} (UTC).`,
+      `Votre compte ${settings.platformName} vient d'être utilisé sur un appareil où il ne l'avait jamais été : ${browserFr(browser)}, le ${frenchMoment(at)} (UTC).`,
       "Si c'était vous, vous n'avez rien à faire.",
       "Sinon, déconnectez-vous partout en changeant votre mot de passe Google ou celui de l'adresse courriel avec laquelle vous vous connectez, puis répondez à ce courriel pour que nous puissions vous aider.",
     ],
@@ -558,7 +596,7 @@ export const PRESS_TEMPLATES_FR = {
     greeting: "Bonjour,",
     paragraphs: [
       `Nous avons approuvé le transfert du compte ${settings.platformName} qui utilise ${oldEmail} vers ${newEmail}.`,
-      `Il sera transféré après le ${frenchDay(holdUntil)} (UTC). D'ici là, la personne propriétaire de ${oldEmail} peut l'arrêter à partir de la page de son compte.`,
+      `Il sera transféré après le ${frenchMoment(holdUntil)} (UTC). D'ici là, la personne propriétaire de ${oldEmail} peut l'arrêter à partir de la page de son compte.`,
     ],
     buttons: [["Ouvrir votre compte", safeLink(`${settings.platformUrl}/accounts/`)]],
     footer: signOff(settings),
