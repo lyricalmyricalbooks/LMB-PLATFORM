@@ -104,11 +104,12 @@ export function StockroomFrame({ page, visible, look, appearance, onPage }: {
           action={<SecondaryButton onClick={() => window.location.reload()}>Reload the admin</SecondaryButton>} />
       )}
       <iframe ref={frame} className="rp-stockroom-frame" src={src} title="Stockroom" data-ready={ready || undefined} />
-      {/* The admin needs a connection to open; the stockroom app on its own keeps working with none. */}
+      {/* The admin keeps an offline copy (adminOffline.ts) and the stockroom its own, so the till works with no signal. */}
       {page === "pos" && (
         <p className="rp-stockroom-offline">
-          No signal at the fair? <a href={INVENTORY_APP_URL} target="_blank" rel="noopener">Open the stockroom app on its own</a> before
-          you go: once it has opened on this device, it keeps working with no connection and catches up later.
+          No signal at the fair? Open the Fair till here once before you go, while you have a connection. After that it opens
+          on this device with no signal, and your sales catch up when you're back online. You can also use
+          the <a href={INVENTORY_APP_URL} target="_blank" rel="noopener">stockroom app on its own</a>.
         </p>
       )}
     </div>

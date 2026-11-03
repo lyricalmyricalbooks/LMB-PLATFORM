@@ -32,9 +32,15 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 - **Every page change is reported:** the stockroom's `switchTab` fires `lm-stockroom-page`, so a link inside a page
   or the book picker moves the admin's menu and address too; a second `ready` (the stockroom reloaded itself) resends
   the page and the look.
-- **Offline:** the admin itself needs a connection to open (the shop has no offline copy). The Fair till page links to
-  the stockroom app on its own (`<project>-stockroom.web.app`), which works with no signal once opened on the device.
-  An offline copy of the admin is a later step.
+- **Offline (step 4 of the five next moves, built):** the combined admin keeps an offline copy of itself
+  (`public/admin-sw.js`, registered by `adminOffline.ts` on built sites, scope `/admin` only, so the shop's own pages
+  never change). The admin page is network first (4 seconds, then the last copy); built files (`/assets/…`) are kept
+  once fetched (the newest 400); plain files it loads (the shop profile, icons) are network first. Nothing else is kept:
+  no sign-in, no shop data, no server answers, nothing but GET. The stockroom inside keeps its own copy
+  (`/stockroom/sw.js`, scope `/stockroom/`), so once the admin and the Fair till have opened on a device with a
+  signal, both open with none, and sales catch up later. A shop-only press gets no worker; one that drops the stockroom
+  has it removed on its next visit. `/admin-sw.js` is sent with `no-cache`. The Fair till page says so, and still links
+  to the stockroom app on its own.
 - **No switcher:** the "Website · Inventory" switcher and phone pill are not shown on the combined admin.
 - The Hosting `Permissions-Policy` now allows the camera on the shop's own pages (`camera=(self)`), as the stockroom's
   site already did, for barcode scanning in the admin and the fair till.

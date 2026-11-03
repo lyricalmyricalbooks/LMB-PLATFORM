@@ -61,7 +61,7 @@
         ]
       },
       {
-        "regex": "^/(?:|spa|404|(?:books|collections|page)/.*|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist|[^/]+\\.(?:xml|txt|json)|shop-profile\\.js|.*\\.html)$",
+        "regex": "^/(?:|spa|404|(?:books|collections|page)/.*|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist|[^/]+\\.(?:xml|txt|json)|shop-profile\\.js|admin-sw\\.js|.*\\.html)$",
         "headers": [
           {
             "key": "Cache-Control",
