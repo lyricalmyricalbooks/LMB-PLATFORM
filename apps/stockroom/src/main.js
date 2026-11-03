@@ -1083,6 +1083,8 @@ import {
 } from './features/website-link.js';
 import { STRIPE_CHARGE_PI_KEY, isWebsiteFulfilled, promisedPreorders, rememberChargeIntents } from './lib/website-link.js';
 import { startAppSearch } from './features/app-search.js';
+import './styles/inside-admin.css';
+import { startInsideAdmin } from './lib/inside-admin.js';
 import { appSwitchBooksReady, openWebsiteDetailDiffs, openWebsiteShopBooks, refreshAppSwitch, startAppSwitch } from './features/app-switch.js';
 import { WEBSITE_TAB_NAME, openOnWebsiteHtml, websiteOrderUrl } from './lib/app-switch.js';
 import { reviewTaskStillOpen } from './lib/review-queue.js';
@@ -11155,6 +11157,8 @@ consumeTransferPaidReturn();
 // orders (#website-order=<id>). It drops a leftover ?mode=admin (nothing reads
 // it) and leaves every other part of the address as it is.
 startAppSwitch();
+// Inside the combined admin (shop + stockroom plan): its menu replaces this app's own, and it opens pages here.
+startInsideAdmin({ switchTab, setAdminLook, setThemePreference });
 // One search box (top-bar 🔍, Ctrl/⌘ K, "/"): this app's books and the website's.
 startAppSearch();
 // The return lands in the tab Stripe opened; refresh any other open tab too.

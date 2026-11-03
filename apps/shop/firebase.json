@@ -33,13 +33,17 @@
     "redirects": [],
     "rewrites": [
       {
+        "regex": "^/stockroom/app$",
+        "destination": "/stockroom/index.html"
+      },
+      {
         "regex": "^/(?:(?:books|collections|page)/[^/]+/?|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist)$",
         "destination": "/spa.html"
       }
     ],
     "headers": [
       {
-        "regex": "^/assets/.+$",
+        "regex": "^/(?:stockroom/)?assets/.+$",
         "headers": [
           {
             "key": "Cache-Control",
@@ -58,6 +62,15 @@
       },
       {
         "regex": "^/(?:|spa|404|(?:books|collections|page)/.*|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist|[^/]+\\.(?:xml|txt|json)|shop-profile\\.js|.*\\.html)$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "regex": "^/stockroom/(?:app|index\\.html|sw\\.js|sw-notify\\.js|registerSW\\.js|manifest\\.webmanifest|shop-profile\\.js|gas-code\\.txt)$",
         "headers": [
           {
             "key": "Cache-Control",
@@ -95,7 +108,7 @@
           },
           {
             "key": "Permissions-Policy",
-            "value": "camera=(), microphone=(), geolocation=(), usb=()"
+            "value": "camera=(self), microphone=(), geolocation=(), usb=()"
           }
         ]
       }
