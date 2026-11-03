@@ -661,6 +661,10 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
               {KIND_CHOICES.map(k => <option key={k.kind} value={k.kind}>{k.label}</option>)}
             </SelectField>
           )}
+          {bulkOp === "kind" && isProductKind(bulkTarget) && (() => {
+            const plan = planKindChange(selectedBooks, bulkTarget);
+            return <p className="rp-hint" role="status">{plan.changes.length === 0 ? "Nothing to change: all of these already are that." : `${plan.changes.length} will change${plan.already ? `; ${plan.already} already ${plan.already === 1 ? "is" : "are"} that and will be left alone` : ""}. Examples: ${plan.changes.slice(0, 3).map(c => `“${c.book.title || "Untitled"}”`).join(", ")}${plan.changes.length > 3 ? "…" : ""}.`}</p>;
+          })()}
           {bulkOp === "shipping" && (
             <SelectField label="Shipping profile" value={bulkTarget} onChange={e => setBulkTarget(e.target.value)}>
               <option value="">Choose…</option>
