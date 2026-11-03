@@ -14,6 +14,7 @@ import { MerchantFeedDialog } from "./MerchantFeedDialog";
 import { GoogleIndexDialog } from "./GoogleIndexDialog";
 import { lineSheetRows, printLineSheet } from "./lineSheet";
 import { getCopy } from "../features/site/storeCopy";
+import { KIND_CHOICES, isProductKind, planKindChange } from "./bulkKind";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
@@ -37,7 +38,7 @@ interface BookCatalogProps {
 }
 
 type SortKey = "shop" | "newest" | "oldest" | "title" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc";
-type BulkOp = "category-add" | "category-remove" | "shipping" | "track-on" | "track-off" | "backorder-on" | "backorder-off" | "archive";
+type BulkOp = "category-add" | "category-remove" | "shipping" | "track-on" | "track-off" | "backorder-on" | "backorder-off" | "archive" | "kind";
 const PAGE_SIZE = 25;
 
 const slugOf = (b: any) => b.slug || (b.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -263,6 +264,12 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         // One transaction over fresh records; only categories/genres change (studio/categoryManager).
         await adminApi.updateCategoryBooks(list.map(b => b.id), category, bulkOp === "category-add" ? "add" : "remove");
         await finish([], `${bulkOp === "category-add" ? "Added to" : "Removed from"} ${category.name}`, "");
+      } else if (bulkOp === "kind") {
+        if (!isProductKind(bulkTarget)) { toast.error("Choose what these are."); return; }
+        const plan = planKindChange(list, bulkTarget);
+        // The whole record goes back with removeMissing, so a book's dropped `kind` is deleted, as in the editor.
+        const bad = await eachBook(plan.changes.map(c => c.book), b => adminApi.updateBook(b.id, plan.changes.find(c => c.book === b)!.next, b, { removeMissing: true }));
+        await finish(bad, `Changed ${plan.changes.length - bad.length} to ${KIND_CHOICES.find(k => k.kind === bulkTarget)?.label.toLowerCase()}${plan.already ? `; ${plan.already} already were` : ""}`, "update");
       } else if (bulkOp === "shipping") {
         if (!bulkTarget) { toast.error("Choose a shipping profile."); return; }
         await adminApi.assignProductsToShippingProfile(bulkTarget, list.map(b => b.id));
@@ -639,12 +646,19 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <option value="track-off">Track inventory: off</option>
             <option value="backorder-on">Allow backorders: on</option>
             <option value="backorder-off">Allow backorders: off</option>
+            <option value="kind">{w("Change what these are (book, clothing…)")}</option>
             <option value="archive">Archive (hide from the shop)</option>
           </SelectField>
           {(bulkOp === "category-add" || bulkOp === "category-remove") && (
             <SelectField label="Category" value={bulkTarget} onChange={e => setBulkTarget(e.target.value)} hint={w("Published categories only; up to 400 books at a time.")}>
               <option value="">Choose…</option>
               {shopCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </SelectField>
+          )}
+          {bulkOp === "kind" && (
+            <SelectField label="These are" value={bulkTarget} onChange={e => setBulkTarget(e.target.value)} hint="Changes how each product is described and which fields it shows. Prices, stock and photos are not touched.">
+              <option value="">Choose…</option>
+              {KIND_CHOICES.map(k => <option key={k.kind} value={k.kind}>{k.label}</option>)}
             </SelectField>
           )}
           {bulkOp === "shipping" && (
