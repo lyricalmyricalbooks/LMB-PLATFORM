@@ -38,6 +38,7 @@ export function firestoreSignupStores(firestore) {
     accounts: {
       get: (id) => firestore.get(`accounts/${safe(id)}`),
       set: (id, row) => firestore.set(`accounts/${safe(id)}`, row),
+      remove: async (id) => void (await firestore.remove(`accounts/${safe(id)}`)),
       /** The account with this (lower-case) email, for account recovery (accounts/recovery.js findAccount). */
       async findByEmail(email) {
         const found = await firestore.query("accounts", { where: [["email", "==", String(email ?? "").toLowerCase()]], limit: 1 });
@@ -47,6 +48,7 @@ export function firestoreSignupStores(firestore) {
     signups: {
       get: (id) => firestore.get(`signups/${safe(id)}`),
       set: (id, row) => firestore.set(`signups/${safe(id)}`, row),
+      remove: async (id) => void (await firestore.remove(`signups/${safe(id)}`)),
       listByAccount: async (accountId) => rowsOf(await firestore.query("signups", { where: [["accountId", "==", accountId]], limit: 500 })),
       list: async () => rowsOf(await firestore.query("signups", { limit: 5000 })),
     },

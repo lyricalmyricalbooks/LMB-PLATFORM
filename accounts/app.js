@@ -559,6 +559,40 @@ $("#recovery-form").addEventListener("submit", async (event) => {
   }
 });
 
+// ── Delete my account (accounts/deleteAccount.js) ──
+$("#open-delete").addEventListener("click", () => openDelete().catch((failure) => { showFailure(status, failure); }));
+$("#delete-back").addEventListener("click", () => loadShops().catch((failure) => { showFailure(status, failure); }));
+
+async function openDelete() {
+  const { email, leaving, blockers } = await api("GET", "/accounts/delete-check");
+  $("#delete-email").textContent = email;
+  $("#delete-teams").textContent = leaving.length
+    ? `You leave the team of ${leaving.map((shop) => shop.pressName).join(", ")}.`
+    : "You're not on any shop's team, so no shop changes.";
+  $("#delete-blockers").replaceChildren(...blockers.map((shop) => el("div", { className: "card warning", role: "alert" },
+    el("strong", { textContent: `You're the only owner of ${shop.pressName}` }),
+    el("p", { style: "margin:0", textContent: "A shop always needs an owner. Make someone else an owner from Team, or close the shop, then come back." }))));
+  $("#delete-submit").disabled = blockers.length > 0;
+  $("#delete-form").reset();
+  show("delete");
+}
+
+$("#delete-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const button = $("#delete-submit");
+  button.disabled = true;
+  try {
+    await api("POST", "/accounts/delete-me", { confirmEmail: form.confirmEmail.value });
+    await signOut(auth).catch(() => {});
+    show("signin");
+    status.textContent = "Your account is deleted. We've sent a short note to your email address.";
+  } catch (failure) {
+    showFailure(status, failure);
+    button.disabled = false;
+  }
+});
+
 // ── Where to start ──
 async function openShops() {
   show("loading");

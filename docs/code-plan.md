@@ -798,7 +798,7 @@ The review compared Colophon with what Shopify gives a small shop, checked again
 | # | Where | What | Check | Status |
 |---|---|---|---|---|
 | 24.1 | shop | **Send newsletters.** Customers › Newsletter: write, test to yourself, send to confirmed, not-unsubscribed people; the sweep sends a page at a time under a lease, never twice, never through the press's Gmail, on the platform's newsletter stream; stop and resume | `functions/newsletterSend.test.js`, `newsletterIssues.test.ts` | open |
-| 24.2 | platform | **Delete my own account** from the account page (not a shop's last owner) | accounts tests | |
+| 24.2 | platform | **Delete my own account** from the account page: refused while the only owner of an open shop; needs a sign-in in the last 15 minutes and the address typed again; removes team places (platform and shop), the account, devices, never-made sign-ups and the sign-in; keeps invoices, support history and shop activity logs; goodbye email in English and French | `accounts/deleteAccount.test.js`, plain-words and French-twin tests | open |
 | 24.3 | stockroom | **Low-stock email** to the owner when an item reaches its reorder level, once per item until restocked | stockroom tests | |
 | 24.4 | platform | Warn about paying presses drifting away, and web addresses about to expire (with the control-room thread) | control-room tests | |
 | 24.5 | shop | Ship part of an order now and the rest later | fulfilment tests | |

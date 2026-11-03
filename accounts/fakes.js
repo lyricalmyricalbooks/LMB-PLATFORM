@@ -46,7 +46,14 @@ export function fakeDeviceStore() {
     rows,
     get: async (accountId) => structuredClone(rows.get(accountId) ?? null),
     set: async (accountId, row) => void rows.set(accountId, structuredClone(row)),
+    remove: async (accountId) => void rows.delete(accountId),
   };
+}
+
+/** The platform's sign-ins (clients/identity.js `platformAuthUsers`): the uids still able to sign in. */
+export function fakeAuthUsers(uids = []) {
+  const live = new Set(uids);
+  return { live, remove: async (uid) => void live.delete(uid) };
 }
 
 /** The recovery requests store (accounts/recovery.js), like clients/stores.js `firestoreRecoveries`. */

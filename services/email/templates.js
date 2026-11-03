@@ -450,6 +450,19 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
+  /** Delete my account (accounts/deleteAccount.js, plan 24.2): the goodbye note to the address that was deleted. */
+  "account-deleted": ({ shops = [] }, { settings }) => layout({
+    subject: `Your ${settings.platformName} account is deleted`,
+    greeting: "Hello,",
+    paragraphs: [
+      `Your ${settings.platformName} account and your sign-in are deleted, as you asked.`,
+      shops.length ? `You're no longer on the team of ${shops.join(", ")}.` : "",
+      "Invoices and billing records are kept for six years because tax law asks for it, and your past support messages stay as a record. Nothing else about you is kept.",
+      "If you didn't do this, reply to this email straight away.",
+    ].filter(Boolean),
+    footer: signOff(settings),
+  }),
+
   /** To the old address: someone asked to move this account away from it. */
   /**
    * The emergency payments switch (control-room/emergencyPayments.js, plan 8.5): a platform admin moved the shop's card

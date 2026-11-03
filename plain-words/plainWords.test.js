@@ -202,6 +202,7 @@ const PRESS_EMAILS = {
   "app-closed": [{ closing: "the stockroom", holds: "a spreadsheet each of the books in your stockroom and the stock ledger", date: "1 March 2027", link: LINK }, { closing: "the shop and the stockroom", date: "1 March 2027", link: LINK }],
   "card-expiring": [{ card: "Visa ending 4242", month: "November", link: LINK }, { card: "", date: "30 November 2026", link: LINK }],
   "new-device": [{ browser: "Chrome on Mac", at: "2026-11-01 12:00" }],
+  "account-deleted": [{ shops: ["Moth Press", "Field Notes"] }, {}],
   "payments-moved": [{ to: "own", ready: true }, { to: "own", ready: false }, { to: "square", ready: true }, { to: "square", ready: false }, { to: "platform" }],
   "recovery-asked": [{ newEmail: "new@example.com" }],
   "recovery-received": [{ oldEmail: "old@example.com" }],

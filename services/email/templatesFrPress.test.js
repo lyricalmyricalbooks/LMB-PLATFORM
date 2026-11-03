@@ -48,6 +48,7 @@ const SAMPLES = {
   "plan-changed": [{ ...BILLING, prorated: true }, { ...BILLING, prorated: false, closing: "the stockroom", date: "1 December 2026", now: false }, { ...BILLING, closing: "the stockroom", now: true }, { ...BILLING, closing: "the shop and the stockroom", date: "1 December 2026", now: false }],
   "card-expiring": [{ card: "Visa ending 4242", month: "November", link: LINK }, { card: "", date: "30 November 2026", link: LINK }],
   "new-device": [{ browser: "Chrome on Mac", at: "2026-11-01 12:00" }],
+  "account-deleted": [{ shops: ["Moth Press"] }, {}],
   "payments-moved": [{ to: "own", ready: true }, { to: "own", ready: false }, { to: "square", ready: true }, { to: "square", ready: false }, { to: "platform" }],
   "recovery-asked": [{ newEmail: "new@example.com" }],
   "recovery-received": [{ oldEmail: "old@example.com" }],

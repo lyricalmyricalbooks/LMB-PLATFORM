@@ -6,10 +6,11 @@
 // This is also where the pieces that have no hosted home yet are joined: sign-up starts its trial through billing, the
 // shop maker hands the new shop its plan (`billing.publishPlan`, plan 6.14), and one web door carries the sign-up,
 // account, billing and control-room routes.
-import { accountRoutes } from "../accounts/routes.js";
+import { accountRoutes, deletionRoutes } from "../accounts/routes.js";
+import { createAccountDeletion } from "../accounts/deleteAccount.js";
 import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js";
 import { createAccounts } from "../accounts/accounts.js";
-import { fakeAccountStores } from "../accounts/fakes.js";
+import { fakeAccountStores, fakeAuthUsers, fakeDeviceStore } from "../accounts/fakes.js";
 import { controlRoutes } from "../control-room/routes.js";
 import { controlRoomAdmins, createControlRoom, profilePublisher } from "../control-room/controlRoom.js";
 import { fakeActivity, fakeBreachStore, fakeInviteStore, fakePlatformState, fakeRepairStore, fakeShopAccess, fakeWaitlist } from "../control-room/fakes.js";
@@ -152,6 +153,10 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   // Accounts, and the control room.
   const accountStores = fakeAccountStores();
   const accounts = createAccounts({ accounts: stores.accounts, ...accountStores, registry, shopData, auditLog, email, settings, now: clock.date });
+  const deletion = createAccountDeletion({
+    accounts: stores.accounts, memberships: accountStores.memberships, registry, shopData, auditLog, signups: stores.signups,
+    devices: fakeDeviceStore(), authUsers: fakeAuthUsers(), email, now: clock.date,
+  });
   // The control room and what it sits on: the platform's own settings, the waitlist and its invites, the activity log,
   // the breach register, the support inbox, account recovery and the backup person's run book (all pretend).
   const admins = controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: ADMIN_EMAIL });
@@ -226,6 +231,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     "POST /api/signup/retry": (claims, request) => shopMaker.retry(claims, request.body?.shopId),
     ...frontDoorRoutes(frontDoor),
     ...accountRoutes(accounts),
+    ...deletionRoutes(deletion),
     ...billingRoutes({ billing, paymentWay, accounts, registry, auditLog, settings, now: clock.date }),
     ...controlRoutes(room),
     ...platformRoutes(controls),
