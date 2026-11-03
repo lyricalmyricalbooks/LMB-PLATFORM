@@ -329,6 +329,7 @@ linked: [ {                               // ≤ 500: every printed website edit
   price: 40 | null,                       // CAD regular price: the edition's own (an edition without one has none),
                                           // the book's for a book without editions; null when none
   sharedWith: 1,                          // how many website editions are matched to this same app book
+  cover: "https://…",                     // optional: the book's first photo, small (≤ 400 characters), for the Fair till
 } ]
 ```
 

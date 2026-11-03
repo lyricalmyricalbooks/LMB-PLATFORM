@@ -15,7 +15,7 @@ import './styles/phone.css';
 // The Riso phone redesign sits on top of the phone layer above.
 import './styles/phone-riso.css';
 import { phoneBooksHtml } from './lib/phone-books.js';
-import { isPublisherUser, readPassClaims } from './lib/publisher-access.js';
+import { askShopForRole, isPublisherUser, readPassClaims, shopRoleUrl } from './lib/publisher-access.js';
 import { isBookkeeperPass } from './lib/bookkeeper-copy.js';
 import { isFairHelperPass } from './lib/fair-helper.js';
 import { planChangeNotice, planPageLink, planReadOnly } from './lib/plan-pause.js';
@@ -1086,7 +1086,7 @@ import {
 } from './features/website-link.js';
 import { STRIPE_CHARGE_PI_KEY, isWebsiteFulfilled, promisedPreorders, rememberChargeIntents } from './lib/website-link.js';
 import { startAppSearch } from './features/app-search.js';
-import { startFairHelpers } from './features/fair-helpers.js';
+import { fairHelperTodo, startFairHelpers } from './features/fair-helpers.js';
 import './styles/inside-admin.css';
 import { STOCKROOM_PAGE_EVENT, startInsideAdmin } from './lib/inside-admin.js';
 import { bookSummary, findBook, salesRows, todoItems } from './lib/book-summary.js';
@@ -7338,6 +7338,7 @@ function automationTodoInput() {
     labelsToMatch: review.labels,
     syncConflicts: safe(() => listConflicts(syncConflictStorage()).length, 0),
     websiteLink: safe(() => websiteLinkTodo(), null),
+    fairHelpers: safe(() => fairHelperTodo(), null),
   };
 }
 
@@ -19564,7 +19565,11 @@ async function initStartup() {
       const publisherAccount = await isPublisherUser(user, { askRules: window._fbAskRulesIfPublisher });
       // The shop Team's bookkeeper (plan 7.17) gets only the tax centre's expenses, read only
       // (features/bookkeeper-view.js); no book, catalogue or setting of the publisher's is loaded.
-      const passClaims = publisherAccount ? null : await readPassClaims(user);
+      let passClaims = publisherAccount ? null : await readPassClaims(user);
+      // Added to the Team before their first sign-in: the shop's server puts the role on the pass now (plan with both apps).
+      if (!publisherAccount && !passClaims?.role) {
+        passClaims = (await askShopForRole(user, { url: shopRoleUrl(shopProfile, { emulators: import.meta.env?.VITE_FIREBASE_EMULATORS === 'true' }) })) || passClaims;
+      }
       // A fair helper (docs/combined-admin.md › Fair helpers plan) gets only the Fair till: the owner's price list
       // and their own sales (features/fair-helper-view.js); no book, catalogue or setting is loaded.
       if (!publisherAccount && isFairHelperPass(user, passClaims)) {
@@ -19574,7 +19579,7 @@ async function initStartup() {
         const { showFairHelperView } = await import('./features/fair-helper-view.js');
         showFairHelperView({
           email: user.email, watchMenu: window._fbWatchFairMenu, watchMySales: window._fbWatchMyFairSales,
-          addSale: window._fbAddFairSale, signOut: () => window._fbSignOut(),
+          addSale: window._fbAddFairSale, cancelSale: window._fbCancelFairSale, signOut: () => window._fbSignOut(),
         });
         dismissSplash();
         return;

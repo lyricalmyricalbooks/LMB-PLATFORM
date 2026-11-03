@@ -21,7 +21,7 @@ export const PLAN_WRITE_FUNCTIONS = Object.freeze([
   '_fbCommitFoundReceipt', '_fbSave', '_fbSubmitActivity', '_fbDeleteBook', '_fbDeleteSubmission', '_fbSaveSettings',
   '_fbDeleteInboxItem', '_fbWriteAppTodo', '_fbRequestWebsiteLink', '_fbSetShopBookDismissed', '_fbPublishWebsiteLink',
   '_fbSaveCatalog', '_fbSaveBookOwners', '_fbSaveBackupSnapshot', '_fbDeleteBackupSnapshot', '_fbMassMigrate',
-  '_fbClaimFairSale', '_fbWriteFairMenu', '_fbAddFairSale',
+  '_fbClaimFairSale', '_fbWriteFairMenu', '_fbAddFairSale', '_fbCancelFairSale',
 ]);
 
 export class PlanPausedError extends Error {

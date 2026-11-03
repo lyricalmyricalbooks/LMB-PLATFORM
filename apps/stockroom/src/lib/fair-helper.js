@@ -19,6 +19,9 @@ export function isFairHelperPass(user, claims) {
   return !!user && user.emailVerified === true && !!user.email && claims?.role === 'fairHelper';
 }
 
+// A book's cover on the till: the website's photo (an https address) or, without one, its colour, as on the owner's till.
+const COVER_URL = /^https:\/\/[^\s"'<>()\\]+$/;
+const PLAIN_COLOUR = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i;
 const cents = (n) => Math.round(n * 100) / 100;
 const text = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -34,7 +37,12 @@ export function fairMenu(books, at = new Date().toISOString()) {
     const price = Number(b?.price);
     if (!id || !Number.isFinite(price) || price < 0) continue;
     const onHand = Number.isFinite(b?.onHand) ? Math.max(0, Math.floor(b.onHand)) : null;
-    out.push({ id, title: text(b.title, 200) || id, price: cents(price), cur: text(b.cur, 3).toUpperCase() || 'CAD', onHand });
+    const cover = typeof b.cover === 'string' && b.cover.length <= 400 && COVER_URL.test(b.cover) ? b.cover : '';
+    const accent = typeof b.accent === 'string' && PLAIN_COLOUR.test(b.accent.trim()) ? b.accent.trim() : '';
+    out.push({
+      id, title: text(b.title, 200) || id, price: cents(price), cur: text(b.cur, 3).toUpperCase() || 'CAD', onHand,
+      ...(cover ? { cover } : {}), ...(accent ? { accent } : {}),
+    });
     if (out.length >= MAX_MENU_BOOKS) break;
   }
   out.sort((a, b) => a.title.localeCompare(b.title));
@@ -135,7 +143,7 @@ export function helperImportPlan(sale, knownBookIds, alreadyIn = () => false) {
 export function helperCopiesLeft(menu, mySales) {
   const waiting = new Map();
   for (const sale of mySales || []) {
-    if (!sale || sale.imported) continue;
+    if (!sale || sale.imported || sale.cancelled) continue;
     for (const l of sale.lines || []) waiting.set(l.bookId, (waiting.get(l.bookId) || 0) + (Number(l.qty) || 0));
   }
   const out = {};
@@ -143,19 +151,25 @@ export function helperCopiesLeft(menu, mySales) {
   return out;
 }
 
-/** This helper's sales on one day, newest first, with the day's totals by currency and how many still wait to upload. */
+/**
+ * This helper's sales on one day, newest first, with the day's totals by currency and how many still wait to upload.
+ * An undone sale stays in the list (marked) but counts in no total.
+ */
 export function helperDay(mySales, day) {
   const sales = (mySales || []).filter((s) => s && s.day === day)
     .sort((a, b) => String(b.id).localeCompare(String(a.id)));
   const totals = {};
   let units = 0;
   let waiting = 0;
+  let kept = 0;
   for (const s of sales) {
     if (s.pending) waiting++;
+    if (s.cancelled) continue;
+    kept++;
     for (const l of s.lines || []) {
       units += Number(l.qty) || 0;
       totals[l.cur || 'CAD'] = cents((totals[l.cur || 'CAD'] || 0) + (Number(l.qty) || 0) * (Number(l.price) || 0));
     }
   }
-  return { sales, totals, units, waiting };
+  return { sales, totals, units, waiting, kept };
 }

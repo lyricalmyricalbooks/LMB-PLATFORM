@@ -588,6 +588,19 @@ function automationSignals(ctx, out) {
       fix: { label: 'Open Website orders', ...openTab('website') },
     });
   }
+  // A fair helper's sale the stockroom couldn't add (features/fair-helpers.js): a book on it is gone, or its
+  // quantities are odd. It waits in the helpers' inbox and is added by itself once the book is back.
+  const helpers = a.fairHelpers || {};
+  const stuck = Number(helpers.stuck) || 0;
+  if (stuck) {
+    const who = (helpers.by || []).slice(0, 3).join(', ');
+    out.push({
+      id: 'orders-fair-helper-stuck', group: 'orders', status: 'blocked', icon: '🎪',
+      label: `${stuck} ${plural(stuck, 'sale', 'sales')} from a fair helper couldn’t be added`,
+      detail: `${who ? `Rung up by ${who}. ` : ''}A book in ${plural(stuck, 'it', 'them')} is no longer in your stockroom, so the copies and takings aren’t in your records yet. Add the book back and ${plural(stuck, 'it is', 'they are')} added by ${plural(stuck, 'itself', 'themselves')}, or record ${plural(stuck, 'the sale', 'them')} by hand.`,
+    });
+  }
+
   // The link itself stopped: nothing moves either way until it's fixed.
   if (site.problem) {
     out.push({

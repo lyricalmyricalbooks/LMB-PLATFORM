@@ -54,7 +54,10 @@ function fairDaySummary(books, day) {
       const amount = qty * (Number(h.price) || 0);
       const cur = h.cur ? currencyCode(h.cur) : currencyCode(book.currency);
       const method = methodOf(h.notes);
-      const sale = sales.get(h.num) || { method: method.label, totals: {} };
+      // A fair helper's sale carries who rang it up (the stockroom's features/fair-helpers.js); the rest are the owner's.
+      const by = typeof h.fairHelper === "string" ? h.fairHelper.trim().toLowerCase() : "";
+      const sale = sales.get(h.num) || { method: method.label, by, units: 0, totals: {} };
+      sale.units += qty;
       add(sale.totals, cur, amount);
       sales.set(h.num, sale);
       const title = String(book.title || book.id || "Untitled");
@@ -68,7 +71,12 @@ function fairDaySummary(books, day) {
     }
   }
   const methods = new Map();
+  const people = new Map();
   for (const sale of sales.values()) {
+    const p = people.get(sale.by) || { by: sale.by, sales: 0, units: 0, totals: {} };
+    p.sales++; p.units += sale.units;
+    for (const [cur, amount] of Object.entries(sale.totals)) add(p.totals, cur, amount);
+    people.set(sale.by, p);
     const m = methods.get(sale.method) || { label: sale.method, sales: 0, totals: {} };
     m.sales++;
     for (const [cur, amount] of Object.entries(sale.totals)) add(m.totals, cur, amount);
@@ -82,6 +90,8 @@ function fairDaySummary(books, day) {
     totals: totalsList(totals),
     methods: [...methods.values()].sort((a, b) => b.sales - a.sales || a.label.localeCompare(b.label)).map(m => ({ ...m, totals: totalsList(m.totals) })),
     titles: [...titles.values()].sort((a, b) => b.units - a.units || a.title.localeCompare(b.title)).map(t => ({ ...t, totals: totalsList(t.totals) })),
+    // Who sold what: the owner's own till first ("" for by), then each fair helper. Only one entry: nobody helped.
+    people: [...people.values()].sort((a, b) => (a.by === "" ? -1 : b.by === "" ? 1 : b.sales - a.sales || a.by.localeCompare(b.by))).map(p => ({ ...p, totals: totalsList(p.totals) })),
   };
 }
 
@@ -103,6 +113,9 @@ function buildFairDayEmail(summary, { link = p => p, words = t => t } = {}) {
   const headline = `${totalsText(summary.totals)} at ${where}`;
   const row = (label, note, value) => `<tr><td style="padding:6px 0;">${escapeHtml(label)}<div style="color:#777;font-size:13px;">${escapeHtml(note)}</div></td><td style="padding:6px 0;text-align:right;font-weight:600;white-space:nowrap;">${escapeHtml(value)}</td></tr>`;
   const methods = summary.methods.map(m => row(m.label, `${m.sales} ${m.sales === 1 ? "sale" : "sales"}`, totalsText(m.totals))).join("");
+  // With fair helpers at the table, each person's takings, to check against the cash they hand over.
+  const helped = (summary.people || []).some(p => p.by);
+  const people = helped ? summary.people.map(p => row(p.by || "You", `${p.sales} ${p.sales === 1 ? "sale" : "sales"} · ${p.units} ${words(p.units === 1 ? "book" : "books")}`, totalsText(p.totals))).join("") : "";
   const titles = summary.titles.slice(0, 10).map(t => row(t.title, `${t.units} sold`, totalsText(t.totals))).join("");
   const more = summary.titles.length > 10 ? `<p style="margin:8px 0 0;color:#777;font-size:13px;">${escapeHtml(words(`and ${summary.titles.length - 10} more books`))}</p>` : "";
   const html = `
@@ -112,7 +125,10 @@ function buildFairDayEmail(summary, { link = p => p, words = t => t } = {}) {
       <p style="margin:0 0 16px;">${summary.units} ${escapeHtml(things)} in ${summary.sales} ${summary.sales === 1 ? "sale" : "sales"}.</p>
       <h3 style="margin:24px 0 4px;">By way of paying</h3>
       <p style="margin:0 0 8px;color:#777;font-size:13px;">Check the card reader line against your card reader's own total for the day.</p>
-      <table style="width:100%;border-collapse:collapse;">${methods}</table>
+      <table style="width:100%;border-collapse:collapse;">${methods}</table>${helped ? `
+      <h3 style="margin:24px 0 4px;">By person</h3>
+      <p style="margin:0 0 8px;color:#777;font-size:13px;">Your own till, then each fair helper. Check what each helper hands over against their line.</p>
+      <table style="width:100%;border-collapse:collapse;">${people}</table>` : ""}
       <h3 style="margin:24px 0 8px;">${escapeHtml(words("By book"))}</h3>
       <table style="width:100%;border-collapse:collapse;">${titles}</table>${more}
       <p style="margin:24px 0 0;"><a href="${link("/admin#sales")}">Compare your fair days in All sales &rarr;</a></p>

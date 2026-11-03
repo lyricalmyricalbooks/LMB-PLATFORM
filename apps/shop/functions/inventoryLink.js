@@ -663,6 +663,8 @@ const MAX_DETAILS = 100;
 const MAX_APP_INDEX = 1000;
 const DETAIL_FIELDS = ["title", "author", "isbn", "price"];
 
+const linkedCover = book => { const url = smallCover(book); return url.length <= 400 ? url : ""; };
+
 /** Every printed website edition matched to an app book, for the app (`websiteLink/catalog.linked`). */
 function linkedForApp(books, links) {
   const byId = new Map((books || []).map(b => [b.id, b]));
@@ -678,6 +680,9 @@ function linkedForApp(books, links) {
       // An edition sells at its own price only (no price = can't be bought), so never fall back to the book's.
       price: positivePrice(e.variantId ? variant && variant.price : book.retailPrice),
       sharedWith: shared.get(inventoryBookId),
+      // The first photo, small, so the stockroom's Fair till for helpers can show the cover. Only a short address
+      // is sent, so 500 rows always fit in the catalog document.
+      ...(linkedCover(book) ? { cover: linkedCover(book) } : {}),
     };
   });
 }

@@ -29,6 +29,15 @@ describe('fair helpers', () => {
     expect(fairMenu(Array.from({ length: MAX_MENU_BOOKS + 5 }, (_, i) => ({ id: `b${i}`, price: 1 }))).books).toHaveLength(MAX_MENU_BOOKS);
   });
 
+  test('a book\'s cover goes on the menu only as a safe photo address or a plain colour', () => {
+    const [book] = fairMenu([{ id: 'c1', title: 'Moth', price: 5, cover: 'https://img.example/moth.jpg', accent: ' #c0392b ' }]).books;
+    expect(book).toMatchObject({ cover: 'https://img.example/moth.jpg', accent: '#c0392b' });
+    const [odd] = fairMenu([{ id: 'c2', price: 5, cover: 'javascript:alert(1)', accent: 'red;background:url(x)' }]).books;
+    expect(odd).not.toHaveProperty('cover');
+    expect(odd).not.toHaveProperty('accent');
+    expect(fairMenu([{ id: 'c3', price: 5, cover: `https://img.example/${'a'.repeat(400)}` }]).books[0]).not.toHaveProperty('cover');
+  });
+
   test('a sale takes its prices from the menu and is refused when anything is off', () => {
     const base = { id: newSaleId(), by: ' Helper@Example.com ', day: '2026-11-03', fair: '  Harbour   Fair ', method: 'Cash' };
     const sale = helperSaleDoc({ ...base, cart: [{ bookId: 'b1', qty: 2, price: 1 }] }, menu);

@@ -1485,6 +1485,13 @@ function appBooksForCompare() {
   return appBooksForDetails(BOOK_LIST.filter(b => b && !isTestBook(b)));
 }
 
+/** The website's cover photo for a stockroom book (catalog.linked), or '' when it has none or isn't linked. */
+function websiteCoverOf(bookId) {
+  const linked = _link.catalog && Array.isArray(_link.catalog.linked) ? _link.catalog.linked : [];
+  const row = linked.find(r => r && r.inventoryBookId === bookId && typeof r.cover === 'string' && r.cover);
+  return row ? row.cover : '';
+}
+
 /** Every difference, before the owner's "Leave as is" choices. */
 function allDetailDiffs() {
   const linked = _link.catalog && Array.isArray(_link.catalog.linked) ? _link.catalog.linked : null;
@@ -1669,6 +1676,7 @@ function websiteShipmentNote(row) {
 
 export {
   noteBookAddedFromWebsite,
+  websiteCoverOf,
   publishWebsiteLinkNow,
   renderWebsiteLinkCard,
   runWebsiteImport,

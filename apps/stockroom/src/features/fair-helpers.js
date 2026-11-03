@@ -4,7 +4,7 @@
 // one sale-writing path, so the stockroom stays the only writer of a book. Each sale is claimed on the server first,
 // so two of the owner's devices never both bring it in, and its records carry the sale's id, so a book that already
 // holds it is skipped. The checks are in lib/fair-helper.js; nothing runs at import time.
-import { renderHist } from '../main.js';
+import { refreshAttentionSurfaces, renderHist } from '../main.js';
 import { BOOKS, states, onBookEvent } from '../core/store.js';
 import { combinedPlan } from '../lib/inside-admin.js';
 import { shopProfile } from '../lib/shop-profile.js';
@@ -12,6 +12,7 @@ import { fairMenu, helperImportPlan } from '../lib/fair-helper.js';
 import { buildPaymentMeta, getBookCurrencyCode } from '../lib/money.js';
 import { updateDash } from './dashboard.js';
 import { writeOrderToLedger } from './sales-ledger.js';
+import { websiteCoverOf } from './website-link.js';
 
 /** The channel every till sale is recorded under (pos.js _posItemToManualPayload). */
 const FAIR_CHANNEL = 'Book Fair';
@@ -20,7 +21,9 @@ let _started = false;
 let _menuTimer = null;
 let _lastMenu = '';
 const _busy = new Set();
-const _refused = new Set();
+// Sales that couldn't be brought in, by id: { by, day, problem }. Checked again at every look, so a sale whose book
+// comes back is brought in then. Shown as a to-do (fairHelperTodo).
+const _refused = new Map();
 
 /** Publisher only, on the plan with both apps, once every book has loaded. Safe to call more than once. */
 function startFairHelpers({ win = window, profile = shopProfile } = {}) {
@@ -44,6 +47,8 @@ function currentMenu(books = BOOKS, bookStates = states) {
     price: b.listPrice,
     cur: getBookCurrencyCode(b),
     onHand: Number.isFinite(bookStates?.[b.id]?.stock) ? bookStates[b.id].stock : null,
+    cover: websiteCoverOf(b.id),
+    accent: b.accent,
   })));
 }
 
@@ -72,14 +77,18 @@ function alreadyIn(bookId, num) {
  */
 async function bringInSales(docs, { claim = (id) => window._fbClaimFairSale(id) } = {}) {
   let brought = 0;
+  const stuckBefore = [..._refused.keys()].join();
   for (const sale of docs || []) {
-    if (!sale || sale.imported || _busy.has(sale.id) || _refused.has(sale.id)) continue;
+    if (sale?.imported || sale?.cancelled) _refused.delete(sale.id);
+    // Undone by the helper who rang it up: never brought in.
+    if (!sale || sale.imported || sale.cancelled || _busy.has(sale.id)) continue;
     const plan = helperImportPlan(sale, Object.keys(BOOKS), alreadyIn);
     if (plan.problem) {
-      _refused.add(sale.id);
-      console.warn(`Fair helper sale ${sale.id} not brought in: ${plan.problem}`);
+      if (!_refused.has(sale.id)) console.warn(`Fair helper sale ${sale.id} not brought in: ${plan.problem}`);
+      _refused.set(sale.id, { by: String(sale.by || ''), day: String(sale.day || ''), problem: plan.problem });
       continue;
     }
+    _refused.delete(sale.id);
     _busy.add(sale.id);
     try {
       // The server says which device brings it in; offline, the claim fails and the sale waits for the next look.
@@ -102,11 +111,23 @@ async function bringInSales(docs, { claim = (id) => window._fbClaimFairSale(id) 
     updateDash();
     if (typeof window.renderAllOverview === 'function') window.renderAllOverview();
   }
+  // The to-do list (and the admin's Home) says when a helper's sale is stuck, and stops once it is in.
+  if (brought || [..._refused.keys()].join() !== stuckBefore) refreshAttentionSurfaces();
   return brought;
+}
+
+/**
+ * The helpers' sales this stockroom couldn't add, for the to-do list: { stuck, by } (by: the helpers' addresses), or
+ * null when there are none.
+ */
+function fairHelperTodo() {
+  if (!_refused.size) return null;
+  return { stuck: _refused.size, by: [...new Set([..._refused.values()].map((r) => r.by).filter(Boolean))] };
 }
 
 export {
   bringInSales,
+  fairHelperTodo,
   currentMenu,
   startFairHelpers,
 };
