@@ -40,6 +40,7 @@ export const JOBS = Object.freeze([
   { name: "self-checks", words: "Self-checks of every live shop", every: DAY, code: "control-room/self-check.js" },
   { name: "closing", words: "Close unpaid or ended shops on their dates", every: DAY, code: "services/billing/closing.js sweep" },
   { name: "dropped-apps", words: "Close an app a plan dropped once its month ends", every: DAY, code: "services/billing/billing.js closeDroppedApps" },
+  { name: "setup-clock", words: "Warn presses whose setup hasn't been visited, then clear it after 60 days", every: DAY, code: "signup/setupClock.js sweep" },
   { name: "trial-tips", words: "Setup tips during the free trial", every: DAY, code: "services/trial-tips/index.js run" },
   { name: "shop-checkup", words: "The monthly check-up email to each live shop (it runs daily and sends each shop one a month)", every: DAY, code: "services/checkup/index.js run" },
   { name: "bookkeeping", words: "Send the day's sales to each press's bookkeeping", every: DAY, code: "services/accounting/index.js nightly" },

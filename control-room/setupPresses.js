@@ -71,6 +71,9 @@ export function setupPress(record, { shop, now }) {
     shopId: record.shopId || null,
     shopStatus: shop?.status ?? null,
     shopMessage: record.shopMessage || "",
+    // The removal warnings emailed for this visit (signup/setupClock.js): { "30": at, "7": at }.
+    warned: record.setupWarnings?.seen === record.lastSeenAt ? record.setupWarnings.sent ?? {} : {},
+    expiredAt: record.expiredAt ?? null,
     flag,
   };
 }
