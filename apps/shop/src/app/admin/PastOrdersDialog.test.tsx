@@ -20,9 +20,9 @@ afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHT
 const flush = async () => { for (let i = 0; i < 5; i++) await act(async () => { await Promise.resolve(); }); };
 const button = (text: RegExp) => [...document.querySelectorAll("button")].find((b) => text.test(b.textContent || "")) as HTMLButtonElement;
 
-async function choose(text: string) {
+async function choose(text: string, name = "orders_export.csv") {
   const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-  Object.defineProperty(input, "files", { value: [new File([text], "orders_export.csv", { type: "text/csv" })], configurable: true });
+  Object.defineProperty(input, "files", { value: [new File([text], name, { type: "text/csv" })], configurable: true });
   await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
   await flush();
 }
@@ -98,6 +98,22 @@ describe("Bring past orders over", () => {
     expect(sent.map((o: any) => o.number)).toEqual(["#2"]);
     expect(options).toEqual({ rerate: true });
     expect(document.body.textContent).toContain("1 order now uses the new rate.");
+  });
+
+  it("adds a second file to the same run, each order once (plan 23.27)", async () => {
+    root = createRoot(document.body.appendChild(document.createElement("div")));
+    act(() => root!.render(h(PastOrdersDialog, { onClose: () => {}, onDone: () => {} })));
+    await choose("Name,Created at,Total,Currency\n#1,2024-06-01,10.00,CAD\n#2,2024-07-01,20.00,CAD", "2024.csv");
+    expect(button(/Bring 2 past orders over/)).toBeTruthy();
+    act(() => button(/Add another file/).click());
+    await choose("Name,Created at,Total,Currency\n#2,2024-07-01,20.00,CAD\n#3,2025-01-05,30.00,CAD", "2025.csv");
+    expect(document.body.textContent).toContain("2024.csv, 2025.csv");
+    await act(async () => { button(/Bring 3 past orders over/).click(); });
+    await flush();
+    // One run: one batch name for every order, so one take-back removes them all.
+    expect(api.importPastOrders).toHaveBeenCalledTimes(1);
+    expect(api.importPastOrders.mock.calls[0][0].map((o: any) => o.number)).toEqual(["#1", "#2", "#3"]);
+    expect(document.body.textContent).toContain("Wrong file? Take this import back");
   });
 
   it("without a suggestion, an other-currency order waits for the owner's rate", async () => {

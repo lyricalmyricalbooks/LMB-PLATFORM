@@ -803,6 +803,9 @@ preview first; nothing is published, charged or emailed by moving in. Words neve
 | 23.24 | platform | **Counts in the move-done email.** Customers on file, gift cards and past orders brought over, counted when the email goes out so a file brought twice counts once | functions/moveDone.test.js | quick | built (3 November 2026) |
 | 23.25 | platform | **You're all moved in.** With every part done, the Overview card says so once, with a last nudge to check old links, until closed | MoveProgressCard.test.tsx; move-check | quick | built (3 November 2026) |
 | 23.26 | platform | **A reminder when a move stalls.** Daily at 10:00 (Toronto): one email when a move has seen nothing new for 7 days, within 60 days of Get started; again only after the press moves and stops again; never once the list is hidden or done (`systemStatus/moveReminder`) | functions/moveDone.test.js; tick.test.js | quick | built (3 November 2026) |
+| 23.27 | platform | **Several order files in one go.** Bring past orders over takes several files at once, or Add another file before bringing them over: one run, each order once (the first file's copy), and what was left out names its file | pastOrders.test.ts; PastOrdersDialog.test.tsx | quick | built (3 November 2026) |
+| 23.28 | platform | **What came over, on screen.** "You're all moved in" says how many customers, gift cards and past orders came over (`adminApi.movedCounts`, the same counts as the email) | MoveProgressCard.test.tsx; move-check | quick | built (3 November 2026) |
+| 23.29 | platform | **The move check on every change.** CI's `shop-admin-phone` job also runs `pnpm run test:move` (scripts/move-check.mjs) | CI | quick | built (3 November 2026) |
 
 ## Phase 24: gaps from the Shopify review (planned 3 November 2026)
 

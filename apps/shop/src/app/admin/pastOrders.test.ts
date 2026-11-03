@@ -1,6 +1,6 @@
 // Orders › Bring past orders over (plan 23.7): the old shop's order file read in the browser.
 import { describe, expect, it } from "vitest";
-import { readPastOrders, readyToSend } from "./pastOrders";
+import { mergePastOrderFiles, readPastOrders, readyToSend } from "./pastOrders";
 
 const NOW = new Date("2026-11-03T12:00:00Z");
 
@@ -54,5 +54,20 @@ describe("reading an old shop's order file (plan 23.7)", () => {
     expect(readPastOrders("Title,Price\nBook,10", NOW).problems[0]).toMatch(/number, its date and its total/);
     const out = readPastOrders("Order ID,Date,Total\n,2025-01-01,5\n9,someday,5\n10,2027-01-01,5\n11,2025-01-01,abc", NOW);
     expect(out.skipped.map((s) => s.reason)).toEqual(["no order number", "Order 9: its date couldn't be read", "Order 10: its date is in the future", "Order 11: its total couldn't be read"]);
+  });
+});
+
+describe("several order files as one (plan 23.27)", () => {
+  it("brings each order once, counts currencies across files and names the file of anything left out", () => {
+    const y1 = readPastOrders("Name,Created at,Total,Currency\n#1,2024-06-01,10.00,CAD\n#2,2024-07-01,20.00,USD\n,2024-07-02,5.00,CAD");
+    const y2 = readPastOrders("Name,Created at,Total,Currency\n#2,2024-07-01,20.00,USD\n#3,2025-01-05,30.00,USD");
+    const both = mergePastOrderFiles([{ name: "2024.csv", file: y1 }, { name: "2025.csv", file: y2 }]);
+    expect(both.orders.map((o) => o.number)).toEqual(["#1", "#2", "#3"]);
+    expect(both.foreign).toEqual({ USD: 2 });
+    expect(both.skipped.map((s) => s.reason)).toEqual(["2024.csv, line 4: no order number"]);
+    const bad = mergePastOrderFiles([{ name: "2024.csv", file: y1 }, { name: "notes.csv", file: readPastOrders("") }]);
+    expect(bad.problems).toEqual(["notes.csv: This file is empty."]);
+    // One file reads exactly as before.
+    expect(mergePastOrderFiles([{ name: "2024.csv", file: y1 }])).toBe(y1);
   });
 });

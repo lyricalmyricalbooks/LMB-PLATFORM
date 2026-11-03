@@ -4,7 +4,8 @@ import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const api: any = vi.hoisted(() => ({ getFirstWeek: vi.fn(), updateFirstWeek: vi.fn(async () => {}), untickFirstWeek: vi.fn(async () => {}) }));
+const api: any = vi.hoisted(() => ({ getFirstWeek: vi.fn(), updateFirstWeek: vi.fn(async () => {}), untickFirstWeek: vi.fn(async () => {}),
+  movedCounts: vi.fn(async () => ({ customers: 4, giftCards: null, orders: 1 })) }));
 vi.mock("../api", () => ({ adminApi: api }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const { MoveProgressCard } = await import("./MoveProgressCard");
@@ -56,6 +57,9 @@ describe("Your move so far, put away", () => {
     const { host, setDoc } = mount({ ...moving, done: all });
     expect(host.textContent).toContain("You're all moved in");
     expect(host.textContent).toContain("5 of 5 done");
+    // What came over, counted (plan 23.28): a count that couldn't be read is left out.
+    await act(async () => { await Promise.resolve(); });
+    expect(host.textContent).toContain("4 customers and 1 past order came over");
     act(() => button(host, "Check your old links")[0].click());
     expect(window.location.hash).toBe("#settings/general/visitors");
     await act(async () => { button(host, "Close")[0].click(); });
