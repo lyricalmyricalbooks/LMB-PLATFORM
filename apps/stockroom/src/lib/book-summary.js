@@ -1,0 +1,81 @@
+// One book's stock and sales as the combined admin's book page shows them (docs/combined-admin.md, step 2): the
+// stockroom stays the master count, so the website admin asks the stockroom for these figures instead of working
+// them out again from the stockroom's records. Pure: give it the book's state and its catalog entry.
+import { deriveStockBreakdown, inventoryBreakdown } from './inventory.js';
+import { placeCounts } from './stock-places.js';
+import { bookCurrencyCode } from './currency-migration.js';
+import { normalizeCurrencyCode } from './money.js';
+
+const num = (v) => Number(v) || 0;
+const cents = (v) => Math.round(v * 100) / 100;
+const digits = (v) => String(v ?? '').replace(/[^0-9Xx]/g, '').toUpperCase();
+const words = (v) => String(v ?? '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * @returns {{ id: string, title: string, onHand: number, publisher: number, author: number,
+ *   onConsignment: number, places: { name: string, qty: number }[], stockists: { name: string, qty: number }[],
+ *   channels: { chan: string, units: number, revenue: number, cur: string }[], sold: number, lastSale: string | null }}
+ */
+export function bookSummary(id, s, book) {
+  const breakdown = deriveStockBreakdown(s, book);
+  const accounting = inventoryBreakdown(s, book);
+  const counts = placeCounts(s, book);
+  const channels = new Map();
+  let lastSale = null;
+  for (const h of (s && s.hist) || []) {
+    if (!h || h.voided || h.gratuity) continue;
+    const chan = String(h.chan || 'Other');
+    const cur = h.cur ? normalizeCurrencyCode(h.cur, bookCurrencyCode(book)) : bookCurrencyCode(book);
+    const key = `${chan}\u0000${cur}`;
+    const row = channels.get(key) || { chan, units: 0, revenue: 0, cur };
+    row.units += num(h.qty);
+    // A sale paid straight to the artist is not takings until the artist's transfer comes in (as the stockroom's own
+    // totals count it: lib/inventory.js recalculateBookStatsFromHistory).
+    if (!h.artistPending) row.revenue += num(h.qty) * num(h.price);
+    channels.set(key, row);
+    if (h.date && (!lastSale || String(h.date) > lastSale)) lastSale = String(h.date);
+  }
+  // Copies still at each stockist: sent, less sold there and sent back.
+  const stores = new Map();
+  for (const e of (s && s.ledger) || []) {
+    if (!e || e.voided || !e.storeName) continue;
+    const sign = e.type === 'Shipment' ? 1 : e.type === 'Sale' || e.type === 'Return' ? -1 : 0;
+    if (!sign) continue;
+    stores.set(e.storeName, (stores.get(e.storeName) || 0) + sign * num(e.qty));
+  }
+  const list = [...channels.values()].map((r) => ({ ...r, revenue: cents(r.revenue) })).sort((a, b) => b.units - a.units);
+  return {
+    id,
+    title: String((book && book.title) || id),
+    onHand: breakdown.totalOnHand,
+    publisher: breakdown.publisherOnHand,
+    author: breakdown.authorHeld,
+    onConsignment: accounting.onConsignment,
+    places: counts.length > 1 ? counts : [],
+    stockists: [...stores].map(([name, qty]) => ({ name, qty })).filter((p) => p.qty > 0).sort((a, b) => b.qty - a.qty),
+    channels: list,
+    sold: list.reduce((n, r) => n + r.units, 0),
+    lastSale,
+  };
+}
+
+/**
+ * The stockroom book that is most likely the website's book: the same ISBN (10 or more digits), else exactly the
+ * same title. Only a single clear answer counts; two books with the same title is no answer.
+ * @param {Record<string, { title?: string, isbn?: string }>} books
+ * @returns {{ id: string, title: string, by: 'isbn' | 'title' } | null}
+ */
+export function findBook(books, { isbn, title } = {}) {
+  const entries = Object.entries(books || {});
+  const want = digits(isbn);
+  if (want.length >= 10) {
+    const hits = entries.filter(([, b]) => digits(b && b.isbn) === want);
+    if (hits.length === 1) return { id: hits[0][0], title: String(hits[0][1].title || hits[0][0]), by: 'isbn' };
+  }
+  const name = words(title);
+  if (name) {
+    const hits = entries.filter(([, b]) => words(b && b.title) === name);
+    if (hits.length === 1) return { id: hits[0][0], title: String(hits[0][1].title || hits[0][0]), by: 'title' };
+  }
+  return null;
+}
