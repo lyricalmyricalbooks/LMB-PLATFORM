@@ -205,14 +205,23 @@ function newsletterAdminActions(deps) {
           res.status(200).json({ ok: true, to });
           return;
         }
-        const active = await db.collection("newsletterIssues").where("status", "in", ACTIVE).limit(1).get();
-        if (!active.empty) { res.status(409).json({ error: "A newsletter is still sending. Wait for it to finish, or cancel it, before sending another." }); return; }
+        const busy = "A newsletter is still sending. Wait for it to finish, or cancel it, before sending another.";
+        const activeQuery = db.collection("newsletterIssues").where("status", "in", ACTIVE).limit(1);
+        if (!(await activeQuery.get()).empty) { res.status(409).json({ error: busy }); return; }
         const audience = await deps.countAudience();
         if (!audience) { res.status(400).json({ error: "Nobody on your mailing list has confirmed yet, so there is no one to send to." }); return; }
-        const doc = await db.collection("newsletterIssues").add({
-          ...draft, status: "queued", audience, sent: 0, skipped: 0, failed: 0, cursor: "", failedRuns: 0, lastError: "",
-          leaseUntil: null, createdAt: nowIso(), createdBy: String(who.email || who.uid || ""),
+        // Checked again and queued in one transaction: two Send presses at once (two tabs, a retried request) would
+        // otherwise both find nothing sending and queue two issues, and everyone would get the newsletter twice.
+        const doc = db.collection("newsletterIssues").doc();
+        const queued = await db.runTransaction(async tx => {
+          if (!(await tx.get(activeQuery)).empty) return false;
+          tx.create(doc, {
+            ...draft, status: "queued", audience, sent: 0, skipped: 0, failed: 0, cursor: "", failedRuns: 0, lastError: "",
+            leaseUntil: null, createdAt: nowIso(), createdBy: String(who.email || who.uid || ""),
+          });
+          return true;
         });
+        if (!queued) { res.status(409).json({ error: busy }); return; }
         if (deps.recordAudit) await deps.recordAudit(`Queued newsletter "${draft.subject}" for ${audience} subscriber${audience === 1 ? "" : "s"}`).catch(() => {});
         res.status(200).json({ ok: true, id: doc.id, audience });
         return;

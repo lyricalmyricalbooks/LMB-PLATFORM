@@ -29,6 +29,7 @@ function fakeDb({ issues = {} } = {}) {
     }),
   });
   let added = 0;
+  let lock = Promise.resolve();
   const db = {
     collection(name) {
       const q = { filters: [], n: 1e9, where(f, op, v) { this.filters.push([f, op, v]); return this; }, limit(n) { this.n = n; return this; },
@@ -37,9 +38,18 @@ function fakeDb({ issues = {} } = {}) {
             .slice(0, this.n).map(([id, d]) => ({ id, data: () => d, ref: issueRef(id) }));
           return { docs, empty: !docs.length };
         } };
-      return { ...q, doc: id => issueRef(id), async add(v) { const id = `issue${++added}`; data[name][id] = v; return { id }; } };
+      return { ...q, doc: id => issueRef(id ?? `issue${++added}`), async add(v) { const id = `issue${++added}`; data[name][id] = v; return { id }; } };
     },
-    async runTransaction(fn) { return fn({ get: r => r.get(), update: (r, patch) => Object.assign(data.newsletterIssues[r.id], patch) }); },
+    // One transaction at a time, like Firestore's serializable transactions.
+    runTransaction(fn) {
+      const run = lock.then(() => fn({
+        get: r => r.get(),
+        update: (r, patch) => Object.assign(data.newsletterIssues[r.id], patch),
+        create: (r, v) => { if (data.newsletterIssues[r.id]) throw new Error('exists'); data.newsletterIssues[r.id] = v; },
+      }));
+      lock = run.catch(() => {});
+      return run;
+    },
   };
   return { db, data };
 }
@@ -209,6 +219,14 @@ test('the admin action: a test goes to the signed-in person only, a send is queu
   expect(data.newsletterIssues[s.body.id].status).toBe('cancelled');
   expect((await a.handle({ op: 'cancel', id: s.body.id })).code).toBe(409);
   expect((await a.handle({ op: 'cancel', id: '../x' })).code).toBe(400);
+});
+
+test('two Send presses at once queue one newsletter, so nobody gets it twice', async () => {
+  const { db, data } = fakeDb();
+  const a = admin(db);
+  const answers = await Promise.all([a.handle({ op: 'send', subject: 'Hi', body: 'x' }), a.handle({ op: 'send', subject: 'Hi', body: 'x' })]);
+  expect(answers.map(r => r.code).sort()).toEqual([200, 409]);
+  expect(Object.keys(data.newsletterIssues)).toHaveLength(1);
 });
 
 test('the admin action refuses an empty list and a non-admin', async () => {
