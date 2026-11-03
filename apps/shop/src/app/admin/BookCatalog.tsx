@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import { ArrowDown, ArrowUp, GripVertical, Plus, SlidersHorizontal, Upload, X } from "lucide-react";
 import "./books.css";
 import { useShopSells, useShopWords } from "./shopWords";
+import { sellsBooks } from "./sells";
 import { EditionStockDialog } from "./EditionStockDialog";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { type InventoryLinks } from "./inventoryLink";
@@ -21,7 +22,7 @@ import { inventoryApi } from "./inventoryApi";
 import { liveStockOf } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import {
-  ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, Pagination,
+  ActionMenu, PageActions, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, Pagination,
   PrimaryButton, Tabs, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, type Column,
 } from "./riso/components";
 import { preorderActive, releaseDateOf } from "../features/site/preorder";
@@ -396,6 +397,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     const at = rows.findIndex(x => x.id === b.id);
     return (
       <span style={{ display: "inline-flex", gap: 2, alignItems: "center" }}>
+        {/* The tick box shares this column in shop order, so the table fits a laptop screen without scrolling sideways. */}
+        <span style={{ marginRight: 6, display: "inline-flex" }}><Checkbox label="" aria-label={`Select ${b.title}`} checked={selected.includes(b.id)} onChange={() => toggle(b.id)} /></span>
         <span aria-hidden="true" title={canArrange ? "Drag to move" : undefined}
           style={{ cursor: canArrange ? "grab" : "default", opacity: canArrange ? 1 : 0.35, display: "inline-flex" }}><GripVertical size={16} /></span>
         <span className="rp-mono" style={{ minWidth: 18, textAlign: "right" }}>{at + 1}</span>
@@ -444,14 +447,20 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   );
 
   const columns: Column<any>[] = [
-    ...(sort === "shop" ? [arrangeColumn] : []),
-    { key: "sel", header: "Select", render: b => <Checkbox label="" aria-label={`Select ${b.title}`} checked={selected.includes(b.id)} onChange={() => toggle(b.id)} /> },
+    ...(sort === "shop" ? [arrangeColumn] : [
+      { key: "sel", header: "Select", render: (b: any) => <Checkbox label="" aria-label={`Select ${b.title}`} checked={selected.includes(b.id)} onChange={() => toggle(b.id)} /> },
+    ]),
     { key: "title", header: "Title", lead: true, render: b => (
       <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 220 }}>{coverOf(b)}{titleOf(b)}</div>
     ) },
     { key: "status", header: "Status", render: badgesOf },
-    { key: "format", header: "Format", render: b => b.format || "—" },
-    { key: "isbn", header: "ISBN / SKU", render: b => <span className="rp-mono">{b.isbn || b.sku || "—"}</span> },
+    // Format with its ISBN or SKU under it: one column instead of two, like a shop builder's product list.
+    { key: "format", header: sellsBooks(sells) ? "Format · ISBN" : "Format · SKU", render: b => (
+      <div style={{ minWidth: 0 }}>
+        <div>{b.format || "—"}</div>
+        {(b.isbn || b.sku) && <div className="rp-hint rp-mono" style={{ overflowWrap: "anywhere" }}>{b.isbn || b.sku}</div>}
+      </div>
+    ) },
     { key: "stock", header: "Inventory", render: stockCell },
     { key: "price", header: "Price", numeric: true, render: priceCell },
     { key: "actions", header: "Actions", render: actionsOf },
@@ -580,11 +589,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         </div>
       )}
 
-      <SectionCard flush title="Catalog" collapsible={false}
-        actions={
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-            {pageRows.length > 0 && <Checkbox label={sort === "shop" ? "Select all" : "Select page"} checked={allSelected} onChange={togglePage} />}
-            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
+      <PageActions>
             <ActionMenu label="More catalog actions" actions={[
               { label: "Import CSV…", onSelect: () => setImportOpen(true) },
               { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
@@ -595,8 +600,11 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
                 { label: "Google indexing", onSelect: () => setIndexOpen(true) },
               ]),
             ]} />
-          </div>
-        }>
+            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
+      </PageActions>
+
+      <SectionCard flush title="Catalog" collapsible={false}
+        actions={pageRows.length > 0 ? <Checkbox label={sort === "shop" ? "Select all" : "Select page"} checked={allSelected} onChange={togglePage} /> : undefined}>
         {sort === "shop" && (
           <p className="rp-hint" role="status" style={{ padding: "8px 16px", margin: 0 }}>
             {filtering

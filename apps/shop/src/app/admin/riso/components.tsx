@@ -7,6 +7,7 @@ import {
   AlertTriangle, BookOpen, Check, ChevronDown, ChevronRight, CircleDashed, CreditCard, Gift, Globe, Hourglass, Inbox, LayoutGrid, Lock,
   Minus, Package, Percent, RotateCw, Search, Tag, Truck, Waves, X,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import "./adminThemes.css";
 import "./riso.css";
 import { useFocusTrap } from "../../lib/useFocusTrap";
@@ -152,6 +153,17 @@ export function PageHeader({ title, description, breadcrumbs, actions }: {
       {actions && <div className="rp-page-actions">{actions}</div>}
     </div>
   );
+}
+
+/**
+ * The page's main buttons in its header, top right of the title, as the big shop builders place them (design pass,
+ * 3 Nov 2026). The shell puts an empty spot in its PageHeader and hands it down through this slot; a page renders
+ * `<PageActions>` anywhere and its buttons appear there. With no header (the Overview, a fixture) they stay in place.
+ */
+export const PageActionsSlot = createContext<HTMLElement | null>(null);
+export function PageActions({ children }: { children: ReactNode }) {
+  const target = useContext(PageActionsSlot);
+  return target ? createPortal(children, target) : <div className="rp-page-actions rp-page-actions-inline">{children}</div>;
 }
 
 /* ── Cards ───────────────────────────────────────────────────────────── */

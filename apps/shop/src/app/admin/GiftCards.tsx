@@ -9,7 +9,7 @@ import { adminApi } from "./api";
 import { copyText } from "./clipboard";
 import { useShopWords } from "./shopWords";
 import {
-  DataTable, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
+  DataTable, PageActions, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column,
 } from "./riso/components";
 import {
@@ -489,11 +489,13 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
 
   return (
     <div className="rp-stack">
-      <div className="rp-kpi-grid">
+      {/* The page's main buttons sit by its title; the counts show once there is something to count. */}
+      {cards.length > 0 && <PageActions>{importButton}{issueButton}</PageActions>}
+      {cards.length > 0 && <div className="rp-kpi-grid">
         <MetricCard label="Active cards" value={counts.active} footer={`${cards.length} in total`} />
         <MetricCard label="Balance outstanding" value={formatMinor(outstanding)} footer="Still to be spent on active cards" />
         <MetricCard label="Sold in the shop" value={formatMinor(sold)} footer="Face value of cards bought by shoppers" />
-      </div>
+      </div>}
       {cards.length === 0 ? (
         <SectionCard>
           <EmptyState icon="🎁" title="No gift cards yet"
@@ -513,8 +515,6 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
           <FilterBar>
             <div className="rp-grow"><SearchField label="Search gift cards" placeholder="Search by code, last 4 characters or email…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
             <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExporting(true)}>Export CSV</SecondaryButton>
-            {importButton}
-            {issueButton}
           </FilterBar>
           <SectionCard flush collapsible={false} title="Gift cards" description={`${rows.length} of ${cards.length}. Open one to see its code, change it or resend it.`}>
             <DataTable caption="Gift cards" columns={columns} rows={rows} rowKey={(r) => r.card.id} onRowClick={(r) => setSelectedId(r.card.id)}

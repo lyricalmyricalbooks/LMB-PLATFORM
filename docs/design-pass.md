@@ -17,6 +17,19 @@ Screens owned by threads in flight (front door, switching, control room, combine
 Proof: `npm test`, `node walkthrough/phone-check.js`, a Playwright run that opens the More menu, closes it with
 Escape and opens Team from it, and desktop + phone screenshots.
 
-## Round 2: the shop admin and the shop website
+## Round 2: the shop admin
 
-Next, in its own pull request, after screenshots of the demo shop.
+- [x] **Page buttons by the title**: a page's main buttons render through `<PageActions>` (riso/components.tsx) into
+      a spot the shell keeps in its PageHeader, top right of the title. With no header (Overview, a fixture) they stay
+      in place. Used by Books (Add book and its menu), Customers (Export CSV, Bring customers over), Discounts (New
+      discount) and Gift cards (Bring gift cards over, Issue gift card).
+- [x] **Books table fits a laptop**: in shop order the tick box shares the Order column; Format and ISBN (SKU for a
+      shop that doesn't sell books) share one column.
+- [x] **No row of zeros**: Discounts and Gift cards hide their counts until there is something to count; the empty
+      state's button is the one way in.
+- [x] Release note `2026-11-03-90-page-buttons-by-title.ts`.
+
+Proof: shop `pnpm test` (incl. a PageActions test), typecheck, lint, `scripts/admin-phone-check.mjs`, screenshots.
+
+Left alone on purpose: Orders and Home (combined admin thread), the big page titles (the look's masthead), and the
+shop website (Studio owns every shopper-facing style; a pass there needs the demo shop and its own plan).
