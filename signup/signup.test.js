@@ -49,6 +49,15 @@ test("signing up starts the free trial with no card and queues a shop the shop m
   assert.deepEqual(stores.accounts.rows.get("uid-ada").shops, { "moth-press-aaaa0": "owner" });
 });
 
+test("a press signing up from a French browser gets the platform's emails in French; anything else stays unset", async () => {
+  const { ask, trials, stores } = make();
+  await ask("POST", "/api/signup", { ...details, language: "fr" }, ADA);
+  assert.equal(stores.signups.rows.get("moth-press-aaaa0").language, "fr");
+  assert.equal(trials[0].language, "fr", "kept on the plan, where the emails read it");
+  assert.equal(checkSignup({ ...details, language: "en" }).details.language, undefined, "only French is kept: Quebec's rule covers the rest");
+  assert.equal(checkSignup({ ...details, language: "<b>" }).details.language, undefined);
+});
+
 test("the question can be skipped, and an unknown answer counts as skipped", async () => {
   const { ask, stores } = make();
   await ask("POST", "/api/signup", details, ADA);

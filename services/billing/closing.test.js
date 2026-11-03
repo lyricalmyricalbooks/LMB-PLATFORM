@@ -93,6 +93,8 @@ test("60 days paused closes the shop, ends the plan and emails once; 90 days lat
   assert.equal(t.sent("shop-closed").length, 1);
   assert.equal(t.sent("shop-closed")[0].to, "owner@example.com");
   assert.equal(t.sent("shop-closed")[0].data.link, "https://platform.example/account/billing?shop=moth-press");
+  assert.equal(t.sent("shop-closed")[0].language, "en", "no language chosen and no Quebec address: English");
+  assert.equal(t.sent("shop-closed")[0].data.on, closed.downloadUntil, "the day, for the French date");
 
   // Day by day to deletion: the 30-day warning, the 7-day one, then the delete on the day. Nothing before.
   const closedAt = Date.parse(closed.closedAt);
@@ -318,4 +320,14 @@ test("a pause and a closing run the job hooks once, and a card brings the jobs b
   await t.sweep.sweep();
   assert.equal(await t.closing(), null);
   assert.deepEqual(calls.map(([name]) => name), ["onPause", "onReopen", "onReopen"]);
+});
+
+test("a shop billed in Quebec gets the closing emails in French, then English", async () => {
+  const t = await make();
+  await t.billing.saveBillingDetails({ shopId: SHOP, name: "", email: "owner@example.com", address: { line1: "1 rue Saint-Denis", city: "Montréal", state: "QC", postalCode: "H2X 1K1", country: "CA" }, taxNumber: "" });
+  await t.pause();
+  await t.sweep.sweep();
+  await daily(t, PAUSED_DAYS);
+  assert.equal((await t.closing()).stage, "closed");
+  assert.equal(t.sent("shop-closed")[0].language, "fr+en");
 });

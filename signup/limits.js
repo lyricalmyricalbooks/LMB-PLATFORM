@@ -4,7 +4,8 @@
 //   every signed-in call      120 a minute per signed-in person (claims.uid); control-room admins (on the admin list,
 //                             signed in with two steps, controlRoom.js adminOf) are not held to it
 //   costly calls              10 per 10 minutes per person, admins included: Try again on the shop maker, the
-//                             control room's Check now and Google's run again, and a card page from Plan & billing
+//                             control room's Check now and Google's run again, a card page from Plan & billing, and
+//                             reading an old shop from its address
 //   GET /api/plans            300 a minute per network (cheap, but public)
 //   POST /api/signin-link     20 an hour per network, on top of the 5 an hour per address it already has
 //   POST /api/code/send       the same, for the front door's six-digit code (frontDoor.js)
@@ -42,6 +43,8 @@ export const COSTLY_ROUTES = Object.freeze([
   "POST /api/control/check",
   "POST /api/control/google-run-again",
   "POST /api/billing/card",
+  // Reads another site's product list page by page (code plan 23.2).
+  "POST /api/press/old-shop",
 ]);
 
 /** Public calls held to a per-network limit, by route. */

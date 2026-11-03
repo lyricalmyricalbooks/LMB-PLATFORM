@@ -7,8 +7,11 @@
 //                                              (signInWithEmailLink). The link is never emailed: the code was the proof.
 //   POST /api/press       {}                   makes the press's setup record, or gives back the one still in setup
 //   GET  /api/press                            the signed-in person's presses
-//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook? }
+//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook?, moving? }
 //                                              saves answers while the press is in setup
+//   POST /api/press/old-shop { pressId, address }
+//                                              reads the old shop's public product list (23.2) and answers it as a
+//                                              product file { host, csv, products, notes } for the browser to preview
 //
 // Nothing here starts a trial, takes a card or makes a shop: those wait for Open my shop (18.8).
 //
@@ -23,8 +26,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { SignupError, randomSuffix } from "./signup.js";
 import { createSignInCode } from "./signInCode.js";
 import { createAccountStart } from "./accountStart.js";
-import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, advanceStatus, importPathFor, setupChange } from "./pressRecord.js";
+import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, SETUP_FIELDS, advanceStatus, importPathFor, setupChange } from "./pressRecord.js";
 import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
+import { readOldShop as readPublicShop } from "../services/moving/oldShop.js";
 
 /** The page the front door lives on, under the platform's address. */
 export const START_PAGE = "join";
@@ -34,7 +38,7 @@ const shown = (record) => ({
   pressId: record.pressId, status: record.status, plan: record.plan ?? "", shopId: record.shopId ?? "",
   // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
   shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
-  look: record.look ?? "", adminLook: record.adminLook ?? "",
+  look: record.look ?? "", adminLook: record.adminLook ?? "", moving: record.moving ?? "",
   // What the press sees of its kept file: never the path.
   stagedImport: record.stagedImport ? { name: record.stagedImport.name, size: record.stagedImport.size, rows: record.stagedImport.rows, at: record.stagedImport.at } : null,
 });
@@ -70,7 +74,7 @@ const UPLOAD_MINUTES = 15;
  * daily cap, the countries that are open, invites, the free trial (billing.startTrial) and the shop maker's queue work
  * exactly as they do for every shop.
  */
-export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, now = () => new Date(), suffix = randomSuffix, random = null }) {
+export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop }) {
   const signInCode = createSignInCode({
     store: codes,
     now,
@@ -129,7 +133,7 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
     async saveSetup(claims, body = {}) {
       const record = await ownPress(claims, body.pressId);
       const change = {};
-      for (const key of ["plan", "pressName", "sells", "country", "look", "adminLook"]) if (key in body) change[key] = body[key];
+      for (const key of SETUP_FIELDS) if (key in body) change[key] = body[key];
       // The choices on the page are the only answers taken; an empty answer is a skipped question.
       if (typeof change.sells === "string" && change.sells && !PUBLISHES.options.some((o) => o.id === change.sells)) {
         throw new SignupError(400, "Pick one of the choices.", { sells: "Pick one of the choices." });
@@ -200,6 +204,16 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       // The file it replaces goes only once the new one is kept.
       if (saved.earlier && saved.earlier !== path) await stagedFiles.remove(saved.earlier);
       return { press: saved.press };
+    },
+
+    // Bring a shop over from its address (23.2): only the press's owner, only in setup. Nothing is kept here: the
+    // browser previews the file and keeps it through startImport/keepImport like any chosen file.
+    async oldShop(claims, body = {}) {
+      const record = await ownPress(claims, body.pressId);
+      if (record.status !== "setup") throw new SignupError(409, "Your shop is already opening, so setup is locked.");
+      const read = await readOldShop(String(body.address ?? ""));
+      if (!read.ok) throw new SignupError(400, read.message, { address: read.message });
+      return { host: read.host, csv: read.csv, products: read.products, notes: read.notes };
     },
 
     async removeImport(claims, body = {}) {
@@ -288,5 +302,6 @@ export const frontDoorRoutes = (door) => ({
   "POST /api/press/import": (claims, request) => door.startImport(claims, request.body ?? {}),
   "POST /api/press/import/kept": (claims, request) => door.keepImport(claims, request.body ?? {}),
   "POST /api/press/import/remove": (claims, request) => door.removeImport(claims, request.body ?? {}),
+  "POST /api/press/old-shop": (claims, request) => door.oldShop(claims, request.body ?? {}),
   "POST /api/press/open": (claims, request) => door.openShop(claims, request.body ?? {}),
 });

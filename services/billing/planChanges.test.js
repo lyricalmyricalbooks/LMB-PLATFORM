@@ -10,6 +10,7 @@ import { createStripeApi } from "../payments/stripeApi.js";
 import { signatureHeader } from "../payments/stripeSignature.js";
 import { platformSettings } from "../settings.js";
 import { TEMPLATES } from "../email/templates.js";
+import { TEMPLATES_FR } from "../email/templatesFr.js";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
 
 const SECRET = "whsec_billing_test";
@@ -535,4 +536,37 @@ test("when the one-time link can't be shown again, the reminder sends the plan p
   assert.equal(sent.data.signIn, true);
   const mail = TEMPLATES["app-closing-soon"](sent.data, { settings: platformSettings({}), pressName: "Moth Press" });
   assert.doesNotMatch(mail.text, /no need to sign in/);
+});
+
+test("the closing emails go in French for a press that chose it, and in French then English for one billed in Quebec", async () => {
+  const w = make();
+  await w.registry.createShop(SHOP, { shopId: SHOP, pressName: "Moth Press", plan: "both", status: "live" });
+  const row = await w.billing.startTrial({ account: ACCOUNT, shopId: SHOP, pressName: "Moth Press", plan: "both", language: "fr" });
+  assert.equal((await w.stores.subscriptions.get(SHOP)).language, "fr");
+  await w.payMonth(row);
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  w.tick(31);
+  await w.billing.closeDroppedApps();
+  const closedMail = w.email.list().find((m) => m.kind === "app-closed");
+  assert.equal(closedMail.language, "fr");
+  assert.deepEqual(closedMail.data.apps, ["stockroom"], "the apps, for the French names");
+  assert.equal(closedMail.data.on, (await w.stores.subscriptions.get(SHOP)).closedApps.stockroom.downloadUntil, "the day, for the French date");
+  assert.match(TEMPLATES_FR["app-closed"](closedMail.data, { settings: platformSettings({}), pressName: "Moth Press" }).subject, /^La réserve de Moth Press est fermée/);
+  assert.equal((await w.registry.getShop(SHOP)).billing.language, "fr", "on the registry too, for closing.js");
+
+  // No choice made: a Quebec billing address means French first; any other address, English.
+  const q = make();
+  const qRow = await q.start();
+  await q.billing.saveBillingDetails({ shopId: SHOP, name: "", email: "books@moth.example", address: { line1: "1 rue Saint-Denis", city: "Montréal", state: "qc", postalCode: "h2x 1k1", country: "CA" }, taxNumber: "" });
+  assert.equal((await q.stores.subscriptions.get(SHOP)).province, "QC");
+  assert.equal((await q.registry.getShop(SHOP)).billing.province, "QC");
+  await q.payMonth(qRow);
+  await q.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  q.tick(31);
+  await q.billing.closeDroppedApps();
+  assert.equal(q.email.list().find((m) => m.kind === "app-closed").language, "fr+en");
+  await q.billing.saveBillingDetails({ shopId: SHOP, name: "", email: "books@moth.example", address: { line1: "1 King St W", city: "Toronto", state: "on", postalCode: "m5h 1a1", country: "CA" }, taxNumber: "" });
+  assert.equal((await q.stores.subscriptions.get(SHOP)).province, "ON");
+  await q.billing.saveBillingDetails({ shopId: SHOP, name: "", email: "books@moth.example", address: null, taxNumber: "" });
+  assert.equal((await q.stores.subscriptions.get(SHOP)).province, "ON", "saving without an address keeps the one on file");
 });
