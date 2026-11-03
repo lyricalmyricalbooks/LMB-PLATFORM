@@ -12,9 +12,10 @@ import { DEFAULT_SETTINGS } from "../services/settings.js";
 
 // Each version's words, fingerprinted. Changing the words without a new TERMS_VERSION fails here: add the new
 // version's line (never change an old one) so a stored acceptance always names the words the press saw.
-const FINGERPRINTS = { "2026-10-28-draft": "646ebc6599507d9f", "2026-10-28-draft.2": "55b1600cfb4bed2d", "2026-11-03-draft": "d24470c450ff75b7", "2026-11-03-draft.2": "7bb1fcbcadafff47" };
+const FINGERPRINTS = { "2026-10-28-draft": "646ebc6599507d9f", "2026-10-28-draft.2": "55b1600cfb4bed2d", "2026-11-03-draft": "d24470c450ff75b7", "2026-11-03-draft.2": "7bb1fcbcadafff47",
+  "2026-11-03-draft.3": "04dcb865d6843efc" };
 // The French words (termsFr.js), from the version that first had them. Same rule: new words, new version.
-const FINGERPRINTS_FR = { "2026-11-03-draft.2": "4744335b4ee3a2ca" };
+const FINGERPRINTS_FR = { "2026-11-03-draft.2": "4744335b4ee3a2ca", "2026-11-03-draft.3": "574ba843f7eba85d" };
 
 const text = SECTIONS.flatMap((s) => [s.title, ...s.paragraphs]).join(" ");
 
@@ -68,7 +69,7 @@ test("sign-up's record: the current version and when, and nothing else is accept
 
 test("the privacy policy names the privacy contact and says how long backups are kept (plan 8.6)", () => {
   const privacy = SECTIONS.find((s) => s.id === "privacy").paragraphs.join(" ");
-  assert.equal(PRIVACY_CONTACT, controlRoomPeople({}).privacyContact, "the same placeholder as the control room's setting");
+  assert.equal(PRIVACY_CONTACT, controlRoomPeople({}).privacyContact, "the control room's default privacy contact");
   assert.ok(privacy.includes(`write to our privacy contact at ${PRIVACY_CONTACT}`));
   assert.equal(BACKUP_KEEP_DAYS, 30);
   assert.match(privacy, /Each backup is kept for 30 days, then deleted\. If your shop is deleted, its backups are kept 30 days more/);

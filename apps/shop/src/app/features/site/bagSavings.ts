@@ -1,4 +1,4 @@
-import { showsSale } from "./displayPrice";
+import { showsSale, wasPrice } from "./displayPrice";
 
 /**
  * Sale savings shown in the shopping bag (Studio › Style › Cart drawer › Book rows ›
@@ -16,7 +16,7 @@ export function lineSavingPerCopy(item: any, book: any, now: Date = new Date()):
   const addOns = (Array.isArray(item.addOns) ? item.addOns : []).reduce((sum: number, a: any) => sum + (Number(a?.price) || 0), 0);
   const sale = Number(book.salePrice);
   if (Math.abs(Number(item.price) - addOns - sale) > 0.005) return 0;
-  const saving = Math.round(((Number(book.retailPrice) || 0) - sale) * 100) / 100;
+  const saving = Math.round((wasPrice(book, now) - sale) * 100) / 100;
   return saving > 0 ? saving : 0;
 }
 

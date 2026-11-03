@@ -8,7 +8,7 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-03-draft.2";
+export const TERMS_VERSION = "2026-11-03-draft.3";
 
 /** True until a lawyer has read the words. The page shows the draft notice while it is. */
 export const DRAFT = true;
@@ -16,14 +16,17 @@ export const DRAFT = true;
 /** The version a new sign-up accepts. */
 export const currentTermsVersion = () => TERMS_VERSION;
 
-/**
- * Who answers privacy questions (plan 8.6). The same address as the control room's PLATFORM_PRIVACY_CONTACT
- * (control-room/people.js), whose placeholder this is until Julian names one; terms.test.js keeps the two equal.
- */
-export const PRIVACY_CONTACT = "privacy@platform.example";
+/** The company's contact address (Julian, 3 November 2026); apps-isolation.test.js allows exactly this line. */
+export const OPERATOR_EMAIL = "lyricalmyricalbooks@gmail.com";
 
-/** Where anyone reports a shop selling something unlawful or copying someone's work (placeholder until Julian names one). */
-export const REPORT_CONTACT = "reports@platform.example";
+/**
+ * Who answers privacy questions (plan 8.6). The control room's PLATFORM_PRIVACY_CONTACT (control-room/people.js)
+ * defaults to it; terms.test.js keeps the two equal.
+ */
+export const PRIVACY_CONTACT = OPERATOR_EMAIL;
+
+/** Where anyone reports a shop selling something unlawful or copying someone's work. */
+export const REPORT_CONTACT = OPERATOR_EMAIL;
 
 /**
  * The company that runs Colophon, its mailing address and the law that governs the terms (Julian, 3 November 2026).

@@ -63,7 +63,6 @@ import SaleEndsLine from "./extras/pdp-sale-countdown/SaleEndsLine";
 import ReleaseCountdownText from "./extras/pdp-release-countdown/ReleaseCountdownText";
 import { pdpFreeShipping } from "./extras/pdp-free-shipping/pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
-import { lowestBeforeSale } from "./lowestPrice";
 import { policyHtml, policySlug, policyTitle } from "./policyPages";
 import { quickAddChoice } from "./buyable";
 import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS } from "./themeTokens";
@@ -85,7 +84,7 @@ import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
 import { bookAddOns, bundleWeightGrams, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
-import { displayPrice, salePercentOff } from "./displayPrice";
+import { displayPrice, salePercentOff, showsSale } from "./displayPrice";
 import { ga4Once, ga4PageNotFound, ga4PdpInteract, pdpTabName } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
@@ -671,8 +670,8 @@ export default function BookDetail() {
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   // Only while the sale is on (inside its optional start/end dates) — the price the server charges.
   const isOnSale      = selectedVariant ? false : (saleActive(book) && salePrice > 0);
-  // The struck-through price must not overstate the saving (lowestPrice.ts).
-  const lowestBefore  = isOnSale ? lowestBeforeSale(book) : null;
+  // A saving is claimed only against the 30-day "was" price (displayPrice.ts › wasPrice).
+  const saleShown     = isOnSale && showsSale(book);
   const saleEnds      = isOnSale ? saleEndDate(book) : "";
   const isGiftCard    = isGiftCardProduct(book);
   const isBoxSet      = isBundle(book);
@@ -1044,8 +1043,8 @@ export default function BookDetail() {
                       {isOnSale ? (
                         <>
                           <span className="fm-pdp-price" translate="no">{formatBookPrice(book)}</span>
-                          {regionVisible(regionDesign, "productOldPrice") && <span {...regionProps("productOldPrice")} className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>}
-                          {regionVisible(regionDesign, "productSaveBadge") && <span
+                          {saleShown && regionVisible(regionDesign, "productOldPrice") && <span {...regionProps("productOldPrice")} className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>}
+                          {saleShown && regionVisible(regionDesign, "productSaveBadge") && <span
                             {...regionProps("productSaveBadge")}
                             className="text-[9px] font-black tracking-widest border px-3 py-1.5 uppercase"
                             style={{
@@ -1056,11 +1055,6 @@ export default function BookDetail() {
                           >
                             {getCopy(settings?.design, "saveAmount", { amount: formatPrice(getBookPrice(book, true) - getBookPrice(book)) })}
                           </span>}
-                          {lowestBefore !== null && (
-                            <p className="fm-pdp-meta w-full" data-studio-target="copy:Product page" data-studio-label="Lowest price before the sale">
-                              {getCopy(settings?.design, "pdpLowestBeforeSale", { price: formatPrice(getBookPrice(book, true) * lowestBefore / Number((book as any).price)) })}
-                            </p>
-                          )}
                         </>
                       ) : (
                         <span className="fm-pdp-price" translate={retailPrice > 0 ? "no" : undefined}>
@@ -1601,7 +1595,7 @@ export default function BookDetail() {
                       )}
 
                       {/* Sale badge */}
-                      {isOnSale && !isOutOfStock && storefrontDesign.showSaleBadge !== false && (
+                      {saleShown && !isOutOfStock && storefrontDesign.showSaleBadge !== false && (
                         <div className="absolute top-5 left-5">
                           <span
                             className="text-[9px] font-black tracking-[0.3em] uppercase px-4 py-2 rounded-full"

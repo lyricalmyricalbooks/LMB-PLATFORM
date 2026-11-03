@@ -243,6 +243,12 @@ test("a promised notice (price rise, new helper, terms change) is emailed, names
   assert.equal(noticeOnRecord(all, "price-rise", ends(NOTICE_DAYS + 1)), true);
   assert.equal(noticeOnRecord(all, "price-rise", ends(NOTICE_DAYS)), false, "not for a change before the notice's day");
   assert.equal(noticeOnRecord(all, "new-helper", ends(90)), false, "a price notice isn't a helper notice");
+  // The record Julian can point to if a press disputes the notice.
+  const { notices } = await w.messages.list(w.admin());
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].kind, "price-rise");
+  assert.equal(notices[0].daysNotice, NOTICE_DAYS + 1);
+  assert.equal(notices[0].emailed, emailed);
 });
 
 test("the notice days match what the terms promise", async () => {
