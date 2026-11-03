@@ -49,6 +49,7 @@ the first presses; Phase 2 runs the same code from sign-up. Write the code once,
 | 16 | Test shop only: turn on its stockroom link (the shop's connection check, then sales sent from today) | link has a start day | link on |
 | 17 | Cut the idle bill: delete the ten old scheduled jobs (the shop runs them from one tick job) and set a one-day cleanup rule on the old server-code builds | no old jobs left, cleanup rule on | one scheduled job in the shop's project |
 | 18 | Add the shop's spend alert and Cloud Run functions spend cap (budgets on the billing account, once the platform has switched them on) | both budgets exist by name | alert notices reach the control room; Google stops runaway function spend |
+| 19 | Allow authenticator codes on the shop admin's sign-in (Identity Platform, TOTP second step) | TOTP is on in the project's sign-in settings | the owner can turn on two-step sign-in under Settings › Security |
 
 Steps 2–5 borrow the service list and backup permission from a public Firebase project factory
 (https://github.com/cilly-yllic/terraform-google-firebase-project-factory). Plain Node scripts using Google's APIs are

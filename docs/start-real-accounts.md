@@ -46,6 +46,11 @@ so a stage that is added to the build also needs a line here.
   founding 25% off. Stripe's "3D Secure required" test card checks the "Confirm the payment" step, and a test card that
   runs out next month shows the "card runs out" warning on Settings › Billing. Status: built on pretend Stripe; nothing
   real is connected.
+- **Two-step sign-in in the shop admin** (plan 22.6, setup step 19): on the test shop's project, step 19 upgrades its
+  sign-in to Google's Identity Platform and turns authenticator codes on (a first real run checks Google's answer to
+  both calls). Then Julian signs in to the test shop's admin, opens Settings › Security, scans the picture with an
+  authenticator app, types the code, signs out and in again with a code, and changes the test shop's plan on a paid
+  test plan without being sent to the account page. Status: built against pretend Google and Firebase.
 - **Shipping and your address** (plan 17.11): Julian confirms the shipping starter for Canada with his own prices and
   checks the web address shown on the shop. Nothing needs a carrier account for the starter. Status: built.
 - **Your stockroom** (plan 17.12, setup step 16): the full test shop run (plan 15.7) turns the stockroom link on, and
