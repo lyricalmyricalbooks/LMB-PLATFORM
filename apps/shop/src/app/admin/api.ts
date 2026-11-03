@@ -67,6 +67,7 @@ import {
   GoogleAuthProvider,
 } from "firebase/auth";
 import { db, auth, googleProvider } from "../../lib/firebase";
+import { finishTwoStep, firebaseTwoStep, twoStepNeeded, type TwoStepNeeded } from "./adminTwoStep";
 import { functionFetch } from "../lib/functionsBase";
 import { currentAdminRole, ensureShopOwnerKnown, isBookkeeperPass, refreshAdminRole } from "./adminAccess";
 import { startSupportVisit, supportOf } from "./supportSession";
@@ -111,6 +112,19 @@ function assertDiscountShape(result: { ok: true } | { ok: false; error: { path: 
 // for the owner and staff only (functions/index.js refreshMyRole).
 const refreshMyRole = (token: string) => functionFetch("refreshMyRole", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
 
+/** After a sign-in (with or without its code): only the owner and the Team list may open the admin. */
+async function afterAdminSignIn(user: import("firebase/auth").User, googleCredential: import("firebase/auth").AuthCredential | null) {
+  // Only the owner and the people on the owner's Team list (adminAccess.ts) may open the admin.
+  const role = await refreshAdminRole(user, refreshMyRole);
+  if (!role) {
+    await signOut(auth);
+    throw new Error("Unauthorized: this account is not on the shop's Team list");
+  }
+  // Only for a shop whose profile turns it on: also sign into a separate stockroom project (legacySignIn.ts).
+  await signIntoLegacyStockroom(googleCredential);
+  return { token: await user.getIdToken(), user };
+}
+
 export const adminApi = {
   /** The signed-in person's admin role; a restored session learns the owner's address first (one server call). */
   myRole: () => currentAdminRole(auth.currentUser, refreshMyRole),
@@ -125,26 +139,24 @@ export const adminApi = {
   learnShopOwner: () => ensureShopOwnerKnown(auth.currentUser, refreshMyRole),
 
   // Authentication
+  // Google first; a person who set up authenticator codes is then asked for one (TwoStepNeeded, finished by
+  // finishTwoStepLogin with the code; adminTwoStep.ts, plan 22.6).
   login: async () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      
-      // Only the owner and the people on the owner's Team list (adminAccess.ts) may open the admin.
-      const role = await refreshAdminRole(user, refreshMyRole);
-      if (!role) {
-        await signOut(auth);
-        throw new Error("Unauthorized: this account is not on the shop's Team list");
-      }
-
-      // Only for a shop whose profile turns it on: also sign into a separate stockroom project (legacySignIn.ts).
-      await signIntoLegacyStockroom(GoogleAuthProvider.credentialFromResult(result));
-
-      return { token: await user.getIdToken(), user };
+      return await afterAdminSignIn(result.user, GoogleAuthProvider.credentialFromResult(result));
     } catch (err: any) {
+      const pending = twoStepNeeded(firebaseTwoStep(auth), err);
+      if (pending) throw pending;
       console.error("Login Error:", err);
       throw err;
     }
+  },
+
+  /** The code from the authenticator app finishes a sign-in that asked for it. */
+  finishTwoStepLogin: async (pending: TwoStepNeeded, code: string) => {
+    const result = await finishTwoStep(firebaseTwoStep(auth), pending, code);
+    return afterAdminSignIn(result.user, pending.googleCredential);
   },
 
   logout: () => signOut(auth),

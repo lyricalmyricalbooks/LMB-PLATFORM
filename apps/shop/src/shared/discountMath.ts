@@ -39,9 +39,18 @@ export function moneyFmt(n: unknown): string {
 export const discountableItems = <T extends { giftCard?: boolean; promoGift?: boolean }>(items: T[] | null | undefined): T[] =>
   (items || []).filter((item) => item && item.giftCard !== true && item.promoGift !== true);
 
+/**
+ * The money of the lines kept by `keep`, added smallest first. Adding in a fixed order makes the total the same however
+ * the bag is ordered: decimal prices added in a different order can differ in the last digit, which can tip a
+ * half-cent discount the other way (the property test "the order of the bag doesn't change the discount").
+ */
+function linesTotal(items: DiscountLine[], keep: (item: DiscountLine) => boolean = () => true): number {
+  return items.filter(keep).map((i) => i.price * i.quantity).sort((a, b) => a - b).reduce((s, n) => s + n, 0);
+}
+
 /** Never more than the books cost and never negative; then the optional cap. */
 export function computeDiscountAmount(discount: any, items: DiscountLine[], booksById: Record<string, any>): number {
-  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const subtotal = linesTotal(items);
   const raw = Number(computeRawDiscountAmount(discount, items, booksById)) || 0;
   return capDiscountAmount(discount, Math.max(0, Math.min(raw, subtotal)));
 }
@@ -59,7 +68,7 @@ const inCategories = (discount: any, booksById: Record<string, any>, item: Disco
 };
 
 export function computeRawDiscountAmount(discount: any, items: DiscountLine[], booksById: Record<string, any>, ctx: { giftPrice?: number } = {}): number {
-  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const subtotal = linesTotal(items);
   if (discount.minOrderAmount && subtotal < Number(discount.minOrderAmount)) {
     throw new DiscountProblem("min_order", `This code requires a minimum order of ${moneyFmt(discount.minOrderAmount)}.`, { amount: Number(discount.minOrderAmount) });
   }
@@ -103,11 +112,11 @@ export function computeRawDiscountAmount(discount: any, items: DiscountLine[], b
     if (!Array.isArray(tiers) || tiers.length === 0) return 0;
     let qualSubtotal = subtotal;
     if (discount.appliesTo === "categories") {
-      qualSubtotal = items.reduce((s, i) => (inCategories(discount, booksById, i) ? s + i.price * i.quantity : s), 0);
+      qualSubtotal = linesTotal(items, (i) => inCategories(discount, booksById, i));
       if (qualSubtotal === 0) throw new DiscountProblem("tiered_categories", "This tiered code only applies to specific categories not in your cart.");
     } else if (discount.appliesTo === "products") {
       const selected = discount.selectedProducts || [];
-      qualSubtotal = items.reduce((s, i) => (selected.includes(i.id) ? s + i.price * i.quantity : s), 0);
+      qualSubtotal = linesTotal(items, (i) => selected.includes(i.id));
       if (qualSubtotal === 0) throw new DiscountProblem("tiered_products", "This tiered code only applies to specific products not in your cart.");
     }
     const sortedTiers = [...tiers].sort((a: any, b: any) => Number(b.minSpend) - Number(a.minSpend));
@@ -125,11 +134,11 @@ export function computeRawDiscountAmount(discount: any, items: DiscountLine[], b
   // 3. Percentage & fixed (and the targeting checks every other type shares)
   let qualifying = subtotal;
   if (discount.appliesTo === "categories") {
-    qualifying = items.reduce((s, i) => (inCategories(discount, booksById, i) ? s + i.price * i.quantity : s), 0);
+    qualifying = linesTotal(items, (i) => inCategories(discount, booksById, i));
     if (qualifying === 0) throw new DiscountProblem("categories", "This code only applies to specific categories not in your cart.");
   } else if (discount.appliesTo === "products") {
     const selected = discount.selectedProducts || [];
-    qualifying = items.reduce((s, i) => (selected.includes(i.id) ? s + i.price * i.quantity : s), 0);
+    qualifying = linesTotal(items, (i) => selected.includes(i.id));
     if (qualifying === 0) throw new DiscountProblem("products", "This code only applies to specific products not in your cart.");
   }
 

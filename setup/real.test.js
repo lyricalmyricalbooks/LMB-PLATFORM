@@ -12,7 +12,7 @@ import { FIRESTORE } from "../clients/firestore.js";
 const R = `${FIRESTORE}/projects/lmb-platform-prod/databases/(default)/documents`;
 const str = (s) => ({ stringValue: s });
 
-test("the real clients have every part the eighteen steps reach, in the fakes' shape", () => {
+test("the real clients have every part the nineteen steps reach, in the fakes' shape", () => {
   const real = realSetupClients({ fetch: scriptedFetch([]), token, run: async () => {}, buildDir: () => "/b", paymentService: { findAccount() {}, createAccount() {} }, emailService: { wasSent() {}, send() {} } });
   const fake = fakeServices();
   for (const part of ["deploy", "envFiles", "shopData", "siteCheck", "inventoryLink", "stockroom"]) {

@@ -17,7 +17,9 @@ export type ExportShape =
   | "handle-rows"     // one line per edition, grouped by a Handle column; photos on their own lines
   | "product-id-rows" // a product line, then one line per extra edition with a blank title
   | "parent-rows"     // product lines with Type simple/variable; editions are "variation" lines pointing at a Parent
-  | "listing-rows";   // one line per listing with numbered photo columns (IMAGE1…)
+  | "listing-rows"    // one line per listing with numbered photo columns (IMAGE1…)
+  | "field-type-rows" // a line marked Product, then its lines marked Variant under the same handleId (plan 23.1)
+  | "variation-name-rows"; // one line per variation, named by Item Name and Variation Name, stock per location (plan 23.1)
 
 export interface MovedEdition {
   name: string; price: number; salePrice: number; stock: number | null; sku: string; weight: string; photoUrl: string;
@@ -72,6 +74,8 @@ export function recognizeExport(headings: string[]): ExportShape | null {
   if (has("Product ID [Non Editable]", "Variant ID [Non Editable]", "Title", "Price")) return "product-id-rows";
   if (has("Type", "Parent", "Name", "Regular price")) return "parent-rows";
   if (has("TITLE", "PRICE", "QUANTITY", "IMAGE1")) return "listing-rows";
+  if (has("handleId", "fieldType", "name", "price")) return "field-type-rows";
+  if (has("Token", "Item Name", "Variation Name", "Price")) return "variation-name-rows";
   return null;
 }
 
@@ -336,6 +340,111 @@ function fromListingRows(table: string[][]): MovedBook[] {
   }).filter(b => b.cells.Title || b.cells.Price);
 }
 
+/** A product page address made from a name the way most shop builders make one ("Moth Songs!" → "moth-songs"). */
+const slugOf = (name: string) => name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+// A line marked Product, then one line per version marked Variant under the same handleId (plan 23.1, from the
+// per-row product template the research notes of 3 November 2026 list). The product line names up to six options
+// (productOptionName1…) and its price; a version's line gives its choices (productOptionDescription1…), its stock and
+// a surcharge on top of the product's price. Photos are links separated by semicolons; the discount is a percent or an
+// amount off. Stock is a number, or InStock/OutOfStock when the old shop didn't count it.
+function fromFieldTypeRows(table: string[][], notices: string[]): MovedBook[] {
+  const c = columns(table[0]);
+  const optionNumbers = table[0].map(h => /^productoptionname(\d+)$/i.exec(h.replace(/\s+/g, ""))?.[1]).filter(Boolean).map(Number).sort((a, b) => a - b);
+  const stockOf = (row: string[]) => { const v = c.get(row, "inventory"); return /^outofstock$/i.test(v) ? 0 : count(v); };
+  const products: { line: number; head: string[]; variants: string[][] }[] = [];
+  const byHandle = new Map<string, (typeof products)[number]>();
+  let strays = 0;
+  table.slice(1).forEach((row, i) => {
+    const handle = c.get(row, "handleId"), type = c.get(row, "fieldType").toLowerCase();
+    if (type === "product") { const p = { line: i + 2, head: row, variants: [] as string[][] }; products.push(p); if (handle) byHandle.set(handle, p); return; }
+    if (type !== "variant") return;
+    const p = byHandle.get(handle);
+    if (p) p.variants.push(row); else strays++;
+  });
+  if (strays) notices.push(`${strays} version line${strays === 1 ? "" : "s"} belonged to no product in the file, so ${strays === 1 ? "it was" : "they were"} left out.`);
+  return products.map(({ line, head, variants }) => {
+    const base = money(c.get(head, "price"));
+    const off = Number(c.get(head, "discountValue")), mode = c.get(head, "discountMode").toLowerCase();
+    const sale = (price: number) => {
+      if (Number.isNaN(price) || !(off > 0)) return 0;
+      const s = mode === "percent" ? price * (1 - off / 100) : mode === "amount" ? price - off : NaN;
+      return s > 0 && s < price ? Math.round(s * 100) / 100 : 0;
+    };
+    const names = optionNumbers.map(n => c.get(head, `productOptionName${n}`));
+    const edition = (row: string[], name: string, picks?: Record<string, string>): MovedEdition => {
+      const surcharge = money(c.get(row, "surcharge"));
+      const price = Number.isNaN(base) ? NaN : Math.round((base + (Number.isNaN(surcharge) ? 0 : surcharge)) * 100) / 100;
+      const kg = Number(c.get(row, "weight"));
+      return { name, price, salePrice: sale(price), stock: stockOf(row), sku: c.get(row, "sku"), weight: Number.isFinite(kg) && kg > 0 ? metricWeightValue(`${kg} kg`) : "", photoUrl: "", ...(picks ? { picks } : {}) };
+    };
+    const editions = variants.length
+      ? variants.map(v => {
+        const values = optionNumbers.map(n => c.get(v, `productOptionDescription${n}`));
+        return edition(v, values.filter(Boolean).join(" / "), picksOf(names.map((n, i) => [n, values[i]])));
+      })
+      : [edition(head, "")];
+    const title = c.get(head, "name");
+    const cells: Record<string, string> = { Title: title };
+    const description = htmlToDescription(c.get(head, "description"));
+    if (description) cells.Description = description;
+    const collections = list(c.get(head, "collection"), /;/);
+    if (collections.length) cells.Categories = collections.join(";");
+    const kg = Number(c.get(head, "weight"));
+    if (Number.isFinite(kg) && kg > 0) cells.Weight = metricWeightValue(`${kg} kg`);
+    const notes = /^false$/i.test(c.get(head, "visible")) ? ["This product was hidden in your old shop."] : [];
+    // The export has no page address, so the one the old shop makes from the name is kept.
+    const slug = slugOf(title);
+    return book(line, cells, editions, list(c.get(head, "productImageUrl"), /;/), slug ? [`/product-page/${slug}`] : [], notes);
+  });
+}
+
+// One line per variation (plan 23.1): lines with the same Item Name are one product, Variation Name names the version
+// ("Regular" when there is one), stock is in a "Current Quantity <place>" column per place (added up), and options,
+// when the old shop named them, are in Option Name n / Option Value n. A price of "variable" or blank leaves the
+// version out with a note; archived items are left out.
+function fromVariationNameRows(table: string[][], notices: string[]): MovedBook[] {
+  const c = columns(table[0]);
+  const stockAt = table[0].map((h, i) => (/^current quantity\b/.test(key(h)) ? i : -1)).filter(i => i >= 0);
+  const optionNumbers = table[0].map(h => /^option name (\d+)$/.exec(key(h))?.[1]).filter(Boolean).map(Number);
+  const products: { line: number; rows: string[][] }[] = [];
+  const byName = new Map<string, (typeof products)[number]>();
+  let archived = 0;
+  table.slice(1).forEach((row, i) => {
+    const name = c.get(row, "Item Name");
+    if (!name) return;
+    if (/^(y|yes|true)$/i.test(c.get(row, "Archived"))) { archived++; return; }
+    const k = name.toLowerCase();
+    if (!byName.has(k)) { const p = { line: i + 2, rows: [] as string[][] }; byName.set(k, p); products.push(p); }
+    byName.get(k)!.rows.push(row);
+  });
+  if (archived) notices.push(`${archived} archived line${archived === 1 ? " was" : "s were"} left out.`);
+  return products.map(({ line, rows }) => {
+    const head = rows[0];
+    const editions = rows.map((r): MovedEdition => {
+      const counts = stockAt.map(i => count(unguard(r[i] ?? ""))).filter((n): n is number => n !== null);
+      const variation = c.get(r, "Variation Name");
+      const picks = picksOf(optionNumbers.map(n => [c.get(r, `Option Name ${n}`), c.get(r, `Option Value ${n}`)]));
+      return {
+        name: rows.length === 1 && /^regular$/i.test(variation) ? "" : variation,
+        ...prices(c.get(r, "Price"), c.get(r, "Online Sale Price"), false),
+        stock: counts.length ? counts.reduce((t, n) => t + n, 0) : null, sku: c.get(r, "SKU"), weight: "", photoUrl: "", ...(picks ? { picks } : {}),
+      };
+    });
+    const cells: Record<string, string> = { Title: c.get(head, "Item Name") };
+    const description = htmlToDescription(c.get(head, "Description"));
+    if (description) cells.Description = description;
+    const categories = list(c.get(head, "Categories", "Category"));
+    if (categories.length) cells.Categories = categories.join(";");
+    const seoTitle = c.get(head, "SEO Title"), seoDescription = c.get(head, "SEO Description");
+    if (seoTitle) cells["SEO title"] = seoTitle;
+    if (seoDescription) cells["SEO description"] = seoDescription;
+    const gtin = rows.length === 1 ? c.get(head, "GTIN") : "";
+    if (gtin && validIsbn(gtin)) cells.ISBN = gtin;
+    return book(line, cells, editions, [], [], []);
+  });
+}
+
 /** Reads another shop's product export. Null when the file isn't one (the plain spreadsheet import takes it). */
 export function readProductExport(text: string): ProductMove | null {
   const table = parseCsv(text);
@@ -346,6 +455,8 @@ export function readProductExport(text: string): ProductMove | null {
   const books = shape === "handle-rows" ? fromHandleRows(table)
     : shape === "product-id-rows" ? fromProductIdRows(table)
     : shape === "parent-rows" ? fromParentRows(table, notices)
+    : shape === "field-type-rows" ? fromFieldTypeRows(table, notices)
+    : shape === "variation-name-rows" ? fromVariationNameRows(table, notices)
     : fromListingRows(table);
   const problems = books.length ? [] : ["This export has no products in it. Export your products again from your old shop, including every product, and choose that file."];
   if (books.length > MAX_IMPORT_ROWS) problems.push(`The export has ${books.length} products; bring over up to ${MAX_IMPORT_ROWS} at a time.`);
@@ -546,4 +657,6 @@ export const SHAPE_WORDS: Record<ExportShape, string> = {
   "product-id-rows": "an export from your old shop (a product line, then its options)",
   "parent-rows": "an export from your old shop (products with their variations)",
   "listing-rows": "a listings export from your old shop",
+  "field-type-rows": "an export from your old shop (a product line, then its versions)",
+  "variation-name-rows": "an item list from your old shop (one line per variation)",
 };
