@@ -61,6 +61,7 @@ import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { createSignInSafety, signInSafetyRoutes } from "../control-room/signInSafety.js";
+import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOver.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { fakeDeliveryStats, fakeShopNotes } from "../control-room/visibilityFakes.js";
 import { createJobs } from "../services/jobs/index.js";
@@ -210,6 +211,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   // Presses still in setup mode or opening (the Setting up page): read only.
   const setupDesk = createSetupDesk({ admins, presses: frontDoorStores.presses, registry, now: clock.date });
   const signInSafety = createSignInSafety({ admins, registry, memberships: accountStores.memberships, shopAccess, now: clock.date });
+  const broughtOver = createBroughtOver({ admins, registry, shopData, now: clock.date });
   // Messages to presses (19.14), what each shop costs (19.15; no billing export in the practice world, so the empty
   // state) and a press's data on request (19.16).
   const pressMessages = createPressMessages({ store: fakePressMessages(), registry, auditLog, shopData, email, activity, admins, now: clock.date });
@@ -242,6 +244,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...notesRoutes(notes),
     ...setupRoutes(setupDesk),
     ...signInSafetyRoutes(signInSafety),
+    ...broughtOverRoutes(broughtOver),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),

@@ -565,6 +565,8 @@ function card(shop) {
     recordSlot,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Sign-in safety" }) : null,
     shop.status === "live" ? signInSafetySection(shop) : null,
+    shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Brought over from the old shop" }) : null,
+    shop.status === "live" ? broughtOverSection(shop) : null,
     ...privateSections(shop),
   ].filter(Boolean);
 }
@@ -2012,6 +2014,38 @@ function signInSafetySection(shop) {
           { header: "Two-step", render: (p) => pill(...SAFETY[p.state]) },
           { header: "Backup codes", render: (p) => (p.codesLeft == null ? el("span", { className: "rp-hint", textContent: "—" })
             : el("div", {}, el("span", { className: "rp-mono", textContent: `${p.codesLeft} of 10 left` }), p.codesMadeAt ? meta(`made ${dateOnly(p.codesMadeAt)}`) : null)) },
+        ],
+      }));
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
+
+// ── What a press brought over from its old shop (control-room/broughtOver.js), in a live shop's record. ──
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const lastOn = (kind) => (kind.lastAt ? `last ${dateOnly(kind.lastAt)}` : null);
+
+function broughtOverSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's records…" }));
+  api("POST", "/control/brought-over", { shopId: shop.shopId }).then(({ brought, nothing, words }) => {
+    if (!brought) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
+    if (nothing) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: "Nothing brought over yet: no past orders, customers, gift cards or old shop links." }));
+    const cad = (n) => money(Math.round(n * 100), "CAD");
+    const rows = [
+      brought.orders && { what: "Past orders", amount: plural(brought.orders.count, "order"), more: [`${cad(brought.orders.amount)} in sales, history only`, plural(brought.orders.runs, "file"), lastOn(brought.orders)] },
+      brought.customers && { what: "Customers", amount: plural(brought.customers.count, "customer"), more: [brought.customers.newsletter ? `${brought.customers.newsletter} joined the newsletter` : null, lastOn(brought.customers)] },
+      brought.giftCards && { what: "Gift cards", amount: plural(brought.giftCards.count, "card"), more: [`${cad(brought.giftCards.amount)} in balances`, lastOn(brought.giftCards)] },
+      brought.links && { what: "Old shop links", amount: plural(brought.links.count, "link"), more: ["now lead to the imported products", lastOn(brought.links)] },
+      brought.photos && { what: "Photos", amount: `${brought.photos.copied} copied`, more: [brought.photos.waiting ? `${brought.photos.waiting} still on the old shop` : "all copied", brought.photos.unreadable ? `${brought.photos.unreadable} couldn't be read` : null], warn: brought.photos.waiting > 0 || brought.photos.unreadable > 0 },
+    ].filter(Boolean);
+    slot.replaceChildren(
+      brought.photos?.waiting ? el("p", { className: "rp-hint", textContent: "Some photos still live on the old shop. They are copied every hour; if the press closes the old shop first, those pictures are lost." }) : null,
+      table({
+        caption: "Brought over from the old shop",
+        rows,
+        columns: [
+          { header: "What", lead: true, render: (r) => el("div", {}, el("p", { className: "cr-title", textContent: r.what }), r.warn ? pill("warning", "needs a look") : null) },
+          { header: "How many", render: (r) => el("span", { className: "rp-mono", textContent: r.amount }) },
+          { header: "Details", render: (r) => meta(...r.more) },
         ],
       }));
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));

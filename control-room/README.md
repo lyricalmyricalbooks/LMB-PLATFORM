@@ -461,3 +461,11 @@ product file's name and rows) with its dates. Never the owner's sign-in id or th
 | Route | What |
 | --- | --- |
 | `GET /api/control/presses` | `{ counts, looks: { website, admin }, presses }` (admins only; 503 without the store) |
+
+## Sign-in safety and what was brought over (`signInSafety.js`, `broughtOver.js`)
+
+A live shop's drawer has two read-only sections. **Sign-in safety** lists the owner and every member with two-step on or
+off and backup codes left (only the count of hashes in `twoStepBackup/<uid>` is read). **Brought over from the old shop**
+adds up the shop's own audit-log lines from its import steps (past orders, customers, gift cards, old shop links) with
+one range query on `message`, and shows the photo copy's progress from `systemStatus/photoImport`. Photos still on
+the old shop are flagged, because they are lost if the press closes the old shop before the hourly copy finishes.

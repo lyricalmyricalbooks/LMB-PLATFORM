@@ -74,6 +74,18 @@ export async function seedRoom(world) {
   world.shopAccess.codes.set("kestrel kit@example.com", 2);
   world.shopAccess.codes.set("lantern-zines lou@example.com", 0);
 
+  // Brought over: Kestrel moved its past orders, customers and gift cards in, as the shop's import steps record them,
+  // and a few photos are still waiting to be copied off the old shop.
+  const at = world.clock.date().toISOString();
+  const lines = [
+    { type: "orders", message: "Brought 212 past orders over from the old shop (CA$6480.25 in sales, history only)", orders: 212 },
+    { type: "customers", message: "Brought 340 customers over from the old shop; 190 joined the newsletter" },
+    { type: "giftCards", message: "Brought 6 gift cards over from the old shop (CA$145.00 in balances)", cards: 6, balanceMinor: 14500 },
+    { type: "catalog", message: "Old shop links: 48 now lead to the imported books" },
+  ];
+  for (const [i, line] of lines.entries()) await world.shopData.set("kestrel", `audit-log/brought-${i}`, { ...line, createdAt: at });
+  await world.shopData.set("kestrel", "systemStatus/photoImport", { copiedTotal: 57, pending: 3, failed: {}, lastRunAt: at });
+
   // Two presses still in setup mode, through the front door's own calls, for the Setting up page.
   for (const [owner, answers] of SETUP_PRESSES) {
     const made = await world.ask(owner, "POST", "/api/press", {});

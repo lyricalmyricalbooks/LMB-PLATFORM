@@ -1,6 +1,15 @@
 // In-memory stand-ins for the accounts stores and a shop's own database, for tests. The real stores are Firestore
 // collections in the platform project (`memberships/<shopId>_<email>`, `invites/<id>`); a shop's database is its own
 // project's Firestore.
+import { matchesWhere } from "../clients/fake-firestore.js";
+
+/** The documents directly in one collection of an in-memory "project path" map that pass `where`: [{ id, data }]. */
+export function childrenOf(docs, projectId, collection, where = []) {
+  const prefix = `${projectId} ${collection}/`;
+  return [...docs.entries()]
+    .filter(([key, data]) => key.startsWith(prefix) && !key.slice(prefix.length).includes("/") && matchesWhere(data, where))
+    .map(([key, data]) => ({ id: key.slice(prefix.length), data: structuredClone(data) }));
+}
 
 export function fakeAccountStores() {
   const members = new Map();
@@ -33,9 +42,8 @@ export function fakeShopData() {
     set: async (projectId, path, data) => void docs.set(`${projectId} ${path}`, structuredClone(data)),
     remove: async (projectId, path) => void docs.delete(`${projectId} ${path}`),
     /** The documents directly in one collection: [{ id, data }]. */
-    list: async (projectId, collection) => [...docs.entries()]
-      .filter(([key]) => key.startsWith(`${projectId} ${collection}/`) && !key.slice(`${projectId} ${collection}/`.length).includes("/"))
-      .map(([key, data]) => ({ id: key.slice(`${projectId} ${collection}/`.length), data: structuredClone(data) })),
+    list: async (projectId, collection) => childrenOf(docs, projectId, collection),
+    find: async (projectId, collection, { where = [], limit } = {}) => childrenOf(docs, projectId, collection, where).slice(0, limit ?? Infinity),
   };
 }
 

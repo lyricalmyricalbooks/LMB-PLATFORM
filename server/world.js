@@ -72,6 +72,7 @@ import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { createSetupClock } from "../signup/setupClock.js";
 import { createSignInSafety, signInSafetyRoutes } from "../control-room/signInSafety.js";
+import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOver.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -225,6 +226,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // Presses still in setup mode or opening (the Setting up page): read only.
   const setupDesk = createSetupDesk({ admins, presses: firestoreFrontDoorStores(platform).presses, registry, now });
   const signInSafety = createSignInSafety({ admins, registry, memberships: accountStores.memberships, shopAccess, now });
+  const broughtOver = createBroughtOver({ admins, registry, shopData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
   const dataExports = createDataExports({
@@ -272,6 +274,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...notesRoutes(notes),
     ...setupRoutes(setupDesk),
     ...signInSafetyRoutes(signInSafety),
+    ...broughtOverRoutes(broughtOver),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),
