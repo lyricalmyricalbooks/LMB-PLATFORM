@@ -34,4 +34,17 @@ function sellerSection(website, link, fallbackName) {
           </div>`;
 }
 
-module.exports = { sellerSection, LINKED };
+/** Checkout's order-history words (src/app/features/site/digitalConsent.ts) for an EU/EEA/UK download consent. */
+const DIGITAL_CONSENT_NOTE = "Shopper asked for the digital items to be available straight away and agreed that this ends their 14-day right to cancel them.";
+
+/**
+ * The confirmation's record of that consent, or "" without one. EU and UK rules ask the seller to confirm it on a
+ * durable medium, and the email is that record.
+ */
+function digitalConsentSection(order) {
+  const agreed = Array.isArray(order?.activity) && order.activity.some((entry) => entry?.message === DIGITAL_CONSENT_NOTE);
+  return agreed ? `
+          <p style="margin-top:20px;font-size:12px;line-height:1.6;">You asked for your digital items to be available straight away and agreed that this ends your 14-day right to cancel them. Your right to cancel any printed or physical items is not affected.</p>` : "";
+}
+
+module.exports = { sellerSection, digitalConsentSection, DIGITAL_CONSENT_NOTE, LINKED };

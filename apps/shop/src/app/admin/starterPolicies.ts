@@ -70,6 +70,15 @@ function bookPolicy(key: PolicyKey, f: StarterFacts): string {
         "Prices are shown at checkout in the currency you pay in. We may cancel and refund an order if a title is unavailable or a pricing error occurred.",
         sentences(`Questions about an order? ${contact(f).replace(/^./, (c) => c.toUpperCase())}.`, f.address && `Our address is ${f.address}.`),
       ].join("\n\n");
+    case "accessibility":
+      // Optional page. Claims only what the shop software does; the owner adds what their own photos and words do.
+      return [
+        sentences(`${f.name || "We"} want${f.name ? "s" : ""} everyone to be able to browse and buy from this shop, including people who use a screen reader, a keyboard instead of a mouse, zoom or high-contrast settings.`,
+          "We aim to meet the Web Content Accessibility Guidelines (WCAG) 2.1 at level AA."),
+        "The shop's pages work with a keyboard, describe their buttons and links to screen readers, keep text readable when you zoom in, and respect a reduced-motion setting. Checkout is run by Stripe, which publishes its own accessibility commitment.",
+        "Some photos and older descriptions may not yet have full text alternatives. We add them as we go.",
+        `If anything here is hard to use, or you need information in another format, ${contact(f)} and we will help you place your order another way.`,
+      ].join("\n\n");
   }
 }
 

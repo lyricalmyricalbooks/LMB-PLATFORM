@@ -88,6 +88,8 @@ import { describePlace, EMPTY_PLACES, goBack, normalizePlace, peekBack, placeCru
 import { StudioThemes } from "./StudioThemes";
 import { StudioSchedule } from "./StudioSchedule";
 import { POLICY_KEYS, policySlug } from "../../features/site/policyPages";
+import { shopLanguageOf } from "../../features/site/shopLanguage";
+import { withShopLanguage } from "./shopLanguageSwitch";
 import { auditDocument, summarise, type HealthFinding } from "./healthAudit";
 import { categoryOptions } from "./pickers";
 import { diffDesigns, restoreItem, summariseDiff, type DiffContext, type DiffItem } from "./designDiff";
@@ -725,6 +727,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const prev = designRef.current.copy?.[key];
     setStyle('copy.' + key, value);
     if (value === undefined && typeof prev === "string") say("ok", "Label reset to default.", { label: "Undo", run: () => setStyle('copy.' + key, prev) });
+  };
+  const setShopLanguage = (language: "en" | "fr") => {
+    if (shopLanguageOf(designRef.current) === language) return;
+    change((d) => withShopLanguage(d, language), { label: language === "fr" ? "Switch the shop to French" : "Switch the shop to English" });
+    say("ok", language === "fr" ? "French words added to the draft. Publish to make them live." : "French words taken out of the draft. Words you rewrote are kept.", undoAction());
   };
   const applyNoirLook = () => {
     change((d) => applyThemeKeysToSurfaces(d, { ...RISO_NOIR_TOKENS, themeLibraryPreset: RISO_NOIR_ID }, surfaceIds), { label: "Apply Riso Noir look" });
@@ -2484,6 +2491,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   <input value={copyFilter} onChange={(e) => setCopyFilter(e.target.value)} placeholder="Search any label or message…"
                     aria-label="Search text" className="w-full h-9 border border-neutral-300 rounded-lg px-3 text-xs" />
                 </div>
+                {!q && !textCategory && (
+                  <div className="p-3 border-b" data-studio-panel="copy:Shop language">
+                    <label htmlFor="studio-shop-language" className="block text-xs font-semibold">Shop language</label>
+                    <select id="studio-shop-language" value={shopLanguageOf(design)} onChange={(e) => setShopLanguage(e.target.value === "fr" ? "fr" : "en")}
+                      className="mt-1 w-full h-9 border border-neutral-300 rounded-lg px-2 text-xs">
+                      <option value="en">English</option>
+                      <option value="fr">Français (Québec)</option>
+                    </select>
+                    <p className="mt-1 text-[11px] text-neutral-500">French fills every word you haven't changed. Selling to Quebec? Its language law asks for French pages.</p>
+                  </div>
+                )}
                 {!q && !textCategory && <SettingsHome headings={textHome} onOpen={(id) => setTextCategory(id)}
                   changedTotal={textChangedTotal} changedNoun="label" onOpenChanged={() => setTextCategory(CHANGED_CATEGORY)} />}
                 {!q && textCategory && <CategoryHeader title={textCategory === CHANGED_CATEGORY ? "Text I've changed" : textCategory}

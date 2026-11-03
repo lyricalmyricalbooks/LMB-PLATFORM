@@ -13,7 +13,8 @@ import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
 import { sameOrderLines } from "./features/site/orderLines";
 import { amountIn, orderMoney, orderChargedTotal, totalNeedsConfirming } from "./features/site/orderMoney";
 import { cardAttemptKey, intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./features/site/cardAttempt";
-import { POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
+import { SALE_POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
+import { DIGITAL_CONSENT_NOTE, needsDigitalConsent } from "./features/site/digitalConsent";
 import { ChevronLeft, Tag, X, AlertCircle, CreditCard, Package, CheckCircle2, Loader2, Lock, Building } from "lucide-react";
 import { m } from "motion/react";
 import { adminApi } from "./admin/api";
@@ -118,6 +119,8 @@ export function Checkout() {
   const setOrderNote = (value: string) => setOrderNoteState(rememberBagNote(value));
   // Style › Checkout › policy tick box (off by default): Pay and the express wallet wait for it.
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [digitalConsent, setDigitalConsent] = useState(false);
+  const [digitalConsentError, setDigitalConsentError] = useState(false);
   const [termsError, setTermsError] = useState(false);
   // Per-field problems found when the shopper pressed Pay (cleared as each is fixed).
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<DetailField, string>>>({});
@@ -185,7 +188,7 @@ export function Checkout() {
   const [settings, setSettings] = useState<any>(() => cachedSite?.settings || null);
   // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
   const checkoutDesign = resolveSurfaceDesign(settings?.design ?? DEFAULT_SETTINGS.design, "/checkout");
-  const checkoutPolicies = POLICY_KEYS.filter(k => Boolean(String((settings as any)?.policies?.[k] || "").trim()));
+  const checkoutPolicies = SALE_POLICY_KEYS.filter(k => Boolean(String((settings as any)?.policies?.[k] || "").trim()));
   // Only with a policy to agree to; a ticked box needs no reminder.
   const termsRequired = Boolean(checkoutDesign.requireCheckoutTerms) && checkoutPolicies.length > 0;
   useEffect(() => { if (termsAccepted) setTermsError(false); }, [termsAccepted]);
@@ -833,6 +836,10 @@ export function Checkout() {
   const preorderShip = useMemo(() => bagPreorder(cart.filter(i => !catalogItems || catalogItems.some(ci => ci.id === i.id && (ci.variantId || "") === (i.variantId || "") && ci.physical))), [cart, catalogItems]);
   // Known to be e-books only (not just "catalog still loading").
   const digitalOnly = Boolean(catalogItems && catalogItems.length && !physicalItems.length);
+  // EU/EEA/UK shoppers keep a 14-day right to cancel a download until they ask for it now (features/site/digitalConsent.ts).
+  const hasDownload = Boolean(catalogItems?.some(item => !item.physical && !isGiftCardProduct(booksMap.get(item.id))));
+  const digitalConsentNeeded = needsDigitalConsent(hasDownload, [customer.address.country, customer.billingAddress.country]);
+  useEffect(() => { if (digitalConsent) setDigitalConsentError(false); }, [digitalConsent]);
   const availableFulfillmentMethods = useMemo<FulfillmentSelection["method"][]>(() => {
     if (!physicalItems.length) return [];
     const methods: FulfillmentSelection["method"][] = ["shipping"];
@@ -1203,6 +1210,12 @@ export function Checkout() {
       setTimeout(() => document.getElementById("checkout-terms")?.focus(), 0);
       return;
     }
+    if (digitalConsentNeeded && !digitalConsent) {
+      setDigitalConsentError(true);
+      setNotice({ tone: "error", text: c("coErrDigitalConsent") });
+      setTimeout(() => document.getElementById("checkout-digital-consent")?.focus(), 0);
+      return;
+    }
     if (!validBilling) {
       setNotice({ tone: "error", text: c("coErrPickupBillingFields") });
       return;
@@ -1264,6 +1277,8 @@ export function Checkout() {
       const acquisition = orderAcquisition();
 
       const checkoutCartId = sessionStorage.getItem("fm_checkout_cart_id");
+      // Kept on the order's history and repeated in the confirmation email (functions/sellerDetails.js).
+      const consentNotes = digitalConsentNeeded && digitalConsent ? [DIGITAL_CONSENT_NOTE] : [];
       const orderData = {
         // Lowercased so Account › My orders (matched on the sign-in email) finds it.
         customer: { ...customer, email: String(customer.email || "").trim().toLowerCase() },
@@ -1329,7 +1344,7 @@ export function Checkout() {
       // The server said gift cards (or an offer only it could see) cover everything: complete without a card.
       if (finalTotal === 0 || serverSaysFree.current) {
         serverSaysFree.current = false;
-        const freeOrderId = await adminApi.createOrder({ ...orderData, paymentMethod: "Free" });
+        const freeOrderId = await adminApi.createOrder({ ...orderData, paymentMethod: "Free" }, consentNotes);
         const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1366,6 +1381,7 @@ export function Checkout() {
               ...(acquisition ? { acquisition } : {}),
               ...(appliedDiscount?.code ? { appliedDiscount: { code: appliedDiscount.code } } : {}),
               ...(orderNoteBoxOn(checkoutDesign) && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
+              ...(digitalConsentNeeded && digitalConsent ? { digitalConsent: true } : {}),
             },
           }),
         });
@@ -1374,7 +1390,7 @@ export function Checkout() {
         orderId = result.orderId;
         if (result.trackingKey) rememberOrderAccess(orderId, result.trackingKey);
       } else {
-        orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
+        orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData, consentNotes);
       }
       // The order this attempt replaces (named once, below), then this one for the next retry.
       const supersededOrderId = previousAttempt();
@@ -2058,6 +2074,7 @@ export function Checkout() {
               payTabs={payTabs} hasStripe={hasStripe} hasPaypal={hasPaypal} isCompleting={isCompleting} selectedPaymentMethod={selectedPaymentMethod} setSelectedPaymentMethod={setSelectedPaymentMethod}
               enabledManualMethods={enabledManualMethods} hasCodeBoxes={hasCodeBoxes} codeBoxes={codeBoxes} holdIssues={holdIssues} notice={notice} noticeRef={noticeRef} catalogState={catalogState}
               termsRequired={termsRequired} termsAccepted={termsAccepted} setTermsAccepted={setTermsAccepted} termsError={termsError} policyLinks={policyLinks}
+              digitalConsentNeeded={digitalConsentNeeded} digitalConsent={digitalConsent} setDigitalConsent={setDigitalConsent} digitalConsentError={digitalConsentError}
               payDisabled={payDisabled} payLabel={payLabel} payTotal={payTotal} checkoutPolicies={checkoutPolicies}
               stripeOption={hasStripe && (
               <StripePaymentSection
@@ -2090,7 +2107,7 @@ export function Checkout() {
                   onStateChange={setCardState}
                   expressText={c("coExpressCheckout")}
                   showExpress={!checkoutDesign.hideCheckoutExpressWallets}
-                  expressEnabled={expressWalletEnabled({ isCompleting, canPay: stripeRoute.canPay, needsDeliveryChoice, catalogReady: catalogState === "ready", total: finalTotal, problems: detailProblems, termsAccepted: !termsRequired || termsAccepted })}
+                  expressEnabled={expressWalletEnabled({ isCompleting, canPay: stripeRoute.canPay, needsDeliveryChoice, catalogReady: catalogState === "ready", total: finalTotal, problems: detailProblems, termsAccepted: (!termsRequired || termsAccepted) && (!digitalConsentNeeded || digitalConsent) })}
                   onExpressConfirm={async () => { await handleCompletePurchase(); return purchaseNavigating.current; }}
                   fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
                   fieldBackground={checkoutDesign.checkoutFieldBg || undefined}
