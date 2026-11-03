@@ -914,6 +914,15 @@ window._fbSaveSettings = async (key, data) => {
 // flags arrived (see initStartup in main.js); left out, the loaded flags decide.
 const useGlobalStore = (opts) => (opts && typeof opts.global === 'boolean' ? opts.global : window._useFirestoreGlobal());
 
+// What the shop sells, as the owner last set it in the shop's Settings. The shop's server writes it here (plan 12.14);
+// read straight from the named document whichever store the mode flags name. null when there is none or it can't be read.
+window._fbLoadSells = async () => {
+  try {
+    const s = await getDoc(doc(fs, 'settings', 'sells'));
+    return s.exists() ? safeParse(s.data().data) : null;
+  } catch (e) { return null; }
+};
+
 window._fbLoadSettings = async (key, opts) => {
   try {
     if (useGlobalStore(opts)) {

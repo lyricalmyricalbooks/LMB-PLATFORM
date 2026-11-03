@@ -196,7 +196,13 @@ async function readAppHeartbeat() {
   return snap.exists ? snap.data() : null;
 }
 
+/** What the shop sells, copied into the stockroom's settings so its words follow Settings › What you sell (plan 12.14). */
+async function writeSellsWords(sells, { now = Date.now(), db = inventoryDb() } = {}) {
+  await db.collection("settings").doc("sells").set({ data: JSON.stringify(String(sells)), ts: now });
+}
+
 module.exports = {
+  writeSellsWords,
   STOCKROOM_DATABASE, inventoryDb, serviceAccountEmail, connectionProblem, checkConnection, heartbeat, markPastOrders,
   writeWebsiteOrder, waitingShipments, replyShipment, readFeeds, readCatalog, pendingSummary, readAppHeartbeat,
   writeWebsiteSide, writeShopCatalog,

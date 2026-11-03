@@ -40,8 +40,33 @@ export function wordsFor(answer) {
   return sellsBooks(answer) ? same : goodsWords;
 }
 
+// What the owner chose later in the shop's Settings › What you sell (plan 12.14). The shop's server copies it into the
+// stockroom's settings (`settings/sells`); this device keeps the last one it saw so the page starts in the right words.
+export const SELLS_KEY = 'lm-sells';
+function storedSells() {
+  try { return globalThis.localStorage?.getItem(SELLS_KEY) || null; } catch { return null; }
+}
+/** What this shop sells: the owner's later answer when this device has seen one, else the profile's. */
+export function currentAnswer(profile = shopProfile, stored = storedSells()) {
+  return (SELLS.includes(stored) ? stored : null) || profile?.sells;
+}
+
 /** This shop's words. */
-export const words = wordsFor(shopProfile?.sells);
+export const words = wordsFor(currentAnswer());
+
+/**
+ * Called once signed in with the owner's answer from the stockroom's settings. When it names different words than the page
+ * started with, the device keeps it and the caller reloads once, so the page starts in the new words from the top (the
+ * page's text is rewritten in place and can't be turned back). Returns true when a reload is needed.
+ */
+export function noteSellsAnswer(answer, profile = shopProfile) {
+  if (!SELLS.includes(answer)) return false;
+  const was = currentAnswer(profile);
+  if (answer === was) return false;
+  try { globalThis.localStorage?.setItem(SELLS_KEY, answer); } catch { return false; }
+  // Books answers share one set of words and the rest another, so only a move between the two needs a fresh start.
+  return wordsFor(answer) !== wordsFor(was);
+}
 
 // Words that name something real whatever the shop sells: a tax expense category.
 const KEEP = new Set(['Books, Research & Reference']);

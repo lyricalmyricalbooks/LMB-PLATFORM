@@ -47,17 +47,17 @@ export function shipFromLine(location: any): string {
 }
 
 /** The starter's zones and prices, for the step to show before anything is made (the same numbers the Settings dialog suggests). */
-export function starterSummary(starter: ShippingStarter): { zone: string; first: string; extra: string }[] {
-  return starterPrices(starter).map(p => ({ zone: p.zone, first: p.first, extra: p.extra }));
+export function starterSummary(starter: ShippingStarter, sells?: string | null): { zone: string; first: string; extra: string }[] {
+  return starterPrices(starter, sells).map(p => ({ zone: p.zone, first: p.first, extra: p.extra }));
 }
 
 /**
  * The profile for the confirmed starter, shaped the way Settings saves a new one. `blank` returns null: nothing is made,
  * and the press sets its zones in Settings › Shipping.
  */
-export function starterProfile(starter: ShippingStarter, newId: () => string) {
+export function starterProfile(starter: ShippingStarter, newId: () => string, sells?: string | null) {
   if (starter === "blank") return null;
-  return buildNewProfile({ name: STARTER_PROFILE_NAME, starter, prices: starterPrices(starter) }, newId);
+  return buildNewProfile({ name: STARTER_PROFILE_NAME, starter, prices: starterPrices(starter, sells) }, newId);
 }
 
 /** Whether the step is still to show: a press that went through step 1 (its details), is not a stockroom-only plan, has its look and Google (step 4), and hasn't finished this step. Shops made before Get started never see it. */

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, PrimaryButton, SecondaryButton, SelectField, TextField } from "./riso/components";
 import { PROFILE_STARTERS, buildNewProfile, newProfileProblems, profileSummary, starterPrices, type ProfileStarterId, type QuickZonePrice } from "./shippingProfileStarters";
-import { useShopWords } from "./shopWords";
+import { useShopWords, useShopSells } from "./shopWords";
 
 const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
 
@@ -12,9 +12,10 @@ export function NewShippingProfileDialog({ open, onClose, profiles, onCreate }: 
   onCreate: (draft: ReturnType<typeof buildNewProfile>) => Promise<boolean>;
 }) {
   const w = useShopWords();
+  const sells = useShopSells();
   const [name, setName] = useState("");
   const [starter, setStarter] = useState<ProfileStarterId>("world");
-  const [prices, setPrices] = useState<QuickZonePrice[]>(() => starterPrices("world"));
+  const [prices, setPrices] = useState<QuickZonePrice[]>(() => starterPrices("world", sells));
   const [copyId, setCopyId] = useState("");
   const [freeOver, setFreeOver] = useState("");
   const [tried, setTried] = useState(false);
@@ -23,12 +24,12 @@ export function NewShippingProfileDialog({ open, onClose, profiles, onCreate }: 
   // Every opening starts fresh.
   useEffect(() => {
     if (!open) return;
-    setName(""); setStarter("world"); setPrices(starterPrices("world")); setCopyId(profiles[0]?.id || ""); setFreeOver(""); setTried(false);
+    setName(""); setStarter("world"); setPrices(starterPrices("world", sells)); setCopyId(profiles[0]?.id || ""); setFreeOver(""); setTried(false);
   }, [open]);
 
   const pick = (id: ProfileStarterId) => {
     setStarter(id);
-    setPrices(starterPrices(id));
+    setPrices(starterPrices(id, sells));
     if (id === "copy" && !copyId) setCopyId(profiles[0]?.id || "");
   };
   const setPrice = (key: string, field: "first" | "extra" | "days", value: string) =>

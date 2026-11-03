@@ -2753,6 +2753,19 @@ async function shopSellsAnswer() {
   }
 }
 
+/** When the owner changes what the shop sells, the stockroom's words follow (plan 12.14). A shop without a stockroom is fine. */
+exports.syncStockroomWords = onDocumentWritten("firstWeek/start", async event => {
+  const data = event.data?.after?.data?.();
+  const answer = data?.sells || data?.publishes;
+  if (typeof answer !== "string" || !answer) return;
+  if (answer === (event.data?.before?.data?.()?.sells || event.data?.before?.data?.()?.publishes)) return;
+  try {
+    await require("./inventoryLinkStore").writeSellsWords(answer);
+  } catch (err) {
+    console.warn("Couldn't copy what the shop sells to the stockroom:", err?.message || err);
+  }
+});
+
 async function loadNotificationSettings() {
   let dbSettings = {};
   try {
