@@ -22,6 +22,8 @@ import { getCopy, CopyError, copyErrorText } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
 import { OrderRequestBox, PrivacyRequestBox } from "./OrderRequests";
+import { PaymentLinkPay } from "./PaymentLinkPay";
+import { payLinkState } from "./payLinkState";
 import { waitingPreorderLines, shipDateOf, formatReleaseDate, linePreorderNote } from "./preorder";
 
 /** Order tracking, inside the one shop header and footer (Studio 2.0 · 2.1). */
@@ -181,8 +183,9 @@ function OrderTrackingContent() {
   const [recheckError, setRecheckError] = useState("");
   const orderKey = order ? (order.id || order.orderId) : "";
   const ended = ["refunded", "cancelled"].includes(String(order?.paymentStatus || "").toLowerCase()) || ["refunded", "cancelled"].includes(String(order?.status || "").toLowerCase());
+  // A payment link (the shop made this order to pay) is checked too, so Pay now hides while a payment is confirming.
   const canRecheck = Boolean(order && order.paymentStatus !== "paid" && order.paymentStatus !== "pending" && !ended
-    && /stripe/i.test(String(order.paymentMethod || "")));
+    && (/stripe/i.test(String(order.paymentMethod || "")) || payLinkState(order) === "pay"));
   const recheckPayment = async () => {
     if (!orderKey || rechecking) return;
     setRechecking(true);
@@ -344,7 +347,11 @@ function OrderTrackingContent() {
                 </div>
               </SlipHeader>
 
-              {stage !== "active" && (
+              {payLinkState(order) && (
+                <PaymentLinkPay order={order} design={settings?.design} accessKey={access.key} hidePay={rechecking || awaitingWebhook} />
+              )}
+
+              {stage !== "active" && !(payLinkState(order) && !awaitingWebhook) && (
                 <div {...regionProps("trackingStatusBanner")} role="status" className="fm-track-notice" data-tone={stage === "awaiting_payment" ? "warning" : "danger"}>
                   <p>
                     <strong aria-hidden="true">{stage === "awaiting_payment" ? "! " : "✕ "}</strong>

@@ -526,6 +526,12 @@ service cloud.firestore {
       allow read: if isAdminReader();
       allow write: if isAdmin();
     }
+    // Payment links (functions/paymentLinks.js, plan 21.1): the prices the owner agreed for an order they made. Only
+    // Functions write them (checkout prices from them); the owner's team reads them.
+    match /paymentLinks/{orderId} {
+      allow read: if isAdminReader();
+      allow write: if false;
+    }
     match /discounts/{docId} {
       // Public code validation happens via the validateDiscountCode function.
       allow read: if isAdminReader();

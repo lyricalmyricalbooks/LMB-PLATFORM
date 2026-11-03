@@ -715,6 +715,26 @@ when it finishes setup, pays and opens. Nothing here touches Julian's own shop, 
 | 19.15 | platform | **What each shop costs us.** The Google bill per shop project (billing export) next to what the shop pays, so a loss-making shop shows; feeds 15.17's spend guards | tests from a fake billing export | medium | done |
 | 19.16 | platform | **A press's data, on request.** One button that builds the press's whole export (books, orders, customers, stockroom ledger, settings) as files, emails a link that works 7 days, and logs it; used for leaving, privacy requests and the 90-day export window | tests: every collection present; link expiry; logged | larger | done |
 
+## Phase 21: orders the owner makes (planned 3 November 2026)
+
+Julian (3 November 2026): "build the next round" of a more capable shop, matching the best stores with less for the press
+to learn. The biggest gap left that no other plan covers is Shopify's **draft orders**: the owner builds an order for a
+customer (a phone or email order, a custom quote, a bulk price, a fair pre-order), sets the prices, and sends a link the
+customer pays. Today the shop can only sell what a shopper puts in the bag at the listed price.
+
+The simple version: an owner's order is an ordinary unpaid order, priced by the same server pricing every checkout uses,
+from a frozen price record only the owner can write. The customer pays from the order page the shop already has, through
+the same card page as checkout. No second checkout, no new payment code, and a paid order can't be paid twice for the
+same reasons any order can't. Nothing here touches `LyricalmyricalWebsite`, `lyrical-inventory` or their data.
+
+| # | Repo | Pull request | Proven by | Effort | Status |
+| --- | --- | --- | --- | --- | --- |
+| 21.1 | shop | **Payment links, server.** `functions/paymentLinks.js`: an admin-only action makes the order (lines, the owner's price per line, a shipping amount or none, the customer, a note, days to pay) and its price record `paymentLinks/{orderId}` (admin-only rules); `priceOrder` uses the record's prices and shipping (no discounts on top, tax as usual) only while the record is open, not expired, made for this exact order (its access key) and its lines are unchanged. Cancelling the order closes it | tests: agreed prices charged; changed lines, an expired, cancelled or copied record refused; a normal order priced exactly as before | medium | **Built (3 November 2026).** `functions/paymentLinks.js`, `priceOrder`'s `paymentLink` option, rules; tests in `functions/r2Payments.test.js` (payment links). |
+| 21.2 | shop | **"New order to pay" in Orders.** A dialog to pick products and editions, quantities and prices (the shop's price filled in), the customer and their address, shipping and days to pay; the order page then shows the link with Copy and Email it (the owner's own mail app, words filled in); the order's Cancel closes it | admin tests: the dialog's checks; phone width | medium | **Built (3 November 2026).** `admin/PaymentLinkDialog.tsx`, `admin/PaymentLinkCard.tsx`, `admin/paymentLinks.ts` (+ test). |
+| 21.3 | shop | **Pay from the order page.** The customer's order page shows the agreed lines, the total and **Pay now** (the shop's card page, Stripe or Square) while the link is open, and says when it has expired; words in Studio | tests: button only on an open link; phone width | quick | **Built (3 November 2026).** `features/site/PaymentLinkPay.tsx` on the order page; words in Text & labels › Order tracking (`trackPay…`). While a payment is confirming the button hides. |
+| 21.4 | shop | **From a bulk-price request to a link.** A bulk-price question in Messages gets **Make a payment link**, which opens 21.2 with that product and quantity filled in | admin test | quick | |
+| 21.5 | shop | **A reminder before it expires.** One email to the customer two days before the link closes, through the shop's email outbox, off in Settings › Notifications | email test with fakes; sent once | quick | |
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
