@@ -24,7 +24,7 @@ function world({ billing = null, readOldShop } = {}) {
   const signup = createSignup({
     ...signupStores, registry: fakeRegistry(), email: fakePlatformEmail(), auth: fakeAuth(), settings: platformSettings({}),
     billing: billing ?? { startTrial: async (args) => { trials.push(args); return { status: "trialing", trialEnd: "2026-11-17T09:00:00.000Z" }; } },
-    live: async () => ({ signupDailyCap: 10 }), suffix: ((k = 0) => () => (k++ ? `abcd${k}` : "abcde"))(),
+    live: async () => ({ signupOpen: true, signupDailyCap: 10 }), suffix: ((k = 0) => () => (k++ ? `abcd${k}` : "abcde"))(),
   });
   const sent = [];
   let clock = new Date("2026-11-03T09:00:00Z").getTime();

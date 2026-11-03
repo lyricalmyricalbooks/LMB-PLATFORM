@@ -150,6 +150,9 @@ test("invites: bad input is refused in plain words, a second invite replaces the
   const w = world();
   const bad = await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: "not-an-email", role: "staff" });
   assert.deepEqual([bad.status, bad.body.problems.email], [400, "Enter the email address to invite."]);
+  // A "/" would break the membership's record id later; it is refused here in plain words instead.
+  const slash = await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: "cal/x@example.com", role: "staff" });
+  assert.deepEqual([slash.status, slash.body.problems?.email], [400, "Enter the email address to invite."]);
   assert.equal((await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: CAL.email, role: "boss" })).status, 400);
   assert.equal((await w.ask(OWNER, "POST", "/api/accounts/invite", { shopId: SHOP, email: OWNER.email, role: "staff" })).status, 409, "the shop's own owner");
 

@@ -4,6 +4,8 @@
 export function fakeSignupStores() {
   const accounts = new Map();
   const signups = new Map();
+  const claims = new Map();
+  const days = new Map();
   const hits = new Map();
   return {
     accounts: { rows: accounts, get: async (id) => (accounts.has(id) ? structuredClone(accounts.get(id)) : null), set: async (id, row) => void accounts.set(id, structuredClone(row)), remove: async (id) => void accounts.delete(id) },
@@ -14,6 +16,30 @@ export function fakeSignupStores() {
       remove: async (id) => void signups.delete(id),
       listByAccount: async (accountId) => structuredClone([...signups.values()].filter((row) => row.accountId === accountId)),
       list: async () => structuredClone([...signups.values()]),
+      listByStatus: async (status) => structuredClone([...signups.values()].filter((row) => row.status === status)),
+      claims,
+      days,
+      // Read, decide and write with no wait between, like the real store's transaction.
+      claim: async (accountId, key, row, { max }) => {
+        const mine = Object.entries(claims.get(accountId) ?? {}).filter(([, shopId]) => signups.has(shopId));
+        const known = mine.find(([k]) => k === key);
+        if (known) return { row: structuredClone(signups.get(known[1])), made: false };
+        if (mine.length >= max) return { full: true };
+        if (signups.has(row.shopId)) return { taken: true };
+        claims.set(accountId, { ...Object.fromEntries(mine), [key]: row.shopId });
+        signups.set(row.shopId, structuredClone(row));
+        return { row: structuredClone(row), made: true };
+      },
+      takeDaySlot: async (day, { cap, seed }) => {
+        if (!days.has(day)) {
+          const start = await seed();
+          if (!days.has(day)) days.set(day, start);
+        }
+        if (days.get(day) >= cap) return false;
+        days.set(day, days.get(day) + 1);
+        return true;
+      },
+      giveBackDaySlot: async (day) => void days.set(day, Math.max(0, (days.get(day) ?? 0) - 1)),
     },
     throttle: {
       count: async (key, since) => (hits.get(key) ?? []).filter((at) => at >= since).length,

@@ -27,7 +27,7 @@ function make({ cap = 2, invited = [] } = {}) {
   const signup = createSignup({
     ...stores, registry: fakeRegistry(), email, auth: fakeAuth(), settings: platformSettings({}), now, invites, suffix: () => "abcde",
     billing: { startTrial: async (args) => (trials.push(args.shopId), { status: "trialing", trialEnd: null }) },
-    live: async () => ({ signupDailyCap: settings.cap }),
+    live: async () => ({ signupOpen: true, signupDailyCap: settings.cap }),
   });
   return { stores, email, invites, trials, signup, settings, now, tick: (minutes) => { clock += minutes * 60_000; } };
 }
@@ -48,6 +48,17 @@ test("the cap: the first presses of the day start, the next one waits in line wi
   // Signing up again while in line keeps the place and starts nothing.
   assert.equal((await signup.start(press(3), details(3))).status, "in-line");
   assert.equal(trials.length, 2);
+});
+
+test("presses signing up at the same moment can't go over the day's cap, and the line uses the same count", async () => {
+  const { signup, trials, stores } = make({ cap: 2 });
+  const answers = await Promise.all([1, 2, 3, 4, 5].map((n) => signup.start(press(n), details(n))));
+  assert.equal(answers.filter((a) => a.status === "queued").length, 2);
+  assert.equal(answers.filter((a) => a.status === "in-line").length, 3);
+  assert.equal(trials.length, 2);
+  // The sweep at the same moment finds no room either.
+  assert.deepEqual(await Promise.all([signup.admitFromLine(), signup.admitFromLine()]), [[], []]);
+  assert.equal([...stores.signups.days.values()][0], 2);
 });
 
 test("the queue lets presses in oldest first when the day turns, and emails each once", async () => {
@@ -83,7 +94,7 @@ test("a raised cap lets more in at once, and a trial that fails to start keeps i
   const signup = createSignup({
     ...w.stores, registry: fakeRegistry(), email: w.email, auth: fakeAuth(), settings: platformSettings({}), now: w.now, suffix: () => "zzzzz",
     billing: { startTrial: async ({ shopId }) => { if (failing && shopId === "press-number-1-abcde") throw new Error("down"); return { status: "trialing" }; } },
-    live: async () => ({ signupDailyCap: 5 }),
+    live: async () => ({ signupOpen: true, signupDailyCap: 5 }),
   });
   assert.deepEqual(await signup.admitFromLine(), ["press-number-2-abcde"]);
   assert.equal(w.stores.signups.rows.get("press-number-1-abcde").status, "in-line");

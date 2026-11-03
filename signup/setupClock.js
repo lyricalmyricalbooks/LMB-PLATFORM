@@ -27,8 +27,11 @@ export const SETUP_WARNINGS = Object.freeze([30, 7]);
 /** The least notice the last warning gives: a late warning moves the removal back. */
 export const LAST_NOTICE_DAYS = SETUP_WARNINGS.at(-1);
 
-/** The removal date counted from the press's last visit. */
-export const removalDate = (record) => Date.parse(record.lastSeenAt ?? record.createdAt ?? "") + SETUP_EXPIRY_DAYS * DAY;
+/** The removal date counted from the press's last visit (from when it was made, if that visit's date can't be read). */
+export const removalDate = (record) => {
+  const seen = Date.parse(record.lastSeenAt ?? "");
+  return (Number.isFinite(seen) ? seen : Date.parse(record.createdAt ?? "")) + SETUP_EXPIRY_DAYS * DAY;
+};
 
 /** The warnings sent for the visit the clock counts from now; an older visit's warnings no longer count. */
 function sentFor(record) {

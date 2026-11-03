@@ -22,7 +22,7 @@ function make({ now = () => new Date("2026-10-28T15:00:00Z") } = {}) {
   const signup = createSignup({
     ...stores, registry, email: fakePlatformEmail(), auth: fakeAuth(), settings: platformSettings({}), now, suffix: () => "k3f9q",
     billing: { startTrial: async () => ({ status: "trialing", trialEnd: null }) },
-    live: async () => ({ signupDailyCap: 10 }),
+    live: async () => ({ signupOpen: true, signupDailyCap: 10 }),
   });
   const api = createApi({ signup, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), live: async () => ({ signupOpen: true }) });
   const ask = (method, path, body, claims = ADA) => api({ method, path, body, headers: claims ? { Authorization: `Bearer ${JSON.stringify(claims)}` } : {} });

@@ -24,6 +24,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { paymentProblems } from "./payments.js";
+import { NOT_IN_AN_ADDRESS } from "../signup/form.js";
 import { siteUrlOf } from "../services/domains/names.js";
 // The one name for the stockroom's database, shared with the real clients (clients/shop.js) and the release check.
 import { STOCKROOM_DATABASE } from "../clients/shop.js";
@@ -82,6 +83,9 @@ export function shopProblems(shop) {
   if (!shop || typeof shop !== "object") return ["the shop details are missing"];
   if (typeof shop.shopId !== "string" || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(shop.shopId)) {
     problems.push("the shop id must be 6 to 30 lowercase letters, digits or hyphens, start with a letter and not end with a hyphen");
+  } else if (NOT_IN_AN_ADDRESS.some((word) => shop.shopId.includes(word))) {
+    // Google refuses a project id holding these words (signup/form.js checkAddress has the same list).
+    problems.push(`the shop id can't contain ${NOT_IN_AN_ADDRESS.map((w) => `"${w}"`).join(", ")}: Google refuses them in a project id`);
   }
   if (typeof shop.pressName !== "string" || !shop.pressName.trim()) problems.push("the press name is missing");
   if (typeof shop.ownerEmail !== "string" || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(shop.ownerEmail)) problems.push("the owner email is not an email address");

@@ -70,8 +70,11 @@ export function advanceStatus(current, to) {
   return { ok: true, status: to };
 }
 
-// Setup records not seen for 60 days are removed with any staged file (18.11).
+// Setup records not seen for 60 days are removed with any staged file (18.11). A record whose last visit can't be read
+// counts as not seen, so a bad or missing date can never keep a record forever.
 export const SETUP_EXPIRY_DAYS = 60;
 export function setupExpired(record, now) {
-  return record.status === "setup" && now - Date.parse(record.lastSeenAt) > SETUP_EXPIRY_DAYS * 86_400_000;
+  if (record.status !== "setup") return false;
+  const seen = Date.parse(record.lastSeenAt);
+  return !Number.isFinite(seen) || now - seen > SETUP_EXPIRY_DAYS * 86_400_000;
 }

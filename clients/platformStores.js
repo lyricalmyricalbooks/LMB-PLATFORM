@@ -2,7 +2,8 @@
 // uses (server/world.js), each with exactly its fake's calls and answers. clients/stores.js has the older ones.
 //
 //   store                       collection (platform project)            its fake
-//   firestoreSignupStores       accounts/<uid>, signups/<shopId>         signup/fakes.js fakeSignupStores
+//   firestoreSignupStores       accounts/<uid>, signups/<shopId>,        signup/fakes.js fakeSignupStores
+//                               signupClaims/<uid>, signupDays/<day>
 //   firestoreThrottle           throttle/<hash of the key>               signup/fakes.js fakeThrottle
 //   firestoreBillingStores      billingCustomers/<accountId>,            services/billing/fakes.js fakeBillingStores
 //                               billingSubscriptions/<shopId>,
@@ -51,6 +52,46 @@ export function firestoreSignupStores(firestore) {
       remove: async (id) => void (await firestore.remove(`signups/${safe(id)}`)),
       listByAccount: async (accountId) => rowsOf(await firestore.query("signups", { where: [["accountId", "==", accountId]], limit: 500 })),
       list: async () => rowsOf(await firestore.query("signups", { limit: 5000 })),
+      /** The rows in one status (the daily line), so the line never depends on the whole list fitting in one read. */
+      listByStatus: async (status) => rowsOf(await firestore.query("signups", { where: [["status", "==", status]], limit: 5000 })),
+      /**
+       * The account's claim on a press and the new sign-up row, in one transaction (signup/signup.js start): the press
+       * already claimed gives back its row; otherwise the row is written when the account has fewer than `max` live
+       * claims and nobody holds its shop id. The claims record keeps a hash of each press key, never the name.
+       */
+      claim: (accountId, key, row, { max }) => firestore.transaction(async (tx) => {
+        const claimsPath = `signupClaims/${safe(accountId)}`;
+        const keyHash = createHash("sha256").update(String(key)).digest("hex").slice(0, 32);
+        const held = (await tx.get(claimsPath))?.presses ?? {};
+        const live = {};
+        for (const [k, shopId] of Object.entries(held)) {
+          const existing = await tx.get(`signups/${safe(shopId)}`);
+          if (!existing) continue; // A removed sign-up (a deleted account) no longer holds a place.
+          if (k === keyHash) return { row: existing, made: false };
+          live[k] = shopId;
+        }
+        if (Object.keys(live).length >= max) return { full: true };
+        if (await tx.get(`signups/${safe(row.shopId)}`)) return { taken: true };
+        tx.set(claimsPath, { accountId, presses: { ...live, [keyHash]: row.shopId } });
+        tx.set(`signups/${safe(row.shopId)}`, row);
+        return { row, made: true };
+      }),
+      /** One more shop started on a Toronto day, under `cap`, in one transaction; `seed()` counts a day not yet kept. */
+      async takeDaySlot(day, { cap, seed }) {
+        const path = `signupDays/${safe(day)}`;
+        const start = (await firestore.get(path)) ? null : await seed();
+        return firestore.transaction(async (tx) => {
+          const count = (await tx.get(path))?.count ?? start ?? 0;
+          if (count >= cap) return false;
+          tx.set(path, { day, count: count + 1 });
+          return true;
+        });
+      },
+      giveBackDaySlot: (day) => firestore.transaction(async (tx) => {
+        const path = `signupDays/${safe(day)}`;
+        const found = await tx.get(path);
+        if (found) tx.set(path, { day, count: Math.max(0, (found.count ?? 0) - 1) });
+      }),
     },
     throttle: firestoreThrottle(firestore),
   };

@@ -30,7 +30,8 @@ export { ROLES, ROLE_WORDS };
 export const INVITE_DAYS = 7;
 export const MAX_PENDING_INVITES = 20;
 
-const EMAIL = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
+// No "/" either: the address is part of a membership's record id (teamSync.js has the same rule).
+const EMAIL = /^[^\s@<>"',;/]+@[^\s@<>"',;/]+\.[^\s@<>"',;/]+$/;
 const hash = (token) => createHash("sha256").update(String(token)).digest("hex");
 const normal = (email) => String(email ?? "").trim().toLowerCase();
 

@@ -6,7 +6,13 @@
 //
 // Clients passed in (fakes.js has in-memory ones):
 //   accounts   get(accountId) -> { accountId, email, name, createdAt, shops: { [shopId]: role } } | null; set(accountId, row)
-//   signups    get(shopId) -> row | null; set(shopId, row); listByAccount(accountId) -> rows
+//   signups    get(shopId) -> row | null; set(shopId, row); listByAccount(accountId) -> rows; list() -> rows;
+//              listByStatus(status) -> rows;
+//              claim(accountId, key, row, { max }) -> { row, made } | { full } | { taken }: in one step, the account's
+//                press `key` gives back the row already made for it, or `row` is written when the account has fewer
+//                than `max` and its shop id is free (a double click can't make two shops, nor two accounts one);
+//              takeDaySlot(day, { cap, seed }) -> boolean: counts one more shop started that Toronto day when under
+//                `cap`, in one step (`seed()` is the count for a day not counted yet); giveBackDaySlot(day)
 //   registry   getShop(shopId) -> row | null (a shop id the registry has is taken)
 //   billing    startTrial({ account, shopId, pressName, plan, language }) (services/billing)
 //   email      sendPlatform({ kind, to, data, idempotencyKey }) (services/email)
@@ -19,7 +25,11 @@
 // Daily cap (plan 6.13): at most `signupDailyCap` new shops start each Toronto day. A press over the cap is put "in-line"
 // (its trial doesn't start, so no days are lost) and `admitFromLine()` (run by the shop maker's sweep) lets the oldest
 // in first as room opens, starts its trial and emails it (`shop-starting`). An invited email skips the cap and the line,
-// and doesn't count towards it.
+// and doesn't count towards it. The day's count is one record changed in one step (`takeDaySlot`), so presses
+// signing up at the same moment can't all slip under the cap.
+//
+// Closed sign-up (`signupOpen` off, the default, plan 6.1): only an invited email may start a new shop; a press that
+// already has a sign-up row carries on from it.
 //
 // Screen 2 (plan 6.2): the press may choose its web address (`checkAddress` rules, free in the registry and among
 // sign-ups), answers "What do you sell?" (skippable) and ticks the terms box. The terms' version and the date are
@@ -33,6 +43,8 @@ import { liveSettings } from "./live.js";
 /** A press outside the countries open now (settings.openCountries, plan 15.23): its place is kept, no shop is made. */
 export const LATER_WORDS = "Colophon starts in Canada. We've saved your place and we'll email you as soon as presses in your country can start.";
 export const IN_LINE_WORDS = "We're making a few shops a day. You're next in line, and we'll email you when yours starts.";
+/** A new press while sign-up is closed and its email has no invite. */
+export const CLOSED_WORDS = "Sign-up isn't open yet. Join the waitlist and we'll email you an invite when there's room.";
 
 const torontoDay = (date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 
@@ -74,7 +86,8 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
     const base = slugFromPressName(pressName);
     for (let i = 0; i < 8; i += 1) {
       const id = `${base}-${suffix()}`;
-      if (!(await registry.getShop(id)) && !(await signups.get(id))) return id;
+      // A made-up address follows the typed one's rules too (no word Google refuses in a project id).
+      if (checkAddress(id).ok && !(await registry.getShop(id)) && !(await signups.get(id))) return id;
     }
     throw new SignupError(503, "We couldn't find a free web address for your press just now. Try again in a minute.");
   }
@@ -97,6 +110,9 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
       return typeof when === "string" && torontoDay(new Date(when)) === today;
     }).length;
   }
+
+  /** Takes one of today's places under the cap, or false when the day is full. */
+  const takeSlot = (day, cap) => signups.takeDaySlot(day, { cap, seed: startedToday });
 
   /** Starts the trial (once) and makes the person the shop's owner on their account (once). */
   async function begin(row, person) {
@@ -160,15 +176,20 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
       }
       if (!row) {
         if (mine.length >= MAX_SHOPS_PER_ACCOUNT) throw new SignupError(429, `One account can start up to ${MAX_SHOPS_PER_ACCOUNT} shops. Write to us if you need more.`);
-        if (details.address && !(await isFree(details.address, person.accountId))) {
+        const isInvited = await invited(person.email);
+        const { signupDailyCap, signupOpen } = await live();
+        if (signupOpen !== true && !isInvited) throw new SignupError(403, CLOSED_WORDS);
+        // A new press never takes over an address already in use, not even one of this account's own sign-ups.
+        if (details.address && ((await registry.getShop(details.address)) || (await signups.get(details.address)))) {
           throw new SignupError(409, "That web address is taken.", { address: "That address is taken. Try another." });
         }
-        const isInvited = await invited(person.email);
-        const { signupDailyCap } = await live();
-        const myTurn = isInvited || (await startedToday()) < signupDailyCap;
         const held = !isOpenCountry(details.country);
-        row = {
-          shopId: details.address ?? (await freeShopId(details.pressName)),
+        const shopId = details.address ?? (await freeShopId(details.pressName));
+        const today = torontoDay(now());
+        const slot = !held && !isInvited && (await takeSlot(today, signupDailyCap));
+        const myTurn = isInvited || slot;
+        const fresh = {
+          shopId,
           accountId: person.accountId,
           ownerEmail: person.email,
           ownerName: person.name,
@@ -188,8 +209,15 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
           ...(held ? { message: LATER_WORDS } : myTurn ? { admittedAt: at() } : { linedUpAt: at(), message: IN_LINE_WORDS }),
           createdAt: at(),
         };
-        await signups.set(row.shopId, row);
-        if (isInvited && !held) await invites.markUsed(person.email, row.shopId);
+        // Written in one step with the account's claim on this press: of two sign-ups sent at the same moment, the
+        // second gets the first one's shop back.
+        const key = pressId ? `press:${pressId}` : `name:${details.pressName.toLowerCase()}`;
+        const claimed = await signups.claim(person.accountId, key, fresh, { max: MAX_SHOPS_PER_ACCOUNT });
+        if (!claimed.made && slot) await signups.giveBackDaySlot(today);
+        if (claimed.full) throw new SignupError(429, `One account can start up to ${MAX_SHOPS_PER_ACCOUNT} shops. Write to us if you need more.`);
+        if (claimed.taken) throw new SignupError(409, "That web address is taken.", { address: "That address is taken. Try another." });
+        row = claimed.row;
+        if (claimed.made && isInvited && !held) await invites.markUsed(person.email, row.shopId);
       } else {
         if (!row.termsAcceptedAt) {
           row = { ...row, ...agreement };
@@ -207,7 +235,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
       if (row.status === "later" && isOpenCountry(row.country)) {
         const isInvited = await invited(person.email);
         const { signupDailyCap } = await live();
-        const myTurn = isInvited || (await startedToday()) < signupDailyCap;
+        const myTurn = isInvited || (await takeSlot(torontoDay(now()), signupDailyCap));
         row = { ...row, invited: isInvited, status: myTurn ? "queued" : "in-line", ...(myTurn ? { admittedAt: at(), message: null } : { linedUpAt: at(), message: IN_LINE_WORDS }) };
         await signups.set(row.shopId, row);
         if (isInvited) await invites.markUsed(person.email, row.shopId);
@@ -240,24 +268,24 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
      */
     async admitFromLine() {
       const { signupDailyCap } = await live();
-      let room = signupDailyCap - (await startedToday());
-      if (room <= 0) return [];
-      const line = (await signups.list())
+      const today = torontoDay(now());
+      const line = (await signups.listByStatus("in-line"))
         .filter((row) => row.status === "in-line")
         .sort((a, b) => String(a.linedUpAt ?? a.createdAt).localeCompare(String(b.linedUpAt ?? b.createdAt)) || a.shopId.localeCompare(b.shopId));
       const admitted = [];
       for (const waiting of line) {
-        if (room <= 0) break;
+        // Each one takes a place from the same count as sign-up, so the two together never go over the cap.
+        if (!(await takeSlot(today, signupDailyCap))) break;
         let row;
         try {
           row = await begin(waiting, ownerOf(waiting));
         } catch {
+          await signups.giveBackDaySlot(today);
           continue; // The trial didn't start: the press keeps its place in line for the next run.
         }
         row = { ...row, status: "queued", admittedAt: at(), message: null };
         await signups.set(row.shopId, row);
         admitted.push(row.shopId);
-        room -= 1;
         try {
           await email.sendPlatform({
             kind: "shop-starting", to: row.ownerEmail, shopId: row.shopId, ...(row.language ? { language: row.language } : {}),

@@ -31,7 +31,7 @@ async function make({ failOnce = [], google = fakeGoogle({ failOnce }), selfChec
   const repairs = { report: async (r) => void reported.push(r), ...(passed ? { passed } : {}) };
   const maker = createShopMaker({ signups: stores.signups, run, registry, repairs, selfCheck, now, ...(publishPlan ? { billing: { publishPlan } } : {}) });
   const signup = createSignup({
-    ...stores, registry, email: fakePlatformEmail(), auth: fakeAuth(), settings: platformSettings({}), now, suffix: () => "abcde",
+    ...stores, registry, email: fakePlatformEmail(), auth: fakeAuth(), settings: platformSettings({}), now, suffix: () => "abcde", live: async () => ({ signupOpen: true, signupDailyCap: 10 }),
     billing: { startTrial: async () => ({ status: "trialing", trialEnd: null }) },
   });
   const api = createApi({ signup, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: { "POST /api/signup/retry": (claims, request) => maker.retry(claims, request.body?.shopId) } });
