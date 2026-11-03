@@ -28,6 +28,9 @@ const refundableOf = order => Math.max(0, chargedOf(order).minor - refundedSoFar
  * an amount equal to what is left is a full refund. More than is left is refused.
  */
 function refundPlan(order, amountMinor) {
+  // A past order brought over from the old shop (orderImport.js) is history only: its money was taken there, so it is
+  // refunded there. Recording one here would cancel it and take its sales off a day that never counted them.
+  if (order?.source === "import") fail("This order was brought over from your old shop as history. Refund it in your old shop; nothing changes here.", 409);
   const charged = chargedOf(order);
   const already = refundedSoFar(order);
   const remaining = Math.max(0, charged.minor - already);

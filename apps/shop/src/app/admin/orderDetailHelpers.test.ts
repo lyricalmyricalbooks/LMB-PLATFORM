@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { blockingProblem, canMarkManualPaid, lockedAddressFields, packingTicksKey } from "./fulfillment";
-import { chargedOf, customerMailto, formatMinor, linePricing, parseMoneyToMinor, refundableMinor, returnStepLabel, returnedValueMinor, telHref } from "./orderLines";
+import { chargedOf, copiesValueMinor, customerMailto, formatMinor, linePricing, parseMoneyToMinor, refundableMinor, returnStepLabel, returnedValueMinor, takeOffProblem, telHref } from "./orderLines";
 
 const paid = { id: "o1", orderId: "LM-1", paymentStatus: "paid", total: 50, items: [{ id: "a", quantity: 2, price: 20, format: "Paperback" }], customer: { email: "r@x.com", address: {} } };
 
@@ -58,6 +58,17 @@ describe("money", () => {
     expect(returnedValueMinor(paid, { 0: 1 })).toBe(2000);
     expect(returnedValueMinor({ ...paid, expectedAmountMinor: 3500, expectedCurrency: "USD" }, { 0: 1 })).toBe(1400);
     expect(returnedValueMinor({ ...paid, refundedAmountMinor: 4000 }, { 0: 2 })).toBe(1000);
+  });
+  test("taking items off a US-dollar order refunds US dollars, not the CAD price", () => {
+    expect(copiesValueMinor({ ...paid, expectedAmountMinor: 3500, expectedCurrency: "USD" }, { 0: 1 })).toBe(1400);
+    expect(copiesValueMinor(paid, { 0: 2 })).toBe(4000);
+  });
+  test("taking items off never falls through to a whole-order refund", () => {
+    // A blank amount means "refund everything" in the dialog: nothing ticked, or a blank amount, must stop it.
+    expect(takeOffProblem({}, "")).not.toBe("");
+    expect(takeOffProblem({ 0: 0 }, "")).not.toBe("");
+    expect(takeOffProblem({ 0: 1 }, " ")).not.toBe("");
+    expect(takeOffProblem({ 0: 1 }, "20.00")).toBe("");
   });
 });
 
