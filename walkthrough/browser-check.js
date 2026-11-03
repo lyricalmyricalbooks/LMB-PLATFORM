@@ -88,6 +88,21 @@ async function checkFrontDoor(browser, walk, log) {
       const saved = (await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`))[0];
       if (saved?.pressName !== "Front Door Press" || saved?.sells !== "zines" || saved?.country !== "") throw new Error(`saved ${JSON.stringify(saved)}`);
     });
+    await step("the picker for a second press, and an open shop going to the account page", async () => {
+      const presses = walk.world.frontDoorStores.presses;
+      const [first] = await presses.listByOwner(`uid-${address}`);
+      await presses.create("press-second-one", { ...first, pressId: "press-second-one", pressName: "", sells: "", createdAt: "2099-01-01T00:00:00.000Z" });
+      await page.reload();
+      await visible("#view-pick");
+      if ((await page.locator("#pick-list button").count()) !== 2) throw new Error("the picker doesn't show both presses");
+      await page.locator("#pick-list button", { hasText: "Press not named yet" }).click();
+      await visible("#view-name");
+      await presses.update(first.pressId, (row) => ({ row: { ...row, status: "open" }, result: null }));
+      await page.reload();
+      await visible("#view-pick");
+      await page.locator("#pick-list button", { hasText: "Front Door Press" }).click();
+      await page.waitForURL(/\/account\/$/, { timeout: 10_000 });
+    });
   } finally {
     await context.close();
   }
