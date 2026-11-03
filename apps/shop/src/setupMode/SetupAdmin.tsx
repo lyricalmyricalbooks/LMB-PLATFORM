@@ -4,7 +4,7 @@
 // it opens with the shop. Everything saves to the press's setup record through the platform's door (door.ts); nothing
 // here reads or writes a shop database, because there is none until the press opens its shop.
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Check, Circle, HelpCircle, Lock, LogOut, Menu, Store } from "lucide-react";
+import { ArrowRight, Check, Circle, HelpCircle, Lock, LogOut, Menu, Store, Truck } from "lucide-react";
 import {
   AppShell, EmptyState, GhostButton, IconButton, PageHeader, PrimaryButton, SectionCard, SelectField, Sidebar,
   TextField, ToastProvider, Topbar, useRisoToast,
@@ -17,7 +17,7 @@ import { adminWordsFor } from "../app/admin/sells";
 import { ImportPage } from "./ImportPage";
 import type { OpenedShop, PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, guideProgress, guideSteps, pageFromHash, setupLocked, setupMenu,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, IMPORT_PAGE, PLAN_PAGE, guideProgress, guideSteps, pageFromHash, setupLocked, showMoveIn, setupMenu,
   setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
@@ -87,7 +87,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl,
   const pressName = press.pressName || "Your press";
   let content;
   if (setupLocked(page)) content = <OpensWithShop page={setupPageLabel(page, menu)} onOpenShop={() => open(PLAN_PAGE)} />;
-  else if (page === HOME_PAGE) content = <SetupGuide press={press} onOpen={open} />;
+  else if (page === HOME_PAGE) content = <SetupGuide press={press} onOpen={open} save={save} />;
   else if (page === GENERAL_PAGE) content = <PressDetails press={press} lists={lists} save={save} />;
   else if (page === IMPORT_PAGE) content = <ImportPage press={press} door={door} onSaved={setPress} />;
   else if (page === DESIGN_PAGE) content = <DesignPage press={press} save={save} />;
@@ -166,7 +166,7 @@ export function OpensWithShop({ page, onOpenShop }: { page: string; onOpenShop: 
   );
 }
 
-function SetupGuide({ press, onOpen }: { press: SetupPress; onOpen: (page: string) => void }) {
+function SetupGuide({ press, onOpen, save }: { press: SetupPress; onOpen: (page: string) => void; save: (c: SetupChange) => Promise<SetupPress> }) {
   const w = useShopWords();
   const steps = guideSteps(press);
   const { done, total } = guideProgress(steps);
@@ -174,6 +174,7 @@ function SetupGuide({ press, onOpen }: { press: SetupPress; onOpen: (page: strin
     <>
       <PageHeader title={press.pressName ? `Welcome, ${press.pressName}` : "Welcome"}
         description="Set up your shop here. Nothing is charged, and your free days don't start, until you open it." />
+      {showMoveIn(press) && <MoveInCard onBring={() => onOpen(IMPORT_PAGE)} save={save} />}
       <SectionCard title="Setup guide" description={`${done} of ${total} done`} collapsible={false}>
         <div role="progressbar" aria-label="Setup guide" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}
           style={{ height: 6, background: "var(--rp-divider)", marginBottom: 16 }}>
@@ -198,6 +199,45 @@ function SetupGuide({ press, onOpen }: { press: SetupPress; onOpen: (page: strin
         </ol>
       </SectionCard>
     </>
+  );
+}
+
+/**
+ * The first thing on Home for a press that may already sell somewhere (code plan 23.0): one card above the setup guide,
+ * one main button to the Books page, and "I'm starting fresh", which puts the card away for good. The answer is saved
+ * on the press's setup record; bringing a shop over still opens even if that save fails.
+ */
+function MoveInCard({ onBring, save }: { onBring: () => void; save: (c: SetupChange) => Promise<SetupPress> }) {
+  const w = useShopWords();
+  const toast = useRisoToast();
+  const [busy, setBusy] = useState(false);
+  const bring = () => { void save({ moving: "yes" }).catch(() => {}); onBring(); };
+  const fresh = async () => {
+    setBusy(true);
+    try {
+      await save({ moving: "fresh" });
+      toast(w("No problem. You can bring books over any time from Books."), { tone: "ok" });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "That didn't save. Try again.", { tone: "err" });
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="rp-card" aria-labelledby="move-in-title" style={{ borderColor: "var(--rp-primary)", borderWidth: 2, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: 16, padding: 20, alignItems: "start" }}>
+        <span aria-hidden style={{ display: "inline-flex", color: "var(--rp-primary)", paddingTop: 2 }}><Truck size={28} /></span>
+        <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+          <div>
+            <h2 id="move-in-title" style={{ margin: 0, fontSize: 20 }}>Selling somewhere already?</h2>
+            <p style={{ margin: "6px 0 0" }}>{w("Bring your shop with you. Your books, prices, photos and stock come across from your old shop's web address or its product file, and links to your old pages keep working. You see everything before anything is kept.")}</p>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <PrimaryButton icon={<ArrowRight size={16} aria-hidden />} onClick={bring}>Bring my shop over</PrimaryButton>
+            <GhostButton busy={busy} disabled={busy} onClick={() => void fresh()}>I'm starting fresh</GhostButton>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

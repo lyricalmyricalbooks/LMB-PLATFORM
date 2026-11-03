@@ -16,7 +16,7 @@ const ADA = { uid: "uid-ada", email: "owner@example.com", email_verified: true }
 const BEN = { uid: "uid-ben", email: "ben@example.com", email_verified: true };
 const SETTINGS = { platformUrl: "https://platform.example", platformName: "Colophon", trialDays: 14, currency: "CAD" };
 
-function world({ billing = null } = {}) {
+function world({ billing = null, readOldShop } = {}) {
   const stores = fakeFrontDoorStores();
   // Open my shop (18.8) goes through sign-up's own start, with a pretend plan maker.
   const trials = [];
@@ -40,6 +40,7 @@ function world({ billing = null } = {}) {
     now: () => new Date(clock),
     suffix: () => `s${(n += 1)}xyz`,
     random: () => 0.123456,
+    ...(readOldShop ? { readOldShop } : {}),
   });
   const api = createApi({
     signup: {}, verifyIdToken: fakeVerifyIdToken, settings: SETTINGS,
@@ -359,6 +360,27 @@ test("a late upload after the shop starts opening never changes the kept file, a
   assert.equal((await w.ask("POST", "/api/press/import/kept", { pressId, name: "a.csv", rows: 1 }, ADA)).status, 409);
   assert.equal((await w.ask("POST", "/api/press/import/remove", { pressId }, ADA)).status, 409);
   assert.equal(await keptBytes(w, pressId), "Title\nKept\n");
+});
+
+test("an old shop read from its address (23.2): the owner gets a file to preview, nothing is kept, strangers get nothing", async () => {
+  const asked = [];
+  const w = world({ readOldShop: async (address) => {
+    asked.push(address);
+    return address === "nowhere.example" ? { ok: false, message: "We couldn't read the products at that address." } : { ok: true, host: "moth.example", csv: "Handle,Title\nm,Moth\n", products: 1, notes: ["Check stock."] };
+  } });
+  const pressId = await pressFor(w);
+  const read = await w.ask("POST", "/api/press/old-shop", { pressId, address: "moth.example" }, ADA);
+  assert.equal(read.status, 200);
+  assert.deepEqual(read.body, { ok: true, host: "moth.example", csv: "Handle,Title\nm,Moth\n", products: 1, notes: ["Check stock."] });
+  assert.equal((await w.stores.presses.get(pressId)).stagedImport, null, "nothing kept");
+  const none = await w.ask("POST", "/api/press/old-shop", { pressId, address: "nowhere.example" }, ADA);
+  assert.equal(none.status, 400);
+  assert.equal(none.body.problems.address, "We couldn't read the products at that address.");
+  assert.equal((await w.ask("POST", "/api/press/old-shop", { pressId, address: "moth.example" }, BEN)).status, 404);
+  assert.equal((await w.ask("POST", "/api/press/old-shop", { pressId, address: "moth.example" })).status, 401);
+  await w.stores.presses.set(pressId, { ...(await w.stores.presses.get(pressId)), status: "opening" });
+  assert.equal((await w.ask("POST", "/api/press/old-shop", { pressId, address: "moth.example" }, ADA)).status, 409);
+  assert.deepEqual(asked, ["moth.example", "nowhere.example"], "strangers and opening shops never reach the old shop");
 });
 
 // ── Open my shop (code plan 18.8) ──

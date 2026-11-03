@@ -395,3 +395,19 @@ describe("more export layouts (plan 23.1)", () => {
     }
   });
 });
+
+describe("a file made from an old shop's address (plan 23.2)", () => {
+  it("reads through the same preview, with versions and each product's own old page address", async () => {
+    // @ts-expect-error plain ES module from the platform, no types
+    const { productsCsv, fromPermalinkList } = await import("../../../../../services/moving/oldShop.js");
+    const csvText = productsCsv(fromPermalinkList([
+      { name: "Tide Tables", permalink: "tide-tables", url: "/product/tide-tables", price: 15, images: [{ url: "https://img.example/t.jpg" }],
+        options: [{ name: "Small", price: 15, sold_out: false }, { name: "Large", price: 25, sold_out: true }] },
+    ], "https://zines.example"));
+    const { plan, moved, oldPaths } = planShopMove(csvText, []);
+    expect(moved?.shape).toBe("handle-rows");
+    expect(plan.rows[0].action).toBe("create");
+    expect((plan.rows[0].patch as any).variants.map((v: any) => [v.name, v.price, v.stock])).toEqual([["Small", 15, 0], ["Large", 25, 0]]);
+    expect([...oldPaths.values()]).toEqual([["/product/tide-tables"]]);
+  });
+});

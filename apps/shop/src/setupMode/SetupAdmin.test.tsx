@@ -22,6 +22,10 @@ function door(): SetupDoor & { saved: any[] } {
     save: vi.fn(async (_id: string, change: any) => { saved.push(change); return { ...PRESS, ...change }; }),
     keepImport: vi.fn(async (_id: string, _file: Blob, details: { name: string; rows: number }) => ({ ...PRESS, stagedImport: { ...details, size: 9, at: "2026-11-03T09:00:00Z" } })),
     removeImport: vi.fn(async () => ({ ...PRESS, stagedImport: null })),
+    readOldShop: vi.fn(async () => ({
+      host: "moth.example", products: 1, notes: ["Stock counts aren't shown publicly, so check how many you have of each before you open."],
+      csv: "Handle,Title,Variant Price,Image Src,Old page address\nmoth-songs,Moth Songs,20,https://img.example/m.jpg,/product/moth-songs\n",
+    })),
     openShop: vi.fn(async (_id: string, choice: { plan: SetupPress["plan"] }) => ({ press: { ...PRESS, country: "CA", plan: choice.plan, status: "opening" as const, shopId: "moth-press" }, shop: { status: "queued", trialEnd: null } })),
     plans: vi.fn(async () => ({ trialDays: 14, termsVersion: "v1", plans: [
       { plan: "both" as const, name: "Shop and stockroom", priceText: "$39.00" },
@@ -231,5 +235,63 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       await flush();
       expect(el.textContent).toContain("You're next in line.");
     });
+  });
+});
+
+describe("bringing a shop over, at the top of Home (code plan 23.0)", () => {
+  const button = (el: HTMLElement, text: string) => [...el.querySelectorAll("main button")].find((b) => b.textContent === text) as HTMLButtonElement;
+
+  it("is the first card on Home, above the setup guide", async () => {
+    const el = await mount(door());
+    const cards = [...el.querySelectorAll("main section")];
+    expect(cards[0].textContent).toContain("Selling somewhere already?");
+    expect(cards[1].textContent).toContain("Setup guide");
+  });
+
+  it("Bring my shop over opens Books and records the answer", async () => {
+    const d = door();
+    const el = await mount(d);
+    act(() => button(el, "Bring my shop over").click());
+    await flush();
+    expect(el.querySelector("h1")?.textContent).toBe("Books");
+    expect(d.saved).toEqual([{ moving: "yes" }]);
+    expect(el.textContent).toContain("Where do you sell now?");
+  });
+
+  it("I'm starting fresh puts the card away and moves the step last", async () => {
+    const d = door();
+    const el = await mount(d);
+    await act(async () => { button(el, "I'm starting fresh").click(); });
+    await flush();
+    expect(d.saved).toEqual([{ moving: "fresh" }]);
+    expect(el.textContent).not.toContain("Selling somewhere already?");
+    const steps = [...el.querySelectorAll("main ol li")].map((li) => li.textContent ?? "");
+    expect(steps[steps.length - 2]).toContain("Bring your books over");
+  });
+
+  it("the Books page shows the plain steps for where the press sells now", async () => {
+    const el = await mount(door(), "#catalog");
+    const select = [...el.querySelectorAll("select")].find((s) => s.closest("label, div")?.textContent?.includes("Where do you sell now?")) as HTMLSelectElement;
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(select, "online");
+    act(() => { select.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(el.querySelector('ol[aria-label="How to get your product file"]')?.textContent).toContain("Export or Download");
+  });
+});
+
+describe("bringing books over from the old shop's address (code plan 23.2)", () => {
+  it("reads the address, previews the books like a chosen file, and shows what it couldn't read", async () => {
+    const d = door();
+    const el = await mount(d, "#catalog");
+    const input = [...el.querySelectorAll("input")].find((i) => i.getAttribute("placeholder") === "yourshop.com") as HTMLInputElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "moth.example");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => { input.closest("form")!.requestSubmit(); });
+    await flush();
+    expect(d.readOldShop).toHaveBeenCalledWith("press-moth", "moth.example");
+    expect(el.textContent).toContain("moth.example products.csv");
+    expect(el.textContent).toContain("1 book ready");
+    expect(el.textContent).toContain("Stock counts aren't shown publicly");
   });
 });

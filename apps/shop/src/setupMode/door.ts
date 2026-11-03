@@ -12,6 +12,8 @@ export interface SetupPress {
   country: string;
   look: string;
   adminLook: string;
+  /** Home's "Selling somewhere already?" card (23.0): bringing a shop over, starting fresh, or not answered (""; older records). */
+  moving?: "" | "yes" | "fresh";
   /** The shop's id once Open my shop has started it (18.8), else "". */
   shopId?: string;
   /** How the shop is starting once opening: "queued", or "in-line" with `shopMessage` saying why it waits. */
@@ -21,10 +23,13 @@ export interface SetupPress {
   stagedImport: StagedImport | null;
 }
 
+/** An old shop read from its address (23.2): a product file in the one-line-per-edition layout, and plain notes. */
+export interface OldShopRead { host: string; csv: string; products: number; notes: string[] }
+
 /** A kept product file as its owner sees it: never where it is kept. */
 export interface StagedImport { name: string; size: number; rows: number; at: string }
 
-export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook">>;
+export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells" | "country" | "look" | "adminLook" | "moving">>;
 
 /** A plan as GET /api/plans lists it. */
 export interface PlanOffer { plan: "shop" | "stockroom" | "both"; name: string; priceText: string; foundingPriceText?: string }
@@ -48,6 +53,8 @@ export interface SetupDoor {
   keepImport(pressId: string, file: Blob, details: { name: string; rows: number }): Promise<SetupPress>;
   /** Throws the kept file away. */
   removeImport(pressId: string): Promise<SetupPress>;
+  /** Reads the old shop's public product list from its address (23.2), as a product file to preview. Keeps nothing. */
+  readOldShop(pressId: string, address: string): Promise<OldShopRead>;
   /** Open my shop (18.8): starts the plan and queues the shop. A refusal leaves the press in setup. */
   openShop(pressId: string, choice: { plan: SetupPress["plan"]; termsVersion: string }): Promise<OpenedShop>;
 }
@@ -87,6 +94,10 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
       return (await call("POST", "/press/import/kept", { pressId, name, rows })).press as SetupPress;
     },
     removeImport: async (pressId) => (await call("POST", "/press/import/remove", { pressId })).press as SetupPress,
+    readOldShop: async (pressId, address) => {
+      const { host, csv, products, notes } = await call("POST", "/press/old-shop", { pressId, address });
+      return { host, csv, products, notes } as OldShopRead;
+    },
     openShop: async (pressId, { plan, termsVersion }) => {
       const answer = await call("POST", "/press/open", { pressId, plan, termsAccepted: true, termsVersion });
       return { press: answer.press as SetupPress, ...(answer.shop ? { shop: answer.shop } : {}) };
