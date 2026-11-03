@@ -475,8 +475,9 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `planCustomerNotes` (merges into `customerNotes`; `MOVED_MARK` makes a re-run unchanged; tags capped by `parseTags`)
   and `newsletterJoiners` (said yes in the file, not subscribed, not in `marketing-optout`). Joiners are written only
   after the owner ticks the permission box, through `adminApi.addImportedSubscriber` (transaction; never touches an
-  existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). Imported customers appear in the
-  list once they order (the list is built from orders).
+  existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). The note also keeps `name` and
+  `place` (plan 23.10), and `withMovedCustomers` lists a brought-over customer with no order here under **Not ordered
+  here yet** (segment `moved`, counted in no figure). `saveCustomerNote` merges so a note save keeps them.
 - **Photos** stay on the old shop's addresses until plan 3.1b copies them into the shop's own storage.
 - **Past orders (plan 23.7, 3 November 2026):** Orders › **Bring past orders over** (`PastOrdersDialog.tsx`) reads the
   order file in the browser (`pastOrders.ts`, headings matched loosely, rows grouped by order number; cancelled, unpaid
@@ -486,6 +487,8 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `stripePaymentIntentId` or `cartId`. **History only:** `onOrderCreated`, `handleOrderUpdated`, the stockroom link's
   `pushKind` and return requests all skip `source: "import"`, so a past order moves no stock and sends no email. The
   owner (not the bookkeeper) may delete one (`firestore.rules`, `deleteRefusal`). A new order hook must skip it too.
+  Other currencies (plan 23.11): `readyToSend` converts every amount at the owner's typed rate and keeps what the old
+  shop charged in `paidIn` (the server checks its shape); orders without a rate wait and count in no preview figure.
 
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 
@@ -512,7 +515,7 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   redirects (`OldLinksCheck.tsx`, pure `oldLinks.ts`; the server's `readOldLinks` action reads the old shop's site map
   with `functions/moving/oldLinks.mjs`, a generated copy of `services/moving/oldLinks.js`). Its **Bring your own pages
   over** (plan 23.6) asks `readOldPages`, which rebuilds each old page with the allow-list in `services/moving/oldPages.js`
-  (copied as `functions/moving/oldPages.mjs`); `pagesToSave` makes the drafts and redirects and never reuses a page's address. The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
+  (copied as `functions/moving/oldPages.mjs`); `pagesToSave` makes the drafts and redirects and never reuses a page's address. Pictures on public https addresses stay as `<img src alt>` and the hourly photo import copies them and rewrites `pages/*.body` (plan 23.13, `swapPagePictures`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
   for the platform's trial emails (plan 6.10, `services/trial-tips`).
 - `SELLING_TODAY` must list the sign-up form's answers and `StepId` must match `help/articles.js` `CHECKLIST_ANSWERS`
   (root tests check both). Firestore rule `firstWeek`: admin only, `hasOnly([... "publishes", "country", "welcome",

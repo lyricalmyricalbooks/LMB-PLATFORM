@@ -374,8 +374,11 @@ service cloud.firestore {
       allow read: if isAdminReader();
       allow delete: if isAdmin();
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(["email", "note", "tags", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["email", "note", "tags", "updatedAt", "name", "place"])
         && request.resource.data.email is string && request.resource.data.email.size() <= 254
+        // Name and place: from Bring customers over, so a customer who hasn't ordered here yet is still listed (plan 23.10).
+        && request.resource.data.get("name", "") is string && request.resource.data.get("name", "").size() <= 100
+        && request.resource.data.get("place", "") is string && request.resource.data.get("place", "").size() <= 200
         && request.resource.data.note is string && request.resource.data.note.size() <= 5000
         && request.resource.data.tags is list && request.resource.data.tags.size() <= 20
         && request.resource.data.updatedAt is string;

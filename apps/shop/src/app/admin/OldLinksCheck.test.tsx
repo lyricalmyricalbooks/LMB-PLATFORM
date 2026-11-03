@@ -97,7 +97,7 @@ describe("Check your old links", () => {
     const saved = api.saveRedirects.mock.calls.at(-1)![0] as any[];
     expect(saved).toContainEqual({ from: "/pages/visit-us", to: "/page/visit-us" });
     const text = document.body.textContent || "";
-    expect(text).toContain("1 page brought over as drafts. Their 2 photos stayed behind");
+    expect(text).toContain("1 page brought over as drafts. Their photos are copied into your shop within the hour. 2 photos couldn't come over");
     expect(text).toContain("1 page left out");
     // The brought-over page's old address now has its redirect, so only the others still need a home.
     expect(text).toContain("2 would show page not found");

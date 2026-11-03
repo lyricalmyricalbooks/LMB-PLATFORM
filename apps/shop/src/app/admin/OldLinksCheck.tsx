@@ -127,7 +127,7 @@ export function OldLinksCheck({ redirects, busy, onAdd }: {
           )}
           {brought && (
             <div role="status" style={{ display: "grid", gap: 6 }}>
-              <p className="rp-hint" style={{ margin: 0 }}>{brought.added ? `${plural(brought.added, "page")} brought over as drafts.` : "No pages were brought over."}{brought.photos ? ` Their ${plural(brought.photos, "photo")} stayed behind: add them again in Settings › Design › Pages.` : ""}</p>
+              <p className="rp-hint" style={{ margin: 0 }}>{brought.added ? `${plural(brought.added, "page")} brought over as drafts. Their photos are copied into your shop within the hour.` : "No pages were brought over."}{brought.photos ? ` ${plural(brought.photos, "photo")} couldn't come over: add them again in Settings › Design › Pages.` : ""}</p>
               {brought.skipped.length > 0 && (
                 <details>
                   <summary className="rp-hint">{plural(brought.skipped.length, "page")} left out</summary>

@@ -20,13 +20,14 @@ test("a page keeps its words, headings, lists and links, and its title, inside t
       <div class="rte">We make <strong>small</strong> books &amp; zines.<br>Since 2019.
         <h2>Visit</h2><p>Find us at <a href="https://mothpress.example/pages/contact?x=1">the studio</a> or <a href="https://maps.example/x">on the map</a>.</p>
         <ul><li>Fridays</li><li><em>Saturdays</em></li></ul>
-        <p><img src="https://cdn.example/a.jpg"></p><p>   </p>
+        <p><img src="//cdn.example/a.jpg?v=1&amp;w=2" alt="The &quot;studio&quot;"></p><p>   </p><img src="data:image/gif;base64,R0" data-src="https://cdn.example/{width}.jpg">
+        <picture><source srcset="https://cdn.example/b.webp"><img src="/files/b.jpg" alt="Press"></picture><img src="http://cdn.example/c.jpg">
       </div></div></main>
     <footer>© Moth Press</footer><script>alert(1)</script></body></html>`;
   assert.deepEqual(pageFromHtml(html, URL0), {
     title: "About the press",
-    body: '<p>We make <strong>small</strong> books &amp; zines.<br>Since 2019.</p><h2>Visit</h2><p>Find us at <a href="/pages/contact?x=1">the studio</a> or <a href="https://maps.example/x" rel="noopener">on the map</a>.</p><ul><li>Fridays</li><li><em>Saturdays</em></li></ul>',
-    images: 1,
+    body: '<p>We make <strong>small</strong> books &amp; zines.<br>Since 2019.</p><h2>Visit</h2><p>Find us at <a href="/pages/contact?x=1">the studio</a> or <a href="https://maps.example/x" rel="noopener">on the map</a>.</p><ul><li>Fridays</li><li><em>Saturdays</em></li></ul><p><img src="https://cdn.example/a.jpg?v=1&amp;w=2" alt="The &quot;studio&quot;"></p><p><img src="https://mothpress.example/files/b.jpg" alt="Press"></p>',
+    images: 2,
   });
 });
 
@@ -41,11 +42,13 @@ test("nothing from another site can run or style itself: every tag is rebuilt, e
     <p>Unclosed <strong>bold<p>Next</body>`;
   const { title, body } = pageFromHtml(html, URL0);
   assert.equal(title, "Hi");
-  assert.ok(!/on[a-z]+=|style=|javascript:|<script|<iframe|<object|<svg|<img|<span|<u>|<div/i.test(body), body);
+  assert.ok(!/on[a-z]+=|style=|javascript:|<script|<iframe|<object|<svg|<span|<u>|<div/i.test(body), body);
+  // A picture is rebuilt with its address and words only (plan 23.13).
+  assert.match(body, /<img src="https:\/\/mothpress\.example\/pages\/x" alt="">/);
   assert.match(body, /One bad link http link/);
   assert.match(body, /2 &lt; 3 &amp; <strong>bold<\/strong> &amp; more &gt; less/);
   assert.match(body, /<p>Loose text<\/p>/);
-  assert.match(body, /<p><a href="mailto:hello@mothpress.example">Write<\/a><\/p>/);
+  assert.match(body, /<p><img src="[^"]+" alt=""> <a href="mailto:hello@mothpress.example">Write<\/a><\/p>/);
   // Every tag that opens closes.
   const opens = body.match(/<(p|h2|h3|h4|ul|ol|li|blockquote|strong|em|a)\b/g)?.length;
   const closes = body.match(/<\/(p|h2|h3|h4|ul|ol|li|blockquote|strong|em|a)>/g)?.length;

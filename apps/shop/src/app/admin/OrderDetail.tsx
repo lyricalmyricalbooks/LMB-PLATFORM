@@ -849,7 +849,7 @@ export function OrderDetail({
               <StatusBadge tone="danger">Test order</StatusBadge>
             )}
             {order.source === "import" && (
-              <StatusBadge tone="neutral">Brought over from your old shop{order.oldOrderNumber ? ` (${order.oldOrderNumber})` : ""}</StatusBadge>
+              <StatusBadge tone="neutral">Brought over from your old shop{order.oldOrderNumber ? ` (${order.oldOrderNumber})` : ""}{order.paidIn?.currency ? ` · paid ${Number(order.paidIn.total).toFixed(2)} ${order.paidIn.currency}` : ""}</StatusBadge>
             )}
           </>
         }

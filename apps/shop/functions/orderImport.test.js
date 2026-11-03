@@ -32,14 +32,17 @@ const ORDERS = [
   { oldRef: "#1004", orderedAt: "someday", total: 30 },
   { oldRef: "#1005", orderedAt: "2027-01-01", total: 30 },
   { oldRef: "", orderedAt: "2025-07-02", total: 30 },
+  { oldRef: "#1006", orderedAt: "2025-07-02", total: 42, currency: "CAD", paidIn: { currency: "USD", total: 30, rate: 1.4 } },
+  { oldRef: "#1007", orderedAt: "2025-07-02", total: 42, paidIn: { currency: "CAD", total: 30, rate: 1.4 } },
 ];
 
 describe("bringing past orders over (plan 23.7)", () => {
   it("each becomes a paid, delivered past order for the reports and the customer's history, or says why not", async () => {
     const db = fakeDb();
     const { added, skipped } = await importPastOrders(db, ORDERS, { actor: "owner@example.com", now: NOW });
-    expect(added).toEqual([pastOrderId("#1001"), pastOrderId("#1002")]);
-    expect(skipped.map((s) => s.reason)).toEqual(["in USD, and this shop sells in Canadian dollars", "its date couldn't be read", "its date is in the future", "nothing to tell it apart"]);
+    expect(added).toEqual([pastOrderId("#1001"), pastOrderId("#1002"), pastOrderId("#1006")]);
+    expect(skipped.map((s) => s.reason)).toEqual(["in USD, and this shop sells in Canadian dollars", "its date couldn't be read", "its date is in the future", "nothing to tell it apart", "its other currency couldn't be read"]);
+    expect(db.docs.get(`orders/${pastOrderId("#1006")}`)).toMatchObject({ total: 42, paidIn: { currency: "USD", total: 30, rate: 1.4 } });
     const first = db.docs.get(`orders/${pastOrderId("#1001")}`);
     expect(first).toMatchObject({
       source: "import", importedFrom: "#1001", oldOrderNumber: "#1001", createdAt: "2025-06-01T15:30:00.000Z", paidAt: "2025-06-01T15:30:00.000Z",
@@ -50,7 +53,7 @@ describe("bringing past orders over (plan 23.7)", () => {
     // Nothing that wakes a payment, shipping or review sweep.
     for (const key of ["shippedAt", "stripePaymentIntentId", "cartId", "trackingKey"]) expect(first).not.toHaveProperty(key);
     expect(db.docs.get(`orders/${pastOrderId("#1002")}`)).toMatchObject({ paymentStatus: "refunded", status: "refunded", refundedAmountMinor: 3000, items: [{ title: "Items from your old shop", quantity: 1, price: 30 }] });
-    expect([...db.docs.values()].some((d) => /Brought 2 past orders over .*CA\$94\.24/.test(d.message || ""))).toBe(true);
+    expect([...db.docs.values()].some((d) => /Brought 3 past orders over .*CA\$136\.24/.test(d.message || ""))).toBe(true);
   });
 
   it("a re-run adds nothing", async () => {

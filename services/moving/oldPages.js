@@ -33,7 +33,7 @@ export function slugFor(path) {
   return word.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 }
 
-const DROP = ["script", "style", "noscript", "template", "svg", "iframe", "object", "embed", "form", "nav", "header", "footer", "aside", "button", "select", "textarea", "head", "canvas", "video", "audio", "picture"];
+const DROP = ["script", "style", "noscript", "template", "svg", "iframe", "object", "embed", "form", "nav", "header", "footer", "aside", "button", "select", "textarea", "head", "canvas", "video", "audio"];
 /** Allowed tags, as they are written out. */
 const KEEP = { p: "p", h2: "h2", h3: "h3", h4: "h4", h5: "h4", h6: "h4", ul: "ul", ol: "ol", li: "li", blockquote: "blockquote", strong: "strong", b: "strong", em: "em", i: "em", a: "a" };
 const BLOCKS = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote", "div", "section", "article", "main", "table", "tr", "td", "th", "dl", "dt", "dd", "figure", "figcaption", "hr"]);
@@ -67,8 +67,33 @@ function linkTo(attrs, pageUrl, host) {
 }
 
 /**
+ * A picture's address as kept (plan 23.13): an https address on a public host name, from src (else the first lazy-load
+ * address or srcset entry). The shop's hourly photo import copies it into the shop's own storage (functions/photoImport.js).
+ */
+function imageFrom(attrs) {
+  const attr = (name) => {
+    const m = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(attrs);
+    return (m?.[1] ?? m?.[2] ?? m?.[3] ?? "").replace(/&amp;/gi, "&").trim();
+  };
+  const candidates = [attr("src"), attr("data-src"), attr("data-original"), attr("srcset").split(",")[0].trim().split(/\s+/)[0] || ""];
+  return candidates.find((c) => c && !/^data:/i.test(c) && !c.includes("{")) || "";
+}
+
+function publicImage(raw, pageUrl) {
+  if (!raw) return "";
+  let u;
+  try { u = new URL(raw, pageUrl); } catch { return ""; }
+  const host = u.hostname.toLowerCase();
+  if (u.protocol !== "https:" || u.username || u.password || !host.includes(".") || /^[\d.]+$/.test(host) || host.startsWith("[")) return "";
+  return u.href.length <= 2000 ? u.href : "";
+}
+
+const altOf = (attrs) => plain((/(?:^|\s)alt\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs) || [])[1] ?? "").slice(0, 300);
+
+/**
  * One page of the old shop as { title, body, images }: the title from its first main heading (else the window title,
- * less the shop's name), the body rebuilt with the allow-list. `pageUrl` resolves its links.
+ * less the shop's name), the body rebuilt with the allow-list. `pageUrl` resolves its links and pictures. Pictures on
+ * public https addresses are kept as `<img src alt>` (plan 23.13); `images` counts the ones that couldn't be.
  */
 export function pageFromHtml(html, pageUrl) {
   const host = new URL(pageUrl).hostname;
@@ -79,7 +104,7 @@ export function pageFromHtml(html, pageUrl) {
   const windowTitle = parts.find((t) => !t.toLowerCase().replace(/[^a-z0-9]/g, "").includes(brand)) || parts[0] || "";
   src = contentOf(src);
   for (let round = 0; round < 3; round += 1) for (const tag of DROP) src = src.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?</${tag}\\s*>`, "gi"), " ").replace(new RegExp(`<${tag}\\b[^>]*/?>`, "gi"), " ");
-  const images = (src.match(/<img\b/gi) || []).length;
+  let images = 0;
   const h1 = /<h1\b[^>]*>([\s\S]*?)<\/h1\s*>/i.exec(src);
   const title = (plain(h1?.[1] || "") || windowTitle).slice(0, 200);
   if (h1) src = src.replace(h1[0], " ");
@@ -104,6 +129,14 @@ export function pageFromHtml(html, pageUrl) {
     }
     const tag = rawTag.toLowerCase();
     if (tag === "br") { if (inText()) out.push("<br>"); continue; }
+    if (tag === "img") {
+      const to = publicImage(imageFrom(attrs), pageUrl);
+      if (!to) { images += 1; continue; }
+      if (!inText() && !stack.includes("ul") && !stack.includes("ol")) { out.push("<p>"); stack.push("p"); autoP = true; }
+      if (stack.at(-1) === "ul" || stack.at(-1) === "ol") { images += 1; continue; }
+      out.push(`<img src="${escapeAttr(to)}" alt="${escapeAttr(altOf(attrs))}">`);
+      continue;
+    }
     if (BLOCKS.has(tag)) closeAutoP();
     const keep = KEEP[tag];
     if (!keep) continue;

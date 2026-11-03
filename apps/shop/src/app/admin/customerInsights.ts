@@ -4,7 +4,8 @@
 // customer listed with that order in their history.
 import { refundedAmount } from "./overview/overviewInsights";
 
-export type CustomerSegment = "vip" | "vip-lapsed" | "returning" | "new" | "at-risk";
+/** "moved": brought over from the old shop, with no order here yet (plan 23.10). */
+export type CustomerSegment = "vip" | "vip-lapsed" | "returning" | "new" | "at-risk" | "moved";
 
 export interface CustomerRow {
   key: string; // lowercased email
@@ -28,7 +29,7 @@ export const VIP_SPEND = 250;
 export const AT_RISK_DAYS = 180;
 
 export const SEGMENT_LABELS: Record<CustomerSegment, string> = {
-  vip: "VIP", "vip-lapsed": "VIP · lapsed", returning: "Returning", new: "New", "at-risk": "At risk",
+  vip: "VIP", "vip-lapsed": "VIP · lapsed", returning: "Returning", new: "New", "at-risk": "At risk", moved: "Not ordered here yet",
 };
 
 /** Lapsed big spenders are flagged ("VIP · lapsed") rather than hidden under VIP. */
@@ -84,6 +85,30 @@ export function buildCustomers(orders: any[], now = Date.now()): CustomerRow[] {
     c.orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
   return rows;
+}
+
+/** Starts the note Bring customers over writes (shopMove.ts planCustomerNotes). */
+export const MOVED_MARK = "Brought over from your old shop";
+
+/**
+ * Adds the customers brought over from the old shop who haven't ordered here yet (plan 23.10), from their private notes
+ * (`customerNotes`, where Bring customers over keeps their email, name and place). They count in no figure:
+ * customerStats counts buyers only.
+ */
+export function withMovedCustomers(rows: CustomerRow[], notes: { email?: string; name?: string; place?: string; note?: string }[]): CustomerRow[] {
+  const known = new Set(rows.map((c) => c.key));
+  const added: CustomerRow[] = [];
+  for (const n of notes) {
+    const email = String(n.email || "").trim();
+    const key = email.toLowerCase();
+    if (!key || known.has(key) || !String(n.note || "").includes(MOVED_MARK)) continue;
+    known.add(key);
+    added.push({
+      key, email, name: String(n.name || ""), orderCount: 0, totalSpent: 0, avgOrder: 0, firstOrderAt: 0, lastOrderAt: 0,
+      daysSinceLast: 0, segment: "moved", city: String(n.place || ""), country: "", orders: [],
+    });
+  }
+  return added.length ? [...rows, ...added] : rows;
 }
 
 export function customerStats(rows: CustomerRow[]) {
