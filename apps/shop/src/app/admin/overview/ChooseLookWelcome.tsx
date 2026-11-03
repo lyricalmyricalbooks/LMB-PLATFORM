@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ADMIN_LOOKS, applyAdminLook, readAdminLook, type AdminLookId } from "../riso/adminLook";
 import { Monitor, Smartphone } from "lucide-react";
-import { applyChosenLook, galleryThemes, lookPreview, pressNameOf, type LibraryTheme } from "../chooseLook";
+import { applyChosenLook, emailThemeFor, galleryThemes, lookPreview, pressNameOf, type LibraryTheme } from "../chooseLook";
+import { adminApi } from "../api";
 import type { WelcomeDone } from "../firstWeek";
 import { friendlyError } from "../studio/friendlyError";
 import { Dialog, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "../riso/components";
@@ -34,6 +35,12 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     setBusy(theme.id); setError("");
     try {
       await applyChosenLook(theme, settings, publishes);
+      // Customer emails follow Market stall and Index rows. Best effort: the look is already saved, so a failure here changes nothing else.
+      try {
+        const current = String((await adminApi.getNotificationSettings())?.brand?.emailTheme || "");
+        const emailTheme = emailThemeFor(theme.id, current);
+        if (emailTheme && emailTheme !== current) await adminApi.setEmailTheme(emailTheme);
+      } catch { /* the email colours can still be set in Settings */ }
       await onDone({ theme: theme.id, at: new Date().toISOString(), adminLook, ...(skipped ? { skipped: true } : {}) });
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
