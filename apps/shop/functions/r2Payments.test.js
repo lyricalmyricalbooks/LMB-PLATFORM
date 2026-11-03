@@ -585,6 +585,39 @@ test('payment links: the card page charges the agreed total, and a closed, expir
   expect(normal.discount).toBe(233);
 });
 
+test('payment links: items added to a paid order ship with it, and only an active paid order that has not left takes them (plan 24.6)', async () => {
+  const docs = linkDocs();
+  docs.orders = {
+    paid: { orderId: 'PAID-1', paymentStatus: 'paid', status: 'processing', fulfillmentStatus: 'processing' },
+    gone: { orderId: 'GONE-1', paymentStatus: 'paid', status: 'processing', fulfillmentStatus: 'shipped' },
+    unpaid: { orderId: 'UNPAID-1', paymentStatus: 'unpaid', status: 'pending_payment' },
+  };
+  const app = harness({ docs });
+  const { order } = await makeLink(app, { shipsWith: 'paid', shipping: 0 });
+  expect(order.shipsWith).toBe('paid');
+  expect(order.activity[0].message).toMatch(/Adds to order PAID-1/);
+  // The paid order itself is not written to.
+  expect(app.docs.orders.paid).toEqual(docs.orders.paid);
+  for (const [id, words] of [['gone', /already left/], ['unpaid', /active paid order/], ['missing', /can't be found/], ['a/b', /can't be found/]]) {
+    const answer = await app.call('createStripeCheckoutSession', linkBody({ shipsWith: id }), { admin: true });
+    expect(answer.code).toBe(400);
+    expect(answer.value.error).toMatch(words);
+  }
+  // A link without shipsWith is unchanged.
+  expect((await makeLink(app)).order.shipsWith).toBeUndefined();
+  // Once the first order is cancelled or refunded, the added items' link takes no payment; until then it does.
+  const id = order.orderId;
+  await expect(app.priceOrder(order, { orderId: id })).resolves.toBeTruthy();
+  app.docs.orders.paid.paymentStatus = 'partially_refunded';
+  await expect(app.priceOrder(order, { orderId: id })).resolves.toBeTruthy();
+  app.docs.orders.paid.status = 'cancelled';
+  await expect(app.priceOrder(order, { orderId: id })).rejects.toThrow(/was cancelled/);
+  app.docs.orders.paid = { ...docs.orders.paid, paymentStatus: 'refunded' };
+  await expect(app.priceOrder(order, { orderId: id })).rejects.toThrow(/was cancelled/);
+  delete app.docs.orders.paid;
+  await expect(app.priceOrder(order, { orderId: id })).rejects.toThrow(/was cancelled/);
+});
+
 test('payment links: an ordinary order is priced exactly as before', async () => {
   const app = harness({ docs: linkDocs() });
   const priced = await app.priceOrder({ ...stockistOrder(), trackingKey: 'a'.repeat(64) }, { orderId: 'o-normal' });

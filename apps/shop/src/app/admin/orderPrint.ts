@@ -1,4 +1,4 @@
-import { buildPickList, physicalItems } from "./fulfillment";
+import { buildPickList, itemsToPack } from "./fulfillment";
 import { lineDetails } from "./orderLines";
 const escape = (v: any) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 // Add-ons (sign / inscribe / wrap) and the books inside a box set print under their line, in bold
@@ -25,7 +25,7 @@ export function packingSlipHtml(o: any, shop: SlipShop = {}): string {
  const fromBlock = from.length ? `<div class="from"><strong>${escape(from[0])}</strong>${from.slice(1).map(l => `<br>${escape(l)}`).join("")}${shopAddressLines(shop.location).length ? "<br><small>Return address</small>" : ""}</div>` : "";
  const thanks = shop.thanks === undefined ? `Thank you for your order${shop.name ? ` from ${shop.name}` : ""}!` : shop.thanks;
  return `<section>${fromBlock}<h1>Packing slip</h1><h2>${escape(o.orderId || o.id)}</h2><p>${escape(o.customer?.name)}<br>${escape([a.street, a.unit].filter(Boolean).join(", "))}<br>${escape(a.city)}, ${escape(a.state)} ${escape(a.zip)}<br>${escape(a.country)}</p>${(() => {
-  const items = physicalItems(o);
+  const items = itemsToPack(o);
   return `<table><thead><tr><th>Book / edition</th><th>Quantity</th><th>Packed</th></tr></thead><tbody>${rows(items, o)}</tbody></table>`;
  })()}${o.orderNote ? `<div class="note"><strong>Note / gift message from the customer</strong><p>${escape(o.orderNote)}</p></div>` : ""}${thanks ? `<p class="thanks">${escape(thanks)}</p>` : ""}</section>`;
 }

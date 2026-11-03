@@ -301,6 +301,12 @@ export function createControlRoom({
           closed: row.closure ? { by: row.closure.by, reason: row.closure.reason, at: row.closure.at } : null,
           costThisMonth: costOf(row.spending),
           paymentsMoved: row.paymentsEmergency ? { to: row.paymentsEmergency.to, by: row.paymentsEmergency.by, at: row.paymentsEmergency.at } : null,
+          // The daily drift watch (driftWatch.js): its level and reasons, and the owner's snooze while it lasts.
+          drift: row.drift?.level ? {
+            level: row.drift.level, reasons: row.drift.reasons ?? [], at: row.drift.at ?? null, checkedInAt: row.drift.checkedInAt ?? null,
+            snoozedUntil: Date.parse(row.drift.snoozedUntil ?? "") > now().getTime() ? row.drift.snoozedUntil : null, snoozedBy: row.drift.snoozedBy ?? null,
+          } : null,
+          moveStuck: row.moveStuck ?? null,
         });
       }
       const order = { problem: 0, watch: 1, ok: 2 };

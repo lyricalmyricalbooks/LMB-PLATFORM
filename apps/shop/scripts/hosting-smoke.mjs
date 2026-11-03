@@ -132,7 +132,7 @@ if (existsSync(resolve(dist, 'seo-published-fingerprint.txt'))) {
   if (!isFingerprint(fingerprint)) failures.push('dist/seo-published-fingerprint.txt is not a SHA-256 fingerprint');
   check('/seo-published-fingerprint.txt', { status: 200, cache: 'no-cache', match: new RegExp(`^${fingerprint}\\s*$`) });
 }
-for (const file of ['sitemap.xml', 'robots.txt', 'google-merchant-feed.xml', 'llms.txt']) {
+for (const file of ['sitemap.xml', 'robots.txt', 'google-merchant-feed.xml', 'social-product-feed.csv', 'llms.txt']) {
   if (existsSync(resolve(dist, file))) check(`/${file}`, { status: 200, cache: 'no-cache' });
 }
 

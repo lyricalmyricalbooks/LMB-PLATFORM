@@ -1,6 +1,7 @@
 import { plainError } from "./plainError";
 import { useState, useEffect, useMemo } from "react";
-import { Link2, Plus, Trash2 } from "lucide-react";
+import { Link2, Plus, Trash2, Upload } from "lucide-react";
+import { DiscountMoveDialog } from "./DiscountMoveDialog";
 import { adminApi } from "./api";
 import { getOrdersCached } from "./ordersCache";
 import toast from "react-hot-toast";
@@ -361,6 +362,9 @@ function ShareDiscountDialog({ code, discount, onClose }: { code: string; discou
 
 export function Discounts() {
   const [discounts, setDiscounts] = useState<any[]>([]);
+  // Bring codes over from the old shop (plan 23.30).
+  const [moving, setMoving] = useState(false);
+  const bringButton = <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoving(true)}>Bring codes over</SecondaryButton>;
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -499,7 +503,7 @@ export function Discounts() {
   return (
     <div className="rp-stack">
       {/* The page's main button sits by its title; the counts show once there is something to count. */}
-      {discounts.length > 0 && <PageActions><PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton></PageActions>}
+      {discounts.length > 0 && <PageActions>{bringButton}<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton></PageActions>}
       {discounts.length > 0 && <div className="rp-kpi-grid">
         <MetricCard label="Active discounts" value={activeCodes} footer={`${discounts.length} total`} />
         <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted when a payment goes through" />
@@ -510,7 +514,10 @@ export function Discounts() {
       {discounts.length === 0 ? (
         <SectionCard>
           <EmptyState icon="🏷️" title="No discounts yet" description="Create a code shoppers type at checkout, or an automatic offer that applies by itself: a percentage, fixed amount, free shipping, buy-X-get-Y, tiered discount or a free gift with purchase."
-            action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton>} />
+            action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+              <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton>
+              {bringButton}
+            </div>} />
         </SectionCard>
       ) : (
         <>
@@ -534,6 +541,9 @@ export function Discounts() {
       )}
 
       {dialogOpen && <DiscountDialog initial={editing} books={books} shopCategories={shopCategories} otherCodes={discounts.filter(d => d.id !== editing?.id && !isAutomatic(d)).map(d => d.code)} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} onSaveBatch={handleSaveBatch} />}
+
+      {moving && <DiscountMoveDialog existing={discounts.filter(d => !isAutomatic(d)).map(d => String(d.code || ""))}
+        onClose={() => setMoving(false)} onDone={() => { void load(); }} />}
 
       {sharing && <ShareDiscountDialog code={sharing} discount={discounts.find(d => !isAutomatic(d) && String(d.code || "").toUpperCase() === sharing)} onClose={() => setSharing(null)} />}
 

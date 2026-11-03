@@ -13,6 +13,7 @@ import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, reviewOpen, REVIEW_PROBLEM, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
+import { newPartShipment, partShipmentProblem, partShipmentsOf } from "./partShipments";
 import { deleteRefusal } from "./orderListHelpers";
 import { restampPreorderItems } from "../features/site/preorder";
 import { themeWrite } from "./themeWrite";
@@ -1107,7 +1108,7 @@ export const adminApi = {
     });
   },
 
-  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email" | "clear_app_label" | "clear_review", payload: any = {}) => {
+  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "ship_part" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email" | "clear_app_label" | "clear_review", payload: any = {}) => {
     await runTransaction(db, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
@@ -1149,6 +1150,15 @@ export const adminApi = {
         const tracking = trackingFields(payload);
         tx.update(ref, { status: "completed", fulfillmentStatus: "shipped", ...tracking, shippedAt: now, updatedAt: now });
         message = `Dispatched via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
+      } else if (action === "ship_part") {
+        // Part of the order goes now (code plan 24.5); the order stays open until the rest is dispatched.
+        const picks = payload.picks && typeof payload.picks === "object" ? payload.picks : {};
+        const problem = partShipmentProblem(o, picks); if (problem) throw new Error(problem);
+        const tracking = trackingFields(payload);
+        const part = newPartShipment(o, picks, tracking, now);
+        tx.update(ref, { partShipments: [...partShipmentsOf(o), part], updatedAt: now });
+        const copies = part.lines.reduce((n, l) => n + l.quantity, 0);
+        message = `Part shipped (${copies} item${copies === 1 ? "" : "s"}: ${part.lines.map((l) => `${l.quantity} × ${l.title}`).join(", ")}) via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
       } else if (action === "clear_app_label") {
         // A label bought in the inventory app (Inventory app link) that won't be used: take its tracking off
         // the order so the website can buy its own. Only before the parcel left.
@@ -1499,6 +1509,12 @@ export const adminApi = {
     if (!snap.exists()) return null;
     const operations = await getDoc(doc(db, "order-operations", id));
     return { id: snap.id, ...snap.data(), operations: operations.data() || {} };
+  },
+
+  // Orders made to add items to this one (code plan 24.6): they ship with it.
+  getOrdersShippingWith: async (id: string): Promise<any[]> => {
+    const snap = await getDocs(query(collection(db, "orders"), where("shipsWith", "==", id), limit(20)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
 
   // `notes` are extra order-history lines written with the order (checkout's EU/UK download consent).
@@ -2056,6 +2072,21 @@ export const adminApi = {
    */
   updateFirstWeek: async (change: { sells?: string; done?: Record<string, string>; hiddenAt?: string; details?: { at: string }; bring?: import("./bringShop").BringMarker; shipping?: import("./shippingStage").ShippingMarker; finalCheck?: import("./finalCheckStage").FinalCheckMarker; google?: import("./googleStage").GoogleMarker; payments?: import("./paymentsStage").PaymentsMarker; welcome?: import("./firstWeek").WelcomeDone; progress?: import("./firstWeek").GuideProgress }) => {
     await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
+  },
+
+  /**
+   * How much came over from the old shop (plan 23.28), for the Overview's "You're all moved in": customers on file, and
+   * gift cards and past orders the shop's server brought over. Mirrors `moveCounts` in functions/moveDone.js; null
+   * where a count can't be read.
+   */
+  movedCounts: async () => {
+    const count = (q: any) => getCountFromServer(q).then((s: any) => s.data().count as number).catch(() => null);
+    const [customers, giftCards, orders] = await Promise.all([
+      count(collection(db, "customerNotes")),
+      count(query(collection(db, "giftCards"), where("source", "==", "import"))),
+      count(query(collection(db, "orders"), where("source", "==", "import"))),
+    ]);
+    return { customers, giftCards, orders };
   },
 
   /** Takes one hand tick back (`done.<id>`), e.g. shows Your move so far again once it was hidden (plan 23.19). */

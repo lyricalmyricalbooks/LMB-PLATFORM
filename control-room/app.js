@@ -60,6 +60,8 @@ const SWITCH_WORDS = {
 const GLYPH = { neutral: "○", primary: "●", info: "●", success: "✓", warning: "⚠", danger: "✕" };
 const TONE = { problem: "danger", watch: "warning", ok: "success" };
 const pill = (tone, words) => el("span", { className: "rp-badge", dataset: { tone } }, el("span", { ariaHidden: "true", textContent: GLYPH[tone] }), words);
+/** replaceChildren without the nulls (the DOM would show a null child as the word "null"). */
+const fill = (node, ...kids) => node.replaceChildren(...kids.filter((kid) => kid !== null && kid !== undefined && kid !== false));
 const button = (words, variant = "secondary", props = {}) => el("button", { type: "button", className: `rp-btn rp-btn-${variant} rp-btn-sm`, textContent: words, ...props });
 const emptyState = (title, words) => el("div", { className: "rp-state", dataset: { inline: "" } },
   el("p", { className: "rp-state-title", textContent: title }), words ? el("p", { className: "rp-state-desc", textContent: words }) : null);
@@ -154,9 +156,7 @@ async function load() {
     await loadToday();
     await loadTaxWatch();
     await loadTestShop();
-    const { shops } = await api("GET", "/control/shops");
-    allShops = shops;
-    showShops();
+    await loadShops();
     status.textContent = "";
     showShell("admin");
     await loadRepairs();
@@ -184,6 +184,11 @@ async function load() {
 
 // ── Shops: search and filters (plan 9.3), over the list already loaded. ──
 let allShops = [];
+
+async function loadShops() {
+  allShops = (await api("GET", "/control/shops")).shops;
+  showShops();
+}
 // Every shop's tags (19.13), for the list's pills and search.
 let shopTags = {};
 const BILLING_TONE = { trialing: "info", active: "success", past_due: "danger", paused: "warning", unpaid: "warning", incomplete: "warning", canceled: "neutral", incomplete_expired: "neutral" };
@@ -196,13 +201,32 @@ function languageCount(shops) {
   return parts.length ? ` · emails: ${parts.map(([n, words]) => `${n} ${words}`).join(", ")}` : "";
 }
 
+// The Shops list's Risk filter: the drift watch's level, the owner's snooze, and a move left part-way.
+function riskMatches(shop, risk) {
+  const level = shop.drift?.level;
+  if (!risk) return true;
+  if (risk === "at-risk") return level === "drifting" || level === "watch";
+  if (risk === "snoozed") return Boolean(shop.drift?.snoozedUntil);
+  if (risk === "moving") return Boolean(shop.moveStuck);
+  return level === risk;
+}
+
+/** A small pill for a press at risk in the Shops list, or null. */
+function riskPill(shop) {
+  if (shop.drift?.snoozedUntil) return pill("neutral", `snoozed until ${dateOnly(shop.drift.snoozedUntil)}`);
+  if (shop.drift?.level === "drifting") return pill("danger", "drifting");
+  if (shop.drift?.level === "watch") return pill("warning", "to watch");
+  return null;
+}
+
 function showShops() {
   const form = $("#shop-filters");
   const words = form.q.value.trim().toLowerCase();
   const shown = allShops.filter((shop) => shopMatches(shop, words, shopTags[shop.shopId])
     && (!form.health.value || shop.health.level === form.health.value)
     && (!form.plan.value || shop.plan === form.plan.value)
-    && (!form.billing.value || shop.billingStatus === form.billing.value));
+    && (!form.billing.value || shop.billingStatus === form.billing.value)
+    && riskMatches(shop, form.risk.value));
   const problems = allShops.filter((s) => s.health.level === "problem").length;
   $("#summary").textContent = `${allShops.length} shop${allShops.length === 1 ? "" : "s"} · ${problems} with a problem${languageCount(allShops)}${shown.length !== allShops.length ? ` · showing ${shown.length}` : ""}`;
   if (!shown.length) {
@@ -214,7 +238,7 @@ function showShops() {
     rows: shown,
     open: (shop) => openShop(shop),
     columns: [
-      { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null), tagPills(shopTags[shop.shopId])) },
+      { header: "Press", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? "test shop" : null), tagPills(shopTags[shop.shopId]), riskPill(shop)) },
       { header: "Plan", render: (shop) => PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" },
       { header: "Billing", render: (shop) => (shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : el("span", { className: "rp-hint", textContent: shop.access ?? "none" })) },
       { header: "Cost this month", render: (shop) => costCell(shop.costThisMonth) },
@@ -568,6 +592,8 @@ function card(shop) {
     shop.status === "live" ? paymentsMenu(shop.paymentsMoved?.to ?? "platform", { shopId: shop.shopId }, shop.pressName) : null,
     el("h3", { className: "cr-section", textContent: "The record" }),
     recordSlot,
+    shop.drift ? el("h3", { className: "cr-section", textContent: "Drift watch" }) : null,
+    shop.drift ? driftSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Sign-in safety" }) : null,
     shop.status === "live" ? signInSafetySection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Brought over from the old shop" }) : null,
@@ -1346,7 +1372,7 @@ async function askThePress(shop, clicked, slot) {
 // ── The business side of Today (plan 19.7-19.9): income over time, failed plan payments, why presses leave. Each part
 // shows its own trouble in its own place, so one that can't load never hides the others. ──
 async function loadBusiness() {
-  await Promise.all([loadIncome(), loadAtRisk(), loadPaymentTrouble(), loadLeaving(), loadAppsClosing()]);
+  await Promise.all([loadIncome(), loadAtRisk(), loadFairMonths(), loadPaymentTrouble(), loadLeaving(), loadAppsClosing()]);
 }
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -1456,6 +1482,18 @@ async function loadIncome() {
   }
 }
 
+// One press's drift watch in its record: the level and reasons, the check-in email, and the snooze with its button.
+function driftSection(shop) {
+  const d = shop.drift;
+  const words = { drifting: "Drifting away", watch: "To watch", fine: "Selling and signing in as usual" };
+  return el("div", {},
+    el("div", { className: "cr-row" }, pill(d.level === "drifting" ? "danger" : d.level === "watch" ? "warning" : "success", words[d.level] ?? d.level),
+      d.snoozedUntil ? pill("neutral", `snoozed until ${dateOnly(d.snoozedUntil)}${d.snoozedBy ? ` by ${d.snoozedBy}` : ""}`) : null),
+    meta(...d.reasons, d.checkedInAt ? `check-in email ${dateOnly(d.checkedInAt)}` : null, d.at ? `checked ${dateOnly(d.at)}` : null),
+    d.level !== "fine" || d.snoozedUntil ? el("div", { className: "cr-actions" }, snoozeButton(shop.shopId, shop.pressName ?? shop.shopId, d.snoozedUntil ? 0 : 30)) : null,
+    shop.moveStuck ? el("p", { className: "rp-hint", textContent: `Their move from the old shop stopped ${shop.moveStuck.days} days ago: still to do ${shop.moveStuck.left.map((t) => t.toLowerCase()).join(", ")}.` }) : null);
+}
+
 // Drifting presses: snooze one for a while (it leaves Today and gets no check-in email), or end the snooze.
 function snoozeButton(shopId, name, days) {
   const snooze = button(days ? `Snooze ${days} days` : "End snooze", "secondary");
@@ -1465,7 +1503,8 @@ function snoozeButton(shopId, name, days) {
     snooze.disabled = true;
     try {
       await api("POST", "/control/drift-snooze", { shopId, days, reason });
-      await Promise.all([loadToday(), loadAtRisk()]);
+      snooze.textContent = days ? `Snoozed for ${days} days` : "Snooze ended";
+      await Promise.all([loadToday(), loadAtRisk(), loadShops()]);
     } catch (failure) {
       snooze.disabled = false;
       window.alert(failure.message);
@@ -1474,12 +1513,43 @@ function snoozeButton(shopId, name, days) {
   return snooze;
 }
 
+// Fair till sales by month across every press with the stockroom: is the fair till worth showing new presses?
+async function loadFairMonths() {
+  const target = $("#fair-months");
+  if (!target) return;
+  try {
+    const { months, presses, unread } = await api("GET", "/control/fair-months");
+    const cad = (n) => money(Math.round(n * 100), "CAD");
+    const sold = months.filter((m) => m.sales);
+    fill(target,
+      unread.length ? el("p", { className: "rp-hint", textContent: `Couldn't read ${unread.map((u) => u.pressName).join(", ")}; their sales are left out.` }) : null,
+      sold.length ? table({
+        caption: `Fair till sales by month, ${plural(presses, "press", "presses")} with the stockroom`,
+        columns: [
+          { header: "Month", lead: true, render: (m) => el("span", { className: "rp-mono", textContent: m.month }) },
+          { header: "Sales", render: (m) => String(m.sales) },
+          { header: "Copies", render: (m) => String(m.copies) },
+          { header: "Money", render: (m) => el("span", { className: "rp-mono", textContent: cad(m.amount) }) },
+          { header: "Presses selling", render: (m) => String(m.presses) },
+        ],
+        rows: [...months].reverse(),
+      }) : emptyState("No fair till sales in the last 12 months.", "A press's sales show here once they ring one up at a fair."));
+  } catch (failure) {
+    target.replaceChildren(emptyState(failure.message));
+  }
+}
+
 // Presses at risk: the paying presses drifting or to watch, and the monthly income they bring in.
 async function loadAtRisk() {
   const target = $("#at-risk");
   if (!target) return;
   try {
-    const { presses, drifting, watch, currency } = await api("GET", "/control/at-risk");
+    const [{ presses, drifting, watch, currency }, income] = await Promise.all([api("GET", "/control/at-risk"), api("GET", "/control/income").catch(() => null)]);
+    // The nightly income record keeps the money at risk too: each month's last night, oldest first.
+    const past = (income?.months ?? []).filter((m) => m.atRisk);
+    const trend = past.length > 1
+      ? el("p", { className: "rp-hint", textContent: `Money at risk at each month's end: ${past.map((m) => `${m.month} ${money(m.atRisk.cents, currency)} (${plural(m.atRisk.count, "press", "presses")})`).join(" · ")}.` })
+      : null;
     const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric" },
       el("div", { className: "rp-metric-label", textContent: label }),
       el("div", { className: "rp-metric-value", textContent: String(value), dataset: tone ? { tone } : {} }),
@@ -1487,7 +1557,7 @@ async function loadAtRisk() {
     const numbers = el("div", { className: "rp-kpi-grid", ariaLabel: "Presses at risk in numbers" },
       figure("Drifting away", drifting.count, `${money(drifting.monthlyCents, currency)} a month`, drifting.count ? "danger" : null),
       figure("To watch", watch.count, `${money(watch.monthlyCents, currency)} a month`, watch.count ? "warn" : null));
-    target.replaceChildren(numbers, presses.length ? table({
+    fill(target, numbers, trend, presses.length ? table({
       caption: "Presses at risk, most at risk first",
       columns: [
         { header: "Press", lead: true, render: (p) => el("div", {}, el("p", { className: "cr-title", textContent: p.pressName }), meta(p.shopId, p.ownerEmail)) },
@@ -2088,18 +2158,21 @@ function salesChannelsSection(shop) {
     const { links, fair } = channels;
     const rows = [
       channels.hasShop && (links
-        ? { what: "Payment links", amount: plural(links.paid, "paid sale"), more: [`${cad(links.amount)} paid`, `${links.recent} in the last 30 days`, links.waiting ? `${links.waiting} waiting to be paid` : null, links.lastPaidAt ? `last paid ${dateOnly(links.lastPaidAt)}` : `last made ${dateOnly(links.lastMadeAt)}`] }
+        ? { what: "Payment links", warn: Boolean(links.unpaid), amount: plural(links.paid, "paid sale"), more: [`${cad(links.amount)} paid`, `${links.recent} in the last 30 days`, links.waiting ? `${links.waiting} waiting to be paid` : null, links.lastPaidAt ? `last paid ${dateOnly(links.lastPaidAt)}` : `last made ${dateOnly(links.lastMadeAt)}`] }
         : { what: "Payment links", amount: "none yet", more: ["no payment link made"] }),
       channels.hasStockroom && (fair
         ? { what: "Fair till", amount: plural(fair.sales, "sale"), more: [`${plural(fair.copies, "copy", "copies")}`, `${cad(fair.amount)}`, `${plural(fair.days, "selling day")}`, `${fair.recent} in the last 30 days`, fair.lastDay ? `last ${fair.lastDay}` : null] }
         : { what: "Fair till", amount: channels.stockroom === "read" ? "none yet" : "—", more: [channels.stockroom === "read" ? "nothing rung up at a fair" : "the stockroom isn't made yet"] }),
       fair?.helpers && { what: "Fair helpers", amount: plural(fair.helpers.sales, "sale"), more: [`rung up by ${plural(fair.helpers.people, "helper")}`, fair.helpers.lastAt ? `last ${dateOnly(fair.helpers.lastAt)}` : null] },
     ].filter(Boolean);
-    slot.replaceChildren(rows.length ? table({
+    const unpaid = links?.unpaid;
+    fill(slot,
+      unpaid ? el("p", { className: "rp-hint", textContent: `${plural(unpaid.count, "payment link")} (${cad(unpaid.amount)}) still unpaid ${unpaid.count === 1 ? `${unpaid.oldestDays} days after it was made` : `after 3 days or more, the oldest ${unpaid.oldestDays} days`}${unpaid.expired ? `, ${unpaid.expired} already closed` : ""}. ${unpaid.reminded ? `The shop has reminded the customer about ${unpaid.reminded}.` : "No reminder has gone to the customer yet (the shop sends one two days before a link closes)."} The press may think the customer paid.` }) : null,
+      rows.length ? table({
       caption: "Payment links and fair till",
       rows,
       columns: [
-        { header: "Way", lead: true, render: (r) => el("p", { className: "cr-title", textContent: r.what }) },
+        { header: "Way", lead: true, render: (r) => el("div", {}, el("p", { className: "cr-title", textContent: r.what }), r.warn ? pill("warning", "needs a look") : null) },
         { header: "How many", render: (r) => el("span", { className: "rp-mono", textContent: r.amount }) },
         { header: "Details", render: (r) => meta(...r.more) },
       ],
@@ -2122,7 +2195,7 @@ function broughtOverSection(shop) {
       brought.photos && { what: "Photos", amount: `${brought.photos.copied} copied`, more: [brought.photos.waiting ? `${brought.photos.waiting} still on the old shop` : "all copied", brought.photos.unreadable ? `${brought.photos.unreadable} couldn't be read` : null], warn: brought.photos.waiting > 0 || brought.photos.unreadable > 0 },
     ].filter(Boolean);
     const move = brought.move;
-    slot.replaceChildren(
+    fill(slot,
       move ? el("p", { className: "rp-hint", textContent: `Their move so far: ${move.done} of ${move.of} parts done${move.done < move.of ? ` (still to do: ${move.steps.filter((s) => !s.done).map((s) => s.title.toLowerCase()).join(", ")})` : ""}.${move.putAway ? " They put the list away." : ""}` }) : null,
       brought.photos?.waiting ? el("p", { className: "rp-hint", textContent: "Some photos still live on the old shop. They are copied every hour; if the press closes the old shop first, those pictures are lost." }) : null,
       rows.length ? table({

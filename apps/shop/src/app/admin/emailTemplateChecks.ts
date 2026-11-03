@@ -9,7 +9,7 @@ import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 export type TemplateId =
   | "order_confirmation" | "order_pending_payment" | "shipping_confirmation" | "abandoned_cart" | "order_cancelled"
   | "order_refunded" | "customer_welcome" | "delivery_update" | "contact_reply" | "gift_card" | "review_request"
-  | "payment_link_reminder";
+  | "payment_link_reminder" | "part_shipped";
 
 export type TemplateFields = { subject: string; body: string; buttonText: string; signoff: string; enabled?: boolean };
 
@@ -17,6 +17,7 @@ export const PLACEHOLDERS: Record<TemplateId, string[]> = {
   order_confirmation: ["customer_name", "order_id", "order_url", "items_table", "total_price", "shipping_method", "delivery_estimate", "shop_name"],
   order_pending_payment: ["customer_name", "order_id", "total_price", "payment_method", "items_table", "shop_name"],
   shipping_confirmation: ["customer_name", "order_id", "tracking_carrier", "tracking_number", "tracking_url", "shop_name"],
+  part_shipped: ["customer_name", "order_id", "tracking_carrier", "tracking_number", "tracking_url", "items_list", "shop_name"],
   abandoned_cart: ["customer_name", "cart_url", "items_table", "shop_name"],
   order_cancelled: ["customer_name", "order_id", "shop_name"],
   payment_link_reminder: ["customer_name", "order_id", "total_price", "expires_on", "shop_name"],
@@ -34,6 +35,7 @@ export const REQUIRED_PLACEHOLDERS: Partial<Record<TemplateId, Record<string, st
 };
 
 const SAMPLE: Record<string, string> = {
+  items_list: "1 × Visions of Toronto",
   book_titles: "Visions of Toronto", customer_name: "Julianne Smith", order_id: "LM-98241", tracking_carrier: "Canada Post", tracking_number: "123456789012",
   total_price: "CA$45.00", payment_method: "Interac e-Transfer", email: "julianne@reader.example", status: "out for delivery",
   tracking_url: "#", cart_url: "#", order_url: "#", shipping_method: "Canada Post Expedited Parcel",

@@ -54,7 +54,7 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
   // A press part-way through moving its old shop over, with nothing ticked for a week (driftWatch.js moveStuck).
   for (const row of shops.filter((r) => r.moveStuck && r.status === "live" && !r.closure)) {
     const m = row.moveStuck;
-    needs.push({ kind: "move", shopId: row.shopId, words: `${row.pressName ?? row.shopId} is part-way through moving from their old shop: ${m.done} of ${m.of} parts done, still to do ${m.left.map((t) => t.toLowerCase()).join(", ")} (last part done ${m.days} days ago)`, go: "#shops" });
+    needs.push({ kind: "move", shopId: row.shopId, words: `${row.pressName ?? row.shopId} is part-way through moving from their old shop: ${m.done} of ${m.of} parts done, still to do ${m.left.map((t) => t.toLowerCase()).join(", ")} (last part done ${m.days} days ago${m.remindedAt ? `; the shop emailed them a reminder ${String(m.remindedAt).slice(0, 10)}` : ""})`, go: "#shops" });
   }
   // Web addresses (services/domains, the daily watch): one that stopped opening its shop, or runs out within two weeks.
   for (const row of rows) {

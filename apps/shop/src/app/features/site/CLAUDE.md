@@ -733,3 +733,15 @@ Studio › Style › Book page · photos & layout › Extras on the page › **A
 note, honeypot) that sends one `contactMessages` row through `submitContactMessage`, like Ask a question, so Admin › Messages and the
 budgeted "new message" email apply. The message starts with `Quantity: N`. Rules in pure `bulkQuote.ts` (whole number 1 to 100000). Never
 sends from the Studio preview. Words: Text & labels › Product page (`pdpQuote*`). No rule or Function change.
+
+## Instagram, Facebook and Pinterest file (3 November 2026, platform plan 24.7)
+
+The site build (`scripts/generate-sitemap.mjs`) also writes `dist/social-product-feed.csv` (`SOCIAL_FEED_FILE`), produced by
+`socialFeedCsv` in `merchantFeed.mjs` from the same `merchantFeedItems` as the Google file. Prices, sales and stock therefore
+match everywhere. Meta Commerce Manager (Facebook and Instagram) and Pinterest catalogs read CSV with Google's column
+names. Availability uses their spaced words, and `backorder` becomes `preorder` because neither offers a backorder value.
+`additional_image_link` is one comma-joined field. Line breaks become spaces, so a row is always one line. Hosting serves
+`*.csv` with `no-cache`, like the XML files, and `hosting-smoke.mjs` checks it. Admin: Books › More catalog actions ›
+Instagram, Facebook and Pinterest (`admin/SocialFeedDialog.tsx`) shows the address and the one-time steps. It appears on
+every shop, including those on Colophon, since there is no one-click connection for these sites. Tests:
+`socialFeed.test.ts`.

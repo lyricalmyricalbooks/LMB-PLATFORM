@@ -82,3 +82,22 @@ describe("packingInfo", () => {
 });
 
 it("blocks dispatch while a customer return is open", () => { expect(dispatchProblem({ ...packed(), customerRequest: { type: "return", status: "open" } })).toContain("return"); });
+describe("change an order after it's paid (plan 24.6)", () => {
+ const split = () => ({ ...packed(), items: [{ id: "book", title: "Book", quantity: 3 }, { id: "zine", title: "Zine", quantity: 1 }, { id: "ebook", title: "E", format: "ebook", quantity: 1 }] });
+ it("counts copies still to send after parts sent ahead and copies taken off", async () => {
+  const { copiesToSend, copiesTakenOff, itemsToPack } = await import("./fulfillment");
+  const o: any = { ...split(), partShipments: [{ id: "p1", lines: [{ line: 0, quantity: 1 }] }], partialRestockedItems: [{ index: 0, quantity: 1 }, { index: 1, quantity: 1 }] };
+  expect(copiesToSend(o, 0)).toBe(1);
+  expect(copiesToSend(o, 1)).toBe(0);
+  expect(copiesTakenOff(o, 0)).toBe(1);
+  expect(itemsToPack(o).map((i: any) => [i.id, i.quantity])).toEqual([["book", 1]]);
+  expect(buildPickList([o]).map(i => i.quantity)).toEqual([1]);
+ });
+ it("keeps the packing key of unchanged orders, so nothing packed is undone", () => {
+  const o: any = split();
+  expect(packingKey(o)).toBe(JSON.stringify([["book", "", 3], ["zine", "", 1], ["ebook", "", 1]]));
+  const taken = { ...o, partialRestockedItems: [{ index: 0, quantity: 2 }] };
+  expect(packingKey(taken)).not.toBe(packingKey(o));
+  expect(queueOf({ ...taken, operations: o.operations })).toBe("Ready to pack");
+ });
+});

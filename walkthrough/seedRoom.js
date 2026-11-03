@@ -87,6 +87,8 @@ export async function seedRoom(world) {
   // Its move stopped part-way ten days ago (pages and old links still to do), so Today flags it.
   const tenDaysAgo = new Date(world.clock.ms() - 10 * 86_400_000).toISOString();
   await world.shopData.set("kestrel", "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": tenDaysAgo, "move-giftcards": tenDaysAgo, "move-orders": tenDaysAgo } });
+  // The shop's own stalled-move email went to Kit three days later (apps/shop moveReminder).
+  await world.shopData.set("kestrel", "systemStatus/moveReminder", { forLastMoved: tenDaysAgo, sentAt: new Date(world.clock.ms() - 3 * 86_400_000).toISOString() });
   await world.shopData.set("kestrel", "systemStatus/photoImport", { copiedTotal: 57, pending: 3, failed: {}, lastRunAt: at });
 
   // Drifting away: Lantern sold five zines five weeks ago and none since, and Lou last signed in 40 days ago; Kestrel
@@ -100,9 +102,9 @@ export async function seedRoom(world) {
   world.shopAccess.lastSignIn.set("kestrel kit@example.com", daysAgo(1));
   await world.driftWatch.sweep();
 
-  // Selling away from the website: Kestrel sent three payment links (two paid, one waiting) and rang up two checkouts on
+  // Selling away from the website: Kestrel sent three payment links (two paid, one still unpaid after five days) and rang up two checkouts on
   // the fair till, one by a fair helper.
-  for (const [i, [days, total, paid]] of [[20, 45, true], [6, 28.5, true], [1, 60, false]].entries()) {
+  for (const [i, [days, total, paid]] of [[20, 45, true], [6, 28.5, true], [5, 60, false]].entries()) {
     await world.shopData.set("kestrel", `orders/link-${i}`, { source: "payment_link", total, createdAt: daysAgo(days), ...(paid ? { status: "paid", paymentStatus: "paid", paidAt: daysAgo(days) } : { status: "pending_payment", paymentStatus: "unpaid" }) });
   }
   const fairDay = daysAgo(12).slice(0, 10);

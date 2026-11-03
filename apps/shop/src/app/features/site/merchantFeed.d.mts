@@ -26,3 +26,5 @@ export function cut(text: string, max: number): string;
 export function merchantFeedItems(siteUrl: string, books: any[], options?: { shopName?: string; now?: Date }): { items: MerchantFeedItem[]; skipped: MerchantFeedSkip[] };
 export function merchantFeedXml(siteUrl: string, items: MerchantFeedItem[], options?: { shopName?: string }): string;
 export function wasPrice(book: any, now?: Date): number;
+export const SOCIAL_FEED_FILE: string;
+export function socialFeedCsv(items: MerchantFeedItem[]): string;

@@ -437,6 +437,29 @@ function OrderTrackingContent() {
                 );
               })()}
 
+              {/* Parcels sent ahead of the rest of the order (code plan 24.5); the last parcel shows above as the shipment. */}
+              {Array.isArray(order.partShipments) && order.partShipments.length > 0 && (
+                <section {...regionProps("trackingParts")} className="fm-track-card p-6 sm:p-8 space-y-3">
+                  <p className="fm-track-display text-2xl">{getCopy(settings?.design, "trackPartsTitle")}</p>
+                  {!order.trackingNumber && <p className="text-sm fm-muted">{getCopy(settings?.design, "trackPartsText")}</p>}
+                  <ul className="list-none p-0 m-0">
+                    {order.partShipments.map((part: any) => (
+                      <li key={part.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b fm-track-rule">
+                        <div className="min-w-0">
+                          <p className="text-sm">{(part.lines || []).map((l: any) => `${l.quantity} × ${l.title}`).join(", ")}</p>
+                          <p className="text-sm fm-muted mt-1">{part.trackingCarrier} · <code className="font-mono">{part.trackingNumber}</code></p>
+                        </div>
+                        {part.trackingNumber && (
+                          <a href={getTrackingUrl(part.trackingCarrier || "", part.trackingNumber, part.trackingUrl)} target="_blank" rel="noopener noreferrer" className="fm-track-btn shrink-0">
+                            {getCopy(settings?.design, "trackPartTrack")} <ExternalLink size={14} aria-hidden="true" />
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               {digitalItems.length > 0 && order.paymentStatus === "paid" && (
                 <section {...regionProps("trackingDownloads")} className="fm-track-card p-6 sm:p-8 space-y-5">
                   <div>

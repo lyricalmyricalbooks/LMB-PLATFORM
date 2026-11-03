@@ -211,7 +211,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const jobRuns = fakeJobRuns();
   const jobs = createJobs({ store: jobRuns, email, alertTo: ADMIN_EMAIL, now: clock.date });
   // Paying presses drifting away (24.4): the practice shops' own orders and sign-ins.
-  const driftWatch = createDriftWatch({ registry, shopData, shopAccess, memberships: accountStores.memberships, email, settings, now: clock.date });
+  const driftWatch = createDriftWatch({ registry, shopData, stockroomData, shopAccess, memberships: accountStores.memberships, email, settings, now: clock.date });
   const jobsPage = createJobsPage({
     admins, runner: jobs, activity, now: clock.date,
     jobs: { "shop-maker": () => shopMaker.sweep(), "dropped-apps": () => billing.closeDroppedApps(), "income-record": () => runBusinessNightly({ registry, settings, incomeHistory, billing, now: clock.date }), "press-messages": () => pressMessages.sweep(), "drift-watch": () => driftWatch.sweep() },

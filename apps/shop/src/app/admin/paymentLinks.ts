@@ -4,6 +4,7 @@
 import { catalogUnitPrice } from "../CartContext";
 import { isGiftCardProduct } from "../features/site/promotions";
 import { customerTrackUrl } from "./orderLines";
+import { fulfillmentMethod, queueOf } from "./fulfillment";
 
 export type LinkRow = { key: string; bookId: string; variantId: string; quantity: string; price: string };
 export type LinkForm = {
@@ -78,8 +79,9 @@ export function linkFormProblems(form: LinkForm, books: any[]): Record<string, s
 }
 
 /** What the server is sent (createStripeCheckoutSession `action: "paymentLink"`, `op: "create"`). Check the form first. */
-export function linkRequest(form: LinkForm) {
+export function linkRequest(form: LinkForm, shipsWith = "") {
   return {
+    ...(shipsWith ? { shipsWith } : {}),
     customer: {
       name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(),
       address: { street: form.street.trim(), unit: form.unit.trim(), city: form.city.trim(), state: form.state.trim(), zip: form.zip.trim(), country: form.country.trim() },
@@ -194,4 +196,34 @@ export function paymentLinkMailto(order: any, url: string, shopName = ""): strin
     ...(shopName ? [shopName] : []),
   ].join("\n");
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+/**
+ * Add items to a paid order (code plan 24.6, part B): why this order can't take more items, or "". The extra items are a
+ * new order to pay, linked to this one (`shipsWith`), so the customer pays only for what's added and both go in one
+ * parcel. Only a paid, active order that hasn't left yet; the server checks the same (functions/paymentLinks.js).
+ */
+export function addItemsProblem(order: any): string {
+  if (!order || order.isTest) return "Test orders can't take more items.";
+  if (!["paid", "partially_refunded"].includes(order.paymentStatus) || ["cancelled", "refunded"].includes(order.status)) return "Only an active paid order can take more items.";
+  const q = queueOf(order);
+  if (q === "In transit" || q === "Completed") return "This order has already left. Make a new order to pay instead.";
+  return "";
+}
+
+/** The form for items added to `order`: its customer and address, shipping 0 (they go in the same parcel) and a note. */
+export function linkFormForAddOn(order: any, country = "CA"): LinkForm {
+  const form = emptyLinkForm(country);
+  const c = order?.customer || {};
+  const a = c.address || {};
+  const ship = fulfillmentMethod(order || {}) === "shipping";
+  return {
+    ...form,
+    name: String(c.name || ""), email: String(c.email || ""), phone: String(c.phone || ""),
+    street: String(a.street || ""), unit: String(a.unit || ""), city: String(a.city || ""), state: String(a.state || ""),
+    zip: String(a.zip || ""), country: String(a.country || country),
+    ship, shipping: ship ? "0" : "",
+    days: "14",
+    note: `These items are added to your order ${order?.orderId || order?.id || ""}${ship ? " and ship with it" : ""}.`.replace(/\s+\./, "."),
+  };
 }

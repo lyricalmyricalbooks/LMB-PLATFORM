@@ -153,6 +153,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:admin-phone
+      # Plan 23.29: a whole move from an old shop, clicked through in the real admin (scripts/move-check.mjs).
+      - run: pnpm run test:move
 
   # Plan 14.5: every theme's home and book page at phone width stays inside its stored budget (apps/shop/scripts/speed-check.mjs).
   shop-speed:

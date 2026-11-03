@@ -506,7 +506,13 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   to `gs-redirects`: the Overview's page switch can't reach a Settings sub tab.
 - **A new rate for orders already here (23.23):** `importPastOrders(…, { rerate: true })` re-rates only orders the server
   made (`source: "import"`) with the same `paidIn` currency and amount; only the CA$ fields and `paidIn` change.
-- **Whole move on screen (23.22):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
+- **Several order files (23.27):** `PastOrdersDialog` keeps a list of chosen files merged by `mergePastOrderFiles`
+  (one batch for all, so one take-back). "You're all moved in" shows `adminApi.movedCounts` (23.28), the client twin of
+  `moveCounts` in functions/moveDone.js.
+- **Discount codes (23.30):** Discounts › Bring codes over (`DiscountMoveDialog.tsx`, reader `discountMove.ts`) saves
+  each code through `adminApi.saveDiscount` (same shape check as the editor). Not one of Your move so far's five parts,
+  so finished moves stay finished.
+- **Whole move on screen (23.22, in CI since 23.29 as `pnpm run test:move` in the `shop-admin-phone` job):** `node scripts/move-check.mjs` (`CHROMIUM_PATH`, `MOVE_SHOTS=dir`) drives
   `admin-fixture.html?move=1` with the demo's sample files and answers the old-shop server actions in the script.
   Extend it when a bring-over window changes. The fixture's dev-only `__fixtureIdToken` lets `oldShopApi.ask` run
   without Firebase sign-in.

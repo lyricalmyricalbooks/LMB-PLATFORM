@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "../api";
@@ -28,6 +28,14 @@ export function MoveProgressCard({ doc, setDoc, onOpen }: {
 }) {
   const w = useShopWords();
   const [saving, setSaving] = useState("");
+  const movedIn = movingShop(doc) && !moveUnfinished(doc) && !doc.done?.[MOVE_HIDDEN];
+  const [counts, setCounts] = useState<{ customers: number | null; giftCards: number | null; orders: number | null } | null>(null);
+  useEffect(() => {
+    if (!movedIn) return;
+    let alive = true;
+    adminApi.movedCounts().then((c) => { if (alive) setCounts(c); }).catch(() => {});
+    return () => { alive = false; };
+  }, [movedIn]);
   if (!movingShop(doc)) return null;
 
   const open = (s: MoveStep) => {
@@ -54,6 +62,7 @@ export function MoveProgressCard({ doc, setDoc, onOpen }: {
         actions={<StatusBadge tone="success">5 of 5 done</StatusBadge>}>
         <div className="rp-stack" style={{ gap: 12 }}>
           <p style={{ margin: 0 }}>{w("Books, customers, gift cards, past orders and your old links are all here. Anything you marked as “We had none” counts as done.")}</p>
+          {counts && <MovedCounts counts={counts} />}
           <p className="rp-hint" style={{ margin: 0 }}>Before you point your web address here, check your old links once more, so no old link lands on page not found.</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {onOpen && <SecondaryButton size="sm" onClick={() => open(links)}>{w(links.action)}</SecondaryButton>}
@@ -109,4 +118,14 @@ export function MoveProgressCard({ doc, setDoc, onOpen }: {
       <ol aria-label="Parts of your old shop" style={{ margin: 0, padding: 0, listStyle: "none" }}>{steps.map(row)}</ol>
     </SectionCard>
   );
+}
+
+/** "4 customers, 2 gift cards and 3 past orders came over." (plan 23.28): only the counts that read and aren't zero. */
+function MovedCounts({ counts }: { counts: { customers: number | null; giftCards: number | null; orders: number | null } }) {
+  const parts = ([[counts.customers, "customer", "customers"], [counts.giftCards, "gift card", "gift cards"], [counts.orders, "past order", "past orders"]] as const)
+    .filter(([n]) => typeof n === "number" && n > 0)
+    .map(([n, one, many]) => `${n!.toLocaleString("en")} ${n === 1 ? one : many}`);
+  if (!parts.length) return null;
+  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  return <div><StatusBadge tone="success">{list} came over</StatusBadge></div>;
 }
