@@ -5,6 +5,7 @@ import { deriveStockBreakdown, inventoryBreakdown } from './inventory.js';
 import { placeCounts } from './stock-places.js';
 import { bookCurrencyCode } from './currency-migration.js';
 import { normalizeCurrencyCode } from './money.js';
+import { fairNameOf } from './fair-mode.js';
 
 const num = (v) => Number(v) || 0;
 const cents = (v) => Math.round(v * 100) / 100;
@@ -115,6 +116,8 @@ export function salesRows(books, states, { since = '' } = {}) {
         key: `${id}:${h.num ?? ''}:${date}:${rows.length}`, bookId: id, title: String(book.title || id), date,
         chan: String(h.chan || 'Other'), qty: num(h.qty), amount: h.artistPending ? 0 : cents(num(h.qty) * num(h.price)), cur,
         stockist: h.consignmentLink ? String(h.storeName || h.notes || '') : '', invoice: h.invoiceNum ? String(h.invoiceNum) : '',
+        // A till sale: its checkout number (one per customer) and the fair it was sold at, for the admin's fair days.
+        ...(h.chan === 'Book Fair' ? { sale: h.num ? String(h.num) : '', fair: fairNameOf(h.notes) } : {}),
       });
     }
   }

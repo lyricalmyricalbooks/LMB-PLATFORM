@@ -161,6 +161,19 @@ export function registerSalesForDay(books, day) {
   return { sales, totals, units };
 }
 
+/**
+ * The fair a register row was sold at, from its note: the till writes "<way of paying> · <fair>" (fairCharge), then
+ * " · Price A→B" when the price was changed. "" when no fair was named.
+ */
+export function fairNameOf(notes) {
+  const text = String(notes || '');
+  const method = saleMethod(text);
+  // "Stripe QR (printed code, …)" keeps its bracket before the fair.
+  const rest = method === 'Other' ? '' : text.slice(method.length).replace(/^ \([^)]*\)/, '');
+  const m = /^ · (.+?)(?: · Price [^·]*→[^·]*)?$/.exec(rest);
+  return m && !/^Price [^·]*→/.test(m[1]) ? m[1].trim() : '';
+}
+
 /** Epoch ms from an `evt-<base36 time>-<random>` id; 0 when absent. */
 export function eventTime(id) {
   const m = /^evt-([0-9a-z]+)-/.exec(String(id || ''));

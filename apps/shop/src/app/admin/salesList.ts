@@ -10,6 +10,8 @@ export type SaleRow = {
   key: string; date: string; channel: string; what: string; qty: number; amount: number; cur: string; who: string;
   /** Where the sale opens: the website's order page, or the stockroom's book. */
   orderId?: string; bookId?: string; refunded?: boolean;
+  /** A till sale only: its checkout number and fair (stockroom `salesRows`). */
+  sale?: string; fair?: string;
 };
 
 /** The shop's own money: website orders are charged in it. */
@@ -73,8 +75,41 @@ export function stockroomSaleRows(sales: StockroomSale[]): SaleRow[] {
   return sales.map((s) => ({
     // The stockroom's own online sales (payment links, older imported orders) aren't the website's orders.
     key: `stock:${s.key}`, date: s.date, channel: s.chan === "Website" ? OTHER_ONLINE : s.chan, what: s.title, qty: s.qty, amount: s.amount, cur: s.cur,
-    who: s.stockist || (s.invoice ? `Invoice ${s.invoice}` : ""), bookId: s.bookId,
+    who: s.stockist || (s.invoice ? `Invoice ${s.invoice}` : "") || s.fair || "", bookId: s.bookId,
+    ...(s.chan === FAIR_CHANNEL ? { sale: s.sale || "", fair: s.fair || "" } : {}),
   }));
+}
+
+/** The stockroom's channel for sales rung up at the Fair till. */
+export const FAIR_CHANNEL = "Book Fair";
+
+export type FairDay = {
+  key: string; date: string; fair: string; sales: number; copies: number;
+  takings: Array<{ cur: string; amount: number }>; best: { title: string; qty: number } | null;
+};
+
+/**
+ * Each fair day in some rows, newest first: one per day and fair named at the till, so two fairs on one day stay apart.
+ * Sales count checkouts (rows sharing a checkout number are one customer); takings stay per currency.
+ */
+export function fairDays(rows: SaleRow[]): FairDay[] {
+  const days = new Map<string, { date: string; fair: string; rows: SaleRow[] }>();
+  for (const r of rows) {
+    if (r.channel !== FAIR_CHANNEL || !r.date) continue;
+    const fair = r.fair || "";
+    const key = `${r.date}|${fair}`;
+    const d = days.get(key) || { date: r.date, fair, rows: [] };
+    d.rows.push(r);
+    days.set(key, d);
+  }
+  return [...days.entries()].map(([key, d]) => {
+    const checkouts = new Set(d.rows.map((r) => r.sale || r.key));
+    const byTitle = new Map<string, number>();
+    for (const r of d.rows) byTitle.set(r.what, (byTitle.get(r.what) || 0) + r.qty);
+    const [title, qty] = [...byTitle].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || [];
+    const { copies, takings } = saleTotals(d.rows);
+    return { key, date: d.date, fair: d.fair, sales: checkouts.size, copies, takings, best: title ? { title, qty: qty as number } : null };
+  }).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.fair.localeCompare(b.fair)));
 }
 
 /** Both lists as one, newest first. */

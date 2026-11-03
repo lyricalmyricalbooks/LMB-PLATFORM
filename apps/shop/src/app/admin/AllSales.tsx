@@ -3,13 +3,13 @@
 // filter per channel. Website orders open on the Orders page; a stockroom sale opens its book in the stockroom, where
 // sales are changed. The stockroom stays the master count, so its sales are asked of it (stockroomBridge.ts).
 import { useEffect, useMemo, useState } from "react";
-import { DataTable, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, SecondaryButton, SelectField, StatusBadge, Tabs } from "./riso/components";
+import { DataTable, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs } from "./riso/components";
 import { getOrdersCached } from "./ordersCache";
 import { stockroomBridge, type StockroomSale } from "./stockroomBridge";
 import { useShopWords } from "./shopWords";
 import {
-  PERIODS, channelCounts, inChannel, mergeSales, saleTotals, salesCsv, salesCsvName, sinceFor, stockroomSaleRows, websiteSaleRows,
-  type PeriodId, type SaleRow,
+  FAIR_CHANNEL, PERIODS, channelCounts, channelId, fairDays, inChannel, mergeSales, saleTotals, salesCsv, salesCsvName, sinceFor, stockroomSaleRows, websiteSaleRows,
+  type FairDay, type PeriodId, type SaleRow,
 } from "./salesList";
 import { channelWords, money } from "./StockroomBookPanel";
 
@@ -61,6 +61,8 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
   const active = channel && channels.some((c) => c.id === channel) ? channel : "";
   const visible = useMemo(() => inChannel(rows, active), [rows, active]);
   const totals = useMemo(() => saleTotals(visible), [visible]);
+  // Fair days side by side, on the fairs tab: which fairs earn their table fee.
+  const fairs = useMemo(() => (active === channelId(FAIR_CHANNEL) ? fairDays(visible) : []), [visible, active]);
 
   if (orders === null && stockroom === "loading") return <LoadingState label="Gathering every sale…" />;
   if (orders === "failed" && (stockroom === "failed" || stockroom === "refused")) {
@@ -92,6 +94,15 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
     { key: "qty", header: "Copies", numeric: true, render: (r: SaleRow) => r.qty },
     { key: "amount", header: "Takings", numeric: true, render: (r: SaleRow) => money(r.amount, r.cur) },
   ];
+  const takingsText = (t: FairDay["takings"]) => (t.length ? t.map((x) => money(x.amount, x.cur)).join(" + ") : money(0, "CAD"));
+  const fairColumns = [
+    { key: "date", header: "Day", render: (d: FairDay) => <span style={{ whiteSpace: "nowrap" }}>{day(d.date)}</span> },
+    { key: "fair", header: "Fair", lead: true, render: (d: FairDay) => d.fair || <span style={{ color: "var(--rp-text-muted)" }}>Not named</span> },
+    { key: "sales", header: "Sales", numeric: true, render: (d: FairDay) => d.sales },
+    { key: "copies", header: "Copies", numeric: true, render: (d: FairDay) => d.copies },
+    { key: "takings", header: "Takings", numeric: true, render: (d: FairDay) => takingsText(d.takings) },
+    { key: "best", header: "Best seller", render: (d: FairDay) => (d.best ? `${d.best.title} (${d.best.qty})` : "—") },
+  ];
   const periodLabel = PERIODS.find((p) => p.id === period)?.label || "";
   const channelLabel = channels.find((c) => c.id === active)?.label || "Every channel";
   // The rows on screen, every one (not only the first hundred), as a spreadsheet for the books or an accountant.
@@ -120,6 +131,11 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
         <SecondaryButton onClick={download} disabled={!visible.length}>Download spreadsheet</SecondaryButton>
       </FilterBar>
       {notes.map((n) => <p key={n} className="rp-hint" role="status">{n}</p>)}
+      {fairs.length > 0 && (
+        <SectionCard title="Fair days side by side" description="One line for each fair day in this period. Name the fair on the Fair till and it shows here.">
+          <DataTable caption="Fair days" rowKey={(d) => d.key} rows={fairs} columns={fairColumns} stackOnPhone />
+        </SectionCard>
+      )}
       <DataTable caption="Every sale" rowKey={(r) => r.key} rows={visible.slice(0, shown)} columns={columns} stackOnPhone onRowClick={open}
         empty={<EmptyState title="No sales in this period" description="Website orders, fair sales, stockists and invoices all show here. Pick a longer period to see older ones." />} />
       {visible.length > shown && (
