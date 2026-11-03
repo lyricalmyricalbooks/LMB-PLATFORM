@@ -1,9 +1,9 @@
 // Setup mode (code plan 18.6): the real admin a press will keep, before its shop exists. The same Riso Press shell and
-// menu; Home is the setup guide, and Design, Settings › General, Plan and billing and Help work. Every other page says
+// menu; Home is the setup guide, and Design, Settings › General, Settings › Plan and Help work. Every other page says
 // it opens with the shop. Everything saves to the press's setup record through the platform's door (door.ts); nothing
 // here reads or writes a shop database, because there is none until the press opens its shop.
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Check, Circle, Lock, LogOut, Menu, Store } from "lucide-react";
+import { Check, Circle, HelpCircle, Lock, LogOut, Menu, Store } from "lucide-react";
 import {
   AppShell, EmptyState, GhostButton, IconButton, PageHeader, PrimaryButton, SectionCard, SelectField, Sidebar,
   TextField, ToastProvider, Topbar, useRisoToast,
@@ -15,7 +15,7 @@ import { ShopWordsContext } from "../app/admin/shopWords";
 import { adminWordsFor } from "../app/admin/sells";
 import type { PlanList, SetupChange, SetupDoor, SetupPress } from "./door";
 import {
-  DESIGN_PAGE, GENERAL_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, pageFromHash, setupLocked, setupMenu,
+  DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, pageFromHash, setupLocked, setupMenu,
   setupMenuItemFor, setupPageLabel,
 } from "./pages";
 
@@ -115,6 +115,7 @@ function SetupAdminInner({ press: first, door, lists, email, onSignOut, helpUrl 
             footer={
               <>
                 <p style={{ margin: "0 12px 4px", fontSize: 12, opacity: 0.75, overflowWrap: "anywhere" }}>{email}</p>
+                <button type="button" className="rp-nav-item" aria-current={page === HELP_PAGE ? "page" : undefined} onClick={() => open(HELP_PAGE)}><HelpCircle size={18} aria-hidden />Help</button>
                 <button type="button" className="rp-nav-item" onClick={onSignOut}><LogOut size={18} aria-hidden />Sign out</button>
               </>
             }
@@ -243,7 +244,7 @@ function DesignPage({ press, save }: { press: SetupPress; save: (c: SetupChange)
     return (
       <>
         <PageHeader title="Design" />
-        <EmptyState title="No website on your plan" description="You picked the stockroom on its own, so there's no website to design. Add the shop in Plan and billing any time." />
+        <EmptyState title="No website on your plan" description="You picked the stockroom on its own, so there's no website to design. Add the shop in Settings › Plan any time." />
       </>
     );
   }
@@ -293,7 +294,7 @@ function PlanPage({ press, plans, failed, onRetry, save }: {
   const trialWords = trial > 0 ? `Your first shop is free for ${trial} days once it opens, then monthly` : "Monthly once your shop opens";
   return (
     <>
-      <PageHeader title="Plan and billing" description="What you're setting up, and opening your shop." />
+      <PageHeader title="Plan" description="What you're setting up, and opening your shop." />
       <SectionCard title="Your plan" description="Change it any time before your shop opens." collapsible={false}>
         <div role="radiogroup" aria-label="Your plan" style={{ display: "grid", gap: 8 }}>
           {PLAN_ORDER.map((id) => {

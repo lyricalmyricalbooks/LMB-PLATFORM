@@ -54,7 +54,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     const button = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Open my shop") as HTMLButtonElement;
     act(() => button.click());
     await flush();
-    expect(el.querySelector("h1")?.textContent).toBe("Plan and billing");
+    expect(el.querySelector("h1")?.textContent).toBe("Plan");
     expect(d.save).not.toHaveBeenCalled();
   });
 
@@ -73,7 +73,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(d.saved).toEqual([{ country: "CA" }]);
   });
 
-  it("changes the plan from Plan and billing, with each plan's price", async () => {
+  it("changes the plan from Settings › Plan, with each plan's price", async () => {
     const d = door();
     const el = await mount(d, "#settings/plan");
     expect(el.textContent).toContain("$29.00");
