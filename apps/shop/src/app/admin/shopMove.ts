@@ -598,6 +598,11 @@ export function readCustomerExport(text: string): CustomerMove {
   const c = columns(table[0]);
   if (!c.has("Email") && !c.has("Email Address") && !c.has("E-mail")) return { customers: [], skipped: [], problems: ["There is no Email column, so the customers can't be matched. Export your customers again, or add an Email column."] };
   const consentHeading = ["Accepts Email Marketing", "Accepts Marketing", "Email Marketing", "Subscribed", "Newsletter", "Marketing Opt In", "Accepts Email"].find(h => c.has(h));
+  // A mailing list from an email-list tool (plan 23.4): a Status column says who is still subscribed, or the file is a
+  // list of sign-ups (an opt-in or confirm time per line), where being on it is the agreement, unless that line was
+  // unsubscribed or cleaned off. The owner still confirms the permission before anyone joins.
+  const statusHeading = ["Status", "Member Status", "Subscriber Status", "Subscription Status"].find(h => c.has(h));
+  const signUps = !consentHeading && !statusHeading && ["OPTIN_TIME", "CONFIRM_TIME", "Opt-in Time", "Signup Date", "Subscribed At"].some(h => c.has(h));
   const seen = new Set<string>();
   const customers: MovedCustomer[] = [];
   const skipped: CustomerMove["skipped"] = [];
@@ -610,7 +615,12 @@ export function readCustomerExport(text: string): CustomerMove {
     const name = c.get(row, "Name", "Full Name") || [c.get(row, "First Name", "Billing First Name"), c.get(row, "Last Name", "Billing Last Name")].filter(Boolean).join(" ");
     const place = [c.get(row, "Default Address City", "City", "Billing City"), c.get(row, "Default Address Province Code", "Province Code", "Province", "State", "Billing State"), c.get(row, "Default Address Country Code", "Country Code", "Country", "Billing Country")].filter(Boolean).join(", ");
     const consent = consentHeading ? c.get(row, consentHeading).toLowerCase() : "";
-    const acceptsEmail = !consentHeading || !consent ? null : /^(yes|y|true|1|subscribed|opted in|confirmed)$/.test(consent) ? true : false;
+    const status = statusHeading ? c.get(row, statusHeading).toLowerCase() : "";
+    const leftList = !!c.get(row, "UNSUB_TIME", "CLEAN_TIME", "Unsubscribed At");
+    const acceptsEmail = consentHeading && consent ? /^(yes|y|true|1|subscribed|opted in|confirmed)$/.test(consent)
+      : statusHeading && status ? /^(subscribed|active|confirmed|opted in)$/.test(status)
+      : signUps ? !leftList
+      : null;
     const orders = count(c.get(row, "Total Orders", "Orders", "Order Count"));
     const spentRaw = c.get(row, "Total Spent", "Total Spend", "Money Spent", "Spent");
     const spent = spentRaw ? money(spentRaw) : NaN;

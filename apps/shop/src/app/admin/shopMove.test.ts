@@ -411,3 +411,21 @@ describe("a file made from an old shop's address (plan 23.2)", () => {
     expect([...oldPaths.values()]).toEqual([["/product/tide-tables"]]);
   });
 });
+
+describe("a mailing list on its own (plan 23.4)", () => {
+  it("a Status column says who is still subscribed", () => {
+    const list = csv([["Email Address", "First Name", "Status"], ["ada@example.com", "Ada", "subscribed"], ["ben@example.com", "Ben", "unsubscribed"], ["cy@example.com", "Cy", "cleaned"]]);
+    expect(readCustomerExport(list).customers.map(c => [c.email, c.acceptsEmail])).toEqual([["ada@example.com", true], ["ben@example.com", false], ["cy@example.com", false]]);
+  });
+
+  it("a list of sign-ups: being on it is the agreement, unless the line was unsubscribed or cleaned off", () => {
+    const list = csv([["Email Address", "First Name", "OPTIN_TIME", "UNSUB_TIME"], ["ada@example.com", "Ada", "2025-01-02", ""], ["ben@example.com", "Ben", "2025-01-02", "2025-06-01"]]);
+    const customers = readCustomerExport(list).customers;
+    expect(customers.map(c => [c.email, c.acceptsEmail])).toEqual([["ada@example.com", true], ["ben@example.com", false]]);
+    expect(newsletterJoiners(customers, new Set(), () => false).map(c => c.email)).toEqual(["ada@example.com"]);
+  });
+
+  it("a plain list of addresses still says nothing about agreement", () => {
+    expect(readCustomerExport(csv([["Email"], ["ada@example.com"]])).customers[0].acceptsEmail).toBeNull();
+  });
+});

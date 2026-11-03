@@ -85,13 +85,13 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
 
   return (
     <Dialog open size="lg" onClose={() => { if (!busy) onClose(); }} title="Bring customers over" footer={footer}
-      description="Bring your shop with you: choose the customer list your old shop exports. You'll see what comes over before anything is saved.">
+      description="Bring your shop with you: choose the customer list your old shop exports, or your mailing list. You'll see what comes over before anything is saved.">
       <div className="rp-stack">
         {!result && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             <li>Each customer gets a private note with their name, town and what they spent at your old shop, plus their tags. Notes you already wrote are kept.</li>
             <li>They show in the Customers list once they order here. Bringing the same file over again changes nothing.</li>
-            <li>Only customers your old shop says agreed to marketing email can join your newsletter, and only if you confirm below.</li>
+            <li>Only people your old shop or mailing list says agreed to marketing email can join your newsletter, and only if you confirm below. Anyone who unsubscribed stays off it.</li>
           </ul>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <input ref={fileRef} type="file" accept=".csv,text/csv" hidden aria-label="Customer list file"
