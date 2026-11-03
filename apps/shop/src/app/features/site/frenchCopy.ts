@@ -276,7 +276,6 @@ export const FRENCH_COPY: Record<string, string> = {
   alertSaveError: "Désolé, nous n'avons pas pu enregistrer votre demande. Veuillez réessayer.",
   onlyLeft: "Plus que {count}",
   saveAmount: "Économisez {amount}",
-  pdpLowestBeforeSale: "Prix le plus bas des 30 jours précédant ce solde : {price}",
   tabDescription: "Description",
   tabDetails: "Détails",
   tabSpecs: "Caractéristiques",

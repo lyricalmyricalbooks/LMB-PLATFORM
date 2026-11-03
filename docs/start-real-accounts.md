@@ -80,15 +80,16 @@ so a stage that is added to the build also needs a line here.
 ## Legal (review of 3 November 2026)
 
 The review is in the project files, `research/2026-11-03-legal-readiness.md`. It is not legal advice. Status: the code
-side is built; these steps need Julian, a lawyer, a translator or an accountant.
+side is built; these steps need Julian, a lawyer or an accountant.
 
-- **Two real addresses (Julian):** a privacy address and an address for reports about shops. Until then the terms say
-  `privacy@platform.example` and `reports@platform.example` (`PRIVACY_CONTACT`, `REPORT_CONTACT` in `terms/terms.js`,
-  and the control room's privacy contact). They must be inboxes someone reads.
+- **Contact address (done 3 November 2026):** Julian chose his shop's Gmail address (`OPERATOR_EMAIL` in
+  `terms/terms.js`) for privacy questions and reports about shops; the control room's privacy contact defaults to it.
+  It must stay an inbox someone reads.
 - **The lawyer reads the terms (Julian, before the first paid plan):** English and French, especially the liability
   cap, "made for businesses", closing a shop, the 72-hour breach promise and Ontario as the governing law for Quebec
   presses. Then `DRAFT = false` and a new `TERMS_VERSION`.
-- **A certified translator checks the French terms** (`terms/termsFr.js`) before Quebec presses rely on them.
+- **French (done 3 November 2026):** Julian accepted the French terms and the shops' French words as they are; no
+  translator check.
 - **The lawyer's other answers:** payments role (already plan 15.22); whether abandoned-bag reminder emails need the
   shopper's consent first (Canada's anti-spam law); a written privacy impact assessment for the US helper companies
   (Quebec's Law 25); a trademark search for "Colophon".

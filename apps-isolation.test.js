@@ -99,7 +99,8 @@ const OWN_REPO = /lyricalmyricalbooks\/LMB-PLATFORM/gi;
 // The company that runs Colophon, named once in the terms (Julian, 3 November 2026): the legal seller of the plans
 // has to be named. Only this one line of terms/terms.js; nothing else may use the name.
 const OPERATOR_FILE = "terms/terms.js";
-const OPERATOR_LINE = /export const OPERATOR_NAME = "Lyricalmyrical Books";/g;
+// The company's name and its contact address (Julian, 3 November 2026: privacy and shop reports go to it).
+const OPERATOR_LINE = /export const OPERATOR_(NAME = "Lyricalmyrical Books"|EMAIL = "lyricalmyricalbooks@gmail\.com");/g;
 const withoutOperator = (path, text) => (path === OPERATOR_FILE ? text.replace(OPERATOR_LINE, "") : text);
 const LOCKFILES = /(^|\/)(pnpm-lock\.yaml|package-lock\.json)$/;
 // The checks themselves have to say the name to look for it (the live ids are still built from parts).
@@ -215,7 +216,7 @@ test("every email address outside shops/ is a placeholder or a company's sender"
   const hits = new Set();
   for (const [path, text] of TEXT) {
     if (VENDORED.has(path) || LOCKFILES.test(path)) continue;
-    for (const [address] of text.matchAll(EMAIL)) if (!emailAllowed(address)) hits.add(`${path}: ${address}`);
+    for (const [address] of withoutOperator(path, text).matchAll(EMAIL)) if (!emailAllowed(address)) hits.add(`${path}: ${address}`);
   }
   assert.deepEqual([...hits], []);
 });

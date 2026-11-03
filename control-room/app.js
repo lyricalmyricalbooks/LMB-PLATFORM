@@ -1731,7 +1731,7 @@ const audienceWords = (audience) => (audience.all ? "every shop" : audience.plan
 
 async function loadMessages() {
   try {
-    const { messages } = await api("GET", "/control/messages");
+    const { messages, notices = [] } = await api("GET", "/control/messages");
     $("#messages").replaceChildren(messages.length ? table({
       caption: "Messages to presses",
       rows: messages,
@@ -1760,6 +1760,17 @@ async function loadMessages() {
         } },
       ],
     }) : emptyState("No messages yet.", "A message you send shows at the top of the shop admins it reaches."));
+    $("#notices").replaceChildren(notices.length ? table({
+      caption: "Promised notices sent",
+      rows: notices,
+      columns: [
+        { header: "Change", lead: true, render: (n) => el("div", {}, el("p", { className: "cr-title", textContent: NOTICE_WORDS[n.kind] ?? n.kind }), meta(n.words)) },
+        { header: "Sent", render: (n) => el("span", { className: "rp-mono", textContent: when(n.sentAt) }) },
+        { header: "Takes effect", render: (n) => el("span", { className: "rp-mono", textContent: when(n.takesEffect) }) },
+        { header: "Notice", render: (n) => el("span", { textContent: `${n.daysNotice} days` }) },
+        { header: "Owners emailed", end: true, render: (n) => el("span", { textContent: String(n.emailed) }) },
+      ],
+    }) : emptyState("No promised notices yet.", "Send one from the form above before a price rise, a new helper company or a change to the terms."));
   } catch (failure) {
     $("#messages").replaceChildren(emptyState("Couldn't load the messages.", failure.message));
   }

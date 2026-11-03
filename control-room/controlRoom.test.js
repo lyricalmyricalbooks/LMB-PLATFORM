@@ -2,6 +2,7 @@
 // only platform admins get in; the list shows plan, version, health and switches; "act as this shop" is logged before
 // any sign-in is made; and a switch changes the saved profile, its file and the live pages, with a log entry.
 import { test } from "node:test";
+import { PRIVACY_CONTACT } from "../terms/terms.js";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, profilePublisher, shopHealth, twoStepProblem } from "./controlRoom.js";
@@ -389,14 +390,14 @@ test("the breach register: admins only, every field required, kept two years wit
   assert.equal(w.breachStore.rows.get(entry.id).reportedToCommissioner, true);
 
   const list = await w.ask(ADMIN, "POST", "/api/control/breaches");
-  assert.deepEqual([list.body.breaches.length, list.body.privacyContact], [1, "privacy@platform.example"]);
+  assert.deepEqual([list.body.breaches.length, list.body.privacyContact], [1, PRIVACY_CONTACT]);
   assert.ok(!Object.keys(controlRoutes(w.room)).some((route) => /delete|remove/.test(route)), "no route deletes an entry");
   assert.equal(keepUntil("2028-02-29"), "2030-03-01");
 });
 
-test("the control room's people: a placeholder privacy contact, and nobody as admin address or backup person until set", () => {
-  assert.deepEqual(controlRoomPeople({}), { privacyContact: "privacy@platform.example", adminEmail: null, backupPerson: null });
-  assert.deepEqual(controlRoomPeople({ PLATFORM_DOMAIN: "colophon.example", PLATFORM_ADMIN_EMAIL: " Owner@Example.com ", PLATFORM_BACKUP_PERSON: "backup@example.com" }), {
+test("the control room's people: the terms' privacy contact, and nobody as admin address or backup person until set", () => {
+  assert.deepEqual(controlRoomPeople({}), { privacyContact: PRIVACY_CONTACT, adminEmail: null, backupPerson: null });
+  assert.deepEqual(controlRoomPeople({ PLATFORM_PRIVACY_CONTACT: "privacy@colophon.example", PLATFORM_ADMIN_EMAIL: " Owner@Example.com ", PLATFORM_BACKUP_PERSON: "backup@example.com" }), {
     privacyContact: "privacy@colophon.example", adminEmail: "owner@example.com", backupPerson: "backup@example.com",
   });
   assert.throws(() => controlRoomPeople({ PLATFORM_BACKUP_PERSON: "someone" }), /PLATFORM_BACKUP_PERSON is not an email address/);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayPrice, editionPrices, salePercentOff, showsSale } from "./displayPrice";
+import { displayPrice, editionPrices, salePercentOff, showsSale, wasPrice } from "./displayPrice";
 
 describe("displayPrice", () => {
   it("uses the book's own (sale) price when it has one", () => {
@@ -51,5 +51,29 @@ describe("salePercentOff", () => {
     expect(salePercentOff({ isOnSale: true, retailPrice: 20, salePrice: 20 })).toBe(0);
     expect(salePercentOff({ retailPrice: 20 })).toBe(0);
     expect(salePercentOff({ isOnSale: true, retailPrice: 20, salePrice: 10, variants: [{ price: 20 }] })).toBe(0);
+  });
+});
+
+describe("the was price a sale is shown against (legal review, 3 November 2026)", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const sale = { retailPrice: 40, isOnSale: true, salePrice: 30 };
+  it("is the regular price when it hasn't been lower in the 30 days before the sale", () => {
+    expect(wasPrice(sale, now)).toBe(40);
+    expect(wasPrice({ ...sale, priceHistory: [{ price: 50, until: "2026-10-27T00:00:00Z" }] }, now)).toBe(40);
+    expect(wasPrice({ ...sale, priceHistory: [{ price: 25, until: "2026-09-01T00:00:00Z" }] }, now)).toBe(40);
+    expect(salePercentOff(sale, now)).toBe(25);
+  });
+  it("is the lower earlier price after a recent rise, and claims no sale when that is below the sale price", () => {
+    const raised = { ...sale, priceHistory: [{ price: 35, until: "2026-10-27T00:00:00Z" }] };
+    expect(wasPrice(raised, now)).toBe(35);
+    expect(displayPrice(raised, true, now)).toBe(35);
+    expect(salePercentOff(raised, now)).toBe(14);
+    const inflated = { ...sale, priceHistory: [{ price: 25, until: "2026-10-27T00:00:00Z" }] };
+    expect(showsSale(inflated, now)).toBe(false);
+    expect(salePercentOff(inflated, now)).toBe(0);
+  });
+  it("counts back from a dated sale's first day", () => {
+    const dated = { ...sale, saleStartsAt: "2026-10-01", priceHistory: [{ price: 35, until: "2026-09-10T00:00:00Z" }] };
+    expect(wasPrice(dated, now)).toBe(35);
   });
 });

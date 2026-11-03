@@ -57,6 +57,20 @@ export function noticeOnRecord(messages, kind, effectiveAt) {
     && ms(m.startsAt) <= ms(m.notice.takesEffect) - NOTICE_DAYS * DAY);
 }
 
+/**
+ * The proof that promised notices went out, newest first: what changed, when it was sent, when it takes effect, how
+ * many days' notice that gave and how many owners were emailed (each address and time stays on the message).
+ */
+export function noticesSent(messages) {
+  return (messages ?? []).filter((m) => m.notice)
+    .map((m) => ({
+      id: m.id, kind: m.notice.kind, words: m.words, sentAt: m.startsAt, takesEffect: m.notice.takesEffect,
+      daysNotice: Math.floor((ms(m.notice.takesEffect) - ms(m.startsAt)) / DAY),
+      emailed: Object.keys(m.emailed ?? {}).length, endedAt: m.endedAt ?? null,
+    }))
+    .sort((a, b) => String(b.sentAt).localeCompare(String(a.sentAt)));
+}
+
 function noticeOf(notice, takesEffect, startMs) {
   if (notice === undefined || notice === null || notice === "") return null;
   if (!Object.hasOwn(NOTICE_KINDS, notice)) throw new ControlError(400, "Choose what the notice is about: a price rise, a new helper company or a change to the terms.");
@@ -217,7 +231,7 @@ export function createPressMessages({ store, registry, auditLog, shopData, email
       adminOf(claims, admins, nowMs());
       const rows = (await registry.listShops()).filter(reachable);
       const messages = (await store.list()).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-      return { messages: messages.map((m) => ({ ...shown(m), reaches: rows.filter((row) => messageReaches(m, row)).length })), maxWords: MAX_WORDS, maxDays: MAX_DAYS };
+      return { messages: messages.map((m) => ({ ...shown(m), reaches: rows.filter((row) => messageReaches(m, row)).length })), notices: noticesSent(messages), maxWords: MAX_WORDS, maxDays: MAX_DAYS };
     },
 
     /**

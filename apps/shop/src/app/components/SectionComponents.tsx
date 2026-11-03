@@ -1614,7 +1614,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                       <p className="fm-card-price-wrap text-sm whitespace-nowrap fm-muted">
                         {onSale ? (
                           <>
-                            <span className="fm-card-price-old line-through opacity-60 mr-1.5">{formatBookPrice({ ...book, isOnSale: false })}</span>
+                            <span className="fm-card-price-old line-through opacity-60 mr-1.5">{formatBookPrice(book, true)}</span>
                             <span className="fm-card-price">{formatBookPrice(book)}</span>
                           </>
                         ) : (
@@ -2697,7 +2697,7 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
                 <h3 className="fm-card-title mt-3 text-[15px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
                 {settings.showPrices !== false && (
                   <p className="fm-card-price-wrap text-sm fm-muted">
-                    {showsSale(book) && <span className="fm-card-price-old line-through opacity-60 mr-1.5">{formatBookPrice({ ...book, isOnSale: false })}</span>}
+                    {showsSale(book) && <span className="fm-card-price-old line-through opacity-60 mr-1.5">{formatBookPrice(book, true)}</span>}
                     <span className="fm-card-price">{formatBookPrice(book)}</span>
                   </p>
                 )}
