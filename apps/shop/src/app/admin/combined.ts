@@ -17,6 +17,13 @@ export const STOCKROOM_TAB = "stockroom";
 export const STOCKROOM_ITEM_PREFIX = "stockroom/";
 /** Where the shop's Hosting serves the stockroom (apps/shop/firebase.json rewrite; clients/deploy.js copies it in). */
 export const STOCKROOM_FRAME_PATH = "/stockroom/app";
+/** The combined admin's own page with every sale in one list (Orders › All sales, AllSales.tsx): `#sales`. */
+export const SALES_TAB = "sales";
+/** Pages only the combined admin has, besides the stockroom's: menu id, label and the line under the title. */
+export const COMBINED_PAGES: StockroomPage[] = [
+  { id: SALES_TAB, label: "All sales", description: "Every sale in one list: website orders, fairs, stockists, invoices and ones entered by hand." },
+];
+
 /** Message senders; the same names as the stockroom's lib/inside-admin.js. */
 export const FROM_ADMIN = "lm-admin";
 export const FROM_STOCKROOM = "lm-stockroom";
@@ -31,7 +38,8 @@ export type StockroomPage = { id: string; label: string; description: string };
 export const STOCKROOM_PAGES: StockroomPage[] = [
   { id: "todo", label: "To-do", description: "Everything waiting for you in the stockroom: sales to check, stock to count, payments due." },
   { id: "dashboard", label: "Stock and sales", description: "Each book's copies on hand, sales everywhere and where its copies are." },
-  { id: "history", label: "All sales", description: "Every sale from every place you sell: website, fairs, stockists, invoices and ones entered by hand." },
+  // All sales (SALES_TAB) lists every sale; this is where a sale the stockroom recorded is looked up, changed or voided.
+  { id: "history", label: "Sales records", description: "Look up, change or void a sale the stockroom recorded." },
   { id: "manual", label: "Record a sale", description: "Add a sale made somewhere else, so stock and totals stay right." },
   { id: "pos", label: "Fair till", description: "Sell at a fair or event, and keep stock right as you go." },
   { id: "shipping", label: "Parcels and labels", description: "Shipping costs and labels for parcels that aren't website orders, such as copies for stockists." },

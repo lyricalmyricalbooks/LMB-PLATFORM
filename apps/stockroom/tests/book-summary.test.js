@@ -69,3 +69,32 @@ describe('takings as the stockroom counts them', () => {
     ]);
   });
 });
+
+describe('the admin\'s Home and one list of sales', async () => {
+  const { salesRows, todoItems } = await import('../src/lib/book-summary.js');
+  it('lists the stockroom\'s to-dos, leaving the website\'s own to the website', () => {
+    expect(todoItems({ signals: [
+      { id: 'stock-low:a', group: 'stock', status: 'blocked', label: 'Stock running low', detail: 'A is down to 2', fix: { kind: 'book' } },
+      { id: 'web-1', group: 'website', status: 'warn', label: 'Website thing' },
+      { id: 'orders-unshipped', group: 'orders', status: 'blocked', label: '2 paid orders haven’t been sent' },
+      { id: 'orders-receipts', group: 'orders', status: 'info', label: 'Receipts to send' },
+    ] })).toEqual([{ id: 'stock-low:a', group: 'stock', status: 'blocked', label: 'Stock running low', detail: 'A is down to 2' }]);
+  });
+  it('gives every sale since a day across books, newest first, without website orders', () => {
+    const books = { a: { title: 'A', currency: 'CA$' }, b: { title: 'B', currency: 'CA$' }, c: { title: 'C' } };
+    const states = {
+      a: { hist: [
+        { num: 1, chan: 'Book Fair', qty: 2, price: 10, date: '2026-10-05', cur: 'CAD' },
+        { num: 2, chan: 'Website', qty: 1, price: 10, date: '2026-10-06', cur: 'CAD', webOrderId: 'o1' },
+        { num: 3, chan: 'Book Fair', qty: 1, price: 10, date: '2026-09-01', cur: 'CAD' },
+      ] },
+      b: { hist: [{ num: 1, chan: 'Consignment', qty: 1, price: 6, date: '2026-10-07', notes: 'Corner Books', consignmentLink: true }] },
+    };
+    const { rows, partial } = salesRows(books, states, { since: '2026-10-01' });
+    expect(partial).toBe(true); // C isn't loaded
+    expect(rows.map((r) => [r.title, r.chan, r.qty, r.amount, r.cur, r.stockist])).toEqual([
+      ['B', 'Consignment', 1, 6, 'CAD', 'Corner Books'],
+      ['A', 'Book Fair', 2, 20, 'CAD', ''],
+    ]);
+  });
+});

@@ -59,9 +59,24 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 - **Change stock in the stockroom** opens the stockroom's dashboard for that book inside the admin (asking first when
   the book has unsaved changes).
 
+## Step 3, built: one sales list and one Home
+
+- **Orders › All sales** (`#sales`, `AllSales.tsx`, pure rules in `allSales.ts`) lists paid website orders (refunds
+  marked, test orders and unpaid attempts left out) beside the stockroom's own sales, asked as `{ what: "sales", since }`
+  (`salesRows` in the stockroom's `lib/book-summary.js`). The stockroom leaves out its copies of website orders, so no
+  sale is counted twice. One filter button per channel, a period (30 days, 90 days, 12 months, every sale) and totals per
+  currency. A website order opens on Orders; a stockroom sale opens its book on the stockroom's **Sales records** page
+  (its history page, renamed in the combined menu), where sales are changed or voided. If one side can't answer, the
+  other side still shows, with a line saying what is missing.
+- **Home › Needs you** adds one line per kind of stockroom to-do (`overview/StockroomTodos.tsx`), asked as
+  `{ what: "todo" }` a moment after Home opens and every five minutes: sales to sort out, payments, stock alerts,
+  book details, things to check. Only to-dos that need doing count (blocked or warning), and the stockroom's website
+  items and its list of website orders to send are left out, since Home already counts those. One to-do opens on that
+  item; several open the stockroom's To-do page.
+- A page that asks before the admin listens for "open the frame" (a child page's first effect) is remembered and the
+  frame opens as soon as the admin listens (`stockroomBridge.ts`).
+
 ## Next steps (planned)
 
-3. **One orders list and one Home:** fair, stockist, invoice and hand-entered sales join website orders in one list with a
-   filter per channel; the two to-do lists become one "Needs you now".
 4. **Native pages:** rebuild the stockroom pages inside the admin one by one (Fair till, Stockists, Expenses first),
    keeping the offline rules of the stockroom.

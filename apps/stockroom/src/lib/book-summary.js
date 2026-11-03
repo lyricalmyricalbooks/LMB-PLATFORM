@@ -79,3 +79,42 @@ export function findBook(books, { isbn, title } = {}) {
   }
   return null;
 }
+
+/**
+ * The stockroom's to-do list for the combined admin's Home ("Needs you now"), from `visibleAttentionResult()`:
+ * plain fields only, the ones that need doing (`blocked` or `warn`). The website's own items (group `website`) and the
+ * website orders still to send (`orders-unshipped`) are left out: Home counts those from the website's orders itself.
+ * @param {{ signals?: Array<{ id: string, group: string, status: string, label?: string, detail?: string }> }} result
+ */
+export function todoItems(result) {
+  return ((result && result.signals) || [])
+    .filter((s) => s && s.id && s.group !== 'website' && s.id !== 'orders-unshipped' && (s.status === 'blocked' || s.status === 'warn'))
+    .map((s) => ({ id: String(s.id), group: String(s.group), status: String(s.status || 'info'), label: String(s.label || ''), detail: String(s.detail || '') }));
+}
+
+/**
+ * Every sale the stockroom recorded on or after `since` (YYYY-MM-DD), across all books, for the combined admin's
+ * one list of sales. Website sales are left out: they are the website's own orders there. `partial` says some
+ * book's records weren't loaded, so the list may be short.
+ */
+export function salesRows(books, states, { since = '' } = {}) {
+  const rows = [];
+  let partial = false;
+  for (const [id, book] of Object.entries(books || {})) {
+    const s = states && states[id];
+    if (!s || s._loadFailed) { partial = true; continue; }
+    for (const h of s.hist || []) {
+      if (!h || h.voided || h.gratuity || h.chan === 'Website' || h.webOrderId) continue;
+      const date = String(h.date || '');
+      if (since && date && date < since) continue;
+      const cur = h.cur ? normalizeCurrencyCode(h.cur, bookCurrencyCode(book)) : bookCurrencyCode(book);
+      rows.push({
+        key: `${id}:${h.num ?? ''}:${date}:${rows.length}`, bookId: id, title: String(book.title || id), date,
+        chan: String(h.chan || 'Other'), qty: num(h.qty), amount: h.artistPending ? 0 : cents(num(h.qty) * num(h.price)), cur,
+        stockist: h.consignmentLink ? String(h.storeName || h.notes || '') : '', invoice: h.invoiceNum ? String(h.invoiceNum) : '',
+      });
+    }
+  }
+  rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return { rows, partial };
+}

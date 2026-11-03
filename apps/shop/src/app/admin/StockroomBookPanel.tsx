@@ -7,9 +7,6 @@ import { inventoryLinkApi } from "./inventoryLinkApi";
 import type { InventoryLinks } from "./inventoryLink";
 import { stockroomBridge, type StockroomBook, type StockroomMatch } from "./stockroomBridge";
 
-// A book the stockroom is still loading answers null; it is asked again this many times, this far apart.
-const TRIES = 5;
-const AGAIN_MS = 1_500;
 
 /** The stockroom's channel names, in the words the rest of the admin uses. */
 export const CHANNEL_WORDS: Record<string, string> = {
@@ -45,18 +42,8 @@ export function linkedStockroomBooks(links: InventoryLinks, bookId: string, vari
 
 type Refused = { refused: true };
 
-/** Ask until the stockroom has an answer: it says nothing (null) while its catalog or the book is still loading. */
-async function askUntil<T>(question: Parameters<typeof stockroomBridge.ask>[0]): Promise<T | null> {
-  for (let i = 0; i < TRIES; i += 1) {
-    const answer = await stockroomBridge.ask<T>(question);
-    if (answer) return answer;
-    await new Promise((r) => setTimeout(r, AGAIN_MS));
-  }
-  return null;
-}
-
-const askBook = (id: string) => askUntil<StockroomBook | { missing: true } | Refused>({ what: "book", book: id });
-const askMatch = (isbn: string, title: string) => askUntil<{ match: StockroomMatch | null } | Refused>({ what: "find", isbn, title });
+const askBook = (id: string) => stockroomBridge.askUntil<StockroomBook | { missing: true } | Refused>({ what: "book", book: id });
+const askMatch = (isbn: string, title: string) => stockroomBridge.askUntil<{ match: StockroomMatch | null } | Refused>({ what: "find", isbn, title });
 
 function BookFigures({ edition, id, words, onOpen }: { edition: string | null; id: string; words: (t: string) => string; onOpen: (id: string) => void }) {
   const [state, setState] = useState<{ book?: StockroomBook; missing?: boolean; failed?: boolean; refused?: boolean } | null>(null);

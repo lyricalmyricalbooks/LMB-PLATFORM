@@ -45,6 +45,17 @@ describe("asking the stockroom", () => {
     expect(listeners.size).toBe(0);
     stop();
   });
+  it("opens the frame for a page that asked before the admin listened", () => {
+    vi.stubGlobal("window", { location: { origin: ORIGIN } });
+    stockroomBridge.openPage("todo");
+    let needed = 0;
+    const stop = stockroomBridge.onNeed(() => { needed += 1; });
+    expect(needed).toBe(1);
+    stop();
+    const again = stockroomBridge.onNeed(() => { needed += 1; });
+    expect(needed).toBe(1);
+    again();
+  });
   it("opens a book's stockroom page once the frame is ready", () => {
     vi.stubGlobal("window", { location: { origin: ORIGIN } });
     const posted: any[] = [];

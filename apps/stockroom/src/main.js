@@ -1086,7 +1086,7 @@ import { STRIPE_CHARGE_PI_KEY, isWebsiteFulfilled, promisedPreorders, rememberCh
 import { startAppSearch } from './features/app-search.js';
 import './styles/inside-admin.css';
 import { STOCKROOM_PAGE_EVENT, startInsideAdmin } from './lib/inside-admin.js';
-import { bookSummary, findBook } from './lib/book-summary.js';
+import { bookSummary, findBook, salesRows, todoItems } from './lib/book-summary.js';
 import { appSwitchBooksReady, openWebsiteDetailDiffs, openWebsiteShopBooks, refreshAppSwitch, startAppSwitch } from './features/app-switch.js';
 import { WEBSITE_TAB_NAME, openOnWebsiteHtml, websiteOrderUrl } from './lib/app-switch.js';
 import { reviewTaskStillOpen } from './lib/review-queue.js';
@@ -11181,12 +11181,15 @@ startInsideAdmin({
     if (AUTHOR_VIEW_BY_BOOK[activeBook] && activeBook !== id) toggleCurrentBookView();
     switchBook(id);
   },
+  openTodo: (id) => openTodoItem(id),
   answer: (what, args) => {
     // An author's own sign-in never answers; the publisher's "Author view" preview of one book still does.
     if (IS_AUTHOR_MODE || String(sessionStorage.getItem('lm-unlocked') || '').startsWith('author:')) return { refused: true };
     // Until the catalog is in, every book looks missing: answer nothing yet, and the admin asks again.
     if (!catalogReady) return null;
     if (what === 'find') return { match: findBook(BOOKS, args) };
+    if (what === 'todo') return { items: todoItems(visibleAttentionResult()) };
+    if (what === 'sales') return salesRows(BOOKS, states, { since: args.since });
     const book = BOOKS[args.book];
     if (!book) return { missing: true };
     const s = states[args.book];

@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+import { channelCounts, inChannel, mergeSales, saleTotals, sinceFor, stockroomSaleRows, websiteSaleRows } from "./allSales";
+import { routeFromHash, hashForRoute } from "./adminRoute";
+import { COMBINED_MENU, MENU, NAV, sidebarItems } from "./riso/nav";
+
+const orders: any[] = [
+  { id: "o1", paymentStatus: "paid", createdAt: "2026-10-20T15:00:00Z", total: 30, items: [{ title: "Salt Hours", quantity: 2 }], customer: { name: "Ana" } },
+  { id: "o2", paymentStatus: "paid", isTest: true, createdAt: "2026-10-21T15:00:00Z", total: 10, items: [] },
+  { id: "o3", paymentStatus: "pending", createdAt: "2026-10-22T15:00:00Z", total: 10, items: [] },
+  { id: "o4", paymentStatus: "refunded", createdAt: "2026-10-23T15:00:00Z", total: 12, items: [{ title: "A", quantity: 1 }, { title: "B", quantity: 1 }] },
+  { id: "o5", paymentStatus: "paid", createdAt: "2026-08-01T15:00:00Z", total: 5, items: [{ title: "Old", quantity: 1 }] },
+];
+const sales = [
+  { key: "a:1", bookId: "harbour", title: "Harbour Lights", date: "2026-10-22", chan: "Book Fair", qty: 3, amount: 45, cur: "CAD", stockist: "", invoice: "" },
+  { key: "a:2", bookId: "harbour", title: "Harbour Lights", date: "2026-10-19", chan: "Consignment", qty: 1, amount: 9, cur: "USD", stockist: "Corner Books", invoice: "" },
+  { key: "a:3", bookId: "meadow", title: "Meadow", date: "2026-10-18", chan: "Retail", qty: 4, amount: 40, cur: "CAD", stockist: "", invoice: "INV-7" },
+];
+
+describe("one list of every sale", () => {
+  it("keeps paid website orders, marks refunds and leaves out tests and unpaid attempts", () => {
+    const rows = websiteSaleRows(orders, "2026-10-01");
+    expect(rows.map((r) => r.orderId)).toEqual(["o1", "o4"]);
+    expect(rows[0]).toMatchObject({ channel: "Website", what: "Salt Hours", qty: 2, amount: 30, who: "Ana" });
+    expect(rows[1]).toMatchObject({ what: "A and 1 more", amount: 0, refunded: true });
+  });
+
+  it("puts the stockroom's sales beside them, newest first, filtered by channel", () => {
+    const rows = mergeSales(websiteSaleRows(orders, "2026-10-01"), stockroomSaleRows(sales));
+    expect(rows.map((r) => r.key)).toEqual(["web:o4", "stock:a:1", "web:o1", "stock:a:2", "stock:a:3"]);
+    expect(rows.find((r) => r.key === "stock:a:3")!.who).toBe("Invoice INV-7");
+    const channels = channelCounts(rows);
+    expect(channels[0]).toEqual({ id: "website", label: "Website", count: 2 });
+    expect(channels.map((c) => c.id)).toContain("fairs-and-markets");
+    expect(inChannel(rows, "stockists").map((r) => r.who)).toEqual(["Corner Books"]);
+    expect(inChannel(rows, "")).toHaveLength(5);
+  });
+
+  it("adds takings up per currency, the shop's own first", () => {
+    const rows = mergeSales(websiteSaleRows(orders, "2026-10-01"), stockroomSaleRows(sales));
+    expect(saleTotals(rows)).toEqual({ sales: 5, copies: 12, takings: [{ cur: "CAD", amount: 115 }, { cur: "USD", amount: 9 }] });
+  });
+
+  it("goes back by whole shop days, or to the first sale", () => {
+    expect(sinceFor("30", Date.parse("2026-11-03T17:00:00Z"))).toBe("2026-10-05");
+    expect(sinceFor("all")).toBe("");
+  });
+
+  it("is a page of the combined admin only, under Orders", () => {
+    expect(routeFromHash("#sales", true)).toEqual({ tab: "sales" });
+    expect(routeFromHash("#sales", false)).toBeNull();
+    expect(hashForRoute({ tab: "sales" })).toBe("#sales");
+    const orders = sidebarItems(NAV, COMBINED_MENU).find((i) => i.label === "Orders")!;
+    expect(orders.children!.slice(0, 3).map((c) => c.label)).toEqual(["Orders", "All sales", "Sales records"]);
+    expect(MENU.flatMap((g) => g.pages)).not.toContain("sales");
+  });
+});
