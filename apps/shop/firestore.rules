@@ -171,7 +171,8 @@ service cloud.firestore {
     // The owner's Team list (Settings › Team): one document per person, named by their lower-case email.
     // functions/roles.js copies the role onto that person's sign-in pass. "author" is for the stockroom only: it is not
     // an admin role here (isAdmin above names owner and staff), so an author on the Team never opens the shop's admin.
-    // "bookkeeper" opens only the admin's read-only Bookkeeping page (isBookkeeper above).
+    // "bookkeeper" opens only the admin's read-only Bookkeeping page (isBookkeeper above). "fairHelper" is for the
+    // stockroom's Fair till only and opens nothing here.
     match /members/{email} {
       allow read: if isOwner();
       allow delete: if isOwner();
@@ -179,7 +180,7 @@ service cloud.firestore {
         && email == email.lower()
         && email != "__SHOP_OWNER_EMAIL__"
         && request.resource.data.keys().hasOnly(["role", "addedAt", "addedBy"])
-        && request.resource.data.role in ["owner", "staff", "author", "bookkeeper"];
+        && request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper"];
     }
     // The owner's admin screen layouts (Overview boards: admin/overview/overviewBoardStore.ts) and the Overview's sales notes
     // (admin/overview/overviewNotesStore.ts). Admin-only, one JSON string each.

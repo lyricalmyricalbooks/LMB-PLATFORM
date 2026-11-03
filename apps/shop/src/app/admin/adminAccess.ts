@@ -9,8 +9,9 @@ export type AdminRole = "owner" | "staff";
 export const ADMIN_ROLES: readonly AdminRole[] = ["owner", "staff"];
 // Every role the Team can give. "author" is for the stockroom only and never opens this admin (adminRoleOf ignores it).
 // "bookkeeper" opens only the read-only Bookkeeping page (BookkeeperDesk.tsx, plan 7.17), never the admin itself.
-export type TeamRole = AdminRole | "author" | "bookkeeper";
-export const TEAM_ROLES: readonly TeamRole[] = ["owner", "staff", "author", "bookkeeper"];
+// "fairHelper" rings up sales at the stockroom's Fair till only (docs/combined-admin.md › Fair helpers plan).
+export type TeamRole = AdminRole | "author" | "bookkeeper" | "fairHelper";
+export const TEAM_ROLES: readonly TeamRole[] = ["owner", "staff", "author", "bookkeeper", "fairHelper"];
 /** Who may sign in here: the admin roles, or the bookkeeper (who gets the Bookkeeping page instead of the admin). */
 export type SignInRole = AdminRole | "bookkeeper";
 

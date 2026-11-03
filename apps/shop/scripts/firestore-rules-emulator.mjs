@@ -325,6 +325,15 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("author can't read the Team", assertFails(getDocs(collection(author, "members"))));
   await check("author can't promote themselves", assertFails(setDoc(doc(author, "members/ana@press.test"), { role: "owner" })));
   await check("author can't read webhook status", assertFails(getDoc(doc(author, "adminSecrets/stripeWebhookStatus"))));
+  // The fair helper role (docs/combined-admin.md › Fair helpers plan) is for the stockroom's Fair till: the owner can
+  // add one, and it opens nothing of the shop's.
+  const helper = env.authenticatedContext("h1", { email: "hal@press.test", email_verified: true, role: "fairHelper" }).firestore();
+  await check("owner adds a fair helper", assertSucceeds(setDoc(doc(owner, "members/hal@press.test"), { role: "fairHelper" })));
+  await check("fair helper reads no order", assertFails(getDoc(doc(helper, "orders/o1"))));
+  await check("fair helper reads no secret keys", assertFails(getDoc(doc(helper, "adminSecrets/stripe"))));
+  await check("fair helper reads no customer list", assertFails(getDocs(collection(helper, "customers"))));
+  await check("fair helper can't read the Team", assertFails(getDocs(collection(helper, "members"))));
+  await check("fair helper can't promote themselves", assertFails(setDoc(doc(helper, "members/hal@press.test"), { role: "staff" })));
   // The bookkeeper role (plan 7.17): reads orders, gift cards and the daily figures; never books, customers, settings,
   // keys or the Team, and never writes anything.
   await env.withSecurityRulesDisabled(async ctx => {
