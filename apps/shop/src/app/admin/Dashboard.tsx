@@ -4,7 +4,7 @@ import { isShopOwner, markOwnerDeviceOnSignIn } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import {
-  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Sun, Moon, ChevronDown, Palette,
+  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Compass, Sun, Moon, ChevronDown, Palette,
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -46,6 +46,7 @@ import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor,
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { AllSales } from "./AllSales";
 import { keepAdminOffline } from "./adminOffline";
+import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
 import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
@@ -334,6 +335,10 @@ export function Dashboard() {
     if (userMenuOpen) userMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [userMenuOpen]);
   const [helpOpen, setHelpOpen] = useState(false);
+  // The combined admin's first-time tour: invited once on Home, and from the account menu any time (CombinedTour.tsx).
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourInvite, setTourInvite] = useState(() => COMBINED && !tourSeen());
+  const dismissTour = () => { markTourSeen(); setTourInvite(false); };
 
   const [adminTheme, setAdminTheme] = useState(() => {
     // Reso is the admin's primary design, not an optional storefront skin.
@@ -595,6 +600,7 @@ export function Dashboard() {
     setSidebarOpen(false);
   };
   openStockroomRef.current = (page) => { void openStockroomPage(page); };
+  const tourGo = (stop: TourStop) => { if ("stockroom" in stop) void openStockroomPage(stop.stockroom); else void goTo(stop.page); };
   const onStockroomPage = activeTab === STOCKROOM_TAB;
   const stockroomPageId = stockroomPage(onStockroomPage ? subTab : undefined)?.id ?? DEFAULT_STOCKROOM_PAGE;
 
@@ -639,6 +645,7 @@ export function Dashboard() {
   const accountActions = [
     { key: "logs", label: "Activity logs", icon: <History size={16} aria-hidden />, run: () => setShowLogs(true) },
     { key: "site", label: "View site", icon: <Globe size={16} aria-hidden />, run: openSite },
+    ...(COMBINED ? [{ key: "tour", label: "Take the tour", icon: <Compass size={16} aria-hidden />, run: () => setTourOpen(true) }] : []),
     { key: "help", label: "Help & shortcuts", icon: <HelpCircle size={16} aria-hidden />, run: () => setHelpOpen(true) },
     { key: "theme", label: adminTheme === "light" ? "Dark appearance" : "Light appearance", icon: adminTheme === "light" ? <Moon size={16} aria-hidden /> : <Sun size={16} aria-hidden />, run: toggleTheme },
     { key: "look", label: nextAdminLook(adminLook).label, icon: <Palette size={16} aria-hidden />, run: switchLook },
@@ -712,6 +719,9 @@ export function Dashboard() {
   // The Overview draws its own masthead and shows the alerts under it (PageAlertsSlot); every other page gets them under its PageHeader.
   const ownMasthead = (activeTab === "overview" || activeTab === "analytics") && !selectedOrder;
   const pageAlerts = (
+    <>
+    {/* The combined admin's one-time tour invitation, on Home only (CombinedTour.tsx). */}
+    {COMBINED && ownMasthead && tourInvite && <CombinedTourInvite onStart={() => { setTourOpen(true); dismissTour(); }} onDismiss={dismissTour} />}
     <AdminAlerts
       alerts={[...settingsAlerts(originalSettings), ...alerts]}
       onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
@@ -729,6 +739,7 @@ export function Dashboard() {
       }}
       onRetry={() => refreshAlertsRef.current()}
     />
+    </>
   );
 
   return (
@@ -855,6 +866,7 @@ export function Dashboard() {
         </div>
       </AppShell>
 
+      {COMBINED && <CombinedTour open={tourOpen} onClose={() => setTourOpen(false)} onGo={tourGo} appearance={appearance} />}
       <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Help & shortcuts" appearance={appearance}
         footer={<PrimaryButton onClick={() => setHelpOpen(false)}>Got it</PrimaryButton>}>
         <div className="rp-help">
