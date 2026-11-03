@@ -417,3 +417,55 @@ test("a switch to pay as you sell that Stripe refuses takes no founding place", 
   await assert.rejects(paymentWay.switchPaymentWay({ shopId: "moth-press", to: "payAsYouSell" }));
   assert.equal(seats.rows.size, 0);
 });
+
+test("the Billing page is told when the paying card runs out within a month, or has", async () => {
+  const { billing, stripe, stores, start, addCard } = make();
+  await start();
+  stripe.world.paymentMethods.set("pm_card_soon", { id: "pm_card_soon", type: "card", card: { brand: "visa", last4: "1111", exp_month: 2, exp_year: 2027 } });
+  await addCard("moth-press", "pm_card_soon");
+  // NOW is 15 January 2027: the card works until the end of February, so it's more than a month away.
+  assert.equal(new Date(NOW).toISOString().slice(0, 10), "2027-01-15");
+  assert.equal((await billing.status("moth-press")).cardRunsOut, null);
+  stores.subscriptions.rows.get("moth-press").card.expMonth = 1;
+  assert.deepEqual((await billing.status("moth-press")).cardRunsOut, { ends: "2027-01-31T23:59:59.999Z", expired: false });
+  stores.subscriptions.rows.get("moth-press").card = { ...stores.subscriptions.rows.get("moth-press").card, expMonth: 12, expYear: 2026 };
+  assert.equal((await billing.status("moth-press")).cardRunsOut.expired, true);
+});
+
+test("a founding press that leaves before paying anything gives its place back; one that paid keeps it", async () => {
+  const { stripe, stores, registry, seats, event, start, addCard } = make({ presses: 1 });
+  await start("moth-press", { accountId: "a1", email: "one@example.com" });
+  await addCard("moth-press");
+  assert.equal(seats.rows.size, 1);
+  const subId = stores.subscriptions.rows.get("moth-press").subscriptionId;
+  stripe.world.subscriptions.get(subId).status = "canceled";
+  await event("customer.subscription.deleted", stripe.subscription(subId));
+  assert.equal(seats.rows.size, 0, "the place is free for the next paying press");
+  assert.equal(stores.subscriptions.rows.get("moth-press").founding, false);
+  assert.equal((await registry.getShop("moth-press")).founding, false);
+
+  await start("press-two", { accountId: "a2", email: "two@example.com" });
+  await addCard("press-two");
+  const two = stores.subscriptions.rows.get("press-two");
+  await event("invoice.paid", stripe.addInvoice(two.subscriptionId, { amount_paid: 2925 }));
+  stripe.world.subscriptions.get(two.subscriptionId).status = "canceled";
+  await event("customer.subscription.deleted", stripe.subscription(two.subscriptionId));
+  assert.equal(seats.rows.has("press-two"), true, "a press that paid keeps its place for good");
+});
+
+test("with 'give a place back' turned off in the control room, a place once given stays", async () => {
+  const t = make();
+  const live = async () => ({ ...DEFAULT_SETTINGS, foundingOffer: { percentOff: 25, presses: 25, giveBackUnpaid: false } });
+  const billing = createBilling({
+    stripe: createStripeApi({ fetch: t.stripe.fetch, keys: { test: "sk_test_fake", live: null } }),
+    mode: "test", settings: platformSettings({}), ...t.stores, registry: t.registry, auditLog: t.auditLog, email: t.email, webhookSecrets: [SECRET], live, foundingSeats: t.seats, sleep: async () => {}, now: () => NOW,
+  });
+  await t.registry.createShop("moth-press", { shopId: "moth-press", projectId: "moth-press", plan: "both", ownerEmail: ACCOUNT.email });
+  await billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  await billing.claimFounding("moth-press");
+  const subId = t.stores.subscriptions.rows.get("moth-press").subscriptionId;
+  t.stripe.world.subscriptions.get(subId).status = "canceled";
+  const rawBody = JSON.stringify({ id: "evt_off", type: "customer.subscription.deleted", livemode: false, created: NOW / 1000 + 50, data: { object: t.stripe.subscription(subId) } });
+  await billing.handleEvent({ headers: { "Stripe-Signature": signatureHeader(SECRET, rawBody, NOW / 1000) }, rawBody });
+  assert.equal(t.seats.rows.size, 1);
+});

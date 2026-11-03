@@ -156,6 +156,15 @@ export function firestoreFoundingSeats(firestore) {
       tx.set(COUNT, { count: count + 1, updatedAt: at });
       return true;
     }),
+    /** Gives a place back (a press that left before paying anything): true when it held one. */
+    release: (shopId, { at }) => firestore.transaction(async (tx) => {
+      const place = `foundingPlaces/${safe(shopId)}`;
+      if (!(await tx.get(place))) return false;
+      const count = (await tx.get(COUNT))?.count ?? 0;
+      tx.remove(place);
+      tx.set(COUNT, { count: Math.max(0, count - 1), updatedAt: at });
+      return true;
+    }),
     count: async () => (await firestore.get(COUNT))?.count ?? 0,
   };
 }

@@ -158,6 +158,16 @@ describe("Settings › Billing", () => {
     expect(text()).toContain("Mastercard ending 4444");
   });
 
+  it("a card running out soon asks for a new one", async () => {
+    world.status = status({ cardRunsOut: { ends: "2026-11-30T23:59:59Z", expired: false } });
+    await mount(BillingPage);
+    expect(document.querySelector("[data-card-runs-out]")?.textContent).toContain("Visa ending 4242 runs out on");
+    world.status = status({ cardRunsOut: { ends: "2026-10-31T23:59:59Z", expired: true } });
+    act(() => root!.unmount());
+    await mount(BillingPage);
+    expect(text()).toContain("Your Visa ending 4242 has run out.");
+  });
+
   it("makes another card primary", async () => {
     await mount(BillingPage);
     await click(button("Make primary"));

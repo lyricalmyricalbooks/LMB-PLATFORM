@@ -19,6 +19,8 @@ export type BillingStatus = {
   founding: { percentOff: number | null; price: string } | null;
   paymentProblem: { kind: "declined" | "confirm"; at: string; amount: string; nextTry: string | null; pageUrl: string | null } | null;
   canPayNow: boolean;
+  /** The paying card runs out within a month, or already has (the platform's cardRunningOut). */
+  cardRunsOut?: { ends: string; expired: boolean } | null;
 };
 export type StatusAnswer = { billing: BillingStatus | null; accountPage: string; changesNeedTwoStep: boolean };
 export type PlanPreview = { plan: PlanId; planName: string; price: string; from: PlanId | null; adds: string[]; closes: string[]; immediate: boolean; closesAt: string | null; downloadUntil: string | null; prorate: boolean; prorated: { amount: number; text: string } | null };

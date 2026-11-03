@@ -307,6 +307,17 @@ export function BillingPage({ plan }: Hub) {
           </div>
         </div>
       )}
+      {billing.cardRunsOut && !problem && (
+        <div role="status" className="rp-alert" data-tone="warning" data-card-runs-out>
+          <span className="rp-alert-glyph" aria-hidden="true">!</span>
+          <div className="rp-alert-text">
+            <span className="rp-alert-kicker">Card</span>
+            <strong className="rp-alert-title">{billing.cardRunsOut.expired ? `Your ${billing.card?.words ?? "card"} has run out.` : `Your ${billing.card?.words ?? "card"} runs out on ${planDate(billing.cardRunsOut.ends)}.`}</strong>
+            <span className="rp-alert-detail">Add a new card so your next payment goes through and your shop stays open.</span>
+          </div>
+          <div className="rp-alert-actions"><PrimaryButton size="sm" busy={change.busy === "card"} onClick={() => void addCard()}>Add a card</PrimaryButton></div>
+        </div>
+      )}
       <Problem error={change.error} />
       <TwoStepNote answer={answer} />
 
