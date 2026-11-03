@@ -515,7 +515,7 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
   redirects (`OldLinksCheck.tsx`, pure `oldLinks.ts`; the server's `readOldLinks` action reads the old shop's site map
   with `functions/moving/oldLinks.mjs`, a generated copy of `services/moving/oldLinks.js`). Its **Bring your own pages
   over** (plan 23.6) asks `readOldPages`, which rebuilds each old page with the allow-list in `services/moving/oldPages.js`
-  (copied as `functions/moving/oldPages.mjs`); `pagesToSave` makes the drafts and redirects and never reuses a page's address. The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
+  (copied as `functions/moving/oldPages.mjs`); `pagesToSave` makes the drafts and redirects and never reuses a page's address. Pictures on public https addresses stay as `<img src alt>` and the hourly photo import copies them and rewrites `pages/*.body` (plan 23.13, `swapPagePictures`). The guide saves `progress { steps, done, at }` whenever it changes (`progressToSave`)
   for the platform's trial emails (plan 6.10, `services/trial-tips`).
 - `SELLING_TODAY` must list the sign-up form's answers and `StepId` must match `help/articles.js` `CHECKLIST_ANSWERS`
   (root tests check both). Firestore rule `firstWeek`: admin only, `hasOnly([... "publishes", "country", "welcome",
