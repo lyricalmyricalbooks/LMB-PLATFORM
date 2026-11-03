@@ -228,6 +228,9 @@
               <div class="cr-head"><h2>Presses at risk</h2></div>
               <p class="rp-hint">Paying presses whose orders have dropped or whose team stopped signing in, checked every morning, with what they pay each month. Snooze one you've already spoken to: it leaves Today and gets no check-in email until the snooze ends.</p>
               <div id="at-risk"></div>
+              <div class="cr-head"><h2>Fair till by month</h2></div>
+              <p class="rp-hint">Sales rung up on the stockroom's fair till across every press, the last 12 months, newest first. One checkout of several books counts as one sale.</p>
+              <div id="fair-months"></div>
               <div class="cr-head"><h2>Failed plan payments</h2></div>
               <p class="rp-hint">Shops whose plan payment is failing or paused for a card. A paused shop closes 60 days after the pause began; the press can then download everything for 90 days.</p>
               <div id="payment-trouble"></div>
@@ -250,6 +253,7 @@
                 <div class="rp-field"><label class="rp-label" for="shop-health">Health</label><select id="shop-health" class="rp-select" name="health"><option value="">All</option><option value="problem">Problem</option><option value="watch">Look</option><option value="ok">OK</option></select></div>
                 <div class="rp-field"><label class="rp-label" for="shop-plan">Plan</label><select id="shop-plan" class="rp-select" name="plan"><option value="">All</option><option value="shop">Shop</option><option value="stockroom">Stockroom</option><option value="both">Both</option></select></div>
                 <div class="rp-field"><label class="rp-label" for="shop-billing">Billing</label><select id="shop-billing" class="rp-select" name="billing"><option value="">All</option><option value="trialing">Free trial</option><option value="active">Paying</option><option value="past_due">Payment failing</option><option value="paused">Paused</option><option value="canceled">Ended</option></select></div>
+                <div class="rp-field"><label class="rp-label" for="shop-risk">Risk</label><select id="shop-risk" class="rp-select" name="risk"><option value="">All</option><option value="at-risk">Drifting or to watch</option><option value="drifting">Drifting</option><option value="watch">To watch</option><option value="snoozed">Snoozed</option><option value="moving">Move left part-way</option></select></div>
               </form>
               <p class="rp-hint" id="summary"></p>
               <div id="shops"></div>
