@@ -83,6 +83,8 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
   orders still to post stay, since those are orders the website doesn't hold. The stockroom answers only once every
   book's records are in, so a half-loaded stockroom never reads as "all clear"; a short sales list is asked again. One to-do opens on that
   item; several open the stockroom's To-do page.
+- **Download spreadsheet** on All sales saves the rows on screen (period and channel picked, all of them, not only the
+  first hundred) as CSV (`salesCsv` in `salesList.ts`): one row per sale in its own currency, formula-safe.
 - A page that asks before the admin listens for "open the frame" (a child page's first effect) is remembered and the
   frame opens as soon as the admin listens (`stockroomBridge.ts`).
 
@@ -96,8 +98,42 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 - Home invites the press once, in a notice above its figures; never a window over the setup guide. "Take the tour" or
   "No thanks" marks it seen on that device (`lm:combined-tour` in local storage); the account menu's "Take the tour"
   brings it back. Words go through the shop's words, so a general shop reads "products". Only for the combined admin.
+- Seen is also kept on the shop's account (`adminPrefs/combinedTour`, admin-only like the Overview boards;
+  `combinedTourStore.ts`), so a press who took it on one device isn't invited on the next. The device's own mark
+  answers first; the account's is read once signed in.
 
 ## Next steps (planned)
 
 4. **Native pages:** rebuild the stockroom pages inside the admin one by one (Fair till, Stockists, Expenses first),
    keeping the offline rules of the stockroom.
+
+### Step 4 plan: the Fair till (3 November 2026)
+
+The till today is about 4,500 lines of the stockroom (`features/pos.js`, `fair-kit.js`, `sales-ledger.js` and helpers).
+A sale writes one `hist` row per book into the book's split state in the stockroom's named database, lowers stock in
+`metadata`, queues the change on the device (localStorage, spilling to IndexedDB), and on upload merges three ways with
+the server copy (`_fbSave`, `sync-conflicts.js`), then updates the Google Sheet and the website's stock feed. Writing
+that from the admin directly would mean a second writer to the same records with its own merge: the way sales get
+lost. So the stockroom stays the only writer, and the native till asks it.
+
+- [ ] **4a. Today at the fair, native (read-only).** A new ask `{ what: "fair", day }` answered from the stockroom's
+  `registerSalesForDay` / fair summary (count, copies, takings per currency, per payment method, the fair's name).
+  The admin shows it on the Fair till page above the frame, and on Home during a fair day. Nothing is written.
+- [ ] **4b. A native till that sells through the stockroom.** The admin draws the till (search, cart, quantity,
+  price change, currency, payment method, charge). Charging sends `{ what: "sell", saleId, lines, method, currency,
+  fair }`; the stockroom records it through its own `posPreparePendingSale` / `posConfirmSale` path, so the queue,
+  merge, Sheet and website feed are unchanged. Rules:
+  - `saleId` is made by the admin and kept by the stockroom: the same id twice is one sale (a retried ask, a double
+    tap), never two.
+  - The answer says "saved on this device"; uploading is the stockroom's sync state, shown as it is ("waiting to
+    upload" while offline). Never "done" before the stockroom has the sale.
+  - Only the owner sells (authors are refused, as today); stock never goes below what the stockroom allows.
+  - Undo the last sale and void go through a matching `{ what: "void", saleId }` ask.
+  - Offline: the frame is already loaded (the admin keeps it), so selling works with no signal; if the frame isn't
+    ready, the till says so and offers the stockroom's own till, never a silent failure.
+- [ ] **4c. The Fair kit, printing, card QR** stay in the stockroom page until 4b has run at a real fair.
+- Direct writes from the admin to the stockroom's database: not planned.
+
+Checks for each: stockroom tests for the new asks (a repeated `saleId` records once; an author is refused; an
+offline sale is queued), shop tests for the till's arithmetic, and a browser run with the real stockroom on a phone
+with the connection cut (sell, undo, reconnect, the sale appears once in All sales).

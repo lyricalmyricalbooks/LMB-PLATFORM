@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookTakings, channelCounts, inChannel, mergeSales, saleTotals, sinceFor, stockroomSaleRows, websiteSaleRows } from "./salesList";
+import { bookTakings, channelCounts, inChannel, mergeSales, saleTotals, salesCsv, salesCsvName, sinceFor, stockroomSaleRows, websiteSaleRows, type SaleRow } from "./salesList";
 import { routeFromHash, hashForRoute } from "./adminRoute";
 import { COMBINED_MENU, MENU, NAV, sidebarItems } from "./riso/nav";
 
@@ -63,5 +63,31 @@ describe("one list of every sale", () => {
     const orders = sidebarItems(NAV, COMBINED_MENU).find((i) => i.label === "Orders")!;
     expect(orders.children!.slice(0, 3).map((c) => c.label)).toEqual(["Orders", "All sales", "Sales records"]);
     expect(MENU.flatMap((g) => g.pages)).not.toContain("sales");
+  });
+});
+
+describe("the All sales spreadsheet", () => {
+  const rows: SaleRow[] = [
+    { key: "w1", date: "2026-10-30", channel: "Website", what: "Harbour Lights", qty: 2, amount: 48, cur: "CAD", who: "Ana", orderId: "LM-1001", refunded: true },
+    { key: "s1", date: "2026-10-29", channel: "Fair", what: "=HYPERLINK(\"x\")", qty: 1, amount: 22.5, cur: "USD", who: "", bookId: "b1" },
+  ];
+  it("has the rows on screen, each in its own currency, with the period and channel on top", () => {
+    const csv = salesCsv(rows, { period: "Last 90 days", channel: "Every channel" });
+    const lines = csv.split("\n");
+    expect(lines[0]).toBe('"All sales · Last 90 days · Every channel"');
+    expect(lines[2]).toBe('"Date","What sold","Channel","Who","Quantity","Takings","Currency","Refunded","Order number"');
+    expect(lines[3]).toContain('"2026-10-30","Harbour Lights"');
+    expect(lines[3]).toContain('"2","48.00","CAD","Yes","LM-1001"');
+    expect(lines[4]).toContain('"1","22.50","USD","",""');
+    expect(lines).toHaveLength(5);
+  });
+  it("never lets a cell run as a spreadsheet formula", () => {
+    expect(salesCsv(rows, { period: "p", channel: "c" })).toContain(`"'=HYPERLINK(""x"")"`);
+  });
+  it("uses the shop's words, and a file name that says what's in it", () => {
+    const csv = salesCsv([], { period: "p", channel: "c", words: (t) => t.replace(/books?/gi, "products") });
+    expect(csv).toContain("Takings are products only");
+    expect(salesCsvName("", "90", "2026-11-03")).toBe("all-sales-every-channel-90-2026-11-03.csv");
+    expect(salesCsvName("fair", "all", "2026-11-03")).toBe("all-sales-fair-all-2026-11-03.csv");
   });
 });
