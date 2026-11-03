@@ -46,11 +46,22 @@ so a stage that is added to the build also needs a line here.
   founding 25% off. Stripe's "3D Secure required" test card checks the "Confirm the payment" step, and a test card that
   runs out next month shows the "card runs out" warning on Settings › Billing. Status: built on pretend Stripe; nothing
   real is connected.
-- **Two-step sign-in in the shop admin** (plan 22.6, setup step 19): on the test shop's project, step 19 upgrades its
-  sign-in to Google's Identity Platform and turns authenticator codes on (a first real run checks Google's answer to
-  both calls). Then Julian signs in to the test shop's admin, opens Settings › Security, scans the picture with an
-  authenticator app, types the code, signs out and in again with a code, and changes the test shop's plan on a paid
-  test plan without being sent to the account page. Status: built against pretend Google and Firebase.
+- **Two-step sign-in in the shop admin** (plans 22.6, 22.9, 22.10, setup step 19). About 15 minutes, with your phone
+  and an authenticator app (Google Authenticator, Microsoft Authenticator or 1Password). Use the test shop only, never a
+  paying press's shop. Status: built against pretend Google and Firebase; nothing real has run yet.
+  1. Run the test shop's setup steps again (the deploy tool's "run setup" for the test shop). Step 19 should say
+     "done". The first real run checks Google's answer to both of its calls. If it stops, send the message it shows.
+  2. Sign in to the test shop's admin with Google. Open Settings › Security and press **Set up two-step sign-in**.
+  3. Scan the picture with the authenticator app, type the 6-digit code it shows, and press **Turn on two-step
+     sign-in**. The page should then show ten backup codes. Press **Download codes** and keep the file.
+  4. Sign out, then sign in with Google again. The admin should ask for the code. Type a wrong one first (it should
+     say so in plain words), then the right one.
+  5. Sign out again. At the code step press **Lost your phone? Use a backup code** and type one code from the file.
+     You should land on Settings › Security with a note that the app was taken off. Set it up again (step 3).
+  6. Put the test shop on a paid test plan (Stripe's test mode), then change its plan in Settings › Plan. It should go
+     through without sending you to the account page. Before you turn two-step on for this step, the admin home should
+     show the "Protect your shop with two-step sign-in" reminder.
+  7. Check the shop's history (Settings › audit log) shows the backup codes being made and the backup code being used.
 - **Shipping and your address** (plan 17.11): Julian confirms the shipping starter for Canada with his own prices and
   checks the web address shown on the shop. Nothing needs a carrier account for the starter. Status: built.
 - **Your stockroom** (plan 17.12, setup step 16): the full test shop run (plan 15.7) turns the stockroom link on, and

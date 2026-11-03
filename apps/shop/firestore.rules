@@ -289,6 +289,11 @@ service cloud.firestore {
     match /rate-limits/{id} {
       allow read, write: if false;
     }
+    // Server-only two-step backup code hashes (functions/twoStepBackup.js): the admin reads its count through the
+    // twoStepBackup endpoint only.
+    match /twoStepBackup/{uid} {
+      allow read, write: if false;
+    }
     // Server-only checkout stock holds (functions/stockHolds.js).
     match /stock-holds/{bookId} {
       allow read, write: if false;

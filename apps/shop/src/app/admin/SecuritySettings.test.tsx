@@ -4,7 +4,7 @@
 import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TwoStepAuth } from "./adminTwoStep";
+import type { BackupApi, TwoStepAuth } from "./adminTwoStep";
 
 vi.mock("../../lib/firebase", () => ({ auth: { currentUser: null } }));
 vi.mock("./api", () => ({ adminApi: { getPublicSettings: async () => ({ storeName: "Moth Press" }), logout: vi.fn(async () => {}) } }));
@@ -44,10 +44,17 @@ const type = async (value: string) => {
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
 };
-const mount = async (two: TwoStepAuth) => {
+const CODES = ["ABCDE-FGHJK", "BCDEF-GHJKM", "CDEFG-HJKMN", "DEFGH-JKMNP", "EFGHJ-KMNPQ", "FGHJK-MNPQR", "GHJKM-NPQRS", "HJKMN-PQRST", "JKMNP-QRSTU", "KMNPQ-RSTUV"];
+function pretendBackup(left = 0): BackupApi & { make: ReturnType<typeof vi.fn> } {
+  return {
+    status: vi.fn(async () => ({ left, madeAt: left ? "2026-10-01T00:00:00.000Z" : null })),
+    make: vi.fn(async () => ({ codes: CODES, madeAt: "2026-11-03T16:00:00.000Z" })),
+  };
+}
+const mount = async (two: TwoStepAuth, backup: BackupApi = pretendBackup()) => {
   const host = document.createElement("div"); document.body.append(host);
   root = createRoot(host);
-  act(() => root!.render(h(SecuritySettings, { two, user: USER })));
+  act(() => root!.render(h(SecuritySettings, { two, user: USER, backup })));
   await flush();
 };
 
@@ -94,5 +101,60 @@ describe("Settings › Security", () => {
     await click(button("Turn on two-step sign-in"));
     expect(two.enroll).not.toHaveBeenCalled();
     expect(text()).toContain("Type the 6 digits");
+  });
+
+  it("shows the backup codes straight after turning it on, once, with copy and download", async () => {
+    const two = pretend();
+    const backup = pretendBackup();
+    await mount(two, backup);
+    await click(button("Set up two-step sign-in"));
+    await until(() => !!document.querySelector("[data-two-step-setup]"));
+    await type("123456");
+    await click(button("Turn on two-step sign-in"));
+    expect(backup.make).toHaveBeenCalledTimes(1);
+    expect(text()).toContain("Save these now.");
+    expect(document.querySelectorAll("[data-new-codes] li")).toHaveLength(10);
+    expect(text()).toContain("ABCDE-FGHJK");
+    expect(button("Copy codes")).toBeDefined();
+    expect(button("Download codes")).toBeDefined();
+    expect(text()).toContain("10 left");
+    await click(button("I've saved them"));
+    expect(text()).not.toContain("ABCDE-FGHJK");
+    expect(text()).toContain("10 codes left");
+  });
+
+  it("makes new codes only after warning that the old ones stop working", async () => {
+    const two = pretend();
+    await two.enroll(USER, {} as any, "123456");
+    const backup = pretendBackup(2);
+    await mount(two, backup);
+    expect(text()).toContain("2 codes left");
+    expect(text()).toContain("Make new ones soon.");
+    await click(button("Make new codes"));
+    expect(backup.make).not.toHaveBeenCalled();
+    expect(text()).toContain("Your old backup codes stop working");
+    await click(button("Make new codes"));
+    expect(backup.make).toHaveBeenCalledTimes(1);
+    expect(text()).toContain("Save these now.");
+  });
+
+  it("offers backup codes to someone who has none, and says why making them was refused", async () => {
+    const two = pretend();
+    await two.enroll(USER, {} as any, "123456");
+    const backup = pretendBackup(0);
+    backup.make.mockRejectedValueOnce(new Error("For your safety, sign out and sign in again with your code, then make new backup codes."));
+    await mount(two, backup);
+    expect(text()).toContain("You have no backup codes.");
+    await click(button("Make backup codes"));
+    expect(text()).toContain("sign in again with your code");
+  });
+
+  it("after a backup-code sign-in, says the app was taken off and how many codes are left", async () => {
+    sessionStorage.setItem("lmb.twoStepBackupUsed", "7");
+    await mount(pretend());
+    expect(document.querySelector("[data-backup-used]")).not.toBeNull();
+    expect(text()).toContain("You signed in with a backup code.");
+    expect(text()).toContain("You have 7 backup codes left.");
+    expect(sessionStorage.getItem("lmb.twoStepBackupUsed")).toBeNull();
   });
 });
