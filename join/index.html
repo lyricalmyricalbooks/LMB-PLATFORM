@@ -90,7 +90,7 @@
     <div class="fd-pick" id="pick-list"></div>
   </section>
 
-  <!-- 3. Four questions, one at a time. Each can be skipped, and each can be changed later in the admin. -->
+  <!-- 3. Four questions, one at a time. Each can be changed later. The plan starts on both and has no Skip; the others can be skipped. -->
   <section id="view-plan" class="stack" hidden aria-labelledby="plan-title">
     <div class="fd-meter" aria-hidden="true"><span style="width:25%"></span></div>
     <div class="fd-top"><span></span><p class="fd-count">Question 1 of 4</p></div>
@@ -98,9 +98,9 @@
     <form class="stack" data-question="plan" novalidate>
       <fieldset><legend class="hint">Pick one now. You can change it any time before your shop opens.</legend>
         <div class="fd-plans" id="plan-choices"></div></fieldset>
-      <p class="hint" id="plan-terms">Prices are monthly, plus tax. Nothing is charged until your shop opens.</p>
+      <p class="hint" id="plan-terms">Nothing is charged until your shop opens.</p>
       <p class="error" role="alert" hidden></p>
-      <div class="fd-row"><button type="submit" class="primary">Continue</button><button type="button" class="ghost" data-skip>Skip</button></div>
+      <div class="fd-row"><button type="submit" class="primary">Continue</button></div>
     </form>
   </section>
 

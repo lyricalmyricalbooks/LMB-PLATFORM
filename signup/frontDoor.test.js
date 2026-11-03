@@ -202,3 +202,9 @@ test("what the press wants to set up is saved as billing's plan id, and nothing 
   }
   assert.equal(w.stores.presses.rows.get(pressId).plan, "both");
 });
+
+test("the plan list says whether prices are plus tax, so the front door only says so when they are", async () => {
+  const plans = (plusTax) => createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: { ...SETTINGS, prices: { shop: 2900, stockroom: 1900, both: 3900 } }, live: () => ({}), plusTax, log: () => {} })({ method: "GET", path: "/api/plans", headers: {} });
+  assert.equal((await plans(undefined)).body.plusTax, false);
+  assert.equal((await plans(true)).body.plusTax, true);
+});

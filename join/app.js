@@ -1,9 +1,9 @@
-// The front door (code plan 18.4, the plan question added in 18.6, docs/plans/1-front-door-v2.md "A simpler flow"): email, the six-digit code, three
+// The front door (code plan 18.4, the plan question added in 18.6, docs/plans/1-front-door-v2.md "A simpler flow"): email, the six-digit code, four
 // questions, then the admin. New and returning presses come in the same way. Plain browser JavaScript with no
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
-import { COUNTRIES, PUBLISHES, isEmail } from "../signup/form.js";
+import { COUNTRIES, PUBLISHES, countryFromTimeZone, isEmail } from "../signup/form.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
 const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithEmailLink, signOut } = await import(`${FIREBASE_SDK}/firebase-auth.js`);
@@ -151,7 +151,7 @@ $("#code-again").addEventListener("click", () => busy(codeForm, $("#code-error")
 }));
 $("#code-other").addEventListener("click", () => show("email"));
 
-// ── 3. The three questions ──
+// ── 3. The four questions ──
 function choice(name, value, title) {
   const label = document.createElement("label");
   label.className = "choice";
@@ -182,7 +182,7 @@ function planTiles(plans) {
       const shown = Object.assign(document.createElement("span"), { className: "fd-price" });
       if (plan.foundingPriceText) shown.append(Object.assign(document.createElement("s"), { textContent: plan.priceText }), plan.foundingPriceText);
       else shown.append(plan.priceText);
-      shown.append(Object.assign(document.createElement("small"), { textContent: plan.foundingPriceText ? "a month, for life" : "a month" }));
+      shown.append(Object.assign(document.createElement("small"), { textContent: plan.foundingPriceText ? "a month, as long as you stay" : "a month" }));
       label.append(shown);
     }
     return label;
@@ -190,8 +190,9 @@ function planTiles(plans) {
   if (checked) $(`#plan-choices input[value="${checked}"]`).checked = true;
   if (plans?.trialDays) {
     const founding = plans.foundingOffer;
-    const offer = founding ? ` The first ${founding.presses} presses to pay keep ${founding.percentOff}% off for life.` : "";
-    $("#plan-terms").textContent = `Free for ${plans.trialDays} days once your shop opens, then monthly, plus tax. Nothing is charged before then.${offer}`;
+    const offer = founding ? ` The first ${founding.presses} presses to pay keep ${founding.percentOff}% off for as long as they stay.` : "";
+    const tax = plans.plusTax ? ", plus tax" : "";
+    $("#plan-terms").textContent = `Free for ${plans.trialDays} days once your shop opens, then monthly${tax}. Nothing is charged before then.${offer}`;
   }
 }
 planTiles(null);
@@ -206,16 +207,8 @@ function fillAnswers() {
   for (const input of planForm.querySelectorAll("input[name=plan]")) input.checked = input.value === (press.plan || "both");
   nameForm.pressName.value = press.pressName ?? "";
   for (const input of sellsForm.querySelectorAll("input[name=sells]")) input.checked = input.value === press.sells;
-  // Not answered yet: start from the country the browser says it is in, when it's one we serve.
-  countryForm.country.value = press.country in COUNTRIES ? press.country : browserCountry();
-}
-
-function browserCountry() {
-  for (const tag of navigator.languages ?? [navigator.language]) {
-    const region = (() => { try { return new Intl.Locale(tag).maximize().region; } catch { return ""; } })();
-    if (region in COUNTRIES) return region;
-  }
-  return "";
+  // Not answered yet: start from the country the computer's clock is set to, when we can tell and serve it.
+  countryForm.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
 }
 
 const valueOf = (form) => {

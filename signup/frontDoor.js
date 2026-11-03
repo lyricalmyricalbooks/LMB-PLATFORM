@@ -1,5 +1,5 @@
 // The front door's server side (code plan 18.4, the five-screen flow in docs/plans/1-front-door-v2.md): email, the
-// six-digit code, three questions, then the admin. One sign-in path for new and returning presses.
+// six-digit code, four questions, then the admin. One sign-in path for new and returning presses.
 //
 //   POST /api/code/send   { email }            emails a six-digit code (public; the same answer for any address)
 //   POST /api/code/check  { email, code }      checks it; on a match, answers { link }: a one-time Firebase sign-in
