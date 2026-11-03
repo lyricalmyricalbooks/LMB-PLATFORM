@@ -1,7 +1,8 @@
+import { recordMoveStep } from "./moveProgress";
 import { useState } from "react";
 import { adminApi } from "./api";
 import { readOldLinks, readOldPages } from "./oldShopApi";
-import { checkOldLinks, countLinks, pagesToSave, type OldLink } from "./oldLinks";
+import { checkOldLinks, countLinks, linksInPages, pagesToSave, type OldLink } from "./oldLinks";
 import { addToIndex, MAX_REDIRECTS, redirectIndex, redirectProblemIn, type Redirect } from "../features/site/redirects";
 import { DataTable, PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
 import { useShopWords } from "./shopWords";
@@ -25,7 +26,7 @@ export function OldLinksCheck({ redirects, busy, onAdd }: {
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const [bringing, setBringing] = useState(false);
-  const [brought, setBrought] = useState<null | { added: number; photos: number; skipped: { path: string; reason: string }[] }>(null);
+  const [brought, setBrought] = useState<null | { added: number; photos: number; skipped: { path: string; reason: string }[]; links: string[] }>(null);
   const [result, setResult] = useState<null | { host: string; paths: string[]; notes: string[]; shop: Omit<Parameters<typeof checkOldLinks>[1], "redirects"> }>(null);
 
   // Worked out again from the live redirect list, so a redirect added here (or in the form above) moves its row at once.
@@ -33,6 +34,8 @@ export function OldLinksCheck({ redirects, busy, onAdd }: {
   const counts = countLinks(links);
   const missing = links.filter((l) => l.state === "missing");
   const drafts = links.filter((l) => l.state === "draft");
+  // Links inside the brought-over pages that would land on "page not found" (plan 23.16), live like the rest.
+  const deadInPages = brought ? missing.filter((l) => brought.links.includes(l.path)).length : 0;
 
   const check = async () => {
     if (!address.trim() || checking) return;
@@ -42,6 +45,7 @@ export function OldLinksCheck({ redirects, busy, onAdd }: {
         readOldLinks(address.trim()), adminApi.getAllBooks({ includePrivate: false }), adminApi.getPages(), adminApi.getSettings(),
       ]);
       setResult({ ...answer, shop: { books, pages: pages as any[], settings } });
+      void recordMoveStep("move-links");
     } catch (err: any) {
       setResult(null);
       setError(err?.message || "We couldn't check your old links just now. Try again in a minute.");
@@ -84,10 +88,13 @@ export function OldLinksCheck({ redirects, busy, onAdd }: {
       for (const page of plan.create) made.push(await adminApi.createPage(page));
       const madeSlugs = new Set(made.map((p) => p.slug));
       const ready = plan.redirects.filter((r) => madeSlugs.has(r.to.replace(/^\/page\//, "")));
-      setResult({ ...result, shop: { ...result.shop, pages: [...result.shop.pages, ...made] } });
+      // Their links to other old pages join the list, so one that didn't come over gets a redirect like any other.
+      const pageLinks = linksInPages(made.map((p) => p.body || ""));
+      const known = new Set(result.paths);
+      setResult({ ...result, paths: [...result.paths, ...pageLinks.filter((p) => !known.has(p))], shop: { ...result.shop, pages: [...result.shop.pages, ...made] } });
       const room = addable(ready.map((r) => ({ path: r.from, state: "missing" as const, suggestion: { to: r.to, label: "" } })));
       if (room.length) await onAdd(room, `${plural(made.length, "page")} brought over as drafts.`);
-      setBrought({ added: made.length, photos: plan.photos, skipped: [...answer.skipped, ...plan.skipped] });
+      setBrought({ added: made.length, photos: plan.photos, skipped: [...answer.skipped, ...plan.skipped], links: pageLinks });
     } catch (err: any) {
       setError(err?.message || "We couldn't bring your old pages over just now. Try again in a minute.");
     } finally {
@@ -128,6 +135,7 @@ export function OldLinksCheck({ redirects, busy, onAdd }: {
           {brought && (
             <div role="status" style={{ display: "grid", gap: 6 }}>
               <p className="rp-hint" style={{ margin: 0 }}>{brought.added ? `${plural(brought.added, "page")} brought over as drafts. Their photos are copied into your shop within the hour.` : "No pages were brought over."}{brought.photos ? ` ${plural(brought.photos, "photo")} couldn't come over: add them again in Settings › Design › Pages.` : ""}</p>
+              {deadInPages > 0 && <p className="rp-hint" style={{ margin: 0 }}>{deadInPages === 1 ? "1 link inside those pages points at an old address with no page here yet. It is in the list below with a suggested redirect." : `${deadInPages.toLocaleString("en")} links inside those pages point at old addresses with no page here yet. They are in the list below with suggested redirects.`}</p>}
               {brought.skipped.length > 0 && (
                 <details>
                   <summary className="rp-hint">{plural(brought.skipped.length, "page")} left out</summary>

@@ -117,3 +117,19 @@ export function pagesToSave(pages: OldPage[], existing: { slug?: string; order?:
   }
   return { create, redirects, skipped, photos };
 }
+
+/**
+ * The addresses on this shop that brought-over pages link to (plan 23.16): each on-site link (the page reader keeps
+ * them as paths) without its query or anchor, once. Checked with checkOldLinks like the site map's, so a link to a
+ * page that didn't come over shows up among the old links with a suggested redirect.
+ */
+export function linksInPages(bodies: string[]): string[] {
+  const out = new Set<string>();
+  for (const body of bodies) {
+    for (const m of String(body || "").matchAll(/<a href="(\/[^"]*)"/g)) {
+      const path = normalizePath(m[1].replace(/&amp;/g, "&").split(/[?#]/)[0]);
+      if (path && path !== "/") out.add(path);
+    }
+  }
+  return [...out];
+}

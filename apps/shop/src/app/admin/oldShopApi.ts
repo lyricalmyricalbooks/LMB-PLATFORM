@@ -2,7 +2,8 @@
 //   Books › Import › "From your old shop's address" (plan 23.11): its product list, as a product file.
 //   Settings › General › URL redirects › Check your old links (plan 23.8): its page addresses, from its site map,
 //   and Bring pages over (plan 23.6): its own pages, rebuilt safely, to save as drafts.
-//   Orders › Bring past orders over (plan 23.7): saves past orders as history only.
+//   Orders › Bring past orders over (plan 23.7): saves past orders as history only; takes a run back (23.15); suggests
+//   a rate for other currencies (23.14).
 import { auth } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import type { OldShopFile } from "./OldShopAddressForm";
@@ -51,8 +52,30 @@ export async function readOldPages(address: string, paths: string[]): Promise<Ol
   return { host: String(data.host || "old shop"), pages: data.pages, skipped: Array.isArray(data.skipped) ? data.skipped : [] };
 }
 
-/** Orders › Bring past orders over (plan 23.7): one batch of past orders, saved by the server as history only. */
-export async function importPastOrders(orders: unknown[]): Promise<{ added: number; skipped: { oldRef: string; reason: string }[] }> {
-  const data = await ask("importPastOrders", { orders });
+/**
+ * Orders › Bring past orders over (plan 23.7): one batch of past orders, saved by the server as history only. `batch`
+ * names the whole run, so it can be taken back at once (plan 23.15).
+ */
+export async function importPastOrders(orders: unknown[], batch?: string): Promise<{ added: number; skipped: { oldRef: string; reason: string }[] }> {
+  const data = await ask("importPastOrders", { orders, ...(batch ? { batch } : {}) });
   return { added: Number(data?.added) || 0, skipped: Array.isArray(data?.skipped) ? data.skipped : [] };
+}
+
+/** Takes one run of Bring past orders over back (plan 23.15): asks until every order it added is gone. */
+export async function removePastOrders(batch: string): Promise<number> {
+  let removed = 0;
+  for (let round = 0; round < 50; round += 1) {
+    const data = await ask("removePastOrders", { batch });
+    removed += Number(data?.removed) || 0;
+    if (!data?.more) break;
+  }
+  return removed;
+}
+
+/** The Bank of Canada's average rate for each currency over these dates (plan 23.14), as a suggestion. */
+export async function suggestedRates(currencies: string[], from: string, to: string): Promise<Record<string, number>> {
+  const data = await ask("exchangeRates", { currencies, from, to });
+  const rates: Record<string, number> = {};
+  for (const [c, r] of Object.entries(data?.rates || {})) if (typeof r === "number" && r > 0) rates[c] = r;
+  return rates;
 }

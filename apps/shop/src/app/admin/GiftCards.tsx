@@ -1,6 +1,7 @@
 // Admin › Gift cards: every card the shop has sold or issued, its balance and history.
 // Cards are read straight from Firestore (admin-only); every change (issue, disable, adjust,
 // resend) goes through the server's giftCardAdmin action, which keeps balances and history right.
+import { recordMoveStep } from "./moveProgress";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Download, Plus, Upload } from "lucide-react";
 import toast from "react-hot-toast";
@@ -146,6 +147,7 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
         done.emailFailed += Number(answer.emailFailed) || 0;
         for (const s of Array.isArray(answer.skipped) ? answer.skipped : []) done.skipped.push({ line: lineOf.get(s.oldRef) ?? 0, reason: String(s.reason || "skipped") });
       }
+      if (done.added) void recordMoveStep("move-giftcards");
       setResult(done);
       onDone();
     } catch (err: any) {

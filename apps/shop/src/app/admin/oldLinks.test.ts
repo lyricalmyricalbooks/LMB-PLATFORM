@@ -1,6 +1,6 @@
 // Check your old links (plan 23.8): each old address tried against the new shop's own routes and redirects.
 import { describe, expect, it } from "vitest";
-import { checkOldLinks, countLinks } from "./oldLinks";
+import { checkOldLinks, countLinks, linksInPages } from "./oldLinks";
 
 const shop = {
   books: [
@@ -64,5 +64,21 @@ describe("bringing the old shop's own pages over (plan 23.6)", () => {
     ]);
     expect(out.skipped).toEqual([{ path: "/pages/about", reason: "is already here as /page/about" }]);
     expect(out.photos).toBe(3);
+  });
+});
+
+describe("links inside brought-over pages (plan 23.16)", () => {
+  it("lists each on-site link once, without its query or anchor, and leaves outside links and the home page out", () => {
+    const bodies = [
+      '<p><a href="/pages/contact">Contact</a> and <a href="https://elsewhere.example/x">out</a> <a href="/">home</a></p>',
+      '<p><a href="/pages/contact?ref=1#top">again</a> <a href="/collections/new&amp;more">new</a> <a href="mailto:a@example.com">mail</a></p>',
+    ];
+    expect(linksInPages(bodies)).toEqual(["/pages/contact", "/collections/new&more"]);
+  });
+
+  it("finds a link to a page that didn't come over, checked like the site map's", () => {
+    const paths = linksInPages(['<p><a href="/pages/stockists">Where to buy</a></p>']);
+    const [row] = checkOldLinks(paths, { ...shop, redirects: [] });
+    expect(row).toMatchObject({ path: "/pages/stockists", state: "missing" });
   });
 });

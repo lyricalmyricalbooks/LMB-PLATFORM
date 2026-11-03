@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { importPastOrders, handlePastOrdersImport, pastOrderId } = require("./orderImport.js");
+const { importPastOrders, handlePastOrdersImport, handlePastOrdersRemove, pastOrderId } = require("./orderImport.js");
+const { averageRates, handleExchangeRates } = require("./pastOrderRates.js");
 const { pushKind } = require("./inventoryLink.js");
 const { returnRequestProblem } = require("./shared/returnRequests.js");
 const { buildOrderDigest } = require("./orderDigest.js");
@@ -11,9 +12,17 @@ const { buildOrderDigest } = require("./orderDigest.js");
 /** A pretend Firestore whose create() refuses a document that exists, as the real one does. */
 function fakeDb() {
   const docs = new Map();
+  const query = (name, field, value, n = Infinity) => ({
+    limit: (k) => query(name, field, value, k),
+    get: async () => ({ docs: [...docs].filter(([p, d]) => p.startsWith(`${name}/`) && d[field] === value).slice(0, n).map(([p, d]) => ({ ref: { path: p }, data: () => d })) }),
+  });
   return {
     docs,
-    collection: (name) => ({ doc: (id) => ({ path: `${name}/${id}` }), add: async (data) => { docs.set(`${name}/auto${docs.size}`, data); } }),
+    collection: (name) => ({
+      doc: (id) => ({ path: `${name}/${id}` }), add: async (data) => { docs.set(`${name}/auto${docs.size}`, data); },
+      where: (field, _op, value) => query(name, field, value),
+    }),
+    batch: () => { const gone = []; return { delete: (r) => gone.push(r.path), commit: async () => gone.forEach((p) => docs.delete(p)) }; },
     async runTransaction(fn) {
       const writes = [];
       const out = await fn({ get: async (r) => ({ exists: docs.has(r.path) }), create: (r, d) => writes.push([r.path, d]) });
@@ -82,6 +91,44 @@ describe("bringing past orders over (plan 23.7)", () => {
     expect((await handlePastOrdersImport({}, { db, actor: "a", now: NOW })).status).toBe(400);
     expect((await handlePastOrdersImport({ orders: Array(501).fill(ORDERS[0]) }, { db, actor: "a", now: NOW })).status).toBe(400);
     expect(db.docs.size).toBe(0);
-    expect(await handlePastOrdersImport({ orders: ORDERS.slice(0, 1) }, { db, actor: "a", now: NOW })).toEqual({ status: 200, body: { added: 1, skipped: [] } });
+    expect(await handlePastOrdersImport({ orders: ORDERS.slice(0, 1), batch: "run-cccc3333" }, { db, actor: "a", now: NOW })).toEqual({ status: 200, body: { added: 1, skipped: [] } });
+    expect(db.docs.get(`orders/${pastOrderId("#1001")}`).importBatch).toBe("run-cccc3333");
+  });
+});
+
+describe("taking a run back (plan 23.15)", () => {
+  it("removes only the orders that run added, a few hundred at a time, and says so in the audit log", async () => {
+    const db = fakeDb();
+    await handlePastOrdersImport({ orders: ORDERS.slice(0, 2), batch: "run-aaaa1111" }, { db, actor: "a", now: NOW });
+    await handlePastOrdersImport({ orders: [{ oldRef: "#2001", orderedAt: "2025-01-01", total: 5 }], batch: "run-bbbb2222" }, { db, actor: "a", now: NOW });
+    db.docs.set("orders/real", { source: "web", importBatch: "run-aaaa1111", total: 9 }); // not brought over: never removed
+    expect((await handlePastOrdersRemove({ batch: "x" }, { db, actor: "a", now: NOW })).status).toBe(400);
+    const out = await handlePastOrdersRemove({ batch: "run-aaaa1111" }, { db, actor: "a", now: NOW });
+    expect(out).toEqual({ status: 200, body: { removed: 2, more: false } });
+    expect(db.docs.has(`orders/${pastOrderId("#1001")}`)).toBe(false);
+    expect(db.docs.has(`orders/${pastOrderId("#2001")}`)).toBe(true);
+    expect(db.docs.has("orders/real")).toBe(true);
+    expect([...db.docs.values()].some((d) => /Removed 2 past orders/.test(d.message || ""))).toBe(true);
+    // Brought over again afterwards, they come back.
+    expect((await handlePastOrdersImport({ orders: ORDERS.slice(0, 2) }, { db, actor: "a", now: NOW })).body.added).toBe(2);
+  });
+});
+
+describe("a suggested rate for other currencies (plan 23.14)", () => {
+  const bank = { observations: [{ d: "2025-06-02", FXUSDCAD: { v: "1.3707" }, FXEURCAD: { v: "1.5663" } }, { d: "2025-06-03", FXUSDCAD: { v: "1.3721" }, FXEURCAD: { v: "bad" } }] };
+  it("averages the Bank of Canada's daily rates over the file's dates, for the currencies it publishes", async () => {
+    const asked = [];
+    const out = await averageRates({ currencies: ["USD", "EUR", "XYZ"], from: "2025-06-01", to: "2025-06-05" }, { getJson: async (u) => { asked.push(u); return bank; } });
+    expect(out.rates).toEqual({ USD: 1.3714, EUR: 1.5663 });
+    expect(asked).toEqual(["https://www.bankofcanada.ca/valet/observations/FXUSDCAD,FXEURCAD/json?start_date=2025-06-01&end_date=2025-06-05"]);
+    expect((await averageRates({ currencies: ["XYZ"], from: "2025-06-01", to: "2025-06-05" }, { getJson: async () => { throw new Error("no call"); } })).rates).toEqual({});
+  });
+  it("checks the request before asking, and never asks past today", async () => {
+    const getJson = async (u) => { expect(u).toContain("end_date=2026-11-03"); return bank; };
+    const allow = async () => true;
+    expect((await handleExchangeRates({ currencies: ["USD"], from: "2025-06-05", to: "2025-06-01" }, { allow, getJson, now: NOW })).status).toBe(400);
+    expect((await handleExchangeRates({ currencies: ["USD"], from: "1990-01-01", to: "2025-06-01" }, { allow, getJson, now: NOW })).status).toBe(400);
+    expect((await handleExchangeRates({ currencies: ["USD"], from: "2026-10-01", to: "2027-01-01" }, { allow: async () => false, getJson, now: NOW })).status).toBe(429);
+    expect((await handleExchangeRates({ currencies: ["USD"], from: "2026-10-01", to: "2027-01-01" }, { allow, getJson, now: NOW })).body.rates.USD).toBe(1.3714);
   });
 });
