@@ -87,6 +87,8 @@ export async function seedRoom(world) {
   // Its move stopped part-way ten days ago (pages and old links still to do), so Today flags it.
   const tenDaysAgo = new Date(world.clock.ms() - 10 * 86_400_000).toISOString();
   await world.shopData.set("kestrel", "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": tenDaysAgo, "move-giftcards": tenDaysAgo, "move-orders": tenDaysAgo } });
+  // The shop's own stalled-move email went to Kit three days later (apps/shop moveReminder).
+  await world.shopData.set("kestrel", "systemStatus/moveReminder", { forLastMoved: tenDaysAgo, sentAt: new Date(world.clock.ms() - 3 * 86_400_000).toISOString() });
   await world.shopData.set("kestrel", "systemStatus/photoImport", { copiedTotal: 57, pending: 3, failed: {}, lastRunAt: at });
 
   // Drifting away: Lantern sold five zines five weeks ago and none since, and Lou last signed in 40 days ago; Kestrel

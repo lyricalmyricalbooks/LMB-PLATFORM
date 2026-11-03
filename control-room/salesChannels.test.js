@@ -49,7 +49,7 @@ async function world() {
   const desk = createSalesChannels({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry, shopData, stockroomData, now: () => new Date(NOW) });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: salesChannelsRoutes(desk), log: () => {} });
   const ask = (claims, body) => api({ method: "POST", path: "/api/control/sales-channels", body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
-  return { desk, ask, stockroomData };
+  return { desk, ask, stockroomData, shopData };
 }
 
 test("only platform admins see a shop's payment links and fair till", async () => {
@@ -95,7 +95,7 @@ test("a payment link still unpaid after three days is flagged in the record", as
     { status: "pending_payment", paymentStatus: "unpaid", total: 30, createdAt: ago(4) },
     { status: "pending_payment", paymentStatus: "unpaid", total: 12.5, createdAt: ago(9) },
     { status: "pending_payment", paymentStatus: "unpaid", total: 99, createdAt: ago(1) },
-  ], NOW).unpaid, { count: 2, amount: 42.5, oldestDays: 9 });
+  ], NOW).unpaid, { count: 2, amount: 42.5, oldestDays: 9, expired: 0, reminded: 0 });
 });
 
 test("fair till by month across presses: only live stockroom presses, month by month, presses counted once", async () => {
@@ -124,4 +124,17 @@ test("the business side shows fair till by month, and the Shops list filters by 
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   assert.match(html, /id="fair-months"/);
   assert.match(html, /id="shop-risk"/);
+});
+
+test("an unpaid link says whether the shop reminded the customer and whether it has closed", async () => {
+  assert.deepEqual(paymentLinksSummary([
+    { status: "pending_payment", paymentStatus: "unpaid", total: 10, createdAt: ago(9), paymentLink: { expiresAt: ago(1) }, reminderSentAt: ago(3) },
+    { status: "pending_payment", paymentStatus: "unpaid", total: 10, createdAt: ago(4), paymentLink: { expiresAt: ago(-3) } },
+  ], NOW).unpaid, { count: 2, amount: 20, oldestDays: 9, expired: 1, reminded: 1 });
+  // In the record, the link record's reminderSentAt is read for each link still waiting.
+  const w = await world();
+  await w.shopData.set(SHOP, "orders/l3", { source: "payment_link", status: "pending_payment", paymentStatus: "unpaid", total: 30, createdAt: ago(5) });
+  await w.shopData.set(SHOP, "paymentLinks/l3", { reminderSentAt: ago(1) });
+  const { channels } = await w.desk.forShop(ADMIN, { shopId: SHOP });
+  assert.deepEqual([channels.links.unpaid.count, channels.links.unpaid.reminded], [1, 1]);
 });

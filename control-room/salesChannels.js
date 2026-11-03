@@ -51,11 +51,18 @@ export function paymentLinksSummary(orders, nowMs) {
     } else if (order.status === "pending_payment") {
       out.waiting += 1;
       const age = Math.floor((nowMs - Date.parse(order.createdAt ?? "")) / DAY);
-      if (age >= UNPAID_DAYS) unpaid.push({ age, amount: Number(order.total) || 0 });
+      const expired = Date.parse(order.paymentLink?.expiresAt ?? "") <= nowMs;
+      // `reminded`: the shop's own reminder to the customer went (the link record's reminderSentAt, read alongside).
+      if (age >= UNPAID_DAYS) unpaid.push({ age, amount: Number(order.total) || 0, expired, reminded: Boolean(order.reminderSentAt) });
     }
   }
   // Links a customer hasn't paid after a few days: the press may think they're paid, or the link may be stuck.
-  if (unpaid.length) out.unpaid = { count: unpaid.length, amount: cents(unpaid.reduce((n, u) => n + u.amount, 0)), oldestDays: Math.max(...unpaid.map((u) => u.age)) };
+  if (unpaid.length) {
+    out.unpaid = {
+      count: unpaid.length, amount: cents(unpaid.reduce((n, u) => n + u.amount, 0)), oldestDays: Math.max(...unpaid.map((u) => u.age)),
+      expired: unpaid.filter((u) => u.expired).length, reminded: unpaid.filter((u) => u.reminded).length,
+    };
+  }
   return out.made ? out : null;
 }
 
@@ -150,9 +157,16 @@ export function createSalesChannels({ admins, registry, shopData, stockroomData 
       if (!shopData?.find) throw new ControlError(503, "The control room can't read the shop's own records yet.");
       const apps = PLANS[row.plan] ?? { shop: true, stockroom: true };
       try {
-        const links = apps.shop
-          ? paymentLinksSummary((await shopData.find(shopId, "orders", { where: [["source", "==", "payment_link"]], limit: MAX_LINKS })).map((d) => d.data), nowMs)
-          : null;
+        let links = null;
+        if (apps.shop) {
+          const orders = await shopData.find(shopId, "orders", { where: [["source", "==", "payment_link"]], limit: MAX_LINKS });
+          // For a link still waiting, whether the shop's reminder to the customer has gone (paymentLinks/<orderId>).
+          await eachInTurn(orders.filter((d) => d.data?.status === "pending_payment"), 8, async (d) => {
+            const link = shopData.get ? await shopData.get(shopId, `paymentLinks/${d.id}`) : null;
+            if (link?.reminderSentAt) d.data.reminderSentAt = link.reminderSentAt;
+          });
+          links = paymentLinksSummary(orders.map((d) => d.data), nowMs);
+        }
         let fair = null;
         let stockroom = "none";
         if (apps.stockroom && stockroomData) {

@@ -165,3 +165,19 @@ test("GET /api/control/income is for platform admins only, and the Today page dr
   assert.doesNotMatch(chartCss, /#[0-9a-f]{3,6}\b|rgb\(/i);
   assert.match(chartCss, /var\(--rp-primary\)/);
 });
+
+test("the nightly record keeps the money at risk, and the line shows it per month", async () => {
+  const { snapshotIncome, history } = await import("./incomeHistory.js");
+  const { fakeRegistry } = await import("../setup/fakes.js");
+  const { platformSettings } = await import("../services/settings.js");
+  const registry = fakeRegistry();
+  await registry.createShop("moth", { shopId: "moth", plan: "both", status: "live", billing: { status: "active" }, drift: { level: "drifting", score: 4, reasons: [] } });
+  await registry.createShop("wasp", { shopId: "wasp", plan: "shop", status: "live", billing: { status: "active" } });
+  const records = new Map();
+  const store = { get: async (d) => records.get(d) ?? null, set: async (d, r) => void records.set(d, r), list: async ({ since }) => [...records.values()].filter((r) => r.day >= since).sort((a, b) => (a.day < b.day ? -1 : 1)) };
+  const settings = platformSettings({});
+  const now = new Date("2026-11-03T12:00:00Z");
+  const record = await snapshotIncome({ registry, settings, store, now });
+  assert.deepEqual(record.atRisk, { count: 1, cents: settings.prices.both });
+  assert.deepEqual((await history({ store, now })).months.at(-1).atRisk, { count: 1, cents: settings.prices.both });
+});
