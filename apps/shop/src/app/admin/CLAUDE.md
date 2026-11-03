@@ -477,7 +477,7 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
 Both read the admin-only `firstWeek/start` (`adminApi.getFirstWeek`) that the platform's setup step 12 writes once
 (`sellingToday`, `publishes`, `country`, `plan`). No document, nothing shown: shops made before this, or by hand, never
 see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `AnalyticsDashboard`) picks which:
-- **Choose your look** (`overview/ChooseLookWelcome.tsx`, pure parts in `chooseLook.ts`, lazy-loaded): while
+- **Choose your look** (`overview/ChooseLookWelcome.tsx`, pure parts in `lookGallery.ts` (re-exported by `chooseLook.ts`, which also saves the look), lazy-loaded): while
   `welcome` is unset and the plan has a shop. A gallery of every `THEME_LIBRARY` theme (name, mood, three swatches,
   `LookPicture`: a small drawing in the theme's own colours and type with the press's name in the header; Preview opens
   it at phone or desktop width), two or three suggested per `publishes` (`SUGGESTED`). Use this look runs
@@ -501,7 +501,7 @@ see either. `overview/SetupStart.tsx` (rendered at the top of the Overview by `A
 
 - **What you sell** (plan 10.1, `sells.ts`): sign-up's "What do you sell?" (`firstWeek/start` › `publishes`). Book
   answers (books, zines, comics, mix), a skipped or unknown one change nothing. Any other answer: Choose your look's
-  suggestions for it (`chooseLook.ts` SUGGESTED, keys in the form's order, checked by `setup/later-steps.test.js`),
+  suggestions for it (`lookGallery.ts` SUGGESTED, keys in the form's order, checked by `setup/later-steps.test.js`),
   starter Text & labels words put in the draft by `applyChosenLook` under the owner's own (`withStarterWords`), new
   products start as `startingKind` (BookEditor, also in `initialData` so it isn't an unsaved edit) and the guide's
   first-product step. A new shopper word with "book" in it needs a starter word in `sells.ts` (or `BOOK_ONLY_COPY`
@@ -528,7 +528,7 @@ order. Built so far:
 
 - **Step 3 of 8, Choose your look** (`overview/ChooseLookWelcome.tsx`, plan 17.8, built in plan 6.3): the suggested looks
   from the sign-up answer, every look, phone and desktop previews. Previews show the press's first book photo
-  (`firstBookPhoto` in `chooseLook.ts`, secure addresses only).
+  (`firstBookPhoto` in `lookGallery.ts`, secure addresses only).
 - **Step 5 of 8, get paid** (`overview/PaymentsStage.tsx`, pure logic in `paymentsStage.ts`, plan 17.10): only for a press
   whose cards go through the platform (Stripe or Square; `platformCardsProvider`). It reads the card status the Settings
   card reads (`platformPayments.ts`, plan 7.9): one **Continue with Stripe** (or **Connect Square**) sends the press to the
@@ -643,3 +643,18 @@ startsAt, endsAt }] }`, rules: admins read, no browser writes). `PlatformMessage
 (important ones in the warning tone), at most three, with Close kept in `localStorage` (`platformMessages.ts`
 `pickPlatformMessages`, tested in `platformMessages.test.ts`, which also checks nothing outside `app/admin` reads it). The
 storefront never imports it. Admin-only words, Studio-free.
+
+## Setup mode (code plan 18.6, 3 November 2026)
+
+The admin a press meets before its shop exists, served by the platform at `/app/` (`setup.html`, `src/setupMode/`,
+built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; the walkthrough serves it at `/app/`).
+- **No shop database.** `main.tsx` signs in with the platform's own account (it loads `/signup/config.js` and the
+  Firebase SDK the front door uses, so the front door's sign-in carries over) and never imports `../main`,
+  `lib/firebase` or `adminApi`. Every answer goes to the press's setup record through `door.ts` (`GET /api/press`,
+  `POST /api/press/setup`); the shop maker (18.9) carries it into the new shop.
+- **Same shell and menu** (`pages.ts` `setupMenu`): the admin's five items plus Plan and billing and Help. Home is the
+  setup guide; Design (the Choose your look gallery), Settings › General, Plan and billing and Help work; every other
+  page is `OpensWithShop` and writes nothing.
+- **Look gallery without the database:** `lookGallery.ts` holds the pure gallery parts; `ChooseLookWelcome` takes
+  `apply` (setup mode passes one that does nothing) and loads `chooseLook.applyChosenLook` only when it isn't given.
+- **Not yet:** Open my shop (18.8) is shown disabled; the import preview (18.7) is locked.

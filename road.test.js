@@ -100,7 +100,7 @@ test("the whole road: sign up, a shop made, a look picked, a trial, a card, a fa
   // ── The owner opens the admin and picks a look (Choose your look, plan 6.3) ──
   assert.equal(start.welcome, undefined, "the welcome has not been done, so the admin shows it");
   // Every answer sign-up can write has suggested looks in the shop's own list.
-  const chooseLook = readFileSync("apps/shop/src/app/admin/chooseLook.ts", "utf8");
+  const chooseLook = readFileSync("apps/shop/src/app/admin/lookGallery.ts", "utf8");
   const suggested = Object.fromEntries([...chooseLook.matchAll(/^\s+(\w+): \[((?:"[\w-]+",?\s*)+)\],?$/gm)].map((m) => [m[1], [...m[2].matchAll(/"([\w-]+)"/g)].map((t) => t[1])]));
   for (const option of PUBLISHES.options) assert.ok(suggested[option.id]?.length >= 2, `the shop suggests looks for "${option.id}"`);
   const pickedTheme = suggested[start.publishes][0];

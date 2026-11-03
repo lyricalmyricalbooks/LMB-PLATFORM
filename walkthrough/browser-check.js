@@ -6,8 +6,10 @@
 //   node walkthrough/browser-check.js        (needs Playwright; CHROMIUM_PATH to use an installed Chromium,
 //                                             WALKTHROUGH_SHOTS=<folder> to keep a screenshot of each page)
 import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
-import { startWalkthrough } from "./server.js";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { SETUP_ADMIN_FOLDER, startWalkthrough } from "./server.js";
 import { START_SECTIONS } from "./startPage.js";
 
 /** What each page shows once it has loaded as its person: a selector that must become visible. */
@@ -35,6 +37,8 @@ async function loadPlaywright() {
   throw new Error("Playwright isn't installed. Run: npm install --no-save playwright");
 }
 
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
 const viewFor = (path) => SIGNED_IN_VIEW[Object.keys(SIGNED_IN_VIEW).filter((key) => path.startsWith(key)).sort((a, b) => b.length - a.length)[0]] ?? "body";
 
 /**
@@ -49,6 +53,8 @@ async function checkFrontDoor(browser, walk, log) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(`page error: ${error.message}`));
   const address = "front-door@example.com";
+  // The country question is skipped; setup mode's General page answers it, when setup mode is built.
+  let country = "";
   const step = async (what, work) => {
     if (errors.length) return;
     try { await work(); } catch (error) { errors.push(`${what}: ${error.message.split("\n")[0]}`); }
@@ -91,11 +97,47 @@ async function checkFrontDoor(browser, walk, log) {
       await page.click("#view-country [data-skip]");
       await visible("#view-done");
     });
+    await step("setup mode, the admin before the shop opens (code plan 18.6)", async () => {
+      const built = existsSync(join(ROOT, SETUP_ADMIN_FOLDER, "setup.html"));
+      if (!built) {
+        if (process.env.SETUP_ADMIN_REQUIRED) throw new Error("setup mode isn't built (cd apps/shop && pnpm run build:setup)");
+        log("  (setup mode isn't built here, so its part of the front door check is left out)");
+        return;
+      }
+      await page.click("#done-go");
+      await page.waitForURL(/\/app\/\?press=/, { timeout: 10_000 });
+      await visible(".rp-page-title");
+      const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+      if (!(await page.locator(".rp-page-title").textContent())?.includes("Front Door Press")) throw new Error("the setup guide doesn't greet the press by name");
+      if (!(await fits())) throw new Error("the setup guide scrolls sideways on a phone");
+      // A page that needs the shop is locked and offers Open my shop.
+      await page.evaluate(() => { location.hash = "orders"; });
+      await page.locator("text=Opens with your shop").first().waitFor({ state: "visible", timeout: 10_000 });
+      // Settings › General saves to the setup record.
+      await page.evaluate(() => { location.hash = "settings/general"; });
+      await page.locator("form select").nth(1).selectOption("CA");
+      await page.click("form button[type=submit]");
+      for (let i = 0; i < 50; i += 1) {
+        const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
+        if (saved?.country === "CA") { country = "CA"; break; }
+        if (i === 49) throw new Error("General didn't save the country");
+        await page.waitForTimeout(100);
+      }
+      // Design shows the look gallery, and picking a look saves it.
+      await page.evaluate(() => { location.hash = "settings/designer"; });
+      await page.locator("ul[aria-label='Suggested looks'] button", { hasText: "Use this look" }).first().click();
+      await page.locator("text=Choose another look").waitFor({ state: "visible", timeout: 10_000 });
+      const [saved] = await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`);
+      if (!saved?.look) throw new Error("the chosen look wasn't saved");
+      if (!(await fits())) throw new Error("Design scrolls sideways on a phone");
+      await page.goto(`${walk.url}/join/`);
+      await visible("#view-done");
+    });
     await step("coming back", async () => {
       await page.reload();
       await visible("#view-done");
       const saved = (await walk.world.frontDoorStores.presses.listByOwner(`uid-${address}`))[0];
-      if (saved?.plan !== "shop" || saved?.pressName !== "Front Door Press" || saved?.sells !== "zines" || saved?.country !== "") throw new Error(`saved ${JSON.stringify(saved)}`);
+      if (saved?.plan !== "shop" || saved?.pressName !== "Front Door Press" || saved?.sells !== "zines" || saved?.country !== country) throw new Error(`saved ${JSON.stringify(saved)}`);
     });
     await step("the picker for a second press, and an open shop going to the account page", async () => {
       const presses = walk.world.frontDoorStores.presses;

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ADMIN_LOOKS, applyAdminLook, readAdminLook, type AdminLookId } from "../riso/adminLook";
 import { Monitor, Smartphone } from "lucide-react";
-import { applyChosenLook, galleryThemes, lookPreview, pressNameOf, type LibraryTheme } from "../chooseLook";
+import { galleryThemes, lookPreview, pressNameOf, type LibraryTheme } from "../lookGallery";
 import type { WelcomeDone } from "../firstWeek";
 import { friendlyError } from "../studio/friendlyError";
 import { Dialog, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "../riso/components";
@@ -12,13 +12,18 @@ import { useShopWords } from "../shopWords";
  * Overview read it: undefined while it loads, null when it couldn't be read. `onDone` gets what to record once the
  * look is in the draft; the parent saves it (and puts the welcome away).
  */
-export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onRetrySettings }: {
+export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onRetrySettings, apply, intro: introWords }: {
   publishes?: string | null;
   /** The press's first book photo (firstBookPhoto), shown in each look's preview (plan 17.8). */
   photo?: string;
   settings: any;
   onDone: (welcome: WelcomeDone) => Promise<void>;
   onRetrySettings?: () => void;
+  /** How the chosen look is put in place. The shop's admin puts it in Studio's draft (the default); setup mode, with no
+   * shop yet, passes one that does nothing and keeps the choice on the press's setup record through `onDone`. */
+  apply?: (theme: LibraryTheme, settings: any, publishes?: string | null) => Promise<void>;
+  /** The line under the title; the setup guide's step words by default. */
+  intro?: string;
 }) {
   const w = useShopWords();
   const { suggested, others } = galleryThemes(publishes);
@@ -33,7 +38,9 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
     if (busy) return;
     setBusy(theme.id); setError("");
     try {
-      await applyChosenLook(theme, settings, publishes);
+      // Loaded only when used, so setup mode never loads the shop's database code.
+      const put = apply ?? (await import("../chooseLook")).applyChosenLook;
+      await put(theme, settings, publishes);
       await onDone({ theme: theme.id, at: new Date().toISOString(), adminLook, ...(skipped ? { skipped: true } : {}) });
     } catch (err) {
       setError(friendlyError(err, `use “${theme.name}”`));
@@ -41,7 +48,7 @@ export function ChooseLookWelcome({ publishes, photo = "", settings, onDone, onR
     }
   };
 
-  const intro = "Step 3 of 8. Pick a look for your shop. It goes into your draft, and you can change it any time in Design.";
+  const intro = introWords ?? "Step 3 of 8. Pick a look for your shop. It goes into your draft, and you can change it any time in Design.";
   if (settings === undefined) return <SectionCard title="Choose your look" description={intro}><LoadingState label="Opening the looks…" /></SectionCard>;
   if (settings === null) {
     return (

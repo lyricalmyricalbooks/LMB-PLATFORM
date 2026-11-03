@@ -681,7 +681,7 @@ test("the shop's first-week list knows every sign-up answer", () => {
 });
 
 test("Choose your look suggests themes for every publishing answer", () => {
-  const source = readFileSync(new URL("../apps/shop/src/app/admin/chooseLook.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../apps/shop/src/app/admin/lookGallery.ts", import.meta.url), "utf8");
   const block = source.match(/const SUGGESTED[^{]*\{([\s\S]*?)\n\};/)[1];
   const keys = [...block.matchAll(/^\s+([a-z]+):/gm)].map((m) => m[1]).filter((k) => k !== "general");
   assert.deepEqual(keys, PUBLISHES.options.map((option) => option.id));
