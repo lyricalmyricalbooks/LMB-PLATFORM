@@ -50,3 +50,21 @@ test("a live lock is waited for, then reported instead of waited on for ever", a
   await assert.rejects(withBuildLock(dir, async () => "never"), /held the release build folder for too long/);
   assert.match(await readFile(join(dir, LOCK_FILE), "utf8"), new RegExp(String(process.pid)), "someone else's lock is left alone");
 });
+
+test("a deploy whose lock was taken over as too old leaves the new holder's lock in place when it ends", async () => {
+  const dir = await folder();
+  let release;
+  const slow = buildLock({ pollMs: 5 })(dir, () => new Promise((r) => { release = r; }));
+  await new Promise((r) => setTimeout(r, 20));
+  let inside;
+  const taker = buildLock({ pollMs: 5, staleMs: -1 })(dir, async () => {
+    // The slow one ends while this one still holds the folder.
+    release("slow");
+    await slow;
+    inside = await exists(join(dir, LOCK_FILE));
+    return "taker";
+  });
+  assert.equal(await taker, "taker");
+  assert.equal(inside, true, "the slow deploy took away the lock another deploy now holds");
+  assert.equal(await exists(join(dir, LOCK_FILE)), false);
+});
