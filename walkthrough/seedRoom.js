@@ -69,6 +69,11 @@ export async function seedRoom(world) {
   await world.room.setNewShopSwitch(admin(), { name: "gmailReceiptFinder", on: true, reason: "New presses ask for it in their first week." });
   await world.room.setFee(admin(), { shopId: "lantern-zines", basisPoints: 50, refunded: true, reason: "Lantern Zines sells mostly at fairs; half a percent online." });
 
+  // Sign-in safety: Kestrel's owner has two-step with two backup codes left; Lantern's owner hasn't turned it on.
+  world.shopAccess.twoStep.set("kestrel kit@example.com", 1);
+  world.shopAccess.codes.set("kestrel kit@example.com", 2);
+  world.shopAccess.codes.set("lantern-zines lou@example.com", 0);
+
   // Two presses still in setup mode, through the front door's own calls, for the Setting up page.
   for (const [owner, answers] of SETUP_PRESSES) {
     const made = await world.ask(owner, "POST", "/api/press", {});

@@ -60,6 +60,7 @@ import { createTimeline, timelineRoutes } from "../control-room/timeline.js";
 import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
+import { createSignInSafety, signInSafetyRoutes } from "../control-room/signInSafety.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { fakeDeliveryStats, fakeShopNotes } from "../control-room/visibilityFakes.js";
 import { createJobs } from "../services/jobs/index.js";
@@ -165,8 +166,9 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const accessRequests = createAccessRequests({ store: fakeAccessRequestStore(), email, settings, now: clock.date });
   // Payments and email delivery per shop (19.12): nothing counts payment events in the practice world yet.
   const deliveryStats = fakeDeliveryStats();
+  const shopAccess = fakeShopAccess();
   const room = createControlRoom({
-    registry, auditLog, profileFiles, shopAccess: fakeShopAccess(), repairs, signups: stores.signups, shopData,
+    registry, auditLog, profileFiles, shopAccess, repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: fakeBreachStore(), registry, auditLog, now: clock.date }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now: clock.date,
     // Nothing of Google is set up in the practice world, so the control room shows every item still to do.
@@ -207,6 +209,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const notes = createShopNotes({ admins, store: fakeShopNotes(), registry, activity, now: clock.date });
   // Presses still in setup mode or opening (the Setting up page): read only.
   const setupDesk = createSetupDesk({ admins, presses: frontDoorStores.presses, registry, now: clock.date });
+  const signInSafety = createSignInSafety({ admins, registry, memberships: accountStores.memberships, shopAccess, now: clock.date });
   // Messages to presses (19.14), what each shop costs (19.15; no billing export in the practice world, so the empty
   // state) and a press's data on request (19.16).
   const pressMessages = createPressMessages({ store: fakePressMessages(), registry, auditLog, shopData, email, activity, admins, now: clock.date });
@@ -238,6 +241,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...jobsRoutes(jobsPage),
     ...notesRoutes(notes),
     ...setupRoutes(setupDesk),
+    ...signInSafetyRoutes(signInSafety),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),
@@ -252,7 +256,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
 
   return {
     clock, settings, registry, auditLog, services, google, profileFiles, shopData, stockroomData, stripe, email, closed, billing, paymentWay, stripeEvent,
-    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
+    stores, frontDoor, frontDoorStores, stagedFiles, signup, shopMaker, run, steps, repairs, repairStore, accounts, accountStores, shopAccess, room, controls, backup, support, recovery, platformState, activity, door, routes, ask, invites, accessRequests,
     deliveryStats, timeline, jobs, jobRuns, jobsPage, notes,
     pressMessages, costsDesk, dataExports, exportStorage,
     /** The shop's own database as the platform wrote it: a document, or null. */
