@@ -49,6 +49,7 @@ import { testSaleSteps } from "./testSaleWalkthrough";
 import { practiceCheckout, type PracticeState } from "../lib/practiceCheckout";
 import { studioHash } from "../lib/studioLocation";
 import { useShopWords } from "./shopWords";
+import { WhatYouSellCard } from "./WhatYouSellCard";
 
 export function ShopSettings({ 
   activeTab, 
@@ -241,6 +242,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       </SettingsGroup>
 
       <SettingsGroup id="gs-details" active={view === "gs-details"}>
+        <WhatYouSellCard />
         <SettingsAnchor id="gs-identity">
           <SectionCard title="Store identity" description="Name, blurb, contact.">
             <div className="rp-stack" style={{ gap: 20 }}>

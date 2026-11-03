@@ -41,7 +41,7 @@
     "sells": {
       "type": "string",
       "pattern": "^[a-z][a-z-]{1,30}$",
-      "description": "What the shop sells, its sign-up answer to \"What do you sell?\" (signup/form.js PUBLISHES: books, zines, comics, prints, mix, clothing, shoes, jewelry, music, other). Optional. A shop that doesn't sell books shows \"product\" and \"maker\" in the stockroom instead of \"book\" and \"author\" (plan 10.23). Missing, a book answer or one an app doesn't know: book words."
+      "description": "What the shop sells, its sign-up answer to \"What do you sell?\" (signup/form.js PUBLISHES: books, zines, comics, prints, mix, mixed (books and other things: product and maker words, book fields on book products), clothing, shoes, jewelry, music, other). Optional. A shop that doesn't sell books shows \"product\" and \"maker\" in the stockroom instead of \"book\" and \"author\" (plan 10.23). Missing, a book answer or one an app doesn't know: book words."
     },
     "functionsRegion": { "type": "string", "pattern": "^[a-z]+-[a-z]+[0-9]$" },
     "siteUrl": { "type": "string", "pattern": "^https://[^/\\s]+$", "description": "The shop's address, no trailing slash." },
