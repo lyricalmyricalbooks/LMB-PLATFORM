@@ -739,6 +739,23 @@ same reasons any order can't. Nothing here touches `LyricalmyricalWebsite`, `lyr
 | 21.4 | shop | **From a bulk-price request to a link.** A bulk-price question in Messages gets **Make a payment link**, which opens 21.2 with that product and quantity filled in | admin test | quick | Built (3 November 2026) |
 | 21.5 | shop | **A reminder before it expires.** One email to the customer two days before the link closes, through the shop's email outbox, off in Settings › Notifications | email test with fakes; sent once | quick | Built (3 November 2026) |
 
+## Phase 22: billing inside the shop admin (planned 3 November 2026)
+
+Julian (3 November 2026): presses pay, see their bills, change plans and save payment choices in one hub, placed where
+Shopify places it (Settings › Plan, Settings › Billing), robust like a sophisticated platform. The audit found the
+engine sound (trial, plan changes, invoices, pay as you sell, closing timeline, each Stripe event once), but every action
+lived on the platform's account page, the founding 25% was shown at sign-up and never given in Stripe, and saved cards,
+billing details, the next bill, Pay now and the bank's "confirm this payment" were missing. Test mode only.
+
+| # | Repo | Pull request | Proven by | Effort | Status |
+| --- | --- | --- | --- | --- | --- |
+| 22.1 | platform | **Founding offer given for real.** `services/billing/founding.js`: a press becomes paying with its first card or by choosing pay as you sell, takes one of the founding places in one transaction (`firestoreFoundingSeats`), and its subscription gets the `colophon_founding_<percent>` coupon (forever); new subscriptions keep it | `hub.test.js` | medium | built |
+| 22.2 | platform | **The hub's server calls.** `services/billing/hub.js`: saved cards (primary first, make primary, remove one that pays nothing), billing details on every bill (name, email for bills, address, GST/HST or QST number), the next bill line by line, Pay now after a decline | `hub.test.js` | medium | built |
+| 22.3 | platform + shop | **Settings › Plan and Settings › Billing in the admin.** `accounts/shopBillingDoor.js` (`/api/shop-billing/*`): a sign-in from the shop's own project only, the owner only, the same two-step rule; `BillingHub.tsx` in the shop admin; the paused desk shows the hub; banners open it | `shopBillingDoor.test.js`, `BillingHub.test.tsx`, phone screenshots | larger | built |
+| 22.4 | platform | **Stripe calls tried again.** `stripeRetry.js`: a read or delete after a dropped connection, 429, 409 or 5xx; a keyed POST after a dropped connection, 429 or 409 only (Stripe keeps a 500 against its key) | `hub.test.js` | quick | built |
+| 22.5 | platform | **More Stripe messages.** `invoice.payment_action_required` (the bank wants the press to confirm: the hub links to Stripe's page, email `payment-needs-confirming`), `invoice.paid` (a payment problem cleared, email `payment-received` after a problem only) | `hub.test.js` | quick | built |
+| 22.6 | shop | **Two-step sign-in in the shop admin.** Authenticator codes on the admin's own sign-in, so a paid plan's changes finish in the admin instead of on the account page (Julian chose this, 3 November 2026) | | larger | next |
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.
