@@ -4,15 +4,20 @@ import { DataTable, DestructiveButton, EmptyState, PrimaryButton, SectionCard, S
 import { shopOwnerEmail } from "../lib/ownerDevice";
 import { adminApi } from "./api";
 import { type AdminRole, type TeamRole } from "./adminAccess";
+import { hasStockroom } from "../../lib/shopProfile";
 import { teamApi, teamEmail, teamMemberProblem, type TeamMember } from "./teamApi";
 
 // Admin-only words (the Studio rule covers shopper-facing words).
+// A website-only press has no stockroom: its words leave it out, and the stockroom-only Author role isn't offered.
+const STOCKROOM = hasStockroom();
 const ROLE_WORDS: Record<TeamRole, { label: string; detail: string; added: string }> = {
   staff: { label: "Staff", detail: "Can do everything in the admin except change the Team or the payment and email connections.", added: "can open the admin" },
-  owner: { label: "Owner", detail: "Everything, including the Team, the payment and email connections, and the stockroom.", added: "can open the admin" },
+  owner: { label: "Owner", detail: STOCKROOM ? "Everything, including the Team, the payment and email connections, and the stockroom." : "Everything, including the Team and the payment and email connections.", added: "can open the admin" },
   author: { label: "Author", detail: "Can't open this admin. In the stockroom, they see and update only the books that name them as the author.", added: "can open their books in the stockroom" },
-  bookkeeper: { label: "Bookkeeper", detail: "Reads the orders, sales, tax collected, payouts and bookkeeping downloads, and the stockroom's tax centre. Can't change anything, and doesn't see books, settings, the customer list or the Team.", added: "can read the shop's sales and tax" },
+  bookkeeper: { label: "Bookkeeper", detail: `Reads the orders, sales, tax collected, payouts and bookkeeping downloads${STOCKROOM ? ", and the stockroom's tax centre" : ""}. Can't change anything, and doesn't see books, settings, the customer list or the Team.`, added: "can read the shop's sales and tax" },
 };
+
+const TEAM_ABOUT = STOCKROOM ? "People who can open this admin or the stockroom." : "People who can open this admin.";
 
 // Settings › Team. The owner adds people by their Google email; they sign in with that account.
 export function TeamSettings() {
@@ -36,7 +41,7 @@ export function TeamSettings() {
   if (myRole === undefined) return null;
   if (myRole !== "owner") {
     return (
-      <SectionCard title="Team" description="People who can open this admin or the stockroom.">
+      <SectionCard title="Team" description={TEAM_ABOUT}>
         <EmptyState inline title="Only the owner can change the Team" description="Ask the shop's owner to add, change or remove people." />
       </SectionCard>
     );
@@ -83,7 +88,7 @@ export function TeamSettings() {
 
   return (
     <>
-      <SectionCard title="Team" description="People who can open this admin or the stockroom. Each person signs in with Google using the email you add here.">
+      <SectionCard title="Team" description={`${TEAM_ABOUT} Each person signs in with Google using the email you add here.`}>
         {loadError
           ? <EmptyState inline title="Team not loaded" description={loadError} />
           : <DataTable caption="Team" columns={columns} rows={members ? rows : []} rowKey={m => m.email} stackOnPhone
@@ -96,7 +101,7 @@ export function TeamSettings() {
           <SelectField label="Role" value={role} onChange={e => setRole(e.target.value as TeamRole)}>
             <option value="staff">{ROLE_WORDS.staff.label}</option>
             <option value="owner">{ROLE_WORDS.owner.label}</option>
-            <option value="author">{ROLE_WORDS.author.label}</option>
+            {STOCKROOM && <option value="author">{ROLE_WORDS.author.label}</option>}
             <option value="bookkeeper">{ROLE_WORDS.bookkeeper.label}</option>
           </SelectField>
           <PrimaryButton type="submit" disabled={busy === "add"}>{busy === "add" ? "Adding…" : "Add to Team"}</PrimaryButton>

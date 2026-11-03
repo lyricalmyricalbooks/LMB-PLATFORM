@@ -48,7 +48,8 @@ const header = (headers, name) => {
   return typeof found?.[1] === "string" ? found[1] : "";
 };
 
-export function createApi({ signup, verifyIdToken, settings, routes = {}, publicRoutes = {}, onSignedIn, limits = null, live = () => liveSettings(), log = console.error }) {
+// `plusTax`: whether plan prices are shown "plus tax" (billing's BILLING_TAX), so the plan choices say so only when it is true.
+export function createApi({ signup, verifyIdToken, settings, routes = {}, publicRoutes = {}, onSignedIn, limits = null, live = () => liveSettings(), plusTax = false, log = console.error }) {
   const pathOf = (request) => String(request?.path ?? "").split("?")[0].replace(/\/+$/, "");
   const queryOf = (request) => String(request?.path ?? "").split("?")[1] ?? "";
   const routeOf = (request) => `${request?.method} ${pathOf(request)}`;
@@ -90,6 +91,7 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, public
           ...(basisPoints > 0 && PAY_AS_YOU_SELL_PLANS.includes(plan) ? { payAsYouSell: { percentText: percentText(basisPoints), capText: price } } : {}),
         })),
         trialDays: settings.trialDays,
+        plusTax: plusTax === true,
         currency: settings.currency,
         productName: settings.platformName,
         signupOpen: now.signupOpen === true,

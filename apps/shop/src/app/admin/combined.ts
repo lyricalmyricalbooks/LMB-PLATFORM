@@ -1,4 +1,4 @@
-import { shopProfile, type ShopProfile } from "../../lib/shopProfile";
+import { hasStockroom, shopProfile, type ShopProfile } from "../../lib/shopProfile";
 
 // The combined admin (shop + stockroom plan, design: docs/combined-admin.md). A press with both apps gets one admin:
 // one menu holding the website's pages and the stockroom's, and no "Website · Inventory" switcher. The stockroom's
@@ -8,7 +8,7 @@ import { shopProfile, type ShopProfile } from "../../lib/shopProfile";
 
 /** Both apps on: the website admin becomes the one admin. */
 export function combinedAdmin(profile: ShopProfile = shopProfile): boolean {
-  return profile.apps.shop === true && profile.apps.stockroom === true;
+  return profile.apps.shop === true && hasStockroom(profile);
 }
 
 /** The admin route of a stockroom page: `#stockroom/<page>`, tab "stockroom" with the page as its sub tab. */

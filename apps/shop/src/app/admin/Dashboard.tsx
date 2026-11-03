@@ -15,7 +15,7 @@ import { AdminAlerts } from "./AdminAlerts.tsx";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
 import { backupAlert, buildAdminAlerts, cardAccountAlert, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
 import type { PlatformPaymentsAnswer } from "./platformPayments";
-import { platformCardsProvider } from "../../lib/shopProfile";
+import { hasStockroom, platformCardsProvider } from "../../lib/shopProfile";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { inventoryLinkView, setInventoryLink, type AppBookEntry } from "./appSwitch";
 import { AppSwitcher, AppSwitchPill, useWebsiteTabName } from "./AppSwitcher";
@@ -269,7 +269,8 @@ export function Dashboard() {
             adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push(`the payment status`); return null; }),
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
-            inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),
+            // A website-only press has no stockroom to link, so there is nothing to read (and nothing to fail).
+            hasStockroom() ? inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }) : Promise.resolve(null),
             adminApi.getClientErrors(20).catch(() => { failedParts.push("the shop errors"); return []; }),
             // Cards through Colophon: is anything on the press's Stripe account past its deadline? (plan 7.9)
             platformCardsProvider() === "stripe" ? adminApi.platformPayments("status").catch(() => null) : Promise.resolve(null),
@@ -739,7 +740,7 @@ export function Dashboard() {
             activeChildId={navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
             onSelect={openMenuPage}
             onSelectChild={(_item, page) => openMenuPage(page)}
-            top={COMBINED ? undefined : <AppSwitcher onSwitch={() => setSidebarOpen(false)} />}
+            top={hasStockroom() && !COMBINED ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
             brand={
               <a className="rp-brand-link" href="#overview" aria-label={COMBINED ? "Admin: go to Overview" : "Website admin: go to Overview"}
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
@@ -770,7 +771,7 @@ export function Dashboard() {
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
               onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
             <div className="rp-topbar-actions">
-              {!COMBINED && <AppSwitchPill />}
+              {hasStockroom() && !COMBINED && <AppSwitchPill />}
               <ShopStatusMenu
                 wallOn={!!settings?.design?.showUnderConstruction}
                 checkoutPaused={maintenanceOn}

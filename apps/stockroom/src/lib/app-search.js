@@ -54,9 +54,11 @@ function sub(parts) {
  *  - appBooks      [{ id, title, sub }]                    this app's books
  *  - websiteBooks  [{ key, bookId, title, sub, href }]     website books, each key once
  *  - orders        [{ orderId, number, href }]             website orders the app holds
- *  - websiteSearch { text, href } | null                   always, once something is typed
+ *  - websiteSearch { text, href } | null                   once something is typed, when there is a website
+ * `website: false` (a stockroom-only press) leaves out everything about the website.
  */
-export function searchEverything(query, { appBooks = [], shopBooks = [], orders = [], admin } = {}) {
+export function searchEverything(query, { appBooks = [], shopBooks = [], orders = [], admin, website = true } = {}) {
+  if (!website) { shopBooks = []; orders = []; }
   const text = cleanQuery(query);
   const q = foldText(text);
   const empty = { query: text, appBooks: [], websiteBooks: [], orders: [], websiteSearch: null };
@@ -116,6 +118,6 @@ export function searchEverything(query, { appBooks = [], shopBooks = [], orders 
     appBooks: mine,
     websiteBooks,
     orders: ordersOut,
-    websiteSearch: { text, href: websiteSearchUrl(text, admin) },
+    websiteSearch: website ? { text, href: websiteSearchUrl(text, admin) } : null,
   };
 }

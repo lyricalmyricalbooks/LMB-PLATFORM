@@ -31,6 +31,14 @@
   @media (prefers-reduced-motion: reduce) { .fd-meter > span { transition: none; } }
   .cp #google { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
   .cp #google svg { width: 18px; height: 18px; flex: none; }
+  /* The plan tiles: name and what it is on the left, the price on the right. */
+  .fd-plans { display: grid; gap: 8px; }
+  .cp .fd-plans label.choice { grid-template-columns: 1fr auto; column-gap: 16px; align-items: center; padding: 14px 16px; }
+  .cp .fd-plans label.choice:has(input:checked) { padding: 13px 15px; }
+  .cp .fd-plans .fd-price { grid-column: 2; grid-row: 1 / span 3; text-align: right; font: 600 16px/1.2 var(--rp-font-body); color: var(--rp-text); white-space: nowrap; }
+  .cp .fd-plans .fd-price s { display: block; font-weight: 400; font-size: 12px; color: var(--rp-text-subtle); }
+  .cp .fd-plans .fd-price small { display: block; font: 400 11px/1.4 var(--rp-font-mono); color: var(--rp-text-subtle); }
+  .fd-plans .fd-tag { justify-self: start; font: 400 10px/1 var(--rp-font-mono); letter-spacing: .08em; text-transform: uppercase; border: 1px solid currentColor; padding: 3px 6px; margin-top: 4px; }
   .fd-code::placeholder { color: var(--rp-text-subtle); opacity: .6; }
 </style>
 </head>
@@ -82,10 +90,23 @@
     <div class="fd-pick" id="pick-list"></div>
   </section>
 
-  <!-- 3. Three questions, one at a time. Each can be skipped, and each can be changed later in the admin. -->
+  <!-- 3. Four questions, one at a time. Each can be changed later. The plan starts on both and has no Skip; the others can be skipped. -->
+  <section id="view-plan" class="stack" hidden aria-labelledby="plan-title">
+    <div class="fd-meter" aria-hidden="true"><span style="width:25%"></span></div>
+    <div class="fd-top"><span></span><p class="fd-count">Question 1 of 4</p></div>
+    <h2 id="plan-title" tabindex="-1" class="cp-title">What do you want to set up?</h2>
+    <form class="stack" data-question="plan" novalidate>
+      <fieldset><legend class="hint">Pick one now. You can change it any time before your shop opens.</legend>
+        <div class="fd-plans" id="plan-choices"></div></fieldset>
+      <p class="hint" id="plan-terms">Nothing is charged until your shop opens.</p>
+      <p class="error" role="alert" hidden></p>
+      <div class="fd-row"><button type="submit" class="primary">Continue</button></div>
+    </form>
+  </section>
+
   <section id="view-name" class="stack" hidden aria-labelledby="name-title">
-    <div class="fd-meter" aria-hidden="true"><span style="width:33%"></span></div>
-    <div class="fd-top"><span></span><p class="fd-count">Question 1 of 3</p></div>
+    <div class="fd-meter" aria-hidden="true"><span style="width:50%"></span></div>
+    <div class="fd-top"><button type="button" class="ghost" data-back="plan">Back</button><p class="fd-count">Question 2 of 4</p></div>
     <h2 id="name-title" tabindex="-1" class="cp-title">What's your press called?</h2>
     <form class="stack" data-question="pressName" novalidate>
       <label>Press name<input name="pressName" autocomplete="organization" maxlength="120"></label>
@@ -95,8 +116,8 @@
   </section>
 
   <section id="view-sells" class="stack" hidden aria-labelledby="sells-title">
-    <div class="fd-meter" aria-hidden="true"><span style="width:67%"></span></div>
-    <div class="fd-top"><button type="button" class="ghost" data-back="name">Back</button><p class="fd-count">Question 2 of 3</p></div>
+    <div class="fd-meter" aria-hidden="true"><span style="width:75%"></span></div>
+    <div class="fd-top"><button type="button" class="ghost" data-back="name">Back</button><p class="fd-count">Question 3 of 4</p></div>
     <h2 id="sells-title" tabindex="-1" class="cp-title">What do you sell?</h2>
     <form class="stack" data-question="sells" novalidate>
       <fieldset><legend class="hint">Pick the closest. We'll suggest a look and set your shop up for it.</legend>
@@ -108,7 +129,7 @@
 
   <section id="view-country" class="stack" hidden aria-labelledby="country-title">
     <div class="fd-meter" aria-hidden="true"><span style="width:100%"></span></div>
-    <div class="fd-top"><button type="button" class="ghost" data-back="sells">Back</button><p class="fd-count">Question 3 of 3</p></div>
+    <div class="fd-top"><button type="button" class="ghost" data-back="sells">Back</button><p class="fd-count">Question 4 of 4</p></div>
     <h2 id="country-title" tabindex="-1" class="cp-title">Where is your press?</h2>
     <form class="stack" data-question="country" novalidate>
       <label>Country<select name="country" id="country"></select></label>
@@ -123,6 +144,7 @@
     <h2 id="done-title" tabindex="-1" class="cp-title">Setting up <span id="done-name">your press</span></h2>
     <div class="card">
       <dl class="cp-dl">
+        <dt>Setting up</dt><dd id="done-plan"></dd>
         <dt>Press</dt><dd id="done-press"></dd>
         <dt>You sell</dt><dd id="done-sells"></dd>
         <dt>Country</dt><dd id="done-country"></dd>
