@@ -2039,6 +2039,11 @@ export const adminApi = {
     await setDoc(doc(db, "firstWeek", "start"), { ...change, updatedAt: new Date().toISOString() }, { merge: true });
   },
 
+  /** Takes one hand tick back (`done.<id>`), e.g. shows Your move so far again once it was hidden (plan 23.19). */
+  untickFirstWeek: async (id: string) => {
+    await setDoc(doc(db, "firstWeek", "start"), { done: { [id]: deleteField() }, updatedAt: new Date().toISOString() }, { merge: true });
+  },
+
   // Private per-customer notes and tags (admin-only `customerNotes/{sha256(lowercased email)}`).
   listCustomerNotes: async () => {
     const snap = await getDocs(query(collection(db, "customerNotes"), limit(10000)));

@@ -90,12 +90,17 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
   );
 
   if (result) {
+    // Orders a run brought over before keep that run's rate (plan 23.18): the server skips them by their old reference.
+    const already = result.skipped.filter((s) => s.endsWith(": already brought over")).length;
     return (
       <Dialog open onClose={onClose} title="Past orders brought over" badge="🧾" footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
         <div className="rp-stack" style={{ gap: 12 }} role="status">
           <StatusBadge tone={result.added ? "success" : "neutral"}>{plural(result.added, "past order")} added</StatusBadge>
           {result.added > 0 && <p className="rp-hint" style={{ margin: 0 }}>They show in your sales reports and in each customer's history, marked as brought over from your old shop.</p>}
           {leftOut(result.skipped)}
+          {already > 0 && file && Object.keys(file.foreign).length > 0 && (
+            <p className="rp-hint" style={{ margin: 0 }}>{already === 1 ? "1 order was" : `${already.toLocaleString("en")} orders were`} already here from an earlier import, so {already === 1 ? "it keeps" : "they keep"} the rate used then. To use a new rate, open one of those orders, choose Remove this import, then bring the file again.</p>
+          )}
           {result.added > 0 && batch.current && (
             undo === "done" ? <p className="rp-hint" style={{ margin: 0 }}>{plural(removed, "past order")} removed. Bring the file again whenever you like.</p>
             : undo === "confirm" || undo === "busy" ? (

@@ -2834,6 +2834,20 @@ exports.syncStockroomWords = onDocumentWritten("firstWeek/start", async event =>
   }
 });
 
+/** Your move so far (plan 23.20): the owner gets one email when the last part of the move from the old shop is ticked. */
+exports.onMoveFinished = onDocumentUpdated("firstWeek/start", async event => {
+  const message = require("./moveDone").moveDoneEmail({
+    before: event.data?.before?.data?.(), after: event.data?.after?.data?.(),
+    ownerEmail: ADMIN_TO, shopName: shopConfig.senderName, adminLink: siteLink("/admin"),
+  });
+  if (!message) return;
+  try {
+    await sendEmail({ queue: "moveFinished", ...message, secret: resendSecretValue() });
+  } catch (err) {
+    console.warn("Couldn't send the move-finished email:", err?.message || err);
+  }
+});
+
 async function loadNotificationSettings() {
   let dbSettings = {};
   try {
