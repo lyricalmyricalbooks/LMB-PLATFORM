@@ -86,6 +86,10 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
       const row = await billing.changePlan({ shopId, plan });
       return { plan: row.plan, changed: row.changed };
     }, { secondStep: (asked) => asked.preview !== true }),
+    "POST /api/billing/keep-closing-apps": ownerCall("keep-closing-apps", async (shopId) => {
+      const row = await billing.keepClosingApps({ shopId });
+      return { plan: row.plan, changed: row.changed };
+    }, { secondStep: true }),
     "POST /api/billing/invoices": ownerCall("invoices", async (shopId) => ({ invoices: await billing.invoices(shopId) })),
     ...(paymentWay ? {
       "POST /api/billing/payment-way": ownerCall("payment-way", async (shopId) => {

@@ -275,3 +275,15 @@ test("a stockroom-only shop shows the stockroom's address, never a website it do
   assert.equal(shop.stockroomUrl, `https://${SHOP}-stockroom.web.app`);
   assert.equal((await w.ask(OWNER, "POST", "/api/accounts/switch", { shopId: SHOP })).body.url, `https://${SHOP}-stockroom.web.app`);
 });
+
+test("the shop card knows an app is being set up until the shop maker has built it", async () => {
+  const w = world();
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), plan: "both", builtPlan: "stockroom", billing: { appsClosing: null } });
+  let [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.adding, ["shop"]);
+  assert.equal(shop.closing, null);
+  w.registry.shops.set(SHOP, { ...w.registry.shops.get(SHOP), builtPlan: "both", billing: { appsClosing: { apps: ["stockroom"], at: "2026-11-30T15:00:00Z" } } });
+  [shop] = (await w.ask(OWNER, "GET", "/api/accounts/shops")).body.shops;
+  assert.deepEqual(shop.adding, []);
+  assert.deepEqual(shop.closing, { apps: ["stockroom"], at: "2026-11-30T15:00:00Z" });
+});
