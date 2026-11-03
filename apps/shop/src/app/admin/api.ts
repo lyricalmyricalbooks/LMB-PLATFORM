@@ -6,6 +6,7 @@ import type { DiscountRecord } from "../../shared/discountMath";
 import { discountRecord, discountUpdate } from "../../shared/discountRecord";
 import { check } from "../../shared/edge";
 import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
+import { hasStockroom } from "../../lib/shopProfile";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
 import { REDIRECTS_COLLECTION, REDIRECTS_DOC, redirectPageIds, redirectsToPages, type Redirect } from "../features/site/redirects";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
@@ -306,7 +307,8 @@ export const adminApi = {
         const privSnap = await tx.get(privRef);
         // Matched to the inventory app (Inventory › Inventory app link): its stock is set from there.
         const linkSnap = await tx.get(doc(db, "systemStatus", "inventoryLink"));
-        const links = linkSnap.exists() ? (linkSnap.data() as any).links : null;
+        // A website-only press keeps all its stock here, whatever an old link left behind.
+        const links = hasStockroom() && linkSnap.exists() ? (linkSnap.data() as any).links : null;
         if (!snap.exists()) {
           tx.update(docRef, { ...dataToSave, updatedAt: new Date().toISOString() });
           return dataToSave;
