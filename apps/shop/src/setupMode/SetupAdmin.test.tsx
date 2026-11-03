@@ -22,6 +22,10 @@ function door(): SetupDoor & { saved: any[] } {
     save: vi.fn(async (_id: string, change: any) => { saved.push(change); return { ...PRESS, ...change }; }),
     keepImport: vi.fn(async (_id: string, _file: Blob, details: { name: string; rows: number }) => ({ ...PRESS, stagedImport: { ...details, size: 9, at: "2026-11-03T09:00:00Z" } })),
     removeImport: vi.fn(async () => ({ ...PRESS, stagedImport: null })),
+    readOldShop: vi.fn(async () => ({
+      host: "moth.example", products: 1, notes: ["Stock counts aren't shown publicly, so check how many you have of each before you open."],
+      csv: "Handle,Title,Variant Price,Image Src,Old page address\nmoth-songs,Moth Songs,20,https://img.example/m.jpg,/product/moth-songs\n",
+    })),
     plans: vi.fn(async () => ({ trialDays: 14, plans: [
       { plan: "both" as const, name: "Shop and stockroom", priceText: "$39.00" },
       { plan: "shop" as const, name: "Shop", priceText: "$29.00" },
@@ -200,5 +204,23 @@ describe("bringing a shop over, at the top of Home (code plan 23.0)", () => {
     Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(select, "online");
     act(() => { select.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(el.querySelector('ol[aria-label="How to get your product file"]')?.textContent).toContain("Export or Download");
+  });
+});
+
+describe("bringing books over from the old shop's address (code plan 23.2)", () => {
+  it("reads the address, previews the books like a chosen file, and shows what it couldn't read", async () => {
+    const d = door();
+    const el = await mount(d, "#catalog");
+    const input = [...el.querySelectorAll("input")].find((i) => i.getAttribute("placeholder") === "yourshop.com") as HTMLInputElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "moth.example");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => { input.closest("form")!.requestSubmit(); });
+    await flush();
+    expect(d.readOldShop).toHaveBeenCalledWith("press-moth", "moth.example");
+    expect(el.textContent).toContain("moth.example products.csv");
+    expect(el.textContent).toContain("1 book ready");
+    expect(el.textContent).toContain("Stock counts aren't shown publicly");
   });
 });

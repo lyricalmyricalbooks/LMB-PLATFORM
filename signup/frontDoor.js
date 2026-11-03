@@ -7,8 +7,11 @@
 //                                              (signInWithEmailLink). The link is never emailed: the code was the proof.
 //   POST /api/press       {}                   makes the press's setup record, or gives back the one still in setup
 //   GET  /api/press                            the signed-in person's presses
-//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook? }
+//   POST /api/press/setup { pressId, plan?, pressName?, sells?, country?, look?, adminLook?, moving? }
 //                                              saves answers while the press is in setup
+//   POST /api/press/old-shop { pressId, address }
+//                                              reads the old shop's public product list (23.2) and answers it as a
+//                                              product file { host, csv, products, notes } for the browser to preview
 //
 // Nothing here starts a trial, takes a card or makes a shop: those wait for Open my shop (18.8).
 //
@@ -25,6 +28,7 @@ import { createSignInCode } from "./signInCode.js";
 import { createAccountStart } from "./accountStart.js";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, SETUP_FIELDS, importPathFor, setupChange } from "./pressRecord.js";
 import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
+import { readOldShop as readPublicShop } from "../services/moving/oldShop.js";
 
 /** The page the front door lives on, under the platform's address. */
 export const START_PAGE = "join";
@@ -53,7 +57,7 @@ const UPLOAD_MINUTES = 15;
  * expiresAt }) -> { url, method, headers }, a link that accepts exactly one upload of that size and nothing else;
  * stat(path) -> { size } | null; remove(path), which is fine when nothing is there. The shop maker (18.9) reads it.
  */
-export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, now = () => new Date(), suffix = randomSuffix, random = null }) {
+export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop }) {
   const signInCode = createSignInCode({
     store: codes,
     now,
@@ -183,6 +187,16 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       return { press: saved.press };
     },
 
+    // Bring a shop over from its address (23.2): only the press's owner, only in setup. Nothing is kept here: the
+    // browser previews the file and keeps it through startImport/keepImport like any chosen file.
+    async oldShop(claims, body = {}) {
+      const record = await ownPress(claims, body.pressId);
+      if (record.status !== "setup") throw new SignupError(409, "Your shop is already opening, so setup is locked.");
+      const read = await readOldShop(String(body.address ?? ""));
+      if (!read.ok) throw new SignupError(400, read.message, { address: read.message });
+      return { host: read.host, csv: read.csv, products: read.products, notes: read.notes };
+    },
+
     async removeImport(claims, body = {}) {
       const record = await ownPress(claims, body.pressId);
       // The record lets go first, then the files: at worst a file is left with nothing pointing at it.
@@ -213,4 +227,5 @@ export const frontDoorRoutes = (door) => ({
   "POST /api/press/import": (claims, request) => door.startImport(claims, request.body ?? {}),
   "POST /api/press/import/kept": (claims, request) => door.keepImport(claims, request.body ?? {}),
   "POST /api/press/import/remove": (claims, request) => door.removeImport(claims, request.body ?? {}),
+  "POST /api/press/old-shop": (claims, request) => door.oldShop(claims, request.body ?? {}),
 });

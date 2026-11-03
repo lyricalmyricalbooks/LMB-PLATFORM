@@ -236,7 +236,9 @@ function fromHandleRows(table: string[][]): MovedBook[] {
     const seoTitle = c.get(head, "SEO title"), seoDescription = c.get(head, "SEO description");
     if (seoTitle) cells["SEO title"] = seoTitle;
     if (seoDescription) cells["SEO description"] = seoDescription;
-    return book(line, cells, editions, photos.sort((a, b) => a.at - b.at).map(p => p.url), [`/products/${handle}`]);
+    // A file made from an old shop's address (plan 23.2) says where each product's page was.
+    const oldPage = c.get(head, "Old page address");
+    return book(line, cells, editions, photos.sort((a, b) => a.at - b.at).map(p => p.url), [oldPage.startsWith("/") ? oldPage : `/products/${handle}`]);
   });
 }
 

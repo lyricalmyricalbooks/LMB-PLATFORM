@@ -223,7 +223,7 @@ function MoveInCard({ onBring, save }: { onBring: () => void; save: (c: SetupCha
         <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
           <div>
             <h2 id="move-in-title" style={{ margin: 0, fontSize: 20 }}>Selling somewhere already?</h2>
-            <p style={{ margin: "6px 0 0" }}>{w("Bring your shop with you. Your books, prices, photos and stock come across from the file your old shop gives you, and links to your old pages keep working. You see everything before anything is kept.")}</p>
+            <p style={{ margin: "6px 0 0" }}>{w("Bring your shop with you. Your books, prices, photos and stock come across from your old shop's web address or its product file, and links to your old pages keep working. You see everything before anything is kept.")}</p>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <PrimaryButton icon={<ArrowRight size={16} aria-hidden />} onClick={bring}>Bring my shop over</PrimaryButton>

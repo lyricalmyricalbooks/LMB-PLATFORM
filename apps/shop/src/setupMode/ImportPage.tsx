@@ -2,9 +2,9 @@
 // previewed here in the browser with the shop's own importer (shopMove.ts `planShopMove`, with no books yet, so every
 // row is new), then kept on the platform for the shop maker (18.9) to bring in when the shop opens. Nothing is written
 // to a shop: there isn't one yet.
-import { useRef, useState } from "react";
-import { FileUp, Trash2 } from "lucide-react";
-import { EmptyState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../app/admin/riso/components";
+import { useRef, useState, type FormEvent } from "react";
+import { FileUp, Globe, Trash2 } from "lucide-react";
+import { EmptyState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField } from "../app/admin/riso/components";
 import { BRING_ANSWERS, bringAnswerOf, bringHelp, type BringAnswer } from "../app/admin/bringShop";
 import { ImportPreviewRows, MAX_FILE_BYTES } from "../app/admin/importPreview";
 import { planShopMove, SHAPE_WORDS, type MovePlan } from "../app/admin/shopMove";
@@ -21,7 +21,7 @@ const dayOf = (at: string) => {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 };
 
-export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: Pick<SetupDoor, "keepImport" | "removeImport">; onSaved: (press: SetupPress) => void }) {
+export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: Pick<SetupDoor, "keepImport" | "removeImport" | "readOldShop">; onSaved: (press: SetupPress) => void }) {
   const w = useShopWords();
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -30,14 +30,19 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
   const [busy, setBusy] = useState<"" | "keep" | "remove">("");
   const [error, setError] = useState("");
   const [from, setFrom] = useState<BringAnswer | "">("");
+  const [address, setAddress] = useState("");
+  const [reading, setReading] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  /** What reading the old shop's address had to say (stock counts aren't public, choices without prices). */
+  const [readNotes, setReadNotes] = useState<string[]>([]);
 
   const kept = press.stagedImport;
   const plan = preview?.plan;
   const ready = plan && !plan.problems.length ? plan.counts.create : 0;
 
-  async function choose(next: File | undefined) {
+  async function choose(next: File | undefined, notes: string[] = []) {
     if (!next) return;
-    setError(""); setPreview(null); setFile(next);
+    setError(""); setPreview(null); setFile(next); setReadNotes(notes);
     if (next.size > MAX_FILE_BYTES) { setError(TOO_BIG); return; }
     try {
       // No books yet, so every row is new; a shop that doesn't sell books keeps the old shop's sizes and colours.
@@ -72,6 +77,22 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
     }
   }
 
+  // Bring it over from the old shop's address (23.2): the platform reads the public product list and answers it as a
+  // product file, which is previewed and kept exactly like a chosen file.
+  async function readAddress(event: FormEvent) {
+    event.preventDefault();
+    if (reading || !address.trim()) return;
+    setReading(true); setAddressError("");
+    try {
+      const read = await door.readOldShop(press.pressId, address.trim());
+      await choose(new File([read.csv], `${read.host} products.csv`, { type: "text/csv" }), read.notes);
+    } catch (err) {
+      setAddressError(err instanceof Error ? err.message : "That didn't work. Try again.");
+    } finally {
+      setReading(false);
+    }
+  }
+
   const pick = () => fileRef.current?.click();
   const cancel = () => { setFile(null); setPreview(null); setReplacing(false); setError(""); };
   const errorLine = error && <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>{error}</p>;
@@ -97,7 +118,16 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
       )}
 
       {(!kept || replacing || file) && !preview && (
-        <SectionCard title="Bring a file" collapsible={false}>
+        <div style={{ display: "grid", gap: 16 }}>
+        <SectionCard title="From your old shop's address" collapsible={false}>
+          <form onSubmit={(e) => void readAddress(e)} style={{ display: "grid", gap: 12, maxWidth: 560 }}>
+            <TextField label="Your old shop's web address" placeholder="yourshop.com" inputMode="url" autoComplete="url" value={address}
+              hint={w("We read the books your old shop shows the public. You'll see them all before anything is kept.")}
+              error={addressError || undefined} onChange={(e) => setAddress(e.target.value)} />
+            <div><PrimaryButton type="submit" icon={<Globe size={16} aria-hidden />} busy={reading} disabled={reading || !!busy || !address.trim()}>{w("Bring my books over")}</PrimaryButton></div>
+          </form>
+        </SectionCard>
+        <SectionCard title="Or bring a file" collapsible={false}>
           <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
             <EmptyState icon={<FileUp size={28} aria-hidden />} title={w("Your books, in one file")}
               description={w("In your old shop, export your products as a CSV file. Or save your spreadsheet of books as CSV. You'll see your books before anything is kept.")}
@@ -119,6 +149,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
             )}
           </div>
         </SectionCard>
+        </div>
       )}
 
       {plan && file && (
@@ -135,7 +166,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
                   <StatusBadge tone="info">{w(`${plan.counts.create} ${plan.counts.create === 1 ? "book" : "books"} ready`)}</StatusBadge>
                   {plan.counts.error > 0 && <StatusBadge tone="danger">{plan.counts.error} with problems (left out)</StatusBadge>}
                 </div>
-                {preview?.moved?.notices.map((n) => <p key={n} className="rp-hint" style={{ margin: 0 }}>{n}</p>)}
+                {[...readNotes, ...(preview?.moved?.notices ?? [])].map((n) => <p key={n} className="rp-hint" style={{ margin: 0 }}>{w(n)}</p>)}
                 {!preview?.moved && plan.ignoredColumns.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Columns left out: {plan.ignoredColumns.join(", ")}.</p>}
                 <ImportPreviewRows plan={plan} />
               </>

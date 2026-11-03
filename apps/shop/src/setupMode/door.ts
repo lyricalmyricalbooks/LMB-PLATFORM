@@ -18,6 +18,9 @@ export interface SetupPress {
   stagedImport: StagedImport | null;
 }
 
+/** An old shop read from its address (23.2): a product file in the one-line-per-edition layout, and plain notes. */
+export interface OldShopRead { host: string; csv: string; products: number; notes: string[] }
+
 /** A kept product file as its owner sees it: never where it is kept. */
 export interface StagedImport { name: string; size: number; rows: number; at: string }
 
@@ -38,6 +41,8 @@ export interface SetupDoor {
   keepImport(pressId: string, file: Blob, details: { name: string; rows: number }): Promise<SetupPress>;
   /** Throws the kept file away. */
   removeImport(pressId: string): Promise<SetupPress>;
+  /** Reads the old shop's public product list from its address (23.2), as a product file to preview. Keeps nothing. */
+  readOldShop(pressId: string, address: string): Promise<OldShopRead>;
 }
 
 const UNREACHABLE = "We couldn't reach Colophon. Check your connection and try again.";
@@ -75,6 +80,10 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
       return (await call("POST", "/press/import/kept", { pressId, name, rows })).press as SetupPress;
     },
     removeImport: async (pressId) => (await call("POST", "/press/import/remove", { pressId })).press as SetupPress,
+    readOldShop: async (pressId, address) => {
+      const { host, csv, products, notes } = await call("POST", "/press/old-shop", { pressId, address });
+      return { host, csv, products, notes } as OldShopRead;
+    },
   };
 }
 
