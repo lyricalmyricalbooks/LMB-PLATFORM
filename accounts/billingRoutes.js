@@ -10,8 +10,9 @@
 //                                  month (or trial), with the optional answer to "why are you leaving?" (19.8)
 //   POST /api/billing/keep         { shopId } -> { cancelAtPeriodEnd }: undo a cancel that hasn't happened yet
 //   POST /api/billing/keep-closing-apps  { shopId } -> { plan, changed }: keep an app the last plan change is closing
-//   POST /api/billing/change-plan  { shopId, plan, preview? } -> { preview } or { plan, changed }: what changes and the
-//                                  prorated amount (preview: true, nothing changes), or the change itself
+//   POST /api/billing/change-plan  { shopId, plan, preview?, reason? } -> { preview } or { plan, changed }: what changes
+//                                  and the prorated amount (preview: true, nothing changes), or the change itself, with
+//                                  the optional answer to "why are you dropping it?" (closedApps.js DROP_REASONS)
 //   POST /api/billing/invoices     { shopId } -> { invoices }: newest first, each with Stripe's PDF link
 //   POST /api/billing/payment-way  { shopId } -> { view, status }: how the shop pays (monthly or pay as you sell, 6.19)
 //   POST /api/billing/payment-way/switch  { shopId, to } -> { view, status, changed }: switch from the next month (at
@@ -52,9 +53,9 @@ export function billingCalls({ billing, paymentWay = null, settings }) {
     },
     keep: { run: async (shopId) => ({ cancelAtPeriodEnd: Boolean((await billing.keep({ shopId })).cancelAtPeriodEnd) }) },
     "change-plan": {
-      run: async (shopId, { plan, preview }) => {
+      run: async (shopId, { plan, preview, reason }) => {
         if (preview === true) return { preview: await billing.changePlan({ shopId, plan, preview: true }) };
-        const row = await billing.changePlan({ shopId, plan });
+        const row = await billing.changePlan({ shopId, plan, reason: reason ?? null });
         return { plan: row.plan, changed: row.changed };
       },
       secondStep: (asked) => asked.preview !== true,
@@ -144,3 +145,21 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
 
   return Object.fromEntries(Object.entries(billingCalls({ billing, paymentWay, settings })).map(([call, entry]) => [`POST /api/billing/${call}`, ownerCall(call, entry)]));
 }
+
+/**
+ * The one call reached with no sign-in: "Keep it" from the reminder email's one-time link (/account/keep.html). The
+ * link is the proof, checked by the billing service (closedApps.js keepLinkProblem): once, this closing only, until
+ * the app closes, and nothing but keeping the closing app. It is held to a per-network limit (signup/limits.js).
+ *
+ *   POST /api/billing/keep-by-link  { shopId, token } -> { plan, changed }
+ */
+export const billingPublicRoutes = ({ billing }) => ({
+  "POST /api/billing/keep-by-link": async (request) => {
+    const { shopId, token } = request.body && typeof request.body === "object" ? request.body : {};
+    if (typeof shopId !== "string" || !shopId || typeof token !== "string" || !token) {
+      throw new SignupError(400, "This link is missing a part. Sign in and open Plan & billing to keep it.");
+    }
+    const row = await billing.keepClosingAppsByLink({ shopId, token });
+    return { plan: row.plan, changed: row.changed };
+  },
+});

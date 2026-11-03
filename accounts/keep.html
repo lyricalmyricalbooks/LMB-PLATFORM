@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en" class="rp cp-page">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keep your app · Colophon</title>
+<meta name="description" content="Keep an app your plan change would close, from the reminder email.">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=DM+Mono&display=swap">
+<link rel="stylesheet" href="./look/adminThemes.css">
+<link rel="stylesheet" href="./look/pressroom.css">
+<link rel="stylesheet" href="./look/platform-pages.css">
+<script src="./look/platform-look.js"></script>
+</head>
+<body class="cp">
+<a class="rp-skip-link" href="#main">Skip to content</a>
+<div class="rp-app">
+  <div class="rp-app-body">
+    <header class="rp-topbar"><a class="cp-kicker" href="/account/">Colophon · Your account</a></header>
+    <div class="rp-workspace"><div class="rp-workspace-inner">
+<!-- "Keep it" from the email a week before a dropped app closes (accounts/keep.js). The link is the proof: no sign-in. -->
+<main id="main" tabindex="-1">
+  <div class="rp-page-header"><div><div class="cp-kicker" style="margin-bottom:10px">Your plan</div><h1 class="rp-page-title">Keep your app</h1></div></div>
+  <div class="card stack">
+    <p id="keep-words">When you changed your plan, you left out an app. It stays open until the end of the month you've paid for, then closes. Keep it, and your plan goes back to what it was, at the same price as before.</p>
+    <div class="cp-actions cp-start">
+      <button type="button" class="primary" id="keep">Keep it</button>
+      <a class="button" id="plan-link" href="/account/">See your plan</a>
+    </div>
+  </div>
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+    </div></div>
+  </div>
+</div>
+<script type="module" src="/accounts/keep.js"></script>
+</body>
+</html>

@@ -195,3 +195,23 @@ test("the owner's note is in plain words and names no rival", () => {
   assert.doesNotMatch(parts.text, /resend|webhook|api|bounce rate|complaint rate|shopify|big cartel/i);
   assert.match(parts.text, /reply to this email and we'll turn it back on/);
 });
+
+test("a platform closing email that bounced for good is marked for the control room; other bounces and soft ones aren't", async () => {
+  const w = await make();
+  const { closingBounceRecorder } = await import("../billing/closedApps.js");
+  const heard = [];
+  const record = closingBounceRecorder({ registry: w.registry });
+  const onBounce = async (bounce) => heard.push([bounce.kind, await record(bounce)]);
+  const send = async (id, body) => {
+    const rawBody = JSON.stringify(body);
+    const timestamp = String(Math.floor(NOW / 1000));
+    return handleResendEvent({ method: "POST", headers: { "svix-id": id, "svix-timestamp": timestamp, "svix-signature": signEvent({ secret: SECRET, id, timestamp, body: rawBody }) }, rawBody }, { secret: SECRET, guard: w.guard, onBounce, now: w.now });
+  };
+  const bounce = (kind, type = "Permanent") => ({ type: "email.bounced", created_at: new Date(NOW).toISOString(), data: { email_id: `e-${kind}-${type}`, bounce: { type }, tags: { kind, shop: "moth-press", stream: "orders" } } });
+  await send("b1", bounce("app-closing-soon", "Transient"));
+  await send("b2", bounce("order-confirmed"));
+  assert.equal((await w.registry.getShop("moth-press")).closingEmailBounce, undefined);
+  await send("b3", bounce("app-closing-soon"));
+  assert.deepEqual((await w.registry.getShop("moth-press")).closingEmailBounce, { kind: "app-closing-soon", at: new Date(NOW).toISOString() });
+  assert.deepEqual(heard, [["order-confirmed", false], ["app-closing-soon", true]]);
+});

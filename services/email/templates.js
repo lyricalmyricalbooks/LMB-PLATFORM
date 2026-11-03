@@ -357,15 +357,18 @@ export const TEMPLATES = {
     footer: signOff(settings),
   }),
 
-  /** A week before an app a plan change dropped closes (billing.js closeDroppedApps). `data`: { closing, date, link }. */
-  "app-closing-soon": ({ closing, date, link }, { settings, pressName }) => layout({
+  /**
+   * A week before an app a plan change dropped closes (billing.js closeDroppedApps). `data`: { closing, date, link,
+   * signIn }: `signIn` when the link is the plan page (sign in, then one click) rather than the one-time keep link.
+   */
+  "app-closing-soon": ({ closing, date, link, signIn = false }, { settings, pressName }) => layout({
     subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} ${/ and /.test(closing) ? "close" : "closes"} on ${date}`,
     greeting: "Hello,",
     paragraphs: [
       `When you changed your plan, you left out ${closing || "an app"}. It closes on ${date}, the end of the month you've paid for.`,
-      "If you meant to keep it, one click on your plan page keeps it. If not, there's nothing to do: you can download everything in it for 90 days after it closes.",
+      `${signIn ? "If you meant to keep it, one click on your plan page keeps it." : `If you meant to keep it, the button below keeps it, with no need to sign in. It works once, until ${date}.`} If not, there's nothing to do: you can download everything in it for 90 days after it closes.`,
     ],
-    buttons: [["Keep it or see your plan", safeLink(link)]],
+    buttons: [[signIn ? "Keep it or see your plan" : "Keep it", safeLink(link)]],
     footer: signOff(settings),
   }),
 
@@ -385,6 +388,18 @@ export const TEMPLATES = {
       footer: signOff(settings),
     });
   },
+
+  /** Three days before a closed app's download ends (billing closedApps.js). `data`: { closing, date (the last day), link }. */
+  "app-download-ending": ({ closing, date, link }, { settings, pressName }) => layout({
+    subject: `Last days to download ${closing || "your closed app"} for ${pressName}`,
+    greeting: "Hello,",
+    paragraphs: [
+      `${String(closing || "The app").replace(/^t/, "T")} you dropped from your plan closed a while ago. Everything that was in it is kept until ${date}, then deleted for good.`,
+      "To save a copy, open your account and choose Download all your data: we'll email you a link to every file. To keep using it instead, add it back to your plan before then.",
+    ],
+    buttons: [["Download your data", safeLink(link)]],
+    footer: signOff(settings),
+  }),
 
   /** The card on file runs out within a month (code plan 6.12). Sent once per card. `data`: { card, month, date, link }. */
   "card-expiring": ({ card, date, month, link }, { settings, pressName }) => layout({

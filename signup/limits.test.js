@@ -137,6 +137,16 @@ test("the front door's code: 20 sends and 60 checks an hour per network, even wi
   assert.equal((await ask("/api/code/check")).status, 200, "an hour later it opens");
 });
 
+test("the email's one-time keep link: 60 tries an hour per network, counted apart from code checks", async () => {
+  const limiter = createLimits({ throttle: fakeThrottle(), now: () => new Date(START), log: () => {} });
+  const publicRoutes = { "POST /api/billing/keep-by-link": async () => ({}), "POST /api/code/check": async () => ({}) };
+  const door = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), publicRoutes, limits: limiter, live: () => ({}), log: () => {} });
+  const ask = (path) => door({ method: "POST", path, body: {}, headers: { "X-Forwarded-For": "203.0.113.9" } });
+  assert.ok((await times(60, () => ask("/api/billing/keep-by-link"))).every((a) => a.status === 200));
+  assert.equal((await ask("/api/billing/keep-by-link")).status, 429);
+  assert.equal((await ask("/api/code/check")).status, 200);
+});
+
 test("calls sent all at once are still held to the limit", async () => {
   const limiter = createLimits({ throttle: fakeThrottle(), now: () => new Date(START), log: () => {} });
   const request = { headers: { "X-Forwarded-For": "203.0.113.5" } };

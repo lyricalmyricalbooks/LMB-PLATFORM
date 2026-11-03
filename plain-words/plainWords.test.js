@@ -40,7 +40,7 @@ function problemsIn(label, text, allowed = ALLOWED) {
 
 // ── The pages, as a press reads them ───────────────────────────────────────────────────────────────────────────────
 
-const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
+const PAGES = ["signup/index.html", "accounts/index.html", "accounts/billing.html", "accounts/keep.html", "help/index.html", "experts/index.html", "status/index.html", "terms/index.html", "waitlist/index.html"];
 
 test("every page a press opens says nothing technical", () => {
   const found = PAGES.flatMap((page) => problemsIn(page, visibleText(read(page))));
@@ -191,7 +191,8 @@ const PRESS_EMAILS = {
   "subscription-ended": [{ ...BILLING }],
   "payments-past-due": [{ provider: "Stripe", needs: ["your bank details"], link: SHOP_LINKS.shopAdmin }, { provider: "Stripe", needs: ["your bank details", "your date of birth"], link: SHOP_LINKS.shopAdmin }],
   "plan-changed": [{ ...BILLING, prorated: true }, { ...BILLING, prorated: false, closing: "the stockroom", date: "1 December 2026", now: false }, { ...BILLING, closing: "the stockroom", now: true }],
-  "app-closing-soon": [{ closing: "the stockroom", date: "1 December 2026", link: LINK }, { closing: "the shop and the stockroom", date: "1 December 2026", link: LINK }],
+  "app-closing-soon": [{ closing: "the stockroom", date: "1 December 2026", link: LINK }, { closing: "the stockroom", date: "1 December 2026", link: LINK, signIn: true }, { closing: "the shop and the stockroom", date: "1 December 2026", link: LINK }],
+  "app-download-ending": [{ closing: "the stockroom", date: "1 March 2027", link: LINK }],
   "app-closed": [{ closing: "the stockroom", date: "1 March 2027", link: LINK }, { closing: "the shop and the stockroom", date: "1 March 2027", link: LINK }],
   "card-expiring": [{ card: "Visa ending 4242", month: "November", link: LINK }, { card: "", date: "30 November 2026", link: LINK }],
   "new-device": [{ browser: "Chrome on Mac", at: "2026-11-01 12:00" }],
