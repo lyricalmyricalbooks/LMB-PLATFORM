@@ -3,14 +3,15 @@ import { Check } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "../api";
 import type { FirstWeekDoc } from "../firstWeek";
-import { MOVE_HIDDEN, moveSteps, showMoveProgress, type MoveStep } from "../moveProgress";
+import { MOVE_HIDDEN, moveSteps, moveUnfinished, showMoveProgress, type MoveStep } from "../moveProgress";
 import { GhostButton, SecondaryButton, SectionCard, StatusBadge } from "../riso/components";
 import { useShopWords } from "../shopWords";
 
 /**
  * Overview › Your move so far (plan 23.17): the five parts of an old shop that can come over, each ticked once its
  * bring-over window saved something, or by hand ("We had none") when the old shop had none. Shown under the setup
- * guide for a press that brought its shop with it, until every part is done or the press puts it away.
+ * guide for a press that brought its shop with it, until every part is done. Put away with parts left, it leaves one
+ * line to show it again.
  */
 export function MoveProgressCard({ doc, setDoc, onOpen }: {
   doc: FirstWeekDoc;
@@ -19,7 +20,25 @@ export function MoveProgressCard({ doc, setDoc, onOpen }: {
 }) {
   const w = useShopWords();
   const [saving, setSaving] = useState("");
-  if (!showMoveProgress(doc)) return null;
+  if (!showMoveProgress(doc)) {
+    if (!moveUnfinished(doc)) return null;
+    // Put away with parts still left (plan 23.19): one quiet line brings it back.
+    const reopen = async () => {
+      const before = doc;
+      const done = { ...doc.done };
+      delete done[MOVE_HIDDEN];
+      setDoc({ ...doc, done }); setSaving(MOVE_HIDDEN);
+      try { await adminApi.untickFirstWeek(MOVE_HIDDEN); }
+      catch { setDoc(before); toast.error("That wasn't saved. Check your connection and try again."); }
+      finally { setSaving(""); }
+    };
+    return (
+      <p className="rp-hint" style={{ margin: "0 0 16px" }}>
+        Your move so far is hidden.{" "}
+        <GhostButton size="sm" disabled={!!saving} onClick={() => void reopen()}>Show it again</GhostButton>
+      </p>
+    );
+  }
   const steps = moveSteps(doc);
   const doneCount = steps.filter((s) => s.done).length;
 

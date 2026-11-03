@@ -4,7 +4,7 @@ import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ getFirstWeek: vi.fn(), updateFirstWeek: vi.fn(async () => {}) }));
+const api: any = vi.hoisted(() => ({ getFirstWeek: vi.fn(), updateFirstWeek: vi.fn(async () => {}), untickFirstWeek: vi.fn(async () => {}) }));
 vi.mock("../api", () => ({ adminApi: api }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const { MoveProgressCard } = await import("./MoveProgressCard");
@@ -34,6 +34,22 @@ describe("Your move so far", () => {
 
   it("stays away for a press that started fresh", () => {
     const { host } = mount({ bring: { at: "x", skipped: true } });
+    expect(host.textContent).toBe("");
+  });
+});
+
+describe("Your move so far, put away", () => {
+  it("leaves one line that brings it back", async () => {
+    const { host, setDoc } = mount({ ...moving, done: { ...moving.done, "move-list": "2026-11-03" } });
+    expect(host.textContent).toContain("Your move so far is hidden.");
+    await act(async () => { button(host, "Show it again")[0].click(); });
+    expect(api.untickFirstWeek).toHaveBeenCalledWith("move-list");
+    expect(setDoc.mock.calls[0][0].done).toEqual({ "move-giftcards": "2026-11-02" });
+  });
+
+  it("says nothing once every part is done", () => {
+    const all = { "move-customers": "a", "move-giftcards": "a", "move-orders": "a", "move-links": "a", "move-list": "a" };
+    const { host } = mount({ ...moving, done: all });
     expect(host.textContent).toBe("");
   });
 });

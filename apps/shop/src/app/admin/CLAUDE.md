@@ -497,6 +497,9 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `moveProgress.ts`) for a press whose `firstWeek.bring` says it brought its shop. Each bring-over window calls
   `recordMoveStep` after it saves something; ticks live in `firstWeek.done` as `move-*` (the rules cap `done` at 20 keys:
   11 guide steps + 6 here). `recordMoveStep` never creates the doc, so a shop without one never shows the guide.
+  Hidden with parts left, the card leaves a "Show it again" line (`adminApi.untickFirstWeek`, 23.19). The server's
+  `onMoveFinished` (`functions/moveDone.js`, 23.20) emails the owner once on the change to all done; its rules mirror
+  `moveProgress.ts` and `moveDone.test.js` checks the two agree.
 
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 

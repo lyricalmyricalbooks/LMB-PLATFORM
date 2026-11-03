@@ -30,9 +30,14 @@ export function moveSteps(doc: FirstWeekDoc): MoveStep[] {
   return STEPS.map((s) => ({ ...s, done: !!doc.done?.[s.id] || (s.id === "move-books" && movingShop(doc)) }));
 }
 
+/** Something is left to bring over (whether or not the list is showing). */
+export function moveUnfinished(doc: FirstWeekDoc | null): doc is FirstWeekDoc {
+  return movingShop(doc) && moveSteps(doc!).some((s) => !s.done);
+}
+
 /** Shown on the Overview while something is left and the press hasn't put it away. */
-export function showMoveProgress(doc: FirstWeekDoc | null): doc is FirstWeekDoc {
-  return movingShop(doc) && !doc!.done?.[MOVE_HIDDEN] && moveSteps(doc!).some((s) => !s.done);
+export function showMoveProgress(doc: FirstWeekDoc | null): boolean {
+  return moveUnfinished(doc) && !doc.done?.[MOVE_HIDDEN];
 }
 
 /**
