@@ -32,9 +32,15 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 - **Every page change is reported:** the stockroom's `switchTab` fires `lm-stockroom-page`, so a link inside a page
   or the book picker moves the admin's menu and address too; a second `ready` (the stockroom reloaded itself) resends
   the page and the look.
-- **Offline:** the admin itself needs a connection to open (the shop has no offline copy). The Fair till page links to
-  the stockroom app on its own (`<project>-stockroom.web.app`), which works with no signal once opened on the device.
-  An offline copy of the admin is a later step.
+- **Offline (step 4 of the five next moves, built):** the combined admin keeps an offline copy of itself
+  (`public/admin-sw.js`, registered by `adminOffline.ts` on built sites, scope `/admin` only, so the shop's own pages
+  never change). The admin page is network first (4 seconds, then the last copy); built files (`/assets/…`) are kept
+  once fetched (the newest 400); plain files it loads (the shop profile, icons) are network first. Nothing else is kept:
+  no sign-in, no shop data, no server answers, nothing but GET. The stockroom inside keeps its own copy
+  (`/stockroom/sw.js`, scope `/stockroom/`), so once the admin and the Fair till have opened on a device with a
+  signal, both open with none, and sales catch up later. A shop-only press gets no worker; one that drops the stockroom
+  has it removed on its next visit. `/admin-sw.js` is sent with `no-cache`. The Fair till page says so, and still links
+  to the stockroom app on its own.
 - **No switcher:** the "Website · Inventory" switcher and phone pill are not shown on the combined admin.
 - The Hosting `Permissions-Policy` now allows the camera on the shop's own pages (`camera=(self)`), as the stockroom's
   site already did, for barcode scanning in the admin and the fair till.
@@ -59,9 +65,28 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 - **Change stock in the stockroom** opens the stockroom's dashboard for that book inside the admin (asking first when
   the book has unsaved changes).
 
+## Step 3, built: one sales list and one Home
+
+- **Orders › All sales** (`#sales`, `AllSales.tsx`, pure rules in `salesList.ts`) lists paid website orders (refunds
+  marked, test orders and unpaid attempts left out) beside the stockroom's own sales, asked as `{ what: "sales", since }`
+  (`salesRows` in the stockroom's `lib/book-summary.js`). The stockroom leaves out the rows the website link wrote or
+  adopted (`webOrderId`), so no sale is counted twice; its other "Website" sales (payment links, older imported and
+  recovered orders) exist only there and show as **Other online sales**. Website rows count the books only (after
+  discounts and refunds, no shipping or tax), like a stockroom sale. One filter button per channel, a period (30 days, 90 days, 12 months, every sale) and totals per
+  currency. A website order opens on Orders; a stockroom sale opens its book on the stockroom's **Sales records** page
+  (its history page, renamed in the combined menu), where sales are changed or voided. If one side can't answer, the
+  other side still shows, with a line saying what is missing.
+- **Home › Needs you** adds one line per kind of stockroom to-do (`overview/StockroomTodos.tsx`), asked as
+  `{ what: "todo" }` a moment after Home opens and every five minutes: sales to sort out, payments, stock alerts,
+  book details, things to check. Only to-dos that need doing count (blocked or warning). The stockroom's website items
+  and its low-stock alerts are left out (Home already lists the website's to-dos, books to reprint and sold out); its
+  orders still to post stay, since those are orders the website doesn't hold. The stockroom answers only once every
+  book's records are in, so a half-loaded stockroom never reads as "all clear"; a short sales list is asked again. One to-do opens on that
+  item; several open the stockroom's To-do page.
+- A page that asks before the admin listens for "open the frame" (a child page's first effect) is remembered and the
+  frame opens as soon as the admin listens (`stockroomBridge.ts`).
+
 ## Next steps (planned)
 
-3. **One orders list and one Home:** fair, stockist, invoice and hand-entered sales join website orders in one list with a
-   filter per channel; the two to-do lists become one "Needs you now".
 4. **Native pages:** rebuild the stockroom pages inside the admin one by one (Fair till, Stockists, Expenses first),
    keeping the offline rules of the stockroom.

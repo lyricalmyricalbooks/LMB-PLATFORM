@@ -1,9 +1,9 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
-  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck,
 } from "lucide-react";
 import type { NavEntry } from "./components";
-import { STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
+import { COMBINED_PAGES, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
 
 export const NAV: NavEntry[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -24,6 +24,8 @@ export const NAV: NavEntry[] = [
     // One email page: templates, shop alerts, Gmail sending, sender details and recent deliveries.
     { id: "notifications", label: "Email sender", icon: Mail },
     { id: "team", label: "Team", icon: UserPlus },
+    // Two-step sign-in with an authenticator app, for whoever is signed in (22.6).
+    { id: "security", label: "Security", icon: ShieldCheck },
     // The QuickBooks link (plan 7.16); hidden unless the platform's bookkeeping link is on (`withoutPages`).
     { id: "bookkeeping", label: "Bookkeeping", icon: Calculator },
     // The shop's plan on the platform (plan 6.6), managed here since 22.3: compare and change plans, how you pay, cancel.
@@ -61,7 +63,7 @@ const S = (id: string) => STOCKROOM_ITEM_PREFIX + id;
  */
 export const COMBINED_MENU: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview", S("todo")] },
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", S("history"), S("manual"), S("shipping"), "customers", S("customers"), "messages"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, S("history"), S("manual"), S("shipping"), "customers", S("customers"), "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", S("dashboard"), "reviews"] },
   { label: "Sell in person", icon: Store, pages: [S("pos"), S("consignment"), S("qrcodes")] },
   { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", S("opencall")] },
@@ -79,7 +81,7 @@ export function navPages(nav: NavEntry[]): { id: string; label: string }[] {
 
 /** The menu items. An item's id is its first page; an item with more than one page lists them as children. */
 export function sidebarItems(nav: NavEntry[], menu: Menu = MENU): NavEntry[] {
-  const labels = new Map([...navPages(nav).map((p) => [p.id, p.label] as const), ...STOCKROOM_PAGES.map((p) => [S(p.id), p.label] as const)]);
+  const labels = new Map([...navPages(nav).map((p) => [p.id, p.label] as const), ...STOCKROOM_PAGES.map((p) => [S(p.id), p.label] as const), ...COMBINED_PAGES.map((p) => [p.id, p.label] as const)]);
   return menu.map((group) => ({
     id: group.pages[0], label: group.label, icon: group.icon,
     ...(group.pages.length > 1 ? { children: group.pages.map((id) => ({ id, label: labels.get(id) || id })) } : {}),

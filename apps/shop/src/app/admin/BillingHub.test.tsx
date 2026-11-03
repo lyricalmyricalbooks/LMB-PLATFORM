@@ -157,7 +157,7 @@ describe("Settings › Plan", () => {
     await mount(PlanPage);
     expect(document.querySelector("[data-two-step-note]")).not.toBeNull();
     await click(document.querySelector('[data-plan-option="shop"] input')!);
-    const link = [...document.querySelectorAll("a")].find((a) => a.textContent?.includes("Finish on your account page")) as HTMLAnchorElement;
+    const link = [...document.querySelectorAll("a")].find((a) => a.textContent?.includes("Or use your account page")) as HTMLAnchorElement;
     expect(link.href).toBe(PLAN.link);
   });
 });

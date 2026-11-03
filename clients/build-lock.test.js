@@ -19,7 +19,11 @@ test("two deploys into one build folder take turns, and the lock is gone afterwa
     return name;
   });
   assert.deepEqual(await Promise.all([deploy("a", 30), deploy("b", 1)]), ["a", "b"]);
-  assert.deepEqual(order, ["a starts", "a ends", "b starts", "b ends"]);
+  // Either may take the lock first (which file write lands first is up to the disk; Windows often lets "b" win),
+  // but they never overlap: one starts and ends before the other starts.
+  const first = order[0].split(" ")[0];
+  const second = first === "a" ? "b" : "a";
+  assert.deepEqual(order, [`${first} starts`, `${first} ends`, `${second} starts`, `${second} ends`]);
   assert.equal(await exists(join(dir, LOCK_FILE)), false);
 });
 

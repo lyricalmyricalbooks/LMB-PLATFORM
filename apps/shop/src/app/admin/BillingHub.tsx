@@ -44,7 +44,12 @@ function Problem({ error }: { error: BillingCallError | Error | null }) {
     <div role="alert" className="rp-alert" data-tone={twoStep ? "warning" : "danger"}>
       <span className="rp-alert-glyph" aria-hidden="true">!</span>
       <div className="rp-alert-text"><span className="rp-alert-detail">{error.message}</span></div>
-      {twoStep && <div className="rp-alert-actions"><a className="rp-btn rp-btn-primary rp-btn-sm" href={error.accountPage!}><ExternalLink size={14} aria-hidden /> Finish on your account page</a></div>}
+      {twoStep && (
+        <div className="rp-alert-actions">
+          <a className="rp-btn rp-btn-primary rp-btn-sm" href="#settings/security">Set up two-step sign-in</a>
+          <a className="rp-btn rp-btn-secondary rp-btn-sm" href={error.accountPage!}><ExternalLink size={14} aria-hidden /> Or use your account page</a>
+        </div>
+      )}
     </div>
   );
 }
@@ -86,7 +91,7 @@ function TwoStepNote({ answer }: { answer: StatusAnswer }) {
   if (!answer.changesNeedTwoStep) return null;
   return (
     <p className="rp-hint" style={{ margin: 0 }} data-two-step-note="">
-      Your plan is paid, so changes to your plan, cards and billing details are confirmed with your two-step sign-in on your account page. You'll be taken there when you make one.
+      Your plan is paid, so changes to your plan, cards and billing details need two-step sign-in. Turn it on under <a href="#settings/security">Settings › Security</a>, then sign in again with your code.
     </p>
   );
 }

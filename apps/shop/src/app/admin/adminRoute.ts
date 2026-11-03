@@ -4,7 +4,7 @@
 // A page split into sub tabs adds a readable slug for the open one (`#settings/general/visitors`, `#inventory/link`);
 // the first (default) sub tab has none, so the older addresses stay as they were.
 
-import { DEFAULT_STOCKROOM_PAGE, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+import { DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 
 export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string; subTab?: string; bookId?: string };
 
@@ -14,7 +14,7 @@ export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "n
 /** The Settings page an id really opens (an alias resolves to its page). */
 export const settingsPageOf = (id: string): string => SETTINGS_TAB_ALIASES[id] || id;
 
-export const SETTINGS_TABS = ["general", "shipping", "payments", "notifications", "taxes", "communications", "designer", "team", "bookkeeping", "plan", "billing"] as const;
+export const SETTINGS_TABS = ["general", "shipping", "payments", "notifications", "taxes", "communications", "designer", "team", "security", "bookkeeping", "plan", "billing"] as const;
 
 /** Sub tabs per page (a Settings page id, or a top-level tab): address slug → the page's own tab id. The first is the default. */
 export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
@@ -61,6 +61,8 @@ export function routeFromHash(hash: string, combined: boolean = combinedAdmin())
   if (head === "orders") return { tab: "orders", ...(rest ? { orderId: decode(rest) } : {}) };
   // A stockroom page in the combined admin (combined.ts): `#stockroom/<page>`; an unknown page opens the first.
   if (head === STOCKROOM_TAB) return !combined ? null : { tab: STOCKROOM_TAB, subTab: stockroomPage(rest.split("/")[0])?.id ?? DEFAULT_STOCKROOM_PAGE };
+  // Every sale in one list, a combined-admin page (`#sales`).
+  if (head === SALES_TAB) return combined ? { tab: SALES_TAB } : null;
   // A book opened from the inventory app's search: Books with that book in the editor.
   if (head === "catalog" && rest.startsWith("book/")) {
     const bookId = decode(rest.slice(5)).trim();
@@ -102,6 +104,7 @@ export function hashForRoute(r: AdminRoute): string {
   if (r.tab === "orders") return r.orderId ? `#orders/${encodeURIComponent(r.orderId)}` : "#orders";
   if (r.tab === "giftCards") return "#gift-cards";
   if (r.tab === STOCKROOM_TAB) return `#${STOCKROOM_TAB}/${stockroomPage(r.subTab)?.id ?? DEFAULT_STOCKROOM_PAGE}`;
+  if (r.tab === SALES_TAB) return `#${SALES_TAB}`;
   return TABS.has(r.tab) ? `#${r.tab}${sub}` : "#overview";
 }
 
