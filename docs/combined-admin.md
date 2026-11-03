@@ -116,9 +116,11 @@ the server copy (`_fbSave`, `sync-conflicts.js`), then updates the Google Sheet 
 that from the admin directly would mean a second writer to the same records with its own merge: the way sales get
 lost. So the stockroom stays the only writer, and the native till asks it.
 
-- [ ] **4a. Today at the fair, native (read-only).** A new ask `{ what: "fair", day }` answered from the stockroom's
-  `registerSalesForDay` / fair summary (count, copies, takings per currency, per payment method, the fair's name).
-  The admin shows it on the Fair till page above the frame, and on Home during a fair day. Nothing is written.
+- [x] **4a. Today at the fair, native (read-only), built.** The ask `{ what: "fair" }` is answered by the stockroom's
+  `fairForAdmin` (`lib/fair-mode.js`) from the till's own end-of-day summary and upload pill: the fair's name, sales,
+  books, takings per currency, by book (best ten) and by way of paying. `FairToday.tsx` shows it on Home on a day with
+  a sale or a fair named, with "Open the Fair till". Not above the till itself: there, Fair mode already shows the same
+  line and pill, and on a phone the strip pushed the till down. Nothing is written.
 - [ ] **4b. A native till that sells through the stockroom.** The admin draws the till (search, cart, quantity,
   price change, currency, payment method, charge). Charging sends `{ what: "sell", saleId, lines, method, currency,
   fair }`; the stockroom records it through its own `posPreparePendingSale` / `posConfirmSale` path, so the queue,

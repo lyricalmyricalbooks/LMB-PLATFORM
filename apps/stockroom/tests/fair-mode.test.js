@@ -169,3 +169,29 @@ describe('phase 3', () => {
     expect(html).toContain('aria-label="None left: A');
   });
 });
+
+describe('today at the fair, for the combined admin', () => {
+  test('passes the end-of-day figures as plain data, per currency, with the upload state', async () => {
+    const { fairForAdmin, fairDaySummary, registerSalesForDay, fairSyncPill } = await import('../src/lib/fair-mode.js');
+    const books = [
+      { id: 'b1', title: 'Harbour Lights', currency: 'CAD', hist: [
+        { chan: 'Book Fair', date: '2026-11-03', num: 'POS-1', qty: 2, price: 24, notes: 'Cash', sheetsId: 'evt-1-a' },
+        { chan: 'Book Fair', date: '2026-11-03', num: 'POS-2', qty: 1, price: 20, cur: 'USD', notes: 'Card reader', sheetsId: 'evt-2-a' },
+        { chan: 'Book Fair', date: '2026-11-03', num: 'POS-3', qty: 1, price: 24, notes: 'Cash', voided: true },
+        { chan: 'Book Fair', date: '2026-11-02', num: 'POS-0', qty: 5, price: 24, notes: 'Cash' },
+      ] },
+    ];
+    const sum = fairDaySummary(registerSalesForDay(books, '2026-11-03'), { b1: 7 });
+    const out = fairForAdmin(sum, { name: 'Harbour Fair', day: '2026-11-03' }, fairSyncPill({ online: false, pending: 2 }), '2026-11-03');
+    expect(out).toMatchObject({ day: '2026-11-03', fair: 'Harbour Fair', sales: 2, units: 3 });
+    expect(out.totals).toEqual([{ cur: 'CAD', amount: 48 }, { cur: 'USD', amount: 20 }]);
+    expect(out.titles).toEqual([{ bookId: 'b1', title: 'Harbour Lights', units: 3, left: 7, totals: [{ cur: 'CAD', amount: 48 }, { cur: 'USD', amount: 20 }] }]);
+    expect(out.methods.map((m) => m.sales)).toEqual([1, 1]);
+    expect(out.upload.tone).toBe('offline');
+    expect(JSON.parse(JSON.stringify(out))).toEqual(out);
+  });
+  test('is empty, not broken, on a day with no sales', async () => {
+    const { fairForAdmin } = await import('../src/lib/fair-mode.js');
+    expect(fairForAdmin(undefined, null, undefined)).toMatchObject({ fair: null, sales: 0, units: 0, totals: [], titles: [], upload: { tone: 'ok' } });
+  });
+});

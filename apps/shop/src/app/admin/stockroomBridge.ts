@@ -22,7 +22,16 @@ export interface StockroomSale {
   stockist: string; invoice: string;
 }
 
-type Ask = { what: "book"; book: string } | { what: "find"; isbn?: string; title?: string } | { what: "todo" } | { what: "sales"; since?: string };
+/** Today at the fair (`fairForAdmin`): the till's end-of-day figures, per currency, and its upload state. */
+export interface StockroomFair {
+  day: string | null; fair: string | null; sales: number; units: number;
+  totals: Array<{ cur: string; amount: number }>;
+  methods: Array<{ label: string; sales: number; totals: Array<{ cur: string; amount: number }> }>;
+  titles: Array<{ bookId: string; title: string; units: number; left: number | null; totals: Array<{ cur: string; amount: number }> }>;
+  upload: { tone: string; text: string };
+}
+
+type Ask = { what: "book"; book: string } | { what: "find"; isbn?: string; title?: string } | { what: "todo" } | { what: "sales"; since?: string } | { what: "fair" };
 
 let frame: Window | null = null;
 let seq = 0;
