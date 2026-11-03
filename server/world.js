@@ -73,9 +73,10 @@ import { createJobsPage, jobsRoutes } from "../control-room/jobs.js";
 import { createShopNotes, notesRoutes } from "../control-room/notes.js";
 import { createSetupDesk, setupRoutes } from "../control-room/setupPresses.js";
 import { createSetupClock } from "../signup/setupClock.js";
-import { createDriftWatch } from "../control-room/driftWatch.js";
+import { createDriftDesk, createDriftWatch, driftRoutes } from "../control-room/driftWatch.js";
 import { createSignInSafety, signInSafetyRoutes } from "../control-room/signInSafety.js";
 import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOver.js";
+import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesChannels.js";
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
@@ -235,6 +236,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const signInSafety = createSignInSafety({ admins, registry, memberships: accountStores.memberships, shopAccess, now });
   const driftWatch = createDriftWatch({ registry, shopData, shopAccess, memberships: accountStores.memberships, email, settings, now });
   const broughtOver = createBroughtOver({ admins, registry, shopData, now });
+  const driftDesk = createDriftDesk({ admins, registry, settings, activity, now });
+  const salesChannels = createSalesChannels({ admins, registry, shopData, stockroomData, now });
   // The billing export to BigQuery isn't on yet (19.15): the Costs page shows its "not on yet" state.
   const costsDesk = createCostsDesk({ registry, reader: createCostReader({}), settings: live, admins, now });
   const dataExports = createDataExports({
@@ -285,6 +288,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...setupRoutes(setupDesk),
     ...signInSafetyRoutes(signInSafety),
     ...broughtOverRoutes(broughtOver),
+    ...salesChannelsRoutes(salesChannels),
+    ...driftRoutes(driftDesk),
     ...messageRoutes(pressMessages),
     ...costRoutes(costsDesk),
     ...exportRoutes(dataExports),

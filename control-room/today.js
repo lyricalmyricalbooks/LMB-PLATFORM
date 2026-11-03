@@ -47,8 +47,14 @@ export function todaySummary({ rows, settings, profiles = {}, checks = {}, open 
     needs.push({ kind: "payment", shopId: row.shopId, words: `${row.pressName ?? row.shopId}: their plan payment failed`, go: "#shops" });
   }
   // Paying presses drifting away (driftWatch.js keeps `drift` on the row once a day).
-  for (const row of shops.filter((r) => r.drift?.level === "drifting" && PAYING.has(r.billing?.status))) {
+  // A press the owner snoozed stays off until the snooze ends.
+  for (const row of shops.filter((r) => r.drift?.level === "drifting" && PAYING.has(r.billing?.status) && !(Date.parse(r.drift.snoozedUntil ?? "") > now.getTime()))) {
     needs.push({ kind: "drift", shopId: row.shopId, words: `${row.pressName ?? row.shopId} may be drifting away: ${row.drift.reasons.join("; ")}${row.drift.checkedInAt ? " (check-in email sent)" : ""}`, go: "#shops" });
+  }
+  // A press part-way through moving its old shop over, with nothing ticked for a week (driftWatch.js moveStuck).
+  for (const row of shops.filter((r) => r.moveStuck && r.status === "live" && !r.closure)) {
+    const m = row.moveStuck;
+    needs.push({ kind: "move", shopId: row.shopId, words: `${row.pressName ?? row.shopId} is part-way through moving from their old shop: ${m.done} of ${m.of} parts done, still to do ${m.left.map((t) => t.toLowerCase()).join(", ")} (last part done ${m.days} days ago)`, go: "#shops" });
   }
   // Web addresses (services/domains, the daily watch): one that stopped opening its shop, or runs out within two weeks.
   for (const row of rows) {
