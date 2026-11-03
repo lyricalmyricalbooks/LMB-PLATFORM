@@ -31,7 +31,9 @@ export const START_PAGE = "join";
 
 /** What a press sees of its own record: never the owner's uid or the platform's own fields. */
 const shown = (record) => ({
-  pressId: record.pressId, status: record.status, plan: record.plan ?? "", shopId: record.shopId ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
+  pressId: record.pressId, status: record.status, plan: record.plan ?? "", shopId: record.shopId ?? "",
+  // How the shop is starting once opened (18.8): "queued", or "in-line" with the words saying why it waits.
+  shopStatus: record.shopStatus ?? "", shopMessage: record.shopMessage ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
   look: record.look ?? "", adminLook: record.adminLook ?? "",
   // What the press sees of its kept file: never the path.
   stagedImport: record.stagedImport ? { name: record.stagedImport.name, size: record.stagedImport.size, rows: record.stagedImport.rows, at: record.stagedImport.at } : null,
@@ -47,6 +49,9 @@ function setupRefusal(current, claims) {
 // A press that pressed Open my shop holds the opening for this long, so a double click or a second tab waits for the
 // first instead of starting a second shop. After it, a call that died part way can be tried again.
 const OPENING_HOLD_MS = 2 * 60_000;
+const OPENING_WORDS = "Your shop is already being opened. Give it a moment.";
+/** Is Open my shop running for this record right now? Its answers stay as they are until it finishes. */
+const holding = (record, at) => !!record?.openingSince && at - Date.parse(record.openingSince) < OPENING_HOLD_MS;
 const OPEN_NEEDS = Object.freeze({
   pressName: "Add your press's name in Settings › General first.",
   country: "Choose where your press is in Settings › General first.",
@@ -135,6 +140,8 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       // Read and written in one step, so a save can never put back a status the platform has just moved on.
       const saved = await presses.update(record.pressId, (current) => {
         if (!current || current.ownerUid !== claims.uid) return { row: null, result: { ok: false, status: 404, message: "We couldn't find that press." } };
+        // While Open my shop is running, the answers it is opening with stay as they are.
+        if (holding(current, now().getTime())) return { row: null, result: { ok: false, status: 409, message: OPENING_WORDS } };
         const checked = setupChange(current, change);
         if (!checked.ok) return { row: null, result: { ...checked, status: 409 } };
         const updated = { ...current, ...checked.fields, lastSeenAt: now().toISOString() };
@@ -211,8 +218,9 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
 
     /**
      * Open my shop (18.8): the press's answers go to sign-up's start, which starts the plan (the free trial when the
-     * account hasn't had one) and queues the shop. Only then does the record become `opening`, so a refusal (a card or
-     * plan problem, the terms) leaves the press in setup with everything it typed. Pressing twice opens one shop.
+     * account hasn't had one) and queues the shop. Only then does the record become `opening`, so a refusal (a plan or
+     * payment problem, the terms, a country that hasn't opened yet) leaves the press in setup with everything it typed.
+     * Pressing twice opens one shop: sign-up finds the press's own row by `pressId`.
      */
     async openShop(claims, body = {}) {
       if (!signup) throw new SignupError(503, "Opening a shop isn't switched on yet. Everything you've set up is saved.");
@@ -221,16 +229,17 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       if (record.status !== "setup") return { press: shown(record) };
       const plan = typeof body.plan === "string" && body.plan ? body.plan : record.plan;
       for (const [field, words] of Object.entries(OPEN_NEEDS)) if (!record[field]) throw new SignupError(400, words, { [field]: words });
-      const at = now();
+      const hold = now().toISOString();
       const held = await presses.update(record.pressId, (current) => {
         const refused = setupRefusal(current, claims);
         if (refused) return { row: null, result: refused };
-        if (current.openingSince && at.getTime() - Date.parse(current.openingSince) < OPENING_HOLD_MS) {
-          return { row: null, result: { ok: false, status: 409, message: "Your shop is already being opened. Give it a moment." } };
-        }
-        return { row: { ...current, openingSince: at.toISOString() }, result: { ok: true } };
+        if (holding(current, Date.parse(hold))) return { row: null, result: { ok: false, status: 409, message: OPENING_WORDS } };
+        return { row: { ...current, openingSince: hold }, result: { ok: true } };
       });
       if (!held.ok) throw new SignupError(held.status, held.message);
+      // Lets go of this call's hold; `fields` are written with it (the words of a press asked to wait).
+      const release = (fields = {}) => presses.update(record.pressId, (current) => (current?.openingSince === hold
+        ? { row: { ...current, ...fields, openingSince: "" }, result: null } : { row: null, result: null }));
       let started;
       try {
         started = await signup.start(claims, {
@@ -238,17 +247,25 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
           termsAccepted: body.termsAccepted === true, termsVersion: body.termsVersion,
         }, { pressId: record.pressId });
       } catch (error) {
-        // Nothing was opened: let go of the hold so the press can fix what was wrong and press again.
-        await presses.update(record.pressId, (current) => (current?.openingSince === at.toISOString()
-          ? { row: { ...current, openingSince: "" }, result: null } : { row: null, result: null }));
+        // Nothing was opened: the press can fix what was wrong and press again.
+        await release();
         throw error;
+      }
+      // Its country hasn't opened yet: no plan started and no shop is made, so the press stays in setup and can press
+      // again (or change its country) later.
+      if (started.status === "later") {
+        await release({ plan });
+        return { press: shown({ ...(await presses.get(record.pressId)) }), shop: { status: started.status, trialEnd: null, message: started.message } };
       }
       const saved = await presses.update(record.pressId, (current) => {
         if (!current) return { row: null, result: { ok: false, status: 404, message: "We couldn't find that press." } };
         if (current.status !== "setup") return { row: null, result: { ok: true, press: shown(current) } };
         const moved = advanceStatus(current, "opening");
         if (!moved.ok) return { row: null, result: { ok: false, status: 409, message: moved.message } };
-        const updated = { ...current, status: moved.status, plan, shopId: started.shopId, openingSince: "", openedAt: now().toISOString(), lastSeenAt: now().toISOString() };
+        const updated = {
+          ...current, status: moved.status, plan, shopId: started.shopId, shopStatus: started.status, shopMessage: started.message ?? "",
+          openingSince: "", openedAt: now().toISOString(), lastSeenAt: now().toISOString(),
+        };
         return { row: updated, result: { ok: true, press: shown(updated) } };
       });
       if (!saved.ok) throw new SignupError(saved.status, saved.message);

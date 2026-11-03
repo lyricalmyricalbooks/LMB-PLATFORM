@@ -373,7 +373,7 @@ function OpenShopCard({ press, plans, termsUrl, openShop, onOpened, onOpen }: {
     return (
       <SectionCard title="Your shop is being made" collapsible={false}>
         <div role="status" style={{ display: "grid", gap: 8 }}>
-          <p style={{ margin: 0 }}>{waiting || `We're making ${makes} now, with everything you set up here. We'll email you as soon as it's ready.`}</p>
+          <p style={{ margin: 0 }}>{press.shopMessage || waiting || `We're making ${makes} now, with everything you set up here. We'll email you as soon as it's ready.`}</p>
           <p className="rp-hint" style={{ margin: 0 }}>You can close this page. Nothing you set up is lost.</p>
         </div>
       </SectionCard>
@@ -409,6 +409,8 @@ function OpenShopCard({ press, plans, termsUrl, openShop, onOpened, onOpen }: {
           <span>I agree to the <a href={termsUrl} target="_blank" rel="noreferrer">terms of service</a>.</span>
         </label>
         {error && <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>{error}</p>}
+        {/* Asked to wait (its country hasn't opened yet): still in setup, and it can press again later. */}
+        {waiting && <p role="status" style={{ margin: 0 }}>{waiting}</p>}
         <div>
           <PrimaryButton icon={<Store size={16} aria-hidden />} busy={busy} disabled={!ready || busy} onClick={() => void go()}>Open my shop</PrimaryButton>
         </div>

@@ -205,6 +205,23 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       expect(openButton(el).disabled).toBe(false);
     });
 
+    it("after a reload, a press waiting in line still reads why, not that its shop is being made", async () => {
+      const el = await mount(door(), "#settings/plan", { ...PRESS, country: "CA", status: "opening", shopStatus: "in-line", shopMessage: "We're making a few shops a day. You're next in line." });
+      expect(el.textContent).toContain("You're next in line.");
+      expect(el.textContent).not.toContain("We're making your website");
+    });
+
+    it("a press whose country hasn't opened is told so and can press again later", async () => {
+      const d = door();
+      (d.openShop as any).mockResolvedValueOnce({ press: { ...PRESS, country: "US" }, shop: { status: "later", trialEnd: null, message: "Colophon starts in Canada." } });
+      const el = await mount(d, "#settings/plan", { ...PRESS, country: "US" });
+      act(() => terms(el).click());
+      act(() => openButton(el).click());
+      await flush();
+      expect(el.querySelector("main [role=status]")?.textContent).toContain("Colophon starts in Canada.");
+      expect(openButton(el).disabled).toBe(false);
+    });
+
     it("a press waiting its turn sees why", async () => {
       const d = door();
       (d.openShop as any).mockResolvedValueOnce({ press: { ...PRESS, country: "CA", status: "opening" }, shop: { status: "in-line", trialEnd: null, message: "You're next in line." } });

@@ -24,7 +24,7 @@ function world({ billing = null } = {}) {
   const signup = createSignup({
     ...signupStores, registry: fakeRegistry(), email: fakePlatformEmail(), auth: fakeAuth(), settings: platformSettings({}),
     billing: billing ?? { startTrial: async (args) => { trials.push(args); return { status: "trialing", trialEnd: "2026-11-17T09:00:00.000Z" }; } },
-    live: async () => ({ signupDailyCap: 10 }), suffix: () => "abcde",
+    live: async () => ({ signupDailyCap: 10 }), suffix: ((k = 0) => () => (k++ ? `abcd${k}` : "abcde"))(),
   });
   const sent = [];
   let clock = new Date("2026-11-03T09:00:00Z").getTime();
@@ -439,4 +439,62 @@ test("a stranger can't open another press's shop", async () => {
   assert.equal((await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, BEN)).status, 404);
   assert.equal((await w.stores.presses.get(pressId)).status, "setup");
   assert.equal(w.trials.length, 0);
+});
+
+test("after the plan fails to start, the retry opens with the answers the press gives now, as one shop", async () => {
+  let fail = true;
+  const trials = [];
+  const w = world({ billing: { startTrial: async (args) => { if (fail) throw new Error("The payment service is busy."); trials.push(args); return { status: "trialing" }; } } });
+  const pressId = await readyPress(w);
+  assert.equal((await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA)).status, 500);
+  // The press changes its mind while back in setup: a new plan and a new name.
+  await w.ask("POST", "/api/press/setup", { pressId, pressName: "Leaf Books" }, ADA);
+  fail = false;
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN, plan: "shop" }, ADA);
+  assert.equal(opened.body.press.status, "opening");
+  assert.deepEqual(trials.map((t) => [t.plan, t.pressName]), [["shop", "Leaf Books"]]);
+  const rows = [...w.signupStores.signups.rows.values()].filter((row) => row.pressId === pressId);
+  assert.equal(rows.length, 1);
+  assert.deepEqual([rows[0].shopId, rows[0].plan, rows[0].pressName], [opened.body.press.shopId, "shop", "Leaf Books"]);
+});
+
+test("two presses with the same name on one account open two shops", async () => {
+  const w = world();
+  const first = await readyPress(w);
+  // A second press on the same account (made from the picker), with the same name in other letters.
+  const second = "press-second";
+  await w.stores.presses.create(second, { ...(await w.stores.presses.get(first)), pressId: second, pressName: "moth press", plan: "stockroom" });
+  const a = await w.ask("POST", "/api/press/open", { pressId: first, ...OPEN }, ADA);
+  const b = await w.ask("POST", "/api/press/open", { pressId: second, ...OPEN }, ADA);
+  assert.notEqual(a.body.press.shopId, b.body.press.shopId);
+  assert.deepEqual(w.trials.map((t) => t.plan), ["both", "stockroom"]);
+});
+
+test("a press whose country hasn't opened yet is told so and stays in setup, and can open once it has", async () => {
+  const w = world();
+  const pressId = await readyPress(w, { pressName: "Moth Press", country: "US", plan: "shop" });
+  const waits = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(waits.status, 200);
+  assert.equal(waits.body.press.status, "setup");
+  assert.equal(waits.body.shop.status, "later");
+  assert.match(waits.body.shop.message, /Canada/);
+  assert.equal(w.trials.length, 0);
+  // Still in setup: it can change its answers, and pressing again re-checks.
+  await w.ask("POST", "/api/press/setup", { pressId, country: "CA" }, ADA);
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(opened.body.press.status, "opening");
+  assert.equal([...w.signupStores.signups.rows.values()].filter((row) => row.pressId === pressId).length, 1);
+});
+
+test("while Open my shop is running, the press's answers can't change under it", async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const w = world({ billing: { startTrial: async () => { await gate; return { status: "trialing" }; } } });
+  const pressId = await readyPress(w);
+  const opening = w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  await new Promise((resolve) => setImmediate(resolve));
+  const renamed = await w.ask("POST", "/api/press/setup", { pressId, pressName: "Other" }, ADA);
+  assert.equal(renamed.status, 409);
+  release();
+  assert.equal((await opening).body.press.pressName, "Moth Press");
 });

@@ -14,6 +14,9 @@ export interface SetupPress {
   adminLook: string;
   /** The shop's id once Open my shop has started it (18.8), else "". */
   shopId?: string;
+  /** How the shop is starting once opening: "queued", or "in-line" with `shopMessage` saying why it waits. */
+  shopStatus?: string;
+  shopMessage?: string;
   /** The product file kept for the shop (18.7), or null. */
   stagedImport: StagedImport | null;
 }
