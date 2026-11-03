@@ -23,12 +23,17 @@ export type PlatformPlan = {
   paymentWay: "monthly" | "payAsYouSell";
   link: string | null;
   closing: { stage: string; closedAt: string | null; downloadUntil: string | null; deleteAfter: string | null } | null;
+  // A plan change in progress: an app being set up, or one that closes at the end of the month already paid for.
+  changing: { adding: PlanApp[]; closing: { apps: PlanApp[]; at: string | null } | null } | null;
 };
+
+export type PlanApp = "shop" | "stockroom";
 
 export const PLAN_NAMES: Record<string, string> = { shop: "Shop", stockroom: "Stockroom", both: "Shop and stockroom" };
 const STATES: PlanState[] = ["trial", "active", "payment-problem", "paused", "closed"];
 const DAY = 86400_000;
 
+const appsOf = (v: unknown): PlanApp[] => (Array.isArray(v) ? v.filter((a): a is PlanApp => a === "shop" || a === "stockroom") : []);
 const time = (v: unknown): string | null => (typeof v === "string" && !Number.isNaN(Date.parse(v)) ? v : null);
 // Only an https address is ever used as a link, whatever the document holds.
 const httpsLink = (v: unknown): string | null => (typeof v === "string" && /^https:\/\/[^\s<>"']+$/.test(v) ? v : null);
@@ -53,8 +58,20 @@ export function parsePlatformPlan(raw: any): PlatformPlan | null {
     paymentWay: raw.paymentWay === "payAsYouSell" ? "payAsYouSell" : "monthly",
     link: httpsLink(raw.link),
     closing,
+    changing: parseChanging(raw.changing),
   };
 }
+
+function parseChanging(raw: any): PlatformPlan["changing"] {
+  if (!raw || typeof raw !== "object") return null;
+  const adding = appsOf(raw.adding);
+  const closingApps = raw.closing && typeof raw.closing === "object" ? appsOf(raw.closing.apps) : [];
+  const closing = closingApps.length ? { apps: closingApps, at: time(raw.closing.at) } : null;
+  return adding.length || closing ? { adding, closing } : null;
+}
+
+const APP_WORDS: Record<PlanApp, string> = { shop: "website", stockroom: "stockroom" };
+const appsText = (apps: PlanApp[]) => apps.map((app) => APP_WORDS[app]).join(" and ");
 
 /** A paused or closed plan: the admin opens on Plan & billing only. */
 export const planLocked = (plan: PlatformPlan | null): boolean => !!plan && plan.access !== "open";
@@ -110,6 +127,24 @@ export function planBanner(plan: PlatformPlan | null, now = Date.now()): PlanBan
       action: "Keep my plan",
     };
   }
+  const closingApps = plan.changing?.closing;
+  if (closingApps && closingApps.at) {
+    const many = closingApps.apps.length > 1;
+    return {
+      tone: "warning", kicker: "Plan", title: `Your ${appsText(closingApps.apps)} ${many ? "close" : "closes"} on ${planDate(closingApps.at)}.`,
+      detail: `Your new plan doesn't include ${many ? "them" : "it"}. Until then everything works as usual. After that you have 90 days to download what's in ${many ? "them" : "it"}. Changed your mind? Keep ${many ? "them" : "it"} on your plan.`,
+      action: "See your plan",
+    };
+  }
+  const adding = plan.changing?.adding ?? [];
+  if (adding.length) {
+    const many = adding.length > 1;
+    return {
+      tone: "info", kicker: "Plan", title: `Your ${appsText(adding)} ${many ? "are" : "is"} being set up.`,
+      detail: "This usually takes a few minutes. We'll email you a link as soon as it's ready. You don't need to do anything.",
+      action: "See your plan",
+    };
+  }
   if (plan.state === "trial") {
     const left = daysLeft(plan.trialEnd, now);
     const title = left <= 1 ? "Free trial: last day." : `Free trial: ${left} days left.`;
@@ -130,6 +165,8 @@ export function planFacts(plan: PlatformPlan, now = Date.now()): Array<{ label: 
   if (plan.cancelAtPeriodEnd && plan.endsAt) facts.push({ label: "Plan ends", value: planDate(plan.endsAt) });
   if (plan.closing?.downloadUntil) facts.push({ label: "Download until", value: planDate(plan.closing.downloadUntil) });
   if (plan.closing?.deleteAfter) facts.push({ label: "Deleted on", value: planDate(plan.closing.deleteAfter) });
+  if (plan.changing?.adding.length) facts.push({ label: "Being set up", value: `Your ${appsText(plan.changing.adding)}` });
+  if (plan.changing?.closing?.at) facts.push({ label: "Closing", value: `Your ${appsText(plan.changing.closing.apps)}, on ${planDate(plan.changing.closing.at)}` });
   facts.push({ label: "Card on file", value: plan.hasCard ? "Yes" : "No card yet" });
   facts.push({ label: "How you pay", value: plan.paymentWay === "payAsYouSell" ? "As you sell" : "Monthly" });
   return facts;

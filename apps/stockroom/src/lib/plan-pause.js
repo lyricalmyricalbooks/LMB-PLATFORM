@@ -65,3 +65,53 @@ export function planPauseBannerHtml(plan) {
   ${action}
 </div>`;
 }
+
+// ── A plan change in progress (the platform's `changing`: an app being set up, or one closing at the end of the month
+// already paid for). The stockroom stays as it is; a quieter banner says what is happening.
+const APP_WORDS = { shop: 'website', stockroom: 'stockroom' };
+const appsOf = (v) => (Array.isArray(v) ? v.filter((a) => a === 'shop' || a === 'stockroom') : []);
+const appsText = (apps) => apps.map((a) => APP_WORDS[a]).join(' and ');
+
+/** "30 November 2026", Toronto time, as the platform's emails and the website admin say dates. */
+export function planDate(iso) {
+  const time = Date.parse(iso);
+  if (Number.isNaN(time)) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', day: 'numeric', month: 'long', year: 'numeric' }).formatToParts(new Date(time));
+  const part = (type) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('day')} ${part('month')} ${part('year')}`;
+}
+
+/** The words for a plan change in progress, or null when there is none (or the plan is read-only, which says more). */
+export function planChangeNotice(plan) {
+  if (!plan || typeof plan !== 'object' || planReadOnly(plan)) return null;
+  const changing = plan.changing && typeof plan.changing === 'object' ? plan.changing : null;
+  const closing = appsOf(changing?.closing?.apps);
+  const on = planDate(changing?.closing?.at);
+  if (closing.length && on) {
+    const many = closing.length > 1;
+    return {
+      title: `Your ${appsText(closing)} ${many ? 'close' : 'closes'} on ${on}.`,
+      detail: `Your new plan doesn't include ${many ? 'them' : 'it'}. Until then everything works as usual. After that you have 90 days to download what's in ${many ? 'them' : 'it'}.`,
+    };
+  }
+  const adding = appsOf(changing?.adding);
+  if (adding.length) {
+    return {
+      title: `Your ${appsText(adding)} ${adding.length > 1 ? 'are' : 'is'} being set up.`,
+      detail: "This usually takes a few minutes. We'll email you a link as soon as it's ready. You don't need to do anything.",
+    };
+  }
+  return null;
+}
+
+/** The banner for a plan change in progress, or '' when there is nothing to say. */
+export function planChangeBannerHtml(plan) {
+  const notice = planChangeNotice(plan);
+  if (!notice) return '';
+  const link = httpsLink(plan?.link);
+  const action = link ? `<a class="btn sm" href="${escapeHtml(link)}">See your plan</a>` : '';
+  return `<div class="plan-pause-banner plan-change-banner" role="status" aria-live="polite">
+  <div class="plan-pause-text"><strong>${escapeHtml(notice.title)}</strong><span>${escapeHtml(notice.detail)}</span></div>
+  ${action}
+</div>`;
+}

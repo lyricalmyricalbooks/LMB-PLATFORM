@@ -15,6 +15,8 @@
 // The closing sweep (closing.js) keeps its stage on the registry row (`closing`); a closed or deleted stage wins over
 // Stripe's status, so a shop the sweep closed stays closed even though Stripe still calls its plan "paused".
 import { PLAN_APPS } from "./plans.js";
+
+const APPS = ["shop", "stockroom"];
 import { currentPaymentWay } from "./paymentWayState.js";
 
 export const PLAN_DOC = "platform/plan";
@@ -45,7 +47,7 @@ export function nextPaymentAt(row, closing = null) {
 }
 
 /** The admin-only document. `link` is the platform's Plan & billing page for this shop. */
-export function planDocument(row, { link, at, closing = null }) {
+export function planDocument(row, { link, at, closing = null, changing = null }) {
   const access = shopAccess(row, closing);
   // Paying as it sells (paymentWay.js, plan 6.19): open with no subscription, nothing to pay ahead and no trial.
   const paymentWay = currentPaymentWay(row, Date.parse(at));
@@ -66,6 +68,8 @@ export function planDocument(row, { link, at, closing = null }) {
     closing: closing && closing.stage !== "paused"
       ? { stage: closing.stage, closedAt: closing.closedAt ?? null, downloadUntil: closing.downloadUntil ?? null, deleteAfter: closing.deleteAfter ?? null }
       : null,
+    // An app being added (being built) or one a plan change will close, for the admins' notices.
+    changing: changing && (changing.adding.length || changing.closing) ? changing : null,
     updatedAt: at,
   };
 }
@@ -88,6 +92,13 @@ export function shopPlanCopies({ shopData, stockroomData = null, registry }) {
       const closing = shop?.closing ?? null;
       // The registry's plan says what is open: a dropped app stays open to the end of the month already paid for.
       const open = PLAN_APPS[shop?.plan ?? row.plan] ?? {};
+      // An app is being added while it is open but the shop maker hasn't built it yet (`builtPlan`, signup/shopMaker.js);
+      // a dropped app closes at the end of the month already paid for (`appsClosing`, billing.js).
+      const built = PLAN_APPS[shop?.builtPlan] ?? null;
+      const changing = {
+        adding: built ? APPS.filter((app) => open[app] && !built[app]) : [],
+        closing: row.appsClosing?.apps?.length ? { apps: [...row.appsClosing.apps], at: row.appsClosing.at ?? null } : null,
+      };
       // An app the plan dropped, once closed, gets closed copies: the website refuses new orders and its admin offers
       // the downloads; the stockroom opens read-only. The other app carries on with the plan.
       const copyFor = (app) => {
@@ -95,7 +106,7 @@ export function shopPlanCopies({ shopData, stockroomData = null, registry }) {
         const appClosing = !open[app] && closed && closing?.stage !== "deleted"
           ? { stage: "closed", closedAt: closed.closedAt ?? null, downloadUntil: closed.downloadUntil ?? null, deleteAfter: null }
           : closing;
-        return planDocument(row, { link, at, closing: appClosing });
+        return planDocument(row, { link, at, closing: appClosing, changing });
       };
       const doc = copyFor("shop");
       await shopData.set(shopId, PLAN_DOC, doc);

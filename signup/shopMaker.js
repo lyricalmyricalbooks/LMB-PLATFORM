@@ -126,6 +126,7 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
       // Earlier trouble is over; then the self-checks look at the new shop (2.11). Their problems go to the repair
       // queue, never to the press's page, so they can't hold the press up.
       if (repairs?.passed) await repairs.passed(shopId, "shop-maker");
+      await registry.updateShop(shopId, { builtPlan: plan });
       // The shop knows its plan from the first minute (plan 6.6). A snag here never holds the press up: it goes to the
       // repair queue, and the next billing change or the closing sweep writes the plan again.
       if (billing?.publishPlan) {
@@ -189,6 +190,8 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     row = await signups.get(shopId) ?? row;
     if (result.ok) {
       await signups.set(shopId, { ...row, builtPlan: plan, openUrl: openUrlOf(await registry.getProfile(shopId), shopId), planSyncedAt: at(), planSync: null });
+      // Billing's copies for the admins say an app is still being added until this matches the plan (shopPlan.js).
+      await registry.updateShop(shopId, { builtPlan: plan });
       if (repairs?.passed) await repairs.passed(shopId, "plan-change");
       // The shop and, now, its stockroom (or only what is left) know the plan.
       if (billing?.publishPlan) {
