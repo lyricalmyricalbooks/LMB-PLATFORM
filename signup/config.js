@@ -17,7 +17,7 @@ export const API_BASE = "/api";
 // Julian hosts it: the page then shows no link. waitlist/config.js has the same address.
 export const SAMPLE_PRESS_URL = "";
 
-// Where the front door (join/) sends a press once its three questions are answered: the admin in setup mode
+// Where the front door (join/) sends a press once its four questions are answered: the admin in setup mode
 // (code plan 18.6), with `?press=<id>`. Empty until that admin is served from the platform site; the front door then
 // ends on its own "Setting up" summary.
 export const SETUP_ADMIN_URL = "";

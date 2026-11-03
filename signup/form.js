@@ -80,6 +80,25 @@ export function checkAddress(value) {
   return { ok: !problem, address, problem };
 }
 
+// A best guess at the press's country from the time zone its computer's clock is set to (the front door starts the
+// country question on it). A time zone says where someone is far better than a browser language does: a Toronto
+// browser in "en-US" or "fr" is still in Canada. Returns "" when the zone isn't one of COUNTRIES' or isn't known.
+const ZONE_COUNTRY = [
+  [/^America\/(Toronto|Montreal|Nipigon|Thunder_Bay|Iqaluit|Pangnirtung|Rankin_Inlet|Resolute|Atikokan|Coral_Harbour|Winnipeg|Rainy_River|Regina|Swift_Current|Edmonton|Cambridge_Bay|Yellowknife|Inuvik|Creston|Dawson_Creek|Fort_Nelson|Whitehorse|Dawson|Vancouver|Halifax|Glace_Bay|Moncton|Goose_Bay|Blanc-Sablon|St_Johns)$|^Canada\//, "CA"],
+  [/^America\/(New_York|Detroit|Kentucky\/.+|Indiana\/.+|Indianapolis|Louisville|Chicago|Menominee|North_Dakota\/.+|Denver|Boise|Phoenix|Los_Angeles|Anchorage|Juneau|Sitka|Metlakatla|Yakutat|Nome|Adak)$|^Pacific\/Honolulu$|^US\//, "US"],
+  [/^Europe\/(London|Belfast)$|^GB$/, "GB"],
+  [/^Europe\/Dublin$|^Eire$/, "IE"],
+  [/^Europe\/Paris$/, "FR"],
+  [/^Europe\/(Berlin|Busingen)$/, "DE"],
+  [/^Europe\/Amsterdam$/, "NL"],
+  [/^Australia\//, "AU"],
+  [/^Pacific\/(Auckland|Chatham)$|^NZ(-CHAT)?$/, "NZ"],
+];
+export function countryFromTimeZone(zone) {
+  if (typeof zone !== "string") return "";
+  return ZONE_COUNTRY.find(([pattern]) => pattern.test(zone))?.[1] ?? "";
+}
+
 export const PLAN_CHOICES = Object.freeze(["both", "shop", "stockroom"]);
 
 const EMAIL = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
