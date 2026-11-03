@@ -7,7 +7,8 @@
 //                                              (signInWithEmailLink). The link is never emailed: the code was the proof.
 //   POST /api/press       {}                   makes the press's setup record, or gives back the one still in setup
 //   GET  /api/press                            the signed-in person's presses
-//   POST /api/press/setup { pressId, pressName?, sells?, country? }   saves answers while the press is in setup
+//   POST /api/press/setup { pressId, pressName?, sells?, country?, look?, adminLook? }
+//                                              saves answers while the press is in setup
 //
 // Nothing here starts a trial, takes a card or makes a shop: those wait for Open my shop (18.8).
 //
@@ -31,6 +32,7 @@ export const START_PAGE = "join";
 /** What a press sees of its own record: never the owner's uid or the platform's own fields. */
 const shown = (record) => ({
   pressId: record.pressId, status: record.status, pressName: record.pressName, sells: record.sells, country: record.country,
+  look: record.look ?? "", adminLook: record.adminLook ?? "",
 });
 
 export function createFrontDoor({ presses, codes, email, auth, settings, now = () => new Date(), suffix = randomSuffix, random = null }) {
@@ -92,7 +94,7 @@ export function createFrontDoor({ presses, codes, email, auth, settings, now = (
     async saveSetup(claims, body = {}) {
       const record = await ownPress(claims, body.pressId);
       const change = {};
-      for (const key of ["pressName", "sells", "country"]) if (key in body) change[key] = body[key];
+      for (const key of ["pressName", "sells", "country", "look", "adminLook"]) if (key in body) change[key] = body[key];
       // The choices on the page are the only answers taken; an empty answer is a skipped question.
       if (typeof change.sells === "string" && change.sells && !PUBLISHES.options.some((o) => o.id === change.sells)) {
         throw new SignupError(400, "Pick one of the choices.", { sells: "Pick one of the choices." });

@@ -173,3 +173,19 @@ test("the return trip lists the person's own presses oldest first, with each one
   const listed = (await w.ask("GET", "/api/press", undefined, ADA)).body.presses;
   assert.deepEqual(listed.map((p) => [p.pressId, p.status]), [[pressId, "open"], ["press-later-one", "setup"]]);
 });
+
+test("the welcome's two looks are saved and shown back; a badly formed look is refused and changes nothing", async () => {
+  const w = world();
+  const { pressId } = (await w.ask("POST", "/api/press", {}, ADA)).body.press;
+  // Ids the shop and the stockroom add later (such as "press-market" or "bento") are taken without a platform change.
+  const saved = await w.ask("POST", "/api/press/setup", { pressId, look: "press-market", adminLook: "bento" }, ADA);
+  assert.equal(saved.status, 200);
+  assert.deepEqual([saved.body.press.look, saved.body.press.adminLook], ["press-market", "bento"]);
+  assert.deepEqual((await w.ask("GET", "/api/press", undefined, ADA)).body.presses.map((p) => [p.look, p.adminLook]), [["press-market", "bento"]]);
+  for (const bad of ["Press Market", "<b>", "-riso", "riso-", "x".repeat(41), 7]) {
+    assert.equal((await w.ask("POST", "/api/press/setup", { pressId, adminLook: bad }, ADA)).status, 409, String(bad));
+  }
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, look: "" }, ADA)).status, 200, "a skipped look is allowed");
+  const row = w.stores.presses.rows.get(pressId);
+  assert.deepEqual([row.look, row.adminLook], ["", "bento"]);
+});

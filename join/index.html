@@ -21,7 +21,17 @@
   .fd-pick { display: grid; gap: 8px; }
   .cp .fd-pick button.choice { display: grid; gap: 4px; justify-content: stretch; justify-items: start; text-align: left; min-height: 56px; padding: 12px 14px; line-height: 1.3; }
   .cp .fd-pick button.choice span { font-weight: 400; font-size: 12px; color: var(--rp-text-subtle); }
-  .fd-count { font-family: "DM Mono", monospace; font-size: .85rem; }
+  .fd-count { font-family: "DM Mono", monospace; font-size: .85rem; margin: 0; }
+  /* Back sits with the question count above the question, Skip next to Continue, as in most sign-up flows. */
+  .fd-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+  .fd-top .ghost { text-decoration: none; padding-inline: 0; }
+  .fd-top .ghost::before { content: "\2190\00a0"; }
+  .fd-meter { height: 4px; background: var(--rp-divider); }
+  .fd-meter > span { display: block; height: 100%; background: var(--rp-primary); transition: width .25s ease; }
+  @media (prefers-reduced-motion: reduce) { .fd-meter > span { transition: none; } }
+  .cp #google { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+  .cp #google svg { width: 18px; height: 18px; flex: none; }
+  .fd-code::placeholder { color: var(--rp-text-subtle); opacity: .6; }
 </style>
 </head>
 <body class="cp">
@@ -40,7 +50,7 @@
   <section id="view-email" class="stack" aria-labelledby="email-title">
     <div><h1 id="email-title" tabindex="-1" class="cp-title">Start your shop</h1>
     <p class="cp-lede">Setup is free and needs no card. Your free trial starts the day your shop opens.</p></div>
-    <button type="button" id="google">Continue with Google</button>
+    <button type="button" id="google"><svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Continue with Google</button>
     <p class="or">or</p>
     <form id="email-form" class="stack" novalidate>
       <label>Email<input name="email" type="email" autocomplete="email" inputmode="email" required></label>
@@ -55,12 +65,12 @@
     <h2 id="code-title" tabindex="-1" class="cp-title">Check your email</h2>
     <p>We sent a six-digit code to <strong id="code-email"></strong>. It works for 10 minutes.</p>
     <form id="code-form" class="stack" novalidate>
-      <label>Code<input name="code" id="code" class="fd-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="7" required></label>
+      <label>Code<input name="code" id="code" class="fd-code" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="7" required></label>
       <p class="error" id="code-error" role="alert" hidden></p>
       <button type="submit" class="primary">Continue</button>
     </form>
     <div class="fd-row">
-      <button type="button" class="ghost" id="code-again">Send a new code</button>
+      <button type="button" class="ghost" id="code-again">Send a new code</button><span class="hint" id="code-wait" hidden></span>
       <button type="button" class="ghost" id="code-other">Use another email</button>
     </div>
   </section>
@@ -74,7 +84,8 @@
 
   <!-- 3. Three questions, one at a time. Each can be skipped, and each can be changed later in the admin. -->
   <section id="view-name" class="stack" hidden aria-labelledby="name-title">
-    <p class="fd-count">Question 1 of 3</p>
+    <div class="fd-meter" aria-hidden="true"><span style="width:33%"></span></div>
+    <div class="fd-top"><span></span><p class="fd-count">Question 1 of 3</p></div>
     <h2 id="name-title" tabindex="-1" class="cp-title">What's your press called?</h2>
     <form class="stack" data-question="pressName" novalidate>
       <label>Press name<input name="pressName" autocomplete="organization" maxlength="120"></label>
@@ -84,24 +95,26 @@
   </section>
 
   <section id="view-sells" class="stack" hidden aria-labelledby="sells-title">
-    <p class="fd-count">Question 2 of 3</p>
+    <div class="fd-meter" aria-hidden="true"><span style="width:67%"></span></div>
+    <div class="fd-top"><button type="button" class="ghost" data-back="name">Back</button><p class="fd-count">Question 2 of 3</p></div>
     <h2 id="sells-title" tabindex="-1" class="cp-title">What do you sell?</h2>
     <form class="stack" data-question="sells" novalidate>
       <fieldset><legend class="hint">Pick the closest. We'll suggest a look and set your shop up for it.</legend>
         <div class="choices" id="sells-choices"></div></fieldset>
       <p class="error" role="alert" hidden></p>
-      <div class="fd-row"><button type="submit" class="primary">Continue</button><button type="button" class="ghost" data-skip>Skip</button><button type="button" class="ghost" data-back="name">Back</button></div>
+      <div class="fd-row"><button type="submit" class="primary">Continue</button><button type="button" class="ghost" data-skip>Skip</button></div>
     </form>
   </section>
 
   <section id="view-country" class="stack" hidden aria-labelledby="country-title">
-    <p class="fd-count">Question 3 of 3</p>
+    <div class="fd-meter" aria-hidden="true"><span style="width:100%"></span></div>
+    <div class="fd-top"><button type="button" class="ghost" data-back="sells">Back</button><p class="fd-count">Question 3 of 3</p></div>
     <h2 id="country-title" tabindex="-1" class="cp-title">Where is your press?</h2>
     <form class="stack" data-question="country" novalidate>
       <label>Country<select name="country" id="country"></select></label>
       <p class="hint">It sets your shop's money and taxes. Colophon opens in Canada first.</p>
       <p class="error" role="alert" hidden></p>
-      <div class="fd-row"><button type="submit" class="primary">Continue</button><button type="button" class="ghost" data-skip>Skip</button><button type="button" class="ghost" data-back="sells">Back</button></div>
+      <div class="fd-row"><button type="submit" class="primary">Continue</button><button type="button" class="ghost" data-skip>Skip</button></div>
     </form>
   </section>
 
