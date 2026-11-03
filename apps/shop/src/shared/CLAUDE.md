@@ -62,3 +62,8 @@ browsers may write (mirroring `firestore.rules`).
   codes per rule: the shop's figure equals the server copy's, a discount is 0 ≤ amount ≤ bag (and ≤ its cap), item order
   never matters, and automatic discounts pick the biggest saving. A failure prints the smallest bag that breaks the rule.
   Add a rule there when you change discount maths; the same pattern suits the shipping engine and tax.
+- `shippingAndTax.property.test.ts` (3 November 2026) does the same for shipping (shop = server, prices in whole cents and
+  never negative, cheapest first, unique ids, bag order never matters, Free-for-all is free) and tax (shop = server, the
+  tax sits between the lowest and highest rate used, no kinds means one rate as before, bookkeeping cents add up). It
+  found that two shipping profiles with equal bases charged by bag order: `quoteShipping` now breaks the leader tie by
+  the bigger waived extra, then profile id.

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import { join } from "node:path";
 import assert from "node:assert/strict";
-import { deployClient, rulesStamp, siteOf, stampedRules } from "./deploy.js";
+import { bothAppsIn, deployClient, rulesStamp, siteOf, stampedRules } from "./deploy.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 
 const P = "lmb-test-shop";
@@ -11,20 +11,23 @@ const RULES = "https://firebaserules.googleapis.com/v1";
 const FN = `https://cloudfunctions.googleapis.com/v2/projects/${P}/locations/-/functions`;
 const notFound = { status: 404, json: { error: { code: 404, status: "NOT_FOUND", message: "not found" } } };
 
-function setup(script) {
+function setup(script, { profile = "window.__SHOP_PROFILE__={}" } = {}) {
   const fetch = scriptedFetch(script);
   const runs = [];
   const configs = [];
   const written = new Map();
+  const folders = [];
   const deploy = deployClient({
     fetch, token, buildDir: (version) => `/builds/${version}`,
     ownerEmailOf: async () => "owner@example.com",
-    profileScriptOf: async () => "window.__SHOP_PROFILE__={}",
+    profileScriptOf: async () => profile,
+    copyDir: async (from, to) => void folders.push(["copy", from, to]),
+    removeDir: async (path) => void folders.push(["remove", path]),
     run: async (command, args, { cwd, env }) => void (command === "node" ? configs.push({ args, cwd, env }) : runs.push({ command, args, cwd })),
     writeText: async (path, text) => void written.set(path, text),
     readText: async (path) => written.get(path) ?? "// lmb-release: {\"version\":\"0.9.0\",\"apps\":[\"shop\"]}\nrules_version = '2';\n",
   });
-  return { fetch, deploy, runs, configs, written };
+  return { fetch, deploy, runs, configs, written, folders };
 }
 
 test("the live rules' release and apps are read from the stamp in the ruleset", async () => {
@@ -122,4 +125,37 @@ test("a shop with no saved profile or owner is never deployed", async () => {
   await assert.rejects(deployClient({ ...base, ownerEmailOf: async () => "owner@example.com", profileScriptOf: async () => null }).pages(P, { version: "1", app: "shop" }), /no saved shop profile/);
   await assert.rejects(deployClient({ ...base, profileScriptOf: async () => "x" }).rules(P, { version: "1", apps: ["shop"] }), /needs ownerEmailOf/);
   assert.deepEqual(runs, []);
+});
+
+const both = (apps) => `// Written by the platform. Do not edit by hand.\nwindow.__SHOP_PROFILE__ = ${JSON.stringify({ version: 1, apps }, null, 2)};\n`;
+
+test("a profile with both apps is the combined admin's; anything else, or anything unreadable, is not", () => {
+  assert.equal(bothAppsIn(both({ shop: true, stockroom: true })), true);
+  assert.equal(bothAppsIn(both({ shop: true, stockroom: false })), false);
+  assert.equal(bothAppsIn(both({ shop: false, stockroom: true })), false);
+  assert.equal(bothAppsIn("window.__SHOP_PROFILE__={}"), false);
+  assert.equal(bothAppsIn("window.__SHOP_PROFILE__ = {not json"), false);
+  assert.equal(bothAppsIn(null), false);
+});
+
+test("pages: a shop with both apps serves a copy of the stockroom at /stockroom/, with its own profile", async () => {
+  const profile = both({ shop: true, stockroom: true });
+  const { deploy, written, folders } = setup([], { profile });
+  await deploy.pages(P, { version: "1.2.3", app: "shop" });
+  assert.deepEqual(folders, [["copy", B("1.2.3/apps/stockroom/dist"), B("1.2.3/apps/shop/dist/stockroom")]]);
+  assert.equal(written.get(B("1.2.3/apps/shop/dist/stockroom/shop-profile.js")), profile);
+  assert.equal(written.get(B("1.2.3/apps/shop/dist/shop-profile.js")), profile);
+});
+
+test("pages: a shop-only shop never carries another shop's stockroom copy from the shared build", async () => {
+  const { deploy, folders } = setup([], { profile: both({ shop: true, stockroom: false }) });
+  await deploy.pages(P, { version: "1.2.3", app: "shop" });
+  assert.deepEqual(folders, [["remove", B("1.2.3/apps/shop/dist/stockroom")]]);
+});
+
+test("pages: the stockroom's own site is deployed as before, with no copy made", async () => {
+  const S = `https://firebasehosting.googleapis.com/v1beta1/projects/${P}/sites`;
+  const { deploy, folders } = setup([{ method: "GET", url: `${S}/${P}-stockroom`, json: { name: "x" } }], { profile: both({ shop: true, stockroom: true }) });
+  await deploy.pages(P, { version: "1.2.3", app: "stockroom" });
+  assert.deepEqual(folders, []);
 });

@@ -68,7 +68,7 @@ caught and pulled within a few days. Waiting a week means we almost never instal
 
 ## Worth doing next, ranked
 
-### 5. Barcode scanning on iPhones (barcode-detector)
+### 5. Barcode scanning on iPhones (barcode-detector): built 3 November, PR #272
 The shop admin's Scan button uses the browser's built-in barcode reader. iPhones and most desktop browsers don't have
 one, so the button is hidden there, and that is where most presses will try it first. This package adds the same reader
 to every browser, loaded only when someone taps Scan. Building it means also hosting the reader file ourselves rather
@@ -76,18 +76,16 @@ than loading it from another company's server.
 Medium: about a day, plus a test on a real iPhone. Licence MIT · changed 30 October ·
 [Sec-ant/barcode-detector](https://github.com/Sec-ant/barcode-detector)
 
-### 6. Real speed numbers from shoppers' phones (web-vitals)
-The checks already time the shop on a test machine. This small Google library measures how fast each page feels on
-real shoppers' phones. The numbers could show in the control room, so a slow theme or a huge photo is spotted before
-sales drop.
-Medium: one to two days. Licence Apache-2.0 (safe) · 8.7k stars · changed 30 October ·
-[GoogleChrome/web-vitals](https://github.com/GoogleChrome/web-vitals)
+### 6. Real speed numbers from shoppers' phones: already built (update, 3 November)
+On a closer look, the shop already measures this with the browser's own tools, with no extra library, and shows it
+under Overview › Marketing & traffic › Page speed. The only missing piece is the control room showing every shop's
+numbers side by side, which can come with the control room's next round.
 
-### 7. Blurry previews while photos load (ThumbHash)
-It saves a tiny blurred version of each photo, about 25 letters long, next to the book. Shoppers on slow phones see the
-cover's colours at once instead of an empty box. The photo resizing already done on upload can make it.
-Quick to medium: about a day. Licence MIT · 4.2k stars · finished and stable (last change May 2024, a small library
-that needs no updates) · [evanw/thumbhash](https://github.com/evanw/thumbhash)
+### 7. Blurry previews while photos load (ThumbHash): lower value than it looked
+The shop grid already shows a soft placeholder while each photo loads, so shoppers don't see an empty box. A blurred
+copy of the real photo would be a small extra polish. It would touch the photo upload, the nightly photo job and every
+place a photo is drawn, so it isn't worth doing yet.
+Licence MIT · 4.2k stars · stable · [evanw/thumbhash](https://github.com/evanw/thumbhash)
 
 ### 8. Selling inside AI chat assistants (Agentic Commerce Protocol)
 A new open standard from Stripe and OpenAI lets shoppers buy from a shop inside a chat assistant, paid through Stripe.
@@ -126,6 +124,11 @@ matter for a shop with thousands of products (for example a general store type).
 the same but needs a paid search server per shop, so Orama, which runs in the shopper's browser, is the better fit.
 Only when a big shop arrives. Licence Apache-2.0 · 10.6k stars · changed 18 October ·
 [oramasearch/orama](https://github.com/oramasearch/orama)
+
+### Found by the new random-bag checks (3 November)
+Turning the same random-bag checks on shipping and tax found one real bug: when a bag held products from two shipping
+profiles whose rates started at the same price, the shipping cost depended on which product went in the bag first.
+Fixed so it always charges the lower amount.
 
 ## Looked at and not recommended
 

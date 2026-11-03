@@ -5,7 +5,9 @@ import { safetyHeaders } from "./headers.js";
 
 // Each hosting file against the shared list. A rule applies to a page when its glob is "**" or its regex matches.
 const FILES = [
-  { file: "apps/shop/firebase.json", options: { camera: false, policy: false } },
+  // The shop allows its own pages the camera: barcode scanning in the admin, and the fair till of the combined admin
+  // (shop + stockroom plan, docs/combined-admin.md), which the shop serves at /stockroom/.
+  { file: "apps/shop/firebase.json", options: { camera: true, policy: false } },
   { file: "apps/stockroom/firebase.json", options: { camera: true } },
   { file: "waitlist/firebase.json", options: { framing: "DENY" } },
   { file: "status/firebase.json", options: { framing: "DENY" } },

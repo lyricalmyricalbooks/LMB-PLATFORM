@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstBookPhoto, galleryThemes, ownBooks, lookPreview, pressNameOf, suggestedThemes, welcomeShows } from "./chooseLook";
+import { firstBookPhoto, emailThemeFor, galleryThemes, ownBooks, lookPreview, pressNameOf, suggestedThemes, welcomeShows } from "./chooseLook";
 import { THEME_LIBRARY } from "./studio/themeLibrary";
 
 const HEX = /^#[0-9a-f]{3,8}$/i;
@@ -67,5 +67,13 @@ describe("the look previews show the first book's photo (plan 17.8)", () => {
     const style = (id: string) => lookPreview((THEME_LIBRARY as any[]).find(t => t.id === id)).style;
     expect(style("press-market")).toBe("market");
     expect(style("press-rows")).toBe("index");
+  });
+  it("picks the email theme that goes with the look, and undoes a leftover one", () => {
+    expect(emailThemeFor("press-market")).toBe("market");
+    expect(emailThemeFor("press-rows", "dark")).toBe("index");
+    expect(emailThemeFor("press-zine", "market")).toBe("light");
+    expect(emailThemeFor("press-zine", "index")).toBe("light");
+    expect(emailThemeFor("press-zine", "dark")).toBeNull();
+    expect(emailThemeFor("press-zine")).toBeNull();
   });
 });

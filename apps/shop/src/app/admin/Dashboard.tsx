@@ -42,7 +42,9 @@ import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
-import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
+import { COMBINED_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, sidebarItems, withoutPages } from "./riso/nav";
+import { DEFAULT_STOCKROOM_PAGE, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
+import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
 
@@ -78,8 +80,15 @@ function readBootRoute() {
   const hash = window.location.hash;
   const studio = parseStudioLocation(hash);
   if (studio) return { tab: "settings", settingsTab: "designer", studio };
-  return { ...(routeFromHash(hash) || { tab: "overview" }), studio: null as StudioLocation | null };
+  const route = routeFromHash(hash);
+  // `#stockroom/…` belongs to the combined admin only (shop + stockroom plan).
+  const usable = route && (route.tab !== STOCKROOM_TAB || COMBINED);
+  return { ...(usable ? route : { tab: "overview" }), studio: null as StudioLocation | null };
 }
+
+// One admin for a press with both apps (combined.ts): one menu, the stockroom's pages inside, no app switcher.
+const COMBINED = combinedAdmin();
+const ADMIN_MENU = COMBINED ? COMBINED_MENU : MENU;
 
 export function Dashboard() {
   const online = useOnline();
@@ -87,6 +96,9 @@ export function Dashboard() {
   useWebsiteTabName();
   const [boot] = useState(readBootRoute);
   const [activeTab, setActiveTab] = useState(boot.tab);
+  // The combined admin's stockroom frame: opened the first time a stockroom page is picked, then kept (StockroomFrame).
+  const [stockroomOpened, setStockroomOpened] = useState(false);
+  useEffect(() => { if (activeTab === STOCKROOM_TAB) setStockroomOpened(true); }, [activeTab]);
   const [user, setUser] = useState<any>(null);
   // Signed in with the Team's bookkeeper role: the Bookkeeping page instead of the admin.
   const [bookkeeper, setBookkeeper] = useState<{ email: string | null } | null>(null);
@@ -151,7 +163,7 @@ export function Dashboard() {
         return;
       }
       const route = routeFromHash(hash);
-      if (!route) return;
+      if (!route || (route.tab === STOCKROOM_TAB && !COMBINED)) return;
       setShowEditor(false);
       setActiveTab(route.tab);
       if (route.settingsTab) setSettingsTab(route.settingsTab);
@@ -454,6 +466,7 @@ export function Dashboard() {
   const settingsChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsPageOf(settingsTab);
   const pageTitle = isSettingsPage
     ? NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === settingsChild)?.label || "Settings"
+    : activeTab === STOCKROOM_TAB ? stockroomPage(subTab)?.label ?? "Stockroom"
     : w((PAGE_COPY[activeTab] || PAGE_COPY.overview).title);
   useEffect(() => {
     const previous = document.title;
@@ -555,10 +568,28 @@ export function Dashboard() {
     return true;
   };
   // A menu page: a module id, or `settings/<page>` (riso/nav.ts).
-  const openMenuPage = (id: string) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); };
+  const openMenuPage = (id: string) => {
+    if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length));
+    else if (id.startsWith(STOCKROOM_ITEM_PREFIX)) void openStockroomPage(id.slice(STOCKROOM_ITEM_PREFIX.length));
+    else void goTo(id);
+  };
+  // A stockroom page in the combined admin: the stockroom tab with that page as its sub tab (`#stockroom/<page>`).
+  // The tab and its page are set together, so the address gets one Back step and the frame opens on that page.
+  const openStockroomPage = async (page: string) => {
+    if (isSettingsPage && anyDirty() && !(await leaveSettings())) return;
+    setSubTabState({ page: STOCKROOM_TAB, id: stockroomPage(page)?.id ?? DEFAULT_STOCKROOM_PAGE });
+    setActiveTab(STOCKROOM_TAB);
+    setShowEditor(false);
+    setSelectedOrder(null);
+    setSidebarOpen(false);
+  };
+  const onStockroomPage = activeTab === STOCKROOM_TAB;
+  const stockroomPageId = stockroomPage(onStockroomPage ? subTab : undefined)?.id ?? DEFAULT_STOCKROOM_PAGE;
+
 
   // Shipping/Payments can also be entered as top-level tabs by ShopSettings.
-  const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview" : activeTab;
+  const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview"
+    : activeTab === STOCKROOM_TAB ? STOCKROOM_ITEM_PREFIX + stockroomPageId : activeTab;
   // An old page id (e.g. Email sender's "communications" from older What's new shortcuts) highlights the page it opens.
   const navChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsPageOf(settingsTab);
   // A Settings page picked straight from the sidebar: leaves the book editor / an open order too.
@@ -571,7 +602,8 @@ export function Dashboard() {
     setSidebarOpen(false);
   };
 
-  const pageCopy = PAGE_COPY[activeTab] || PAGE_COPY.overview;
+  const stockroomCopy = onStockroomPage ? stockroomPage(stockroomPageId) : undefined;
+  const pageCopy = stockroomCopy ? { title: stockroomCopy.label, description: stockroomCopy.description } : PAGE_COPY[activeTab] || PAGE_COPY.overview;
   const copy = { ...pageCopy, title: w(pageCopy.title), description: w(pageCopy.description) };
   const childLabel = NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === navChild)?.label;
   const trail: Array<{ label: string; onClick?: () => void }> = [{ label: "Admin", onClick: () => goTo("overview") }];
@@ -609,6 +641,7 @@ export function Dashboard() {
 
   const destinations = [
     ...nav.filter((n) => !n.children).map((n) => ({ id: n.id, label: n.label, run: () => goTo(n.id) })),
+    ...(COMBINED ? STOCKROOM_PAGES.map((p) => ({ id: `stockroom-${p.id}`, label: p.label, run: () => { void openStockroomPage(p.id); } })) : []),
     ...(NAV.find((n) => n.children)?.children || []).filter((c) => !hiddenPages.has(SETTINGS_ITEM_PREFIX + c.id)).map((c) => ({
       id: `settings-${c.id}`, label: `Settings · ${c.label}`,
       run: () => { setActiveTab("settings"); setSettingsTab(c.id); setShowEditor(false); setSelectedOrder(null); },
@@ -616,7 +649,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing"));
+  const migrated = activeTab === STOCKROOM_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -629,6 +662,8 @@ export function Dashboard() {
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "reviews": return <ReviewsModeration />;
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
+      // The stockroom's pages show in StockroomFrame below, kept open between visits.
+      case STOCKROOM_TAB: return null;
       case "orders":
         // Inbox-style desk: list + the full order page (all Stripe sync/refund/label actions) side by side.
         return <OrdersDesk selectedId={selectedOrder?.id || null} onSelect={(id) => setSelectedOrder(id ? { id } : null)} />;
@@ -696,7 +731,7 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={withoutPages(sidebarItems(nav), hiddenPages).map((n) => {
+            items={withoutPages(sidebarItems(nav, ADMIN_MENU), hiddenPages).map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
               // Privacy requests are handled in Settings › General.
               const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
@@ -706,17 +741,17 @@ export function Dashboard() {
               const badge = pages ? pages.reduce((sum, c) => sum + c.badge, 0) : badgeFor(n.id);
               return { ...n, label: w(n.label), ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
             })}
-            activeId={showEditor ? null : menuItemFor(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive)}
+            activeId={showEditor ? null : menuItemFor(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive, ADMIN_MENU)}
             activeChildId={navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
             onSelect={openMenuPage}
             onSelectChild={(_item, page) => openMenuPage(page)}
-            top={hasStockroom() ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
+            top={hasStockroom() && !COMBINED ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
             brand={
-              <a className="rp-brand-link" href="#overview" aria-label="Website admin: go to Overview"
+              <a className="rp-brand-link" href="#overview" aria-label={COMBINED ? "Admin: go to Overview" : "Website admin: go to Overview"}
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
                 <span className="rp-brand-text">
                   <span className="rp-wordmark">{brandWords.first}{brandWords.rest ? <em> {brandWords.rest}</em> : null}</span>
-                  <span className="rp-wordmark-sub">Website admin</span>
+                  <span className="rp-wordmark-sub">{COMBINED ? "Admin" : "Website admin"}</span>
                 </span>
               </a>
             }
@@ -741,7 +776,7 @@ export function Dashboard() {
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
               onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
             <div className="rp-topbar-actions">
-              {hasStockroom() && <AppSwitchPill />}
+              {hasStockroom() && !COMBINED && <AppSwitchPill />}
               <ShopStatusMenu
                 wallOn={!!settings?.design?.showUnderConstruction}
                 checkoutPaused={maintenanceOn}
@@ -798,6 +833,10 @@ export function Dashboard() {
               <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></PageAlertsSlot.Provider>
             </m.div>
           </AnimatePresence>
+          {COMBINED && stockroomOpened && (
+            <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder} look={adminLook} appearance={appearance}
+              onPage={(tab) => { if (activeTab === STOCKROOM_TAB && stockroomPage(tab)) openSubTab(tab, STOCKROOM_TAB); }} />
+          )}
         </div>
       </AppShell>
 

@@ -44,6 +44,8 @@ import { spendGuardsStep } from "./spend.js";
 import { domainOrigins, siteUrlOf } from "../services/domains/names.js";
 
 export const OWNER_WELCOME = "owner-welcome";
+// Step 14 after a plan change adds an app: the link to the new app.
+export const APP_ADDED = "app-added";
 
 /** The apps a shop's plan includes, as a list: ["shop"], ["stockroom"] or ["shop", "stockroom"]. */
 export function appsOf(shop) {
@@ -315,15 +317,32 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     {
       number: 14,
       name: "Email the owner their sign-in link",
-      check: async ({ shop }) => Boolean(await email.wasSent(shop.shopId, OWNER_WELCOME)),
+      // The registry row keeps which apps the owner has been sent a link to (`welcomedApps`). An app added later (a plan
+      // change) gets its own email; a shop made before this list existed counts as welcomed for what it had.
+      async check({ shop }) {
+        if (!(await email.wasSent(shop.shopId, OWNER_WELCOME))) return false;
+        const welcomed = (await registry.getShop(shop.shopId))?.welcomedApps;
+        if (!welcomed) return true;
+        const apps = appsOf(shop);
+        return apps.length === welcomed.length && apps.every((app) => welcomed.includes(app));
+      },
       async act({ shop }) {
-        const urls = await pageUrls(shop);
-        const links = {};
-        if (urls.shop) links.shopAdmin = `${urls.shop}/admin`;
-        if (urls.stockroom) links.stockroom = urls.stockroom;
-        if (Object.keys(links).length !== appsOf(shop).length) throw new Error("a page address is missing, so the email would have a broken link");
-        // The key lets the email service send it once even if this step is retried after a lost answer.
-        await email.send(shop.shopId, { kind: OWNER_WELCOME, to: shop.ownerEmail, pressName: shop.pressName, links, idempotencyKey: `${shop.shopId}-${OWNER_WELCOME}` });
+        const row = await registry.getShop(shop.shopId);
+        const first = !(await email.wasSent(shop.shopId, OWNER_WELCOME));
+        const apps = appsOf(shop);
+        const toSend = first ? apps : apps.filter((app) => !(row?.welcomedApps ?? apps).includes(app));
+        if (toSend.length) {
+          const urls = await pageUrls(shop);
+          const links = {};
+          if (toSend.includes("shop") && urls.shop) links.shopAdmin = `${urls.shop}/admin`;
+          if (toSend.includes("stockroom") && urls.stockroom) links.stockroom = urls.stockroom;
+          if (Object.keys(links).length !== toSend.length) throw new Error("a page address is missing, so the email would have a broken link");
+          // The key lets the email service send it once even if this step is retried after a lost answer; an app
+          // added again after it was dropped is a new email (the count of earlier welcomes is in the key).
+          const idempotencyKey = first ? `${shop.shopId}-${OWNER_WELCOME}` : `${shop.shopId}-${APP_ADDED}-${toSend.join("+")}-${row?.welcomes ?? 1}`;
+          await email.send(shop.shopId, { kind: first ? OWNER_WELCOME : APP_ADDED, to: shop.ownerEmail, pressName: shop.pressName, links, idempotencyKey });
+        }
+        await registry.updateShop(shop.shopId, { welcomedApps: apps, ...(toSend.length ? { welcomes: (row?.welcomes ?? (first ? 0 : 1)) + 1 } : {}) });
       },
     },
     {

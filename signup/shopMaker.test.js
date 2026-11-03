@@ -206,6 +206,10 @@ test("adding the website to a stockroom deploys the stockroom's pages again, so 
   assert.ok(pages.includes("shop"), "the website's pages were made");
   const stamps = (await registry.getShop(shopId)).pagesProfile;
   assert.equal(stamps.shop, stamps.stockroom, "both apps carry the same, newest profile");
+  const added = services.world.sent.get(`${shopId} app-added`);
+  assert.deepEqual(Object.keys(added.links), ["shopAdmin"], "the owner gets one email with the link to the new website admin");
+  assert.deepEqual((await registry.getShop(shopId)).welcomedApps, ["shop", "stockroom"]);
+  assert.deepEqual(await maker.sweep(), [], "and only once");
 });
 
 test("a plan change that stops for a person is reported once and not retried; a closed shop is left alone", async () => {

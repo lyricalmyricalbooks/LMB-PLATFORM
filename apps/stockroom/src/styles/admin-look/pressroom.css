@@ -1863,6 +1863,17 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 :root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-btn { border: 2px solid var(--rp-border-strong); }
 :root[data-admin-look="pop"] .rp:not(.studio-editor) .rp-tabs[data-variant="page"] { border-bottom: 3px solid var(--rp-border-strong); }
 
+/* The combined admin's stockroom pages (StockroomFrame.tsx): the stockroom fills the content area under the page
+   header; it is hidden until it says it is ready, so its own menu never flashes before it hides it. */
+.rp-stockroom { display: grid; gap: var(--rp-space-4); }
+.rp-stockroom[hidden] { display: none; }
+.rp-stockroom-frame {
+  display: block; width: 100%; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-canvas);
+  height: calc(100dvh - 180px); min-height: 420px;
+}
+.rp-stockroom-frame:not([data-ready]) { visibility: hidden; height: 0; min-height: 0; border: 0; }
+.rp-stockroom-offline { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+
 /* ── Desk and Bento: whole redesigns of the frame (Julian 3 Nov: "full on style overhauls") ──────────────────────────
    Paper, Ledger and Pop change the clothes; these two change how the admin is organised.
    Desk: a 60px icon rail that opens over the page on hover or focus, dense 13px type, mono labels, flat bordered panels.

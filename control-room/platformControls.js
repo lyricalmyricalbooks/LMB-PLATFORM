@@ -79,11 +79,17 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
         });
       }
       people.sort((a, b) => String(b.joinedAt ?? "").localeCompare(String(a.joinedAt ?? "")));
-      const making = signups ? (await signups.list()).filter((row) => row.status !== "ready") : [];
+      // Shops being made, and ready shops whose plan change (an app added or dropped) has stopped (signup/shopMaker.js).
+      const signupRows = signups ? await signups.list() : [];
+      const making = signupRows.filter((row) => row.status !== "ready").map(({ shopId, pressName, ownerEmail, status, message, canRetry, createdAt }) => ({ shopId, pressName, ownerEmail, status, message: message ?? null, canRetry: canRetry === true, createdAt }));
+      const planStops = signupRows.filter((row) => row.status === "ready" && row.planSync).map(({ shopId, pressName, ownerEmail, planSync, createdAt }) => ({
+        shopId, pressName, ownerEmail, status: "plan-change-stopped", createdAt, canRetry: planSync.needsHelp === true,
+        message: `Moving to the ${planSync.plan} plan stopped at step ${planSync.failedStep ?? "?"}${planSync.needsHelp ? " and needs you" : `, tried ${planSync.tries} time${planSync.tries === 1 ? "" : "s"}`}: ${planSync.error ?? "no reason given"}`,
+      }));
       return {
         waiting: people.filter((p) => !p.invited).length,
         people,
-        inTheMaking: making.map(({ shopId, pressName, ownerEmail, status, message, canRetry, createdAt }) => ({ shopId, pressName, ownerEmail, status, message: message ?? null, canRetry: canRetry === true, createdAt })),
+        inTheMaking: [...making, ...planStops],
       };
     },
 
@@ -104,13 +110,20 @@ export function createPlatformControls({ admins, settingsStore, env = process.en
 
     /**
      * Try again for a shop whose making stopped (the shop maker's sweep picks it up). Unlike the press's own button,
-     * this also restarts a stop that needed a person, once the person (you) has fixed what stopped it. Logged.
+     * this also restarts a stop that needed a person, once the person (you) has fixed what stopped it, and a stopped
+     * plan change on a ready shop. Logged.
      */
     async retry(claims, { shopId, reason } = {}) {
       const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);
       const row = signups && typeof shopId === "string" ? await signups.get(shopId) : null;
       if (!row) throw new ControlError(404, "There's no shop being made with that id.");
+      // A ready shop whose plan change stopped: the next sweep tries the change again at once.
+      if (row.status === "ready" && row.planSync) {
+        await signups.set(shopId, { ...row, planSync: null });
+        await record({ by, what: "plan-change-retry", shopId, detail: { reason: why, plan: row.planSync.plan, step: row.planSync.failedStep ?? null } });
+        return { shopId, status: "ready", changed: true };
+      }
       if (["ready", "queued", "making"].includes(row.status)) return { shopId, status: row.status, changed: false };
       await signups.set(shopId, { ...row, status: "queued", message: null, canRetry: false, nextTryAt: null, attempts: 0 });
       await record({ by, what: "signup-retry", shopId, detail: { reason: why, was: row.status } });

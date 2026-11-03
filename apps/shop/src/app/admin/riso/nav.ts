@@ -1,8 +1,9 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
-  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank,
 } from "lucide-react";
 import type { NavEntry } from "./components";
+import { STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
 
 export const NAV: NavEntry[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -40,12 +41,31 @@ export const SETTINGS_ITEM_PREFIX = "settings/";
  * other pages under it. NAV keeps every page (titles, admin search and routes read it); this only groups them.
  * A page's id here is its module id, or `settings/<page>` for a Settings page.
  */
-export const MENU: { label: string; icon: NavEntry["icon"]; pages: string[] }[] = [
+export type Menu = { label: string; icon: NavEntry["icon"]; pages: string[] }[];
+export const MENU: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
   { label: "Orders", icon: ShoppingCart, pages: ["orders", "customers", "discounts", "giftCards", "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews"] },
   { label: "Design", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
   { label: "Settings", icon: Settings, pages: ["general", "shipping", "payments", "taxes", "notifications", "team", "bookkeeping", "plan", "billing"].map((id) => SETTINGS_ITEM_PREFIX + id) },
+];
+
+const S = (id: string) => STOCKROOM_ITEM_PREFIX + id;
+const SETTINGS_PAGES = ["general", "shipping", "payments", "taxes", "notifications", "team", "bookkeeping", "plan", "billing"].map((id) => SETTINGS_ITEM_PREFIX + id);
+
+/**
+ * The combined admin's menu (shop + stockroom plan, admin/combined.ts; design in docs/combined-admin.md): the website's
+ * pages and the stockroom's in one menu, grouped by the job (Shopify-style), never by which app a page came from.
+ */
+export const COMBINED_MENU: Menu = [
+  { label: "Home", icon: LayoutDashboard, pages: ["overview", S("todo")] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", S("history"), S("manual"), S("shipping"), "customers", S("customers"), "messages"] },
+  { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", S("dashboard"), "reviews"] },
+  { label: "Sell in person", icon: Store, pages: [S("pos"), S("consignment"), S("qrcodes")] },
+  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", S("opencall")] },
+  { label: "Money", icon: PiggyBank, pages: [S("reconcile"), S("expenses"), S("taxcenter"), S("intel")] },
+  { label: "Online store", icon: Palette, pages: [SETTINGS_ITEM_PREFIX + "designer"] },
+  { label: "Settings", icon: Settings, pages: [...SETTINGS_PAGES, S("sheets"), S("backups")] },
 ];
 
 /** Every page with its menu id and label, in NAV order. */
@@ -55,10 +75,10 @@ export function navPages(nav: NavEntry[]): { id: string; label: string }[] {
     : [{ id: entry.id, label: entry.label }]);
 }
 
-/** The five menu items. An item's id is its first page; an item with more than one page lists them as children. */
-export function sidebarItems(nav: NavEntry[]): NavEntry[] {
-  const labels = new Map(navPages(nav).map((p) => [p.id, p.label]));
-  return MENU.map((group) => ({
+/** The menu items. An item's id is its first page; an item with more than one page lists them as children. */
+export function sidebarItems(nav: NavEntry[], menu: Menu = MENU): NavEntry[] {
+  const labels = new Map([...navPages(nav).map((p) => [p.id, p.label] as const), ...STOCKROOM_PAGES.map((p) => [S(p.id), p.label] as const)]);
+  return menu.map((group) => ({
     id: group.pages[0], label: group.label, icon: group.icon,
     ...(group.pages.length > 1 ? { children: group.pages.map((id) => ({ id, label: labels.get(id) || id })) } : {}),
   }));
@@ -71,8 +91,8 @@ export function withoutPages(items: NavEntry[], hidden: ReadonlySet<string>): Na
 }
 
 /** The menu item (its id) that holds a page. */
-export function menuItemFor(page: string): string {
-  return MENU.find((group) => group.pages.includes(page))?.pages[0] ?? page;
+export function menuItemFor(page: string, menu: Menu = MENU): string {
+  return menu.find((group) => group.pages.includes(page))?.pages[0] ?? page;
 }
 
 export const PAGE_COPY: Record<string, { title: string; description: string }> = {

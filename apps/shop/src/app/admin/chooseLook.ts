@@ -123,6 +123,17 @@ export function firstBookPhoto(books: any[] | null | undefined): string {
 }
 
 /**
+ * The email theme (emailTheme.ts) that goes with a shop look: Market stall and Index rows have their own email colours.
+ * Any other look returns null, which leaves a plain "light"/"dark" choice alone but turns a leftover Market stall or
+ * Index rows email theme back to "light", so a press that changes its mind is not left with the old colours.
+ */
+export function emailThemeFor(themeId: string, current?: string | null): "market" | "index" | "light" | null {
+  if (themeId === "press-market") return "market";
+  if (themeId === "press-rows") return "index";
+  return current === "market" || current === "index" ? "light" : null;
+}
+
+/**
  * The press's own books for the look previews: up to `limit` of them, each with its title and its first secure photo, so
  * every look shows the press's real covers and names. A book with neither a title nor a photo is skipped.
  */
