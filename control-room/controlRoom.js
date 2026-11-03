@@ -13,6 +13,7 @@
 //   publish       (shopId) -> { apps }: puts the saved /shop-profile.js live (profilePublisher below)
 //   shopAccess    supportSignIn(shopId, { by, reason, minutes, mode }) -> { url }: a short sign-in to the shop's admin for
 //                 support (supportAccess.js; the shop copy shows a banner and treats it as staff until it ends).
+//                 removeTwoStep(shopId, email) -> { found, removed }: two-step sign-in off for one person (22.11)
 //   repairs       optional: the repair queue (repairs.js): open(shopId), list({ status }), markFixed(id, { by, note })
 //   selfCheck     optional: the self-checks (selfChecks.js): check(shopId, { why }), run after every change here
 //   shopData      optional: a shop's own database, get(shopId, path) / set(shopId, path, data) (clients/shop.js);
@@ -553,6 +554,26 @@ export function createControlRoom({
      * "Close this shop" for abuse (plan 8.4): its checkout and pages close (closure.js), with a reason. Logged before
      * anything changes. Closing a closed shop changes nothing.
      */
+    /**
+     * Two-step sign-in off for one person on a shop (plan 22.11), for someone who lost both their phone and their backup
+     * codes. Only after the platform admin has checked it's really them: the reason says how, and it is logged in the
+     * registry and the shop's own audit log before anything changes. Google alone then lets them in, and their admin's
+     * Settings › Security asks them to set it up again.
+     */
+    async resetTwoStep(claims, { shopId, email, reason } = {}) {
+      const by = adminOf(claims, admins, now().getTime());
+      const why = reasonOf(reason);
+      const address = typeof email === "string" ? email.trim().toLowerCase() : "";
+      if (!/^[^\s@<>,]+@[^\s@<>,]+\.[^\s@<>,]+$/.test(address)) throw new ControlError(400, "Type the email address the person signs in with.");
+      const row = await shopOr404(shopId);
+      if (row.status !== "live") throw new ControlError(409, "That shop isn't live yet, so no one signs in to it.");
+      if (!shopAccess?.removeTwoStep) throw new ControlError(503, "The control room can't reach the shop's sign-in yet, so nothing was changed.");
+      await log(shopId, "two-step-reset", { by, reason: why, email: address });
+      const { found, removed } = await shopAccess.removeTwoStep(shopId, address);
+      if (!found) throw new ControlError(404, `No one signs in to ${row.pressName ?? shopId} as ${address}. Nothing was changed.`);
+      return { shopId, email: address, removed };
+    },
+
     async closeShop(claims, { shopId, reason } = {}) {
       const by = adminOf(claims, admins, now().getTime());
       const why = reasonOf(reason);

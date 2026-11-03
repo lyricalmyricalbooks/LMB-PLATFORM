@@ -11,7 +11,8 @@
 //                       projects.accounts          POST https://identitytoolkit.googleapis.com/v1/projects/{project}/accounts
 //                       body { email, emailVerified } -> { localId }
 //                       projects.accounts.update   POST https://identitytoolkit.googleapis.com/v1/projects/{project}/accounts:update
-//                       body { localId, emailVerified }
+//                       body { localId, emailVerified }; body { localId, mfa: {} } takes every second step off (what the
+//                       Admin SDK sends for `multiFactor: { enrolledFactors: null }`; a lookup lists them as `mfaInfo`)
 //                       accounts.signInWithCustomToken POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key={web key}
 //                       body { token, returnSecureToken: true } -> { idToken, refreshToken, expiresIn }
 // The custom token's claims (iss, sub, aud, iat, exp, uid) follow Firebase's "create custom tokens using a third-party
@@ -60,7 +61,20 @@ export function identityClient({ fetch, token, now = () => new Date() }) {
     return result;
   }
 
-  return { ensureUser, customToken, signIn };
+  /**
+   * Takes every second step (authenticator app, phone) off the sign-in of `email` on the shop's project, for someone
+   * who lost both their phone and their backup codes (control room, plan 22.11). { found, removed }: removed counts them.
+   */
+  async function removeSecondSteps(projectId, email) {
+    const { users = [] } = await call("POST", `${IDENTITY}/projects/${projectId}/accounts:lookup`, { body: { email: [email] } });
+    const found = users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
+    if (!found) return { found: false, removed: 0 };
+    const removed = Array.isArray(found.mfaInfo) ? found.mfaInfo.length : 0;
+    if (removed) await call("POST", `${IDENTITY}/projects/${projectId}/accounts:update`, { body: { localId: found.localId, mfa: {} } });
+    return { found: true, removed };
+  }
+
+  return { ensureUser, customToken, signIn, removeSecondSteps };
 }
 
 /**

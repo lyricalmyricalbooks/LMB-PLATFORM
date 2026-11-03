@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import backup from "./twoStepBackup.js";
 
-const { cleanBackupCode, hashCode, makeBackupCodes, makeProblem, backupStatus, makeBackup, googleEmailOf, spendBackup, BackupRefused, FRESH_MS } = backup;
+const { backupUsedEmail, cleanBackupCode, hashCode, makeBackupCodes, makeProblem, backupStatus, makeBackup, googleEmailOf, spendBackup, BackupRefused, FRESH_MS } = backup;
 
 // A small Firestore stand-in: docs by "collection/id", audit-log entries in a list, transactions run straight through.
 function fakeDb() {
@@ -145,5 +145,44 @@ describe("using a code", () => {
     const auth = fakeAuth([{ uid: "u1", email: "owner@example.com", multiFactor: { enrolledFactors: [totp(), phone] } }]);
     await spendBackup({ db, auth, google: { idToken: "t" }, code: codes[0], nowIso: "x", fetchImpl: googleSays({ email: "owner@example.com" }) });
     expect(auth.updates[0].change.multiFactor.enrolledFactors).toEqual([phone]);
+  });
+});
+
+describe("the email after a backup code is used", () => {
+  it("goes to the person and the owner, says what happened and what to do if it wasn't them", () => {
+    const mail = backupUsedEmail({ email: "staff@example.com", ownerEmail: "Owner@Example.com", left: 1, shopName: "Moth Press", when: "3 November 2026, 4:00 p.m.", adminLink: "https://moth.example/admin#settings/security" });
+    expect(mail.to).toEqual(["staff@example.com", "owner@example.com"]);
+    expect(mail.subject).toBe("A backup code was used to sign in to Moth Press");
+    expect(mail.html).toContain("as <strong>staff@example.com</strong>");
+    expect(mail.html).toContain("1 backup code left");
+    expect(mail.html).toContain("change that Google account's password now");
+    expect(mail.html).toContain('href="https://moth.example/admin#settings/security"');
+  });
+
+  it("sends one copy when the owner used it, and escapes what it shows", () => {
+    const mail = backupUsedEmail({ email: "owner@example.com", ownerEmail: "owner@example.com", left: 3, shopName: "<b>Moth</b>", when: "x" });
+    expect(mail.to).toEqual(["owner@example.com"]);
+    expect(mail.html).toContain("&lt;b&gt;Moth&lt;/b&gt;");
+    expect(mail.html).not.toContain("<b>Moth</b>");
+  });
+
+  it("is sent after a code works, and a failed send never undoes the sign-in", async () => {
+    const db = fakeDb();
+    const { codes } = await makeBackup({ db, uid: "u1", email: "owner@example.com", nowIso: "x" });
+    const auth = fakeAuth([{ uid: "u1", email: "owner@example.com", multiFactor: { enrolledFactors: [totp()] } }]);
+    const told = [];
+    const args = { db, auth, google: { idToken: "t" }, nowIso: "x", fetchImpl: googleSays({ email: "owner@example.com" }) };
+    await spendBackup({ ...args, code: codes[0], notify: info => { told.push(info); } });
+    expect(told).toEqual([{ email: "owner@example.com", left: 9, nowIso: "x" }]);
+    const result = await spendBackup({ ...args, code: codes[1], notify: async () => { throw new Error("mail down"); } });
+    expect(result).toEqual({ left: 8 });
+  });
+
+  it("isn't sent for a wrong code", async () => {
+    const db = fakeDb();
+    await makeBackup({ db, uid: "u1", email: "owner@example.com", nowIso: "x" });
+    const auth = fakeAuth([{ uid: "u1", email: "owner@example.com", multiFactor: { enrolledFactors: [totp()] } }]);
+    const notify = () => { throw new Error("should not be called"); };
+    await expect(spendBackup({ db, auth, google: { idToken: "t" }, code: "AAAAA-AAAAA", nowIso: "x", fetchImpl: googleSays({ email: "owner@example.com" }), notify })).rejects.toThrow(/didn't work/);
   });
 });

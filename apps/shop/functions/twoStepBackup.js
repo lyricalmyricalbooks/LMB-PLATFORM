@@ -10,7 +10,8 @@
 // - Using a code needs Google's own proof of the first step: the Google sign-in token from the sign-in that asked for
 //   the code. It must be checked by Google, for a verified address, and that address must belong to this person. So a
 //   code alone never lets anyone in, and a Google password alone never does either.
-// - Each use is written to the shop's audit log, and tries are rate-limited per connection.
+// - Each use is written to the shop's audit log and emailed to the person and the shop owner (`backupUsedEmail`), so a
+//   stolen code can't be used quietly. Tries are rate-limited per connection.
 const crypto = require("crypto");
 
 const CODE_COUNT = 10;
@@ -92,13 +93,31 @@ class BackupRefused extends Error {
   }
 }
 
+const esc = v => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** The email after a backup code was used: { to, subject, html }. The owner gets a copy when it wasn't them. */
+function backupUsedEmail({ email, ownerEmail, left, shopName, when, adminLink }) {
+  const owner = String(ownerEmail || "").toLowerCase();
+  const to = [...new Set([email, owner].filter(a => /^[^\s@<>,]+@[^\s@<>,]+$/.test(a || "")))];
+  const shop = shopName || "your shop";
+  const codes = left === 1 ? "1 backup code" : `${left} backup codes`;
+  const html = [
+    `<p>Someone signed in to ${esc(shop)}'s admin as <strong>${esc(email)}</strong> with a two-step backup code on ${esc(when)}.</p>`,
+    `<p>The authenticator app was taken off that sign-in, so Google alone lets it in until two-step is set up again. ${esc(codes)} left.</p>`,
+    "<p><strong>If this was you</strong>, set up two-step sign-in on your new phone in Settings, Security.</p>",
+    "<p><strong>If it wasn't</strong>, change that Google account's password now, then open Settings, Security, set up two-step again and make new backup codes. That stops the old ones working.</p>",
+    adminLink ? `<p><a href="${esc(adminLink)}">Open Settings, Security</a></p>` : "",
+  ].join("");
+  return { to, subject: `A backup code was used to sign in to ${shop}`, html };
+}
+
 const WRONG = "That backup code didn't work. Check it against your saved list: each code works once.";
 
 /**
  * Uses one backup code: takes the authenticator app off this person's sign-in so Google alone lets them in.
  * `google` is { idToken, accessToken } from the Google sign-in that asked for the code. Returns { left }.
  */
-async function spendBackup({ db, auth, google, code, nowIso, fetchImpl }) {
+async function spendBackup({ db, auth, google, code, nowIso, fetchImpl, notify }) {
   const email = await googleEmailOf(google || {}, fetchImpl);
   if (!email) throw new BackupRefused("Sign in with Google again, then type your backup code.", 401);
   let user;
@@ -124,7 +143,9 @@ async function spendBackup({ db, auth, google, code, nowIso, fetchImpl }) {
     message: `${email} signed in with a two-step backup code, so their authenticator app was taken off (${left} code${left === 1 ? "" : "s"} left)`,
     createdAt: nowIso,
   }).catch(err => console.warn(`twoStepBackup: audit log not written: ${err.message}`));
+  // The email never undoes the sign-in: a failed send is logged (the mailer's own retry queue keeps trying).
+  if (notify) await Promise.resolve().then(() => notify({ email, left, nowIso })).catch(err => console.warn(`twoStepBackup: email not sent: ${err.message}`));
   return { left };
 }
 
-module.exports = { CODE_COUNT, cleanBackupCode, hashCode, makeBackupCodes, makeProblem, backupStatus, makeBackup, googleEmailOf, spendBackup, BackupRefused, FRESH_MS };
+module.exports = { backupUsedEmail, CODE_COUNT, cleanBackupCode, hashCode, makeBackupCodes, makeProblem, backupStatus, makeBackup, googleEmailOf, spendBackup, BackupRefused, FRESH_MS };

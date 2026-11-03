@@ -186,7 +186,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const accessRequests = createAccessRequests({ store: firestoreAccessRequests(platform), email, settings, now });
   const deliveryStats = firestoreDeliveryStats(platform);
   const room = createControlRoom({
-    registry, auditLog, profileFiles, shopAccess: notConnectedClient(NOT_CONNECTED.supportSignIn, ["supportSignIn"]), repairs, signups: stores.signups, shopData,
+    registry, auditLog, profileFiles, shopAccess: { ...notConnectedClient(NOT_CONNECTED.supportSignIn, ["supportSignIn"]), ...notConnectedClient(NOT_CONNECTED.twoStepReset, ["removeTwoStep"]) }, repairs, signups: stores.signups, shopData,
     publish: profilePublisher({ deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now,
     googleReady: (at) => googleReadiness(readGoogleConfig(env), at),

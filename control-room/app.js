@@ -460,6 +460,26 @@ function card(shop) {
     check.disabled = false;
   });
 
+  // Lost phone AND lost backup codes (plan 22.11): two-step sign-in off for one person, only once you've checked it's them.
+  const twoStep = button("Turn off two-step for someone", "secondary", { disabled: shop.status !== "live" });
+  twoStep.addEventListener("click", async () => {
+    const email = (window.prompt(`Turn off two-step sign-in for one person on ${shop.pressName}.\n\nThe email address they sign in with:`) ?? "").trim();
+    if (!email) return;
+    const reason = askWhy(`Turn off two-step sign-in for ${email}. Say how you checked it's really them (for example, a reply from the owner's email address on file).`);
+    if (!reason) return;
+    if (!window.confirm(`After this, Google alone lets ${email} into ${shop.pressName}'s admin until they set up two-step again. Go on?`)) return;
+    twoStep.disabled = true;
+    try {
+      const { removed } = await api("POST", "/control/two-step-reset", { shopId: shop.shopId, email, reason });
+      status.textContent = removed
+        ? `Two-step sign-in is off for ${email}. Ask them to set it up again under Settings, Security. It's in the shop's log.`
+        : `${email} didn't have two-step sign-in on, so nothing changed. It's in the shop's log.`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    }
+    twoStep.disabled = false;
+  });
+
   // Close for abuse (plan 8.4): checkout and pages close; the shop's pause page shows instead. Reversible.
   const closing = button(shop.closed ? "Open this shop again" : "Close this shop", shop.closed ? "secondary" : "danger");
   closing.addEventListener("click", async () => {
@@ -511,7 +531,7 @@ function card(shop) {
       shop.closed ? pill("danger", `closed by ${shop.closed.by}`) : null),
     meta(`status: ${shop.status ?? "?"}`, shop.access ? `billing: ${shop.access}` : null, shop.paymentsMoved ? `cards: ${PAYMENT_WORDS[shop.paymentsMoved.to]}` : null),
     shop.health.reasons.length ? el("ul", { className: "cr-steps", style: "margin-top: 12px" }, ...shop.health.reasons.map((reason) => el("li", { textContent: reason }))) : null,
-    el("div", { className: "cr-actions" }, act, change, check, closing, exportButton(shop)),
+    el("div", { className: "cr-actions" }, act, change, check, twoStep, closing, exportButton(shop)),
     accessSlot,
     switches ? el("h3", { className: "cr-section", textContent: "Switches for this shop" }) : null,
     switches,
@@ -965,7 +985,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 // ── Activity log (plan 9.9): read only. ──
 const ACTIVITY_WORDS = {
   "settings-changed": "changed the platform settings", "waitlist-invite": "invited someone from the waitlist", "switch-set": "set a switch",
-  "act-as": "opened the shop's admin as support", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
+  "act-as": "opened the shop's admin as support", "two-step-reset": "turned off two-step sign-in for someone", "test-shop-reset": "reset the test shop's sample books", "google-run-again": "ran a Google step again", "shop-closed": "closed the shop", "shop-reopened": "opened the shop again",
   "newsletter-resumed": "turned the newsletter back on", "fee-change-scheduled": "changed the fee on each order (starts in 30 days)",
   "fee-change-cancelled": "cancelled a waiting fee change", "new-shop-switch": "changed what new shops start with", "signup-retry": "tried making the shop again", "plan-change-retry": "tried the plan change again",
   "access-asked": "asked the press for a yes to make changes",
