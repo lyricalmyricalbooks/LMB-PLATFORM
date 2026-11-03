@@ -10,6 +10,11 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("./inventoryLinkApi", () => ({ inventoryLinkApi: { links: async () => ({}) } }));
 vi.mock("./api", () => ({ adminApi: api }));
+const oldShop = vi.hoisted(() => ({ readOldShopAddress: vi.fn(async (_address: string) => ({
+  host: "moth.example", notes: ["Stock counts aren't shown publicly, so check how many you have of each before you open."],
+  csv: "Handle,Title,Variant Price,Image Src,Old page address\nmoth-songs,Moth Songs,20,https://img.example/m.jpg,/product/moth-songs\n",
+})) }));
+vi.mock("./oldShopApi", () => oldShop);
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const { BookImportDialog } = await import("./BookImportDialog");
 
@@ -47,5 +52,37 @@ describe("BookImportDialog", () => {
     expect(api.createBook).toHaveBeenCalledWith(expect.objectContaining({ title: "New Moon", retailPrice: 15, status: "draft" }));
     expect(onDone).toHaveBeenCalledWith(["new1"]);
     expect(document.body.textContent).toContain("2 of 2 saved");
+  });
+
+  it("reads an old shop's address into the same preview (plan 23.11)", async () => {
+    const host = document.createElement("div"); document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(h(BookImportDialog, { books, onClose: () => {}, onDone: () => {} })));
+    const field = document.querySelector('input[placeholder="yourshop.com"]') as HTMLInputElement;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => { setValue.call(field, " moth.example "); field.dispatchEvent(new Event("input", { bubbles: true })); });
+    const button = [...document.querySelectorAll("button")].find(b => /Bring my books over/.test(b.textContent || ""))!;
+    await act(async () => { button.click(); });
+    await flush();
+    expect(oldShop.readOldShopAddress).toHaveBeenCalledWith("moth.example");
+    const text = document.body.textContent || "";
+    expect(text).toContain("moth.example products.csv");
+    expect(text).toContain("1 new");
+    expect(text).toContain("Stock counts aren't shown publicly");
+    expect(text).toMatch(/Links to these books on your old shop/);
+  });
+
+  it("shows the server's plain words when the address can't be read", async () => {
+    oldShop.readOldShopAddress.mockRejectedValueOnce(new Error("We couldn't read the products at that address."));
+    const host = document.createElement("div"); document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(h(BookImportDialog, { books, onClose: () => {}, onDone: () => {} })));
+    const field = document.querySelector('input[placeholder="yourshop.com"]') as HTMLInputElement;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => { setValue.call(field, "nowhere.example"); field.dispatchEvent(new Event("input", { bubbles: true })); });
+    await act(async () => { [...document.querySelectorAll("button")].find(b => /Bring my books over/.test(b.textContent || ""))!.click(); });
+    await flush();
+    expect(document.body.textContent).toContain("We couldn't read the products at that address.");
+    expect(document.body.textContent).not.toContain("1 new");
   });
 });
