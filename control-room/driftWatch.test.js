@@ -188,3 +188,39 @@ test("the Shops list carries each press's drift and snooze, for the Risk filter 
   assert.equal(by.wasp.snoozedUntil, ago(-5));
   assert.equal(by.trial.snoozedUntil, null, "a snooze that has ended isn't shown");
 });
+
+test("fair till checkouts count as sales, so a press selling at fairs isn't drifting", async () => {
+  const { fakeStockroomData } = await import("../services/billing/closingFakes.js");
+  const registry = fakeRegistry();
+  const shopData = fakeShopData();
+  const stockroomData = fakeStockroomData();
+  await registry.createShop("fair", { shopId: "fair", pressName: "Fair Press", ownerEmail: "f@example.com", plan: "both", status: "live", billing: { status: "active" }, liveAt: ago(120) });
+  // Five website orders five weeks ago and none since, but three fair checkouts last week (one over two books, one voided).
+  for (const days of [33, 34, 35, 36, 37]) await shopData.set("fair", `orders/o${days}`, { paymentStatus: "paid", createdAt: ago(days) });
+  await stockroomData.set("fair", "settings/catalog", { data: JSON.stringify({ a: {}, b: {} }), ts: 1 });
+  const day = (d) => ago(d).slice(0, 10);
+  await stockroomData.set("fair", "books/a/data/hist", { data: JSON.stringify([{ num: "P1", chan: "Book Fair", qty: 1, date: day(6) }, { num: "P2", chan: "Book Fair", qty: 1, date: day(6) }, { num: "P9", chan: "Book Fair", qty: 1, date: day(6), voided: true }]), ts: 1 });
+  await stockroomData.set("fair", "books/b/data/hist", { data: JSON.stringify([{ num: "P1", chan: "Book Fair", qty: 1, date: day(6) }, { num: "P3", chan: "Book Fair", qty: 2, date: day(5) }]), ts: 1 });
+  const shopAccess = fakeShopAccess();
+  shopAccess.lastSignIn.set("fair f@example.com", ago(1));
+  const watch = createDriftWatch({ registry, shopData, stockroomData, shopAccess, email: { sendPlatform: async () => {} }, settings: {}, now: () => new Date(NOW) });
+  await watch.sweep();
+  const drift = (await registry.getShop("fair")).drift;
+  assert.deepEqual(drift.orders, { recent: 3, before: 5, fair: { recent: 3, before: 0 } });
+  assert.equal(drift.level, "fine", "3 of 5 isn't half or less");
+  // A shop-only plan never reads a stockroom.
+  await registry.updateShop("fair", { plan: "shop" });
+  await watch.sweep();
+  assert.deepEqual((await registry.getShop("fair")).drift.orders, { recent: 0, before: 5 });
+});
+
+test("a stalled move shows when the shop's own reminder email went", async () => {
+  const w = await world();
+  const day = (d) => ago(d).slice(0, 10);
+  await w.shopData.set("trial", "firstWeek/start", { bring: { from: "online" }, done: { "move-customers": day(12), "move-orders": day(9) } });
+  await w.shopData.set("trial", "systemStatus/moveReminder", { forLastMoved: `${day(9)}T00:00:00.000Z`, sentAt: ago(2) });
+  await w.watch.sweep();
+  assert.equal((await w.registry.getShop("trial")).moveStuck.remindedAt, ago(2));
+  const { needs } = todaySummary({ rows: await w.registry.listShops(), settings, now: new Date(NOW) });
+  assert.match(needs.find((n) => n.kind === "move").words, new RegExp(`the shop emailed them a reminder ${ago(2).slice(0, 10)}`));
+});

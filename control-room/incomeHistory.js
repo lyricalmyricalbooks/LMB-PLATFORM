@@ -8,6 +8,7 @@
 //   {
 //     day, at, currency,
 //     incomeCents, paying, trial, paused, closed,
+//     atRisk: { count, cents }   paying presses the drift watch marks drifting or to watch, and what they pay a month
 //     first          true on the first night ever (nothing to compare with, so no movements)
 //     moves: {
 //       newPaying, newPayingCents       shops paying tonight that weren't last time (a trial that converted included)
@@ -26,6 +27,7 @@
 // Store (fakes.js `fakeIncomeHistory`, clients/stores.js `firestoreIncomeHistory`):
 //   get(day) -> record | null; set(day, record); list({ since }) -> records with day >= since, oldest first
 import { PAYING, monthlyCents, planCounts } from "./today.js";
+import { atRiskSummary } from "./driftWatch.js";
 
 const DAY = 86_400_000;
 /** How far back the trial-to-paying rate looks. */
@@ -90,6 +92,7 @@ export async function snapshotIncome({ registry, settings, store, now = new Date
   const tonight = {};
   for (const row of shops) tonight[row.shopId] = { state: stateOf(row), cents: monthlyCents(row, settings) };
   // The night before (or the last night that ran): never today's own record, so a second run gives the same numbers.
+  const risk = atRiskSummary(shops, settings, now.getTime());
   const earlier = (await store.list({ since: monthBefore(day, 13) })).filter((r) => r.day < day).at(-1) ?? null;
   const record = {
     day,
@@ -97,6 +100,7 @@ export async function snapshotIncome({ registry, settings, store, now = new Date
     currency: settings.currency,
     incomeCents: Object.values(tonight).reduce((sum, shop) => sum + shop.cents, 0),
     ...planCounts(shops),
+    atRisk: { count: risk.presses.length, cents: risk.drifting.monthlyCents + risk.watch.monthlyCents },
     first: !earlier,
     moves: movements(earlier?.shops ?? tonight, tonight),
     shops: tonight,
@@ -120,8 +124,8 @@ export async function history({ store, months = 12, now = new Date() }) {
   const line = keys.map((month) => {
     const last = records.filter((r) => r.day.startsWith(`${month}-`)).at(-1);
     return last
-      ? { month, day: last.day, incomeCents: last.incomeCents, paying: last.paying, trial: last.trial, paused: last.paused, closed: last.closed }
-      : { month, day: null, incomeCents: null, paying: null, trial: null, paused: null, closed: null };
+      ? { month, day: last.day, incomeCents: last.incomeCents, paying: last.paying, trial: last.trial, paused: last.paused, closed: last.closed, atRisk: last.atRisk ?? null }
+      : { month, day: null, incomeCents: null, paying: null, trial: null, paused: null, closed: null, atRisk: null };
   });
   const thisMonth = records.filter((r) => r.day.startsWith(`${keys.at(-1)}-`));
   const rateSince = dayKey(new Date(now.getTime() - TRIAL_RATE_DAYS * DAY));
