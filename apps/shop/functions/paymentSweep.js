@@ -15,7 +15,9 @@ function suspectOrders(orders, nowMs = Date.now()) {
     const hasIntent = isPaymentId(o.stripePaymentIntentId);
     const hasSession = isCheckoutId(o.stripeCheckoutSessionId);
     if (!hasIntent && !hasSession) return false;
-    const age = nowMs - Date.parse(o.createdAt || "");
+    // A payment link's payment starts when the customer presses Pay now, often days after the order was made (plan 21.1):
+    // its age counts from the last change (opening the card page updates it).
+    const age = nowMs - Date.parse((o.source === "payment_link" ? o.updatedAt : "") || o.createdAt || "");
     return age >= MIN_AGE_MS && age <= MAX_AGE_MS;
   });
 }

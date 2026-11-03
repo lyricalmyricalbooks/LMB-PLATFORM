@@ -592,3 +592,18 @@ test('payment links: an ordinary order is priced exactly as before', async () =>
   expect(unitPrices(priced)).toEqual([40, 66, 20]);
   expect(priced.discount).toBe(83);
 });
+
+test('payment links: a card order to the rest of the shop, the owner sets the quantity, and a total a card can take', async () => {
+  const docs = linkDocs();
+  docs.books.tee = { ...docs.books.tee, trackInventory: true, stockLevel: 50 };
+  const app = harness({ docs });
+  // Refunds, the admin and stock read "Stripe" as a card order (a Square shop's too).
+  const { orderId, order } = await makeLink(app, { lines: [{ id: 'tee', quantity: 30, price: 20 }] });
+  expect(order.paymentMethod).toBe('Stripe');
+  // 30 copies is past the per-shopper hold cap, but the owner set it: paying holds them.
+  const pay = await app.call('createStripeCheckoutSession', { orderId, currency: 'cad', returnUrl: `http://localhost:5173/track?orderId=${orderId}`, embedded: false }, { orderKey: order.trackingKey });
+  expect(pay.code).toBe(200);
+  const free = await app.call('createStripeCheckoutSession', linkBody({ lines: [{ id: 'tee', quantity: 1, price: 0 }], shipping: null }), { admin: true });
+  expect(free.code).toBe(400);
+  expect(free.value.error).toMatch(/0\.50/);
+});

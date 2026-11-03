@@ -991,4 +991,7 @@ with the claim `support: { by, reason, until }` (`until` in seconds, at most an 
   link and changed lines (`payment_link_closed`), uses the agreed prices, no discount or stockist pricing, the agreed shipping, tax as usual.
   A record whose `keyHash` doesn't match the order's key is ignored (an order made later at a deleted order's id is priced normally). There is
   no new payment code: the link is the order page (`/track?orderId&key`), whose **Pay now** (`features/site/PaymentLinkPay.tsx`) opens the
-  normal hosted card page; the order's own Cancel closes the link. Tests: `r2Payments.test.js` › payment links.
+  normal hosted card page and returns to the order page (not the bag); the order's own Cancel closes the link.
+- Link orders carry `paymentMethod: "Stripe"` like every card order (refund wording, test-mode stock), skip the per-shopper hold caps (the
+  owner set the quantity), must total at least $0.50, are swept for missed webhooks by `updatedAt` (`paymentSweep.js`), and an erase
+  blanks their note. Tests: `r2Payments.test.js` › payment links.
