@@ -45,6 +45,7 @@
 //   hooks      { onClose: [fn], beforeDelete: [fn] }, each fn(shop, { at }) -> promise. None by default.
 //   settings   platformSettings(env): platformUrl, for the links
 import { dateText } from "./billing.js";
+import { mailLanguage } from "../email/templatesFr.js";
 
 const DAY = 86400_000;
 export const PAUSED_DAYS = 60;
@@ -105,6 +106,8 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
     if (!shop.ownerEmail) return;
     await email.sendPlatform({
       kind, to: shop.ownerEmail, shopId: shop.shopId, idempotencyKey: `closing/${shop.shopId}/${key}`,
+      // The billing row's language and province, mirrored on the registry (billing.js mirror; templatesFr.js).
+      language: mailLanguage(shop.billing ?? {}),
       data: { pressName: shop.pressName || shop.shopId, link: link(shop.shopId), ...data },
     });
   }
@@ -137,7 +140,7 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
       warned30At: null, warned7At: null, hooks: {}, problem: null,
     });
     await log(shop.shopId, "closed", { downloadUntil });
-    await send(shop, "shop-closed", { date: dateText(downloadUntil) }, `closed/${next.closedAt}`);
+    await send(shop, "shop-closed", { date: dateText(downloadUntil), on: downloadUntil }, `closed/${next.closedAt}`);
     await billing.publishPlan(shop.shopId);
     await runHooks(shop, next, "onClose");
   }
@@ -148,7 +151,7 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
     const deleteAfter = later(closing.deleteAfter, iso(now() + days * DAY));
     const next = await setClosing(shop.shopId, { ...closing, deleteAfter, [warnedField(days)]: at });
     await log(shop.shopId, `warning-${days}`, { deleteAfter });
-    await send(shop, "shop-deletion-warning", { date: dateText(deleteAfter), days }, `warning-${days}/${closing.closedAt}`);
+    await send(shop, "shop-deletion-warning", { date: dateText(deleteAfter), on: deleteAfter, days }, `warning-${days}/${closing.closedAt}`);
     if (deleteAfter !== closing.deleteAfter) await billing.publishPlan(shop.shopId);
     return next;
   }

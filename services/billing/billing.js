@@ -59,6 +59,7 @@ import { currentPaymentWay, payAsYouSellAccess } from "./paymentWayState.js";
 import { claimEvent, releaseEvent, IN_PROGRESS_STATUS } from "./eventClaims.js";
 import { CARD_WARNING_DAYS, cardEnds, cardRunningOut, cardWarningDue } from "./cardExpiry.js";
 import { leavingAnswer } from "./leaving.js";
+import { mailLanguage } from "../email/templatesFr.js";
 import { DOWNLOAD_ENDING_DAYS, closedAppSteps, downloadHolds, dropReason, keepLinkProblem, newKeepLink } from "./closedApps.js";
 import { cardWords } from "./cards.js";
 import { withRetries } from "./stripeRetry.js";
@@ -101,6 +102,12 @@ const iso = (seconds) => (Number.isFinite(seconds) && seconds > 0 ? new Date(sec
 export function dateText(isoTime) {
   if (!isoTime) return "";
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", day: "numeric", month: "long", year: "numeric" }).format(new Date(isoTime));
+}
+
+/** The province already saved for another shop of the same Stripe customer: { province } or nothing. */
+function provinceOf(rows, customerId) {
+  const known = rows.find((r) => r.customerId === customerId && r.province !== undefined);
+  return known ? { province: known.province } : {};
 }
 
 /** The parts of a Stripe subscription the platform keeps. */
@@ -185,7 +192,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   async function mirror(shopId, row) {
     if (!(await registry.getShop(shopId))) return;
     const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null } });
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, appDrops: row.appDrops ?? [], updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null, language: row.language ?? null, province: row.province ?? null } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
@@ -251,6 +258,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       kind,
       to: row.billingEmail,
       shopId,
+      // French for a press that chose it, or French then English for one billed in Quebec (templatesFr.js).
+      language: mailLanguage(row),
       idempotencyKey: `billing/${key}`,
       data: { pressName: row.pressName || shopId, planName: price?.name ?? "", price: price?.priceText ?? "", link: accountLink(shopId), ...data },
     });
@@ -337,12 +346,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         // back, and the export and the account page follow the same date.
         const downloadUntil = new Date(Math.max(Date.parse(closed.downloadUntil), now() + DOWNLOAD_ENDING_DAYS * DAY)).toISOString();
         await saveClosedApp(shopId, app, { downloadUntil });
-        await notify(shopId, "app-download-ending", { closing: APP_NAMES[app], holds: downloadHolds([app]), date: dateText(downloadUntil), link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-download-ending/${app}/${closed.closedAt}`);
+        await notify(shopId, "app-download-ending", { apps: [app], closing: APP_NAMES[app], holds: downloadHolds([app]), date: dateText(downloadUntil), on: downloadUntil, link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-download-ending/${app}/${closed.closedAt}`);
         await saveClosedApp(shopId, app, { warnedAt: at() });
         continue;
       }
       if (step === "tell") {
-        await notify(shopId, "app-records-deleted", { closing: APP_NAMES[app], link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-records-deleted/${app}/${closed.closedAt}`);
+        await notify(shopId, "app-records-deleted", { apps: [app], closing: APP_NAMES[app], link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-records-deleted/${app}/${closed.closedAt}`);
         await saveClosedApp(shopId, app, { toldAt: at() });
         continue;
       }
@@ -361,7 +370,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       await logChange(shopId, "app-deleted", { app });
       // The note that it's done: a failed email is tried again on the next sweeps (closedAppSteps "tell").
       try {
-        await notify(shopId, "app-records-deleted", { closing: APP_NAMES[app], link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-records-deleted/${app}/${closed.closedAt}`);
+        await notify(shopId, "app-records-deleted", { apps: [app], closing: APP_NAMES[app], link: `${settings.platformUrl}/accounts/` }, `${shopId}/app-records-deleted/${app}/${closed.closedAt}`);
         await saveClosedApp(shopId, app, { toldAt: at() });
       } catch {
         // Left without toldAt: tomorrow's sweep sends it.
@@ -387,7 +396,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           await save(row.shopId, { keepLink: made.stored }, null);
           link = `${settings.platformUrl}/account/keep.html?shop=${encodeURIComponent(row.shopId)}&t=${made.token}`;
         }
-        await notify(row.shopId, "app-closing-soon", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(row.appsClosing.at), link, signIn }, `${row.shopId}/app-closing-soon/${row.appsClosing.at}`);
+        await notify(row.shopId, "app-closing-soon", { apps: row.appsClosing.apps, closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), date: dateText(row.appsClosing.at), on: row.appsClosing.at, link, signIn }, `${row.shopId}/app-closing-soon/${row.appsClosing.at}`);
         await save(row.shopId, { appsClosing: { ...row.appsClosing, reminded: at() } }, null);
       }
       return;
@@ -395,7 +404,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     const saved = await closeApps(row.shopId, row.appsClosing.apps);
     // The day it closes: where the press downloads what was in it, and until when.
     const downloadUntil = row.appsClosing.apps.map((app) => saved.closedApps?.[app]?.downloadUntil).find(Boolean);
-    await notify(row.shopId, "app-closed", { closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), holds: downloadHolds(row.appsClosing.apps), date: dateText(downloadUntil), link: `${settings.platformUrl}/accounts/` }, `${row.shopId}/app-closed/${row.appsClosing.at}`);
+    await notify(row.shopId, "app-closed", { apps: row.appsClosing.apps, closing: row.appsClosing.apps.map((app) => APP_NAMES[app]).join(" and "), holds: downloadHolds(row.appsClosing.apps), date: dateText(downloadUntil), on: downloadUntil, link: `${settings.platformUrl}/accounts/` }, `${row.shopId}/app-closed/${row.appsClosing.at}`);
     closed.push({ shopId: row.shopId, apps: row.appsClosing.apps });
   }
 
@@ -516,7 +525,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * ended (or for a second shop of an account that already had a trial) starts unpaid until a card is added.
      * Safe to repeat: a shop with a plan that hasn't ended gets that plan back.
      */
-    async startTrial({ account, shopId, pressName, plan }) {
+    async startTrial({ account, shopId, pressName, plan, language = null }) {
       if (!isPlan(plan)) throw new BillingError(400, "Choose a plan: shop, stockroom or both.");
       if (!account?.accountId || !account?.email) throw new BillingError(400, "The account is missing.");
       const existing = await subscriptions.get(shopId);
@@ -549,6 +558,9 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       if (trial) await customers.set(account.accountId, { ...customer, trialUsedAt: at() });
       const saved = await save(shopId, {
         ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0,
+        ...(language === "fr" || language === "en" ? { language } : {}),
+        // A second shop of an account billed in Quebec writes in French too (hub.js saveBillingDetails sets it per account).
+        ...(existing?.province === undefined ? provinceOf(await subscriptions.list(), customer.customerId) : {}),
         ...(newPlace !== null ? { founding: true, foundingPercentOff: newPlace, foundingAt: at() } : {}),
         ...(discounts ? { foundingOn: sub.id } : {}),
       }, trial ? "trial-started" : "plan-started");

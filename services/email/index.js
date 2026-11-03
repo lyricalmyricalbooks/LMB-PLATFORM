@@ -33,6 +33,7 @@
 import { platformSettings } from "../settings.js";
 import { resendClient } from "./resend.js";
 import { COMMERCIAL_KINDS, TEMPLATES, customProblems, withIdentity } from "./templates.js";
+import { TEMPLATES_FR, bilingual } from "./templatesFr.js";
 import { shopSenderAddress, streamOf, streamSettings } from "./streams.js";
 import { NewsletterPausedError } from "./reputation.js";
 import { ownDomainSender } from "./ownDomain.js";
@@ -138,14 +139,22 @@ export function createEmailService({ env = process.env, fetch = globalThis.fetch
       });
     },
 
-    /** Sends one of the platform's own emails (billing, sign-up, invites), signed with the product's name. */
+    /**
+     * Sends one of the platform's own emails (billing, sign-up, invites), signed with the product's name. `language`
+     * (templatesFr.js mailLanguage): "fr" sends a kind's French twin, "fr+en" the French then the English; a kind
+     * with no French twin, or no language, goes in English.
+     */
     async sendPlatform(message) {
       checkCommon(message);
       if (!TEMPLATES[message.kind]) throw new Error(`There is no platform email called ${message.kind}`);
       if (COMMERCIAL_KINDS.has(message.kind) && !settings.mailingAddress) {
         throw new Error(`PLATFORM_MAILING_ADDRESS is needed before ${settings.platformName} sends a ${message.kind} email: the law asks for a mailing address in commercial emails`);
       }
-      const parts = withIdentity(TEMPLATES[message.kind](message.data ?? {}, { settings, pressName: message.data?.pressName ?? "" }), settings);
+      const words = { settings, pressName: message.data?.pressName ?? "" };
+      const french = ["fr", "fr+en"].includes(message.language) ? TEMPLATES_FR[message.kind] : null;
+      const english = () => TEMPLATES[message.kind](message.data ?? {}, words);
+      const body = !french ? english() : message.language === "fr" ? french(message.data ?? {}, words) : bilingual(french(message.data ?? {}, words), english());
+      const parts = withIdentity(body, settings);
       return deliver({
         shopId: message.shopId ?? null, kind: message.kind, to: message.to.trim(), idempotencyKey: message.idempotencyKey,
         from: fromLine(settings.platformName, settings.senderEmail), replyTo: settings.supportEmail, parts, platform: true,

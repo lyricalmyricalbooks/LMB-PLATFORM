@@ -124,6 +124,13 @@ export function downloadableClosedApps(billing: BillingStatus, now = Date.now())
     .map(([app, c]) => ({ app, downloadUntil: c!.downloadUntil! }));
 }
 
+/** The plan that puts a closed app back next to the apps open now, or null when no plan has exactly those apps. */
+export function planAddingBack(billing: BillingStatus, app: string): PlanId | null {
+  const open = billing.plans.find((p) => p.plan === billing.plan)?.apps ?? [];
+  const want = new Set([...open, app]);
+  return billing.plans.find((p) => p.apps.length === want.size && p.apps.every((a) => want.has(a)))?.plan ?? null;
+}
+
 /** The reasons offered when a plan change drops an app (the platform's DROP_REASONS, services/billing/closedApps.js). */
 export const DROP_CHOICES: Array<{ value: string; label: string }> = [
   { value: "", label: "Rather not say" },

@@ -153,7 +153,15 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
       if (tax && cleanAddress && row.hasCard && !ENDED.has(row.status)) {
         await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { automatic_tax: { enabled: true } }, idempotencyKey: `tax-on-${row.subscriptionId}-${changes}` });
       }
+      // The province says which language the platform's emails go in when the press hasn't chosen one (Quebec: French
+      // first, templatesFr.js mailLanguage). Only a Canadian address has one that counts.
       await save(shopId, { billingEmail: cleanEmail }, null);
+      if (cleanAddress) {
+        // The address is the account's (one Stripe customer), so every shop it pays for gets the same province.
+        const province = cleanAddress.country === "CA" ? cleanAddress.state ?? null : null;
+        const shops = (await subscriptions.list()).filter((other) => other.customerId === row.customerId).map((other) => other.shopId);
+        for (const id of new Set([shopId, ...shops])) await save(id, { province }, null);
+      }
       await logChange(shopId, "billing-details-changed", { taxNumber: number ? number.type : null, address: Boolean(cleanAddress) });
       return { saved: true };
     },
