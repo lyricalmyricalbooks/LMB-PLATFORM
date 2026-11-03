@@ -19,6 +19,8 @@ const MAX_ORDERS = 500;
 const MAX_LINES = 100;
 const MAX_TOTAL = 1000000; // dollars; far above any real order, it only stops a wrong column becoming millions
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/** One run of Bring past orders over (plan 23.15): the browser names it, so the whole run can be taken back at once. */
+const BATCH = /^[a-z0-9-]{8,40}$/;
 
 /** The past order's id here, from its old reference: "PAST-" and 16 letters and digits. */
 const pastOrderId = (oldRef) => `PAST-${crypto.createHash("sha256").update(`order-import:${String(oldRef).trim()}`).digest("hex").slice(0, 16).toUpperCase()}`;
@@ -27,7 +29,7 @@ const money = (n) => (Number.isFinite(Number(n)) ? Math.round(Number(n) * 100) /
 const text = (v, max) => String(v ?? "").trim().slice(0, max);
 
 /** The order as it is saved, or the reason it can't come over. */
-function pastOrder(o, { now, actor }) {
+function pastOrder(o, { now, actor, batch }) {
   const oldRef = text(o?.oldRef, 200);
   if (!oldRef) return { problem: "nothing to tell it apart" };
   const day = text(o.orderedAt, 40);
@@ -73,6 +75,7 @@ function pastOrder(o, { now, actor }) {
       items: lines, subtotal: part(o.subtotal ?? total), discount: part(o.discount), shipping: part(o.shipping), tax: part(o.tax), total,
       ...(refunded > 0 ? { refundedAmountMinor: Math.round(refunded * 100) } : {}),
       ...(paidIn ? { paidIn } : {}),
+      ...(batch ? { importBatch: batch } : {}),
       // No sweep may ask a past order's customer for a review.
       reviewRequestedAt: stamp,
       activity: [{ type: "imported", at: stamp, by: actor, note: "Brought over from your old shop" }],
@@ -83,12 +86,12 @@ function pastOrder(o, { now, actor }) {
 /**
  * Creates the past orders. Answers { added: [id], skipped: [{ oldRef, reason }] }. `now` is injectable for tests.
  */
-async function importPastOrders(db, orders, { actor = "admin", now = new Date() } = {}) {
+async function importPastOrders(db, orders, { actor = "admin", now = new Date(), batch = "" } = {}) {
   const added = [];
   const skipped = [];
   let total = 0;
   for (const o of (Array.isArray(orders) ? orders : []).slice(0, MAX_ORDERS)) {
-    const made = pastOrder(o, { now, actor });
+    const made = pastOrder(o, { now, actor, batch: BATCH.test(batch) ? batch : "" });
     if (made.problem) { skipped.push({ oldRef: text(o?.oldRef, 200), reason: made.problem }); continue; }
     const ref = db.collection("orders").doc(made.id);
     const already = await db.runTransaction(async (tx) => {
@@ -113,8 +116,34 @@ async function importPastOrders(db, orders, { actor = "admin", now = new Date() 
 async function handlePastOrdersImport(body, { db, actor, now }) {
   if (!Array.isArray(body?.orders) || !body.orders.length) return { status: 400, body: { error: "Choose your old shop's order file first." } };
   if (body.orders.length > MAX_ORDERS) return { status: 400, body: { error: `Send at most ${MAX_ORDERS} orders at a time.` } };
-  const { added, skipped } = await importPastOrders(db, body.orders, { actor, now });
+  const batch = typeof body.batch === "string" && BATCH.test(body.batch) ? body.batch : "";
+  const { added, skipped } = await importPastOrders(db, body.orders, { actor, now, batch });
   return { status: 200, body: { added: added.length, skipped } };
 }
 
-module.exports = { importPastOrders, handlePastOrdersImport, pastOrderId, MAX_ORDERS };
+/**
+ * Takes one run of Bring past orders over back (plan 23.15): deletes the orders it added, and only those (each must
+ * still say `source: "import"`). A few hundred at a time; `more` says to ask again. One audit-log line per call.
+ */
+async function removePastOrders(db, batch, { actor = "admin", now = new Date(), limit = 400 } = {}) {
+  const snap = await db.collection("orders").where("importBatch", "==", batch).limit(limit).get();
+  const doomed = snap.docs.filter((d) => d.data()?.source === "import");
+  if (doomed.length) {
+    const writes = db.batch();
+    for (const d of doomed) writes.delete(d.ref);
+    await writes.commit();
+    await db.collection("audit-log").add({
+      type: "orders", message: `Removed ${doomed.length} past order${doomed.length === 1 ? "" : "s"} brought over from the old shop`,
+      orders: doomed.length, by: actor, createdAt: now.toISOString(),
+    }).catch(() => {});
+  }
+  return { removed: doomed.length, more: snap.docs.length === limit };
+}
+
+/** { status, body } for `{ batch }`. */
+async function handlePastOrdersRemove(body, { db, actor, now }) {
+  if (typeof body?.batch !== "string" || !BATCH.test(body.batch)) return { status: 400, body: { error: "Open one of those past orders and try again." } };
+  return { status: 200, body: await removePastOrders(db, body.batch, { actor, now }) };
+}
+
+module.exports = { importPastOrders, handlePastOrdersImport, removePastOrders, handlePastOrdersRemove, pastOrderId, MAX_ORDERS };

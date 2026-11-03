@@ -489,6 +489,14 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   owner (not the bookkeeper) may delete one (`firestore.rules`, `deleteRefusal`). A new order hook must skip it too.
   Other currencies (plan 23.11): `readyToSend` converts every amount at the owner's typed rate and keeps what the old
   shop charged in `paidIn` (the server checks its shape); orders without a rate wait and count in no preview figure.
+  Suggested rate (23.14): the `exchangeRates` admin action (`functions/pastOrderRates.js`) averages the Bank of Canada's
+  Valet series over the orders' dates; the owner's typed rate wins. Take back (23.15): every run sends one `importBatch`
+  (`run-<uuid>`); `removePastOrders` deletes only that run's `source: "import"` orders (400 a call, `more` to continue),
+  offered on the result screen and on each imported order (`PastImportUndo`).
+- **Your move so far (plan 23.17):** an Overview card under the setup guide (`overview/MoveProgressCard.tsx`,
+  `moveProgress.ts`) for a press whose `firstWeek.bring` says it brought its shop. Each bring-over window calls
+  `recordMoveStep` after it saves something; ticks live in `firstWeek.done` as `move-*` (the rules cap `done` at 20 keys:
+  11 guide steps + 6 here). `recordMoveStep` never creates the doc, so a shop without one never shows the guide.
 
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 

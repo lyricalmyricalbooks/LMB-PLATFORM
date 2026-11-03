@@ -8,6 +8,8 @@ const api = vi.hoisted(() => ({
   importPastOrders: vi.fn(async (orders: any[]) => ({
     added: orders.length - 1, skipped: [{ oldRef: orders[orders.length - 1].oldRef, reason: "already brought over" }],
   })),
+  removePastOrders: vi.fn(async () => 1),
+  suggestedRates: vi.fn(async () => ({ USD: 1.3714 })),
 }));
 vi.mock("./oldShopApi", () => api);
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -52,6 +54,17 @@ describe("Bring past orders over", () => {
     expect(onDone).toHaveBeenCalled();
     expect(document.body.textContent).toContain("1 past order added");
     expect(document.body.textContent).toContain("Order #1002: already brought over");
+    // The whole run can be taken back (plan 23.15), after a second click.
+    const run = api.importPastOrders.mock.calls[0][1];
+    expect(run).toMatch(/^run-[a-z0-9-]{4,}$/);
+    await act(async () => { button(/Take this import back/).click(); });
+    expect(api.removePastOrders).not.toHaveBeenCalled();
+    await act(async () => { button(/Yes, remove them/).click(); });
+    await flush();
+    expect(api.removePastOrders).toHaveBeenCalledWith(run);
+    expect(document.body.textContent).toContain("1 past order removed");
+    expect(onDone).toHaveBeenCalledTimes(2);
+    expect(api.suggestedRates).not.toHaveBeenCalled(); // every order was in Canadian dollars
   });
 
   it("orders in another currency wait for the owner's rate, then come over converted", async () => {
@@ -62,15 +75,27 @@ describe("Bring past orders over", () => {
       "#1,ada@example.com,paid,2025-06-01,10.00,CAD",
       "#2,ben@example.com,paid,2025-06-02,30.00,USD",
     ].join("\n"));
-    expect(document.body.textContent).toContain("1 order waiting for a rate");
-    expect(button(/Bring 1 past order over/)).toBeTruthy();
+    // The Bank of Canada's average for the dates is filled in as a start (plan 23.14).
+    expect(api.suggestedRates).toHaveBeenCalledWith(["USD"], "2025-06-02", "2025-06-02");
     const rate = document.querySelector('input[inputmode="decimal"]') as HTMLInputElement;
+    expect(rate.value).toBe("1.3714");
+    expect(document.body.textContent).toContain("Bank of Canada average");
+    expect(button(/Bring 2 past orders over/)).toBeTruthy();
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
     await act(async () => { setValue.call(rate, "1.4"); rate.dispatchEvent(new Event("input", { bubbles: true })); });
     expect(document.body.textContent).toContain("CA$52.00 in sales");
     await act(async () => { button(/Bring 2 past orders over/).click(); });
     await flush();
     expect(api.importPastOrders.mock.calls[0][0][1]).toMatchObject({ currency: "CAD", total: 42, paidIn: { currency: "USD", total: 30, rate: 1.4 } });
+  });
+
+  it("without a suggestion, an other-currency order waits for the owner's rate", async () => {
+    api.suggestedRates.mockRejectedValueOnce(new Error("offline"));
+    root = createRoot(document.body.appendChild(document.createElement("div")));
+    act(() => root!.render(h(PastOrdersDialog, { onClose: () => {}, onDone: () => {} })));
+    await choose("Name,Created at,Total,Currency\n#1,2025-06-01,10.00,CAD\n#2,2025-06-02,30.00,USD");
+    expect(document.body.textContent).toContain("1 order waiting for a rate");
+    expect(button(/Bring 1 past order over/)).toBeTruthy();
   });
 
   it("a file that isn't a list of orders says what it needs and sends nothing", async () => {
