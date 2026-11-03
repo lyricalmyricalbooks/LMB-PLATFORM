@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OrderDetail } from "./OrderDetail";
+import { PastOrdersDialog } from "./PastOrdersDialog";
 import { Orders, loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./Orders";
 import { EmptyState, LoadingState, MetricCard, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, Tabs, Toggle } from "./riso/components";
 import { NEEDS_ME_QUEUES, nextToOpen, rowBooks, rowCover, rowStatus, refundState, stepOrder, deskQueue } from "./ordersDesk";
@@ -42,6 +43,8 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const [tab, setTab] = useState<GridTab>("open");
   const [only, setOnly] = useState<Only>("");
   const [sort, setSort] = useState<GridSort>("newest");
+  // Bring past orders over (plan 23.7), on the page a press lands on, not only in the Table layout (plan 23.22).
+  const [bringingPast, setBringingPast] = useState(false);
   const [shown, setShown] = useState(PAGE);
   const [showTest, setShowTest] = useState(false);
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia?.("(max-width: 900px)").matches);
@@ -303,9 +306,11 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
             <div className="od-head-actions od-grid-actions">
               <PrimaryButton onClick={() => pickLayout("desk")}>Ship station · {stats.toShip} to ship →</PrimaryButton>
               <SecondaryButton onClick={() => pickLayout("table")}>Export orders</SecondaryButton>
+              <SecondaryButton onClick={() => setBringingPast(true)}>Bring past orders over</SecondaryButton>
             </div>
           </div>
         </div>
+        {bringingPast && <PastOrdersDialog onClose={() => setBringingPast(false)} onDone={() => void refreshOrdersCache().then((data) => { setOrders(data); setFailed(false); }).catch(() => setFailed(true))} />}
         {only ? (
           <p className="od-only" role="status">
             Showing: <strong>{ONLY_LABEL[only]}</strong> <button type="button" className="od-link" onClick={() => setOnly("")}>Show every open order</button>

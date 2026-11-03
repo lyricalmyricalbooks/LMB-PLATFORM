@@ -83,11 +83,31 @@ function pastOrder(o, { now, actor, batch }) {
   };
 }
 
+/** The money a new rate changes on a past order sold in another currency (plan 23.23). */
+const RATED = ["items", "subtotal", "discount", "shipping", "tax", "total", "paidIn"];
+
 /**
- * Creates the past orders. Answers { added: [id], skipped: [{ oldRef, reason }] }. `now` is injectable for tests.
+ * A new rate for a past order already brought over (plan 23.23): only one this server made (`source: "import"`), sold
+ * in the same currency for the same amount, and only its Canadian-dollar amounts change. Anything else stays as it is.
  */
-async function importPastOrders(db, orders, { actor = "admin", now = new Date(), batch = "" } = {}) {
+function rerated(old, made, stamp, actor) {
+  const was = old?.paidIn;
+  const now = made.data.paidIn;
+  if (old?.source !== "import" || !was || !now || was.currency !== now.currency || was.total !== now.total || was.rate === now.rate) return null;
+  const patch = Object.fromEntries(RATED.map((k) => [k, made.data[k]]));
+  if (made.data.refundedAmountMinor != null) patch.refundedAmountMinor = made.data.refundedAmountMinor;
+  patch.updatedAt = stamp;
+  patch.activity = [...(Array.isArray(old.activity) ? old.activity : []), { type: "rerated", at: stamp, by: actor, note: `Rate changed from ${was.rate} to ${now.rate}` }];
+  return patch;
+}
+
+/**
+ * Creates the past orders. Answers { added: [id], rerated: [id], skipped: [{ oldRef, reason }] }. With `rerate`, a
+ * foreign-currency order already brought over takes the new rate instead of being skipped. `now` is injectable.
+ */
+async function importPastOrders(db, orders, { actor = "admin", now = new Date(), batch = "", rerate = false } = {}) {
   const added = [];
+  const changed = [];
   const skipped = [];
   let total = 0;
   for (const o of (Array.isArray(orders) ? orders : []).slice(0, MAX_ORDERS)) {
@@ -95,10 +115,14 @@ async function importPastOrders(db, orders, { actor = "admin", now = new Date(),
     if (made.problem) { skipped.push({ oldRef: text(o?.oldRef, 200), reason: made.problem }); continue; }
     const ref = db.collection("orders").doc(made.id);
     const already = await db.runTransaction(async (tx) => {
-      if ((await tx.get(ref)).exists) return true;
-      tx.create(ref, made.data);
-      return false;
+      const snap = await tx.get(ref);
+      if (!snap.exists) { tx.create(ref, made.data); return false; }
+      const patch = rerate ? rerated(snap.data(), made, now.toISOString(), actor) : null;
+      if (!patch) return true;
+      tx.update(ref, patch);
+      return "rerated";
     });
+    if (already === "rerated") { changed.push(made.id); continue; }
     if (already) { skipped.push({ oldRef: made.data.importedFrom, reason: "already brought over" }); continue; }
     added.push(made.id);
     total += made.data.total;
@@ -109,16 +133,22 @@ async function importPastOrders(db, orders, { actor = "admin", now = new Date(),
       orders: added.length, by: actor, createdAt: now.toISOString(),
     }).catch(() => {});
   }
-  return { added, skipped };
+  if (changed.length) {
+    await db.collection("audit-log").add({
+      type: "orders", message: `Changed the rate on ${changed.length} past order${changed.length === 1 ? "" : "s"} brought over from the old shop`,
+      orders: changed.length, by: actor, createdAt: now.toISOString(),
+    }).catch(() => {});
+  }
+  return { added, rerated: changed, skipped };
 }
 
-/** { status, body } for one admin request: `{ orders: [...] }`, at most MAX_ORDERS at a time. */
+/** { status, body } for one admin request: `{ orders: [...], batch?, rerate? }`, at most MAX_ORDERS at a time. */
 async function handlePastOrdersImport(body, { db, actor, now }) {
   if (!Array.isArray(body?.orders) || !body.orders.length) return { status: 400, body: { error: "Choose your old shop's order file first." } };
   if (body.orders.length > MAX_ORDERS) return { status: 400, body: { error: `Send at most ${MAX_ORDERS} orders at a time.` } };
   const batch = typeof body.batch === "string" && BATCH.test(body.batch) ? body.batch : "";
-  const { added, skipped } = await importPastOrders(db, body.orders, { actor, now, batch });
-  return { status: 200, body: { added: added.length, skipped } };
+  const { added, rerated: changed, skipped } = await importPastOrders(db, body.orders, { actor, now, batch, rerate: body.rerate === true });
+  return { status: 200, body: { added: added.length, rerated: changed.length, skipped } };
 }
 
 /**

@@ -10,7 +10,9 @@ import type { OldShopFile } from "./OldShopAddressForm";
 import type { OldPage } from "./oldLinks";
 
 async function ask(action: string, body: Record<string, unknown>): Promise<any> {
-  const idToken = await auth.currentUser?.getIdToken();
+  // Development only: the admin fixture's pretend owner (scripts/move-check.mjs). Production builds drop this line.
+  const fixtureToken = import.meta.env.DEV ? (globalThis as any).__fixtureIdToken : undefined;
+  const idToken = fixtureToken || await auth.currentUser?.getIdToken();
   if (!idToken) throw new Error("Sign in again as the shop administrator.");
   let res: Response;
   try {
@@ -56,9 +58,10 @@ export async function readOldPages(address: string, paths: string[]): Promise<Ol
  * Orders › Bring past orders over (plan 23.7): one batch of past orders, saved by the server as history only. `batch`
  * names the whole run, so it can be taken back at once (plan 23.15).
  */
-export async function importPastOrders(orders: unknown[], batch?: string): Promise<{ added: number; skipped: { oldRef: string; reason: string }[] }> {
-  const data = await ask("importPastOrders", { orders, ...(batch ? { batch } : {}) });
-  return { added: Number(data?.added) || 0, skipped: Array.isArray(data?.skipped) ? data.skipped : [] };
+export async function importPastOrders(orders: unknown[], batch?: string, { rerate = false }: { rerate?: boolean } = {}): Promise<{ added: number; rerated: number; skipped: { oldRef: string; reason: string }[] }> {
+  // `rerate` (plan 23.23): orders sold in another currency that are already here take the new rate instead.
+  const data = await ask("importPastOrders", { orders, ...(batch ? { batch } : {}), ...(rerate ? { rerate: true } : {}) });
+  return { added: Number(data?.added) || 0, rerated: Number(data?.rerated) || 0, skipped: Array.isArray(data?.skipped) ? data.skipped : [] };
 }
 
 /** Takes one run of Bring past orders over back (plan 23.15): asks until every order it added is gone. */

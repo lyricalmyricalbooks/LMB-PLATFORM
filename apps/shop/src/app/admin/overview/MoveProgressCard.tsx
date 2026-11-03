@@ -3,15 +3,23 @@ import { Check } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "../api";
 import type { FirstWeekDoc } from "../firstWeek";
-import { MOVE_HIDDEN, moveSteps, moveUnfinished, showMoveProgress, type MoveStep } from "../moveProgress";
+import { MOVE_HIDDEN, moveSteps, moveUnfinished, movingShop, showMoveProgress, type MoveStep } from "../moveProgress";
 import { GhostButton, SecondaryButton, SectionCard, StatusBadge } from "../riso/components";
+import { jumpTo } from "../settingsLayout";
 import { useShopWords } from "../shopWords";
+
+/** Scrolls to a card once the page that holds it is showing (Settings loads on its own, after the address changes). */
+function showWhenShown(id: string, tries = 50) {
+  const el = document.getElementById(id);
+  if (el && el.offsetParent !== null) return jumpTo(id);
+  if (tries > 0) window.setTimeout(() => showWhenShown(id, tries - 1), 100);
+}
 
 /**
  * Overview › Your move so far (plan 23.17): the five parts of an old shop that can come over, each ticked once its
  * bring-over window saved something, or by hand ("We had none") when the old shop had none. Shown under the setup
- * guide for a press that brought its shop with it, until every part is done. Put away with parts left, it leaves one
- * line to show it again.
+ * guide for a press that brought its shop with it. Put away with parts left, it leaves one line to show it again; with
+ * every part done it says so once (plan 23.25), until closed.
  */
 export function MoveProgressCard({ doc, setDoc, onOpen }: {
   doc: FirstWeekDoc;
@@ -20,8 +28,43 @@ export function MoveProgressCard({ doc, setDoc, onOpen }: {
 }) {
   const w = useShopWords();
   const [saving, setSaving] = useState("");
+  if (!movingShop(doc)) return null;
+
+  const open = (s: MoveStep) => {
+    if (!s.hash) return onOpen?.(s.tab);
+    window.location.hash = s.hash;
+    if (s.anchor) showWhenShown(s.anchor);
+  };
+
+  const tick = async (id: string) => {
+    const at = new Date().toISOString();
+    const before = doc;
+    setDoc({ ...doc, done: { ...doc.done, [id]: at } }); setSaving(id);
+    try { await adminApi.updateFirstWeek({ done: { [id]: at } }); }
+    catch { setDoc(before); toast.error("That wasn't saved. Check your connection and try again."); }
+    finally { setSaving(""); }
+  };
+
+  // Every part done (plan 23.25): one moment to say so, until the press closes it.
+  if (!moveUnfinished(doc)) {
+    if (doc.done?.[MOVE_HIDDEN]) return null;
+    const links = moveSteps(doc).find((s) => s.id === "move-links")!;
+    return (
+      <SectionCard title="You're all moved in" description="Everything from your old shop has come over."
+        actions={<StatusBadge tone="success">5 of 5 done</StatusBadge>}>
+        <div className="rp-stack" style={{ gap: 12 }}>
+          <p style={{ margin: 0 }}>{w("Books, customers, gift cards, past orders and your old links are all here. Anything you marked as “We had none” counts as done.")}</p>
+          <p className="rp-hint" style={{ margin: 0 }}>Before you point your web address here, check your old links once more, so no old link lands on page not found.</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {onOpen && <SecondaryButton size="sm" onClick={() => open(links)}>{w(links.action)}</SecondaryButton>}
+            <GhostButton size="sm" disabled={!!saving} onClick={() => void tick(MOVE_HIDDEN)}>Close</GhostButton>
+          </div>
+        </div>
+      </SectionCard>
+    );
+  }
+
   if (!showMoveProgress(doc)) {
-    if (!moveUnfinished(doc)) return null;
     // Put away with parts still left (plan 23.19): one quiet line brings it back.
     const reopen = async () => {
       const before = doc;
@@ -42,15 +85,6 @@ export function MoveProgressCard({ doc, setDoc, onOpen }: {
   const steps = moveSteps(doc);
   const doneCount = steps.filter((s) => s.done).length;
 
-  const tick = async (id: string) => {
-    const at = new Date().toISOString();
-    const before = doc;
-    setDoc({ ...doc, done: { ...doc.done, [id]: at } }); setSaving(id);
-    try { await adminApi.updateFirstWeek({ done: { [id]: at } }); }
-    catch { setDoc(before); toast.error("That wasn't saved. Check your connection and try again."); }
-    finally { setSaving(""); }
-  };
-
   const row = (s: MoveStep, i: number) => (
     <li key={s.id} style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", padding: "12px 0", borderTop: i ? "1px solid var(--rp-border)" : undefined }}>
       <span aria-hidden className="rp-mono" style={{ minWidth: 24, fontWeight: 700 }}>{s.done ? <Check size={16} /> : `${i + 1}.`}</span>
@@ -61,7 +95,7 @@ export function MoveProgressCard({ doc, setDoc, onOpen }: {
       </div>
       {!s.done && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {onOpen && <SecondaryButton size="sm" onClick={() => onOpen(s.tab)}>{w(s.action)}</SecondaryButton>}
+          {onOpen && <SecondaryButton size="sm" onClick={() => open(s)}>{w(s.action)}</SecondaryButton>}
           <GhostButton size="sm" disabled={!!saving} onClick={() => void tick(s.id)}>We had none</GhostButton>
         </div>
       )}
