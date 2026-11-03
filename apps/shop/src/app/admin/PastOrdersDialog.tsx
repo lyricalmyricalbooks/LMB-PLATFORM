@@ -9,7 +9,8 @@ import { Dialog, GhostButton, PrimaryButton, SecondaryButton, StatusBadge, TextF
  * Orders › Bring past orders over (plan 23.7): the old shop's order file → a preview → the server saves each order as
  * history only (functions/orderImport.js): counted in sales reports and each customer's history, with no stock change,
  * no email and no payment. Bringing the same file again adds nothing. Several files (one per year, say) come over as
- * one run (plan 23.27): chosen together, or added before bringing them over.
+ * one run (plan 23.27): chosen together, or added before bringing them over. After a run, "Bring another file" starts
+ * the next one in the same window (plan 23.32), so a press with a file per year never has to find the button again.
  */
 const BATCH = 500;
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
@@ -107,6 +108,11 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
     </details>
   );
 
+  /** Back to the chooser for the next file. Choosing it starts a run of its own, so taking it back never touches this one. */
+  const nextFile = () => {
+    setResult(null); setChosen([]); setRateText({}); setSuggested(null); setEarlier([]); setRerate(""); setUndo(""); setRemoved(0); setError("");
+  };
+
   const applyNewRate = async () => {
     setRerate("busy");
     try {
@@ -123,7 +129,10 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
     // Orders a run brought over before keep that run's rate (plan 23.18) unless the owner asks for the new one (23.22).
     const newRates = [...new Set(earlier.map((o) => `${o.paidIn!.currency} at ${o.paidIn!.rate}`))].join(", ");
     return (
-      <Dialog open onClose={onClose} title="Past orders brought over" badge="🧾" footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
+      <Dialog open onClose={onClose} title="Past orders brought over" badge="🧾" footer={<>
+        <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={undo === "busy" || rerate === "busy"} onClick={nextFile}>Bring another file</SecondaryButton>
+        <PrimaryButton onClick={onClose}>Done</PrimaryButton>
+      </>}>
         <div className="rp-stack" style={{ gap: 12 }} role="status">
           <StatusBadge tone={result.added ? "success" : "neutral"}>{plural(result.added, "past order")} added</StatusBadge>
           {result.added > 0 && <p className="rp-hint" style={{ margin: 0 }}>They show in your sales reports and in each customer's history, marked as brought over from your old shop.</p>}

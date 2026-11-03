@@ -114,6 +114,14 @@ try {
   await page.getByText(/5 past orders removed/).waitFor({ timeout: 10000 });
   check(server_.imported.length === 0 && server_.removed === 5, "taking it back removed all 5");
   await shot("5-orders-taken-back");
+  // The next file comes over in the same window (plan 23.32), as a run of its own.
+  const firstRun = server_.removed;
+  await page.getByRole("button", { name: "Bring another file" }).click();
+  await page.setInputFiles('input[aria-label="Order file"]', sample("old-shop-orders.csv"));
+  await page.getByRole("button", { name: /^Bring 5 past orders over$/ }).click();
+  await page.getByRole("button", { name: "Wrong file? Take this import back" }).waitFor({ timeout: 10000 });
+  check(server_.imported.length === 5 && server_.removed === firstRun && new Set(server_.imported.map((o) => o.batch)).size === 1,
+    "Bring another file brought the next file over in the same window", `${server_.imported.length}`);
   await page.keyboard.press("Escape");
 
   // Old links.

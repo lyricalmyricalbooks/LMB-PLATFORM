@@ -116,6 +116,27 @@ describe("Bring past orders over", () => {
     expect(document.body.textContent).toContain("Wrong file? Take this import back");
   });
 
+  it("brings the next file in the same window, as a run of its own (plan 23.32)", async () => {
+    const onClose = vi.fn();
+    root = createRoot(document.body.appendChild(document.createElement("div")));
+    act(() => root!.render(h(PastOrdersDialog, { onClose, onDone: () => {} })));
+    await choose("Name,Created at,Total,Currency\n#1,2024-06-01,10.00,CAD\n#2,2024-07-01,20.00,CAD", "2024.csv");
+    await act(async () => { button(/Bring 2 past orders over/).click(); });
+    await flush();
+    act(() => button(/Bring another file/).click());
+    // Back at the chooser, with nothing left over from the first file.
+    expect(button(/Nothing to bring over/).disabled).toBe(true);
+    expect(document.body.textContent).not.toContain("2024.csv");
+    await choose("Name,Created at,Total,Currency\n#3,2025-01-05,30.00,CAD", "2025.csv");
+    await act(async () => { button(/Bring 1 past order over/).click(); });
+    await flush();
+    expect(api.importPastOrders).toHaveBeenCalledTimes(2);
+    expect(api.importPastOrders.mock.calls[1][0].map((o: any) => o.number)).toEqual(["#3"]);
+    // Each file is its own run, so taking the second back leaves the first alone.
+    expect(api.importPastOrders.mock.calls[1][1]).not.toBe(api.importPastOrders.mock.calls[0][1]);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("without a suggestion, an other-currency order waits for the owner's rate", async () => {
     api.suggestedRates.mockRejectedValueOnce(new Error("offline"));
     root = createRoot(document.body.appendChild(document.createElement("div")));
