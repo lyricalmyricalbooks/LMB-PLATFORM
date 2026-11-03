@@ -22,7 +22,8 @@ function door(): SetupDoor & { saved: any[] } {
     save: vi.fn(async (_id: string, change: any) => { saved.push(change); return { ...PRESS, ...change }; }),
     keepImport: vi.fn(async (_id: string, _file: Blob, details: { name: string; rows: number }) => ({ ...PRESS, stagedImport: { ...details, size: 9, at: "2026-11-03T09:00:00Z" } })),
     removeImport: vi.fn(async () => ({ ...PRESS, stagedImport: null })),
-    plans: vi.fn(async () => ({ trialDays: 14, plans: [
+    openShop: vi.fn(async (_id: string, choice: { plan: SetupPress["plan"] }) => ({ press: { ...PRESS, country: "CA", plan: choice.plan, status: "opening" as const, shopId: "moth-press" }, shop: { status: "queued", trialEnd: null } })),
+    plans: vi.fn(async () => ({ trialDays: 14, termsVersion: "v1", plans: [
       { plan: "both" as const, name: "Shop and stockroom", priceText: "$39.00" },
       { plan: "shop" as const, name: "Shop", priceText: "$29.00" },
       { plan: "stockroom" as const, name: "Stockroom", priceText: "$19.00" },
@@ -30,12 +31,12 @@ function door(): SetupDoor & { saved: any[] } {
   };
 }
 
-async function mount(d: SetupDoor, hash = "") {
+async function mount(d: SetupDoor, hash = "", press: SetupPress = PRESS) {
   location.hash = hash;
   const el = document.createElement("div");
   document.body.append(el);
   root = createRoot(el);
-  act(() => root!.render(h(SetupAdmin, { press: PRESS, door: d, lists, email: "owner@example.com", helpUrl: "/help/", onSignOut: () => {} })));
+  act(() => root!.render(h(SetupAdmin, { press, door: d, lists, email: "owner@example.com", helpUrl: "/help/", onSignOut: () => {} })));
   await flush();
   return el;
 }
@@ -160,5 +161,58 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     await flush();
     expect(el.querySelector('[role="alert"]')?.textContent).toMatch(/larger than 5 MB/);
     expect(d.keepImport).not.toHaveBeenCalled();
+  });
+
+  describe("Open my shop (code plan 18.8)", () => {
+    const openButton = (el: HTMLElement) => [...el.querySelectorAll("main button")].find((b) => b.textContent === "Open my shop") as HTMLButtonElement;
+    const terms = (el: HTMLElement) => el.querySelector("main input[type=checkbox]") as HTMLInputElement;
+
+    it("opens only once the terms are ticked, with the chosen plan and today's terms, then says the shop is being made", async () => {
+      const d = door();
+      const el = await mount(d, "#settings/plan", { ...PRESS, country: "CA" });
+      expect(openButton(el).disabled).toBe(true);
+      act(() => terms(el).click());
+      expect(openButton(el).disabled).toBe(false);
+      act(() => openButton(el).click());
+      await flush();
+      expect(d.openShop).toHaveBeenCalledWith("press-moth", { plan: "both", termsVersion: "v1" });
+      expect(el.textContent).toContain("Your shop is being made");
+      expect(el.textContent).toContain("your website and your stockroom");
+      expect(openButton(el)).toBeUndefined();
+      // Nothing left to press in the top bar either.
+      expect([...el.querySelectorAll("header button")].some((b) => b.getAttribute("aria-label") === "Open my shop")).toBe(false);
+    });
+
+    it("asks for the press's name and country first, and points at General", async () => {
+      const el = await mount(door(), "#settings/plan");
+      act(() => terms(el).click());
+      expect(openButton(el).disabled).toBe(true);
+      expect(el.textContent).toContain("Add your press's name and country first.");
+      const go = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Go to General") as HTMLButtonElement;
+      act(() => go.click());
+      await flush();
+      expect(el.querySelector("h1")?.textContent).toBe("General");
+    });
+
+    it("a refusal is shown in plain words and the press stays in setup", async () => {
+      const d = door();
+      (d.openShop as any).mockRejectedValueOnce(new Error("The payment service is busy. Try again in a minute."));
+      const el = await mount(d, "#settings/plan", { ...PRESS, country: "CA" });
+      act(() => terms(el).click());
+      act(() => openButton(el).click());
+      await flush();
+      expect(el.querySelector("[role=alert]")?.textContent).toContain("payment service is busy");
+      expect(openButton(el).disabled).toBe(false);
+    });
+
+    it("a press waiting its turn sees why", async () => {
+      const d = door();
+      (d.openShop as any).mockResolvedValueOnce({ press: { ...PRESS, country: "CA", status: "opening" }, shop: { status: "in-line", trialEnd: null, message: "You're next in line." } });
+      const el = await mount(d, "#settings/plan", { ...PRESS, country: "CA" });
+      act(() => terms(el).click());
+      act(() => openButton(el).click());
+      await flush();
+      expect(el.textContent).toContain("You're next in line.");
+    });
   });
 });

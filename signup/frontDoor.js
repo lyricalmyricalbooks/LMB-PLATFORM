@@ -23,7 +23,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { SignupError, randomSuffix } from "./signup.js";
 import { createSignInCode } from "./signInCode.js";
 import { createAccountStart } from "./accountStart.js";
-import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, importPathFor, setupChange } from "./pressRecord.js";
+import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, advanceStatus, importPathFor, setupChange } from "./pressRecord.js";
 import { COUNTRIES, PUBLISHES, isEmail } from "./form.js";
 
 /** The page the front door lives on, under the platform's address. */
@@ -31,7 +31,7 @@ export const START_PAGE = "join";
 
 /** What a press sees of its own record: never the owner's uid or the platform's own fields. */
 const shown = (record) => ({
-  pressId: record.pressId, status: record.status, plan: record.plan ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
+  pressId: record.pressId, status: record.status, plan: record.plan ?? "", shopId: record.shopId ?? "", pressName: record.pressName, sells: record.sells, country: record.country,
   look: record.look ?? "", adminLook: record.adminLook ?? "",
   // What the press sees of its kept file: never the path.
   stagedImport: record.stagedImport ? { name: record.stagedImport.name, size: record.stagedImport.size, rows: record.stagedImport.rows, at: record.stagedImport.at } : null,
@@ -44,6 +44,14 @@ function setupRefusal(current, claims) {
   return null;
 }
 
+// A press that pressed Open my shop holds the opening for this long, so a double click or a second tab waits for the
+// first instead of starting a second shop. After it, a call that died part way can be tried again.
+const OPENING_HOLD_MS = 2 * 60_000;
+const OPEN_NEEDS = Object.freeze({
+  pressName: "Add your press's name in Settings › General first.",
+  country: "Choose where your press is in Settings › General first.",
+});
+
 const TOO_BIG = "That file is larger than 5 MB. Split it into smaller files: bring one now and the rest once your shop is open.";
 // Upload links last long enough for a slow connection, and no longer.
 const UPLOAD_MINUTES = 15;
@@ -52,8 +60,12 @@ const UPLOAD_MINUTES = 15;
  * `stagedFiles` keeps each press's product file until its shop exists (18.7): uploadUrl(path, { contentType, size,
  * expiresAt }) -> { url, method, headers }, a link that accepts exactly one upload of that size and nothing else;
  * stat(path) -> { size } | null; remove(path), which is fine when nothing is there. The shop maker (18.9) reads it.
+ *
+ * `signup` is sign-up's own start (signup.js createSignup): Open my shop (18.8) hands the press's answers to it, so the
+ * daily cap, the countries that are open, invites, the free trial (billing.startTrial) and the shop maker's queue work
+ * exactly as they do for every shop.
  */
-export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, now = () => new Date(), suffix = randomSuffix, random = null }) {
+export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, now = () => new Date(), suffix = randomSuffix, random = null }) {
   const signInCode = createSignInCode({
     store: codes,
     now,
@@ -196,6 +208,52 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       for (const path of saved.paths) await stagedFiles.remove(path);
       return { press: saved.press };
     },
+
+    /**
+     * Open my shop (18.8): the press's answers go to sign-up's start, which starts the plan (the free trial when the
+     * account hasn't had one) and queues the shop. Only then does the record become `opening`, so a refusal (a card or
+     * plan problem, the terms) leaves the press in setup with everything it typed. Pressing twice opens one shop.
+     */
+    async openShop(claims, body = {}) {
+      if (!signup) throw new SignupError(503, "Opening a shop isn't switched on yet. Everything you've set up is saved.");
+      const record = await ownPress(claims, body.pressId);
+      // Already opening: the same shop, whatever the second press of the button says.
+      if (record.status !== "setup") return { press: shown(record) };
+      const plan = typeof body.plan === "string" && body.plan ? body.plan : record.plan;
+      for (const [field, words] of Object.entries(OPEN_NEEDS)) if (!record[field]) throw new SignupError(400, words, { [field]: words });
+      const at = now();
+      const held = await presses.update(record.pressId, (current) => {
+        const refused = setupRefusal(current, claims);
+        if (refused) return { row: null, result: refused };
+        if (current.openingSince && at.getTime() - Date.parse(current.openingSince) < OPENING_HOLD_MS) {
+          return { row: null, result: { ok: false, status: 409, message: "Your shop is already being opened. Give it a moment." } };
+        }
+        return { row: { ...current, openingSince: at.toISOString() }, result: { ok: true } };
+      });
+      if (!held.ok) throw new SignupError(held.status, held.message);
+      let started;
+      try {
+        started = await signup.start(claims, {
+          pressName: record.pressName, plan, country: record.country, publishes: record.sells || null,
+          termsAccepted: body.termsAccepted === true, termsVersion: body.termsVersion,
+        }, { pressId: record.pressId });
+      } catch (error) {
+        // Nothing was opened: let go of the hold so the press can fix what was wrong and press again.
+        await presses.update(record.pressId, (current) => (current?.openingSince === at.toISOString()
+          ? { row: { ...current, openingSince: "" }, result: null } : { row: null, result: null }));
+        throw error;
+      }
+      const saved = await presses.update(record.pressId, (current) => {
+        if (!current) return { row: null, result: { ok: false, status: 404, message: "We couldn't find that press." } };
+        if (current.status !== "setup") return { row: null, result: { ok: true, press: shown(current) } };
+        const moved = advanceStatus(current, "opening");
+        if (!moved.ok) return { row: null, result: { ok: false, status: 409, message: moved.message } };
+        const updated = { ...current, status: moved.status, plan, shopId: started.shopId, openingSince: "", openedAt: now().toISOString(), lastSeenAt: now().toISOString() };
+        return { row: updated, result: { ok: true, press: shown(updated) } };
+      });
+      if (!saved.ok) throw new SignupError(saved.status, saved.message);
+      return { press: saved.press, shop: { status: started.status, trialEnd: started.trialEnd ?? null, ...(started.message ? { message: started.message } : {}) } };
+    },
   };
 }
 
@@ -213,4 +271,5 @@ export const frontDoorRoutes = (door) => ({
   "POST /api/press/import": (claims, request) => door.startImport(claims, request.body ?? {}),
   "POST /api/press/import/kept": (claims, request) => door.keepImport(claims, request.body ?? {}),
   "POST /api/press/import/remove": (claims, request) => door.removeImport(claims, request.body ?? {}),
+  "POST /api/press/open": (claims, request) => door.openShop(claims, request.body ?? {}),
 });

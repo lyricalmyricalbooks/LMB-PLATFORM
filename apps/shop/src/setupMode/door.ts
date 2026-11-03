@@ -12,6 +12,8 @@ export interface SetupPress {
   country: string;
   look: string;
   adminLook: string;
+  /** The shop's id once Open my shop has started it (18.8), else "". */
+  shopId?: string;
   /** The product file kept for the shop (18.7), or null. */
   stagedImport: StagedImport | null;
 }
@@ -23,7 +25,14 @@ export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells
 
 /** A plan as GET /api/plans lists it. */
 export interface PlanOffer { plan: "shop" | "stockroom" | "both"; name: string; priceText: string; foundingPriceText?: string }
-export interface PlanList { plans: PlanOffer[]; trialDays: number; plusTax?: boolean; foundingOffer?: { percentOff: number; presses: number } }
+export interface PlanList { plans: PlanOffer[]; trialDays: number; plusTax?: boolean; foundingOffer?: { percentOff: number; presses: number }; termsVersion?: string }
+
+/** What Open my shop answers: the record (now `opening`) and how the shop is starting. */
+export interface OpenedShop {
+  press: SetupPress;
+  /** `queued` while it is made; `in-line` or `later` with `message` when it waits its turn. */
+  shop?: { status: string; trialEnd: string | null; message?: string };
+}
 
 export interface SetupDoor {
   /** The signed-in person's presses, oldest first. */
@@ -36,6 +45,8 @@ export interface SetupDoor {
   keepImport(pressId: string, file: Blob, details: { name: string; rows: number }): Promise<SetupPress>;
   /** Throws the kept file away. */
   removeImport(pressId: string): Promise<SetupPress>;
+  /** Open my shop (18.8): starts the plan and queues the shop. A refusal leaves the press in setup. */
+  openShop(pressId: string, choice: { plan: SetupPress["plan"]; termsVersion: string }): Promise<OpenedShop>;
 }
 
 const UNREACHABLE = "We couldn't reach Colophon. Check your connection and try again.";
@@ -73,6 +84,10 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
       return (await call("POST", "/press/import/kept", { pressId, name, rows })).press as SetupPress;
     },
     removeImport: async (pressId) => (await call("POST", "/press/import/remove", { pressId })).press as SetupPress,
+    openShop: async (pressId, { plan, termsVersion }) => {
+      const answer = await call("POST", "/press/open", { pressId, plan, termsAccepted: true, termsVersion });
+      return { press: answer.press as SetupPress, ...(answer.shop ? { shop: answer.shop } : {}) };
+    },
   };
 }
 

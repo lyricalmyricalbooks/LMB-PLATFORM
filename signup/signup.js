@@ -134,7 +134,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
     },
 
     /** Starts the press's free trial and queues its shop. Returns { shopId, status, trialEnd }. */
-    async start(claims, input) {
+    async start(claims, input, { pressId = null } = {}) {
       const person = personOf(claims);
       const { ok, details, problems } = checkSignup(input);
       if (!ok) throw new SignupError(400, "Some details need another look.", problems);
@@ -171,6 +171,8 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
           publishes: details.publishes,
           ...agreement,
           paymentProvider: "stripe",
+          // Opened from the front door's setup (18.8): the shop maker reads the look and the kept file there (18.9).
+          ...(pressId ? { pressId } : {}),
           invited: isInvited,
           status: held ? "later" : myTurn ? "queued" : "in-line",
           ...(held ? { message: LATER_WORDS } : myTurn ? { admittedAt: at() } : { linedUpAt: at(), message: IN_LINE_WORDS }),
