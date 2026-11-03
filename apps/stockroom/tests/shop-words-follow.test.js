@@ -22,3 +22,18 @@ describe('the stockroom follows what the shop sells', () => {
     expect(noteSellsAnswer(null, { sells: 'books' })).toBe(false);
   });
 });
+
+import { ACK_KEY, wordsReported, wordsToReport } from '../src/lib/shop-words.js';
+
+describe('telling the shop which words the stockroom shows', () => {
+  it('has nothing to say until the owner changed the answer', () => {
+    expect(wordsToReport({ sells: 'books' })).toBeNull();
+  });
+  it('reports a changed answer once the page shows it, and only once', () => {
+    localStorage.setItem(SELLS_KEY, 'clothing');
+    expect(wordsToReport({ sells: 'books' })).toBe('clothing');
+    wordsReported('clothing');
+    expect(localStorage.getItem(ACK_KEY)).toBe('clothing');
+    expect(wordsToReport({ sells: 'books' })).toBeNull();
+  });
+});

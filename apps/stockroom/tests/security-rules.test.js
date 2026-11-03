@@ -272,7 +272,7 @@ describe('website link rules', () => {
     const rules = block('websiteLink');
     expect(rules).toMatch(/allow read: if isPublisher\(\);/);
     expect(rules).toContain("isPublisher() && planOpen() && docId == 'app'");
-    expect(rules).toContain("keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks'])");
+    expect(rules).toContain("keys().hasOnly(['importConsentAt', 'lastImportAt', 'lastFeedAt', 'build', 'todo', 'linkRequests', 'dismissedShopBooks', 'wordsSells', 'wordsAt'])");
     expect(rules).toContain('appTodoOk(request.resource.data)');
     expect(rules).toContain("linkMapOk(request.resource.data, 'linkRequests')");
     expect(rules).toContain("linkMapOk(request.resource.data, 'dismissedShopBooks')");

@@ -1,3 +1,4 @@
+import { sizeGuideStarter } from "./sizeGuideStarters";
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { useState, useEffect, useRef } from "react";
 import { 
@@ -54,7 +55,7 @@ import { useCurrency } from "../CurrencyContext";
 import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
-import { ActionMenu, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
+import { ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
 import "./books.css";
 import { uploadBookPhoto } from "./bookPhotoUpload";
 import { BOOK_VIDEO_ACCEPT, MAX_BOOK_VIDEOS, MAX_BOOK_VIDEO_BYTES, formatMegabytes, isVideoFile, uploadBookVideo, videoProblem } from "./bookVideoUpload";
@@ -1417,6 +1418,12 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     <TextArea label="Size guide" name="sizeChart" value={formData.sizeChart || ""} onChange={handleChange} rows={5}
                       placeholder={"e.g.\nS: chest 36 in, length 27 in\nM: chest 40 in, length 28 in"}
                       hint="Optional. Fill it in (or choose a picture below) and the product page gets a Size guide tab." />
+                    {!String(formData.sizeChart || "").trim() && sizeGuideStarter(productKind(formData)) && (
+                      <SecondaryButton size="sm" style={{ margin: "6px 0 10px" }}
+                        onClick={() => setFormData((prev: any) => ({ ...prev, sizeChart: sizeGuideStarter(productKind(prev)) }))}>
+                        Start from a typical size guide
+                      </SecondaryButton>
+                    )}
                     <SelectField label="Size guide picture" name="sizeChartPhoto" value={formData.sizeChartPhoto || ""} onChange={handleChange}>
                       <option value="">— None —</option>
                       {(formData.photos || []).map((p: any, idx: number) => isVideoItem(p) ? null : <option key={p.id || idx} value={p.url}>Image {idx + 1}{p.altText ? ` (${p.altText})` : ""}</option>)}
