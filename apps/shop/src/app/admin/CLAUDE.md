@@ -660,7 +660,9 @@ built by `pnpm run build:setup` with `vite.setup.config.ts` into `dist-setup/`; 
   changed, so an answer saved meanwhile at the front door isn't written over.
 - **Look gallery without the database:** `lookGallery.ts` holds the pure gallery parts; `ChooseLookWelcome` takes
   `apply` (setup mode passes one that does nothing) and loads `chooseLook.applyChosenLook` only when it isn't given.
-- **Not yet:** Open my shop (18.8) is shown disabled.
+- **Open my shop (18.8):** Settings › Plan ends with `OpenShopCard`: a terms tick (version from `/api/plans`
+  `termsVersion`) and one button calling `door.openShop` (`POST /api/press/open`). The press then reads "Your shop is
+  being made" and the top-bar button goes away. A refusal shows in plain words and the press stays in setup.
 - **Books (18.7):** `setupMode/ImportPage.tsx` reads a product file in the browser (`planShopMove` with no books), shows
   the first 150 rows, problems first, with `importPreview.tsx` `ImportPreviewRows` (also used by `BookImportDialog`), then
   keeps it through `door.keepImport` (upload link from `POST /api/press/import`, a PUT straight to storage, then

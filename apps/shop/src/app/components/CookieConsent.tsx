@@ -6,6 +6,7 @@ import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { useLiveDesign } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 import { useStudioOverlay } from "../features/site/studioOverlay";
+import { COOKIE_SETTINGS_EVENT, noteCookieBanner } from "../lib/consent";
 
 const STORAGE_KEY = "lm:cookie-consent";
 
@@ -59,6 +60,16 @@ export function CookieConsent() {
       setAnalytics(existing.analytics);
       setMarketing(existing.marketing);
     }
+  }, []);
+
+  // Whether undecided shoppers may be tracked follows the banner being on (lib/consent.ts).
+  useEffect(() => { if (design) noteCookieBanner(design); }, [design?.showCookieBanner]);
+
+  // The footer's "Cookie settings" link opens the banner again, on the choices, so an answer can always be changed.
+  useEffect(() => {
+    const reopen = () => { setDecided(false); setShowDetails(true); };
+    window.addEventListener(COOKIE_SETTINGS_EVENT, reopen);
+    return () => window.removeEventListener(COOKIE_SETTINGS_EVENT, reopen);
   }, []);
 
   const decide = (accepted: { analytics: boolean; marketing: boolean }) => {

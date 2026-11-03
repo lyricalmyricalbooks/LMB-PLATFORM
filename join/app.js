@@ -192,7 +192,7 @@ function planTiles(plans) {
     const founding = plans.foundingOffer;
     const offer = founding ? ` The first ${founding.presses} presses to pay keep ${founding.percentOff}% off for as long as they stay.` : "";
     const tax = plans.plusTax ? ", plus tax" : "";
-    $("#plan-terms").textContent = `Free for ${plans.trialDays} days once your shop opens, then monthly${tax}. Nothing is charged before then.${offer}`;
+    $("#plan-terms").textContent = `Free for ${plans.trialDays} days once your shop opens, then monthly${tax}. Nothing is charged before then, and no card is needed for the trial. Once you add a card, the plan renews each month until you cancel, which you can do online at any time.${offer}`;
   }
 }
 planTiles(null);

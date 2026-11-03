@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { Mail, Music2 } from "lucide-react";
 import { Facebook, Instagram, Twitter } from "./socialIcons";
 import { POLICY_KEYS, policySlug, policyTitle } from "./policyPages";
+import { openCookieSettings } from "../../lib/consent";
 import { DEFAULT_SOCIAL } from "./constants";
 import { contentMaxWidth } from "./headerNav";
 import { getCopy, shopCopyFallback } from "./storeCopy";
@@ -166,6 +167,10 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
         className="fm-footer-rule fm-footer-bar border-t border-white/20 flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
         <p className="text-[9px] tracking-widest text-white/55 uppercase">
           <span data-studio-copy="footerCopyright">{getCopy(settings?.design, "footerCopyright")}</span>
+          {/* Shoppers can always change their cookie answer (EU/UK and Quebec rules); words in Text & labels › Footer. */}
+          {d.showCookieBanner !== false && <>{" · "}<button type="button" onClick={openCookieSettings} className="fm-footer-text text-white/80 uppercase tracking-widest underline-offset-2 hover:text-white hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]">
+            <span data-studio-copy="footerCookieSettings">{getCopy(d, "footerCookieSettings")}</span>
+          </button></>}
         </p>
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">

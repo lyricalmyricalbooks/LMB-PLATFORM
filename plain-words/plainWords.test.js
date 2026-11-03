@@ -31,6 +31,10 @@ const ALLOWED = [
   // The name of the note inside a press's data download (services/export, 19.16): a file name every computer opens,
   // not the TXT record of web addresses.
   "README.txt",
+  // The terms' list of companies that help run Colophon (terms/terms.js HELPERS): privacy law asks for each one by its
+  // real name, so these are names of companies there, not technical words.
+  "Google Cloud: keeps each shop online",
+  "Resend: sends your shop's emails and ours",
 ];
 const isRouteLabel = (text) => /^(GET|POST|PUT|PATCH|DELETE) \//.test(text);
 
@@ -193,6 +197,7 @@ const PRESS_EMAILS = {
   "plan-changed": [{ ...BILLING, prorated: true }, { ...BILLING, prorated: false, closing: "the stockroom", date: "1 December 2026", now: false }, { ...BILLING, closing: "the stockroom", now: true }],
   "app-closing-soon": [{ closing: "the stockroom", date: "1 December 2026", link: LINK }, { closing: "the stockroom", date: "1 December 2026", link: LINK, signIn: true }, { closing: "the shop and the stockroom", date: "1 December 2026", link: LINK }],
   "app-download-ending": [{ closing: "the stockroom", holds: "a spreadsheet each of the books in your stockroom and the stock ledger", date: "1 March 2027", link: LINK }],
+  "app-records-deleted": [{ closing: "the stockroom", link: LINK }],
   "app-closed": [{ closing: "the stockroom", holds: "a spreadsheet each of the books in your stockroom and the stock ledger", date: "1 March 2027", link: LINK }, { closing: "the shop and the stockroom", date: "1 March 2027", link: LINK }],
   "card-expiring": [{ card: "Visa ending 4242", month: "November", link: LINK }, { card: "", date: "30 November 2026", link: LINK }],
   "new-device": [{ browser: "Chrome on Mac", at: "2026-11-01 12:00" }],

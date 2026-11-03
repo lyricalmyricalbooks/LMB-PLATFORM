@@ -1,6 +1,6 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
-  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -24,6 +24,8 @@ export const NAV: NavEntry[] = [
     // One email page: templates, shop alerts, Gmail sending, sender details and recent deliveries.
     { id: "notifications", label: "Email sender", icon: Mail },
     { id: "team", label: "Team", icon: UserPlus },
+    // Two-step sign-in with an authenticator app, for whoever is signed in (22.6).
+    { id: "security", label: "Security", icon: ShieldCheck },
     // The QuickBooks link (plan 7.16); hidden unless the platform's bookkeeping link is on (`withoutPages`).
     { id: "bookkeeping", label: "Bookkeeping", icon: Calculator },
     // The shop's plan on the platform (plan 6.6), managed here since 22.3: compare and change plans, how you pay, cancel.

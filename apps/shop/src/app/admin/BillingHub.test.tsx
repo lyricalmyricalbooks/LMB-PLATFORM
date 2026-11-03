@@ -49,6 +49,7 @@ function platform() {
       case "invoices": return send(200, { ok: true, invoices: [{ id: "in_1", number: "COL-0001", date: "2026-10-17T12:00:00Z", amount: "$33.05", tax: "$3.80", status: "paid", pdfUrl: "https://pay.stripe.example/in_1.pdf", pageUrl: null }] });
       case "details": return send(200, { ok: true, details: { name: "Moth Press", email: "owner@example.com", address: null, taxNumber: "", taxLabel: "", plusTax: true } });
       case "details/save": return send(200, { ok: true, saved: true });
+      case "download": return send(200, { ok: true, emailedTo: "owner@example.com", expiresAt: "2026-11-10T12:00:00Z" });
       case "pay-now": world.status = { ...world.status, status: "active", paymentProblem: null, canPayNow: false }; return send(200, { ok: true, paid: true });
       default: return send(404, { ok: false, message: "There's nothing here." });
     }
@@ -124,6 +125,24 @@ describe("Settings › Plan", () => {
     expect(world.calls.some(([c]) => c === "keep")).toBe(true);
   });
 
+  it("a closed app's records can be downloaded from the Plan page while they're kept, never once deleted", async () => {
+    const later = new Date(Date.now() + 30 * 86_400_000).toISOString();
+    world.status = status({ plan: "shop", planName: "Shop", closedApps: { stockroom: { closedAt: "2026-10-01T12:00:00Z", downloadUntil: later }, shop: { closedAt: "2026-01-01T12:00:00Z", downloadUntil: later } } });
+    await mount(PlanPage);
+    expect(text()).toContain("The stockroom is closed. You can download everything in it until");
+    expect(text()).not.toContain("The website is closed");
+    await click(button("Download all your data"));
+    expect(world.calls.some(([c]) => c === "download")).toBe(true);
+    expect(text()).toContain("will email the link to owner@example.com");
+    expect(button("Download all your data")).toBeUndefined();
+  });
+
+  it("no download line once the records are deleted or the last day has passed", async () => {
+    world.status = status({ plan: "shop", closedApps: { stockroom: { closedAt: "2026-01-01T12:00:00Z", downloadUntil: "2026-04-01T12:00:00Z" }, shop: { closedAt: "2026-10-01T12:00:00Z", downloadUntil: new Date(Date.now() + 30 * 86_400_000).toISOString(), deletedAt: "2026-10-02T12:00:00Z" } } });
+    await mount(PlanPage);
+    expect(button("Download all your data")).toBeUndefined();
+  });
+
   it("an app that's closing can be kept with one click", async () => {
     world.status = status({ appsClosing: { apps: ["stockroom"], at: "2026-11-30T12:00:00Z", downloadUntil: "2027-02-28T12:00:00Z" } });
     await mount(PlanPage);
@@ -138,7 +157,7 @@ describe("Settings › Plan", () => {
     await mount(PlanPage);
     expect(document.querySelector("[data-two-step-note]")).not.toBeNull();
     await click(document.querySelector('[data-plan-option="shop"] input')!);
-    const link = [...document.querySelectorAll("a")].find((a) => a.textContent?.includes("Finish on your account page")) as HTMLAnchorElement;
+    const link = [...document.querySelectorAll("a")].find((a) => a.textContent?.includes("Or use your account page")) as HTMLAnchorElement;
     expect(link.href).toBe(PLAN.link);
   });
 });

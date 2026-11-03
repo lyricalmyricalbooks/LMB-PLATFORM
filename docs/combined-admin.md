@@ -86,6 +86,14 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 - A page that asks before the admin listens for "open the frame" (a child page's first effect) is remembered and the
   frame opens as soon as the admin listens (`stockroomBridge.ts`).
 
+## First-time tour
+
+- `CombinedTour.tsx`: six short steps (what one admin means, Home, All sales, a book's Stock and sales, the Fair till,
+  Money and Settings). Each stop has a "Show me" button that opens that page (an admin page, or a stockroom page).
+- Home invites the press once, in a notice above its figures; never a window over the setup guide. "Take the tour" or
+  "No thanks" marks it seen on that device (`lm:combined-tour` in local storage); the account menu's "Take the tour"
+  brings it back. Words go through the shop's words, so a general shop reads "products". Only for the combined admin.
+
 ## Next steps (planned)
 
 4. **Native pages:** rebuild the stockroom pages inside the admin one by one (Fair till, Stockists, Expenses first),

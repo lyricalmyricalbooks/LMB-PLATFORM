@@ -102,6 +102,15 @@ describe("discount money, checked against random carts", () => {
     );
   });
 
+  it("a half-cent discount rounds the same way whatever the bag's order (a case the random carts found)", () => {
+    const d = { id: "d", type: "percentage", value: 10, appliesTo: "all" };
+    const items = [{ id: "poetry", price: 142.89, quantity: 4 }, { id: "poetry", price: 8.84, quantity: 3 }, { id: "poetry", price: 100.58, quantity: 5 }, { id: "poetry", price: 77.97, quantity: 1 }];
+    for (const math of [client, server]) {
+      const cents = (list: typeof items) => Math.round(math.computeDiscountAmount(d, list, booksById) * 100);
+      expect(cents([...items].reverse())).toBe(cents(items));
+    }
+  });
+
   it("automatic discounts pick the biggest saving on offer", () => {
     fc.assert(
       fc.property(fc.array(discount, { maxLength: 4 }), cart, (list, items) => {

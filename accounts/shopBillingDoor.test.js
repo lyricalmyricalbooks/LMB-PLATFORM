@@ -20,7 +20,7 @@ const NOW = Date.parse("2026-11-03T12:00:00Z");
 const pass = (claims, signature = "signed") => [Buffer.from('{"alg":"RS256"}').toString("base64url"), Buffer.from(JSON.stringify(claims)).toString("base64url"), signature].join(".");
 const OWNER = { aud: SHOP, uid: "shop-uid-1", email: "Owner@example.com", email_verified: true };
 
-async function world() {
+async function world({ exports = null } = {}) {
   const settings = platformSettings({});
   const registry = fakeRegistry();
   await registry.createShop(SHOP, { shopId: SHOP, projectId: SHOP, pressName: "Moth Press", plan: "both", status: "live", ownerEmail: "owner@example.com" });
@@ -43,7 +43,7 @@ async function world() {
     if (claims.aud !== project) throw new Error("wrong project");
     return claims;
   };
-  const door = createShopBillingDoor({ billing, accounts, registry, auditLog, settings, verifierFor, now: () => new Date(NOW), log: () => {} });
+  const door = createShopBillingDoor({ billing, exports, accounts, registry, auditLog, settings, verifierFor, now: () => new Date(NOW), log: () => {} });
   const ask = (claims, call, body = {}, { method = "POST", token } = {}) => door({ method, path: `/api/shop-billing/${call}`, body: { shopId: SHOP, ...body }, headers: claims || token ? { authorization: `Bearer ${token ?? pass(claims)}` } : {} });
   const logged = () => [...registry.events.get(SHOP).values()].filter((e) => e.source === "shop-billing-door");
   return { ask, door, registry, stores, checked, logged, settings };
@@ -120,4 +120,26 @@ test("a billing refusal reaches the hub in plain words, and the hub's own calls 
   assert.match(refused.body.message, /isn't saved on your account/);
   const failed = await ask(OWNER, "details/save", { email: "books@moth.example", taxNumber: "123456789RT0001" });
   assert.equal(failed.status, 200);
+});
+
+test("Download all your data from the shop's Plan page: the owner's once-a-day copy, emailed to the owner", async () => {
+  const asked = [];
+  const exports = { async forOwner(claims, { shopId }) { asked.push([claims.uid, claims.email, shopId]); return { shopId, emailedTo: "owner@example.com", expiresAt: "2026-11-10T12:00:00.000Z", extra: "not passed on" }; } };
+  const { ask, logged } = await world({ exports });
+  assert.equal((await ask({ ...OWNER, email: "staff@example.com" }, "download")).status, 403);
+  assert.deepEqual(asked, [], "staff are turned away before a copy is asked for");
+  const answer = await ask(OWNER, "download");
+  assert.equal(answer.status, 200);
+  assert.deepEqual(answer.body, { ok: true, emailedTo: "owner@example.com", expiresAt: "2026-11-10T12:00:00.000Z" });
+  assert.deepEqual(asked, [["shop-uid-1", "Owner@example.com", SHOP]]);
+  assert.deepEqual(logged().map((e) => [e.what, e.outcome]), [["billing-download", "refused"], ["billing-download", "done"]]);
+  // A copy whose email couldn't go keeps its own words (a 502 from services/export), with a code to quote.
+  const { ControlError } = await import("../control-room/controlRoom.js");
+  const failing = await world({ exports: { async forOwner() { throw new ControlError(502, "The copy of the shop's data couldn't be made just now. Nothing was sent; try again in a few minutes."); } } });
+  const failed = await failing.ask(OWNER, "download");
+  assert.equal(failed.status, 502);
+  assert.match(failed.body.message, /^The copy of the shop's data couldn't be made just now/);
+  assert.ok(failed.body.ref);
+  // A door with no export service has no download call.
+  assert.equal((await (await world()).ask(OWNER, "download")).status, 404);
 });

@@ -35,7 +35,7 @@ export function newPressRecord({ pressId, ownerUid, email, now }) {
   if (!ownerUid || !email) throw new Error("A press needs an owner.");
   const at = now.toISOString();
   return { pressId, ownerUid, ownerEmail: email.toLowerCase(), status: "setup", plan: "", pressName: "", sells: "", country: "",
-    look: "", adminLook: "", moving: "", stagedImportPath: "", stagedImport: null, pendingImportPath: "", createdAt: at, lastSeenAt: at };
+    look: "", adminLook: "", moving: "", stagedImportPath: "", stagedImport: null, pendingImportPath: "", shopId: "", shopStatus: "", shopMessage: "", openingSince: "", createdAt: at, lastSeenAt: at };
 }
 
 // Checks a change a press makes through the platform's door. Returns the fields to write, or a plain-words refusal.

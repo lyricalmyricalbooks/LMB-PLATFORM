@@ -4,17 +4,17 @@
 const { shopConfig } = require("./shopConfig");
 const { pressName } = require("./shared/shopIdentity");
 
-// Before the owner filled in General › Location these were the hard-coded shipping origin.
-const ORIGIN_FALLBACK = {
-  street: "456 Montrose Ave", city: "Toronto", state: "ON", zip: "M6G3H1", country: "CA", phone: "6474096863",
-};
+// No made-up origin: a label or a live rate is only ever from the press's own address (General › Location). This was
+// once another shop's real street and phone, which a new shop would have shipped under; the launch checklist now
+// blocks until the press saves its own address.
+const ORIGIN_FALLBACK = { street: "", city: "", state: "", zip: "", country: "", phone: "" };
 const SHOP_EMAIL = shopConfig.ownerEmail;
 
 const text = value => (typeof value === "string" ? value.trim() : "");
 
 /**
  * The shop's shipping origin from settings/website.location (Settings › General › Location).
- * Each blank field keeps the old default, so labels and live rates never lose an address.
+ * A blank field stays blank: Shippo then refuses the label or rate, rather than using an address that isn't the press's.
  * State and country are returned as entered; the caller turns them into codes.
  */
 function shopOrigin(settings) {

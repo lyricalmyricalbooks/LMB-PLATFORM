@@ -47,7 +47,8 @@ describe("clarity loading", () => {
     __resetClarityForTests();
     vi.mocked(googleTrackingAllowed).mockClear();
     listeners = {};
-    store = {};
+    // The shopper said yes (tracking is opt-in since the 3 November 2026 legal review; lib/consent.ts).
+    store = { [CONSENT_KEY]: JSON.stringify({ necessary: true, analytics: true, marketing: true }) };
     (globalThis as any).window = {
       location: { pathname: "/", href: "https://shop.test/" },
       addEventListener: (name: string, fn: () => void) => { (listeners[name] ||= []).push(fn); },
@@ -62,8 +63,8 @@ describe("clarity loading", () => {
     configureClarity("abc12def34");
     await flush();
     expect(scripts()).toEqual(["https://www.clarity.ms/tag/abc12def34"]);
-    // Never shares with Microsoft Ads; no analytics grant unless the shopper accepted.
-    expect(calls()).toEqual([["consentv2", { ad_Storage: "denied" }]]);
+    // Never shares with Microsoft Ads; analytics storage only because this shopper said yes.
+    expect(calls()).toEqual([["consentv2", { ad_Storage: "denied", analytics_Storage: "granted" }]]);
     configureClarity("zzz99yyy88");
     clarityRoute();
     await flush();
@@ -75,6 +76,13 @@ describe("clarity loading", () => {
     configureClarity("abc12def34");
     await flush();
     expect(calls()[0]).toEqual(["consentv2", { ad_Storage: "denied", analytics_Storage: "granted" }]);
+  });
+
+  it("stays off for a shopper who hasn't answered the cookie banner yet", async () => {
+    delete store[CONSENT_KEY];
+    configureClarity("abc12def34");
+    await flush();
+    expect(scripts()).toEqual([]);
   });
 
   it("stays off without a valid ID, when tracking isn't allowed, or after a decline", async () => {

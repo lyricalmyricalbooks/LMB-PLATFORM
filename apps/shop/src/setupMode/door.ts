@@ -14,6 +14,11 @@ export interface SetupPress {
   adminLook: string;
   /** Home's "Selling somewhere already?" card (23.0): bringing a shop over, starting fresh, or not answered (""; older records). */
   moving?: "" | "yes" | "fresh";
+  /** The shop's id once Open my shop has started it (18.8), else "". */
+  shopId?: string;
+  /** How the shop is starting once opening: "queued", or "in-line" with `shopMessage` saying why it waits. */
+  shopStatus?: string;
+  shopMessage?: string;
   /** The product file kept for the shop (18.7), or null. */
   stagedImport: StagedImport | null;
 }
@@ -28,7 +33,14 @@ export type SetupChange = Partial<Pick<SetupPress, "plan" | "pressName" | "sells
 
 /** A plan as GET /api/plans lists it. */
 export interface PlanOffer { plan: "shop" | "stockroom" | "both"; name: string; priceText: string; foundingPriceText?: string }
-export interface PlanList { plans: PlanOffer[]; trialDays: number; plusTax?: boolean; foundingOffer?: { percentOff: number; presses: number } }
+export interface PlanList { plans: PlanOffer[]; trialDays: number; plusTax?: boolean; foundingOffer?: { percentOff: number; presses: number }; termsVersion?: string }
+
+/** What Open my shop answers: the record (now `opening`) and how the shop is starting. */
+export interface OpenedShop {
+  press: SetupPress;
+  /** `queued` while it is made; `in-line` or `later` with `message` when it waits its turn. */
+  shop?: { status: string; trialEnd: string | null; message?: string };
+}
 
 export interface SetupDoor {
   /** The signed-in person's presses, oldest first. */
@@ -43,6 +55,8 @@ export interface SetupDoor {
   removeImport(pressId: string): Promise<SetupPress>;
   /** Reads the old shop's public product list from its address (23.2), as a product file to preview. Keeps nothing. */
   readOldShop(pressId: string, address: string): Promise<OldShopRead>;
+  /** Open my shop (18.8): starts the plan and queues the shop. A refusal leaves the press in setup. */
+  openShop(pressId: string, choice: { plan: SetupPress["plan"]; termsVersion: string }): Promise<OpenedShop>;
 }
 
 const UNREACHABLE = "We couldn't reach Colophon. Check your connection and try again.";
@@ -83,6 +97,10 @@ export function platformDoor(apiBase: string, token: () => Promise<string>, fetc
     readOldShop: async (pressId, address) => {
       const { host, csv, products, notes } = await call("POST", "/press/old-shop", { pressId, address });
       return { host, csv, products, notes } as OldShopRead;
+    },
+    openShop: async (pressId, { plan, termsVersion }) => {
+      const answer = await call("POST", "/press/open", { pressId, plan, termsAccepted: true, termsVersion });
+      return { press: answer.press as SetupPress, ...(answer.shop ? { shop: answer.shop } : {}) };
     },
   };
 }

@@ -4,15 +4,28 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createFrontDoor, frontDoorPublicRoutes, frontDoorRoutes } from "./frontDoor.js";
 import { createApi } from "./api.js";
-import { fakeAuth, fakeFrontDoorStores, fakeStagedFiles, fakeVerifyIdToken } from "./fakes.js";
+import { fakeAuth, fakeFrontDoorStores, fakeSignupStores, fakeStagedFiles, fakeVerifyIdToken } from "./fakes.js";
+import { createSignup } from "./signup.js";
+import { fakeRegistry } from "../setup/fakes.js";
+import { fakePlatformEmail } from "../services/billing/fakes.js";
+import { platformSettings } from "../services/settings.js";
+import { TERMS_VERSION } from "../terms/terms.js";
 import { TEMPLATES } from "../services/email/templates.js";
 
 const ADA = { uid: "uid-ada", email: "owner@example.com", email_verified: true };
 const BEN = { uid: "uid-ben", email: "ben@example.com", email_verified: true };
 const SETTINGS = { platformUrl: "https://platform.example", platformName: "Colophon", trialDays: 14, currency: "CAD" };
 
-function world({ readOldShop } = {}) {
+function world({ billing = null, readOldShop } = {}) {
   const stores = fakeFrontDoorStores();
+  // Open my shop (18.8) goes through sign-up's own start, with a pretend plan maker.
+  const trials = [];
+  const signupStores = fakeSignupStores();
+  const signup = createSignup({
+    ...signupStores, registry: fakeRegistry(), email: fakePlatformEmail(), auth: fakeAuth(), settings: platformSettings({}),
+    billing: billing ?? { startTrial: async (args) => { trials.push(args); return { status: "trialing", trialEnd: "2026-11-17T09:00:00.000Z" }; } },
+    live: async () => ({ signupDailyCap: 10 }), suffix: ((k = 0) => () => (k++ ? `abcd${k}` : "abcde"))(),
+  });
   const sent = [];
   let clock = new Date("2026-11-03T09:00:00Z").getTime();
   let n = 0;
@@ -20,6 +33,7 @@ function world({ readOldShop } = {}) {
   const door = createFrontDoor({
     ...stores,
     stagedFiles: files,
+    signup,
     email: { sendPlatform: async (message) => { sent.push(message); } },
     auth: fakeAuth(),
     settings: SETTINGS,
@@ -33,7 +47,7 @@ function world({ readOldShop } = {}) {
     routes: frontDoorRoutes(door), publicRoutes: frontDoorPublicRoutes(door), live: () => ({}), log: () => {},
   });
   const ask = (method, path, body, claims) => api({ method, path, body, headers: claims ? { authorization: `Bearer ${JSON.stringify(claims)}` } : {} });
-  return { stores, sent, door, ask, files, tick: (ms) => { clock += ms; } };
+  return { stores, sent, door, ask, files, trials, signupStores, tick: (ms) => { clock += ms; } };
 }
 
 test("a code is emailed, and the right code answers with a sign-in link for that address, once", async () => {
@@ -367,4 +381,142 @@ test("an old shop read from its address (23.2): the owner gets a file to preview
   await w.stores.presses.set(pressId, { ...(await w.stores.presses.get(pressId)), status: "opening" });
   assert.equal((await w.ask("POST", "/api/press/old-shop", { pressId, address: "moth.example" }, ADA)).status, 409);
   assert.deepEqual(asked, ["moth.example", "nowhere.example"], "strangers and opening shops never reach the old shop");
+});
+
+// ── Open my shop (code plan 18.8) ──
+
+async function readyPress(w, fields = { pressName: "Moth Press", country: "CA", plan: "both", sells: "zines", look: "riso" }) {
+  const pressId = await pressFor(w);
+  await w.ask("POST", "/api/press/setup", { pressId, ...fields }, ADA);
+  return pressId;
+}
+const OPEN = { termsAccepted: true, termsVersion: TERMS_VERSION };
+
+test("Open my shop starts the plan once, queues the shop and locks setup", async () => {
+  const w = world();
+  const pressId = await readyPress(w);
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(opened.status, 200, JSON.stringify(opened.body));
+  assert.equal(opened.body.press.status, "opening");
+  assert.equal(opened.body.press.shopId, "moth-press-abcde");
+  assert.equal(opened.body.shop.trialEnd, "2026-11-17T09:00:00.000Z");
+  assert.deepEqual(w.trials.map((t) => [t.shopId, t.plan]), [["moth-press-abcde", "both"]]);
+  const row = w.signupStores.signups.rows.get("moth-press-abcde");
+  assert.deepEqual([row.pressId, row.status, row.publishes, row.termsVersion], [pressId, "queued", "zines", TERMS_VERSION]);
+  // Pressing again (a double click, a second tab) gives the same shop and starts nothing.
+  const again = await w.ask("POST", "/api/press/open", { pressId, ...OPEN, plan: "shop" }, ADA);
+  assert.equal(again.body.press.shopId, "moth-press-abcde");
+  assert.equal(w.trials.length, 1);
+  assert.equal((await w.ask("POST", "/api/press/setup", { pressId, pressName: "Other" }, ADA)).status, 409);
+});
+
+test("a plan chosen on the Open my shop page is the one started", async () => {
+  const w = world();
+  const pressId = await readyPress(w);
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN, plan: "shop" }, ADA);
+  assert.equal(opened.body.press.plan, "shop");
+  assert.equal(w.trials[0].plan, "shop");
+});
+
+test("missing details, unticked terms or a plan that won't start leave the press in setup with everything kept", async () => {
+  let fail = true;
+  const w = world({ billing: { startTrial: async () => { if (fail) throw new Error("The payment service is busy."); return { status: "trialing" }; } } });
+  const empty = await pressFor(w);
+  const missing = await w.ask("POST", "/api/press/open", { pressId: empty, ...OPEN }, ADA);
+  assert.equal(missing.status, 400);
+  assert.match(missing.body.message, /press's name/);
+  const pressId = await readyPress(w);
+  const unticked = await w.ask("POST", "/api/press/open", { pressId, termsVersion: TERMS_VERSION }, ADA);
+  assert.equal(unticked.status, 400);
+  assert.ok(unticked.body.problems.terms);
+  assert.equal((await w.stores.presses.get(pressId)).status, "setup");
+  // The plan didn't start: still in setup, and pressing again right away works.
+  const failed = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(failed.status, 500);
+  const row = await w.stores.presses.get(pressId);
+  assert.deepEqual([row.status, row.pressName, row.look, row.openingSince], ["setup", "Moth Press", "riso", ""]);
+  fail = false;
+  assert.equal((await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA)).body.press.status, "opening");
+});
+
+test("two presses of Open my shop at the same moment open one shop", async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const trials = [];
+  const w = world({ billing: { startTrial: async (args) => { trials.push(args); await gate; return { status: "trialing" }; } } });
+  const pressId = await readyPress(w);
+  const first = w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  await new Promise((resolve) => setImmediate(resolve));
+  const second = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(second.status, 409);
+  assert.match(second.body.message, /already being opened/);
+  release();
+  assert.equal((await first).body.press.status, "opening");
+  assert.equal(trials.length, 1);
+});
+
+test("a stranger can't open another press's shop", async () => {
+  const w = world();
+  const pressId = await readyPress(w);
+  assert.equal((await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, BEN)).status, 404);
+  assert.equal((await w.stores.presses.get(pressId)).status, "setup");
+  assert.equal(w.trials.length, 0);
+});
+
+test("after the plan fails to start, the retry opens with the answers the press gives now, as one shop", async () => {
+  let fail = true;
+  const trials = [];
+  const w = world({ billing: { startTrial: async (args) => { if (fail) throw new Error("The payment service is busy."); trials.push(args); return { status: "trialing" }; } } });
+  const pressId = await readyPress(w);
+  assert.equal((await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA)).status, 500);
+  // The press changes its mind while back in setup: a new plan and a new name.
+  await w.ask("POST", "/api/press/setup", { pressId, pressName: "Leaf Books" }, ADA);
+  fail = false;
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN, plan: "shop" }, ADA);
+  assert.equal(opened.body.press.status, "opening");
+  assert.deepEqual(trials.map((t) => [t.plan, t.pressName]), [["shop", "Leaf Books"]]);
+  const rows = [...w.signupStores.signups.rows.values()].filter((row) => row.pressId === pressId);
+  assert.equal(rows.length, 1);
+  assert.deepEqual([rows[0].shopId, rows[0].plan, rows[0].pressName], [opened.body.press.shopId, "shop", "Leaf Books"]);
+});
+
+test("two presses with the same name on one account open two shops", async () => {
+  const w = world();
+  const first = await readyPress(w);
+  // A second press on the same account (made from the picker), with the same name in other letters.
+  const second = "press-second";
+  await w.stores.presses.create(second, { ...(await w.stores.presses.get(first)), pressId: second, pressName: "moth press", plan: "stockroom" });
+  const a = await w.ask("POST", "/api/press/open", { pressId: first, ...OPEN }, ADA);
+  const b = await w.ask("POST", "/api/press/open", { pressId: second, ...OPEN }, ADA);
+  assert.notEqual(a.body.press.shopId, b.body.press.shopId);
+  assert.deepEqual(w.trials.map((t) => t.plan), ["both", "stockroom"]);
+});
+
+test("a press whose country hasn't opened yet is told so and stays in setup, and can open once it has", async () => {
+  const w = world();
+  const pressId = await readyPress(w, { pressName: "Moth Press", country: "US", plan: "shop" });
+  const waits = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(waits.status, 200);
+  assert.equal(waits.body.press.status, "setup");
+  assert.equal(waits.body.shop.status, "later");
+  assert.match(waits.body.shop.message, /Canada/);
+  assert.equal(w.trials.length, 0);
+  // Still in setup: it can change its answers, and pressing again re-checks.
+  await w.ask("POST", "/api/press/setup", { pressId, country: "CA" }, ADA);
+  const opened = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  assert.equal(opened.body.press.status, "opening");
+  assert.equal([...w.signupStores.signups.rows.values()].filter((row) => row.pressId === pressId).length, 1);
+});
+
+test("while Open my shop is running, the press's answers can't change under it", async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const w = world({ billing: { startTrial: async () => { await gate; return { status: "trialing" }; } } });
+  const pressId = await readyPress(w);
+  const opening = w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
+  await new Promise((resolve) => setImmediate(resolve));
+  const renamed = await w.ask("POST", "/api/press/setup", { pressId, pressName: "Other" }, ADA);
+  assert.equal(renamed.status, 409);
+  release();
+  assert.equal((await opening).body.press.pressName, "Moth Press");
 });

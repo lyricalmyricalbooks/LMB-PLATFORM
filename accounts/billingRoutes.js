@@ -25,6 +25,9 @@
 //   POST /api/billing/details/save             { shopId, name, email, address, taxNumber } -> { saved }
 //   POST /api/billing/upcoming                 { shopId } -> { bill }: the next bill line by line, or null
 //   POST /api/billing/pay-now                  { shopId } -> { paid } or { needsConfirming, url }
+//   The download, when the door is given `exports` (the shop admin's door; the account page has its own button):
+//   POST /api/billing/download                 { shopId } -> { emailedTo, expiresAt }: a copy of everything, the
+//                                  closed app's records included while they're kept (services/export forOwner: once a day)
 //
 // The same calls are reached from the shop's own admin through accounts/shopBillingDoor.js (`/api/shop-billing/*`):
 // `billingCalls` below is the one list both doors serve.
@@ -43,7 +46,7 @@ export const billingPage = (settings, shopId) => `${settings.platformUrl}/accoun
  * Every billing call, by name, for both doors: { run(shopId, body, { returnUrl }), secondStep }. `secondStep` (true, or
  * a test of the body) marks the changes a paid plan's owner needs two-step sign-in for (plan 14.1); looking is free.
  */
-export function billingCalls({ billing, paymentWay = null, settings }) {
+export function billingCalls({ billing, paymentWay = null, settings, exports = null }) {
   const calls = {
     status: { run: async (shopId) => ({ billing: await billing.status(shopId) }) },
     card: { run: async (shopId, _body, { returnUrl }) => billing.cardLink({ shopId, returnUrl }), secondStep: true },
@@ -89,6 +92,10 @@ export function billingCalls({ billing, paymentWay = null, settings }) {
       "pay-now": { run: async (shopId) => billing.payNow({ shopId }) },
     });
   }
+  if (exports) {
+    // The same once-a-day copy as the account page's Download all your data, emailed to the shop's owner.
+    calls.download = { run: async (shopId, _body, { claims }) => { const { emailedTo, expiresAt } = await exports.forOwner(claims, { shopId }); return { emailedTo, expiresAt }; } };
+  }
   return calls;
 }
 
@@ -133,7 +140,7 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
         throw new SignupError(problem.status, problem.message);
       }
       try {
-        const answer = await entry.run(shopId, asked, { returnUrl: billingPage(settings, shopId) });
+        const answer = await entry.run(shopId, asked, { returnUrl: billingPage(settings, shopId), claims });
         await log(shopId, call, person.email, "done");
         return answer;
       } catch (error) {

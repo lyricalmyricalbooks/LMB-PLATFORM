@@ -66,7 +66,7 @@ export function guideSteps(press: SetupPress): GuideStep[] {
     { id: "plan", title: "Pick what you want to set up", done: !!press.plan, page: PLAN_PAGE, action: "Choose" },
     { id: "details", title: "Tell us about your press", done: !!(press.pressName && press.sells && press.country), page: GENERAL_PAGE, action: "Add details" },
     ...(fresh ? [...look, books] : [books, ...look]),
-    { id: "open", title: "Open your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "See how" },
+    { id: "open", title: "Open your shop", done: press.status === "opening" || press.status === "open", page: PLAN_PAGE, action: "Open my shop" },
   ];
 }
 

@@ -134,7 +134,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
     },
 
     /** Starts the press's free trial and queues its shop. Returns { shopId, status, trialEnd }. */
-    async start(claims, input) {
+    async start(claims, input, { pressId = null } = {}) {
       const person = personOf(claims);
       const { ok, details, problems } = checkSignup(input);
       if (!ok) throw new SignupError(400, "Some details need another look.", problems);
@@ -148,7 +148,14 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
       const mine = await signups.listByAccount(person.accountId);
       // The same press signed up again (a double click, a lost answer): the same shop, carried on from where it stopped,
       // with the first agreement to the terms kept.
-      let row = mine.find((s) => s.pressName.toLowerCase() === details.pressName.toLowerCase());
+      // Opened from the front door (18.8): the press's own row, found by its press, never by a name another press shares.
+      let row = pressId ? mine.find((s) => s.pressId === pressId) : mine.find((s) => !s.pressId && s.pressName.toLowerCase() === details.pressName.toLowerCase());
+      // A press back from a refusal (its plan didn't start) opens with the answers it gives now, not the earlier ones.
+      if (row && pressId && !row.trialStartedAt) {
+        const { pressName, plan, country, currency, answer, publishes } = details;
+        row = { ...row, pressName, plan, country, currency, answer, publishes };
+        await signups.set(row.shopId, row);
+      }
       if (!row) {
         if (mine.length >= MAX_SHOPS_PER_ACCOUNT) throw new SignupError(429, `One account can start up to ${MAX_SHOPS_PER_ACCOUNT} shops. Write to us if you need more.`);
         if (details.address && !(await isFree(details.address, person.accountId))) {
@@ -171,6 +178,8 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
           publishes: details.publishes,
           ...agreement,
           paymentProvider: "stripe",
+          // Opened from the front door's setup (18.8): the shop maker reads the look and the kept file there (18.9).
+          ...(pressId ? { pressId } : {}),
           invited: isInvited,
           status: held ? "later" : myTurn ? "queued" : "in-line",
           ...(held ? { message: LATER_WORDS } : myTurn ? { admittedAt: at() } : { linedUpAt: at(), message: IN_LINE_WORDS }),
