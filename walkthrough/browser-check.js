@@ -63,6 +63,9 @@ async function checkFrontDoor(browser, walk, log) {
       await visible("#view-code");
     });
     await step("a wrong code", async () => {
+      // "Send a new code" waits half a minute after a send, with the wait shown.
+      await visible("#code-wait");
+      if (await page.locator("#code-again").isVisible()) throw new Error("Send a new code shows before the wait is over");
       await page.fill("#code", "000000");
       await visible("#code-error");
     });

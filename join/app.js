@@ -78,10 +78,30 @@ $("#google").addEventListener("click", async () => {
   }
 });
 
+// After a code is sent, "Send a new code" waits half a minute: the first email is usually on its way, and each send counts
+// toward the five an hour.
+const RESEND_WAIT_SECONDS = 30;
+let resendTimer = 0;
+function holdResend() {
+  const again = $("#code-again");
+  const wait = $("#code-wait");
+  let left = RESEND_WAIT_SECONDS;
+  clearInterval(resendTimer);
+  const tick = () => {
+    again.hidden = left > 0;
+    wait.hidden = left <= 0;
+    wait.textContent = `You can ask for a new code in ${left}s`;
+    if (left-- <= 0) clearInterval(resendTimer);
+  };
+  tick();
+  resendTimer = setInterval(tick, 1000);
+}
+
 async function sendCode() {
   await api("POST", "/code/send", { email });
   $("#code-email").textContent = email;
   $("#code-form").code.value = "";
+  holdResend();
 }
 
 $("#email-form").addEventListener("submit", (event) => {
@@ -145,7 +165,16 @@ function fillAnswers() {
   const [nameForm, sellsForm, countryForm] = QUESTIONS.map((q) => $(`#view-${q} form`));
   nameForm.pressName.value = press.pressName ?? "";
   for (const input of sellsForm.querySelectorAll("input[name=sells]")) input.checked = input.value === press.sells;
-  countryForm.country.value = press.country in COUNTRIES ? press.country : "";
+  // Not answered yet: start from the country the browser says it is in, when it's one we serve.
+  countryForm.country.value = press.country in COUNTRIES ? press.country : browserCountry();
+}
+
+function browserCountry() {
+  for (const tag of navigator.languages ?? [navigator.language]) {
+    const region = (() => { try { return new Intl.Locale(tag).maximize().region; } catch { return ""; } })();
+    if (region in COUNTRIES) return region;
+  }
+  return "";
 }
 
 const valueOf = (form) => {
@@ -176,8 +205,8 @@ for (const form of document.querySelectorAll("form[data-question]")) {
   });
   // Skipping keeps whatever was saved before and moves on.
   form.querySelector("[data-skip]").addEventListener("click", () => next(form));
-  form.querySelector("[data-back]")?.addEventListener("click", (event) => show(event.currentTarget.dataset.back));
 }
+for (const back of document.querySelectorAll("[data-back]")) back.addEventListener("click", () => show(back.dataset.back));
 
 // ── 4. Saved, then the admin ──
 function done({ focus = true } = {}) {
