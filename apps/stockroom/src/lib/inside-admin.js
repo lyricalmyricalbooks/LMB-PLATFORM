@@ -14,6 +14,8 @@ export const INSIDE_ADMIN_PATH = '/stockroom/app';
 /** Who sends a message: the admin to this page, or this page to the admin. Anything else is ignored. */
 export const FROM_ADMIN = 'lm-admin';
 export const FROM_STOCKROOM = 'lm-stockroom';
+/** Fired by switchTab with the page it opens, whoever asked: a menu, a link inside a page, the book picker. */
+export const STOCKROOM_PAGE_EVENT = 'lm-stockroom-page';
 
 const PAGE = /^[a-z][a-z-]{1,29}$/;
 const LOOK = /^[a-z][a-z-]{1,19}$/;
@@ -82,9 +84,13 @@ export function startInsideAdmin({ switchTab, setAdminLook, setThemePreference }
     try { win.parent.postMessage(stockroomMessage(type, extra), win.location.origin); } catch (_) { /* admin gone */ }
   };
   const open = (tab) => {
-    try { switchTab(tab); } catch (_) { return; }
-    tell('page', { tab });
+    try { switchTab(tab); } catch (_) { /* the page reports what it shows */ }
   };
+  // Every page change, the admin's own requests included, so its menu and address never drift.
+  win.addEventListener(STOCKROOM_PAGE_EVENT, (event) => {
+    const tab = event && typeof event.detail === 'string' ? event.detail : '';
+    if (PAGE.test(tab)) tell('page', { tab });
+  });
 
   const fromHash = () => {
     const tab = parseTabHash(win.location.hash);

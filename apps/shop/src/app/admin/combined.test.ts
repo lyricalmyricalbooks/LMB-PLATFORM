@@ -54,6 +54,8 @@ describe("the combined admin (shop + stockroom plan)", () => {
     for (const p of STOCKROOM_PAGES) expect(routeFromHash(hashForRoute({ tab: STOCKROOM_TAB, subTab: p.id }))).toEqual({ tab: STOCKROOM_TAB, subTab: p.id });
     expect(sameSection("#stockroom/pos", "#stockroom/expenses")).toBe(false);
     expect(sameSection("#stockroom/pos", "#stockroom/pos")).toBe(true);
+    // A shop with only the website: a stockroom address is unknown, as before.
+    expect(routeFromHash("#stockroom/pos", false)).toBeNull();
   });
 
   it("talks with the stockroom frame only, in names both sides share", () => {
@@ -62,7 +64,8 @@ describe("the combined admin (shop + stockroom plan)", () => {
     const ev = (data: unknown, over: object = {}) => ({ source: frame, origin, data, ...over });
     expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "ready" }), frame, origin)).toEqual({ type: "ready" });
     expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "page", tab: "pos" }), frame, origin)).toEqual({ type: "page", tab: "pos" });
-    expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "page", tab: "website" }), frame, origin)).toBeNull();
+    expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "page", tab: "website" }), frame, origin)).toEqual({ type: "page", tab: "website" });
+    expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "page", tab: "../x" }), frame, origin)).toBeNull();
     expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "ready" }, { source: {} }), frame, origin)).toBeNull();
     expect(stockroomFrameMessage(ev({ source: FROM_STOCKROOM, type: "ready" }, { origin: "https://elsewhere.example" }), frame, origin)).toBeNull();
     expect(openMessage("pos")).toEqual({ source: FROM_ADMIN, type: "open", tab: "pos" });

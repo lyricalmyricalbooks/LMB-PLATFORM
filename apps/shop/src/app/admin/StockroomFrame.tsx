@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { EmptyState, PageSkeleton, SecondaryButton } from "./riso/components";
+import { INVENTORY_APP_URL } from "./appSwitch";
 import { STOCKROOM_FRAME_PATH, lookMessage, openMessage, stockroomFrameMessage } from "./combined";
 
 // How long the stockroom may take to open before the admin says so (it keeps trying meanwhile).
@@ -21,6 +22,9 @@ export function StockroomFrame({ page, visible, look, appearance, onPage }: {
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
+  // Counts each "ready": the stockroom says it again after reloading itself (an update, the Test Profile), and then
+  // starts on its own first page, so the page and the look are sent again.
+  const [starts, setStarts] = useState(0);
   const [slow, setSlow] = useState(false);
   // The address is fixed at first open (later pages go by message), so the frame never reloads.
   const [src] = useState(() => `${STOCKROOM_FRAME_PATH}#tab=${encodeURIComponent(page)}`);
@@ -36,7 +40,7 @@ export function StockroomFrame({ page, visible, look, appearance, onPage }: {
     const on = (event: MessageEvent) => {
       const msg = stockroomFrameMessage(event, frame.current?.contentWindow, window.location.origin);
       if (!msg) return;
-      if (msg.type === "ready") { setReady(true); setSlow(false); return; }
+      if (msg.type === "ready") { shown.current = ""; setReady(true); setSlow(false); setStarts((n) => n + 1); return; }
       shown.current = msg.tab;
       onPageRef.current(msg.tab);
     };
@@ -55,36 +59,51 @@ export function StockroomFrame({ page, visible, look, appearance, onPage }: {
     if (!ready || page === shown.current) return;
     shown.current = page;
     send(openMessage(page));
-  }, [ready, page]);
+  }, [ready, page, starts]);
 
   // The frame fills the window below where it starts, so the stockroom scrolls inside it and its pop-ups stay in view.
+  // Measured again whenever the page above it changes size (alerts and banners load later; the page before it may still
+  // be leaving), never before the stockroom is ready, when the frame stays folded away.
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !ready) return;
+    let raf = 0;
     const fit = () => {
-      const el = frame.current;
-      if (!el) return;
-      const top = el.getBoundingClientRect().top + window.scrollY;
-      el.style.height = `${Math.max(MIN_HEIGHT, window.innerHeight - top - 16)}px`;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = frame.current;
+        if (!el) return;
+        const top = el.getBoundingClientRect().top + window.scrollY;
+        el.style.height = `${Math.max(MIN_HEIGHT, window.innerHeight - top - 16)}px`;
+      });
     };
     fit();
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    watch?.observe(document.body);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", fit); watch?.disconnect(); };
   }, [visible, ready]);
 
   // The stockroom follows the admin's look and day or night.
   useEffect(() => {
     if (ready) send(lookMessage(look, appearance));
-  }, [ready, look, appearance]);
+  }, [ready, look, appearance, starts]);
 
   return (
     <div className="rp-stockroom" hidden={!visible}>
       {!ready && !slow && <PageSkeleton label="Opening the stockroom…" />}
       {!ready && slow && (
         <EmptyState title="The stockroom is taking a while"
-          description="It keeps trying by itself. If you're offline, it opens once you're back online, or after you've opened it here once on this device."
+          description="It keeps trying by itself, and opens once you're back online."
           action={<SecondaryButton onClick={() => window.location.reload()}>Reload the admin</SecondaryButton>} />
       )}
       <iframe ref={frame} className="rp-stockroom-frame" src={src} title="Stockroom" data-ready={ready || undefined} />
+      {/* The admin needs a connection to open; the stockroom app on its own keeps working with none. */}
+      {page === "pos" && (
+        <p className="rp-stockroom-offline">
+          No signal at the fair? <a href={INVENTORY_APP_URL} target="_blank" rel="noopener">Open the stockroom app on its own</a> before
+          you go: once it has opened on this device, it keeps working with no connection and catches up later.
+        </p>
+      )}
     </div>
   );
 }

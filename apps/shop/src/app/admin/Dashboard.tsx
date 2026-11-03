@@ -574,9 +574,14 @@ export function Dashboard() {
     else void goTo(id);
   };
   // A stockroom page in the combined admin: the stockroom tab with that page as its sub tab (`#stockroom/<page>`).
+  // The tab and its page are set together, so the address gets one Back step and the frame opens on that page.
   const openStockroomPage = async (page: string) => {
-    if (!(await goTo(STOCKROOM_TAB))) return;
-    openSubTab(stockroomPage(page)?.id ?? DEFAULT_STOCKROOM_PAGE, STOCKROOM_TAB);
+    if (isSettingsPage && anyDirty() && !(await leaveSettings())) return;
+    setSubTabState({ page: STOCKROOM_TAB, id: stockroomPage(page)?.id ?? DEFAULT_STOCKROOM_PAGE });
+    setActiveTab(STOCKROOM_TAB);
+    setShowEditor(false);
+    setSelectedOrder(null);
+    setSidebarOpen(false);
   };
   const onStockroomPage = activeTab === STOCKROOM_TAB;
   const stockroomPageId = stockroomPage(onStockroomPage ? subTab : undefined)?.id ?? DEFAULT_STOCKROOM_PAGE;
@@ -830,7 +835,7 @@ export function Dashboard() {
           </AnimatePresence>
           {COMBINED && stockroomOpened && (
             <StockroomFrame page={stockroomPageId} visible={onStockroomPage && !selectedOrder} look={adminLook} appearance={appearance}
-              onPage={(tab) => { if (activeTab === STOCKROOM_TAB) openSubTab(tab, STOCKROOM_TAB); }} />
+              onPage={(tab) => { if (activeTab === STOCKROOM_TAB && stockroomPage(tab)) openSubTab(tab, STOCKROOM_TAB); }} />
           )}
         </div>
       </AppShell>

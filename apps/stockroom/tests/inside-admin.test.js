@@ -3,7 +3,7 @@
 // from that framing page are obeyed.
 import { describe, it, expect, vi } from 'vitest';
 import {
-  FROM_ADMIN, FROM_STOCKROOM, adminMessage, combinedPlan, isInsideAdmin, parseTabHash, stockroomMessage,
+  FROM_ADMIN, FROM_STOCKROOM, STOCKROOM_PAGE_EVENT, adminMessage, combinedPlan, isInsideAdmin, parseTabHash, stockroomMessage,
 } from '../src/lib/inside-admin.js';
 
 const BOTH = { apps: { shop: true, stockroom: true } };
@@ -88,7 +88,8 @@ describe('starting inside the admin', () => {
     };
     win.self = win;
     win.top = parent;
-    const switchTab = vi.fn();
+    // The real switchTab announces every page it opens.
+    const switchTab = vi.fn((tab) => listeners[STOCKROOM_PAGE_EVENT]?.({ detail: tab }));
     const setAdminLook = vi.fn();
     const setThemePreference = vi.fn();
     expect(startInsideAdmin({ switchTab, setAdminLook, setThemePreference }, { win, profile: BOTH })).toBe(true);
@@ -105,5 +106,9 @@ describe('starting inside the admin', () => {
     expect(setThemePreference).toHaveBeenCalledWith('dark', { announce: false });
     listeners.message({ source: {}, origin: ORIGIN, data: { source: FROM_ADMIN, type: 'open', tab: 'expenses' } });
     expect(switchTab).not.toHaveBeenCalledWith('expenses');
+    // A page opened from inside (a link, the book picker) is reported too, so the admin's menu follows.
+    posted.length = 0;
+    listeners[STOCKROOM_PAGE_EVENT]({ detail: 'dashboard' });
+    expect(posted.map(([m]) => m)).toEqual([{ source: FROM_STOCKROOM, type: 'page', tab: 'dashboard' }]);
   });
 });

@@ -4,7 +4,7 @@
 // A page split into sub tabs adds a readable slug for the open one (`#settings/general/visitors`, `#inventory/link`);
 // the first (default) sub tab has none, so the older addresses stay as they were.
 
-import { DEFAULT_STOCKROOM_PAGE, STOCKROOM_TAB, stockroomPage } from "./combined";
+import { DEFAULT_STOCKROOM_PAGE, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 
 export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string; subTab?: string; bookId?: string };
 
@@ -52,15 +52,15 @@ const TABS = new Set<string>(ADMIN_TABS);
 const SETTINGS = new Set<string>(SETTINGS_TABS);
 const decode = (v: string) => { try { return decodeURIComponent(v); } catch { return v; } };
 
-/** Read an admin hash. Studio (`#designer…`) and unknown hashes return null. */
-export function routeFromHash(hash: string): AdminRoute | null {
+/** Read an admin hash. Studio (`#designer…`) and unknown hashes return null, as does `#stockroom/…` without both apps. */
+export function routeFromHash(hash: string, combined: boolean = combinedAdmin()): AdminRoute | null {
   const h = hash.replace(/^#/, "").split("?")[0];
   if (!h) return null;
   const [head, rest] = [h.split("/")[0], h.split("/").slice(1).join("/")];
   if (head === "gift-cards") return { tab: "giftCards", ...(rest ? { giftCardId: decode(rest) } : {}) };
   if (head === "orders") return { tab: "orders", ...(rest ? { orderId: decode(rest) } : {}) };
   // A stockroom page in the combined admin (combined.ts): `#stockroom/<page>`; an unknown page opens the first.
-  if (head === STOCKROOM_TAB) return { tab: STOCKROOM_TAB, subTab: stockroomPage(rest.split("/")[0])?.id ?? DEFAULT_STOCKROOM_PAGE };
+  if (head === STOCKROOM_TAB) return !combined ? null : { tab: STOCKROOM_TAB, subTab: stockroomPage(rest.split("/")[0])?.id ?? DEFAULT_STOCKROOM_PAGE };
   // A book opened from the inventory app's search: Books with that book in the editor.
   if (head === "catalog" && rest.startsWith("book/")) {
     const bookId = decode(rest.slice(5)).trim();

@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+  // Inside a shop's own address the stockroom lives at /stockroom/app; /stockroom (no slash, which Hosting makes of
+  // /stockroom/) can't find its files, so it moves there (docs: LMB-PLATFORM docs/combined-admin.md).
+  if (/\/stockroom$/.test(location.pathname)) location.replace('/stockroom/app' + location.search + location.hash);
+</script>
 <!-- A first browser safety policy. GitHub Pages can't send headers, so it rides
      in a meta tag. It refuses plugins (object/embed) and stops injected markup
      from re-pointing the page's relative links with a <base> tag. Inline

@@ -1871,3 +1871,4 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   height: calc(100dvh - 180px); min-height: 420px;
 }
 .rp-stockroom-frame:not([data-ready]) { visibility: hidden; height: 0; min-height: 0; border: 0; }
+.rp-stockroom-offline { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }

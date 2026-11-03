@@ -10,7 +10,8 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
 - **One menu** (`COMBINED_MENU` in `apps/shop/src/app/admin/riso/nav.ts`), grouped by the job, as Shopify does:
   Home · Orders · Books · Sell in person · Marketing · Money · Online store · Settings. It holds every page of the
   website admin's own menu and the stockroom pages listed in `STOCKROOM_PAGES` (tests check both). The stockroom's
-  Website orders, Web Analytics, Shipping and Help are left out: the admin already has one of each.
+  Website orders, Web Analytics and Help are left out: the admin already has one of each. Its Shipping page stays
+  as Orders › Parcels and labels (labels for parcels that aren't website orders).
 - **One address and sign-in:** the shop's Hosting serves a copy of the stockroom's built pages at `/stockroom/`
   (`clients/deploy.js` copies `apps/stockroom/dist` into the shop's `dist/stockroom` for both-app shops only, and
   removes it for every other shop, since the build is shared). `/stockroom/app` is rewritten to its `index.html`
@@ -24,6 +25,12 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
   type: "ready" }` and `{ type: "page", tab }`. A `#tab=<page>` link opens the first page.
 - **Inside the admin the stockroom hides** its own menu, switcher, phone bar, search, notifications, account and theme
   buttons (`apps/stockroom/src/styles/inside-admin.css`); it keeps the book picker, figures and sync mark.
+- **Every page change is reported:** the stockroom's `switchTab` fires `lm-stockroom-page`, so a link inside a page
+  or the book picker moves the admin's menu and address too; a second `ready` (the stockroom reloaded itself) resends
+  the page and the look.
+- **Offline:** the admin itself needs a connection to open (the shop has no offline copy). The Fair till page links to
+  the stockroom app on its own (`<project>-stockroom.web.app`), which works with no signal once opened on the device.
+  An offline copy of the admin is a later step.
 - **No switcher:** the "Website · Inventory" switcher and phone pill are not shown on the combined admin.
 - The Hosting `Permissions-Policy` now allows the camera on the shop's own pages (`camera=(self)`), as the stockroom's
   site already did, for barcode scanning in the admin and the fair till.

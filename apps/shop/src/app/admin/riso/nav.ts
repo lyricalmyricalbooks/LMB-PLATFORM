@@ -57,7 +57,7 @@ const SETTINGS_PAGES = ["general", "shipping", "payments", "taxes", "notificatio
  */
 export const COMBINED_MENU: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview", S("todo")] },
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", S("history"), S("manual"), "customers", S("customers"), "messages"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", S("history"), S("manual"), S("shipping"), "customers", S("customers"), "messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", S("dashboard"), "reviews"] },
   { label: "Sell in person", icon: Store, pages: [S("pos"), S("consignment"), S("qrcodes")] },
   { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", S("opencall")] },
