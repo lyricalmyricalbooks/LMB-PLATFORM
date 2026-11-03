@@ -49,6 +49,7 @@ const { taxPartsByKind } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
+const { paymentLinkFor, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES } = require("./paymentLinks");
 const { expandDiscountCategories } = require("./shared/discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./shared/discountMath");
 const { taxLinesFor } = require("./shared/taxBooks");
@@ -1006,7 +1007,9 @@ function cachedAutomaticDiscounts(now = Date.now()) {
 // Nothing the browser sends decides a price: books, editions, add-ons, box-set parts, the
 // discount (a code, else the best automatic offer, including a free gift), shipping, tax and
 // gift-card amounts are all worked out here. Throws PricingError for a shopper-fixable problem.
-async function priceOrder(order, { orderId = "", settings: knownSettings = null } = {}) {
+// An order the owner made with a payment link (paymentLinks.js, plan 21.1) pays the agreed prices and shipping instead,
+// with no discount on top; `paymentLink` is the draft record while the link is being made.
+async function priceOrder(order, { orderId = "", settings: knownSettings = null, paymentLink: draftLink = null } = {}) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(order.customer?.email || "").trim())) {
     throw new PricingError("Check the email address: it doesn't look complete.");
   }
@@ -1020,9 +1023,11 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     return booksById[id];
   };
   const items = [];
+  const link = draftLink || await paymentLinkFor(db, orderId, order);
+  if (link && linkProblem(link)) throw new PricingError(LINK_MESSAGES[linkProblem(link)], "payment_link_closed");
   // An order claimed by an approved stockist (stockists.js) pays the wholesale price where a product has one. The registry
   // is read again on every pricing, so a stockist who is paused after claiming pays the shop's price.
-  const stockist = await loadStockist(db, order.stockistId);
+  const stockist = link ? null : await loadStockist(db, order.stockistId);
   const wholesaleCache = new Map();
   for (const requested of order.items || []) {
     // A free gift is never taken from the browser: it is re-added below when the order earns it.
@@ -1105,6 +1110,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     });
   }
   if (!items.length) throw new PricingError("Order has no items.");
+  if (link && (items.some(item => item.giftCard === true) || !applyLinkPrices(items, link))) throw new PricingError(LINK_MESSAGES.changed, "payment_link_closed");
 
   // The plan is paused or closed (plan 6.7): every checkout path is priced here, so this stops them all, practice
   // orders too (their settings don't carry the plan).
@@ -1148,7 +1154,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     if (!(offer.id in giftLines)) giftLines[offer.id] = await giftLineFor(offer);
     giftPrices[offer.id] = giftLines[offer.id] ? giftLines[offer.id].price : NaN;
   };
-  if (order.appliedDiscount?.code) {
+  if (link) {
+    // The agreed prices are the whole deal: no code or automatic offer on top.
+  } else if (order.appliedDiscount?.code) {
     // Same "Discount code error:" prefix on every path, so checkout can drop the code and explain.
     try {
       const verified = expandDiscountCategories(await fetchValidDiscount(order.appliedDiscount.code), settings.design?.categories);
@@ -1195,7 +1203,10 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   const discountedPhysical = discountedPhysicalSubtotal(taxable, discount, verifiedDiscount, booksById);
   let shipResult;
   try {
-    shipResult = await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical);
+    // A payment link ships for the amount the owner set, or nothing when there is nothing to ship.
+    shipResult = link
+      ? { cost: link.shipping != null && items.some(isPhysicalItem) ? Math.round(Number(link.shipping) * 100) / 100 : 0, method: link.shipping != null && items.some(isPhysicalItem) ? "Shipping" : null, fulfillment: null }
+      : await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical);
   } catch (err) {
     throw new PricingError(err.message, err.code === "shipping_rates_changed" ? err.code : undefined);
   }
@@ -1611,6 +1622,7 @@ const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTr
 });
 
 const { handleStockistPricing, handleStockistStatus } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
+const { handlePaymentLink } = paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage });
 
 const { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin, handleMyData } = privacyActions({
   db, admin, ADMIN_TO, GIFT_CARD_PERSONAL, LIMITS, RESEND_API_KEY, claimEmailSendDetailed, confirmationEmail,
@@ -1645,6 +1657,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   orderRequest: handleOrderRequest,
   stockistPricing: handleStockistPricing,
   stockistStatus: handleStockistStatus,
+  paymentLink: handlePaymentLink,
   privacyRequest: handlePrivacyRequest,
   myDataExport: handleMyData,
   myDataErase: handleMyData,
