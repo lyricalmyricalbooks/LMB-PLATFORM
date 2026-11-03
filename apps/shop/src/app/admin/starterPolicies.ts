@@ -50,9 +50,11 @@ function bookPolicy(key: PolicyKey, f: StarterFacts): string {
       return [
         sentences(f.name && `This is how returns work for orders from ${f.name}.`, f.returnDays
           ? `You can send a book back within ${f.returnDays} days of delivery for a refund, as long as it is in the condition you received it. Before you send it, ${contact(f)} so we can tell you where to send it.`
-          : "Once an order has shipped it can't be returned. Until it ships, you can ask to cancel it from the order tracking page (the link is in your order confirmation email)."),
+          : "We don't take change-of-mind returns once an order has shipped, except where the law where you live gives you that right. Until it ships, you can ask to cancel it from the order tracking page (the link is in your order confirmation email)."),
+        "If you live in the European Union or the United Kingdom, you can cancel within 14 days of delivery without giving a reason: tell us within that time, send the items back within 14 more days, and we refund what you paid, including the standard delivery cost.",
         `If your book arrives damaged or incorrect, ${contact(f)} within 30 days of delivery and we will replace it or refund you.`,
-        "Digital downloads are non-refundable once accessed, unless the file is faulty.",
+        "Digital downloads can't be returned once you have started downloading them, unless the file is faulty.",
+        "None of this limits the rights consumer law gives you where you live, such as a refund or replacement for faulty items.",
       ].join("\n\n");
     case "privacy":
       return [

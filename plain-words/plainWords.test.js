@@ -31,6 +31,10 @@ const ALLOWED = [
   // The name of the note inside a press's data download (services/export, 19.16): a file name every computer opens,
   // not the TXT record of web addresses.
   "README.txt",
+  // The terms' list of companies that help run Colophon (terms/terms.js HELPERS): privacy law asks for each one by its
+  // real name, so these are names of companies there, not technical words.
+  "Google Cloud: keeps each shop online",
+  "Resend: sends your shop's emails and ours",
 ];
 const isRouteLabel = (text) => /^(GET|POST|PUT|PATCH|DELETE) \//.test(text);
 

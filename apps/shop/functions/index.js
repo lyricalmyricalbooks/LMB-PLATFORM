@@ -599,7 +599,7 @@ function getStateCode(stateName) {
 }
 
 // Shippo "address_from": Settings › General › Location (street, city, province, postal code,
-// country, phone), each blank field falling back to the original Toronto address.
+// country, phone). Blank fields stay blank (shopSettings.js), the country defaulting to Canada.
 function originAddress(settings) {
   const origin = shopOrigin(settings);
   return { ...origin, state: getStateCode(origin.state), country: getCountryCode(origin.country) || "CA" };

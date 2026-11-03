@@ -187,7 +187,7 @@ let myShops = [];
 
 /** Where a shop stands, in a few words and a tone, for its card and the strip at the top. */
 function standing(shop) {
-  if (shop.access === "paused") return { badge: "Paused", tone: "danger", line: "Paused until a card is added. Shoppers see a \"back soon\" page; nothing is deleted." };
+  if (shop.access === "paused") return { badge: "Paused", tone: "danger", line: "Paused until a card is added. Shoppers see a \"back soon\" page; everything is kept for 60 days." };
   if (shop.access === "closed") return { badge: "Closed", tone: "neutral", line: "Closed." };
   if (shop.status !== "live") return { badge: "Being made", tone: "info", line: "Still being made. It's usually ready in a minute or two." };
   const plan = shop.billing;

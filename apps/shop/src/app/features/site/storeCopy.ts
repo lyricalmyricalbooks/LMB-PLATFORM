@@ -196,6 +196,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "footerTiktokAria", label: "TikTok icon (read aloud by screen readers)", default: "TikTok" },
       { key: "footerEmailAria", label: "Email icon (read aloud by screen readers)", default: "Email us" },
       { key: "footerAdmin", label: "Admin link (bottom bar)", default: "Admin" },
+      { key: "footerCookieSettings", label: "Cookie settings link (bottom bar, while the cookie banner is on)", default: "Cookie settings" },
       { key: "footerLegalHeading", label: "Legal heading", default: "Legal" },
       { key: "policyTitleShipping", label: "Policy link & page title: Shipping", default: "Shipping Policy" },
       { key: "policyTitleReturns", label: "Policy link & page title: Returns", default: "Returns Policy" },

@@ -375,7 +375,7 @@ export const ARTICLES = Object.freeze([
     topic: "Your account",
     question: "What happens when my free trial ends?",
     answer: [
-      "If you have added a card, your plan simply carries on. If you haven't, your shop pauses. Nothing is deleted.",
+      "If you have added a card, your plan simply carries on. If you haven't, your shop pauses. Everything is kept for 60 days, and adding a card opens it again.",
       "Add a card at any time and your shop opens again, billed from that day. If you cancel, your plan runs to the end of the time already paid for, and you can change your mind until then.",
     ],
   },

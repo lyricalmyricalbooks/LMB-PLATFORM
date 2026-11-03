@@ -219,7 +219,7 @@ export const TEMPLATES = {
     greeting: "Hello,",
     paragraphs: hasCard
       ? [`Your free trial for ${pressName} ends on ${date}. After that, your card is charged ${price} a month for the ${planName} plan.`, "You can change plan or cancel at any time before then."]
-      : [`Your free trial for ${pressName} ends on ${date}.`, `To keep it open, add a card. The ${planName} plan is ${price} a month, and you can cancel at any time.`, "If there is no card by then, your shop pauses. Nothing is deleted, and adding a card opens it again."],
+      : [`Your free trial for ${pressName} ends on ${date}.`, `To keep it open, add a card. The ${planName} plan is ${price} a month, and you can cancel at any time.`, "If there is no card by then, your shop pauses. Everything is kept for 60 days, and adding a card opens it again."],
     buttons: [[hasCard ? "Manage your plan" : "Add a card", safeLink(link)]],
     footer: signOff(settings),
   }),
@@ -228,7 +228,7 @@ export const TEMPLATES = {
   "card-needed": ({ link }, { settings, pressName }) => layout({
     subject: `${pressName} is paused until you add a card`,
     greeting: "Hello,",
-    paragraphs: [`Your free trial for ${pressName} has ended, so it is paused for now. Nothing is deleted.`, "Add a card and it opens again straight away."],
+    paragraphs: [`Your free trial for ${pressName} has ended, so it is paused for now. Everything is kept for 60 days.`, "Add a card and it opens again straight away."],
     buttons: [["Add a card", safeLink(link)]],
     footer: signOff(settings),
   }),
@@ -315,7 +315,7 @@ export const TEMPLATES = {
   "subscription-ended": ({ link }, { settings, pressName }) => layout({
     subject: `${pressName} is closed`,
     greeting: "Hello,",
-    paragraphs: [`Your ${settings.platformName} plan for ${pressName} has ended, so the shop is closed. Your books, orders and settings are kept.`, "You can start a plan again at any time and pick up where you left off."],
+    paragraphs: [`Your ${settings.platformName} plan for ${pressName} has ended, so the shop is closed. You can download everything in it for 90 days; after that it is deleted, and we email you 30 and 7 days before.`, "You can start a plan again before then and pick up where you left off."],
     buttons: [["Start a plan again", safeLink(link)]],
     footer: signOff(settings),
   }),

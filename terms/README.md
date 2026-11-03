@@ -1,6 +1,8 @@
 # Terms
 
-Colophon's terms of service, privacy policy, data agreement and shutdown promise, on one page (code plan 8.1):
+Colophon's terms of service, plan and paying rules, privacy policy, data agreement, list of helper companies, how to
+report a shop and the shutdown promise, on one page (code plan 8.1; widened by the legal review of 3 November 2026,
+`/mnt/project-files/research/2026-11-03-legal-readiness.md` in the project files):
 `index.html`, a static page with no build step, like the help and status pages.
 
 - **The words** live in `terms.js`, in four sections. **DRAFT**: no lawyer has read them yet (switched on by Julian).
@@ -19,6 +21,12 @@ words changed). `acceptedCurrent(record)` says whether a stored record is for to
 record on the sign-up row once; `GET /api/plans` gives the page the version to send back.
 
 ## Not yet
+
+- The company's legal name, mailing address and governing law (`OPERATOR_NAME`, `OPERATOR_ADDRESS`, `GOVERNING_LAW`),
+  and real privacy and reports addresses: placeholders until Julian's company exists. A test refuses a final version
+  while they are placeholders.
+- The 30-day notices the terms promise (a price rise, a new helper company) are a manual step for now.
+- Quebec: a French version before Quebec presses sign up (Charter of the French Language).
 
 - A lawyer reads the words (Julian). Then set `DRAFT` to false and give a new version.
 - A Hosting address, next to `help/` and `accounts/` (Julian).

@@ -22,10 +22,10 @@ export function billingWords(billing, now = new Date()) {
   let when = "";
   if (billing.access === "closed") {
     state = "Closed";
-    when = "This plan has ended and the shop is closed. Your books, orders and settings are kept.";
+    when = "This plan has ended and the shop is closed. You can download everything in it for 90 days after it closed, then it is deleted.";
   } else if (billing.access === "paused") {
     state = "Paused";
-    when = billing.hasCard ? "Your shop is paused until the payment goes through." : "Your shop is paused. Add a card and it opens again straight away. Nothing is deleted.";
+    when = billing.hasCard ? "Your shop is paused until the payment goes through." : "Your shop is paused. Add a card within 60 days and it opens again straight away, just as it was.";
   } else if (billing.cancelAtPeriodEnd) {
     state = "Cancelled";
     when = `Your shop stays open until ${day(until)}. You won't be charged again.`;
@@ -49,7 +49,7 @@ export function billingWords(billing, now = new Date()) {
   const cancel = billing.cancelAtPeriodEnd
     ? `Changed your mind? Keep your plan any time before ${day(until)}.`
     : billing.access === "closed" ? "" : `Your shop stays open until ${day(until)}, and you won't be charged again. You can keep your plan until then.`;
-  const cancelAsk = `Cancel your plan? Your shop stays open until ${day(until)}, then closes. Nothing is deleted.`;
+  const cancelAsk = `Cancel your plan? Your shop stays open until ${day(until)}, then closes. You can download everything in it for 90 days after that, then it is deleted.`;
   // "Keep it": the one-click way back for an app the plan change will close (billing.keepClosingApps).
   const keepClosing = closing ? `Keep ${appList(billing.appsClosing.apps)}` : "";
   return { state, when, closing, keepClosing, card, cancel, cancelAsk };
