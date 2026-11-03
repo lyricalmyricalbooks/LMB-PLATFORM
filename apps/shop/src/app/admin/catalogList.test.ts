@@ -24,6 +24,11 @@ describe("catalog list rows", () => {
     expect(matchesStock(stockInfo({ trackInventory: true, stockLevel: 0 }), "Sold out")).toBe(true);
     expect(matchesStock(stockInfo({ trackInventory: true, stockLevel: 3 }), "Low")).toBe(true);
   });
+  it("calls a count low at the shop's own low-stock line", () => {
+    expect(stockInfo({ trackInventory: true, stockLevel: 8 }).kind).toBe("instock");
+    expect(stockInfo({ trackInventory: true, stockLevel: 8 }, undefined, 10).kind).toBe("low");
+    expect(stockInfo({ trackInventory: true, stockLevel: 3 }, undefined, 2).kind).toBe("instock");
+  });
   it("prices editions, gift cards and sales like the shop", () => {
     expect(priceInfo({ retailPrice: 0, variants: [{ price: 20 }, { price: 30 }] }).text).toBe("from CA$20.00");
     expect(priceInfo({ productType: "giftCard", variants: [{ price: 25 }, { price: 100 }] }).text).toBe("CA$25.00–CA$100.00");

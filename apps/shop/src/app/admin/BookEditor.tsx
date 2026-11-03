@@ -85,6 +85,7 @@ import { applyFormat, linkMarkup, type FormatAction } from "../features/site/des
 import { DescriptionText } from "../features/site/DescriptionText";
 import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle, withMetricWeights } from "./bookEditorState";
 import { LOW_STOCK } from "./catalogList";
+import { lowStockThreshold } from "./inventoryInsights";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { releaseArrived } from "../features/site/liveBook";
@@ -254,6 +255,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   // Books › edit › Images › Crop & edit (PhotoCropDialog); the design gives the shop's frame shapes.
   const [cropId, setCropId] = useState<string | null>(null);
   const [liveDesign, setLiveDesign] = useState<any>(null);
+  // Inventory's low-stock line (Inventory › Low-stock at or below), the same line Overview and the 8am email use.
+  const [lowLine, setLowLine] = useState(LOW_STOCK);
   const uploadingRef = useRef(false);
   const [metadataError, setMetadataError] = useState(false);
   const [photoInput, setPhotoInput] = useState("");
@@ -522,6 +525,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       setShippingProfiles(sh);
       setAuthors(au);
       setLiveDesign(settings?.design || null);
+      setLowLine(lowStockThreshold(settings));
       
       // Published categories only: a book can't be filed under a category shoppers can't see yet
       // (publish new Studio categories first).
@@ -1171,7 +1175,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const isbnWarn = isbnWarning(formData.isbn) || undefined;
   const addressLocked = slugLocked(initialData, slugUnlocked);
   const slugWarn =slugClash(formData.slug, book?.id, recommendationCatalog);
-  const lowStock = formData.trackInventory && !hasVariants && num(formData.stockLevel) <= LOW_STOCK;
+  const lowStock = formData.trackInventory && !hasVariants && num(formData.stockLevel) <= lowLine;
 
   const checklist = [
     { label: "Title", ok: !!formData.title?.trim(), tab: "details" as BookTab, field: "title" },
@@ -1221,7 +1225,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     </div>
   );
 
-  const stockBadge = (n: number) => (n <= 0 ? <StatusBadge tone="danger">Out of stock</StatusBadge> : n <= LOW_STOCK ? <StatusBadge tone="warning">Low: {n}</StatusBadge> : <StatusBadge tone="success">{n} in stock</StatusBadge>);
+  const stockBadge = (n: number) => (n <= 0 ? <StatusBadge tone="danger">Out of stock</StatusBadge> : n <= lowLine ? <StatusBadge tone="warning">Low: {n}</StatusBadge> : <StatusBadge tone="success">{n} in stock</StatusBadge>);
 
   return (
     <div className="book-editor-riso w-full h-full flex flex-col relative overflow-hidden">

@@ -30,6 +30,19 @@ const validId = id => typeof id === "string" && !!id && id.length <= 160 && !id.
 
 class LinkInputError extends Error {}
 
+const SENT = ["shipped", "out_for_delivery", "delivered", "collected"];
+/**
+ * Why items can't be added to this order (code plan 24.6), or null. Only a real, paid, active order that hasn't left: the
+ * same rule as the admin's addItemsProblem (admin/paymentLinks.ts).
+ */
+function addOnParentProblem(order) {
+  if (!order) return "The order these items are added to can't be found.";
+  if (order.isTest) return "Test orders can't take more items.";
+  if (order.paymentStatus !== "paid" || ["cancelled", "refunded", "completed"].includes(order.status)) return "Only an active paid order can take more items.";
+  if (SENT.includes(order.fulfillmentStatus)) return "This order has already left. Make a new order to pay instead.";
+  return null;
+}
+
 /**
  * The day a link closes, as the customer reads it ("November 5, 2026"), in the shop's time zone. Every place that names
  * the day (the order's history, the owner's email text in admin/paymentLinks.ts, the reminder) uses this same day.
@@ -74,7 +87,10 @@ function cleanLinkInput(body) {
   }
   const days = source.days === undefined || source.days === null || source.days === "" ? DEFAULT_DAYS : Number(source.days);
   if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) throw new LinkInputError(`The link can stay open for 1 to ${MAX_DAYS} days.`);
-  return { customer: { name, email, phone: text(contact.phone, 80), address }, lines, shipping, note: text(source.note, 500), days };
+  // Items added to a paid order (code plan 24.6): the new order names the order it ships with.
+  const shipsWith = source.shipsWith == null || source.shipsWith === "" ? null : source.shipsWith;
+  if (shipsWith !== null && !validId(shipsWith)) throw new LinkInputError("The order these items are added to can't be found.");
+  return { customer: { name, email, phone: text(contact.phone, 80), address }, lines, shipping, note: text(source.note, 500), days, shipsWith };
 }
 
 /** Why a link's agreed prices can't be used to pay now ("expired" | "closed"), or null. */
@@ -141,6 +157,13 @@ function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, public
       throw err;
     }
     try {
+      let parent = null;
+      if (input.shipsWith) {
+        const snap = await db.collection("orders").doc(input.shipsWith).get();
+        parent = snap.exists ? snap.data() : null;
+        const problem = addOnParentProblem(parent);
+        if (problem) return res.status(400).json({ error: problem });
+      }
       const at = now();
       const createdAt = at.toISOString();
       const orderId = crypto.randomBytes(12).toString("hex").toUpperCase();
@@ -181,8 +204,9 @@ function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, public
         orderId, status: "pending_payment", paymentStatus: "unpaid", paymentMethod: "Stripe", source: "payment_link",
         paymentLink: { expiresAt, ...(input.note ? { note: input.note } : {}) },
         referralSource: "payment_link",
+        ...(parent ? { shipsWith: input.shipsWith } : {}),
         createdAt, updatedAt: createdAt,
-        activity: [{ type: "event", message: `Payment link made by ${actor}, open until ${closingDay(expiresAt)}.`, createdAt }],
+        activity: [{ type: "event", message: `Payment link made by ${actor}, open until ${closingDay(expiresAt)}.${parent ? ` Adds to order ${parent.orderId || input.shipsWith}; pack them together.` : ""}`, createdAt }],
       });
       return res.status(200).json({ orderId, trackingKey, total: priced.total, expiresAt });
     } catch (err) {
@@ -255,4 +279,4 @@ async function sendLinkReminders({ db, orders, settings, compileEmailTemplate, o
   return { sent };
 }
 
-module.exports = { reminderDue, sendLinkReminders, closingDay, REMIND_BEFORE_MS, cleanLinkInput, linkProblem, paymentLinkFor, applyLinkPrices, paymentLinkActions, keyHash, LinkInputError, LINK_MESSAGES, DEFAULT_DAYS, MAX_DAYS };
+module.exports = { addOnParentProblem, reminderDue, sendLinkReminders, closingDay, REMIND_BEFORE_MS, cleanLinkInput, linkProblem, paymentLinkFor, applyLinkPrices, paymentLinkActions, keyHash, LinkInputError, LINK_MESSAGES, DEFAULT_DAYS, MAX_DAYS };

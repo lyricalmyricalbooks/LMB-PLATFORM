@@ -65,7 +65,7 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
 
   const samples = ['/', '/index.html', '/books/x', '/books/a.b', '/books/x.html', '/collections/x', '/page/about', '/account', '/account/orders',
     '/admin', '/checkout', '/track', '/wishlist', '/spa', '/404', '/assets/index-Ab12.js', '/assets/index-Ab12.css', '/sitemap.xml', '/robots.txt',
-    '/google-merchant-feed.xml', '/seo-published-fingerprint.txt', '/asset-manifest.txt'];
+    '/google-merchant-feed.xml', '/social-product-feed.csv', '/seo-published-fingerprint.txt', '/asset-manifest.txt'];
 
   it('never gives one URL two different values for the same header', () => {
     for (const path of samples) {

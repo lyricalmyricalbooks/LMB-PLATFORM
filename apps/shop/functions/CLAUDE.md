@@ -1047,3 +1047,35 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
   only after the email went out (or on a day with nothing to send), so a failed send retries tomorrow.
 - Its own switch: Notifications › Shop alerts › Running low (`shopAlerts.lowStock`, on unless off). It runs with the
   orders switch off, and sends a `[STOCK] …` email on a day with no orders to chase.
+
+## Ship part of an order now (3 November 2026, platform plan 24.5)
+
+- Orders › order › Shipping & dispatch › **Send part now, the rest later** (`admin/PartShipmentDialog.tsx`) calls
+  `fulfillmentAction("ship_part", { picks: { [itemIndex]: qty }, trackingCarrier, trackingNumber, trackingUrl })`. The rules
+  live in `admin/partShipments.ts` (`partShipmentProblem`). Like dispatch, it needs a paid, active, carrier-shipped order
+  with a reviewed address and no hold, dispute, open request or risky-payment check. Unlike dispatch, it is allowed
+  before packing and while a pre-order awaits release. It must leave something unsent: sending everything is dispatch.
+- It appends to the public `partShipments` (`{ id: "pN", lines: [{ line, title, quantity }], tracking…, shippedAt }`) and
+  never changes `fulfillmentStatus`/`status`. The order becomes shipped only through the normal dispatch of the rest.
+  `orderAccess.js` exposes `partShipments`, and the tracking page lists each parcel (region `trackingParts`, words
+  Text & labels › Order tracking `trackPartsTitle`/`trackPartsText`/`trackPartTrack`).
+- `onOrderUpdated` sends the editable `part_shipped` email once per new part (claim `shippedPart_<id>`, so the outbox
+  drops it after a refund or cancel like `shipped`). It sits under its own switch in Notifications › Part Shipped, and
+  `{{items_list}}` is one line per item.
+- **Take items off before shipping (plan 24.6, part A):** Orders › order › ⋯ › **Take items off this order** opens the
+  refund dialog in a take-off mode: pick copies per line (at most `copiesToSend`), the amount fills from
+  `linePricing(item).unit` × copies (typing turns that off), restock is on, and the normal partial refund path saves
+  `partialRestockedItems`. `fulfillment.copiesToSend(o, index)` = ordered − sent in parts − taken off; `itemsToPack(o)`
+  drives the packing checklist, pick list, packing slip and suggested label weight, so the rest's label weighs only what
+  is left. `packingKey` adds the count only for a changed line, so orders packed before this keep their key.
+- **Add items to a paid order (plan 24.6, part B):** Orders › order › ⋯ › **Add items to this order** opens the payment-link
+  dialog (`PaymentLinkDialog` `addTo`) filled from the order (`linkFormForAddOn`: customer, address, shipping 0, 14 days,
+  a note). The request carries `shipsWith`; `paymentLinks.js` checks the first order with `addOnParentProblem` (paid,
+  active, not left; the admin's `addItemsProblem` matches it) and stamps `shipsWith` on the new order only, so the
+  first order's triggers never fire. Payment, tax and stock run through the normal payment-link path. `AddedItemsCard`
+  lists the added orders on the first one (`getOrdersShippingWith`) and points the added order back to it.
+- Not handled yet: a refund's restock default doesn't know a part already left; cancelling the first order doesn't
+  close an added order's link (the owner cancels it from its own page).
+- **One line everywhere (plan 24.9):** Overview › Running low (`OverviewStock` `lowLine`), the Books list badges
+  (`catalogList.stockInfo(book, getBook, line)`) and the book editor read the same `lowStockThreshold(settings)`. Before
+  this they used a fixed 5.

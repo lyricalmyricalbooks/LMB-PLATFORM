@@ -4,6 +4,7 @@
 import { adminApi } from "../app/admin/api";
 import { A11Y_BOOKS } from "../a11yFixture/books";
 import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
+import { addressKey } from "../app/admin/fulfillment";
 
 const order = (n: number, status: string, name: string) => ({
   id: `o${n}`, orderId: `FIXTURE-${n}`, status, paymentStatus: "paid", createdAt: new Date(Date.now() - n * 3_600_000).toISOString(),
@@ -14,7 +15,23 @@ const order = (n: number, status: string, name: string) => ({
 });
 const ORDERS = [order(1, "paid", "Ada Example"), order(2, "paid", "Ben Example"), order(3, "shipped", "Cleo Example")];
 
+// One open order with its address reviewed, two lines and a parcel already sent ahead (Send part now, plan 24.5).
+function orderDetail(id: string) {
+  const base: any = ORDERS.find((o) => o.id === id);
+  if (!base) return null;
+  const o: any = {
+    ...base, customer: { ...base.customer, address: base.shippingAddress },
+    items: [...base.items, { id: "b2", title: "Night Songs", quantity: 1, price: 18 }],
+    ...(id === "o2" ? { partShipments: [{ id: "p1", lines: [{ line: 0, title: "Salt Hours", quantity: 1 }], trackingCarrier: "Canada Post", trackingNumber: "7023 1100 0045", trackingUrl: "", shippedAt: new Date(Date.now() - 86_400_000).toISOString() }] } : {}),
+  };
+  o.operations = { addressReviewed: addressKey(o) };
+  return o;
+}
+
 const known: Record<string, (...a: any[]) => any> = {
+  getOrderById: async (id: string) => orderDetail(id),
+  // o2's customer added a book after paying (plan 24.6): an open payment-link order that ships with it.
+  getOrdersShippingWith: async (id: string) => (id === "o2" ? [{ id: "o2-add", orderId: "ADD-2", shipsWith: "o2", paymentStatus: "unpaid", status: "pending_payment", items: [{ id: "b2", title: "Night Songs", quantity: 1 }], paymentLink: { expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString() } }] : []),
   getOrders: async () => ORDERS,
   getAllOrders: async () => ORDERS,
   getFulfillmentOrders: async () => ORDERS,

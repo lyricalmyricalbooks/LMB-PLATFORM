@@ -1,8 +1,11 @@
 import React from "react";
 import { Check, MapPin, Package, Truck, ExternalLink } from "lucide-react";
+import { canShipPart, partShipmentsOf } from "./partShipments";
 import {
   addressIssues,
   addressKey,
+  copiesTakenOff,
+  copiesToSend,
   packingKey,
   physicalItems,
   isDigitalItem,
@@ -41,6 +44,8 @@ type Props = {
   /** Ship station: the parcel, rates and Buy label, drawn inside step 3 instead of the Buy label button. */
   labelStep?: React.ReactNode;
   onDispatch: () => void;
+  /** Send part of the order now, the rest later (code plan 24.5). */
+  onShipPart?: () => void;
   onEditTracking?: () => void;
   onDeliveryStatus?: (status: "out_for_delivery" | "delivered") => void;
   onResendEmail?: () => void;
@@ -67,6 +72,7 @@ export function FulfillmentWorkbench({
   onPack,
   onLabel,
   onDispatch,
+  onShipPart,
   onEditTracking,
   onDeliveryStatus,
   onResendEmail,
@@ -99,6 +105,11 @@ export function FulfillmentWorkbench({
   const packingActive = queue === "Ready to pack";
   const shippingActive = queue === "Ready to ship";
   const copies = physicalItems(order).reduce((n: number, i: any) => n + (Number(i.quantity) || 0), 0);
+  // Lines with copies still to go in this parcel (some may have gone ahead, or been taken off with a refund).
+  const packLines = (order.items || []).map((item: any, index: number) => (!isDigitalItem(item) && copiesToSend(order, index) > 0 ? index : -1))
+    .filter((index: number) => index >= 0);
+  const toPack = (index: number) => packLines.includes(index);
+  const ticked = packLines.filter((index: number) => checked.has(index)).length;
   const root = React.useRef<HTMLElement>(null);
   const goToStep = (key: string) => {
     const el = root.current?.querySelector<HTMLElement>(`.fw-step[data-step="${key}"]`);
@@ -320,18 +331,12 @@ export function FulfillmentWorkbench({
         </div>
         {packingActive && (onCheckAll || onPackingSlip) && (
           <div className="fw-actions">
-            {onCheckAll && physicalItems(order).length > 1 && (
+            {onCheckAll && packLines.length > 1 && (
               <SecondaryButton
                 disabled={busy}
-                onClick={() =>
-                  onCheckAll(
-                    (order.items || [])
-                      .map((item: any, index: number) => (isDigitalItem(item) ? -1 : index))
-                      .filter((index: number) => index >= 0),
-                  )
-                }
+                onClick={() => onCheckAll(packLines)}
               >
-                Tick all {physicalItems(order).length} lines
+                Tick all {packLines.length} lines
               </SecondaryButton>
             )}
             {onPackingSlip && (
@@ -345,25 +350,25 @@ export function FulfillmentWorkbench({
           {(order.items || []).map((item: any, index: number) => (
             <li
               key={index}
-              data-tick={packingActive && !isDigitalItem(item) && !busy ? "true" : undefined}
+              data-tick={packingActive && toPack(index) && !busy ? "true" : undefined}
               // While packing, a tap anywhere on the line ticks it (the checkbox alone is a small target on a phone).
               onClick={(e) => {
-                if (!packingActive || isDigitalItem(item) || busy) return;
+                if (!packingActive || !toPack(index) || busy) return;
                 // Selecting a title to copy it (drag or double-click) is not a tick.
                 if (e.detail > 1 || (typeof window !== "undefined" && window.getSelection?.()?.isCollapsed === false)) return;
                 if ((e.target as HTMLElement).closest("input, label, button, a, summary")) return;
                 onCheck(index);
               }}
             >
-              {packingActive && !isDigitalItem(item) ? (
+              {packingActive && toPack(index) ? (
                 <Checkbox
                   label=""
-                  aria-label={`Packed ${item.quantity} × ${item.title}`}
+                  aria-label={`Packed ${copiesToSend(order, index)} × ${item.title}`}
                   checked={checked.has(index)}
                   disabled={busy}
                   onChange={() => onCheck(index)}
                 />
-              ) : packed && !isDigitalItem(item) ? (
+              ) : packed && toPack(index) ? (
                 <Check
                   className="fw-item-check"
                   size={16}
@@ -398,6 +403,9 @@ export function FulfillmentWorkbench({
                           {addOnLines(item).map((line, n) => <li key={n}><strong>{line}</strong>{Number(item.quantity) > 1 ? ` (each of ${item.quantity} copies)` : ""}</li>)}
                         </ul>
                       )}
+                      {!isDigitalItem(item) && copiesToSend(order, index) < (Number(item.quantity) || 0) && queue !== "In transit" && queue !== "Completed" && (
+                        <span className="fw-item-extra">{packNote(order, index)}</span>
+                      )}
                       {info.shelf && !isDigitalItem(item) && (
                         <span className="fw-item-shelf">Shelf {info.shelf}</span>
                       )}
@@ -429,14 +437,14 @@ export function FulfillmentWorkbench({
         {packingActive && (
           <div className="fw-actions">
             <PrimaryButton
-              disabled={busy || (physicalItems(order).length > 1 && checked.size !== physicalItems(order).length)}
+              disabled={busy || (packLines.length > 1 && ticked !== packLines.length)}
               onClick={onPack}
             >
               Confirm packed
             </PrimaryButton>
             <span className="rp-hint">
-              {physicalItems(order).length > 1
-                ? `${checked.size} of ${physicalItems(order).length} lines checked`
+              {packLines.length > 1
+                ? `${ticked} of ${packLines.length} lines checked`
                 : "One line — confirm once it's in the box"}
             </span>
           </div>
@@ -463,6 +471,7 @@ export function FulfillmentWorkbench({
               </span>
             </div>
           </div>
+          <PartShipmentsSummary order={order} busy={busy} onShipPart={onShipPart} />
           {labelPending && active && !order.labelUrl ? (
             <>
               <p className="fw-problems" role="alert">
@@ -649,4 +658,43 @@ export function FulfillmentWorkbench({
       )}
     </section>
   );
+}
+
+/** Parcels already sent from this order (code plan 24.5), and the Send part now button while it can be used. */
+function PartShipmentsSummary({ order, busy, onShipPart }: { order: any; busy: boolean; onShipPart?: () => void }) {
+  const parts = partShipmentsOf(order);
+  const offer = !!onShipPart && canShipPart(order);
+  if (!parts.length && !offer) return null;
+  return (
+    <div className="rp-stack" style={{ gap: 8 }}>
+      {parts.length > 0 && (
+        <div className="fw-summary">
+          <strong>Sent so far</strong>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 18 }} aria-label="Parts already sent">
+            {parts.map((p) => (
+              <li key={p.id}>
+                {p.lines.map((l) => `${l.quantity} × ${l.title}`).join(", ")} · {p.trackingCarrier} · <span className="rp-mono">{p.trackingNumber}</span>
+                {p.shippedAt ? ` · ${new Date(p.shippedAt).toLocaleDateString()}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {offer && (
+        <div className="fw-actions">
+          <SecondaryButton size="sm" disabled={busy} onClick={onShipPart}>Send part now, the rest later</SecondaryButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "Pack 1 of 3 (1 sent ahead, 1 taken off)" or "Nothing to pack: …" for a line partly sent or taken off. */
+function packNote(order: any, index: number): string {
+  const ordered = Math.max(0, Math.floor(Number(order.items?.[index]?.quantity) || 0));
+  const off = copiesTakenOff(order, index);
+  const left = copiesToSend(order, index);
+  const ahead = Math.max(0, ordered - left - off);
+  const why = [ahead ? `${ahead} sent ahead` : "", off ? `${off} taken off with a refund` : ""].filter(Boolean).join(", ");
+  return left ? `Pack ${left} of ${ordered} (${why})` : `Nothing to pack: ${why}`;
 }

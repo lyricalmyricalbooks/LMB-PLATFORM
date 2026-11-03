@@ -11,6 +11,7 @@ import { type InventoryLinks } from "./inventoryLink";
 import { compareShopOrder, moveId, shopOrderWrites } from "../features/site/shopOrder";
 import { BookImportDialog } from "./BookImportDialog";
 import { MerchantFeedDialog } from "./MerchantFeedDialog";
+import { SocialFeedDialog } from "./SocialFeedDialog";
 import { GoogleIndexDialog } from "./GoogleIndexDialog";
 import { lineSheetRows, printLineSheet } from "./lineSheet";
 import { getCopy } from "../features/site/storeCopy";
@@ -18,7 +19,7 @@ import { KIND_CHOICES, isProductKind, planKindChange } from "./bulkKind";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
-import { liveStockOf } from "./inventoryInsights";
+import { liveStockOf, lowStockThreshold } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, Pagination,
@@ -28,7 +29,7 @@ import { preorderActive, releaseDateOf } from "../features/site/preorder";
 import { normalizeCategories } from "../features/site/navItems";
 import { runsOnColophon } from "../../lib/shopProfile";
 import {
-  STATUS_FILTERS, STOCK_FILTERS, bookAuthor, bookReferences, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, stockInfo,
+  LOW_STOCK, STATUS_FILTERS, STOCK_FILTERS, bookAuthor, bookReferences, inlineEditable, matchesStatus, matchesStock, priceInfo, publicationBadge, stockInfo,
 } from "./catalogList";
 
 interface BookCatalogProps {
@@ -78,6 +79,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [includeEditions, setIncludeEditions] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [feedOpen, setFeedOpen] = useState(false);
+  const [socialOpen, setSocialOpen] = useState(false);
   const [indexOpen, setIndexOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportScope, setExportScope] = useState<"all" | "filtered" | "selected">("filtered");
@@ -118,7 +120,10 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   }
 
   const byId = useMemo(() => new Map(books.map(b => [b.id, b])), [books]);
-  const stockOf = useMemo(() => { const cache = new Map<any, ReturnType<typeof stockInfo>>(); return (b: any) => { let s = cache.get(b); if (!s) { s = stockInfo(b, id => byId.get(id)); cache.set(b, s); } return s; }; }, [byId]);
+  // Inventory's low-stock line, so "Low" here matches Inventory, Overview and the 8am email.
+  const [lowLine, setLowLine] = useState(LOW_STOCK);
+  useEffect(() => { adminApi.getPublicSettings().then((s: any) => setLowLine(lowStockThreshold(s))).catch(() => {}); }, []);
+  const stockOf = useMemo(() => { const cache = new Map<any, ReturnType<typeof stockInfo>>(); return (b: any) => { let s = cache.get(b); if (!s) { s = stockInfo(b, id => byId.get(id), lowLine); cache.set(b, s); } return s; }; }, [byId, lowLine]);
 
   const categories = useMemo(() => {
     const cats = new Set<string>();
@@ -589,6 +594,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
               { label: "Import CSV…", onSelect: () => setImportOpen(true) },
               { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
               { label: "Print a line sheet", onSelect: printSheet },
+              // Facebook, Instagram and Pinterest have no one-click link, so every shop gets the file and the steps (plan 24.7).
+              { label: "Instagram, Facebook and Pinterest", onSelect: () => setSocialOpen(true) },
               // Google's own tools: a Colophon shop sets those up on its own (Connect Google), so no step here (code plan 6.16).
               ...(runsOnColophon() ? [] : [
                 { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
@@ -618,6 +625,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
       {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
       <EditionStockDialog book={stockEditId ? byId.get(stockEditId) || null : null} onClose={() => setStockEditId(null)} onSaved={loadBooks} />
+      <SocialFeedDialog open={socialOpen} onClose={() => setSocialOpen(false)} books={books} />
       {!runsOnColophon() && <MerchantFeedDialog open={feedOpen} onClose={() => setFeedOpen(false)} books={books} />}
       {!runsOnColophon() && <GoogleIndexDialog open={indexOpen} onClose={() => setIndexOpen(false)} books={books} />}
       <Dialog open={exportOpen} onClose={() => setExportOpen(false)} title={w("Export books")}

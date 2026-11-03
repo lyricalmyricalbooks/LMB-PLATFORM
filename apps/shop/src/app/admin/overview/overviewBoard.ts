@@ -173,7 +173,7 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "wanted", band: "stock", title: "Wanted but can't be bought", blurb: "Sold-out or coming-soon books people looked for", size: "m" },
   { type: "backInStock", band: "stock", title: "Back-in-stock demand", blurb: "Readers waiting to be emailed", size: "m" },
   { type: "slow", band: "stock", title: "Slow-moving stock", blurb: "In stock with no recent sale", size: "m" },
-  { type: "low", band: "stock", title: "Running low", blurb: "Five copies or fewer, with the days each has left", size: "m" },
+  { type: "low", band: "stock", title: "Running low", blurb: "At or below your low-stock line, with the days each has left", size: "m" },
   { type: "preorders", band: "stock", title: "Pre-order tracker", blurb: "Copies promised before each release, against the print run", size: "m" },
   { type: "soldOut", band: "stock", title: "Sold-out countdown", blurb: "When each book runs out at today's pace, against a reprint's wait", size: "xl", config: { leadDays: 35 } },
 ];
