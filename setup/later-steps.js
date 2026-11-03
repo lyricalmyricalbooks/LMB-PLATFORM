@@ -34,6 +34,7 @@
 // shop email is sent from (the email service adds the press's name and reply-to). `config.paymentsServiceUrl` is the
 // platform payment service's address, which every shop's server code calls (payments through the platform, plan 2.2);
 // `config.stripePublishableKeys` ({ live, test }, public) go in the profile for the card form (payments.js).
+import { createHash } from "node:crypto";
 import { PLANS, REGION, STOCKROOM_DATABASE, firstSteps } from "./steps.js";
 import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
 import { ensureServiceKey, hasServiceKey } from "./serviceKey.js";
@@ -137,6 +138,21 @@ export const needsTestCatalogue = (shop) => shop.testShop === true && needsStock
 
 /** Steps 7–16. */
 export function laterSteps({ deploy, envFiles, google, shopData, providers, email, siteCheck, inventoryLink, stockroom, registry, profileFiles, config, now = () => new Date() }) {
+  // A short fingerprint of the profile file the pages are built with (step 6 writes it).
+  const profileStamp = async (shopId) => createHash("sha256").update((await profileFiles.read(shopId)) ?? "").digest("hex").slice(0, 16);
+  // Deploys each app's pages that are missing or were built from an older profile, and notes the profile they now carry.
+  const deployPages = async (shop) => {
+    const stamp = await profileStamp(shop.shopId);
+    const given = { ...((await registry.getShop(shop.shopId))?.pagesProfile ?? {}) };
+    let changed = false;
+    for (const app of appsOf(shop)) {
+      if (given[app] === stamp && (await deploy.deployed(shop.shopId, `pages:${app}`))) continue;
+      await deploy.pages(shop.shopId, { version, app });
+      given[app] = stamp;
+      changed = true;
+    }
+    if (changed) await registry.updateShop(shop.shopId, { pagesProfile: given });
+  };
   // The press's own web addresses (services/domains), so writing the server settings again never drops one.
   // The press's own addresses and its main one, from the registry row (services/domains writes both).
   const addressesOf = async (shop) => {
@@ -211,17 +227,18 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     {
       number: 9,
       name: "Deploy the pages",
+      // Each app's pages carry the shop's profile (/shop-profile.js), so pages built from an older profile (an app
+      // added or dropped since) are deployed again. The registry row keeps which profile each app's pages were given.
       async check({ shop }) {
+        const stamp = await profileStamp(shop.shopId);
+        const given = (await registry.getShop(shop.shopId))?.pagesProfile ?? {};
         for (const app of appsOf(shop)) {
           if (!isCurrent(await deploy.deployed(shop.shopId, `pages:${app}`), `The ${app} pages`)) return false;
+          if (given[app] !== stamp) return false;
         }
         return true;
       },
-      async act({ shop }) {
-        for (const app of appsOf(shop)) {
-          if (!(await deploy.deployed(shop.shopId, `pages:${app}`))) await deploy.pages(shop.shopId, { version, app });
-        }
-      },
+      act: ({ shop }) => deployPages(shop),
     },
     {
       number: 10,
@@ -318,6 +335,8 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
         return row?.status === "live";
       },
       async act({ shop }) {
+        // Step 13 may have added the payments to the profile after step 9 deployed the pages: they go out again first.
+        await deployPages(shop);
         const urls = await pageUrls(shop);
         const failures = appsOf(shop).filter((app) => !urls[app]).map((app) => `the ${app} pages have no address`);
         const pages = [];

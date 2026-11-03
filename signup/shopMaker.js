@@ -175,6 +175,10 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     const built = row.builtPlan ?? row.plan;
     if (!(plan in PLANS) || plan === built) return null;
     if (row.planSync?.nextTryAt && row.planSync.nextTryAt > at()) return null;
+    // Stopped until a person clears planSync, or a shop that is closed or gone: nothing to build.
+    if (row.planSync?.plan === plan && row.planSync.needsHelp) return null;
+    const shopRow = await registry.getShop?.(shopId);
+    if (shopRow?.status === "abandoned" || ["closed", "deleted"].includes(shopRow?.closing?.stage)) return null;
     const tries = (row.planSync?.plan === plan ? row.planSync.tries ?? 0 : 0) + 1;
     let result;
     try {
@@ -196,10 +200,12 @@ export function createShopMaker({ signups, run, registry, repairs = null, selfCh
     }
     // Another run holds the shop: look again on the next sweep, without counting a try.
     if (result.locked) return { shopId, plan, from: built, status: "waiting" };
+    // An error only a person can settle is not tried again on its own (as with making a shop): reported once.
+    const needsHelp = !retryable(result.error);
     const minutes = PLAN_SYNC_BACKOFF_MINUTES[Math.min(tries - 1, PLAN_SYNC_BACKOFF_MINUTES.length - 1)];
-    await signups.set(shopId, { ...row, planSync: { plan, tries, failedStep: result.failedStep ?? null, error: result.error ?? null, nextTryAt: later(minutes) } });
-    if (repairs) await repairs.report({ shopId, check: "plan-change", problem: `the move from ${built} to ${plan} stopped at step ${result.failedStep ?? "?"}`, detail: result.error });
-    return { shopId, plan, from: built, status: "failed" };
+    await signups.set(shopId, { ...row, planSync: { plan, tries, failedStep: result.failedStep ?? null, error: result.error ?? null, nextTryAt: needsHelp ? null : later(minutes), needsHelp } });
+    if (repairs) await repairs.report({ shopId, check: "plan-change", problem: `the move from ${built} to ${plan} stopped at step ${result.failedStep ?? "?"}${needsHelp ? "; a person decides" : ""}`, detail: result.error });
+    return { shopId, plan, from: built, status: needsHelp ? "needs-help" : "failed" };
   }
 
   return {

@@ -195,6 +195,39 @@ test("a plan change that fails goes to the repair queue and waits before trying 
   assert.equal(stores.signups.rows.get(shopId).planSync, null);
 });
 
+test("adding the website to a stockroom deploys the stockroom's pages again, so they carry the new profile", async () => {
+  const { maker, registry, services, shopId } = await make({ plan: "stockroom" });
+  await maker.sweep();
+  const pagesBefore = services.calls.filter(([name, , , app]) => name === "deploy.pages" && app === "stockroom").length;
+  await registry.updateShop(shopId, { plan: "both" });
+  assert.deepEqual(await maker.sweep(), [{ shopId, status: "plan-done", plan: "both" }]);
+  const pages = services.calls.filter(([name]) => name === "deploy.pages").map(([, , , app]) => app);
+  assert.ok(pages.filter((app) => app === "stockroom").length > pagesBefore, "the stockroom's pages went out again");
+  assert.ok(pages.includes("shop"), "the website's pages were made");
+  const stamps = (await registry.getShop(shopId)).pagesProfile;
+  assert.equal(stamps.shop, stamps.stockroom, "both apps carry the same, newest profile");
+});
+
+test("a plan change that stops for a person is reported once and not retried; a closed shop is left alone", async () => {
+  const google = fakeGoogle();
+  const { maker, stores, registry, shopId, reported, tick } = await make({ plan: "shop", google });
+  await maker.sweep();
+  const create = google.firestore.createDatabase;
+  google.firestore.createDatabase = async () => { throw new Error("the database is marked for deletion"); };
+  await registry.updateShop(shopId, { plan: "both" });
+  assert.deepEqual(await maker.sweep(), [{ shopId, status: "plan-needs-help", plan: "both" }]);
+  assert.equal(stores.signups.rows.get(shopId).planSync.needsHelp, true);
+  assert.match(reported.at(-1).problem, /a person decides/);
+  google.firestore.createDatabase = create;
+  tick(24 * 60);
+  assert.deepEqual(await maker.sweep(), [], "not tried again on its own");
+
+  // A person clears it; then the shop closes before the next sweep.
+  await stores.signups.set(shopId, { ...stores.signups.rows.get(shopId), planSync: null });
+  await registry.updateShop(shopId, { closing: { stage: "closed" } });
+  assert.deepEqual(await maker.sweep(), [], "a closed shop is not built");
+});
+
 test("a plan changed before the shop is made is the one the shop is made with", async () => {
   const { maker, registry, shopId } = await make({ plan: "both" });
   // The registry row only exists once step 1 has run; a plan change before that waits in billing's row, and the

@@ -203,4 +203,10 @@ test("a press paying as they sell can add the stockroom (the cap follows the pri
   assert.equal(w.registry.shops.get(SHOP).payAsYouSell.capMinor, Math.floor((2175 * 3900) / 2900), "the cap follows the price, keeping the founding share off");
   assert.equal(w.registry.shops.get(SHOP).payAsYouSell.basisPoints, 150, "the share of each sale stays as chosen");
   assert.equal(w.stores.subscriptions.rows.get(SHOP).access, "open");
+
+  // Monthly is chosen; until it starts the pay-as-you-sell terms still apply, so dropping the stockroom brings the cap back.
+  await w.ways.switchPaymentWay({ shopId: SHOP, to: "monthly" });
+  assert.ok(w.registry.shops.get(SHOP).payAsYouSell.until, "pay as you sell runs to the end of this month");
+  await w.billing.changePlan({ shopId: SHOP, plan: "shop" });
+  assert.equal(w.registry.shops.get(SHOP).payAsYouSell.capMinor, Math.floor((Math.floor((2175 * 3900) / 2900) * 2900) / 3900), "the cap follows the price down again");
 });

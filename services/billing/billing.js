@@ -416,7 +416,9 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const changes = (row.planChanges ?? 0) + 1;
       // Paying as they sell: the monthly cap follows the plan's price (in the same proportion, so a founding press keeps
       // its share off); the share of each sale stays as chosen.
-      const terms = asItSells && row.payAsYouSell
+      // That holds while those terms still apply: paying as they sell, or the last month of it before monthly starts.
+      const termsApply = row.payAsYouSell && (asItSells || (row.payAsYouSell.until && now() < Date.parse(row.payAsYouSell.until)));
+      const terms = termsApply
         ? { ...row.payAsYouSell, capMinor: Math.floor((row.payAsYouSell.capMinor * planPrice(plan, settings).amount) / planPrice(row.plan, settings).amount) }
         : null;
       // No subscription runs while a press pays as they sell, so there is nothing to change on Stripe.

@@ -45,7 +45,9 @@ test("a full run makes the test shop live: rules, server code in Montréal, page
   // The region is passed to the deploy explicitly, not left to the shop code's default.
   assert.deepEqual(called(services, "deploy.functions"), [["deploy.functions", ID, "0.0.0-test", "northamerica-northeast1"]]);
   assert.equal(world.envFiles.get(ID), envFileText(TEST_SHOP, TEST_CONFIG));
-  assert.deepEqual(called(services, "deploy.pages").map(([, , , app]) => app), ["shop", "stockroom"]);
+  // Step 9 deploys the pages; step 13 then adds the Stripe account to the profile, so step 15 deploys them again with it.
+  assert.deepEqual(called(services, "deploy.pages").map(([, , , app]) => app), ["shop", "stockroom", "shop", "stockroom"]);
+  assert.equal(new Set(Object.values((await registry.getShop(ID)).pagesProfile)).size, 1);
   assert.ok(google.world.backupPermission.has(ID));
   assert.equal(google.world.backups.get(ID).length, 1);
   assert.ok(google.world.testFiles.has(ID));
