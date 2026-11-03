@@ -715,6 +715,22 @@ when it finishes setup, pays and opens. Nothing here touches Julian's own shop, 
 | 19.15 | platform | **What each shop costs us.** The Google bill per shop project (billing export) next to what the shop pays, so a loss-making shop shows; feeds 15.17's spend guards | tests from a fake billing export | medium | done |
 | 19.16 | platform | **A press's data, on request.** One button that builds the press's whole export (books, orders, customers, stockroom ledger, settings) as files, emails a link that works 7 days, and logs it; used for leaving, privacy requests and the 90-day export window | tests: every collection present; link expiry; logged | larger | done |
 
+## Phase 24: gaps from the Shopify review (planned 3 November 2026)
+
+The review compared Colophon with what Shopify gives a small shop, checked against the code
+(`/mnt/project-files/gaps/2026-11-03-what-is-missing.md` in the project folder). Built in order, without asking (Julian's standing rule).
+
+| # | Where | What | Check | Status |
+|---|---|---|---|---|
+| 24.1 | shop | **Send newsletters.** Customers › Newsletter: write, test to yourself, send to confirmed, not-unsubscribed people; the sweep sends a page at a time under a lease, never twice, never through the press's Gmail, on the platform's newsletter stream; stop and resume | `functions/newsletterSend.test.js`, `newsletterIssues.test.ts` | open |
+| 24.2 | platform | **Delete my own account** from the account page (not a shop's last owner) | accounts tests | |
+| 24.3 | stockroom | **Low-stock email** to the owner when an item reaches its reorder level, once per item until restocked | stockroom tests | |
+| 24.4 | platform | Warn about paying presses drifting away, and web addresses about to expire (with the control-room thread) | control-room tests | |
+| 24.5 | shop | Ship part of an order now and the rest later | fulfilment tests | |
+| 24.6 | shop | Change an order after it is paid | order and payment tests | |
+| 24.7 | shop | Instagram, Facebook and Pinterest product feeds from the Google feed | feed tests | |
+| 24.8 | platform | Press-to-press referral and partner codes | billing tests | |
+
 ## Rules for every pull request
 
 - Tests never touch real money or a paying press's project. Use fakes or the test shop.

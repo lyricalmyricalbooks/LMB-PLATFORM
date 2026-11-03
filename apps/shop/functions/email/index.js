@@ -49,7 +49,8 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
   // the server-only retry queue (emailOutbox) instead of losing it; the thrown error carries
   // `.queued` (the queue id). `outboxId` marks a send made by the retry queue itself.
   // `attachments` ([{ filename, content: Buffer, contentType }]) go with the email but never into the retry queue (pass no `queue`).
-  async function send({ to, subject, html, secret, queue = "", outboxId = "", attempt = 0, claimId = "", about = {}, attachments = [] }) {
+  // `kind` names the email for the platform's sender without queueing it ("newsletter" picks the newsletter stream).
+  async function send({ to, subject, html, secret, queue = "", outboxId = "", attempt = 0, claimId = "", about = {}, attachments = [], bulk = false, kind = "" }) {
     const recipientList = cleanRecipients(to);
     subject = cleanSubject(subject);
     const sourceHtml = html;
@@ -126,7 +127,9 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
       console.warn("Could not read adminSecrets/gmail:", err);
     }
     let gmailProblem = "";
-    if (gmailPass) {
+    // `bulk` (newsletters): never through the press's own Gmail, whose daily cap is low and whose account bulk mail
+    // could get flagged; the platform's newsletter stream (or the shop's Resend key) sends it with the right headers.
+    if (gmailPass && !bulk) {
       try {
         if (html && !/<html[\s>]/i.test(html)) {
           html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme, shopName: fromName });
@@ -184,7 +187,7 @@ function createEmail({ db, crypto, Resend, nodemailer, ownerEmail, senderName, s
       let firstId = null;
       try {
         for (const address of recipientList) {
-          const { id } = await platformSender.send({ kind: queue || "shop-email", to: address, subject, html: withFooter(html), idempotencyKey: `${key}:${address}` });
+          const { id } = await platformSender.send({ kind: queue || kind || "shop-email", to: address, subject, html: withFooter(html), idempotencyKey: `${key}:${address}` });
           firstId = firstId || id || null;
         }
       } catch (err) {

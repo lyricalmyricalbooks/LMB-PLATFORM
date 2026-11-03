@@ -1612,6 +1612,32 @@ const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTr
 
 const { handleStockistPricing, handleStockistStatus } = stockistActions({ db, LIMITS, hitLimit, canViewOrder, orderRequestIdentity, orderRequestKey });
 
+// Customers › Newsletter (newsletterSend.js): who is on the list, and sending to them a page at a time from the sweep.
+const { runNewsletterIssues, newsletterAdminActions, audienceCount } = require("./newsletterSend");
+async function newsletterOptedOutIds() {
+  const snap = await db.collection("marketing-optout").select().limit(50000).get();
+  return new Set(snap.docs.map(d => d.id));
+}
+async function listNewsletterSubscribers(afterId, limit) {
+  let query = db.collection("newsletter").orderBy("__name__");
+  if (afterId) query = query.startAfter(afterId);
+  const snap = await query.limit(limit).get();
+  return snap.docs.map(d => ({ id: d.id, data: d.data() }));
+}
+async function newsletterAudience() {
+  const [subscribers, optedOut] = await Promise.all([db.collection("newsletter").limit(20000).get(), newsletterOptedOutIds()]);
+  return audienceCount(subscribers.docs.map(d => d.data()), optedOut, optOutId);
+}
+async function newsletterUnsubscribeLink() {
+  const key = await marketingUnsubscribeKey();
+  return email => siteLink(`/track?unsubscribe=1&e=${encodeURIComponent(normMarketingEmail(email))}&t=${unsubscribeToken(email, key)}`);
+}
+const { handleNewsletterAdmin } = newsletterAdminActions({
+  db, requireAdmin, countAudience: newsletterAudience, compileEmailTemplate, loadNotificationSettings, escapeHtml,
+  unsubscribeLink: newsletterUnsubscribeLink,
+  sendEmail: message => lateSendEmail({ ...message, secret: resendSecretValue() }),
+});
+
 const { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin, handleMyData } = privacyActions({
   db, admin, ADMIN_TO, GIFT_CARD_PERSONAL, LIMITS, RESEND_API_KEY, claimEmailSendDetailed, confirmationEmail,
   confirmedRecord, escapeHtml, findByEmailData, footerAddress, giftCardsFor, hitLimit, marketingUnsubscribeKey,
@@ -1650,6 +1676,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   myDataErase: handleMyData,
   privacyExport: handlePrivacyAdmin,
   privacyErase: handlePrivacyAdmin,
+  newsletterAdmin: handleNewsletterAdmin,
   verifyStripeKeys: handleVerifyStripeKeys,
 };
 
@@ -4287,6 +4314,18 @@ exports.unpaidPaymentSweep = onSchedule(
         if (result.sent) console.log("unpaidPaymentSweep: review requests", result);
       }
     } catch (err) { console.error("unpaidPaymentSweep: review requests failed:", err.message); }
+
+    // Customers › Newsletter: the next page of a newsletter that is sending (own try/catch; leased, so never twice).
+    try {
+      const result = await runNewsletterIssues({
+        db, optOutId, compileEmailTemplate, escapeHtml,
+        notificationSettings: await loadNotificationSettings(),
+        unsubscribeUrl: await newsletterUnsubscribeLink(),
+        listSubscribers: listNewsletterSubscribers, optedOutIds: newsletterOptedOutIds,
+        sendEmail: message => sendEmail({ ...message, secret: resendSecretValue() }),
+      });
+      if (result.sent || result.status) console.log("unpaidPaymentSweep: newsletter", result);
+    } catch (err) { console.error("unpaidPaymentSweep: newsletter failed:", err.message); }
   }
 );
 

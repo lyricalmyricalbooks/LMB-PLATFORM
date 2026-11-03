@@ -1978,6 +1978,25 @@ export const adminApi = {
     };
   },
 
+  // Customers › Newsletter (functions/newsletterSend.js): the newsletters sent, newest first, and the server action
+  // that counts the list, sends a test to the signed-in person, queues a send, cancels or resumes one.
+  listNewsletterIssues: async () => {
+    const snap = await getDocs(query(collection(db, "newsletterIssues"), orderBy("createdAt", "desc"), limit(20)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }) as import("./newsletterIssues").NewsletterIssue);
+  },
+  newsletterAdmin: async (op: "audience" | "test" | "send" | "cancel" | "resume", payload: Record<string, string> = {}) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "newsletterAdmin", op, ...payload }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "The newsletter couldn't be sent. Try again in a minute.");
+    return result as { ok?: boolean; audience?: number; id?: string; to?: string };
+  },
+
   // Set up your shop (plan 6.9, was Your first week 3.3): admin-only `firstWeek/start`, written once by the platform's
   // setup with the sign-up answers. Null when the shop has none (the Overview then shows no welcome and no guide).
   getFirstWeek: async () => {
