@@ -133,6 +133,8 @@ export function createShopBillingDoor({ billing, paymentWay = null, exports = nu
       } catch {
         // A broken log never turns a plain answer into a crash.
       }
+      // Our own failure with plain words (an export whose email couldn't go, 502) keeps them, as the platform's door does.
+      if (isOurError(error)) return { status: error.status, body: { ok: false, ref, message: error.message }, headers: CORS };
       return { status: 500, body: { ok: false, ref, message: `Something went wrong on our side. Try again in a minute. If it keeps happening, tell us this code: ${ref}.` }, headers: CORS };
     }
   };

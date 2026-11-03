@@ -133,6 +133,13 @@ test("Download all your data from the shop's Plan page: the owner's once-a-day c
   assert.deepEqual(answer.body, { ok: true, emailedTo: "owner@example.com", expiresAt: "2026-11-10T12:00:00.000Z" });
   assert.deepEqual(asked, [["shop-uid-1", "Owner@example.com", SHOP]]);
   assert.deepEqual(logged().map((e) => [e.what, e.outcome]), [["billing-download", "refused"], ["billing-download", "done"]]);
+  // A copy whose email couldn't go keeps its own words (a 502 from services/export), with a code to quote.
+  const { ControlError } = await import("../control-room/controlRoom.js");
+  const failing = await world({ exports: { async forOwner() { throw new ControlError(502, "The copy of the shop's data couldn't be made just now. Nothing was sent; try again in a few minutes."); } } });
+  const failed = await failing.ask(OWNER, "download");
+  assert.equal(failed.status, 502);
+  assert.match(failed.body.message, /^The copy of the shop's data couldn't be made just now/);
+  assert.ok(failed.body.ref);
   // A door with no export service has no download call.
   assert.equal((await (await world()).ask(OWNER, "download")).status, 404);
 });

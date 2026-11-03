@@ -407,7 +407,7 @@ export const TEMPLATES = {
     greeting: "Hello,",
     paragraphs: [
       `As we wrote before, the 90 days to download ${closing || "the app you dropped"} are over, so everything that was in it has now been deleted for good.`,
-      "Nothing else changed: your plan, your other app and your account are as they were. If you want it again one day, you can add it back to your plan; it starts empty.",
+      "Nothing else was deleted with it. If you want it again one day, you can add it back to your plan; it starts empty.",
     ],
     buttons: [["Open your account", safeLink(link)]],
     footer: signOff(settings),

@@ -138,7 +138,7 @@ describe("Settings › Plan", () => {
   });
 
   it("no download line once the records are deleted or the last day has passed", async () => {
-    world.status = status({ plan: "shop", closedApps: { stockroom: { closedAt: "2026-01-01T12:00:00Z", downloadUntil: "2026-04-01T12:00:00Z" } } });
+    world.status = status({ plan: "shop", closedApps: { stockroom: { closedAt: "2026-01-01T12:00:00Z", downloadUntil: "2026-04-01T12:00:00Z" }, shop: { closedAt: "2026-10-01T12:00:00Z", downloadUntil: new Date(Date.now() + 30 * 86_400_000).toISOString(), deletedAt: "2026-10-02T12:00:00Z" } } });
     await mount(PlanPage);
     expect(button("Download all your data")).toBeUndefined();
   });
