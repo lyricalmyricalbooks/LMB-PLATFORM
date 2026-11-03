@@ -338,7 +338,7 @@ export const TEMPLATES = {
 
   /** A week before an app a plan change dropped closes (billing.js closeDroppedApps). `data`: { closing, date, link }. */
   "app-closing-soon": ({ closing, date, link }, { settings, pressName }) => layout({
-    subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} closes on ${date}`,
+    subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} ${/ and /.test(closing) ? "close" : "closes"} on ${date}`,
     greeting: "Hello,",
     paragraphs: [
       `When you changed your plan, you left out ${closing || "an app"}. It closes on ${date}, the end of the month you've paid for.`,
@@ -347,6 +347,23 @@ export const TEMPLATES = {
     buttons: [["Keep it or see your plan", safeLink(link)]],
     footer: signOff(settings),
   }),
+
+  /** A dropped app closed today (billing closeDroppedApps). `data`: { closing, date (the last day to download), link }. */
+  "app-closed": ({ closing, date, link }, { settings, pressName }) => {
+    const many = / and /.test(closing ?? "");
+    const [it, them] = many ? ["they", "them"] : ["it", "it"];
+    return layout({
+      subject: `${String(closing || "An app").replace(/^t/, "T")} for ${pressName} ${many ? "are" : "is"} closed. Download ${them} by ${date}`,
+      greeting: "Hello,",
+      paragraphs: [
+        `Your plan no longer has ${closing || "this app"}, so ${it} closed today, at the end of the month you paid for.`,
+        `Everything that was in ${them} is kept until ${date}. To save a copy, open your account and choose Download all your data: we'll email you a link to every file.`,
+        `Changed your mind? Add ${them} back to your plan before ${date} and ${many ? "they open" : "it opens"} again with everything in ${them}.`,
+      ],
+      buttons: [["Download your data", safeLink(link)]],
+      footer: signOff(settings),
+    });
+  },
 
   /** The card on file runs out within a month (code plan 6.12). Sent once per card. `data`: { card, month, date, link }. */
   "card-expiring": ({ card, date, month, link }, { settings, pressName }) => layout({
