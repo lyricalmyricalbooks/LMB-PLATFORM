@@ -1015,4 +1015,6 @@ sign-in finished with the app's code (`firebase.sign_in_second_factor`) or a set
 `use` needs Google's own token (checked by Google's tokeninfo: verified address, Google issuer) for the same address as
 the Firebase user, spends the code in a transaction, then removes only the TOTP factor (phone factors stay) and writes
 the audit log. Rate-limited (`LIMITS.twoStepBackup`). The token's audience isn't checked, so the code is still needed:
-never let `use` work on Google's token alone. Tests: `twoStepBackup.test.js`.
+never let `use` work on Google's token alone. Each use is emailed to the person and the owner (`backupUsedEmail`,
+queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function declares `RESEND_API_KEY`, so its
+`exports.` line sits after that secret is defined. Tests: `twoStepBackup.test.js`.

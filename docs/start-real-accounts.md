@@ -62,6 +62,10 @@ so a stage that is added to the build also needs a line here.
      through without sending you to the account page. Before you turn two-step on for this step, the admin home should
      show the "Turn on two-step sign-in" reminder.
   7. Check the shop's history (Settings › audit log) shows the backup codes being made and the backup code being used.
+  8. After step 5, check your inbox: an email should say a backup code was used, with what to do if it wasn't you.
+  9. Once the control room reaches the test shop's sign-in (the same access the support sign-in needs), open the test
+     shop's drawer, press **Turn off two-step for someone**, type your address and how you checked it was you. Sign in
+     again: Google alone should let you in, and Settings › Security should show two-step as off.
 - **Shipping and your address** (plan 17.11): Julian confirms the shipping starter for Canada with his own prices and
   checks the web address shown on the shop. Nothing needs a carrier account for the starter. Status: built.
 - **Your stockroom** (plan 17.12, setup step 16): the full test shop run (plan 15.7) turns the stockroom link on, and

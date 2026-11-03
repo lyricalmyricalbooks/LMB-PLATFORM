@@ -12,6 +12,17 @@ export function fakeShopAccess() {
       calls.push({ shopId, ...options });
       return { url: `https://${shopId}.example/admin/?support=${calls.length}` };
     },
+    // People with two-step on, by "shopId email" -> how many second steps; removeTwoStep takes them off.
+    twoStep: new Map(),
+    async removeTwoStep(shopId, email) {
+      if (this.fail) throw new Error("the shop didn't answer (pretend error)");
+      calls.push({ shopId, removeTwoStep: email });
+      const key = `${shopId} ${email.toLowerCase()}`;
+      if (!this.twoStep.has(key)) return { found: false, removed: 0 };
+      const removed = this.twoStep.get(key);
+      this.twoStep.set(key, 0);
+      return { found: true, removed };
+    },
   };
 }
 

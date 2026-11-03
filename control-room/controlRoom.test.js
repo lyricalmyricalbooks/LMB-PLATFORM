@@ -238,6 +238,41 @@ test("the real support sign-in: a token for the support account with who, why an
   await assert.rejects(supportAccess({ identity, registry: w.registry }).supportSignIn(ID, { by: ADMIN.email, reason: "r" }), /service account/);
 });
 
+test("two-step off for someone who lost their phone and codes: admins only, a reason and an address, logged first", async () => {
+  const w = await world();
+  w.shopAccess.twoStep.set(`${ID} staff@example.com`, 1);
+  const reason = "owner replied from the address on file";
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/two-step-reset", { shopId: ID, email: "staff@example.com", reason })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: ID, email: "staff@example.com", reason: "lost it" })).status, 400);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: ID, email: "not an address", reason })).status, 400);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: "press-two", email: "two@example.com", reason })).status, 409);
+  assert.equal(w.events().length, 0);
+
+  const done = await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: ID, email: " Staff@Example.com ", reason });
+  assert.equal(done.status, 200);
+  assert.deepEqual(done.body, { ok: true, shopId: ID, email: "staff@example.com", removed: 1 });
+  assert.equal(w.shopAccess.twoStep.get(`${ID} staff@example.com`), 0);
+  const [entry] = w.events();
+  assert.deepEqual([entry.what, entry.by, entry.reason, entry.email], ["two-step-reset", ADMIN.email, reason, "staff@example.com"]);
+  assert.ok(w.auditLog.entries.get(ID).has(entry.id), "in the shop's own audit log too");
+
+  // Someone who doesn't sign in to the shop: logged (the attempt is on record), and nothing changes.
+  const nobody = await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: ID, email: "nobody@example.com", reason });
+  assert.equal(nobody.status, 404);
+  assert.match(nobody.body.message, /Nothing was changed/);
+});
+
+test("the real two-step reset reaches the shop's own sign-in project", async () => {
+  const w = await world();
+  const asked = [];
+  const identity = { removeSecondSteps: async (projectId, email) => { asked.push([projectId, email]); return { found: true, removed: 1 }; } };
+  const access = supportAccess({ identity, registry: w.registry, serviceAccount: "platform@example.com" });
+  assert.deepEqual(await access.removeTwoStep(ID, "staff@example.com"), { found: true, removed: 1 });
+  const profile = await w.registry.getProfile(ID);
+  assert.deepEqual(asked, [[profile.firebase.projectId, "staff@example.com"]]);
+  await assert.rejects(access.removeTwoStep("press-two", "two@example.com"), /no sign-in project/);
+});
+
 test("close a shop for abuse: admins only, a reason, logged first, checkout and pages closed; opening it again puts things back", async () => {
   const w = await world();
   const settingsKey = `${ID} settings/website`;
