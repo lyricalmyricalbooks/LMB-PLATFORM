@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closingDay, emptyLinkForm, linkableBooks, linkFormFromQuote, linkFormProblems, linkRequest, linkState, linkSubtotal, MAX_LINE_QUANTITY, newRow, paymentLinkMailto, quoteRequestOf, shopPriceOf, type LinkForm } from "./paymentLinks";
+import { addItemsProblem, linkFormForAddOn, closingDay, emptyLinkForm, linkableBooks, linkFormFromQuote, linkFormProblems, linkRequest, linkState, linkSubtotal, MAX_LINE_QUANTITY, newRow, paymentLinkMailto, quoteRequestOf, shopPriceOf, type LinkForm } from "./paymentLinks";
 import { quoteMessage, quoteSubject } from "../features/site/extras/pdp-bulk-quote/bulkQuote";
 import { createRequire } from "module";
 
@@ -134,5 +134,31 @@ describe("payment link from a bulk-price request (plan 21.4)", () => {
     expect(linkFormFromQuote(quoteRequestOf(request({ page: "/books/nope" }))!, shelf.filter(b => b.id !== "hoodie")).rows[0].bookId).toBe("");
     const card = { ...request({ page: "/books/card" }), message: "Quantity: 3\nBook: Gift card" };
     expect(linkFormFromQuote(quoteRequestOf(card)!, shelf).rows[0].bookId).toBe("");
+  });
+});
+
+describe("add items to a paid order (plan 24.6)", () => {
+  const paid = { id: "o1", orderId: "AB-1", paymentStatus: "paid", status: "processing", customer: { name: "Robin", email: "robin@example.com", address: { street: "1 King St", city: "Toronto", state: "ON", zip: "M5H1A1", country: "CA" } }, items: [{ id: "tee", quantity: 1 }] };
+  it("is offered only on an active paid order that hasn't left, like the server", () => {
+    expect(addItemsProblem(paid)).toBe("");
+    const cases = [{ paymentStatus: "unpaid" }, { status: "cancelled" }, { isTest: true }, { fulfillmentStatus: "shipped" }, { fulfillmentStatus: "delivered" }];
+    for (const patch of cases) {
+      const o = { ...paid, ...patch };
+      expect(addItemsProblem(o)).toBeTruthy();
+      expect(serverLinks.addOnParentProblem(o)).toBeTruthy();
+    }
+    expect(serverLinks.addOnParentProblem(paid)).toBeNull();
+  });
+  it("starts with the order's customer, address, free shipping and a note, and sends shipsWith", () => {
+    const form = { ...linkFormForAddOn(paid), rows: [{ ...newRow(), bookId: "tee", quantity: "2", price: "" }] };
+    expect(form).toMatchObject({ name: "Robin", email: "robin@example.com", city: "Toronto", ship: true, shipping: "0", days: "14" });
+    expect(form.note).toBe("These items are added to your order AB-1 and ship with it.");
+    expect(linkFormProblems(form, books)).toEqual({});
+    expect(linkRequest(form, "o1")).toMatchObject({ shipsWith: "o1", shipping: 0 });
+    expect(linkRequest(form)).not.toHaveProperty("shipsWith");
+    expect(serverLinks.cleanLinkInput(linkRequest(form, "o1")).shipsWith).toBe("o1");
+  });
+  it("adds nothing to ship for a pickup order", () => {
+    expect(linkFormForAddOn({ ...paid, fulfillmentSelection: { method: "pickup" } })).toMatchObject({ ship: false, shipping: "" });
   });
 });

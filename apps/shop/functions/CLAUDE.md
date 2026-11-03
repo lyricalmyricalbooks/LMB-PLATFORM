@@ -1068,8 +1068,14 @@ queue `twoStepBackupUsed`; a failed send never undoes the sign-in). The function
   `partialRestockedItems`. `fulfillment.copiesToSend(o, index)` = ordered − sent in parts − taken off; `itemsToPack(o)`
   drives the packing checklist, pick list, packing slip and suggested label weight, so the rest's label weighs only what
   is left. `packingKey` adds the count only for a changed line, so orders packed before this keep their key.
-- Not handled yet: a refund's restock default doesn't know a part already left, and adding items to a paid order
-  (part B: a linked payment-link order) is still to build.
+- **Add items to a paid order (plan 24.6, part B):** Orders › order › ⋯ › **Add items to this order** opens the payment-link
+  dialog (`PaymentLinkDialog` `addTo`) filled from the order (`linkFormForAddOn`: customer, address, shipping 0, 14 days,
+  a note). The request carries `shipsWith`; `paymentLinks.js` checks the first order with `addOnParentProblem` (paid,
+  active, not left; the admin's `addItemsProblem` matches it) and stamps `shipsWith` on the new order only, so the
+  first order's triggers never fire. Payment, tax and stock run through the normal payment-link path. `AddedItemsCard`
+  lists the added orders on the first one (`getOrdersShippingWith`) and points the added order back to it.
+- Not handled yet: a refund's restock default doesn't know a part already left; cancelling the first order doesn't
+  close an added order's link (the owner cancels it from its own page).
 - **One line everywhere (plan 24.9):** Overview › Running low (`OverviewStock` `lowLine`), the Books list badges
   (`catalogList.stockInfo(book, getBook, line)`) and the book editor read the same `lowStockThreshold(settings)`. Before
   this they used a fixed 5.

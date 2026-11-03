@@ -30,6 +30,8 @@ function orderDetail(id: string) {
 
 const known: Record<string, (...a: any[]) => any> = {
   getOrderById: async (id: string) => orderDetail(id),
+  // o2's customer added a book after paying (plan 24.6): an open payment-link order that ships with it.
+  getOrdersShippingWith: async (id: string) => (id === "o2" ? [{ id: "o2-add", orderId: "ADD-2", shipsWith: "o2", paymentStatus: "unpaid", status: "pending_payment", items: [{ id: "b2", title: "Night Songs", quantity: 1 }], paymentLink: { expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString() } }] : []),
   getOrders: async () => ORDERS,
   getAllOrders: async () => ORDERS,
   getFulfillmentOrders: async () => ORDERS,

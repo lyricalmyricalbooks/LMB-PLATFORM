@@ -1511,6 +1511,12 @@ export const adminApi = {
     return { id: snap.id, ...snap.data(), operations: operations.data() || {} };
   },
 
+  // Orders made to add items to this one (code plan 24.6): they ship with it.
+  getOrdersShippingWith: async (id: string): Promise<any[]> => {
+    const snap = await getDocs(query(collection(db, "orders"), where("shipsWith", "==", id), limit(20)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
   // `notes` are extra order-history lines written with the order (checkout's EU/UK download consent).
   createOrder: async (order: any, notes: string[] = []) => {
     // Random typeable ID, e.g. FRQZ-047691-K2XP. The extra segment makes IDs

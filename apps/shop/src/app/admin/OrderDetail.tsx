@@ -26,6 +26,9 @@ import {
 } from "./fulfillment";
 import { invoiceLine, invoiceOpen } from "./invoices";
 import { PaymentLinkCard } from "./PaymentLinkCard";
+import { PaymentLinkDialog } from "./PaymentLinkDialog";
+import { AddedItemsCard } from "./AddedItemsCard";
+import { addItemsProblem } from "./paymentLinks";
 import { PastImportUndo } from "./PastOrdersDialog";
 import { refreshOrdersCache } from "./Orders";
 import { printOrders, type SlipShop } from "./orderPrint";
@@ -126,6 +129,8 @@ export function OrderDetail({
   const [ratesSearched, setRatesSearched] = useState(false);
   const [showHold, setShowHold] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
+  // Add items to this order (code plan 24.6, part B): a linked order to pay that ships with this one.
+  const [addingItems, setAddingItems] = useState(false);
   const [isBuyingLabel, setIsBuyingLabel] = useState(false);
   const [isVoiding, setIsVoiding] = useState(false);
   const voidingRef = useRef(false);
@@ -835,6 +840,9 @@ export function OrderDetail({
                               },
                             }]
                           : []),
+                        ...(!addItemsProblem(order) && !order.shipsWith
+                          ? [{ label: "Add items to this order", onSelect: () => setAddingItems(true) }]
+                          : []),
                         {
                           label: "Refund order",
                           tone: "danger" as const,
@@ -992,6 +1000,19 @@ export function OrderDetail({
             </SectionCard>
           )}
           <PaymentLinkCard order={order} />
+          <AddedItemsCard order={order} onOpen={onNavigate} />
+          <PaymentLinkDialog
+            open={addingItems}
+            addTo={order}
+            onClose={() => setAddingItems(false)}
+            loadBooks={() => adminApi.getAllBooks({ includePrivate: false })}
+            makeLink={adminApi.makePaymentLink}
+            onMade={(id) => {
+              setAddingItems(false);
+              toast.success("Payment link made for the added items. Copy it or email it from the new order.");
+              if (onNavigate) onNavigate(id);
+            }}
+          />
           {order.invoice && (
             <SectionCard title="Invoice">
               <p className="fw-summary">{invoiceLine(order)} {money(order.total)} on net {order.invoice.days} terms{order.invoice.paidAt ? "" : "; the books are already counted as sold."}</p>

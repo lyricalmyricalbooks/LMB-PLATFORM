@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Dialog, IconButton, PrimaryButton, SecondaryButton, SelectField, TextArea, TextField } from "./riso/components";
-import { emptyLinkForm, LINK_DAYS, linkableBooks, linkFormFromQuote, MAX_LINE_QUANTITY, type QuoteRequest, linkFormProblems, linkRequest, linkSubtotal, newRow, shopPriceOf, type LinkForm, type LinkRow } from "./paymentLinks";
+import { emptyLinkForm, LINK_DAYS, linkFormForAddOn, linkableBooks, linkFormFromQuote, MAX_LINE_QUANTITY, type QuoteRequest, linkFormProblems, linkRequest, linkSubtotal, newRow, shopPriceOf, type LinkForm, type LinkRow } from "./paymentLinks";
 import { useShopWords } from "./shopWords";
 
 const grid = { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" } as const;
 const cad = (n: number) => `$${n.toFixed(2)}`;
 
-export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade, start = null }: {
+export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade, start = null, addTo = null }: {
   open: boolean;
   onClose: () => void;
   /** The catalog (public fields are enough). */
@@ -19,6 +19,8 @@ export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade, 
   onMade: (orderId: string) => void;
   /** A bulk-price request from Messages (code plan 21.4): the form starts with its customer, product and copies. */
   start?: QuoteRequest | null;
+  /** A paid order to add items to (code plan 24.6): the form starts with its customer and address, and the new order ships with it. */
+  addTo?: any;
 }) {
   const w = useShopWords();
   const [books, setBooks] = useState<any[] | null>(null);
@@ -31,7 +33,7 @@ export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade, 
 
   useEffect(() => {
     if (!open) return;
-    setForm(emptyLinkForm());
+    setForm(addTo ? linkFormForAddOn(addTo) : emptyLinkForm());
     setShown(false);
     setFailure("");
     setFind("");
@@ -66,7 +68,7 @@ export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade, 
     if (Object.keys(problems).length) return;
     setSaving(true);
     try {
-      const made = await makeLink(linkRequest(form));
+      const made = await makeLink(linkRequest(form, addTo?.id || ""));
       onMade(made.orderId);
     } catch (err: any) {
       setFailure(String(err?.message || "We couldn't make this payment link. Please try again."));
@@ -80,8 +82,10 @@ export function PaymentLinkDialog({ open, onClose, loadBooks, makeLink, onMade, 
       open={open}
       onClose={onClose}
       size="lg"
-      title="New order to pay"
-      description="Build an order for a customer at the prices you agreed. You get a private link they open to pay by card."
+      title={addTo ? `Add items to order ${addTo.orderId || addTo.id}` : "New order to pay"}
+      description={addTo
+        ? "Choose what the customer is adding. They pay for just these items from a private link, and you pack them with the order they already paid for."
+        : "Build an order for a customer at the prices you agreed. You get a private link they open to pay by card."}
       footer={
         <>
           <SecondaryButton onClick={onClose} disabled={saving}>Cancel</SecondaryButton>
