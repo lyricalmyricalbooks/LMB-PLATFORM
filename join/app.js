@@ -12,11 +12,16 @@ const auth = getAuth(initializeApp(PLATFORM_FIREBASE));
 const $ = (selector) => document.querySelector(selector);
 const status = $("#status");
 const QUESTIONS = ["name", "sells", "country"];
-const STEP_OF = { email: "email", code: "code", name: "press", sells: "press", country: "press", done: "press" };
+const STEP_OF = { email: "email", code: "code", pick: "press", name: "press", sells: "press", country: "press", done: "press" };
+// A press whose shop is opening or open is run from its admin, reached from the account page.
+const ACCOUNT_PAGE = "../account/";
+const STATUS_WORDS = { setup: "Setting up", opening: "Opening", open: "Open", expired: "Setup ran out" };
 const STEPS = ["email", "code", "press"];
 
 let email = "";
 let press = null;
+// Whether the person signed in on this visit. Coming back already signed in, the page doesn't move focus on its own.
+let signedInHere = false;
 
 /** Shows one screen. Focus moves to its heading when the person moved there, not when the page first opens. */
 function show(view, { focus = true } = {}) {
@@ -66,6 +71,7 @@ async function busy(form, errorLine, work) {
 // ── 1. Email, or Google ──
 $("#google").addEventListener("click", async () => {
   try {
+    signedInHere = true;
     await signInWithPopup(auth, new GoogleAuthProvider());
   } catch (error) {
     if (error?.code !== "auth/popup-closed-by-user") status.textContent = "Google sign-in didn't finish. Try again, or use your email.";
@@ -110,6 +116,7 @@ codeForm.addEventListener("submit", (event) => {
   }
   busy(codeForm, error, async () => {
     const { link } = await api("POST", "/code/check", { email, code });
+    signedInHere = true;
     // The link is a one-time Firebase sign-in for this address; signing in with it here is the same as opening it.
     await signInWithEmailLink(auth, email, link);
   });
@@ -173,7 +180,7 @@ for (const form of document.querySelectorAll("form[data-question]")) {
 }
 
 // ── 4. Saved, then the admin ──
-function done() {
+function done({ focus = true } = {}) {
   const sells = PUBLISHES.options.find((o) => o.id === press.sells)?.label;
   $("#done-name").textContent = press.pressName || "your press";
   $("#done-press").textContent = press.pressName || "Not named yet";
@@ -185,7 +192,7 @@ function done() {
     go.href = `${SETUP_ADMIN_URL}?press=${encodeURIComponent(press.pressId)}`;
     go.hidden = false;
   }
-  show("done");
+  show("done", { focus });
 }
 $("#done-change").addEventListener("click", () => { fillAnswers(); show("name"); });
 $("#sign-out").addEventListener("click", async () => {
@@ -194,21 +201,47 @@ $("#sign-out").addEventListener("click", async () => {
   show("email");
 });
 
-// Signed in (just now, or from an earlier visit): make or find the press, then carry on where it left off.
+// Signed in (just now, or from an earlier visit): back to where the press left off. One press carries on; several get a
+// short picker; a first visit makes the press's setup record.
+async function arrive() {
+  const { presses } = await api("GET", "/press");
+  if (presses.length > 1) return pick(presses);
+  if (presses.length === 1) return carryOn(presses[0]);
+  return carryOn((await api("POST", "/press", {})).press);
+}
+
+function carryOn(chosen) {
+  press = chosen;
+  if (press.status === "opening" || press.status === "open") {
+    location.assign(ACCOUNT_PAGE);
+    return;
+  }
+  fillAnswers();
+  // A press already named, or whose setup ran out, shows where it stands; the questions are only for a new one.
+  if (press.pressName || press.status !== "setup") done({ focus: signedInHere });
+  else show("name", { focus: signedInHere });
+}
+
+function pick(presses) {
+  $("#pick-list").replaceChildren(...presses.map((p) => {
+    const button = Object.assign(document.createElement("button"), { type: "button", className: "choice" });
+    button.append(Object.assign(document.createElement("strong"), { textContent: p.pressName || "Press not named yet" }),
+      Object.assign(document.createElement("span"), { textContent: STATUS_WORDS[p.status] ?? "" }));
+    button.addEventListener("click", () => { signedInHere = true; carryOn(p); });
+    return button;
+  }));
+  show("pick", { focus: signedInHere });
+}
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     if (!press) show("email", { focus: false });
     return;
   }
   try {
-    ({ press } = await api("POST", "/press", {}));
+    await arrive();
   } catch (failure) {
     show("email");
     status.textContent = failure.message;
-    return;
   }
-  fillAnswers();
-  // A press already named, or already opening, shows where it stands; the questions are only for a new one.
-  if (press.pressName || press.status !== "setup") done();
-  else show("name");
 });

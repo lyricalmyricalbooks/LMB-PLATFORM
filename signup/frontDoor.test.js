@@ -162,3 +162,14 @@ test("two tabs signing in at once share one press, and a save never puts back an
   assert.equal((await w.ask("POST", "/api/press/setup", { pressId, pressName: "Late" }, ADA)).status, 409);
   assert.equal(w.stores.presses.rows.get(pressId).status, "opening");
 });
+
+test("the return trip lists the person's own presses oldest first, with each one's status", async () => {
+  const w = world();
+  const { pressId } = (await w.ask("POST", "/api/press", {}, ADA)).body.press;
+  const rows = w.stores.presses.rows;
+  rows.get(pressId).status = "open";
+  rows.set("press-later-one", { ...rows.get(pressId), pressId: "press-later-one", status: "setup", createdAt: "2099-01-01T00:00:00.000Z" });
+  rows.set("press-bens-own", { ...rows.get(pressId), pressId: "press-bens-own", ownerUid: "uid-ben" });
+  const listed = (await w.ask("GET", "/api/press", undefined, ADA)).body.presses;
+  assert.deepEqual(listed.map((p) => [p.pressId, p.status]), [[pressId, "open"], ["press-later-one", "setup"]]);
+});
