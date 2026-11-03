@@ -5,11 +5,45 @@ on:
     branches: [main]
 
 # Checks only. Nothing here deploys, and no job has keys for a live shop.
+# Every job may only read the code (no job writes to the repository, its issues or its releases).
+permissions:
+  contents: read
+
 jobs:
+  # The check workflows themselves (docs/research/2026-11-03-github-tools.md): zizmor reads every file in .github/workflows for
+  # the known ways a workflow gets taken over (a pull request title run as a command, a token left on disk, a third-party
+  # action that can change under us). A finding fails the check; nothing is run.
+  workflow-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: pipx run zizmor==1.32.0 --format=github .github/workflows .github/dependabot.yml
+
+  # A pull request that adds a package with a known high-risk security hole, or under a licence that would oblige us to
+  # publish the whole platform's code (GPL / AGPL), fails here. GitHub's own dependency graph; free while the repository is
+  # public (a private repository needs GitHub Advanced Security, so drop this job or switch to osv-scanner then).
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
+
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -22,6 +56,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -36,6 +72,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -53,7 +91,9 @@ jobs:
         working-directory: apps/shop
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: 10
       - uses: actions/setup-node@v4
@@ -83,7 +123,9 @@ jobs:
         working-directory: apps/shop
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: 10
       - uses: actions/setup-node@v4
@@ -105,7 +147,9 @@ jobs:
         working-directory: apps/shop
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: 10
       - uses: actions/setup-node@v4
@@ -126,7 +170,9 @@ jobs:
         working-directory: apps/shop
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: 10
       - uses: actions/setup-node@v4
@@ -147,6 +193,8 @@ jobs:
         working-directory: apps/stockroom
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -165,6 +213,8 @@ jobs:
         working-directory: apps/stockroom
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -187,7 +237,9 @@ jobs:
     steps:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: 10
       - uses: actions/setup-node@v4
@@ -221,6 +273,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -248,6 +302,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -279,6 +335,8 @@ jobs:
         working-directory: waitlist
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -296,6 +354,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
