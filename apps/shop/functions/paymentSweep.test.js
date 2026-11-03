@@ -21,3 +21,12 @@ describe("suspectOrders", () => {
     expect(alertHtml([{ orderId: "1", email: "<b>x</b>", amount: 1250, currency: "cad", intentId: "pi_1" }])).toContain("&lt;b&gt;x&lt;/b&gt; — 12.50 CAD");
   });
 });
+
+describe("suspectOrders and payment links", () => {
+  it("counts a payment link's age from when its card page was opened, not when the order was made", () => {
+    const link = { id: "L", source: "payment_link", paymentStatus: "unpaid", stripeCheckoutSessionId: "cs_test_1", createdAt: ago(20 * 24 * 60), updatedAt: ago(20) };
+    expect(suspectOrders([link], now).map(o => o.id)).toEqual(["L"]);
+    // An ordinary order made 20 days ago stays out, as before.
+    expect(suspectOrders([{ ...link, source: undefined }], now)).toEqual([]);
+  });
+});

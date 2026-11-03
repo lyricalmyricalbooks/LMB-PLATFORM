@@ -59,10 +59,12 @@ function neverPaid(order) {
 }
 
 /** Fields written over a never-paid order when its customer is erased. */
-function redactedOrderFields(now) {
+function redactedOrderFields(now, order = null) {
   return {
     customer: { name: "", email: "", phone: "", address: {} },
     orderNote: "",
+    // A payment link's note to the customer (plan 21.1) can name them too.
+    ...(order?.paymentLink ? { "paymentLink.note": "" } : {}),
     privacyRedactedAt: now,
   };
 }

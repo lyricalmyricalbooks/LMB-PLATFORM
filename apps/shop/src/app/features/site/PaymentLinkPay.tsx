@@ -21,7 +21,8 @@ export function PaymentLinkPay({ order, design, accessKey, hidePay = false }: { 
     setOpening(true);
     setFailed("");
     try {
-      const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
+      // Back to this order page after paying or going back (never the bag's checkout page, which would empty the bag).
+      const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}track?orderId=${encodeURIComponent(orderId)}`;
       const response = await functionFetch("createStripeCheckoutSession", {
         method: "POST",
         headers: await orderAccessHeaders(orderId, accessKey),

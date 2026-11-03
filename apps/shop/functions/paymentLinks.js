@@ -153,6 +153,8 @@ function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, public
         if (err instanceof PricingError) return res.status(400).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
         throw err;
       }
+      // A card can't take less than about 50 cents; a free order is better recorded by hand.
+      if (!(priced.total >= 0.5)) return res.status(400).json({ error: "The total is under $0.50, which a card can't take. Raise a price or record the order another way." });
       // The prices are frozen now: a line left blank keeps today's shop price even if the catalog changes later.
       const link = {
         ...draft,
@@ -169,7 +171,8 @@ function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, public
         ...(priced.shippingMethod ? { shippingMethod: priced.shippingMethod } : {}),
         fulfillment: priced.fulfillment, tax: priced.tax, taxLines: priced.taxLines, total: priced.total,
         giftCardAmount: 0, giftCardRedemptions: [],
-        orderId, status: "pending_payment", paymentStatus: "unpaid", paymentMethod: "Card", source: "payment_link",
+        // "Stripe" is what every card order carries (a Square shop's too): refunds, the admin and stock follow it.
+        orderId, status: "pending_payment", paymentStatus: "unpaid", paymentMethod: "Stripe", source: "payment_link",
         paymentLink: { expiresAt, ...(input.note ? { note: input.note } : {}) },
         referralSource: "payment_link",
         createdAt, updatedAt: createdAt,

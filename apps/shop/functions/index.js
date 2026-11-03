@@ -1327,7 +1327,8 @@ async function loadHoldLimits() {
 }
 
 async function reserveCheckout(orderId, items, order, giftCardRedemptions, testMode, req = null) {
-  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: true, ip: req ? clientIpOf(req) : "", holdLimits: await loadHoldLimits() });
+  // A payment link's quantities were set by the owner (plan 21.1): the per-shopper hold caps don't apply to it.
+  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: order?.source !== "payment_link", ip: req ? clientIpOf(req) : "", holdLimits: await loadHoldLimits() });
   if (!(giftCardRedemptions || []).length) return;
   try {
     await reserveGiftCards(db, orderId, giftCardRedemptions, { testMode, owner: holdOwner(order) });
@@ -4194,7 +4195,11 @@ exports.unpaidPaymentSweep = onSchedule(
     const snap = await db.collection("orders").where("paymentStatus", "==", "unpaid").where("createdAt", ">=", since)
       .orderBy("createdAt", "desc").limit(300).get()
       .catch(err => { console.error("unpaidPaymentSweep: ordered query failed (deploy firestore:indexes), using unordered:", err.message); return db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get(); });
-    const candidates = suspectOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    // Payment links (plan 21.1) can be paid weeks after they were made, outside that window: read the open ones too.
+    const linkSnap = await db.collection("orders").where("source", "==", "payment_link").where("paymentStatus", "==", "unpaid").limit(200).get()
+      .catch(err => { console.error("unpaidPaymentSweep: payment link query failed:", err.message); return { docs: [] }; });
+    const unpaid = new Map([...snap.docs, ...linkSnap.docs].map((d) => [d.id, { id: d.id, ...d.data() }]));
+    const candidates = suspectOrders([...unpaid.values()]);
     const found = [];
     // The Stripe mode and keys are read once for the whole sweep (only when Stripe is asked at all).
     // A failed read falls back to the per-call reads every lookup used to do.
