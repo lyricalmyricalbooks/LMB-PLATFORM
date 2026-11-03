@@ -80,7 +80,7 @@ test("once the founding places are gone, the next paying press pays the full pri
   assert.equal(stores.subscriptions.rows.get("first-press").founding, true);
   assert.equal(stores.subscriptions.rows.get("second-press").founding, undefined);
   assert.equal(seats.rows.size, 1);
-  assert.equal(stripe.world.subscriptions.get(stores.subscriptions.rows.get("second-press").subscriptionId).coupon, undefined);
+  assert.equal(stripe.world.subscriptions.get(stores.subscriptions.rows.get("second-press").subscriptionId).coupon ?? null, null);
 });
 
 test("the founding offer turned off in the settings gives no place", async () => {
@@ -285,4 +285,135 @@ test("the card page may come back to this shop's own admin, but not another shop
   assert.ok(url);
   await assert.rejects(billing.cardLink({ shopId: "moth-press", returnUrl: "https://press-two.web.app/admin" }), /this shop's admin/);
   await assert.rejects(billing.cardLink({ shopId: "moth-press", returnUrl: "https://moth-press.web.app.evil.example/admin" }), /this shop's admin/);
+});
+
+// The fresh-eyes review's cases (22.1-22.5): each was a real way for a press to pay too much, get stuck or see the wrong thing.
+
+test("a founding press whose trial ended without a card pays the founding price on the bill that reopens the shop", async () => {
+  const { stripe, stores, event, start, addCard } = make();
+  await start();
+  const subId = stores.subscriptions.rows.get("moth-press").subscriptionId;
+  await event("customer.subscription.updated", stripe.endTrial(subId));
+  assert.equal(stores.subscriptions.rows.get("moth-press").status, "paused");
+  await addCard();
+  const sub = stripe.world.subscriptions.get(subId);
+  assert.equal(sub.status, "active");
+  assert.equal(stripe.world.invoices.get(sub.latest_invoice).total, 2925, "$39 less 25%, on the very first bill");
+  assert.equal(stores.subscriptions.rows.get("moth-press").founding, true);
+});
+
+test("a shop started without a trial gets the founding price on its first bill", async () => {
+  const { stripe, stores, start, addCard } = make();
+  await start("moth-press");
+  await start("press-two"); // the account's trial is used, so this plan waits for its first payment
+  const row = stores.subscriptions.rows.get("press-two");
+  assert.equal(row.status, "incomplete");
+  assert.equal(row.founding, true);
+  const sub = stripe.world.subscriptions.get(row.subscriptionId);
+  assert.equal(stripe.world.invoices.get(sub.latest_invoice).total, 2925);
+  await addCard("press-two");
+  assert.equal(stores.subscriptions.rows.get("press-two").foundingOn, row.subscriptionId);
+});
+
+test("making a saved card primary on a paused shop reopens it and makes it a founding press, like adding a card", async () => {
+  const { billing, stripe, stores, event, start, addCard } = make();
+  await start("moth-press");
+  await addCard("moth-press", "pm_card_visa");
+  await start("press-two");
+  const two = stores.subscriptions.rows.get("press-two");
+  // press-two started with no trial and no card; pretend its first bill lapsed into a pause.
+  stripe.world.subscriptions.get(two.subscriptionId).status = "paused";
+  await event("customer.subscription.updated", stripe.subscription(two.subscriptionId));
+  assert.deepEqual(await billing.makePrimary({ shopId: "press-two", cardId: "pm_card_visa" }), { changed: true });
+  const after = stores.subscriptions.rows.get("press-two");
+  assert.equal(after.status, "active");
+  assert.equal(after.founding, true);
+  assert.equal(stripe.world.subscriptions.get(two.subscriptionId).coupon, foundingCouponId(25));
+  assert.equal(stripe.world.subscriptions.get(two.subscriptionId).default_payment_method, "pm_card_visa");
+});
+
+test("a card Stripe says pays the plan can't be removed, even before another tab's change is saved", async () => {
+  const { billing, stripe, stores, start, addCard } = make();
+  await start();
+  await addCard("moth-press", "pm_card_visa");
+  const row = stores.subscriptions.rows.get("moth-press");
+  stripe.world.paymentMethods.set("pm_card_mc", { id: "pm_card_mc", type: "card", card: { brand: "mastercard", last4: "4444", exp_month: 1, exp_year: 2031 } });
+  stripe.attach(row.customerId, "pm_card_mc");
+  stripe.world.subscriptions.get(row.subscriptionId).default_payment_method = "pm_card_mc"; // Stripe already moved
+  await assert.rejects(billing.removeCard({ shopId: "moth-press", cardId: "pm_card_mc" }), (e) => e.status === 409);
+});
+
+test("a billing-details save that fails halfway can be corrected and saved again at once", async () => {
+  const { billing, stripe, start, addCard } = make({ tax: true });
+  await start();
+  await addCard();
+  stripe.world.failOnce = /^POST \/v1\/subscriptions\//;
+  await assert.rejects(billing.saveBillingDetails({ shopId: "moth-press", name: "Moth", email: "books@moth.example", address: { line1: "1 King St W", city: "Toronto", state: "ON", postalCode: "M5H 1A1" }, taxNumber: "" }));
+  assert.deepEqual(await billing.saveBillingDetails({ shopId: "moth-press", name: "Moth Press", email: "books@moth.example", address: { line1: "2 King St W", city: "Toronto", state: "ON", postalCode: "M5H 1A1" }, taxNumber: "" }), { saved: true });
+  assert.equal((await billing.billingDetails("moth-press")).address.line1, "2 King St W");
+});
+
+test("a tax number taken off and put back the same day is really back on the bills", async () => {
+  const { billing, start, addCard } = make();
+  await start();
+  await addCard();
+  const save = (taxNumber) => billing.saveBillingDetails({ shopId: "moth-press", name: "Moth", email: "books@moth.example", address: null, taxNumber });
+  await save("123456789RT0001");
+  await save("");
+  assert.equal((await billing.billingDetails("moth-press")).taxNumber, "");
+  await save("123456789RT0001");
+  assert.equal((await billing.billingDetails("moth-press")).taxNumber, "123456789RT0001");
+});
+
+test("a payment failure that arrives after its bill was paid shows nothing and sends nothing", async () => {
+  const { billing, stripe, stores, event, email, start, addCard } = make();
+  await start();
+  await addCard();
+  const row = stores.subscriptions.rows.get("moth-press");
+  const invoice = stripe.addInvoice(row.subscriptionId, { status: "open", amount_due: 2925 });
+  await event("invoice.paid", { ...invoice, status: "paid", amount_paid: 2925 });
+  assert.equal((await event("invoice.payment_failed", { ...invoice, status: "open", amount_due: 2925, attempt_count: 1 })).body.handled, "already paid");
+  assert.equal((await event("invoice.payment_action_required", { ...invoice, status: "open", amount_due: 2925 })).body.handled, "already paid");
+  assert.equal((await billing.status("moth-press")).paymentProblem, null);
+  assert.equal(email.list().filter((m) => m.kind === "payment-failed" || m.kind === "payment-needs-confirming").length, 0);
+});
+
+test("a problem left from a bill settled some other way stops showing once the plan is paid up", async () => {
+  const { billing, stripe, stores, event, start, addCard } = make();
+  await start();
+  await addCard();
+  const row = stores.subscriptions.rows.get("moth-press");
+  const invoice = stripe.pastDue(row.subscriptionId);
+  await event("customer.subscription.updated", stripe.subscription(row.subscriptionId));
+  await event("invoice.payment_failed", { ...invoice, amount_due: 3900 });
+  assert.ok((await billing.status("moth-press")).paymentProblem);
+  await event("customer.subscription.updated", stripe.payMonth(row.subscriptionId));
+  assert.equal((await billing.status("moth-press")).paymentProblem, null);
+});
+
+test("the bank's confirm email opens Stripe's page for that bill", async () => {
+  const { stripe, stores, event, email, start, addCard } = make();
+  await start();
+  await addCard();
+  const row = stores.subscriptions.rows.get("moth-press");
+  const invoice = stripe.pastDue(row.subscriptionId);
+  await event("invoice.payment_action_required", { ...invoice, amount_due: 2925 });
+  const sent = email.list().find((m) => m.kind === "payment-needs-confirming");
+  assert.equal(sent.data.link, invoice.hosted_invoice_url);
+});
+
+test("the control room counts a founding press at its founding price", async () => {
+  const { registry, start, addCard } = make();
+  await start();
+  await addCard();
+  assert.equal((await registry.getShop("moth-press")).billing.percentOff, 25);
+});
+
+test("a switch to pay as you sell that Stripe refuses takes no founding place", async () => {
+  const { billing, stores, registry, auditLog, seats, start, live, stripe } = make();
+  await start();
+  const paymentWay = createPaymentWay({ stripe: createStripeApi({ fetch: stripe.fetch, keys: { test: "sk_test_fake" } }), mode: "test", settings: platformSettings({}), ...stores, registry, auditLog, billing, live, now: () => NOW });
+  stripe.world.failOnce = /^POST \/v1\/subscriptions\//;
+  await assert.rejects(paymentWay.switchPaymentWay({ shopId: "moth-press", to: "payAsYouSell" }));
+  assert.equal(seats.rows.size, 0);
 });

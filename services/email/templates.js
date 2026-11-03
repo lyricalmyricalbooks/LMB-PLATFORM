@@ -287,7 +287,7 @@ export const TEMPLATES = {
     greeting: "Hello,",
     paragraphs: [
       `Your bank asked you to confirm this month's ${price} payment for ${pressName} before it goes through. It's a normal safety step some banks take.`,
-      `Open your billing page and choose "Confirm the payment". Your shop stays open meanwhile.`,
+      `Use the button below to confirm it with your bank. Your shop stays open meanwhile.`,
     ],
     buttons: [["Confirm the payment", safeLink(link)]],
     footer: signOff(settings),

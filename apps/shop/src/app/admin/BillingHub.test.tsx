@@ -138,6 +138,16 @@ describe("Settings › Billing", () => {
     expect(pdf.href).toBe("https://pay.stripe.example/in_1.pdf");
   });
 
+  it("a part that couldn't be read says so with Try again, instead of looking empty", async () => {
+    world.refuse = { "payment-methods": { message: "We couldn't reach billing." } };
+    await mount(BillingPage);
+    expect(text()).toContain("Cards not loaded");
+    expect(text()).not.toContain("No card yet");
+    world.refuse = {};
+    await click(button("Try again"));
+    expect(text()).toContain("Mastercard ending 4444");
+  });
+
   it("makes another card primary", async () => {
     await mount(BillingPage);
     await click(button("Make primary"));

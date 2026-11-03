@@ -80,7 +80,7 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
   const requests = [];
   const byKey = new Map();
   let next = 1;
-  const world = { products: new Map(), prices: new Map(), customers: new Map(), subscriptions: new Map(), sessions: new Map(), setupIntents: new Map(), invoices: new Map(), paymentMethods: new Map(), coupons: new Map(), taxIds: new Map(), payFails: null, down: 0 };
+  const world = { products: new Map(), prices: new Map(), customers: new Map(), subscriptions: new Map(), sessions: new Map(), setupIntents: new Map(), invoices: new Map(), paymentMethods: new Map(), coupons: new Map(), taxIds: new Map(), payFails: null, down: 0, failOnce: null };
   const MONTH = 30 * 86400;
   const missing = (what) => ({ status: 404, body: { error: { type: "invalid_request_error", code: "resource_missing", message: `No such ${what}` } } });
   const ok = (body) => ({ status: 200, body: structuredClone(body) });
@@ -88,6 +88,15 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
 
   const cardBody = (id) => world.paymentMethods.get(id) ?? { id, type: "card", card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2030 }, billing_details: { address: { country: "CA", postal_code: "M5V 2T6" } } };
   /** A card saved on a customer (Stripe attaches the card a setup page collects). */
+  /** The bill Stripe makes when a plan starts paying now: the price less the plan's coupon at that moment. */
+  const billNow = (sub, status) => {
+    const price = world.prices.get(sub.price)?.unit_amount ?? 0;
+    const off = sub.coupon ? Math.round((price * (world.coupons.get(sub.coupon)?.percent_off ?? 0)) / 100) : 0;
+    const invoice = { id: `in_${next++}`, object: "invoice", status, subscription: sub.id, currency: "cad", subtotal: price, total: price - off, amount_due: price - off };
+    world.invoices.set(invoice.id, invoice);
+    sub.latest_invoice = invoice.id;
+    return invoice;
+  };
   const attach = (customerId, id) => {
     const card = cardBody(id);
     world.paymentMethods.set(id, { ...card, customer: customerId });
@@ -180,13 +189,13 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
         periodEnd: trialEndAt ?? clock() + (trialDays || 30) * 86400, cancel_at_period_end: false, default_payment_method: null,
         metadata: { lmb_shop_id: p["metadata[lmb_shop_id]"], lmb_plan: p["metadata[lmb_plan]"], lmb_account_id: p["metadata[lmb_account_id]"] },
         missingCard: p["trial_settings[end_behavior][missing_payment_method]"] ?? null,
-        latest_invoice: null,
+        latest_invoice: null, coupon: null,
       };
-      if (!trialDays) {
-        const invoice = { id: `in_${next++}`, status: "open", subscription: id };
-        world.invoices.set(invoice.id, invoice);
-        sub.latest_invoice = invoice.id;
+      if (p["discounts[0][coupon]"]) {
+        if (!world.coupons.has(p["discounts[0][coupon]"])) return missing("coupon");
+        sub.coupon = p["discounts[0][coupon]"];
       }
+      if (!trialDays) billNow(sub, "open");
       world.subscriptions.set(id, sub);
       return ok(subBody(sub));
     }
@@ -208,6 +217,8 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
         if (sub.status !== "paused") return { status: 400, body: { error: { type: "invalid_request_error", message: "not paused" } } };
         sub.status = "active";
         sub.periodEnd = clock() + 30 * 86400;
+        // billing_cycle_anchor=now bills the plan at once, at the price (and coupon) it has now.
+        billNow(sub, "paid");
       } else if (method === "POST") {
         if ("cancel_at_period_end" in p) sub.cancel_at_period_end = p.cancel_at_period_end === "true";
         if (p.default_payment_method) sub.default_payment_method = p.default_payment_method;
@@ -295,11 +306,19 @@ export function fakeBillingStripe({ clock = () => 1_800_000_000 } = {}) {
     const headers = { ...(init.headers ?? {}) };
     requests.push({ method, path: parsed.pathname, headers, params });
     const key = headers["Idempotency-Key"];
+    const asked = `${method} ${parsed.pathname} ${JSON.stringify(params)}`;
     let result;
-    if (key && byKey.has(key)) result = byKey.get(key);
-    else {
+    if (key && byKey.has(key)) {
+      // Like Stripe: a key comes back with the same answer, but a key reused for different details is refused.
+      const kept = byKey.get(key);
+      result = kept.asked === asked ? kept.result : { status: 400, body: { error: { type: "idempotency_error", message: "Keys for idempotent requests can only be used with the same parameters they were first used with." } } };
+    } else if (world.failOnce && world.failOnce.test(`${method} ${parsed.pathname}`)) {
+      world.failOnce = null;
+      result = { status: 400, body: { error: { type: "invalid_request_error", message: "made to fail once" } } };
+      if (key) byKey.set(key, { asked, result });
+    } else {
       result = answer(method, parsed.pathname, params);
-      if (key && !result.turnedAway) byKey.set(key, result);
+      if (key && !result.turnedAway) byKey.set(key, { asked, result });
     }
     return { ok: result.status < 300, status: result.status, json: async () => structuredClone(result.body) };
   };

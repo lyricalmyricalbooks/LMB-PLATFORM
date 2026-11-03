@@ -78,6 +78,8 @@ export const ACCESS = Object.freeze({
 });
 
 const ENDED = new Set(["canceled", "incomplete_expired"]);
+/** Plan states with a bill waiting to be paid. */
+const OWING = new Set(["past_due", "unpaid", "incomplete"]);
 // Statuses with a month already paid for: a plan that drops an app keeps it open to the end of that month.
 const PAID = new Set(["active", "past_due"]);
 const DAY = 86400_000;
@@ -162,7 +164,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   async function mirror(shopId, row) {
     if (!(await registry.getShop(shopId))) return;
     const { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard } = row;
-    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, appsClosing: row.appsClosing ?? null, updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null } });
+    await registry.updateShop(shopId, { billing: { plan, status, access, trialEnd, currentPeriodEnd, cancelAtPeriodEnd, hasCard, percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, appsClosing: row.appsClosing ?? null, updatedAt: row.updatedAt, leaving: row.leaving ?? null, troubleSince: row.troubleSince ?? null } });
   }
 
   // The shop's own platform/plan and platform/status (shopPlan.js), once its database exists.
@@ -313,13 +315,46 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   async function claimFounding(shopId) {
     const row = await subscriptions.get(shopId);
     if (!row || row.founding === true) return row;
-    if (!live || !foundingSeats) return row;
+    const percentOff = await takeFoundingPlace(shopId);
+    return percentOff === null ? row : save(shopId, { founding: true, foundingPercentOff: percentOff, foundingAt: at() }, "founding-place-given");
+  }
+
+  /** One of the founding places, if the offer is on and any are left: its percent off, or null. */
+  async function takeFoundingPlace(shopId) {
+    if (!live || !foundingSeats) return null;
     const offer = foundingOfferOf(await live());
-    if (!offer) return row;
+    if (!offer) return null;
     const got = await foundingSeats.claim(shopId, { limit: offer.presses, at: at(), percentOff: offer.percentOff });
-    if (!got) return row;
+    if (!got) return null;
     if (await registry.getShop(shopId)) await registry.updateShop(shopId, { founding: true });
-    return save(shopId, { founding: true, foundingPercentOff: offer.percentOff, foundingAt: at() }, "founding-place-given");
+    return offer.percentOff;
+  }
+
+  /**
+   * A card now pays this shop's plan, from adding one (Stripe's card page) or making a saved one primary (22.3). One path,
+   * in an order that matters: the card goes on the customer and the plan, the press becomes a paying one (a founding place
+   * and its discount, 22.1) BEFORE a paused plan is reopened or a waiting first bill is paid, so that bill is already the
+   * founding price. Every Stripe call is keyed on `key`, so a retry of the same change repeats nothing.
+   */
+  async function cardNowPays(shopId, card, { key, what, customer = {}, subscription = {} }) {
+    const row = await subscriptions.get(shopId);
+    await call("POST", `/v1/customers/${row.customerId}`, { params: { invoice_settings: { default_payment_method: card.id }, ...customer }, idempotencyKey: `${key}-customer` });
+    let sub = null;
+    if (row.subscriptionId && !ENDED.has(row.status)) {
+      await claimFounding(shopId);
+      await applyFounding(shopId);
+      sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { default_payment_method: card.id, ...subscription }, idempotencyKey: `${key}-subscription` });
+      // A trial that ended without a card paused the plan: the card opens the shop again, billed from today.
+      if (sub.status === "paused") sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}/resume`, { params: { billing_cycle_anchor: "now" }, idempotencyKey: `${key}-resume` });
+      // A plan started again without a trial waits for its first payment: pay it with the new card.
+      const invoice = typeof sub.latest_invoice === "string" ? sub.latest_invoice : sub.latest_invoice?.id;
+      if (sub.status === "incomplete" && invoice) {
+        await call("POST", `/v1/invoices/${invoice}/pay`, { params: { payment_method: card.id }, idempotencyKey: `${key}-pay` });
+        sub = await call("GET", `/v1/subscriptions/${row.subscriptionId}`);
+      }
+    }
+    await save(shopId, { card, hasCard: true, cardChanges: (row.cardChanges ?? 0) + 1 }, null);
+    return sub ? sync(shopId, sub, what) : subscriptions.get(shopId);
   }
 
   /** Puts the founding coupon on the shop's running subscription, once per subscription. */
@@ -332,7 +367,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
   }
 
   const hub = createBillingHub({
-    call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money: moneyText,
+    call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money: moneyText, cardNowPays,
     iso, nowIso: at,
     refresh: async (shopId) => {
       const row = await subscriptions.get(shopId);
@@ -374,6 +409,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const customer = await ensureCustomer(account);
       const trial = settings.trialDays > 0 && !customer.trialUsedAt;
       const starts = (existing?.starts ?? 0) + 1;
+      // With no trial the first bill is made with the plan, so a founding press's discount goes on it from the start:
+      // the place it already has, or (it pays today, so it is a paying press) one taken now (22.1).
+      let percentOff = existing?.founding === true ? existing.foundingPercentOff ?? 25 : null;
+      const newPlace = !trial && percentOff === null ? await takeFoundingPlace(shopId) : null;
+      if (newPlace !== null) percentOff = newPlace;
+      const discounts = !trial && percentOff !== null ? [{ coupon: await ensureFoundingCoupon(call, percentOff, settings.platformName) }] : null;
       const sub = await call("POST", "/v1/subscriptions", {
         params: {
           customer: customer.customerId,
@@ -383,11 +424,16 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
           ...(trial
             ? { trial_period_days: settings.trialDays, trial_settings: { end_behavior: { missing_payment_method: "pause" } } }
             : { payment_behavior: "default_incomplete" }),
+          ...(discounts ? { discounts } : {}),
         },
         idempotencyKey: `subscription-${shopId}-${starts}`,
       });
       if (trial) await customers.set(account.accountId, { ...customer, trialUsedAt: at() });
-      const saved = await save(shopId, { ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0 }, trial ? "trial-started" : "plan-started");
+      const saved = await save(shopId, {
+        ...fromSubscription(sub), accountId: account.accountId, billingEmail: account.email, pressName: pressName ?? "", starts, planChanges: 0,
+        ...(newPlace !== null ? { founding: true, foundingPercentOff: newPlace, foundingAt: at() } : {}),
+        ...(discounts ? { foundingOn: sub.id } : {}),
+      }, trial ? "trial-started" : "plan-started");
       // A founding press starting again keeps its place: the new subscription gets the discount too.
       return saved.founding === true ? applyFounding(shopId) : saved;
     },
@@ -562,8 +608,9 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         plans: PLAN_IDS.map((id) => { const p = planPrice(id, settings); return { plan: id, name: p.name, price: p.priceText, apps: APPS.filter((app) => PLAN_APPS[id][app]) }; }),
         paymentWay: currentPaymentWay(row, now()),
         founding: row.founding === true ? { percentOff: row.foundingPercentOff ?? null, price: price && row.foundingPercentOff ? moneyText(foundingAmount(price.amount, row.foundingPercentOff), price.currency) : "" } : null,
-        paymentProblem: !ended && row.paymentProblem ? { kind: row.paymentProblem.kind, at: row.paymentProblem.at, amount: row.paymentProblem.amount ?? "", nextTry: row.paymentProblem.nextTry ?? null, pageUrl: httpsOrNull(row.paymentProblem.pageUrl) } : null,
-        canPayNow: ["past_due", "unpaid", "incomplete"].includes(row.status) && Boolean(row.hasCard),
+        // Only while something is owed: a problem left over from a bill voided or settled some other way doesn't linger.
+        paymentProblem: OWING.has(row.status) && row.paymentProblem ? { kind: row.paymentProblem.kind, at: row.paymentProblem.at, amount: row.paymentProblem.amount ?? "", nextTry: row.paymentProblem.nextTry ?? null, pageUrl: httpsOrNull(row.paymentProblem.pageUrl) } : null,
+        canPayNow: OWING.has(row.status) && Boolean(row.hasCard),
       };
     },
 
@@ -676,6 +723,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const subscriptionId = object.subscription ?? object.parent?.subscription_details?.subscription;
         const row = subscriptionId ? await subscriptions.findBySubscriptionId(typeof subscriptionId === "string" ? subscriptionId : subscriptionId.id) : null;
         if (!row) return "not ours";
+        if (paidAlready(row, object)) return "already paid";
         const amount = new Intl.NumberFormat("en-CA", { style: "currency", currency: (object.currency ?? settings.currency).toUpperCase(), currencyDisplay: "narrowSymbol" }).format((object.amount_due ?? 0) / 100);
         await save(row.shopId, { paymentProblem: { kind: "declined", at: at(), invoiceId: object.id ?? null, amount, nextTry: iso(object.next_payment_attempt), pageUrl: httpsOrNull(object.hosted_invoice_url) } }, null);
         await logChange(row.shopId, "payment-failed", { attempt: object.attempt_count ?? null });
@@ -686,10 +734,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         // The bank wants the press to confirm the payment (3D Secure): Stripe keeps the bill open meanwhile.
         const row = await rowOfInvoice(object);
         if (!row) return "not ours";
+        if (paidAlready(row, object)) return "already paid";
         const amount = moneyText(object.amount_due ?? 0, object.currency ?? settings.currency);
         await save(row.shopId, { paymentProblem: { kind: "confirm", at: at(), invoiceId: object.id ?? null, amount, nextTry: null, pageUrl: httpsOrNull(object.hosted_invoice_url) } }, null);
         await logChange(row.shopId, "payment-needs-confirming", {});
-        await notify(row.shopId, "payment-needs-confirming", { price: amount }, event.id);
+        // The button opens Stripe's page for this bill, where the bank's step happens; the account page if there's none.
+        await notify(row.shopId, "payment-needs-confirming", { price: amount, ...(httpsOrNull(object.hosted_invoice_url) ? { link: object.hosted_invoice_url } : {}) }, event.id);
         return "payment needs confirming";
       }
       case "invoice.paid": {
@@ -698,7 +748,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         if (!row) return "not ours";
         const problem = row.paymentProblem;
         const settles = problem && (!problem.invoiceId || problem.invoiceId === object.id);
-        await save(row.shopId, { lastPaidAt: at(), ...(settles ? { paymentProblem: null } : {}) }, null);
+        await save(row.shopId, { lastPaidAt: at(), lastPaidInvoiceId: object.id ?? null, ...(settles ? { paymentProblem: null } : {}) }, null);
         if (!settles) return "paid";
         await logChange(row.shopId, "payment-recovered", {});
         await notify(row.shopId, "payment-received", { price: moneyText(object.amount_paid ?? object.total ?? 0, object.currency ?? settings.currency) }, event.id);
@@ -717,22 +767,12 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         const address = method?.billing_details?.address;
         // With tax on, the card's billing address is where Stripe Tax places the press, so it goes on the customer first.
         const located = tax && address?.country;
-        await call("POST", `/v1/customers/${row.customerId}`, { params: { invoice_settings: { default_payment_method: card }, ...(located ? { address: plainAddress(address) } : {}) } });
-        let sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { default_payment_method: card, ...(located ? { automatic_tax: { enabled: true } } : {}) } });
-        // A trial that ended without a card paused the plan: the card opens the shop again, billed from today.
-        if (sub.status === "paused") sub = await call("POST", `/v1/subscriptions/${row.subscriptionId}/resume`, { params: { billing_cycle_anchor: "now" }, idempotencyKey: `resume-${event.id}` });
-        // A plan started again without a trial waits for its first payment: pay it with the new card.
-        const invoice = typeof sub.latest_invoice === "string" ? sub.latest_invoice : sub.latest_invoice?.id;
-        if (sub.status === "incomplete" && invoice) {
-          await call("POST", `/v1/invoices/${invoice}/pay`, { params: { payment_method: card }, idempotencyKey: `pay-${event.id}` });
-          sub = await call("GET", `/v1/subscriptions/${row.subscriptionId}`);
-        }
         const details = method?.card ?? {};
-        await save(shopId, { card: { id: card, brand: details.brand ?? "card", last4: details.last4 ?? "", expMonth: details.exp_month ?? null, expYear: details.exp_year ?? null }, cardChanges: (row.cardChanges ?? 0) + 1 }, null);
-        await sync(shopId, sub, "card-added");
-        // The first card makes the press a paying one: a founding place, if any are left, and its discount (22.1).
-        await claimFounding(shopId);
-        await applyFounding(shopId);
+        await cardNowPays(shopId, { id: card, brand: details.brand ?? "card", last4: details.last4 ?? "", expMonth: details.exp_month ?? null, expYear: details.exp_year ?? null }, {
+          key: `card-${event.id}`, what: "card-added",
+          customer: located ? { address: plainAddress(address) } : {},
+          subscription: located ? { automatic_tax: { enabled: true } } : {},
+        });
         return "card added";
       }
       case "payment_method.automatically_updated": {
@@ -756,6 +796,9 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
 /** A plan payment failing, or the plan paused or waiting for a card (the control room's payment-trouble list). */
 const TROUBLE = new Set(["past_due", "unpaid", "incomplete", "paused"]);
 const inTrouble = (row) => TROUBLE.has(row?.status) && row?.paymentWay !== "payAsYouSell";
+
+/** Stripe doesn't promise the order of events: a failure arriving after its bill was paid is old news. */
+const paidAlready = (row, invoice) => invoice?.status === "paid" || (Boolean(invoice?.id) && row.lastPaidInvoiceId === invoice.id);
 
 const httpsOrNull = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);
 

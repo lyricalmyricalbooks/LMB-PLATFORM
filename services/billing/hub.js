@@ -51,7 +51,7 @@ export function addressOf(raw, BillingError) {
 
 const https = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);
 
-export function createBillingHub({ call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money, iso, nowIso, refresh }) {
+export function createBillingHub({ call, rowFor, save, logChange, subscriptions, settings, tax, BillingError, money, iso, nowIso, refresh, cardNowPays }) {
   const cardOf = (method) => ({
     id: method.id, brand: method.card?.brand ?? "card", last4: method.card?.last4 ?? "", expMonth: method.card?.exp_month ?? null, expYear: method.card?.exp_year ?? null,
   });
@@ -87,11 +87,8 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
       const card = (await cards(row)).find((c) => c.id === cardId);
       if (!card) throw new BillingError(404, "That card isn't saved on your account any more. Reload the page.");
       if (row.card?.id === cardId && row.hasCard) return { changed: false };
-      await call("POST", `/v1/customers/${row.customerId}`, { params: { invoice_settings: { default_payment_method: cardId } }, idempotencyKey: `primary-customer-${row.customerId}-${cardId}-${shopId}-${row.cardChanges ?? 0}` });
-      if (!ENDED.has(row.status)) {
-        await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { default_payment_method: cardId }, idempotencyKey: `primary-${row.subscriptionId}-${cardId}-${row.cardChanges ?? 0}` });
-      }
-      await save(shopId, { card, hasCard: true, cardChanges: (row.cardChanges ?? 0) + 1 }, null);
+      // The same path as adding a card: a paused plan reopens and a first card makes the press a paying one (billing.js).
+      await cardNowPays(shopId, card, { key: `primary-${shopId}-${cardId}-${row.cardChanges ?? 0}`, what: "card-made-primary" });
       await logChange(shopId, "card-made-primary", { card: cardWords(card) });
       return { changed: true };
     },
@@ -102,6 +99,12 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
       const card = (await cards(row)).find((c) => c.id === cardId);
       if (!card) return { removed: false };
       if (row.card?.id === cardId && !ENDED.has(row.status)) throw new BillingError(409, "This card pays your plan. Make another card primary first, then remove this one.");
+      // Stripe's own answer too, so a "make primary" in another tab that hasn't saved yet can't lose the plan its card.
+      if (row.subscriptionId && !ENDED.has(row.status)) {
+        const sub = await call("GET", `/v1/subscriptions/${row.subscriptionId}`);
+        const paying = typeof sub?.default_payment_method === "string" ? sub.default_payment_method : sub?.default_payment_method?.id;
+        if (paying === cardId) throw new BillingError(409, "This card pays your plan. Make another card primary first, then remove this one.");
+      }
       if (await payingElsewhere(row, cardId)) throw new BillingError(409, "This card pays the plan of another shop on your account. Change that shop's card first.");
       await call("POST", `/v1/payment_methods/${cardId}/detach`, { idempotencyKey: `detach-${cardId}` });
       await logChange(shopId, "card-removed", { card: cardWords(card) });
@@ -129,7 +132,10 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
       if (!cleanEmail || !EMAIL.test(cleanEmail)) throw new BillingError(400, "Give the email address your bills should go to.");
       const cleanAddress = addressOf(address, BillingError);
       const number = taxNumberOf(taxNumber, BillingError);
+      // Counted before the first Stripe call: a save that fails halfway gets fresh keys next time, never a key Stripe
+      // already holds with other details (it refuses those for a day).
       const changes = (row.detailChanges ?? 0) + 1;
+      await save(shopId, { detailChanges: changes }, null);
       await call("POST", `/v1/customers/${row.customerId}`, {
         params: { email: cleanEmail, name: cleanName || null, ...(cleanAddress ? { address: cleanAddress } : {}) },
         idempotencyKey: `details-${row.customerId}-${shopId}-${changes}`,
@@ -137,16 +143,17 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
       // One tax number: an old one that differs is taken off, the new one put on.
       const ids = (await call("GET", `/v1/customers/${row.customerId}/tax_ids`, { params: { limit: 10 } }))?.data ?? [];
       for (const old of ids.filter((t) => TAX_NUMBERS.some((k) => k.type === t.type) && !(number && t.type === number.type && t.value === number.value))) {
-        await call("DELETE", `/v1/customers/${row.customerId}/tax_ids/${old.id}`);
+        // Already gone (a retried save) is what we wanted.
+        await call("DELETE", `/v1/customers/${row.customerId}/tax_ids/${old.id}`).catch((error) => { if (error?.statusCode !== 404) throw error; });
       }
       if (number && !ids.some((t) => t.type === number.type && t.value === number.value)) {
-        await call("POST", `/v1/customers/${row.customerId}/tax_ids`, { params: number, idempotencyKey: `taxid-${row.customerId}-${number.value}` });
+        await call("POST", `/v1/customers/${row.customerId}/tax_ids`, { params: number, idempotencyKey: `taxid-${row.customerId}-${number.value}-${changes}` });
       }
       // With tax on, an address on file lets Stripe Tax work from the next bill (a card alone used to be the only way).
       if (tax && cleanAddress && row.hasCard && !ENDED.has(row.status)) {
         await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { automatic_tax: { enabled: true } }, idempotencyKey: `tax-on-${row.subscriptionId}-${changes}` });
       }
-      await save(shopId, { billingEmail: cleanEmail, detailChanges: changes }, null);
+      await save(shopId, { billingEmail: cleanEmail }, null);
       await logChange(shopId, "billing-details-changed", { taxNumber: number ? number.type : null, address: Boolean(cleanAddress) });
       return { saved: true };
     },

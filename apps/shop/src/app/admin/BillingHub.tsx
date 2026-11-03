@@ -228,6 +228,8 @@ export function BillingPage({ plan }: Hub) {
   const [details, setDetails] = useState<BillingDetails | null>(null);
   const [draft, setDraft] = useState<{ name: string; email: string; address: typeof EMPTY_ADDRESS; taxNumber: string } | null>(null);
   const [saved, setSaved] = useState(false);
+  // A part that couldn't be read says so, rather than looking empty ("No card yet" while a card is saved).
+  const [failed, setFailed] = useState<Partial<Record<"cards" | "bill" | "bills" | "details", string>>>({});
   const [confirm, dialog] = useConfirm();
 
   const loadParts = useCallback(async () => {
@@ -237,9 +239,11 @@ export function BillingPage({ plan }: Hub) {
       billingCall<{ invoices: Bill[] }>(plan, "invoices"),
       billingCall<{ details: BillingDetails }>(plan, "details"),
     ]);
-    setCards(c.status === "fulfilled" ? c.value.cards : []);
-    setBill(u.status === "fulfilled" ? u.value.bill : null);
-    setBills(b.status === "fulfilled" ? b.value.invoices : []);
+    const why = (r: PromiseSettledResult<unknown>) => (r.status === "rejected" ? (r.reason instanceof Error ? r.reason.message : "Something went wrong. Try again in a minute.") : undefined);
+    setFailed({ cards: why(c), bill: why(u), bills: why(b), details: why(d) });
+    if (c.status === "fulfilled") setCards(c.value.cards);
+    if (u.status === "fulfilled") setBill(u.value.bill);
+    if (b.status === "fulfilled") setBills(b.value.invoices);
     if (d.status === "fulfilled") {
       setDetails(d.value.details);
       setDraft({ name: d.value.details.name, email: d.value.details.email, address: d.value.details.address ? { ...EMPTY_ADDRESS, ...d.value.details.address } : { ...EMPTY_ADDRESS }, taxNumber: d.value.details.taxNumber });
@@ -303,7 +307,8 @@ export function BillingPage({ plan }: Hub) {
       <TwoStepNote answer={answer} />
 
       <SectionCard title="Next bill" collapsible={false}>
-        {bill === undefined ? <LoadingState label="Working out your next bill…" />
+        {failed.bill && bill === undefined ? <ErrorState title="Next bill not loaded" description={failed.bill} onRetry={() => void loadParts()} />
+          : bill === undefined ? <LoadingState label="Working out your next bill…" />
           : !bill ? <p className="rp-hint" style={{ margin: 0 }}>{billing.paymentWay === "payAsYouSell" ? "You pay as you sell: a small share comes out of each website sale, so there's no monthly bill." : billing.cancelAtPeriodEnd ? "No more bills: your plan ends at the end of this period." : "No bill is coming."}</p>
           : (
             <Facts rows={[
@@ -318,7 +323,8 @@ export function BillingPage({ plan }: Hub) {
 
       <SectionCard title="Payment methods" description="The primary card pays your plan. Cards are saved by our payment partner; we never see the full number."
         actions={<SecondaryButton size="sm" icon={<Plus size={14} aria-hidden />} busy={change.busy === "card"} onClick={() => void addCard()}>Add a card</SecondaryButton>} collapsible={false}>
-        {cards === null ? <LoadingState label="Reading your cards…" />
+        {failed.cards && cards === null ? <ErrorState title="Cards not loaded" description={failed.cards} onRetry={() => void loadParts()} />
+          : cards === null ? <LoadingState label="Reading your cards…" />
           : !cards.length ? <EmptyState inline icon={<CreditCard size={20} aria-hidden />} title="No card yet" description={billing.status === "trialing" ? "Add one before your trial ends so your shop stays open. You won't be charged until then." : "Add a card to keep your shop open."} />
           : (
             <ul className="rp-stack" style={{ gap: 0, listStyle: "none", margin: 0, padding: 0 }}>
@@ -344,7 +350,8 @@ export function BillingPage({ plan }: Hub) {
       </SectionCard>
 
       <SectionCard title="Billing details" description="Printed on every bill. Bills and billing emails go to this address." collapsible={false}>
-        {!draft ? <LoadingState label="Reading your billing details…" /> : (
+        {failed.details && !draft ? <ErrorState title="Billing details not loaded" description={failed.details} onRetry={() => void loadParts()} />
+          : !draft ? <LoadingState label="Reading your billing details…" /> : (
           <form className="rp-stack" style={{ gap: 12 }} onSubmit={(e) => { e.preventDefault(); void saveDetails(); }}>
             <TextField label="Business name" autoComplete="organization" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             <TextField label="Email for bills" type="email" autoComplete="email" required value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
@@ -368,7 +375,8 @@ export function BillingPage({ plan }: Hub) {
       </SectionCard>
 
       <SectionCard title="Bills" description="Every bill, newest first, with a copy to download." collapsible={false}>
-        {bills === null ? <LoadingState label="Reading your bills…" /> : (
+        {failed.bills && bills === null ? <ErrorState title="Bills not loaded" description={failed.bills} onRetry={() => void loadParts()} />
+          : bills === null ? <LoadingState label="Reading your bills…" /> : (
           <DataTable<Bill> caption="Your bills" rows={bills} rowKey={(b) => b.id} stackOnPhone
             empty={<EmptyState inline title="No bills yet" description={billing.status === "trialing" ? "Your first bill comes when your trial ends." : "Your bills show here."} />}
             columns={[

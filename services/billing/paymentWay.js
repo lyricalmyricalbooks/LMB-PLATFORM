@@ -155,11 +155,8 @@ export function createPaymentWay({ stripe, mode = "test", settings, customers, s
       const terms = { ...row.payAsYouSell, until: null };
       return record(shopId, { paymentWay: "payAsYouSell", paymentWayFrom: row.paymentWayChosenAt ?? terms.from, cancelAtPeriodEnd: true, payAsYouSell: terms }, terms, "payment-way-pay-as-you-sell");
     }
-    // Choosing pay as you sell makes the press a paying one: a founding place, if any are left (founding.js, 22.1). The
-    // terms are checked first, so a refused switch never takes a place.
+    // The terms are checked first, so a refused switch changes nothing in Stripe and takes no founding place.
     payAsYouSellTerms({ plan: row.plan, settings, live: await live(), founding: false });
-    if (typeof billing.claimFounding === "function") await billing.claimFounding(shopId);
-    const chosen = payAsYouSellTerms({ plan: row.plan, settings, live: await live(), founding: await founding(shopId, row) });
     let fields = {};
     let from;
     let wayFrom;
@@ -177,6 +174,10 @@ export function createPaymentWay({ stripe, mode = "test", settings, customers, s
         fields = subFields(await call("POST", `/v1/subscriptions/${row.subscriptionId}`, { params: { cancel_at_period_end: true }, idempotencyKey: `pays-${shopId}-cancel-${row.subscriptionId}` }));
       }
     }
+    // Choosing pay as you sell makes the press a paying one: a founding place, if any are left (founding.js, 22.1), taken
+    // only once Stripe has made the switch, so a switch that failed never takes one.
+    if (typeof billing.claimFounding === "function") await billing.claimFounding(shopId);
+    const chosen = payAsYouSellTerms({ plan: row.plan, settings, live: await live(), founding: await founding(shopId, row) });
     const terms = { ...chosen, from, until: null };
     return record(shopId, { ...fields, paymentWay: "payAsYouSell", paymentWayFrom: wayFrom, paymentWayChosenAt: at(), payAsYouSell: terms }, terms, "payment-way-pay-as-you-sell");
   }
