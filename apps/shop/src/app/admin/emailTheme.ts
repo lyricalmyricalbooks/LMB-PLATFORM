@@ -4,14 +4,17 @@
 // DM Mono with web-safe fallbacks. Admin-preview mirror of functions/emailTheme.js —
 // emailTheme.parity.test.ts keeps the two identical.
 
-// "light" = newsprint (cream paper, ink text); "dark" = Riso Noir (black, white text).
+// "light" = newsprint (cream paper, ink text); "dark" = Riso Noir (black, white text); "market" = Market stall (yellow
+// paper); "index" = Index rows (grey paper, black rules). Same layout, the colours follow the chosen shop design.
 // Chosen in Settings › Notifications › Email branding › Email theme.
 const RISO_THEMES = {
   light: { paper: "#faf6ec", card: "#ffffff", sunken: "#f0e9da", ink: "#100f0d", text: "#100f0d", muted: "#3e3a34", subtle: "#5f5950", hair: "#d9d0bd", rule: "#100f0d", accentText: "#b4271a", success: "#0a6b47" },
   dark: { paper: "#000000", card: "#100f0d", sunken: "#1c1a17", ink: "#100f0d", text: "#faf6ec", muted: "#d9d0bd", subtle: "#9b9386", hair: "#3e3a34", rule: "#faf6ec", accentText: "#ff6b55", success: "#3ccf91" },
+  market: { paper: "#ffe14d", card: "#ffffff", sunken: "#ffd21f", ink: "#16130c", text: "#16130c", muted: "#4a4420", subtle: "#5c5420", hair: "#d9b800", rule: "#16130c", accentText: "#a80d4c", success: "#14683f" },
+  index: { paper: "#f2f2ee", card: "#ffffff", sunken: "#e6e6df", ink: "#0e0e0e", text: "#0e0e0e", muted: "#3d3d39", subtle: "#5a5a55", hair: "#cfcfc7", rule: "#0e0e0e", accentText: "#3f5200", success: "#1d6b46" },
 };
 const RISO = { ...RISO_THEMES.light, accent: "#e8402a" };
-const risoPalette = (theme) => RISO_THEMES[theme === "dark" ? "dark" : "light"];
+const risoPalette = (theme) => (Object.prototype.hasOwnProperty.call(RISO_THEMES, theme) ? RISO_THEMES[theme] : RISO_THEMES.light);
 const LEGACY_DEFAULT_ACCENT = /^#7c3aed$/i;
 const FONT_DISPLAY = "'Anton', Impact, 'Arial Narrow Bold', sans-serif";
 const FONT_BODY = "'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif";
