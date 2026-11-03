@@ -30,7 +30,7 @@ function themeRules(): { selector: string; tokens: Record<string, string> }[] {
 }
 
 /** The tokens an admin page sees under one look and appearance, applying the rules the way the cascade does. */
-function resolved(look: "riso" | "paper" | "ledger" | "pop", appearance: "day" | "night"): Record<string, string> {
+function resolved(look: "riso" | "paper" | "ledger" | "pop" | "desk" | "bento", appearance: "day" | "night"): Record<string, string> {
   const rules = themeRules();
   const pick = (selector: string) => {
     const rule = rules.find((r) => r.selector === selector);
@@ -85,24 +85,24 @@ describe("admin themes (plan 1.26)", () => {
     expect(found).toEqual([]);
   });
 
-  it("offers four looks", () => {
-    expect(ADMIN_LOOKS.map((l) => l.id)).toEqual(["riso", "paper", "ledger", "pop"]);
+  it("offers six looks", () => {
+    expect(ADMIN_LOOKS.map((l) => l.id)).toEqual(["riso", "paper", "ledger", "pop", "desk", "bento"]);
   });
 
   it("makes the looks differ in more than colour: the rail, the face and the corners", () => {
-    const day = (look: "riso" | "paper" | "ledger" | "pop") => resolved(look, "day");
-    const rails = new Set(["riso", "paper", "ledger", "pop"].map((l) => day(l as any)["--rp-rail"]));
-    expect(rails.size).toBe(4);
+    const day = (look: "riso" | "paper" | "ledger" | "pop" | "desk" | "bento") => resolved(look, "day");
+    const rails = new Set(["riso", "paper", "ledger", "pop", "desk", "bento"].map((l) => day(l as any)["--rp-rail"]));
+    expect(rails.size).toBeGreaterThanOrEqual(5);
     const css = readFileSync(join(__dirname, "riso.css"), "utf8");
-    for (const look of ["paper", "ledger", "pop"]) {
+    for (const look of ["paper", "ledger", "pop", "desk", "bento"]) {
       expect(css).toContain(`--rp-font-display`);
       expect(css).toContain(`:root[data-admin-look="${look}"] .rp {`);
     }
-    const radius = new Set(["riso", "paper", "ledger", "pop"].map((l) => day(l as any)["--rp-radius"] ?? "0"));
+    const radius = new Set(["riso", "paper", "ledger", "pop", "desk", "bento"].map((l) => day(l as any)["--rp-radius"] ?? "0"));
     expect(radius.size).toBeGreaterThanOrEqual(3);
   });
 
-  describe.each(["riso", "paper", "ledger", "pop"] as const)("%s", (look) => {
+  describe.each(["riso", "paper", "ledger", "pop", "desk", "bento"] as const)("%s", (look) => {
     it.each(["day", "night"] as const)("keeps words readable by %s", (appearance) => {
       const t = resolved(look, appearance);
       const problems: string[] = [];

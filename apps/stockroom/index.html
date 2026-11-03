@@ -54,7 +54,7 @@
       root.classList.toggle('theme-light', !dark);
       // The look (Riso Press, Paper, Ledger or Pop, src/lib/admin-look.js) and the day/night mark <body> reads: the body script below.
       var look = localStorage.getItem('lm-admin-look');
-      if (look === 'paper' || look === 'ledger' || look === 'pop') root.setAttribute('data-admin-look', look);
+      if (look === 'paper' || look === 'ledger' || look === 'pop' || look === 'desk' || look === 'bento') root.setAttribute('data-admin-look', look);
       root.setAttribute('data-boot-appearance', dark ? 'dark' : 'light');
       if (dark) {
         var meta = document.querySelector('meta[name="theme-color"]');
@@ -414,7 +414,7 @@
   <nav class="pub-nav" aria-label="Books">
     <button type="button" class="snav" title="Dashboard" onclick="switchTab('dashboard')"><span class="snav-ic" data-ink="▦">▦</span><span class="snav-label">Dashboard</span></button>
     <button type="button" class="snav" id="todo-sidebar-btn" title="To-do" onclick="switchTab('todo')"><span class="snav-ic" data-ink="!">✅</span><span class="snav-label">To-do</span><span class="nav-badge todo-nav-badge" aria-label="things needing attention" hidden></span></button>
-    <button type="button" class="snav" title="Website orders" onclick="switchTab('website')"><span class="snav-ic" data-ink="WO">🛍</span><span class="snav-label">Website orders</span></button>
+    <button type="button" class="snav" title="Website orders" onclick="switchTab('website')" data-needs-website><span class="snav-ic" data-ink="WO">🛍</span><span class="snav-label">Website orders</span></button>
     <button type="button" class="snav" title="Manual entry" onclick="switchTab('manual')"><span class="snav-ic" data-ink="✎">✎</span><span class="snav-label">Manual entry</span></button>
     <button type="button" class="snav" title="Consignment" onclick="switchTab('consignment')"><span class="snav-ic" data-ink="CS">🏪</span><span class="snav-label">Consignment</span><span class="health-badge" data-health-badge="stripe" aria-label="Stripe is not answering, so invoice payments may be missed" hidden></span></button>
     <button type="button" class="snav" title="History" onclick="switchTab('history')"><span class="snav-ic" data-ink="HI">🕘</span><span class="snav-label">History</span></button>
@@ -434,7 +434,7 @@
     <div class="o3-subgrouplabel">Audience</div>
     <button type="button" class="snav" title="Customers" onclick="switchTab('customers')"><span class="snav-ic" data-ink="CU">👥</span><span class="snav-label">Customers</span></button>
     <button type="button" class="snav" title="Open Call" onclick="switchTab('opencall')"><span class="snav-ic" data-ink="OC">📣</span><span class="snav-label">Open Call</span><span class="nav-badge" id="oc-nav-badge" style="display:none;margin-left:8px;">0</span></button>
-    <button type="button" class="snav" id="sidebar-webanalytics-btn" title="Web Analytics" onclick="switchTab('webanalytics')"><span class="snav-ic" data-ink="WA">📈</span><span class="snav-label">Web Analytics</span></button>
+    <button type="button" class="snav" id="sidebar-webanalytics-btn" data-needs-website title="Web Analytics" onclick="switchTab('webanalytics')"><span class="snav-ic" data-ink="WA">📈</span><span class="snav-label">Web Analytics</span></button>
 
     <div class="o3-subgrouplabel">Data</div>
     <button type="button" class="snav" title="Shipping" onclick="switchTab('shipping')"><span class="snav-ic" data-ink="SH">📦</span><span class="snav-label">Shipping</span></button>
@@ -718,12 +718,12 @@
 </dialog>
 <nav class="tab-bar" id="tab-bar">
   <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
-  <button class="tab-btn" id="website-tab-btn" onclick="switchTab('website')">Website orders</button>
+  <button class="tab-btn" id="website-tab-btn" onclick="switchTab('website')" data-needs-website>Website orders</button>
   <button class="tab-btn" onclick="switchTab('manual')">Manual entry</button>
   <button class="tab-btn" onclick="switchTab('consignment')">Consignment<span class="health-badge" data-health-badge="stripe" aria-label="Stripe is not answering, so invoice payments may be missed" hidden></span></button>
   <button class="tab-btn" onclick="switchTab('history')">History</button>
   <button class="tab-btn" onclick="switchTab('expenses')">Expenses</button>
-  <button class="tab-btn" id="webanalytics-tab-btn" onclick="switchTab('webanalytics')">Web Analytics</button>
+  <button class="tab-btn" id="webanalytics-tab-btn" data-needs-website onclick="switchTab('webanalytics')">Web Analytics</button>
   <button class="tab-btn" onclick="switchTab('myqr')" id="myqr-tab-btn" style="display:none;"><span class="lead-emoji" aria-hidden="true">📲 </span>My QR Code</button>
   <button class="tab-btn" id="help-tab-btn" onclick="switchTab('help')"><span class="lead-emoji" aria-hidden="true">❓ </span>Help</button>
   <button class="tab-btn" id="shipping-tab-btn" onclick="switchTab('shipping')"><span class="lead-emoji" aria-hidden="true">📦 </span>Shipping Rates</button>
@@ -798,7 +798,7 @@
     <section class="help-sec" id="help-selling" data-audience="artist">
       <h3 class="help-sec-title">Selling books</h3>
       <details class="help-q"><summary>How do I record a sale I made?</summary><div class="help-a"><ol><li>Tap <b>Manual entry</b>.</li><li>Type how many copies (<b>Qty</b>) and the price of <b>one</b> copy.</li><li>Pick where you sold it under <b>Channel</b> (In person, Book fair…).</li><li>Under <b>Payment type</b>, pick who got the money.</li><li>Press the add button. Done!</li></ol><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="manual">Open Manual entry →</button></p></div></details>
-      <details class="help-q"><summary>Which “Payment type” do I pick?</summary><div class="help-a"><ul><li>The buyer paid <b>you</b> (cash, your e-transfer…) → <b>directly to artist</b>. You'll send the publisher their part later.</li><li>The buyer paid <b>the publisher</b> (QR code, website) → <b>directly to publisher</b>.</li></ul></div></details>
+      <details class="help-q"><summary>Which “Payment type” do I pick?</summary><div class="help-a"><ul><li>The buyer paid <b>you</b> (cash, your e-transfer…) → <b>directly to artist</b>. You'll send the publisher their part later.</li><li>The buyer paid <b>the publisher</b> (QR code, online) → <b>directly to publisher</b>.</li></ul></div></details>
       <details class="help-q"><summary>Why does my sale say it's waiting for approval?</summary><div class="help-a"><p>When money went to you directly, the publisher gets a note to check it. That's normal — it doesn't mean anything is wrong. It will show as approved once they look at it.</p></div></details>
       <details class="help-q"><summary>I gave a copy away for free. What do I do?</summary><div class="help-a"><p>Go to <b>Manual entry</b> and use the free copy (gratuity) form. Write who got it, how many, and the date. This keeps the copy count right.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="manual">Open Manual entry →</button></p></div></details>
       <details class="help-q"><summary>I made a mistake in a sale.</summary><div class="help-a"><p>Don't add a second sale to “cancel” it. Send the publisher a quick message with the date and amount and they'll fix it, so the totals stay correct.</p></div></details>
@@ -818,23 +818,24 @@
     </section>
     <section class="help-sec" id="help-press" data-audience="publisher">
       <h3 class="help-sec-title">Running the press</h3>
-      <details class="help-q"><summary>What can I see that artists can’t?</summary><div class="help-a"><p>Artists only see their own book and the everyday tabs: Dashboard, Manual entry, Consignment, History, Expenses and their QR code. You see every book, plus the business tabs — Website orders, Event POS, Payments, Tax Centre, Customers, Shipping, <span data-old-shop-sync hidden>Big Cartel, </span>Sheets and Backups.</p></div></details>
+      <details class="help-q"><summary>What can I see that artists can’t?</summary><div class="help-a"><p>Artists only see their own book and the everyday tabs: Dashboard, Manual entry, Consignment, History, Expenses and their QR code. You see every book, plus the business tabs — <span data-needs-website>Website orders, </span>Event POS, Payments, Tax Centre, Customers, Shipping, <span data-old-shop-sync hidden>Big Cartel, </span>Sheets and Backups.</p></div></details>
       <details class="help-q"><summary>How do I see exactly what an artist sees?</summary><div class="help-a"><p>Choose their book, then press <b>Author view</b> at the top of the screen. A note reminds you that you’re previewing. Press it again to get your full view back.</p></div></details>
-      <details class="help-q"><summary>Where do I start each day?</summary><div class="help-a"><ol><li>Open <b>Dashboard</b> and read any <b>Action required</b> note first.</li><li>Open <b>Website orders</b> and apply the ones marked ready.</li><li>Check <b>To-do</b> for anything still waiting on you.</li></ol><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="todo">Open To-do →</button></p></div></details>
-      <details class="help-q"><summary>How do I get to the website’s admin?</summary><div class="help-a"><p>Use the <b>Website · Inventory</b> switch: at the top of the left menu on a computer, the <b>Website ↗</b> button at the top of the screen on a phone or tablet, or the top of <b>More</b>. The red number on it is how many website orders are paid and not sent yet.</p><p>On a computer the website opens in its own tab, and pressing <b>Inventory</b> there brings you back to this tab — no pile of new tabs. A website sale in <b>History</b> has an <b>Open on the website</b> link that goes straight to that order, and the website’s orders link back here the same way.</p><p>It needs the internet: offline, the switch says so and opens nothing.</p></div></details>
+      <details class="help-q"><summary>Where do I start each day?</summary><div class="help-a"><ol><li>Open <b>Dashboard</b> and read any <b>Action required</b> note first.</li><li data-needs-website>Open <b>Website orders</b> and apply the ones marked ready.</li><li>Check <b>To-do</b> for anything still waiting on you.</li></ol><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="todo">Open To-do →</button></p></div></details>
+      <details class="help-q" data-needs-website><summary>How do I get to the website’s admin?</summary><div class="help-a"><p>Use the <b>Website · Inventory</b> switch: at the top of the left menu on a computer, the <b>Website ↗</b> button at the top of the screen on a phone or tablet, or the top of <b>More</b>. The red number on it is how many website orders are paid and not sent yet.</p><p>On a computer the website opens in its own tab, and pressing <b>Inventory</b> there brings you back to this tab — no pile of new tabs. A website sale in <b>History</b> has an <b>Open on the website</b> link that goes straight to that order, and the website’s orders link back here the same way.</p><p>It needs the internet: offline, the switch says so and opens nothing.</p></div></details>
       <details class="help-q"><summary>How do I switch between books?</summary><div class="help-a"><p>Use the book picker at the top. Some tabs need one book chosen; others, like the Dashboard, can show <b>all books</b> together.</p></div></details>
     </section>
     <section class="help-sec" id="help-approvals" data-audience="publisher">
       <h3 class="help-sec-title">Sales &amp; orders</h3>
       <details class="help-q"><summary>An artist’s sale says it’s waiting for approval.</summary><div class="help-a"><p>When a buyer paid the artist directly, the sale waits for you so the money owed between you stays correct. The Dashboard shows an <b>Action required</b> note with how many are waiting. Check the amount with the artist, then approve it.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="dashboard">Open Dashboard →</button></p></div></details>
-      <details class="help-q"><summary>How do website orders get into the books?</summary><div class="help-a"><p>Open <b>Website orders</b>. Orders that match a book are marked ready — apply them and the copies and sales update on their own. Anything that can’t be matched stays listed so nothing is lost.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="website">Open Website orders →</button></p></div></details>
-      <details class="help-q"><summary>Why does my To-do list show website jobs?</summary><div class="help-a"><p>Your shop’s website and this app share one to-do list. Under <b>Waiting on your website</b> you see what waits for you in the website’s admin — stock waiting for your OK, new books to match, website orders not sent yet — each with an <b>Open on the website ↗</b> button. It clears by itself once it’s done there. The website shows what waits here in the same way.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="todo">Open To-do →</button></p></div></details>
-      <details class="help-q"><summary>Adding a book that’s already on the website</summary><div class="help-a"><p>Books your website sells that this app doesn’t have are listed on the <b>Website orders</b> card under <b>On the website, not in this app yet</b>. Press <b>Add to the app</b>: the Add new book form opens with the title, author, ISBN and price filled in. Add the print run, check the rest and save. The website then links its book to the new one by itself. Nothing is added until you save, and <b>Not a book for the app</b> stops it being offered again.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="website">Open Website orders →</button></p></div></details>
-      <details class="help-q"><summary>A book’s title, author, ISBN or price is different on the website</summary><div class="help-a"><p>The <b>Website orders</b> card lists them under <b>Details that differ from the website</b>, for every book linked to the website. Each line names the book and the detail, and shows <b>Website:</b> and <b>This app:</b> side by side. <b>Use the website’s</b> copies the website’s wording or price into this app’s book (only this app changes — never the website). <b>Leave as is</b> keeps yours; that line comes back only if one side changes again. Prices are only compared for books priced in Canadian dollars, and ISBN and price only when one website edition is linked to the book.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="website">Open Website orders →</button></p></div></details>
-      <details class="help-q"><summary>Finding a book or a website order quickly</summary><div class="help-a"><p>Press the <b>🔍</b> button at the top of the screen (or <b>Ctrl K</b> / <b>⌘ K</b>, or <b>/</b> on a keyboard) and start typing a title, an author, an ISBN or a website order number. It finds the books in this app, the books on your website and the website orders this app holds. Books in this app open here; website books and orders open on the website, in its own tab. The last line, <b>Search the website for “…”</b>, runs the same words through the website admin’s search.</p></div></details>
+      <details class="help-q" data-needs-website><summary>How do website orders get into the books?</summary><div class="help-a"><p>Open <b>Website orders</b>. Orders that match a book are marked ready — apply them and the copies and sales update on their own. Anything that can’t be matched stays listed so nothing is lost.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="website">Open Website orders →</button></p></div></details>
+      <details class="help-q" data-needs-website><summary>Why does my To-do list show website jobs?</summary><div class="help-a"><p>Your shop’s website and this app share one to-do list. Under <b>Waiting on your website</b> you see what waits for you in the website’s admin — stock waiting for your OK, new books to match, website orders not sent yet — each with an <b>Open on the website ↗</b> button. It clears by itself once it’s done there. The website shows what waits here in the same way.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="todo">Open To-do →</button></p></div></details>
+      <details class="help-q" data-needs-website><summary>Adding a book that’s already on the website</summary><div class="help-a"><p>Books your website sells that this app doesn’t have are listed on the <b>Website orders</b> card under <b>On the website, not in this app yet</b>. Press <b>Add to the app</b>: the Add new book form opens with the title, author, ISBN and price filled in. Add the print run, check the rest and save. The website then links its book to the new one by itself. Nothing is added until you save, and <b>Not a book for the app</b> stops it being offered again.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="website">Open Website orders →</button></p></div></details>
+      <details class="help-q" data-needs-website><summary>A book’s title, author, ISBN or price is different on the website</summary><div class="help-a"><p>The <b>Website orders</b> card lists them under <b>Details that differ from the website</b>, for every book linked to the website. Each line names the book and the detail, and shows <b>Website:</b> and <b>This app:</b> side by side. <b>Use the website’s</b> copies the website’s wording or price into this app’s book (only this app changes — never the website). <b>Leave as is</b> keeps yours; that line comes back only if one side changes again. Prices are only compared for books priced in Canadian dollars, and ISBN and price only when one website edition is linked to the book.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="website">Open Website orders →</button></p></div></details>
+      <details class="help-q" data-no-website-only><summary>Finding a book quickly</summary><div class="help-a"><p>Press the <b>🔍</b> button at the top of the screen (or <b>Ctrl K</b> / <b>⌘ K</b>, or <b>/</b> on a keyboard) and start typing a title, an author or an ISBN. Pick a book to open it.</p></div></details>
+      <details class="help-q" data-needs-website><summary>Finding a book or a website order quickly</summary><div class="help-a"><p>Press the <b>🔍</b> button at the top of the screen (or <b>Ctrl K</b> / <b>⌘ K</b>, or <b>/</b> on a keyboard) and start typing a title, an author, an ISBN or a website order number. It finds the books in this app, the books on your website and the website orders this app holds. Books in this app open here; website books and orders open on the website, in its own tab. The last line, <b>Search the website for “…”</b>, runs the same words through the website admin’s search.</p></div></details>
       <details class="help-q"><summary>An artist made a mistake in a sale.</summary><div class="help-a"><p>Find the original sale in <b>History</b> and correct that one, rather than adding a second sale to cancel it out. That keeps the copy count and what each person is owed correct.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="history">Open History →</button></p></div></details>
       <details class="help-q"><summary>How do I sell at a fair or event?</summary><div class="help-a"><p>Open <b>Event POS</b> on your phone or tablet. It’s built for quick sales at a table, keeps the screen awake, and keeps working without internet — sales send once you’re back online.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="pos">Open Event POS →</button></p></div></details>
-      <details class="help-q"><summary>How much should I charge for shipping?</summary><div class="help-a"><p>Open <b>Shipping</b>. Save the size and weight of the packages you usually mail, then compare live postage prices (Canada Post options are highlighted). It also suggests what to charge customers for website shipping, so postage doesn’t eat into each sale.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="shipping">Open Shipping →</button></p></div></details>
+      <details class="help-q"><summary>How much should I charge for shipping?</summary><div class="help-a"><p>Open <b>Shipping</b>. Save the size and weight of the packages you usually mail, then compare live postage prices (Canada Post options are highlighted). It also suggests what to charge customers for shipping, so postage doesn’t eat into each sale.</p><p class="help-go-row"><button type="button" class="btn sm sys-target" data-go="shipping">Open Shipping →</button></p></div></details>
     </section>
     <section class="help-sec" id="help-pub-money" data-audience="publisher">
       <h3 class="help-sec-title">Money, shops &amp; taxes</h3>
@@ -1286,6 +1287,7 @@
       <div class="stock-alert ok" id="d-alert">Loading…</div>
       <div class="stock-actions" id="d-recalc-onhand-wrap">
         <button type="button" class="btn sm ink" id="d-transfer-stock-btn" onclick="openStockTransferModal()" title="Transfer stock between publisher and author" style="display:none;">⇄ Transfer stock</button>
+        <button type="button" class="btn sm" id="d-places-stock-btn" data-action="places.open" title="Move copies between your own places, like a studio and a market stall" style="display:none;">📍 Move between places</button>
         <div style="margin-left:auto;">
           <button type="button" class="btn sm" onclick="recalcOnHand()" title="Rebuild on-hand from your sales and consignment records — fixes drift after a missed deduction or offline merge">↻ Recalculate on-hand</button>
         </div>
@@ -1438,7 +1440,7 @@
       <span class="today-card-name">Sell</span>
       <span class="today-card-sub">Open your register</span>
     </button>
-    <button type="button" class="today-card" onclick="switchTab('website')">
+    <button type="button" class="today-card" onclick="switchTab('website')" data-needs-website>
       <span class="today-card-ic" aria-hidden="true">WO</span>
       <span class="today-card-count" id="today-orders-count" hidden></span>
       <span class="today-card-name">Orders</span>
@@ -1541,12 +1543,12 @@
   <details class="recon-fold" id="pm-settings">
     <summary>Accepted payment methods</summary>
     <div id="payment-methods-config-container" class="recon-fold-body">
-      <p class="lead-note">Configure which payment methods are accepted globally for your website (yourpress.example) and override them for individual books. This controls options displayed on invoices and QR payment pages.</p>
+      <p class="lead-note">Choose which payment methods you accept for all your books, and change them for one book when it needs something different. This controls options displayed on invoices and QR payment pages.</p>
       <div class="card payment-methods-card">
         <div class="payment-methods-grid">
-          <!-- Global Website Settings -->
+          <!-- Every book's payment methods -->
           <div class="payment-methods-col">
-            <h4 class="payment-methods-title">Website Settings (yourpress.example)</h4>
+            <h4 class="payment-methods-title">All your books</h4>
             <div class="payment-methods-list" id="pm-global-list">
               <!-- Populated by JS -->
             </div>
@@ -1561,8 +1563,8 @@
             <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
               <label class="pm-toggle-row" id="pm-book-use-global-wrap">
                 <div class="pm-toggle-label">
-                  <span class="pm-toggle-title">Use Website settings</span>
-                  <span class="pm-toggle-desc">Inherit accepted payment methods from the website.</span>
+                  <span class="pm-toggle-title">Same as all your books</span>
+                  <span class="pm-toggle-desc">Accept the payment methods chosen for all your books.</span>
                 </div>
                 <span class="pm-switch"><input type="checkbox" id="pm-book-use-global" onchange="toggleBookUseGlobal()"><span class="pm-track"></span></span>
               </label>
@@ -7008,6 +7010,51 @@
     <div class="modal-footer" role="dialog" aria-modal="true">
       <button type="button" class="btn" onclick="attemptCloseModal('stock-transfer')">Cancel</button>
       <button type="button" class="btn gold" id="st-submit-btn" onclick="submitStockTransfer()">Confirm Transfer</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="m-stock-places" style="display:none;z-index:1200;">
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:480px;">
+    <div class="modal-title">
+      <div class="modal-title-left">
+        <span class="modal-title-badge" aria-hidden="true">📍</span>
+        <span id="sp-modal-title">Move between places</span>
+      </div>
+      <button type="button" class="btn tx modal-close-btn" data-action="places.close" aria-label="Close dialog" title="Close (Esc)">✕</button>
+    </div>
+    <p class="lead-note" style="margin-bottom:14px;">Keep track of where your own copies are, like a studio and a market stall. The total on hand, your sales and your taxes do not change.</p>
+    <ul id="sp-places" class="sp-places" style="list-style:none;padding:0;margin:0 0 12px;"></ul>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label for="sp-from">Move from</label>
+      <select id="sp-from" data-on-change="places.preview"></select>
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label for="sp-to">Move to</label>
+      <select id="sp-to" data-on-change="places.preview"></select>
+    </div>
+    <div class="form-group" id="sp-new-wrap" style="margin-bottom:12px;display:none;">
+      <label for="sp-new">Name of the new place</label>
+      <input type="text" id="sp-new" placeholder="e.g. Market stall" maxlength="40" data-on-input="places.preview">
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label for="sp-qty">Copies <span id="sp-qty-limit-label" class="muted-note" style="font-size:var(--text-xs);color:var(--content-muted);"></span></label>
+      <div class="st-stepper-row">
+        <button type="button" class="btn sm st-stepper-btn" data-action="places.step" data-delta="-1">−1</button>
+        <input type="number" id="sp-qty" class="st-qty-input tnum" min="1" step="1" inputmode="numeric" value="1" data-on-input="places.preview">
+        <button type="button" class="btn sm st-stepper-btn" data-action="places.step" data-delta="1">+1</button>
+        <button type="button" class="btn sm st-stepper-btn" data-action="places.step" data-delta="5">+5</button>
+        <button type="button" class="btn sm st-stepper-btn" data-action="places.step" data-delta="10">+10</button>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px;">
+      <label for="sp-note">Note <span class="muted-note" style="font-weight:400;font-size:var(--text-2xs);color:var(--content-muted);">(optional)</span></label>
+      <input type="text" id="sp-note" placeholder="e.g. Saturday market">
+    </div>
+    <div id="sp-preview" class="st-preview-box"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn" data-action="places.close">Cancel</button>
+      <button type="button" class="btn gold" id="sp-submit-btn" data-action="places.submit">Move copies</button>
     </div>
   </div>
 </div>

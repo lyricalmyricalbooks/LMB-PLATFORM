@@ -55,6 +55,7 @@ import {
 } from '../lib/earnings.js';
 import { escapeHtml, safeHttpUrl } from '../lib/html.js';
 import { deriveOnHand, deriveStockBreakdown, inventoryBreakdown } from '../lib/inventory.js';
+import { placeSummary } from '../lib/stock-places.js';
 import { rowsByKey } from '../lib/merge-state.js';
 import { confirmDialog } from '../lib/modal.js';
 import {
@@ -400,9 +401,12 @@ function renderStockAllocationBar(s, book, breakdown) {
   const barAuthor = $('d-bar-author');
   const pillsEl = $('d-stock-breakdown-pills');
   const transferBtn = $('d-transfer-stock-btn');
+  const placesBtn = $('d-places-stock-btn');
 
   if (!isAuthor()) {
     if (transferBtn) transferBtn.style.display = '';
+    if (placesBtn) placesBtn.style.display = '';
+    const places = placeSummary(s, book);
     if (breakdown.authorHeld > 0) {
       const pubPct = Math.max(0, (breakdown.publisherOnHand / (book.maxPrint || 1)) * 100);
       const authPct = Math.max(0, (breakdown.authorHeld / (book.maxPrint || 1)) * 100);
@@ -424,9 +428,15 @@ function renderStockAllocationBar(s, book, breakdown) {
       $('d-bar-label').textContent = s.stock + ' / ' + book.maxPrint + ' units on hand';
       if (pillsEl) { pillsEl.style.display = 'none'; pillsEl.innerHTML = ''; }
     }
+    // Several places of your own (plan 12.16): one more pill, only when some are named.
+    if (places && pillsEl) {
+      pillsEl.style.display = 'flex';
+      pillsEl.insertAdjacentHTML('beforeend', `<span class="stock-loc-pill" title="Where your own copies are">📍 ${escapeHtml(places)}</span>`);
+    }
   } else {
     // Author mode: strictly unclassified total
     if (transferBtn) transferBtn.style.display = 'none';
+    if (placesBtn) placesBtn.style.display = 'none';
     if (barAuthor) { barAuthor.style.display = 'none'; barAuthor.style.width = '0%'; }
     if (pillsEl) { pillsEl.style.display = 'none'; pillsEl.innerHTML = ''; }
     $('d-bar').style.width = pct + '%';

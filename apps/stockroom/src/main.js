@@ -1059,6 +1059,7 @@ import {
   syncArtistSettlementSales,
   updateDash,
 } from './features/dashboard.js';
+import { startStockPlaces, openStockPlacesModal } from './features/stock-places.js';
 import {
   addSaleToState,
   recordOrder,
@@ -1140,13 +1141,16 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { DEFAULT_SHOP_PROFILE, fileStem, readShopProfile, shopProfile, switchOn } from './lib/shop-profile.js';
+import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, shopProfile, switchOn } from './lib/shop-profile.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 import { readReady, readyApplies, readyHtml, readyLines, showReady, writeReady } from './lib/stockroom-ready.js';
 import { catalogGroups, freeItemId, gridOffers, groupOf, sizeItem } from './lib/product-groups.js';
 import { applyPageWords, noteSellsAnswer, sellsBooks, words, wordsReported, wordsToReport } from './lib/shop-words.js';
+import { applyWebsiteParts } from './lib/website-parts.js';
 // The page's own words follow what the shop sells (plan 10.23): "product" and "maker" for a shop that doesn't sell books.
 applyPageWords(document.body);
+// A stockroom-only press: no website tabs, help or channel default (src/lib/website-parts.js).
+applyWebsiteParts(document);
 
 
 // Tells the boot watchdog in index.html that the bundle and every import it
@@ -6012,10 +6016,13 @@ function initPhoneFolds() {
 initPhoneFolds();
 
 
+const WEBSITE_TABS = new Set(['website', 'webanalytics']);
 export function switchTab(name) {
   // The old shop system's tab is behind the oldShopSync switch: off, a stale link, notification or To-do fix that
   // still points at it lands on Website orders instead (features/bigcartel.js).
   if (!applyOldShopSyncSwitch() && name === 'bigcartel') name = 'website';
+  // A stockroom-only press has no website: a stale link to its tabs lands on the Dashboard (lib/website-parts.js).
+  if (WEBSITE_TABS.has(name) && !hasWebsite()) name = 'dashboard';
   // publisher-only tabs redirect authors to dashboard
   if (isAuthor() && PUBLISHER_ONLY_TABS.has(name)) name = 'dashboard';
   // publisher redirected away from author-only myqr tab
@@ -6398,7 +6405,7 @@ function showCatalogueSkeleton() {
 }
 
 // ── ALL BOOKS OVERVIEW
-function updateAllOverview() {
+export function updateAllOverview() {
   const allBooksVisible = BOOK_LIST.filter(b => !isTestBook(b));
   renderSetupGuide(allBooksVisible);
   renderAllBooksStrips(allBooksVisible);
@@ -11157,6 +11164,7 @@ consumeTransferPaidReturn();
 startAppSwitch();
 // One search box (top-bar 🔍, Ctrl/⌘ K, "/"): this app's books and the website's.
 startAppSearch();
+startStockPlaces();
 // The return lands in the tab Stripe opened; refresh any other open tab too.
 window.addEventListener('storage', e => { if (e.key === PAID_TAP_KEY) { try { renderArtistTransfers(); } catch (_) { /* still loading */ } } });
 
@@ -20216,7 +20224,7 @@ function exposeLegacyInlineHandlers() {
     invoicePaperBodyWithQR, buildStandaloneInvoiceHTML, downloadInvoiceHTML, loadExternalScript,
     ensurePdfLibs, downloadInvoicePDF, findKeptAllPayout, convertKeptAllToReceived, openEditHist,
     openEditLedger, saveEntryEdit, syncLedgerVoid, reconcileConsignmentChannel, reconcileStores,
-    recomputeAfters, recalcOnHand, setStockTransferDirection, openStockTransferModal, stepStockTransfer, onStockTransferQtyChange, updateStockTransferPreview, submitStockTransfer, syncHistoryVoidDeletion, voidEntry, resetBookData,
+    recomputeAfters, recalcOnHand, setStockTransferDirection, openStockTransferModal, stepStockTransfer, onStockTransferQtyChange, updateStockTransferPreview, submitStockTransfer, openStockPlacesModal, syncHistoryVoidDeletion, voidEntry, resetBookData,
     parseAndValidateDate, restoreBookDataFromSheets, confirmRestoreBookDataFromSheets,
     _modalFieldSig, _prefersReducedMotion, openM, closeM, attemptCloseModal, fieldError,
     clearFieldError, clearFieldErrors, validateFields, withButtonLoading, addLog,

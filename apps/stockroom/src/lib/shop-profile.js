@@ -124,6 +124,15 @@ export function fileStem({ lower = false } = {}, profile = shopProfile) {
   return lower ? stem.toLowerCase().replace(/_/g, '-') : stem;
 }
 
+/**
+ * The press's plan includes the website (the profile's `apps`, rewritten when an app is added or dropped). A
+ * stockroom-only press sees no website switcher, website orders, website search or website help, and records its
+ * sales by hand, at fairs and with bookshops. The built-in profile (local work, tests) keeps the website parts.
+ */
+export function hasWebsite(profile = shopProfile) {
+  return profile === DEFAULT_SHOP_PROFILE || profile?.apps?.shop === true;
+}
+
 /** Whether the profile turns this one-off on. Anything but `true` is off. */
 export function switchOn(name, profile = shopProfile) {
   return profile?.switches?.[name] === true;

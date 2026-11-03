@@ -780,7 +780,7 @@ tr.hist-row:hover {
 }
 .look-seg::before{display:none;}
 /* Four looks do not fit in one row of the account menu: two by two, the chosen one outlined. */
-.theme-seg.look-seg,.pub-shell .theme-seg.look-seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.theme-seg.look-seg,.pub-shell .theme-seg.look-seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;}
 .look-seg .theme-seg-opt[aria-checked="true"]{box-shadow:inset 0 0 0 2px var(--gold);background:var(--gold-bg);}
 .theme-seg-opt{
   appearance:none;border:none;background:transparent;cursor:pointer;
@@ -4061,6 +4061,9 @@ option,optgroup{background-color:var(--surface-raised);color:var(--content-prima
 /* The old shop system's parts (oldShopSync switch). Buttons and chips set their own display, which beats the UA's
    [hidden] rule, and the author/publisher toggle writes display back on the tab buttons. */
 [data-old-shop-sync][hidden] { display: none !important; }
+/* A stockroom-only press has no website: its tabs, cards and help stay out (src/lib/website-parts.js). */
+html[data-website="off"] [data-needs-website] { display: none !important; }
+html:not([data-website="off"]) [data-no-website-only] { display: none !important; }
 /* Panels that ask for a key or an account of the press's own (AI, carriers, Stripe reading, Google Sheet). A shop the
    platform runs never shows them: src/lib/shop-profile.js marks the page with data-colophon (code plan 6.16). */
 [data-colophon] [data-own-accounts] { display: none !important; }
