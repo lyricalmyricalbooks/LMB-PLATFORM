@@ -2,7 +2,7 @@
 // logged, only the owner can ask from the account page, and at most once a day.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EXPORT_DAYS, SETTINGS, SHOP_COLLECTIONS, STOCKROOM_PARTS, buildExport, closingExportHook, createDataExports, exportRoutes } from "./export.js";
+import { EXPORT_DAYS, SETTINGS, SHOP_COLLECTIONS, STOCKROOM_PARTS, buildExport, closingExportHook, createDataExports, exportApps, exportRoutes } from "./export.js";
 import { csvCell, flatten, readZip, toCsv, withoutPrivate } from "./files.js";
 import { fakeExportStorage, fakeExportStore, fakeShopData } from "./fakes.js";
 import { fakeStockroomData } from "../billing/closingFakes.js";
@@ -240,4 +240,13 @@ test("the refusal's date doesn't end in two dots", async () => {
   const again = await w.ask(OWNER, "/api/account/export", { shopId: "moth-press" });
   assert.equal(again.status, 429);
   assert.doesNotMatch(again.body.message, /\.\.$/);
+});
+
+test("an app a plan change closed stays in the export while its 90 days to download last", () => {
+  const now = new Date("2026-11-03T12:00:00Z");
+  const closedApps = { stockroom: { closedAt: "2026-10-01T00:00:00Z", downloadUntil: "2026-12-30T00:00:00Z" } };
+  assert.deepEqual(exportApps({ plan: "shop", closedApps }, now), { shop: true, stockroom: true });
+  assert.deepEqual(exportApps({ plan: "shop", closedApps: { stockroom: { downloadUntil: "2026-11-01T00:00:00Z" } } }, now), { shop: true, stockroom: false }, "not after the 90 days");
+  assert.deepEqual(exportApps({ plan: "stockroom" }, now), { shop: false, stockroom: true });
+  assert.deepEqual(exportApps({ plan: "both" }, now), { shop: true, stockroom: true });
 });

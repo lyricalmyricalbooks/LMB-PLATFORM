@@ -181,3 +181,26 @@ test("the page's two calls check the owner and answer the section's words", asyn
   assert.equal(asked.length, 3);
   await assert.rejects(w.ways.switchPaymentWay({ shopId: SHOP, to: "yearly" }), /monthly or pay as you sell/);
 });
+
+test("a press paying as they sell can add the stockroom (the cap follows the price) but not keep the stockroom alone", async () => {
+  const w = await make({ founding: true });
+  await w.ways.switchPaymentWay({ shopId: SHOP, to: "payAsYouSell" });
+  w.tick(14 * DAY);
+  const sub = w.stripe.world.subscriptions.get(w.subId());
+  sub.status = "canceled";
+  await w.event("customer.subscription.deleted", w.stripe.subscription(sub.id));
+  const cap = w.registry.shops.get(SHOP).payAsYouSell.capMinor;
+  assert.equal(cap, 2175, "the founding offer's 25% off the $29 cap");
+
+  await assert.rejects(w.billing.changePlan({ shopId: SHOP, plan: "stockroom" }), (error) => error.status === 409 && /switch to paying monthly first/.test(error.message));
+  assert.equal(w.registry.shops.get(SHOP).plan, "shop", "nothing changed");
+
+  const requests = w.stripe.requests.length;
+  const after = await w.billing.changePlan({ shopId: SHOP, plan: "both" });
+  assert.equal(after.changed, true);
+  assert.equal(w.stripe.requests.length, requests, "no subscription runs, so Stripe isn't asked");
+  assert.equal(w.registry.shops.get(SHOP).plan, "both", "the stockroom opens at once");
+  assert.equal(w.registry.shops.get(SHOP).payAsYouSell.capMinor, Math.floor((2175 * 3900) / 2900), "the cap follows the price, keeping the founding share off");
+  assert.equal(w.registry.shops.get(SHOP).payAsYouSell.basisPoints, 150, "the share of each sale stays as chosen");
+  assert.equal(w.stores.subscriptions.rows.get(SHOP).access, "open");
+});

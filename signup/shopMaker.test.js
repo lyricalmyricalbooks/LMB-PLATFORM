@@ -17,26 +17,26 @@ import { TERMS_VERSION } from "../terms/terms.js";
 
 const ADA = { uid: "uid-ada", email: "owner@example.com", email_verified: true };
 
-async function make({ failOnce = [], google = fakeGoogle({ failOnce }), selfCheck = null, passed = null } = {}) {
+async function make({ failOnce = [], google = fakeGoogle({ failOnce }), selfCheck = null, passed = null, plan = "both", publishPlan = null } = {}) {
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const now = () => new Date(clock);
   const stores = fakeSignupStores();
   const registry = fakeRegistry();
   const services = fakeServices();
   const reported = [];
-  const run = (shop) => runSteps({
-    shop, registry, auditLog: fakeAuditLog(), now,
+  const run = (shop, options = {}) => runSteps({
+    shop, registry, auditLog: fakeAuditLog(), now, ...options,
     steps: shopSteps({ ...services, google, registry, profileFiles: fakeProfileFiles(), config: TEST_CONFIG }),
   });
   const repairs = { report: async (r) => void reported.push(r), ...(passed ? { passed } : {}) };
-  const maker = createShopMaker({ signups: stores.signups, run, registry, repairs, selfCheck, now });
+  const maker = createShopMaker({ signups: stores.signups, run, registry, repairs, selfCheck, now, ...(publishPlan ? { billing: { publishPlan } } : {}) });
   const signup = createSignup({
     ...stores, registry, email: fakePlatformEmail(), auth: fakeAuth(), settings: platformSettings({}), now, suffix: () => "abcde",
     billing: { startTrial: async () => ({ status: "trialing", trialEnd: null }) },
   });
   const api = createApi({ signup, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: { "POST /api/signup/retry": (claims, request) => maker.retry(claims, request.body?.shopId) } });
   const ask = (method, path, body, claims = ADA) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
-  const { shopId } = await signup.start(ADA, { pressName: "Moth Press", plan: "both", country: "CA", termsAccepted: true, termsVersion: TERMS_VERSION });
+  const { shopId } = await signup.start(ADA, { pressName: "Moth Press", plan, country: "CA", termsAccepted: true, termsVersion: TERMS_VERSION });
   return { stores, registry, services, google, maker, ask, shopId, reported, tick: (minutes) => { clock += minutes * 60_000; } };
 }
 
@@ -136,4 +136,81 @@ test("a shop that becomes ready closes its shop-maker repairs and gets its self-
   assert.deepEqual(passed, [[shopId, "shop-maker"]]);
   assert.deepEqual(checked, [[shopId, "the shop maker finished"]]);
   assert.equal(stores.signups.rows.get(shopId).status, "ready");
+});
+
+// Adding or dropping an app later (code plan 6.11): billing writes the registry's plan, and the next sweep builds the
+// added app, rewrites the profile's apps and, when the stockroom goes, turns the link off.
+test("adding the stockroom later builds it, rewrites the profile and starts the link; dropping it turns the link off", async () => {
+  const published = [];
+  const { maker, stores, registry, services, google, shopId } = await make({ plan: "shop", publishPlan: async (id) => void published.push(id) });
+  await maker.sweep();
+  assert.deepEqual((await registry.getProfile(shopId)).apps, { shop: true, stockroom: false });
+  assert.equal(stores.signups.rows.get(shopId).builtPlan, "shop");
+  assert.deepEqual(await maker.sweep(), [], "nothing to do while the plan is unchanged");
+
+  // The press adds the stockroom (billing.changePlan writes the registry's plan).
+  await registry.updateShop(shopId, { plan: "both" });
+  assert.deepEqual(await maker.sweep(), [{ shopId, status: "plan-done", plan: "both" }]);
+  const profile = await registry.getProfile(shopId);
+  assert.deepEqual(profile.apps, { shop: true, stockroom: true });
+  assert.ok(profile.stockroom?.firestoreDatabase, "the profile names the stockroom's own database");
+  assert.ok(google.calls.some(([name, , databaseId]) => name === "firestore.createDatabase" && databaseId === profile.stockroom.firestoreDatabase), "the stockroom's database was made");
+  assert.ok(services.calls.some(([name]) => name === "inventoryLink.startSales"), "the link was started");
+  assert.equal(stores.signups.rows.get(shopId).builtPlan, "both");
+  assert.deepEqual(published, [shopId, shopId], "the shop (and now its stockroom) was given its plan again");
+  assert.deepEqual(await maker.sweep(), [], "done once");
+
+  // The stockroom's paid month ends: billing writes the plan without it.
+  await services.shopData.set(shopId, "systemStatus/inventoryLink", { links: { b1: { _: "inv-1" } }, startDay: "2026-10-28", connection: { ok: true }, keptDetails: { x: "y" } });
+  await registry.updateShop(shopId, { plan: "shop" });
+  assert.deepEqual(await maker.sweep(), [{ shopId, status: "plan-done", plan: "shop" }]);
+  assert.deepEqual((await registry.getProfile(shopId)).apps, { shop: true, stockroom: false });
+  assert.equal((await registry.getProfile(shopId)).stockroom, undefined);
+  const link = await services.shopData.get(shopId, "systemStatus/inventoryLink");
+  assert.deepEqual(link.links, {});
+  assert.equal(link.startDay, null);
+  assert.equal(link.connection, null);
+  assert.deepEqual(link.stockroomClosed.links, { b1: { _: "inv-1" } }, "the matches are kept beside it");
+  assert.deepEqual(link.keptDetails, { x: "y" }, "the rest of the link's record is left as it was");
+});
+
+test("a plan change that fails goes to the repair queue and waits before trying again; the shop keeps its old plan", async () => {
+  const google = fakeGoogle();
+  const { maker, stores, registry, shopId, reported, tick } = await make({ plan: "shop", google });
+  await maker.sweep();
+  const create = google.firestore.createDatabase;
+  google.firestore.createDatabase = async () => { throw new Error("quota exceeded (pretend Google error)"); };
+  await registry.updateShop(shopId, { plan: "both" });
+  assert.deepEqual(await maker.sweep(), [{ shopId, status: "plan-failed", plan: "both" }]);
+  const row = stores.signups.rows.get(shopId);
+  assert.equal(row.status, "ready", "the press's shop is still ready");
+  assert.equal(row.builtPlan, "shop");
+  assert.equal(row.planSync.tries, 1);
+  assert.equal(reported.at(-1).check, "plan-change");
+  assert.deepEqual((await registry.getProfile(shopId)).apps, { shop: true, stockroom: false }, "nothing half-switched in the profile");
+  assert.deepEqual(await maker.sweep(), [], "waits before the next try");
+  google.firestore.createDatabase = create;
+  tick(15);
+  assert.deepEqual(await maker.sweep(), [{ shopId, status: "plan-done", plan: "both" }]);
+  assert.equal(stores.signups.rows.get(shopId).planSync, null);
+});
+
+test("a plan changed before the shop is made is the one the shop is made with", async () => {
+  const { maker, registry, shopId } = await make({ plan: "both" });
+  // The registry row only exists once step 1 has run; a plan change before that waits in billing's row, and the
+  // registry's plan is what counts once it is there.
+  await registry.createShop(shopId, { shopId, plan: "stockroom", ownerEmail: "owner@example.com" });
+  await maker.sweep();
+  assert.deepEqual((await registry.getProfile(shopId)).apps, { shop: false, stockroom: true });
+});
+
+test("the sign-up page opens the stockroom for a stockroom-only press, and the admin once the website is added", async () => {
+  const { maker, stores, registry, shopId, ask } = await make({ plan: "stockroom" });
+  await maker.sweep();
+  assert.equal(stores.signups.rows.get(shopId).openUrl, `https://${shopId}-stockroom.web.app`);
+  assert.equal((await ask("GET", "/api/signup")).body.shops[0].openUrl, `https://${shopId}-stockroom.web.app`);
+  await registry.updateShop(shopId, { plan: "both" });
+  await maker.sweep();
+  assert.deepEqual((await registry.getProfile(shopId)).apps, { shop: true, stockroom: true });
+  assert.equal(stores.signups.rows.get(shopId).openUrl, `${(await registry.getProfile(shopId)).siteUrl}/admin`);
 });

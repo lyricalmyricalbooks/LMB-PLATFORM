@@ -17,7 +17,8 @@
 //   google.storageProbe  hasTestFile(projectId); writeTestFile(projectId); readUnsigned(projectId) -> { status }
 //   google.secrets       latest(projectId, name) -> value | null; add(projectId, name, value)   the shop's Functions
 //                        secrets (only PLATFORM_SERVICE_KEY, serviceKey.js)
-//   shopData    get(projectId, path) -> data | null; create(projectId, path, data)   create refuses a document that exists
+//   shopData    get(projectId, path) -> data | null; create(projectId, path, data)   create refuses a document that exists;
+//               set(projectId, path, data, { fields })   writes only `fields` (step 16 turns the link off)
 //   providers   payment providers by name (payments.js)
 //   email       wasSent(shopId, kind) -> boolean; send(shopId, { kind, to, pressName, links, idempotencyKey })
 //   siteCheck   get(url) -> { status, problems: [text] }
@@ -124,6 +125,12 @@ export function torontoDay(date) {
  * from today, and an order whose book isn't linked yet is counted as unlinked on the shop's side, never dropped.
  */
 export const needsStockroomLink = (shop) => appsOf(shop).includes("shop") && appsOf(shop).includes("stockroom");
+
+/** The shop's link state (apps/shop/functions/inventoryLinkJobs.js STATE_DOC), read and written by the shop's server. */
+export const LINK_DOC = "systemStatus/inventoryLink";
+/** The link is doing something: sending sales, matching books, or connected (the shop's server's `linkActive`). */
+export const linkActive = (state) => Boolean(state) && (
+  (typeof state.startDay === "string" && state.startDay !== "") || Object.keys(state.links ?? {}).length > 0 || state.connection?.ok === true);
 
 /** Only the platform's test shop gets the starter catalogue and its linked stockroom books (docs/test-shop.md check 4). */
 export const needsTestCatalogue = (shop) => shop.testShop === true && needsStockroomLink(shop);
@@ -327,14 +334,22 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     {
       number: 16,
       name: "Turn on the stockroom link",
-      // A shop without both apps (for example, the stockroom alone): nothing to do.
+      // A shop without both apps (for example, the stockroom alone): nothing to do. A shop whose plan dropped the
+      // stockroom: the link is turned off, so its server stops sending sales and no book's stock is counted there.
       async check({ shop }) {
-        if (!needsStockroomLink(shop)) return true;
+        if (!needsStockroomLink(shop)) return !appsOf(shop).includes("shop") || !linkActive(await shopData.get(shop.shopId, LINK_DOC));
         const startDay = (await inventoryLink.state(shop.shopId))?.startDay;
         return typeof startDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(startDay);
       },
       async act({ shop }) {
-        if (!needsStockroomLink(shop)) return;
+        if (!needsStockroomLink(shop)) {
+          if (!appsOf(shop).includes("shop")) return;
+          const state = (await shopData.get(shop.shopId, LINK_DOC)) ?? {};
+          // The matches are kept beside it, so a person can put them back if the stockroom is added again.
+          const stockroomClosed = { at: now().toISOString(), links: state.links ?? {}, startDay: state.startDay ?? null };
+          await shopData.set(shop.shopId, LINK_DOC, { links: {}, startDay: null, connection: null, stockroomClosed }, { fields: ["links", "startDay", "connection", "stockroomClosed"] });
+          return { detail: { linkOff: true, links: Object.keys(stockroomClosed.links).length } };
+        }
         // The shop refuses to start sending sales before its own check reaches the stockroom.
         const { ok, problem } = await inventoryLink.check(shop.shopId);
         if (!ok) throw new Error(`the shop can't reach its stockroom${problem ? ` (${problem})` : ""}; a person checks the link`);
