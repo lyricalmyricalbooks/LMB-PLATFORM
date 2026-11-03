@@ -54,6 +54,25 @@ describe("Bring past orders over", () => {
     expect(document.body.textContent).toContain("Order #1002: already brought over");
   });
 
+  it("orders in another currency wait for the owner's rate, then come over converted", async () => {
+    root = createRoot(document.body.appendChild(document.createElement("div")));
+    act(() => root!.render(h(PastOrdersDialog, { onClose: () => {}, onDone: () => {} })));
+    await choose([
+      "Name,Email,Financial Status,Created at,Total,Currency",
+      "#1,ada@example.com,paid,2025-06-01,10.00,CAD",
+      "#2,ben@example.com,paid,2025-06-02,30.00,USD",
+    ].join("\n"));
+    expect(document.body.textContent).toContain("1 order waiting for a rate");
+    expect(button(/Bring 1 past order over/)).toBeTruthy();
+    const rate = document.querySelector('input[inputmode="decimal"]') as HTMLInputElement;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => { setValue.call(rate, "1.4"); rate.dispatchEvent(new Event("input", { bubbles: true })); });
+    expect(document.body.textContent).toContain("CA$52.00 in sales");
+    await act(async () => { button(/Bring 2 past orders over/).click(); });
+    await flush();
+    expect(api.importPastOrders.mock.calls[0][0][1]).toMatchObject({ currency: "CAD", total: 42, paidIn: { currency: "USD", total: 30, rate: 1.4 } });
+  });
+
   it("a file that isn't a list of orders says what it needs and sends nothing", async () => {
     root = createRoot(document.body.appendChild(document.createElement("div")));
     act(() => root!.render(h(PastOrdersDialog, { onClose: () => {}, onDone: () => {} })));

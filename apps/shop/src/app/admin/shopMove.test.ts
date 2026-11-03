@@ -261,8 +261,13 @@ describe("customers", () => {
     expect(first[0].note).toBe(`Met at the fair\n\n${MOVED_MARK} on 2026-10-28: Ada Moth · Toronto, ON, CA · 4 orders there · 120.50 spent there\nLikes signed copies`);
     expect(first[0].tags).toEqual(["fair", "vip", "launch"]);
     expect(first[1]).toMatchObject({ action: "create", tags: [] });
-    const after = new Map(first.map(w => [w.email, { note: w.note, tags: w.tags }]));
+    expect(first[0]).toMatchObject({ name: "Ada Moth", place: "Toronto, ON, CA" });
+    const after = new Map(first.map(w => [w.email, { note: w.note, tags: w.tags, name: w.name, place: w.place }]));
     expect(planCustomerNotes(customers, after, "2026-11-01").every(w => w.action === "unchanged")).toBe(true);
+    // Brought over before names were kept: a second import adds the name and place, and leaves the note alone.
+    const older = new Map(first.map(w => [w.email, { note: w.note, tags: w.tags }]));
+    const again = planCustomerNotes(customers, older, "2026-11-01");
+    expect(again[0]).toMatchObject({ action: "update", note: first[0].note, name: "Ada Moth" });
   });
 
   it("only customers who said yes, aren't subscribed and haven't opted out may join the newsletter", () => {

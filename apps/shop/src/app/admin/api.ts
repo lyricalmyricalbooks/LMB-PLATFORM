@@ -2042,7 +2042,7 @@ export const adminApi = {
   // Private per-customer notes and tags (admin-only `customerNotes/{sha256(lowercased email)}`).
   listCustomerNotes: async () => {
     const snap = await getDocs(query(collection(db, "customerNotes"), limit(10000)));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; email: string; note: string; tags: string[]; updatedAt: string }>;
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; email: string; note: string; tags: string[]; updatedAt: string; name?: string; place?: string }>;
   },
   // Trade accounts (plan 12.10): shops approved to pay wholesale prices (`stockists/{lower-case email}`, admin-only).
   listStockists: async () => {
@@ -2053,8 +2053,9 @@ export const adminApi = {
     await setDoc(doc(db, "stockists", id), { name: data.name, status: data.status, createdAt: data.createdAt || new Date().toISOString(), terms: Math.max(0, Math.min(365, Math.floor(Number(data.terms) || 0))) });
   },
   deleteStockist: async (id: string) => { await deleteDoc(doc(db, "stockists", id)); },
-  saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[] }) => {
-    await setDoc(doc(db, "customerNotes", id), { ...data, updatedAt: new Date().toISOString() });
+  // Merges, so saving a note keeps the name and place Bring customers over stored.
+  saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[]; name?: string; place?: string }) => {
+    await setDoc(doc(db, "customerNotes", id), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
   },
   /**
    * Customers › Bring customers over (plan 3.1): adds one address the owner confirmed agreed to marketing email at their

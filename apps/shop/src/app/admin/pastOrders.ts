@@ -8,11 +8,21 @@ export interface PastOrderLine { title: string; quantity: number; price: number;
 export interface PastOrder {
   oldRef: string; number: string; orderedAt: string; email?: string; name?: string; currency?: string;
   items: PastOrderLine[]; subtotal?: number; shipping?: number; tax?: number; discount?: number; total: number; refunded?: number;
+  /** Sold in another currency and converted at the owner's rate (plan 23.11): what the old shop charged. */
+  paidIn?: { currency: string; total: number; rate: number };
 }
 export interface PastOrderFile {
   orders: PastOrder[];
   skipped: { line: number; reason: string }[];
   problems: string[];
+  /** Other currencies in the file, with how many orders each (plan 23.11). */
+  foreign: Record<string, number>;
+}
+/** What is sent once the owner's rates are applied: every amount in Canadian dollars. */
+export interface PastOrdersReady {
+  orders: PastOrder[];
+  /** Orders in a currency with no rate yet, per currency. */
+  waiting: Record<string, number>;
   totalSales: number;
   customers: number;
   /** First and last order day, YYYY-MM-DD. */
@@ -57,7 +67,7 @@ const day = (value: string): string | null => {
 };
 
 export function readPastOrders(text: string, now = new Date()): PastOrderFile {
-  const out: PastOrderFile = { orders: [], skipped: [], problems: [], totalSales: 0, customers: 0, from: "", to: "" };
+  const out: PastOrderFile = { orders: [], skipped: [], problems: [], foreign: {} };
   const table = parseCsv(text);
   if (!table.length) { out.problems.push("This file is empty."); return out; }
   const heads = table[0].map(key);
@@ -86,7 +96,6 @@ export function readPastOrders(text: string, now = new Date()): PastOrderFile {
     if (g) g.rows.push(row); else groups.set(ref, { line: n + 2, rows: [row] });
   });
 
-  const emails = new Set<string>();
   for (const [ref, { line, rows }] of groups) {
     const first = (i: number) => { for (const r of rows) { const v = cell(r, i); if (v) return v; } return ""; };
     const firstNum = (i: number) => { for (const r of rows) { const v = num(r, i); if (v !== undefined) return v; } return undefined; };
@@ -99,7 +108,7 @@ export function readPastOrders(text: string, now = new Date()): PastOrderFile {
     const total = firstNum(col.total);
     if (total === undefined || total < 0) { skip("its total couldn't be read"); continue; }
     const currency = first(col.currency).toUpperCase();
-    if (currency && currency !== "CAD") { skip(`it is in ${currency}, and this shop sells in Canadian dollars`); continue; }
+    if (currency && !/^[A-Z]{3}$/.test(currency)) { skip(`its currency (${currency.slice(0, 20)}) couldn't be read`); continue; }
     const items: PastOrderLine[] = [];
     for (const r of rows) {
       const title = cell(r, col.item);
@@ -121,14 +130,48 @@ export function readPastOrders(text: string, now = new Date()): PastOrderFile {
       ...(refunded ? { refunded: Math.min(total, refunded) } : {}),
     };
     out.orders.push(order);
-    out.totalSales += total - (order.refunded || 0);
-    if (email) emails.add(email);
-    const d = when.slice(0, 10);
+    if (currency && currency !== "CAD") out.foreign[currency] = (out.foreign[currency] || 0) + 1;
+  }
+  if (!out.orders.length && !out.skipped.length) out.problems.push("This file has no orders in it.");
+  return out;
+}
+
+const cents = (n: number) => Math.round(n * 100) / 100;
+/** A usable rate: how many Canadian dollars one unit of the other currency was worth. */
+export const goodRate = (r: unknown): r is number => typeof r === "number" && Number.isFinite(r) && r > 0 && r <= 10000;
+
+/**
+ * The orders ready to send (plan 23.11): Canadian-dollar orders as they are, and each other-currency order converted at
+ * the owner's rate for that currency, keeping what the old shop charged in `paidIn`. Orders in a currency without a
+ * rate wait. The preview's figures come from the orders that will be sent.
+ */
+export function readyToSend(file: PastOrderFile, rates: Record<string, number>): PastOrdersReady {
+  const out: PastOrdersReady = { orders: [], waiting: {}, totalSales: 0, customers: 0, from: "", to: "" };
+  const emails = new Set<string>();
+  for (const o of file.orders) {
+    const currency = o.currency || "CAD";
+    let order = o;
+    if (currency !== "CAD") {
+      const rate = rates[currency];
+      if (!goodRate(rate)) { out.waiting[currency] = (out.waiting[currency] || 0) + 1; continue; }
+      const conv = (n: number) => cents(n * rate);
+      const { subtotal, shipping, tax, discount, refunded } = o;
+      order = {
+        ...o, currency: "CAD", total: conv(o.total), items: o.items.map((i) => ({ ...i, price: conv(i.price) })),
+        ...(subtotal !== undefined ? { subtotal: conv(subtotal) } : {}), ...(shipping !== undefined ? { shipping: conv(shipping) } : {}),
+        ...(tax !== undefined ? { tax: conv(tax) } : {}), ...(discount !== undefined ? { discount: conv(discount) } : {}),
+        ...(refunded !== undefined ? { refunded: conv(refunded) } : {}),
+        paidIn: { currency, total: o.total, rate },
+      };
+    }
+    out.orders.push(order);
+    out.totalSales += order.total - (order.refunded || 0);
+    if (order.email) emails.add(order.email);
+    const d = order.orderedAt.slice(0, 10);
     if (!out.from || d < out.from) out.from = d;
     if (!out.to || d > out.to) out.to = d;
   }
   out.customers = emails.size;
-  out.totalSales = Math.round(out.totalSales * 100) / 100;
-  if (!out.orders.length && !out.skipped.length) out.problems.push("This file has no orders in it.");
+  out.totalSales = cents(out.totalSales);
   return out;
 }

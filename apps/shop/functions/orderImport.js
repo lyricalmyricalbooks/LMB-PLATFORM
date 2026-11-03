@@ -38,6 +38,18 @@ function pastOrder(o, { now, actor }) {
   if (!(total >= 0) || total > MAX_TOTAL) return { problem: "its total couldn't be read" };
   const currency = text(o.currency, 3).toUpperCase();
   if (currency && currency !== "CAD") return { problem: `in ${currency}, and this shop sells in Canadian dollars` };
+  // Sold in another currency (plan 23.11): the browser converted every amount at the owner's rate; what the old shop
+  // charged is kept beside it for the record.
+  let paidIn = null;
+  if (o.paidIn != null) {
+    const code = text(o.paidIn?.currency, 3).toUpperCase();
+    const charged = money(o.paidIn?.total);
+    const rate = Number(o.paidIn?.rate);
+    if (!/^[A-Z]{3}$/.test(code) || code === "CAD" || !(charged >= 0) || charged > MAX_TOTAL || !(rate > 0 && rate <= 10000)) {
+      return { problem: "its other currency couldn't be read" };
+    }
+    paidIn = { currency: code, total: charged, rate };
+  }
   const lines = (Array.isArray(o.items) ? o.items : []).slice(0, MAX_LINES).map((item, i) => ({
     id: `past-${i + 1}`, title: text(item?.title, 200) || "Item from your old shop",
     quantity: Math.min(9999, Math.max(1, Math.round(Number(item?.quantity) || 1))), price: Math.max(0, money(item?.price) || 0),
@@ -60,6 +72,7 @@ function pastOrder(o, { now, actor }) {
       customer: { name: text(o.name, 100), email: EMAIL.test(email) ? email : "" },
       items: lines, subtotal: part(o.subtotal ?? total), discount: part(o.discount), shipping: part(o.shipping), tax: part(o.tax), total,
       ...(refunded > 0 ? { refundedAmountMinor: Math.round(refunded * 100) } : {}),
+      ...(paidIn ? { paidIn } : {}),
       // No sweep may ask a past order's customer for a review.
       reviewRequestedAt: stamp,
       activity: [{ type: "imported", at: stamp, by: actor, note: "Brought over from your old shop" }],

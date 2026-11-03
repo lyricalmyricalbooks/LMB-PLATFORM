@@ -475,8 +475,9 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `planCustomerNotes` (merges into `customerNotes`; `MOVED_MARK` makes a re-run unchanged; tags capped by `parseTags`)
   and `newsletterJoiners` (said yes in the file, not subscribed, not in `marketing-optout`). Joiners are written only
   after the owner ticks the permission box, through `adminApi.addImportedSubscriber` (transaction; never touches an
-  existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). Imported customers appear in the
-  list once they order (the list is built from orders).
+  existing row; `status: "imported"`, `source: "import"`, `IMPORTED_CONSENT_TEXT`). The note also keeps `name` and
+  `place` (plan 23.10), and `withMovedCustomers` lists a brought-over customer with no order here under **Not ordered
+  here yet** (segment `moved`, counted in no figure). `saveCustomerNote` merges so a note save keeps them.
 - **Photos** stay on the old shop's addresses until plan 3.1b copies them into the shop's own storage.
 - **Past orders (plan 23.7, 3 November 2026):** Orders › **Bring past orders over** (`PastOrdersDialog.tsx`) reads the
   order file in the browser (`pastOrders.ts`, headings matched loosely, rows grouped by order number; cancelled, unpaid
@@ -486,6 +487,8 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   `stripePaymentIntentId` or `cartId`. **History only:** `onOrderCreated`, `handleOrderUpdated`, the stockroom link's
   `pushKind` and return requests all skip `source: "import"`, so a past order moves no stock and sends no email. The
   owner (not the bookkeeper) may delete one (`firestore.rules`, `deleteRefusal`). A new order hook must skip it too.
+  Other currencies (plan 23.11): `readyToSend` converts every amount at the owner's typed rate and keeps what the old
+  shop charged in `paidIn` (the server checks its shape); orders without a rate wait and count in no preview figure.
 
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 

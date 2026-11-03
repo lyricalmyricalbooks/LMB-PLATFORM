@@ -39,7 +39,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
     try {
       const [text, notes, consent] = await Promise.all([file.text(), adminApi.listCustomerNotes(), adminApi.getMarketingConsent()]);
       const move = readCustomerExport(text);
-      const byEmail = new Map(notes.map(n => [String(n.email || "").toLowerCase(), { note: n.note || "", tags: n.tags || [] }]));
+      const byEmail = new Map(notes.map(n => [String(n.email || "").toLowerCase(), { note: n.note || "", tags: n.tags || [], name: n.name || "", place: n.place || "" }]));
       const ids = new Map(await Promise.all(move.customers.map(async c => [c.email, await emailHash(c.email)] as const)));
       const writes = planCustomerNotes(move.customers, byEmail, new Date().toISOString().slice(0, 10)).map(w => ({ ...w, id: ids.get(w.email)! }));
       const joiners = newsletterJoiners(move.customers, consent.subscribed, email => !!consent.optedOutHashes?.has(ids.get(email)!));
@@ -58,7 +58,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
     const failed: string[] = [];
     let saved = 0, joined = 0, done = 0;
     for (const w of work) {
-      try { await adminApi.saveCustomerNote(w.id, { email: w.email, note: w.note, tags: w.tags }); saved++; }
+      try { await adminApi.saveCustomerNote(w.id, { email: w.email, note: w.note, tags: w.tags, ...(w.name ? { name: w.name } : {}), ...(w.place ? { place: w.place } : {}) }); saved++; }
       catch { failed.push(w.email); }
       setProgress(++done);
     }

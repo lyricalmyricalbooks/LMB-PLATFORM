@@ -185,7 +185,7 @@ export const ARTICLES = Object.freeze([
       "Export your customer list from your old shop. Here, open Customers and press Bring customers over.",
       "Each customer gets a private note with their name, town and what they spent at your old shop. Notes you already wrote are kept.",
       "Customers who agreed to your emails at your old shop can join your newsletter too. That only happens after you tick the box to say you have their permission.",
-      "Brought-over customers appear in your Customers list once they order here.",
+      "Brought-over customers appear in your Customers list straight away. Until they order here, they are under Not ordered here yet.",
     ],
     where: ["Customers › Bring customers over"],
   },
@@ -200,6 +200,23 @@ export const ARTICLES = Object.freeze([
       "Bring your own pages over brings pages such as About, FAQ or Contact here as drafts, with their words, headings, lists and links, and a redirect from each old address. Photos on those pages stay behind, so open Settings › Design, go to Pages, add them again, read each page through and publish it.",
     ],
     where: ["Settings › General"],
+  },
+  {
+    id: "moving-checklist",
+    topic: "Moving your shop",
+    question: "What can I bring over from my old shop, and in what order?",
+    answer: [
+      "Everything below is optional, and each step is safe to repeat: bringing the same file twice adds nothing twice. Most old shops let you export each list as a CSV file from their settings or reports.",
+    ],
+    steps: [
+      "Books: open Books, press Import CSV and choose your old shop's product file. Old book addresses are sent on to the new pages.",
+      "Customers: open Customers and press Bring customers over.",
+      "Gift cards: open Gift cards and press Bring gift cards over, so balances still work.",
+      "Past orders: open Orders and press Bring past orders over. They count in your sales reports and each customer's history, and change no stock. Orders in another currency are converted at a rate you type.",
+      "Your own pages and old links: open Settings › General and use Check your old links under URL redirects, then Bring your own pages over for pages such as About or FAQ.",
+      "On the day you move, follow What do I do on the day I move from my old shop?",
+    ],
+    where: ["Books › Import CSV", "Customers › Bring customers over", "Gift cards › Bring gift cards over", "Orders › Bring past orders over", "Settings › General"],
   },
   {
     id: "switch-day",

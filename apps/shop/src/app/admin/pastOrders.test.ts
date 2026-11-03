@@ -1,6 +1,6 @@
 // Orders › Bring past orders over (plan 23.7): the old shop's order file read in the browser.
 import { describe, expect, it } from "vitest";
-import { readPastOrders } from "./pastOrders";
+import { readPastOrders, readyToSend } from "./pastOrders";
 
 const NOW = new Date("2026-11-03T12:00:00Z");
 
@@ -24,20 +24,29 @@ describe("reading an old shop's order file (plan 23.7)", () => {
       subtotal: 48, shipping: 10, tax: 6.24, discount: 0, total: 64.24,
     });
     expect(out.orders[1]).toMatchObject({ number: "#1002", orderedAt: "2025-07-02", refunded: 30 });
-    expect(out.orders[2]).toMatchObject({ number: "#1006", refunded: 10, discount: 5 });
+    expect(out.orders[3]).toMatchObject({ number: "#1006", refunded: 10, discount: 5 });
     expect(out.skipped.map((s) => s.reason)).toEqual([
       "Order #1003: it was pending, so it never became a sale",
-      "Order #1004: it is in USD, and this shop sells in Canadian dollars",
       "Order #1005: it was cancelled, so it never became a sale",
     ]);
-    expect(out).toMatchObject({ totalSales: 84.24, customers: 2, from: "2025-06-01", to: "2025-08-01" });
+    expect(out.foreign).toEqual({ USD: 1 });
+    // Without a rate the other-currency order waits and counts in nothing.
+    expect(readyToSend(out, {})).toMatchObject({ waiting: { USD: 1 }, totalSales: 84.24, customers: 2, from: "2025-06-01", to: "2025-08-01" });
+    expect(readyToSend(out, { USD: 0 }).waiting).toEqual({ USD: 1 });
+    // With the owner's rate (plan 23.11) every amount is in Canadian dollars and what the old shop charged is kept.
+    const ready = readyToSend(out, { USD: 1.4 });
+    expect(ready.waiting).toEqual({});
+    expect(ready.orders.find((o) => o.number === "#1004")).toMatchObject({
+      currency: "CAD", total: 42, subtotal: 42, shipping: 0, items: [{ title: "Salt Hours", quantity: 1, price: 42 }], paidIn: { currency: "USD", total: 30, rate: 1.4 },
+    });
+    expect(ready).toMatchObject({ totalSales: 126.24, customers: 3 });
   });
 
   it("one line per order with the customer's first and last name, and a total only", () => {
     const file = "Order Number,Order Date,Order Status,Billing First Name,Billing Last Name,Billing Email Address,Order Total,Shipping Total\n77,2025-03-04 10:00:00,completed,Flo,Ng,flo@example.com,22.50,5\n78,2025-03-05,processing,Gus,,,12,0";
     const out = readPastOrders(file, NOW);
     expect(out.orders.map((o) => [o.number, o.name, o.email, o.total, o.items])).toEqual([["77", "Flo Ng", "flo@example.com", 22.5, []], ["78", "Gus", undefined, 12, []]]);
-    expect(out.customers).toBe(1);
+    expect(readyToSend(out, {}).customers).toBe(1);
   });
 
   it("says plainly when a file isn't a list of orders, and skips lines with no number or a bad date", () => {

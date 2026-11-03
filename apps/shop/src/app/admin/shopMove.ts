@@ -8,7 +8,7 @@
 
 import { metricWeightValue } from "../features/site/metricWeight";
 import { MAX_IMPORT_ROWS, parseCsv, parseMoney, planImport, validIsbn, type ImportOptions, type ImportPlan, type ImportRow } from "./catalogImport";
-import { parseTags } from "./customerInsights";
+import { MOVED_MARK, parseTags } from "./customerInsights";
 import { addToIndex, MAX_REDIRECTS, normalizePath, redirectIndex, redirectProblemIn, type Redirect } from "../features/site/redirects";
 import { MAX_OPTIONS, MAX_VARIANTS, type ProductOption } from "../../shared/productOptions";
 
@@ -804,12 +804,13 @@ export function readCustomerExport(text: string): CustomerMove {
 }
 
 /** The line that marks a note as brought over, so importing the same file twice changes nothing. */
-export const MOVED_MARK = "Brought over from your old shop";
+export { MOVED_MARK };
 
-export interface CustomerWrite { email: string; note: string; tags: string[]; action: "create" | "update" | "unchanged" }
+/** `name` and `place` are stored beside the note so the customer is listed before their first order here (plan 23.10). */
+export interface CustomerWrite { email: string; note: string; tags: string[]; name: string; place: string; action: "create" | "update" | "unchanged" }
 
 /** Each customer's private note and tags (Customers › a customer › Notes), merged with what is already there. */
-export function planCustomerNotes(customers: MovedCustomer[], existing: Map<string, { note: string; tags: string[] }>, today: string): CustomerWrite[] {
+export function planCustomerNotes(customers: MovedCustomer[], existing: Map<string, { note: string; tags: string[]; name?: string; place?: string }>, today: string): CustomerWrite[] {
   return customers.map(cu => {
     const was = existing.get(cu.email);
     const facts = [
@@ -819,12 +820,14 @@ export function planCustomerNotes(customers: MovedCustomer[], existing: Map<stri
     ].filter(Boolean).join(" · ");
     const block = [`${MOVED_MARK} on ${today}${facts ? `: ${facts}` : "."}`, cu.note].filter(Boolean).join("\n");
     const tags = parseTags([...(was?.tags || []), ...cu.tags].join(","));
+    const name = (was?.name || cu.name).slice(0, 100);
+    const place = (was?.place || cu.place).slice(0, 200);
     if (was?.note.includes(MOVED_MARK)) {
-      const same = tags.join(",") === (was.tags || []).join(",");
-      return { email: cu.email, note: was.note, tags, action: same ? "unchanged" : "update" };
+      const same = tags.join(",") === (was.tags || []).join(",") && name === (was.name || "") && place === (was.place || "");
+      return { email: cu.email, note: was.note, tags, name, place, action: same ? "unchanged" : "update" };
     }
     const note = (was?.note ? `${was.note}\n\n${block}` : block).slice(0, 5000);
-    return { email: cu.email, note, tags, action: was ? "update" : "create" };
+    return { email: cu.email, note, tags, name, place, action: was ? "update" : "create" };
   });
 }
 
