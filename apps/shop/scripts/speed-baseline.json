@@ -119,12 +119,28 @@
     "nodes": 205,
     "images": 0
   },
+  "press-arch book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-arch home": {
+    "nodes": 282,
+    "images": 0
+  },
   "press-archive book": {
     "nodes": 261,
     "images": 0
   },
   "press-archive home": {
     "nodes": 248,
+    "images": 0
+  },
+  "press-atlas book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-atlas home": {
+    "nodes": 281,
     "images": 0
   },
   "press-broadsheet book": {
@@ -173,6 +189,14 @@
   },
   "press-marquee home": {
     "nodes": 252,
+    "images": 0
+  },
+  "press-mosaic book": {
+    "nodes": 263,
+    "images": 0
+  },
+  "press-mosaic home": {
+    "nodes": 284,
     "images": 0
   },
   "press-poster book": {
