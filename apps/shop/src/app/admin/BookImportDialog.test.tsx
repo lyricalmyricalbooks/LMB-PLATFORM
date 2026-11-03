@@ -17,6 +17,8 @@ const oldShop = vi.hoisted(() => ({ readOldShopAddress: vi.fn(async (_address: s
 vi.mock("./oldShopApi", () => oldShop);
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const { BookImportDialog } = await import("./BookImportDialog");
+const { setImageLoader } = await import("./photoLinks");
+setImageLoader(async (url) => !url.includes("gone"));
 
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; vi.clearAllMocks(); });
@@ -84,5 +86,20 @@ describe("BookImportDialog", () => {
     await flush();
     expect(document.body.textContent).toContain("We couldn't read the products at that address.");
     expect(document.body.textContent).not.toContain("1 new");
+  });
+
+  it("leaves photos that can't be loaded out of the saved books (plan 23.3)", async () => {
+    const host = document.createElement("div"); document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(h(BookImportDialog, { books: [], onClose: () => {}, onDone: () => {} })));
+    const csv = "Handle,Title,Variant Price,Image Src\nmoth,Moth,20,https://img.example/fine.jpg\nmoth,,,https://img.example/gone.jpg\n";
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", { value: [new File([csv], "old.csv", { type: "text/csv" })], configurable: true });
+    await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    await flush();
+    expect(document.body.textContent).toContain("1 photo couldn't be loaded from the old shop");
+    await act(async () => { [...document.querySelectorAll("button")].find(b => /Import 1 book/.test(b.textContent || ""))!.click(); });
+    await flush();
+    expect(api.createBook.mock.calls[0][0].photos.map((p: any) => p.url)).toEqual(["https://img.example/fine.jpg"]);
   });
 });

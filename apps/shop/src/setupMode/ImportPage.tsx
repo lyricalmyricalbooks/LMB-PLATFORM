@@ -2,13 +2,14 @@
 // previewed here in the browser with the shop's own importer (shopMove.ts `planShopMove`, with no books yet, so every
 // row is new), then kept on the platform for the shop maker (18.9) to bring in when the shop opens. Nothing is written
 // to a shop: there isn't one yet.
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { FileUp, Trash2 } from "lucide-react";
 import { EmptyState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge } from "../app/admin/riso/components";
 import { OldShopAddressForm } from "../app/admin/OldShopAddressForm";
 import { BRING_ANSWERS, bringAnswerOf, bringHelp, type BringAnswer } from "../app/admin/bringShop";
 import { ImportPreviewRows, MAX_FILE_BYTES } from "../app/admin/importPreview";
 import { planShopMove, SHAPE_WORDS, type MovePlan } from "../app/admin/shopMove";
+import { fileWithoutPhotos, photoCheckLine, useBrokenPhotos, withoutBrokenPhotos } from "../app/admin/photoLinks";
 import { sellsBooks } from "../app/admin/sells";
 import { useShopWords } from "../app/admin/shopWords";
 import type { SetupDoor, SetupPress } from "./door";
@@ -35,7 +36,9 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
   const [readNotes, setReadNotes] = useState<string[]>([]);
 
   const kept = press.stagedImport;
-  const plan = preview?.plan;
+  // Plan 23.3: photos that can't be loaded from the old shop are left out of the preview and of the kept file.
+  const photoCheck = useBrokenPhotos(preview?.plan);
+  const plan = useMemo(() => (preview?.plan ? withoutBrokenPhotos(preview.plan, photoCheck.broken) : undefined), [preview, photoCheck.broken]);
   const ready = plan && !plan.problems.length ? plan.counts.create : 0;
 
   async function choose(next: File | undefined, notes: string[] = []) {
@@ -54,7 +57,8 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
     if (!file || !ready || busy) return;
     setBusy("keep"); setError("");
     try {
-      onSaved(await door.keepImport(press.pressId, file, { name: file.name, rows: ready }));
+      const kept = photoCheck.broken.size ? new File([fileWithoutPhotos(await file.text(), photoCheck.broken)], file.name, { type: file.type || "text/csv" }) : file;
+      onSaved(await door.keepImport(press.pressId, kept, { name: file.name, rows: ready }));
       setFile(null); setPreview(null); setReplacing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "That didn't save. Try again.");
@@ -144,6 +148,7 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
                   <StatusBadge tone="info">{w(`${plan.counts.create} ${plan.counts.create === 1 ? "book" : "books"} ready`)}</StatusBadge>
                   {plan.counts.error > 0 && <StatusBadge tone="danger">{plan.counts.error} with problems (left out)</StatusBadge>}
                 </div>
+                {photoCheckLine(photoCheck) && <p className="rp-hint" role="status" style={{ margin: 0 }}>{w(photoCheckLine(photoCheck))}</p>}
                 {[...readNotes, ...(preview?.moved?.notices ?? [])].map((n) => <p key={n} className="rp-hint" style={{ margin: 0 }}>{w(n)}</p>)}
                 {!preview?.moved && plan.ignoredColumns.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Columns left out: {plan.ignoredColumns.join(", ")}.</p>}
                 <ImportPreviewRows plan={plan} />

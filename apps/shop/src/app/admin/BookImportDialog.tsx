@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
 import { importTemplateCsv, IMPORT_COLUMNS, type ImportPlan } from "./catalogImport";
@@ -7,6 +7,7 @@ import { importRedirects, oldLinksMessage, planShopMove, SHAPE_WORDS, type Produ
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { OldShopAddressForm } from "./OldShopAddressForm";
 import { readOldShopAddress } from "./oldShopApi";
+import { photoCheckLine, useBrokenPhotos, withoutBrokenPhotos } from "./photoLinks";
 import { Dialog, PrimaryButton, SecondaryButton, SelectField, StatusBadge } from "./riso/components";
 import { normalizeCategories } from "../features/site/navItems";
 import { sellsBooks } from "./sells";
@@ -33,7 +34,10 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
   const w = useShopWords();
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
-  const [plan, setPlan] = useState<ImportPlan | null>(null);
+  const [filePlan, setPlan] = useState<ImportPlan | null>(null);
+  // Plan 23.3: photos that can't be loaded from the old shop are left out of what is saved, each book saying so.
+  const photoCheck = useBrokenPhotos(filePlan);
+  const plan = useMemo(() => (filePlan ? withoutBrokenPhotos(filePlan, photoCheck.broken) : null), [filePlan, photoCheck.broken]);
   // Set when the file is an export from another shop (plan 3.1): it was read and translated first.
   const [moved, setMoved] = useState<ProductMove | null>(null);
   const [oldPaths, setOldPaths] = useState<Map<number, string[]>>(new Map());
@@ -184,6 +188,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
               </SelectField>
               {moved && <p className="rp-hint" style={{ margin: 0 }}>Read as {SHAPE_WORDS[moved.shape]}: {moved.books.length} product{moved.books.length === 1 ? "" : "s"}. Line numbers are the old file's.</p>}
               {moved && oldPaths.size > 0 && <p className="rp-hint" style={{ margin: 0 }}>{w("Links to these books on your old shop will open them here once your address points at this shop. They are added to Settings › General › URL redirects.")}</p>}
+              {photoCheckLine(photoCheck) && <p className="rp-hint" role="status" style={{ margin: 0 }}>{w(photoCheckLine(photoCheck))}</p>}
               {readNotes.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{w(n)}</p>)}
               {moved && moved.notices.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{n}</p>)}
               {!moved && plan.ignoredColumns.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Ignored columns: {plan.ignoredColumns.join(", ")}.</p>}
