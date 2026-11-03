@@ -607,10 +607,6 @@ export const TEMPLATES = {
   }),
 
   /**
-   * A scheduled job stopped running on time (services/jobs, plan 19.11), to the platform's alert address only.
-   * `data`: { job, words, every (minutes), lastRunAt }.
-   */
-  /**
    * The weekly deletion note to the platform owner (control-room/deletionNote.js). `data.apps`: [{ shopId, pressName,
    * ownerEmail, app, date (download ends), overdue, warned (date of the last email, or null), problem, bounced }].
    */
@@ -634,6 +630,10 @@ export const TEMPLATES = {
     });
   },
 
+  /**
+   * A scheduled job stopped running on time (services/jobs, plan 19.11), to the platform's alert address only.
+   * `data`: { job, words, every (minutes), lastRunAt }.
+   */
   "job-late": ({ job, words, every, lastRunAt }, { settings }) => {
     if (!job || !Number.isFinite(every)) throw new Error("the late job alert names no job");
     const gap = every < 60 ? `${every} minute${every === 1 ? "" : "s"}` : every < 1440 ? `${every / 60} hour${every === 60 ? "" : "s"}` : `${every / 1440} day${every === 1440 ? "" : "s"}`;

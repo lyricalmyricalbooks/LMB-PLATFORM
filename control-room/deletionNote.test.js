@@ -28,6 +28,11 @@ test("lists what goes within the week, stuck ones first; not later ones, deleted
   assert.deepEqual(dueForDeletion(rows, NOW).map((c) => [c.shopId, c.overdue]), [["stuck", true], ["soon", false]]);
 });
 
+test("a shop deleted whole is never listed: its closed apps went with it", () => {
+  const deletedShop = closedShop("left", "stockroom", { downloadUntil: on(-3), warnedAt: on(-6) }, { closing: { stage: "deleted" } });
+  assert.deepEqual(dueForDeletion([deletedShop], NOW), []);
+});
+
 test("one email a week to the platform owner, with each press, its app, the date and whether the press was told", async () => {
   const email = fakePlatformEmail();
   const first = await weeklyDeletionNote({ registry: registryOf(rows), email, to: "owner@example.com", now: () => NOW });

@@ -60,14 +60,14 @@ export function keepLinkProblem(row, token, now) {
 
 /**
  * What a closed app's download holds, file by file in a few words, so the press knows what it gets before the records
- * go. Keyed like services/export/export.js SHOP_COLLECTIONS (plus its settings) and STOCKROOM_PARTS (plus its books);
+ * go. Keyed like services/export/export.js SHOP_COLLECTIONS and STOCKROOM_PARTS (plus its books);
  * a test there keeps the two lists the same.
  */
 export const DOWNLOAD_HOLDS = Object.freeze({
   shop: Object.freeze([
     ["books", "your books and products"], ["authors", "authors and artists"], ["orders", "orders"], ["customers", "customers"],
     ["discounts", "discount codes"], ["giftCards", "gift cards"], ["reviews", "reviews"], ["pages", "your own pages"],
-    ["newsletter", "newsletter sign-ups"], ["stockists", "stockists"], ["shipping-profiles", "shipping prices"], ["settings", "your shop's settings"],
+    ["newsletter", "newsletter sign-ups"], ["stockists", "stockists"], ["shipping-profiles", "shipping prices"],
   ]),
   stockroom: Object.freeze([
     ["books", "the books in your stockroom"], ["ledger", "the stock ledger"], ["hist", "sales and stock history"], ["expenses", "expenses"],
@@ -77,10 +77,14 @@ export const DOWNLOAD_HOLDS = Object.freeze({
 
 const listed = (words) => (words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words.at(-1)}` : words.join(""));
 
-/** "a spreadsheet each of …" for the closed apps given (in plan order), for the closing emails and the account page. */
+/**
+ * "a spreadsheet each of …" for the closed apps given (in plan order), for the closing emails and the account page.
+ * The shop's settings are one file of their own (settings.json, not a spreadsheet), so they come after.
+ */
 export function downloadHolds(apps) {
   const words = ["shop", "stockroom"].filter((app) => apps.includes(app)).flatMap((app) => DOWNLOAD_HOLDS[app].map(([, w]) => w));
-  return words.length ? `a spreadsheet each of ${listed(words)}` : "";
+  if (!words.length) return "";
+  return `a spreadsheet each of ${listed(words)}${apps.includes("shop") ? ", plus your shop's settings" : ""}`;
 }
 
 /** The platform's emails about a closing app: a bounce on one of them means the press may never hear it is closing. */
