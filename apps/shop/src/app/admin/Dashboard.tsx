@@ -47,6 +47,7 @@ import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, SALES_TAB, STOCKROOM_ITEM_PREFI
 import { AllSales } from "./AllSales";
 import { keepAdminOffline } from "./adminOffline";
 import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
+import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
 import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
@@ -338,7 +339,14 @@ export function Dashboard() {
   // The combined admin's first-time tour: invited once on Home, and from the account menu any time (CombinedTour.tsx).
   const [tourOpen, setTourOpen] = useState(false);
   const [tourInvite, setTourInvite] = useState(() => COMBINED && !tourSeen());
-  const dismissTour = () => { markTourSeen(); setTourInvite(false); };
+  const dismissTour = () => { markTourSeen(); void markTourSeenOnAccount(); setTourInvite(false); };
+  // Seen on another device of this shop: no invitation here either (combinedTourStore.ts).
+  useEffect(() => {
+    if (!user || !tourInvite) return;
+    let alive = true;
+    void tourSeenOnAccount().then((seen) => { if (alive && seen) { markTourSeen(); setTourInvite(false); } });
+    return () => { alive = false; };
+  }, [user]);
 
   const [adminTheme, setAdminTheme] = useState(() => {
     // Reso is the admin's primary design, not an optional storefront skin.

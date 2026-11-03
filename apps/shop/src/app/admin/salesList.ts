@@ -108,3 +108,27 @@ export function saleTotals(rows: SaleRow[]): { sales: number; copies: number; ta
     .sort((a, b) => (a.cur === SHOP_CURRENCY ? -1 : b.cur === SHOP_CURRENCY ? 1 : b.amount - a.amount));
   return { sales: rows.length, copies: rows.reduce((n, r) => n + r.qty, 0), takings };
 }
+
+const csvCell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@\t\r])/, "'$1")}"`;
+const csvRow = (vals: unknown[]) => vals.map(csvCell).join(",");
+
+/**
+ * All sales as a spreadsheet (CSV), exactly the rows on screen: the period and channel picked, newest first. Takings
+ * are each sale's own currency, so a fair in US dollars stays in US dollars. Safe against spreadsheet formulas.
+ * `words` is the shop's words (books or products).
+ */
+export function salesCsv(rows: SaleRow[], { period, channel, words = (t: string) => t }: { period: string; channel: string; words?: (text: string) => string }): string {
+  const lines = [
+    csvRow([`All sales · ${period} · ${channel}`]),
+    csvRow([words("Takings are books only, after discounts and refunds, in each sale's own currency.")]),
+    csvRow(["Date", words("What sold"), "Channel", "Who", "Quantity", "Takings", "Currency", "Refunded", "Order number"]),
+  ];
+  for (const r of rows) {
+    lines.push(csvRow([r.date, r.what, channelWords(r.channel), r.who, r.qty, (Math.round(r.amount * 100) / 100).toFixed(2), r.cur, r.refunded ? "Yes" : "", r.orderId || ""]));
+  }
+  return lines.join("\n");
+}
+
+/** The file's name: `all-sales-<channel>-<period>-<today>.csv`. */
+export const salesCsvName = (channel: string, period: string, today = new Date().toISOString().slice(0, 10)) =>
+  `all-sales-${channel || "every-channel"}-${period}-${today}.csv`;

@@ -8,7 +8,7 @@ import { getOrdersCached } from "./ordersCache";
 import { stockroomBridge, type StockroomSale } from "./stockroomBridge";
 import { useShopWords } from "./shopWords";
 import {
-  PERIODS, channelCounts, inChannel, mergeSales, saleTotals, sinceFor, stockroomSaleRows, websiteSaleRows,
+  PERIODS, channelCounts, inChannel, mergeSales, saleTotals, salesCsv, salesCsvName, sinceFor, stockroomSaleRows, websiteSaleRows,
   type PeriodId, type SaleRow,
 } from "./salesList";
 import { channelWords, money } from "./StockroomBookPanel";
@@ -92,13 +92,22 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
     { key: "qty", header: "Copies", numeric: true, render: (r: SaleRow) => r.qty },
     { key: "amount", header: "Takings", numeric: true, render: (r: SaleRow) => money(r.amount, r.cur) },
   ];
+  const periodLabel = PERIODS.find((p) => p.id === period)?.label || "";
+  const channelLabel = channels.find((c) => c.id === active)?.label || "Every channel";
+  // The rows on screen, every one (not only the first hundred), as a spreadsheet for the books or an accountant.
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([salesCsv(visible, { period: periodLabel, channel: channelLabel, words: w })], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = salesCsvName(active, period); a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   const takings = totals.takings.length ? totals.takings.map((t) => money(t.amount, t.cur)).join(" + ") : money(0, "CAD");
 
   return (
     <div className="rp-stack">
       <div className="rp-kpi-grid">
-        <MetricCard label="Sales" value={totals.sales.toLocaleString()} footer={PERIODS.find((p) => p.id === period)?.label} />
-        <MetricCard label="Copies sold" value={totals.copies.toLocaleString()} footer={channels.find((c) => c.id === active)?.label || "Every channel"} />
+        <MetricCard label="Sales" value={totals.sales.toLocaleString()} footer={periodLabel} />
+        <MetricCard label="Copies sold" value={totals.copies.toLocaleString()} footer={channelLabel} />
         <MetricCard label="Takings" value={takings} footer={w("Books only, after discounts and refunds")} />
       </div>
       <Tabs label="Channel" value={active || "all"} onChange={(v) => setChannel(v === "all" ? "" : v)}
@@ -108,6 +117,7 @@ export function AllSales({ onOpenOrder }: { onOpenOrder: (id: string) => void })
           {PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </SelectField>
         <SecondaryButton onClick={() => stockroomBridge.openPage("manual")}>Record a sale</SecondaryButton>
+        <SecondaryButton onClick={download} disabled={!visible.length}>Download spreadsheet</SecondaryButton>
       </FilterBar>
       {notes.map((n) => <p key={n} className="rp-hint" role="status">{n}</p>)}
       <DataTable caption="Every sale" rowKey={(r) => r.key} rows={visible.slice(0, shown)} columns={columns} stackOnPhone onRowClick={open}
