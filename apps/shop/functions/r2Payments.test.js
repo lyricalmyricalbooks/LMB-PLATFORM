@@ -618,6 +618,38 @@ test('payment links: items added to a paid order ship with it, and only an activ
   await expect(app.priceOrder(order, { orderId: id })).rejects.toThrow(/was cancelled/);
 });
 
+test('payment links: the customer adds items to their own paid order from its page, at shop prices, shipping in the same parcel (plan 24.6)', async () => {
+  const docs = linkDocs();
+  const key = 'k'.repeat(64);
+  const customer = { name: 'Robin Reader', email: 'robin@example.com', address: { street: '1 King St', city: 'Toronto', state: 'ON', zip: 'M5H1A1', country: 'CA' } };
+  docs.orders = {
+    mine: { orderId: 'MINE-1', trackingKey: key, customer, paymentStatus: 'paid', status: 'processing', fulfillmentStatus: 'processing', items: [{ id: 'tee', quantity: 1 }] },
+  };
+  const app = harness({ docs });
+  const add = (body, opts = { orderKey: key }) => app.call('createStripeCheckoutSession', { action: 'addToOrder', orderId: 'mine', lines: [{ id: 'tee', quantity: 2 }], ...body }, opts);
+  const made = await add({});
+  expect(made.code).toBe(200);
+  const order = app.docs.orders[made.value.orderId];
+  expect(order).toMatchObject({ shipsWith: 'mine', addedByCustomer: true, source: 'payment_link', status: 'pending_payment', paymentStatus: 'unpaid', shipping: 0, discount: 0 });
+  // The shop's own price, never one the browser sends.
+  expect(unitPrices(order)).toEqual([40]);
+  expect(order.customer.email).toBe('robin@example.com');
+  expect(order.activity[0].message).toMatch(/customer added items/);
+  expect(made.value.trackingKey).toBe(order.trackingKey);
+  // Prices sent by the browser are ignored.
+  const cheap = await add({ lines: [{ id: 'tee', quantity: 1, price: 0.01 }] });
+  expect(unitPrices(app.docs.orders[cheap.value.orderId])).toEqual([40]);
+  // Someone without the order's key, a gift card, too many copies, an unpaid order or too many open ones are refused.
+  expect((await add({}, { orderKey: 'z'.repeat(64) })).code).toBe(403);
+  expect((await add({ lines: [{ id: 'tee', quantity: 21 }] })).code).toBe(400);
+  expect((await add({ lines: [] })).code).toBe(400);
+  expect((await add({ orderId: 'nope' })).code).toBe(404);
+  await add({});
+  expect((await add({})).value.error).toBe('too_many_open');
+  app.docs.orders.mine.fulfillmentStatus = 'shipped';
+  expect((await add({})).value.error).toBe('closed');
+});
+
 test('payment links: an ordinary order is priced exactly as before', async () => {
   const app = harness({ docs: linkDocs() });
   const priced = await app.priceOrder({ ...stockistOrder(), trackingKey: 'a'.repeat(64) }, { orderId: 'o-normal' });

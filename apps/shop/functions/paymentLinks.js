@@ -21,6 +21,11 @@ const DEFAULT_DAYS = 30;
 const MAX_DAYS = 90;
 const MAX_PRICE = 100000;
 const MAX_SHIPPING = 10000;
+// A customer adding to their own order (handleCustomerAddOn): a short, small order, and only a few unpaid at a time.
+const CUSTOMER_ADD_DAYS = 3;
+const CUSTOMER_MAX_LINES = 10;
+const CUSTOMER_MAX_COPIES = 20;
+const CUSTOMER_MAX_OPEN = 3;
 
 const keyHash = key => crypto.createHash("sha256").update(String(key || "")).digest("hex");
 const text = (value, max) => (typeof value === "string" ? value.trim().slice(0, max) : "");
@@ -154,7 +159,61 @@ const LINK_MESSAGES = {
  * The admin action that makes a payment link (createStripeCheckoutSession `action: "paymentLink"`). index.js passes in
  * its guards and pricing; `priceOrder` takes the draft record so the order is priced exactly as it will be paid.
  */
-function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage, now = () => new Date() }) {
+function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, publicErrorMessage, now = () => new Date(),
+  hitLimit = null, LIMITS = {}, canViewOrder = null, orderRequestKey = null, orderRequestIdentity = null }) {
+  /**
+   * Makes the order and its link record from a cleaned link. Answers the request itself and returns nothing; `parent` is
+   * the order the items are added to (already checked), `actor` names who made it in the order's history.
+   */
+  async function createLinkOrder(res, input, { actor, createdBy, parent = null, byCustomer = false }) {
+    const at = now();
+    const createdAt = at.toISOString();
+    const orderId = crypto.randomBytes(12).toString("hex").toUpperCase();
+    const trackingKey = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(at.getTime() + input.days * 86400000).toISOString();
+    const order = {
+      customer: { ...input.customer, billingAddress: input.customer.address },
+      items: input.lines.map(line => ({ id: line.id, variantId: line.variantId, quantity: line.quantity })),
+      trackingKey,
+    };
+    const draft = { status: "open", keyHash: keyHash(trackingKey), lines: input.lines, shipping: input.shipping, note: input.note, expiresAt };
+    let priced;
+    try {
+      priced = await priceOrder(order, { orderId, paymentLink: draft });
+    } catch (err) {
+      if (err instanceof PricingError) return res.status(400).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+      throw err;
+    }
+    // A card can't take less than about 50 cents; a free order is better recorded by hand.
+    if (!(priced.total >= 0.5)) return res.status(400).json({ error: "The total is under $0.50, which a card can't take. Raise a price or record the order another way." });
+    // The prices are frozen now: a line left blank keeps today's shop price even if the catalog changes later.
+    const link = {
+      ...draft,
+      lines: input.lines.map(line => ({ ...line, price: cents(priced.items.find(item => sameLine(item, line)).price) })),
+      createdAt,
+      createdBy,
+    };
+    await db.collection("paymentLinks").doc(orderId).set(link);
+    await db.collection("orders").doc(orderId).create({
+      ...order,
+      items: priced.items.map(({ shippingProfileId, ...item }) => item),
+      subtotal: priced.subtotal, discount: 0, appliedDiscount: null, shipping: priced.shipping,
+      ...(priced.shippingMethod ? { shippingMethod: priced.shippingMethod } : {}),
+      fulfillment: priced.fulfillment, tax: priced.tax, taxLines: priced.taxLines, total: priced.total,
+      giftCardAmount: 0, giftCardRedemptions: [],
+      // "Stripe" is what every card order carries (a Square shop's too): refunds, the admin and stock follow it.
+      // Every link order keeps source "payment_link": the unpaid sweep, the reminder and stock holds follow it.
+      orderId, status: "pending_payment", paymentStatus: "unpaid", paymentMethod: "Stripe", source: "payment_link",
+      paymentLink: { expiresAt, ...(input.note ? { note: input.note } : {}) },
+      referralSource: "payment_link",
+      ...(byCustomer ? { addedByCustomer: true } : {}),
+      ...(parent ? { shipsWith: input.shipsWith } : {}),
+      createdAt, updatedAt: createdAt,
+      activity: [{ type: "event", message: `${byCustomer ? `The customer added items, to pay by ${closingDay(expiresAt)}` : `Payment link made by ${actor}, open until ${closingDay(expiresAt)}`}.${parent ? ` Adds to order ${parent.orderId || input.shipsWith}; pack them together.` : ""}`, createdAt }],
+    });
+    return res.status(200).json({ orderId, trackingKey, total: priced.total, expiresAt });
+  }
+
   async function handlePaymentLink(req, res) {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
@@ -174,57 +233,65 @@ function paymentLinkActions({ db, requireAdmin, priceOrder, PricingError, public
         const problem = addOnParentProblem(parent);
         if (problem) return res.status(400).json({ error: problem });
       }
-      const at = now();
-      const createdAt = at.toISOString();
-      const orderId = crypto.randomBytes(12).toString("hex").toUpperCase();
-      const trackingKey = crypto.randomBytes(32).toString("hex");
-      const expiresAt = new Date(at.getTime() + input.days * 86400000).toISOString();
-      const order = {
-        customer: { ...input.customer, billingAddress: input.customer.address },
-        items: input.lines.map(line => ({ id: line.id, variantId: line.variantId, quantity: line.quantity })),
-        trackingKey,
-      };
-      const draft = { status: "open", keyHash: keyHash(trackingKey), lines: input.lines, shipping: input.shipping, note: input.note, expiresAt };
-      let priced;
-      try {
-        priced = await priceOrder(order, { orderId, paymentLink: draft });
-      } catch (err) {
-        if (err instanceof PricingError) return res.status(400).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
-        throw err;
-      }
-      // A card can't take less than about 50 cents; a free order is better recorded by hand.
-      if (!(priced.total >= 0.5)) return res.status(400).json({ error: "The total is under $0.50, which a card can't take. Raise a price or record the order another way." });
-      // The prices are frozen now: a line left blank keeps today's shop price even if the catalog changes later.
-      const link = {
-        ...draft,
-        lines: input.lines.map(line => ({ ...line, price: cents(priced.items.find(item => sameLine(item, line)).price) })),
-        createdAt,
-        createdBy: adminUser.email || "admin",
-      };
-      const actor = adminUser.email || "the owner";
-      await db.collection("paymentLinks").doc(orderId).set(link);
-      await db.collection("orders").doc(orderId).create({
-        ...order,
-        items: priced.items.map(({ shippingProfileId, ...item }) => item),
-        subtotal: priced.subtotal, discount: 0, appliedDiscount: null, shipping: priced.shipping,
-        ...(priced.shippingMethod ? { shippingMethod: priced.shippingMethod } : {}),
-        fulfillment: priced.fulfillment, tax: priced.tax, taxLines: priced.taxLines, total: priced.total,
-        giftCardAmount: 0, giftCardRedemptions: [],
-        // "Stripe" is what every card order carries (a Square shop's too): refunds, the admin and stock follow it.
-        orderId, status: "pending_payment", paymentStatus: "unpaid", paymentMethod: "Stripe", source: "payment_link",
-        paymentLink: { expiresAt, ...(input.note ? { note: input.note } : {}) },
-        referralSource: "payment_link",
-        ...(parent ? { shipsWith: input.shipsWith } : {}),
-        createdAt, updatedAt: createdAt,
-        activity: [{ type: "event", message: `Payment link made by ${actor}, open until ${closingDay(expiresAt)}.${parent ? ` Adds to order ${parent.orderId || input.shipsWith}; pack them together.` : ""}`, createdAt }],
-      });
-      return res.status(200).json({ orderId, trackingKey, total: priced.total, expiresAt });
+      return await createLinkOrder(res, input, { actor: adminUser.email || "the owner", createdBy: adminUser.email || "admin", parent });
     } catch (err) {
       console.error("Payment link failed:", err);
       return res.status(500).json({ error: publicErrorMessage(err, "We couldn't make this payment link. Please try again.") });
     }
   }
-  return { handlePaymentLink };
+
+  /**
+   * The customer adds items to their own paid order from its tracking page (code plan 24.6, `action: "addToOrder"`). Like
+   * the owner's Add items: a new order at the shop's prices, shipping free (same parcel), linked by `shipsWith`, paid from
+   * its own page within CUSTOMER_ADD_DAYS. Only the order's own customer (its key or signed-in email), only while the
+   * order is paid, active and not sent, products the shop sells now (no gift cards), and a few unpaid ones at a time.
+   */
+  async function handleCustomerAddOn(req, res) {
+    const { orderId, lines } = req.body || {};
+    if (!validId(orderId) || orderId.length > 64) return res.status(400).json({ error: "not_found" });
+    if (hitLimit && !(await hitLimit(db, "checkout", req, LIMITS.checkout))) return res.status(429).json({ error: "too_many" });
+    try {
+      const snap = await db.collection("orders").doc(orderId).get();
+      const parent = snap.exists ? snap.data() : null;
+      if (!parent) return res.status(404).json({ error: "not_found" });
+      const identity = orderRequestIdentity ? await orderRequestIdentity(req) : null;
+      if (!canViewOrder || !canViewOrder(parent, { key: orderRequestKey ? orderRequestKey(req) : "", identity })) return res.status(403).json({ error: "email_mismatch" });
+      if (parent.shipsWith || addOnParentProblem(parent)) return res.status(409).json({ error: "closed" });
+      const rows = Array.isArray(lines) ? lines.filter(Boolean) : [];
+      if (!rows.length || rows.length > CUSTOMER_MAX_LINES) return res.status(400).json({ error: "lines" });
+      for (const row of rows) {
+        const quantity = Number(row.quantity);
+        if (!validId(row.id) || !Number.isInteger(quantity) || quantity < 1 || quantity > CUSTOMER_MAX_COPIES) return res.status(400).json({ error: "lines" });
+        const book = (await db.collection("books").doc(row.id).get()).data();
+        if (!book || book.productType === "giftCard" || book.giftCard === true) return res.status(400).json({ error: "lines" });
+      }
+      const open = await db.collection("orders").where("shipsWith", "==", orderId).limit(20).get();
+      if (open.docs.filter(d => d.data().paymentStatus === "unpaid" && d.data().status === "pending_payment").length >= CUSTOMER_MAX_OPEN) {
+        return res.status(409).json({ error: "too_many_open" });
+      }
+      const method = parent.fulfillment?.method || parent.fulfillmentSelection?.method;
+      const ships = !["pickup", "local_delivery"].includes(method);
+      const c = parent.customer || {};
+      let input;
+      try {
+        input = cleanLinkInput({
+          customer: { name: c.name, email: c.email, phone: c.phone, address: c.address || {} },
+          lines: rows.map(row => ({ id: row.id, variantId: row.variantId || null, quantity: Number(row.quantity), price: null })),
+          shipping: ships ? 0 : null, days: CUSTOMER_ADD_DAYS, shipsWith: orderId,
+          note: "",
+        });
+      } catch (err) {
+        // The order's own name, email or address can't make a link (an old order missing its province, say).
+        if (err instanceof LinkInputError) return res.status(409).json({ error: "details" });
+        throw err;
+      }
+      return await createLinkOrder(res, input, { actor: "the customer", createdBy: "customer", parent, byCustomer: true });
+    } catch (err) {
+      console.error("Customer add-on failed:", err);
+      return res.status(500).json({ error: publicErrorMessage(err, "We couldn't add these items. Please try again.") });
+    }
+  }
+  return { handlePaymentLink, handleCustomerAddOn };
 }
 
 // A reminder (code plan 21.5): one email to the customer when an unpaid link has two days or less left, from the
