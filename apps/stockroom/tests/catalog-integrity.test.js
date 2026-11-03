@@ -1,7 +1,7 @@
 // Catalog safety: a failed read never overwrites the real catalog, Edit Book
 // can clear fields and keeps the ones it doesn't show, a taken id is never
 // overwritten, and only the real test profile is treated as a test book.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { loadApp, makeBook } from './helpers/load-app.js';
 
 let app;
@@ -70,5 +70,38 @@ describe('Edit Book form', () => {
     $('nb-title').value = 'Imposter';
     await app.window.saveBookFromModal();
     expect(app.main.BOOKS.other.title).toBe('Other Book');
+  });
+});
+
+describe('a product typed with sizes and colours', () => {
+  const add = async (title, sizes, link = '') => {
+    app.window.openAddBookModal();
+    $('nb-id').value = title;
+    $('nb-title').value = title;
+    $('nb-price').value = '30';
+    $('nb-max').value = '20';
+    $('nb-paylink').value = link;
+    $('nb-grid-sizes').value = sizes;
+    await app.window.saveBookFromModal();
+  };
+  const ofGroup = (id) => Object.values(app.main.BOOKS).filter(b => b.group && b.group.id === id).map(b => b.title).sort();
+
+  it('checks every title it would make, gives a second product of the same name its own group, and shares no card link', async () => {
+    await add('Moth Tee', 'S, M', 'https://buy.stripe.com/moth');
+    await vi.waitFor(() => expect(ofGroup('grid-moth-tee')).toEqual(['Moth Tee · M', 'Moth Tee · S']));
+    expect(app.main.BOOKS['moth-tee-s'].stripeLink).toBe('https://buy.stripe.com/moth');
+    expect(app.main.BOOKS['moth-tee-m'].stripeLink).toBe('');
+    app.window.closeM('add-book');
+
+    // "Moth Tee · M" is taken: refused, nothing added.
+    const before = Object.keys(app.main.BOOKS).length;
+    await add('Moth Tee', 'M, L');
+    expect(Object.keys(app.main.BOOKS)).toHaveLength(before);
+    expect($('nb-title').closest('.form-group').textContent).toMatch(/Moth Tee · M/);
+    app.window.closeM('add-book');
+
+    await add('Moth Tee', 'XL, XXL');
+    await vi.waitFor(() => expect(ofGroup('grid-moth-tee-2')).toEqual(['Moth Tee · XL', 'Moth Tee · XXL']));
+    expect(ofGroup('grid-moth-tee')).toEqual(['Moth Tee · M', 'Moth Tee · S']);
   });
 });

@@ -57,6 +57,9 @@ function push(web) {
 function deliver() {
   const pending = Object.entries(link.docs).filter(([, d]) => d.pending).map(([id, d]) => ({ id, ...JSON.parse(JSON.stringify(d)) }));
   link.ordersCb(pending);
+  // The trade watch: every order on invoice terms the website hasn't marked paid, pending or not.
+  const owed = Object.entries(link.docs).filter(([, d]) => d.web && d.web.invoice && d.web.invoice.paidAt === null).map(([id, d]) => ({ id, ...JSON.parse(JSON.stringify(d)) }));
+  if (link.tradeCb) link.tradeCb(owed);
 }
 
 function setStatus(status) {
@@ -88,6 +91,7 @@ beforeAll(async () => {
     books,
     overrides: {
       _fbWatchWebsiteOrders: (cb) => { link.ordersCb = cb; return () => {}; },
+      _fbWatchTradeOrders: (cb) => { link.tradeCb = cb; return () => {}; },
       _fbWatchWebsiteLinkStatus: (cb) => { link.statusCb = cb; cb(CONSENTED); return () => {}; },
       // The server keeps the first day recorded (a transaction in firebase.js).
       _fbMarkLinkSwitchedOn: async (at) => {
@@ -479,5 +483,22 @@ describe('the website going quiet', () => {
     expect(feature.websiteLinkTodo().quietSince).toBe(old);
     setStatus(CONSENTED);
     await waitFor(() => expect(feature.websiteLinkTodo().quietSince).toBe(''));
+  });
+});
+
+describe('a trade order on invoice terms', () => {
+  it('stays under Trade invoices to send after it is brought in, until an invoice is made from it', async () => {
+    push(webOrder('WEB-TRADE', { invoice: { days: 30, dueAt: '2026-11-10T00:00:00.000Z', paidAt: null } }));
+    await waitFor(() => expect(link.docs['WEB-TRADE'].pending).toBe(false));
+    const card = document.getElementById('web-link-card');
+    await waitFor(() => expect(card.querySelector('[data-wl-action="trade-invoice"][data-order="WEB-TRADE"]')).not.toBeNull());
+    expect(card.textContent).toMatch(/Trade invoices to send/);
+
+    const opened = [];
+    const listen = (e) => opened.push(e.detail.draft);
+    window.addEventListener('trade-invoice-open', listen);
+    card.querySelector('[data-wl-action="trade-invoice"][data-order="WEB-TRADE"]').click();
+    window.removeEventListener('trade-invoice-open', listen);
+    expect(opened[0]).toMatchObject({ webOrderId: 'WEB-TRADE', dueDate: '2026-11-10' });
   });
 });

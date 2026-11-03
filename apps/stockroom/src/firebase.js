@@ -1006,6 +1006,29 @@ window._fbWatchWebsiteOrders = (cb, onErr) => {
   }
 };
 
+// Trade accounts' orders on invoice terms that the website hasn't marked paid (`web.invoice.paidAt` is null until
+// then). Watched apart from the pending inbox: an order brought in stops being pending long before the owner bills it.
+let _tradeOrdersUnsub = null;
+window._fbWatchTradeOrders = (cb, onErr) => {
+  try {
+    if (_tradeOrdersUnsub) { try { _tradeOrdersUnsub(); } catch (_) {} _tradeOrdersUnsub = null; }
+    const owed = query(collection(fs, 'websiteOrders'), where('web.invoice.paidAt', '==', null));
+    _tradeOrdersUnsub = onSnapshot(owed, (snap) => {
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...(d.data() || {}) }));
+      cb(docs);
+    }, (err) => {
+      console.error('trade orders watch failed', err);
+      if (typeof onErr === 'function') onErr(err);
+    });
+    return () => { if (_tradeOrdersUnsub) { try { _tradeOrdersUnsub(); } catch (_) {} _tradeOrdersUnsub = null; } };
+  } catch (e) {
+    console.error('fbWatchTradeOrders failed', e);
+    if (typeof onErr === 'function') onErr(e);
+    return null;
+  }
+};
+
 // websiteLink/website is the website's heartbeat; websiteLink/app is ours.
 let _webLinkUnsub = null;
 window._fbWatchWebsiteLinkStatus = (cb, onErr) => {

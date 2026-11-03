@@ -129,6 +129,17 @@ describe("today's register sales", () => {
     ] }];
     expect(registerSalesForDay(wrapped, 'd').sales[0].num).toBe('POS-000010');
   });
+  test('counts a sale rung up in another currency at what the customer paid, in that currency, to the cent', () => {
+    const fx = [{ id: 'a', title: 'Hound', currency: 'CAD', hist: [
+      { num: 'POS-7', chan: 'Book Fair', date: 'd', qty: 2, price: 40, cur: 'CAD', notes: 'Card', sheetsId: t(1),
+        payment: { currency: 'MXN', amount: 1066.67, rate: 0.075, convertedTotal: 80 } },
+      { num: 'POS-8', chan: 'Book Fair', date: 'd', qty: 3, price: 0.1, cur: 'CAD', notes: 'Card', sheetsId: t(2),
+        payment: { currency: 'CAD', amount: 0.3, rate: null, convertedTotal: 0.3 } },
+    ] }];
+    const day = registerSalesForDay(fx, 'd');
+    expect(day.totals).toEqual({ MXN: 1066.67, CAD: 0.3 });
+    expect(fairDaySummary(day).methods[0].totals).toEqual({ MXN: 1066.67, CAD: 0.3 });
+  });
   test('event ids decode to their time, anything else to 0', () => {
     expect(eventTime(t(123456789))).toBe(123456789);
     expect(eventTime('')).toBe(0);
