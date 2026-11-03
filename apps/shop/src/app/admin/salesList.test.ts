@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookTakings, channelCounts, inChannel, mergeSales, saleTotals, salesCsv, salesCsvName, sinceFor, stockroomSaleRows, websiteSaleRows, type SaleRow } from "./salesList";
+import { bookTakings, channelCounts, fairDays, inChannel, mergeSales, saleTotals, salesCsv, salesCsvName, sinceFor, stockroomSaleRows, websiteSaleRows, type SaleRow } from "./salesList";
 import { routeFromHash, hashForRoute } from "./adminRoute";
 import { COMBINED_MENU, MENU, NAV, sidebarItems } from "./riso/nav";
 
@@ -89,5 +89,34 @@ describe("the All sales spreadsheet", () => {
     expect(csv).toContain("Takings are products only");
     expect(salesCsvName("", "90", "2026-11-03")).toBe("all-sales-every-channel-90-2026-11-03.csv");
     expect(salesCsvName("fair", "all", "2026-11-03")).toBe("all-sales-fair-all-2026-11-03.csv");
+  });
+});
+
+describe("fair days side by side", () => {
+  const sale = (over: Record<string, unknown>) => ({
+    key: String(Math.random()), bookId: "b", title: "Harbour Lights", date: "2026-11-01", chan: "Book Fair", qty: 1, amount: 24, cur: "CAD",
+    stockist: "", invoice: "", sale: "POS-1", fair: "Harbour Fair", ...over,
+  });
+  it("gives one line per fair day, counting checkouts, copies and takings per currency", () => {
+    const rows = stockroomSaleRows([
+      sale({ sale: "POS-1", qty: 2, amount: 48 }),
+      sale({ sale: "POS-1", title: "Tide Tables", amount: 20 }), // same customer, second book
+      sale({ sale: "POS-2", amount: 20, cur: "USD" }),
+      sale({ date: "2026-11-02", fair: "Night Market", sale: "POS-9" }),
+      sale({ date: "2026-11-02", fair: "", sale: "POS-8", title: "Tide Tables" }),
+      sale({ chan: "Consignment", fair: undefined, sale: undefined, stockist: "Corner Books" }),
+    ]);
+    const days = fairDays(rows);
+    expect(days.map((d) => [d.date, d.fair, d.sales, d.copies])).toEqual([
+      ["2026-11-02", "", 1, 1],
+      ["2026-11-02", "Night Market", 1, 1],
+      ["2026-11-01", "Harbour Fair", 2, 4],
+    ]);
+    expect(days[2].takings).toEqual([{ cur: "CAD", amount: 68 }, { cur: "USD", amount: 20 }]);
+    expect(days[2].best).toEqual({ title: "Harbour Lights", qty: 3 });
+  });
+  it("names the fair in the Who column, and is empty without fair sales", () => {
+    expect(stockroomSaleRows([sale({})])[0].who).toBe("Harbour Fair");
+    expect(fairDays(stockroomSaleRows([sale({ chan: "Consignment" })]))).toEqual([]);
   });
 });

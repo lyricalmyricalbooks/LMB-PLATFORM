@@ -102,5 +102,18 @@ describe('the admin\'s Home and one list of sales', async () => {
       ['A', 'Book Fair', 2, 20, 'CAD', ''],
       ['A', 'Website', 1, 20, 'CAD', ''],
     ]);
+    // A till sale names its checkout and the fair (none was named here); other channels carry neither.
+    expect(rows.find((r) => r.chan === 'Book Fair')).toMatchObject({ sale: '1', fair: '' });
+    expect(rows.find((r) => r.chan === 'Consignment')).not.toHaveProperty('fair');
+  });
+  it('reads the fair a till sale was made at from its note', async () => {
+    const { fairNameOf } = await import('../src/lib/fair-mode.js');
+    expect(fairNameOf('Cash · Harbour Fair')).toBe('Harbour Fair');
+    expect(fairNameOf('Card · Harbour Fair · Price CA$24.00→CA$20.00')).toBe('Harbour Fair');
+    expect(fairNameOf('Stripe QR (printed code, check it arrived in Stripe) · Night Market')).toBe('Night Market');
+    expect(fairNameOf('Cash · Price CA$24.00→CA$20.00')).toBe('');
+    expect(fairNameOf('Cash')).toBe('');
+    expect(fairNameOf('Corner Books')).toBe('');
+    expect(fairNameOf(undefined)).toBe('');
   });
 });

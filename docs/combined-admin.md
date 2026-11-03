@@ -85,6 +85,11 @@ Shop-only and stockroom-only presses keep their own designs. Design page: https:
   item; several open the stockroom's To-do page.
 - **Download spreadsheet** on All sales saves the rows on screen (period and channel picked, all of them, not only the
   first hundred) as CSV (`salesCsv` in `salesList.ts`): one row per sale in its own currency, formula-safe.
+- **Fair days side by side** on the Fairs and markets tab (`fairDays` in `salesList.ts`): one line per day and fair,
+  with checkouts (rows sharing a till number are one customer), copies, takings per currency and the best seller. The
+  stockroom's `salesRows` gives each till row its checkout number and fair, read from the note the Fair till writes
+  ("Cash · Harbour Fair", `fairNameOf`); the Who column names the fair. A sale from the desktop till's own checkout
+  carries no fair, so it shows as "Not named".
 - A page that asks before the admin listens for "open the frame" (a child page's first effect) is remembered and the
   frame opens as soon as the admin listens (`stockroomBridge.ts`).
 

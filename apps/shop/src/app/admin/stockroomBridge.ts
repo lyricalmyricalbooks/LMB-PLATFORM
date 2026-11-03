@@ -20,6 +20,8 @@ export interface StockroomTodo { id: string; group: string; status: string; labe
 export interface StockroomSale {
   key: string; bookId: string; title: string; date: string; chan: string; qty: number; amount: number; cur: string;
   stockist: string; invoice: string;
+  /** A till sale only: its checkout number (one per customer) and the fair it was sold at ("" when none was named). */
+  sale?: string; fair?: string;
 }
 
 /** Today at the fair (`fairForAdmin`): the till's end-of-day figures, per currency, and its upload state. */
