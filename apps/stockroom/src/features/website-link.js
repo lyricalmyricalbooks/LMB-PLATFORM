@@ -19,6 +19,7 @@
 // file is the wiring and the "From your website" card on the Orders tab.
 //
 // Nothing here runs at import time (see tests/features-boundary.test.js).
+import { hasWebsite } from '../lib/shop-profile.js';
 import '../styles/website-link.css';
 import { escapeHtml } from '../lib/html.js';
 import { promptDialog } from '../lib/modal.js';
@@ -172,6 +173,8 @@ function online() {
 
 function linkAllowed() {
   if (!window.IS_PUBLISHER) return false;
+  // A stockroom-only press has no website: no orders to watch, no stock to publish.
+  if (!hasWebsite()) return false;
   if (typeof window._fbWatchWebsiteOrders !== 'function') return false;
   return typeof window._useFirestoreGlobal !== 'function' || window._useFirestoreGlobal();
 }

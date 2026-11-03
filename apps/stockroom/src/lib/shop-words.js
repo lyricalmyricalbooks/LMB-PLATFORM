@@ -101,3 +101,18 @@ export function applyPageWords(root, w = words) {
     }
   }
 }
+
+export const ACK_KEY = 'lm-sells-ack';
+/**
+ * The words this page is showing, when the shop should be told (once per change): the owner's answer is on this device
+ * and the shop hasn't heard it from here yet. null when there is nothing to say.
+ */
+export function wordsToReport(profile = shopProfile) {
+  let stored = null; let acked = null;
+  try { stored = globalThis.localStorage?.getItem(SELLS_KEY); acked = globalThis.localStorage?.getItem(ACK_KEY); } catch { return null; }
+  if (!SELLS.includes(stored) || stored === acked) return null;
+  return currentAnswer(profile) === stored ? stored : null;
+}
+export function wordsReported(answer) {
+  try { globalThis.localStorage?.setItem(ACK_KEY, answer); } catch { /* the shop is told again next time */ }
+}

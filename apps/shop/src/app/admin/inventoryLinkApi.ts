@@ -3,6 +3,7 @@
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
+import { hasStockroom } from "../../lib/shopProfile";
 import type { DetailDiff, InventoryAppBook, InventoryLinks, StockRow } from "./inventoryLink";
 
 export type LinkOp = "status" | "check" | "catalog" | "saveLinks" | "acceptMatches" | "ignoreMatches" | "setOptions" | "startSales" | "preview" | "apply" | "syncNow"
@@ -48,13 +49,16 @@ export const inventoryLinkApi = {
   checkDetails: () => call<{ detailDiffs: { at: string; items: DetailDiff[] } }>("checkDetails"),
   applyDetail: (id: string, signature: string) => call<{ applied: DetailDiff; detailDiffs: { at: string; items: DetailDiff[] } }>("applyDetail", { id, signature }),
   keepDetail: (id: string, signature: string) => call<{ keptDetails: Record<string, string> }>("keepDetail", { id, signature }),
-  /** The links alone, for the stock guards (Inventory page, book editor). {} when not set up. */
+  /** The links alone, for the stock guards (Inventory page, book editor). {} when not set up, or with no stockroom. */
   links: async (): Promise<InventoryLinks> => {
+    // A website-only press keeps all its stock here, whatever an old link left behind.
+    if (!hasStockroom()) return {};
     const snap = await getDoc(doc(db, "systemStatus", "inventoryLink"));
     return (snap.exists() && (snap.data() as any).links) || {};
   },
   /** The whole saved state (admin alerts read it). */
   state: async (): Promise<any> => {
+    if (!hasStockroom()) return {};
     const snap = await getDoc(doc(db, "systemStatus", "inventoryLink"));
     return snap.exists() ? snap.data() : {};
   },

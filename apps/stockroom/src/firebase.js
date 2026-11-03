@@ -923,6 +923,16 @@ window._fbLoadSells = async () => {
   } catch (e) { return null; }
 };
 
+// Tell the shop which words this stockroom is now showing, so Settings › What you sell can say it has caught up.
+// Only the publisher's session can write it; anyone else's attempt is refused and ignored.
+window._fbNoteWords = async (answer) => {
+  if (!auth.currentUser || !window.IS_PUBLISHER) return false;
+  try {
+    await setDoc(doc(fs, 'websiteLink', 'app'), { wordsSells: String(answer), wordsAt: new Date().toISOString() }, { merge: true });
+    return true;
+  } catch (e) { return false; }
+};
+
 window._fbLoadSettings = async (key, opts) => {
   try {
     if (useGlobalStore(opts)) {

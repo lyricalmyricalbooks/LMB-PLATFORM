@@ -9,6 +9,7 @@
 //
 // The contract both apps follow is docs/website-link.md › "Switching between
 // the apps". Nothing here runs at import time (tests/features-boundary.test.js).
+import { hasWebsite } from '../lib/shop-profile.js';
 import '../styles/app-switch.css';
 import {
   INVENTORY_TAB_NAME,
@@ -103,7 +104,8 @@ function setLinkTarget(a, installed) {
  */
 function refreshAppSwitch() {
   if (typeof document === 'undefined') return;
-  const show = publisherHere();
+  // A stockroom-only press has no website to switch to.
+  const show = publisherHere() && hasWebsite();
 
   // The tab's name is how the website's switcher finds this tab again.
   try {
