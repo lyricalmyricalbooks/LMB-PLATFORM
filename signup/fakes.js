@@ -24,6 +24,34 @@ export function fakeSignupStores() {
 /** Firebase Admin's sign-in link maker, pretend. */
 export const fakeAuth = () => ({ signInLink: async (email, { url }) => `${url}&oobCode=fake-${encodeURIComponent(email)}` });
 
+/** Pretend front door records (signup/frontDoor.js), the shape of clients/platformStores.js firestoreFrontDoorStores. */
+export function fakeFrontDoorStores() {
+  const presses = new Map();
+  const codes = new Map();
+  const copy = (row) => (row ? structuredClone(row) : null);
+  // Read, decide and write with no wait between, like the real store's transaction.
+  const atOnce = (rows, key, change) => {
+    const { row, result } = change(copy(rows.get(key)));
+    if (row) rows.set(key, structuredClone(row));
+    return result;
+  };
+  return {
+    presses: {
+      rows: presses,
+      get: async (id) => copy(presses.get(id)),
+      set: async (id, row) => void presses.set(id, structuredClone(row)),
+      create: async (id, row) => (presses.has(id) ? false : (presses.set(id, structuredClone(row)), true)),
+      listByOwner: async (ownerUid) => [...presses.values()].filter((row) => row.ownerUid === ownerUid).map(copy),
+      update: async (id, change) => atOnce(presses, id, change),
+    },
+    codes: {
+      rows: codes,
+      get: async (key) => copy(codes.get(key)),
+      update: async (key, change) => atOnce(codes, key, change),
+    },
+  };
+}
+
 /** A pretend token check: the token is the JSON of the claims. */
 export const fakeVerifyIdToken = async (token) => JSON.parse(token);
 
@@ -55,6 +83,14 @@ export function fakeThrottle() {
     add: async (key, at) => {
       if (store.fail) throw new Error("the counter is down (pretend error)");
       hits.set(key, [...(hits.get(key) ?? []), at]);
+    },
+    // Counts and adds with no wait between, like the real store's transaction.
+    addIfUnder: async (key, since, at, max) => {
+      if (store.fail) throw new Error("the counter is down (pretend error)");
+      const kept = hits.get(key) ?? [];
+      if (kept.filter((hit) => hit >= since).length >= max) return false;
+      hits.set(key, [...kept, at]);
+      return true;
     },
   };
   return store;

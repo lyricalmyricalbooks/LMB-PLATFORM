@@ -173,6 +173,7 @@ const BILLING = { planName: "Shop and stockroom", price: "$39.00", date: "14 Nov
 const PRESS_EMAILS = {
   "owner-welcome": [{ links: SHOP_LINKS }, { links: { shopAdmin: SHOP_LINKS.shopAdmin } }],
   "sign-in-link": [{ link: LINK }],
+  "sign-in-code": [{ code: "042917" }],
   "shop-starting": [{ pressName: "Moth Press", link: LINK }],
   "waitlist-invite": [{ link: LINK }],
   "platform-fee-changing": [{ fromPercent: 0, toPercent: 2, startsOn: "1 January 2027", refunded: true, link: LINK }, { fromPercent: 2, toPercent: 0, startsOn: "1 January 2027", refunded: false, link: LINK }],
