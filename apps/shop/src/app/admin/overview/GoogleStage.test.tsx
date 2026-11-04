@@ -69,6 +69,16 @@ describe("Get started, step 4: Google in one sign-in (plan 17.9)", () => {
     expect(onDone).toHaveBeenCalledWith({ at: expect.any(String), connected: true });
   });
 
+  it("a connection Google ended asks for a new sign-in with the extras already chosen, not a green badge", async () => {
+    g.state = { mode: "platform", status: { enabled: true, connected: true, needsReconnect: true, extrasChosen: ["drive"], steps: [] }, error: null };
+    await mount();
+    expect(text()).not.toContain("Google is connected");
+    expect(text()).toContain("Google asks you to sign in again");
+    await act(async () => { button("Reconnect Google")!.click(); });
+    await flush();
+    expect(g.connectLink).toHaveBeenCalledWith(["drive"]);
+  });
+
   it("a cancelled sign-in on Google's page says so, and asks nothing else", async () => {
     g.state = { mode: "platform", status: { enabled: true, connected: false, steps: [] }, error: null };
     g.outcome = "denied";

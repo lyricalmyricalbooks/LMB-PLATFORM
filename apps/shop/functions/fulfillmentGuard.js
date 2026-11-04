@@ -19,6 +19,8 @@ function labelProblem(order, operations = {}) {
  if (!(order.items || []).some(isPhysicalItem)) return "This order has no physical books to ship.";
  if (order.labelUrl) return "A label already exists. Reprint the existing label.";
  if (order.trackingSource === "inventory-app" && order.trackingNumber) return `A label was already bought in the inventory app (tracking ${order.trackingNumber}). Use that one, or press "Remove the inventory app label" on this order before buying another.`;
+ // Tracking an app sent (appRequests.js) is a label bought elsewhere too: a second one would be paid for twice.
+ if (/^app:/.test(String(order.trackingSource || "")) && order.trackingNumber) return `A shipping app already added tracking ${order.trackingNumber} to this order. Use that label, or remove its tracking before buying another.`;
  if (operations.labelPurchasePending) return "A label purchase is pending. Check Shippo before attempting another purchase.";
  if (order.customerRequest?.type === "return" && order.customerRequest.status === "open") return "Resolve the active return before buying a fulfillment label.";
  if (order.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(order.disputeStatus))) return `This payment is disputed. Don't buy a label until the dispute is settled in ${cardName()}.`;

@@ -27,6 +27,34 @@ describe("French customer emails in Settings › Notifications (code plan 25.9)"
     expect(templateProblems("gift_card", { ...FRENCH_DEFAULTS.gift_card, body: "Profitez-en!" }, "fr")[0].text).toContain("Votre code de carte-cadeau");
   });
 
+  it("a shop that doesn't sell books asks how the order was, not the book, also when the editor saved the books words", () => {
+    const books = french.DEFAULT_NOTIFICATIONS_FR.review_request;
+    expect(french.frenchTemplate("review_request", { sells: "clothing" }).subject).toBe("Comment trouvez-vous votre commande?");
+    expect(french.frenchTemplate("review_request", { sells: "clothing" }).body).not.toMatch(/livre|lecteurs/);
+    expect(french.frenchTemplate("review_request", { sells: "clothing", review_request: { fr: { ...books } } }).subject).toBe("Comment trouvez-vous votre commande?");
+    expect(french.frenchTemplate("review_request", { sells: "clothing", review_request: { fr: { subject: "Votre avis?" } } }).subject).toBe("Votre avis?");
+    expect(french.frenchTemplate("review_request", { sells: "books" }).subject).toBe(books.subject);
+  });
+
+  it("a shopper or gift-card sender with no name reads in French, never \"Bonjour there\"", () => {
+    expect(french.frenchValues({ customer_name: "there", recipient_name: "there", sender_name: "Someone" }))
+      .toEqual({ customer_name: "à vous", recipient_name: "à vous", sender_name: "Quelqu'un" });
+    expect(french.frenchValues({ customer_name: "Ada" }).customer_name).toBe("Ada");
+  });
+
+  it("amounts read the French way in a French email", () => {
+    const out = french.frenchValues({ total_price: "CA$1,234.50", amount: "US$12.00", order_id: "1001.50" });
+    expect(out).toEqual({ total_price: "1\u202f234,50\u00a0$", amount: "12,00\u00a0$ US", order_id: "1001.50" });
+    expect(french.frenchMoney("-€5.00")).toBe("-5,00\u00a0€");
+    expect(french.frenchMoney("free")).toBe("free");
+  });
+
+  it("the payment link reminder names its closing day in French", () => {
+    const links = require("../../../functions/paymentLinks.js");
+    expect(links.closingDay("2026-11-14T20:00:00Z", "fr")).toBe("14 novembre 2026");
+    expect(links.closingDay("2026-11-14T20:00:00Z")).toBe("November 14, 2026");
+  });
+
   it("picks the shopper's language from the order", () => {
     expect(french.emailLanguage({ locale: "fr-CA" })).toBe("fr");
     expect(french.emailLanguage({ locale: "FR" })).toBe("fr");

@@ -7,6 +7,8 @@
 // Shop language), so a shop written in French sends them in French.
 "use strict";
 
+const { sellsBooks } = require("./shared/shopSells");
+
 /** "fr" when the shop is written in French (settings/website design.language), else "en". Never throws. */
 async function shopLanguage(db) {
   const website = await db.collection("settings").doc("website").get().then(d => d.data?.() || {}).catch(() => ({}));
@@ -127,6 +129,15 @@ const DEFAULT_NOTIFICATIONS_FR = Object.freeze({
   },
 });
 
+/** A shop that doesn't sell books: the French default words that differ from a books shop's (like GOODS_EMAILS). */
+const GOODS_FR = Object.freeze({
+  review_request: {
+    subject: "Comment trouvez-vous votre commande?",
+    body: "Bonjour {{customer_name}},\n\nNous espérons que votre commande {{order_id}} est bien arrivée. Si vous avez un moment, nous aimerions savoir ce que vous en pensez : un court avis aide d'autres clients à faire leur choix. Chaque article ci-dessous ouvre sa page, où se trouve le formulaire d'avis.",
+    signoff: "Merci,\nL'équipe {{shop_name}}",
+  },
+});
+
 /** Status and request words that fill {{status}} and {{request}}, in French. */
 const VALUES_FR = Object.freeze({
   "out for delivery": "en cours de livraison",
@@ -183,18 +194,45 @@ function sayer(language) {
  * field filled from the French default, or null when this email has no French version (send the English).
  */
 function frenchTemplate(templateId, settings) {
-  const fallback = DEFAULT_NOTIFICATIONS_FR[templateId];
-  if (!fallback) return null;
+  const books = DEFAULT_NOTIFICATIONS_FR[templateId];
+  if (!books) return null;
+  // A shop that doesn't sell books gets its own default words, and a saved field still holding the books default
+  // (the editor saves every field) reads as that too.
+  const goods = sellsBooks(settings?.sells ?? null) ? null : GOODS_FR[templateId];
+  const fallback = goods ? { ...books, ...goods } : books;
   const saved = settings?.[templateId]?.fr || {};
-  const pick = (field) => (typeof saved[field] === "string" && (saved[field].trim() || field === "buttonText") ? saved[field] : fallback[field]);
+  const pick = (field) => (typeof saved[field] === "string" && (saved[field].trim() || field === "buttonText") && !(goods?.[field] && saved[field] === books[field]) ? saved[field] : fallback[field]);
   return { subject: pick("subject"), body: pick("body"), buttonText: pick("buttonText"), signoff: pick("signoff") };
 }
 
-/** {{status}} and {{request}} in French for a French email; every other value as it was. */
+/** The English stand-ins for a missing name, in French ("Bonjour there," reads "Bonjour à vous,"). */
+const NAME_FALLBACKS_FR = Object.freeze({ customer_name: ["there", "à vous"], recipient_name: ["there", "à vous"], sender_name: ["Someone", "Quelqu'un"] });
+
+/** The currency marks emailMoney.js writes, as a French Canadian reads them after the amount. */
+const CURRENCY_FR = Object.freeze({ "CA$": "$", "US$": "$ US", "€": "€", "$": "$" });
+
+/**
+ * An amount as the shop's emails write it ("CA$1,234.50", "US$12.00", "-€5.00", "GBP 9.00") the French way
+ * ("1 234,50 $", "12,00 $ US", "-5,00 €", "9,00 GBP"). Anything else comes through as it was.
+ */
+function frenchMoney(text) {
+  const m = String(text ?? "").trim().match(/^(-?)([A-Z]{3} |[^\d\s,.-]+)(-?)(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d+))?$/);
+  if (!m) return text;
+  const mark = m[2].trim();
+  const whole = m[4].replace(/,/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+  return `${m[1] || m[3]}${whole}${m[5] ? `,${m[5]}` : ""}\u00a0${CURRENCY_FR[mark] ?? mark}`;
+}
+
+/** The values that hold an amount (emailMoney.js), shown the French way in a French email. */
+const MONEY_KEYS = Object.freeze(["total_price", "amount"]);
+
+/** {{status}}, {{request}} and the stand-ins for a missing name in French for a French email; every other value as it was. */
 function frenchValues(vars) {
   const out = { ...vars };
   for (const key of ["status", "request"]) if (typeof out[key] === "string" && VALUES_FR[out[key]]) out[key] = VALUES_FR[out[key]];
+  for (const [key, [english, french]] of Object.entries(NAME_FALLBACKS_FR)) if (out[key] === english) out[key] = french;
+  for (const key of MONEY_KEYS) if (typeof out[key] === "string") out[key] = frenchMoney(out[key]);
   return out;
 }
 
-module.exports = { DEFAULT_NOTIFICATIONS_FR, PHRASES_FR, VALUES_FR, emailLanguage, shopLanguage, frenchTemplate, frenchValues, sayer };
+module.exports = { DEFAULT_NOTIFICATIONS_FR, GOODS_FR, frenchMoney, PHRASES_FR, VALUES_FR, emailLanguage, shopLanguage, frenchTemplate, frenchValues, sayer };

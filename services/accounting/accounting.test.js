@@ -37,7 +37,7 @@ const day = (date, fields = {}) => ({
   refundsCents: 0, taxes: { GST: 225 }, feesCents: 180, netCents: 4545, currency: "CAD", ...fields,
 });
 
-async function setup({ env = ENV, rows = [row(), row(OTHER, OTHER_KEY)] } = {}) {
+async function setup({ env = ENV, rows = [row(), row(OTHER, OTHER_KEY)], shopStart = null } = {}) {
   let clock = START;
   const now = () => clock;
   const config = readAccountingConfig(env);
@@ -51,7 +51,7 @@ async function setup({ env = ENV, rows = [row(), row(OTHER, OTHER_KEY)] } = {}) 
   const notifier = fakeNotifier();
   const service = createAccountingService({
     qbo: createQuickBooksApi({ fetch: pretend.fetch, apps: config.apps, redirectUrl: config.redirectUrl, now }),
-    registry, auditLog, connections, states, sent, notifyOwner: notifier.notifyOwner, config, now,
+    registry, auditLog, connections, states, sent, notifyOwner: notifier.notifyOwner, shopStart, config, now,
   });
   const call = (op, args = {}, { shopId = SHOP, key = KEY } = {}) =>
     handleAccounting({ method: "POST", path: "/shop", headers: { "X-Shop-Id": shopId, Authorization: `Bearer ${key}` }, body: { op, args } }, { service });
@@ -412,6 +412,14 @@ test("going live: real sales never go to the practice company connected during t
   const after = (await t.call("accounting.status")).body;
   assert.equal(after.connected, true);
   assert.equal(after.ready, false, "the real company is set up afresh");
+});
+
+test("the shop's own Settings answer to what it sells wins over the sign-up answer for the sales item's name", async () => {
+  const t = await setup({ shopStart: async () => ({ sells: "clothing" }) });
+  await t.registry.saveProfile(SHOP, { sells: "books" });
+  await connect(t);
+  await t.call("accounting.save", SAVE);
+  assert.ok(t.pretend.world.companies.get(REALM).Item.some((i) => i.Name === GOODS_SALES_NAME));
 });
 
 test("a shop that doesn't sell books gets a Product sales item; an earlier setup keeps its own name (plan 12.18)", async () => {

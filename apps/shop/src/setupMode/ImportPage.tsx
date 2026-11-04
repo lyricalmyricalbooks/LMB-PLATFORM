@@ -44,21 +44,25 @@ export function ImportPage({ press, door, onSaved }: { press: SetupPress; door: 
   const ready = plan && !plan.problems.length ? plan.counts.create : 0;
 
   const [book, setBook] = useState<{ file: File } & SpreadsheetRead | null>(null);
+  // Only the newest file (or sheet) chosen may fill the preview: an earlier read that finishes later is dropped.
+  const readSeq = useRef(0);
   async function choose(next: File | undefined, notes: string[] = [], sheet?: string) {
     if (!next) return;
+    const seq = ++readSeq.current;
     setError(""); setPreview(null); setFile(null); setReadNotes(notes);
     if (!sheet) setBook(null);
     if (next.size > MAX_FILE_BYTES) { setError(TOO_BIG); return; }
     try {
       // A spreadsheet of any kind is kept as CSV (plan 23.35), under the name the press chose.
       const read = await readSpreadsheet(next, sheet);
+      if (seq !== readSeq.current) return;
       const text = read.text;
       setBook({ file: next, ...read });
       setFile(new File([text], next.name, { type: "text/csv" }));
       // No books yet, so every row is new; a shop that doesn't sell books keeps the old shop's sizes and colours.
       setPreview(planShopMove(text, [], [], {}, { keepOptions: !sellsBooks(press.sells || null) }));
     } catch (err) {
-      setError(readProblem(err, UNREADABLE));
+      if (seq === readSeq.current) setError(readProblem(err, UNREADABLE));
     }
   }
 
