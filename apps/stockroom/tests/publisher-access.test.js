@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { OWNER_EMAIL, askShopForRole, isPublisherPass, isPublisherUser, readPassClaims, shopRoleUrl } from '../src/lib/publisher-access.js';
+import { OWNER_EMAIL, askShopForRole, callShopFunction, isPublisherPass, isPublisherUser, readPassClaims, shopFunctionUrl, shopRoleUrl } from '../src/lib/publisher-access.js';
 
 const user = (email, emailVerified = true, claims = {}) => ({
   email, emailVerified, getIdTokenResult: async () => ({ claims }),
@@ -113,5 +113,23 @@ describe('askShopForRole: a Team role added before the first sign-in', () => {
     expect(await askShopForRole(user, { url: 'x', fetchFn: async () => { throw new Error('offline'); } })).toBeNull();
     expect(await askShopForRole(user, { url: '', fetchFn: vi.fn() })).toBeNull();
     expect(await askShopForRole({ ...user, emailVerified: false }, { url: 'x', fetchFn: vi.fn() })).toBeNull();
+  });
+});
+
+describe('callShopFunction: the helper till asking the shop server', () => {
+  const both = { apps: { shop: true, stockroom: true }, firebase: { projectId: 'lmb-test-shop' }, functionsRegion: 'us-central1' };
+  const user = { getIdToken: async () => 'token' };
+  it('names one function, on the plan with both apps only', () => {
+    expect(shopFunctionUrl(both, 'fairHelperPayment')).toBe('https://us-central1-lmb-test-shop.cloudfunctions.net/fairHelperPayment');
+    expect(shopFunctionUrl(both, '../x')).toBe('');
+    expect(shopFunctionUrl({ ...both, apps: { shop: true, stockroom: false } }, 'fairHelperPayment')).toBe('');
+  });
+  it('sends the body with the sign-in pass and hands back the answer or the server\'s sentence', async () => {
+    const fetchFn = vi.fn(async () => ({ ok: true, json: async () => ({ url: 'https://pay.example/x' }) }));
+    expect(await callShopFunction(user, 'https://f.example/p', { action: 'start' }, { fetchFn })).toEqual({ url: 'https://pay.example/x' });
+    expect(fetchFn.mock.calls[0][1]).toMatchObject({ method: 'POST', body: '{"action":"start"}', headers: { Authorization: 'Bearer token' } });
+    const refused = async () => ({ ok: false, json: async () => ({ error: 'Not on the till.' }) });
+    expect(await callShopFunction(user, 'https://f.example/p', {}, { fetchFn: refused })).toEqual({ error: 'Not on the till.' });
+    await expect(callShopFunction(user, 'https://f.example/p', {}, { fetchFn: async () => { throw new Error('offline'); } })).rejects.toThrow();
   });
 });

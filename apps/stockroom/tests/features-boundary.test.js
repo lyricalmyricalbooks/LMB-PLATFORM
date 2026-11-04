@@ -186,6 +186,8 @@ const MAIN_IMPORT_BUDGET = {
   // Written as a feature module from the start: the History repaint after it brings a helper's sale in, and the
   // to-do list's repaint when one can't be.
   'fair-helpers.js': 2,
+  // The shared $ and the toast.
+  'book-cover.js': 2,
 };
 
 const featureFiles = fs.existsSync(featureDir)
@@ -358,6 +360,8 @@ const MIN_EXPORTS = {
   'plan-pause.js': 1,
   // The places pop-up: open, preview, step, submit and close a place.
   'stock-places.js': 6,
+  // The book form's cover photo: pick, remove, and fill the field when the form opens.
+  'book-cover.js': 3,
 };
 
 describe('feature modules are the only home of what they own', () => {

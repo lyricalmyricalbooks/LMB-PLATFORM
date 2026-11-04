@@ -132,10 +132,10 @@ describe("runTick", () => {
 describe("wiring", () => {
   const index = readFileSync(new URL("./index.js", import.meta.url), "utf8");
   const jobsSrc = readFileSync(new URL("./scheduledJobs.js", import.meta.url), "utf8");
-  it("registers all twelve sweeps by name and keeps exactly one real scheduler job", () => {
+  it("registers all thirteen sweeps by name and keeps exactly one real scheduler job", () => {
     const names = [...(index + jobsSrc).matchAll(/onSchedule\(\s*\{[^}]*?name: "(\w+)"/g)].map(m => m[1]);
     expect(names.sort()).toEqual(["abandonedCartSweep", "backInStockSweep", "dailyOrderDigest", "fairDaySummary", "inventoryLinkSweep",
-      "moveReminder", "nightlyFirestoreBackup", "paymentPageSweep", "refreshExchangeRates", "storageImageSweep", "unpaidPaymentSweep", "weeklySummary"]);
+      "moveReminder", "nightlyFirestoreBackup", "paymentPageSweep", "refreshExchangeRates", "storageImageSweep", "teamExpirySweep", "unpaidPaymentSweep", "weeklySummary"]);
     expect(index.match(/onScheduleReal\(/g)).toHaveLength(1);
     expect(index).toMatch(/exports\.tick = onScheduleReal\(/);
   });

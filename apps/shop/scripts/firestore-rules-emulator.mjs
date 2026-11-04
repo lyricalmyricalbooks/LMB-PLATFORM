@@ -7,7 +7,7 @@
 // refused every guest order, which the text checks in src/app/securityRules.test.ts can't see.
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
 import { readFileSync } from "node:fs";
-import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, collectionGroup, query, where, orderBy, documentId, writeBatch, increment, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, collectionGroup, query, where, orderBy, documentId, writeBatch, increment, serverTimestamp, Timestamp } from "firebase/firestore";
 
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080").split(":");
 const rulesPath = process.env.RULES_FILE || new URL("../firestore.rules", import.meta.url);
@@ -313,6 +313,10 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("Team id is lower case", assertFails(setDoc(doc(owner, "members/X@press.test"), { role: "staff" })));
   await check("no Team entry for the owner address", assertFails(setDoc(doc(owner, "members/owner@example.com"), { role: "staff" })));
   await check("owner removes someone", assertSucceeds(deleteDoc(doc(owner, "members/lee@press.test"))));
+  // A fair helper may be added for today only; no other role may carry an end time, and it must be a time.
+  await check("owner adds a helper for today", assertSucceeds(setDoc(doc(owner, "members/fay@press.test"), { role: "fairHelper", until: Timestamp.fromDate(new Date(Date.now() + 3600e3)) })));
+  await check("only a helper has an end time", assertFails(setDoc(doc(owner, "members/sid@press.test"), { role: "staff", until: Timestamp.fromDate(new Date()) })));
+  await check("an end time is a time", assertFails(setDoc(doc(owner, "members/fay@press.test"), { role: "fairHelper", until: "tonight" })));
   await check("staff can't write keys", assertFails(setDoc(doc(staff, "adminSecrets/stripe"), { secretKey: "x" })));
   await check("staff can't read keys", assertFails(getDoc(doc(staff, "adminSecrets/stripe"))));
   await check("staff reads webhook status", assertSucceeds(getDoc(doc(staff, "adminSecrets/stripeWebhookStatus"))));

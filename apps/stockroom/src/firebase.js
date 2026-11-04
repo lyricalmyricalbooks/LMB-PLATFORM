@@ -296,6 +296,16 @@ window._fbUploadReceipt = async (file, path) => {
   });
 };
 
+// A book's cover photo for the Fair till (features/book-cover.js): already shrunk to a small JPEG on this device.
+window._fbUploadCover = async (blob, bookId) => {
+  const safeId = String(bookId || '').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 120);
+  const storageRef = sRef(storage, `covers/${safeId}/cover-${Date.now()}.jpg`);
+  return new Promise((resolve, reject) => {
+    const uploadTask = uploadBytesResumable(storageRef, blob, { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000' });
+    uploadTask.on('state_changed', null, (err) => reject(err), async () => resolve(await getDownloadURL(uploadTask.snapshot.ref)));
+  });
+};
+
 window._fbDeleteReceipt = async (url) => {
   if (!url || !url.includes('firebasestorage')) return;
   try {

@@ -204,5 +204,19 @@ only writer of a book's records, the same way the website's orders reach it (an 
     in (`functions/teamInvite.js`, sent once per person through `email-claims` in the `syncMemberRole` trigger).
   - **Covers:** each book on the till shows the website's cover photo (`catalog.linked[].cover`, short addresses only)
     or, without one, the book's colour as on the owner's till.
+- [x] **H5. Round three (3 November 2026), built.**
+  - **Card by QR:** on the helper's till, QR / Stripe asks the shop's `fairHelperPayment` (functions/fairHelperPay.js)
+    for a half-hour card checkout. The server prices the sale from `fairTill/menu` (read through
+    inventoryLinkStore.readFairTill, which also refuses while the stockroom's plan is paused), never from the phone,
+    and makes no shop order. The till shows the code, asks every 3 seconds whether it is paid, and records the sale
+    (method Stripe QR, the same sale id as the payment's `fair_sale`) once it is. Stripe shops only; Square shops and
+    shops without the shop app keep the plain "record it" button.
+  - **Covers for stockroom-only books:** the book form has a Cover photo field (features/book-cover.js). The photo is
+    shrunk to 240 pixels on the device and stored at `covers/{bookId}/` (storage.rules: publisher writes, signed-in
+    reads); the book keeps `coverUrl`. The menu uses the website's photo first, then this one.
+  - **End-of-day count:** "Your sales today" opens a count by way of paying, cash to hand over first.
+  - **Just for today:** adding a Fair helper offers "Just for today" (on by default). The Team entry gets `until`
+    (end of the owner's day; firestore.rules allow it on fair helpers only); `syncMemberRole` gives no role after it,
+    and `teamExpirySweep` (every 30 minutes, roles.js removeExpiredMembers) deletes the entry, which signs them out.
 - Not planned: a helper writing a book's records directly. Rules can't check a single row inside those records, so
   that would mean trusting the helper with every book's money.

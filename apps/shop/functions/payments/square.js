@@ -422,6 +422,8 @@ function createSquareProvider({ db, platform = null }) {
     testMode: shopTestMode, readKeys, clientForMode, findOrderPayment, readAttempt, stopAttempt, checkReversal, refund,
     webhookClient, verifyWebhookEvent, forCheckout, deployedLiveKey, checkKey, webhookEndpoints, registerPaymentDomain,
     paymentMoney, payoutMoney,
+    // No hosted card page without an order on Square: a fair helper's QR payment isn't offered (fairHelperPay.js).
+    standaloneCheckout: async () => null,
   };
 }
 
