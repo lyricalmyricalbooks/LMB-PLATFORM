@@ -31,9 +31,9 @@ async function world() {
   await shopData.set(SHOP, "newsletterIssues/c", { subject: "Fair", status: "paused", createdAt: ago(1), sent: 30, failed: 25, lastError: "Too many failures." });
   await shopData.set(SHOP, "settings/notifications", { shopAlerts: { dailyOrderDigest: false } });
   await shopData.set(SHOP, "systemStatus/lowStockAlerts", { items: { b1: "low", b2: "out", b3: "low" } });
-  await shopData.set(SHOP, "orders/o1", { createdAt: ago(5), paymentStatus: "paid", partShipments: [{}, {}] });
+  await shopData.set(SHOP, "orders/o1", { createdAt: ago(5), paymentStatus: "paid", partiallyRefunded: true, partShipments: [{}, {}] });
   await shopData.set(SHOP, "orders/o2", { createdAt: ago(4), paymentStatus: "paid", shipsWith: "o1" });
-  await shopData.set(SHOP, "orders/o3", { createdAt: ago(3), paymentStatus: "unpaid", shipsWith: "o1" });
+  await shopData.set(SHOP, "orders/o3", { createdAt: ago(3), paymentStatus: "unpaid", shipsWith: "o1", addedByCustomer: true });
   await shopData.set(SHOP, "orders/old", { createdAt: ago(200), paymentStatus: "paid", partShipments: [{}] });
   const desk = createShopFeatures({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry, shopData, now: () => new Date(NOW) });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: shopFeaturesRoutes(desk), log: () => {} });
@@ -54,7 +54,7 @@ test("newsletters newest first, the stopped one named; alerts on unless switched
   assert.deepEqual(features.newsletters.latest.map((i) => i.id), ["c", "b", "a"]);
   assert.deepEqual(features.newsletters.paused.map((i) => [i.subject, i.lastError]), [["Fair", "Too many failures."]]);
   assert.deepEqual(features.alerts, { ordersDigest: false, lowStock: true, low: 2, out: 1 });
-  assert.deepEqual(features.orders, { partShipped: 1, parts: 2, itemsAdded: 2, paidAdded: 1 });
+  assert.deepEqual(features.orders, { partShipped: 1, parts: 2, partRefunded: 1, itemsAdded: 2, paidAdded: 1, byCustomer: 1, byCustomerPaid: 0 });
 });
 
 test("a shop not live, a plan without the website, and nothing used yet", async () => {
@@ -63,7 +63,7 @@ test("a shop not live, a plan without the website, and nothing used yet", async 
   assert.match((await w.desk.forShop(ADMIN, { shopId: "stock-only" })).words, /no website/);
   assert.equal(newslettersSummary([]), null);
   assert.deepEqual(alertsSummary(null, null), { ordersDigest: true, lowStock: true, low: 0, out: 0 });
-  assert.deepEqual(ordersSummary([]), { partShipped: 0, parts: 0, itemsAdded: 0, paidAdded: 0 });
+  assert.deepEqual(ordersSummary([]), { partShipped: 0, parts: 0, partRefunded: 0, itemsAdded: 0, paidAdded: 0, byCustomer: 0, byCustomerPaid: 0 });
 });
 
 test("a team member deleting their own account shows on the timeline", () => {

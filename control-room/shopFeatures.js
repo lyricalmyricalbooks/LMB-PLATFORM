@@ -51,11 +51,21 @@ export function alertsSummary(notifications, lowMarks) {
   };
 }
 
-/** Orders of the last 90 days shipped in parts, or paid with items added after (their own linked order). */
+/**
+ * Orders of the last 90 days shipped in parts (and how many of those were refunded, where the shop keeps sent copies off
+ * the shelf), or with items added after payment (their own linked order), by the owner or by the customer from the
+ * order's own page (`addedByCustomer`, plan 24.6).
+ */
 export function ordersSummary(orders) {
   const parts = orders.filter((o) => Array.isArray(o?.partShipments) && o.partShipments.length);
   const added = orders.filter((o) => o?.shipsWith);
-  return { partShipped: parts.length, parts: parts.reduce((n, o) => n + o.partShipments.length, 0), itemsAdded: added.length, paidAdded: added.filter((o) => o.paymentStatus === "paid").length };
+  const byCustomer = added.filter((o) => o.addedByCustomer === true);
+  const paid = (list) => list.filter((o) => o.paymentStatus === "paid").length;
+  return {
+    partShipped: parts.length, parts: parts.reduce((n, o) => n + o.partShipments.length, 0),
+    partRefunded: parts.filter((o) => o.paymentStatus === "refunded" || o.partiallyRefunded === true).length,
+    itemsAdded: added.length, paidAdded: paid(added), byCustomer: byCustomer.length, byCustomerPaid: paid(byCustomer),
+  };
 }
 
 export function createShopFeatures({ admins, registry, shopData, now = () => new Date() }) {

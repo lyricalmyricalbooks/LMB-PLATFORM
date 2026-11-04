@@ -2164,7 +2164,7 @@ function shopFeaturesSection(shop) {
         ? `Newsletters: ${plural(n.sentIssues, "sent")} of ${n.issues}, reaching ${plural(n.people, "person", "people")} in all${n.lastSentAt ? `, the last on ${dateOnly(n.lastSentAt)}` : ""}.`
         : "Newsletters: none written yet." }),
       el("p", { className: "rp-hint", textContent: `Morning emails: orders needing them ${a.ordersDigest ? "on" : "off"}; running low ${a.lowStock ? "on" : "off"}${a.low || a.out ? ` (${a.low} running low, ${a.out} sold out right now)` : ""}.` }),
-      el("p", { className: "rp-hint", textContent: `Last 90 days: ${plural(o.partShipped, "order")} shipped in parts (${plural(o.parts, "parcel")}), ${plural(o.itemsAdded, "order")} of items added after payment (${o.paidAdded} paid).` }),
+      el("p", { className: "rp-hint", textContent: `Last 90 days: ${plural(o.partShipped, "order")} shipped in parts (${plural(o.parts, "parcel")}${o.partRefunded ? `, ${o.partRefunded} refunded with the sent copies kept off the shelf` : ""}), ${plural(o.itemsAdded, "order")} of items added after payment (${o.paidAdded} paid${o.byCustomer ? `; ${o.byCustomer} added by customers from their order page, ${o.byCustomerPaid} paid` : ""}).` }),
       n?.latest.length ? table({
         caption: "Latest newsletters",
         rows: n.latest,
