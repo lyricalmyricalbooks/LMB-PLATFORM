@@ -602,6 +602,8 @@ function card(shop) {
     shop.status === "live" ? salesChannelsSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Newsletters, morning emails and changed orders" }) : null,
     shop.status === "live" ? shopFeaturesSection(shop) : null,
+    shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Website look" }) : null,
+    shop.status === "live" ? shopLookSection(shop) : null,
     ...privateSections(shop),
   ].filter(Boolean);
 }
@@ -2114,6 +2116,18 @@ async function loadSetup() {
       body: [rows.length ? el("ul", { className: "cr-history" }, ...rows.map((r) => el("li", { textContent: `${lookWords(r.id)}: ${r.count}` }))) : emptyState("None yet.")],
     });
     $("#setup-looks").replaceChildren(lookSheet("Website looks", looks.website), lookSheet("Admin looks", looks.admin));
+    // The looks live shops wear now (control-room/shopLooks.js), read from each shop: after the setup looks, not before.
+    api("GET", "/control/live-looks").then(({ looks: worn, templates, shops, waiting, welcome, unread }) => {
+      $("#setup-looks").append(sheet({
+        title: "Looks live shops wear",
+        metaParts: [plural(shops, "live shop"), welcome.picked || welcome.skipped ? `Choose your look: ${welcome.picked} picked, ${welcome.skipped} skipped` : null, waiting ? `${waiting} picked a look but haven't published it` : null, unread.length ? `${unread.length} couldn't be read` : null].filter(Boolean),
+        body: [worn.length ? el("ul", { className: "cr-history" }, ...worn.map((r) => el("li", { textContent: `${r.id ? r.name : "Their own design"}: ${r.count}` }))) : emptyState("No live shops yet.")],
+      }), sheet({
+        title: "Templates live shops show",
+        metaParts: [plural(shops, "live shop")],
+        body: [templates.length ? el("ul", { className: "cr-history" }, ...templates.map((r) => el("li", { textContent: `${r.id ? lookWords(r.id) : "No full template"}: ${r.count}` }))) : emptyState("No live shops yet.")],
+      }));
+    }).catch((failure) => $("#setup-looks").append(el("p", { className: "rp-hint", textContent: failure.message })));
   } catch (failure) {
     $("#setup-presses").replaceChildren(emptyState(failure.message));
   }
@@ -2175,6 +2189,23 @@ function shopFeaturesSection(shop) {
           { header: "Details", render: (i) => meta(i.failed ? `${i.failed} couldn't be sent` : null, i.skipped ? `${i.skipped} skipped` : null, i.finishedAt ? `finished ${dateOnly(i.finishedAt)}` : i.createdAt ? `written ${dateOnly(i.createdAt)}` : null) },
         ],
       }) : null);
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  return slot;
+}
+
+// The look a live website wears (control-room/shopLooks.js): what shoppers see, a different look waiting unpublished,
+// and what the press picked in Choose your look.
+function shopLookSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's records…" }));
+  api("POST", "/control/shop-look", { shopId: shop.shopId }).then(({ look, words }) => {
+    if (!look) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
+    fill(slot,
+      look.waiting ? el("p", { className: "rp-hint", textContent: `Picked ${lookWords(look.welcome.theme)} in Choose your look but hasn't published it, so shoppers still see the plain starting design. Studio › Publish puts it live.` }) : null,
+      el("p", { className: "rp-hint", textContent: look.live
+        ? `Shoppers see ${look.live.name}${look.template ? ` (the ${lookWords(look.template)} template)` : ""}${look.publishedAt ? `, published ${dateOnly(look.publishedAt)}` : ""}.`
+        : look.publishedAt ? `Shoppers see the press's own design (not from a ready-made look), published ${dateOnly(look.publishedAt)}.` : "Nothing published from Studio yet." }),
+      look.draft ? el("p", { className: "rp-hint", textContent: `Trying ${look.draft.name} in Studio, not published.` }) : null,
+      look.welcome ? el("p", { className: "rp-hint", textContent: `Choose your look: ${look.welcome.skipped ? "skipped, so it took" : "picked"} ${lookWords(look.welcome.theme)}${look.welcome.at ? ` on ${dateOnly(look.welcome.at)}` : ""}${look.welcome.adminLook ? `; admin look ${lookWords(look.welcome.adminLook)}` : ""}.` }) : null);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   return slot;
 }
