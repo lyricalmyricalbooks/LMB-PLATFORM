@@ -260,8 +260,9 @@ export function previewRoute(href: string, base: string, options: {
   // `?template=<id>` is how Studio previews an alternate template (2.8); "default" (or none) is the default one.
   const alt = url.searchParams.get("template");
   const withAlt = (base: string) => (alt && alt !== "default" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(alt) ? `${base}~${alt}` : base);
-  if (path.startsWith("books/")) {
-    const product = decodeURIComponent(path.slice(6));
+  const productMatch = /^(?:books|products)\/(.*)$/.exec(path);
+  if (productMatch) {
+    const product = decodeURIComponent(productMatch[1]);
     // A shopper-style link carries no template: the book shows its own alternate, so Studio edits that one.
     const templateId = !alt && options.bookTemplate ? options.bookTemplate(product) : withAlt("productPage");
     return { templateId, product };

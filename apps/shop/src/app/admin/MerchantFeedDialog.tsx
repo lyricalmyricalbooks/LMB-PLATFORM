@@ -5,6 +5,7 @@ import { FEED_FILE, merchantFeedItems } from "../features/site/merchantFeed.mjs"
 import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import { sharedIsbns } from "./catalogList";
 import { useShopWords } from "./shopWords";
+import { productSegment } from "../lib/productHref";
 
 const feedUrl = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/${FEED_FILE}`;
 const siteUrl = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}`;
@@ -17,7 +18,7 @@ const siteUrl = () => `${window.location.origin}${import.meta.env.BASE_URL.repla
 export function MerchantFeedDialog({ open, onClose, books }: { open: boolean; onClose: () => void; books: any[] }) {
   const w = useShopWords();
   const [live, setLive] = useState<"checking" | "yes" | "no">("checking");
-  const feed = useMemo(() => (open ? merchantFeedItems(siteUrl(), books) : { items: [], skipped: [] }), [open, books]);
+  const feed = useMemo(() => (open ? merchantFeedItems(siteUrl(), books, { productBase: productSegment() }) : { items: [], skipped: [] }), [open, books]);
   const noIsbn = feed.items.filter(i => !i.gtin).length;
   const shared = useMemo(() => (open ? sharedIsbns(books) : []), [open, books]);
 

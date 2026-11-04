@@ -26,6 +26,7 @@ import {
   shapeDividerSvgPath,
   HOVER_GLOW_CSS,
 } from "./sectionStyleHelpers";
+import { productHref } from "../lib/productHref";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared section renderer
@@ -403,7 +404,7 @@ function useDefaultSectionHandlers() {
   const navigate = useNavigate();
   return {
     onCtaClick: () => navigate("/"),
-    onProductClick: (book: any) => navigate(`/books/${book?.slug || slugify(book?.title)}`),
+    onProductClick: (book: any) => navigate(productHref(book?.slug || slugify(book?.title))),
   };
 }
 

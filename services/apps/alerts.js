@@ -20,7 +20,7 @@
 // Clients passed in:
 //   apps      get(appId)
 //   installs  listActive() -> active installs (all shops); get(installId)
-//   outbox    get(id); put(id, alert); listDue(nowIso, limit)
+//   outbox    get(id); put(id, alert); listDue(nowIso, limit); listByInstall(installId)
 //   state     get(shopId); put(shopId, state)   what the last look saw, per shop
 //   shopData  find(shopId, collection, { where, limit }) (clients/shop.js)
 import { createHash, createHmac } from "node:crypto";

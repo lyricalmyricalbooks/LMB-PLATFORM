@@ -260,6 +260,8 @@ describe("helpers and settings", () => {
   });
   test("a link per place", () => {
     expect(productLink(`${SITE}/`, { slug: "a b" }, "tt:1")).toBe(`${SITE}/books/a%20b?utm_source=tiktok&utm_medium=social&utm_campaign=shop-post`);
+    // A shop that doesn't sell books posts its /products/ address (plan 12.18).
+    expect(productLink(SITE, { slug: "tee" }, "tt:1", "products")).toBe(`${SITE}/products/tee?utm_source=tiktok&utm_medium=social&utm_campaign=shop-post`);
   });
   test("PLATFORM_SOCIAL_URL turns it on; a plain http address doesn't", () => {
     expect(readShopConfig({ GCLOUD_PROJECT: "lmb-test-shop", PLATFORM_SOCIAL_URL: "https://social.platform.example/" }).platformSocialUrl).toBe("https://social.platform.example");

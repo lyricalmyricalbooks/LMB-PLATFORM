@@ -1,4 +1,5 @@
 import { layerDesign } from "./designModel";
+import { isProductPath } from "../../lib/productHref";
 
 /** Resolve page overrides over root tokens; keep template trees available. */
 // A stray "%" in a typed URL (e.g. /page/50%-off) must not crash the page.
@@ -6,7 +7,7 @@ const safeDecode = (value: string) => { try { return decodeURIComponent(value); 
 
 export function resolveSurfaceDesign(design: any, pathname: string) {
   if (!design) return design;
-  const template = pathname.startsWith("/books/") ? "productPage"
+  const template = isProductPath(pathname) ? "productPage"
     : pathname.startsWith("/collections/") ? "collectionPage"
     : pathname === "/checkout" ? "cartPage"
     : pathname.startsWith("/page/") ? "page"

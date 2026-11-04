@@ -45,7 +45,7 @@ const { addressMissing } = require("./shared/addressRules");
 const { pressName } = require("./shared/shopIdentity");
 const { sellerSection, digitalConsentSection } = require("./sellerDetails");
 const emailFrench = require("./emailFrench");
-const { emailDefaultsFor, goodsDownloadNote, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
+const { emailDefaultsFor, goodsDownloadNote, productBase, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { taxPartsByKind, discountedLineValues } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
@@ -1783,7 +1783,7 @@ const { handleBookkeeping } = bookkeepingActions({
 });
 // Sales channels and Social posts: the press's social accounts, through the platform's social service (socialLink.js, plan 27.4).
 const social = socialActions({
-  url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl,
+  url: shopConfig.platformSocialUrl, shopId: shopConfig.project, serviceKey: platformServiceKey, requireAdmin, db, siteUrl: shopConfig.siteUrl, sellsAnswer: shopSellsAnswer,
   // The post's square picture (socialPicture.js), made in this shop's bucket.
   makeSquare: async (imageUrl, postId) => {
     const sharp = require("sharp");
@@ -4339,8 +4339,9 @@ async function sendRestockAlerts({ bookId, book, docs, deadline, released = fals
   // released = the book just stopped being "Coming soon": signups made on that page get "Out now" wording.
   // (backInStockSweep can't see the switch any more; it reads the releasePending stamp set below.)
   const stuckBefore = Date.now() - 15 * 60 * 1000;
-  const link = siteLink(`/books/${encodeURIComponent(book.slug || bookId)}`);
   const restockSettings = await loadNotificationSettings();
+  // /products/<slug> in a shop that doesn't sell books (src/shared/shopSells.ts productBase).
+  const link = siteLink(`/${productBase(restockSettings.sells)}/${encodeURIComponent(book.slug || bookId)}`);
   const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const keyOf = alert => `${String(alert.email || "").trim().toLowerCase()}|${String(alert.variantId || "")}`;
   // One email per address per book edition, however many signups exist for it: the first signup sends,

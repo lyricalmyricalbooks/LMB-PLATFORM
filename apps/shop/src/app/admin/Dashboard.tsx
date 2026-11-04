@@ -56,6 +56,7 @@ import { stockroomBridge } from "./stockroomBridge";
 import { StockroomFrame } from "./StockroomFrame";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { providerName } from "./providerWords";
+import { setProductSells } from "../lib/productHref";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -247,7 +248,7 @@ export function Dashboard() {
     // older Analytics and Search Console cards in Visitors & Google.
     googleConnectApi.status().then((g) => setGoogleOn(g !== "not_available" || runsOnColophon())).catch(() => setGoogleOn(runsOnColophon()));
   }, [activeTab]);
-  const hiddenPages = new Set([...(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"])]);
+  const hiddenPages = new Set([...(bookkeepingOn ? [] : [SETTINGS_ITEM_PREFIX + "bookkeeping"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"])]);
   // What the shop sells (plan 10.23): sign-up's answer in `firstWeek/start`. A shop that doesn't sell books reads
   // "Products" for "Books" across the admin (sells.ts `adminWordsFor`); with no answer every word stays as it is.
   const [sellsAnswer, setSellsAnswer] = useState<string | null>(null);
@@ -260,6 +261,8 @@ export function Dashboard() {
     window.addEventListener(SELLS_CHANGED_EVENT, on);
     return () => window.removeEventListener(SELLS_CHANGED_EVENT, on);
   }, []);
+  // Product addresses follow the same answer: /products/<slug> in a shop that doesn't sell books (lib/productHref.ts).
+  setProductSells(sellsAnswer);
   const w = adminWordsFor(sellsAnswer);
   const nav = useMemo(() => NAV.map((n) => ({ ...n, label: w(n.label) })), [w]);
   const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });
@@ -704,7 +707,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google"));
+  const migrated = activeTab === STOCKROOM_TAB || activeTab === SALES_TAB || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "bookkeeping" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
